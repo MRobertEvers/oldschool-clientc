@@ -117,7 +117,7 @@ return {
         -- spawn rows close together (m39_153.spawn) also means more than
         -- one can be swinging at once.
         "::setlevel magic 99",
-        "::setvar regicide_quest ^regicide_complete", -- no ::complete arm for Regicide; prerequisite only, never the quest under test
+        "::setvar varp328_regicide_quest ^regicide_complete", -- no ::complete arm for Regicide; prerequisite only, never the quest under test
         "::complete quest_waterfall",
     },
 

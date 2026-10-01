@@ -36,7 +36,7 @@ return {
         -- %chompybird is an ordinary varp (chompybird_complete=65), so ::setvar
         -- reaches it directly; this is setup-phase prerequisite staging, not the
         -- run()-time varp write rule (e) forbids.
-        "::setvar chompybird 65",
+        "::setvar varp293_chompybird 65",
         "::complete quest_junglepotion",
         "::give rune_scimitar 1", -- combat prerequisite for the Brentle zombie fight
         "::give shark 6", -- combat prerequisite: food for the Slash Bash grind (few: the backpack must also hold the quest's clue items)

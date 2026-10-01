@@ -19,9 +19,9 @@ return {
         -- Druidic Ritual unlocks Herblore, which the bravery potion (leg 6) needs; it pays 4 quest
         -- points, so it runs before the qp is set and before the quest binds its qp baseline
         "::complete quest_druidicritual",
-        "::setvar crestquest ^crest_complete", "::setvar zombiequeen ^zombiequeen_complete",
-        "::setvar upass ^upass_complete",
-        "::setvar qp 107",
+        "::setvar varp148_crestquest ^crest_complete", "::setvar varp116_zombiequeen ^zombiequeen_complete",
+        "::setvar varp161_upass ^upass_complete",
+        "::setvar varp101_qp 107",
         -- Quest Helper skill requirements: Crafting 50, Herblore 45, Magic 56, Mining 52, Prayer 42,
         -- Smithing 50, Strength 50, Thieving 50, Woodcutting 50, Agility 50
         "::setlevel crafting 50", "::setlevel woodcutting 50", "::setlevel agility 50",

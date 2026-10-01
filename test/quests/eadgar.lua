@@ -34,15 +34,15 @@ return {
         -- a real timeout inside msg.await's budget. Firemaking is not this quest's deliverable (the dried
         -- thistle is), so boosting it is the same kind of prerequisite as the herblore 31 line above.
         "::complete quest_druidicritual", -- quest_cheat.rs2's dispatch row is quest_druidicritual, not quest_druid
-        "::setvar troll_freed_eadgar 1", -- no ::complete arm for Troll Stronghold exists; sanfew.rs2's only troll gate is this one flag
-        "::setvar troll_quest 50", -- ^troll_complete (quest_troll.constant); same reason as troll_freed_eadgar above --
+        "::setvar varb0_troll_freed_eadgar 1", -- no ::complete arm for Troll Stronghold exists; sanfew.rs2's only troll gate is this one flag
+        "::setvar varp317_troll_quest 50", -- ^troll_complete (quest_troll.constant); same reason as troll_freed_eadgar above --
         -- Troll Stronghold has no ::complete arm, and its own travel locs (troll_climbingrocks, troll_stronghold_entrance)
         -- gate on %troll_quest, not on %troll_freed_eadgar
         "::setlevel agility 99", -- troll_climbingrocks needs 15 to attempt and rolls stat_random(agility,...) to cross
         -- without a fall (quest_troll.rs2 @rockslide_obstacle); this is armour for a real prerequisite traversal
         -- obstacle (rule (b): a goto past a named guide step is a cheat, so this leg is driven for real below),
         -- not the quest's own deliverable
-        "::setvar death_equiproom 80", -- ^death_complete (quest_death.constant); death_locs.rs2's [opheld2,death_climbingboots]
+        "::setvar varp314_death_equiproom 80", -- ^death_complete (quest_death.constant); death_locs.rs2's [opheld2,death_climbingboots]
         -- refuses to equip them at all below this ("The sherpa's feet must be very small; I can't get them on.") --
         -- Death Plateau is ITSELF a prerequisite of Troll Stronghold with no ::complete arm either, same gap as troll_quest
         "::give death_climbingboots 1", -- troll_climbingrocks requires boots worn on its southern approach (coordz=3611)

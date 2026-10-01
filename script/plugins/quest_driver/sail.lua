@@ -717,9 +717,11 @@ function QD.sail.tasks()
     local out = {}
     local parts = {}
     for slot = 0, 4 do
-        local _, id = QD.var.server("port_task_slot_" .. slot .. "_id")
-        local _, taken = QD.var.server("port_task_slot_" .. slot .. "_cargo_taken")
-        local _, delivered = QD.var.server("port_task_slot_" .. slot .. "_cargo_delivered")
+        -- varb19574.. : three contiguous varbits per slot (docs/VAR_NAMES.md)
+        local base = 19574 + slot * 3
+        local _, id = QD.var.server("varb" .. base .. "_port_task_slot_" .. slot .. "_id")
+        local _, taken = QD.var.server("varb" .. (base + 1) .. "_port_task_slot_" .. slot .. "_cargo_taken")
+        local _, delivered = QD.var.server("varb" .. (base + 2) .. "_port_task_slot_" .. slot .. "_cargo_delivered")
         out[slot + 1] = { id = id or 0, taken = taken or 0, delivered = delivered or 0 }
         parts[#parts + 1] = string.format("%d:%s/%s/%s", slot, tostring(id), tostring(taken),
             tostring(delivered))

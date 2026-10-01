@@ -88,11 +88,11 @@ return {
         "::give coins 100", -- Captain Tobias's own return-trip fare (30gp) is a prerequisite too
         -- The player's own skiff, moored at the Pandemonium -- the same
         -- sailing setup e_full.lua and the conformance harness use.
-        "::setvar sailing_boat_1_owned 1",
-        "::setvar sailing_boat_1_type 1",
-        "::setvar sailing_boat_1_port 1",
-        "::setvar sailing_last_personal_boat_boarded 1",
-        "::setvar sailing_boat_1_hotspot_6 1",
+        "::setvar varb19258_sailing_boat_1_owned 1",
+        "::setvar varb19259_sailing_boat_1_type 1",
+        "::setvar varb19260_sailing_boat_1_port 1",
+        "::setvar varb18554_sailing_last_personal_boat_boarded 1",
+        "::setvar varb19279_sailing_boat_1_hotspot_6 1",
     },
 
     run = function(t)

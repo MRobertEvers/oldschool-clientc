@@ -20,7 +20,7 @@ return {
         "::complete quest_plaguecity",
     },
     bind = {
-        varp = "deserttreasure",
+        varp = "varb358_deserttreasure",
         constants = {
             not_started = 0, etchings = 1, translating = 2, have_translation = 3,
             read_notes = 4, bandit_camp = 5, heard_diamonds = 6, gather_mirrors = 7,
@@ -215,7 +215,7 @@ return {
         })
 
         t.ticks(2)
-        local _, stage = t.var.server("deserttreasure")
+        local _, stage = t.var.server("varb358_deserttreasure")
         local _, tile = t.world.tile()
         local _, level = t.world.level()
         local _, coins = t.inv.count("coins")
@@ -315,8 +315,8 @@ return {
             "player:Not a problem",
         })
         t.ticks(2)
-        t.check("talkToRasolo-shadow-fetch", select(2, t.var.server("dt_shadow_stage")) == 1,
-            "dt_shadow_stage = " .. tostring(select(2, t.var.server("dt_shadow_stage"))) .. " (dt_shadow_fetch)")
+        t.check("talkToRasolo-shadow-fetch", select(2, t.var.server("varp5947_dt_shadow_stage")) == 1,
+            "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " (dt_shadow_fetch)")
 
         t.exec("goto-getCross", t.player.goto_tile, 3169, 2965, 0)
         local picked = false
@@ -330,15 +330,15 @@ return {
             t.player.click_loc("fd_bandit_shutchest", 1)
             t.chat.play({ "mesbox:Your skill as a thief", "choose:Yes" })
             t.ticks(6)
-            if select(2, t.var.server("dt_shadow_stage")) == 2 then picked = true break end
+            if select(2, t.var.server("varp5947_dt_shadow_stage")) == 2 then picked = true break end
         end
-        t.check("pickChestLocks", picked, "dt_shadow_stage = " .. tostring(select(2, t.var.server("dt_shadow_stage"))) .. " after " .. pick_tries .. " attempt(s) (dt_shadow_unlocked = 2)")
+        t.check("pickChestLocks", picked, "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " after " .. pick_tries .. " attempt(s) (dt_shadow_unlocked = 2)")
         t.exec("getCross", t.player.click_loc, "fd_bandit_shutchest", 1)
         t.exec("getCross-held", t.inv.await, "fd_sword_cross", 1, 10)
         t.check("getCross-count", select(2, t.inv.count("fd_sword_cross")) == 1, "gilded crosses held: " .. tostring(select(2, t.inv.count("fd_sword_cross"))))
 
         t.ticks(2)
-        local _, stage = t.var.server("deserttreasure")
+        local _, stage = t.var.server("varb358_deserttreasure")
         local _, tile = t.world.tile()
         local _, level = t.world.level()
         t.check("leg.2.end", true, "tile " .. tostring(type(tile) == "table" and (tostring(tile.x) .. "," .. tostring(tile.z)) or tile)
@@ -366,7 +366,7 @@ return {
         })
         t.ticks(2)
         t.check("returnCross-ring", select(2, t.inv.count("fd_ring_visibility")) == 1, "rings of visibility held: " .. tostring(select(2, t.inv.count("fd_ring_visibility")))
-            .. ", dt_shadow_stage = " .. tostring(select(2, t.var.server("dt_shadow_stage"))))
+            .. ", dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))))
 
         t.exec("wear-ringOfVisibility", t.player.equip, "fd_ring_visibility")
         t.ticks(2)
@@ -407,8 +407,8 @@ return {
         end
         t.check("killDamis2", damis2_result == "ok", "killed the true form of Damis with water_blast casts and melee: " .. tostring(damis2_result) .. " " .. tostring(damis2_detail))
         t.ticks(2)
-        t.check("killDamis-stage", select(2, t.var.server("dt_shadow_stage")) == 100,
-            "dt_shadow_stage = " .. tostring(select(2, t.var.server("dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
+        t.check("killDamis-stage", select(2, t.var.server("varp5947_dt_shadow_stage")) == 100,
+            "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
         t.exec("pickUpShadowDiamond", t.player.click_obj, "fd_dark_diamond", 3)
         t.exec("pickUpShadowDiamond-held", t.inv.await, "fd_dark_diamond", 1, 10)
         t.check("leg3.silver", t.cheat("::give silver_bar 1") == "ok", "a silver bar given: the guide lists it as brought along for Ruantun's pot")
@@ -431,7 +431,7 @@ return {
             "npc:Come and see me",
         })
         t.ticks(2)
-        t.check("talkToMalak-agreed", select(2, t.var.server("dt_blood_stage")) ~= 0, "dt_blood_stage = " .. tostring(select(2, t.var.server("dt_blood_stage"))) .. " (dt_blood_agreed)")
+        t.check("talkToMalak-agreed", select(2, t.var.server("varp5932_dt_blood_stage")) ~= 0, "dt_blood_stage = " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))) .. " (dt_blood_agreed)")
         -- The content has no "How can I kill Dessous?" option (deserttreasure.rs2:444 opnpc1); the how-to is the agreement's own pages above
         -- and the repeat talk repeats the instructions, so the ask step is driven by the repeat talk.
         t.exec("askAboutKillingDessous", t.player.talk_to, "fourdiamonds_vampire_lord", 1)
@@ -458,7 +458,7 @@ return {
         })
         t.ticks(2)
         t.exec("talkToRuantun-pot", t.inv.await, "fd_silver_pot", 1, 10)
-        local _, stage = t.var.server("deserttreasure")
+        local _, stage = t.var.server("varb358_deserttreasure")
         t.check("leg.3.end", true, "tile " .. reading() .. ", deserttreasure stage read from server = " .. tostring(stage)
             .. ", dt_shadow_stage 100, dt_blood_stage agreed; carrying the dark (shadow) diamond, the smoke diamond and a silver pot; no sharks left")
             end,
@@ -538,8 +538,8 @@ return {
         end
         t.check("killDessous", kill_result == "ok", "killed Dessous with water_blast casts and melee: " .. tostring(kill_result) .. " " .. tostring(kill_detail))
         t.ticks(2)
-        t.check("killDessous-stage", select(2, t.var.server("dt_blood_stage")) ~= 0,
-            "dt_blood_stage = " .. tostring(select(2, t.var.server("dt_blood_stage"))) .. " a tick after the corpse (dt_blood_killed expected)")
+        t.check("killDessous-stage", select(2, t.var.server("varp5932_dt_blood_stage")) ~= 0,
+            "dt_blood_stage = " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))) .. " a tick after the corpse (dt_blood_killed expected)")
 
         t.exec("goto-talkToMalakForDiamond", t.player.goto_tile, 3496, 3477, 0)
         t.exec("talkToMalakForDiamond", t.player.talk_to, "fourdiamonds_vampire_lord", 1)
@@ -551,7 +551,7 @@ return {
         })
         t.ticks(2)
         t.check("talkToMalakForDiamond-held", select(2, t.inv.count("fd_blood_diamond")) == 1,
-            "blood diamonds held: " .. tostring(select(2, t.inv.count("fd_blood_diamond"))) .. ", dt_blood_stage " .. tostring(select(2, t.var.server("dt_blood_stage"))))
+            "blood diamonds held: " .. tostring(select(2, t.inv.count("fd_blood_diamond"))) .. ", dt_blood_stage " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))))
 
         t.exec("goto-giveCakeToTroll", t.player.goto_tile, 2835, 3738, 0)
         t.exec("giveCakeToTroll", t.player.use_on, "cake", t.player.by_symbol("npc", "fourdiamonds_troll_child_crying"))
@@ -582,9 +582,9 @@ return {
             "player:Absolutely",
         })
         t.ticks(2)
-        local _, stage = t.var.server("deserttreasure")
+        local _, stage = t.var.server("varb358_deserttreasure")
         t.check("leg.4.end", true, "tile " .. reading() .. ", deserttreasure stage read from server = " .. tostring(stage)
-            .. ", dt_blood_stage " .. tostring(select(2, t.var.server("dt_blood_stage"))) .. ", fd_icewarrior_subquest " .. tostring(select(2, t.var.server("fd_icewarrior_subquest")))
+            .. ", dt_blood_stage " .. tostring(select(2, t.var.server("varp5932_dt_blood_stage"))) .. ", fd_icewarrior_subquest " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest")))
             .. "; carrying shadow, smoke and blood diamonds, sharks " .. tostring(select(2, t.inv.count("shark"))))
                 -- LEG 4 END
             end,
@@ -622,7 +622,7 @@ return {
         end
         t.check("killIceTrolls-passive", troll_passive, "::passive on the seven ice troll types: they no longer swarm the player but still take hits and die (test affordance, gaps-combat)")
         for round = 1, 12 do
-            if select(2, t.var.server("fd_icewarrior_trollskilled")) >= 5 then break end
+            if select(2, t.var.server("varb378_fd_icewarrior_trollskilled")) >= 5 then break end
             local engaged = "no_row"
             for _, sym in ipairs({ "trollrescue_icetroll_melee1", "trollrescue_icetroll_melee2", "trollrescue_icetroll_melee3",
                 "trollrescue_icetroll_melee4", "trollrescue_icetroll_melee5", "trollrescue_icetroll_melee6", "trollrescue_icetroll_melee7" }) do
@@ -632,8 +632,8 @@ return {
             t.npc.await_dead_engaged(60, 4, { eat = { item = "shark", below = 75 } })
         end
         t.ticks(2)
-        t.check("killIceTrolls", select(2, t.var.server("fd_icewarrior_trollskilled")) >= 5,
-            "ice trolls killed with the scimitar: fd_icewarrior_trollskilled = " .. tostring(select(2, t.var.server("fd_icewarrior_trollskilled"))) .. " (needs 5)")
+        t.check("killIceTrolls", select(2, t.var.server("varb378_fd_icewarrior_trollskilled")) >= 5,
+            "ice trolls killed with the scimitar: fd_icewarrior_trollskilled = " .. tostring(select(2, t.var.server("varb378_fd_icewarrior_trollskilled"))) .. " (needs 5)")
         t.exec("goto-enterTrollCave", t.player.goto_tile, 2866, 3720, 0)
         t.exec("enterTrollCave", t.player.click_loc, "trollrescue_troll_cave_entrance", 1)
         t.ticks(4)
@@ -650,8 +650,8 @@ return {
         end
         t.check("killKamil", kamil_result == "ok", "killed Kamil with fire_blast: " .. tostring(kamil_result) .. " " .. tostring(kamil_detail))
         t.ticks(2)
-        t.check("killKamil-stage", select(2, t.var.server("fd_icewarrior_subquest")) == 3,
-            "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("dt_ice_stage"))))
+        t.check("killKamil-stage", select(2, t.var.server("varb382_fd_icewarrior_subquest")) == 3,
+            "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("varp5943_dt_ice_stage"))))
 
         t.check("leg5.food2", t.cheat("::give shark 16") == "ok", "sharks refilled for the long walk and the ice blocks (the cold chips hitpoints); sharks " .. tostring(count("shark")))
         t.ticks(2)
@@ -672,15 +672,15 @@ return {
         t.exec("breakIce2", t.player.cast, "fire_blast", "troll_block_2", 8)
         for round = 1, 6 do
             t.ticks(3)
-            if select(2, t.var.server("fd_icewarrior_mumfree")) == 1 then break end
+            if select(2, t.var.server("varb381_fd_icewarrior_mumfree")) == 1 then break end
             t.player.cast("fire_blast", "troll_block_2", 8)
         end
         t.ticks(2)
-        t.check("breakIce2-dead", select(2, t.var.server("fd_icewarrior_mumfree")) == 1 and select(2, t.var.server("fd_icewarrior_dadfree")) == 1,
-            "both blocks shattered by fire_blast inside the cast's settle: dadfree " .. tostring(select(2, t.var.server("fd_icewarrior_dadfree"))) .. ", mumfree " .. tostring(select(2, t.var.server("fd_icewarrior_mumfree"))))
+        t.check("breakIce2-dead", select(2, t.var.server("varb381_fd_icewarrior_mumfree")) == 1 and select(2, t.var.server("varb380_fd_icewarrior_dadfree")) == 1,
+            "both blocks shattered by fire_blast inside the cast's settle: dadfree " .. tostring(select(2, t.var.server("varb380_fd_icewarrior_dadfree"))) .. ", mumfree " .. tostring(select(2, t.var.server("varb381_fd_icewarrior_mumfree"))))
         t.ticks(2)
-        t.check("breakIce-stage", select(2, t.var.server("fd_icewarrior_subquest")) == 4,
-            "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("fd_icewarrior_subquest"))) .. " (4 = both parents free)")
+        t.check("breakIce-stage", select(2, t.var.server("varb382_fd_icewarrior_subquest")) == 4,
+            "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " (4 = both parents free)")
         -- the freed parent is the multinpc base troll_block_2 (multivarbit mumfree=1 -> fd_troll_mum); it respawns after the shatter
         t.exec("talkToTrolls-present", t.npc.await_present, "troll_block_2", 12, 100)
         t.exec("talkToTrolls", t.player.talk_to, "troll_block_2", 1)
@@ -711,9 +711,9 @@ return {
             "player:Don't worry",
         })
         t.ticks(2)
-        local _, stage = t.var.server("deserttreasure")
+        local _, stage = t.var.server("varb358_deserttreasure")
         t.check("leg.5.end", true, "tile " .. reading() .. ", deserttreasure stage read from server = " .. tostring(stage)
-            .. ", fd_icewarrior_subquest " .. tostring(select(2, t.var.server("fd_icewarrior_subquest")))
+            .. ", fd_icewarrior_subquest " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest")))
             .. "; ice diamond held " .. tostring(count("fd_icediamond")) .. ", sharks " .. tostring(count("shark")))
         -- LEG 5 END
             end,
@@ -740,16 +740,16 @@ return {
             t.exec("goto-" .. step, t.player.goto_tile, stand_x, stand_z, 0)
             local pillar = t.player.by_symbol("loc", sym)
             t.check(step .. "-pillar", pillar ~= nil, sym .. " resolved: " .. tostring(pillar and pillar.id))
-            local diamond = ({ fd_column_blood = "fd_blood_diamond", fd_column_fire = "fd_diamond_fire", fd_column_ice = "fd_icediamond", fd_column_shadow = "fd_dark_diamond" })[varname]
+            local diamond = ({ varb390_fd_column_blood = "fd_blood_diamond", varb387_fd_column_fire = "fd_diamond_fire", varb389_fd_column_ice = "fd_icediamond", varb388_fd_column_shadow = "fd_dark_diamond" })[varname]
             local r, d = t.player.use_on(diamond, pillar)
             t.ticks(3)
             t.check(step, column(varname) == 1, "use_on " .. diamond .. " -> " .. tostring(r) .. " " .. tostring(d) .. "; " .. varname .. " = " .. tostring(column(varname)) .. " read from the server; messages: " .. tostring(t.msg.last(2)))
         end
-        place("placeSmoke", 3245, 2909, "desert_treasure_oblix_b", "fd_column_fire")
-        place("placeShadow", 3221, 2887, "desert_treasure_oblix_d", "fd_column_shadow")
-        place("placeIce", 3245, 2887, "desert_treasure_oblix_c", "fd_column_ice")
-        place("placeBlood", 3221, 2909, "desert_treasure_oblix_a", "fd_column_blood")
-        t.check("placeBlood-stage", select(2, t.var.server("deserttreasure")) == 13, "deserttreasure = " .. tostring(select(2, t.var.server("deserttreasure"))) .. " once the fourth diamond is absorbed (13 = pyramid)")
+        place("placeSmoke", 3245, 2909, "desert_treasure_oblix_b", "varb387_fd_column_fire")
+        place("placeShadow", 3221, 2887, "desert_treasure_oblix_d", "varb388_fd_column_shadow")
+        place("placeIce", 3245, 2887, "desert_treasure_oblix_c", "varb389_fd_column_ice")
+        place("placeBlood", 3221, 2909, "desert_treasure_oblix_a", "varb390_fd_column_blood")
+        t.check("placeBlood-stage", select(2, t.var.server("varb358_deserttreasure")) == 13, "deserttreasure = " .. tostring(select(2, t.var.server("varb358_deserttreasure"))) .. " once the fourth diamond is absorbed (13 = pyramid)")
 
         -- The pyramid: a trap can throw the player back outside, so the way in retries; each ladder is walked to by the click itself.
         local function level_now() return tonumber(select(2, t.world.level())) end

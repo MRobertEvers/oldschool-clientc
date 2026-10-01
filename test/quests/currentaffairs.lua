@@ -56,11 +56,11 @@ return {
         -- Own a personal boat at the Catherby berth (doc section 3's sail
         -- recipe) -- a Sailing-skill prerequisite, not this quest's own
         -- work, so it belongs in setup like the coins/levels above.
-        "::setvar sailing_boat_1_owned 1",
-        "::setvar sailing_boat_1_type 1", -- skiff
-        "::setvar sailing_boat_1_port 6", -- Catherby
-        "::setvar sailing_last_personal_boat_boarded 1",
-        "::setvar sailing_boat_1_hotspot_6 1", -- a hold
+        "::setvar varb19258_sailing_boat_1_owned 1",
+        "::setvar varb19259_sailing_boat_1_type 1", -- skiff
+        "::setvar varb19260_sailing_boat_1_port 6", -- Catherby
+        "::setvar varb18554_sailing_last_personal_boat_boarded 1",
+        "::setvar varb19279_sailing_boat_1_hotspot_6 1", -- a hold
     },
 
     run = function(t)

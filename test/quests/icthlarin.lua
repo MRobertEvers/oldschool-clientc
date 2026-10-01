@@ -105,7 +105,7 @@ return {
         do
             local n = 25
             local state = {}
-            for i = 1, n do state[i] = select(2, t.var.server("ics_tile" .. i)) end
+            for i = 1, n do state[i] = select(2, t.var.server("varb" .. (419 + i) .. "_ics_tile" .. i)) end
             local A = {}
             for i = 0, n - 1 do
                 A[i + 1] = {}
@@ -228,7 +228,7 @@ return {
         do
             local n = 25
             local state = {}
-            for i = 1, n do state[i] = select(2, t.var.server("ics_tile" .. i)) end
+            for i = 1, n do state[i] = select(2, t.var.server("varb" .. (419 + i) .. "_ics_tile" .. i)) end
             local A = {}
             for i = 0, n - 1 do
                 A[i + 1] = {}

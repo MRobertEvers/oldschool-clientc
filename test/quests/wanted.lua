@@ -239,8 +239,8 @@ return {
         local pos2_id = nil
         for id = 5, 19 do
             if pos2_id == nil then
-                local _, assigned = t.var.server("wanted_mission" .. id)
-                local _, doneflag = t.var.server("wanted_mission" .. id .. "complete")
+                local _, assigned = t.var.server("varb" .. (1063 + 2 * id) .. "_wanted_mission" .. id)
+                local _, doneflag = t.var.server("varb" .. (1064 + 2 * id) .. "_wanted_mission" .. id .. "complete")
                 if assigned == 1 and doneflag ~= 1 then
                     pos2_id = id
                 end
@@ -306,8 +306,8 @@ return {
         local pos4_id = nil
         for id = 5, 19 do
             if pos4_id == nil then
-                local _, assigned = t.var.server("wanted_mission" .. id)
-                local _, doneflag = t.var.server("wanted_mission" .. id .. "complete")
+                local _, assigned = t.var.server("varb" .. (1063 + 2 * id) .. "_wanted_mission" .. id)
+                local _, doneflag = t.var.server("varb" .. (1064 + 2 * id) .. "_wanted_mission" .. id .. "complete")
                 if assigned == 1 and doneflag ~= 1 then
                     pos4_id = id
                 end
@@ -405,8 +405,8 @@ return {
         local pos6_id = nil
         for id = 5, 19 do
             if pos6_id == nil then
-                local _, assigned = t.var.server("wanted_mission" .. id)
-                local _, doneflag = t.var.server("wanted_mission" .. id .. "complete")
+                local _, assigned = t.var.server("varb" .. (1063 + 2 * id) .. "_wanted_mission" .. id)
+                local _, doneflag = t.var.server("varb" .. (1064 + 2 * id) .. "_wanted_mission" .. id .. "complete")
                 if assigned == 1 and doneflag ~= 1 then
                     pos6_id = id
                 end

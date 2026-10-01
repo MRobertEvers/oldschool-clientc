@@ -156,10 +156,10 @@ return {
         "::setlevel attack 90", -- guide (killNinja, killGorilla, goDownToZombie): "Combat gear" for the archers, the gorilla and the zombie monkeys (leg 5)
         "::setlevel strength 90",
         "::give rune_scimitar 1", -- guide (goDownToZombie): combat gear, wielded in leg 5
-        "::setvar treequest 9", -- guide requirement: Tree Gnome Village (no ::complete row for it)
+        "::setvar varp111_treequest 9", -- guide requirement: Tree Gnome Village (no ::complete row for it)
     },
     bind = {
-        varp = "mm_main",
+        varp = "varp365_mm_main",
         constants = {
             awowogei_complete_mission = 2,
             awowogei_sent_mission = 1,
@@ -580,7 +580,7 @@ return {
                     "prayer tab -> " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. "; prayerbook:prayer14 (Protect from Missiles) -> " .. tostring(widget_result))
                 t.ui.invoke(widget, 1)
                 t.ticks(2)
-                local _, on = t.var.varbit("prayer_protectfrommissiles")
+                local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
                 t.check("enterValley-protect", on == 1, "prayer_protectfrommissiles varbit " .. tostring(on) .. " (the guide: protect from ranged on)")
             end
             t.exec("goto-enterValley", t.player.goto_tile, 2721, 2750, 0)
@@ -871,7 +871,7 @@ return {
             local _, mould_left = t.inv.count("mm_monkey_amulet_mould")
             local _, bar_left = t.inv.count("gold_bar")
             local fr, ftile = t.world.tile()
-            local sr, stage = t.var.server("mm_main")
+            local sr, stage = t.var.server("varp365_mm_main")
             t.check("useDentures-handed", dentures_left == 0 and mould_left == 1 and bar_left == 1,
                 "dentures " .. tostring(dentures_left) .. ", mould " .. tostring(mould_left) .. ", gold bar " .. tostring(bar_left))
             t.check("leg.3.state", true, "at " .. tostring(ftile and ftile.x) .. "," .. tostring(ftile and ftile.z) .. "," .. tostring(ftile and ftile.level) .. ", mm_main " .. tostring(stage) .. ", holds gold_bar, mm_monkey_amulet_mould, lobster, royal seal")
@@ -949,13 +949,13 @@ return {
 
             -- enterValleyForAmuletMake: Protect from Missiles on (it is the guide's Protect from Ranged), walk north up the ravine
             do
-                local _, on = t.var.varbit("prayer_protectfrommissiles")
+                local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
                 if on ~= 1 then
                     t.ui.tab("prayer")
                     local widget_result, widget = t.ui.widget("prayerbook:prayer14")
                     if widget_result == "ok" then t.ui.invoke(widget, 1) end
                     t.ticks(2)
-                    _, on = t.var.varbit("prayer_protectfrommissiles")
+                    _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
                 end
                 t.check("enterValleyForAmuletMake-protect", on == 1, "prayer_protectfrommissiles varbit " .. tostring(on))
             end
@@ -1009,15 +1009,15 @@ return {
                     t.player.inv_op("4doseprayerrestore", 1)
                     t.ticks(3)
                 end
-                local _, melee_on = t.var.varbit("prayer_protectfrommelee")
+                local _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
                 t.ui.tab("prayer")
                 t.ticks(2)
                 local widget_result, widget = t.ui.widget("prayerbook:prayer15")
                 if widget_result == "ok" then t.ui.invoke(widget, 1) end
                 t.ticks(4)
-                _, melee_on = t.var.varbit("prayer_protectfrommelee")
-                local _, missiles_on = t.var.varbit("prayer_protectfrommissiles")
-                local _, magic_on = t.var.varbit("prayer_protectfrommagic")
+                _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
+                local _, missiles_on = t.var.varbit("varb4117_prayer_protectfrommissiles")
+                local _, magic_on = t.var.varbit("varb4116_prayer_protectfrommagic")
                 local _, prayer_now = t.skill.read("prayer")
                 t.check("enterTemple-protect", melee_on == 1, "widget " .. tostring(widget_result) .. "; melee " .. tostring(melee_on) .. ", missiles " .. tostring(missiles_on) .. ", magic " .. tostring(magic_on) .. ", prayer points " .. tostring(prayer_now and prayer_now.level))
             end
@@ -1056,7 +1056,7 @@ return {
             local _, amulet = t.inv.count("mm_amulet_of_monkey_speak_without_string")
             t.check("useBarOnFlame-smithed", amulet == 1, "mm_amulet_of_monkey_speak_without_string in the backpack: " .. tostring(amulet))
             local lr, ltile = t.world.tile()
-            local sr, stage = t.var.server("mm_main")
+            local sr, stage = t.var.server("varp365_mm_main")
             t.check("leg.4.end", true, "at " .. tostring(ltile and ltile.x) .. "," .. tostring(ltile and ltile.z) .. "," .. tostring(ltile and ltile.level) .. ", mm_main " .. tostring(stage) .. ", holds the unstrung monkey amulet, ball_of_wool, lobster, royal seal")
             -- LEG 4 END
         end },
@@ -1108,7 +1108,7 @@ return {
                 "npc:You look strange to me",
             })
             t.ticks(2)
-            t.expect("talkToMonkeyChild-stage", t.var.await_server("varbit_119", 1, 10))
+            t.expect("talkToMonkeyChild-stage", t.var.await_server("varb119_varbit_119", 1, 10))
             -- talkToMonkeyChild2: spoke -> asked who -> told uncle
             t.exec("talkToMonkeyChild2", t.player.talk_to, "mm_monkey_child")
             t.exec("talkToMonkeyChild2-dialog", t.chat.play, {
@@ -1121,7 +1121,7 @@ return {
                 "npc:Uh ah! You do look like my uncle",
             })
             t.ticks(2)
-            t.expect("talkToMonkeyChild2-stage", t.var.await_server("varbit_119", 3, 10))
+            t.expect("talkToMonkeyChild2-stage", t.var.await_server("varb119_varbit_119", 3, 10))
             -- talkToMonkeyChild3: told uncle -> learned toy -> finding bananas
             t.exec("talkToMonkeyChild3", t.player.talk_to, "mm_monkey_child")
             t.exec("talkToMonkeyChild3-dialog", t.chat.play, {
@@ -1139,7 +1139,7 @@ return {
                 "npc:Ok Uncle!",
             })
             t.ticks(2)
-            t.expect("talkToMonkeyChild3-stage", t.var.await_server("varbit_119", 5, 10))
+            t.expect("talkToMonkeyChild3-stage", t.var.await_server("varb119_varbit_119", 5, 10))
             -- giveChildBananas: finding bananas, five in the pack (mm_monkey_child.rs2:166)
             t.exec("giveChildBananas", t.player.talk_to, "mm_monkey_child")
             t.exec("giveChildBananas-dialog", t.chat.play, {
@@ -1151,7 +1151,7 @@ return {
                 "npc:Aunty will be so happy",
             })
             t.ticks(2)
-            t.expect("giveChildBananas-stage", t.var.await_server("varbit_119", 6, 10))
+            t.expect("giveChildBananas-stage", t.var.await_server("varb119_varbit_119", 6, 10))
             -- talkToChildForTalisman: the aunt's 100 tick toy timer (mm_monkey_child.rs2:154) must run out first
             t.ticks(110)
             t.exec("talkToChildForTalisman", t.player.talk_to, "mm_monkey_child")
@@ -1165,7 +1165,7 @@ return {
                 "mesbox:The monkey child gives you some kind of talisman.",
             })
             t.ticks(2)
-            t.expect("talkToChildForTalisman-stage", t.var.await_server("varbit_119", 7, 10))
+            t.expect("talkToChildForTalisman-stage", t.var.await_server("varb119_varbit_119", 7, 10))
             local _, talismans = t.inv.count("mm_monkey_talisman")
             t.check("talkToChildForTalisman-item", talismans == 1, "mm_monkey_talisman in the backpack: " .. tostring(talismans))
             -- talkToChildFor4Talismans: lose the toy, wait out the crying, borrow it again (mm_monkey_child.rs2:93-145)
@@ -1176,7 +1176,7 @@ return {
                 "npc:You lost it",
             })
             t.ticks(2)
-            t.expect("talkToChildFor4Talismans-lost-stage", t.var.await_server("varbit_119", 8, 10))
+            t.expect("talkToChildFor4Talismans-lost-stage", t.var.await_server("varb119_varbit_119", 8, 10))
             t.ticks(110)
             t.exec("talkToChildFor4Talismans", t.player.talk_to, "mm_monkey_child")
             t.exec("talkToChildFor4Talismans-dialog", t.chat.play, {
@@ -1191,7 +1191,7 @@ return {
                 "mesbox:The monkey child gives you some kind of talisman.",
             })
             t.ticks(2)
-            t.expect("talkToChildFor4Talismans-stage", t.var.await_server("varbit_119", 7, 10))
+            t.expect("talkToChildFor4Talismans-stage", t.var.await_server("varb119_varbit_119", 7, 10))
 
             -- killNinja: a posted monkey archer (mm_archer.rs2:18); Protect from Missiles for its poisoned arrows
             local _, restore_before = t.inv.count("4doseprayerrestore")
@@ -1206,7 +1206,7 @@ return {
             local _, points_after = t.skill.read("prayer")
             t.check("killNinja-restore", true, "prayer potions before " .. tostring(restore_before) .. ", prayer points " .. tostring(points_before and points_before.level) .. " -> " .. tostring(points_after and points_after.level))
             protect("prayerbook:prayer14")
-            local _, missiles_on = t.var.varbit("prayer_protectfrommissiles")
+            local _, missiles_on = t.var.varbit("varb4117_prayer_protectfrommissiles")
             local _, prayer_pts = t.skill.read("prayer")
             t.check("killNinja-protect", missiles_on == 1, "protect from missiles varbit " .. tostring(missiles_on) .. ", prayer points " .. tostring(prayer_pts and prayer_pts.level))
             t.exec("goto-killNinja", t.player.goto_tile, 2757, 2789, 0)
@@ -1217,7 +1217,7 @@ return {
             eat_if_hurt(85)
             t.exec("goto-killGorilla", t.player.goto_tile, 2800, 2785, 0)
             protect("prayerbook:prayer15")
-            local _, melee_on = t.var.varbit("prayer_protectfrommelee")
+            local _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
             local _, prayer_g = t.skill.read("prayer")
             t.check("killGorilla-protect", melee_on == 1, "protect from melee varbit " .. tostring(melee_on) .. ", prayer points " .. tostring(prayer_g and prayer_g.level))
             local gr, gd = t.player.attack("mm_religious_guard", 2, 20)
@@ -1233,7 +1233,7 @@ return {
             t.ticks(6)
             local dr, dtile = t.world.tile()
             t.check("goDownToZombie-below", dr == "ok" and dtile ~= nil and dtile.z >= 9000, "down the trapdoor: " .. tostring(dtile and dtile.x) .. "," .. tostring(dtile and dtile.z) .. "," .. tostring(dtile and dtile.level))
-            local sr, stage = t.var.server("mm_main")
+            local sr, stage = t.var.server("varp365_mm_main")
             local _, hpe = t.skill.read("hitpoints")
             t.check("leg.5.end", true, "at " .. tostring(dtile and dtile.x) .. "," .. tostring(dtile and dtile.z) .. "," .. tostring(dtile and dtile.level) .. ", mm_main " .. tostring(stage) .. ", hp " .. tostring(hpe and hpe.level) .. ", holds the strung monkey amulet (worn), rune scimitar (wielded), monkey talisman, lobster, royal seal")
             -- LEG 5 END
@@ -1260,11 +1260,11 @@ return {
             t.ticks(3)
             t.player.inv_op("4doseprayerrestore", 1)
             t.ticks(2)
-            local _, melee_before = t.var.varbit("prayer_protectfrommelee")
+            local _, melee_before = t.var.varbit("varb4118_prayer_protectfrommelee")
             if melee_before ~= 1 then protect("prayerbook:prayer15") end
             for _ = 1, 3 do eat_if_hurt(70) end
             local _, pts = t.skill.read("prayer")
-            local _, melee_on = t.var.varbit("prayer_protectfrommelee")
+            local _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
             t.check("killZombie-protect", melee_on == 1, "protect from melee varbit " .. tostring(melee_on) .. " (was " .. tostring(melee_before) .. "), prayer points " .. tostring(pts and pts.level))
             -- killZombie: the zombie monkey at the foot of the rope (aggressive; leg 5 left the player in its reach)
             eat_if_hurt(80)
@@ -1354,7 +1354,7 @@ return {
                 { op = "lookat", coord = "0_41_71_47_15" },
             } })
             local fr, ftile = t.world.tile()
-            local sr, stage = t.var.server("mm_main")
+            local sr, stage = t.var.server("varp365_mm_main")
             local _, tal = t.inv.count("mm_monkey_talisman")
             t.check("leg.6.state", true, "at " .. tostring(ftile and ftile.x) .. "," .. tostring(ftile and ftile.z) .. "," .. tostring(ftile and ftile.level) .. ", mm_main " .. tostring(stage) .. ", talismans " .. tostring(tal))
             -- LEG 6 END
@@ -1475,7 +1475,7 @@ return {
             t.check("goUpToDaeroForTalkingToAwow", ar == "ok" and atile ~= nil and atile.x > 2780 and atile.x < 2830 and atile.z > 2690 and atile.z < 2730,
                 "the three ferries done; back on Ape Atoll at " .. tile_text())
             t.exec("leg.7.settle", t.chat.drain, {})
-            local sr, stage = t.var.server("mm_main")
+            local sr, stage = t.var.server("varp365_mm_main")
             local _, mk = t.inv.count("mm_monkey_in_backpack")
             t.check("leg.7.end", true, "at " .. tile_text() .. ", mm_main " .. tostring(stage) .. ", monkey in backpack " .. tostring(mk) .. ", Karamjan greegree and M'speak amulet carried, lobster and restores for leg 8")
             -- LEG 7 END
@@ -1540,7 +1540,7 @@ return {
                 "npc:You must win his trust",
             })
             t.ticks(2)
-            t.expect("talkToGarkorWithMonkey-stage", t.var.await_server("mm_garkor", 4, 10))
+            t.expect("talkToGarkorWithMonkey-stage", t.var.await_server("varb126_mm_garkor", 4, 10))
             -- talkToGuard: the elder guard outside the building (mm_elder_guard.rs2:22), %mm_garkor is seek_alliance
             t.exec("goto-talkToGuard", t.player.goto_tile, 2802, 2756, 0)
             t.exec("talkToGuard", t.player.talk_to, "mm_elder_guard_2", 1)
@@ -1552,7 +1552,7 @@ return {
                 "npc:He goes by the name of Kruk.",
             })
             t.ticks(2)
-            t.expect("talkToGuard-stage", t.var.await_server("varbit_120", 1, 10))
+            t.expect("talkToGuard-stage", t.var.await_server("varb120_varbit_120", 1, 10))
             -- goUpToBridge / goDownFromBridge: the watchtower ladders (mm_atoll_locs.rs2:54, :75), the guide's way round to Kruk
             t.exec("goto-goUpToBridge", t.player.goto_tile, 2713, 2764, 0)
             -- the zoo monkey in the backpack interrupts with "I'm hungry!" pages: clear them before and after each press
@@ -1596,7 +1596,7 @@ return {
             })
             t.ticks(8)
             t.exec("talkToKruk-escort", t.chat.drain, {})
-            t.expect("talkToKruk-stage", t.var.await_server("varbit_117", 1, 10))
+            t.expect("talkToKruk-stage", t.var.await_server("varb117_varbit_117", 1, 10))
             t.check("talkToKruk-tile", true, "Kruk escorted the player to " .. tile_text())
             -- talkToAwow, twice (mm_awowogei.rs2:12): the mission, then the captive monkey from the zoo
             t.exec("talkToAwow", t.player.click_loc, "mm_throne", 1)
@@ -1615,7 +1615,7 @@ return {
             -- Uwogo's "Don't listen to him" interjection depends on where the advisor stands, so the tail of the speech is drained, not listed
             t.exec("talkToAwow-dialog-tail", t.chat.drain, {})
             t.ticks(2)
-            t.expect("talkToAwow-mission", t.var.await_server("varbit_118", 1, 10))
+            t.expect("talkToAwow-mission", t.var.await_server("varb118_varbit_118", 1, 10))
             t.exec("talkToAwow-again", t.player.click_loc, "mm_throne", 1)
             t.exec("talkToAwow-again-dialog", t.chat.play, {
                 "npc:Have you brought with you a captive?",
@@ -1629,7 +1629,7 @@ return {
                 "npc:I must think upon it some more",
             })
             t.ticks(4)
-            t.expect("talkToAwow-complete", t.var.await_server("varbit_118", 2, 10))
+            t.expect("talkToAwow-complete", t.var.await_server("varb118_varbit_118", 2, 10))
             t.check("talkToAwow-tile", true, "after the hand-in the player stands at " .. tile_text())
             -- talkToGarkorForSigil: Garkor tells of the plot (mm_garkor.rs2:157, the chapter 4 scene), then hands over the sigil
             t.exec("goto-talkToGarkorForSigil", t.player.goto_tile, 2807, 2760, 0)
@@ -1697,7 +1697,7 @@ return {
                 end
             end
             protect("prayerbook:prayer13")
-            local _, magic_on = t.var.varbit("prayer_protectfrommagic")
+            local _, magic_on = t.var.varbit("varb4116_prayer_protectfrommagic")
             local _, prayer_now = t.skill.read("prayer")
             local _, lobsters = t.inv.count("lobster")
             t.check("prepareForBattle", magic_on == 1, "protect from magic varbit " .. tostring(magic_on) .. ", prayer points " .. tostring(prayer_now and prayer_now.level) .. ", lobster " .. tostring(lobsters))

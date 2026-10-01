@@ -37,7 +37,7 @@ return {
         "::give bronze_med_helm 1", -- Quest Helper bring-along (guard disguise), worn for real in run() below
         "::give iron_chainbody 1",
         "::give cabbage 1",         -- Quest Helper bring-along (an ordinary cabbage, sourced anywhere) -- the SABOTAGE is using it on the hole, driven for real below
-        "::setvar qp 12",           -- prerequisite quest points, not blackknight's own reward
+        "::setvar varp101_qp 12",           -- prerequisite quest points, not blackknight's own reward
         -- The disguise stops bkfortressdoor1's guard, not the fortress's
         -- OWN patrol: areas/world/configs/m47_54.spawn scatters a dozen
         -- `aggressive_black_knight`/`kr_aggressive_black_knight` (level 33,

@@ -222,12 +222,12 @@ return {
         -- prerequisite of Roving Elves (quest_rovingelves.constant's own
         -- header), never this quest's own work.
         "::complete quest_waterfall",
-        "::setvar regicide_quest ^regicide_complete",
+        "::setvar varp328_regicide_quest ^regicide_complete",
         "::complete quest_rovingelves",
         -- Big Chompy Bird Hunting has no ::complete arm in quest_cheat.rs2
         -- either (grep-confirmed) -- staged with the ladder cheat, same as
         -- Regicide above.
-        "::setvar chompybird ^chompybird_complete",
+        "::setvar varp293_chompybird ^chompybird_complete",
         "::complete quest_sheepherder",
     },
 

@@ -4272,13 +4272,13 @@ return {
             if not emote then return missing("player", "emote") end
             if not goto_tile then return missing("player", "goto_tile") end
             if not server_var then return missing("var", "server") end
-            setup_cheat("::setvar misc_toldking 1")                         -- setup
-            setup_cheat("::setvar misc_partner_multivar 1")                 -- setup: Brand
-            setup_cheat("::setvar misc_affection ^misc_affection_s1_step1") -- setup
+            setup_cheat("::setvar varb76_misc_toldking 1")                         -- setup
+            setup_cheat("::setvar varb14607_misc_partner_multivar 1")                 -- setup: Brand
+            setup_cheat("::setvar varb73_misc_affection ^misc_affection_s1_step1") -- setup
             settle(3)
             local before_result, before = server_var("varb73_misc_affection")
             if before_result ~= "ok" or before ~= 11 then
-                return "no_subject", "::setvar misc_affection ^misc_affection_s1_step1 left "
+                return "no_subject", "::setvar varb73_misc_affection ^misc_affection_s1_step1 left "
                     .. describe(before_result) .. " " .. describe(before) .. ", not 11"
             end
             local arrived, where = goto_tile(2502, 3852, 1)
@@ -4615,7 +4615,7 @@ return {
             -- setup: the quest one stage short, a gold bar to show him.
             setup_cheat("::clearinv")
             setup_cheat("::complete quest_fishingcontest")
-            setup_cheat("::setvar dwarfrock_quest 50")
+            setup_cheat("::setvar varb299_dwarfrock_quest 50")
             setup_cheat("::give gold_bar 1")
             local bar_result, bar_detail = held("gold_bar", 1, 10)
             if bar_result ~= "ok" then
@@ -4629,7 +4629,7 @@ return {
             settle(3)
             -- setup: the stage write with the rock painted -- it re-spawns as
             -- a runtime loc, which is what the next write has to release.
-            setup_cheat("::setvar dwarfrock_quest 60")
+            setup_cheat("::setvar varb299_dwarfrock_quest 60")
             settle(3)
             -- setup: the backpack on screen before the arming.  The rows before
             -- this one leave another tab up (player.emote's), and use_on's own
@@ -4973,7 +4973,7 @@ return {
             if not await_open then return missing("ui", "await_open") end
             -- setup: the quest at the assembly stage, the four fragments held.
             setup_cheat("::clearinv")
-            setup_cheat("::setvar dwarfrock_quest ^dwarfrock_assembling_schematics")
+            setup_cheat("::setvar varb299_dwarfrock_quest ^dwarfrock_assembling_schematics")
             setup_cheat("::give dwarf_rock_schematic1 1")
             setup_cheat("::give dwarf_rock_base_schematic 1")
             setup_cheat("::give dwarf_rock_schematic2 1")
@@ -5013,7 +5013,7 @@ return {
             local await_server = verb("var", "await_server")
             if not server then return missing("var", "server") end
             if not await_server then return missing("var", "await_server") end
-            setup_cheat("::setvar twocats_lamp_pick 3")
+            setup_cheat("::setvar varp7152_twocats_lamp_pick 3")
             settle(2)
             local result, value, source = server("varp7152_twocats_lamp_pick")
             if result ~= "ok" or value ~= 3 then
@@ -5051,30 +5051,30 @@ return {
             local await_server = verb("var", "await_server")
             if not server then return missing("var", "server") end
             if not await_server then return missing("var", "await_server") end
-            setup_cheat("::setvar mm_daero 3")
-            setup_cheat("::setvar mm_caranock 2")
-            setup_cheat("::setvar horrorquest 2")
+            setup_cheat("::setvar varb123_mm_daero 3")
+            setup_cheat("::setvar varb122_mm_caranock 2")
+            setup_cheat("::setvar varb34_horrorquest 2")
             settle(2)
             local awaited, await_detail = await_server("varb123_mm_daero", 3, 5)
             if awaited ~= "ok" then
                 return awaited, "var.await_server(mm_daero, 3) after ::setvar: " .. describe(await_detail)
             end
-            local result, value, source = server("mm_caranock")
+            local result, value, source = server("varb122_mm_caranock")
             if result ~= "ok" or value ~= 2
                 or not string.find(tostring(source), "server content copy", 1, true) then
                 return (result == "ok") and "refused" or result,
                     "var.server(mm_caranock) after ::setvar 2 -> " .. describe(result) .. "/"
                     .. describe(value) .. " " .. describe(source)
             end
-            local control, control_value, control_source = server("horrorquest")
+            local control, control_value, control_source = server("varb34_horrorquest")
             if control ~= "ok" or control_value ~= 2 or control_source ~= "server" then
                 return (control == "ok") and "refused" or control,
                     "a transmitted varbit left the client-record channel: var.server(horrorquest) -> "
                     .. describe(control) .. "/" .. describe(control_value) .. " " .. describe(control_source)
             end
-            setup_cheat("::setvar mm_daero 0")
-            setup_cheat("::setvar mm_caranock 0")
-            setup_cheat("::setvar horrorquest 0")
+            setup_cheat("::setvar varb123_mm_daero 0")
+            setup_cheat("::setvar varb122_mm_caranock 0")
+            setup_cheat("::setvar varb34_horrorquest 0")
             return "ok", describe(await_detail) .. "; mm_caranock=2 (" .. describe(source)
                 .. "); horrorquest=2 (" .. describe(control_source) .. ")"
         end)
@@ -5204,11 +5204,11 @@ return {
         -- Proven first as build/quest_gate/s16b_sea_leg and s16b_port_task.
         stage(function()
             setup_cheat("::setlevel sailing 20")               -- setup
-            setup_cheat("::setvar sailing_boat_1_owned 1")     -- setup
-            setup_cheat("::setvar sailing_boat_1_type 1")      -- setup: a skiff
-            setup_cheat("::setvar sailing_boat_1_port 6")      -- setup: Catherby's dock_id
-            setup_cheat("::setvar sailing_last_personal_boat_boarded 1") -- setup
-            setup_cheat("::setvar sailing_boat_1_hotspot_6 1") -- setup: a cargo hold
+            setup_cheat("::setvar varb19258_sailing_boat_1_owned 1")     -- setup
+            setup_cheat("::setvar varb19259_sailing_boat_1_type 1")      -- setup: a skiff
+            setup_cheat("::setvar varb19260_sailing_boat_1_port 6")      -- setup: Catherby's dock_id
+            setup_cheat("::setvar varb18554_sailing_last_personal_boat_boarded 1") -- setup
+            setup_cheat("::setvar varb19279_sailing_boat_1_hotspot_6 1") -- setup: a cargo hold
             -- Catherby's shore, not the pier: a ::goto onto the pier strands
             -- the player (the seam's own finding).
             setup_cheat("::goto 2803 3430 0")                  -- setup
@@ -6111,7 +6111,7 @@ return {
         -- no page for the wildcard.
         stage(function()
             setup_cheat("::haunted")
-            setup_cheat("::setvar haunted 2")
+            setup_cheat("::setvar varp32_haunted 2")
             setup_cheat("::give pressure_gauge")
             setup_cheat("::give oil_can")
             setup_cheat("::give rubber_tube")
@@ -6214,8 +6214,8 @@ return {
             setup_cheat("::ghostsahoy")
             setup_cheat("::give oak_longbow 1")
             setup_cheat("::give coins 100")
-            setup_cheat("::setvar ahoy_questvar 4")
-            setup_cheat("::setvar ahoy_subquest_bow 1")
+            setup_cheat("::setvar varb217_ahoy_questvar 4")
+            setup_cheat("::setvar varb212_ahoy_subquest_bow 1")
             settle(2)
         end)
         step("game.runedraw", function()
@@ -6653,7 +6653,7 @@ return {
             setup_cheat("::give airrune 3")
             setup_cheat("::give earthrune 1")
             setup_cheat("::setlevel woodcutting 36")
-            setup_cheat("::setvar zanaris ^zanaris_spirit_defeated")
+            setup_cheat("::setvar varp147_zanaris ^zanaris_spirit_defeated")
             setup_cheat("::goto 2862 9733 0")
             settle(3)
         end)
@@ -6694,7 +6694,7 @@ return {
             return "ok", text
         end)
         stage(function()
-            setup_cheat("::setvar zanaris 0")                   -- teardown
+            setup_cheat("::setvar varp147_zanaris 0")                   -- teardown
             settle(1)
         end)
 
@@ -6780,7 +6780,7 @@ return {
         stage(function()
             setup_cheat("::goto 2957 3510 0")                   -- setup
             settle(2)
-            setup_cheat("::setvar gobdip_grubfoot_vis ^gobdip_grubfoot_hidden")
+            setup_cheat("::setvar varb13594_gobdip_grubfoot_vis ^gobdip_grubfoot_hidden")
             settle(3)
         end)
         seam("seam.talk_to_undrawn_multinpc", function()
@@ -6798,7 +6798,7 @@ return {
             return "ok", text
         end)
         stage(function()
-            setup_cheat("::setvar gobdip_grubfoot_vis 0")       -- setup
+            setup_cheat("::setvar varb13594_gobdip_grubfoot_vis 0")       -- setup
             settle(1)
         end)
 
@@ -7159,11 +7159,11 @@ return {
         local function complete_arm_reading(cheat, read, arm)
             setup_cheat("::setvar " .. arm.var .. " 0")
             settle(1)
-            local _, qp_before = read("qp")
+            local _, qp_before = read("varp101_qp")
             local cheat_result = cheat("::complete " .. arm.row)
             settle(2)
             local value_result, value = read(arm.var)
-            local _, qp_after = read("qp")
+            local _, qp_after = read("varp101_qp")
             local reading = arm.row .. ": " .. arm.var .. "=" .. describe(value)
                 .. " (want " .. arm.complete .. "), qp " .. describe(qp_before) .. "->"
                 .. describe(qp_after) .. " (want +" .. arm.points .. "), cheat " .. describe(cheat_result)
@@ -7228,29 +7228,29 @@ return {
                 return landed and "ok" or "refused", reading
             end
         end
-        seam("seam.complete_cheat_arms.quest_bigchompybirdhunting", seam35_arm_row("quest_bigchompybirdhunting", "chompybird", 65, 2))
-        seam("seam.complete_cheat_arms.quest_eadgarsruse", seam35_arm_row("quest_eadgarsruse", "eadgar_quest", 110, 1))
-        seam("seam.complete_cheat_arms.quest_elementalworkshop1", seam35_arm_row("quest_elementalworkshop1", "elemental_workshop_finished", 1, 1))
-        seam("seam.complete_cheat_arms.quest_familycrest", seam35_arm_row("quest_familycrest", "crestquest", 11, 1))
-        seam("seam.complete_cheat_arms.quest_fightarena", seam35_arm_row("quest_fightarena", "arenaquest", 14, 2))
-        seam("seam.complete_cheat_arms.quest_horrorfromthedeep", seam35_arm_row("quest_horrorfromthedeep", "horrorquest", 10, 2))
-        seam("seam.complete_cheat_arms.quest_insearchofthemyreque", seam35_arm_row("quest_insearchofthemyreque", "routequest", 105, 2))
-        seam("seam.complete_cheat_arms.quest_lostcity", seam35_arm_row("quest_lostcity", "zanaris", 6, 3))
-        seam("seam.complete_cheat_arms.quest_onesmallfavour", seam35_arm_row("quest_onesmallfavour", "onesmallfavour", 285, 2))
-        seam("seam.complete_cheat_arms.quest_regicide", seam35_arm_row("quest_regicide", "regicide_quest", 15, 3))
-        seam("seam.complete_cheat_arms.quest_scorpioncatcher", seam35_arm_row("quest_scorpioncatcher", "scorpcatcher", 6, 1))
-        seam("seam.complete_cheat_arms.quest_seaslug", seam35_arm_row("quest_seaslug", "seaslugquest", 12, 1))
-        seam("seam.complete_cheat_arms.quest_shadesofmortton", seam35_arm_row("quest_shadesofmortton", "morttonquest", 85, 3))
-        seam("seam.complete_cheat_arms.quest_shilovillage", seam35_arm_row("quest_shilovillage", "zombiequeen", 15, 2))
-        seam("seam.complete_cheat_arms.quest_tribaltotem", seam35_arm_row("quest_tribaltotem", "totemquest", 5, 1))
-        seam("seam.complete_cheat_arms.quest_witchshouse", seam35_arm_row("quest_witchshouse", "ballquest", 7, 4))
+        seam("seam.complete_cheat_arms.quest_bigchompybirdhunting", seam35_arm_row("quest_bigchompybirdhunting", "varp293_chompybird", 65, 2))
+        seam("seam.complete_cheat_arms.quest_eadgarsruse", seam35_arm_row("quest_eadgarsruse", "varp335_eadgar_quest", 110, 1))
+        seam("seam.complete_cheat_arms.quest_elementalworkshop1", seam35_arm_row("quest_elementalworkshop1", "varb2067_elemental_workshop_finished", 1, 1))
+        seam("seam.complete_cheat_arms.quest_familycrest", seam35_arm_row("quest_familycrest", "varp148_crestquest", 11, 1))
+        seam("seam.complete_cheat_arms.quest_fightarena", seam35_arm_row("quest_fightarena", "varp17_arenaquest", 14, 2))
+        seam("seam.complete_cheat_arms.quest_horrorfromthedeep", seam35_arm_row("quest_horrorfromthedeep", "varb34_horrorquest", 10, 2))
+        seam("seam.complete_cheat_arms.quest_insearchofthemyreque", seam35_arm_row("quest_insearchofthemyreque", "varp387_routequest", 105, 2))
+        seam("seam.complete_cheat_arms.quest_lostcity", seam35_arm_row("quest_lostcity", "varp147_zanaris", 6, 3))
+        seam("seam.complete_cheat_arms.quest_onesmallfavour", seam35_arm_row("quest_onesmallfavour", "varp416_onesmallfavour", 285, 2))
+        seam("seam.complete_cheat_arms.quest_regicide", seam35_arm_row("quest_regicide", "varp328_regicide_quest", 15, 3))
+        seam("seam.complete_cheat_arms.quest_scorpioncatcher", seam35_arm_row("quest_scorpioncatcher", "varp76_scorpcatcher", 6, 1))
+        seam("seam.complete_cheat_arms.quest_seaslug", seam35_arm_row("quest_seaslug", "varp159_seaslugquest", 12, 1))
+        seam("seam.complete_cheat_arms.quest_shadesofmortton", seam35_arm_row("quest_shadesofmortton", "varp339_morttonquest", 85, 3))
+        seam("seam.complete_cheat_arms.quest_shilovillage", seam35_arm_row("quest_shilovillage", "varp116_zombiequeen", 15, 2))
+        seam("seam.complete_cheat_arms.quest_tribaltotem", seam35_arm_row("quest_tribaltotem", "varp200_totemquest", 5, 1))
+        seam("seam.complete_cheat_arms.quest_witchshouse", seam35_arm_row("quest_witchshouse", "varp226_ballquest", 7, 4))
         stage(function()
-            setup_cheat("::setvar wanted_main 0")               -- teardown
-            setup_cheat("::setvar desertrescue 0")
-            setup_cheat("::setvar ikov 0")
-            setup_cheat("::setvar troll_quest 0")
-            setup_cheat("::setvar upass 0")
-            setup_cheat("::setvar treequest 0")
+            setup_cheat("::setvar varb1051_wanted_main 0")               -- teardown
+            setup_cheat("::setvar varp197_desertrescue 0")
+            setup_cheat("::setvar varp26_ikov 0")
+            setup_cheat("::setvar varp317_troll_quest 0")
+            setup_cheat("::setvar varp161_upass 0")
+            setup_cheat("::setvar varp111_treequest 0")
             for _, var in ipairs(seam35_vars) do
                 setup_cheat("::setvar " .. var .. " 0")
             end
@@ -7655,20 +7655,20 @@ return {
             local function restore()
                 key("escape")
                 settle(1)
-                setup_cheat("::setvar forget_if1 0")
-                setup_cheat("::setvar forget_num_left 0")
-                setup_cheat("::setvar forget_num_right 0")
-                setup_cheat("::setvar forget_quest 0")
+                setup_cheat("::setvar varb842_forget_if1 0")
+                setup_cheat("::setvar varb861_forget_num_left 0")
+                setup_cheat("::setvar varb862_forget_num_right 0")
+                setup_cheat("::setvar varb822_forget_quest 0")
                 if type(home) == "table" then
                     goto_tile(home.x, home.z, home.level or 0)
                 end
             end
             -- forget_group() is 1 at forget_quest 100 (forget_puzzle.rs2), so the
             -- hub machinery opens forget_puzzle1; one stone of each colour.
-            setup_cheat("::setvar forget_quest 100")
-            setup_cheat("::setvar forget_if1 0")
-            setup_cheat("::setvar forget_num_left 1")
-            setup_cheat("::setvar forget_num_right 1")
+            setup_cheat("::setvar varb822_forget_quest 100")
+            setup_cheat("::setvar varb842_forget_if1 0")
+            setup_cheat("::setvar varb861_forget_num_left 1")
+            setup_cheat("::setvar varb862_forget_num_right 1")
             local goto_result = goto_tile(1861, 4954, 1)
             if goto_result ~= "ok" then
                 restore()
@@ -7781,7 +7781,7 @@ return {
         local dayth_watch_slot = nil
         local function dayth_teardown()
             setup_cheat("::god 0")
-            setup_cheat("::setvar hauntedmine 0")
+            setup_cheat("::setvar varp382_hauntedmine 0")
             setup_cheat("::clearinv")
             setup_cheat("::tele lumbridge")
             settle(2)
@@ -7851,7 +7851,7 @@ return {
                 return "no_subject", "seam.npc_cover_settled_recovery engaged no Dayth slot to watch"
             end
             local result, detail = engaged(60, 10)
-            local _, stage_value = server("hauntedmine")
+            local _, stage_value = server("varp382_hauntedmine")
             local last = tonumber(string.match(tostring(detail), "slot (%d+) still alive")
                 or string.match(tostring(detail), "slot (%d+) dead"))
             dayth_teardown()
@@ -7887,15 +7887,15 @@ return {
             if not goto_tile then return missing("player", "goto_tile") end
             if not present then return missing("npc", "await_present") end
             if not server then return missing("var", "server") end
-            setup_cheat("::setvar upass 6")
+            setup_cheat("::setvar varp161_upass 6")
             settle(2)
-            local _, stage_value = server("upass")
+            local _, stage_value = server("varp161_upass")
             local goto_result, goto_detail = goto_tile(2150, 4546, 1)
             local seen, seen_detail = "not_run", nil
             if goto_result == "ok" then
                 seen, seen_detail = present("holthion", 40, 10)
             end
-            setup_cheat("::setvar upass 0")
+            setup_cheat("::setvar varp161_upass 0")
             setup_cheat("::tele lumbridge")
             settle(2)
             local text = "upass=" .. describe(stage_value) .. "; goto 2150,4546,1 -> " .. describe(goto_result)

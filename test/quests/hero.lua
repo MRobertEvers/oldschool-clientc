@@ -54,11 +54,11 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots
-        "::setvar qp 55", -- prerequisite quest points (hero_required_questpoints), not this quest's own reward
-        "::setvar zanaris 6", -- Lost City complete (zanaris_complete) -- no ::complete arm for quest_lostcity exists
-        "::setvar dragonquest 10", -- Dragon Slayer I complete (dragon_complete) -- no ::complete arm for quest_dragonslayer1 exists
-        "::setvar arthur 7", -- Merlin's Crystal complete (arthur_complete) -- no ::complete arm for quest_merlinscrystal exists
-        "::setvar phoenixgang 10", -- Shield of Arrav, Phoenix side, complete (phoenixgang_complete) -- ::complete quest_shieldofarrav only ever writes %blackarmgang
+        "::setvar varp101_qp 55", -- prerequisite quest points (hero_required_questpoints), not this quest's own reward
+        "::setvar varp147_zanaris 6", -- Lost City complete (zanaris_complete) -- no ::complete arm for quest_lostcity exists
+        "::setvar varp176_dragonquest 10", -- Dragon Slayer I complete (dragon_complete) -- no ::complete arm for quest_dragonslayer1 exists
+        "::setvar varp14_arthur 7", -- Merlin's Crystal complete (arthur_complete) -- no ::complete arm for quest_merlinscrystal exists
+        "::setvar varp145_phoenixgang 10", -- Shield of Arrav, Phoenix side, complete (phoenixgang_complete) -- ::complete quest_shieldofarrav only ever writes %blackarmgang
         "::complete quest_druidicritual", -- Druidic Ritual, the DBROW name (all.dbrow.compack:35), not the quest_druid folder name (QUEST_AUTHORING.md docs/quests notes) -- ~herblore_unlocked (quest_druid.rs2:35-39) gates ~attempt_brew_potion on %druidquest >= ^druid_complete, and Heroes' Quest's own Blamish-oil mix (brew_potion.rs2:513-516) needs Herblore unlocked; this is a bring-along prerequisite (trap 16), not the quest's own deliverable
         "::give phoenixkey2 1", -- Shield-of-Arrav bring-along Straven's own script hands a joined Phoenix member, not Heroes' Quest's own deliverable
         -- Combat levels: prerequisite for BOTH real fights below (Grip,

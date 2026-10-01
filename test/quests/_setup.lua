@@ -41,7 +41,7 @@ return {
         "::give rune_scimitar 2",
         "::wield rune_scimitar",
         "::give shark 10",
-        "::setvar ballquest 1",
+        "::setvar varp226_ballquest 1",
     },
     run = function(t)
         -- A level is the stat's BASE level, stated by the server (not the

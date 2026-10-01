@@ -12,8 +12,8 @@ return {
         "::give shortbow 1", "::give bronze_arrow 500", "::give rune_scimitar 1", "::give shark 16",
         "::give rune_full_helm 1", "::give rune_chainbody 1", "::give rune_platelegs 1", "::give rune_kiteshield 1",
         "::give amulet_of_glory 1", "::give abyssal_whip 1", "::wield shortbow", "::wield bronze_arrow",
-        "::setvar sailing_boat_1_owned 1", "::setvar sailing_boat_1_type 1", "::setvar sailing_boat_1_port 17",
-        "::setvar sailing_last_personal_boat_boarded 1", "::setvar sailing_boat_1_hotspot_6 1",
+        "::setvar varb19258_sailing_boat_1_owned 1", "::setvar varb19259_sailing_boat_1_type 1", "::setvar varb19260_sailing_boat_1_port 17",
+        "::setvar varb18554_sailing_last_personal_boat_boarded 1", "::setvar varb19279_sailing_boat_1_hotspot_6 1",
     },
 
     run = function(t)

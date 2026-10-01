@@ -8,7 +8,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::setvar qp 32", -- champions guild entry qp, prerequisite not reward
+        "::setvar varp101_qp 32", -- champions guild entry qp, prerequisite not reward
         "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99", "::setlevel hitpoints 99",
         "::give rune_scimitar 1", "::give lobster 10",
         "::give coins 13000",       -- guide item telegrabOrTenK: Wormbrain's 10,000 coins for Lozar's piece

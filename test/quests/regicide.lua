@@ -11,19 +11,19 @@ return {
         "::complete quest_biohazard", -- Quest Helper prerequisite chain: Underground Pass needs it
         -- Quest Helper: Underground Pass is a Regicide requirement. quest_cheat.rs2 has no ::complete arm
         -- for it, so its prerequisite state is written: complete, and Lathas met (upass_entrance.rs2:15).
-        "::setvar upass ^upass_complete",
-        "::setvar upass_lathas_met 1",
+        "::setvar varp161_upass ^upass_complete",
+        "::setvar varb9125_upass_lathas_met 1",
         -- Underground Pass prerequisite state for the second walk through the pass (leg 2): the area-1 well
         -- needs all four orbs (upass_well.rs2:12) and Iban's door the three badges and the horn
         -- (upass_bloodwell.rs2:25). A completed Underground Pass has delivered all of them.
-        "::setvar upass_caveorb_1 1",
-        "::setvar upass_caveorb_2 1",
-        "::setvar upass_caveorb_3 1",
-        "::setvar upass_caveorb_4 1",
-        "::setvar upass_paladinbadge_1 1",
-        "::setvar upass_paladinbadge_2 1",
-        "::setvar upass_paladinbadge_3 1",
-        "::setvar upass_cave_unicorn 1",
+        "::setvar varb9119_upass_caveorb_1 1",
+        "::setvar varb9120_upass_caveorb_2 1",
+        "::setvar varb9121_upass_caveorb_3 1",
+        "::setvar varb9122_upass_caveorb_4 1",
+        "::setvar varb9128_upass_paladinbadge_1 1",
+        "::setvar varb9129_upass_paladinbadge_2 1",
+        "::setvar varb9130_upass_paladinbadge_3 1",
+        "::setvar varb9136_upass_cave_unicorn 1",
         "::setlevel agility 56", -- Quest Helper: Agility 56 (rockslides, upass_obstacles.rs2:38)
         "::setlevel hitpoints 40", -- a questing account's fighting levels for the pass's spiders
         "::setlevel defence 30",

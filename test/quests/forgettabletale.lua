@@ -383,7 +383,7 @@ return {
             local function com(i) return "forget_puzzle1:switch_" .. ("abcdefgh"):sub(i + 1, i + 1) end
             for i = 0, 7 do -- clear every junction first so its stone comes back
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                     local _, w = t.ui.widget(com(i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
@@ -393,12 +393,12 @@ return {
             for _, i in ipairs({ 0, 2 }) do
                 local want = ROUTE1[i]
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(names[i], v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -433,7 +433,7 @@ return {
             local function clear(iface, count)
                 for i = 0, count - 1 do -- clear every junction first so its stone comes back
                     for _ = 1, 3 do
-                        if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                         local _, w = t.ui.widget(com(iface, i))
                         t.ui.invoke(w, 0)
                         t.ticks(1)
@@ -442,12 +442,12 @@ return {
             end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -492,12 +492,12 @@ return {
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -559,7 +559,7 @@ return {
             local function clear(iface, count)
                 for i = 0, count - 1 do
                     for _ = 1, 3 do
-                        if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                         local _, w = t.ui.widget(com(iface, i))
                         t.ui.invoke(w, 0)
                         t.ticks(1)
@@ -568,12 +568,12 @@ return {
             end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -624,7 +624,7 @@ return {
             local function clear(iface, count)
                 for i = 0, count - 1 do
                     for _ = 1, 3 do
-                        if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                         local _, w = t.ui.widget(com(iface, i))
                         t.ui.invoke(w, 0)
                         t.ticks(1)
@@ -633,12 +633,12 @@ return {
             end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -684,7 +684,7 @@ return {
             local function clear(iface, count)
                 for i = 0, count - 1 do
                     for _ = 1, 3 do
-                        if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                         local _, w = t.ui.widget(com(iface, i))
                         t.ui.invoke(w, 0)
                         t.ticks(1)
@@ -693,12 +693,12 @@ return {
             end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -751,7 +751,7 @@ return {
             local function clear(iface, count)
                 for i = 0, count - 1 do
                     for _ = 1, 3 do
-                        if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                         local _, w = t.ui.widget(com(iface, i))
                         t.ui.invoke(w, 0)
                         t.ticks(1)
@@ -760,12 +760,12 @@ return {
             end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 ;(name == "puzzle8P4-811" and t.expect or t.check)(name, v == want and "ok" or "mismatch", "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -806,7 +806,7 @@ return {
             local function clear(iface, count)
                 for i = 0, count - 1 do
                     for _ = 1, 3 do
-                        if select(2, t.var.server("forget_if" .. (i + 1))) == 0 then break end
+                        if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == 0 then break end
                         local _, w = t.ui.widget(com(iface, i))
                         t.ui.invoke(w, 0)
                         t.ticks(1)
@@ -815,12 +815,12 @@ return {
             end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
@@ -866,12 +866,12 @@ return {
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
             local function setj(iface, i, want, name)
                 for _ = 1, 3 do
-                    if select(2, t.var.server("forget_if" .. (i + 1))) == want then break end
+                    if select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1))) == want then break end
                     local _, w = t.ui.widget(com(iface, i))
                     t.ui.invoke(w, 0)
                     t.ticks(1)
                 end
-                local v = select(2, t.var.server("forget_if" .. (i + 1)))
+                local v = select(2, t.var.server("varb" .. (842 + i) .. "_forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
                     .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
