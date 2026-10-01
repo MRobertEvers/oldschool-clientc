@@ -25,7 +25,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "druidspirit",
+            varp = "varp307_druidspirit",
             constants = {
                 not_started = 0, started = 5, entered_swamp = 10, failed_talk = 15,
                 spoken_filliman = 20, shown_mirror = 25, given_journal = 30, received_spell = 35,
@@ -73,7 +73,7 @@ return {
             "npc:wolf form is incredibly powerful",
             "player:Okay, I will keep it equipped",
         })
-        t.exec("talkToDrezel-advice-var", t.var.await_server, "priestperil", 61, 8)
+        t.exec("talkToDrezel-advice-var", t.var.await_server, "varp302_priestperil", 61, 8)
         t.exec("talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("talkToDrezel-dialog", t.chat.play, {
             "npc:Greetings again adventurer",
@@ -220,7 +220,7 @@ return {
             "player:But can you bless me?",
             "npc:Very well my friend, prepare yourself",
         })
-        t.exec("talkToDrezelForBlessing-var", t.var.await_server, "druidspirit", 40, 12)
+        t.exec("talkToDrezelForBlessing-var", t.var.await_server, "varp307_druidspirit", 40, 12)
         t.exec("talkToDrezelForBlessing-dialog2", t.chat.play, {
             "npc:There you go my friend, you're now blessed",
             "player:Many thanks!",
@@ -280,10 +280,10 @@ return {
         t.exec("goto-useMushroom", t.player.goto_tile, 3440, 3334, 0)
         t.exec("useMushroom", t.player.use_on, "mortmyremushroom", t.player.by_symbol("loc", "stonedisc_ds_nature"))
         t.exec("useMushroom-msg", t.msg.expect, "The stone seems to absorb the fungus.")
-        t.exec("useMushroom-bit", t.var.await_server, "druidspirit_bits", 1, 10)
+        t.exec("useMushroom-bit", t.var.await_server, "varp6200_druidspirit_bits", 1, 10)
         t.exec("useSpellCard", t.player.use_on, "used_bloom_spell", t.player.by_symbol("loc", "stonedisc_ds_spirit"))
         t.exec("useSpellCard-msg", t.msg.expect, "The stone seems to absorb the used spell scroll.")
-        t.exec("useSpellCard-bit", t.var.await_server, "druidspirit_bits", 3, 10)
+        t.exec("useSpellCard-bit", t.var.await_server, "varp6200_druidspirit_bits", 3, 10)
 
         -- tellFillimanToCast / standOnOrange: the ritual, 55 -> 60
         -- Filliman's spirit lives 100 ticks from the grotto door that summoned him (npc_add(...,
@@ -490,7 +490,7 @@ return {
             "npc:Many thanks my friend, you have completed your quest!",
             "end",
         })
-        t.var.await_server("druidspirit", 110, 40)
+        t.var.await_server("varp307_druidspirit", 110, 40)
         t.await({ level = function() return t.chat.kind() == "npc" end, note = "farewell chat" }, 60)
         t.exec("talkToNatureSpiritToFinish-farewell", t.chat.play, {
             "npc:Welcome to my Altar to Nature! Farewell my friend, and keep those Ghasts at bay!",

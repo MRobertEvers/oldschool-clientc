@@ -16,7 +16,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "doricquest",
+            varp = "varp31_doricquest",
             constants = {
                 complete = 100,
                 diary_blurite_limbs = 11,

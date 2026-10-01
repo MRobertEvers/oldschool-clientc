@@ -16,7 +16,7 @@ return {
         "::give hammer 1", "::give woodplank 3", "::give nails 90", -- guide: ship repair (leg 4)
     },
     bind = {
-        varp = "dragonquest",
+        varp = "varp176_dragonquest",
         constants = {
             complete = 10,
             not_started = 0,
@@ -140,8 +140,8 @@ return {
         t.exec("askAboutLozar-route-pages", t.chat.drain, { stop_at = "options" })
         t.exec("askAboutLozar-choose", t.chat.choose, "Where is Lozar's map piece?")
         t.exec("askAboutLozar-pages", t.chat.drain, {})
-        t.check("askAbout-flags", select(2, t.var.server("dragon_oracle")) >= 1 and select(2, t.var.server("dragon_goblin")) == 1 and select(2, t.var.server("dragon_shield")) == 1,
-            "dragon_oracle=" .. tostring(select(2, t.var.server("dragon_oracle"))) .. " dragon_goblin=" .. tostring(select(2, t.var.server("dragon_goblin"))) .. " dragon_shield=" .. tostring(select(2, t.var.server("dragon_shield"))))
+        t.check("askAbout-flags", select(2, t.var.server("varp5741_dragon_oracle")) >= 1 and select(2, t.var.server("varp5739_dragon_goblin")) == 1 and select(2, t.var.server("varp5742_dragon_shield")) == 1,
+            "dragon_oracle=" .. tostring(select(2, t.var.server("varp5741_dragon_oracle"))) .. " dragon_goblin=" .. tostring(select(2, t.var.server("varp5739_dragon_goblin"))) .. " dragon_shield=" .. tostring(select(2, t.var.server("varp5742_dragon_shield"))))
 
         -- talkToOracle
         t.exec("goto-talkToOracle", t.player.goto_tile, 3013, 3501, 0)
@@ -153,7 +153,7 @@ return {
             "npc:The map's behind a door below",
             "npc:First, a drink used by a mage",
         })
-        t.check("oracle-varp", select(2, t.var.server("dragon_oracle")) == 2, "dragon_oracle=" .. tostring(select(2, t.var.server("dragon_oracle"))) .. " (has_spoken_to_oracle)")
+        t.check("oracle-varp", select(2, t.var.server("varp5741_dragon_oracle")) == 2, "dragon_oracle=" .. tostring(select(2, t.var.server("varp5741_dragon_oracle"))) .. " (has_spoken_to_oracle)")
 
         -- goIntoDwarvenMine: the trapdoor in the dwarven camp
         t.exec("goto-goIntoDwarvenMine", t.player.goto_tile, 3019, 3450, 0)
@@ -168,9 +168,9 @@ return {
         t.exec("useSilkOnDoor", t.player.use_on, "silk", magic_door)
         t.exec("usePotOnDoor", t.player.use_on, "lobster_pot", magic_door)
         t.exec("useUnfiredBowlOnDoor", t.player.use_on, "bowl_unfired", magic_door)
-        t.check("door-shut-after-three", select(2, t.var.server("dragon_oracle")) == 2, "dragon_oracle=" .. tostring(select(2, t.var.server("dragon_oracle"))) .. " dragon_door_items=" .. tostring(select(2, t.var.server("dragon_door_items"))))
+        t.check("door-shut-after-three", select(2, t.var.server("varp5741_dragon_oracle")) == 2, "dragon_oracle=" .. tostring(select(2, t.var.server("varp5741_dragon_oracle"))) .. " dragon_door_items=" .. tostring(select(2, t.var.server("varp7190_dragon_door_items"))))
         t.exec("useMindBombOnDoor", t.player.use_on, "wizards_mind_bomb", magic_door)
-        t.exec("door-opens", t.var.await_server, "dragon_oracle", 3, 8)
+        t.exec("door-opens", t.var.await_server, "varp5741_dragon_oracle", 3, 8)
         t.ticks(3)
         t.check("door-consumed-items", select(2, t.inv.count("silk")) == 0 and select(2, t.inv.count("wizards_mind_bomb")) == 0 and select(2, t.inv.count("lobster_pot")) == 0 and select(2, t.inv.count("bowl_unfired")) == 0 and select(2, t.world.tile()).x >= 3050, "silk=" .. tostring(select(2, t.inv.count("silk"))) .. " mind_bomb=" .. tostring(select(2, t.inv.count("wizards_mind_bomb"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
 
@@ -404,7 +404,7 @@ return {
             "npc:I'll meet you there then.",
             "npc:Just show me the map",
         })
-        t.check("ned-hired", select(2, t.var.server("dragon_ned_hired")) == 1, "dragon_ned_hired=" .. tostring(select(2, t.var.server("dragon_ned_hired"))))
+        t.check("ned-hired", select(2, t.var.server("varp5740_dragon_ned_hired")) == 1, "dragon_ned_hired=" .. tostring(select(2, t.var.server("varp5740_dragon_ned_hired"))))
         local ned_target = t.player.by_symbol("npc", "ned")
         t.exec("giveMapToNed", t.player.use_on, "dragonmap", ned_target)
         t.exec("giveMapToNed-dialog", t.chat.play, {
@@ -428,7 +428,7 @@ return {
             "npc:Um... I think we're there.",
             "player:Gee.. you think?",
         })
-        t.check("sailed", select(2, t.var.server("dragon_sailed")) == 1, "dragon_sailed=" .. tostring(select(2, t.var.server("dragon_sailed"))))
+        t.check("sailed", select(2, t.var.server("varp7186_dragon_sailed")) == 1, "dragon_sailed=" .. tostring(select(2, t.var.server("varp7186_dragon_sailed"))))
         local crandor_result, crandor_tile = t.world.tile()
         t.check("on-crandor", crandor_tile.x < 2900 and crandor_tile.x > 2800, "tile " .. tostring(crandor_tile.x) .. "," .. tostring(crandor_tile.z))
         t.exec("goto-enterCrandorHole", t.player.goto_tile, 2834, 3254, 0)
@@ -440,7 +440,7 @@ return {
         t.exec("goto-unlockShortcut", t.player.goto_tile, 2836, 9600, 0)
         t.exec("unlockShortcut", t.player.click_loc, "dragonsecretdoor", 1)
         t.ticks(3)
-        t.check("unlockShortcut-wall", select(2, t.var.server("dragon_wall")) == 1, "dragon_wall=" .. tostring(select(2, t.var.server("dragon_wall"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
+        t.check("unlockShortcut-wall", select(2, t.var.server("varp5743_dragon_wall")) == 1, "dragon_wall=" .. tostring(select(2, t.var.server("varp5743_dragon_wall"))) .. " tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
         t.exec("returnThroughShortcut", t.player.click_loc, "dragonsecretdoor", 1)
         t.ticks(3)
         t.check("returnThroughShortcut-tile", select(2, t.world.tile()).z >= 9600, "tile " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))

@@ -55,7 +55,7 @@ return {
         -- varbit itself instead (S2's Prying Times precedent: a pure-varbit
         -- quest binds and reads the same as a varp-tracked one).
         local bind_result, bind_detail = t.quest.bind({
-            varp = "elemental_workshop_finished",
+            varp = "varb2067_elemental_workshop_finished",
             constants = {
                 not_started = 0,
                 complete = 1,

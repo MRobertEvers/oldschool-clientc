@@ -22,7 +22,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "elenaquest",
+            varp = "varp165_elenaquest",
             constants = {
                 not_started = 0,
                 started = 1,
