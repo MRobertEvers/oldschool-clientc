@@ -76,6 +76,24 @@ SCRIPT_HOST = (ROOT / "src/torirsserver/torirs_server_scripts.c").read_text()
 MANIFEST = ROOT / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
 
 
+def _load_var_names() -> dict[str, str]:
+    """Base name -> spelled name. Var names carry their kind and id
+    (`ca_tier_status_hard` is `varb<id>_ca_tier_status_hard`), so a needle
+    built from a base name goes through this."""
+    tree = ROOT / "OSRS-Content/osrs239-content"
+    names = {}
+    for path in (tree / "configs/all.varbit.compack", tree / "configs/all.varp.compack",
+                 tree / "configs/all.varc.compack", tree / "pack/varp.alloc"):
+        for name in re.findall(r"^\d+=(\S+)", path.read_text(errors="replace"), re.M):
+            m = re.match(r"^var[bpc]\d+_(.+)$", name)
+            if m:
+                names[m.group(1)] = name
+    return names
+
+
+VAR_NAMES = _load_var_names()
+
+
 def require(text: str, needle: str, label: str) -> None:
     if needle not in text:
         raise AssertionError(f"{label}: missing {needle!r}")
@@ -198,7 +216,7 @@ def main() -> None:
     require(NEX, "return($rangedefence)", "Nex ranged defence tie-break")
     require(NEX, "return($magicdefence)", "Nex magic defence tie-break")
     require(NEX, "[proc,nex_player_highest_attack_bonus]", "Choke attack-bonus drain")
-    require(NEX, "%nex_cough_until = add(map_clock, ^nex_cough_ticks);", "Choke duration reset")
+    require(NEX, "%varp6610_nex_cough_until = add(map_clock, ^nex_cough_ticks);", "Choke duration reset")
     require(NEX, "[ai_timer,nex]", "eight-tick out-of-combat leap")
     require(NEX, "npc_settimer(8);", "Nex leap cadence")
     require(NEX, "modulo($attacks, ^nex_special_every) = 0", "Nex special cadence")
@@ -208,7 +226,7 @@ def main() -> None:
     require(NEX, "huntall($target, 1, 0);", "3x3 barrage/prison area")
     require(NEX, "randominc(75)", "Ice Prison maximum")
     require(NEX, "oc_category($weapon) = weapon_salamander", "Ice Prison salamander")
-    require(NEX, "~player_attack_roll(%damagetype)", "Ice Prison accuracy roll")
+    require(NEX, "~player_attack_roll(%varp6295_damagetype)", "Ice Prison accuracy roll")
     require(NEX, "add($dx, $dz) = 1", "Ice Prison adjacent displacement")
     require(LOC, "[nex_icicle_1]\nop1=Attack", "attackable outer prison")
     require(CONSTANT, "^nex_prison_defence_level", "named Ice Prison defence")
@@ -257,13 +275,13 @@ def main() -> None:
         require(NEX, f'npc_say("{cry}")', f"Nex cry {cry}")
     require(NEX_DROPS, 'npc_say("Taste my wrath!")', "Nex Wrath cry")
     score = proc_body(NEX_DROPS, "nex_finish_personal_score")
-    require(score, "%total_nex_kills = calc(%total_nex_kills + 1);", "Nex kill scoreboard")
-    require(score, "%nex_personal_best_ticks = $duration;", "Nex personal-best scoreboard")
+    require(score, "%varp3269_total_nex_kills = calc(%varp3269_total_nex_kills + 1);", "Nex kill scoreboard")
+    require(score, "%varp6608_nex_personal_best_ticks = $duration;", "Nex personal-best scoreboard")
     require(score, "~nex_clear_contribution;", "Nex scored contribution cleanup")
     contribution_cleanup = proc_body(NEX, "nex_clear_contribution")
-    for state in ("nex_contribution_uid", "nex_contribution_damage", "nex_encounter_start"):
+    for state in ("varp6606_nex_contribution_uid", "varp6605_nex_contribution_damage", "varp6607_nex_encounter_start"):
         require(contribution_cleanup, f"%{state} = 0;", f"Nex cleanup clears {state}")
-    require(NEX_DROPS, "else if (%nex_contribution_uid = $dead)",
+    require(NEX_DROPS, "else if (%varp6606_nex_contribution_uid = $dead)",
             "sub-threshold Nex contribution cleanup")
     require(proc_body(FROZEN, "gwd_nex_barrier"), "~nex_clear_contribution;",
             "public Nex arena-exit contribution cleanup")
@@ -364,10 +382,10 @@ def main() -> None:
     # over a one-use ecumenical key; the obsolete three-charge varp is unused.
     required = proc_body(ENTRANCE, "gwd_kc_required")
     for tier, amount in (("hard", 35), ("elite", 30), ("master", 25), ("grandmaster", 15)):
-        require(required, f"%ca_tier_status_{tier} = 2", f"{tier} GWD KC reward")
+        require(required, f"%{VAR_NAMES['ca_tier_status_' + tier]} = 2", f"{tier} GWD KC reward")
         require(required, f"return({amount});", f"{tier} GWD KC amount")
-    assert "gwd_ecumenical_charges" not in ENTRANCE
-    assert "gwd_ecumenical_charges" not in FROZEN
+    assert "varp6602_gwd_ecumenical_charges" not in ENTRANCE
+    assert "varp6602_gwd_ecumenical_charges" not in FROZEN
     access = proc_body(ENTRANCE, "gwd_has_chamber_access")
     assert access.index("~gwd_kc_of($faction) >= ~gwd_kc_required") < access.index("inv_total(inv, ecumenical_key)")
     take_access = proc_body(ENTRANCE, "gwd_take_chamber_access")
@@ -407,7 +425,7 @@ def main() -> None:
         require(ENTRANCE, f"[mapzoneexit,{square}] ~gwd_leave_dungeon;", f"GWD cleanup exit {square}")
     leave = proc_body(ENTRANCE, "gwd_leave_dungeon")
     for faction in ("armadyl", "bandos", "saradomin", "zamorak", "zaros"):
-        require(leave, f"%godwars_counter_{faction} = 0;", f"{faction} KC departure reset")
+        require(leave, f"%{VAR_NAMES['godwars_counter_' + faction]} = 0;", f"{faction} KC departure reset")
     require(leave, "if (~gwd_in_dungeon = true)", "internal map-square boundary guard")
     require(leave, "~gwd_overlay_close;", "GWD overlay departure cleanup")
     require(ENTRANCE, "[oploc3,godwars_dungeon_door_normal]", "public boss-room Peek")
@@ -420,11 +438,11 @@ def main() -> None:
     # quartet roster, delayed respawns, and every terminal release path.
     require(ENTRANCE, "~gwd_private_enter($private_faction);", "private-room door entry")
     for tier, fee in (("grandmaster", 75000), ("master", 100000), ("elite", 125000)):
-        require(PRIVATE, f"%ca_tier_status_{tier} = 2", f"{tier} private fee tier")
+        require(PRIVATE, f"%{VAR_NAMES['ca_tier_status_' + tier]} = 2", f"{tier} private fee tier")
         require(PRIVATE, f"return({fee});", f"{tier} private fee")
     require(PRIVATE, "return(150000);", "Hard private fee")
     require(PRIVATE, "~map_instance_from_square", "private-room map clone")
-    require(PRIVATE, "%map_instance_handle = $handle;", "private-room ownership")
+    require(PRIVATE, "%varp5925_map_instance_handle = $handle;", "private-room ownership")
     for actor in (
         "godwars_armadyl_avatar", "godwars_armadyl_bodyguard_skree",
         "godwars_armadyl_bodyguard_geerin", "godwars_armadyl_bodyguard_kilisa",
@@ -462,8 +480,8 @@ def main() -> None:
         ("huntall(~gwd_private_coord($handle, ^nex_centre), 64, 0);", "instance population scan"),
         ("~gwd_nex_private_has_space($population)", "twenty-player cap gate"),
         ("~gwd_take_chamber_access(5)", "guest essence/key consumption"),
-        ("%map_instance_handle = $handle;", "guest room handle binding"),
-        ("%gwd_private_faction = 5;", "guest Nex-room binding"),
+        ("%varp5925_map_instance_handle = $handle;", "guest room handle binding"),
+        ("%varp6637_gwd_private_faction = 5;", "guest Nex-room binding"),
     ):
         require(nex_join, needle, f"private Nex friend join {label}")
     nex_has_space = proc_body(PRIVATE, "gwd_nex_private_has_space")
@@ -494,9 +512,9 @@ def main() -> None:
     require(ENTRANCE, "[mapzone,0_45_58]", "GWD surface chill entry")
     require(ENTRANCE, "[timer,gwd_surface_chill]", "GWD surface chill timer")
     require(CONSTANT, "^gwd_surface_chill_ticks = 10", "surface chill cadence")
-    require(ENTRANCE, "if (%my2arm_fire_gwd = 0)", "Fire of Unseasonal Warmth immunity")
+    require(ENTRANCE, "if (%varb6531_my2arm_fire_gwd = 0)", "Fire of Unseasonal Warmth immunity")
     assert ENTRANCE.count("~gwd_chill_skill(") == 23
-    require(ENTRANCE, "%sa_energy = 0;", "surface chill special drain")
+    require(ENTRANCE, "%varp300_sa_energy = 0;", "surface chill special drain")
     require(ENTRANCE, "healenergy(-10000);", "surface chill run drain")
     require(ENTRANCE, "[oploc1,my2arm_fire_pit_empty]", "unseasonal fire build option")
     for material, amount in (
@@ -507,7 +525,7 @@ def main() -> None:
         ("green_salt", 300),
     ):
         require(ENTRANCE, f"inv_del(inv, {material}, {amount});", f"unseasonal fire {material}")
-    require(ENTRANCE, "%my2arm_status < ^mf_complete", "unseasonal fire quest gate")
+    require(ENTRANCE, "%varb6528_my2arm_status < ^mf_complete", "unseasonal fire quest gate")
     require(ENTRANCE, "stat_advance(construction, 6000);", "unseasonal fire Construction XP")
     require(ENTRANCE, "stat_advance(firemaking, 3000);", "unseasonal fire Firemaking XP")
     for tier in ("easy", "medium", "hard", "elite", "master", "grandmaster"):
@@ -515,8 +533,8 @@ def main() -> None:
     hilt = proc_body(ENTRANCE, "gwd_hilt_teleport")
     require(hilt, "$limit = 3;", "Ghommal hilt 1 daily limit")
     require(hilt, "$limit = 5;", "Ghommal hilt 2 daily limit")
-    require(hilt, "%gwd_hilt_reset_day ! date_runeday()", "Ghommal hilt daily reset")
-    require(hilt, "%ca_teleport_count_trollheim = calc(%ca_teleport_count_trollheim + 1)", "Ghommal hilt usage")
+    require(hilt, "%varp6613_gwd_hilt_reset_day ! date_runeday()", "Ghommal hilt daily reset")
+    require(hilt, "%varb12875_ca_teleport_count_trollheim = calc(%varb12875_ca_teleport_count_trollheim + 1)", "Ghommal hilt usage")
     require(hilt, "map_findsquare(^gwd_entrance_stand", "Ghommal hilt boulder destination")
     bridge = proc_body(ENTRANCE, "gwd_ice_bridge")
     require(bridge, "~gwd_access_level(hitpoints, ^gwd_hp_ice_bridge, false)", "unboostable Zamorak HP gate")
@@ -526,7 +544,7 @@ def main() -> None:
     require(bridge, "stat_sub(prayer, stat(prayer), 0);", "Zamorak bridge Prayer drain")
     require(ENTRANCE, "[opheld1,saradomin_light]", "Saradomin's light consume option")
     require(ENTRANCE, "inv_del(inv, saradomin_light, 1);", "Saradomin's light consumption")
-    require(ENTRANCE, "%godwars_saradomin_light = 1;", "permanent Zamorak darkness removal")
+    require(ENTRANCE, "%varb4733_godwars_saradomin_light = 1;", "permanent Zamorak darkness removal")
     require(ENTRANCE, "anim(xbows_human_fire_and_climb_grapple_fast, 0);", "Armadyl grapple animation")
     require(ENTRANCE, "spotanim_pl(xbows_fire_and_climbed_grapple_spot_anim_fast, 0, 0);", "Armadyl grapple player graphic")
     require(ENTRANCE, "projanim_map($grapple_start, $grapple_destination, xbows_grapple_proj", "Armadyl grapple projectile")
@@ -553,17 +571,17 @@ def main() -> None:
         require(GODSWORD, f"[opheld3,{sword}]", f"{sword} dismantle option")
     require(
         GODSWORD,
-        "$sword = ancient_godsword & %ancient_godsword_mark_count > 0",
+        "$sword = ancient_godsword & %varp6740_ancient_godsword_mark_count > 0",
         "active Blood Sacrifice dismantle lock",
     )
-    require(GWD_VARP, "[ancient_godsword_mark_count]", "Blood Sacrifice mark count")
-    mark_decl = GWD_VARP.split("[ancient_godsword_mark_count]", 1)[1].split("[", 1)[0]
+    require(GWD_VARP, "[varp6740_ancient_godsword_mark_count]", "Blood Sacrifice mark count")
+    mark_decl = GWD_VARP.split("[varp6740_ancient_godsword_mark_count]", 1)[1].split("[", 1)[0]
     require(mark_decl, "scope=temp", "Blood Sacrifice temporary state")
     require(ANCIENT_GODSWORD, "anim(ngs_special_player, 0);", "Blood Sacrifice animation 9171")
     require(ANCIENT_GODSWORD, "spotanim_pl(ngs_special_spotanim, 0, 0);", "Blood Sacrifice graphic 1996")
     require(ANCIENT_GODSWORD, "sound_synth(blood_sacrifice, 1, 0);", "Blood Sacrifice sound 2911")
-    require(ANCIENT_GODSWORD, "multiply(~player_attack_roll(%damagetype), 2)", "Blood Sacrifice accuracy")
-    require(ANCIENT_GODSWORD, "scale(110, 100, %com_maxhit)", "Blood Sacrifice primary damage")
+    require(ANCIENT_GODSWORD, "multiply(~player_attack_roll(%varp6295_damagetype), 2)", "Blood Sacrifice accuracy")
+    require(ANCIENT_GODSWORD, "scale(110, 100, %varp6287_com_maxhit)", "Blood Sacrifice primary damage")
     require(
         ANCIENT_GODSWORD,
         "queue*(ancient_godsword_sacrifice, 7)(npc_uid, npc_basestat(hitpoints), map_instance_find(coord));",
@@ -581,15 +599,15 @@ def main() -> None:
     require(heal, "$damage_dealt", "Blood Sacrifice actual-damage heal cap")
     clear_marks = proc_body(ANCIENT_GODSWORD, "ancient_godsword_clear_marks")
     require(clear_marks, "clearqueue(ancient_godsword_sacrifice);", "Blood Sacrifice queue cleanup")
-    require(clear_marks, "%ancient_godsword_mark_count = 0;", "Blood Sacrifice count cleanup")
+    require(clear_marks, "%varp6740_ancient_godsword_mark_count = 0;", "Blood Sacrifice count cleanup")
     require(PLAYER_LOGIN, "~ancient_godsword_clear_marks;", "Blood Sacrifice login cleanup")
     require(PLAYER_LOGOUT, "~ancient_godsword_clear_marks;", "Blood Sacrifice logout cleanup")
     require(PLAYER_DEATH, "~ancient_godsword_clear_marks;", "Blood Sacrifice death cleanup")
 
     # Healing Blade restores from the successful potential-damage roll, not
     # capped/actual damage, and retains its guaranteed restoration minima.
-    require(SARADOMIN_GODSWORD, "multiply(~player_attack_roll(%damagetype), 2)", "Healing Blade accuracy")
-    require(SARADOMIN_GODSWORD, "scale(110, 100, %com_maxhit)", "Healing Blade primary damage")
+    require(SARADOMIN_GODSWORD, "multiply(~player_attack_roll(%varp6295_damagetype), 2)", "Healing Blade accuracy")
+    require(SARADOMIN_GODSWORD, "scale(110, 100, %varp6287_com_maxhit)", "Healing Blade primary damage")
     require(SARADOMIN_GODSWORD, "if ($hit = true)", "Healing Blade successful-hit restoration")
     require(SARADOMIN_GODSWORD, "~pvm_sgs_heal_amount($damage)", "Healing Blade pre-overkill HP basis")
     require(SARADOMIN_GODSWORD, "~pvm_sgs_prayer_amount($damage)", "Healing Blade pre-overkill Prayer basis")
@@ -779,7 +797,7 @@ def main() -> None:
             "~gwd_drop_brimstone_key($where, ~gwd_armadyl_bodyguard_brimstone_denominator);",
             "Armadyl bodyguard Brimstone tertiary")
     frozen_piece = proc_body(DROPS, "gwd_drop_frozen_key_piece")
-    require(frozen_piece, "%gwd_frozen_door_state < 1",
+    require(frozen_piece, "%varp6603_gwd_frozen_door_state < 1",
             "frozen-key inactive-miniquest suppression")
     require(frozen_piece, "inv_total(inv, nex_frozen_key)",
             "assembled frozen-key inventory suppression")
@@ -788,15 +806,15 @@ def main() -> None:
     require(frozen_piece, "inv_total(inv, $piece)",
             "owned frozen-key piece suppression")
     for needle in (
-        "%rag_quest = ^rag_collecting",
-        "testbit(%rag_submit, ^rag_bit_goblin) = ^false",
+        "%varp714_rag_quest = ^rag_collecting",
+        "testbit(%varp6208_rag_submit, ^rag_bit_goblin) = ^false",
         "inv_total(inv, rag_goblin_bone) = 0",
         "inv_total(bank, rag_goblin_bone) = 0",
     ):
         require(AMBIENT_DROPS, needle, "Rag goblin-bone prerequisite")
     clue_rate = proc_body(DROPS, "gwd_boss_elite_clue_rate")
     for tier in ("elite", "master", "grandmaster"):
-        require(clue_rate, f"%ca_tier_status_{tier} = 2",
+        require(clue_rate, f"%{VAR_NAMES['ca_tier_status_' + tier]} = 2",
                 f"classic boss elite clue {tier} reward")
     require(clue_rate, "return(237);", "rewarded classic boss elite clue rate")
     require(clue_rate, "return(250);", "base classic boss elite clue rate")
@@ -820,7 +838,7 @@ def main() -> None:
                 clue, f"clue tier {tier} exact unboxed object")
     require(clue_obj, "return($unboxed);", "exact unboxed clue preservation")
     require(proc_body(DROPS, "gwd_drop_clue"),
-            "%cluequest >= ^xmarks_complete", "X Marks clue-box prerequisite")
+            "%varb8063_cluequest >= ^xmarks_complete", "X Marks clue-box prerequisite")
     champion = proc_body(DROPS, "gwd_champion_scroll_allowed")
     require(champion, "$quest_points < 32", "champion-scroll QP prerequisite")
     require(champion, "$defeated ! 0", "champion duplicate suppression")
@@ -829,13 +847,13 @@ def main() -> None:
             "champion duplicate feedback")
     for defeated in ("goblin", "hobgoblin", "imp", "jogre"):
         require(DROPS + AMBIENT_DROPS + WIKI_IMP,
-                f"%champions_defeated_{defeated}",
+                f"%{VAR_NAMES['champions_defeated_' + defeated]}",
                 f"{defeated} champion completion prerequisite")
     pet = proc_body(DROPS, "gwd_record_pet")
     for varbit in (
         "armadylpet", "bandospet", "saradominpet", "zamorakpet", "nex"
     ):
-        require(pet, f"%pet_insurance_{varbit} = 1;",
+        require(pet, f"%{VAR_NAMES['pet_insurance_' + varbit]} = 1;",
                 f"{varbit} automatic pet insurance")
     require(pet, "~collection_earn_if_catalogued($pet, 1);",
             "GWD pet collection logging")

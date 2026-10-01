@@ -216,7 +216,7 @@ FAMILY_DATA = {
         charge_source="Vials of blood + 200 blood runes at a vyre well (not implemented; ::fullscythe cheat instead)",
         drain_event="1 charge per swing that lands a hit (any of the up to 3 sub-hits)",
         status="implemented",
-        note="Migrated off its own %scythe_of_vitur_charges varp (Phase 6); see skill_combat/scripts/player/gear/scythe_of_vitur.rs2.",
+        note="Migrated off its own %varp6305_scythe_of_vitur_charges varp (Phase 6); see skill_combat/scripts/player/gear/scythe_of_vitur.rs2.",
     ),
     "Holy scythe of vitur": dict(
         storage="item_var", depletion="revert", max_charges=20000,
@@ -457,7 +457,7 @@ FAMILY_DATA = {
         drain_event="25% chance per Slayer-task-matching kill to count as 2 kills; consumes 1 shared charge on proc",
         status="implemented",
         note="player_varp, same shape as bracelet_of_slaughter/dodgy_necklace. Wired into "
-             "skill_slayer/scripts/slayer_kill.rs2's slayer_on_npc_kill, doubling the real %if1 task-count "
+             "skill_slayer/scripts/slayer_kill.rs2's slayer_on_npc_kill, doubling the real %varp261_if1 task-count "
              "decrement instead of a synthetic hook. Crumbles at 0 charges; can never be worn alongside "
              "bracelet of slaughter (same ^wearpos_hands slot). NOT implemented: elite Combat Achievements' "
              "10-percent regen-instead-of-crumble reward -- no Combat Achievements system exists in this tree.",
@@ -566,7 +566,7 @@ FAMILY_DATA = {
         charge_source="Underground Pass quest reward (starts full); free full recharge at the Underground Pass blood well; paid recharge from the Dark Mage (not implemented)",
         drain_event="1 charge per Iban Blast cast on a monster (2 on a player -- not modelled, always drains 1; this codebase's combat magic has no npc/player branch to hang that on)",
         status="implemented",
-        note="Fixed 2026-08-13: migrated off the single account-wide %iban_staff_charges varp onto item_var "
+        note="Fixed 2026-08-13: migrated off the single account-wide %varp6121_iban_staff_charges varp onto item_var "
              "(same real drain already wired at skill_combat/scripts/player/spells/god_iban.rs2's "
              "~pvm_iban_blast -- it gates the cast and decrements per swing, just needed the right storage). "
              "Fixed both stubbed grant sites too: quests/quest_upass/scripts/upass_tomb.rs2 (quest reward, "
@@ -739,7 +739,7 @@ FAMILY_DATA = {
         status="implemented",
         note="Wired into combat_stats.rs2 right after ~ring_of_recoil_check ($damage), the real 'player "
              "takes damage' funnel. NOT implemented: the AoE part of the effect (recoiling every target in "
-             "a 3x3, not just the one attacker) -- ring_of_recoil_check's own %aggressive_npc single-target "
+             "a 3x3, not just the one attacker) -- ring_of_recoil_check's own %varp5756_aggressive_npc single-target "
              "model is the only precedent for a reactive-damage effect in this tree; there is no "
              "multi-target 'who else is near and hostile' query to extend. Wires the single-target case "
              "(recoil the one attacker for 1 damage) so the charge count is not permanently unusable, the "
@@ -1058,7 +1058,7 @@ FAMILY_DATA = {
              "name than expected (cata_shard, not ancient_shard) -- found by reading the record right after "
              "arclight's own in all.obj, not by the name search that first came up empty. Special-attack "
              "exclusion needed a new mechanism this session's other weapon drains never did: "
-             "pvm_arclight.rs2 sets %arclight_special_active around its own call into the shared "
+             "pvm_arclight.rs2 sets %varp6326_arclight_special_active around its own call into the shared "
              "player_hit_npc_prepare funnel, and arclight_drain skips while that flag is set -- mutation-"
              "tested. NOT implemented: the Catacombs-of-Kourend altar location requirement for the initial "
              "Darklight->Arclight conversion (no such loc exists anywhere in this tree, simplified to a "
@@ -1212,9 +1212,9 @@ FAMILY_DATA = {
         drain_event="25% chance per Slayer-task kill to not decrement the task's remaining kill count (full XP still granted), 1 charge per proc",
         status="implemented",
         note="player_varp, same shape as expeditious_bracelet/dodgy_necklace. Wired into "
-             "skill_slayer/scripts/slayer_kill.rs2's slayer_on_npc_kill, skipping the real %if1 task-count "
+             "skill_slayer/scripts/slayer_kill.rs2's slayer_on_npc_kill, skipping the real %varp261_if1 task-count "
              "decrement instead of a synthetic hook (XP is awarded separately in the same proc, unaffected). "
-             "The Jad/Zuk exclusion needs no special-casing: both are boss tasks (%if1=-1) that already "
+             "The Jad/Zuk exclusion needs no special-casing: both are boss tasks (%varp261_if1=-1) that already "
              "return before reaching the decrement, so the effect is never even asked. Crumbles at 0 "
              "charges; can never be worn alongside expeditious bracelet (same ^wearpos_hands slot). NOT "
              "implemented: elite Combat Achievements' regen reward -- see Expeditious bracelet's own note.",
@@ -1269,7 +1269,7 @@ FAMILY_DATA = {
         status="implemented",
         note="Wired into skill_combat/scripts/player/spells/magic_dart.rs2's pvm_magic_dart, reusing "
              "skill_slayer/scripts/slayer_kill.rs2's slayer_npc_matches_task (which already reads the "
-             "ambient npc_category/%if1-3 task state with no npc parameter) to gate on the current target "
+             "ambient npc_category/%varp261_if1-3 task state with no npc parameter) to gate on the current target "
              "matching the player's Slayer task. Drains once per cast at a task-matching target regardless "
              "of hit success -- the wiki's 'casts against monsters' reads as attempts, not landed hits, "
              "unlike blood fury/Saradomin's blessed sword. NOT implemented: the actual power increase Magic "

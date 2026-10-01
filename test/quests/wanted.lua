@@ -71,7 +71,7 @@ return {
         }
 
         local bind_result, bind_detail = t.quest.bind({
-            varp = "wanted_main",
+            varp = "varb1051_wanted_main",
             constants = {
                 not_started = 0,
                 amik_first = 3,
@@ -88,7 +88,7 @@ return {
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
-        local qp_before_result, qp_before = t.var.varp("qp")
+        local qp_before_result, qp_before = t.var.varp("varp101_qp")
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
 
@@ -164,7 +164,7 @@ return {
             "mesbox:Savant: Oh! You're chasing Solus Dellagar?",
             "mesbox:Savant: He was last reported in the company of the Black Knights.",
         })
-        t.expect("commorb.intel", t.var.await_server("wanted_commorb_intel", 1, 10))
+        t.expect("commorb.intel", t.var.await_server("varb1053_wanted_commorb_intel", 1, 10))
 
         -- 7. Lord Daquarius (Taverley Dungeon, SW room) tells you nothing
         t.exec("goto-daquarius1", t.player.goto_tile, 2891, 9681, 0)
@@ -177,12 +177,12 @@ return {
             "player:Tell me where he is, or I'll start with your men.",
             "npc:You wouldn't dare! ...Fine. Prove you're serious. Kill one of my Black Knights, and perhaps I'll reconsider.",
         })
-        t.expect("daquarius.hint_talked", t.var.await_server("wanted_daquarius_hint", 1, 10))
+        t.expect("daquarius.hint_talked", t.var.await_server("varb1055_wanted_daquarius_hint", 1, 10))
 
         -- 8. Kill a Black Knight after talking to Daquarius (drop_tables/scripts/black_knight.rs2)
         t.exec("blackknight.attack", t.player.attack, "black_knight", 2, 20)
         t.exec("blackknight.dead", t.npc.await_dead_engaged, 60, 8)
-        t.expect("daquarius.hint_dead", t.var.await_server("wanted_daquarius_hint", 2, 10))
+        t.expect("daquarius.hint_dead", t.var.await_server("varb1055_wanted_daquarius_hint", 2, 10))
 
         -- 9. Daquarius gives in: Solus is somewhere with fur "not from a bear"
         t.exec("daquarius2.talk", t.player.talk_to, "lord_daquarius", 1)
@@ -192,7 +192,7 @@ return {
             "npc:All I know is that he left behind some fur when he left, I would expect him to be in an area with furred creatures of some sort.",
             "npc:You'll want to speak to the Mage of Zamorak -- he deals with Solus more directly than I do. Try the Chaos Temple in south-east Varrock.",
         })
-        t.expect("daquarius.exposition", t.var.await_server("wanted_lord_d_exposition", 1, 10))
+        t.expect("daquarius.exposition", t.var.await_server("varb1058_wanted_lord_d_exposition", 1, 10))
 
         -- 10. Mage of Zamorak, Varrock Zamorakian chapel: 20 un-noted essence for the tip
         t.exec("goto-mage", t.player.goto_tile, 3260, 3384, 0)
@@ -278,7 +278,7 @@ return {
             "mesbox:Savant: Well I still don't know what help that is",
         })
         t.expect("pos2.blue_cape", t.inv.expect_has("blue_cape", 1))
-        t.expect("hunt.pos2_complete", t.var.await_server("wanted_mission2", 1, 10))
+        t.expect("hunt.pos2_complete", t.var.await_server("varb1067_wanted_mission2", 1, 10))
 
         -- 13. Champions' Guild (fixed): Solus casts Smoke Barrage -- no damage, no poison
         t.exec("cg.goto", t.player.goto_tile, 3191, 3357, 0)
@@ -300,7 +300,7 @@ return {
             "mesbox:Savant:",
             "player:Okay, I'm on my way. This Solus guy is really beginning to get on my nerves!",
         })
-        t.expect("hunt.pos2_marked_complete", t.var.await_server("wanted_mission2complete", 1, 10))
+        t.expect("hunt.pos2_marked_complete", t.var.await_server("varb1068_wanted_mission2complete", 1, 10))
 
         -- Read back which pool id got drawn for position 4.
         local pos4_id = nil
@@ -366,7 +366,7 @@ return {
             "player:Okay Savant, I'll heal up, then go looking for him amongst the Dorgeshuun.",
         })
         t.expect("pos4.bone_spear", t.inv.expect_has("cave_goblin_bone_spear", 1))
-        t.expect("hunt.pos4_complete", t.var.await_server("wanted_mission3", 1, 10))
+        t.expect("hunt.pos4_complete", t.var.await_server("varb1069_wanted_mission3", 1, 10))
 
         -- 15. Dorgesh-Kaan mine (fixed): the 'hostage' Woman who is Solus
         t.exec("dk.goto", t.player.goto_tile, 3318, 9628, 0)
@@ -399,7 +399,7 @@ return {
             "mesbox:Savant:",
             "player:Okay, I'm on my way - and Solus had better watch out, I am up to here with his annoying tricks!",
         })
-        t.expect("hunt.pos5_complete", t.var.await_server("wanted_mission3complete", 1, 10))
+        t.expect("hunt.pos5_complete", t.var.await_server("varb1070_wanted_mission3complete", 1, 10))
 
         -- Read back which pool id got drawn for position 6.
         local pos6_id = nil
@@ -436,7 +436,7 @@ return {
             "mesbox:Savant: Let's worry about that later; Go get Solus!",
         })
         t.expect("pos6.essence", t.inv.expect_has("cert_blankrune_high", 20))
-        t.expect("hunt.pos6_complete", t.var.await_server("wanted_mission4", 1, 10))
+        t.expect("hunt.pos6_complete", t.var.await_server("varb1071_wanted_mission4", 1, 10))
         t.check("huntDownSolus", true, "hunt-for-Solus scan chain driven for real: Canifis (position 1, canifis.*), "
             .. tostring(POOL[pos2_id][1]) .. " (position 2, Camelot teleport, pos2.*), Champions' Guild (position 3, "
             .. "Smoke Barrage, cg.*), " .. tostring(POOL[pos4_id][1]) .. " (position 4, Flames of Zamorak, pos4.*), "
@@ -512,7 +512,7 @@ return {
                 .. tostring(scroll_title and scroll_title.name) .. scroll_shot_note)
         t.scroll.close()
 
-        local qp_after_result, qp_after = t.var.varp("qp")
+        local qp_after_result, qp_after = t.var.varp("varp101_qp")
         t.check("quest.points", qp_after_result == "ok" and qp_before_result == "ok"
             and qp_after == qp_before + 1,
             "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after) .. " (want +1)")
