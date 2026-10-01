@@ -1,0 +1,1 @@
+{"test_id":"regicide","leg":2,"outcome":"done","runs":8,"last_step":"leaveWellCave","last_failure":"","blocker":"","doc_gaps":["ladder lists the Underground Pass steps back to front (ladder order is not route order)","upass_mud has no walkable approach tile: digMud needs stand_on_square"],"compacted":false}
