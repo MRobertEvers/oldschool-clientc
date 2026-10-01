@@ -126,6 +126,15 @@ Death Plateau's troll-thrower cut plays from Reading the Danger sign (`death_dan
 sign. A loc the content gives a cutscene is driven like any other loc. The rule only asks that the
 cutscene is asserted.
 
+### `cutscene_row_required` names a site on a route you did not take (sonnet-b42)
+
+The gate counts every `cam_moveto`/`cam_lookat` site in the quest's `.rs2`, including one on an
+OPTIONAL route. Shilo Village's way out of Ah Za Rhoon can be the table turned into a raft
+(`zqtableraft`, `quest_zombiequeen.rs2:674-770`), which the guide never names, and its camera site
+still reds the gate until a ledger row covers it. Take that route in the test, as
+`zombiequeen.lua` does (`leaveCavernsRaft` + `leaveCavernsRaft.cutscene` with the `.rs2`'s literal
+`moveto 0_45_146_48_7`), rather than leave the quest red over a cut no guide step reaches.
+
 ## Test affordance: `::cutscene <level_mx_mz_lx_lz> [times] [hold]`
 
 This is a content debugproc, `general/scripts/misc/cheat_cutscene.rs2`. It plays LostCity's Fire

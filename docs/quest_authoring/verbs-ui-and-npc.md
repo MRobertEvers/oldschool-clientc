@@ -72,6 +72,15 @@ call itself to `true` or `false` compares the string `ok` and always fails -- an
 out with the interface plainly open. Read the second value:
 `select(2, t.ui.is_modal()) == true` (Shilo Village's scroll reads).
 
+#### `if_click` on `nil` past the last switch: count the interface's components (sonnet-b42)
+
+`t.ui.widget(sym)` answers no component for a name the interface does not have, and
+`t.ui.invoke` on that nil raises instead of writing a FAIL row. Forgettable Tale's three junction
+interfaces have 8, 12 and 19 switches (`forget_puzzle1` `switch_a..h`, `forget_puzzle2`
+`switch_a..l`, `forget_puzzle3` `switch_a..s`; junction `i` is varbit `forget_if(i+1)`,
+`forget_puzzle.rs2:15`). A "clear every junction" loop to 20 on `forget_puzzle3` asks for
+`switch_t` and stops the run. Loop to the interface's own count.
+
 ### `t.ui.journal_open(display_name)` -- also `t.ui.journal_close`
 
 `t.ui.journal_open(display_name)` -> `(ok, {title, first_line, lines, line_count, complete})`

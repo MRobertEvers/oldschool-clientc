@@ -62,3 +62,21 @@ GuildmasterDialogue.java / DSMagicDoorPlugin.java and the OSRS wiki brief
   door."). The fourth opens it ("The door opens...", `%dragon_oracle` = 3) and walks you through.
   A plain Open answers "The door is locked." until then. Server varp `%dragon_door_items` holds the
   four bits.
+
+## Rewards that are scroll text only, a finale cutscene not built, a start npc with no spawn (sonnet-b42)
+
+*Origin: the sonnet-b42 authors and reviewers (deserttreasure, gardenoftranquility, giantdwarf).*
+
+- DESERT TREASURE'S RING AND SIGNET ARE ONLY SCROLL TEXT. `deserttreasure.rs2:1957` lists "Ancient
+  signet from Eblis" and "Ring of visibility" in `~quest_complete_rewards`, but nothing in
+  `quest_deserttreasure` calls `inv_add` for either. A `t.inv.await` on them times out; a reward row
+  that reads only the scroll line is not an item reward. Report it as a content gap; assert the
+  items the script does give.
+- GARDEN OF TRANQUILLITY'S FINALE HAS NO CUTSCENE. `garden_statues.rs2:15-16` says the real game's
+  Roald garden tour and Falador guard distraction are a cutscene that "is not built here". The quest
+  completes inside King Roald's throne-room dialogue (`talkToRoald`), so there is no `cutscene:`
+  row to write and `cutscene_row_required` does not apply.
+- THE GIANT DWARF'S PRE-QUEST BOATMAN HAS NO SPAWN ROW. `dwarf_city_boatman_mines_prequest` is
+  placed nowhere; the only placement is `dwarf_city_boatman_mines` (`areas/world/configs/m44_158.spawn`).
+  `gdwarf_start.rs2:11-14` sends that npc's op1 to the pre-quest proc while
+  `%giantdwarf_quest = ^gdwarf_not_started`, so talk to `dwarf_city_boatman_mines` to start.

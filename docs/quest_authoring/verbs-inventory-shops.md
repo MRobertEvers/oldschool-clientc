@@ -108,6 +108,16 @@ CARRIED to reload.
 
 `t.player.drop(item)` -> `ok` `timeout` (backpack falls AND a stack lands on the ground).
 
+#### A rake fills the backpack with weeds; dropping a second weeds copy FAILs (sonnet-b42)
+
+Every farming patch you rake gives weeds, several per patch. A long farming quest (Garden of
+Tranquillity rakes nine patches and three allotments) fills the backpack, and a later pick or
+harvest fails with the inventory full. Drop the weeds after each rake. `t.player.drop` is `ok`
+only when a ground stack lands, and a second weeds stack nearby does not raise the ground count
+(seam-facts: Seam pass 26 (n)), so wrapped in `t.exec` the second drop is a FAIL row. Call it
+directly in a loop that reads `t.inv.count("weeds")` (`gardenoftranquility.lua:100-105`), and let
+the next row assert what the drop was for.
+
 #### `t.player.emote(name)`
 
 `t.player.emote(name)` -> `ok` `refused` `timeout` `no_row` `not_visible` `unsupported`: opens the

@@ -515,3 +515,28 @@ Unknown command` and the await times out at 4. `build/quest_gate/s33clock_new` a
   and the clock is real again. Skip AFTER the relog, never before it.
 - Prefer it to a quest's own "set the result" debugproc (`::forget_growkelda`,
   `::forget_ferment`). Those write the outcome; the skip lets the quest compute it.
+
+## A loc that changes symbol each use: Shilo Village's bone door (`thzq_tombrooml1/2/3`)
+
+*Origin: author batch sonnet-b42 (zombiequeen `useBonesOnDoor1..3`).*
+
+Each bones use on Rashiliyia's tomb door `loc_change`s it to the next symbol for 50 ticks
+(`quest_zombiequeen.rs2:1419-1434`: `thzq_tombrooml1` -> `thzq_tombrooml2` -> `thzq_tombrooml3`).
+A second `use_on` aimed at `by_symbol("loc", "thzq_tombrooml1")` finds nothing. Name the NEXT
+symbol on each use, with `{ at = { 2892, 9480 } }` because two `thzq_tombrooml1` copies exist
+(seam-facts: Seam pass 32 (e)). The way back out is op1 on whichever of the three is there now:
+try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
+
+## Underground Pass: `walk_to` stalls under attack and treats rock bridges as walls (sonnet-b42)
+
+*Origin: author batch sonnet-b42 (upass legs 3-4, rejected; relay notes in
+`build/author_state/sonnet-b42/upass.relay.md`).*
+
+- `walk_to` answers `timeout` while blessed spiders and ogres hit you (2397-2402,9680-9684 on the
+  way to orb 2, `m37_151.spawn`). A 10-hitpoint account dies in the hops. Put the combat levels in
+  `setup` (hitpoints 40 and defence 30 survived), hop-walk in short legs, and retry a stalled hop;
+  `::setlevel` inside a leg is too late for an earlier leg's resume.
+- `walk_to` routes around the narrow rock bridges of the maze after the ledge as if they were
+  walls, so a straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
+  `click_loc` the `walkway_upass_narrow_mid_top` copy at 2380,9634 / 2387,9631 / 2392,9627 /
+  2399,9632 / 2406,9637, then walk on to the pipe (`upass_pipe6`, 2417,9605).

@@ -249,6 +249,15 @@ that!"), and the combat state never cleared, so every quiet-wait tick refused. W
 aggression range before the leg ends (leg 7 walks to 2396,4679 and waits 12 ticks), and put the
 boundary there.
 
+#### `checkpoint k refused: the player is in combat` in a room the next leg starts in (sonnet-b42)
+
+No checkpoint can be written inside a room of aggressive npcs that keep attacking. Underground
+Pass leg 4 ended in the skeleton room (2371-2383,9605-9611, `m37_150.spawn`; level-25 skeletons),
+and leg 5 began by clicking the door at 2375,9611 in that same room: every quiet-wait tick refused,
+four runs in a row. Move the boundary, not the fight: end the leg BEFORE the room, or carry the
+door click into the leg so it ends on the far side. Arm the account in `setup` for the fight the
+room forces.
+
 ### Running one leg
 
 ```sh

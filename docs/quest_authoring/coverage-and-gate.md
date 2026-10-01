@@ -141,3 +141,15 @@ clicking the sub-step's loc is CHEAT (`teleported_across`), and the reason names
 - Known looseness: a skipped ladder is reported against every promoted sub-step that shares its
   loc and parent, so the cited goto pair may be a sibling's. Only a PANEL step's stairs still use
   the plain ladder rule (mourningsendparti `enterBasementAfterSheep` grades TRAVEL).
+
+### A setup `::give` of The Giant Dwarf's Consortium ores and bars is a brought item (sonnet-b42)
+
+*Origin: the sonnet-b42 giantdwarf reviewer left "Consortium ore/bar tasks staged with ::give:
+rule (c) risk, unjudged"; the sampler judged it from the guide.*
+
+TheGiantDwarf.java lists the points-game deliveries as items, not as gathering steps: "Various
+ores and bars" (`oresBars`, `canBeObtainedDuringQuest`, line 115) and ten each of copper, tin,
+iron, coal, silver, gold and mithril ore and bronze, iron, silver, gold, steel and mithril bar
+(lines 134-146). No guide step mines or smelts them, so a setup `::give` of them stages a brought
+item and is not trap 16. The deliveries themselves are the quest's work: every hand-in to the
+Consortium must be a driven `talk_to`/`use_on` row that moves the points varp.
