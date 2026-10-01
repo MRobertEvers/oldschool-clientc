@@ -73,6 +73,17 @@ waits real minutes".
 
 `t.skill.snapshot()` -> `(ok, table)`, every stat read once.
 
+#### `attempt to index a string value` on a snapshot, or a reading's `.xp` is nil (sonnet-b43)
+
+*Origin: author batch sonnet-b43 (horror).*
+
+Both reads answer the result string FIRST: `local snap = t.skill.snapshot()` holds `"ok"`, and
+indexing it fails. Take the second value: `local _, snap = t.skill.snapshot()` (or
+`select(2, t.skill.snapshot())`), then `snap.magic.experience`. A reading (`t.skill.read`'s second
+value, and each entry of a snapshot) carries `.level` (current, after boosts and drains),
+`.base_level` and `.experience`, in whole xp (`script/plugins/quest_driver/state.lua`
+`QD.skill.expect_gain`). There is no `.xp`, so a reward of 4,662.5 reads as a delta of 4662.
+
 ### `t.skill.expect_gain(name, xp, snapshot)`
 
 `t.skill.expect_gain(name, xp, snapshot)` -> `ok` `refused` `no_row`. Accepts `xp` or `xp*10`, names
