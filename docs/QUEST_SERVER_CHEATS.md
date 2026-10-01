@@ -57,6 +57,8 @@ every line below shifted with it.
 
 | literal | line | meaning |
 |---|---|---|
+| `checkpoint` | 8520 | `::checkpoint <leg>` -- quest-harness only (seam30; docs/quest_authoring/relay.md "Checkpoints"): writes the player through the save serialiser in checkpoint mode (every non-zero varp of any scope plus a `[random]` section with the player's streams) to `<TORIRSSERVER_SAVES>/checkpoints/<leg>.ini`. FAILED, naming why, while a dialogue or interface is open, a script is parked on the player, or combat runs on either side |
+| `clockskip` | 8603 | `::clockskip <minutes>` -- a GRIND FAST-FORWARD for a real-time wait (seam33; see the fast-forward list below): moves the world's wall clock forward by `minutes` (1-10080 per call, a year in all), `srv->clock_skip_minutes`, added to every CLOCK_REALTIME read content sees (`date_minutes`, `date_runeday`, through `ToriRSServer_WorldRealtimeMs`). Writes `%date_minutes` (varp 3078) at once and answers `Clock skipped N minute(s): date_minutes M, T minute(s) ahead of real time.` Zero, negative, malformed or out-of-bounds -> FAILED (a backward clock would read every `date_minutes - stamp` negative). World state, never saved or checkpointed: a relog re-boots the embedded server and the clock is real again. Driven as `t.clock.skip(minutes)` (quest_driver/world.lua) |
 | `setvar ` | 7878 | `::setvar <varp\|varbit> <int\|^constant>` writes one named var through the same setter the `%var =` opcode uses (transmit + listeners). Resolves the name via the varp pack then the varbit pack (`cheat_varp_from_name` :7526, `cheat_varbit_from_name` :7546, `^constant` :7557); a varp that carries varbits is refused by name (:7929), an unknown name is FAILED (:7953). **First in the ladder on purpose** (:7871-7876): the three bare `sscanf` fallbacks at the bottom match on SHAPE, not on a name, so a branch added after them can be swallowed by a mistyped argument |
 | `kill ` | 7957 | `::kill <npc_symbol> [radius]` -- lethal damage to the nearest matching npc through the normal death path, so `npc_death_step` reaches CORPSE and the npc's `[ai_queue3,...]` fires. A radius, not the whole world (:7973). No match -> FAILED |
 | `passive` | 8214 | `::passive <npc_symbol>` -- that npc TYPE stops STARTING fights for the rest of the session, and the single-way claim its live npcs hold is dropped on both sides; `::passive off <npc_symbol>` restores one, `::passive off` restores all, bare `::passive` lists what is held. A TEST AFFORDANCE for the quest suite: see §F. No match / no such type held -> FAILED |
@@ -67,7 +69,7 @@ every line below shifted with it.
 | `layout ` | 8171 | `::layout <0\|1\|2>` Fixed/Resizable Classic/Modern, via a synthesized IF_BUTTON |
 | `style` | 8219 | `::style <0-3>` sets attack style (accurate/aggressive/defensive/controlled) |
 | `setlevel` | 8244 | `::setlevel <stat> <level>` sets a stat's level (base + xp to threshold) |
-| `wield ` | 8273 | `::wield <objid>` runs the real OPHELD-equip path on a backpack item |
+| `wield ` | 8273 | `::wield <item_name\|objid>` (resolved like `::give`) runs the real OPHELD-equip path on a backpack item; every miss answers FAILED naming it (seam29), and run.py's setup loop reads the worn container back |
 | `equipstats` | 8316 | `::equipstats` opens the equipment bonus screen |
 | `run` | 8324 | `::run [0\|1]` toggles the run-energy option |
 | `god` | 8338 | `::god [0\|1]` player invulnerability; heals to full on enable |
@@ -153,6 +155,27 @@ the caller owns "Unknown command".
   real with `click_loc("mapletree")` first (real chops measured ~9-40 ticks
   per point), then calls it -- read its line with `t.msg.expect`, not
   `t.msg.await`: `t.cheat` has already consumed the reply.
+- `::clockskip <minutes>` (C ladder, seam33) is the fast-forward for a wait
+  measured in REAL minutes -- the only cheat class a test may use for a wait.
+  Content that reads `date_minutes` (Forgettable Tale's kelda patch and
+  brew, forget_farming.rs2 / forget_brewing.rs2; every farming patch; the
+  Home Teleport cooldown, home_teleport.rs2; the fight cave rotation and
+  wilderness sword day) compares it against a deadline it stored, so a
+  sixteen-minute kelda patch could not finish inside one run's frame budget
+  (run.py MAX_FRAMES_CEILING, ~12.5 wall minutes). The skip moves ONLY the
+  clock: the quest's own catch-up (`[proc,forget_kelda_catchup]`, run by its
+  `forget_tick` softtimer every 100 ticks or by the next patch op) does the
+  work, so the test reads the QUEST's effect back, never the cheat's. Test
+  shape: `t.exec("waitForKelda-skip", t.clock.skip, 16)` then
+  `t.exec("waitForKelda", t.var.await, "forget_farming", 8, 110)`
+  (build/quest_gate/s33clock_new: the skip row `date_minutes 29846673 ->
+  29846689 (+16 skipped, ...)`, then `forget_farming = 8 ... after 88
+  tick(s)`). Ordinary farming re-arms from NOW, not from the deadline
+  (farming_hops.rs2 `[proc,farming_advance_hops]`), so one skip advances a
+  crop ONE stage per catch-up: skip one stage's minutes, await the stage,
+  repeat. Prefer it to a quest's own "set the result" debugproc
+  (`::forget_growkelda`, section H), which writes the outcome instead of
+  letting the quest compute it.
 - `setvar`/`varp`/`varbit` and `kill` used to be listed here as absent
   everywhere. They are C ladder branches now (:7878, :7957) -- that was the
   point of §B's fix. Still absent as debugprocs, which does not matter any
@@ -592,3 +615,58 @@ and the same binary with only the four `::passive` setup lines differing:
   compares client (`t.varp`/`t.varbit`) AND server-mirror
   (`t.var_server`/`t.varbit_server`) reads and calls it `refused` (not `ok`)
   on any mismatch between the two, or against the expected value.
+
+## H. Quest-authored debugprocs: A Forgettable Tale of a Drunken Dwarf
+
+`[debugproc,...]` scripts in `quest_forgettabletale/scripts/` run as `::<name>`
+(no ladder branch). All three are test affordances; the real waits are game
+time, so a client run drives the real step and uses these only to skip the wait.
+Both waits are `date_minutes` deadlines, so a quest test uses `t.clock.skip`
+(`::clockskip`, section A) instead: the quest's own catch-up then advances the
+patch and the vat, where these two write the outcome directly.
+
+| cheat | file | effect |
+|---|---|---|
+| `::forget_growkelda` | forget_farming.rs2 | sets the kelda hop patch to fully grown (`forget_farming` = 8), the growth wait of the farming step |
+| `::forget_ferment` | forget_brewing.rs2 | marks the vat's kelda as finished fermenting (skips the brewing wait) |
+| `::forgetrun` | forget_debug.rs2 | server selftest: the nine puzzle routes, the stone counters and the finale gate; prints `forgetrun OK: ...` |
+
+## `::complete <quest row>` -- the only way a test stages a prerequisite quest
+
+`[debugproc,complete](dbrow $quest)` in
+`OSRS-Content/.../quests/scripts/quest_cheat.rs2`: the argument is the cache's
+`quest` DBROW name (`all.dbrow.compack`), not the script folder
+(`quest_trollstronghold`, not `quest_troll`). `~quest_cheat_complete` has one
+arm per quest, each writing the progress var the quest's own completion script
+writes, to its own `^*_complete` constant; the wrapper then pays the row's
+`quest:questpoints` through `~quest_award_points`. It prints `<Name> complete.`,
+`<Name> is already complete.` (pays nothing), or `::complete has no arm for
+that quest.` -- read that line before trusting a prerequisite. No XP, items or
+scroll (those belong to the completion script).
+
+Arms added by seam33 (`complete_cheat_arms`, 2026-09-30), each from the
+quest's own completion site:
+
+| row | writes | source |
+|---|---|---|
+| `quest_touristtrap` | `%desertrescue = ^desertrescue_complete` (30) | quest_desertrescue.rs2 `[queue,desertrescue_complete]` |
+| `quest_templeofikov` | `%ikov = ^ikov_completed_armadyl` (80) + `~ikov_lucien_sync` | ikov_lucien2.rs2 `[queue,ikov_lucien_defeated]` (the Lucien ending writes 90; 80 is the lower ending and the cache endstate, so every `>=` gate opens) |
+| `quest_trollstronghold` | `%troll_quest = ^troll_complete` (50) | quest_troll.rs2 `[queue,troll_quest_complete]` |
+
+Fixed in the same pass: `quest_wanted` is dbrow 156 AND varp 571 (Wanted!'s
+carrier), and sscompile resolves an untyped bare name by namespace sort order,
+so `if ($row = quest_wanted)` compiled to `$row = 571` and the arm never
+matched (`::complete quest_wanted` said "has no arm" and `wanted_main` stayed
+0; Devious Minds' monk refused). The arm now spells the row through
+`~quest_cheat_row(quest_wanted)`, a `dbrow`-typed proc argument. The same
+collision still miscompiles `interface_questjournal/scripts/quest_journal.rs2`
+(`$row = quest_wanted`) and the generated
+`skill_construction/scripts/poh_quest_status_generated.rs2`; run
+`SSCOMPILE_AMBIGUOUS=all` sscompile and grep `dbrow` to find any other.
+
+Rows passed to `~quest_complete_rewards` that still have NO arm (2026-09-30):
+bigchompybirdhunting, eadgarsruse, elementalworkshop1, familycrest, fightarena,
+horrorfromthedeep, insearchofthemyreque, lostcity, onesmallfavour, regicide,
+scorpioncatcher, seaslug, shadesofmortton, shilovillage, treegnomevillage,
+tribaltotem, undergroundpass, witchshouse (all `quest_` rows). A test that
+needs one as a prerequisite is a seam for this file, not a `::setvar`.

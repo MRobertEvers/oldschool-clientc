@@ -194,7 +194,7 @@ DriveState_InvCount(struct App* app, int container_id, int obj_id, int* out_tota
     assert(app);
     assert(out_total);
     assert(container_id >= 0);
-    assert(obj_id > 0);
+    assert(obj_id >= 0); /* obj 0 (Dwarf remains) is a real item */
     if( !InvManager_FindContainer(&app->invs, container_id) )
     {
         /* The container has not been populated yet (e.g. before login) --

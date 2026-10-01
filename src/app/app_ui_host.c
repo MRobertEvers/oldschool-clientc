@@ -434,7 +434,8 @@ Task_InvIconReconcile_Run(
         for( int s = 0; s < c->slot_count && self->n < APP_INV_ICON_BATCH_MAX; s++ )
         {
             struct InvSlot const* slot = &c->slots[s];
-            if( slot->obj_id > 0 && slot->scene_id == INV_MANAGER_NO_SCENE_ID )
+            if( slot->obj_id > INV_MANAGER_EMPTY_OBJ_ID &&
+                slot->scene_id == INV_MANAGER_NO_SCENE_ID )
             {
                 self->obj_ids[self->n] = slot->obj_id;
                 self->counts[self->n] = slot->obj_count > 0 ? slot->obj_count : 1;
@@ -479,7 +480,8 @@ Task_InvIconReconcile_Run(
             struct InvSlot* slot = &c->slots[s];
             int count;
             int scene_id;
-            if( slot->obj_id <= 0 || slot->scene_id != INV_MANAGER_NO_SCENE_ID )
+            if( slot->obj_id <= INV_MANAGER_EMPTY_OBJ_ID ||
+                slot->scene_id != INV_MANAGER_NO_SCENE_ID )
                 continue;
             count = slot->obj_count > 0 ? slot->obj_count : 1;
             scene_id = UITreeSceneBridge_EnsureObjIcon(&app->bridge, slot->obj_id, count);

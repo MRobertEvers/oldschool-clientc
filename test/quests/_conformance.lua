@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 130 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 138 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 130
+-- @verb-count 138
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 28
+-- @seam-count 59
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 130
-local SEAM_COUNT = 28
+local VERB_COUNT = 138
+local SEAM_COUNT = 59
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -195,14 +195,16 @@ local OBJ_SYMBOL = "airrune"        -- ::runes puts 25 in the backpack
 -- refused, with the server's own sentence, not as success").
 local WEARABLE_OBJ_SYMBOL = "bronze_platebody"
 local ABSENT_OBJ_SYMBOL = "knife"   -- nothing here puts one in the backpack
--- The held op these rows press, and it is NOT op 1: on rev-239 the backpack's
--- IF3 cell carries a client-side on_op hook at op index 1 that is the
--- shift-click-drop chain, so `inv_op(airrune, 1)` drops the stack whatever op
--- 1 is supposed to mean for the obj.  Op 3 carries no such binding, and --
--- being unbound -- is claimed by no script either, so the world's honest
--- answer to it is the engine's "Nothing interesting happens."  The long form
--- of that measurement is on the player.inv_op row below.
+-- The held op these rows press: op 3, which no script claims, so the world's
+-- honest answer to it is the engine's "Nothing interesting happens."  (Until
+-- seam pass 20 op 1 was also off limits: the client flashed the backpack
+-- cell's on_op hook with the OPHELD index, and index 1 there is rev-239's
+-- shift-click-drop chain, so every op-1 press dropped the stack.  That is
+-- fixed in src/app/app_minimenu.c and guarded by seam.held_op1_keeps_the_item.)
 local INV_OP_UNCLAIMED = 3
+-- seam.held_op1_keeps_the_item's subject: `ifop1=Dig`, op 5 Drop, and its
+-- [opheld1] consumes nothing off a dig site.
+local HELD_OP1_OBJ_SYMBOL = "spade"
 -- Any tab that is not the backpack.  The seam row below needs the backpack's
 -- cells NOT painted when it presses, which is the state `ui.tab("inventory")`
 -- itself leaves behind for a frame -- see its own banner.
@@ -330,6 +332,44 @@ local SHOP_TILE_Z = 3247
 local SHOP_OBJ_SYMBOL = "pot_empty"
 local SHOP_OBJ_COUNT = 5
 local SHOP_COINS = 5000
+
+-- player.cast's subject (seam cast_spell_on_npc, seam19): Wind Strike on a
+-- Lumbridge goblin east of the river -- m50_50.spawn:102
+-- `goblin_unarmed_melee_1 3244 3247`, three tiles from CAST_TILE.  Wind
+-- Strike is Magic level 1 and one air + one mind rune (magic.rs2's own
+-- refusal names the rune it lacks), so a fixture character casts it as he
+-- stands.  The field is SINGLE-WAY and the goblins and the giant spider by the
+-- river aggress, so every type that can claim the player there is made
+-- ::passive first: one aggressor and the cast is refused "I'm already under
+-- attack." (measured build/quest_gate/s19cast_c, a giantspider1 claim).
+-- Fire Wave at the fixture's Magic 1 is the refusal row's subject: the
+-- level check runs before the rune check (magic.rs2 check_spell_requirements).
+local CAST_SPELL = "wind_strike"
+local CAST_REFUSED_SPELL = "fire_wave"
+local CAST_NPC_SYMBOL = "goblin_unarmed_melee_1"
+local CAST_TILE_X = 3241
+local CAST_TILE_Z = 3247
+local CAST_PASSIVE = {
+    "goblin_unarmed_melee_1", "goblin_unarmed_melee_2", "goblin_unarmed_melee_3",
+    "goblin_unarmed_melee_4", "goblin_unarmed_melee_5", "giantspider1",
+}
+
+-- seam.attack_presses_the_watched_slot's goblin pair (seam21): ::spawn lands at
+-- the player's tile +1,+1, so these stand tiles put N at 3241,3245 (two south
+-- of CAST_TILE) and F at 3242,3250 (north-east of it).  Both are open field:
+-- 3243,3247 is inside the goblin house and 3237,3247 is the river
+-- (build/quest_gate/s21as_gob3, s21as_gob1: "I can't reach that!").
+local ATTACK_PAIR_SPAWN_N_X = 3240
+local ATTACK_PAIR_SPAWN_N_Z = 3244
+local ATTACK_PAIR_SPAWN_F_X = 3241
+local ATTACK_PAIR_SPAWN_F_Z = 3249
+-- Where F lands, and where the row stands: one tile south-west of CAST_TILE so
+-- player.cast's own goblin (spawned at 3242,3248) is not the nearest copy --
+-- it was, from CAST_TILE, in build/quest_gate/s21as_conf1 row 154.
+local ATTACK_PAIR_F_X = 3242
+local ATTACK_PAIR_F_Z = 3250
+local ATTACK_PAIR_STAND_X = 3240
+local ATTACK_PAIR_STAND_Z = 3246
 
 -- A detail column is a string or the ledger's luaL_optstring raises.  Tables
 -- (a verb that answers with a row, a tile, an options list) are summarised
@@ -1418,21 +1458,11 @@ return {
         step("player.inv_op", function()
             local fn = verb("player", "inv_op")
             if not fn then return missing("player", "inv_op") end
-            -- NOT op 1. On rev-239 the backpack's IF3 cell carries a
-            -- CLIENT-SIDE on_op hook at op index 1 that is the shift-click-
-            -- drop chain (script 6014 -- app_minimenu.c's own comment on
-            -- app_inv_cell_op_flash, "the inventory slot builder puts the
-            -- shift-click-drop handler there"): app_inv_cell_op_flash fires
-            -- that hook for EVERY OPHELD1..5 dispatch, keyed on the SLOT,
-            -- not the item, so `inv_op(airrune, 1)` silently drops the whole
-            -- stack no matter what op 1 is "supposed" to mean for this obj.
-            -- Measured: the stack goes 26 -> 0 within the same tick this
-            -- verb's own settle resolves, and every verb after it that
-            -- needs the item (player.equip, player.drop) then answers
-            -- not_found. Op 3 carries no such client-side binding and is a
-            -- clean probe of the OPHELD dispatch path -- and, being clean, one
-            -- no script claims either, so the answer this row expects is the
-            -- engine's "Nothing interesting happens." (no_script_probe above).
+            -- Op 3: a clean probe of the OPHELD dispatch path that no script
+            -- claims, so the answer this row expects is the engine's "Nothing
+            -- interesting happens." (no_script_probe above).  Op 1 used to
+            -- drop the stack (the cell flash, fixed seam pass 20); that is
+            -- seam.held_op1_keeps_the_item's subject, not this row's.
             local result, detail = fn(OBJ_SYMBOL, INV_OP_UNCLAIMED)
             return no_script_probe(result, detail, "")
         end)
@@ -5069,6 +5099,46 @@ return {
             return "ok", describe(detail) .. "; zoom+1 -> timeout (" .. describe(never_detail) .. ")"
         end)
 
+        -- ui.text / ui.expect_text (seam29 setup_wield_text_read_and_reach_honesty):
+        -- the objectbox body read into the ledger; an unmounted component is not_found,
+        -- and a string the box does not hold is not_found too.
+        local objbox_text = nil
+        step("ui.text", function()
+            local fn = verb("ui", "text")
+            if not fn then return missing("ui", "text") end
+            local result, text = fn(OBJECTBOX_INTERFACE .. ":text")
+            if result ~= "ok" then
+                return result, describe(text)
+            end
+            if type(text) ~= "string" or text == "" then
+                return "hollow", "objectbox:text answered ok with no text"
+            end
+            objbox_text = text
+            local gone_result = fn("questjournal:title")
+            if gone_result ~= "not_found" then
+                return "hollow", "an unmounted component answered " .. describe(gone_result)
+            end
+            return "ok", "objectbox:text reads '" .. text .. "'; questjournal:title -> not_found"
+        end)
+
+        step("ui.expect_text", function()
+            local fn = verb("ui", "expect_text")
+            if not fn then return missing("ui", "expect_text") end
+            if objbox_text == nil then
+                return "no_subject", "ui.text read nothing to expect"
+            end
+            local word = string.match(objbox_text, "%S+")
+            local result, detail = fn(OBJECTBOX_INTERFACE .. ":text", word, 1)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local miss_result = fn(OBJECTBOX_INTERFACE .. ":text", "zz-not-on-this-box-zz", 1)
+            if miss_result ~= "not_found" then
+                return "hollow", "a string the box does not hold answered " .. describe(miss_result)
+            end
+            return "ok", describe(detail) .. "; a miss -> not_found"
+        end)
+
         stage(function()
             local close = verb("chat", "close")
             if close then
@@ -5289,6 +5359,1710 @@ return {
                 return "refused", "reported a delivery at the cargo port -- " .. describe(detail)
             end
             return result, describe(detail)
+        end)
+
+        -- ----------------------- phase 7c: a spell cast on an npc (seam19)
+        --
+        -- After the sail block, which ends ashore in Catherby, and before the
+        -- scheduler's own controls: these rows move the player, and nothing
+        -- after them but the session rows reads the world -- which compare a
+        -- reading before a logout with one after it, wherever that is.  The
+        -- closing stage puts the player back on `::tele lumbridge`'s landing.
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+            for i = 1, #CAST_PASSIVE do
+                setup_cheat("::passive " .. CAST_PASSIVE[i])      -- setup
+            end
+            setup_cheat("::give airrune 5")                        -- setup
+            setup_cheat("::give mindrune 5")                       -- setup
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(CAST_TILE_X, CAST_TILE_Z, 0)
+            end
+            settle(2)
+            -- The subject is SPAWNED beside the player (::spawn lands at the
+            -- player's tile + 1), then made passive: the field's own goblins
+            -- wander, and the nearest one can stand where the player cannot
+            -- path -- the seam19 closer's conformance run pressed a goblin
+            -- behind the house at CAST_TILE and read "I can't reach that!"
+            -- (build/quest_gate/s19close_probe3), while the same rows run
+            -- alone passed.  ::passive is per instance, so it follows the spawn.
+            setup_cheat("::spawn " .. CAST_NPC_SYMBOL)             -- setup
+            setup_cheat("::passive " .. CAST_NPC_SYMBOL)           -- setup
+            settle(2)
+        end)
+
+        -- THE REFUSAL IS ITS OWN ANSWER.  A cast the server declines prints a
+        -- sentence and nothing else: no runes spent, no XP, no projectile --
+        -- so without reading the sentence the verb could only time out, and a
+        -- timeout reads as "cast again".  Fire Wave at Magic 1 is declined by
+        -- magic.rs2's level check word for word; the row requires `refused`,
+        -- that sentence, and Magic XP unmoved.
+        seam("seam.cast_names_its_refusal", function()
+            local fn = verb("player", "cast")
+            if not fn then return missing("player", "cast") end
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if not read then return missing("skill", "read") end
+            local _, before = read("magic")
+            local result, detail = fn(CAST_REFUSED_SPELL, CAST_NPC_SYMBOL, 10)
+            local _, after = read("magic")
+            local text = CAST_REFUSED_SPELL .. " -> " .. describe(detail)
+            if result ~= "refused" then
+                return result == "ok" and "hollow" or result,
+                    "a Magic-1 Fire Wave answered " .. describe(result) .. ", not refused -- " .. text
+            end
+            if not string.find(tostring(detail), "Your Magic level is not high enough", 1, true) then
+                return "hollow", "refused without naming the server's sentence -- " .. text
+            end
+            if not (is_table(before) and is_table(after)) or after.experience ~= before.experience then
+                return "hollow", "refused, but Magic XP moved " .. describe(before) .. " -> "
+                    .. describe(after) .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- The cast itself, graded on what the SERVER did, never on the verb's
+        -- word: one air rune and one mind rune gone from the backpack
+        -- (~pvm_spell_cast's ~delete_spell_runes) and Magic XP up
+        -- (~give_spell_xp) -- both paid whether the spell lands or splashes,
+        -- which is why they are the proof of a cast and a splat is not (the
+        -- verb's banner in spell.lua: a melee auto-retaliation splats too).
+        step("player.cast", function()
+            local fn = verb("player", "cast")
+            if not fn then return missing("player", "cast") end
+            local count = verb("inv", "count")
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if not (count and read) then
+                return "no_subject", "t.inv.count / t.skill.read missing, so the cast cannot be graded"
+            end
+            local _, air_before = count("airrune")
+            local _, mind_before = count("mindrune")
+            local _, xp_before = read("magic")
+            if type(air_before) ~= "number" or air_before < 1
+                or type(mind_before) ~= "number" or mind_before < 1 then
+                return "no_subject", "the stage left airrune " .. describe(air_before)
+                    .. ", mindrune " .. describe(mind_before) .. " -- nothing to cast with"
+            end
+            local result, detail = fn(CAST_SPELL, CAST_NPC_SYMBOL, 15)
+            local text = CAST_SPELL .. " on " .. CAST_NPC_SYMBOL .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            local _, air_after = count("airrune")
+            local _, mind_after = count("mindrune")
+            local _, xp_after = read("magic")
+            if air_after ~= air_before - 1 or mind_after ~= mind_before - 1 then
+                return "hollow", "answered ok but the runes read airrune " .. describe(air_before)
+                    .. " -> " .. describe(air_after) .. ", mindrune " .. describe(mind_before)
+                    .. " -> " .. describe(mind_after) .. " (one of each is the cast) -- " .. text
+            end
+            if not (is_table(xp_before) and is_table(xp_after))
+                or not (xp_after.experience > xp_before.experience) then
+                return "hollow", "answered ok but Magic XP did not rise -- " .. text
+            end
+            return "ok", text .. " [runes " .. air_before .. "->" .. air_after .. " air, "
+                .. mind_before .. "->" .. mind_after .. " mind; magic xp "
+                .. xp_before.experience .. "->" .. xp_after.experience .. "]"
+        end)
+
+        -- ONE COPY, PRESSED AND WATCHED (seam21, attack_press_and_watch_same_slot).
+        -- player.attack pressed the copy App_NpcScreenPosition ranks nearest
+        -- the VIEWPORT CENTRE and watched npc.nearest's slot; with two copies
+        -- about those differ, and the row timed out on a fight it was not
+        -- watching (Rum Deal's eleven fever spiders, Zogre's slash bash).
+        -- The subject is a goblin PAIR placed so they DO differ: ::spawn lands
+        -- at the player's tile +1,+1, so N stands two tiles south of the stand
+        -- tile and F north-east of it, and a camera yawed at F at pitch 128
+        -- puts N behind the eye.  Measured with the pre-seam21 press
+        -- (build/quest_gate/s21as_gob7 and s21as_gob8, row old.press_vs_watch):
+        -- "bare press landed on slot 141 ... watched nearest slot 132 (hp -1)
+        -- -> DIFFERENT copy".  At pitch 383 the player sits at the viewport
+        -- centre and the two never differ (s21as_gob2..gob6).
+        stage(function()
+            setup_cheat("::give " .. COMBAT_WEAPON .. " 1")
+            -- Magic 99 for seam.cast_presses_the_named_copy (put back to 1
+            -- after it), set HERE, before this stage's equip and the melee row
+            -- below: the player's accuracy rolls are the %com_* varps
+            -- [proc,player_combat_stat] computes (skill_combat/combat_stats.rs2),
+            -- which a melee start reruns ([label,player_combat_start]) and
+            -- ::setlevel does not (ToriRSServer_CombatSetLevel).  Set after the
+            -- melee, eight Wind Strikes on the named goblin all splashed at
+            -- "Magic 99" (build/quest_gate/s22cast_conf2..conf5, row 155).
+            setup_cheat("::setlevel magic 99")                     -- setup
+            settle(2)
+            local equip = verb("player", "equip")
+            if equip then
+                equip(COMBAT_WEAPON)
+            end
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(ATTACK_PAIR_SPAWN_N_X, ATTACK_PAIR_SPAWN_N_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                goto_tile(ATTACK_PAIR_SPAWN_F_X, ATTACK_PAIR_SPAWN_F_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                setup_cheat("::passive " .. CAST_NPC_SYMBOL)       -- setup
+                goto_tile(ATTACK_PAIR_STAND_X, ATTACK_PAIR_STAND_Z, 0)
+            end
+            settle(3)
+        end)
+
+        seam("seam.attack_presses_the_watched_slot", function()
+            local fn = verb("player", "attack")
+            local tiles = verb("npc", "tiles")
+            local tile = verb("world", "tile")
+            if not fn then return missing("player", "attack") end
+            if not tiles then return missing("npc", "tiles") end
+            if not tile then return missing("world", "tile") end
+            local function copies()
+                local r, _, found = tiles(CAST_NPC_SYMBOL, 0)
+                return (r == "ok" and is_table(found)) and found or {}
+            end
+            local function slot_of(element, found)
+                for i = 1, #found do
+                    if found[i].element_id == element then return found[i].slot end
+                end
+                return nil
+            end
+            local found = copies()
+            local _, here = tile()
+            if #found < 2 or not is_table(here) then
+                return "no_subject", "fewer than two " .. CAST_NPC_SYMBOL .. " copies ("
+                    .. describe(#found) .. ") or no player tile"
+            end
+            local near = found[1]
+            -- A copy on the OTHER side of the player from the nearest one,
+            -- the one standing closest to where F landed: facing it puts the
+            -- nearest behind the camera, and it is the open-field copy the
+            -- {slot} press below names (the field's own goblins wander into
+            -- the house east of here, where "I can't reach that!" answers --
+            -- s21as_conf1 row 154, slot 6).
+            local away = nil
+            local best = nil
+            local nx, nz = near.x - here.x, near.z - here.z
+            for i = 2, #found do
+                local row = found[i]
+                if (row.x - here.x) * nx + (row.z - here.z) * nz < 0 then
+                    local d = (row.x - ATTACK_PAIR_F_X) * (row.x - ATTACK_PAIR_F_X)
+                        + (row.z - ATTACK_PAIR_F_Z) * (row.z - ATTACK_PAIR_F_Z)
+                    if best == nil or d < best then
+                        away = row
+                        best = d
+                    end
+                end
+            end
+            away = away or found[2]
+            local yaw = t.drive._yaw_towards(away.x - here.x, away.z - here.z)
+            if yaw then
+                t.drive.camera(yaw, 128, 400)
+                settle(2)
+            end
+            local target = t.player.by_symbol("npc", CAST_NPC_SYMBOL)
+            local _, projected = t.drive._projection(target)
+            local ranked = is_table(projected) and slot_of(projected.element_id, copies()) or nil
+            local condition = "nearest slot " .. describe(near.slot) .. ", the viewport centre ranks slot "
+                .. describe(ranked) .. (ranked ~= near.slot and " (they DIFFER -- the pre-seam21 shape)"
+                    or " (they agree this run)")
+            local result, detail = fn(CAST_NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
+            local text = condition .. "; attack -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "pressed slot " .. tostring(near.slot) .. " ", 1, true)
+                or not string.find(tostring(detail), "watching slot " .. tostring(near.slot) .. ":", 1, true) then
+                return "hollow", "the detail does not name the nearest slot as both pressed and watched -- "
+                    .. text
+            end
+            -- The fight on the nearest copy is finished before the next press,
+            -- by the slot the press stamped: a second Attack while the first
+            -- fight is live is a single-way question, not this row's.
+            local dead = verb("npc", "await_dead_engaged")
+            if dead then
+                local dead_result, dead_detail = dead(40)
+                text = text .. "; await_dead_engaged -> " .. describe(dead_result)
+                if dead_result ~= "ok" then
+                    return dead_result, text .. " " .. describe(dead_detail)
+                end
+            end
+            -- And a NAMED copy: the one the camera was turned to, by slot.
+            local other = nil
+            found = copies()
+            for i = 1, #found do
+                if found[i].slot == away.slot and away.slot ~= near.slot then
+                    other = found[i]
+                end
+            end
+            if other == nil then
+                return "ok", text .. " [slot " .. describe(away.slot)
+                    .. " left the pool before the {slot} press]"
+            end
+            local result2, detail2 = fn(CAST_NPC_SYMBOL, COMBAT_ATTACK_OP, 20, { slot = other.slot })
+            local text2 = "{slot=" .. describe(other.slot) .. "} -> " .. describe(result2) .. " "
+                .. describe(detail2)
+            local said = string.match(tostring(detail2), "the SERVER refused the swing: '[^']*'")
+            if said then
+                text2 = said .. " -- " .. text2
+            end
+            if result2 ~= "ok" then
+                return result2, text .. " || " .. text2
+            end
+            if not string.find(tostring(detail2), "pressed slot " .. tostring(other.slot) .. " ", 1, true)
+                or not string.find(tostring(detail2), "watching slot " .. tostring(other.slot) .. ":", 1, true) then
+                return "hollow", "the named press does not name slot " .. describe(other.slot)
+                    .. " as both pressed and watched -- " .. text2
+            end
+            return "ok", text .. " || " .. text2
+        end)
+
+        -- ONE COPY, CAST ON (seam22, cast_picks_one_copy).  player.cast took
+        -- npc.nearest's slot for its settle and pressed a bare-id row, which
+        -- lands on the copy App_NpcScreenPosition ranks nearest the VIEWPORT
+        -- CENTRE, and took no selector at all: measured
+        -- build/quest_gate/s22cast_before1 row cast.named_slot -- `{slot=72}`
+        -- ignored, the verb read slot 125 and slot 72 was never hit.  The row
+        -- casts on a FRESH pair's far copy, named by slot with the camera on
+        -- the nearest copy, and grades on which copy the SERVER hit (every
+        -- copy's hit cycle and bar before, and three ticks after each cast; a
+        -- splash shows nothing, so up to eight casts) -- never on the verb's
+        -- word.  Then the stamp's fight is waited out and its row must carry
+        -- the re-CAST tag: a cast fight is re-engaged by casting, not by an
+        -- Attack press (spell.lua's await_dead_engaged wrap).
+        --
+        -- The stage first waits out whatever fight the attack row above left
+        -- live (single-way: a second copy is refused "I'm already under
+        -- attack." while it holds the claim -- s22cast_after1 row 5), then
+        -- spawns the pair afresh on the attack row's tiles.
+        stage(function()
+            local dead = verb("npc", "await_dead_engaged")
+            if dead then
+                dead(60)
+            end
+            setup_cheat("::give airrune 30")                       -- setup
+            setup_cheat("::give mindrune 30")                      -- setup
+            -- The phase 3 platebody is still worn (-30 magic attack), and it
+            -- is a prerequisite of nothing here: off, so the casts below can
+            -- land.  `not_found` when an earlier row left it off is fine.
+            local unequip = verb("player", "unequip")
+            if unequip then
+                unequip(WEARABLE_OBJ_SYMBOL)
+            end
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(ATTACK_PAIR_SPAWN_N_X, ATTACK_PAIR_SPAWN_N_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                goto_tile(ATTACK_PAIR_SPAWN_F_X, ATTACK_PAIR_SPAWN_F_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                setup_cheat("::passive " .. CAST_NPC_SYMBOL)       -- setup
+                goto_tile(ATTACK_PAIR_STAND_X, ATTACK_PAIR_STAND_Z, 0)
+            end
+            settle(3)
+        end)
+
+        seam("seam.cast_presses_the_named_copy", function()
+            local fn = verb("player", "cast")
+            local tiles = verb("npc", "tiles")
+            local tile = verb("world", "tile")
+            local dead = verb("npc", "await_dead_engaged")
+            if not fn then return missing("player", "cast") end
+            if not tiles then return missing("npc", "tiles") end
+            if not tile then return missing("world", "tile") end
+            if not dead then return missing("npc", "await_dead_engaged") end
+            local function copies()
+                local r, _, found = tiles(CAST_NPC_SYMBOL, 0)
+                return (r == "ok" and is_table(found)) and found or {}
+            end
+            local function reading()
+                local by_slot = {}
+                local found = copies()
+                for i = 1, #found do
+                    by_slot[found[i].slot] = { found[i].hit_cycle, found[i].health_ratio }
+                end
+                return by_slot
+            end
+            -- A copy counts as hit when its hit cycle or bar moved -- or, for
+            -- the NAMED copy only, when it left the pool: Wind Strike one-shots
+            -- a goblin (s22cast_conf6 row 155, "hp no bar -> 0/30 ... newest
+            -- splat 5", then no_row).  Any other copy leaving is a field goblin
+            -- wandering out of the pool (s22cast_conf7: slot 118), not a hit.
+            local function hit_since(before, named_slot)
+                local now = reading()
+                local hit = {}
+                for slot, was in pairs(before) do
+                    local is = now[slot]
+                    if (is == nil and slot == named_slot)
+                        or (is ~= nil and (is[1] > was[1] or is[2] ~= was[2])) then
+                        hit[#hit + 1] = slot
+                    end
+                end
+                table.sort(hit)
+                return hit
+            end
+            local found = copies()
+            local _, here = tile()
+            if #found < 2 or not is_table(here) then
+                return "no_subject", "fewer than two " .. CAST_NPC_SYMBOL .. " copies ("
+                    .. describe(#found) .. ") or no player tile"
+            end
+            local near = found[1]
+            -- The spawned far copy by its landing tile; else the copy nearest
+            -- that tile that is not the nearest copy.
+            local named = nil
+            local best = nil
+            for i = 2, #found do
+                local row = found[i]
+                local d = (row.x - ATTACK_PAIR_F_X) * (row.x - ATTACK_PAIR_F_X)
+                    + (row.z - ATTACK_PAIR_F_Z) * (row.z - ATTACK_PAIR_F_Z)
+                if best == nil or d < best then
+                    named = row
+                    best = d
+                end
+            end
+            local yaw = t.drive._yaw_towards(near.x - here.x, near.z - here.z)
+            if yaw then
+                t.drive.camera(yaw, 128, 400)
+                settle(2)
+            end
+            local condition = "named slot " .. describe(named.slot) .. " at " .. describe(named.x) .. ","
+                .. describe(named.z) .. ", nearest slot " .. describe(near.slot)
+                .. " (camera on the nearest)"
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if read then
+                local _, magic = read("magic")
+                condition = condition .. ", magic level " .. describe(is_table(magic) and magic.level)
+            end
+            local result, detail, hit
+            local casts = 0
+            local seen = {}
+            for _ = 1, 8 do
+                casts = casts + 1
+                local before = reading()
+                result, detail = fn(CAST_SPELL, CAST_NPC_SYMBOL, 15, nil, { slot = named.slot })
+                settle(3)
+                hit = hit_since(before, named.slot)
+                -- What each cast read on its own copy (the harness's describe()
+                -- truncates the verb's detail before this part).
+                seen[#seen + 1] = describe(result) .. " "
+                    .. (string.match(tostring(detail), "(watching slot .-) %-%- ") or "?")
+                if result ~= "ok" or #hit > 0 then
+                    break
+                end
+            end
+            local text = condition .. "; " .. describe(casts) .. " cast(s) [" .. table.concat(seen, " | ")
+                .. "], copies hit: " .. (#hit == 0 and "none" or table.concat(hit, ",")) .. "; cast -> "
+                .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "pressed slot " .. tostring(named.slot) .. " ", 1, true)
+                or not string.find(tostring(detail), "watching slot " .. tostring(named.slot) .. ":", 1, true) then
+                return "hollow", "the detail does not name the named slot as both pressed and watched -- "
+                    .. text
+            end
+            if #hit ~= 1 or hit[1] ~= named.slot then
+                return "hollow", "the server hit " .. (#hit == 0 and "no copy in eight casts"
+                    or "another copy") .. " -- " .. text
+            end
+            local dead_result, dead_detail = dead(90, 12)
+            text = text .. " || await_dead_engaged -> " .. describe(dead_result) .. " " .. describe(dead_detail)
+            if dead_result ~= "ok" then
+                return dead_result, text
+            end
+            if not string.find(tostring(dead_detail), "slot " .. tostring(named.slot) .. " ", 1, true)
+                or not string.find(tostring(dead_detail), "[re-engagements re-CAST " .. CAST_SPELL, 1, true) then
+                return "hollow", "the wait did not hold the named slot as a CAST fight -- " .. text
+            end
+            return "ok", text
+        end)
+
+        stage(function()
+            setup_cheat("::setlevel magic 1")
+            setup_cheat("::passive off")
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- AN OP-1 PRESS KEEPS THE ITEM.  inv_op's OPHELD press was followed by
+        -- a "flash" of the backpack cell's own on_op hook, handed the OPHELD
+        -- INDEX; on rev-239 that hook is clientscript 6014, whose op-1 branch
+        -- is the shift-click-drop chain, so every inv_op(x, 1) ran the item's
+        -- [opheld1] and then dropped it (Holy Grail's golden feather, the
+        -- spade, both tier 1 books: build/seam_state/seam20/s20inv_before,
+        -- `-> 0 left [STRAY DROP ...]`).  app_minimenu.c now flashes the
+        -- cell's own op number.  The verb answers the same word either way --
+        -- "Nothing interesting happens." off a dig site -- so the row is
+        -- graded on the backpack five ticks later and on the absence of
+        -- inv_op's STRAY DROP tag, never on the verb's result.
+        stage(function()
+            setup_cheat("::give " .. HELD_OP1_OBJ_SYMBOL)
+            settle(2)
+        end)
+        seam("seam.held_op1_keeps_the_item", function()
+            local fn = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            local before_result, before = count(HELD_OP1_OBJ_SYMBOL)
+            if before_result ~= "ok" or type(before) ~= "number" or before < 1 then
+                return "no_subject", "::give " .. HELD_OP1_OBJ_SYMBOL .. " left "
+                    .. describe(before) .. " in the backpack (" .. describe(before_result) .. ")"
+            end
+            local result, detail = fn(HELD_OP1_OBJ_SYMBOL, 1)
+            settle(5)
+            local after_result, after = count(HELD_OP1_OBJ_SYMBOL)
+            local text = "inv_op(" .. HELD_OP1_OBJ_SYMBOL .. ",1) -> " .. describe(result)
+                .. " " .. describe(detail) .. "; count " .. describe(before) .. " -> "
+                .. describe(after)
+            if string.find(tostring(detail), "STRAY DROP", 1, true) then
+                return "hollow", "the press put the item on the ground -- " .. text
+            end
+            if after_result ~= "ok" or after ~= before then
+                return "hollow", "the backpack moved after an op that consumes nothing -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- ---------------------------------------------- seam23's four rows
+        --
+        -- THE FIRST use_on AFTER AN UNEQUIP ARMS.  player.unequip leaves the
+        -- equipment tab up; use_on pressed the backpack tab and armed on the
+        -- same frame, the cell was not painted yet, DrivePointer_InvArm
+        -- answered REFUSED (not not_found) and _arm_held passed it straight
+        -- out: `refused ... armed by this call (tab nil nil)` (The Tourist
+        -- Trap's cell door key, build/quest_gate/s23b_base1).  use_on now
+        -- waits for the backpack to PAINT and _arm_held retries a refusal
+        -- (seam23, s23b_rows_fix2 3/3).  Graded on the verb's own word: the
+        -- arming refusal is exactly what the old code answered.  The subject
+        -- is a Hans SPAWNED beside the player: the castle's own Hans wanders
+        -- (seam21, LostCity wander), and a shift in the world's random stream
+        -- walked him out of the client's pool (seam24 closer: 'no npc 3105
+        -- (hans) in the client's entity pool' on HEAD C and HEAD Lua alike,
+        -- after which the armed pot turned the next row's drop into a use).
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            setup_cheat("::give bronze_scimitar")
+            setup_cheat("::give pot_empty")
+            setup_cheat("::spawn hans")
+            settle(3)
+        end)
+        seam("seam.use_on_after_unequip", function()
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local use_on = verb("player", "use_on")
+            local by_symbol = verb("player", "by_symbol")
+            if not equip then return missing("player", "equip") end
+            if not unequip then return missing("player", "unequip") end
+            if not use_on then return missing("player", "use_on") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            local equip_result, equip_detail = equip("bronze_scimitar")
+            if equip_result ~= "ok" then
+                return "no_subject", "equip bronze_scimitar -> " .. describe(equip_result) .. " "
+                    .. describe(equip_detail)
+            end
+            local off_result, off_detail = unequip("bronze_scimitar")
+            if off_result ~= "ok" then
+                return "no_subject", "unequip bronze_scimitar -> " .. describe(off_result) .. " "
+                    .. describe(off_detail)
+            end
+            local target, target_result = by_symbol("npc", "hans")
+            if target_result ~= "ok" or type(target) ~= "table" then
+                return "no_subject", "no hans to use the pot on (" .. describe(target_result) .. ")"
+            end
+            local result, detail = use_on("pot_empty", target)
+            local text = "unequip -> " .. describe(off_detail) .. "; use_on pot_empty hans -> "
+                .. describe(result) .. " " .. describe(detail)
+            if string.find(tostring(detail), "armed by this call", 1, true) then
+                return "hollow", "the first arming after the unequip was refused -- " .. text
+            end
+            return result, text
+        end)
+
+        -- A CAST ON A GROUND OBJ.  t.player.cast took npcs only, so Spirits of
+        -- the Elid's Telekinetic Grab was hand-Taken and the sampler reverted
+        -- the quest (sonnet-b27).  cast now takes use_on's {kind=, id=} world
+        -- target and grades an obj cast on the obj ARRIVING in the backpack
+        -- (seam23, build/quest_gate/s23cw_rows3).  Graded here on the backpack
+        -- and the law rune, not on the verb's word.
+        stage(function()
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give lawrune 1")
+            setup_cheat("::give bronze_dagger 1")
+            settle(2)
+        end)
+        seam("seam.cast_on_ground_obj", function()
+            local fn = verb("player", "cast")
+            local goto_tile = verb("player", "goto_tile")
+            local drop = verb("player", "drop")
+            local walk_to = verb("player", "walk_to")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "cast") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not drop then return missing("player", "drop") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not count then return missing("inv", "count") end
+            goto_tile(CAST_TILE_X, CAST_TILE_Z, 0)
+            local drop_result, drop_detail = drop("bronze_dagger")
+            if drop_result ~= "ok" then
+                return "no_subject", "drop bronze_dagger -> " .. describe(drop_result) .. " "
+                    .. describe(drop_detail)
+            end
+            walk_to(CAST_TILE_X + 4, CAST_TILE_Z + 2)
+            local _, dagger_before = count("bronze_dagger")
+            local _, law_before = count("lawrune")
+            local result, detail = fn("telegrab", { kind = "obj", id = "bronze_dagger" })
+            settle(1)
+            local _, dagger_after = count("bronze_dagger")
+            local _, law_after = count("lawrune")
+            local text = "telegrab bronze_dagger from 4 tiles -> " .. describe(result) .. " "
+                .. describe(detail) .. "; dagger " .. describe(dagger_before) .. " -> "
+                .. describe(dagger_after) .. ", law " .. describe(law_before) .. " -> "
+                .. describe(law_after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if dagger_after ~= (dagger_before or 0) + 1 or law_after ~= (law_before or 0) - 1 then
+                return "hollow", "cast answered ok but the backpack does not show the grab -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A GROUND OBJ ON A CENTREPIECE'S OWN TILE IS PRESSED WHERE IT IS DRAWN.
+        -- The client lifts a stack on a raiseobject loc's tile onto the loc
+        -- (App_WorldObjStackAdd: world_y = height - World_ObjRaiseGet; rscache
+        -- defaults raiseobject to blocks_walk, so every table does it), and the
+        -- driver's obj projector projected at the GROUND: the pixel was the
+        -- table's body, the menu offered only the loc's rows, and click_obj got
+        -- there only through five covered poses and the pixel hunt (30 ticks)
+        -- -- or not at all: Legends' placed sapphire on the carved rock lasts 8
+        -- ticks and was gone first (seam32 ground_obj_on_a_centrepiece_tile,
+        -- build/quest_gate/s32_gem_before).  Graded on the pose-1 projection
+        -- itself holding the stack in the pickset (the reading that separates
+        -- the fix from the hunt that masks it), then on the Take landing.
+        -- table4 at 3233,3208,0 is m50_50.jl2 "0 33 8: 604 10 3" (Lumbridge);
+        -- 3231,3207 is inside the same room.
+        stage(function()
+            setup_cheat("::give sapphire 1")
+            settle(2)
+        end)
+        seam("seam.click_obj_raised_stack", function()
+            local goto_tile = verb("player", "goto_tile")
+            local drop = verb("player", "drop")
+            local by_symbol = verb("player", "by_symbol")
+            local frame = verb("drive", "_frame")
+            local probe = verb("drive", "_hover_probe")
+            local click_obj = verb("player", "click_obj")
+            local count = verb("inv", "count")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not drop then return missing("player", "drop") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not frame then return missing("drive", "_frame") end
+            if not probe then return missing("drive", "_hover_probe") end
+            if not click_obj then return missing("player", "click_obj") end
+            if not count then return missing("inv", "count") end
+            goto_tile(3233, 3208, 0)
+            local drop_result, drop_detail = drop("sapphire")
+            if drop_result ~= "ok" then
+                return "no_subject", "drop sapphire on table4's tile -> " .. describe(drop_result) .. " "
+                    .. describe(drop_detail)
+            end
+            goto_tile(3231, 3207, 0)
+            settle(2)
+            local target, target_result = by_symbol("obj", "sapphire")
+            if target_result ~= "ok" or type(target) ~= "table" then
+                return "no_subject", "player.by_symbol(obj, sapphire) -> " .. describe(target_result)
+            end
+            local frame_result, pos = frame(target, 1, 4, true)
+            if frame_result ~= "ok" or type(pos) ~= "table" then
+                return "no_subject", "_frame pose 1 on the stack -> " .. describe(frame_result) .. " "
+                    .. describe(pos)
+            end
+            local held = probe(pos.element_id, pos.x, pos.y, 4)
+            local where = "projected " .. describe(pos.x) .. "," .. describe(pos.y)
+                .. " holds the stack: " .. describe(held)
+            if held ~= true then
+                return "refused", where .. " -- the projection is not on the drawn (raised) stack"
+            end
+            local _, before = count("sapphire")
+            local result, detail = click_obj("sapphire", 3)
+            local _, after = count("sapphire")
+            local text = where .. "; click_obj -> " .. describe(result) .. " " .. describe(detail)
+                .. "; sapphire " .. describe(before) .. " -> " .. describe(after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if after ~= (before or 0) + 1 then
+                return "hollow", "click_obj answered ok but the backpack does not show the take -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- OBJ 0 IS AN ITEM TO THE DRIVER TOO.  seam32 moved the client's empty
+        -- slot to -1 (INV_MANAGER_EMPTY_OBJ_ID), so api_drive.inv_slot answers
+        -- obj 0 for Dwarf remains (mcannonremains, "0=mcannonremains" in
+        -- all.obj.compack) -- but the driver's Lua still read `obj_id <= 0` as
+        -- empty: t.inv.slot named the remains '' x0 and _inv_contents (the
+        -- use_on / use_item_on_item diff) left them out (seam33
+        -- obj_zero_in_the_driver_lua, build/quest_gate/s33_obj0_before).  Graded
+        -- on both readers naming the remains, and on an empty slot still
+        -- reading '' x0.  The remains are dropped afterwards to give the slot back.
+        stage(function()
+            setup_cheat("::give mcannonremains 1")
+            settle(2)
+        end)
+        seam("seam.inv_slot_obj_zero", function()
+            local slot = verb("inv", "slot")
+            local count = verb("inv", "count")
+            local contents = verb("player", "_inv_contents")
+            local drop = verb("player", "drop")
+            if not slot then return missing("inv", "slot") end
+            if not count then return missing("inv", "count") end
+            if not contents then return missing("player", "_inv_contents") end
+            if not drop then return missing("player", "drop") end
+            local held_result, held = count("mcannonremains")
+            if held_result ~= "ok" or type(held) ~= "number" or held < 1 then
+                return "no_subject", "::give mcannonremains left " .. describe(held) .. " in the backpack ("
+                    .. describe(held_result) .. ")"
+            end
+            local remains_at, empty_at, empty_read = nil, nil, nil
+            for index = 0, 27 do
+                local r, cell = slot(index)
+                if r == "ok" and type(cell) == "table" then
+                    if remains_at == nil and cell.name == "mcannonremains" and cell.count == 1 then
+                        remains_at = index
+                    elseif empty_at == nil and cell.name == "" then
+                        empty_at = index
+                        empty_read = "'" .. tostring(cell.name) .. "' x" .. tostring(cell.count)
+                    end
+                end
+            end
+            local c_result, c = contents()
+            local listed = (c_result == "ok" and type(c) == "table") and c.totals["mcannonremains"] or nil
+            local text = "count " .. describe(held) .. "; t.inv.slot names it at "
+                .. describe(remains_at) .. "; _inv_contents mcannonremains=" .. describe(listed)
+                .. "; first empty slot " .. describe(empty_at) .. " reads " .. describe(empty_read)
+            local drop_result, drop_detail = drop("mcannonremains")
+            text = text .. "; drop -> " .. describe(drop_result) .. " " .. describe(drop_detail)
+            if remains_at == nil then
+                return "hollow", "t.inv.slot never named the obj-0 item -- " .. text
+            end
+            if listed ~= 1 then
+                return "hollow", "_inv_contents left the obj-0 item out -- " .. text
+            end
+            if empty_at ~= nil and empty_read ~= "'' x0" then
+                return "hollow", "an empty slot no longer reads '' x0 -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A "*" ENTRY NAMES THE PAGE IT CONTINUED PAST, AND A PAGE FOLLOWED BY
+        -- A p_delay IS WAITED OUT.  Professor Oddenstein's "Let's get this
+        -- fixed then." is followed by mes / p_delay(2) / mes / p_delay(2) and
+        -- no if_close (professor_oddenstein.rs2) before Ernest's page.  chat.play
+        -- now awaits the ANSWER to each entry's click (a second 8-tick wait for
+        -- a latch still up) and every "*" summarises the page it graded, so a
+        -- reader can see which page each wildcard took (seam23,
+        -- build/quest_gate/s23cr_odd1 4/4).  Hollow when the summary carries
+        -- no page for the wildcard.
+        stage(function()
+            setup_cheat("::haunted")
+            setup_cheat("::setvar haunted 2")
+            setup_cheat("::give pressure_gauge")
+            setup_cheat("::give oil_can")
+            setup_cheat("::give rubber_tube")
+            settle(2)
+        end)
+        seam("seam.chat_play_names_the_wildcard_page", function()
+            local play = verb("chat", "play")
+            local goto_tile = verb("player", "goto_tile")
+            local talk_to = verb("player", "talk_to")
+            if not play then return missing("chat", "play") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not talk_to then return missing("player", "talk_to") end
+            local goto_result, goto_detail = goto_tile(3110, 3367, 2)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto Oddenstein's floor -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local talk_result, talk_detail = talk_to("professor_oddenstein", 1)
+            if talk_result ~= "ok" then
+                return "no_subject", "talk_to professor_oddenstein -> " .. describe(talk_result)
+                    .. " " .. describe(talk_detail)
+            end
+            local result, detail = play({
+                "npc:Have you found anything yet?",
+                "player:I have everything!",
+                "npc:Give 'em here then.",
+                "*",
+                "npc:It was dreadfully irritating being a chicken. How can I ever thank you?",
+                "player:Well a cash reward is always nice...",
+                "npc:Of course, of course.",
+            })
+            local text = "chat.play over the hand-in -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "*=npc 'Let's get this fixed", 1, true) then
+                return "hollow", "the wildcard's summary does not name the page it continued past -- "
+                    .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CAST ON A LOC.  The same world target, the loc half: Charge Air
+        -- Orb on the Obelisk of Water is refused in content's own sentence
+        -- (charge_orb.rs2), then Charge Water Orb charges the orb and pays
+        -- Magic XP (seam23, build/quest_gate/s23cw_rows3).  Graded on the
+        -- sentence, the orb swap and the XP.
+        stage(function()
+            setup_cheat("::give stafforb 1")
+            setup_cheat("::give waterrune 30")
+            setup_cheat("::give cosmicrune 6")
+            setup_cheat("::give airrune 30")
+            settle(2)
+        end)
+        seam("seam.cast_on_loc", function()
+            local fn = verb("player", "cast")
+            local goto_tile = verb("player", "goto_tile")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "cast") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not count then return missing("inv", "count") end
+            local goto_result, goto_detail = goto_tile(2843, 3420, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto the Obelisk of Water -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local _, orb_before = count("stafforb")
+            local refused, refused_detail = fn("charge_air_orb", { kind = "loc", id = "obelisk_water" })
+            local _, orb_mid = count("stafforb")
+            local text = "charge_air_orb -> " .. describe(refused) .. " " .. describe(refused_detail)
+            if refused ~= "refused" or orb_mid ~= orb_before
+                or not string.find(tostring(refused_detail), "This spell needs to be cast on an air obelisk.", 1, true) then
+                return "hollow", "the wrong obelisk was not refused in content's words -- " .. text
+            end
+            local _, water_before = count("water_orb")
+            local result, detail = fn("charge_water_orb", { kind = "loc", id = "obelisk_water" })
+            settle(1)
+            local _, water_after = count("water_orb")
+            local _, orb_after = count("stafforb")
+            text = text .. " || charge_water_orb -> " .. describe(result) .. " " .. describe(detail)
+                .. "; water_orb " .. describe(water_before) .. " -> " .. describe(water_after)
+                .. ", stafforb " .. describe(orb_mid) .. " -> " .. describe(orb_after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if water_after ~= (water_before or 0) + 1 or orb_after ~= (orb_mid or 0) - 1 then
+                return "hollow", "cast answered ok but no orb was charged -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- ONE GAME OF RUNE-DRAW, played for real (seam24 rune_draw_strategy).
+        -- Ghosts Ahoy's bow branch is stated by cheats -- the quest at
+        -- gathering_items, Ak-Haranu's bow handed over -- and Robin is asked
+        -- for a game.  game.runedraw plays it from his options page to the
+        -- settlement, every Draw/Hold from the pages it read.  Graded against
+        -- the server: a win must move ahoy_robin_debt 0 -> 25, a loss must
+        -- cost the 25-coin stake (he owes nothing yet), a level game neither.
+        stage(function()
+            setup_cheat("::ghostsahoy")
+            setup_cheat("::give oak_longbow 1")
+            setup_cheat("::give coins 100")
+            setup_cheat("::setvar ahoy_questvar 4")
+            setup_cheat("::setvar ahoy_subquest_bow 1")
+            settle(2)
+        end)
+        step("game.runedraw", function()
+            local fn = verb("game", "runedraw")
+            local goto_tile = verb("player", "goto_tile")
+            local talk_to = verb("player", "talk_to")
+            local count = verb("inv", "count")
+            local read_content = t.quest and t.quest._read_content
+            if not fn then return missing("game", "runedraw") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not talk_to then return missing("player", "talk_to") end
+            if not count then return missing("inv", "count") end
+            if type(read_content) ~= "function" then return missing("quest", "_read_content") end
+            local goto_result, goto_detail = goto_tile(3672, 3491, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto Robin's pub -> " .. describe(goto_result) .. " " .. describe(goto_detail)
+            end
+            local talk_result, talk_detail = talk_to("ahoy_robin", 1)
+            if talk_result ~= "ok" then
+                return "no_subject", "talk_to ahoy_robin -> " .. describe(talk_result) .. " " .. describe(talk_detail)
+            end
+            local _, coins_before = count("coins")
+            local result, game = fn()
+            if result ~= "ok" then
+                return result, describe(game)
+            end
+            settle(1)
+            local _, coins_after = count("coins")
+            local debt_result, debt = read_content("ahoy_robin_debt")
+            local text = describe(game.text) .. "; ahoy_robin_debt " .. describe(debt_result) .. " "
+                .. describe(debt) .. ", coins " .. describe(coins_before) .. " -> " .. describe(coins_after)
+            local want_debt, want_coins = 0, coins_before
+            if game.outcome == "won" then
+                want_debt = 25
+            elseif game.outcome == "lost" then
+                want_coins = (coins_before or 0) - 25
+            end
+            if debt_result ~= "ok" or debt ~= want_debt or coins_after ~= want_coins or game.draws < 1 then
+                return "hollow", "the settlement the verb read is not the server's -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A LOC ON A LINK_BELOW BRIDGE-DECK COLUMN, pressed first try.  The
+        -- Tourist Trap's clifftop climbs sit at cache level 1 over a bridged
+        -- column; drive_pointer_screen_position_loc handed that cache level to
+        -- World_HeightAt, which reads a WIRE level, so the hunt projected the
+        -- loc one plane up (382,99, 45 of 54 pixels off the viewport top:
+        -- build/quest_gate/parity_desertrescue_d4).  It projects at
+        -- World_TerrainWalkLevel now (seam23 landed it, seam24 re-landed it
+        -- beside the sail poses; s24b_rows_fix 8/8, desertrescue leg_d 10/10).
+        -- Graded on where the player ends up, not on click_loc's word: the
+        -- climbs are stateless oploc1s (quest_desertrescue.rs2:205-208).
+        stage(function()
+            setup_cheat("::setlevel agility 99")
+            settle(2)
+        end)
+        seam("seam.bridge_deck_loc_press", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local tile_of = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not tile_of then return missing("world", "tile") end
+            local goto_result, goto_detail = goto_tile(3280, 3037, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto the clifftop foot -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            settle(2)
+            local function wait_x(test)
+                for _ = 1, 8 do
+                    local read, tile = tile_of()
+                    if read == "ok" and is_table(tile) and test(tile.x) then
+                        return tile
+                    end
+                    settle(1)
+                end
+                return nil
+            end
+            local up_result, up_detail = click_loc("tourtrap_qip_clifftop_climbup", 1)
+            local text = "climbup -> " .. describe(up_result) .. " " .. describe(up_detail)
+            if up_result ~= "ok" then
+                return up_result, text
+            end
+            local top = wait_x(function(x) return x >= 3273 and x <= 3278 end)
+            if not top then
+                return "hollow", "climbup answered ok but the player never reached the second cliff -- " .. text
+            end
+            local down_result, down_detail = click_loc("tourtrap_qip_clifftop_climbdown", 1)
+            text = text .. "; on the cliff at " .. top.x .. "," .. top.z .. "; climbdown -> "
+                .. describe(down_result) .. " " .. describe(down_detail)
+            if down_result ~= "ok" then
+                return down_result, text
+            end
+            local below = wait_x(function(x) return x < 3273 end)
+            if not below then
+                return "hollow", "climbdown answered ok but the player is still on the cliff -- " .. text
+            end
+            return "ok", text .. "; below at " .. below.x .. "," .. below.z
+        end)
+
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- SEAM ghostsahoy_harbour_door_and_lobster (seam26): click_loc's
+        -- `{ at = {x, z[, level]} }` LOC SELECTOR (pointer.lua
+        -- QD.player._loc_copy).  Without it a symbol presses the copy nearest
+        -- the player, and on Ghosts Ahoy's rock route that is the rock
+        -- underfoot: eleven `ok` jumps that never left 3604,3550
+        -- (build/seam_state/seam25/wreck, run s25wk_door1 rows 6-16).  The
+        -- subject is Lumbridge's `tree`, planted 58 times around the castle:
+        -- the row names a copy that is NOT the nearest (the second pool row,
+        -- the pool comes nearest-first), presses Chop down on it, and the
+        -- player must end beside THAT copy (a tree's footprint is 2x2, so
+        -- within 2 of its SW tile) and nearer it than the nearest copy.  Then
+        -- a tile with no copy must answer `no_row` and press nothing.
+        -- Measured on the scratch twin (build/quest_gate/s26gh_sel1):
+        -- `pressed the copy at 3196,3214,0`, player 3197,3216, nearest copy
+        -- 3217,3241; the no-copy tile `no_row ... nothing pressed`.
+        seam("seam.click_loc_names_the_copy", function()
+            local click_loc = verb("player", "click_loc")
+            local by_symbol = verb("player", "by_symbol")
+            local pool_read = verb("drive", "_pool_read")
+            local tile_of = verb("world", "tile")
+            if not click_loc then return missing("player", "click_loc") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not pool_read then return missing("drive", "_pool_read") end
+            if not tile_of then return missing("world", "tile") end
+            local tree, tree_result = by_symbol("loc", "tree")
+            if tree_result ~= "ok" or not is_table(tree) then
+                return "no_subject", "player.by_symbol(loc, tree) -> " .. describe(tree_result)
+            end
+            local here_result, here = tile_of()
+            if here_result ~= "ok" or not is_table(here) then
+                return "no_subject", "world.tile -> " .. describe(here_result)
+            end
+            local rows_result, rows = pool_read("locs", 0, 18)
+            if rows_result ~= "ok" or not is_table(rows) then
+                return "no_subject", "the loc pool -> " .. describe(rows_result)
+            end
+            local copies = {}
+            for index = 1, #rows do
+                local row = rows[index]
+                if (row.loc_id == tree.id or row.resolved_loc_id == tree.id)
+                    and row.level == here.level then
+                    copies[#copies + 1] = row
+                end
+            end
+            if #copies < 2 then
+                return "no_subject", #copies .. " copy/copies of tree on this floor from "
+                    .. here.x .. "," .. here.z .. " -- the row needs two"
+            end
+            local nearest, named = copies[1], copies[2]
+            local result, detail = click_loc("tree", 1, { at = { named.x, named.z } })
+            local text = "named " .. named.x .. "," .. named.z .. " (nearest " .. nearest.x .. ","
+                .. nearest.z .. ") -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            settle(2)
+            local after_result, after = tile_of()
+            if after_result ~= "ok" or not is_table(after) then
+                return "hollow", "no tile after the press -- " .. text
+            end
+            local to_named = math.max(math.abs(after.x - named.x), math.abs(after.z - named.z))
+            local to_nearest = math.max(math.abs(after.x - nearest.x), math.abs(after.z - nearest.z))
+            text = text .. "; player " .. after.x .. "," .. after.z .. ", " .. to_named
+                .. " from the named copy, " .. to_nearest .. " from the nearest"
+            if to_named > 2 or to_nearest <= to_named then
+                return "refused", "the press did not land on the named copy -- " .. text
+            end
+            local none_result, none_detail = click_loc("tree", 1, { at = { here.x + 200, here.z + 200 } })
+            if none_result ~= "no_row" then
+                return "refused", "a tile with no copy answered " .. describe(none_result) .. " "
+                    .. describe(none_detail) .. " -- a selector must never fall back; " .. text
+            end
+            return "ok", text .. "; no copy at " .. (here.x + 200) .. "," .. (here.z + 200)
+                .. " -> no_row"
+        end)
+
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- SEAM towerladder_press (seam26): A LOC ONLY ON A LOWER FLOOR IS NO
+        -- TARGET (pointer.lua QD.player._loc_other_floor).  The Watchtower's
+        -- `towerladder` (2833) is the GROUND floor's Climb-up (maps/m39_48.jl2
+        -- `0 48 39: 2833 10`); from the first floor (2544,3111,1) the client
+        -- pick can never keep it, and click_loc used to hunt 119 ticks and
+        -- answer "menu has no row for it" (build/quest_gate/s26tl_before row
+        -- 2).  It must answer not_visible "other_floor", naming the loc that
+        -- IS on this floor there, qip_watchtower_ladder_top (17122, `1 48 39:
+        -- 17122 10`) -- measured s26tl_p2a row 2, 28 ticks.
+        stage(function()
+            setup_cheat("::goto 2544 3111 1")                  -- setup
+            settle(6)
+        end)
+
+        seam("seam.click_loc_names_the_other_floor", function()
+            local click_loc = verb("player", "click_loc")
+            if not click_loc then return missing("player", "click_loc") end
+            local result, detail = click_loc("towerladder", 1)
+            local text = "click_loc(towerladder) from 2544,3111,1 -> " .. describe(result) .. " "
+                .. describe(detail)
+            if result ~= "not_visible" then
+                return "refused", "a loc with no copy on this floor must answer not_visible -- " .. text
+            end
+            if not string.find(tostring(detail), "other_floor", 1, true)
+                or not string.find(tostring(detail), "qip_watchtower_ladder_top", 1, true) then
+                return "refused", "the answer must say other_floor and name the loc on this floor -- "
+                    .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CAST ON A CARRIED ITEM.  No verb could cast on a backpack item, so
+        -- Superheat Item / the alchemies / the enchants could not be driven
+        -- (seam27).  t.player.cast now takes {kind="held", id=<obj symbol>}:
+        -- spell_arm, then api_drive.inv_cast runs the cell's TGT_HELD row
+        -- (OPHELDT).  Graded on the backpack, not the verb's word
+        -- (build/quest_gate/s27held_b 7/7).
+        stage(function()
+            setup_cheat("::goto " .. CAST_TILE_X .. " " .. CAST_TILE_Z .. " 0")  -- setup
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give firerune 3")
+            setup_cheat("::give naturerune 1")
+            setup_cheat("::give bronze_dagger 1")
+            settle(2)
+        end)
+        seam("seam.cast_on_held_item", function()
+            local fn = verb("player", "cast")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "cast") end
+            if not count then return missing("inv", "count") end
+            local _, dagger_before = count("bronze_dagger")
+            local _, coins_before = count("coins")
+            local _, nature_before = count("naturerune")
+            local result, detail = fn("low_alchemy", { kind = "held", id = "bronze_dagger" })
+            settle(1)
+            local _, dagger_after = count("bronze_dagger")
+            local _, coins_after = count("coins")
+            local _, nature_after = count("naturerune")
+            local text = "low_alchemy held bronze_dagger -> " .. describe(result) .. " "
+                .. describe(detail) .. "; dagger " .. describe(dagger_before) .. " -> "
+                .. describe(dagger_after) .. ", coins " .. describe(coins_before) .. " -> "
+                .. describe(coins_after) .. ", nature " .. describe(nature_before) .. " -> "
+                .. describe(nature_after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if dagger_after ~= (dagger_before or 0) - 1 or (coins_after or 0) <= (coins_before or 0)
+                or nature_after ~= (nature_before or 0) - 1 then
+                return "hollow", "cast answered ok but the backpack does not show the alchemy -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CAST FIGHT RE-CASTS UNDER RETALIATION, AND AWAIT_DEAD EATS.
+        -- With auto-retaliate on (this fixture's default, and Family Crest's)
+        -- the player's melee retaliation puts 0 splats on Chronozon (defence
+        -- 173) between casts; counting a new splat as progress kept the
+        -- stall counter from ever reaching the re-cast (0 re-casts in 60
+        -- ticks, build/quest_gate/s27re_before3).  A cast fight now stalls on
+        -- the health reading alone.  And opts.eat = {item=, below=} eats
+        -- through inv_op whenever the stated hitpoints fall under `below`
+        -- (seam27; Family Crest's author had hand-written a cast-and-eat
+        -- loop): Chronozon (strength 172) takes ~80 of 99 hitpoints in 60
+        -- ticks, so this row DIES without it -- the first draft of this row,
+        -- with no food, did (build/quest_gate/_conformance attempt-01 row
+        -- 167).  Graded on >= 3 re-casts, >= 4 air runes spent and a shark
+        -- eaten (s27re_after2: 9 re-casts, 6 sharks).  Chronozon regenerates
+        -- without his four blast bits, so the row never grades a kill, and
+        -- `::passive` breaks his fight off afterwards (he is left standing,
+        -- harmless, for the rows after).
+        stage(function()
+            setup_cheat("::clearinv")                           -- setup
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give airrune 100")
+            setup_cheat("::give mindrune 100")
+            setup_cheat("::give shark 20")
+            setup_cheat("::goto 3222 3219 0")                   -- setup
+            settle(2)
+            setup_cheat("::spawn chronozon")                    -- setup
+            settle(2)
+        end)
+        seam("seam.await_dead_engaged_recasts_and_eats", function()
+            local cast = verb("player", "cast")
+            local fn = verb("npc", "await_dead_engaged")
+            local count = verb("inv", "count")
+            if not cast then return missing("player", "cast") end
+            if not fn then return missing("npc", "await_dead_engaged") end
+            if not count then return missing("inv", "count") end
+            local _, air_before = count("airrune")
+            local _, sharks_before = count("shark")
+            local cast_result, cast_detail = cast("wind_strike", "chronozon", 14)
+            if cast_result ~= "ok" then
+                return "no_subject", "cast wind_strike on chronozon -> " .. describe(cast_result) .. " "
+                    .. describe(cast_detail)
+            end
+            local result, detail = fn(60, 30, { eat = { item = "shark", below = 70 } })
+            local _, air_after = count("airrune")
+            local _, sharks_after = count("shark")
+            local recasts = tonumber(string.match(tostring(detail),
+                "re%-CAST wind_strike: (%d+) press%(es%) ok")) or 0
+            local text = "await_dead_engaged(60, 30, {eat shark below 70}) after wind_strike -> "
+                .. describe(result) .. " " .. describe(detail) .. "; re-casts ok " .. recasts
+                .. ", airrune " .. describe(air_before) .. " -> " .. describe(air_after)
+                .. ", shark " .. describe(sharks_before) .. " -> " .. describe(sharks_after)
+            if result == "refused" then
+                return result, text
+            end
+            if recasts < 3 or (air_before or 0) - (air_after or 0) < 4 then
+                return "refused", "a cast fight under retaliation must re-cast on the stall -- " .. text
+            end
+            if not string.find(tostring(detail), "ate shark", 1, true)
+                or (sharks_after or 0) >= (sharks_before or 0) then
+                return "refused", "hitpoints fell under 70 and no shark was eaten -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::passive chronozon")                  -- setup
+            settle(3)
+        end)
+
+        -- THE AWAIT VERBS ANSWER A DETAIL.  gate.py fails a PASS row with an
+        -- empty detail (seam27), and t.await / npc.await_present /
+        -- npc.await_gone / ui.await_open used to answer a bare ok.  Graded
+        -- on the words: t.await says "<note>: met after N tick(s)",
+        -- await_present "<sym> present within R: slot S at x,z" (Chronozon,
+        -- left standing by the row above) and await_gone "no <sym> within R".
+        seam("seam.await_verbs_answer_a_detail", function()
+            local await_fn = verb("await")
+            local present = verb("npc", "await_present")
+            local gone = verb("npc", "await_gone")
+            if not await_fn then return missing("await") end
+            if not present then return missing("npc", "await_present") end
+            if not gone then return missing("npc", "await_gone") end
+            local await_result, await_detail = await_fn({
+                level = function() return true end,
+                note = "conformance.await_detail",
+            }, 2)
+            local present_result, present_detail = present("chronozon", 15, 5)
+            local gone_result, gone_detail = gone("ahoy_ghost_guard", 15, 5)
+            local text = "t.await -> " .. describe(await_result) .. " " .. describe(await_detail)
+                .. "; npc.await_present(chronozon, 15) -> " .. describe(present_result) .. " "
+                .. describe(present_detail) .. "; npc.await_gone(ahoy_ghost_guard, 15) -> "
+                .. describe(gone_result) .. " " .. describe(gone_detail)
+            if await_result ~= "ok" or present_result ~= "ok" or gone_result ~= "ok" then
+                return "refused", text
+            end
+            if not string.find(tostring(await_detail), "conformance.await_detail: met after", 1, true)
+                or not string.find(tostring(present_detail), "chronozon present within 15: slot", 1, true)
+                or not string.find(tostring(gone_detail), "no ahoy_ghost_guard within 15", 1, true) then
+                return "hollow", "an await answered ok without its detail -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A SPELL WITH NO TARGET (seam28 self_cast_and_moving_multinpc_press).
+        -- t.player.cast(spell) with no target presses the spellbook cell's
+        -- own op 1 (IF_BUTTON1 -> [if_button,magic_spellbook:<spell>]); before
+        -- seam28 it died in by_symbol("npc", nil) (build/quest_gate/
+        -- s28sc_before row 2).  Graded on the TILE: Varrock Teleport from
+        -- Lumbridge must land in Varrock and say TELEPORTED; Ardougne Teleport
+        -- with %elenaquest unset must answer refused quoting the gate
+        -- (skill_magic/scripts/spells/teleport.rs2:16-23, LostCity
+        -- teleport.rs2) and leave the player where he stood.
+        stage(function()
+            setup_cheat("::give lawrune 5")                     -- setup
+            setup_cheat("::give firerune 5")
+            setup_cheat("::goto 3222 3219 0")
+            settle(3)
+        end)
+        seam("seam.cast_self_teleport", function()
+            local cast = verb("player", "cast")
+            local tile = verb("world", "tile")
+            if not cast then return missing("player", "cast") end
+            if not tile then return missing("world", "tile") end
+            local result, detail = cast("varrock_teleport")
+            local _, at = tile()
+            local text = "cast varrock_teleport (no target) -> " .. describe(result) .. " "
+                .. describe(detail) .. "; tile " .. (at and (at.x .. "," .. at.z .. "," .. at.level) or "?")
+            if result ~= "ok" then
+                return result, text
+            end
+            if not at or at.x < 3200 or at.x > 3230 or at.z < 3415 or at.z > 3440
+                or not string.find(tostring(detail), "TELEPORTED", 1, true) then
+                return "hollow", "the self-cast answered ok but the player is not in Varrock -- " .. text
+            end
+            return "ok", text
+        end)
+        seam("seam.cast_self_refused", function()
+            local cast = verb("player", "cast")
+            local tile = verb("world", "tile")
+            if not cast then return missing("player", "cast") end
+            if not tile then return missing("world", "tile") end
+            local _, before = tile()
+            local result, detail = cast("ardougne_teleport")
+            local _, after = tile()
+            local text = "cast ardougne_teleport before Plague City -> " .. describe(result) .. " "
+                .. describe(detail) .. "; tile " .. (before and (before.x .. "," .. before.z) or "?")
+                .. " -> " .. (after and (after.x .. "," .. after.z) or "?")
+            if result ~= "refused" then
+                return "refused", "the Plague City gate must refuse the cast -- " .. text
+            end
+            if not string.find(tostring(detail), "You must have completed Plague City to use this spell.", 1, true)
+                or not before or not after or before.x ~= after.x or before.z ~= after.z then
+                return "hollow", "refused without the gate's sentence, or the player moved -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A TELEPORT OUT OF A DUNGEON, PRESSED WHILE A CHOP HOLDS THE PLAYER
+        -- (seam33 spellbook_cast_never_runs).  Lost City's teleportAway: the
+        -- Entrana dungeon floor, the Dramen tree's branch cut (leprechaun_tree
+        -- .rs2 [oploc1,dramentree]: inv_add then p_delay(1)), and Lumbridge
+        -- Teleport pressed the tick the branch lands.  The server refuses an
+        -- [if_button] while the player is delayed, silently (LostCity
+        -- Player.runScript; torirs_server_world.c
+        -- if_button_refused_while_delayed), and the one-press verb read "the
+        -- cast never ran" (build/quest_gate/zanaris row 35, s33cast_repro2
+        -- row 4).  Graded on the TILE: the player must leave the dungeon for
+        -- Lumbridge and the verb must say TELEPORTED.  The zanaris varp goes
+        -- back to 0 after.
+        stage(function()
+            setup_cheat("::give bronze_axe 1")                  -- setup
+            setup_cheat("::give lawrune 1")
+            setup_cheat("::give airrune 3")
+            setup_cheat("::give earthrune 1")
+            setup_cheat("::setlevel woodcutting 36")
+            setup_cheat("::setvar zanaris ^zanaris_spirit_defeated")
+            setup_cheat("::goto 2862 9733 0")
+            settle(3)
+        end)
+        seam("seam.cast_self_teleport_from_dungeon_after_delay", function()
+            local cast = verb("player", "cast")
+            local tile = verb("world", "tile")
+            local click_loc = verb("player", "click_loc")
+            local inv_await = verb("inv", "await")
+            if not cast then return missing("player", "cast") end
+            if not tile then return missing("world", "tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not inv_await then return missing("inv", "await") end
+            local _, before = tile()
+            local chop_result, chop_detail = click_loc("dramentree", 1)
+            local branch_result, branch_detail = inv_await("dramen_branch", 1, 15)
+            local text = "chop dramentree -> " .. describe(chop_result) .. " " .. describe(chop_detail)
+                .. "; branch " .. describe(branch_result) .. " " .. describe(branch_detail)
+            if branch_result ~= "ok" then
+                return "no_subject", "no branch was cut, so no p_delay to cast through -- " .. text
+            end
+            local result, detail = cast("lumbridge_teleport")
+            local _, at = tile()
+            text = text .. "; cast lumbridge_teleport (no target) from "
+                .. (before and (before.x .. "," .. before.z .. "," .. before.level) or "?")
+                .. " -> " .. describe(result) .. " " .. describe(detail) .. "; tile "
+                .. (at and (at.x .. "," .. at.z .. "," .. at.level) or "?")
+                .. "; presses " .. (string.match(tostring(detail), "%(press (%d+):") or "1")
+            if result ~= "ok" then
+                return result, text
+            end
+            if not before or before.z < 9000 then
+                return "no_subject", "the cast did not start in the dungeon -- " .. text
+            end
+            if not at or at.level ~= 0 or at.x < 3200 or at.x > 3240 or at.z < 3200 or at.z > 3240
+                or not string.find(tostring(detail), "TELEPORTED", 1, true) then
+                return "hollow", "the self-cast answered ok but the player is not in Lumbridge -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::setvar zanaris 0")                   -- teardown
+            settle(1)
+        end)
+
+        -- AN UNDRAWN MULTINPC SHELL IS NOT A MISSED PRESS (seam28).  A
+        -- multinpc table is indexed BY VALUE (all.npc multinpc1 is varbit
+        -- value 0); at ^gobdip_grubfoot_hidden (3, catwalk_goblin's -1 rung)
+        -- Grubfoot is not drawn, and talk_to must answer not_visible naming
+        -- the shell -- not a pixel hunt's account (build/quest_gate/
+        -- s28sm_proof1 gv.vis3.undrawn).  The varbit goes back to 0 after.
+        stage(function()
+            setup_cheat("::goto 2957 3510 0")                   -- setup
+            settle(2)
+            setup_cheat("::setvar gobdip_grubfoot_vis ^gobdip_grubfoot_hidden")
+            settle(3)
+        end)
+        seam("seam.talk_to_undrawn_multinpc", function()
+            local fn = verb("player", "talk_to")
+            if not fn then return missing("player", "talk_to") end
+            local result, detail = fn("catwalk_goblin", 1)
+            local text = "talk_to catwalk_goblin at gobdip_grubfoot_vis ^gobdip_grubfoot_hidden -> "
+                .. describe(result) .. " " .. describe(detail)
+            if result ~= "not_visible" then
+                return "refused", "an undrawn shell must answer not_visible -- " .. text
+            end
+            if not string.find(tostring(detail), "resolved to NO child", 1, true) then
+                return "hollow", "not_visible without naming the shell -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::setvar gobdip_grubfoot_vis 0")       -- setup
+            settle(1)
+        end)
+
+        -- A PAGE BREAK READS AS A SPACE (seam30).  The server joins a
+        -- dialogue page's hard rows with <br> (content ~chat_layout, seam29);
+        -- _strip_tags used to delete it, so elena's mesbox read "You fall
+        -- through......you land" and a chat.play fragment spanning the break
+        -- could never match what the player sees.  The page text is the
+        -- one build/quest_gate/seam29_pipe_break recorded, verbatim.
+        seam("seam.strip_tags_br_is_a_space", function()
+            local read = t.read
+            local fn = type(read) == "table" and read._strip_tags or nil
+            if type(fn) ~= "function" then return missing("read", "_strip_tags") end
+            local raw = "You fall through...<br>...you land in the sewer.<br>Edmond follows you down the hole."
+            local got = fn(raw)
+            local want = "You fall through... ...you land in the sewer. Edmond follows you down the hole."
+            local text = "_strip_tags(" .. raw .. ") -> '" .. tostring(got) .. "'"
+            if got ~= want then
+                return "refused", "expected '" .. want .. "' -- " .. text
+            end
+            local colour = fn("<col=0000ff>find the</col> <br> helmet")
+            if colour ~= "find the helmet" then
+                return "refused", "a break with spaces round it must read as ONE space -- got '"
+                    .. tostring(colour) .. "'; " .. text
+            end
+            return "ok", text .. "; '<col=0000ff>find the</col> <br> helmet' -> '" .. colour .. "'"
+        end)
+
+        -- A REWARD LINE WITH A THOUSANDS SEPARATOR (seam30).  "10,500
+        -- Magic XP" read as 500: "(%d+)" started after the comma.  No
+        -- fixture quest awards a five-figure line, so the row hands the
+        -- parse behind scroll.reward_xp the lines directly.
+        seam("seam.reward_xp_thousands_separator", function()
+            local scroll = t.scroll
+            local fn = type(scroll) == "table" and scroll._parse_reward_xp or nil
+            if type(fn) ~= "function" then return missing("scroll", "_parse_reward_xp") end
+            local lines = { "1 Quest Point", "10,500 Magic XP", "1,234,567 Attack XP", "300 Cooking XP",
+                "Amulet of accuracy" }
+            local cases = { { "magic", 10500 }, { "attack", 1234567 }, { "cooking", 300 }, { "mining", nil } }
+            local seen = {}
+            for _, case in ipairs(cases) do
+                local got = fn(lines, case[1])
+                seen[#seen + 1] = case[1] .. "=" .. tostring(got)
+                if got ~= case[2] then
+                    return "refused", case[1] .. " read " .. tostring(got) .. ", expected "
+                        .. tostring(case[2]) .. " -- " .. table.concat(seen, " ")
+                end
+            end
+            return "ok", table.concat(seen, " ") .. " over {" .. table.concat(lines, " | ") .. "}"
+        end)
+        stage(function()
+            setup_cheat("::setlevel hitpoints 10")
+            setup_cheat("::setlevel magic 1")
+            settle(2)
+        end)
+
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- THE LEG MARKER AND ITS CHECKPOINT (seam30 leg_checkpoints,
+        -- docs/quest_authoring/relay.md "Checkpoints").  A relay file's
+        -- `legs` table is driven by t.core_legs_drive: a `leg.<k>.<name>` row
+        -- before each leg (tile, server-read stage, backpack), and after an
+        -- all-PASS leg that has a successor, `::checkpoint k` -- the server's
+        -- save serialiser in checkpoint mode -- whose reply is carried into
+        -- the next leg's row.  Two tiny legs at the Lumbridge spawn, a quiet
+        -- point, so the checkpoint must be WRITTEN.
+        seam("seam.legs_marker_and_checkpoint", function()
+            local drive = t.core_legs_drive
+            if type(drive) ~= "function" then return missing("core_legs_drive") end
+            local report = drive({ legs = {
+                { name = "conf_a", run = function(tt)
+                    tt.step("conformance.leg_a", "PASS", "leg a's own row")
+                end },
+                { name = "conf_b", run = function(tt) end },
+            } }, { finish = false })
+            local rows = type(report) == "table" and report.rows or {}
+            local text = table.concat(rows, " || ")
+            if #rows ~= 3 or not string.find(tostring(rows[1]), "leg.1.conf_a: tile=", 1, true)
+                or not string.find(tostring(rows[2]), "leg.2.conf_b: tile=", 1, true)
+                or not string.find(tostring(rows[3]), "leg.2.end: tile=", 1, true) then
+                return "refused", "expected rows leg.1.conf_a, leg.2.conf_b and leg.2.end with a tile -- " .. text
+            end
+            if not string.find(tostring(rows[2]), "checkpoint 1 written: checkpoint 1 written at", 1, true) then
+                return "refused", "the all-PASS leg 1 at a quiet point left no written checkpoint -- " .. text
+            end
+            -- seam31: the LAST leg that returns unfinished gets its checkpoint
+            -- too, carried in its leg.<k>.end row.
+            if not string.find(tostring(rows[3]), "checkpoint 2 written: checkpoint 2 written at", 1, true) then
+                return "refused", "the all-PASS last leg left no written checkpoint -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CHECKPOINT IS REFUSED IN A DIALOGUE (seam30).  A checkpoint is
+        -- per-player state only: a parked dialogue does not come back with
+        -- it, so the server refuses `::checkpoint` while one is open and names
+        -- it -- the reply the harness folds into the next leg row.
+        stage(function()
+            setup_cheat("::cook")                                -- setup
+            settle(3)
+        end)
+        seam("seam.checkpoint_refuses_dialogue", function()
+            local talk = verb("player", "talk_to")
+            local drain = verb("chat", "drain")
+            local cheat = verb("cheat")
+            if not talk then return missing("player", "talk_to") end
+            if not drain then return missing("chat", "drain") end
+            if not cheat then return missing("cheat") end
+            local talk_result, talk_detail = talk(COOK_SYMBOL)
+            drain({ stop_at = "options" })
+            local result = cheat("::checkpoint 2")
+            local reply = t._legs_checkpoint_reply(2)
+            local key = verb("key")
+            if key then key("escape") end
+            settle(2)
+            local text = "talk_to cook -> " .. describe(talk_result) .. " " .. describe(talk_detail)
+                .. "; ::checkpoint 2 -> " .. describe(result) .. " '" .. tostring(reply) .. "'"
+            if result ~= "refused" or not string.find(tostring(reply), "refused: a dialogue is open", 1, true) then
+                return "refused", "the checkpoint must be refused naming the open dialogue -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- A KILL WAIT CARRIES ITS PROGRESS TRAIL (seam31
+        -- run_never_ends_silently).  await_dead / await_dead_engaged sample
+        -- the fight every QD.COMBAT_PROGRESS_TICKS ticks, print each sample
+        -- as a `QUEST progress` line (the one run.py's run.unfinished row
+        -- reads back when a run stops inside the wait) and end their detail
+        -- in "; progress t+10 hp .., ..", keeping the last
+        -- QD.COMBAT_PROGRESS_KEEP.  Driven on the helpers themselves: a real
+        -- fight long enough to drop samples would cost minutes of ticks.
+        seam("seam.kill_wait_progress_trail", function()
+            if type(t._combat_progress_new) ~= "function"
+                or type(t._combat_progress_step) ~= "function"
+                or type(t._combat_progress_text) ~= "function" then
+                return "refused", "combat.lua has no _combat_progress_new/_step/_text"
+            end
+            if type(t.core_progress) ~= "function" or type(t.core_row_begin) ~= "function" then
+                return "refused", "core.lua has no core_progress/core_row_begin"
+            end
+            local every = t.COMBAT_PROGRESS_TICKS
+            local keep = t.COMBAT_PROGRESS_KEEP
+            local progress = t._combat_progress_new("conformance kill wait")
+            local empty = t._combat_progress_text(progress)
+            -- under one period: no sample yet
+            t._combat_progress_step(progress, every - 1, "30/30", 0, nil)
+            local none_yet = #progress.trail
+            local samples = keep + 2
+            for i = 1, samples do
+                t._combat_progress_step(progress, i * every, tostring(30 - i) .. "/30",
+                    (i == 2) and 1 or 0, { eaten = (i >= 3) and 1 or 0 })
+            end
+            local text = t._combat_progress_text(progress)
+            local detail = "every=" .. tostring(every) .. " keep=" .. tostring(keep)
+                .. " before-first=" .. tostring(none_yet) .. " empty='" .. tostring(empty)
+                .. "' after " .. tostring(samples) .. " samples: " .. text
+            if empty ~= "" or none_yet ~= 0 then
+                return "refused", "a wait with no sample must add nothing -- " .. detail
+            end
+            if #progress.trail ~= keep or progress.dropped ~= 2 then
+                return "refused", "the trail must keep the last " .. tostring(keep)
+                    .. " and count 2 dropped -- " .. detail
+            end
+            local last = "t+" .. tostring(samples * every) .. " hp " .. tostring(30 - samples) .. "/30 ate 1"
+            if not string.find(text, "; progress (2 earlier dropped) t+" .. tostring(3 * every) .. " hp 27/30 ate 1", 1, true)
+                or not string.find(text, last, 1, true) then
+                return "refused", "the trail must read oldest-kept first and end at '" .. last .. "' -- " .. detail
+            end
+            return "ok", detail
+        end)
+
+        -- THE CAMERA IS READ, NOT SURVIVED (seam32 cutscene_verb_and_camera_read).
+        -- No test read the camera, so a port that dropped a cutscene (Fight
+        -- Arena's ogre pen: 17 LostCity camera ops, none in the port) stayed
+        -- green.  Every CAM_* packet the client executes is stamped into
+        -- app->cam_script (serial + a 64-deep ring, world tiles), read by
+        -- t.world.camera() and t.cutscene.await.  Driven on the content
+        -- debugproc ::cutscene <coord> [times] [hold] (cheat_cutscene.rs2:
+        -- LostCity's Fire Warrior door cut, ikov_dungeon.rs2:183-185,217, at
+        -- the tile named), so every keyframe the rows expect is written there.
+        local function cutscene_literal(tile)
+            return string.format("%d_%d_%d_%d_%d", tile.level, tile.x // 64, tile.z // 64, tile.x % 64, tile.z % 64)
+        end
+
+        step("world.camera", function()
+            local fn = verb("world", "camera")
+            if not fn then return missing("world", "camera") end
+            local cam, why = fn()
+            if type(cam) ~= "table" then
+                return "refused", "t.world.camera() -> " .. tostring(cam) .. " " .. tostring(why)
+            end
+            return "ok", string.format("x=%d z=%d level=%d yaw=%d pitch=%d zoom=%d server_driven=%s serial=%d last_op=%s",
+                cam.x, cam.z, cam.level, cam.yaw, cam.pitch, cam.zoom, tostring(cam.server_driven),
+                cam.serial, tostring(cam.last_op))
+        end)
+
+        step("cutscene.mark", function()
+            local fn = verb("cutscene", "mark")
+            if not fn then return missing("cutscene", "mark") end
+            local serial = fn()
+            if type(serial) ~= "number" then
+                return "refused", "t.cutscene.mark() -> " .. tostring(serial)
+            end
+            return "ok", "camera serial " .. serial
+        end)
+
+        step("cutscene.await", function()
+            local fn = verb("cutscene", "await")
+            if not fn then return missing("cutscene", "await") end
+            local here = cutscene_literal(player_tile)
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here, false)
+            return fn("conformance", { since = mark, timeout = 20, quiet = 15 })
+        end)
+
+        -- A free camera, then the same camera while ::cutscene holds it, then after the reset.
+        seam("seam.world_camera_read", function()
+            local free = t.world.camera()
+            if type(free) ~= "table" or free.server_driven ~= false then
+                return "refused", "free camera reads server_driven=" .. tostring(free and free.server_driven)
+            end
+            local here = cutscene_literal(player_tile)
+            t.cheat("::cutscene " .. here, false)
+            t.await({ level = function() return t.world.camera().server_driven end, note = "server_driven" }, 10)
+            local mid = t.world.camera()
+            local target = mid.last_target
+            local aimed = target ~= nil and ((target.x == player_tile.x and target.z == player_tile.z)
+                or (target.x == player_tile.x + 5 and target.z == player_tile.z + 2))
+            t.await({ level = function() return not t.world.camera().server_driven end, note = "reset" }, 15)
+            local after = t.world.camera()
+            local text = string.format("free serial=%d; driven=%s last_target=%s,%s; after server_driven=%s last_op=%s",
+                free.serial, tostring(mid.server_driven), tostring(target and target.x), tostring(target and target.z),
+                tostring(after.server_driven), tostring(after.last_op))
+            t.cutscene._claimed = after.serial   -- this sequence is not the next await's
+            if mid.server_driven and aimed and after.server_driven == false and after.last_op == "reset" then
+                return "ok", text
+            end
+            return "refused", text
+        end)
+
+        seam("seam.cutscene_await_records_keyframes", function()
+            local here = cutscene_literal(player_tile)
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here, false)
+            return t.cutscene.await("records", { since = mark, timeout = 20, quiet = 15, expect = {
+                { op = "moveto", coord = here, height = 1000 },
+                { op = "lookat", x = player_tile.x + 5, z = player_tile.z + 2, height = 50 },
+                { op = "lookat", x = player_tile.x + 5, z = player_tile.z - 2 },
+                { op = "reset" },
+            } })
+        end)
+
+        seam("seam.cutscene_await_no_cutscene", function()
+            local r, d = t.cutscene.await("nocam", { timeout = 5 })
+            return r == "no_cutscene" and "ok" or "refused", "await answered " .. tostring(r) .. ": " .. tostring(d)
+        end)
+
+        seam("seam.cutscene_expect_missing_keyframe", function()
+            local here = cutscene_literal(player_tile)
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here, false)
+            local r, d = t.cutscene.await("missing", { since = mark, timeout = 20, quiet = 15, expect = {
+                { op = "moveto", coord = here },
+                { op = "lookat", x = player_tile.x + 9, z = player_tile.z + 9 },
+            } })
+            local named = string.find(tostring(d), "expected keyframe #2 (lookat " .. (player_tile.x + 9) .. ","
+                .. (player_tile.z + 9), 1, true) ~= nil
+            return (r == "not_found" and named) and "ok" or "refused", "await answered " .. tostring(r) .. ": " .. tostring(d)
+        end)
+
+        -- Fight Arena's shape: the second moveto lands in the tick of the first reset.
+        seam("seam.cutscene_await_back_to_back", function()
+            local here = cutscene_literal(player_tile)
+            local full = {
+                { op = "moveto", coord = here }, { op = "lookat", x = player_tile.x + 5, z = player_tile.z + 2 },
+                { op = "lookat", x = player_tile.x + 5, z = player_tile.z - 2 }, { op = "reset" } }
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here .. " 2", false)
+            local r1, d1 = t.cutscene.await("twice1", { since = mark, timeout = 20, quiet = 15, expect = full })
+            -- The second sequence's moveto lands in the tick of the first reset, BEFORE this
+            -- call. A quest reads it through the default start (the previous t.exec row's
+            -- begin, clamped to the last claimed packet: arena's openCell.cutscene-2); this
+            -- row makes no t.exec row between the two awaits, so it states that same start
+            -- itself -- the serial the first read stopped at. What is proved is the stop:
+            -- the first read must leave the second sequence unread and unclaimed.
+            local r2, d2 = t.cutscene.await("twice2", { since = t.cutscene._claimed, timeout = 20,
+                quiet = 15, expect = full })
+            return (r1 == "ok" and r2 == "ok") and "ok" or "refused",
+                "first " .. tostring(r1) .. ": " .. tostring(d1) .. " || second " .. tostring(r2) .. ": " .. tostring(d2)
+        end)
+
+        -- A WAIT OF REAL MINUTES IS FAST-FORWARDED, NOT SAT THROUGH (seam33
+        -- test_clock_for_realtime_waits).  date_minutes / date_runeday were bare
+        -- CLOCK_REALTIME reads, so Forgettable Tale's sixteen-minute kelda patch
+        -- outlasted a run's frame budget; ::clockskip adds a per-world offset
+        -- both opcodes read (ToriRSServer_WorldRealtimeMs) and t.clock.skip reads
+        -- the new minute back through the client's date_minutes varp.  Graded on
+        -- the varp moving by the skip (the verb's own +N check) and on the
+        -- server's week bound refusing a 20000-minute skip.  One minute ahead
+        -- costs nothing later: only cooldowns read the clock, and they shrink.
+        step("clock.skip", function()
+            local fn = verb("clock", "skip")
+            if not fn then return missing("clock", "skip") end
+            local result, detail = fn(1)
+            if result ~= "ok" then
+                return result, "t.clock.skip(1) -> " .. describe(detail)
+            end
+            if not string.find(tostring(detail), "(+1 skipped", 1, true) then
+                return "hollow", "t.clock.skip(1) answered ok without naming the skip -- " .. describe(detail)
+            end
+            local refused_result, refused_detail = fn(20000)
+            if refused_result ~= "refused" then
+                return "hollow", "t.clock.skip(20000) (past the week bound) answered "
+                    .. describe(refused_result) .. " " .. describe(refused_detail) .. "; skip(1): " .. detail
+            end
+            return "ok", detail .. "; skip(20000) refused: " .. describe(refused_detail)
+        end)
+
+        -- ::complete WRITES THE ROW IT NAMES, INCLUDING ONE WHOSE NAME IS ALSO A
+        -- VARP (seam33 complete_cheat_arms).  `quest_wanted` is dbrow 156 AND
+        -- varp 571 (Wanted!'s carrier), and `if ($row = quest_wanted)` compiled
+        -- to `$row = 571` (sscompile resolves an untyped bare name by namespace
+        -- sort order), so the arm never matched and `::complete quest_wanted`
+        -- answered "::complete has no arm for that quest." -- Devious Minds' monk
+        -- refused a player with every prerequisite staged
+        -- (build/quest_gate/s33_cca_probe).  Temple of Ikov, Tourist Trap and
+        -- Troll Stronghold had no arm at all, so Desert Treasure and Devious
+        -- Minds staged them with ::setvar.  Graded per row on the progress var
+        -- reaching the quest's own complete constant AND %qp rising by the row's
+        -- quest:questpoints (the cheat pays it), from a var reset to 0 first so
+        -- an earlier row's completion cannot pass it.  The vars go back to 0 after.
+        seam("seam.complete_cheat_arms", function()
+            local cheat = verb("cheat")
+            local read = verb("var", "server")
+            if not cheat then return missing("cheat") end
+            if not read then return missing("var", "server") end
+            local arms = {
+                { row = "quest_wanted", var = "wanted_main", complete = 11, points = 1 },
+                { row = "quest_touristtrap", var = "desertrescue", complete = 30, points = 2 },
+                { row = "quest_templeofikov", var = "ikov", complete = 80, points = 1 },
+                { row = "quest_trollstronghold", var = "troll_quest", complete = 50, points = 1 },
+            }
+            local parts = {}
+            for _, arm in ipairs(arms) do
+                setup_cheat("::setvar " .. arm.var .. " 0")
+                settle(1)
+                local _, qp_before = read("qp")
+                local cheat_result = cheat("::complete " .. arm.row)
+                settle(2)
+                local value_result, value = read(arm.var)
+                local _, qp_after = read("qp")
+                local reading = arm.row .. ": " .. arm.var .. "=" .. describe(value)
+                    .. " (want " .. arm.complete .. "), qp " .. describe(qp_before) .. "->"
+                    .. describe(qp_after) .. " (want +" .. arm.points .. "), cheat " .. describe(cheat_result)
+                if cheat_result ~= "ok" or value_result ~= "ok" or value ~= arm.complete
+                    or type(qp_before) ~= "number" or type(qp_after) ~= "number"
+                    or qp_after - qp_before ~= arm.points then
+                    return "refused", reading
+                end
+                parts[#parts + 1] = reading
+            end
+            local _, visible = read("ikov_lucien_vis")
+            if visible ~= 0 then
+                return "refused", "ikov_lucien_vis=" .. describe(visible)
+                    .. " after ::complete quest_templeofikov (the ending's ~ikov_lucien_sync gives 0)"
+            end
+            return "ok", table.concat(parts, "; ") .. "; ikov_lucien_vis=0"
+        end)
+        stage(function()
+            setup_cheat("::setvar wanted_main 0")               -- teardown
+            setup_cheat("::setvar desertrescue 0")
+            setup_cheat("::setvar ikov 0")
+            setup_cheat("::setvar troll_quest 0")
+            settle(1)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

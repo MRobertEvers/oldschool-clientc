@@ -33,6 +33,7 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_session.h"
+#include "torirs_server_world_internal.h"
 #include "torirs_server_shop.h"
 
 #include "ss_meta.h"
@@ -349,6 +350,13 @@ ToriRSServer_ScriptsLoad(
     /* Fixed seed so a session replays identically, which every deterministic
      * test downstream depends on. */
     SSVM_EnvSeed(srv->script_env, 0x5eed1234u);
+    /* ...which is the WORLD's stream from here on: each npc and player carries
+     * its own (script_execute), and the env's register holds whichever is
+     * running. */
+    srv->world_random.script = srv->script_env->rng;
+    if( srv->world_random.engine == 0 )
+        srv->world_random.engine = 0x5eed1234u;
+    srv->world_random.seeded = 1;
 
     srv->scripts_ok = 1;
     fprintf(stderr, "torirsserver: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
@@ -1001,6 +1009,162 @@ report_abort(struct SSVM_State* state)
     fputs(report, stderr);
 }
 
+/*
+ * An npc script's player is borrowed, not protected.
+ *
+ * LostCity starts an npc trigger with the npc alone (`ScriptRunner.init(script,
+ * npc)`; an `[ai_ap/opplayer<n>]` adds its target as ActivePlayer only), and
+ * every player suspend -- `p_pausebutton` (so `~mesbox`, `~chatnpc`,
+ * `~chatplayer`, `~objbox`, the `~p_choice` menus), `p_delay`,
+ * `p_arrivedelay`, `p_countdialog`, `p_namedialog` -- is
+ * `checkedHandler(ProtectedActivePlayer, ...)` (Engine-TS PlayerOps.ts:427), so
+ * the reference throws "NPC script error" at it. Only `p_finduid` (and its two
+ * friend-list siblings) grants protected access from an npc script; content
+ * that talks from a death handler either does that or `queue`s the dialogue on
+ * the player (quest_zanaris tree_spirit.rs2, quest_troll troll_champion.rs2).
+ *
+ * This engine hands every trigger the phase's player with protected access, so
+ * an `[ai_queue3]` that reached `~mesbox` without binding anybody parked on
+ * whichever player the npc phase left bound -- or, with nobody bound, was
+ * dropped with one easily-missed line -- and the quest stalled with its stage
+ * written and its completion never reached (Agrith-Naar's death handler,
+ * Shadow of the Storm, parity2c). The bit marks that borrowed context:
+ * `run_trigger_script_inner` sets it on every ai_* trigger, the commands that
+ * bind a player on purpose clear it (`p_finduid`, `p_findmutualfriend`,
+ * `p_findvisibleplayer`, and `npc_findhero` -- the port's documented stand-in
+ * for LostCity's `npc_findhero` + `p_finduid` pair, see
+ * QUEST_PORTING_FIELD_GUIDE.md), and `run_or_park` turns a player suspend
+ * while it is still set into a script error naming the trigger.
+ *
+ * Host-private: above every SSVM_PTR_* bit, so no command's require mask can
+ * ever ask for it.
+ */
+#define SCRIPT_PTR_BORROWED_PLAYER (1u << 30)
+
+static const char*
+trigger_label(
+    int trigger,
+    int type,
+    char* buffer,
+    size_t capacity);
+
+static const char*
+player_suspend_name(enum SSVM_Exec status)
+{
+    switch( status )
+    {
+    case SSVM_PAUSEBUTTON:
+        return "p_pausebutton (a dialogue)";
+    case SSVM_COUNTDIALOG:
+        return "p_countdialog";
+    case SSVM_NAMEDIALOG:
+        return "p_namedialog";
+    default:
+        return "p_delay/p_arrivedelay";
+    }
+}
+
+static int
+trigger_is_ai_npc(int trigger);
+
+/*
+ * Whose random stream a script draws from -- see `struct
+ * ToriRSServerRandomStream` (torirs_server.h) for why there is more than one.
+ *
+ * An npc's own turn (`[ai_*]`, its queue, its timer) is the npc's: its wander,
+ * its attack rolls and every `random` in its scripts come off its own stream.
+ * Anything else runs on behalf of the player in scope, so a player's fight and
+ * a player's scripted roll come off the player's. Only a script with neither --
+ * a world proc with nobody logged in -- takes the world's.
+ *
+ * Decided once, at the state's first run, and remembered in `state->self`
+ * (which the VM zeroes and never reads): the subject of a script is the entity
+ * that entered it, not whichever npc a later `npc_find` bound. Both pools are
+ * arrays inside `srv`, so the pointer stays valid across a park.
+ */
+static struct ToriRSServerRandomStream*
+script_random_stream(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state)
+{
+    int slot;
+    struct ToriRSServerPlayer* player;
+
+    if( state->self )
+        return (struct ToriRSServerRandomStream*)state->self;
+
+    slot = (int)state->host_tag - 1;
+    if( trigger_is_ai_npc(state->trigger) && slot >= 0 && slot < TORIRSSERVER_NPC_MAX &&
+        srv->npcs[slot].random.seeded )
+        state->self = &srv->npcs[slot].random;
+    else if( (player = (struct ToriRSServerPlayer*)SSVM_ActiveSlot(
+                  state, SSVM_ENT_PLAYER, SSVM_PRIMARY)) != NULL )
+        state->self = ToriRSServer_WorldPlayerRandom(player);
+    else if( slot >= 0 && slot < TORIRSSERVER_NPC_MAX && srv->npcs[slot].random.seeded )
+        state->self = &srv->npcs[slot].random;
+    else
+        state->self = &srv->world_random;
+    return (struct ToriRSServerRandomStream*)state->self;
+}
+
+/*
+ * SSVM_Execute with the subject's own `random` state in the VM's register.
+ *
+ * The VM keeps ONE java.util.Random state (`SSVM_Env.rng`) and its
+ * RANDOM/RANDOMINC read it directly (serverscript/ssvm.c run_number_op). So
+ * the subject's state is loaded for exactly as long as the script runs and
+ * written back after. A script that runs another script synchronously (a
+ * trigger fired from inside a trigger) nests: the outer stream's progress is
+ * flushed before the inner one loads and reloaded after, so neither re-draws
+ * the other's numbers.
+ */
+static enum SSVM_Exec
+script_execute(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state)
+{
+    struct ToriRSServerRandomStream* outer = srv->script_random_loaded;
+    struct ToriRSServerRandomStream* stream;
+    enum SSVM_Exec status;
+
+    if( srv->script_random_pinned )
+        return SSVM_Execute(state);
+
+    stream = script_random_stream(srv, state);
+    if( outer )
+        outer->script = srv->script_env->rng;
+    srv->script_env->rng = stream->script;
+    srv->script_random_loaded = stream;
+    status = SSVM_Execute(state);
+    stream->script = srv->script_env->rng;
+    srv->script_random_loaded = outer;
+    if( outer )
+        srv->script_env->rng = outer->script;
+    return status;
+}
+
+/* `[ai_queue3,agrith_naar]`: the entry trigger plus the npc the state runs
+ * for, whichever proc or label the state is in now. */
+static const char*
+state_trigger_label(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state,
+    char* buffer,
+    size_t capacity)
+{
+    int slot = (int)state->host_tag - 1;
+    int type = -1;
+
+    if( state->trigger < 0 )
+    {
+        snprintf(buffer, capacity, "%s", state->script ? state->script->name : "?");
+        return buffer;
+    }
+    if( slot >= 0 && slot < TORIRSSERVER_NPC_MAX && srv->npcs[slot].active )
+        type = srv->npcs[slot].type;
+    return trigger_label(state->trigger, type, buffer, capacity);
+}
+
 /**
  * Run a state, and park it wherever its suspend status says it belongs.
  *
@@ -1027,7 +1191,7 @@ run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
      */
     struct ToriRSServerPlayer* active = srv->active_player;
     int was_parked = active && active->active_script == state;
-    enum SSVM_Exec status = SSVM_Execute(state);
+    enum SSVM_Exec status = script_execute(srv, state);
 
     /*
      * A parked script that finishes closes the chatbox behind it.
@@ -1070,16 +1234,35 @@ run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
     case SSVM_PAUSEBUTTON:
     case SSVM_COUNTDIALOG:
     case SSVM_NAMEDIALOG:
-        /* A player suspend with nobody to suspend on. Reachable on a world
-         * that is ticking with no one logged in: an `[ai_*]` script whose
-         * subject is an npc may still reach a `p_delay`, and there is no slot
-         * to park it in. Dropped and said, the same as the collision below. */
-        if( !active )
+        /*
+         * A player suspend from a script that holds no player of its own: an
+         * npc trigger that never bound one (SCRIPT_PTR_BORROWED_PLAYER, above),
+         * or any script on a world with nobody to park it on. The reference
+         * throws at the suspend; so does this -- a script error naming the
+         * trigger, never a parked or quietly dropped state. What the script
+         * already opened on the player it borrowed (a `~mesbox`'s chat
+         * interface) is closed again when that player has no conversation of
+         * its own parked, or the dialogue would sit there with nothing to
+         * resume and hold every queue and timer behind `canAccess` forever.
+         */
+        if( !active || (state->pointers & SCRIPT_PTR_BORROWED_PLAYER) )
         {
-            fprintf(stderr,
-                    "torirsserver: dropping %s, which suspended with no player to park it on\n",
-                    state->script ? state->script->name : "?");
-            SSVM_StateRelease(state);
+            char label[192];
+
+            state_trigger_label(srv, state, label, sizeof(label));
+            /* err.message is 192 bytes: say it in one line that fits. */
+            SSVM_Abort(state, "%s suspended on %s with %s; bind one (npc_findhero/p_finduid) "
+                              "or queue() it on the player",
+                       label, player_suspend_name(status),
+                       active ? "a borrowed player" : "no player");
+            report_abort(state);
+            if( active && !active->active_script && active->mainmodal_group <= 0 &&
+                active->chatmodal_group > 0 )
+            {
+                active->resume_button_count = 0;
+                ToriRSServer_WorldCloseModalEx(srv, 0);
+            }
+            release_parked(srv, state);
             return 0;
         }
         /* One parked script per player. A second would need somewhere to live
@@ -1720,7 +1903,7 @@ ToriRSServer_ScriptsRunHookIntSv(
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
 
-    status = SSVM_Execute(state);
+    status = script_execute(srv, state);
     if( status == SSVM_ABORTED )
         fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     if( status != SSVM_FINISHED || state->isp < 1 )
@@ -1832,7 +2015,7 @@ ToriRSServer_ScriptsRunClaim(
     if( loc_handle )
         SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, loc_handle);
 
-    status = SSVM_Execute(state);
+    status = script_execute(srv, state);
     if( status == SSVM_ABORTED )
         fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     /*
@@ -2155,6 +2338,23 @@ script_now_us(void)
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
 }
 
+/*
+ * The one CLOCK_REALTIME read content can see (torirs_server.h). The skip is
+ * added here and nowhere else, so `date_minutes` and `date_runeday` cannot
+ * drift apart after a `::clockskip`.
+ */
+long long
+ToriRSServer_WorldRealtimeMs(const struct ToriRSServer* srv)
+{
+    struct timespec ts;
+
+    assert(srv);
+    if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
+        ts.tv_sec = 0, ts.tv_nsec = 0;
+    return (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL +
+           (long long)srv->clock_skip_minutes * 60000LL;
+}
+
 static int
 run_trigger_script_inner(
     struct ToriRSServer* srv,
@@ -2226,6 +2426,15 @@ run_trigger_script_inner(
      * response to player input. */
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+
+    /* ...except an npc's own turn, which is not player input: its player is
+     * the npc phase's, borrowed, and may not be suspended on until the script
+     * binds one itself (see SCRIPT_PTR_BORROWED_PLAYER). An owned npc (a
+     * familiar) runs in its owner's context on purpose -- run_trigger_impl
+     * resolved that owner by generation -- so it is not borrowed. */
+    if( trigger_is_ai_npc(state->trigger) &&
+        !(npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].owner_gen != 0) )
+        SSVM_PointerAdd(state, SCRIPT_PTR_BORROWED_PLAYER);
 
     /* Targeted player casts keep their owner as active_player so a script's
      * common post-operation commit cannot debit the recipient. The selected
@@ -3937,13 +4146,39 @@ ToriRSServer_ScriptsRunDebugproc(
  * state, not a bug: a script can suspend between `loc_find` and `loc_change`,
  * and by the time it resumes somebody else may have taken the loc. The callers
  * abort on NULL rather than acting on whatever is in the slot now.
+ *
+ * Primary or secondary by the op's own `.` operand, as LostCity's
+ * `get activeLoc()` is (ScriptState.ts:240, `intOperand === 0 ? _activeLoc :
+ * _activeLoc2`). This read the primary for every op until seam32, so
+ * `.loc_change` / `.loc_anim` / `.loc_coord` acted on the primary loc -- or,
+ * since nothing ever set the secondary, aborted on the VM's ACTIVE_LOC2
+ * requirement: Shilo Village's tomb door (quest_zombiequeen.rs2
+ * zq_tombdoor_use, `.loc_change(thzq_tombroomr1, 50)`).
  */
 static struct ToriRSServerSceneLoc*
 script_active_loc(struct SSVM_State* state)
 {
     struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
-    return ToriRSServer_ScriptLocResolve(srv, SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
+    return ToriRSServer_ScriptLocResolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
+}
+
+/*
+ * The setter half: `loc_find`, `loc_findnext`, `loc_add`, `loc_add_op` make a
+ * loc active in the slot their operand names -- LostCity `set activeLoc`
+ * (ScriptState.ts:252) plus `pointerAdd(ActiveLoc[state.intOperand])`.
+ * `SSVM_SetActive` sets that slot's pointer bit (ACTIVE_LOC or ACTIVE_LOC2).
+ * `.loc_find` used to overwrite the PRIMARY: Shilo's tomb door found the
+ * right leaf with `.loc_find` after the left one with `loc_find`, so the
+ * left leaf's `loc_change` then changed the right leaf.
+ */
+static void
+script_set_active_loc(
+    struct SSVM_State* state,
+    void* handle)
+{
+    assert(handle);
+    SSVM_SetActive(state, SSVM_ENT_LOC, state->dot ? SSVM_SECONDARY : SSVM_PRIMARY, handle);
 }
 
 /*
@@ -4083,6 +4318,144 @@ ToriRSServer_ScriptLocResolve(
 }
 
 /*
+ * The loc a script `loc_del`ed, for the READS that follow it -- `loc_coord`,
+ * `loc_type`, `loc_angle`, `loc_shape` -- which, unlike `script_active_loc`,
+ * still answer after the delete.
+ *
+ * LostCity's LOC_DEL is `World.removeLoc(state.activeLoc, duration)` and
+ * leaves `state._activeLoc` alone (engine/script/handlers/LocOps.ts LOC_DEL;
+ * ScriptState.ts `get activeLoc` throws only on a null pointer), and its
+ * LOC_COORD / LOC_TYPE / LOC_ANGLE read the Loc entity's own fields with no
+ * `isActive` test. So content deletes first and reads after, across a
+ * suspend too: Legends' Quest's fire wall (`[label,legends_use_on_fire_wall]`:
+ * `loc_del(2)` then `~legends_fire_wall_walk`, which reads loc_type,
+ * loc_angle and loc_coord) and its skull-cave barrel (`loc_del(10000)`, then
+ * `~legends_barrel_spawn_npc` reads loc_coord after `p_delay(0)`) --
+ * quest_legends/scripts/{quest_legends,strange_barrel}.rs2 in
+ * LostCity_Content2. Here the removal marks the slot inactive (or the zone
+ * record's id -1), `ToriRSServer_ScriptLocResolve` answers NULL, and the read
+ * aborted "the active loc is gone". The same shape parity3a met in
+ * merlins_crystal.rs2 and the Family Crest / Clock Tower audits rewrote by hand.
+ *
+ * `loc_del` records what it deleted under the handle the script holds. A read
+ * that finds no live loc answers from that record only while the handle
+ * still names the deleted loc and nothing else:
+ *
+ *   - a scene-slot handle: the slot is still inactive and still carries the
+ *     deleted loc's id, tile, level and shape (`ToriRSServer_SceneRemoveLoc`
+ *     clears only `active`; a `loc_add` that reuses the slot, or the revert
+ *     that revives it, makes it live again, and a live slot is read as it is);
+ *   - a zone handle: the ring entry still keys the same (x, z, level, shape),
+ *     so a recycled entry is never read as the old loc.
+ *
+ * Reads only. A WRITE after `loc_del` (`loc_change`, `loc_anim`, a second
+ * `loc_del`) still resolves through `script_active_loc` and aborts, as the
+ * npc side does (`active_npc_readable`). `loc_name` / `loc_param` /
+ * `loc_category` live in torirs_server_ops_loc.c and reach this through
+ * `ToriRSServer_ScriptLocReadable` (seam32): LostCity's LOC_NAME and
+ * LOC_PARAM read `state.activeLoc.type` the same way, no `isActive` test.
+ */
+#define SCRIPT_DELETED_LOC_MAX 64
+
+struct ScriptDeletedLoc
+{
+    intptr_t handle;
+    struct ToriRSServerSceneLoc loc;
+    int used;
+};
+
+static struct ScriptDeletedLoc g_script_deleted_locs[SCRIPT_DELETED_LOC_MAX];
+static int g_script_deleted_loc_next;
+
+static void
+script_deleted_loc_remember(
+    void* handle_ptr,
+    const struct ToriRSServerSceneLoc* loc)
+{
+    intptr_t handle = (intptr_t)handle_ptr;
+    struct ScriptDeletedLoc* entry = NULL;
+
+    assert(loc);
+    assert(handle != 0);
+    for( int i = 0; i < SCRIPT_DELETED_LOC_MAX; i++ )
+    {
+        if( g_script_deleted_locs[i].used && g_script_deleted_locs[i].handle == handle )
+        {
+            entry = &g_script_deleted_locs[i];
+            break;
+        }
+    }
+    if( !entry )
+    {
+        entry = &g_script_deleted_locs[g_script_deleted_loc_next];
+        g_script_deleted_loc_next = (g_script_deleted_loc_next + 1) % SCRIPT_DELETED_LOC_MAX;
+    }
+    entry->handle = handle;
+    entry->loc = *loc;
+    entry->loc.active = 0;
+    entry->used = 1;
+}
+
+static const struct ToriRSServerSceneLoc*
+script_deleted_loc_recall(void* handle_ptr)
+{
+    intptr_t handle = (intptr_t)handle_ptr;
+
+    if( handle == 0 )
+        return NULL;
+    for( int i = 0; i < SCRIPT_DELETED_LOC_MAX; i++ )
+    {
+        const struct ScriptDeletedLoc* entry = &g_script_deleted_locs[i];
+
+        if( !entry->used || entry->handle != handle )
+            continue;
+        if( handle > 0 )
+        {
+            const struct ToriRSServerSceneLoc* slot = ToriRSServer_SceneLoc((int)handle - 1);
+
+            if( !slot || slot->active || slot->loc_id != entry->loc.loc_id ||
+                slot->x != entry->loc.x || slot->z != entry->loc.z ||
+                slot->level != entry->loc.level || slot->shape != entry->loc.shape )
+                return NULL;
+            return &entry->loc;
+        }
+        else
+        {
+            int idx = (int)(-handle) - 1;
+            const struct ScriptZoneLocKey* key;
+
+            if( idx < 0 || idx >= SCRIPT_ZONE_LOC_HANDLE_MAX )
+                return NULL;
+            key = &g_script_zone_loc_keys[idx];
+            if( !key->used || key->x != entry->loc.x || key->z != entry->loc.z ||
+                key->level != entry->loc.level || key->shape != entry->loc.shape )
+                return NULL;
+            return &entry->loc;
+        }
+    }
+    return NULL;
+}
+
+/* The active loc for a READ: the live one, else the one this handle's
+ * `loc_del` removed (see above). */
+static const struct ToriRSServerSceneLoc*
+script_active_loc_readable(struct SSVM_State* state)
+{
+    struct ToriRSServerSceneLoc* live = script_active_loc(state);
+
+    if( live )
+        return live;
+    return script_deleted_loc_recall(SSVM_Active(state, SSVM_ENT_LOC));
+}
+
+const struct ToriRSServerSceneLoc*
+ToriRSServer_ScriptLocReadable(struct SSVM_State* state)
+{
+    assert(state);
+    return script_active_loc_readable(state);
+}
+
+/*
  * The active npc, resolved through its slot rather than a stored pointer.
  *
  * A parked script outlives the tick that started it, and an npc can despawn or
@@ -4181,6 +4554,37 @@ active_npc_readable(struct SSVM_State* state)
     if( !srv->npcs[slot].active && !srv->npcs[slot].pending_free )
         return NULL;
     return &srv->npcs[slot];
+}
+
+/*
+ * Bind the npc a find op found, honouring the `.` operand.
+ *
+ * LostCity's NPC_FIND / NPC_FINDEXACT / NPC_FINDNEXT all write
+ * `state.activeNpc`, whose setter picks `_activeNpc` or `_activeNpc2` by
+ * `state.intOperand`, and add `ActiveNpc[state.intOperand]`
+ * (engine/src/engine/script/handlers/NpcOps.ts NPC_FINDNEXT; ScriptState.ts
+ * `set activeNpc`). These three always bound the PRIMARY, so
+ * `.npc_findnext` re-bound the script's own npc and the `.npc_anim` after it
+ * aborted "requires an active entity" -- Death Plateau's drill sergeant, whose
+ * soldiers never copied a move (seam28, landing the parity3a ambience), and
+ * the same shape in `[proc,.npc_findcount]` and the fishing-spot check.
+ * The secondary is held as a pointer and resolved by `active_npc_slot`, so
+ * `host_tag` stays the primary's.
+ */
+static void
+script_bind_found_npc(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state,
+    int slot)
+{
+    if( state->dot )
+    {
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, &srv->npcs[slot]);
+        return;
+    }
+    SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+    state->host_tag = slot + 1;
+    SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
 }
 
 /*
@@ -4804,11 +5208,39 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * The name the CLIENT shows for this npc, which for a multinpc shell is its
+     * resolved child's: a spawn row names the shell (`[pilot_white_wolf]`,
+     * `[avan]`), every shell is nameless in the cache, and the gated accessor
+     * answers "Someone" for it -- so every chat header a shell spoke read
+     * "Someone" while the menu said "Captain Bleemadge". The same child-first
+     * read `npc_menu_verb` makes for the verb, and just as narrow: it picks a
+     * STRING, never the script. A child that is hidden (-1) or nameless falls
+     * back to the base row, placeholder and all.
+     *
+     * The reference client names a multinpc the same way: Client.createNpcMenu
+     * (rs317client/src/com/jagex/Client.java:1132) calls
+     * `definition.morph()` -- the varbit/varp transform walk,
+     * NpcDefinition.java:282 -- before `getName()`. Selftest: "a multinpc
+     * speaker's chat header is its child's name".
+     */
     case SS_OP_NPC_NAME:
     {
         struct ToriRSServerNpc* npc = active_npc_readable(state);
+        const char* name = "";
 
-        SSVM_PushStr(state, npc ? ToriRSServer_NpcInfo(npc->type)->name : "");
+        if( npc )
+        {
+            /* An npc-only script (an [ai_*] with no player bound) has no
+             * varps to resolve against, so it names the spawned row. */
+            int child = player ? ToriRSServer_NpcResolveTransform(player, npc->type) : npc->type;
+
+            if( child >= 0 && child != npc->type && ToriRSServer_NpcInfoKnown(child) )
+                name = ToriRSServer_NpcInfo(child)->name;
+            else
+                name = ToriRSServer_NpcInfo(npc->type)->name;
+        }
+        SSVM_PushStr(state, name);
         return 1;
     }
 
@@ -5047,8 +5479,10 @@ ToriRSServer_ScriptCommand(
 
             for( int attempt = 0; attempt < 64; attempt++ )
             {
-                int dx = ToriRSServer_Random(srv, -max_range, max_range);
-                int dz = ToriRSServer_Random(srv, -max_range, max_range);
+                int dx = ToriRSServer_RandomFrom(
+                    script_random_stream(srv, state), -max_range, max_range);
+                int dz = ToriRSServer_RandomFrom(
+                    script_random_stream(srv, state), -max_range, max_range);
                 int x = origin_x + dx;
                 int z = origin_z + dz;
                 int adx = dx < 0 ? -dx : dx;
@@ -5556,6 +5990,151 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
         SSVM_PushStr(state, ToriRSServer_ObjInfo(obj_id)->name);
+        return 1;
+    }
+
+    /*
+     * `[command,obj_name]()(string)` -- the ACTIVE ground obj's name.
+     * ObjOps.ts OBJ_NAME: `check(state.activeObj.type, ObjTypeValid)`, then
+     * `pushString(objType.name ?? objType.debugname ?? 'null')`; pointers
+     * `require: ['active_obj']`, `require2: ['active_obj2']`
+     * (ScriptOpcodePointers.ts), which ss_meta.gen.h already carries, so the VM
+     * refuses the call when no obj is active and `SSVM_Active` picks the pointer
+     * the operand names.
+     *
+     * It was unimplemented, so content reaching it took the loud stub and the
+     * selftest's gap report failed on it: Legends' Quest's gem take
+     * (`mes("You take the <lowercase(obj_name)>.")`, quest_legends.rs2 in
+     * LostCity_Content2) was ported as `oc_name(obj_type)` to get past it.
+     *
+     * Lives here rather than torirs_server_ops_obj.c only because that file is
+     * not this change's to edit; it resolves the handle the same way that
+     * file's `active_obj` does (generation-checked slot, visible to the player).
+     */
+    case SS_OP_OBJ_NAME:
+    {
+        intptr_t handle = (intptr_t)SSVM_Active(state, SSVM_ENT_OBJ);
+        int slot = ToriRSServer_WorldGroundSlot(srv, handle);
+        const char* name;
+
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "obj_name: the active obj is gone");
+            return 1;
+        }
+        if( !player || !ToriRSServer_WorldGroundVisibleTo(srv, slot, player->pid) )
+        {
+            SSVM_Abort(state, "obj_name: the active obj is not visible to this player");
+            return 1;
+        }
+        name = ToriRSServer_ObjInfo(srv->ground[slot].obj_id)->name;
+        SSVM_PushStr(state, name ? name : "null");
+        return 1;
+    }
+
+    /*
+     * `[command,inv_dropitem](inv $inv, coord $coord, obj $obj, int $count,
+     * int $duration)` -- InvOps.ts INV_DROPITEM:
+     *
+     *     const completed = player.invDel(invType.id, objType.id, count);
+     *     if (completed == 0) return;
+     *     const floorObj = new Obj(level, x, z, DESPAWN, objType.id, completed);
+     *     World.addObj(floorObj, player.hash64, duration);
+     *     state.activeObj = floorObj; state.pointerAdd(ActiveObj[state.intOperand]);
+     *
+     * Take up to `$count` out of the container, put what came out on the floor
+     * at `$coord` for `$duration`, owned by the dropper (World.addObj with a
+     * receiver reveals it to everyone `Obj.REVEAL` = 100 ticks later -- this
+     * tree's `ToriRSServer_WorldObjAddPrivate` is that window), and make the
+     * pile the active obj. Nothing lands when nothing came out.
+     *
+     * Unimplemented until now: Legends' Quest's wrong rune on the marked wall
+     * (`inv_dropitem(inv, coord, $rune, 1, 300)`, quest_legends.rs2 in
+     * LostCity_Content2) was ported as `inv_del` + `obj_add`, which drops a
+     * public pile and a rune the player did not have.
+     *
+     * One pile, the reference's shape; an unstackable count > 1 splits one per
+     * unit the way this tree's `inv_dropslot` / `inv_dropall` do, because a
+     * ground pile of an unstackable obj here is always a single item. Absent,
+     * as its neighbours in torirs_server_ops_inv.c state: the `wealth_event`
+     * log and the `invType.protect` access check.
+     */
+    case SS_OP_INV_DROPITEM:
+    {
+        int32_t inv_id;
+        int32_t coord;
+        int32_t obj_id;
+        int32_t count;
+        int32_t duration;
+        struct ToriRSServerContainer* row;
+        int remaining;
+        int completed;
+        int last = -1;
+
+        if( !SSVM_PopInt(state, &duration) || !SSVM_PopInt(state, &count) ||
+            !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &coord) ||
+            !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "inv_dropitem: no active player");
+            return 1;
+        }
+        if( obj_id < 0 )
+        {
+            SSVM_Abort(state, "inv_dropitem: obj %d is not an obj", (int)obj_id);
+            return 1;
+        }
+        if( count < 0 )
+        {
+            SSVM_Abort(state, "inv_dropitem: count %d is negative", (int)count);
+            return 1;
+        }
+        row = container_row(srv, player, inv_id);
+        if( !row )
+        {
+            SSVM_Abort(state, "inv_dropitem on unknown container %d", (int)inv_id);
+            return 1;
+        }
+        /* Player.invDel: first matching slot first, up to `count`. */
+        remaining = count;
+        for( int i = 0; i < row->slots && remaining > 0; i++ )
+        {
+            if( row->items[i].obj_id != obj_id )
+                continue;
+            if( row->items[i].count > remaining )
+            {
+                ToriRSServer_ContainerSet(row, i, obj_id, row->items[i].count - remaining);
+                remaining = 0;
+            }
+            else
+            {
+                remaining -= row->items[i].count;
+                ToriRSServer_ContainerClearSlot(row, i);
+            }
+        }
+        completed = count - remaining;
+        if( completed == 0 )
+            return 1;
+        if( !ToriRSServer_ObjInfo(obj_id)->stackable && completed > 1 )
+        {
+            for( int i = 0; i < completed; i++ )
+                last = ToriRSServer_WorldObjAddPrivate(srv, player, obj_id, 1, coord_x(coord),
+                                                     coord_z(coord), coord_level(coord),
+                                                     duration > 0 ? duration : -1, 100);
+        }
+        else
+        {
+            last = ToriRSServer_WorldObjAddPrivate(srv, player, obj_id, completed, coord_x(coord),
+                                                 coord_z(coord), coord_level(coord),
+                                                 duration > 0 ? duration : -1, 100);
+        }
+        if( last >= 0 )
+        {
+            SSVM_SetActive(state, SSVM_ENT_OBJ, dot ? SSVM_SECONDARY : SSVM_PRIMARY,
+                           (void*)ToriRSServer_WorldObjHandle(srv, last));
+            SSVM_PointerAdd(state, dot ? SSVM_PTR_ACTIVE_OBJ2 : SSVM_PTR_ACTIVE_OBJ);
+        }
         return 1;
     }
 
@@ -6262,7 +6841,11 @@ ToriRSServer_ScriptCommand(
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         if( opcode == SS_OP_P_FINDUID )
+        {
             SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+            /* The reference's one way for an npc script to earn a dialogue. */
+            SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
+        }
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -6286,6 +6869,7 @@ ToriRSServer_ScriptCommand(
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -6308,6 +6892,7 @@ ToriRSServer_ScriptCommand(
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -6449,9 +7034,7 @@ ToriRSServer_ScriptCommand(
                 !ToriRSServer_WorldNpcVisibleTo(
                     srv, &srv->npcs[slot], srv->active_player) )
                 continue;
-            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
-            state->host_tag = slot + 1;
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+            script_bind_found_npc(srv, state, slot);
             SSVM_PushInt(state, 1);
             return 1;
         }
@@ -6519,8 +7102,7 @@ ToriRSServer_ScriptCommand(
              * handing the body a loc that is no longer there. */
             if( !loc || !loc->active )
                 continue;
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, handle);
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+            script_set_active_loc(state, handle);
             SSVM_PushInt(state, 1);
             return 1;
         }
@@ -6580,6 +7162,21 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * `huntnext` / `.huntnext` -- PlayerOps.ts HUNTNEXT: `state.activePlayer =
+     * result.value; state.pointerAdd(ActivePlayer[state.intOperand])`, and the
+     * `activePlayer` setter writes `_activePlayer2` when the operand is 1
+     * (ScriptState.ts `set activePlayer`; ScriptOpcodePointers.ts HUNTNEXT
+     * `set2: ['active_player2']`).
+     *
+     * This bound the PRIMARY whatever the operand said, so the LostCity idiom
+     * `while(.huntnext = true) { ... .coord ... }` -- walk the other players
+     * without losing the one the script is about -- aborted at `.coord`
+     * ("COORD requires an active entity the script does not have"): Legends'
+     * Quest's `[proc,player_in_fire_octagram]` (quest_legends.rs2 in
+     * LostCity_Content2), which the seam30 port rewrote on the primary pointer
+     * plus `p_finduid`. The dotted form leaves the primary player alone.
+     */
     case SS_OP_HUNTNEXT:
     {
         if( srv->iterator.kind != SSVM_ENT_PLAYER )
@@ -6594,6 +7191,13 @@ ToriRSServer_ScriptCommand(
 
             if( index >= srv->player_count || !other->active )
                 continue;
+            if( dot )
+            {
+                SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_SECONDARY, other);
+                SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER2);
+                SSVM_PushInt(state, 1);
+                return 1;
+            }
             SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, other);
             SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
             SSVM_PushInt(state, 1);
@@ -6685,9 +7289,7 @@ ToriRSServer_ScriptCommand(
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[best]);
-        state->host_tag = best + 1;
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        script_bind_found_npc(srv, state, best);
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -7245,8 +7847,7 @@ ToriRSServer_ScriptCommand(
         ToriRSServer_SceneBindWindow(bound);
         if( slot >= 0 )
         {
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, handle);
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+            script_set_active_loc(state, handle);
             SSVM_PushInt(state, 1);
             return 1;
         }
@@ -7257,10 +7858,9 @@ ToriRSServer_ScriptCommand(
 
             if( rec )
             {
-                SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+                script_set_active_loc(state,
                                ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                               coord_level(coord), rec->shape));
-                SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
                 SSVM_PushInt(state, 1);
                 return 1;
             }
@@ -7274,7 +7874,8 @@ ToriRSServer_ScriptCommand(
     case SS_OP_LOC_ANGLE:
     case SS_OP_LOC_SHAPE:
     {
-        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
+        /* Reads answer after `loc_del` -- see script_active_loc_readable. */
+        const struct ToriRSServerSceneLoc* loc = script_active_loc_readable(state);
 
         if( !loc )
         {
@@ -7371,12 +7972,20 @@ ToriRSServer_ScriptCommand(
         x = loc->x;
         z = loc->z;
         level = loc->level;
-
-        if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, -1, angle,
-                                   TORIRSSERVER_LOC_SET_CHANGE) )
+        /* Copied before the removal: a zone handle's view is the resolver's
+         * static, and the scene slot is about to go inactive. */
         {
-            SSVM_Abort(state, "loc_del on a loc that is already gone");
-            return 1;
+            struct ToriRSServerSceneLoc deleted = *loc;
+
+            if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, -1, angle,
+                                       TORIRSSERVER_LOC_SET_CHANGE) )
+            {
+                SSVM_Abort(state, "loc_del on a loc that is already gone");
+                return 1;
+            }
+            /* LostCity keeps `state.activeLoc` after `World.removeLoc`, and the
+             * reads after it answer from the removed loc (LocOps.ts LOC_DEL). */
+            script_deleted_loc_remember(SSVM_Active(state, SSVM_ENT_LOC), &deleted);
         }
         ToriRSServer_WorldLocRevertQueue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
@@ -7435,12 +8044,11 @@ ToriRSServer_ScriptCommand(
          * Outside the scene window there is no slot — the loc lives only in
          * the ZoneMap — so the handle names the record instead. */
         if( slot >= 0 )
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
         else
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+            script_set_active_loc(state,
                            ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                           coord_level(coord), shape));
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
     }
 
@@ -7524,12 +8132,11 @@ ToriRSServer_ScriptCommand(
         ToriRSServer_WorldLocRevertQueue(srv, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
         if( slot >= 0 )
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
         else
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+            script_set_active_loc(state,
                            ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                           coord_level(coord), shape));
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
     }
 
@@ -9316,6 +9923,17 @@ ToriRSServer_ScriptCommand(
         return 1;
 
     /*
+     * weight() is the carried weight in grams, worn items included and
+     * weight-reducing items negative, exactly the figure the run-energy drain
+     * reads (player_weight_grams). LostCity Player.runweight is the same
+     * unit. Temple of Ikov's lava bridge asks `weight >= 0`: only the Boots of
+     * lightness push a full pack under zero.
+     */
+    case SS_OP_WEIGHT:
+        SSVM_PushInt(state, player_weight_grams(player));
+        return 1;
+
+    /*
      * Camera family — LostCity PlayerOps CAM_* (coord → scene-local via the
      * current rebuild base). Wire opcodes measured from RSProt osrs-230
      * GameServerProtId: CAM_LOOKAT=30, CAM_RESET=65, CAM_MOVETO=67, CAM_SHAKE=107.
@@ -9368,9 +9986,80 @@ ToriRSServer_ScriptCommand(
         return 1;
 
     case SS_OP_NPC_FINDHERO:
-        /* Combat currently retains the hitter as the active world player. */
-        SSVM_PushInt(state, srv->active_player ? srv->active_player->pid + 1 : 0);
+    {
+        /*
+         * `npc_findhero` -- NpcOps.ts:129: find the player this npc owes its
+         * death (or its damage) to, make them the active player, and answer
+         * true; answer false and bind nobody when there is none.
+         *
+         * It used to push `srv->active_player->pid + 1` and bind nothing.
+         * Every one of content's 364 files compares the result with
+         * `true`/`^true` (1), so the check could only ever pass for pid 0,
+         * and the player it did pass for was not a hero at all: at the CORPSE
+         * stage `[ai_queue3]` runs from the npc phase, where
+         * `srv->active_player` is the phase's leftover, not the fighter.
+         *
+         * The reference ranks by hero points (damage per player). This npc
+         * records who landed the killing blow and who was still fighting at it
+         * (`death_credit_players`, live from the blow until the drop script
+         * finishes) and who has hit it at all (`damaged_by_players`), not how
+         * hard -- so the hero is the blow's owner, else the lowest pid that
+         * was fighting at the blow, else the lowest pid that ever hit it, else
+         * (below) the bound player. With one fighter, which is every quest
+         * boss, that is the reference's answer exactly. `2` is TORIRSSERVER_DEATH_CREDIT_HITTER in
+         * torirs_server_combat.c, which writes it.
+         */
+        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerPlayer* hero = NULL;
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_findhero with no active npc");
+            return 1;
+        }
+        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        {
+            if( !npc->death_credit_players[i] || !srv->players[i].active )
+                continue;
+            if( npc->death_credit_players[i] == 2 )
+            {
+                hero = &srv->players[i];
+                break;
+            }
+            if( !hero )
+                hero = &srv->players[i];
+        }
+        for( int i = 0; !hero && i < TORIRSSERVER_PLAYER_MAX; i++ )
+        {
+            if( npc->damaged_by_players[i] && srv->players[i].active )
+                hero = &srv->players[i];
+        }
+        /* An npc that records no fighter at all: the player this script is
+         * already running for, as before. The reference answers false here;
+         * this engine keeps the bound player because a death it is asked to
+         * run with nobody's damage on the npc is a caller naming its player
+         * directly (the selftest's `ToriRSServer_WorldNpcDied` stanzas, a
+         * content debugproc), and every live kill records its killer at the
+         * blow (`death_credit_players`), so that is the only path this
+         * reaches from a fight. */
+        if( !hero && player && player->active )
+            hero = player;
+        if( !hero )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, hero);
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+        /* A deliberate binding: the port's stand-in for LostCity's
+         * `npc_findhero` + `p_finduid` pair (the reference's npc_findhero adds
+         * ActivePlayer only). Content ported that pair to this call alone
+         * (quest_zanaris tree_spirit.rs2, 90-odd death handlers), so it is
+         * what lifts SCRIPT_PTR_BORROWED_PLAYER here. */
+        SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
+        SSVM_PushInt(state, 1);
         return 1;
+    }
 
     case SS_OP_NPC_ATTACKRANGE:
     {
@@ -9941,18 +10630,11 @@ ToriRSServer_ScriptCommand(
      * Wall-clock minutes since the Unix epoch. LostCity NumberOps.ts:
      * `Math.floor(currentMs / 60000)`. Farming crop growth (and Miscellania)
      * persist deadlines across logout; softtimer alone is only while online.
+     * Read through ToriRSServer_WorldRealtimeMs, so `::clockskip` moves it.
      */
     case SS_OP_DATE_MINUTES:
-    {
-        struct timespec ts;
-        long long ms;
-
-        if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
-            ts.tv_sec = 0, ts.tv_nsec = 0;
-        ms = (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL;
-        SSVM_PushInt(state, (int)(ms / 60000LL));
+        SSVM_PushInt(state, (int)(ToriRSServer_WorldRealtimeMs(srv) / 60000LL));
         return 1;
-    }
 
     /*
      * Wall-clock days since the Unix epoch — `date_minutes`'s own comment
@@ -9970,17 +10652,12 @@ ToriRSServer_ScriptCommand(
      * §2c) is only that the value is monotonic and advances exactly once
      * every 24 hours in one consistent zone, which `floor(unix_seconds /
      * 86400)` in UTC already is — content compares `%last_reset_day !=
-     * date_runeday()`, not the number's absolute magnitude.
+     * date_runeday()`, not the number's absolute magnitude. Same clock as
+     * `date_minutes` (ToriRSServer_WorldRealtimeMs), skip included.
      */
     case SS_OP_DATE_RUNEDAY:
-    {
-        struct timespec ts;
-
-        if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
-            ts.tv_sec = 0, ts.tv_nsec = 0;
-        SSVM_PushInt(state, (int)(ts.tv_sec / 86400LL));
+        SSVM_PushInt(state, (int)(ToriRSServer_WorldRealtimeMs(srv) / 86400000LL));
         return 1;
-    }
 
     /*
      * `map_members` gates the members-only branches in LostCity's drop tables
@@ -11252,7 +11929,10 @@ ToriRSServer_ScriptCommand(
          * bound yields 0 rather than aborting: content computing a bound from
          * a table size should not take the server down when the table is
          * empty. */
-        SSVM_PushInt(state, bound > 0 ? ToriRSServer_Random(srv, 0, bound - 1) : 0);
+        SSVM_PushInt(
+            state,
+            bound > 0 ? ToriRSServer_RandomFrom(script_random_stream(srv, state), 0, bound - 1)
+                      : 0);
         return 1;
     }
 
@@ -11654,7 +12334,9 @@ ToriRSServer_ScriptCommand(
         }
         level = player->stat_boosted[values[0]];
         value = values[1] * (99 - level) / 98 + values[2] * (level - 1) / 98 + 1;
-        SSVM_PushInt(state, value > ToriRSServer_Random(srv, 0, 255) ? 1 : 0);
+        SSVM_PushInt(
+            state,
+            value > ToriRSServer_RandomFrom(script_random_stream(srv, state), 0, 255) ? 1 : 0);
         return 1;
     }
 
@@ -12925,7 +13607,7 @@ ToriRSServer_ScriptsRunProcIntOnNpc(
     }
     SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
     state->host_tag = npc_slot + 1;
-    status = SSVM_Execute(state);
+    status = script_execute(srv, state);
     if( status == SSVM_ABORTED )
         fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     if( status != SSVM_FINISHED || state->isp < 1 )

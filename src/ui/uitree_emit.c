@@ -304,7 +304,7 @@ UITree_EmitFill(
              * - graphic_shadow != 0 (skill-guide rows): swap to the plain bake
              *   and forward outline/shadow for Soft3D post-process once.
              *   Stacking on a SHADOW bake doubles the shadow at +2px. */
-            if( component->item_id > 0 && component->item_scene_id > 0 )
+            if( component->item_id >= 0 && component->item_scene_id > 0 )
             {
                 int outline = component->u.rs_graphic.outline;
                 int graphic_shadow = component->u.rs_graphic.graphic_shadow;
@@ -590,7 +590,7 @@ UITree_EmitFill(
          * carries its own wire zoom and never sets `item_id`, so it keeps the
          * distance it asked for.
          */
-        if( component->item_id > 0 )
+        if( component->item_id >= 0 )
         {
             int const box = w < h ? w : h;
 
@@ -609,7 +609,7 @@ UITree_EmitFill(
     }
 
     case UIELEM_CC_OBJ:
-        if( component->item_id <= 0 )
+        if( component->item_id < 0 )
             return false;
         out->kind = UITREE_EMIT_CC_OBJ;
         out->obj_id = component->item_id;
@@ -1910,7 +1910,7 @@ emit_rs_inv_text_slots(
                     .u.get_inv_source_slot.slot = slot,
                     .u.get_inv_source_slot.out = &data,
                 };
-                if( !UITree_Host(host, &req) || data.obj_id <= 0 )
+                if( !UITree_Host(host, &req) || data.obj_id < 0 )
                     continue;
             }
             {
@@ -2048,7 +2048,7 @@ emit_obj_selected_icon(
     int obj_count;
     int outline_scene;
 
-    if( obj_id <= 0 )
+    if( obj_id < 0 )
         return;
     assert(host);
     assert(desc);
@@ -2131,7 +2131,7 @@ emit_obj_stack_count(
     char namebuf[4] = { 0 };
     struct UITreeEmitDesc count_desc;
 
-    if( !host || obj_id <= 0 )
+    if( !host || obj_id < 0 )
         return;
     /* Only the two kinds that actually carry an obj icon; a plain SETGRAPHIC
      * sprite that happens to sit on a node with a stale item_id must not
@@ -2279,7 +2279,7 @@ emit_rs_inv_slots(
         int slot_h = 0;
         int scene_id = -1;
         int atlas_index = 0;
-        int obj_id = 0;
+        int obj_id = UITREE_NO_OBJ;
         int obj_count = 0;
 
         UITree_InvViewGridRect(x, y, &layout, slot, &slot_x, &slot_y, &slot_w, &slot_h);
@@ -2301,12 +2301,13 @@ emit_rs_inv_slots(
             }
         }
 
-        /* > 0, not >= 0: the bridge allocates icon scene ids from 1 up and
-         * answers -1 when it cannot build one, so 0 is not an icon — it is a
-         * slot whose icon reference was never set. Drawing it emitted an empty
-         * sprite and then the stack count on top, which reads as a floating
-         * number with no item under it. */
-        if( obj_id > 0 && scene_id > 0 )
+        /* scene_id > 0, not >= 0: the bridge allocates icon scene ids from 1
+         * up and answers -1 when it cannot build one, so 0 is not an icon — it
+         * is a slot whose icon reference was never set. Drawing it emitted an
+         * empty sprite and then the stack count on top, which reads as a
+         * floating number with no item under it. obj_id >= 0, though: obj 0
+         * is a real item (Dwarf remains); an empty slot is -1. */
+        if( obj_id >= 0 && scene_id > 0 )
         {
             /* Selected for "Use" (reference outline = 0xFFFFFF): swap the plain
              * icon for the white-outlined variant. The host answers >0 only for
@@ -2336,7 +2337,7 @@ emit_rs_inv_slots(
                 continue;
             scene_id = bg_scene;
             atlas_index = bg_atlas;
-            obj_id = 0;
+            obj_id = UITREE_NO_OBJ;
             obj_count = 0;
         }
         else
@@ -2369,8 +2370,8 @@ emit_rs_inv_slots(
         }
         /* Armed slot: this one icon follows the mouse semi-transparently
          * (reference transPlotSprite(slotX+dx, slotY+dy, 128)); every other
-         * slot stays put. Background fallbacks (obj_id 0) are never armed. */
-        if( obj_id > 0 && slot == slot_drag_slot &&
+         * slot stays put. Background fallbacks (UITREE_NO_OBJ) are never armed. */
+        if( obj_id >= 0 && slot == slot_drag_slot &&
             slot_drag_source == c->u.rs_inv.inv_source_id )
         {
             desc.x += slot_drag_dx;
@@ -2397,7 +2398,7 @@ emit_rs_inv_slots(
          * reference's black-then-colour pair). Baseline semantics and the
          * per-band colour tag are shared with the CS2 item path above; see
          * emit_obj_stack_count for why neither is a box measurement. */
-        if( obj_id > 0 && count_font_id >= 0 )
+        if( obj_id >= 0 && count_font_id >= 0 )
         {
             int stackable = 0;
             char namebuf[4] = { 0 };

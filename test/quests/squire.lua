@@ -146,7 +146,11 @@ return {
         t.exec("goto.mine", t.player.goto_tile, 3049, 9566, 0)
         local ore_before_r, ore_before = t.inv.count("blurite_ore")
         t.exec("mine.blurite", t.player.click_loc, "blurite_rock_1", 1)
-        local ore_await_r = t.inv.await("blurite_ore", 1, 30)
+        -- Keep swinging until the ore lands. Each swing is a roll on the
+        -- player's own stream (seam28), and level 10 on a level-10 rock
+        -- misses most swings: the old 30-tick wait passed only while the
+        -- world's single stream happened to land a hit early.
+        local ore_await_r = t.inv.await("blurite_ore", 1, 300)
         local ore_after_r, ore_after = t.inv.count("blurite_ore")
         t.check("mine.ore", ore_await_r == "ok",
             "blurite_ore " .. tostring(ore_before) .. " -> " .. tostring(ore_after)

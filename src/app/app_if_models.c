@@ -641,7 +641,7 @@ App_SetInterfaceObjModel(
     int zoom)
 {
     assert(app);
-    if( obj_id <= 0 )
+    if( obj_id < 0 ) /* IF_SETOBJECT's none is -1; obj 0 is an item */
         return;
     app_if_head_store(app, APP_IFHEAD_OBJ, component_id, obj_id);
     /* store resets zoom to 0; stamp the wire zoom for the poll's angle apply. */

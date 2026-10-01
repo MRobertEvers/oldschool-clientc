@@ -281,6 +281,31 @@ Gujuo's current-Prayer-42 blessing attempt with five Prayer drained on failure.
 The shared post-quest gold-smithing menu is not a substitute for this quest
 recipe and currently refuses gold smithing until completion.
 
+**Gujuo's blessing roll is UNSOURCED (seam32, 2026-09-30).** The port keeps
+LostCity's roll verbatim: `gujuo.rs2` `gujuo_bless_bowl`,
+`if (stat_random(prayer, 80, 250) = true)` is the FAILURE branch (LostCity
+`quest_legends/scripts/gujuo.rs2:362`, whose own comment reads "guess but it
+seems pretty common"). Because `stat_random` interpolates from 80/256 at level 1
+to 250/256 at level 99, a higher Prayer level fails MORE often: about 59% at 42,
+61% at 45 and 71% at 60. Every other LostCity `stat_random` skill check reads the
+opposite way (`= false` is the failure). No source says which direction the real
+game uses, so the roll was not changed:
+
+- Wiki article (fetched 2026-09-30): "Your prayer points must be at or above 42
+  to attempt this, and if you fail, it will drain 5 prayer points. If it drains
+  your prayer below 42, you'll have to restore it to try again." It gives no odds
+  and no level dependence.
+- Wiki transcript ("Talking to Gujou with a golden bowl"): only the under-42
+  refusal and the success branch ("You fall into a deep trance... The bowl is
+  blessed!"). It has no failure page.
+- Quest Helper `LegendsQuest.java:520` only lists "Prayer potions for blessing
+  the gold bowl".
+
+Change the roll only with a primary source, such as a 2003-2007 video or a
+logged success rate by level. Until then, a test handles the roll by drinking a
+restore and retrying (Gujuo offers the retry inline). It never retries by
+re-running, because a `--script` run replays the same rolls.
+
 The surface pool currently fills a blessed bowl directly. Canonical access
 requires cutting a hollow reed from `tall_reeds` with a machete and using that
 reed on the out-of-reach pool. No reed handler exists. Add reed acquisition,

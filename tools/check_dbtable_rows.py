@@ -33,10 +33,6 @@ SCRIPTS = "OSRS-Content/osrs239-content/server/scripts"
 # appearing outside this list is the finding; these are known and documented at
 # the point of use.
 KNOWN_EMPTY = {
-    "legends_gem_data":
-        "Legends' Quest gem shrine is a documented soft-skip -- no carved-rock "
-        "locs exist in all.loc, so the per-rock puzzle cannot be built yet. "
-        "See quest_legends/scripts/legends_gem_shrine.rs2's header.",
 }
 CACHE_INDEX = "OSRS-Content/osrs239-content/configs/all.dbtable.compack"
 

@@ -1298,10 +1298,25 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                     if( arg_is_proc && compiler->last_call_int_returns >= 0 )
                         arg_index += compiler->last_call_int_returns +
                                      compiler->last_call_str_returns;
+                    else if( arg_is_command && !arg_is_proc &&
+                             compiler->last_command_int_returns >= 0 )
+                        arg_index += compiler->last_command_int_returns +
+                                     compiler->last_command_str_returns;
                     else
                         arg_index++;
+                    /*
+                     * An argument that IS one command with a fixed return count
+                     * (`npc_coord`, `coord`, `movecoord(...)`) pushes exactly
+                     * that many, the same count hint_index trusts below. Only an
+                     * unknown count keeps the check a lower bound: before, any
+                     * command argument did, so `obj_add_private(npc_coord, x, 1,
+                     * ^lootdrop_duration)` -- four of five -- compiled clean and
+                     * underflowed the VM stack at runtime (gorad.rs2, the troll
+                     * key drops, mercenary_captain.rs2).
+                     */
                     if( arg_is_proc || compiler->last_call_int_returns >= 0 ||
-                        compiler->saw_command_call )
+                        (arg_is_command && compiler->last_command_int_returns < 0) ||
+                        (!arg_is_command && compiler->saw_command_call) )
                         arg_lower_bound = 1;
                     /*
                      * Which DECLARED parameter the next argument fills, tracked

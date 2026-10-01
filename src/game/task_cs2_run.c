@@ -851,8 +851,8 @@ task_cs2_plan_setobject(struct Task_CS2Run* self)
         return;
     }
 
-    /* obj_id <= 0 clears the slot — no load. */
-    if( self->yield_obj_id <= 0 )
+    /* A negative obj_id clears the slot — no load. Obj 0 is a real item. */
+    if( self->yield_obj_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
         return;

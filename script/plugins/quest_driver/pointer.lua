@@ -617,7 +617,13 @@ function QD.drive._target_tile(target)
     -- nearest copy of its id does: the camera turns to it, the step-off steps
     -- off it.  A named copy that left the pool is `not_found`, not the next
     -- copy along -- the selector's whole contract is that it never falls back.
-    if target.kind == "npc" and target.reach_element ~= nil then
+    -- SEAM ghostsahoy_harbour_door_and_lobster (seam26): and a LOC target
+    -- whose caller named its copy (click_loc/use_on's `{ at = }`,
+    -- QD.player._loc_copy) the same way.  Only `reach_named`: the reach
+    -- retry's own-square element is a press-only aim and keeps the nearest-copy
+    -- tile it was written against.
+    if target.reach_element ~= nil
+        and (target.kind == "npc" or target.reach_named ~= nil) then
         for i = 1, #rows do
             if rows[i].element_id == target.reach_element then
                 QD.drive._scan_spend(i, QD.drive._scan_cost_target)
@@ -3160,8 +3166,19 @@ function QD.player.talk_to(npc, op, opts)
     -- one that was up when the player pressed, not the one the press has
     -- already begun to replace.  See _settle_after_click's fourth arm.
     local before_kind, before_text = QD.player._chat_page()
+    -- The chat ring's serial BEFORE the click (seam29): every refusal line
+    -- newer than it is this press's, read again after the page wait below.
+    local click_serial_result, click_since = api_drive.message_serial()
     local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
+        -- SEAM self_cast_and_moving_multinpc_press (seam28): a press that
+        -- found no pixel on a multinpc SHELL whose varbit picks a -1 rung is
+        -- a press on an npc the client does not draw (QD.player._npc_undrawn).
+        local undrawn = QD.player._npc_undrawn(target, npc)
+        if undrawn ~= nil then
+            return "not_visible", undrawn .. " -- the press answered " .. tostring(click_result)
+                .. ": " .. tostring(click)
+        end
         return click_result, click
     end
     -- WHAT A SETTLED TALK HAS TO SHOW, over and above the settle.
@@ -3220,12 +3237,74 @@ function QD.player.talk_to(npc, op, opts)
     -- ends with no dialogue at all -- which is a real shape (a bare `mes`
     -- npc), and which now SAYS so in its detail with the deadline named.
     local kind = QD.chat.kind()
+    local refusal = nil
+    local function refused_since_click()
+        if click_serial_result ~= "ok" then
+            return nil
+        end
+        return QD.player._refusal_since(click_since)
+    end
     if kind == "none" then
         QD.await({
-            level = function() return QD.chat.kind() ~= "none" end,
+            level = function()
+                return QD.chat.kind() ~= "none" or refused_since_click() ~= nil
+            end,
             note = "talk_to: the page the npc still owes",
         }, QD.player._talk_page_ticks)
         kind = QD.chat.kind()
+    end
+    -- SEAM setup_wield_text_read_and_reach_honesty (seam29, 2026-09-29) --
+    -- A TALK WITH NO PAGE IS NOT ANSWERED BY WHATEVER LINE CAME FIRST.
+    --
+    -- Measured: build/quest_gate/s28sm_proof1 row 3 `man.talk_slot PASS ...
+    -- chat_message: no dialogue in 5 tick(s), content line 'You step into the
+    -- zone east of Lumbridge.'` -- the walk to the Man crossed
+    -- selftest_zone.rs2's [zone,0_50_50_32_16], whose `mes` resolved the
+    -- settle's chat_message arm, and shot 03 shows the client's next line: "I
+    -- can't reach that!".  The settle's refusal fence had already run (the
+    -- sentence lands the tick AFTER the route runs out -- SEAM
+    -- loc_approach_reach), so the verb graded a refused press `ok` on a line
+    -- the npc never said.  Now, when no dialogue is up: the walk is let
+    -- finish (up to _talk_walk_ticks while the player is still moving), the
+    -- page is waited for again, and any refusal line newer than the click
+    -- answers `refused` quoting the client's own sentence.  A talk with a
+    -- page up is untouched, and so is a no-page talk the client did not
+    -- refuse.
+    if kind == "none" then
+        refusal = refused_since_click()
+        local idle_result, idle = api_drive.player_idle()
+        if refusal == nil and idle_result == "ok" and not idle then
+            QD.await({
+                level = function()
+                    if QD.chat.kind() ~= "none" or refused_since_click() ~= nil then
+                        return true
+                    end
+                    local now_result, now_idle = api_drive.player_idle()
+                    return now_result == "ok" and now_idle == true
+                end,
+                note = "talk_to: the walk to the npc finishing",
+            }, QD.player._talk_walk_ticks)
+            kind = QD.chat.kind()
+            if kind == "none" and refused_since_click() == nil then
+                QD.await({
+                    level = function()
+                        return QD.chat.kind() ~= "none" or refused_since_click() ~= nil
+                    end,
+                    note = "talk_to: the page the npc owes once the walk is done",
+                }, QD.player._talk_page_ticks)
+                kind = QD.chat.kind()
+            end
+        end
+        if kind == "none" then
+            refusal = refused_since_click()
+        end
+    end
+    if kind == "none" and refusal ~= nil then
+        return "refused", "talk_to " .. tostring(npc) .. ": the client said '" .. refusal
+            .. "' and no dialogue opened"
+            .. (copy_text ~= nil and (" (aimed at " .. copy_text .. ")") or "")
+            .. " -- the settle had answered " .. tostring(detail)
+            .. (arm == "chat_message" and (" on the line '" .. tostring(line) .. "'") or "")
     end
     -- A talk aimed at a named copy says which copy it talked to, first.
     if copy_text ~= nil then
@@ -3241,6 +3320,56 @@ function QD.player.talk_to(npc, op, opts)
     return "ok", detail .. ": no dialogue in " .. tostring(QD.player._talk_page_ticks) .. " tick(s)"
 end
 
+-- SEAM self_cast_and_moving_multinpc_press (seam28, 2026-09-29) -- AN
+-- UNDRAWN MULTINPC SHELL IS NOT A MISSED PRESS.
+--
+-- Goblin Diplomacy's blue-stage Grubfoot (parity3b gobdip.driver.lua rows
+-- 84-87) failed four rows "pickset held=false, menu has no row for it ...
+-- none of 99 pixels hittested", and was triaged as a wandering npc the press
+-- lost the race to.  It was not: catwalk_goblin is a multinpc shell
+-- (all.npc: multivarbit=gobdip_grubfoot_vis, multinpc1=brown, 2=orange,
+-- 3=blue, 4=-1) and the client indexes that table BY VALUE -- multinpc1 is
+-- value 0 (VarPManager_ResolveTransform, rev-239 class393).  Measured
+-- (build/quest_gate/s28gv_probe2): value 0 -> npc 671 catwalk_goblin_brown,
+-- 1 -> 672 orange, 2 -> 673 blue, 3 and 4 -> the shell itself, id 1965, no
+-- name, NOT DRAWN (shot 08 against 06).  quest_gobdip.constant sets blue = 3,
+-- so the blue Grubfoot is invisible and no press can ever land on him.
+--
+-- This answers that shape in words.  After a failed npc press: when every
+-- live copy of the target is a shell that resolved to NO child (its drawn id
+-- equals its base id and it has no name), the result is `not_visible` and
+-- the detail names the copies and says why -- instead of a pixel hunt's
+-- account that sends the reader looking for a camera or a wander.  nil when
+-- any copy resolved (or the pool did not answer): the press's own answer
+-- stands.  Asked only after a failed press, so a press that works pays
+-- nothing and no green row changes.
+function QD.player._npc_undrawn(target, npc)
+    local rows_result, rows = api_drive.npcs(0)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    local parts = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.npc_id == target.id or row.base_npc_id == target.id then
+            local name = row.name
+            if row.npc_id ~= row.base_npc_id or (name ~= nil and name ~= "" and name ~= "null") then
+                return nil
+            end
+            parts[#parts + 1] = "slot " .. tostring(row.slot) .. " at " .. tostring(row.x) .. ","
+                .. tostring(row.z) .. " id " .. tostring(row.npc_id)
+        end
+    end
+    if #parts == 0 then
+        return nil
+    end
+    return tostring(npc) .. " is a multinpc SHELL that resolved to NO child in the client ("
+        .. table.concat(parts, "; ") .. ": drawn id == base id, no name) -- its multivarbit"
+        .. " value selects a -1 rung, so the npc is NOT DRAWN and nothing can be pressed;"
+        .. " read the npc's multinpc table (all.npc multinpc<N> is varbit VALUE N-1) against"
+        .. " the value content set"
+end
+
 -- How long a settled talk waits for the page the npc has not sent yet.  Five:
 -- `p_delay(4)` is the longest pause a content `[opnpc1]` in this pack puts
 -- between its opening line and its dialogue (quest_fluffs.rs2:278), and one
@@ -3248,6 +3377,12 @@ end
 -- deliberately not the settle's own twenty: this wait is paid in full by
 -- every npc that genuinely answers with nothing, and those are common.
 QD.player._talk_page_ticks = 5
+
+-- How long a talk that ended with no page and the player STILL MOVING lets
+-- the walk finish before it reads the refusal lines (seam29).  Fifteen: the
+-- settle has already spent up to twenty, and a route the server truncated
+-- runs out within a few tiles; only a no-page talk with a live route pays it.
+QD.player._talk_walk_ticks = 15
 
 -- Walks into range BEFORE the click, which a world click on scenery needs and
 -- a click on an npc does not: a loc type is planted dozens of times across a
@@ -3262,6 +3397,74 @@ QD.player._talk_page_ticks = 5
 -- refused (SEAM reach_stand_on_opt_in, inside QD.player._reach_retry).  It is
 -- off by default and a quest file that sets it owes a `-- GUIDE-GAP:` marker
 -- beside the call.  `click_loc(loc, opts)` with the op left out is op 1.
+--
+-- SEAM towerladder_press (seam26): A LOC ONLY ON A LOWER FLOOR IS NO TARGET.
+-- Measured 2026-09-28 (build/quest_gate/s26tl_before, row 2): Watchtower's
+-- `click_loc("towerladder")` from 2544,3111,1 hunted five poses, 99 pixels
+-- and three far sides for 119 ticks and failed "menu has no row for it" --
+-- every time, in three committed rows that then fell back to t.drive.op.
+-- `towerladder` (2833) is the GROUND-floor Climb-up ladder
+-- (maps/m39_48.jl2 `0 48 39: 2833 10`); the Climb-down on the first floor is
+-- a different loc on the same square, `qip_watchtower_ladder_top` (17122,
+-- `1 48 39: 17122 10`), which pressed first time (row 5).  The pool keeps
+-- every plane, so the projector found the level-0 copy under the floor, and
+-- the pick keeps a scenery hit only when its PAINT level equals the
+-- player's plane (torirs_pick.c, `reach_level != player_level`).  A paint
+-- level is the cache level except on a LinkBelow column, where it is one
+-- LOWER (cache 0 parks at 3; World_LocPaintLevel) -- so a copy on the
+-- player's plane, one plane above it (a bridge deck), or cache 0 under a
+-- level-3 player can be pickable, and nothing else can.  When no copy in the
+-- pool is one of those, this answers (not_visible, "other_floor: ...")
+-- naming the floor the copies are on and the locs on the player's floor at
+-- the nearest copy's square; otherwise nil, and click_loc goes on as before.
+-- Asked only after the first press failed, so a press that works pays nothing.
+function QD.player._loc_other_floor(target, loc)
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" or type(player) ~= "table" or player.level == nil then
+        return nil
+    end
+    QD.drive._scan_why = "click_loc other-floor check " .. tostring(loc)
+    local rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_near)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_near)
+    local nearest = nil
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.loc_id == target.id or row.resolved_loc_id == target.id then
+            local level = row.level
+            if level == player.level or level == player.level + 1
+                or (level == 0 and player.level == 3) then
+                return nil
+            end
+            if nearest == nil then
+                nearest = row
+            end
+        end
+    end
+    if nearest == nil then
+        return nil
+    end
+    local here = {}
+    local seen = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.x == nearest.x and row.z == nearest.z and row.level == player.level
+            and not seen[row.loc_id] then
+            seen[row.loc_id] = true
+            local name_result, name = api_drive.symbol_name("loc", row.loc_id)
+            here[#here + 1] = name_result == "ok" and name or ("loc " .. tostring(row.loc_id))
+        end
+    end
+    local on_square = #here > 0 and table.concat(here, ", ") or "nothing"
+    return "not_visible", string.format(
+        "other_floor: %s has no copy a press on level %d can pick -- nearest %d,%d is on level %d"
+            .. " (torirs_pick.c keeps scenery only on the player's paint level); on level %d at %d,%d: %s",
+        tostring(loc), player.level, nearest.x, nearest.z, nearest.level,
+        player.level, nearest.x, nearest.z, on_square)
+end
+
 function QD.player.click_loc(loc, op, opts)
     if type(op) == "table" and opts == nil then
         opts = op
@@ -3271,6 +3474,16 @@ function QD.player.click_loc(loc, op, opts)
     local target, sym_result, sym_name = QD.player.by_symbol("loc", loc)
     if not target then
         return sym_result, sym_name
+    end
+    -- The loc selector (seam26): `{ at = {x, z[, level]} }` names the copy;
+    -- without it the nearest copy answers exactly as before.  The target is
+    -- this verb's own table, so nothing has to be cleared off it after.
+    if type(opts) == "table" and opts.at ~= nil then
+        local copy_result, copy_detail = QD.player._loc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, "click_loc " .. tostring(loc) .. ": " .. tostring(copy_detail)
+        end
+        QD.note("click_loc " .. tostring(loc) .. ": pressed " .. copy_detail)
     end
     -- A multiloc resolution is a fact about the click, so it goes in the row:
     -- the reader has to be able to tell "Search on the coffin" from "Search on
@@ -3326,6 +3539,15 @@ function QD.player.click_loc(loc, op, opts)
     -- nothing older (QD.player._reach_verify).
     local before_serial_result, before_serial = api_drive.message_serial()
     local click_result, click = QD.drive.click_minimenu(target, op)
+    -- SEAM towerladder_press (seam26): a loc whose every copy is BELOW the
+    -- player's floor is never pickable -- say so, and name what IS on this
+    -- floor, before the far-side walks spend another sixty ticks on it.
+    if click_result ~= "ok" then
+        local floor_result, floor_detail = QD.player._loc_other_floor(target, loc)
+        if floor_result ~= nil then
+            return floor_result, floor_detail .. " -- first press: " .. tostring(click)
+        end
+    end
     local side = 1
     while click_result == "covered" and side <= QD.player._far_side_attempts do
         -- Five camera poses found no row for it and the player is within a
@@ -3373,6 +3595,15 @@ function QD.player.click_loc(loc, op, opts)
         return QD.player._settle_after_click(20, retry_kind, retry_text)
     end, opts)
     if reach_tried > 0 then
+        return result, detail
+    end
+    -- A NAMED copy's evidence is that copy, not the nearest one (seam26).
+    if result == "timeout" and target.reach_named ~= nil then
+        local named_result = QD.drive._target_tile(target)
+        if named_result ~= "ok" then
+            return "ok", tostring(loc) .. " element " .. tostring(target.reach_named)
+                .. " left the pool (no event; the named copy changed)"
+        end
         return result, detail
     end
     if result ~= "timeout" or before_result ~= "ok" or before_tile_result ~= "ok" then
@@ -3515,7 +3746,8 @@ function QD.player._inv_cell(item)
         end
     end
     -- Named plainly: this is the answer a caller gets after an earlier verb
-    -- consumed the stack (rev-239's backpack op 1 drops it), and "not_found"
+    -- consumed the stack (an item op that uses it up, a drop -- and, until
+    -- seam pass 19, every op-1 press, see QD.player._inv_stray_drop), and "not_found"
     -- alone reads like a bad symbol.  And "not in the backpack" was the
     -- sentence four verbs printed for an item the player is WEARING -- the
     -- state a load/fire mechanic alternates with, and the one a test author
@@ -3548,6 +3780,9 @@ function QD.player.inv_op(item, op)
     if op < 0 then
         return "unsupported", "inv_op: a negative op is use_on's arming half"
     end
+    -- What was on the floor before the press, so a stack the press itself
+    -- put there can be named (QD.player._inv_stray_drop, seam pass 19).
+    local ground_before = QD.player._inv_ground_count(item)
     -- The press itself, and the tab-not-painted-yet retry behind it, are
     -- QD.player._inv_press's (the SEAM banner at the end of this file).
     local result, cell, where, refusal = QD.player._inv_press(item, op)
@@ -3562,11 +3797,12 @@ function QD.player.inv_op(item, op)
     local settle_result, settle_detail = QD.player._settle_after_click(10)
     -- And then wait for the BACKPACK to stop moving.  A held op's effect is
     -- the server's answer plus, on rev-239's backpack, whatever the cell's own
-    -- on_op hook did -- op 1 there is the shift-click-drop chain, and its drop
-    -- lands several ticks after the first event _settle_after_click resolves
-    -- on.  A verb that returns before its own effect has landed hands that
-    -- effect to the NEXT verb's assertion, which is how a following equip
-    -- came to report this drop as its own success.
+    -- on_op hook did -- op 1 there is the shift-click-drop chain, which every
+    -- OPHELD1 press used to run until seam pass 19 (QD.player._inv_stray_drop),
+    -- and an effect of that kind lands several ticks after the first event
+    -- _settle_after_click resolves on.  A verb that returns before its own
+    -- effect has landed hands that effect to the NEXT verb's assertion, which
+    -- is how a following equip came to report a drop as its own success.
     QD.settle()
     QD.player._inv_quiet(item)
     local count_result, after = QD.inv.count(item)
@@ -3581,6 +3817,11 @@ function QD.player.inv_op(item, op)
     -- and an `ok` row's detail is unchanged by this.
     local text = where .. " -> " .. tostring(count_result == "ok" and after or count_result)
         .. " left"
+    -- A detail tag, never a verdict of its own: see _inv_stray_drop's banner.
+    local stray = QD.player._inv_stray_drop(item, op, ground_before)
+    if stray ~= nil then
+        text = text .. " [" .. stray .. "]"
+    end
     if settle_result ~= "ok" and settle_detail ~= nil then
         text = text .. " [" .. tostring(settle_detail) .. "]"
     end
@@ -3596,11 +3837,11 @@ function QD.player.inv_op(item, op)
 end
 
 -- Neither of these settles for "the dispatcher ran", and neither settles for
--- the weaker "the item left the backpack" either: on rev-239's backpack op 1
--- is the shift-click-drop chain, its drop lands a tick or two AFTER the verb
--- that sent it returns, and a following equip that only watched the backpack
--- count fall would report that drop as its own success.  Each asserts the
--- thing only it can be true of.
+-- the weaker "the item left the backpack" either: a stray drop (rev-239's
+-- shift-click-drop chain, which every OPHELD1 press ran until seam pass 19)
+-- lands a tick or two AFTER the verb that sent it returns, and a following
+-- equip that only watched the backpack count fall would report that drop as
+-- its own success.  Each asserts the thing only it can be true of.
 
 function QD.player._inv_dispatch(item, op, note)
     -- Same press, same retry, same named refusal as inv_op's: equip and drop
@@ -3669,22 +3910,51 @@ function QD.player.equip(item)
     if before_result ~= "ok" then
         return before_result, "worn count"
     end
-    local dispatch_result, detail = QD.player._inv_dispatch(item, 2, "equip")
-    if dispatch_result ~= "ok" then
-        return dispatch_result, detail
+    -- Up to three presses, as a person clicks again when nothing happened.
+    -- Since seam24 the server refuses a held-item op outright while another
+    -- script of the player's sits in its p_delay (LostCity `player.delayed`,
+    -- OpHeldHandler.ts:16; torirs_server_world.c player_delayed), silently,
+    -- with nothing on screen: Spirits of the Elid's robe top, pressed on the
+    -- tick Telekinetic Grab's closing p_delay(1) still held the player
+    -- (telegrab.rs2:51), stayed in the backpack (seam24 closer,
+    -- build/quest_gate/spiritsoftheelid row 23).  A press is repeated only
+    -- while the item is still in the backpack and still not worn.
+    local presses = 0
+    local worn = "timeout"
+    while presses < 3 do
+        local dispatch_result, detail = QD.player._inv_dispatch(item, 2, "equip")
+        if dispatch_result ~= "ok" then
+            -- A slow first press can land between the check below and this
+            -- re-press, taking the item out of the backpack under it.
+            local late_result, late = api_drive.inv_count(worn_id, obj_id)
+            if presses > 0 and late_result == "ok" and late > before then
+                worn = "ok"
+                break
+            end
+            return dispatch_result, detail
+        end
+        presses = presses + 1
+        worn = QD.await({
+            level = function()
+                local count_result, total = api_drive.inv_count(worn_id, obj_id)
+                return count_result == "ok" and total > before
+            end,
+            note = "equip " .. item,
+        }, presses == 3 and 10 or 4)
+        if worn == "ok" then
+            break
+        end
+        local held_result, held = QD.inv.count(item)
+        if held_result ~= "ok" or (held or 0) <= 0 then
+            break
+        end
     end
-    local worn = QD.await({
-        level = function()
-            local count_result, total = api_drive.inv_count(worn_id, obj_id)
-            return count_result == "ok" and total > before
-        end,
-        note = "equip " .. item,
-    }, 10)
     if worn == "ok" then
         return "ok", "equip " .. item .. ": worn " .. tostring(before) .. " -> more"
+            .. (presses > 1 and (" (press " .. presses .. ")") or "")
     end
     return "refused", "equip " .. item .. ": worn stayed " .. tostring(before)
-        .. " -- '" .. QD.player._last_line() .. "'"
+        .. " after " .. presses .. " press(es) -- '" .. QD.player._last_line() .. "'"
 end
 
 -- DROPPED means the backpack lost it AND a stack of it is on the ground where
@@ -3796,11 +4066,22 @@ end
 -- test/quests/_conformance.lua's `seam.use_on_rearm` row requires the second
 -- arming to answer "already armed, nothing sent", so a binary without the
 -- verb is a red gate rather than a quiet detour.
+--
+-- SEAM first_use_on_after_unequip (seam23): the retry covers `refused` too,
+-- and waits for the backpack to be PAINTED before it arms again.  A cell on a
+-- tab that is not painted yet is dropped by app_minimenu_ui_pick_live without
+-- a word, so DrivePointer_InvOp finds objsel empty and answers REFUSED, not
+-- not_found -- which this retry used to pass straight out as `refused ...
+-- armed by this call (tab nil nil)`: The Tourist Trap's cell door key, first
+-- use_on after player.unequip left the equipment tab up
+-- (build/quest_gate/parity_desertrescue_d2/_d4 row celldoor.unlock,
+-- build/quest_gate/s23b_base1).  inv_arm is idempotent, so a second call
+-- after a refusal that DID arm costs nothing.
 function QD.player._arm_held(item, cell)
     local result, detail = api_drive.inv_arm(cell.component_id, cell.slot, cell.obj_id, cell.count)
     local tab_result, tab_detail = nil, nil
-    if result == "not_found" then
-        tab_result, tab_detail = QD.player._show_backpack()
+    if result == "not_found" or result == "refused" then
+        tab_result, tab_detail = QD.player._show_backpack_painted()
         result, detail = api_drive.inv_arm(cell.component_id, cell.slot, cell.obj_id, cell.count)
     end
     if result ~= "ok" then
@@ -3899,7 +4180,12 @@ function QD.player.use_on(item, target, opts)
         local standoff = QD.player._standoff_for_kind(target.kind) or 0
         QD.player.walk_near(target, nil, standoff)
     end
-    QD.player._show_backpack()
+    -- PAINTED, not just pressed (SEAM first_use_on_after_unequip, seam23):
+    -- the arming below is a click on a backpack cell, and a tab press paints
+    -- on a later frame -- after player.unequip, a worn-item op or an emote the
+    -- sidebar is still another tab and the first arming was refused
+    -- (_arm_held's banner).  Already showing costs one read.
+    QD.player._show_backpack_painted()
     local cell_result, cell = QD.player._inv_cell(item)
     if cell_result ~= "ok" then
         return cell_result, cell
@@ -4016,6 +4302,30 @@ function QD.player.use_on(item, target, opts)
             QD.player._use_on_silent_effect(inv_before, settle_detail)
     end
     return settle_result, settle_detail
+end
+
+-- The loc selector on use_on (seam26, QD.player._loc_copy): `{ at = {x, z
+-- [, level]} }` names the copy of a LOC target the item is used on.  The
+-- target is the caller's table, so the name is cleared the moment the verb
+-- answers, whatever it answered.  An npc target keeps its own path unchanged;
+-- `at` on one is the caller's bug (use_on has no npc selector) and raises.
+QD.player._use_on_any_copy = QD.player.use_on
+function QD.player.use_on(item, target, opts)
+    if type(opts) ~= "table" or opts.at == nil then
+        return QD.player._use_on_any_copy(item, target, opts)
+    end
+    assert(type(target) == "table" and target.kind == "loc",
+        "use_on: the { at = } selector names a LOC copy; this target is not a loc")
+    local copy_result, copy_detail = QD.player._loc_copy(target, opts)
+    if copy_result ~= "ok" then
+        QD.player._loc_copy_clear(target)
+        return copy_result, "use_on " .. tostring(target.symbol or target.id) .. ": "
+            .. tostring(copy_detail)
+    end
+    QD.note("use_on " .. tostring(target.symbol or target.id) .. ": pressed " .. copy_detail)
+    local result, detail = QD.player._use_on_any_copy(item, target, opts)
+    QD.player._loc_copy_clear(target)
+    return result, detail
 end
 
 -- SEAM use_on_silent_effect (2026-09-21) -- A PRESS WHOSE ONLY EFFECT IS IN
@@ -4235,7 +4545,8 @@ function QD.player._inv_contents()
     local order = {}
     for index = 0, capacity - 1 do
         local slot_result, slot = api_drive.inv_slot(container_id, index)
-        if slot_result == "ok" and slot.obj_id > 0 then
+        -- empty is obj -1; obj 0 is a real item (see QD.inv.slot)
+        if slot_result == "ok" and slot.obj_id >= 0 then
             local name_result, name = api_drive.symbol_name("obj", slot.obj_id)
             if name_result ~= "ok" then
                 name = "obj#" .. tostring(slot.obj_id)
@@ -5333,8 +5644,21 @@ function QD.player._reach_candidates(target)
     -- to somewhere no press can reach from, and that copy's own square is an
     -- ordinary floor tile down here.
     copies = QD.drive._same_level_rows(copies)
+    -- A named copy (seam26, QD.player._loc_copy): its own approach tiles
+    -- only -- the neighbours of another copy are a press on that copy.  The
+    -- other copies still mark their squares occupied.
+    local named_copies = nil
+    if target.reach_named ~= nil then
+        named_copies = {}
+    end
     for i = 1, #copies do
+        if named_copies ~= nil and copies[i].element_id == target.reach_named then
+            named_copies[#named_copies + 1] = copies[i]
+        end
         occupied[tostring(copies[i].x) .. "," .. tostring(copies[i].z)] = true
+    end
+    if named_copies ~= nil then
+        copies = named_copies
     end
     if #copies == 0 then
         -- Nothing in the pool carries this id under either name.  The target
@@ -5540,7 +5864,14 @@ end
 -- `covered` that names the copy, never a press on the ranked one.
 function QD.drive._named_npc_estimate(target, pos)
     local fallback = { x = pos.x, y = pos.y, element_id = target.reach_element }
-    local rows_result, rows = api_drive.npcs(0)
+    local rows_result, rows
+    if target.kind == "loc" then
+        -- A named loc copy (seam26): the scenery pool, metered.
+        QD.drive._scan_why = "a named loc copy's estimate"
+        rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
+    else
+        rows_result, rows = api_drive.npcs(0)
+    end
     local player_result, player = api_drive.player_tile()
     local drawn_result, drawn = api_drive.screen_position("player", -1)
     if rows_result ~= "ok" or type(rows) ~= "table" or player_result ~= "ok"
@@ -5653,8 +5984,13 @@ end
 -- press/talk_to (QD.player._npc_copy + _click_npc_copy, seam13), and cleared the moment
 -- their press is taken.
 function QD.drive._aim_at_named_copy(target, pos, deadline)
-    if target.kind == "npc" and target.reach_element ~= nil and type(pos) == "table"
+    if (target.kind == "npc" or target.reach_named ~= nil)
+        and target.reach_element ~= nil and type(pos) == "table"
         and pos.element_id ~= target.reach_element then
+        -- A named LOC copy (seam26, QD.player._loc_copy) is the npc case too:
+        -- the projector frames the copy nearest the PLAYER (often the one
+        -- underfoot, on stepping stones), so the named one has to be faced
+        -- and hunted for, not assumed to share the ranked copy's pixel.
         return QD.drive._aim_at_named_npc(target, pos, deadline)
     end
     local aimed = QD.drive._named_copy_pos(target, pos)
@@ -5697,7 +6033,7 @@ function QD.drive._aim_at_named_npc(target, pos, deadline)
         element_id = estimate.element_id }
     local hovered, why = QD.drive._hover_onto(target, below, deadline)
     if hovered then
-        QD.note("click_minimenu: aimed at the named npc copy (element "
+        QD.note("click_minimenu: aimed at the named " .. tostring(target.kind) .. " copy (element "
             .. tostring(target.reach_element) .. ", estimate " .. tostring(how)
             .. ") -- " .. tostring(why))
         return hovered
@@ -5705,7 +6041,7 @@ function QD.drive._aim_at_named_npc(target, pos, deadline)
     local around = { x = pos.x, y = pos.y, element_id = target.reach_element }
     local hovered2, why2 = QD.drive._hover_onto(target, around, deadline)
     if hovered2 then
-        QD.note("click_minimenu: aimed at the named npc copy (element "
+        QD.note("click_minimenu: aimed at the named " .. tostring(target.kind) .. " copy (element "
             .. tostring(target.reach_element) .. ") beside the projected element "
             .. tostring(pos.element_id) .. " -- " .. tostring(why2))
         return hovered2
@@ -5909,10 +6245,13 @@ function QD.player._reach_retry(target, result, detail, press, opts)
                 -- standing on.  nil for every other candidate: a neighbour
                 -- tile has no copy to name and the projection's own answer is
                 -- the right one there.
-                target.reach_element = want.own and want.element_id or nil
+                -- A copy the CALLER named (seam26, QD.player._loc_copy) stays
+                -- named on every retry press: `reach_named` is nil otherwise,
+                -- and this is the line it always was.
+                target.reach_element = want.own and want.element_id or target.reach_named
                 result, detail = press()
                 target.reach_no_standoff = nil
-                target.reach_element = nil
+                target.reach_element = target.reach_named
                 if serial_result == "ok" then
                     result, detail = QD.player._reach_verify(result, detail, since)
                 end
@@ -6594,6 +6933,83 @@ function QD.player._click_npc_copy(target, op, copy_text)
     return click_result, click
 end
 
+-- ==========================================================================
+-- SEAM ghostsahoy_harbour_door_and_lobster (seam26) -- THE LOC SELECTOR.
+--
+-- click_loc/use_on took only a SYMBOL, and the copy a symbol presses is the
+-- one DrivePointer_ScreenPosition ranks nearest the PLAYER.  On stepping
+-- stones that is the stone underfoot: Ghosts Ahoy's rock route off the
+-- shipwreck is ten copies of `ahoy_rock_invisible` two or three tiles apart
+-- (maps/m56_55.jl2, loc 16115), and every Jump-to re-landed the player where
+-- he stood -- eleven `ok` jumps and no progress
+-- (build/seam_state/seam25/wreck, run s25wk_door1 rows 6-16).
+--
+-- `{ at = {x, z[, level]} }` (or `{ at = {x = , z = [, level = ]} }`) names
+-- the copy by its TILE, the way talk_to's npc selector does.  The copy's
+-- client element id rides on the target as `reach_element` (the press aims
+-- by it and _press_row matches its menu row on it) and `reach_named` (the
+-- tile _target_tile answers, the approach tiles _reach_candidates walks, and
+-- the element every reach-retry press keeps naming).  A selector matching no
+-- live copy answers `no_row` naming the copies it did see; it NEVER falls
+-- back to the nearest copy.  A malformed selector is the caller's bug and
+-- raises (_npc_copy's rule).
+function QD.player._loc_copy(target, opts)
+    assert(type(opts) == "table", "loc selector must be a table: { at = {x, z[, level]} }")
+    local at = opts.at
+    assert(at ~= nil, "loc selector names no copy: give at = {x, z[, level]}")
+    assert(opts.slot == nil, "loc selector: a loc has no slot, give at = {x, z[, level]}")
+    assert(type(at) == "table", "loc selector at must be {x, z[, level]}")
+    local want_x = at.x or at[1]
+    local want_z = at.z or at[2]
+    local want_level = at.level or at[3]
+    assert(type(want_x) == "number", "loc selector at has no x")
+    assert(type(want_z) == "number", "loc selector at has no z")
+    local want = string.format("at %d,%d", want_x, want_z)
+    if want_level ~= nil then
+        want = want .. "," .. tostring(want_level)
+    end
+    QD.drive._scan_why = "a named loc copy"
+    local rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return rows_result, "the loc pool did not answer"
+    end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_target)
+    local chosen = nil
+    local seen = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.loc_id == target.id or row.resolved_loc_id == target.id then
+            if row.x == want_x and row.z == want_z
+                and (want_level == nil or row.level == want_level) then
+                chosen = chosen or row
+            elseif #seen < QD.player._loc_copy_listed then
+                seen[#seen + 1] = string.format("%d,%d,%d", row.x, row.z, row.level or -1)
+            end
+        end
+    end
+    if chosen == nil then
+        return "no_row", "no copy of " .. tostring(target.symbol or target.id) .. " " .. want
+            .. " (nearest copies: " .. (#seen > 0 and table.concat(seen, "; ") or "none")
+            .. ") -- nothing pressed; a selector never falls back to another copy"
+    end
+    target.reach_element = chosen.element_id
+    target.reach_named = chosen.element_id
+    return "ok", string.format("the copy at %d,%d,%d (element %s)",
+        chosen.x, chosen.z, chosen.level or -1, tostring(chosen.element_id))
+end
+
+-- How many other copies a `no_row` from the loc selector lists (nearest
+-- first -- the pool comes nearest-first).
+QD.player._loc_copy_listed = 6
+
+-- Clears what QD.player._loc_copy put on a target.  use_on's target is the
+-- caller's own table and is reused across verbs, so the name must not outlive
+-- the press it was given for.
+function QD.player._loc_copy_clear(target)
+    target.reach_element = nil
+    target.reach_named = nil
+end
+
 -- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID
 -- the press identifies a copy by.  Returns (rows, count), or (nil, result)
 -- when the pool did not answer.
@@ -6953,4 +7369,81 @@ function QD.player.press(npc, op, ticks, opts)
     return "timeout", label .. pressed .. " did not move in " .. tostring(ticks)
         .. " tick(s) (you at " .. where .. "), " .. silence
         .. " and no dialogue opened"
+end
+
+-- ==========================================================================
+-- SEAM inv_op_shift_drop_without_iop -- seam pass 19, 2026-09-27, APPENDED
+--
+-- Nothing above this banner is touched except QD.player.inv_op (it reads the
+-- floor before the press and appends _inv_stray_drop's tag to its detail)
+-- and three comments that described the old drop as current behaviour.
+--
+-- WHAT WAS WRONG.  `inv_op(item, 1)` pressed OPHELD1 and the server ran the
+-- item's [opheld1] -- and then the item was on the floor.  The Holy Grail's
+-- magic_golden_feather (`ifop1=Blow-on`, configs/all.obj:271) printed "The
+-- feather points to the north." and went `-> 0 left`, though
+-- [opheld1,magic_golden_feather] (quest_grail.rs2:170) never calls inv_del
+-- (build/quest_gate/parity_grail5 rows 8 and 14).  The parity pass read it as
+-- "an item with no iopN= configured"; it is not -- rev 239's obj configs spell
+-- the op `ifop1=`, the feather has one exactly like the spade's `ifop1=Dig`,
+-- and the spade dropped too (build/quest_gate/seam19_invop1_before rows 3-10:
+-- feather 1 -> 0 and on the floor, spade 1 -> 0).  Every op-1 press whose
+-- item has the default "Drop" as op 5 did it: spade, books, pirate_casket,
+-- golem_notes, dwarf_rock_schematic1 all read `-> 0 left` in the tier 1
+-- ledgers.
+--
+-- WHY.  Not the packet: net_out_opheld collapses OPHELD1 onto IF_BUTTONX op
+-- 2, the backpack cell's own number for the first ObjType op, and the server
+-- ran the right trigger.  The client then "flashed" the cell by re-entering
+-- its cc_setonop handler with the OPHELD INDEX, 1, and on rev 239 that handler
+-- is clientscript 6014 (torirs_inv_shiftclick_op.cs2), whose op-1 branch is
+-- the shift-click-drop chain: cc_triggerop(Drop) -> IF_BUTTONX 149:0 op=7 ->
+-- OPHELD5.  A player's real "Blow-on" row is an IF_BUTTON op 2 on the same
+-- cell and flashes op 2, so no player ever hit this; only this driver's
+-- OPHELD bypass (app_plugin_inv_op) did.
+--
+-- THE FIX IS C, NOT HERE: app_minimenu_inv_action's OPHELD case now flashes
+-- net_out_opheld_component_op(op) (src/app/app_minimenu.c -- the one-line
+-- fix the 2026-09-20 KNOWN DEFECT comment there named and held back).  Lua
+-- cannot reach it: api_drive.inv_op always dispatches through that case, and
+-- there is no cell-pixel read to press the real row instead.  Proved on the
+-- private binary (build/quest_gate/seam19_invop1_after): feather `-> 1 left`,
+-- the direction message printed, nothing on the floor, a second press works;
+-- spade still held after its dig; player.drop (op 5) still drops.
+--
+-- WHAT THIS FILE ADDS: a tag, so the drop can never again pass as the item's
+-- own effect.  A backpack that fell while a stack of the same item appeared
+-- at the player's feet, after an op that is not Drop, is named in the detail.
+-- It is a tag and not a verdict on purpose: the Lua is read live by every
+-- worker while the C is not, and a binary built before this seam still drops
+-- on every op 1 -- turning that into `refused` would redden green runs on the
+-- shared binary for a defect the run did not introduce.  Content that really
+-- does put its own item on the ground from a non-drop op would carry the tag
+-- too; read it, then, as "check which it was".
+-- ==========================================================================
+
+-- The total of `item` stacked within one tile of the player, 0 when none.
+function QD.player._inv_ground_count(item)
+    local result, ground = QD.world.obj_near(item, 1)
+    if result == "ok" and type(ground) == "table" then
+        return ground.count or 0
+    end
+    return 0
+end
+
+-- The tag inv_op appends when its press put the item on the ground, or nil.
+-- Op 5 is Drop itself (QD.player.drop presses it), so it is never a stray.
+QD.player.INV_OP_DROP = 5
+function QD.player._inv_stray_drop(item, op, ground_before)
+    if op == QD.player.INV_OP_DROP then
+        return nil
+    end
+    local ground_after = QD.player._inv_ground_count(item)
+    if ground_after <= ground_before then
+        return nil
+    end
+    return "STRAY DROP: op " .. tostring(op) .. " left " .. item .. " on the ground ("
+        .. tostring(ground_before) .. " -> " .. tostring(ground_after)
+        .. ") -- a client built before seam pass 20 runs the backpack's shift-click-drop"
+        .. " chain after every op-1 press (src/app/app_minimenu.c OPHELD flash)"
 end

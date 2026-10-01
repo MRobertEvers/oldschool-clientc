@@ -533,7 +533,7 @@ app_cs2_flush_triggeroplocal(struct App* app)
                 int node = UITree_FindByComponentId(app->tree, trig.component_id);
                 if( node >= 0 && trig.child >= 0 )
                     node = UITree_FindChildBySubid(app->tree, node, trig.component_id, trig.child);
-                if( node >= 0 && app->tree->components[node].item_id > 0 )
+                if( node >= 0 && app->tree->components[node].item_id >= 0 )
                     object_id = app->tree->components[node].item_id;
                 APP_NET_SEND(
                     app,
@@ -633,7 +633,7 @@ app_cs2_enqueue_followups(struct App* app)
                 int sub = -1;
                 int obj_id = app->tree->components[idx].item_id;
                 UIIfEventTable_ButtonTarget(app->tree, trig.component_id, &target, &sub);
-                if( obj_id > 0 )
+                if( obj_id >= 0 ) /* obj 0 is an item; UITREE_NO_OBJ is none */
                     APP_NET_SEND(
                         app,
                         net_out_if_button_obj_op(

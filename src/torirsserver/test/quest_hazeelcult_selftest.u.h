@@ -554,9 +554,22 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
 
         if( cup )
             use_id = cup->loc_id;
+        /* LostCity quest_hazeelcult.rs2: the shut cupboard only OPENS (op1
+         * Open); the evidence is found by Search on the open one.  Prove the
+         * first press does not settle the quest, then search. */
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
         hazeel_drain_rewards(srv, player);
         hazeel_release(srv, player);
+        SELFTEST_CHECK(player->varps[varp_quest] == 7, "opening the cupboard must not settle the quest, got %d",
+                       player->varps[varp_quest]);
+        loc_slot = hazeel_find_loc(2574, 3267, 1, loc_cupboard, 8);
+        SELFTEST_CHECK(loc_slot >= 0, "the opened cupboard should stand where the shut one did");
+        if( loc_slot >= 0 )
+        {
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_cupboard, -1, loc_slot);
+            hazeel_drain_rewards(srv, player);
+            hazeel_release(srv, player);
+        }
         SELFTEST_CHECK(player->varps[varp_quest] == 9, "cupboard evidence should complete, got %d",
                        player->varps[varp_quest]);
         if( vb_jones_cut >= 0 )
@@ -568,7 +581,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
             SELFTEST_CHECK(selftest_count(player, obj_coins) >= coins_before + 2000,
                            "real completion should grant 2000 coins after rewards settle");
         if( player->varps[varp_quest] == 9 )
-            hazeel_pass("cupboard_complete", "oploc1,hazeelcbshut", "state=9 qp+1 coins+2000");
+            hazeel_pass("cupboard_complete", "oploc1,hazeelcbshut+hazeelcbopen", "state=9 qp+1 coins+2000");
     }
 
     /* ---- postquest Ceril ---- */
@@ -722,6 +735,40 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
                        player->varps[varp_quest]);
         if( player->varps[varp_quest] == 6 )
             hazeel_pass("alomone_meet_evil", "opnpc1,alomone_hazeel_cultist_1op", "state=6");
+    }
+
+    /* ---- kitchen ladders (LostCity loc_1754/loc_1755): down lands in the
+     * basement at 2544,9695, up lands back in the kitchen at 2571,3267 ---- */
+    {
+        int ladder_down = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "carnillean_ladder_down");
+        int ladder_up = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "carnillean_ladder_up");
+
+        hazeel_snap(srv, player, 0, 2570, 3266);
+        loc_slot = ladder_down > 0 ? hazeel_find_loc(2570, 3266, 0, ladder_down, 12) : -1;
+        SELFTEST_CHECK(loc_slot >= 0, "the kitchen trapdoor ladder should stand in the mansion");
+        if( loc_slot >= 0 )
+        {
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, ladder_down, -1, loc_slot);
+            hazeel_drain(srv, player, 0);
+            hazeel_release(srv, player);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->z > 9000, "ladder down should land in the basement, at z=%d", player->z);
+            if( player->z > 9000 )
+                hazeel_pass("ladder_down", "oploc1,carnillean_ladder_down", "basement");
+        }
+        hazeel_snap(srv, player, 0, 2544, 9695);
+        loc_slot = ladder_up > 0 ? hazeel_find_loc(2544, 9694, 0, ladder_up, 12) : -1;
+        SELFTEST_CHECK(loc_slot >= 0, "the basement ladder should stand under the kitchen");
+        if( loc_slot >= 0 )
+        {
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, ladder_up, -1, loc_slot);
+            hazeel_drain(srv, player, 0);
+            hazeel_release(srv, player);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->z < 5000, "ladder up should land in the kitchen, at z=%d", player->z);
+            if( player->z < 5000 )
+                hazeel_pass("ladder_up", "oploc1,carnillean_ladder_up", "kitchen");
+        }
     }
 
     /* ---- key crate (basement 2545,9696,0) + scroll chest (F2 2571,3269,2) ---- */

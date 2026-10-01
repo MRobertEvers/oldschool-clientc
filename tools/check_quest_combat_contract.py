@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import csv
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -24,6 +27,8 @@ ARENA_NPC = CONTENT / "quests/quest_arena/configs/quest_arena.npc"
 ARENA_SPAWN = CONTENT / "quests/quest_arena/configs/quest_arena.spawn"
 ARENA_WORLD_SPAWN = CONTENT / "areas/world/configs/m40_49.spawn"
 ARENA_LADY = CONTENT / "quests/quest_arena/scripts/lady_servil.rs2"
+ARENA_SAMMY = CONTENT / "quests/quest_arena/scripts/sammy_servil.rs2"
+ARENA_CUTSCENES = CONTENT / "quests/quest_arena/scripts/quest_arena.rs2"
 HAZEEL_ALOMONE = CONTENT / "quests/quest_hazeelcult/scripts/alomone.rs2"
 HAZEEL_LOCS = CONTENT / "quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2"
 HAZEEL_CLIVET = CONTENT / "quests/quest_hazeelcult/scripts/clivet.rs2"
@@ -85,6 +90,8 @@ LEGENDS_ECHNED = CONTENT / "quests/quest_legends/scripts/echned_zekin.rs2"
 LEGENDS_GUJUO = CONTENT / "quests/quest_legends/scripts/gujuo.rs2"
 LEGENDS_BOOK = CONTENT / "quests/quest_legends/scripts/book_of_binding.rs2"
 LEGENDS_BOULDER = CONTENT / "quests/quest_legends/scripts/legends_boulder.rs2"
+LEGENDS_YOMMI = CONTENT / "quests/quest_legends/scripts/legends_yommi.rs2"
+LEGENDS_QUEST = CONTENT / "quests/quest_legends/scripts/quest_legends.rs2"
 LEGENDS_HEROES = (
     CONTENT / "quests/quest_legends/scripts/san_tojalon.rs2",
     CONTENT / "quests/quest_legends/scripts/irvig_senay.rs2",
@@ -792,11 +799,11 @@ def check_fight_arena() -> None:
         encounter,
         (
             "[label,arena_start_ogre]",
-            "npc_add(0_40_49_44_29, arena_ogre, 32000);",
+            "@ogre_attack_justin;",
             "[label,arena_start_scorpion]",
-            "npc_add(0_40_49_44_23, arena_scorpion, 32000);",
+            "@arena_release_scorp;",
             "[label,arena_start_bouncer]",
-            "npc_add(0_40_49_44_26, arena_bouncer, 32000);",
+            "@arena_release_bouncer;",
             "[label,arena_start_general]",
             "npc_add(0_40_49_44_18, general_khazard_arena, 32000);",
             "[label,arena_after_ogre]",
@@ -814,8 +821,28 @@ def check_fight_arena() -> None:
         ),
         "Fight Arena encounter",
     )
-    require(encounter.count("npc_setowner;") == 4,
-            "Fight Arena: every dynamically spawned combat type must be owner-private")
+    # The ogre, scorpion and Bouncer are created by the pen cutscenes LostCity
+    # scripts (sammy_servil.rs2 ogre_attack_justin = jeremy_servil.rs2:95-146;
+    # quest_arena.rs2 arena_release_scorp/_bouncer = quest_arena.rs2:193-265),
+    # in LostCity's pen tiles; the General by arena_spawn_general. Each one's
+    # npc_add must be followed at once by npc_setowner.
+    sammy_text = ARENA_SAMMY.read_text()
+    cutscenes = ARENA_CUTSCENES.read_text()
+    require_text(sammy_text, ("[label,ogre_attack_justin]", "def_coord $ogre_to = 0_40_49_46_29;"),
+                 "Fight Arena ogre-pen cutscene")
+    require_text(cutscenes, ("[label,arena_release_scorp]", "def_coord $scorp_spawn = 0_40_49_47_23;",
+                             "[label,arena_release_bouncer]", "def_coord $bouncer_spawn = 0_40_49_47_26;"),
+                 "Fight Arena pen cutscenes")
+    for text, spawn in (
+        (sammy_text, "npc_add(movecoord($ogre_to, 1, 0, 0), arena_ogre, 32000);"),
+        (cutscenes, "npc_add($scorp_spawn, arena_scorpion, 32000);"),
+        (cutscenes, "npc_add($bouncer_spawn, arena_bouncer, 32000);"),
+        (encounter, "npc_add(0_40_49_44_18, general_khazard_arena, 32000);"),
+    ):
+        require(text.count(spawn) == 1, f"Fight Arena: expected one {spawn}")
+        after = text.split(spawn, 1)[1].lstrip().splitlines()[0].strip()
+        require(after == "npc_setowner;",
+                f"Fight Arena: {spawn} not followed by npc_setowner; (every dynamically spawned combat type must be owner-private)")
     require("random(400) = 0" in encounter and "random(5013) = 0" in encounter,
             "Fight Arena: Ogre tertiary drop rates drifted")
 
@@ -824,7 +851,7 @@ def check_fight_arena() -> None:
         locs,
         (
             "[oploc1,arena_guard_chest_shut]",
-            "[oploc1,arena_guard_chest_open]",
+            "[label,arena_search_chest]",
             "[oplocu,arena_jeremydoor]",
             "[label,arena_free_sammy]",
             "[oploc1,fightarena_door2]",
@@ -859,9 +886,34 @@ def check_fight_arena() -> None:
     require_text(npc, ("[general_khazard_arena]", "op2=Attack", "vislevel=142"),
                  "Fight Arena General Khazard")
 
-    curated = ARENA_SPAWN.read_text()
-    for actor in ("lady_servil", "arena_guard2", "sammy_servil", "sammy_servil_arena", "justin_servil"):
-        require(actor in curated, f"Fight Arena spawn: missing {actor}")
+    # The curated spawn rows are read as ROWS (first word of every non-comment
+    # line after "==== NPC ===="): a substring test passed on a comment that
+    # merely named an actor. The arena Sammy is not a spawn row at all since
+    # seam29 -- the rev-239 shell sammy_servil_arena draws the op-less
+    # sammy_servil_vis_noop, so ~arena_spawn_sammy places an owner-private
+    # sammy_servil_vis instead (sammy_servil.rs2) and every round start calls it.
+    curated_rows = set()
+    in_npc = False
+    for line in ARENA_SPAWN.read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("===="):
+            in_npc = stripped.strip("= ").upper() == "NPC"
+            continue
+        if not in_npc or not stripped or stripped.startswith("//"):
+            continue
+        curated_rows.add(stripped.split()[0])
+    for actor in ("lady_servil", "arena_guard2", "sammy_servil", "justin_servil"):
+        require(actor in curated_rows, f"Fight Arena spawn: missing {actor} spawn row")
+    require("sammy_servil_arena" not in curated_rows,
+            "Fight Arena spawn: sammy_servil_arena shell placed (its op-less form cannot be talked to)")
+    require_text(
+        ARENA_SAMMY.read_text(),
+        ("[proc,arena_spawn_sammy]", "npc_add(0_40_49_42_18, sammy_servil_vis, 32000);",
+         "npc_setowner;", "[opnpc1,sammy_servil_vis]"),
+        "Fight Arena owner-private Sammy",
+    )
+    require(ARENA.read_text().count("~arena_spawn_sammy;") >= 4,
+            "Fight Arena: every round start must call ~arena_spawn_sammy")
     world_spawn = ARENA_WORLD_SPAWN.read_text()
     for actor in ("arena_ogre", "arena_scorpion", "arena_bouncer"):
         require(actor not in world_spawn, f"Fight Arena: public combat spawn restored for {actor}")
@@ -1403,7 +1455,7 @@ def check_observatory_quest() -> None:
         (
             "[opheldu,lens_mould]", "[proc,observatory_cast_lens]",
             "%itgronigen ! ^itgronigen_given_mould", "stat(crafting) < 10",
-            "inv_del(inv, molten_glass, 1);", "inv_del(inv, lens_mould, 1);",
+            "inv_del(inv, molten_glass, 1);", "mat2cost = No",
             "inv_add(inv, lens, 1);",
         ),
         "Observatory Quest lens recipe",
@@ -1434,8 +1486,19 @@ def check_tourist_trap() -> None:
             "[opnpc2,desertminingcaptain]",
             "[apnpc2,desertminingcaptain]",
             "[label,desertrescue_captain_attack_warning]",
-            "[label,desertrescue_captain_arrest]",
+            "npc_setmode(playerescape);",
+            "[label,desertrescue_captain_randompunish]",
+            "getbit_range(%desertrescue_map_mechanisms, 0, 1)",
+            "setbit_range_toint(%desertrescue_map_mechanisms, $next_stage, 0, 1);",
+            "~desertrescue_find_camp_merc(coord, 7, 0)",
+            "pretends to start hitting you.",
+            "gives you a sharp kick.",
             "damage(uid, hitsplat_damage, 1);",
+            "~objbox(bronze_scimitar,",
+            "Okay men, we need to teach this person a thing or two",
+            "~desertrescue_dump_in_desert;",
+            "~mercenary_attack;",
+            "[label,desertrescue_captain_you_there]",
             "[opnpc3,desertminingcaptain]",
             "[ai_queue3,desertminingcaptain]",
             "if (npc_findhero = ^false)",
@@ -1447,8 +1510,19 @@ def check_tourist_trap() -> None:
         ),
         "The Tourist Trap captain",
     )
-    require(captain.count("damage(uid, hitsplat_damage, 1);") == 4,
-            "The Tourist Trap: direct-attack arrest must apply four guard hits")
+    # seam23: LostCity [label,mercenary_capt_randompunish] -- four escalating
+    # responses keyed on map_mechanisms bits 0-1, one kick of damage (stage 1),
+    # the desert dump only at stage 3 -- replaced the port's single
+    # four-hit arrest. Every insult reaches it; a direct Attack is
+    # ~mercenary_capt_attack's ~mercenary_attack, never the ladder.
+    require("[label,desertrescue_captain_arrest]" not in captain,
+            "The Tourist Trap: the four-hit arrest replaced every insult response again")
+    require(captain.count("damage(uid, hitsplat_damage, 1);") == 1,
+            "The Tourist Trap: randompunish deals exactly one kick (stage 1)")
+    require(captain.count("@desertrescue_captain_randompunish;") == 4,
+            "The Tourist Trap: ugly, sand-in-ears, scare and the fist/sorry pair must each reach randompunish")
+    require(captain.count("~desertrescue_dump_in_desert;") == 1,
+            "The Tourist Trap: only randompunish stage 3 dumps the player in the desert")
     require("inv_total(worn" not in captain,
             "The Tourist Trap: equipment restriction restored to the duel")
     require("gosub(npc_death)" not in captain,
@@ -1493,7 +1567,7 @@ def check_tourist_trap() -> None:
             "[proc,desertrescue_open_camp_gate](int $side)",
             "inv_total(inv, metal_key) < 1",
             "%desertrescue = ^desertrescue_entered_camp;",
-            "~door_selfstage_open;",
+            "~desertrescue_cross_wall($gate_coord, $gate_angle);",
             "[timer,desertrescue_mercenary_check]",
             "[label,desertrescue_camp_jail]",
         ),
@@ -1603,22 +1677,35 @@ def check_legends_quest() -> None:
         ),
         "Legends' Quest Nezikchened phases",
     )
-    require(nezi.count("npc_setowner;") == 5,
+    # One npc_setowner per npc_add: the first defeat no longer spawns a second Ungadulu
+    # (LostCity nezikchened.rs2 [queue,nezikchened_defeat] spawns none), so the count is 4.
+    require(nezi.count("npc_add(") >= 4 and nezi.count("npc_setowner;") == nezi.count("npc_add("),
             "Legends' Quest: every dynamic Nezikchened/hero spawn must be owner-private")
     require("obj_add(" not in nezi and "obj_add_private(" not in nezi,
             "Legends' Quest: Nezikchened must remain no-loot")
 
+    # LostCity quest_legends/scripts/ungadulu.rs2 [opnpcu,ungadulu_good]: the
+    # Book of Binding used on Ungadulu summons the first Nezikchened.
     ungadulu = LEGENDS_UNGADULU.read_text()
     require_text(
         ungadulu,
         (
-            "[opnpcu,ungadulu_bad]", "last_useitem = holy_water",
-            "last_useitem ! book_of_binding", "npc_setowner;",
-            "npc_statsub(defence, 0, 5);", "stat_sub(prayer, 0, 90);",
-            "[opheldu,yommiseeds]", "def_int $seed_count = inv_total(inv, yommiseeds);",
-            "inv_del(bank, goldbowlbless_pure, $bank_bowls);",
-            "[oplocu,fertilesoil]", "stat(herblore) < 45",
-            "stat(woodcutting) < 50", "%legendsquest < ^legends_sacred_water_collected",
+            "[opnpcu,ungadulu_good]", "last_useitem = book_of_binding",
+            "%legendsquest = ^legends_summoned_nezikchened_fire;",
+            "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), nezikchened, 500);",
+            "npc_setowner;", "stat_sub(prayer, 0, 90);",
+        ),
+        "Legends' Quest Ungadulu summons Nezikchened",
+    )
+
+    # LostCity quest_legends.rs2 :1094-1300 (the Yommi tree), split out here.
+    yommi = LEGENDS_YOMMI.read_text()
+    require_text(
+        yommi,
+        (
+            "[oplocu,fertilesoil]", "last_useitem ! yommiseeds_germ",
+            "stat(herblore) < 45", "stat(woodcutting) < 50",
+            "%legendsquest < ^legends_sacred_water_collected",
             "[oplocu,yommitree_sapling]", "[oplocu,yommitree_adult]",
             "[oplocu,yommitree_felled]", "[oplocu,yommitree_trimmed]",
             "[oploc1,yommitree_totem]", "[proc,legends_yommi_axe](obj $axe)(boolean)",
@@ -1626,9 +1713,9 @@ def check_legends_quest() -> None:
             "[proc,legends_set_yommi_planter]", "random(10)",
             "inv_add(inv, magic_logs, 1);",
         ),
-        "Legends' Quest Ungadulu and Yommi route",
+        "Legends' Quest Yommi route",
     )
-    require(ungadulu.count("world_delay(49);") == 5,
+    require(yommi.count("world_delay(49);") == 5,
             "Legends' Quest: all five timed Yommi rot windows must remain")
 
     echned = LEGENDS_ECHNED.read_text()
@@ -1643,31 +1730,37 @@ def check_legends_quest() -> None:
         "Legends' Quest second-route split",
     )
 
+    # LostCity book_of_binding.rs2 [label,enchant_vials]: 5 Prayer and 5 Magic
+    # per vial, the 1/2/N count menu.
     book = LEGENDS_BOOK.read_text()
     require_text(
         book,
         (
             "[opheldu,book_of_binding]", "last_useitem ! vial_empty",
             "stat(magic) < 10", "stat(prayer) < 10",
-            "stat_sub(prayer, 5, 0);", "stat_sub(magic, 5, 0);",
-            "inv_del(inv, vial_empty, 1);", "inv_add(inv, vial_enchanted, 1);",
+            "stat_sub(prayer, calc(5 * $count), 0);", "stat_sub(magic, calc(5 * $count), 0);",
+            "inv_del(inv, vial_empty, $count);", "inv_add(inv, vial_enchanted, $count);",
         ),
         "Legends' Quest enchanted-vial recipe",
     )
 
-    gujuo = LEGENDS_GUJUO.read_text()
+    # LostCity quest_legends.rs2 [opheldu,goldbowlbless_pure] and
+    # [oplocu,lg_ord_totem_pole].
+    quest = LEGENDS_QUEST.read_text()
     require_text(
-        gujuo,
+        quest,
         (
-            "[oplocu,lg_totem_pole_evil]", "@summon_nezi_part3;",
-            "%legendsquest = ^legends_replaced_totem;", "npc_setowner;",
-            "obj_add_private(coord, thtotempolegift, 1",
-            "[opheldu,goldbowlbless_pure]",
+            "[oplocu,lg_ord_totem_pole]", "last_useitem = thtotempole",
+            "@summon_nezi_part3;", "%legendsquest = ^legends_replaced_totem;",
+            "npc_setowner;", "[opheldu,goldbowlbless_pure]",
             "getbit_range(%legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
             "inv_add(inv, holy_water, 1);", "if ($bowl_uses >= 9)",
         ),
         "Legends' Quest bowl and final totem",
     )
+
+    gujuo = LEGENDS_GUJUO.read_text()
+    require_text(gujuo, ("thtotempolegift",), "Legends' Quest Gujuo's totem gift")
 
     boulder = LEGENDS_BOULDER.read_text()
     require_text(
@@ -1737,7 +1830,7 @@ def check_big_chompy() -> None:
             "%chompy_baiter = $baiter;", "npc_queue(4, 0, 25);",
             "[ai_queue4,bloated_toad]", "last_int = 3 | last_int = 13",
             "random(5) = 1", "npc_queue(4, $next_state, 25);",
-            "~spawn_chompy_bird(npc_coord, %chompy_baiter);",
+            "~spawn_chompy_bird($bait_coord, $baiter);",
             "damage(uid, hitsplat_damage, add(random(2), 1));",
         ),
         "Big Chompy Bird Hunting bait cycle",
@@ -1753,7 +1846,7 @@ def check_big_chompy() -> None:
             "map_findsquare($bait, 3, 10, ^map_findsquare_lineofsight)",
             "npc_add($spawn, chompybird, 100);", "npc_setowner;",
             "queue(chompy_rantz_misses, add(15, random(10)), 0);",
-            "[ai_queue4,chompybird]", ".npc_find(npc_coord, bloated_toad, 10",
+            "[ai_queue4,chompybird]", "npc_find($here, bloated_toad, 10",
             "[ai_timer,chompybird]", "if (npc_hastarget = true)",
             "npc_setmode(playerescape);",
             "[apnpc5,chompybird]", "[opnpc5,chompybird]",
@@ -1786,7 +1879,7 @@ def check_big_chompy() -> None:
             "%chompybird = ^chompybird_shown_toad;",
             "%chompybird = ^chompybird_rantz_gave_player_bow;",
             "%chompybird = ^chompybird_told_to_cook_chompy;",
-            "[opnpcu,rantz]", "[label,chompy_hand_in]",
+            "[opnpcu,rantz]", "[label,hand_chompy_to_rantz]",
             "inv_del(inv, cooked_s_chompy, 1);",
             "[queue,quest_chompybird_complete]",
             "stat_advance(fletching, 2620);", "stat_advance(cooking, 14700);",
@@ -1979,6 +2072,14 @@ def check_nature_spirit() -> None:
             ),
             f"Nature Spirit {ghast} config",
         )
+        if ghast == "ghast_invis":
+            # The engine reads only `huntmode=aggressive`; LostCity's
+            # `aggressive_melee` names a hunt config here does not have and
+            # parsed to HUNT_NONE, so no ghast ever attacked (2026-09-29).
+            require_text(
+                block, ("huntmode=aggressive\n", "param=huntrange,5"),
+                "Nature Spirit ghast_invis aggression",
+            )
 
     ghast = NATURE_GHAST.read_text()
     require_text(
@@ -2006,6 +2107,9 @@ def check_nature_spirit() -> None:
             "%druidspirit = ^druidspirit_killed_ghast1;",
             "%druidspirit = ^druidspirit_killed_ghast2;",
             "%druidspirit = ^druidspirit_killed_ghast3;",
+            # npc_findhero reads the active npc, which npc_del removes: asked
+            # after the removal it aborted the death queue (2026-09-29).
+            "def_int $hero = npc_findhero;", "if ($hero = ^false)",
         ),
         "Nature Spirit public loot and exact kill credit",
     )
@@ -2250,7 +2354,9 @@ def check_priest_in_peril() -> None:
             "[oploc1,priestperil_well]", "[proc,priestperil_use_well]",
             "inv_del(inv, bucket_empty, 1);", "inv_add(inv, bucket_murkywater, 1);",
             "inv_add(inv, bucket_water, 1);", "[oploc1,pip_underground_wall_side_withportal]",
-            "%priestperil >= ^priestperil_access_holy_barrier", "p_telejump(0_53_54_31_29);",
+            "%priestperil = ^priestperil_access_holy_barrier", "p_telejump(0_53_54_31_29);",
+            "[label,priestperil_barrier_blocked]", "[oploc1,pipeastsidetrapdoor]",
+            "[oploc1,pipeastsidetrapdoor_open]", "p_telejump(0_53_154_48_31);",
         ),
         "Priest in Peril well and holy barrier",
     )
@@ -2269,9 +2375,9 @@ def check_priest_in_peril() -> None:
         (
             "[opnpc1,priestperiltrappedmonk2]", "[opnpcu,priestperiltrappedmonk2]",
             "add(inv_total(inv, blankrune), inv_total(inv, blankrune_high))",
-            "def_int $take = min($have, $need);", "inv_del(inv, blankrune_high, $take_high);",
-            "inv_del(inv, blankrune, $take_low);", "%priestperil = add(%priestperil, $take);",
-            "%priestperil = ^priestperil_complete;", "stat_advance(prayer, ^priestperil_reward_prayer_xp);",
+            "def_int $take_rune = min($to_give, $have_rune);", "inv_del(inv, blankrune, $take_rune);",
+            "inv_del(inv, blankrune_high, $take_pure);", "%priestperil = add(%priestperil, $given);",
+            "stat_advance(prayer, ^priestperil_reward_prayer_xp);",
             "inv_add(inv, dagger_wolfbane, 1);", "~quest_complete_rewards(quest_priestinperil",
             "if (~obj_gettotal(dagger_wolfbane) = 0)", "%priestperil = ^priestperil_access_holy_barrier;",
         ),
@@ -2586,7 +2692,7 @@ def check_troll_stronghold() -> None:
         (
             "[opnpc2,troll_champion]", "[apnpc2,troll_champion]",
             "[ai_opplayer2,troll_champion]", "random(3) = 0",
-            "%aggressive_npc = npc_uid;", "movecoord(coord, -5, 0, 0)",
+            "%aggressive_npc = npc_uid;", "movecoord($centre, $step_x, 0, $step_z)",
             "npc_attackdelay(8);", "[ai_queue2,troll_champion]",
             "$damage = max(0, sub(npc_stat(hitpoints), 19));",
             "[label,troll_dad_surrender]", "%troll_quest = ^troll_defeated_dad;",
@@ -2608,7 +2714,7 @@ def check_troll_stronghold() -> None:
             "[opnpc3,troll_prison_guard1]", "troll_key_godric",
             "[opnpc3,troll_prison_guard2]", "troll_key_eadgar",
             "stat(thieving) < 30", "stat_random(thieving, 60, 300) = false",
-            "npc_setmode(opplayer2);", "~obj_gettotal($key) > 0",
+            "npc_setmode(opplayer2);", "inv_total(inv, $key) > 0",
             "inv_freespace(inv) = 0", "sound_synth(pick, 1, 0);",
         ),
         "Troll Stronghold Twig/Berry wake and pickpocket contract",
@@ -2986,19 +3092,20 @@ def check_horror_from_the_deep() -> None:
         route,
         ("[oplocu,horror_broken_bridge_left_spot]",
          "[oplocu,horror_broken_bridge_right_spot]", "if ($item ! woodplank)",
-         "inv_total(inv, hammer) < 1", "inv_total(inv, nails) < 30",
-         "inv_del(inv, woodplank, 1);", "inv_del(inv, nails, 30);",
-         "[oploc1,horror_lighthouse_doorway]", "inv_total(inv, horror_key) < 1",
+         "inv_total(inv, hammer) = 0", "inv_total(inv, nails) < ^horror_bridge_nails_each",
+         "inv_del(inv, woodplank, 1);", "inv_del(inv, nails, ^horror_bridge_nails_each);",
+         "[oploc1,horror_lighthouse_doorway]", "inv_del(inv, horror_key, 1);",
+         "p_teleport(0_38_71_13_51);",
          "[oploc1,horror_bookcase]", "horror_diary1", "horror_diary2",
          "horror_diary3", "[oplocu,horror_lighthouse_cog_broken]",
-         "$item = swamp_tar", "$item = molten_glass", "$item = tinderbox",
+         "last_useitem = swamp_tar", "last_useitem = molten_glass", "last_useitem = tinderbox",
          "[oplocu,horror_mid_left_door]", "[oplocu,horror_mid_right_door]",
-         "$item = airrune", "$item = waterrune", "$item = earthrune",
-         "$item = firerune", "~horror_is_sword($item)",
-         "~horror_is_arrow($item)", "inv_del(inv, $item, 1);",
+         "$obj = airrune", "$obj = waterrune", "$obj = earthrune",
+         "$obj = firerune", "~horror_is_sword($obj)",
+         "~horror_is_arrow($obj)", "inv_del(inv, $sword, 1);", "inv_del(inv, $arrow, 1);",
          "case weapon_slash_sword, weapon_stab_sword, weapon_2h_sword",
          "case arrows, arrows_dragon, ammo_ogre_arrow, ammo_training_arrow",
-         "p_telejump(0_39_72_22_26);", "[opobj3,horror_casket]"),
+         "[oploc1,horror_far_right_door]", "[opobj3,horror_casket]"),
         "Horror from the Deep route and item consumption",
     )
 
@@ -3061,13 +3168,13 @@ def check_horror_from_the_deep() -> None:
     encounter = HORROR_ENCOUNTER.read_text()
     require_text(
         encounter,
-        ("[proc,horror_spawn_junior]", "npc_add(0_39_72_22_34, horror_dagannoth_jr1, 1000);",
+        ("[queue,horror_spawn_junior]", "npc_add($start, horror_dagannoth_jr1, 1000);",
          "npc_setowner;", "[ai_timer,horror_dagannoth_jr4]",
          "npc_statheal(hitpoints, 1, 0);", "npc_settimer(20);",
          "[timer,horror_timeout]", "settimer(horror_timeout, 1000);",
          "[ai_queue3,horror_dagannoth_jr4]", "if (npc_findhero = ^false)",
          "%horrorquest = ^horror_defeated_dagjr;",
-         "npc_add(0_39_72_22_34, horror_dagganoth_aira, 1000);",
+         "npc_add($start, horror_dagganoth_aira, 1000);",
          "[ai_timer,horror_dagganoth_air]", "~horror_mother_change(horror_dagganoth_water);",
          "[ai_timer,horror_dagganoth_water]", "~horror_mother_change(horror_dagganoth_melee);",
          "[ai_timer,horror_dagganoth_melee]", "~horror_mother_change(horror_dagganoth_earth);",
@@ -3079,8 +3186,9 @@ def check_horror_from_the_deep() -> None:
          "~playerhit_n_ranged(true, $hit1, $duration);",
          "~playerhit_n_ranged(true, $hit2, $duration);",
          "obj_add_private($drop, bones, 1", "inv_add(inv, horror_casket, 1);",
-         "%horrorquest = ^horror_complete;", "p_telejump(0_39_56_13_54);",
-         "stat_advance(magic, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
+         "%horrorquest = ^horror_complete;", "p_teleport(0_39_156_19_17);",
+         "stat_advance(magic, 46625);", "stat_advance(strength, 46625);",
+         "stat_advance(ranged, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
          "[proc,horror_abort]", "[proc,horror_on_logout]", "[proc,horror_on_death]",
          "[proc,horror_mother_prepare_hit]", "case horror_dagganoth_air",
          "%horror_magic_element = ^element_air", "case horror_dagganoth_water",
@@ -3094,8 +3202,9 @@ def check_horror_from_the_deep() -> None:
 
     require_text(
         HORROR_JOSSIK.read_text(),
-        ("[opnpc1,horror_lighthousekeeeper_well]", "%horror_reward_book = 0",
-         "~p_choice3(\"A damaged holy book\", 1, \"A damaged unholy book\", 2, \"A damaged book of balance\", 3)",
+        ("[opnpc1,horror_lighthousekeeeper_well]", "%horror_reward_book = 1;",
+         "%horror_reward_book = 2;", "%horror_reward_book = 3;",
+         "~p_choice3_header(\"Saradomin\", 1, \"Zamorak\", 2, \"Guthix\", 3",
          "unfinished_saradominbook", "unfinished_zamorakbook", "unfinished_guthixbook",
          "inv_del(inv, horror_casket, 1);", "[opnpc4,horror_lighthousekeeeper_well]",
          "[proc,horror_has_reward_book]()(boolean)", "saradominbook_complete",
@@ -3105,8 +3214,8 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         HORROR_GUNNJORN.read_text(),
-        ("[opnpc1,gunnjorn]", "inv_total(inv, horror_key) > 0",
-         "inv_total(bank, horror_key) > 0", "inv_add(inv, horror_key, 1);"),
+        ("[opnpc1,gunnjorn]", "~obj_gettotal(horror_key) = 0",
+         "inv_add(inv, horror_key, 1);"),
         "Horror from the Deep lighthouse-key issue and replacement",
     )
     require_text(
@@ -3235,7 +3344,7 @@ def check_haunted_mine() -> None:
     require_text(
         HMQ_ZEALOT.read_text(),
         ("[opnpc1,saradominist_zealot]", "%priestperil < ^priestperil_complete",
-         "stat(crafting) < ^hmq_req_crafting", "[opnpc3,saradominist_zealot]",
+         "[opnpc3,saradominist_zealot]",
          "inv_total(bank, hauntedmine_lift_key) > 0", "inv_freespace(inv) < 1",
          "obj_add_private(npc_coord, hauntedmine_lift_key, 1"),
         "Haunted Mine Zealot requirements and key recovery",
@@ -3255,7 +3364,7 @@ def check_haunted_mine() -> None:
     )
     require_text(
         HMQ_CONSTANT.read_text(),
-        ("^hmq_lift_race_ticks = 30", "^hmq_daythroom_min",
+        ("^hmq_lift_race_ticks = 80", "^hmq_daythroom_min",
          "^hmq_daythroom_max", "^hmq_dayth_shift_1", "^hmq_dayth_shift_8",
          "^hmq_crystalroom_min", "^hmq_crystalroom_max"),
         "Haunted Mine encounter coordinates and calibrated race",
@@ -3289,6 +3398,7 @@ def check_haunted_mine() -> None:
          "crane_posessed_mine", "randominc(10)", "[proc,hmq_on_dayth_track]()(boolean)",
          "randominc(9)", "[ai_queue3,hauntedmine_boss_ghost]",
          "def_npc_uid $dead_dayth = npc_uid;", "%hauntedmine = ^hmq_dayth_killed;",
+         "stat(crafting) < ^hmq_req_crafting",
          "if (random(90) = 0)", "trail_clue_beginner", "[proc,hmq_dayth_cleanup]",
          "[proc,hmq_dayth_on_death]", "[proc,hmq_dayth_on_logout]",
          "inv_total(bank, hauntedmine_reward_key) > 0", "obj_add_private(npc_coord, hauntedmine_reward_key, 1",
@@ -3965,8 +4075,424 @@ def check_one_small_favour() -> None:
     require_text(PLAYER_LOGOUT.read_text(), ("~osf_on_logout;",),
                  "One Small Favour logout cleanup")
 
+# ---------------------------------------------------------------------------
+# Repo-wide sweeps (seam20, 2026-09-27).
+#
+# Everything above checks named encounters, so a quest nobody had written a
+# check for yet could not fail it: parity2b found the giant lobster, The
+# Kendal, Slagilith and the Hammerspike gang by driving them, and the Giant Sea
+# Snake was still sitting there. These two sweeps walk the whole pack instead.
+# ---------------------------------------------------------------------------
+
+SCRIPT_HEADER = re.compile(r"^\[([a-z0-9_]+),([^\]]+)\]")
+SCRIPT_CALL = re.compile(r"([~@])([a-z0-9_]+)")
+
+# Reaching any of these IS the player's half of an attack. The first two are
+# the wildcard's own jumps (LostCity player_combat.rs2:1-2); the other three
+# are the style entry points [label,player_combat_start] dispatches to, which
+# LostCity's lathastrainingogre binding (combat_training_camp.rs2) calls
+# directly. They are terminals: the sweep does not descend into them, since
+# they call ~npc_retaliate themselves on every hit.
+COMBAT_START_TERMINALS = frozenset((
+    "player_combat_start", "player_combat_start_ap",
+    "player_melee_attack", "player_ranged_attack", "player_magic_attack",
+))
+
+# A binding that retaliates without starting the fight ON PURPOSE, each with the
+# reason. Nothing else may: the default for an Attack binding is to attack.
+COMBAT_START_EXEMPT = {
+    # Another Slice of H.A.M.: Sigmund's protection prayer turns every style
+    # away (the label switches his prayer and says so) until the ancient mace
+    # special changes him to slice_sigmund_noprayer, whose binding attacks.
+    ("opnpc2", "slice_sigmund_showdown"): "prayer blocks every style until the mace special",
+    ("opnpc2", "slice_sigmund_melee"): "prayer blocks every style until the mace special",
+    ("opnpc2", "slice_sigmund_ranged"): "prayer blocks every style until the mace special",
+    ("opnpc2", "slice_sigmund_magic"): "prayer blocks every style until the mace special",
+    # ... and their AP halves (seam21), or a bow or staff skips the prayer.
+    ("apnpc2", "slice_sigmund_showdown"): "prayer blocks every style until the mace special",
+    ("apnpc2", "slice_sigmund_melee"): "prayer blocks every style until the mace special",
+    ("apnpc2", "slice_sigmund_ranged"): "prayer blocks every style until the mace special",
+    ("apnpc2", "slice_sigmund_magic"): "prayer blocks every style until the mace special",
+}
+
+
+def _strip_comment(line: str) -> str:
+    return line.split("//", 1)[0]
+
+
+def load_script_blocks() -> dict[tuple[str, str], list[tuple[str, int, str]]]:
+    """Every `[trigger,name]` script in the pack's source, keyed by both halves."""
+    blocks: dict[tuple[str, str], list[tuple[str, int, str]]] = {}
+    for path in sorted(CONTENT.rglob("*.rs2")):
+        relative = path.relative_to(CONTENT)
+        if relative.parts and relative.parts[0].startswith("build"):
+            continue
+        current: list | None = None
+        for number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            match = SCRIPT_HEADER.match(line)
+            if match:
+                name = match.group(2).split("(", 1)[0]
+                current = [str(relative), number, [_strip_comment(line[match.end():])]]
+                blocks.setdefault((match.group(1), name), []).append(current)
+            elif current is not None:
+                current[2].append(_strip_comment(line))
+    return {key: [(f, n, "\n".join(body)) for f, n, body in value]
+            for key, value in blocks.items()}
+
+
+def opnpc2_combat_start_sweep() -> tuple[list[tuple], list[tuple], int]:
+    """(misses, exempt, handler count) over every name-specific op/apnpc2."""
+    blocks = load_script_blocks()
+    memo: dict[tuple[str, str], tuple[bool, bool]] = {}
+
+    def reach(kind: str, name: str, stack: frozenset) -> tuple[bool, bool]:
+        # (reaches a combat-start terminal, reaches ~npc_retaliate)
+        if name in COMBAT_START_TERMINALS:
+            return True, False
+        if kind == "~" and name == "npc_retaliate":
+            return False, True
+        key = (kind, name)
+        if key in memo:
+            return memo[key]
+        if key in stack:
+            return False, False
+        trigger = "proc" if kind == "~" else "label"
+        result = (False, False)
+        for _, _, body in blocks.get((trigger, name), []):
+            got = scan(body, stack | {key})
+            result = (result[0] or got[0], result[1] or got[1])
+        memo[key] = result
+        return result
+
+    def scan(text: str, stack: frozenset) -> tuple[bool, bool]:
+        starts = retaliates = False
+        for kind, name in SCRIPT_CALL.findall(text):
+            got = reach(kind, name, stack)
+            starts |= got[0]
+            retaliates |= got[1]
+        return starts, retaliates
+
+    misses = []
+    exempt = []
+    count = 0
+    for (trigger, name), found in sorted(blocks.items()):
+        if trigger not in ("opnpc2", "apnpc2") or name == "_":
+            continue
+        for path, line, body in found:
+            count += 1
+            starts, retaliates = scan(body, frozenset())
+            # A binding that hands the Attack back with `p_opnpc(2)` re-queues
+            # ITSELF (the same [opnpc2,<npc>] fires again) unless it changed
+            # what the npc is first (`npc_changetype`: Sire's sleeping ->
+            # awake, which the new type's own binding then serves). Seam pass
+            # 30: the three battle mages ended both halves in `p_opnpc(2)`, no
+            # swing ever landed ('hp no bar -> no bar'), and this sweep passed
+            # them because they never call ~npc_retaliate either.
+            reenters = (re.search(r"\bp_opnpc\(\s*2\s*\)", body) is not None
+                        and "npc_changetype" not in body)
+            if (retaliates or reenters) and not starts:
+                row = (trigger, name, path, line)
+                if (trigger, name) in COMBAT_START_EXEMPT:
+                    exempt.append(row + (COMBAT_START_EXEMPT[(trigger, name)],))
+                else:
+                    misses.append(row)
+    return misses, exempt, count
+
+
+def check_opnpc2_combat_start() -> None:
+    """QUEST_AUTHORING.md trap 31, over the whole pack.
+
+    A name-specific `[opnpc2,<npc>]`/`[apnpc2,<npc>]` replaces the wildcard
+    `[opnpc2,_] @player_combat_start;` / `[apnpc2,_] @player_combat_start_ap;`
+    (skill_combat/combat.rs2; LostCity player_combat.rs2:1-2) entirely. A
+    binding that reaches `~npc_retaliate` (the NPC's half: fight back) but no
+    combat start (the PLAYER's half) is an Attack that never swings -- no
+    hitsplat, no health bar, a boss nobody can kill. Every LostCity binding
+    that attacks ends in the jump (grandtree_black_demon.rs2, irvig_senay.rs2,
+    tut_giant_rat.rs2).
+    """
+    misses, _, _ = opnpc2_combat_start_sweep()
+    require(not misses,
+            "trap 31: [op/apnpc2] bindings reach ~npc_retaliate but never "
+            "@player_combat_start/_ap (add the jump, or an exemption with its "
+            "reason):\n  " + "\n  ".join(f"[{t},{n}] {p}:{l}" for t, n, p, l in misses))
+
+
+# ---------------------------------------------------------------------------
+# The AP twin (seam21, 2026-09-27).
+#
+# `[apnpc2,_] @player_combat_start_ap;` (skill_combat/combat.rs2; LostCity
+# player_combat.rs2:2) claims every Attack made from range: a bow, a staff or a
+# reach weapon fires from `apRange` tiles away and the `[opnpc2,<npc>]` binding
+# never runs. So an op binding that REFUSES -- "Doomion is no longer hostile
+# towards you", "Deal with my guards first!", Sigmund's protection prayer -- is
+# only a melee gate unless the npc has its own `[apnpc2,<npc>]` carrying the
+# same gate. LostCity pairs every gated attack binding that way:
+# grandtree_black_demon.rs2:1-13, game_trail/hard/zamorak_wizard.rs2:1-13 (the
+# same `if` in both, then @player_combat_start / @player_combat_start_ap) and
+# druidspirit/ghast.rs2:47-60. A melee weapon never takes the AP path (its
+# `weapon_attackrange` is 0, so player_combat_start_ap hands it to the op), so
+# a gate that only refuses melee is not bypassed -- those are the exemptions.
+# ---------------------------------------------------------------------------
+
+SCRIPT_IF = re.compile(r"\bif\s*\((.*?)\)\s*\{", re.S)
+
+# Gated op bindings whose AP half is the wildcard ON PURPOSE, each with its reason.
+APNPC2_TWIN_EXEMPT = {
+    "lathastrainingogre": "melee-only refusal; ranged is the path the gate lets "
+                          "through, and LostCity combat_training_camp.rs2:62 has "
+                          "no [apnpc2] twin either",
+    "monkey": "melee-only refusal (Tai Bwo Wannai Trio: 'Adjacent melee attacks "
+              "are dodged ... ranged, Magic, and reach weapons can kill one', "
+              "tbwt_monkey.rs2:1-3); the wildcard AP half is the intended kill",
+}
+
+
+def _label_closure(blocks, text: str) -> str:
+    """`text` plus the body of every @label it reaches (not procs: a proc's
+    `return` is its own), stopping at the combat-start terminals."""
+    parts = [text]
+    seen: set[str] = set()
+    pending = [text]
+    while pending:
+        for kind, name in SCRIPT_CALL.findall(pending.pop()):
+            if kind != "@" or name in seen or name in COMBAT_START_TERMINALS:
+                continue
+            seen.add(name)
+            for _, _, body in blocks.get(("label", name), []):
+                parts.append(body)
+                pending.append(body)
+    return "\n".join(parts)
+
+
+def _gate_conditions(text: str) -> list[str]:
+    return [" ".join(cond.split()) for cond in SCRIPT_IF.findall(text)]
+
+
+def apnpc2_twin_sweep() -> tuple[list[tuple], list[tuple], int]:
+    """(misses, exempt, gated count): every GATED name-specific [opnpc2,X] --
+    an attack binding (it reaches a combat start or ~npc_retaliate) that can
+    refuse (a `return` in it or a label it jumps to, or no combat start at all)
+    -- needs an [apnpc2,X] whose own text (labels followed) carries every one
+    of its `if (...)` conditions."""
+    blocks = load_script_blocks()
+    memo: dict[tuple[str, str], tuple[bool, bool]] = {}
+
+    def reach(kind: str, name: str, stack: frozenset) -> tuple[bool, bool]:
+        if name in COMBAT_START_TERMINALS:
+            return True, False
+        if kind == "~" and name == "npc_retaliate":
+            return False, True
+        key = (kind, name)
+        if key in memo:
+            return memo[key]
+        if key in stack:
+            return False, False
+        trigger = "proc" if kind == "~" else "label"
+        result = (False, False)
+        for _, _, body in blocks.get((trigger, name), []):
+            got = scan(body, stack | {key})
+            result = (result[0] or got[0], result[1] or got[1])
+        memo[key] = result
+        return result
+
+    def scan(text: str, stack: frozenset) -> tuple[bool, bool]:
+        starts = retaliates = False
+        for kind, name in SCRIPT_CALL.findall(text):
+            got = reach(kind, name, stack)
+            starts |= got[0]
+            retaliates |= got[1]
+        return starts, retaliates
+
+    misses = []
+    exempt = []
+    gated = 0
+    for (trigger, name), found in sorted(blocks.items()):
+        if trigger != "opnpc2" or name == "_":
+            continue
+        for path, line, body in found:
+            starts, retaliates = scan(body, frozenset())
+            if not (starts or retaliates):
+                continue  # op 2 is not Attack here (Bank, Talk-to, ...)
+            closure = _label_closure(blocks, body)
+            if starts and not re.search(r"\breturn\b", closure):
+                continue  # always attacks: the wildcard AP half is the same fight
+            gated += 1
+            row = (name, path, line)
+            if name in APNPC2_TWIN_EXEMPT:
+                exempt.append(row + (APNPC2_TWIN_EXEMPT[name],))
+                continue
+            twins = blocks.get(("apnpc2", name))
+            if not twins:
+                misses.append(row + ("no [apnpc2] twin",))
+                continue
+            twin_text = "\n".join(_label_closure(blocks, b) for _, _, b in twins)
+            twin_conditions = set(_gate_conditions(twin_text))
+            lost = [c for c in _gate_conditions(closure) if c not in twin_conditions]
+            if lost:
+                misses.append(row + ("[apnpc2] twin lacks the gate: if (" +
+                                     ") / if (".join(lost) + ")",))
+    return misses, exempt, gated
+
+
+def check_apnpc2_twins() -> None:
+    """QUEST_AUTHORING.md trap 31, the AP half: a gated [opnpc2,X] needs a
+    gated [apnpc2,X], or a ranged/magic attacker skips the gate."""
+    misses, _, _ = apnpc2_twin_sweep()
+    require(not misses,
+            "trap 31 (AP half): gated [opnpc2] bindings a ranged or magic attack "
+            "bypasses through the wildcard [apnpc2,_] (add an [apnpc2] twin with "
+            "the same gate, or an APNPC2_TWIN_EXEMPT entry with its reason):\n  " +
+            "\n  ".join(f"[opnpc2,{n}] {p}:{l}: {why}" for n, p, l, why in misses))
+
+
+# The inventory's `varp` column names an AUXILIARY varp for these rows, not the
+# one the quest's completion is written to. The replacement is the var the
+# quest assigns its own `^<const_complete>` to (or, for a tier 1 row, the varp
+# its test's `quest.bind` reads).
+# needs: tools/quest_gate/quest_inventory.tsv -- correct these rows at source.
+PROGRESS_VARP_OVERRIDES = {
+    "quest_chompybird": ("chompybird",),                    # was chompybird_kills
+    "quest_cog": ("cogquest",),                             # was cog_bits; cog.lua binds cogquest
+    "quest_crest": ("crestquest",),                         # was crest_spells_levers_gauntlets
+    "quest_desertrescue": ("desertrescue",),                # was desertrescue_map_mechanisms
+    "quest_eadgar": ("eadgar_quest",),                      # was eadgar_bits; eadgar.lua binds it
+    "quest_elemental_workshop": ("elemental_workshop_finished",),  # elemental_workshop.lua binds it
+    "quest_horror": ("horrorquest",),                       # was horror_boss_active
+    "quest_onesmallfavour": ("onesmallfavour",),            # was osf_gang_kills (temp by design)
+    "quest_routequest": ("routequest",),                    # was routequest_myreque_bits
+    "quest_totem": ("totemquest",),                         # was handelmort_traps_disabled
+    "quest_zombiequeen": ("zombiequeen",),                  # was zq_map_mechanisms
+}
+QUEST_INVENTORY = ROOT / "tools/quest_gate/quest_inventory.tsv"
+ALL_VARP = ROOT / "OSRS-Content/osrs239-content/configs/all.varp"
+ALL_VARBIT = ROOT / "OSRS-Content/osrs239-content/configs/all.varbit"
+VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
+
+
+def load_content_varp_defs() -> dict[str, dict]:
+    """What load_varp_config (torirs_server_content.c) ends up answering.
+
+    walk_configs visits server/scripts in sorted name order and
+    ToriRSServer_ContentVarp returns the FIRST def for an id, so a later
+    duplicate section is ignored here too. A varp no .varp file declares has
+    no def at all: never transmitted, never saved.
+    """
+    defs: dict[str, dict] = {}
+
+    def walk(directory: Path) -> None:
+        for name in sorted(os.listdir(directory)):
+            if name.startswith("."):
+                continue
+            path = directory / name
+            if path.is_dir():
+                walk(path)
+            elif name.endswith(".varp"):
+                current = None
+                for raw in path.read_text(errors="replace").splitlines():
+                    line = _strip_comment(raw).strip()
+                    if not line:
+                        continue
+                    header = re.match(r"^\[([^\]]+)\]$", line)
+                    if header:
+                        symbol = header.group(1)
+                        current = None
+                        if symbol not in defs:
+                            current = defs[symbol] = {
+                                "file": str(path.relative_to(CONTENT)),
+                                "transmit": False, "perm": False}
+                        continue
+                    if current is None or "=" not in line:
+                        continue
+                    key, value = (part.strip() for part in line.split("=", 1))
+                    if key == "transmit":
+                        current["transmit"] = value == "yes"
+                    elif key == "scope":
+                        current["perm"] = value == "perm"
+
+    walk(CONTENT)
+    return defs
+
+
+def quest_progress_varp_sweep() -> tuple[list[tuple], int]:
+    """(misses, vars checked): each quest's progress varp must transmit and persist."""
+    basevar: dict[str, str] = {}
+    current = None
+    for raw in ALL_VARBIT.read_text(errors="replace").splitlines():
+        line = raw.strip()
+        header = re.match(r"^\[([^\]]+)\]$", line)
+        if header:
+            current = header.group(1)
+        elif line.startswith("basevar=") and current:
+            basevar[current] = line.split("=", 1)[1].strip()
+    known = set(re.findall(r"^\[([^\]]+)\]", ALL_VARP.read_text(errors="replace"), re.M))
+    known |= set(re.findall(r"^\d+=([a-z0-9_]+)", VARP_ALLOC.read_text(errors="replace"), re.M))
+    defs = load_content_varp_defs()
+    misses = []
+    checked = 0
+    with QUEST_INVENTORY.open() as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            quest = row["dir"]
+            names = PROGRESS_VARP_OVERRIDES.get(quest) or tuple(
+                re.findall(r"%([a-z0-9_]+)", row["varp"]))
+            require(bool(names), f"{quest}: quest_inventory.tsv names no progress varp")
+            for name in names:
+                carrier = basevar.get(name, name)
+                require(carrier in known,
+                        f"{quest}: progress var %{name} is neither a varbit nor a varp")
+                checked += 1
+                found = defs.get(carrier)
+                if not found or not found["transmit"] or not found["perm"]:
+                    via = f" (varbit on [{carrier}])" if carrier != name else ""
+                    state = ("undeclared in server/scripts/**/*.varp" if not found else
+                             f"{found['file']}: transmit={'yes' if found['transmit'] else 'no'}"
+                             f" scope={'perm' if found['perm'] else 'temp'}")
+                    misses.append((quest, name, via, state))
+    return misses, checked
+
+
+def check_quest_progress_varps() -> None:
+    """A quest's progress varp (or its varbit's carrier) is transmit=yes scope=perm.
+
+    ToriRSServer_WorldMarkVarp sends only `transmit=yes` varps and
+    torirs_server_save.c saves only `scope=perm` ones, and an undeclared varp is
+    neither -- the quest list, the journal and `t.var.server` read a confident
+    0 and every logout resets the quest (One Small Favour, parity2b).
+    QUEST_AUTHORING.md: declare the carrier protect=no / transmit=yes /
+    scope=perm in the quest's own configs/*.varp; LostCity declares every
+    quest progress varp scope=perm (quest_cook.varp `[cookquest]`).
+    """
+    misses, _ = quest_progress_varp_sweep()
+    require(not misses,
+            "quest progress varps must be transmit=yes scope=perm:\n  " +
+            "\n  ".join(f"{q}: %{n}{via}: {state}" for q, n, via, state in misses))
+
+
+def print_sweeps() -> int:
+    misses, exempt, count = opnpc2_combat_start_sweep()
+    print(f"trap 31 sweep: {count} name-specific [opnpc2]/[apnpc2] bindings, "
+          f"{len(misses)} miss(es), {len(exempt)} exempt")
+    for trigger, name, path, line in misses:
+        print(f"  MISS [{trigger},{name}] {path}:{line}")
+    for trigger, name, path, line, reason in exempt:
+        print(f"  exempt [{trigger},{name}] {path}:{line} -- {reason}")
+    twin_misses, twin_exempt, gated = apnpc2_twin_sweep()
+    print(f"apnpc2 twin sweep: {gated} gated [opnpc2] attack bindings, "
+          f"{len(twin_misses)} miss(es), {len(twin_exempt)} exempt")
+    for name, path, line, why in twin_misses:
+        print(f"  MISS [opnpc2,{name}] {path}:{line} -- {why}")
+    for name, path, line, reason in twin_exempt:
+        print(f"  exempt [opnpc2,{name}] {path}:{line} -- {reason}")
+    varp_misses, checked = quest_progress_varp_sweep()
+    print(f"progress varp sweep: {checked} progress var(s), {len(varp_misses)} miss(es)")
+    for quest, name, via, state in varp_misses:
+        print(f"  MISS {quest}: %{name}{via}: {state}")
+    return 1 if misses or twin_misses or varp_misses else 0
+
 
 def main() -> int:
+    if "--sweeps" in sys.argv[1:]:
+        return print_sweeps()
     try:
         check_manifest()
         check_delrith()
@@ -3998,10 +4524,13 @@ def main() -> int:
         check_roving_elves()
         check_ghosts_ahoy()
         check_one_small_favour()
+        check_opnpc2_combat_start()
+        check_apnpc2_twins()
+        check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

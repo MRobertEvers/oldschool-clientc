@@ -44,6 +44,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* `ToriRSServerNpc.death_credit_players[pid]` for the player who landed the
+ * killing blow; 1 marks the others still fighting it then. Every reader except
+ * `death_hero_pid` (and SS_OP_NPC_FINDHERO, which spells the same 2) treats the
+ * array as flags. */
+#define TORIRSSERVER_DEATH_CREDIT_HITTER 2
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -173,7 +179,24 @@ in_attack_range_with(
     npc_player_gap(px, pz, npc, &dx, &dz);
 
     if( range <= 1 )
-        return (dx + dz) == 1;
+    {
+        if( (dx + dz) != 1 )
+            return 0;
+        /* ...and no wall on the shared edge. Flush and cardinal is the
+         * footprint half of the reference's reachExclusiveRectangle; the wall
+         * bit is the other half, and without it a closed door was no barrier
+         * to melee: Druidic Ritual's prison-door suit hit the player standing
+         * on the far side of the door, his auto-retaliate hit it back through
+         * the door, and the fight's "I can't reach that!" arrived after the
+         * door press that had walked him in (seam22, build/quest_gate/
+         * s22pc_druid_probe). A rider's projected square is off his deck, in
+         * a world whose walls are not his, so only an unprojected square is
+         * read. */
+        if( px != player->x || pz != player->z )
+            return 1;
+        return ToriRSServer_SceneMeleeReached(
+            npc->level, px, pz, npc->x, npc->z, npc->size > 0 ? npc->size : 1);
+    }
 
     return (dx > dz ? dx : dz) <= range;
 }
@@ -199,6 +222,33 @@ player_weapon_attackrange(const struct ToriRSServerPlayer* player)
     if( range > 10 )
         range = 10;
     return range;
+}
+
+/*
+ * The player is within his weapon's reach of the fight's target, so the walk
+ * toward it is over: drop the route and take down the destination flag that
+ * named it.
+ *
+ * Every swing re-arms through `p_opnpc(2)`, and that walks toward MELEE
+ * adjacency and sends SET_MAP_FLAG for it (torirs_server_scripts.c), so a bow
+ * or a staff standing at range had a flag on the monster's side for the whole
+ * fight -- the route was dropped here but the flag never was, because
+ * advance_player takes it down only after a step or on its own tile (seam22:
+ * api_drive.player_idle stayed false under a stale flag). LostCity never
+ * routes for an interaction that fires in range (`P_OPNPC` only latches it;
+ * `pathToPathingTarget` runs only when `tryInteract` did not fire), and its
+ * `unsetMapFlag()` is clearWaypoints + the UnsetMapFlag packet (Player.ts
+ * 1258-1262, 1310-1313, 2249) -- so the route and the flag go together.
+ */
+static void
+player_route_ends_in_range(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    ToriRSServer_WorldStepsClear(player);
+    if( player->dest_x >= 0 || player->dest_z >= 0 )
+        player->clear_map_flag = 1;
+    player->dest_x = -1;
+    player->dest_z = -1;
 }
 
 static int
@@ -255,6 +305,59 @@ npc_npc_gap(
     *out_dz = dz;
 }
 
+/*
+ * Melee between two npcs whose footprints are already flush on a cardinal
+ * side: is there a square on that shared edge with no wall across it?
+ *
+ * The same rule the player's melee reads (in_attack_range_with ->
+ * ToriRSServer_SceneMeleeReached): LostCity decides an npc's op on another
+ * pathing entity with PathingEntity.inOperableDistance -> reachedEntity ->
+ * ReachStrategy.reachExclusiveRectangle, whose N-sized arm (RectangleBoundary
+ * reachRectangleN) walks the overlap of the two edges and answers yes on the
+ * first square whose wall flag toward the target is open. Walking the
+ * attacker's own squares on that edge and asking the 1x1 question of each is
+ * that loop: for a flush 1x1 source SceneMeleeReached reads exactly the wall
+ * bit on the shared edge. Without it an npc-vs-npc fight (a quest's guard
+ * against its prisoner, a pet against a monster) swung straight through a
+ * closed door or a fence, which the player's half stopped doing in seam22.
+ */
+static int
+npc_npc_melee_edge_open(
+    const struct ToriRSServerNpc* attacker,
+    const struct ToriRSServerNpc* target)
+{
+    int a_size;
+    int t_size;
+
+    assert(attacker);
+    assert(target);
+    a_size = attacker->size > 0 ? attacker->size : 1;
+    t_size = target->size > 0 ? target->size : 1;
+    for( int ax = attacker->x; ax < attacker->x + a_size; ax++ )
+    {
+        for( int az = attacker->z; az < attacker->z + a_size; az++ )
+        {
+            int gx = 0;
+            int gz = 0;
+
+            if( ax < target->x )
+                gx = target->x - ax;
+            else if( ax > target->x + t_size - 1 )
+                gx = ax - (target->x + t_size - 1);
+            if( az < target->z )
+                gz = target->z - az;
+            else if( az > target->z + t_size - 1 )
+                gz = az - (target->z + t_size - 1);
+            if( gx + gz != 1 )
+                continue;
+            if( ToriRSServer_SceneMeleeReached(
+                    attacker->level, ax, az, target->x, target->z, t_size) )
+                return 1;
+        }
+    }
+    return 0;
+}
+
 static int
 in_npc_attack_range_npc(
     const struct ToriRSServerNpc* attacker,
@@ -268,7 +371,11 @@ in_npc_attack_range_npc(
         return 0;
     npc_npc_gap(attacker, target, &dx, &dz);
     if( range <= 1 )
-        return (dx + dz) == 1;
+    {
+        if( (dx + dz) != 1 )
+            return 0;
+        return npc_npc_melee_edge_open(attacker, target);
+    }
     return (dx > dz ? dx : dz) <= range;
 }
 
@@ -1427,10 +1534,16 @@ ToriRSServer_CombatHitNpc(
          * combat_target was already cleared or moved to another npc before a
          * delayed projectile/poison splat landed. The scan below additionally
          * retains everybody still fighting this npc. */
+        /* Marked `TORIRSSERVER_DEATH_CREDIT_HITTER` rather than 1: every
+         * reader of the array is a truth test, and the CORPSE stage needs to
+         * tell the player who landed the blow from the ones merely still
+         * fighting, because that player is who `[ai_queue3]` runs as
+         * (`death_hero_pid`). */
         if( srv->active_player && srv->active_player->active &&
             srv->active_player->pid >= 0 &&
             srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
-            npc->death_credit_players[srv->active_player->pid] = 1;
+            npc->death_credit_players[srv->active_player->pid] =
+                TORIRSSERVER_DEATH_CREDIT_HITTER;
         ToriRSServer_CombatStopNpc(srv, slot);
         /*
          * And the *other* half of a target: the mode.
@@ -1461,7 +1574,8 @@ ToriRSServer_CombatHitNpc(
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
             {
-                npc->death_credit_players[i] = 1;
+                if( !npc->death_credit_players[i] )
+                    npc->death_credit_players[i] = 1;
                 ToriRSServer_CombatStopPlayerAt(&srv->players[i]);
             }
         }
@@ -1896,29 +2010,30 @@ npc_claimed_by_other(
     return 1;
 }
 
-/** Is some npc other than `slot` in combat with this player, single-way? The
- *  "I'm already under attack" half, and the one the player actually feels:
- *  being hit by a monster is what stops you picking a different one. */
-static int
-other_npc_engaged_with(
-    const struct ToriRSServer* srv,
-    const struct ToriRSServerPlayer* player,
-    int slot)
-{
-    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
-    {
-        const struct ToriRSServerNpc* npc = &srv->npcs[i];
-
-        if( i == slot || !claimable_npc(srv, i) )
-            continue;
-        if( npc->combat_target != player->pid )
-            continue;
-        if( ToriRSServer_CombatMultiway(npc) )
-            continue;
-        return 1;
-    }
-    return 0;
-}
+/*
+ * There is deliberately no "is some npc pointed at this player" sweep here.
+ *
+ * One existed -- `other_npc_engaged_with`, a walk of the pool for any npc whose
+ * `combat_target` was this player -- and it answered a question the reference
+ * never asks. LostCity's single-way rule is `%lastcombat` + 8 ticks
+ * (`[proc,player_in_combat_check]`, skill_combat/scripts/player/
+ * player_combat.rs2:89-110, and `[proc,npc_check_notcombat]`,
+ * skill_combat/scripts/npc/npc_combat.rs2:343-352), and `%lastcombat` is
+ * written in one place: `[proc,npc_set_attack_vars]` (npc_combat.rs2:338-341),
+ * i.e. when an npc SWINGS. An npc that has noticed a player and not yet swung
+ * has put him in no fight at all -- he may still attack something else, and a
+ * second monster may still notice him (LostCity_Server Npc.ts huntPlayers,
+ * the checkNotCombat test). Which of two walking monsters gets him is decided
+ * at the swing, by `npc_single_way_swing_refused` below, exactly as
+ * `[proc,npc_default_attack]` decides it (npc_combat.rs2:47-50).
+ *
+ * The sweep's cost was not theoretical. A Lumbridge giant spider that noticed
+ * the player across a fence and could never reach him held a `combat_target`
+ * for as long as he stood there, and for all of that time every Attack click
+ * said "I'm already under attack." and no other monster could engage, though
+ * nothing had ever hit him (make test-quest-cheats, cheats.passive_setup,
+ * seam22).
+ */
 
 /*
  * Stamp the claim — called from both ends of every swing.
@@ -2000,11 +2115,11 @@ ToriRSServer_CombatSinglewayRefuses(
         return 1;
     }
 
-    /* Already in a fight of our own with something else. Two questions, not
-     * one: the claim answers "was I just swinging at something", the sweep
-     * answers "is something swinging at me". Either alone leaves a hole — a
-     * monster that aggressed and has not yet swung has stamped no claim, and a
-     * monster we attacked that does not fight back sets no `combat_target`. */
+    /* Already in a fight of our own with something else: the claim, which a
+     * swing from either end stamps -- the reference's `%lastcombat` +
+     * `%aggressive_npc` (player_combat.rs2:103). A monster that has only
+     * noticed us has stamped nothing and refuses nothing; see the note above
+     * `ToriRSServer_CombatClaim`. */
     claimed = player_claimed_npc(srv, player);
     if( claimed >= 0 && claimed != slot &&
         !ToriRSServer_CombatMultiway(&srv->npcs[claimed]) )
@@ -2014,13 +2129,6 @@ ToriRSServer_CombatSinglewayRefuses(
             fprintf(stderr,
                     "torirsserver: single-way refuses slot=%d: still claimed by slot %d\n",
                     slot, claimed);
-        return 1;
-    }
-    if( other_npc_engaged_with(srv, player, slot) )
-    {
-        ToriRSServer_ScriptsRunProc(srv, "[proc,combat_singles_self_busy]", NULL, 0);
-        if( srv->verbose )
-            fprintf(stderr, "torirsserver: single-way refuses slot=%d: under attack\n", slot);
         return 1;
     }
     return 0;
@@ -2054,8 +2162,6 @@ ToriRSServer_CombatSinglewayNpcMayEngage(
     claimed = player_claimed_npc(srv, player);
     if( claimed >= 0 && claimed != slot &&
         !ToriRSServer_CombatMultiway(&srv->npcs[claimed]) )
-        return 0;
-    if( other_npc_engaged_with(srv, player, slot) )
         return 0;
     return 1;
 }
@@ -2219,7 +2325,7 @@ ToriRSServer_CombatEngage(
          * rather than the tick that continues it.
          */
         if( in_player_attack_range(srv, player, npc) )
-            ToriRSServer_WorldStepsClear(player);
+            player_route_ends_in_range(player);
         else
         {
             ToriRSServer_SceneNpcApproach(size, &approach);
@@ -2272,7 +2378,7 @@ ToriRSServer_CombatPlayerApproach(struct ToriRSServer* srv)
 
     if( in_player_attack_range(srv, player, npc) )
     {
-        ToriRSServer_WorldStepsClear(player);
+        player_route_ends_in_range(player);
         return;
     }
     /* Nothing else is walking the player while a combat target is set: every
@@ -2628,6 +2734,33 @@ maybe_aggress(
  * ours, and the split is the one PORTING_GUIDE §2.3 already documents for
  * hitpoints, the animation, the delay and the despawn.
  */
+/*
+ * The player an `[ai_queue3]` should run as: the one whose hit killed the npc,
+ * else the lowest-pid player still fighting it at the blow; -1 when the death
+ * credits nobody or the credited player has since logged out. Same rule as
+ * SS_OP_NPC_FINDHERO in torirs_server_scripts.c, which reads the same array.
+ */
+static int
+death_hero_pid(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc)
+{
+    int fallback = -1;
+
+    assert(srv);
+    assert(npc);
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
+        if( !npc->death_credit_players[i] || !srv->players[i].active )
+            continue;
+        if( npc->death_credit_players[i] == TORIRSSERVER_DEATH_CREDIT_HITTER )
+            return i;
+        if( fallback < 0 )
+            fallback = i;
+    }
+    return fallback;
+}
+
 static void
 npc_death_step(
     struct ToriRSServer* srv,
@@ -2743,7 +2876,37 @@ npc_death_step(
         srv->loot_credit_event_id = npc->loot_credit_event_id;
         memcpy(srv->loot_credit_players, npc->death_credit_players,
                sizeof(srv->loot_credit_players));
-        ToriRSServer_WorldNpcDied(srv, slot);
+        /*
+         * `[ai_queue3]` runs AS THE KILLER.
+         *
+         * This stage is reached from the npc phase, several ticks after the
+         * blow, and nothing there binds a player: `srv->active_player` is
+         * whatever `phase_clients_in` last pointed it at -- the last pid in the
+         * pool, not the one who fought. `run_trigger_impl` hands that leftover
+         * to the script as its primary player, and `npc_findhero` used to read
+         * it too, so with one player logged in at pid 0 everything looked
+         * right and with anybody else online a boss's finishing check
+         * (`[ai_queue3,count_draynor]`'s stake, `[ai_queue3,khazard_warlord]`'s
+         * orbs) asked the wrong player -- or, for pid > 0, got `pid + 1 != ^true`
+         * and fell through to `npc_default_death`. The reference runs this
+         * trigger with no player and lets `npc_findhero` bind the one with the
+         * most hero points (NpcOps.ts:129); binding the blow's owner here is
+         * that answer taken from what this npc recorded
+         * (`death_credit_players`), and it is also who `[proc,slayer_on_npc_kill]`
+         * inside `ToriRSServer_WorldNpcDied` has to credit.
+         *
+         * Nobody credited (an npc killed by an npc, or by a script with no
+         * player) leaves the binding as it was.
+         */
+        {
+            struct ToriRSServerPlayer* const saved_active = srv->active_player;
+            int const hero_pid = death_hero_pid(srv, npc);
+
+            if( hero_pid >= 0 )
+                ToriRSServer_WorldSetActive(srv, &srv->players[hero_pid]);
+            ToriRSServer_WorldNpcDied(srv, slot);
+            ToriRSServer_WorldSetActive(srv, saved_active);
+        }
         srv->loot_credit_armed = 0;
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         /* A drop script may npc_delay before it reaches obj_add. Keep the
@@ -2931,6 +3094,38 @@ npc_vs_npc_tick(
     return 1;
 }
 
+/*
+ * Must this npc's swing at `player` be abandoned, single-way?
+ *
+ * The reference's `[proc,npc_default_attack]` (LostCity_Content2
+ * skill_combat/scripts/npc/npc_combat.rs2:47-50) asks `~npc_check_notcombat`
+ * on every swing and, when the player was hit by a DIFFERENT npc in the last
+ * eight ticks, does `npc_setmode(null)` instead of attacking. That is how two
+ * monsters that both noticed a player sort themselves out: the first to swing
+ * has him, the second gives up on arrival. The zone that decides is the
+ * swinging npc's own tile (`map_multiway(npc_coord)`, "checks npc coord
+ * ALWAYS"), and the claim stands in for `%lastcombat` + `%aggressive_npc`.
+ * It is a little wider than the reference's: the claim is stamped by the
+ * player's swings too, so a monster the player is hitting that never swings
+ * back still keeps a second one off him -- the same width
+ * `ToriRSServer_CombatSinglewayRefuses` already gives the player's end.
+ */
+static int
+npc_single_way_swing_refused(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int slot)
+{
+    int claimed;
+
+    assert(srv);
+    assert(player);
+    if( ToriRSServer_CombatMultiway(&srv->npcs[slot]) )
+        return 0;
+    claimed = player_claimed_npc(srv, player);
+    return claimed >= 0 && claimed != slot;
+}
+
 void
 ToriRSServer_CombatNpcTick(
     struct ToriRSServer* srv,
@@ -3100,6 +3295,14 @@ ToriRSServer_CombatNpcTick(
 
     if( srv->tick < npc->attack_clock )
         return;
+    /* Somebody else hit this player first: give him up, as the reference's
+     * `npc_setmode(null)` does. Before the clock and the claim, so a refused
+     * swing stamps nothing. */
+    if( npc_single_way_swing_refused(srv, player, slot) )
+    {
+        ToriRSServer_CombatStopNpc(srv, slot);
+        return;
+    }
     npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
     /* The npc's half of the single-way claim, on the swing rather than on the
      * hit: a monster that misses you has still put you in combat, and the

@@ -1023,6 +1023,65 @@ World_ApplySecondaryAnim(
     }
 }
 
+/* rev-239 class106.method3620 (Deobfuscator/src_osrs239/deob/class106.java
+ * 1757-1781; LostCity Client.ts moveEntity 3725-3743), run by method3586
+ * right after the actor's move. An actor whose draw position has left the
+ * scene -- 128 .. (scene_size - 1) << 7 fine -- or the LOCAL player once it
+ * leaves 1536 .. 11776 (twelve tiles in from every edge), drops its exact
+ * move, primary seq, spotanim and route, and snaps to route[0].
+ *
+ * The case it exists for: an exact move still in flight when a far teleport
+ * lands. The rebuild shift parks the move's tiles on the 255 out-of-scene
+ * sentinel (world.c world_shift_mover), the teleport puts route[0] at the
+ * destination, and the exact mover then sets the draw position between two
+ * 255 tiles, ~32704 fine: a gray viewport and an empty minimap until the
+ * window closes, and a route walk back from off the map after it (seam26
+ * goto_clears_exactmove; seam27 client_exactmove_guard).
+ *
+ * An actor homed on a boat view (home_view != 0) carries VIEW-LOCAL
+ * coordinates, so neither window applies to it here: the deob tests it
+ * against its own worldview's size, and skips the local band for it
+ * outright (field1483 > 0). A draw position is unsigned, so a negative
+ * coordinate reads as huge and fails the upper bound. */
+static void
+World_ActorLeftSceneReset(
+    struct World const* world,
+    bool is_local_player,
+    struct WorldEntityFacet_ViewPlacement const* view_placement,
+    struct WorldEntityFacet_Pathing* pathing,
+    struct WorldEntityFacet_DrawPosition* draw_position,
+    struct WorldEntityFacet_ExactMove* exact,
+    struct WorldEntityFacet_Animation* animation,
+    struct WorldEntityFacet_EntitySpotanim* spotanim,
+    int size)
+{
+    if( view_placement->home_view != 0 )
+        return;
+
+    uint32_t const x = draw_position->x;
+    uint32_t const z = draw_position->z;
+    uint32_t const scene_limit = (uint32_t)((world->_scene_size - 1) << 7);
+    bool const off_scene = x < 128u || x >= scene_limit || z < 128u || z >= scene_limit;
+    bool const local_off_band =
+        is_local_player && (x < 1536u || x >= 11776u || z < 1536u || z >= 11776u);
+    if( !off_scene && !local_off_band )
+        return;
+
+    animation->primary.anim_id = (uint16_t)-1;
+    animation->primary.frame = 0;
+    animation->primary.cycle = 0;
+    animation->primary.delay = 0;
+    animation->primary.loop = 0;
+    spotanim->id = -1;
+    exact->move_end = 0;
+    exact->move_start = 0;
+    World_DrawPositionSet(
+        draw_position,
+        pathing->route_x[0] * 128 + size * 64,
+        pathing->route_z[0] * 128 + size * 64);
+    pathing->route_length = 0;
+}
+
 static void
 World_CycleUpdatePlayers(
     struct World* world,
@@ -1066,6 +1125,16 @@ World_CycleUpdatePlayers(
                 int seqId = World_UpdateMoverMovementAndAnimation(&info);
                 World_ApplySecondaryAnim(&player->animation, seqId);
             }
+            World_ActorLeftSceneReset(
+                world,
+                world->local_pid >= 0 && player->server_pid == world->local_pid,
+                &player->view_placement,
+                &player->pathing,
+                &player->draw_position,
+                &player->exact_move,
+                &player->animation,
+                &player->spotanim,
+                1);
             /* Reference moveEntity order: move (route or exact) -> entityFace
              * -> entityAnim. entityFace runs on both move branches. */
             {
@@ -1138,6 +1207,16 @@ World_CycleUpdateNpcs(
                 int seqId = World_UpdateMoverMovementAndAnimation(&info);
                 World_ApplySecondaryAnim(&npc->animation, seqId);
             }
+            World_ActorLeftSceneReset(
+                world,
+                false,
+                &npc->view_placement,
+                &npc->pathing,
+                &npc->draw_position,
+                &npc->exact_move,
+                &npc->animation,
+                &npc->spotanim,
+                size);
             {
                 int face_seq = World_EntityFace(
                     world,

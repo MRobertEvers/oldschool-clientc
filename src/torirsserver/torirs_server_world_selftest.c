@@ -19,6 +19,7 @@
 #include "torirs_server_equipment.h"
 #include "torirs_server_friends.h"
 #include "torirs_server_ids.h"
+#include "torirs_server_paramtable.h"
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
 #include "torirs_server_session.h"
@@ -467,6 +468,37 @@ selftest_tick(struct ToriRSServer* srv)
 {
     selftest_ack_scene(srv);
     ToriRSServer_WorldTick(srv);
+}
+
+/*
+ * Run a hand-built opcode list through the host VM: the `[selftest,...]`
+ * script literal the stanzas below otherwise spell out field by field.
+ */
+static int
+selftest_run_ops(
+    struct ToriRSServer* srv,
+    const char* name,
+    uint16_t* ops,
+    int32_t* operands,
+    char** strings,
+    int count)
+{
+    struct SSVM_Script script;
+
+    assert(name);
+    assert(ops);
+    assert(operands);
+    assert(strings);
+    memset(&script, 0, sizeof(script));
+    script.id = -1;
+    script.name = (char*)name;
+    script.source_path = (char*)"<selftest>";
+    script.lookup_key = -1;
+    script.op_count = count;
+    script.opcodes = ops;
+    script.int_operands = operands;
+    script.string_operands = strings;
+    return ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
 }
 
 
@@ -1868,6 +1900,122 @@ selftest_click_through(
 }
 
 /*
+ * selftest_click_through, but answering the chatmenus it meets with the given
+ * rows in order (the first menu gets rows[0], the next rows[1], ...), and row 1
+ * once the list runs out. For a conversation whose goal sits behind a path of
+ * choices -- a LostCity dialogue tree such as Mosol Rei's belt (whyrun ->
+ * whoisshe -> whatcanwe -> shaman -> wampumbelt) -- where always answering row 1
+ * walks away from it.
+ */
+static int
+selftest_answer_through(
+    struct ToriRSServer* srv,
+    int max_pages,
+    const int* rows,
+    int row_count)
+{
+    int clicks = 0;
+    int answered = 0;
+    int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+
+    assert(srv);
+    assert(rows);
+    while( clicks < max_pages && srv->active_player->active_script )
+    {
+        int uid;
+        uint8_t resume[6];
+
+        if( srv->active_player->resume_button_count <= 0 )
+            break;
+        uid = srv->active_player->resume_buttons[0];
+        resume[0] = (uint8_t)(uid >> 24);
+        resume[1] = (uint8_t)(uid >> 16);
+        resume[2] = (uint8_t)(uid >> 8);
+        resume[3] = (uint8_t)uid;
+        if( chatmenu > 0 && uid == chatmenu )
+        {
+            int row = answered < row_count ? rows[answered] : 1;
+
+            answered++;
+            resume[4] = 0;
+            resume[5] = (uint8_t)row;
+            selftest_handle(srv->active_player, PKTOUT_NAME_IF_BUTTON1, resume,
+                                 sizeof(resume));
+        }
+        else
+        {
+            selftest_handle(srv->active_player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        }
+        clicks++;
+    }
+    return clicks;
+}
+
+/*
+ * selftest_answer_through that also waits out a script's p_delay: a LostCity
+ * action often writes its stage first and does its loc_change / inv_add after
+ * a run of delays (the Shilo mound dig: five p_delay(1) before the fissure
+ * appears; the gallows: p_delay(2) before its question), and a click-only
+ * drain returns at the first delay, before the world has changed or the
+ * question has been asked. Clicks a registered button when there is one
+ * (answering chatmenus with `rows` in order, then row 1), otherwise ticks
+ * while the script is suspended.
+ */
+static int
+selftest_run_out_answering(
+    struct ToriRSServer* srv,
+    int max_rounds,
+    const int* rows,
+    int row_count)
+{
+    int rounds = 0;
+    int answered = 0;
+    int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+
+    assert(srv);
+    while( rounds < max_rounds && srv->active_player->active_script )
+    {
+        int exec = srv->active_player->active_script->execution;
+
+        if( srv->active_player->resume_button_count > 0 )
+        {
+            int uid = srv->active_player->resume_buttons[0];
+            int row = 1;
+
+            if( chatmenu > 0 && uid == chatmenu )
+            {
+                if( answered < row_count )
+                {
+                    assert(rows);
+                    row = rows[answered];
+                }
+                answered++;
+            }
+            selftest_answer_through(srv, 1, &row, 1);
+        }
+        else if( exec == SSVM_SUSPENDED || exec == SSVM_NPC_SUSPENDED ||
+                 exec == SSVM_WORLD_SUSPENDED )
+        {
+            selftest_tick(srv);
+        }
+        else
+        {
+            break;
+        }
+        rounds++;
+    }
+    return rounds;
+}
+
+static int
+selftest_run_out(
+    struct ToriRSServer* srv,
+    int max_rounds)
+{
+    return selftest_run_out_answering(srv, max_rounds, NULL, 0);
+}
+
+/*
  * Any live npc at all, for a proc that needs one bound but does not care which.
  *
  * `[proc,give_combat_experience]` is the case: it reads
@@ -2918,7 +3066,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                 player->stat_level[woodcutting] = 60;
                 player->stat_boosted[woodcutting] = 60;
                 ToriRSServer_VarbitSet(srv, state_bit, 0);
-                srv->rng = 0xca20e001u;
+                srv->world_random.engine = 0xca20e001u;
 
                 /* ---- Chop-down. State 0 -> 10, through the falling state. */
                 selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
@@ -3216,6 +3364,7 @@ selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 #include "test/quest_hazeelcult_selftest.u.h"
 #include "test/quest_biohazard_selftest.u.h"
 #include "test/quest_junglepotion_selftest.u.h"
+#include "test/quest_totem_selftest.u.h"
 #include "test/quest_mcannon_selftest.u.h"
 #include "test/quest_deathplateau_selftest.u.h"
 #include "test/quest_animalmagnetism_selftest.u.h"
@@ -3223,6 +3372,7 @@ selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 #include "test/quest_entertheabyss_selftest.u.h"
 #include "test/quest_eaglepeak_selftest.u.h"
 #include "test/quest_ghostsahoy_selftest.u.h"
+#include "test/combat_reach_flag_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -3375,6 +3525,33 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer junglepotion selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("junglepotion");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_TOTEM_ONLY") )
+    {
+        selftest_quest_totem(srv, player);
+        fprintf(stderr, "ToriRSServer totem selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("totem");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_DEATH_ONLY") )
+    {
+        selftest_quest_deathplateau(srv, player);
+        fprintf(stderr, "ToriRSServer deathplateau selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("deathplateau");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_MCANNON_ONLY") )
+    {
+        selftest_quest_mcannon(srv, player);
+        fprintf(stderr, "ToriRSServer mcannon selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("mcannon");
         return g_selftest_failures;
     }
 
@@ -5370,6 +5547,7 @@ ToriRSServer_WorldSelftest(void)
                         int32_t style_arg = style;
                         int accurate = -1;
 
+                        srv->script_random_pinned = 1;
                         SSVM_EnvSeed(srv->script_env, (uint64_t)seed);
                         if( ToriRSServer_ScriptsRunProcIntOnNpc(
                                 srv, roll_cases[c].proc, slots[c],
@@ -5520,6 +5698,7 @@ ToriRSServer_WorldSelftest(void)
                          seed < 4096 && seen_magic != 7; seed++ )
                     {
                         memset(player->queue, 0, sizeof(player->queue));
+                        srv->script_random_pinned = 1;
                         SSVM_EnvSeed(srv->script_env, (uint64_t)seed);
                         if( !ToriRSServer_ScriptsRunProcArgsOnNpc(
                                 srv, "[proc,gwd_boss_magic_fixed]", slots[3],
@@ -5546,6 +5725,7 @@ ToriRSServer_WorldSelftest(void)
                     selftest_prayer_toggle(
                         srv, "prayer_protectfrommagic");
                     memset(player->queue, 0, sizeof(player->queue));
+                    srv->script_random_pinned = 1;
                     SSVM_EnvSeed(
                         srv->script_env, (uint64_t)maximum_seed);
                     SELFTEST_CHECK(
@@ -5594,6 +5774,7 @@ ToriRSServer_WorldSelftest(void)
                         srv->npcs[slots[c]].active = 0;
                 memset(player->queue, 0, sizeof(player->queue));
                 SSVM_EnvSeed(srv->script_env, 0x5eed1234u);
+                srv->script_random_pinned = 0;
             }
 
             for( size_t i = 0;
@@ -9550,9 +9731,11 @@ ToriRSServer_WorldSelftest(void)
                     int minimum = -1;
                     int maximum = -1;
 
+                    srv->script_random_pinned = 1;
                     SSVM_EnvSeed(srv->script_env, 70054);
                     ToriRSServer_ScriptsRunProcInt(
                         srv, "[proc,random_range]", range_args, 2, &minimum);
+                    srv->script_random_pinned = 1;
                     SSVM_EnvSeed(srv->script_env, 5189);
                     ToriRSServer_ScriptsRunProcInt(
                         srv, "[proc,random_range]", range_args, 2, &maximum);
@@ -9565,6 +9748,7 @@ ToriRSServer_WorldSelftest(void)
                         minimum, maximum);
                 }
                 srv->script_env->rng = saved_rng;
+                srv->script_random_pinned = 0;
             }
 
             /* Boundary cases above prove every primary roll reaches the right
@@ -13059,6 +13243,342 @@ ToriRSServer_WorldSelftest(void)
             }
 
             /*
+             * seam31 script_vm_gaps_from_the_legends_port: the VM gaps the
+             * Legends' Quest port met and wrote around in content, each against
+             * the LostCity handler it now follows. No tick and no random roll
+             * in here -- this section shares the server clock and RNG stream
+             * with the fights after it (see the graphics stanza below).
+             */
+            fprintf(stderr, "ToriRSServer selftest: legends port VM gaps "
+                            "(.huntnext, loc reads after loc_del, obj_name, inv_dropitem)\n");
+            {
+                const int v_a = SELFTEST_VARP_GREETING_COUNT;
+                const int v_b = SELFTEST_VARP_QUEST_PROGRESS;
+                const int v_c = SELFTEST_VARP_LUMBRIDGE_VISITED;
+                const int32_t saved_a = player->varps[v_a];
+                const int32_t saved_b = player->varps[v_b];
+                const int32_t saved_c = player->varps[v_c];
+                const int32_t here = ToriRSServer_CoordPack(player->level, player->x, player->z);
+
+                ToriRSServer_WorldSetActive(srv, player);
+
+                /*
+                 * (1) `.huntnext` binds the SECONDARY player and leaves the
+                 * primary alone -- PlayerOps.ts HUNTNEXT, `state.activePlayer =
+                 * ...; pointerAdd(ActivePlayer[state.intOperand])`. LostCity's
+                 * `[proc,player_in_fire_octagram]` walks the other players with
+                 * `.huntnext` / `.coord`; here it bound the primary, and the
+                 * `.uid` below aborted for want of active_player2.
+                 */
+                {
+                    struct ToriRSServerPlayer* other = ToriRSServer_WorldAddPlayer(srv, NULL);
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_HUNTALL,
+                        SS_OP_HUNTNEXT,          SS_OP_POP_INT_DISCARD,
+                        SS_OP_UID,               SS_OP_POP_VARP,
+                        SS_OP_HUNTNEXT,          SS_OP_POP_INT_DISCARD,
+                        SS_OP_UID,               SS_OP_POP_VARP,
+                        SS_OP_UID,               SS_OP_POP_VARP,
+                        SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        here, 5, 0, 0,
+                        1, 0,
+                        1, v_a,
+                        1, 0,
+                        1, v_b,
+                        0, v_c,
+                        0,
+                    };
+                    char* strings[15] = { NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,dot_huntnext]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 15,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    int ran;
+                    int saw_player;
+                    int saw_other;
+
+                    assert(other);
+                    other->level = player->level;
+                    other->x = player->x;
+                    other->z = player->z;
+                    player->varps[v_a] = -7;
+                    player->varps[v_b] = -7;
+                    player->varps[v_c] = -7;
+                    ToriRSServer_WorldSetActive(srv, player);
+                    ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
+                    saw_player = player->varps[v_a] == player->pid + 1 ||
+                                 player->varps[v_b] == player->pid + 1;
+                    saw_other = player->varps[v_a] == other->pid + 1 ||
+                                player->varps[v_b] == other->pid + 1;
+                    SELFTEST_CHECK(ran && saw_player && saw_other,
+                                   ".huntnext should bind each hunted player as active_player2 "
+                                   "(.uid read %d then %d; want %d and %d in some order)",
+                                   player->varps[v_a], player->varps[v_b], player->pid + 1,
+                                   other->pid + 1);
+                    SELFTEST_CHECK(player->varps[v_c] == player->pid + 1,
+                                   ".huntnext should leave the primary player alone "
+                                   "(uid read %d, want %d)",
+                                   player->varps[v_c], player->pid + 1);
+                    other->active = 0;
+                    srv->player_count = player->pid + 1;
+                    ToriRSServer_WorldSetActive(srv, player);
+                }
+
+                /*
+                 * (2) Reads of a `loc_del`ed active loc answer from the removed
+                 * loc -- LocOps.ts LOC_DEL is `World.removeLoc(state.activeLoc,
+                 * ...)` and leaves the pointer; LOC_TYPE / LOC_ANGLE / LOC_COORD
+                 * read the Loc's own fields. Legends' fire wall deletes itself
+                 * and then reads type, angle and coord to walk the player
+                 * through; here the reads aborted "the active loc is gone".
+                 * Duration 0 on both, so nothing is queued to come back.
+                 */
+                {
+                    const int wall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC,
+                                                                "lqfirewall_straight");
+                    const int wall_x = player->x + 3;
+                    const int wall_z = player->z + 3;
+                    const int32_t wall_coord =
+                        ToriRSServer_CoordPack(player->level, wall_x, wall_z);
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                        SS_OP_LOC_TYPE,          SS_OP_POP_VARP,
+                        SS_OP_LOC_ANGLE,         SS_OP_POP_VARP,
+                        SS_OP_LOC_COORD,         SS_OP_POP_VARP,
+                        SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        wall_coord, wall, 3, 0, 0, 0,
+                        0, 0,
+                        0, v_a,
+                        0, v_b,
+                        0, v_c,
+                        0,
+                    };
+                    char* strings[15] = { NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,loc_reads_after_loc_del]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 15,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    int ran;
+
+                    SELFTEST_CHECK(wall >= 0, "lqfirewall_straight should resolve out of the pack");
+                    player->varps[v_a] = -7;
+                    player->varps[v_b] = -7;
+                    player->varps[v_c] = -7;
+                    ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
+                    SELFTEST_CHECK(ran && player->varps[v_a] == wall && player->varps[v_b] == 3 &&
+                                       player->varps[v_c] == wall_coord,
+                                   "loc_type/loc_angle/loc_coord after loc_del should read the "
+                                   "removed loc: got type %d angle %d coord %d, want %d 3 %d",
+                                   player->varps[v_a], player->varps[v_b], player->varps[v_c],
+                                   wall, wall_coord);
+                    SELFTEST_CHECK(ToriRSServer_SceneFindLocId(wall_x, wall_z, player->level,
+                                                               wall) < 0,
+                                   "the loc_del should still have removed the wall");
+                }
+
+                /*
+                 * (3) `inv_dropitem` then `obj_count` / `obj_name` on the pile
+                 * it made active -- InvOps.ts INV_DROPITEM (invDel, then one
+                 * Obj of what came out, World.addObj with the dropper as its
+                 * receiver, activeObj = it) and ObjOps.ts OBJ_NAME. Legends'
+                 * wrong rune on the marked wall and its gem take use them; both
+                 * were unimplemented opcodes.
+                 */
+                {
+                    const int rune = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "lawrune");
+                    const int backpack = ToriRSServer_Ids()->inv_backpack;
+                    struct ToriRSServerContainer* row =
+                        ToriRSServer_ContainerResolve(srv, player, backpack);
+                    char* rune_name = NULL;
+                    int free_slot = -1;
+                    int ground;
+                    int ran;
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_INV_DROPITEM,
+                        SS_OP_OBJ_COUNT,         SS_OP_POP_VARP,
+                        SS_OP_OBJ_NAME,          SS_OP_PUSH_CONSTANT_STRING,
+                        SS_OP_COMPARE,           SS_OP_POP_VARP,
+                        SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        backpack, here, rune, 2, 50, 0,
+                        0, v_a,
+                        0, 0,
+                        0, v_b,
+                        0,
+                    };
+                    char* strings[13] = { NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,inv_dropitem_obj_name]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 13,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    uint16_t none_ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_INV_DROPITEM,
+                        SS_OP_RETURN,
+                    };
+                    int32_t none_operands[] = { backpack, here, rune, 1, 50, 0, 0 };
+                    char* none_strings[7] = { NULL };
+                    struct SSVM_Script none_script = {
+                        .id = -1,
+                        .name = "[selftest,inv_dropitem_nothing_held]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 7,
+                        .opcodes = none_ops,
+                        .int_operands = none_operands,
+                        .string_operands = none_strings,
+                    };
+
+                    SELFTEST_CHECK(rune >= 0, "lawrune should resolve out of the pack");
+                    assert(row);
+                    for( int i = 0; i < row->slots; i++ )
+                    {
+                        if( row->items[i].obj_id < 0 )
+                        {
+                            free_slot = i;
+                            break;
+                        }
+                    }
+                    SELFTEST_CHECK(free_slot >= 0, "the backpack should have a free slot");
+                    SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, player->x, player->z,
+                                                                player->level, rune) < 0,
+                                   "no law rune should lie under the player before the drop");
+                    if( rune >= 0 && free_slot >= 0 )
+                    {
+                        /* The full-world fixture can occupy every floor slot
+                         * with map spawns (4096 of 4096 here); borrow the last
+                         * one and put its whole record back afterwards, as the
+                         * instance-release stanza does. */
+                        const int borrowed = TORIRSSERVER_GROUND_MAX - 1;
+                        const struct ToriRSServerGroundObj saved_ground = srv->ground[borrowed];
+
+                        if( srv->ground[borrowed].active )
+                            ground_clear(srv, borrowed);
+                        rune_name = (char*)ToriRSServer_ObjInfo(rune)->name;
+                        assert(rune_name);
+                        strings[9] = rune_name;
+                        ToriRSServer_ContainerSet(row, free_slot, rune, 3);
+                        player->varps[v_a] = -7;
+                        player->varps[v_b] = -7;
+                        ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
+                        SELFTEST_CHECK(ran && row->items[free_slot].obj_id == rune &&
+                                           row->items[free_slot].count == 1,
+                                       "inv_dropitem(inv, coord, lawrune, 2, 50) should take 2 of "
+                                       "3 out, left %d x %d",
+                                       row->items[free_slot].obj_id, row->items[free_slot].count);
+                        ground = ToriRSServer_WorldGroundFind(srv, player->x, player->z,
+                                                              player->level, rune);
+                        {
+                            int active_ground = 0;
+
+                            for( int i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
+                                active_ground += srv->ground[i].active ? 1 : 0;
+                            SELFTEST_CHECK(ground >= 0 && srv->ground[ground].count == 2 &&
+                                               srv->ground[ground].receiver_pid == player->pid,
+                                           "inv_dropitem should land one pile of 2 owned by the "
+                                           "dropper (slot %d, count %d, receiver %d; %d of %d "
+                                           "ground slots in use)",
+                                           ground, ground >= 0 ? srv->ground[ground].count : -1,
+                                           ground >= 0 ? srv->ground[ground].receiver_pid : -2,
+                                           active_ground, TORIRSSERVER_GROUND_MAX);
+                        }
+                        SELFTEST_CHECK(player->varps[v_a] == 2,
+                                       "inv_dropitem should make its pile the active obj "
+                                       "(obj_count read %d)",
+                                       player->varps[v_a]);
+                        SELFTEST_CHECK(player->varps[v_b] == 0,
+                                       "obj_name should name the active pile '%s' (compare %d)",
+                                       rune_name, player->varps[v_b]);
+                        if( ground >= 0 )
+                            ground_clear(srv, ground);
+                        ToriRSServer_ContainerSet(row, free_slot, -1, 0);
+
+                        /* Nothing held, nothing lands: `completed == 0` returns. */
+                        ran = ToriRSServer_ScriptsRunHook(srv, &none_script, NULL, 0);
+                        SELFTEST_CHECK(ran && ToriRSServer_WorldGroundFind(srv, player->x,
+                                                                          player->z,
+                                                                          player->level,
+                                                                          rune) < 0,
+                                       "inv_dropitem of an obj the player does not hold should "
+                                       "drop nothing");
+                        srv->ground[borrowed] = saved_ground;
+                        ToriRSServer_ZoneObjRefile(srv, borrowed);
+                    }
+                }
+
+                player->varps[v_a] = saved_a;
+                player->varps[v_b] = saved_b;
+                player->varps[v_c] = saved_c;
+                ToriRSServer_WorldSetActive(srv, player);
+            }
+
+            /*
+             * (4) The heart-crystal pieces' furnace bits. LostCity states them
+             * as `param=crystal_bit,^legends_smelting_chunk` / `_hunk` / `_lump`
+             * (LostCity_Content2 quest_legends/configs/quest_legends.obj:464,
+             * :476, :489). Without the param every piece read 0 and the furnace
+             * answered "already placed" to the second one (seam30 s30_leg5).
+             * Pinned against the constants rather than the numbers, so the
+             * `.obj` may spell them either way; with `^names` in the config
+             * this is also the `.obj` reader's `^constant` path (a value it
+             * cannot resolve is a content error, which "the content tree should
+             * load clean" above reports).
+             */
+            {
+                static const char* const pieces[3][2] = {
+                    { "heartcrystal_sectiona", "legends_smelting_chunk" },
+                    { "heartcrystal_sectionb", "legends_smelting_hunk" },
+                    { "heartcrystal_sectionc", "legends_smelting_lump" },
+                };
+                const int crystal_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM,
+                                                                   "crystal_bit");
+
+                SELFTEST_CHECK(crystal_bit >= 0, "crystal_bit should resolve out of the pack");
+                for( int i = 0; i < 3 && crystal_bit >= 0; i++ )
+                {
+                    const int piece = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ,
+                                                                 pieces[i][0]);
+                    const struct ToriRSServerObjParam* bit =
+                        piece >= 0 ? ToriRSServer_ObjParam(piece, crystal_bit) : NULL;
+                    const int want = ToriRSServer_ContentConstantInt(pieces[i][1], -1);
+
+                    SELFTEST_CHECK(bit && want > 0 && bit->ival == want,
+                                   "%s should carry crystal_bit = ^%s (%d), got %d",
+                                   pieces[i][0], pieces[i][1], want, bit ? bit->ival : -1);
+                }
+            }
+
+            /*
              * The two coordinate-addressed graphics ops, in one script and one
              * tick.
              *
@@ -15921,6 +16441,128 @@ ToriRSServer_WorldSelftest(void)
                 "sanfew row 1 must leave chatmenu:options (not refuse fallthrough)");
 
             selftest_click_through(srv, 8);
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: a multinpc speaker's chat header is its child's name\n");
+    {
+        /*
+         * `npc_name` names the record the CLIENT drew, which for a multinpc
+         * shell is the child the player's varps pick (rs317client
+         * Client.createNpcMenu: `definition = definition.morph()` before
+         * `getName()`). Every shell is nameless in the cache, so reading the
+         * spawned record put "Someone" in the header of 318 multinpc speakers
+         * while the menu over the same npc said "Talk-to Avan".
+         *
+         * Avan is the subject because his two children disagree: `crestquest`
+         * 0..5 picks avan_fitzharmon_man ("Man"), 6..11 an
+         * avan_fitzharmon_avan_* child ("Avan"). A static name on the shell
+         * could satisfy one stage, never both. Stage 0 and stage 6 both open on
+         * a `~chatnpc_anim` page (crest_avan.rs2 `avan_talk`, `avan_gold`), so
+         * the first page's IF_SETTEXTs carry the header either way.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct ToriRSServerCapture capture;
+            static const struct
+            {
+                int stage;
+                const char* want;
+            } k_stages[] = {
+                { 0, "Man" },
+                { 6, "Avan" },
+            };
+            int avan_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "avan");
+            int crestquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "crestquest");
+            int settext = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_SETTEXT);
+            /* Both random streams go back where they were found: a spawn and a
+             * dialogue draw from them, and the combat section's goblin fight
+             * is a seeded walk that fails eight rows when this stanza shifts
+             * its stream (measured: 6 -> 13 failures without the restore). */
+            uint32_t saved_rng = srv->world_random.engine;
+            uint64_t saved_script_rng = srv->script_env->rng;
+
+            SELFTEST_CHECK(avan_type > 0, "npc avan should resolve by name");
+            SELFTEST_CHECK(crestquest >= 0, "varp crestquest should resolve by name");
+            if( avan_type > 0 && crestquest >= 0 )
+            {
+                int32_t saved = player->varps[crestquest];
+
+                SELFTEST_CHECK(!ToriRSServer_NpcInfoKnown(avan_type),
+                               "the avan shell is nameless in the cache, which is "
+                               "the whole bug");
+                for( size_t i = 0; i < sizeof(k_stages) / sizeof(k_stages[0]); i++ )
+                {
+                    int slot;
+                    int child;
+                    int saw_want = 0;
+                    int saw_someone = 0;
+
+                    selftest_clear_pending(srv, player);
+                    player->varps[crestquest] = k_stages[i].stage;
+                    child = ToriRSServer_NpcResolveTransform(player, avan_type);
+                    SELFTEST_CHECK(child >= 0 && child != avan_type &&
+                                       ToriRSServer_NpcInfoKnown(child) &&
+                                       strcmp(ToriRSServer_NpcInfo(child)->name,
+                                              k_stages[i].want) == 0,
+                                   "crestquest %d should resolve avan to a child "
+                                   "named '%s', got %d '%s'",
+                                   k_stages[i].stage, k_stages[i].want, child,
+                                   child >= 0 ? ToriRSServer_NpcInfo(child)->name : "");
+
+                    slot = ToriRSServer_WorldNpcSpawn(
+                        srv, avan_type, player->x + 1, player->z, player->level);
+                    SELFTEST_CHECK(slot >= 0, "avan spawns beside the player");
+                    if( slot < 0 )
+                        continue;
+                    srv->npcs[slot].spawn_pending = 0;
+
+                    ToriRSServer_CaptureBegin(srv, &capture);
+                    SELFTEST_CHECK(
+                        ToriRSServer_ScriptsRunTrigger(
+                            srv, SS_TRIGGER_OPNPC1, avan_type, -1, slot) ==
+                            TORIRSSERVER_TRIGGER_RAN,
+                        "[opnpc1,avan] should run at crestquest %d", k_stages[i].stage);
+                    ToriRSServer_CaptureEnd(srv);
+
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        const char* text;
+
+                        if( capture.packets[p].opcode != settext )
+                            continue;
+                        text = selftest_settext_text(srv, &capture.packets[p]);
+                        if( !text )
+                            continue;
+                        if( strcmp(text, k_stages[i].want) == 0 )
+                            saw_want = 1;
+                        if( strcmp(text, "Someone") == 0 )
+                            saw_someone = 1;
+                    }
+                    SELFTEST_CHECK(saw_want,
+                                   "at crestquest %d the chat header should read '%s'",
+                                   k_stages[i].stage, k_stages[i].want);
+                    SELFTEST_CHECK(!saw_someone,
+                                   "at crestquest %d no header may read 'Someone'",
+                                   k_stages[i].stage);
+
+                    selftest_clear_pending(srv, player);
+                    ToriRSServer_WorldNpcFree(srv, slot);
+                }
+                player->varps[crestquest] = saved;
+            }
+            srv->world_random.engine = saved_rng;
+            srv->script_env->rng = saved_script_rng;
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -19001,6 +19643,16 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
+            /* That bite parked `~eat_food` on its p_delay again, and a delayed
+             * player's OPHELD is refused and his OPNPC only latches (LostCity's
+             * `player.delayed`, OpHeldHandler.ts:16; seam24). Run it out so the
+             * sections below are asked of an idle player. */
+            for( int i = 0; i < 4 && player->active_script; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "the second bite's eat delay should have run out");
+            for( int i = 0; i < 8 && srv->tick < player->delayed_until; i++ )
+                selftest_tick(srv);
 
             /* An obj with no [opheld] script must still reach the engine's own
              * verb table — the fallback that keeps the mock usable without a
@@ -19100,6 +19752,7 @@ ToriRSServer_WorldSelftest(void)
         static struct ToriRSServerCapture capture;
         int goblin = -1;
         int xp_before[TORIRSSERVER_STAT_COUNT] = { 0 };
+        int hp_saved[4] = { 0 };
 
         /*
          * Combat needs the content pack, and that is new.
@@ -19846,6 +20499,31 @@ ToriRSServer_WorldSelftest(void)
             player->x = npc->x + 1;
             player->z = npc->z;
             steps_clear(player);
+            /*
+             * Hitpoints as a real account has them. Content's `[login]` gives a
+             * new player level 10 hitpoints (1154 xp) and this fixture never
+             * runs it, so the player used to fight on 1 hitpoint and the
+             * section passed only while the one world RNG happened to hand the
+             * goblin misses: the Gnome Exam's archaeological expert spawn
+             * (m52_52) shifted that stream and ten rows here went red with the
+             * player dead at t=18 (parity3b close, step 2b). The fight is now
+             * on the player's own stream (seam28 per_entity_random_streams),
+             * and on a player who can take a goblin's hit.
+             *
+             * Put back after the fight (below): every later section was
+             * written against the 1-hitpoint fixture -- a player who SURVIVES
+             * a later hit keeps an inventory those sections' setups expected a
+             * death to have emptied (crest, tree, sheepherder, arena, CoX and
+             * gear runs all fill up; measured seam28).
+             */
+            hp_saved[0] = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
+            hp_saved[1] = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+            hp_saved[2] = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+            hp_saved[3] = player->max_hitpoints;
+            player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = 11540;
+            player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 10;
+            player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 10;
+            player->max_hitpoints = 10;
             player->hitpoints = player->max_hitpoints;
 
             /*
@@ -19965,6 +20643,19 @@ ToriRSServer_WorldSelftest(void)
                 player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] - xp_before[TORIRSSERVER_STAT_ATTACK],
                 player->stat_xp_tenths[TORIRSSERVER_STAT_STRENGTH] - xp_before[TORIRSSERVER_STAT_STRENGTH],
                 player->stat_xp_tenths[TORIRSSERVER_STAT_DEFENCE] - xp_before[TORIRSSERVER_STAT_DEFENCE]);
+
+            /* The fixture's own hitpoints back, plus what the kill paid -- the
+             * state every later section was written against (see above). */
+            {
+                int gained = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] - 11540;
+
+                player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_saved[0] + gained;
+                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_saved[1];
+                player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = hp_saved[2];
+                player->max_hitpoints = hp_saved[3];
+                if( player->hitpoints > player->max_hitpoints )
+                    player->hitpoints = player->max_hitpoints;
+            }
 
             /* Corpse despawns, then respawns at its spawn tile at full health.
              * Both windows come off the npc's own record, so a tree that gives
@@ -21232,6 +21923,20 @@ ToriRSServer_WorldSelftest(void)
     fprintf(stderr, "ToriRSServer selftest: login burst\n");
     {
         static struct ToriRSServerCapture capture;
+        /*
+         * This is the fixture's FIRST `[login]`, so `~newplayer_setup` hands
+         * out the opening kit on top of the kit the fixture already carries:
+         * 14 slots became 26. Every later section was measured on whatever a
+         * goblin fight happened to leave behind -- on the 1-hitpoint fixture
+         * the goblin killed the player, the death kept three items and the
+         * inventory had room. With the fight on real hitpoints (seam28) the
+         * player lives, and crest, tree, sheepherder, arena, CoX and gear runs
+         * found 28 slots full. Put the inventory back: the kit is not this
+         * stanza's subject, the packet order is.
+         */
+        struct ToriRSServerItem login_saved_inv[TORIRSSERVER_INV_SLOTS];
+
+        memcpy(login_saved_inv, player->inv, sizeof(login_saved_inv));
         int old_x = player->x;
         int old_z = player->z;
         int old_level = player->level;
@@ -21666,6 +22371,8 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
         }
+        memcpy(player->inv, login_saved_inv, sizeof(login_saved_inv));
+        player->inv_dirty = 0xfffffffu;
     }
 
     fprintf(stderr, "ToriRSServer selftest: client layout persistence\n");
@@ -25315,7 +26022,7 @@ ToriRSServer_WorldSelftest(void)
                  */
                 saved_xp = player->stat_xp_tenths[woodcutting];
                 player->stat_xp_tenths[woodcutting] = ToriRSServer_CombatXpForLevel(30) * 10;
-                srv->rng = 0x5eed1234u;
+                srv->world_random.engine = 0x5eed1234u;
 
                 placed = ToriRSServer_WorldLocSet(srv, tree_x, tree_z, 0, tree_shape, willow, 0,
                                                TORIRSSERVER_LOC_SET_ADD);
@@ -25526,7 +26233,7 @@ ToriRSServer_WorldSelftest(void)
                  * message pointing at npc 611 and nothing at a ship. A section
                  * that puts the stream back where it found it cannot do that to
                  * whatever is written after it. */
-                uint32_t saved_rng = srv->rng;
+                uint32_t saved_rng = srv->world_random.engine;
                 uint8_t payload[2];
                 int refused = 0;
                 /* Resolved out of the table rather than written down: Catherby
@@ -25665,7 +26372,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_park_player(srv, entry_x, entry_z);
                 memcpy(player->inv, saved_inv, sizeof(saved_inv));
                 player->inv_dirty = 0xfffffffu;
-                srv->rng = saved_rng;
+                srv->world_random.engine = saved_rng;
             }
             if( owned )
                 ToriRSServer_ScriptsFree(srv);
@@ -26885,7 +27592,12 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_gate,
                                                     ToriRSServer_LocCategory(loc_gate), slot);
             selftest_tick(srv);
-            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2727, 9690, 0, loc_gate_open) < 0,
+            /*
+             * The gate swings like the pack's other doors (~door_open_active,
+             * seam25): the open record lands one tile east, 2728,9690, not on
+             * the closed record's own edge (which left the wall standing).
+             */
+            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2728, 9690, 0, loc_gate_open) < 0,
                            "the gate must not open on the wrong combination");
 
             /* Pull leverh again: up -> down. Combination is now correct. */
@@ -26904,7 +27616,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_gate,
                                                     ToriRSServer_LocCategory(loc_gate), slot);
             selftest_tick(srv);
-            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2727, 9690, 0, loc_gate_open) >= 0,
+            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2728, 9690, 0, loc_gate_open) >= 0,
                            "the gate should open once leverh reads down and leveri2 reads up");
 
             /*
@@ -27239,6 +27951,40 @@ ToriRSServer_WorldSelftest(void)
                         }
                     SELFTEST_CHECK(found_khazard,
                                    "General Khazard should spawn once the ogre is defeated");
+                }
+            }
+
+            /* The optional fourth fight: after the Bouncer the General is fought as his
+             * attackable form (general_khazard, the cache record that carries Attack);
+             * [ai_queue3,general_khazard] must advance freed_servils to defeated_genkhazard. */
+            {
+                int npc_general_khazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_khazard");
+                const int arena_freed_servils = 12;
+                const int arena_defeated_genkhazard = 13;
+                int general_slot;
+
+                SELFTEST_CHECK(npc_general_khazard >= 0, "general_khazard should resolve as an npc symbol");
+                if( varp_arenaquest >= 0 )
+                    player->varps[varp_arenaquest] = arena_freed_servils;
+                general_slot = ToriRSServer_WorldNpcSpawn(srv, npc_general_khazard, 2601, 3163, 0);
+                SELFTEST_CHECK(general_slot >= 0, "general_khazard should spawn");
+                if( general_slot >= 0 && varp_arenaquest >= 0 )
+                {
+                    struct ToriRSServerNpc* general = &srv->npcs[general_slot];
+                    int t;
+
+                    ToriRSServer_WorldNpcSetOwner(general, player);
+                    SELFTEST_CHECK(general->max_hitpoints == 170,
+                                   "general_khazard hitpoints should match quest_arena.npc (170), got %d",
+                                   general->max_hitpoints);
+                    general->combat_target = player->pid;
+                    ToriRSServer_CombatHitNpc(srv, general_slot, 0, general->max_hitpoints);
+                    for( t = 0; t < 5 && player->varps[varp_arenaquest] != arena_defeated_genkhazard; t++ )
+                        selftest_tick(srv);
+                    SELFTEST_CHECK(player->varps[varp_arenaquest] == arena_defeated_genkhazard,
+                                   "killing general_khazard should advance arenaquest to "
+                                   "arena_defeated_genkhazard, got %d",
+                                   player->varps[varp_arenaquest]);
                 }
             }
 
@@ -34965,11 +35711,24 @@ ToriRSServer_WorldSelftest(void)
                     player->inv[whip_slot].obj_id = -1;
                     player->inv[whip_slot].count = 0;
                 }
-                /* And a free cell strictly below wherever the whip now is. */
-                if( selftest_find(player, whip) > 0 )
+                /* And a free cell strictly below wherever the whip now is --
+                 * made by clearing the lowest cell that is not one of this
+                 * stanza's own items. It used to clear cell 0 whatever it held,
+                 * and once the inventory above this section changed shape
+                 * (seam28: the login burst no longer leaves a second opening
+                 * kit behind) cell 0 held the helm leg 5 drops. */
+                whip_slot = selftest_find(player, whip);
+                if( whip_slot > 0 &&
+                    !(inv_first_free(player) >= 0 && inv_first_free(player) < whip_slot) )
                 {
-                    player->inv[0].obj_id = -1;
-                    player->inv[0].count = 0;
+                    for( int c = 0; c < whip_slot; c++ )
+                    {
+                        if( player->inv[c].obj_id == helm || player->inv[c].obj_id == scimitar )
+                            continue;
+                        player->inv[c].obj_id = -1;
+                        player->inv[c].count = 0;
+                        break;
+                    }
                 }
             }
 
@@ -35304,6 +36063,74 @@ ToriRSServer_WorldSelftest(void)
                            "slot 40 came back (%d)", row ? row->items[40].obj_id : -1);
             SELFTEST_CHECK(row && row->items[40].count == 7, "with its count");
             remove(path);
+        }
+
+        /* 5b. A quest-harness LEG CHECKPOINT (seam30 leg_checkpoints,
+         *     docs/quest_authoring/relay.md "Checkpoints") is the same
+         *     serialiser in checkpoint mode: it keeps what a logout drops --
+         *     a scope=temp varp (a quest's in-session progress flag) and the
+         *     player's own random stream (seam28) -- and `::checkpoint` is
+         *     refused, naming why, at a point that is not quiet. */
+        {
+            const char* logout_path = "build/selftest_checkpoint_logout.ini";
+            const char* ckpt_path = ToriRSServer_CheckpointPath(9);
+            int temp_varp = -1;
+            struct ToriRSServerRandomStream saved_random;
+            char text[4096];
+            size_t got = 0;
+            FILE* file;
+            int saved_chatmodal = player->chatmodal_group;
+
+            for( int varp = 1; varp < TORIRSSERVER_VARP_COUNT && temp_varp < 0; varp++ )
+            {
+                const struct ToriRSServerVarpDef* def = ToriRSServer_ContentVarp(varp);
+
+                if( def && !def->scope_perm && player->varps[varp] == 0 )
+                    temp_varp = varp;
+            }
+            SELFTEST_CHECK(temp_varp > 0, "the pack declares a scope=temp varp to carry");
+            if( temp_varp > 0 )
+            {
+                player->varps[temp_varp] = 4242;
+                ToriRSServer_WorldPlayerRandom(player);
+                player->random.engine = 0x1234567u;
+                player->random.script = 0x0000BEEF12345678ull;
+                saved_random = player->random;
+
+                SELFTEST_CHECK(ToriRSServer_SavePlayer(player, logout_path), "logout save written");
+                file = fopen(logout_path, "rb");
+                got = file ? fread(text, 1, sizeof(text) - 1, file) : 0;
+                if( file )
+                    fclose(file);
+                text[got] = '\0';
+                SELFTEST_CHECK(strstr(text, "[random]") == NULL,
+                               "a logout save carries no [random] section");
+                remove(logout_path);
+
+                player->chatmodal_group = 219;
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, player, "checkpoint 9") ==
+                                   TORIRSSERVER_TRIGGER_FAILED,
+                               "::checkpoint is refused while a dialogue is open");
+                player->chatmodal_group = saved_chatmodal;
+                remove(ckpt_path);
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, player, "checkpoint 9") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::checkpoint writes at a quiet point");
+
+                player->varps[temp_varp] = 0;
+                player->random.engine = 1;
+                player->random.script = 1;
+                SELFTEST_CHECK(ToriRSServer_LoadPlayer(player, ckpt_path), "checkpoint read back");
+                SELFTEST_CHECK(player->varps[temp_varp] == 4242,
+                               "the scope=temp varp %d came back from the checkpoint (%d)",
+                               temp_varp, (int)player->varps[temp_varp]);
+                SELFTEST_CHECK(player->random.engine == saved_random.engine &&
+                                   player->random.script == saved_random.script &&
+                                   player->random.seeded == saved_random.seeded,
+                               "and so did the player's random stream");
+                player->varps[temp_varp] = 0;
+                remove(ckpt_path);
+            }
         }
 
         /* 6. The defect the three-case shape was causing, pinned.
@@ -35927,6 +36754,208 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK((settings & 4 /* REMOVE_ROOF */) != 0,
                                    "and the roof the restriction reads is really on his "
                                    "spawn tile, settings 0x%x", settings);
+            }
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: one npc's walk does not depend on the rest of the world\n");
+    {
+        /*
+         * The world used to hold ONE random stream, and every wanderer drew
+         * its 1-in-8 roll from it each tick in pool order. So a spawn row
+         * added ANYWHERE changed every other npc's walk: Death Plateau's
+         * soldier ambience, the Gnome Exam's archaeological expert and Temple
+         * of Ikov's Lucien each turned a committed quest test red by moving a
+         * cat, a sheep or a tree-keeper somewhere else (parity3a/3b; seam28
+         * per_entity_random_streams). Each npc now owns a stream seeded from
+         * its spawn tile and type, never its slot.
+         *
+         * This pins it: stand one wanderer up, record its first 50 tiles,
+         * take it down, stand an unrelated wanderer up on the far side of the
+         * scene, stand the first one up again on the same spawn, and the 50
+         * tiles are identical. The subject is chosen with no other npc's box
+         * near its own, so what could differ between the runs is the draws,
+         * not a body in the way.
+         *
+         * Both of those stand-ups are the key's FIRST life (its lives are
+         * forgotten before each): what they pin is the unrelated npc. A third
+         * stand-up that keeps the count is the key's next life and must NOT
+         * replay the stream -- every `::spawn imp` on one tile used to be the
+         * same imp, so a kill's drop was a function of the fight's length and
+         * a yellow bead never fell (seam29).
+         */
+        struct ToriRSServerNpc* subject = NULL;
+        struct ToriRSServerNpc* far_npc = NULL;
+
+        /* tree-walk-exempt: selftest, not the frame loop. */
+        for( int i = 0; i < srv->npc_slot_max && !subject; i++ )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[i];
+            int crowded = 0;
+
+            if( !npc->active || npc->mode != TORIRSSERVER_NPCMODE_WANDER ||
+                npc->wander_radius < 2 || npc->wander_radius > 8 ||
+                (npc->size > 0 && npc->size != 1) || npc->combat_target >= 0 ||
+                npc->combat_target_npc >= 0 || npc->death_tick >= 0 ||
+                npc->huntmode != TORIRSSERVER_HUNT_NONE || npc->timer_interval > 0 ||
+                npc->owner_gen != 0 || npc_player_range(npc, player) < 16 ||
+                !ToriRSServer_SceneContains(npc->spawn_x - npc->wander_radius,
+                                            npc->spawn_z - npc->wander_radius) ||
+                !ToriRSServer_SceneContains(npc->spawn_x + npc->wander_radius,
+                                            npc->spawn_z + npc->wander_radius) )
+                continue;
+            for( int j = 0; j < srv->npc_slot_max && !crowded; j++ )
+            {
+                const struct ToriRSServerNpc* other = &srv->npcs[j];
+                /* Boxes that cannot touch: neither npc's roll can aim at a
+                 * tile the other's can. */
+                int reach = npc->wander_radius + other->wander_radius + 1;
+
+                if( j == i || !other->active || other->level != npc->spawn_level )
+                    continue;
+                if( abs(other->spawn_x - npc->spawn_x) <= reach &&
+                    abs(other->spawn_z - npc->spawn_z) <= reach )
+                    crowded = 1;
+            }
+            if( !crowded )
+                subject = npc;
+        }
+        SELFTEST_CHECK(subject != NULL,
+                       "a lone 1x1 wanderer (radius 2..8, no hunt, no timer) 16+ tiles from "
+                       "the player should exist in the scene");
+        if( subject )
+        {
+            int type = subject->spawn_type;
+            int spawn_x = subject->spawn_x;
+            int spawn_z = subject->spawn_z;
+            int spawn_level = subject->spawn_level;
+            int tiles[3][50][2];
+            int counted[3] = { 0, 0, 0 };
+            int took[3] = { 0, 0, 0 };
+            int far_slot = -1;
+
+            for( int run = 0; run < 3; run++ )
+            {
+                int slot;
+                struct ToriRSServerNpc* walker;
+                int last_x;
+                int last_z;
+
+                /* Take the subject (or the previous run's copy) down and let
+                 * the reap clear its slot, so the stand-up below is a spawn. */
+                ToriRSServer_WorldNpcFree(srv, (int)(subject - srv->npcs));
+                ToriRSServer_WorldNpcReap(srv);
+
+                if( run == 1 )
+                {
+                    /* The unrelated wanderer, on the far side of the scene:
+                     * the tile farthest from the subject's spawn that some
+                     * other npc already stands on (so it is a real, standable
+                     * spawn), of the subject's own type so it rolls every tick
+                     * the same way. */
+                    int best = -1;
+                    int best_distance = -1;
+
+                    for( int j = 0; j < srv->npc_slot_max; j++ )
+                    {
+                        const struct ToriRSServerNpc* other = &srv->npcs[j];
+                        int dx;
+                        int dz;
+                        int distance;
+
+                        if( !other->active || other->level != spawn_level ||
+                            !ToriRSServer_SceneContains(other->x, other->z) )
+                            continue;
+                        dx = abs(other->x - spawn_x);
+                        dz = abs(other->z - spawn_z);
+                        distance = dx > dz ? dx : dz;
+                        if( distance > best_distance )
+                        {
+                            best = j;
+                            best_distance = distance;
+                        }
+                    }
+                    SELFTEST_CHECK(best >= 0 && best_distance >= 30,
+                                   "a far-side tile 30+ tiles from the subject should exist, "
+                                   "got %d", best_distance);
+                    if( best >= 0 )
+                        far_slot = npc_spawn(srv, type, srv->npcs[best].x, srv->npcs[best].z,
+                                             spawn_level);
+                    SELFTEST_CHECK(far_slot >= 0, "the unrelated far-side wanderer should spawn");
+                    if( far_slot >= 0 )
+                        far_npc = &srv->npcs[far_slot];
+                }
+
+                if( run < 2 )
+                    memset(srv->npc_seed_lives, 0, sizeof(srv->npc_seed_lives));
+                slot = npc_spawn(srv, type, spawn_x, spawn_z, spawn_level);
+                SELFTEST_CHECK(slot >= 0, "the subject should stand up again on its spawn");
+                if( slot < 0 )
+                    break;
+                walker = &srv->npcs[slot];
+                subject = walker;
+                last_x = walker->x;
+                last_z = walker->z;
+                for( int tick = 0; tick < 4000 && counted[run] < 50; tick++ )
+                {
+                    advance_npcs(srv);
+                    srv->tick++;
+                    took[run]++;
+                    if( walker->x != last_x || walker->z != last_z )
+                    {
+                        tiles[run][counted[run]][0] = walker->x;
+                        tiles[run][counted[run]][1] = walker->z;
+                        counted[run]++;
+                        last_x = walker->x;
+                        last_z = walker->z;
+                    }
+                }
+            }
+            SELFTEST_CHECK(counted[0] == 50 && counted[1] == 50,
+                           "the subject (type %d, spawn %d,%d) should take 50 steps in each run, "
+                           "took %d and %d",
+                           type, spawn_x, spawn_z, counted[0], counted[1]);
+            fprintf(stderr, "  subject type %d spawn %d,%d: 50 tiles in %d and %d ticks\n", type,
+                    spawn_x, spawn_z, took[0], took[1]);
+            SELFTEST_CHECK(far_npc == NULL || far_npc->x != far_npc->spawn_x ||
+                               far_npc->z != far_npc->spawn_z || far_npc->waypoint_index >= 0 ||
+                               far_npc->stuck_counter > 0,
+                           "the far-side wanderer should have been ticking alongside it");
+            if( counted[0] == 50 && counted[1] == 50 )
+            {
+                int first_diff = -1;
+
+                for( int k = 0; k < 50 && first_diff < 0; k++ )
+                    if( tiles[0][k][0] != tiles[1][k][0] || tiles[0][k][1] != tiles[1][k][1] )
+                        first_diff = k;
+                SELFTEST_CHECK(first_diff < 0,
+                               "the subject's first 50 tiles should not change when an unrelated "
+                               "npc stands up across the map: step %d went %d,%d then %d,%d",
+                               first_diff, first_diff >= 0 ? tiles[0][first_diff][0] : 0,
+                               first_diff >= 0 ? tiles[0][first_diff][1] : 0,
+                               first_diff >= 0 ? tiles[1][first_diff][0] : 0,
+                               first_diff >= 0 ? tiles[1][first_diff][1] : 0);
+            }
+            SELFTEST_CHECK(counted[2] == 50,
+                           "the subject's next life should take 50 steps too, took %d",
+                           counted[2]);
+            fprintf(stderr, "  its next life: 50 tiles in %d ticks\n", took[2]);
+            if( counted[0] == 50 && counted[2] == 50 )
+            {
+                int same = 1;
+
+                for( int k = 0; k < 50 && same; k++ )
+                    if( tiles[0][k][0] != tiles[2][k][0] || tiles[0][k][1] != tiles[2][k][1] )
+                        same = 0;
+                SELFTEST_CHECK(!same,
+                               "a second life on the same spawn key should not replay the "
+                               "first life's stream (the ::spawn imp that never dropped a "
+                               "yellow bead)");
+            }
+            if( far_slot >= 0 )
+            {
+                ToriRSServer_WorldNpcFree(srv, far_slot);
+                ToriRSServer_WorldNpcReap(srv);
             }
         }
     }
@@ -36840,6 +37869,7 @@ ToriRSServer_WorldSelftest(void)
     selftest_quest_doric(srv, player);
     selftest_quest_cook(srv, player);
     selftest_quest_druid(srv, player);
+    selftest_combat_reach_flag(srv, player);
     selftest_quest_gobdip(srv, player);
     selftest_quest_blackknight(srv, player);
     selftest_quest_haunted(srv, player);
@@ -38771,6 +39801,7 @@ ToriRSServer_WorldSelftest(void)
                          * make the low-defence fixture hit and draw a positive
                          * value from randominc(4). The normal game sequence
                          * remains random; restore it below. */
+                        srv->script_random_pinned = 1;
                         SSVM_EnvSeed(srv->script_env, 0);
                         ToriRSServer_CombatNpcTick(srv, wizard_slot);
 
@@ -38816,6 +39847,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_WorldPlayerUnlock(srv);
                     }
                     srv->script_env->rng = saved_rng;
+                    srv->script_random_pinned = 0;
                 }
             }
 
@@ -41935,6 +42967,343 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(added >= 0 && ToriRSServer_SceneLoc(added) &&
                                    !ToriRSServer_SceneLoc(added)->active,
                                "a loc_add with a duration should expire away again");
+            }
+
+            /*
+             * seam32 loc_revert_queue_and_loc_reads_after_del: the loc
+             * lifecycle against LostCity. A Loc entity has ONE lifecycle
+             * (World.ts addLoc/changeLoc/removeLoc/revertLoc, Loc.turn): a
+             * re-statement on a tile restarts the clock and never changes what
+             * the timer puts back. Reads after `loc_del` answer from the
+             * removed loc (LocOps.ts LOC_NAME/LOC_PARAM read
+             * `state.activeLoc.type`), and `.loc_*` address the SECONDARY
+             * active loc (ScriptState.ts get/set activeLoc by intOperand).
+             * Every loc here is a map-square loc beside the Lumbridge range,
+             * chosen by looking, and every timer is short enough to have run
+             * out before the stanza ends.
+             */
+            fprintf(stderr, "ToriRSServer selftest: loc lifecycle (seam32: revert target, reads "
+                            "after loc_del, dotted locs)\n");
+            {
+                const int v_a = SELFTEST_VARP_GREETING_COUNT;
+                const int v_b = SELFTEST_VARP_QUEST_PROGRESS;
+                const int32_t saved_a = player->varps[v_a];
+                const int32_t saved_b = player->varps[v_b];
+                const int inviswall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "inviswall");
+                const int next_stage =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "next_loc_stage");
+                /* id, x, z, shape, angle of: two plain map-square locs and a
+                 * named one with a next_loc_stage (a tree and its stump in
+                 * the Lumbridge scene). Copied out: a
+                 * `loc_add` can grow the scene array under a pointer. */
+                int a_id = -1, a_x = 0, a_z = 0, a_shape = 0, a_angle = 0;
+                int b_id = -1, b_x = 0, b_z = 0;
+                int d_id = -1, d_x = 0, d_z = 0;
+                int e_x = -1, e_z = -1;
+
+                SELFTEST_CHECK(inviswall >= 0 && next_stage >= 0 && remains > 0,
+                               "inviswall, next_loc_stage and fire_remains resolve by name");
+                for( int i = 0; ToriRSServer_SceneLoc(i); i++ )
+                {
+                    const struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(i);
+
+                    if( !loc->active || !loc->is_static || loc->level != 0 )
+                        continue;
+                    if( loc->x < 3196 || loc->x > 3228 || loc->z < 3199 || loc->z > 3231 )
+                        continue;
+                    if( ToriRSServer_SceneFindLocExact(loc->x, loc->z, 0, loc->shape) != i ||
+                        ToriRSServer_SceneFindLocId(loc->x, loc->z, 0, loc->loc_id) != i )
+                        continue;
+                    if( d_id < 0 && next_stage >= 0 &&
+                        ToriRSServer_LocParam(loc->loc_id, next_stage) &&
+                        ToriRSServer_LocName(loc->loc_id) )
+                    {
+                        d_id = loc->loc_id;
+                        d_x = loc->x;
+                        d_z = loc->z;
+                        continue;
+                    }
+                    if( loc->shape != 10 || loc->loc_id == range )
+                        continue;
+                    if( a_id < 0 )
+                    {
+                        a_id = loc->loc_id;
+                        a_x = loc->x;
+                        a_z = loc->z;
+                        a_shape = loc->shape;
+                        a_angle = loc->angle;
+                    }
+                    else if( b_id < 0 && (loc->x != a_x || loc->z != a_z) )
+                    {
+                        b_id = loc->loc_id;
+                        b_x = loc->x;
+                        b_z = loc->z;
+                    }
+                }
+                for( int x = 3214; x < 3228 && e_x < 0; x++ )
+                    for( int z = 3208; z < 3228 && e_x < 0; z++ )
+                        if( ToriRSServer_SceneFindLocExact(x, z, 0, 10) < 0 )
+                        {
+                            e_x = x;
+                            e_z = z;
+                        }
+                SELFTEST_CHECK(a_id >= 0 && b_id >= 0 && d_id >= 0 && e_x >= 0,
+                               "the Lumbridge scene should offer two centrepiece map locs, a "
+                               "named loc with next_loc_stage and an empty tile (got %d %d %d "
+                               "%d)",
+                               a_id, b_id, d_id, e_x);
+                if( a_id >= 0 && b_id >= 0 && d_id >= 0 && e_x >= 0 && inviswall >= 0 &&
+                    next_stage >= 0 )
+                {
+                    const int32_t a_coord = ToriRSServer_CoordPack(0, a_x, a_z);
+                    const int32_t b_coord = ToriRSServer_CoordPack(0, b_x, b_z);
+                    const int32_t d_coord = ToriRSServer_CoordPack(0, d_x, d_z);
+                    const int32_t e_coord = ToriRSServer_CoordPack(0, e_x, e_z);
+
+                    /*
+                     * (1) loc_del(5) + loc_add(same tile, same shape, 3):
+                     * LostCity doubledoors.rs2 open_double_doors_left2. The
+                     * add is World.changeLoc on the removed map-square loc
+                     * (LOC_ADD searches getLocsUnsafe, inactive included), so
+                     * its 3 replaces the 5 and the timer puts the ORIGINAL
+                     * back. Here the add's "remove the inviswall" replaced the
+                     * pending restore and the loc was gone for good.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            a_coord, a_id, 0, 0, 5, 0, a_coord, inviswall, a_angle, a_shape, 3, 0, 0,
+                        };
+                        char* strings[13] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,loc_del_then_add_same_tile]",
+                                                   ops, operands, strings, 13);
+
+                        SELFTEST_CHECK(ran &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) < 0 &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, inviswall) >= 0,
+                                       "loc_del + loc_add(inviswall) should leave the inviswall "
+                                       "standing on %d,%d", a_x, a_z);
+                        for( int i = 0; i < 5; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, inviswall) < 0,
+                                       "once the add's 3 ticks run out the ORIGINAL loc %d "
+                                       "should be back on %d,%d, not an empty tile", a_id, a_x,
+                                       a_z);
+                        for( int i = 0; i < 4; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0,
+                                       "and stay back past the delete's own 5 ticks");
+                    }
+
+                    /*
+                     * (2) loc_change twice: the revert goes to the loc's
+                     * baseInfo (World.revertLoc), not to the first change.
+                     * Here the second change's was_id (the first change's
+                     * form) replaced the target and then stood for good.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_CHANGE,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_CHANGE,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            b_coord, b_id, 0, 0, remains, 5, 0, inviswall, 3, 0, 0,
+                        };
+                        char* strings[11] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,loc_change_twice]", ops,
+                                                   operands, strings, 11);
+
+                        SELFTEST_CHECK(ran &&
+                                           ToriRSServer_SceneFindLocId(b_x, b_z, 0, inviswall) >= 0,
+                                       "two loc_changes should leave the second form on %d,%d",
+                                       b_x, b_z);
+                        for( int i = 0; i < 9; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, b_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(b_x, b_z, 0, remains) < 0,
+                                       "the revert should put the map's own %d back on %d,%d, "
+                                       "not the first change's fire_remains", b_id, b_x, b_z);
+                    }
+
+                    /*
+                     * (3) loc_add(5) then loc_del(5) of that added loc:
+                     * World.removeLoc gives a DESPAWN loc lifecycle -1, so it
+                     * is gone for good. Here the delete's was_id turned the
+                     * pending "remove" into "put it back" -- the mirror of (1),
+                     * and what a door closed within 500 ticks did to its open
+                     * leaf.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = { e_coord, remains, 0, 10, 5, 0, 5, 0, 0 };
+                        char* strings[9] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,loc_add_then_del]", ops,
+                                                   operands, strings, 9);
+
+                        SELFTEST_CHECK(ran &&
+                                           ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "loc_add then loc_del should leave %d,%d empty", e_x, e_z);
+                        for( int i = 0; i < 8; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "and the deleted added loc should never come back");
+                    }
+
+                    /*
+                     * (3b) A door opened and shut again inside its timer, in
+                     * doors.rs2's own shape (door_open_active: loc_del +
+                     * loc_add on the swing tile; door_close_active: the same
+                     * back), with 5 for 500. (1) and (3) together: the shut
+                     * door must stay shut and the open leaf stay gone. Here
+                     * the shut door's tile was emptied and the open leaf put
+                     * back once the timers ran out.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            a_coord, a_id, 0, 0, 5, 0,
+                            e_coord, remains, 0, 10, 5, 0,
+                            5, 0,
+                            a_coord, a_id, a_angle, a_shape, 5, 0,
+                            0,
+                        };
+                        char* strings[21] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,door_open_then_shut]", ops,
+                                                   operands, strings, 21);
+
+                        SELFTEST_CHECK(ran && ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "opened and shut, %d should stand on %d,%d and nothing "
+                                       "on the swing tile %d,%d", a_id, a_x, a_z, e_x, e_z);
+                        for( int i = 0; i < 8; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "and after both timers the shut door should still stand "
+                                       "and the open leaf should not come back");
+                    }
+
+                    /*
+                     * (4) loc_name / loc_param after loc_del answer from the
+                     * removed loc, like loc_type does (seam31) -- LocOps.ts
+                     * LOC_NAME :129 and LOC_PARAM :114 read
+                     * `state.activeLoc.type` with no isActive test. Here both
+                     * aborted "the active loc is gone".
+                     */
+                    {
+                        const struct ToriRSServerParamRow* row =
+                            ToriRSServer_LocParam(d_id, next_stage);
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_LOC_NAME,          SS_OP_PUSH_CONSTANT_STRING,
+                            SS_OP_COMPARE,           SS_OP_POP_VARP,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_PARAM,
+                            SS_OP_POP_VARP,          SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            d_coord, d_id, 0, 0, 3, 0, 0, 0, 0, v_a, next_stage, 0, v_b, 0,
+                        };
+                        char* strings[14] = { NULL };
+                        int ran;
+
+                        assert(row);
+                        strings[7] = (char*)ToriRSServer_LocName(d_id);
+                        player->varps[v_a] = -7;
+                        player->varps[v_b] = -7;
+                        ran = selftest_run_ops(srv, "[selftest,loc_name_param_after_loc_del]", ops,
+                                               operands, strings, 14);
+                        SELFTEST_CHECK(ran && ToriRSServer_SceneFindLocId(d_x, d_z, 0, d_id) < 0,
+                                       "the loc_del should have removed loc %d at %d,%d", d_id,
+                                       d_x, d_z);
+                        SELFTEST_CHECK(player->varps[v_a] == 0 && player->varps[v_b] == row->ival,
+                                       "loc_name / loc_param(next_loc_stage) after loc_del should "
+                                       "read the removed loc: compare %d (want 0), param %d "
+                                       "(want %d)",
+                                       player->varps[v_a], player->varps[v_b], row->ival);
+                        for( int i = 0; i < 5; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(d_x, d_z, 0, d_id) >= 0,
+                                       "and the loc should be back once its 3 ticks run out");
+                    }
+
+                    /*
+                     * (5) The `.` operand picks the active loc: `loc_find`
+                     * binds the primary, `.loc_find` the secondary, and
+                     * `loc_type` / `.loc_type` / `.loc_change` read and write
+                     * each. Shilo Village's tomb door (quest_zombiequeen.rs2
+                     * zq_tombdoor_use) is this shape; here `.loc_find`
+                     * overwrote the primary and `.loc_change` aborted
+                     * "requires an active entity".
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_LOC_TYPE,
+                            SS_OP_POP_VARP,          SS_OP_LOC_TYPE,
+                            SS_OP_POP_VARP,          SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_CHANGE,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            a_coord, a_id, 0, 0, b_coord, b_id, 1, 0,
+                            0, v_a, 1, v_b, inviswall, 2, 1, 0,
+                        };
+                        char* strings[16] = { NULL };
+                        int ran;
+
+                        player->varps[v_a] = -7;
+                        player->varps[v_b] = -7;
+                        ran = selftest_run_ops(srv, "[selftest,dotted_loc]", ops, operands,
+                                               strings, 16);
+                        SELFTEST_CHECK(ran && player->varps[v_a] == a_id &&
+                                           player->varps[v_b] == b_id,
+                                       "loc_type / .loc_type should read the primary %d and the "
+                                       "secondary %d, got %d and %d",
+                                       a_id, b_id, player->varps[v_a], player->varps[v_b]);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, inviswall) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0,
+                                       ".loc_change should change the secondary (%d,%d) and "
+                                       "leave the primary (%d,%d) alone",
+                                       b_x, b_z, a_x, a_z);
+                        for( int i = 0; i < 4; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, b_id) >= 0,
+                                       "and the secondary should revert to %d", b_id);
+                    }
+                }
+                player->varps[v_a] = saved_a;
+                player->varps[v_b] = saved_b;
             }
 
             ToriRSServer_ScriptsFree(srv);
@@ -46109,6 +47478,165 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: ::clockskip moves the world clock\n");
+    {
+        /*
+         * seam33 test_clock_for_realtime_waits: `date_minutes` and
+         * `date_runeday` are CLOCK_REALTIME reads, so a real-time wait
+         * (Forgettable Tale's kelda patch, four stages of 4 minutes) could not
+         * be driven inside a run. `::clockskip <minutes>` adds a per-world
+         * offset both opcodes read through ToriRSServer_WorldRealtimeMs.
+         *
+         * Checked against time(NULL), never against the opcode grading itself:
+         * a reading minus the skip must fall inside the real minutes sampled
+         * either side of it, which is exact and still immune to a minute
+         * boundary landing mid-check. `date_minutes` is read back through its
+         * transmitted varp, the way a quest test reads it.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct ToriRSServerPlayer* p = srv->active_player;
+            int varp_date = ToriRSServer_WorldVarp("date_minutes");
+            int saved_skip = srv->clock_skip_minutes;
+            long long real_before;
+            long long real_after;
+            int32_t before;
+            int32_t after;
+            int32_t runeday = -1;
+
+            assert(p);
+            SELFTEST_CHECK(varp_date >= 0, "the pack declares the date_minutes varp");
+            srv->clock_skip_minutes = 0;
+
+            /* 1. Unskipped, the varp is the real minute. */
+            real_before = (long long)time(NULL) / 60LL;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+            before = varp_date >= 0 ? p->varps[varp_date] : -1;
+            real_after = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(before >= real_before && before <= real_after,
+                           "unskipped date_minutes %d should be the real minute %lld..%lld", before,
+                           real_before, real_after);
+
+            /* 2. `::clockskip 16` moves it by exactly sixteen, and the cheat
+             *    writes the varp itself (no 100-tick wait for the refresh). */
+            real_before = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 16") ==
+                               TORIRSSERVER_TRIGGER_RAN,
+                           "::clockskip 16 runs");
+            after = varp_date >= 0 ? p->varps[varp_date] : -1;
+            real_after = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(srv->clock_skip_minutes == 16, "the world is 16 minutes ahead, got %d",
+                           srv->clock_skip_minutes);
+            SELFTEST_CHECK(after - 16 >= real_before && after - 16 <= real_after,
+                           "the cheat wrote date_minutes %d = real %lld..%lld + 16", after,
+                           real_before, real_after);
+
+            /* ...and content reading the opcode agrees with the varp. */
+            real_before = (long long)time(NULL) / 60LL;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+            after = varp_date >= 0 ? p->varps[varp_date] : -1;
+            real_after = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(after - 16 >= real_before && after - 16 <= real_after,
+                           "content's date_minutes %d = real %lld..%lld + 16", after, real_before,
+                           real_after);
+
+            /* 3. Refusals: the clock never moves backward, nor by nothing, nor
+             *    past its bounds, and a refused line leaves the skip alone. */
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 0") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip 0 is refused");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip -5") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip -5 is refused (a backward clock reads negative cooldowns)");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip with no minutes is refused");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 5x") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip 5x is refused");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 20000") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip past a week in one step is refused");
+            SELFTEST_CHECK(srv->clock_skip_minutes == 16,
+                           "refused skips leave the world 16 minutes ahead, got %d",
+                           srv->clock_skip_minutes);
+
+            /* 4. `date_runeday` reads the same clock: a day's skip is a day. */
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 1440") ==
+                               TORIRSSERVER_TRIGGER_RAN,
+                           "::clockskip 1440 runs");
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProcInt(srv, "[proc,selftest_date_runeday]", NULL,
+                                                          0, &runeday),
+                           "date_runeday answers after a skip");
+            {
+                long long want =
+                    ((long long)time(NULL) * 1000LL + (long long)(16 + 1440) * 60000LL) /
+                    86400000LL;
+
+                SELFTEST_CHECK(runeday == (int32_t)want,
+                               "date_runeday %d should include the 1456-minute skip (%lld)",
+                               runeday, want);
+            }
+
+            /* 5. A farming deadline set before a skip catches up to a future
+             *    deadline, never a past or negative one: farming_hops.rs2
+             *    [proc,farming_advance_hops] re-arms from date_minutes. The
+             *    Lumbridge hops patch, barley at its plant state. */
+            {
+                int patch = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "farming_hops_patch_3");
+                int seed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "barley_seed");
+                int32_t args[2];
+                int32_t state = -1;
+                int32_t next = -1;
+                int32_t now = -1;
+
+                SELFTEST_CHECK(patch >= 0, "farming_hops_patch_3 resolves");
+                SELFTEST_CHECK(seed >= 0, "barley_seed resolves");
+                ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+                now = varp_date >= 0 ? p->varps[varp_date] : -1;
+                args[0] = patch;
+                args[1] = seed;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_seed]", args, 2);
+                args[1] = 74; /* hops.dbrow farming_hops_barley plant_state */
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set]", args, 2);
+                args[1] = now + 10; /* ^farming_stage_mins_hops */
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_next]", args, 2);
+
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 25") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::clockskip 25 runs");
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_catchup_hops]", args, 1);
+                ToriRSServer_ScriptsRunProcInt(srv, "[proc,farming_hops_get]", args, 1, &state);
+                ToriRSServer_ScriptsRunProcInt(srv, "[proc,farming_hops_get_next]", args, 1, &next);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+                now = varp_date >= 0 ? p->varps[varp_date] : -1;
+                SELFTEST_CHECK(state == 75, "the overdue hops stage advanced (74 -> %d)", state);
+                SELFTEST_CHECK(next > now, "the re-armed hops deadline %d is after date_minutes %d",
+                               next, now);
+                SELFTEST_CHECK(next - now <= 10,
+                               "and at most one stage (10 min) away, %d - %d", next, now);
+
+                args[1] = 0;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_next]", args, 2);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set]", args, 2);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_seed]", args, 2);
+            }
+
+            srv->clock_skip_minutes = saved_skip;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: ::chargesrun\n");
     {
         /*
@@ -47986,122 +49514,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
-    fprintf(stderr, "ToriRSServer selftest: ::totemrun\n");
-    {
-        /*
-         * Tribal Totem (2026-08-20 audit). The mansion body was entirely
-         * missing -- kangai_mau.rs2's own header said "Totem body
-         * (crate/house) deferred", handelmort_traps.varp's said "trap body
-         * deferred", and alphabet.enum (landed for the door's letter-wheel
-         * interface) had zero consumers anywhere. `[opnpc1,kangai_mau]`/
-         * `[opnpc1,ardounge_wizard]` block on dialogue, so `totemrun`
-         * mirrors those state transitions (established precedent), but
-         * calls three real, `~`-callable procs directly:
-         * `~totem_investigate_horncrate`, `~totem_search_chest`, and the
-         * completion's own item/xp/qp grants. The genuinely novel piece
-         * this iteration -- a raw IF3 combination-lock interface, the
-         * first of its kind wired in this pass -- is proven for real here,
-         * C-side: a real `[if_button,tribal_door:tribalenter]` dispatch
-         * via `ToriRSServer_ScriptsRunTrigger`, both wrong and correct
-         * combinations, since neither reads the debugproc's missing
-         * npc/loc context at all.
-         */
-        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
-
-        if( !loaded )
-            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
-
-        if( !loaded )
-        {
-            fprintf(stderr, "  SKIP  no compiled script pack\n");
-        }
-        else
-        {
-            static struct ToriRSServerCapture totemrun_capture;
-            int said_ok = 0;
-            int said_fail = 0;
-
-            ToriRSServer_CaptureBegin(srv, &totemrun_capture);
-            ToriRSServer_ScriptsRunDebugproc(srv, "totemrun");
-            ToriRSServer_CaptureEnd(srv);
-
-            for( int i = ToriRSServer_CaptureFindNamed(&totemrun_capture, PKT_NAME_MESSAGE_GAME, 0);
-                 i >= 0;
-                 i = ToriRSServer_CaptureFindNamed(&totemrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
-            {
-                const struct ToriRSServerCapturedPacket* packet = &totemrun_capture.packets[i];
-                const char* text;
-
-                text = selftest_message_text(srv, packet);
-                if( !text )
-                    continue;
-                fprintf(stderr, "  DBG %s\n", text);
-                if( strstr(text, "TOTEMRUN OK") != NULL )
-                    said_ok = 1;
-                if( strstr(text, "TOTEMRUN FAIL") != NULL )
-                {
-                    said_fail = 1;
-                    fprintf(stderr, "  %s\n", text);
-                }
-            }
-
-            SELFTEST_CHECK(!said_fail, "::totemrun should report no failures");
-            SELFTEST_CHECK(said_ok, "::totemrun should reach its OK line");
-
-            /* C-side: the combination-lock door's real [if_button] dispatch. */
-            {
-                int varp_if1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if1");
-                int varp_if2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if2");
-                int varp_if3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if3");
-                int varp_if4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if4");
-                int varp_traps = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "handelmort_traps_disabled");
-                int com_enter = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "tribal_door:tribalenter");
-
-                SELFTEST_CHECK(varp_if1 >= 0 && varp_if2 >= 0 && varp_if3 >= 0 && varp_if4 >= 0 &&
-                               varp_traps >= 0 && com_enter >= 0,
-                               "the ::totemrun C-side names should all resolve: if1=%d if2=%d "
-                               "if3=%d if4=%d traps=%d enter=%d",
-                               varp_if1, varp_if2, varp_if3, varp_if4, varp_traps, com_enter);
-                if( varp_if1 >= 0 && varp_if2 >= 0 && varp_if3 >= 0 && varp_if4 >= 0 &&
-                    varp_traps >= 0 && com_enter >= 0 )
-                {
-                    /*
-                     * `~mesbox`'s text does not surface as a plain
-                     * MESSAGE_GAME (opcode 90) packet the way `mes()` does
-                     * -- confirmed by this stanza's own first attempt,
-                     * where a `strstr` scan for "This combination is
-                     * incorrect" never matched despite the wrong branch
-                     * genuinely running (the door-solved bit correctly
-                     * stayed clear). State, not chat text, is the
-                     * observable signal here.
-                     */
-                    player->varps[varp_traps] = 0;
-                    player->varps[varp_if1] = 0;
-                    player->varps[varp_if2] = 0;
-                    player->varps[varp_if3] = 0;
-                    player->varps[varp_if4] = 0;
-
-                    ToriRSServer_ScriptsRunIfButton(srv, com_enter, 1);
-
-                    SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) == 0,
-                                   "a wrong combination should not set the door-solved bit, got %d",
-                                   player->varps[varp_traps]);
-
-                    player->varps[varp_if1] = 10; /* K */
-                    player->varps[varp_if2] = 20; /* U */
-                    player->varps[varp_if3] = 17; /* R */
-                    player->varps[varp_if4] = 19; /* T */
-
-                    ToriRSServer_ScriptsRunIfButton(srv, com_enter, 1);
-
-                    SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) != 0,
-                                   "K/U/R/T should set the door-solved bit, got %d",
-                                   player->varps[varp_traps]);
-                }
-            }
-            ToriRSServer_ScriptsFree(srv);
-        }
-    }
+    selftest_quest_totem(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: ::ikovrun\n");
     {
@@ -48231,6 +49644,20 @@ ToriRSServer_WorldSelftest(void)
                          * failing with %ikov still at helping_armadyl.
                          */
                         ToriRSServer_ScriptsProcessQueues(srv);
+                        /*
+                         * LostCity's defeat line comes BEFORE the completion
+                         * (lucien.rs2:118-122 `queue_defeat_lucien`: the
+                         * `~chatnpc` "You have defeated me for now! I shall
+                         * reappear in the North!", then
+                         * `ikov_armadyl_quest_complete`), so the queue drain
+                         * parks on that page and the quest completes when the
+                         * player clicks through it. Before seam28 the port
+                         * completed on the drain alone, without the line.
+                         */
+                        SELFTEST_CHECK(player->active_script != NULL,
+                                       "ikov_lucien2's death should park on Lucien's defeat line "
+                                       "before the Armadyl path completes");
+                        selftest_click_through(srv, 4);
 
                         SELFTEST_CHECK(player->varps[varp_ikov] == 80 /* ikov_completed_armadyl */,
                                        "ikov_lucien2's death should complete the Armadyl path, "
@@ -48297,18 +49724,21 @@ ToriRSServer_WorldSelftest(void)
             int obj_bell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grail_bell");
             int loc_whistledoor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "whistledoor");
             int npc_maiden = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "grail_maiden");
+            int loc_merlinworkshop = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "merlinworkshop");
+            int npc_merlin2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "merlin2");
 
             SELFTEST_CHECK(varp_grail >= 0 && obj_napkin >= 0 && obj_whistle >= 0 &&
                            obj_grail >= 0 && obj_bell >= 0 && loc_whistledoor >= 0 &&
-                           npc_maiden >= 0,
+                           npc_maiden >= 0 && loc_merlinworkshop >= 0 && npc_merlin2 >= 0,
                            "the ::grailrun C-side names should all resolve: grail=%d "
                            "napkin=%d whistle=%d grail_obj=%d bell=%d whistledoor=%d "
-                           "maiden=%d",
+                           "maiden=%d merlinworkshop=%d merlin2=%d",
                            varp_grail, obj_napkin, obj_whistle, obj_grail, obj_bell,
-                           loc_whistledoor, npc_maiden);
+                           loc_whistledoor, npc_maiden, loc_merlinworkshop, npc_merlin2);
 
             if( varp_grail >= 0 && obj_napkin >= 0 && obj_whistle >= 0 && obj_grail >= 0 &&
-                obj_bell >= 0 && loc_whistledoor >= 0 && npc_maiden >= 0 )
+                obj_bell >= 0 && loc_whistledoor >= 0 && npc_maiden >= 0 &&
+                loc_merlinworkshop >= 0 && npc_merlin2 >= 0 )
             {
                 int x, z;
                 int door_slot;
@@ -48514,6 +49944,151 @@ ToriRSServer_WorldSelftest(void)
                                    "ringing the bell beside the maiden should open the "
                                    "messagebox greeting, want %d got chatmodal_group=%d",
                                    if_messagebox, player->chatmodal_group);
+                }
+
+                for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+
+                /*
+                 * --- merlinworkshop: the hard blocker (tier 2 audit,
+                 * 2026-09-27). `merlin2` (configs/all.npc: vislevel=hide)
+                 * had NOTHING anywhere in the tree that ever called
+                 * npc_add on it (grep-confirmed) -- Quest Helper step 2
+                 * ("go upstairs and talk to Merlin") was unreachable, so
+                 * the whole quest was unplayable past King Arthur's "go
+                 * speak to Merlin" line. Fixed in quest_grail.rs2:
+                 * `[oploc1,merlinworkshop]` now ports LostCity's own
+                 * npc_add/npc_del(merlin2) dance (same landing coord
+                 * 1_43_54_15_44), swapped to `~door_selfstage_open` since
+                 * merlinworkshop is category=door_selfstage like
+                 * whistledoor above (a name binding shadows only opcode 1
+                 * of the category trigger).
+                 */
+                {
+                    int door_slot;
+                    int door_x, door_z;
+                    int x, z;
+                    int merlin_count;
+
+                    /* Clear any merlin2 left over from an earlier section. */
+                    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                        if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                            ToriRSServer_WorldNpcFree(srv, i);
+
+                    /* Force the Camelot-upstairs zone to build before
+                     * scanning it -- SceneFindLocId only sees a zone the
+                     * player has actually been near (same reason
+                     * whistledoor's own check teleports first). */
+                    ToriRSServer_WorldTeleport(srv, 1, 2767, 3500);
+                    selftest_tick(srv);
+
+                    /* Scan for the door and capture the EXACT (x,z) it
+                     * resolved at -- not just "found", since check_axis
+                     * (`~check_axis(coord, loc_coord, loc_angle)`) compares
+                     * the player's own tile against the door's, and the
+                     * scan loops' own post-match increments leave x/z one
+                     * past the hit. The player must stand ON the door's own
+                     * tile for `~check_axis` to read $entering = true, the
+                     * same way a player who has just walked through it
+                     * would. */
+                    door_slot = -1;
+                    door_x = -1;
+                    door_z = -1;
+                    for( x = 2748; x <= 2768 && door_slot < 0; x++ )
+                        for( z = 3496; z <= 3517 && door_slot < 0; z++ )
+                        {
+                            int slot = ToriRSServer_SceneFindLocId(x, z, 1, loc_merlinworkshop);
+                            if( slot >= 0 )
+                            {
+                                door_slot = slot;
+                                door_x = x;
+                                door_z = z;
+                            }
+                        }
+                    SELFTEST_CHECK(door_slot >= 0,
+                                   "merlinworkshop should be placed upstairs by the "
+                                   "Camelot library (plane 1), got slot %d", door_slot);
+
+                    if( door_slot >= 0 )
+                    {
+                        ToriRSServer_WorldTeleport(srv, 1, door_x, door_z);
+                        selftest_tick(srv);
+
+                        /* Quest not started: the door must not spawn merlin2. */
+                        player->varps[varp_grail] = 0; /* grail_not_started */
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
+                                                           ToriRSServer_LocCategory(loc_merlinworkshop),
+                                                           door_slot);
+                        selftest_tick(srv);
+                        merlin_count = 0;
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                                merlin_count++;
+                        SELFTEST_CHECK(merlin_count == 0,
+                                       "opening merlinworkshop before the quest starts "
+                                       "should not spawn merlin2, got %d",
+                                       merlin_count);
+
+                        /* Not-started never reaches ~door_selfstage_open (it
+                         * returns at "The door won't open."), so the door
+                         * has not swung and door_slot/door_x/door_z are
+                         * still valid. Quest started: opening now must
+                         * spawn exactly one merlin2. */
+                        player->varps[varp_grail] = 2; /* grail_started */
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
+                                                           ToriRSServer_LocCategory(loc_merlinworkshop),
+                                                           door_slot);
+                        selftest_tick(srv);
+                        merlin_count = 0;
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                                merlin_count++;
+                        SELFTEST_CHECK(merlin_count == 1,
+                                       "opening merlinworkshop once the quest has "
+                                       "started should spawn exactly one merlin2, got %d",
+                                       merlin_count);
+
+                        /* Re-opening (walking in again) must not stack a
+                         * second merlin2 -- the script deletes any nearby
+                         * one first. The door swung on the call above
+                         * (loc_del/loc_add to $open_coord), so re-scan and
+                         * re-stand on whatever tile it resolves to now. */
+                        door_slot = -1;
+                        door_x = -1;
+                        door_z = -1;
+                        for( x = 2748; x <= 2768 && door_slot < 0; x++ )
+                            for( z = 3496; z <= 3517 && door_slot < 0; z++ )
+                            {
+                                int slot = ToriRSServer_SceneFindLocId(x, z, 1, loc_merlinworkshop);
+                                if( slot >= 0 )
+                                {
+                                    door_slot = slot;
+                                    door_x = x;
+                                    door_z = z;
+                                }
+                            }
+                        if( door_slot >= 0 )
+                        {
+                            ToriRSServer_WorldTeleport(srv, 1, door_x, door_z);
+                            selftest_tick(srv);
+                            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
+                                                               ToriRSServer_LocCategory(loc_merlinworkshop),
+                                                               door_slot);
+                            selftest_tick(srv);
+                        }
+                        merlin_count = 0;
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                                merlin_count++;
+                        SELFTEST_CHECK(door_slot >= 0 && merlin_count == 1,
+                                       "re-opening merlinworkshop should not stack a "
+                                       "second merlin2 (door_slot=%d), got %d",
+                                       door_slot, merlin_count);
+                    }
+
+                    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                        if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                            ToriRSServer_WorldNpcFree(srv, i);
                 }
 
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
@@ -50765,6 +52340,20 @@ ToriRSServer_WorldSelftest(void)
          * (two new chisel cases), nazastarool.rs2 (defeat_nazastarool3
          * never wrote %zombiequeen at all -- the corpse dropped but the
          * quest could never see it as retrieved).
+         *
+         * 2026-09-30 (content parity pass parity3d): the quest is now LostCity's
+         * quest_zombiequeen port end to end (quest_zombiequeen.rs2 replaces
+         * ahzarhoon.rs2 and bervirius_and_rashtomb.rs2), so this stanza drives
+         * LostCity's paths: Mosol's and Trufitus' dialogue trees are answered
+         * row by row (selftest_answer_through), delays are waited out
+         * (selftest_run_out_answering), the table becomes the raft AND rides it
+         * out in one script, the plaque is what Trufitus deciphers, the dolmen's
+         * notes set zq_used_dolmen_paper, the corpse is buried with its own
+         * Bury op on the sacred ground, both scrolls are read before the
+         * crawl-way and the necklace, and the bone key is only cut once the
+         * hillside door's bone lock has been searched. Levels go through
+         * ToriRSServer_CombatSetLevel: the climb's and the raft's stat_advance
+         * recompute the level from experience and undo a bare stat_level write.
          */
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
 
@@ -50851,10 +52440,8 @@ ToriRSServer_WorldSelftest(void)
             player->varps[varp_zq] = 0;
             player->varps[varp_zqmech] = 0;
             player->varps[varp_jp2] = junglepotion_complete_val;
-            player->stat_level[stat_crafting] = 99;
-            player->stat_boosted[stat_crafting] = 99;
-            player->stat_level[stat_agility] = 99;
-            player->stat_boosted[stat_agility] = 99;
+            ToriRSServer_CombatSetLevel(player, stat_crafting, 99);
+            ToriRSServer_CombatSetLevel(player, stat_agility, 99);
 
             /* ---- Mosol Rei: the belt was never actually granted before this pass ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2881, 2951);
@@ -50863,8 +52450,14 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(npc_slot >= 0, "mosol_rei should spawn for the belt-grant check");
             if( npc_slot >= 0 )
             {
+                /* LostCity mosol_rei.rs2: "Why do I need to run?" -> "Rashiliyia? Who is
+                 * she?" -> "What can we do?" -> "I'll go to see the Shaman." -> "Yes, I'm
+                 * sure and I'll take the Wampum belt to Trufitus." */
+                static const int mosol_rows[] = { 1, 1, 1, 4, 2 };
+
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_mosol, -1, npc_slot);
-                selftest_click_through(srv, 20);
+                selftest_answer_through(srv, 40, mosol_rows,
+                                        (int)(sizeof(mosol_rows) / sizeof(mosol_rows[0])));
                 SELFTEST_CHECK(player->inv[0].obj_id == obj_belt || player->last_item == obj_belt ||
                                    selftest_count_obj(player, obj_belt) > 0,
                                "mosol_rei's full belt dialogue should grant mosol_wampum_belt, "
@@ -50885,10 +52478,18 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(npc_slot >= 0, "trufitus should spawn for the belt hand-in check");
             if( npc_slot >= 0 )
             {
+                /* LostCity trufitus.rs2 [opnpcu] belt case: "Mosol Rei said something
+                 * about a legend?" -> "Do you know anything more about the temple?" ->
+                 * "Tell me more." -> "I am going to search for Ah Za Rhoon!" -> "Yes, I
+                 * will seriously look for Ah Za Rhoon ..." (trufitus_searchfor writes
+                 * ^zombiequeen_started and keeps the belt). */
+                static const int trufitus_rows[] = { 2, 2, 1, 3, 1 };
+
                 inv_set(player, 0, obj_belt, 1);
                 player->last_useitem = obj_belt;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
-                selftest_click_through(srv, 20);
+                selftest_answer_through(srv, 40, trufitus_rows,
+                                        (int)(sizeof(trufitus_rows) / sizeof(trufitus_rows[0])));
                 SELFTEST_CHECK(player->varps[varp_zq] == 1 /* zombiequeen_started */,
                                "the legend dialogue should advance zombiequeen to "
                                "zombiequeen_started, got %d",
@@ -50910,12 +52511,12 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_mound, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 2 /* zombiequeen_found_mound */,
                                "looking at the mound should advance to found_mound, got %d",
                                player->varps[varp_zq]);
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_mound, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 3 /* zombiequeen_searched_mound */,
                                "searching the mound should advance to searched_mound, got %d",
                                player->varps[varp_zq]);
@@ -50923,7 +52524,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_spade, 1);
                 player->last_useitem = obj_spade;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_mound, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 4 /* zombiequeen_dug_mound */,
                                "digging with the spade should advance to dug_mound, got %d",
                                player->varps[varp_zq]);
@@ -50935,7 +52536,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_torch, 1);
                 player->last_useitem = obj_torch;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 5 /* zombiequeen_lit_mound */,
                                "lighting the fissure should advance to lit_mound, got %d",
                                player->varps[varp_zq]);
@@ -50945,7 +52546,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_rope, 1);
                 player->last_useitem = obj_rope;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 6 /* zombiequeen_roped_mound */,
                                "roping the fissure should advance to roped_mound, got %d",
                                player->varps[varp_zq]);
@@ -50955,21 +52556,19 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 int state_before;
-                player->stat_level[stat_agility] = 10;
-                player->stat_boosted[stat_agility] = 10;
+                ToriRSServer_CombatSetLevel(player, stat_agility, 10);
                 state_before = player->varps[varp_zq];
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == state_before,
                                "climbing down below Agility 32 should NOT advance the quest, "
                                "got %d -> %d",
                                state_before, player->varps[varp_zq]);
-                player->stat_level[stat_agility] = 99;
-                player->stat_boosted[stat_agility] = 99;
+                ToriRSServer_CombatSetLevel(player, stat_agility, 99);
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 7 /* zombiequeen_entered_ah_za_rhoon */,
                                "climbing down at Agility 32+ should advance to "
                                "entered_ah_za_rhoon, got %d",
@@ -50992,7 +52591,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_chisel, 1);
                 player->last_useitem = obj_chisel;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_stone, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_plaque) > 0,
                                "chiselling the strange stone should grant zqplaque");
             }
@@ -51005,7 +52604,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_looserocks, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_tattered) > 0,
                                "searching the loose rocks should grant zqberviriusscroll");
             }
@@ -51017,7 +52616,7 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_sacks, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_crumpled) > 0,
                                "searching the sacks should grant zqrashiliyiascroll");
             }
@@ -51028,8 +52627,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(loc_slot >= 0, "zqgallows should resolve near the dungeon entry");
             if( loc_slot >= 0 )
             {
+                /* LostCity: "Yes, I may find something else on the corpse." is row 2. */
+                static const int gallows_rows[] = { 2 };
+
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_gallows, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out_answering(srv, 60, gallows_rows, 1);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) > 0,
                                "searching the gallows should grant zqzadimusbones");
             }
@@ -51040,22 +52642,29 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(loc_slot >= 0, "zqtableraft should resolve near the dungeon entry");
             if( loc_slot >= 0 )
             {
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_table, -1, loc_slot);
-                selftest_click_through(srv, 5);
-                loc_slot = ToriRSServer_SceneFindLoc(2896, 9377, 0, loc_raft);
-                SELFTEST_CHECK(loc_slot >= 0, "crafting the table should loc_change to zqlograft");
-                if( loc_slot >= 0 )
-                {
-                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_raft, -1, loc_slot);
-                    selftest_click_through(srv, 5);
-                    SELFTEST_CHECK(player->varps[varp_zq] == 8 /* zombiequeen_left_ah_za_rhoon */,
-                                   "disembarking the raft should advance to "
-                                   "left_ah_za_rhoon, got %d",
-                                   player->varps[varp_zq]);
-                }
-            }
+                /* LostCity quest_zombiequeen.rs2 [oploc2,zqtableraft]: "A crude raft"
+                 * (row 2) builds the raft AND rides it out in the same script -- the
+                 * zqlograft locs are loc_add'd along the river, there is no second
+                 * click -- and the [mapzoneexit] queue writes left_ah_za_rhoon once the
+                 * player lands outside 0_45_145/0_45_146. */
+                static const int table_rows[] = { 2 };
+                int t;
 
-            /* ---- show Trufitus the four items ---- */
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_table, -1, loc_slot);
+                selftest_run_out_answering(srv, 200, table_rows, 1);
+                for( t = 0; t < 6 && player->varps[varp_zq] != 8; t++ )
+                    selftest_tick(srv);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 0 /* zq_used_table_logs */)) != 0,
+                               "the table should be spent on the raft, mechanisms=%d",
+                               player->varps[varp_zqmech]);
+                SELFTEST_CHECK(player->varps[varp_zq] == 8 /* zombiequeen_left_ah_za_rhoon */,
+                               "riding the raft out of Ah Za Rhoon should advance to "
+                               "left_ah_za_rhoon, got %d",
+                               player->varps[varp_zq]);
+            }
+            ToriRSServer_WorldCloseModal(srv);
+
+            /* ---- show Trufitus the plaque (LostCity [opnpcu,trufitus] case zqplaque) ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2809, 3086);
             selftest_tick(srv);
             npc_slot = ToriRSServer_WorldNpcSpawn(srv, npc_trufitus, 2809, 3086, 0);
@@ -51064,29 +52673,68 @@ ToriRSServer_WorldSelftest(void)
             {
                 player->last_useitem = obj_plaque;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
-                selftest_click_through(srv, 20);
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
-                               "showing Trufitus the items should set zq_used_dolmen_paper, got "
+                selftest_run_out(srv, 60);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 1 /* zq_deciphered_plaque */)) != 0,
+                               "showing Trufitus the plaque should set zq_deciphered_plaque, got "
                                "mechanisms=%d",
                                player->varps[varp_zqmech]);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_plaque) > 0,
+                               "Trufitus should hand the plaque back");
                 ToriRSServer_WorldNpcFree(srv, npc_slot);
                 ToriRSServer_WorldNpcReap(srv);
             }
+            ToriRSServer_WorldCloseModal(srv);
 
-            /* ---- bury Zadimus' corpse at the tribal statue ---- */
-            ToriRSServer_WorldTeleport(srv, 0, 2795, 3089);
-            selftest_tick(srv);
-            loc_slot = ToriRSServer_SceneFindLoc(2795, 3089, 0, loc_statue);
-            SELFTEST_CHECK(loc_slot >= 0, "zq_tribal_statue should resolve near Trufitus' village");
-            if( loc_slot >= 0 )
+            /* ---- bury Zadimus' corpse: LostCity [opheld1,zqzadimusbones] inside the
+             * sacred ground by the tribal statue, 0_43_48_42_15..0_43_48_46_18 ---- */
             {
-                player->last_useitem = obj_zadimus;
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_statue, -1, loc_slot);
-                selftest_click_through(srv, 5);
-                SELFTEST_CHECK(selftest_count_obj(player, obj_shard) > 0,
-                               "burying the corpse should grant zqboneshard");
-                SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) == 0,
-                               "burying the corpse should consume zqzadimusbones");
+                int zadimus_slot;
+
+                ToriRSServer_WorldTeleport(srv, 0, 2796, 3089);
+                selftest_tick(srv);
+                selftest_ack_scene(srv);
+                zadimus_slot = selftest_find(player, obj_zadimus);
+                SELFTEST_CHECK(zadimus_slot >= 0, "the corpse from the gallows should be carried");
+                if( zadimus_slot >= 0 )
+                {
+                    selftest_opheld(srv, 1, zadimus_slot);
+                    selftest_run_out(srv, 80);
+                    ToriRSServer_WorldCloseModal(srv);
+                    SELFTEST_CHECK(selftest_count_obj(player, obj_shard) > 0,
+                                   "burying the corpse should grant zqboneshard");
+                    SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) == 0,
+                                   "burying the corpse should consume zqzadimusbones");
+                }
+            }
+
+            /* ---- read both scrolls (LostCity opheld1: "Yes please." sets the read bits
+             * the crawl-way and the necklace wait on) ---- */
+            {
+                static const int read_rows[] = { 1 };
+                int scroll_slot;
+
+                scroll_slot = selftest_find(player, obj_tattered);
+                if( scroll_slot >= 0 )
+                {
+                    selftest_opheld(srv, 1, scroll_slot);
+                    selftest_run_out_answering(srv, 40, read_rows, 1);
+                    ToriRSServer_WorldCloseModal(srv);
+                }
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 5 /* zq_read_tattered_scroll */)) != 0,
+                               "reading the tattered scroll should set zq_read_tattered_scroll, "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
+                scroll_slot = selftest_find(player, obj_crumpled);
+                if( scroll_slot >= 0 )
+                {
+                    selftest_opheld(srv, 1, scroll_slot);
+                    selftest_run_out_answering(srv, 40, read_rows, 1);
+                    ToriRSServer_WorldCloseModal(srv);
+                }
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 6 /* zq_read_crumpled_scroll */)) != 0,
+                               "reading the crumpled scroll should set zq_read_crumpled_scroll, "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
             }
 
             /* ---- Tomb of Bervirius: Cairn Isle, the dolmen, the necklace ---- */
@@ -51096,9 +52744,13 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(loc_slot >= 0, "zqrocks should resolve on Cairn Isle");
             if( loc_slot >= 0 )
             {
+                /* "Yes Please, I can think of nothing nicer!" is row 1. */
+                static const int crawl_rows[] = { 1 };
+
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_cairnrocks, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out_answering(srv, 60, crawl_rows, 1);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(player->varps[varp_zq] == 9 /* zombiequeen_entered_tomb_bervirius */,
                                "entering the crawl-way should advance to "
                                "entered_tomb_bervirius, got %d",
@@ -51114,14 +52766,21 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_dolmen, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_crystal) > 0 &&
                                    selftest_count_obj(player, obj_pommel) > 0,
                                "searching the dolmen should grant the crystal and the "
                                "sword pommel");
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
+                               "the dolmen's notes should set zq_used_dolmen_paper, got "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
             }
+            ToriRSServer_WorldCloseModal(srv);
+            selftest_ack_scene(srv);
 
-            /* ---- craft the bone beads and the bone key (shared uncut_gem.rs2 switch) ---- */
+            /* ---- craft the bone beads (shared uncut_gem.rs2 switch, LostCity
+             * [opheldu,zqbevsword] / [opheldu,zqbonebeads]) ---- */
             {
                 uint8_t payload[16];
                 struct RSAreaBuf out;
@@ -51136,7 +52795,8 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, 1);
                 rsab_p4(&out, 0);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_bonebeads) > 0,
                                "chisel + sword pommel should craft zqbonebeads");
 
@@ -51150,7 +52810,8 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, 0);
                 rsab_p4(&out, 0);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_beads) > 0,
                                "bronze wire + bone beads should craft zqdeadbeads");
 
@@ -51158,6 +52819,47 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->worn[TORIRSSERVER_WEAR_AMULET].obj_id == obj_beads,
                                "the necklace should be wearable, worn obj=%d",
                                player->worn[TORIRSSERVER_WEAR_AMULET].obj_id);
+
+                /* LostCity ~zombiequeen_chisel_boneshard: the key is only made once the
+                 * bone lock on the hillside door has been seen (zq_found_door). */
+                inv_set(player, 0, obj_chisel, 1);
+                inv_set(player, 1, obj_shard, 1);
+                rsab_wrap(&out, payload, sizeof(payload));
+                rsab_p2(&out, obj_chisel);
+                rsab_p2(&out, 0);
+                rsab_p4(&out, 0);
+                rsab_p2(&out, obj_shard);
+                rsab_p2(&out, 1);
+                rsab_p4(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
+                               "the bone key should not be made before the bone lock is found");
+            }
+
+            /* ---- Rashiliyia's Tomb: carved door, bone door, the fight dolmen ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2916, 3091);
+            selftest_tick(srv);
+            selftest_ack_scene(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2916, 3091, 0, loc_carveddoor);
+            SELFTEST_CHECK(loc_slot >= 0, "hillsideclosedl should resolve near the palm trees");
+            if( loc_slot >= 0 )
+            {
+                int px, pz;
+                uint8_t payload[16];
+                struct RSAreaBuf out;
+
+                /* LostCity zq_tombdoor_outer_op2: searching the door at
+                 * entered_tomb_bervirius finds the bone lock. */
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_carveddoor, -1,
+                                                    loc_slot);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 4 /* zq_found_door */)) != 0,
+                               "searching the hillside door should set zq_found_door, got "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
 
                 inv_set(player, 0, obj_chisel, 1);
                 inv_set(player, 1, obj_shard, 1);
@@ -51168,44 +52870,26 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, obj_shard);
                 rsab_p2(&out, 1);
                 rsab_p4(&out, 0);
-                player->stat_level[stat_crafting] = 5;
-                player->stat_boosted[stat_crafting] = 5;
+                ToriRSServer_CombatSetLevel(player, stat_crafting, 5);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
                                "the bone key should require Crafting 20, not craft below it");
-                player->stat_level[stat_crafting] = 99;
-                player->stat_boosted[stat_crafting] = 99;
+                ToriRSServer_CombatSetLevel(player, stat_crafting, 99);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) > 0,
                                "chisel + bone shard at Crafting 20+ should craft zqbonekey");
-            }
-
-            /* ---- Rashiliyia's Tomb: carved door, bone door, the fight dolmen ---- */
-            ToriRSServer_WorldTeleport(srv, 0, 2916, 3091);
-            selftest_tick(srv);
-            loc_slot = ToriRSServer_SceneFindLoc(2916, 3091, 0, loc_carveddoor);
-            SELFTEST_CHECK(loc_slot >= 0, "hillsideclosedl should resolve near the palm trees");
-            if( loc_slot >= 0 )
-            {
-                int px, pz;
 
                 player->last_useitem = obj_key;
-                worn_set(player, TORIRSSERVER_WEAR_AMULET, -1, 0); /* unequip the beads: block-without-protection check */
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_carveddoor, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
-                SELFTEST_CHECK(player->varps[varp_zq] != 10 /* zombiequeen_unlocked_rashliyia_tomb */,
-                               "entering without the beads worn should NOT unlock the tomb, got %d",
-                               player->varps[varp_zq]);
-
-                worn_set(player, TORIRSSERVER_WEAR_AMULET, obj_beads, 1);
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_carveddoor, -1,
-                                                    loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(player->varps[varp_zq] == 10 /* zombiequeen_unlocked_rashliyia_tomb */,
-                               "the bone key with beads worn should unlock the tomb, got %d",
+                               "the bone key in the hillside door should unlock the tomb, got %d",
                                player->varps[varp_zq]);
 
                 /* Quest Helper's own coordinates for the bone door and fight dolmen --
@@ -51223,13 +52907,13 @@ ToriRSServer_WorldSelftest(void)
                     player->last_useitem = obj_bones;
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     SELFTEST_CHECK(player->varps[varp_zq] == 12 /* zombiequeen_unlocked_tombdoor */,
                                    "placing three bones should unlock the tomb door, got %d",
                                    player->varps[varp_zq]);
@@ -51251,7 +52935,7 @@ ToriRSServer_WorldSelftest(void)
 
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fightdolmen, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
                     {
                         if( srv->npcs[i].active && srv->npcs[i].type == npc_naz1 )
@@ -54455,6 +56139,95 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    /*
+     * A multiloc hidden by a -1 rung comes back when its varbit returns.
+     *
+     * Recruitment Drive's Lady Table room is twelve placed wrappers,
+     * rd_statue_multi_1..12, on one varbit, rd_room_order (configs/all.loc):
+     * value 0 is the canonical twelve and each value 1..12 is a scrambled
+     * eleven with exactly one slot -1 -- the statue you must name by touching
+     * it once the room is back at 0. That hide-then-return round trip is the
+     * premise the CLIENT's re-placement rests on (seam21
+     * multiloc_minus_one_replacement: world_builder.c remembers a placement
+     * its multiloc hid and app_varp_transforms.c re-places it on the varbit
+     * change, as the reference's DynamicObject re-resolves its model every
+     * draw). This pins it on the server's own resolver, so a cache or
+     * content change that stops a hidden statue from resolving again, or
+     * hides zero or two at once, reads red here and not as a statue the
+     * quest driver cannot find.
+     *
+     * Mutation: make ToriRSServer_LocResolveTransform answer -1 once hidden
+     * (or read the value-0 rung for every value) and the counts below fail.
+     */
+    fprintf(stderr, "ToriRSServer selftest: Lady Table's hidden statue returns at rd_room_order 0\n");
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int vb_order = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rd_room_order");
+            int wrappers[12];
+            int canonical[12];
+            int all_symbols = vb_order > 0;
+
+            for( int k = 0; k < 12; k++ )
+            {
+                char name[32];
+                snprintf(name, sizeof(name), "rd_statue_multi_%d", k + 1);
+                wrappers[k] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, name);
+                if( wrappers[k] <= 0 )
+                    all_symbols = 0;
+            }
+            SELFTEST_CHECK(all_symbols,
+                           "rd_room_order and all twelve rd_statue_multi_N should resolve");
+            if( all_symbols )
+            {
+                ToriRSServer_VarbitSet(srv, vb_order, 0);
+                for( int k = 0; k < 12; k++ )
+                {
+                    canonical[k] = ToriRSServer_LocResolveTransform(player, wrappers[k]);
+                    SELFTEST_CHECK(canonical[k] >= 0,
+                                   "at rd_room_order 0 statue %d should be shown, resolves %d",
+                                   k + 1, canonical[k]);
+                }
+                for( int value = 1; value <= 12; value++ )
+                {
+                    int hidden = 0;
+                    int hidden_k = -1;
+
+                    ToriRSServer_VarbitSet(srv, vb_order, value);
+                    for( int k = 0; k < 12; k++ )
+                        if( ToriRSServer_LocResolveTransform(player, wrappers[k]) < 0 )
+                        {
+                            hidden++;
+                            hidden_k = k;
+                        }
+                    SELFTEST_CHECK(hidden == 1,
+                                   "rd_room_order %d should hide exactly one statue, hides %d",
+                                   value, hidden);
+
+                    ToriRSServer_VarbitSet(srv, vb_order, 0);
+                    if( hidden_k >= 0 )
+                        SELFTEST_CHECK(
+                            ToriRSServer_LocResolveTransform(player, wrappers[hidden_k]) ==
+                                canonical[hidden_k],
+                            "back at 0 the statue rd_room_order %d hid (rd_statue_multi_%d) "
+                            "should resolve to %d again, resolves %d",
+                            value, hidden_k + 1, canonical[hidden_k],
+                            ToriRSServer_LocResolveTransform(player, wrappers[hidden_k]));
+                }
+                ToriRSServer_VarbitSet(srv, vb_order, 0);
+            }
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: lighting a fire steps off it, twice\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
@@ -56235,7 +58008,7 @@ ToriRSServer_WorldSelftest(void)
                      * survives" is a claim a depletion roll cannot pass by luck:
                      * against the reference's `random(16) < 3` this seed deletes
                      * the plant on pick 3. */
-                    srv->rng = 0x5eed1234u;
+                    srv->world_random.engine = 0x5eed1234u;
                     ToriRSServer_WorldLocSet(srv, crop_x, crop_z, 0, crop_shape, flax_loc, 0,
                                           TORIRSSERVER_LOC_SET_ADD);
 

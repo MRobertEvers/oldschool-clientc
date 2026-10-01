@@ -918,7 +918,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
                 {
                     int obj=which==2 ? cargo->items[slot].obj_id : container->slots[slot].obj_id;
                     int count=which==2 ? cargo->items[slot].count : container->slots[slot].obj_count;
-                    if( obj<=0 || count<=0 ) continue;
+                    if( obj<0 || count<=0 ) continue;
                     offset+=snprintf(result+offset,sizeof(result)-offset,"%s[%d,%d,%d]",entries++ ? ",":"",slot,obj,count);
                 }
                 offset+=snprintf(result+offset,sizeof(result)-offset,"]");

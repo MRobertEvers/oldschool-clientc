@@ -141,6 +141,22 @@ def ledger_clear_of_blocked(ledger_path: Path):
     return True, "%s has no BLOCKED row and no blocked= bucket" % ledger_path
 
 
+def full_run_ledger(ledger_path: Path):
+    """(ok, reason): the ledger a green row is graded on is a full run's --
+    it exists, it ends in a SUMMARY row, and that row carries no from_leg=
+    token (a checkpoint run skipped setup and legs 1..K-1)."""
+    rows, summary = ledger.read(str(ledger_path))
+    if rows is None:
+        return False, "no full-run ledger at %s -- run the whole test first" % ledger_path
+    if summary is None:
+        return False, "%s has no SUMMARY row -- the run never finished" % ledger_path
+    tokens = summary[5].split() if len(summary) > 5 else []
+    if any(token.startswith("from_leg=") for token in tokens):
+        return False, ("%s is a checkpoint run's ledger (%s) -- a checkpoint run is for "
+                       "authoring; grade the full run" % (ledger_path, summary[5]))
+    return True, "%s is a full run's ledger" % ledger_path
+
+
 def cmd_next(args: argparse.Namespace) -> int:
     rows = load_rows(args.file)
     tier = str(args.tier)
@@ -165,6 +181,14 @@ def cmd_set(args: argparse.Namespace) -> int:
         print(f"unknown test_id {args.test_id!r} in {args.file}", file=sys.stderr)
         return 1
     if args.status == "green":
+        # A green row is graded on a FULL run's ledger (docs/quest_authoring/
+        # relay.md "Checkpoints"): build/quest_gate/<id>/ledger.tsv must exist,
+        # carry a SUMMARY row, and not be a checkpoint run's (from_leg=K --
+        # run.py --from-leg writes <id>.leg<K>/, and stamps its SUMMARY).
+        ok, reason = full_run_ledger(quest_ledger_path(args.test_id))
+        if not ok:
+            print(f"refusing green: {reason}", file=sys.stderr)
+            return 1
         # 2026-09-20: six rows sat at green while their files ended on a
         # t.blocked row; green means the gate's green bucket, nothing less.
         # A file can still call t.blocked( behind a guard a real run never

@@ -1,0 +1,32 @@
+# Making History, cutscene 1
+VIDEOS.tsv: makinghistory 1, m4H4nxjCMeg 0:02:14-0:02:49 (35 s). Clip: makinghistory-01-choosing-tell-me-more-at-the-quest-start.mp4
+Trigger: makinghistory_jorral.rs2 ~chatplayer_anim("Tell me more.") closes -> chatbox line "Jorral talks about the outpost...", fade to black, flyover with five narration lines.  HUD: hidden (panel empty, minimap black, fades at both ends).  Fades: black at clip 3.5-5.5 s and 36.5-38 s.
+Player stands: 2437,3347,0 (inside the outpost hut beside Jorral, 2436,3346).  Ends: the camera returns in the hut when Jorral's next page opens (recording: "If all goes well, I hope to be able to turn it into a museum ..."; the port's next page is "There are three who might know something ...").
+Landmarks: the outpost hut (walls, crates on the roof, inner door), a grey boulder and trees west of it, dead trees west, steep brown slope south-west, green hills north-west.
+
+| shot | clip s      | ticks | motion | camera                                                        | sees                                                                 | on screen                                   | actors |
+| 0    | 3.0 - 5.5   | 4     | fade   | follow camera, panel still drawn, fade to black               | hut interior from above                                              | chatbox "Jorral talks about the outpost..." | none   |
+| 1    | 5.5 - 10.5  | 8     | cut+glide | eye 35 tiles NNW and high (1000), hut small top-centre under black sky, then glide closer and higher (1200) | hut small top-centre, tree and grey boulder left, green hill foreground, dead trees right, hut grows | "With many occupants over the years..." | none |
+| 2    | 10.5 - 17.5 | 11    | glide  | eye drifts 6 tiles west and up (1200 -> 1300), hut centre       | hut centre (about 35% wide), tree lower-left, brown slope with wolves behind upper-right | "...the building has seen much action."     | none   |
+| 3    | 17.5 - 23.5 | 10    | cut+glide | eye south-east of the hut (1000) looking north-west, slow glide toward the hut | hut lower-centre with interior (crates, inner door), dead trees upper-left, brown slope left, green hill right | "It started life as an outpost..."      | none   |
+| 4    | 23.5 - 30.5 | 10    | cut+glide | west of the hut, eye 300, door wall facing the camera, slow drift in | hut centre-left, door wall, tree right, hillside behind (brown slope right) | "... its sole purpose being to see invading armies..." | none |
+| 5a   | 30.5 - 32.5 | 3     | cut+glide | south-east of the hut, eye 400, looking north | hut lower-left, tree right, green hills and trees behind | "... before they saw the city of Ardougne." | none   |
+| 5b   | 32.5 - 36.5 | 7     | cut+glide | north-east of the hut on the open hills, eye 420, slow drift | grey boulder centre-left, tree in front of it, hills and trees behind, goblins right | (same line)                                 | none   |
+| 6    | 36.5 - 38.0 | -     | reset  | fade to black, cam_reset, HUD restored, fade in in the hut      | hut from above, Jorral talking                                       | Jorral page                                 |        |
+
+Solved (camsolve; return 1, 26 four-candidate rounds, build/quest_gate/mhr1/compare.png (overwritten each round: compare_NN.png did NOT keep per-round copies, only the last survives); player stands 2437,3347,0):
+  shot 1 start: cam_moveto(0_37_52_58_47, 1000, 100, 100); cam_lookat(0_38_52_3_21, 0, 100, 100);   -- eye 2426,3375 h1000 > 2435,3349 h0 (--at 8, candidate A of the round that put the hut top-centre; look-at nudged 3 tiles west)
+  shot 1 end:   cam_moveto(0_37_52_52_38, 1200, 4, 2); cam_lookat(0_38_52_4_18, 0, 4, 2);            -- eye 2420,3366 h1200 > 2436,3346 h0 (--at 10, candidate A); rate 4,2 is a guess
+  shot 2:       cam_moveto(0_37_52_46_34, 1300, 2, 1);                                                  -- eye 2414,3362 h1300 (--at 14, candidate A); rate 2,1 for about 6 s over ~800 units
+  shot 3:       cam_moveto(0_38_52_14_10, 1000, 100, 100); cam_lookat(0_37_52_60_22, 0, 100, 100);    -- eye 2446,3338 h1000 > 2428,3350 h0 (--at 20, candidate B)
+                cam_moveto(0_38_52_11_13, 950, 1, 1);                                                   -- glide toward the hut, eye 2443,3341 h950
+  shot 4:       cam_moveto(0_37_52_50_12, 300, 100, 100); cam_lookat(0_38_52_6_16, 250, 100, 100);    -- eye 2418,3340 h300 > 2438,3344 h250 (--at 26, candidate D)
+                cam_moveto(0_37_52_53_12, 300, 1, 1);                                                   -- drift in to 2421,3340
+  shot 5a:      cam_moveto(0_38_52_12_0, 400, 100, 100); cam_lookat(0_38_52_0_36, 0, 100, 100);       -- eye 2444,3328 h400 > 2432,3364 h0 (--at 31, candidate C)
+                cam_moveto(0_38_52_12_4, 380, 1, 1);
+  shot 5b:      cam_moveto(0_38_52_16_22, 420, 100, 100); cam_lookat(0_37_52_58_38, 0, 100, 100);     -- eye 2448,3350 h420 > 2426,3366 h0 (--at 34, candidate C)
+                cam_moveto(0_38_52_14_24, 400, 1, 1);
+Rejected (return 1): shot 1 eyes 15-25 tiles from the hut (hut fills a third of the frame, the camera pitch clamp at 128 pushes the hut to the top edge: a far, HIGH eye is the only way to put a small hut in the upper third); shot 3/4 eyes north of the hut (blank north wall, trees fill the frame) and the west at h500 (the brown slope fills the frame); shot 5b eyes north of the hut (big trees fill the frame).
+Geometry learned (tiles): hut spans about 2427-2440 x 3343-3351, its double-door wall faces west-north-west; brown slope lies south-west of the hut (2410-2425, 3334-3345), dead trees west; a grey boulder lies north-north-east (near 2440,3356), tree grove north.
+Timing note: shot 5 in the recording is not two cuts at clip ~35 s. The hut leaves the frame bottom between clip 32 and 33 (a smooth pull-away or a cut near 32.3 s); clip 34-36.4 shows only hills, trees, boulder and goblins. The port cuts at 3 ticks (clip 32.5) into shot 5.
+Notes: the recording is the 2017 build: the hut's walls are lower and the sky black, so heights differ from the game's; the matching is of arrangement only. Narration appears in the recording as small text at the top of the viewport (not in the chatbox); the port prints each line with mes() in the chatbox, which is the nearest thing the engine has without a click. The recording's closing Jorral page ("If all goes well ... What do you think?" then "Start the Making History quest?") does not exist in the port.

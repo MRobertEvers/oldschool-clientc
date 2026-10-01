@@ -60,6 +60,7 @@
 #include "input/torirs_input.h"
 #include "render/torirs_world_projection.h"
 #include "revconfig/revconfig.h"
+#include "ui/uitree_component_options.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_minimenu.h"
 #include "world/entity_pool.h"
@@ -70,6 +71,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 /* See the file banner: defined in torirs_plugin_bridge.u.c (this group's
@@ -96,6 +98,20 @@ extern int app_plugin_inv_op(
  * drive_pointer_inv_use_on to make sure a FAILED item-on-item leaves no armed
  * selection behind for the next verb's click to spend. */
 extern int app_selection_clear(struct App* app);
+
+/* The three app_minimenu.c / app_if_events.c entry points the spell arming
+ * below needs (drive_pointer_spell_arm).  Non-static there, declared in the
+ * layer-private app_internal.h, so declared here for the same reason
+ * app_selection_clear is: app_minimenu_pick_refusal is the "would the
+ * dispatcher drop this pick?" question asked out loud, app_minimenu_run_option
+ * is the ONE dispatcher a real menu click reaches, and
+ * app_component_target_mask is the effective target mask the real menu
+ * builder gates the "Cast <spell>" row on. */
+extern char const* app_minimenu_pick_refusal(
+    struct App const* app,
+    struct UIMinimenuPick const* pick);
+extern int app_minimenu_run_option(struct App* app, int option_index, int click_x, int click_y);
+extern int app_component_target_mask(struct App const* app, int com_id);
 
 /* app_world_click.c's "is the pointer over the world?" -- the ONE gate that
  * decides whether the next rendered frame arms the world pick at the pointer
@@ -345,7 +361,27 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
         size_z = loc->size_z > 0 ? loc->size_z : 1;
         fine_x = loc->grid_position.x * 128 + size_x * 64;
         fine_z = loc->grid_position.z * 128 + size_z * 64;
-        if( !drive_pointer_project_ground(app, fine_x, fine_z, loc->grid_position.level, 0, &x, &y) )
+        /*
+         * SEAM bridge_deck_loc_hittest (seam23): the ground under a loc is the
+         * height the SCENE drew it at, heightmap[cache level]
+         * (world_scenery.u.c scenery_element_position_init). World_HeightAt
+         * takes a WIRE level and samples one plane up on a LINK_BELOW column,
+         * so handing it the pool's cache level projected a bridge-deck loc
+         * (cache 1) at heightmap[2]: The Tourist Trap's clifftop climbs, at
+         * 382,99 with 45 of 54 hunt pixels off the top of the viewport
+         * (build/quest_gate/parity_desertrescue_d4, s23b_base1). Cache ->
+         * wire first; a non-bridge column is unchanged.
+         */
+        if( !drive_pointer_project_ground(
+                app,
+                fine_x,
+                fine_z,
+                World_TerrainWalkLevel(
+                    app->world, loc->grid_position.x, loc->grid_position.z,
+                    loc->grid_position.level),
+                0,
+                &x,
+                &y) )
             continue;
         if( !drive_pointer_in_viewport(app, x, y) )
             continue;
@@ -428,13 +464,29 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
         if( same_level_exists && stack->grid_position.level != player_level )
             continue;
         /* stack->draw_position, never a tile centre -- the corrected reading
-         * in docs/QUEST_DRIVER_PLAN.md S0 ("pointer"). */
+         * in docs/QUEST_DRIVER_PLAN.md S0 ("pointer").
+         *
+         * And at the height the stack is DRAWN at, never the ground: a stack
+         * on a raiseobject loc's tile (every blocking centrepiece -- a table,
+         * Legends' carved rock; rscache defaults raiseobject to blocks_walk)
+         * is lifted onto the loc by World_ObjRaiseGet (app_world_rebuild.c,
+         * App_WorldObjStackAdd: world_y = height - raise). Projected at the
+         * ground, the pixel lands on the loc's body under the item and the
+         * menu there offers only the loc's rows (seam32
+         * ground_obj_on_a_centrepiece_tile: the placed sapphire at
+         * 2781,9291 was pressed at 382,268 with the gem drawn above it; the
+         * 8-tick gem was gone before the hunt found it). Zero on flat
+         * ground, so every other stack projects exactly as before. */
         if( !drive_pointer_project_ground(
                 app,
                 (int)stack->draw_position.x,
                 (int)stack->draw_position.z,
                 stack->grid_position.level,
-                0,
+                World_ObjRaiseGet(
+                    app->world,
+                    stack->grid_position.x,
+                    stack->grid_position.z,
+                    stack->grid_position.level),
                 &x,
                 &y) )
             continue;
@@ -1284,6 +1336,241 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
     return DRIVE_OK;
 }
 
+/*
+ * ARM A SPELL FROM ITS SPELLBOOK COMPONENT -- api_drive.spell_arm, the
+ * app->targetsel twin of DrivePointer_InvArm (seam cast_spell_on_npc,
+ * 2026-09-27).
+ *
+ * WHY THE DRIVER NEEDED ITS OWN ENTRY POINT.  A player casts Wind Strike on a
+ * goblin in two clicks: the spell's own "Cast <spell>" row in the magic tab
+ * (REVCONFIG_MINIMENU_TGT_BUTTON, which app_minimenu_run_option turns into
+ * app->targetsel -- app_minimenu.c's "Arm target mode from a spell/prayer
+ * button" branch), then the one collapsed "Cast <spell> -> <npc>" row on the
+ * target (add_world_select_row, TGT_NPC), which is what sends OPNPCT.  The
+ * second click is an ordinary click_minimenu "select" press, exactly as
+ * use_on's second phase is.  The FIRST click had no way in:
+ * api_drive.if_click reaches app_plugin_click_node, which builds IF_BUTTON
+ * for op >= 1 and if_button_action_for_type(button_type) for op 0 -- and an
+ * IF3 spellbook component decodes button_type 0, so every press of a rev-239
+ * spell through it sent a plain IF_BUTTON and armed nothing.  No driver read
+ * gives a component's screen rectangle either, so a real right-click on the
+ * spell was not reachable from Lua.
+ *
+ * WHAT THIS DOES, and why it is the same press and not a second one.  It
+ * builds the ONE row the real menu builder would put on this component and
+ * runs it through app_minimenu_run_option, the dispatcher a real click on
+ * that row reaches -- the scratch-menu shape app_plugin_inv_op and
+ * app_plugin_click_node already use.  It refuses, rather than arms, whenever
+ * the real menu would NOT have offered the row:
+ *
+ *   - the component is not in the tree (DRIVE_NOT_FOUND);
+ *   - it offers no Cast row: an IF1 BUTTON_TARGET with an empty target verb,
+ *     or an IF3 component whose EFFECTIVE target mask (the server's
+ *     IF_SETEVENTS bits, app_component_target_mask -- the number
+ *     rs_minimenu_build's component_offers_if3_target reads) is 0 or whose
+ *     target verb is empty (DRIVE_REFUSED);
+ *   - the dispatcher would drop the pick in silence -- display-hidden, the
+ *     magic tab not the shown one (app_minimenu_pick_refusal, DRIVE_REFUSED
+ *     with its sentence);
+ *   - the row ran and targetsel did not come back holding THIS component
+ *     (DRIVE_REFUSED): "the dispatcher ran" is never mistaken for "the spell
+ *     is armed".
+ *
+ * Idempotent like InvArm: a live arming of THIS component sends nothing and
+ * says so, so the Lua verb can re-arm before every retry press for free.  A
+ * different live selection (a held item, another spell) is dropped first
+ * through app_selection_clear, the reference's own doAction tail -- objsel
+ * and targetsel are mutually exclusive.
+ */
+static enum DriveResult
+drive_pointer_spell_arm(
+    struct App* app,
+    int component_id,
+    int* out_was_armed,
+    char const** out_reason)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    struct UITreeComponent const* c;
+    char const* verb;
+    int32_t node;
+    int offers;
+
+    assert(app);
+    assert(out_was_armed);
+    assert(out_reason);
+    *out_was_armed = 0;
+    *out_reason = NULL;
+    if( !app->tree )
+    {
+        *out_reason = "no interface tree yet";
+        return DRIVE_NOT_VISIBLE;
+    }
+    node = UITree_FindByComponentId(app->tree, component_id);
+    if( node < 0 )
+    {
+        *out_reason = "that component id is not in the interface tree";
+        return DRIVE_NOT_FOUND;
+    }
+    if( app->targetsel.active && app->targetsel.component_id == component_id )
+    {
+        *out_was_armed = 1;
+        return DRIVE_OK;
+    }
+    c = &app->tree->components[node];
+    verb = UITree_MenuOptions(c)->target_verb;
+    if( c->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
+        offers = verb[0] != '\0';
+    else
+        offers = verb[0] != '\0' && app_component_target_mask(app, component_id) != 0;
+    if( !offers )
+    {
+        *out_reason = "the component offers no Cast row (no target verb, or a target mask of 0)";
+        return DRIVE_REFUSED;
+    }
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_UI;
+    pick.id = component_id;
+    pick.has_node_identity = 1;
+    pick.node_index = node;
+    pick.node_incarnation = c->incarnation;
+    *out_reason = app_minimenu_pick_refusal(app, &pick);
+    if( *out_reason )
+        return DRIVE_REFUSED;
+
+    if( app->objsel.active || app->targetsel.active )
+        app_selection_clear(app);
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick) )
+    {
+        *out_reason = "the scratch minimenu would not take the row";
+        return DRIVE_REFUSED;
+    }
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+
+    if( !app->targetsel.active || app->targetsel.component_id != component_id )
+    {
+        *out_reason = "the Cast row ran and targetsel did not come back armed with it";
+        return DRIVE_REFUSED;
+    }
+    return DRIVE_OK;
+}
+
+/*
+ * CAST THE ARMED SPELL ON A CARRIED ITEM -- api_drive.inv_cast, the held-item
+ * twin of the world "Cast <spell> -> <target>" press (seam
+ * recruitmentdrive_spawn_artifact_and_held_cast, seam27, 2026-09-28).
+ *
+ * A player casts Superheat Item or Low Level Alchemy in two clicks: the
+ * spell's own "Cast" row (drive_pointer_spell_arm above arms app->targetsel)
+ * and then the "<spell> -> <item>" row the backpack cell offers while that
+ * target mode is live -- rs_minimenu_build.c add_inv_slot_select_row, action
+ * REVCONFIG_MINIMENU_TGT_HELD -- which app_minimenu_inv_action turns into
+ * OPHELDT.  Neither existing entry point reaches that row: app_plugin_inv_op
+ * builds OPHELD1..6 or OPHELDT_START only (the latter would ARM a Use
+ * selection and drop the spell), and no driver read gives a backpack cell's
+ * screen rectangle for a real click.
+ *
+ * So this builds the ONE row the real menu builder would put on this cell and
+ * runs it through app_minimenu_run_option, the dispatcher a real click on the
+ * row reaches -- drive_pointer_spell_arm's scratch-menu shape.  It refuses
+ * (sending nothing) wherever the real menu would not have offered the row:
+ *
+ *   - no spell is armed (DRIVE_REFUSED);
+ *   - the armed spell's target mask lacks the held-item bit
+ *     (features->target_mask_held, 0x10 classic -- the builder's own test;
+ *     DRIVE_REFUSED): the real cell then offers no cast row at all;
+ *   - the dispatcher would drop the pick in silence -- the backpack not the
+ *     shown tab, the cell display-hidden or holding something else
+ *     (app_minimenu_pick_refusal, DRIVE_REFUSED with its sentence);
+ *   - the row ran and the spell is still armed (DRIVE_REFUSED): the OPHELDT
+ *     branch is the only thing on that path that consumes targetsel, so a
+ *     live arming afterwards means nothing was sent.
+ *
+ * Every failure after the arming check clears the selection, as
+ * drive_pointer_inv_use_on does: a spell left armed would be spent by the
+ * next verb's click on whatever it hits.
+ */
+static enum DriveResult
+drive_pointer_inv_cast(
+    struct App* app,
+    int component_id,
+    int slot,
+    int obj_id,
+    int count,
+    char const** out_reason)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    int held_bit;
+
+    assert(app);
+    assert(out_reason);
+    *out_reason = NULL;
+    if( !app->targetsel.active )
+    {
+        *out_reason = "no spell is armed (api_drive.spell_arm first)";
+        return DRIVE_REFUSED;
+    }
+    held_bit = app->features && app->features->target_mask_held != 0
+                   ? app->features->target_mask_held
+                   : TORIRS_TARGET_MASK_HELD_CLASSIC;
+    if( (app->targetsel.mask & held_bit) == 0 )
+    {
+        app_selection_clear(app);
+        *out_reason = "the armed spell's target mask has no held-item bit: the cell offers no cast row";
+        return DRIVE_REFUSED;
+    }
+    if( !app->tree || UITree_FindByComponentId(app->tree, component_id) < 0 )
+    {
+        app_selection_clear(app);
+        *out_reason = "that component id is not in the interface tree";
+        return DRIVE_NOT_FOUND;
+    }
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_INV_SLOT;
+    pick.id = component_id;
+    pick.secondary_id = slot;
+    pick.tertiary_id = obj_id;
+    pick.quaternary_id = count;
+    *out_reason = app_minimenu_pick_refusal(app, &pick);
+    if( *out_reason )
+    {
+        app_selection_clear(app);
+        return DRIVE_REFUSED;
+    }
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_HELD, 0, pick) )
+    {
+        app_selection_clear(app);
+        *out_reason = "the scratch minimenu would not take the row";
+        return DRIVE_REFUSED;
+    }
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+
+    if( app->targetsel.active )
+    {
+        app_selection_clear(app);
+        *out_reason = "the cast row ran and the spell stayed armed: nothing was sent";
+        return DRIVE_REFUSED;
+    }
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z)
 {
@@ -1701,6 +1988,48 @@ lua_drive_inv_use_on(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api_drive.inv_cast(component_id, slot, obj_id, count) -> (result, detail).
+ * The backpack cell the ARMED spell is cast on; detail is the refusal
+ * sentence, or nil on ok.  See drive_pointer_inv_cast. */
+static int
+lua_drive_inv_cast(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int slot = PluginDrive_ArgInt(L, 2);
+    int obj_id = PluginDrive_ArgInt(L, 3);
+    int count = PluginDrive_ArgInt(L, 4);
+    char const* reason = NULL;
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_inv_cast(app, component_id, slot, obj_id, count, &reason);
+    return PluginDrive_PushResult(L, result, reason);
+}
+
+/* api_drive.spell_arm(component_id) -> (result, detail).  detail is
+ * "already armed, nothing sent", "armed by this call: <the client's own
+ * targetsel prompt>", or the refusal sentence.  See drive_pointer_spell_arm. */
+static int
+lua_drive_spell_arm(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int was_armed = 0;
+    char const* reason = NULL;
+    char detail[160];
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_spell_arm(app, component_id, &was_armed, &reason);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, reason);
+    if( was_armed )
+        return PluginDrive_PushResult(L, result, "already armed, nothing sent");
+    snprintf(detail, sizeof(detail), "armed by this call: %s", app->targetsel.op);
+    return PluginDrive_PushResult(L, result, detail);
+}
+
 static int
 lua_drive_op_available(struct lua_State* L)
 {
@@ -1787,6 +2116,175 @@ lua_drive_camera_pose(struct lua_State* L)
     return 2;
 }
 
+/* ------------------------------------------------------ the camera READ side
+ *
+ * seam32 cutscene_verb_and_camera_read: no test could read the camera, so a
+ * quest whose cutscene set its stage and moved nothing passed every row. The
+ * packet handlers in rs_gameproto_exec.c stamp every CAM_* packet into
+ * app->cam_script (struct App_CamScript: `serial` + the `events` ring, world
+ * tiles); these two verbs hand them to quest_driver/world.lua
+ * (t.world.camera) and quest_driver/cutscene.lua (t.cutscene.await). */
+
+static char const*
+drive_camera_op_name(int op)
+{
+    switch( op )
+    {
+    case APP_CAM_SCRIPT_OP_MOVETO:
+        return "moveto";
+    case APP_CAM_SCRIPT_OP_LOOKAT:
+        return "lookat";
+    case APP_CAM_SCRIPT_OP_SHAKE:
+        return "shake";
+    case APP_CAM_SCRIPT_OP_RESET:
+        return "reset";
+    default:
+        return NULL;
+    }
+}
+
+static void
+drive_camera_push_event(struct lua_State* L, struct App_CamScriptEvent const* event)
+{
+    assert(L);
+    assert(event);
+    lua_newtable(L);
+    lua_pushinteger(L, event->serial);
+    lua_setfield(L, -2, "serial");
+    lua_pushstring(L, drive_camera_op_name(event->op));
+    lua_setfield(L, -2, "op");
+    lua_pushinteger(L, event->tick);
+    lua_setfield(L, -2, "tick");
+    if( event->op == APP_CAM_SCRIPT_OP_MOVETO || event->op == APP_CAM_SCRIPT_OP_LOOKAT )
+    {
+        lua_pushinteger(L, event->world_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, event->world_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "height");
+        lua_pushinteger(L, event->rate);
+        lua_setfield(L, -2, "speed");
+        lua_pushinteger(L, event->rate2);
+        lua_setfield(L, -2, "speed2");
+    }
+    else if( event->op == APP_CAM_SCRIPT_OP_SHAKE )
+    {
+        lua_pushinteger(L, event->rate);
+        lua_setfield(L, -2, "axis");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "amplitude");
+        lua_pushinteger(L, event->rate2);
+        lua_setfield(L, -2, "speed");
+    }
+}
+
+/* api.drive.camera_state() -> ("ok", {x, z, level, yaw, pitch, zoom,
+ * server_driven, serial, last_op, last_target = {x, z, height}}).
+ *
+ * x/z are the EYE's world tile (the scene-local eye plus the scene base);
+ * yaw/pitch are the angles the frame is drawn with, scripted or not.
+ * server_driven is cam_script.scripted: a MOVETO/LOOKAT arrived and neither a
+ * CAM_RESET nor a scene rebuild (app_world_rebuild.c clears it) has ended it.
+ * last_target is the newest MOVETO/LOOKAT still in the ring, nil if none. */
+static int
+lua_drive_camera_state(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct App_CamScript const* cam;
+    int base_x = 0, base_z = 0;
+    int tile_x = 0, tile_z = 0, level = 0;
+
+    assert(app);
+    cam = &app->cam_script;
+    if( app->world )
+    {
+        base_x = app->world->_base_tile_x;
+        base_z = app->world->_base_tile_z;
+    }
+    if( DriveUi_PlayerTile(app, &tile_x, &tile_z, &level) != DRIVE_OK )
+        level = 0;
+
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_newtable(L);
+    lua_pushinteger(L, (app->world_camera_pos.x >> 7) + base_x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, (app->world_camera_pos.z >> 7) + base_z);
+    lua_setfield(L, -2, "z");
+    lua_pushinteger(L, level);
+    lua_setfield(L, -2, "level");
+    lua_pushinteger(L, app->world_camera.yaw & 2047);
+    lua_setfield(L, -2, "yaw");
+    lua_pushinteger(L, app->world_camera.pitch);
+    lua_setfield(L, -2, "pitch");
+    lua_pushinteger(L, app->world_cam_zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushboolean(L, cam->scripted != 0);
+    lua_setfield(L, -2, "server_driven");
+    lua_pushinteger(L, cam->serial);
+    lua_setfield(L, -2, "serial");
+    if( cam->serial > 0 )
+    {
+        struct App_CamScriptEvent const* newest = &cam->events[cam->serial % APP_CAM_SCRIPT_EVENTS];
+        lua_pushstring(L, drive_camera_op_name(newest->op));
+        lua_setfield(L, -2, "last_op");
+    }
+    /* The newest framing packet still held in the ring: a shake or a reset
+     * after it does not erase where the shot was last aimed. */
+    for( int serial = cam->serial;
+         serial > 0 && serial > cam->serial - APP_CAM_SCRIPT_EVENTS;
+         serial-- )
+    {
+        struct App_CamScriptEvent const* event = &cam->events[serial % APP_CAM_SCRIPT_EVENTS];
+        if( event->op != APP_CAM_SCRIPT_OP_MOVETO && event->op != APP_CAM_SCRIPT_OP_LOOKAT )
+            continue;
+        lua_newtable(L);
+        lua_pushinteger(L, event->world_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, event->world_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "height");
+        lua_pushstring(L, drive_camera_op_name(event->op));
+        lua_setfield(L, -2, "op");
+        lua_setfield(L, -2, "last_target");
+        break;
+    }
+    return 2;
+}
+
+/* api.drive.camera_events(since) -> ("ok", {event...}, oldest).
+ *
+ * Every camera packet with serial > `since`, oldest first, each
+ * {serial, op, tick, x, z, height, speed, speed2} (a shake carries axis,
+ * amplitude, speed instead of a tile). `oldest` is the lowest serial the ring
+ * still holds: a caller whose `since` is below oldest - 1 has lost packets
+ * and must say so rather than read a gap as silence. */
+static int
+lua_drive_camera_events(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct App_CamScript const* cam;
+    int since = PluginDrive_ArgInt(L, 1);
+    int oldest;
+    int index = 1;
+
+    assert(app);
+    cam = &app->cam_script;
+    oldest = cam->serial - APP_CAM_SCRIPT_EVENTS + 1;
+    if( oldest < 1 )
+        oldest = 1;
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_newtable(L);
+    for( int serial = since + 1 > oldest ? since + 1 : oldest; serial <= cam->serial; serial++ )
+    {
+        drive_camera_push_event(L, &cam->events[serial % APP_CAM_SCRIPT_EVENTS]);
+        lua_rawseti(L, -2, index++);
+    }
+    lua_pushinteger(L, oldest);
+    return 3;
+}
+
 static int
 lua_drive_player_idle(struct lua_State* L)
 {
@@ -1818,10 +2316,14 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"inv_op", lua_drive_inv_op},
     {"inv_arm", lua_drive_inv_arm},
     {"inv_use_on", lua_drive_inv_use_on},
+    {"spell_arm", lua_drive_spell_arm},
+    {"inv_cast", lua_drive_inv_cast},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},
     {"camera_pose", lua_drive_camera_pose},
+    {"camera_state", lua_drive_camera_state},
+    {"camera_events", lua_drive_camera_events},
     {"player_idle", lua_drive_player_idle},
     {NULL, NULL},
 };

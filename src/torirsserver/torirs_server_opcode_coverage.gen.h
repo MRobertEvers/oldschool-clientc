@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    334  host commands
+ *    337  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      5  host commands (player)
  *     11  host commands (poh)
- *    463  total, of 520 declared opcodes
+ *    466  total, of 520 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 463
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 466
 #define TORIRSSERVER_OPCODE_DECLARED_COUNT 520
 
 /*
@@ -208,6 +208,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     2134, /* SS_OP_WALKTRIGGER (host commands) */
     2135, /* SS_OP_WEAKQUEUE (host commands) */
     2136, /* SS_OP_WEAKQUEUEVARARG (host commands) */
+    2138, /* SS_OP_WEIGHT (host commands) */
     2500, /* SS_OP_NPC_ADD (host commands) */
     2501, /* SS_OP_NPC_ANIM (host commands) */
     2502, /* SS_OP_NPC_ARRIVEDELAY (host commands) */
@@ -272,6 +273,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     3503, /* SS_OP_OBJ_COUNT (host commands (obj)) */
     3504, /* SS_OP_OBJ_DEL (host commands (obj)) */
     3505, /* SS_OP_OBJ_FIND (host commands (obj)) */
+    3508, /* SS_OP_OBJ_NAME (host commands) */
     3510, /* SS_OP_OBJ_TAKEITEM (host commands (obj)) */
     3511, /* SS_OP_OBJ_TYPE (host commands (obj)) */
     4000, /* SS_OP_NC_CATEGORY (host commands (npc)) */
@@ -310,6 +312,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     4308, /* SS_OP_INV_DELSLOT (host commands) */
     4309, /* SS_OP_INV_DROPALL (host commands (inv)) */
     4310, /* SS_OP_INV_DROPITEM_DELAYED (host commands (inv)) */
+    4311, /* SS_OP_INV_DROPITEM (host commands) */
     4312, /* SS_OP_INV_DROPSLOT (host commands (inv)) */
     4313, /* SS_OP_INV_FREESPACE (host commands) */
     4314, /* SS_OP_INV_GETNUM (host commands) */

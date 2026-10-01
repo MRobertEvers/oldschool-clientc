@@ -83,6 +83,10 @@ struct UITreeHoverIds
  * hardcoded into the client. RS_* map to cache IF1/IF3 widget types
  * (see ToriRS_ComponentType). CC_OBJ is a CS2-created dynamic child.
  */
+/** UITreeComponent.item_id when the node holds no obj (obj id 0 is a real
+ *  item). */
+#define UITREE_NO_OBJ (-1)
+
 enum UITreeComponentType
 {
     /* Historically things that were hardcoded into the client. */
@@ -740,6 +744,9 @@ struct UITreeComponent
     uint8_t dynamic;
     int dynamic_child_index;
 
+    /** The obj CC_SETOBJECT / IF_SETOBJECT hung on this node, or UITREE_NO_OBJ.
+     *  0 is a real obj (Dwarf remains), so "no obj" is -1 -- the reference's
+     *  own Widget.itemId default -- and "has an obj" is `item_id >= 0`. */
     int item_id;
     int item_count;
     int item_scene_id;

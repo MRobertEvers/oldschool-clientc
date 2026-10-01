@@ -120,3 +120,120 @@ function QD.world.level()
     end
     return "ok", tile.level
 end
+
+-- t.world.camera() -> a BARE TABLE (like t.chat.kind's bare string), never a
+-- (result, detail) pair -- the interface the cutscene gate is written against
+-- (seam32 cutscene_verb_and_camera_read):
+--
+--   { x, z, level,          the eye's WORLD tile and the player's level
+--     yaw, pitch, zoom,     the angles the frame is drawn with
+--     server_driven,        true while a CAM_MOVETO/CAM_LOOKAT holds the camera
+--                           (no CAM_RESET, no scene rebuild since)
+--     serial,               every camera packet this session, counted
+--     last_op,              "moveto" | "lookat" | "shake" | "reset" | nil
+--     last_target = {x, z, height, op} }   the newest moveto/lookat target
+--
+-- Every coordinate is a world tile: the packet handler resolved the
+-- scene-local split (rs_gameproto_exec.c exec_cam_script_record) when the
+-- packet arrived. Record it with t.check, writing the reading into the
+-- detail: `local cam = t.world.camera(); t.check("x", not cam.server_driven,
+-- t.cutscene.describe_camera(cam))`.
+--
+-- A binary built before the verb answers nil and "unsupported: ..." -- the
+-- one non-table answer, so a caller can tell an old binary from a camera.
+
+function QD.world.camera()
+    if api_drive.camera_state == nil then
+        return nil, "unsupported: no api.drive.camera_state in this binary (seam32)"
+    end
+    local result, cam = api_drive.camera_state()
+    if result ~= "ok" then
+        return nil, result
+    end
+    return cam
+end
+
+-- ------------------------------------------------------------------ clock
+--
+-- t.clock.skip(minutes) -> ok refused no_row timeout
+--
+-- A step that waits REAL minutes (Forgettable Tale's kelda patch: four
+-- stages of ^forget_kelda_stage_minutes against date_minutes, forget_farming.rs2
+-- [proc,forget_kelda_catchup]; every farming crop; a brew) is a grind by
+-- another name, and this is its fast-forward (docs/QUEST_SERVER_CHEATS.md,
+-- "Grind fast-forwards"): `::clockskip <minutes>` moves the embedded world's
+-- wall clock forward (srv->clock_skip_minutes, added to every CLOCK_REALTIME
+-- read content can see: date_minutes, date_runeday). The quest's own
+-- catch-up still does the work -- its softtimer, or the next op that calls
+-- it -- so the row after this one reads the QUEST's effect back
+-- (`t.var.await("forget_farming", 8, 110)`), never the cheat's.
+--
+-- The reading: the cheat's reply names the new date_minutes, and the verb
+-- waits for the CLIENT's copy of varp date_minutes (teleport_cooldowns.varp,
+-- the one the spellbook reads) to show it. `ok` detail:
+--   "date_minutes 29846653 -> 29846669 (+16 skipped, world 16 min ahead; client varp)"
+-- `before` is the varp content refreshes once a minute, so it can trail the
+-- real minute by one: the difference is the skip or the skip + 1, never less.
+--
+-- Forward only, 1..10080 (a week) per call, a year in all: the server
+-- refuses anything else and the verb answers `refused` with its line. The
+-- skip lasts as long as the server process: a t.session.relog re-boots the
+-- embedded server and the clock is real again -- skip AFTER the relog.
+-- A binary built before the cheat answers `no_row` (it is a ladder branch).
+QD.clock = {}
+
+function QD.clock.skip(minutes)
+    if type(minutes) ~= "number" or minutes < 1 or minutes % 1 ~= 0 then
+        return "refused", "clock.skip: minutes must be a whole number of 1 or more, got "
+            .. tostring(minutes)
+    end
+    local text = string.format("::clockskip %d", minutes)
+    local before_result, before = QD.var.varp("date_minutes")
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" then
+        return serial_result, "clock.skip: message_serial " .. tostring(since)
+    end
+    -- The reply is awaited HERE, from a serial taken before dispatch: t.cheat's
+    -- own wait would consume the line this verb has to read (core.lua's
+    -- QD.cheat banner).
+    local result, detail = QD.cheat(text, false)
+    local reply = nil
+    await({
+        level = function()
+            local list_result, list = api_drive.messages()
+            if list_result ~= "ok" then
+                return false
+            end
+            for i = 1, #list do
+                local line = list[i].text
+                if list[i].serial > since and (string.find(line, "Clock skipped", 1, true)
+                        or string.find(line, "clockskip", 1, true)) then
+                    reply = line
+                    return true
+                end
+            end
+            return false
+        end,
+        note = "clock.skip reply",
+    }, 5)
+    if result ~= "ok" then
+        return result, text .. " -> " .. tostring(result) .. ": " .. tostring(reply or detail)
+    end
+    local want = reply and tonumber(string.match(reply, "date_minutes (%d+)"))
+    local ahead = reply and string.match(reply, "(%d+) minute%(s%) ahead")
+    if not want then
+        return "timeout", text .. " ran but its reply never arrived (last: " .. tostring(reply) .. ")"
+    end
+    local awaited, note = QD.var.await("date_minutes", want, 5)
+    if awaited ~= "ok" then
+        return awaited, text .. ": the server says date_minutes " .. tostring(want)
+            .. " but the client varp never showed it (" .. tostring(note) .. ")"
+    end
+    if before_result == "ok" and type(before) == "number" and before > 0
+            and (want - before < minutes or want - before > minutes + 1) then
+        return "refused", string.format("%s: date_minutes %d -> %d is +%d, not the %d skipped",
+            text, before, want, want - before, minutes)
+    end
+    return "ok", string.format("date_minutes %s -> %d (+%d skipped, world %s min ahead; client varp)",
+        tostring(before), want, minutes, tostring(ahead))
+end

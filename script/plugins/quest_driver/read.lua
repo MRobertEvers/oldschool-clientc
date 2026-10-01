@@ -33,7 +33,7 @@
 -- adds to QD for its own helpers, the same way chat.lua adds private fields
 -- onto the QD.chat table it shares with verbs-chat.
 --
--- expect_text strips <col=..>, </col>, <br>, <str>, <u> and <shad=..> here,
+-- expect_text strips <col=..>, </col>, <str>, <u> and <shad=..> (and reads <br> as one space) here,
 -- in Lua: the client has no tag parser, and a colour-wrapped line that fails
 -- to match is the defect this stripping exists to prevent.  The negative case
 -- is asserted explicitly -- `not_found`, never a silent `ok`.
@@ -165,7 +165,11 @@ end
 function QD.read._strip_tags(text)
     text = text:gsub("<col=[^>]*>", "")
     text = text:gsub("</col>", "")
-    text = text:gsub("<br>", "")
+    -- <br> is a line break on the page the player reads, so it reads as ONE
+    -- space: "through...<br>...you land" is "through... ...you land", and a
+    -- substring spanning the break matches the way the player sees it
+    -- (seam30; it used to read "through......you land").
+    text = text:gsub("%s*<br>%s*", " ")
     text = text:gsub("<str>", "")
     text = text:gsub("<u>", "")
     text = text:gsub("<shad=[^>]*>", "")
@@ -393,7 +397,8 @@ function QD.scroll.rewards()
 end
 
 -- scroll.reward_xp(skill) -> (ok, xp): the one reward line naming <skill>,
--- parsed as digits immediately before "<Skill> XP" -- the exact shape
+-- parsed as digits (thousands separators allowed: "10,500") immediately
+-- before "<Skill> XP" -- the exact shape
 -- cooks_assistant.lua wrote inline before this verb existed
 -- (`string.match(line, "(%d+)%s+Cooking XP")`, test/quests/cooks_assistant.lua
 -- ~211), generalised to any skill instead of one file's own literal. `skill`
@@ -415,14 +420,26 @@ function QD.scroll.reward_xp(skill)
         return "no_row", "scroll.reward_xp: rewards() returned no lines"
     end
 
-    local skill_lower = tostring(skill):lower()
-    for _, line in ipairs(rewards.lines) do
-        local number, word = string.match(line, "(%d+)%s+(%a+)%s+XP")
-        if number and word:lower() == skill_lower then
-            return "ok", tonumber(number)
-        end
+    local xp = QD.scroll._parse_reward_xp(rewards.lines, skill)
+    if xp ~= nil then
+        return "ok", xp
     end
     return "no_row", "scroll.reward_xp: no '" .. tostring(skill) .. " XP' line in the reward scroll"
+end
+
+-- The parse alone, over plain lines, so the conformance seam row can hand it
+-- a scroll no fixture quest awards. "(%d[%d,]*)": the scroll prints
+-- thousands separators ("10,500 Magic XP"), and "(%d+)" read that line as
+-- 500 (seam30). nil when no line names <skill>.
+function QD.scroll._parse_reward_xp(lines, skill)
+    local skill_lower = tostring(skill):lower()
+    for _, line in ipairs(lines) do
+        local number, word = string.match(line, "(%d[%d,]*)%s+(%a+)%s+XP")
+        if number and word:lower() == skill_lower then
+            return tonumber((number:gsub(",", "")))
+        end
+    end
+    return nil
 end
 
 function QD.scroll.close()

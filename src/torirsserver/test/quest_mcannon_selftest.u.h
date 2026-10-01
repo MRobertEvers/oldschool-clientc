@@ -429,6 +429,17 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
                        selftest_count_obj(player, obj_remains));
         if( selftest_count_obj(player, obj_remains) == 1 )
             mcannon_pass("remains", "OPLOC1", "one remains");
+        /* A second Take with a set already carried must not add another
+         * (LostCity dwarf_remains.rs2: "Carrying one set ... is enough"). */
+        mcannon_release(srv, player);
+        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
+        mcannon_drain(srv, player, 0);
+        mcannon_drain_rewards(srv, player);
+        SELFTEST_CHECK(selftest_count_obj(player, obj_remains) == 1,
+                       "a second Take must not grant a second set, have %d",
+                       selftest_count_obj(player, obj_remains));
+        if( selftest_count_obj(player, obj_remains) == 1 )
+            mcannon_pass("remains-one-only", "OPLOC1", "still one remains");
     }
 
     mcannon_snap(srv, player, 0, 2567, 3460);
@@ -543,7 +554,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     }
 
     mcannon_talk(srv, player, npc_lawgof, law_slot);
-    mcannon_choose(srv, player, 1);
+    /* LostCity lawgof2.rs2:276 lists "Sorry, I've really done enough." first;
+     * "Okay then, just for you!" is row 2. */
+    mcannon_choose(srv, player, 2);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
     SELFTEST_CHECK(player->varps[varp] == 9, "Nulodion errand should write mcannon=9, got %d",
@@ -608,6 +621,76 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
             SELFTEST_CHECK(player->stat_xp_tenths[crafting] == xp,
                            "postquest must not award Crafting XP again");
         mcannon_pass("postquest", "OPNPC1", "mcannon=11 exactly-once");
+    }
+
+    /* ---- post-quest Nulodion: lost cannon + purchase (LostCity nulodion.rs2
+     * lost_my_cannon, take_a_cannon; Transcript:Nulodion). The menu rows:
+     * 1 sell, 2 lost, 3 more, 4 bye; the sell menu row 1 is "take a cannon". */
+    {
+        int varp_last = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cannon_last_stage");
+        int obj_part1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart1");
+        int obj_part2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart2");
+        int obj_part3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart3");
+        int obj_part4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart4");
+        int obj_coins = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "coins");
+        int obj_book = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "mcannonbook");
+
+        SELFTEST_CHECK(varp_last >= 0 && obj_part1 >= 0 && obj_part2 >= 0 && obj_part3 >= 0 &&
+                           obj_part4 >= 0 && obj_coins >= 0 && obj_book >= 0,
+                       "post-quest Nulodion symbols should resolve");
+        mcannon_snap(srv, player, 0, 3011, 3453);
+        nul_slot = selftest_find_npc(srv, npc_nulodion);
+        if( nul_slot < 0 )
+        {
+            nul_slot = npc_spawn(srv, npc_nulodion, player->x + 1, player->z, player->level);
+            spawned_nul = nul_slot;
+        }
+        SELFTEST_CHECK(nul_slot >= 0, "post-quest Nulodion should spawn");
+        if( nul_slot >= 0 && varp_last >= 0 && obj_part1 >= 0 && obj_coins >= 0 )
+        {
+            mcannon_inv_clear(player);
+
+            /* nothing was ever set up: only stolen cannons are replaced */
+            player->varps[varp_last] = 0;
+            mcannon_talk(srv, player, npc_nulodion, nul_slot);
+            mcannon_choose(srv, player, 2);
+            mcannon_drain(srv, player, 0);
+            mcannon_drain_rewards(srv, player);
+            SELFTEST_CHECK(selftest_count_obj(player, obj_part1) == 0,
+                           "lost cannon with cannon_last_stage=0 must not hand out a part");
+            mcannon_pass("lost-refused", "OPNPC1", "cannon_last_stage=0 no parts");
+
+            /* a cannon set up to stage 2 and lost: base + stand come back once */
+            player->varps[varp_last] = 2;
+            mcannon_talk(srv, player, npc_nulodion, nul_slot);
+            mcannon_choose(srv, player, 2);
+            mcannon_drain(srv, player, 0);
+            mcannon_drain_rewards(srv, player);
+            SELFTEST_CHECK(selftest_count_obj(player, obj_part1) == 1 &&
+                               selftest_count_obj(player, obj_part2) == 1 &&
+                               selftest_count_obj(player, obj_part3) == 0,
+                           "lost cannon at stage 2 must return exactly base and stand");
+            SELFTEST_CHECK(player->varps[varp_last] == 0, "replacement must clear cannon_last_stage");
+            mcannon_pass("lost-replaced", "OPNPC1", "cannon_last_stage=2 base+stand once");
+
+            /* purchase: 750,000 coins for four parts, mould and manual */
+            mcannon_inv_clear(player);
+            inv_set(player, 0, obj_coins, 750000);
+            mcannon_talk(srv, player, npc_nulodion, nul_slot);
+            mcannon_choose(srv, player, 1);
+            mcannon_choose(srv, player, 1);
+            mcannon_drain(srv, player, 0);
+            mcannon_drain_rewards(srv, player);
+            SELFTEST_CHECK(selftest_count_obj(player, obj_coins) == 0, "purchase must take 750,000 coins");
+            SELFTEST_CHECK(selftest_count_obj(player, obj_part1) == 1 &&
+                               selftest_count_obj(player, obj_part2) == 1 &&
+                               selftest_count_obj(player, obj_part3) == 1 &&
+                               selftest_count_obj(player, obj_part4) == 1 &&
+                               selftest_count_obj(player, obj_mould) == 1 &&
+                               selftest_count_obj(player, obj_book) == 1,
+                           "purchase must hand over four parts, the mould and the manual");
+            mcannon_pass("purchase", "OPNPC1", "750k -> four parts + mould + manual");
+        }
     }
 
     if( spawned_law >= 0 )

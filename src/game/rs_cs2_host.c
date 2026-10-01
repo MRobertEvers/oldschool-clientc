@@ -400,7 +400,7 @@ rs_cs2_resolve_obj_icon(
     if( out_atlas_index )
         *out_atlas_index = 0;
     assert(host);
-    if( !host->invs || obj_id <= 0 )
+    if( !host->invs || obj_id < 0 )
         return false;
 
     for( c = 0; c < host->invs->container_count; c++ )
@@ -2578,7 +2578,8 @@ rs_cs2_inv_get_obj(
         return -1;
     obj = InvManager_GetObj(host->invs, inv_id, slot);
     /* Scripts expect -1 for empty (reference INV_GETOBJ pushes -1 when the
-     * inv or slot has no item); InvManager's empty sentinel is 0. */
+     * inv or slot has no item); InvManager's empty sentinel is -1 too, and
+     * obj 0 (Dwarf remains) is a real item. */
     if( obj <= INV_MANAGER_EMPTY_OBJ_ID )
         return -1;
     return obj;
@@ -2605,7 +2606,7 @@ rs_cs2_inv_total(
 {
     assert(host);
     assert(host->invs);
-    if( inv_id < 0 || item_id <= 0 )
+    if( inv_id < 0 || item_id < 0 )
         return 0;
     return InvManager_Total(host->invs, inv_id, item_id);
 }
@@ -4676,7 +4677,7 @@ exec_oc_placeholder_pair(
         return CS2VM2_PushInt(thread, item_id);
     }
 
-    if( obj->placeholder_link > 0 )
+    if( obj->placeholder_link >= 0 ) /* obj 0 can be a link target */
     {
         bool is_placeholder = obj->placeholder_template >= 0;
         bool want_placeholder = exact_request->kind == CS2VM_HOST_REQUEST_OC_PLACEHOLDER;
@@ -5099,7 +5100,7 @@ exec_set_object(
             provider ? 1 : 0,
             provider ? ObjModelLoad_NeedsWork(provider, obj_id, count) : -1);
 
-    if( obj_id <= 0 )
+    if( obj_id < 0 )
     {
 #if UITREE_CLICK_DEBUG
         TORIRS_LOG("uitree_click: SETOBJECT component_id=%d obj_id=%d count=%d (clear)\n",
@@ -5107,7 +5108,7 @@ exec_set_object(
             obj_id,
             count);
 #endif
-        (void)UITree_ApplyObject(tree, component_id, 0, 0, -1, 0, 0);
+        (void)UITree_ApplyObject(tree, component_id, UITREE_NO_OBJ, 0, -1, 0, 0);
         return CS2VM_EXECNO_OK;
     }
 
@@ -11159,7 +11160,7 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_CC_GETINVOBJECT:
         node = rs_cs2_node(host, request->u.CC_GETINVOBJECT.component_id);
-        return CS2VM2_PushInt(vm, node ? node->item_id : 0);
+        return CS2VM2_PushInt(vm, node ? node->item_id : UITREE_NO_OBJ);
 
     case CS2VM_HOST_REQUEST_CC_GETINVCOUNT:
         node = rs_cs2_node(host, request->u.CC_GETINVCOUNT.component_id);
@@ -11533,7 +11534,7 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_GETINVOBJECT:
         node = rs_cs2_node(host, request->u.IF_GETINVOBJECT.component_id);
-        return CS2VM2_PushInt(vm, node ? node->item_id : 0);
+        return CS2VM2_PushInt(vm, node ? node->item_id : UITREE_NO_OBJ);
 
     case CS2VM_HOST_REQUEST_IF_GETINVCOUNT:
         node = rs_cs2_node(host, request->u.IF_GETINVCOUNT.component_id);

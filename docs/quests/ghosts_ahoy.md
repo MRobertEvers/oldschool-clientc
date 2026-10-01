@@ -628,11 +628,40 @@ no `exit.bmp`). Unique MD5s; luma 64–91 with `TORIRS_PLUGINS=0` and
 "Yes, I will help."; reward scroll shows 2 QP + 2400 Prayer XP + Ectophial;
 every shot is 10/10 HP in Port Phasmatys / crone shack / Dragontooth / Ectofuntus.
 
-Leftovers (disclosed, not faked):
+Leftovers (disclosed, not faked; refreshed 2026-09-27 against the tree):
 
-- Rune-Draw remains a deterministic narration, not a 25-coin random game.
-- Ectofuntus still grants 1 token per worship, not 5; no 1,000-token cap.
-- Ectophial has no timed damage shield, Perdu fee, or multi-vial rule.
-- Nettle gloves allowlist is incomplete.
-- Ship colour/wind/dye puzzle and owned lobster encounter stay collapsed.
-- Morytania Diary and Dragon Slayer II consumers stay with their owners.
+- Open: the ectophial has no timed damage shield, Perdu fee, or multi-vial rule.
+- Open: the nettle gloves allowlist is incomplete.
+- Open: the Morytania Diary and Dragon Slayer II consumers stay with their owners.
+- Fixed (seam20 `wreck_lower_hull_reach`): the Attack on the chest-spawned
+  lobster and the hull chest used to answer "I can't reach that!". The cause was
+  not reach: the server's ocean rule stamped FLOOR on every level-0 sea-overlay
+  tile, and the lower hull (3613..3621,3542..3544,0) is flooded floor under a
+  roof, so the player was walled in on the chest square.
+  `torirs_server_scene.c` `apply_terrain_column` now skips roofed
+  (REMOVE_ROOF) sea tiles for walking (LostCity GameMap.ts stamps FLOOR from
+  BLOCK alone). The lobster fight and the chest's map scrap 3 now drive for real
+  (build/quest_gate/seam20_wreck_fix3 12/12).
+- Fixed: the ship colour/wind/dye puzzle is implemented in `ahoy_book.rs2`. The
+  mast (`[oploc1,ahoy_mast]`) shows a per-player three-part flag
+  (`~ahoy_flag_init`, six dyes each) that is readable only while the
+  `ahoy_windspeed` overlay says Low, and `[timer,ahoy_wind]` re-rolls the wind.
+  `~ahoy_dye_ship` paints the repaired model, and the Old Man trades the chest key
+  for a correctly painted ship.
+- Fixed: the lobster encounter is real. The hull chest spawns an owned
+  `giant_lobster` (`~ahoy_spawn_lobster`, with a lifetime monitor and death and
+  logout cleanup). The only broken part was its combat binding:
+  `[opnpc2]`/`[apnpc2,giant_lobster]` called `~npc_retaliate` without jumping to
+  `@player_combat_start`, so an Attack never started a fight (QUEST_AUTHORING
+  trap 31). OSRS-Content 7e91c06fe3 (parity2b) fixed it. The C selftest still
+  cheat-skips the fight.
+- Fixed: Rune-Draw is a real game. OSRS-Content 7e91c06fe3 replaced the narrated
+  auto-win with a ten-rune bag, a draw/hold choice every turn, a 25-coin stake,
+  Robin's debt in `%ahoy_robin_debt`, and the signed bow at 100.
+- Fixed (seam20 `ectofuntus_tokens_and_docs`): the Ectofuntus pays 5
+  ecto-tokens per worship at a ghost disciple. The disciple accepts a
+  ghostspeak amulet or worn Morytania legs 2+. The payout needs a free slot only
+  when no stack is held yet. At 200 unclaimed worships (1,000 tokens) the
+  Ectofuntus refuses with "There isn't room to put any more in." and consumes
+  nothing. Source: OSRS wiki Ectofuntus and Ecto-token (pinned oldid 15185729).
+  The change is in `skill_prayer/scripts/ectofuntus.rs2`.

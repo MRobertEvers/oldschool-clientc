@@ -33,8 +33,30 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
   itself. The `3draster-quest-driver` worktree was deleted in the
   2026-09-25 disk cleanup. Never delete build or cache directories there;
   several sessions build from that checkout at once.
-- **Tier 2 (19 quests) is waiting on `tools/quest_gate/skipboss.workflow.js`
-  phase 4**, which has never been run. No tier 2 quest has been authored.
+- **Tier 2 (19 quests) IS COMPLETE** (2026-09-28): 19/19 green, 19/19 FULL
+  under `helper_coverage` (DRIVEN 548, TRAVEL 21, EQUIVALENT 5, BRING_ALONG 1),
+  zero GUIDE-GAP markers, 2,653 ledger rows, every boss fought for real
+  (`t.player.attack` / `t.player.cast` + `t.npc.await_dead_engaged`; the
+  `::skipboss` arm was never needed). The owner delegated the readiness call
+  ("I trust your judgement") on 2026-09-27 and the loop ran parity2a-2d,
+  seam19-27 and author batches sonnet-b27..b32 (Sonnet 5 -> Sonnet 5.5 ->
+  Opus for the two quests that compacted twice); every batch's sheet is in
+  `test/quests/BATCHES.tsv`. What the loop had to fix beyond the tests:
+  npc_findhero binding the killer at the corpse stage, a zero health bar
+  read as a kill, the shift-click drop on op 1, magic rolling against
+  Defence, the script compiler's arity check, roofed sea tiles blocked by
+  the sailing rule, 88 boss Attack bindings that could never hit, the
+  multiloc -1 re-placement, npc wander queueing the rolled tile, the client
+  exact-move guard, one-copy attack/cast targeting, Rune-Draw as a real game,
+  and about forty content legs that were narrated, granted or unreachable
+  (Tourist Trap ported end to end from LostCity). Content parity source:
+  LostCity for vampire, tree, ball, grail, crest, desertrescue, itwatchtower;
+  the OSRS wiki + Quest Helper (briefs under `docs/quests/`) for the rest.
+  Last commit c0bc59f0a; OSRS-Content 27dbb1259b.
+  (crest fenkenstrain ghostsahoy itwatchtower mountaindaughter onesmallfavour
+  recruitmentdrive) landed content 7e91c06fe3: mountaindaughter at parity, the
+  other six partial with their legs named. Only crest and itwatchtower are
+  LostCity quests; the other five post-date LostCity and are wiki-sourced.
   The sailing tier 4 quests (pandemonium, troubledtortugans) now have the
   hull arrival hook, the `t.sail.*` verbs and the courier tasks to build on.
 
@@ -194,9 +216,11 @@ new `lint_quest.py`; 3b new `new_quest.py` (extends
   Output must pass `lint_quest.py` with `--allow-check`.
 - `QUEUE.tsv`: `quest_dir helper_dir tier status owner last_failure` for all
   179 (+9 RFD subquests), status `todo`, from the inventory.
-- `QUEST_AUTHORING.md` <= 300 lines: test shape (one generated example),
-  verb table (one line each), result words, ten traps, run command,
-  definition of done. Replace README.md's bad example with a pointer.
+- `QUEST_AUTHORING.md`: test shape (one generated example), verb table (one
+  line each), result words, ten traps, run command, definition of done. The
+  core stays under 25 KB; a new fact goes into the matching topic file under
+  docs/quest_authoring/ with one line added to INDEX.md. Replace README.md's
+  bad example with a pointer.
 - 3d: regenerate both quests, make them green with NO local helper functions
   (no `talk_to_and_settle`), publish, and have Opus review the diff and the
   shots.
@@ -234,7 +258,7 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
 
 ## Phase 5 run book rules (owner, 2026-09-20)
 
-- **Authors are Sonnet 5, always (owner, 2026-09-22): Haiku is not used
+- **Authors are Sonnet 5.5, always (owner, 2026-09-22 Sonnet 5; 2026-09-28 "Sonnet 5.5 is out. Use that as the sub agent in place of sonnet 5" -- the workflows pass the id claude-sonnet-5-5 because the sonnet alias still resolves to Sonnet 5): Haiku is not used
   anywhere in the loop.** `author_batch.workflow.js` no longer takes an
   `author_model` argument. History: four Haiku batches landed 4 of 24 and the
   first Sonnet batch 5 of 8 on the same quests.

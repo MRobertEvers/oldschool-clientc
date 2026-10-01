@@ -107,6 +107,10 @@ def normalise(text):
 # row goes back to `name drift` instead of being admitted by a fuzzy match.
 NPC_NAME_ALIASES = {
     ("head_wizard", normalise("Sedridor")): {normalise("Archmage Sedridor")},
+    # Terry Balando, The Dig Site's expert: the dump still says "Archaeological
+    # expert"; the cache renamed the record and kept id 3639. Without this the
+    # quest has no expert to hand the tablet to (spawn_report: name drift 3639).
+    ("archaeological_expert", normalise("Archaeological expert")): {normalise("Terry Balando")},
 }
 
 # These three records are scenery/cage occupants in the external map dump, not
@@ -214,6 +218,35 @@ NPC_SPAWN_EXCLUSIONS = {
 }
 
 
+# Rows the dump places on a tile this cache no longer has the room on, keyed
+# `(cache symbol, x, z, plane)` -> `(x, z, plane)`. The relocation runs BEFORE
+# every other rule, so the moved row is checked (square, exclusion, duplicate)
+# at its corrected tile and a regeneration keeps it there.
+#
+# Hazel Cult, the Carnillean kitchen. LostCity (2004) builds the kitchen at
+# maps/m40_151.jm2 local x 4..8, z 4..8 -- cookingutensils 391 at 4,4 and 4,7,
+# bigtable2 595 at 4,5, stools 1102 at 5,5 / 5,6, carnilleanrange 2859 at 4,8
+# (LOC lines 6914-6954) -- with Claus (npc 886) at 6,6 (NPC line 8660), the
+# knife (946) at 4,5 and the bread (2309) at 4,6 (OBJ lines 8689-8690). That is
+# 2566,9670 / 2564,9669 / 2564,9670, exactly the dump's tiles. The osrs239 cache
+# moved the kitchen: m40_151 local 4..8,4..8 is now bare blocked rock (jm2
+# `o42;0;0 f1`, no locs), and the same furniture stands in maps/m39_151.jl2 --
+# cookingutensils at 42,31 / 42,34 (lines 116-117), bigtable2 at 42,32 (119),
+# stools at 43,32 / 43,33 (149-150), carnilleanrange at 42,35 (537),
+# carnillean_ladder_up at 48,30 (540) -- i.e. the LostCity room shifted by
+# local (+38, +27), world (-26, +27). Each row keeps its place in the room:
+# Claus 6,6 -> 44,33 = 2540,9697; the knife on the table 4,5 -> 42,32 =
+# 2538,9696; the bread 4,6 -> 42,33 = 2538,9697 (jm2 lines 2723-2852: all three
+# tiles are `o12;0;0` floor with no blocking flag).
+NPC_SPAWN_RELOCATIONS = {
+    ("claus_carnillean", 2566, 9670, 0): (2540, 9697, 0),
+}
+OBJ_SPAWN_RELOCATIONS = {
+    ("knife", 2564, 9669, 0): (2538, 9696, 0),
+    ("bread", 2564, 9670, 0): (2538, 9697, 0),
+}
+
+
 # The obj dump is the weak half --- it carries a bare id and no name, so rule 2
 # cannot run on it and a row that names the wrong member of an id family sails
 # straight through. Each entry here is `(dump id, x, z, plane)` -> the cache
@@ -232,6 +265,47 @@ NPC_SPAWN_EXCLUSIONS = {
 OBJ_SPAWN_ID_CORRECTIONS = {
     (2958, 3443, 9741, 1): "druid_pouch_empty",
 }
+
+
+# Obj rows the dump carries that the real game does not lay on the ground in
+# public. Keyed `(cache symbol, x, z, plane)` like NPC_SPAWN_EXCLUSIONS, so a
+# regeneration keeps the tile empty and no other spawn of the id is touched.
+#
+# Recruitment Drive, Miss Cheevers' trial: the dump lays `rd_metal_spade_no_handle`
+# (5587, the spade HEAD) on her table at 2473,4941. The table's spade is the
+# whole metal spade (5586) and the head is what the Bunsen burner makes of it --
+# https://oldschool.runescape.wiki/w/Metal_spade : "It is found on the table in
+# Miss Cheevers's trial" (item 5586, respawn 10 ticks) and "It is used on a
+# bunsen burner to remove the handle"; https://oldschool.runescape.wiki/w/Recruitment_Drive :
+# "Take the metal spade, and use it on the Bunsen burner to remove the wood."
+# A public head let a player skip that step. The quest places the table spade
+# per player (`obj_add_private(0_38_77_41_13, rd_metal_spade, ...)` in
+# quest_recruitmentdrive/scripts/recruitmentdrive_cheevers.rs2), so the tile
+# needs no public row at all.
+OBJ_SPAWN_EXCLUSIONS = {
+    ("rd_metal_spade_no_handle", 2473, 4941, 0),
+}
+
+
+# Obj rows the dump lacks and the quest cannot be finished without, keyed like
+# OBJ_SPAWN_EXCLUSIONS: `(cache symbol, x, z, plane, count)`.
+#
+# The Dig Site: the compound that blows the rockfall needs an arcenia root, and
+# the only cave the player can reach before the rockfall is gone is m52_153
+# (z 9792..9855); m52_152 (z 9728..9791, the four roots the dump does carry) is
+# the cavern behind it. LostCity lays four roots in each --- maps/m52_153.jm2
+# lines 8817-8829 (local 20,27 / 23,32 / 37,37 / 41,43, obj 708) against
+# m52_152.jm2 lines 8831-8843 --- so the dump's single set leaves the quest
+# uncompletable on a fresh save. These four are the m52_153 set, at the
+# LostCity tiles minus (1,1): the osrs239 caves sit one tile north-west of
+# LostCity's (the dump's own m52_152 roots are the LostCity rows minus (1,1),
+# as the ladders 2352/2353 and the brick 2362 are).
+OBJ_SPAWN_ADDITIONS = (
+    ("arcenia_root", 3328 + 19, 9792 + 26, 0, 1),
+    ("arcenia_root", 3328 + 22, 9792 + 31, 0, 1),
+    ("arcenia_root", 3328 + 36, 9792 + 36, 0, 1),
+    ("arcenia_root", 3328 + 40, 9792 + 42, 0, 1),
+)
 
 
 def reachable_names(blocks, name, depth=0, seen=None):
@@ -294,6 +368,7 @@ def main():
 
     reject = collections.Counter()
     corrected = collections.Counter()
+    relocated = collections.Counter()
     drift = {}
     absent_square = collections.Counter()
     kept = collections.defaultdict(list)
@@ -327,6 +402,12 @@ def main():
             drift[ident][3] += 1
             continue
         level = row["level"]
+        target = NPC_SPAWN_RELOCATIONS.get((name, row["x"], row["y"], level))
+        if target is not None:
+            relocated["npc %s (%d,%d,%d) -> (%d,%d,%d)" % (
+                (name, row["x"], row["y"], level) + target)] += 1
+            row = dict(row, x=target[0], y=target[1])
+            level = target[2]
         if not 0 <= level <= 3:
             reject["npc: level outside 0..3"] += 1
             continue
@@ -370,11 +451,20 @@ def main():
                 name, correction, row["x"], row["y"], row["plane"])] += 1
             name = correction
         level = row["plane"]
+        target = OBJ_SPAWN_RELOCATIONS.get((name, row["x"], row["y"], level))
+        if target is not None:
+            relocated["obj %s (%d,%d,%d) -> (%d,%d,%d)" % (
+                (name, row["x"], row["y"], level) + target)] += 1
+            row = dict(row, x=target[0], y=target[1])
+            level = target[2]
         if not 0 <= level <= 3:
             reject["obj: level outside 0..3"] += 1
             continue
         count = max(1, int(row.get("count", 1)))
         square = (row["x"] // 64, row["y"] // 64)
+        if (name, row["x"], row["y"], level) in OBJ_SPAWN_EXCLUSIONS:
+            reject["obj: audited map-dump artefact (OBJ_SPAWN_EXCLUSIONS)"] += 1
+            continue
         if square not in squares:
             reject["obj: map square not in this cache"] += 1
             absent_square["m%d_%d" % square] += 1
@@ -385,6 +475,15 @@ def main():
             continue
         seen.add(key)
         kept[square].append(Spawn("obj", name, row["x"], row["y"], level, count))
+
+    for name, x, z, level, count in OBJ_SPAWN_ADDITIONS:
+        assert name in obj_ids.values(), name
+        square = (x // 64, z // 64)
+        assert square in squares, square
+        key = ("obj", name, x, z, level, count)
+        assert key not in seen, key
+        seen.add(key)
+        kept[square].append(Spawn("obj", name, x, z, level, count))
 
     # ---------------------------------------------------------------- write
 
@@ -442,6 +541,13 @@ def main():
         print("  %-64s %d" % (note, count), file=out)
     if not corrected:
         print("  (none applied)", file=out)
+    print("", file=out)
+    print("audited relocations (NPC_SPAWN_RELOCATIONS / OBJ_SPAWN_RELOCATIONS):", file=out)
+    for note, count in sorted(relocated.items()):
+        print("  %-64s %d" % (note, count), file=out)
+    unused = (len(NPC_SPAWN_RELOCATIONS) + len(OBJ_SPAWN_RELOCATIONS)) - len(relocated)
+    if unused:
+        print("  %d relocation(s) matched no dump row -- re-audit them" % unused, file=out)
     print("", file=out)
     print("dropped:", file=out)
     for reason, count in reject.most_common():

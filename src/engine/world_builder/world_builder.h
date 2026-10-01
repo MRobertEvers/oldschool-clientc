@@ -21,6 +21,44 @@ struct FlagMap;
 struct OccluderBuildmap;
 struct SceneOccluders;
 
+/** Longest placement op label a hidden record keeps, NUL included -- the
+ *  width of a zone LOC_ADD_CHANGE_V2 op label (Task_AppSpawn loc_ops). */
+#define WORLD_BUILDER_HIDDEN_LOC_OP_LEN 32
+
+/*
+ * A placement a multiloc hid (-1), remembered so a varp change can bring it back.
+ *
+ * The reference never drops such a placement. A loc with a transform table is a
+ * DynamicObject that stays in the scene with its BASE id, and its model is
+ * re-resolved on every draw: `method4108` walks the transform table and answers
+ * null for a -1 rung, `method4109` then draws nothing -- and draws the child
+ * again the frame the varbit changes (Deobfuscator/src_osrs239/deob/
+ * class123.java, runelite's DynamicObject). This port resolves a multiloc ONCE,
+ * when it places it, so the static build, the instance build and
+ * WorldBuilder_ApplyLocChange write the skipped placement down here instead,
+ * keyed on the tile, the level and the loc LAYER (World_SceneryFindAt's key).
+ *
+ * `op_flags`/`ops` are the placement's OWN menu, the same pair a zone
+ * LOC_ADD_CHANGE_V2 carries (App_WorldLocChangeOps): the scene loc owns them in
+ * the reference, so they survive the hide with it. A map placement has none
+ * (0x1f, every label ""); a zone change that lands while its multiloc is -1
+ * stamps its pair on the record (WorldBuilder_HiddenLocSetOps), and the
+ * re-placement hands it back to the loc-change path.
+ */
+struct WorldBuilderHiddenLoc
+{
+    int scene_x;
+    int scene_z;
+    int level;
+    int loc_id;
+    int shape;
+    int angle;
+    /** 5-bit shown mask, bit 0 = op1. */
+    int op_flags;
+    /** Replacement label per slot; "" keeps the loctype's. */
+    char ops[5][WORLD_BUILDER_HIDDEN_LOC_OP_LEN];
+};
+
 struct WorldBuilder
 {
     struct World* world;
@@ -76,7 +114,40 @@ struct WorldBuilder
      */
     int static_pool;
     int dynamic_pool;
+
+    /** Placements a multiloc currently hides (struct WorldBuilderHiddenLoc).
+     *  A rebuild begin forgets them all, a loc change on the same tile and
+     *  layer forgets that one, WorldBuilder_Free releases the array. */
+    struct WorldBuilderHiddenLoc* hidden_locs;
+    int hidden_loc_count;
+    int hidden_loc_capacity;
 };
+
+/** How many placements a multiloc hides in this builder's scene right now. */
+int
+WorldBuilder_HiddenLocCount(struct WorldBuilder const* builder);
+
+/** The `index`th hidden placement, 0 <= index < WorldBuilder_HiddenLocCount.
+ *  Valid until the next builder call that places, changes or rebuilds. */
+struct WorldBuilderHiddenLoc const*
+WorldBuilder_HiddenLocGet(
+    struct WorldBuilder const* builder,
+    int index);
+
+/**
+ * Stamp a placement menu on the hidden record at this tile, level and loc
+ * layer. Returns 1 when a record took it, 0 when nothing is hidden there --
+ * the ordinary answer for a change whose loc is shown or was refused.
+ */
+int
+WorldBuilder_HiddenLocSetOps(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int shape,
+    int op_flags,
+    char const ops[5][WORLD_BUILDER_HIDDEN_LOC_OP_LEN]);
 
 /**
  * Rewrite a loc's resize/offset so that applying them BEFORE `quarter_turns`

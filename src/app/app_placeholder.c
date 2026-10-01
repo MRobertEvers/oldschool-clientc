@@ -341,7 +341,7 @@ app_placeholder_widget_icon(
     struct AppPlaceholderIconRequest* row = NULL;
 
     assert(app);
-    assert(obj_id > 0);
+    assert(obj_id >= 0);
 
     if( !app->placeholder_park )
     {

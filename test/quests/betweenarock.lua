@@ -218,18 +218,14 @@ return {
         })
         t.expect("quest.stage.returned_with_book", t.quest.expect_stage("returned_with_book"))
 
-        -- inv_op's own op-1 press ALSO fires the backpack cell's shift-
-        -- click-drop chain (app_minimenu.c's op_index==1 hook, same seam
-        -- elemental_workshop.lua's readBook documents) -- the read itself
-        -- landed (the stage row above is its proof), but the book is now
-        -- on the ground. Pick it back up: Dondakan #2 below needs it held.
-        local pickup1_result, pickup1_detail = t.player.click_obj("dwarf_rock_book", 3)
-        t.check("pickBookBackUp", pickup1_result == "ok", "click_obj(dwarf_rock_book,3) -> "
-            .. tostring(pickup1_result) .. " " .. tostring(pickup1_detail))
+        -- The read keeps the book (seam pass 20: inv_op's op-1 press no
+        -- longer runs the backpack cell's shift-click-drop chain, see
+        -- src/app/app_minimenu.c's OPHELD flash) -- Dondakan #2 below needs
+        -- it held, so prove it still is.
         local book2_await_result, book2_await_detail = t.inv.await("dwarf_rock_book", 1, 10)
         local book2_count_result, book2_count = t.inv.count("dwarf_rock_book")
         t.check("gotBookBack", book2_await_result == "ok" and book2_count == 1,
-            "inv.await(dwarf_rock_book,1,10) after pickup -> " .. tostring(book2_await_result) .. " " .. tostring(book2_await_detail)
+            "inv.await(dwarf_rock_book,1,10) after the read -> " .. tostring(book2_await_result) .. " " .. tostring(book2_await_detail)
                 .. "; count=" .. tostring(book2_count_result == "ok" and book2_count or book2_count_result))
 
         -- ============================================================
@@ -354,6 +350,7 @@ return {
             "player:What did you find on the other side?",
             "npc:A whole realm, hidden behind the rock!",
             "npc:Head back to the Engineer, and see if Rolad's book",
+            "npc:together.",
         })
         t.expect("quest.stage.assembling_schematics", t.quest.expect_stage("assembling_schematics"))
         t.inv.await("dwarf_rock_schematic1", 1, 10)

@@ -254,12 +254,27 @@ write_poh(
     }
 }
 
-int
-ToriRSServer_SavePlayer(
+/*
+ * The one serialiser behind both entry points below.
+ *
+ * `checkpoint` is the quest harness's leg checkpoint (`::checkpoint <k>`,
+ * docs/quest_authoring/relay.md "Checkpoints"): the same file a logout writes,
+ * plus the two things a logout deliberately leaves behind because they belong
+ * to one session and not to the character -- every non-zero varp whatever its
+ * `scope` (a quest's temp progress flags live in `scope=temp` varps, and a leg
+ * resumed without them is a different leg), and the player's own random
+ * stream, so a fight resumed from a checkpoint rolls as it would have in the
+ * full run (seam28's per-entity streams). A logout save keeps its rule: only
+ * `scope=perm`, and no stream -- a character re-seeds from its name.
+ */
+static int
+save_player_write(
     const struct ToriRSServerPlayer* player,
-    const char* path)
+    const char* path,
+    int checkpoint)
 {
     char temp[1100];
+    char parent[1024];
     FILE* file;
     struct ToriRSServerSailingSave sailing;
     ToriRSServer_VesselCapturePlayer(player, &sailing);
@@ -278,7 +293,22 @@ ToriRSServer_SavePlayer(
     if( !*path )
         return 0;
 
-    save_mkdir_p(save_dir());
+    /* The file's own directory, not save_dir(): a checkpoint lives one level
+     * below it (`<saves>/checkpoints/<k>.ini`). For a logout save the two are
+     * the same directory. */
+    snprintf(parent, sizeof(parent), "%s", path);
+    {
+        char* slash = strrchr(parent, '/');
+        char* backslash = strrchr(parent, '\\');
+
+        if( backslash && (!slash || backslash > slash) )
+            slash = backslash;
+        if( slash )
+            *slash = '\0';
+        else
+            snprintf(parent, sizeof(parent), "%s", save_dir());
+    }
+    save_mkdir_p(parent);
 
     /* Write-then-rename: a crash mid-write leaves the previous save intact
      * rather than a truncated one. For a save file that is the difference
@@ -440,12 +470,34 @@ ToriRSServer_SavePlayer(
         if( player->varps[varp] == 0 )
             continue;
         def = ToriRSServer_ContentVarp(varp);
-        if( !def || !def->scope_perm )
+        if( !checkpoint && (!def || !def->scope_perm) )
             continue;
         fprintf(file, "%d = %d\n", varp, (int)player->varps[varp]);
     }
 
     write_poh(file, &player->poh);
+
+    if( checkpoint )
+    {
+        /* Read back by the [random] case of ToriRSServer_LoadPlayer. Written
+         * only here: a logout save that carried it would change what a
+         * returning character rolls. */
+        fprintf(file,
+                "\n[random]\n; the player's own streams (checkpoint only)\n"
+                "engine = %u\nscript = %llu\nseeded = %d\n",
+                (unsigned)player->random.engine, (unsigned long long)player->random.script,
+                (int)player->random.seeded);
+
+        /* Read back by the [clock] case of ToriRSServer_LoadPlayer
+         * (checkpoint_restore_clock). The varps above include every one the
+         * content stamps from map_clock -- `%action_delay = map_clock`,
+         * `%frozen = add(map_clock, n)`, ~50 player varps in this pack, all but
+         * two scope=temp (LostCity saves none of them) -- and each is only
+         * meaningful against the clock it was stamped on. */
+        assert(player->world);
+        fprintf(file, "\n[clock]\n; map_clock when this checkpoint was written\nmap_clock = %d\n",
+                player->world->tick);
+    }
 
     fclose(file);
 
@@ -456,6 +508,34 @@ ToriRSServer_SavePlayer(
         return 0;
     }
     return 1;
+}
+
+int
+ToriRSServer_SavePlayer(
+    const struct ToriRSServerPlayer* player,
+    const char* path)
+{
+    return save_player_write(player, path, 0);
+}
+
+int
+ToriRSServer_SavePlayerCheckpoint(
+    const struct ToriRSServerPlayer* player,
+    const char* path)
+{
+    assert(player);
+    assert(path);
+    return save_player_write(player, path, 1);
+}
+
+const char*
+ToriRSServer_CheckpointPath(int leg)
+{
+    static char path[1024];
+
+    assert(leg > 0);
+    snprintf(path, sizeof(path), "%s/checkpoints/%d.ini", save_dir(), leg);
+    return path;
 }
 
 /* ------------------------------------------------------------------ */
@@ -486,7 +566,67 @@ enum SaveSection
     SAVE_CONTAINER,
     /** A `[container_var.<inv>]` section; same `section_inv` / `section_row`. */
     SAVE_CONTAINER_VAR,
+    /** `[random]` -- the player's own streams; only a checkpoint writes it. */
+    SAVE_RANDOM,
+    /** `[clock]` -- map_clock at the checkpoint; only a checkpoint writes it. */
+    SAVE_CLOCK,
 };
+
+/*
+ * A login from a leg checkpoint (the file carries `[clock] map_clock = N`):
+ * move the world's clock FORWARD to N.
+ *
+ * The checkpoint carries every varp, and a class of them holds absolute
+ * map_clock stamps: `%action_delay = map_clock` (bullroarer.rs2, every skill
+ * loop), `%frozen = add(map_clock, n)`, the agility shortcuts' `*_used`, the
+ * boss cooldowns -- about fifty player varps in this pack (seam31 lists them in
+ * docs/quest_authoring/relay.md "Checkpoints"). A resumed run boots a fresh
+ * world whose clock starts again from 0, so each stamp would read as thousands
+ * of ticks in the future: `if(add(%action_delay, 8) > map_clock)` answered
+ * "You're a bit too busy" to every bullroarer swing of a --from-leg legends run
+ * (seam31 checkpoint_clock_and_last_leg). Restoring the clock keeps the whole
+ * class consistent at once, with no per-var list to fall out of date, and
+ * leaves every script that reads map_clock itself (a parity, a window) seeing
+ * what the full run saw.
+ *
+ * Forward only: the jump is time passing, which every world timer already
+ * accepts (an npc respawn or a shop restock that falls due fires). A world
+ * already past N -- it cannot happen on a fresh boot, where the full run's clock
+ * at leg k includes the same boot plus the legs -- keeps its clock and says so,
+ * because a clock run backwards would push world timers into the future. The
+ * player's `last_input_tick` moves with the clock: it was stamped when the
+ * slot opened, a moment ago, not N ticks ago (combat's AFK rule reads it).
+ */
+static void
+checkpoint_restore_clock(
+    struct ToriRSServerPlayer* player,
+    int saved_clock,
+    const char* path)
+{
+    struct ToriRSServer* srv = player->world;
+    int delta;
+
+    assert(srv);
+    if( saved_clock == srv->tick )
+        return;
+    if( saved_clock < srv->tick )
+    {
+        fprintf(stderr,
+                "torirsserver: checkpoint %s was written at map_clock %d and this world is "
+                "already at %d; the clock is not run backwards, so its clock-relative varps "
+                "read %d tick(s) older\n",
+                path, saved_clock, srv->tick, srv->tick - saved_clock);
+        return;
+    }
+    delta = saved_clock - srv->tick;
+    srv->tick = saved_clock;
+    if( player->last_input_tick != TORIRSSERVER_INPUT_TICK_NEVER )
+        player->last_input_tick += delta;
+    fprintf(stderr,
+            "torirsserver: checkpoint login from %s: map_clock %d -> %d (restored, so its "
+            "clock-relative varps keep their meaning)\n",
+            path, saved_clock - delta, saved_clock);
+}
 
 static void
 load_item(
@@ -543,6 +683,7 @@ ToriRSServer_LoadPlayer(
     struct ToriRSServerContainer* section_row = NULL;
     int version = 0;
     int poh_version = 0;
+    int checkpoint_clock = -1;
 
     assert(path);
     if( !*path )
@@ -619,6 +760,10 @@ ToriRSServer_LoadPlayer(
                 section = SAVE_VARPS;
             else if( strcmp(element._section.name, "poh") == 0 )
                 section = SAVE_POH;
+            else if( strcmp(element._section.name, "random") == 0 )
+                section = SAVE_RANDOM;
+            else if( strcmp(element._section.name, "clock") == 0 )
+                section = SAVE_CLOCK;
             else if( strcmp(element._section.name, "poh_rooms") == 0 )
                 section = SAVE_POH_ROOMS;
             else if( strcmp(element._section.name, "poh_decorations") == 0 )
@@ -660,6 +805,18 @@ ToriRSServer_LoadPlayer(
 
         switch( section )
         {
+        case SAVE_CLOCK:
+            if( strcmp(key, "map_clock") == 0 )
+                checkpoint_clock = atoi(value);
+            break;
+        case SAVE_RANDOM:
+            if( strcmp(key, "engine") == 0 )
+                player->random.engine = (uint32_t)strtoul(value, NULL, 10);
+            else if( strcmp(key, "script") == 0 )
+                player->random.script = (uint64_t)strtoull(value, NULL, 10);
+            else if( strcmp(key, "seeded") == 0 )
+                player->random.seeded = (uint8_t)(atoi(value) != 0);
+            break;
         case SAVE_CHAT:
             /*
              * Out of range keeps the default, the same rule
@@ -1003,5 +1160,8 @@ ToriRSServer_LoadPlayer(
                 path);
         ToriRSServer_PohInit(&player->poh);
     }
+    /* Only a checkpoint carries [clock] (a logout save never does). */
+    if( checkpoint_clock >= 0 )
+        checkpoint_restore_clock(player, checkpoint_clock, path);
     return 1;
 }

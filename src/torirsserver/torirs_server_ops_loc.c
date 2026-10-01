@@ -70,19 +70,23 @@
 /*
  * The active loc, or NULL having said why.
  *
- * `SSVM_Active` honours the current op's dot flag internally; neither opcode
- * here declares one (engine.rs2 has no `.loc_param` and no `.loc_name`), so it
- * resolves to the primary slot — but going through it rather than naming
- * SSVM_PRIMARY means a future `.`-form cannot silently read the wrong entity.
+ * `ToriRSServer_ScriptLocReadable` honours the current op's dot flag (through
+ * `SSVM_Active`); neither opcode here declares one (engine.rs2 has no
+ * `.loc_param` and no `.loc_name`), so it resolves to the primary slot.
+ *
+ * Every opcode in this file is a READ, so it answers after `loc_del` from the
+ * loc the delete removed, like `loc_coord` / `loc_type` in
+ * torirs_server_scripts.c: LostCity's LOC_PARAM and LOC_NAME
+ * (LocOps.ts:114/:129) read `LocType.get(state.activeLoc.type)`, and LOC_DEL
+ * leaves `state.activeLoc` pointing at the removed Loc. Here they aborted
+ * "the active loc is gone" while loc_coord/loc_type answered (seam32).
  */
-static struct ToriRSServerSceneLoc*
+static const struct ToriRSServerSceneLoc*
 active_loc(
     struct SSVM_State* state,
     int opcode)
 {
-    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
-    struct ToriRSServerSceneLoc* loc =
-        ToriRSServer_ScriptLocResolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
+    const struct ToriRSServerSceneLoc* loc = ToriRSServer_ScriptLocReadable(state);
 
     if( !loc )
     {
@@ -152,7 +156,7 @@ ToriRSServer_OpsLoc(
     case SS_OP_LOC_PARAM:
     {
         int32_t param_id;
-        struct ToriRSServerSceneLoc* loc;
+        const struct ToriRSServerSceneLoc* loc;
         const struct ToriRSServerParamRow* row;
 
         if( !SSVM_PopInt(state, &param_id) )
@@ -171,7 +175,7 @@ ToriRSServer_OpsLoc(
      * out; the one op in this file that touches the string stack. */
     case SS_OP_LOC_NAME:
     {
-        struct ToriRSServerSceneLoc* loc = active_loc(state, opcode);
+        const struct ToriRSServerSceneLoc* loc = active_loc(state, opcode);
 
         if( !loc )
             return 1;
@@ -217,7 +221,7 @@ ToriRSServer_OpsLoc(
      */
     case SS_OP_LOC_CATEGORY:
     {
-        struct ToriRSServerSceneLoc* loc = active_loc(state, opcode);
+        const struct ToriRSServerSceneLoc* loc = active_loc(state, opcode);
 
         if( !loc )
             return 1;

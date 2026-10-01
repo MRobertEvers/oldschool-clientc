@@ -1313,7 +1313,7 @@ bridge_resolve_count_variant(
     int i;
     int countobj_id = -1;
 
-    if( obj_id <= 0 )
+    if( obj_id < 0 ) /* obj 0 is a real item */
         return NULL;
     assert(provider);
     obj = CacheProvider_ObjtypeGet(provider, obj_id);
@@ -1506,7 +1506,7 @@ bridge_ensure_obj_icon(
     assert(bridge->provider);
     assert(map);
 
-    if( obj_id <= 0 )
+    if( obj_id < 0 ) /* obj 0 is a real item */
         return -1;
     if( count < 0 )
         count = 0;
@@ -1532,7 +1532,7 @@ bridge_ensure_obj_icon(
      * `bankmain_drawitem` sets `cc_settrans(120)` on a placeholder cell.
      */
     if( obj->inventory_model_id <= 0 && obj->placeholder_template >= 0 &&
-        obj->placeholder_link > 0 )
+        obj->placeholder_link >= 0 )
     {
         struct ToriRS_Objtype* linked =
             CacheProvider_ObjtypeGet(bridge->provider, obj->placeholder_link);
@@ -1554,7 +1554,7 @@ bridge_ensure_obj_icon(
         struct ToriRS_Objtype* tmpl =
             CacheProvider_ObjtypeGet(bridge->provider, obj->cert_template);
         struct ToriRS_Objtype* base =
-            obj->cert_link > 0
+            obj->cert_link >= 0
                 ? CacheProvider_ObjtypeGet(bridge->provider, obj->cert_link)
                 : NULL;
         struct ToriDraw_Sprite* base_sprite;
@@ -1618,7 +1618,7 @@ UITreeSceneBridge_EnsureObjModel(
     int scene_id;
 
     assert(bridge && bridge->scene && bridge->provider);
-    if( obj_id <= 0 )
+    if( obj_id < 0 ) /* obj 0 is a real item */
         return -1;
 
     scene_id = bridge_map_get(bridge->obj_model_map, obj_id);

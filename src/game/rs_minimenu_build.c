@@ -497,7 +497,7 @@ add_inv_slot_rows(
         struct InvSlot inv_slot;
         if( !InvManager_GetSlot(ctx->invs, cell.inv_source_id, cell.slot, &inv_slot) )
             return 0;
-        if( inv_slot.obj_id <= 0 )
+        if( inv_slot.obj_id <= INV_MANAGER_EMPTY_OBJ_ID )
             return 0;
         return add_obj_cell_rows(ctx, &cell, inv_slot.obj_id, inv_slot.obj_count, menu);
     }

@@ -135,6 +135,14 @@ function QD.session._user()
     local session = api_drive.session()
     local dir = session and session.dir or ""
     local user = string.match(dir, "([^/\\]+)[/\\]*$")
+    -- A checkpoint run (`run.py <id> --from-leg K` / `--only-leg K`) writes
+    -- under build/quest_gate/<id>.leg<K>/ but logs in as <id>: the player it
+    -- resumes IS the full run's player (the checkpoint is that account's save,
+    -- and its random stream is seeded from that name), so the relog types the
+    -- same name the full run would (docs/quest_authoring/relay.md).
+    if user then
+        user = string.gsub(user, "%.leg%d+$", "")
+    end
     return user
 end
 

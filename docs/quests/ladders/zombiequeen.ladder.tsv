@@ -1,0 +1,33 @@
+# ladder zombiequeen quest_dir=quest_zombiequeen guide=src/main/java/com/questhelper/helpers/quests/shilovillage/ShiloVillage.java steps=30 legs=1:1-30@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToMosol	NpcStep	npc:mosol_rei	2884,2951,0	Talk to Mosol Rei east of Shilo Village in south Karamja to receive a wampum belt.			Why do I need to run? | Rashiliyia? Who is she? | I'll go t…	quests/quest_zombiequeen/scripts/mosol_rei.rs2:5 opnpc1; +1
+1	2	0	showBeltToTrufitus	NpcStep	npc:trufitus	2809,3085,0	Show the wampum belt to Trufitus in Tai Bwo Wannai village.		Wampum belt	Mosol gave me something to show you. | Mosol Rei said somet…	areas/area_karamja/scripts/trufitus.rs2:18 opnpc1; +1
+1	3	1	useSpadeOnGround	ObjectStep	loc:ahzarhoon_entrance	2922,3000,0	Use a spade on the ground in south east Karamja.		Spade		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:334 oploc1; +2
+1	4	4	lookAtMound	ObjectStep	loc:ahzarhoon_entrance	2922,3000,0	Look at the mound of earth in south east Karamja.				quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:334 oploc1; +2
+1	5	4	useTorchOnFissure	ObjectStep	loc:ahzarhoon_entrance_fissure loc:ahzarhoon_entrance	2922,3000,0	Use a lit torch or candle on the fissure.	lookAtMound	Lit torch or candle	Yes	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:366 oploc1; +5
+1	6	5	useRopeOnFissure	ObjectStep	loc:ahzarhoon_entrance_fissure	2922,3000,0	Use a rope on the fissure.		Rope		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:366 oploc1; +2
+1	7	6	searchFissure	ObjectStep	loc:ahzarhoon_entrance_fissure_withrope	2922,3000,0	Right-click search the fissure.			Yes, I'll give it a go!	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:505 oploc1; +2
+1	8	6	useChiselOnStone	ObjectStep	loc:zqsecretstone	2901,9379,0	Use a chisel on the strange looking stone to the south.		Chisel		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:789 oploc1; +2
+1	9	6	enterDeeperCave	ObjectStep	loc:secretrubble	2888,9373,0	Search the nearby cave-in to go deeper in the caverns.			Yes, I'll wriggle through.	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:846 oploc2
+1	10	6	searchForTatteredScroll	ObjectStep	loc:secretrubblebook	2885,9318,0	Search the loose rocks to the north for a tattered scroll.			Yes, I'll carefully move the rocks to see what's behind the…	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:857 oploc2
+1	11	6	searchForCrumpledScroll	ObjectStep	loc:zqsacks	2939,9285,0	Search the old sacks to the east for a crumpled scroll.				quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:902 oploc2
+1	12	6	searchForCorpse	ObjectStep	loc:zqgallows	2935,9326,0	Right-click search the gallows in the north east corner for a corpse.			Yes, I may find something else on the corpse.	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:934 oploc1; +1
+1	13	6	buryCorpse	DetailedQuestStep		2795,3089,0	Bury Zadimus's corpse in the middle of Tai Bwo Wannai.		Zadimus corpse		
+1	14	6	readTattered	DetailedQuestStep			Read the tattered scroll.		Tattered scroll	Yes please.	
+1	15	6	readCrumpled	DetailedQuestStep			Read the crumpled scroll.		Crumpled scroll	Yes please.	
+1	16	6	searchRocksOnCairn	ObjectStep	loc:zqrocks	2762,2990,0	Right-click search the rocks on Cairn Isle.			Yes please, I can think of nothing nicer!	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:630 oploc1; +1
+1	17	6	searchDolmen	ObjectStep	loc:zqdolmen	2767,9365,0	Right-click search the tomb dolmen to the south.				quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:1086 oploc1; +2
+1	18	6	useChiselOnPommel	DetailedQuestStep			Use a chisel on the pommel.		Chisel; Sword pommel		
+1	19	6	useWireOnBeads	DetailedQuestStep			Use bronze wire on the beads.		Bronze wire; Bone beads		
+1	20	6	searchPalms	ObjectStep	loc:zqquest_hidytree	2916,3093,0	Search the palm trees in the north east of Karamja. Come equipped for a boss fight.		Beads of the dead; Bone shard; Chisel; Bones; Combat gear; Crumble undead spell for final boss; Food		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:153 oploc2
+1	21	6	searchDoors	ObjectStep	loc:hillsidedoorr_multi?	2916,3091,0	Right-click search the carved doors behind the palm trees.		Combat gear		
+1	22	6	makeKey	DetailedQuestStep			Use a chisel on the bone shard.		Chisel; Bone shard		
+1	23	6	useKeyOnDoor	ObjectStep	loc:hillsidedoorr_multi?	2916,3091,0	Use the bone key on the doors behind the palm trees.		Bone key		
+1	24	10	enterDoor	ObjectStep	loc:hillsidedoorr_multi?	2916,3091,0	Enter the doors behind the palm trees.		Beads of the dead; Bones; Combat gear		
+1	25	10	useBonesOnDoor	ObjectStep	loc:thzq_tombrooml1	2892,9480,0	Equip the beads of the dead, then make your way through the gate, down the rocks, then to the south west corner. Use bones on the door there.		Beads of the dead; Bones		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:1376 oploc1; +2
+1	26	12	searchDolmenForFight	ObjectStep	loc:zqrashdolmen	2893,9488,0	Search the tomb dolmen, ready to fight.				quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:1543 oploc1; +1
+1	27	12	killNazastarool	NpcStep	npc:zq_mainzombie1 npc:zq_mainzombie2 npc:zq_mainzombie3	2892,9488,0	Defeat Nazastarool's 3 forms. You can safe spot them over the tomb dolmen. The Crumble Undead spell is very strong against them.				quests/quest_zombiequeen/scripts/nazastarool.rs2:6 ai_queue10; +5
+1	28	12	pickupCorpse	ItemStep	obj:zqcorpse		Pickup Rashiliyia's corpse.		Rashiliyia corpse		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:1618 opobj3; +1
+1	29	12	enterCairnAgain	ObjectStep	loc:zqrocks	2762,2990,0	Right-click search the rocks on Cairn Isle to enter the caverns again.		=	Yes please, I can think of nothing nicer!	quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:630 oploc1; +1
+1	30	12	useCorpseOnDolmen	ObjectStep	loc:zqdolmen	2767,9365,0	Use Rashiliyia's corpse on the dolmen to the south.		=		quests/quest_zombiequeen/scripts/quest_zombiequeen.rs2:1086 oploc1; +2

@@ -37,18 +37,25 @@ function QD.ui.open(interface, cheat_text)
     return QD.ui.await_open(interface)
 end
 
+-- On `ok` it names what it saw (seam27): the interface and its group id, so
+-- `t.expect("x.open", t.ui.await_open(...))` is not a PASS with an empty
+-- detail (gate.py fails those).
 function QD.ui.await_open(interface, ticks)
     local sym_result, interface_id = api_drive.symbol("interface", interface)
     if sym_result ~= "ok" then
         return "no_row", "ui.await_open: unknown interface " .. tostring(interface)
     end
-    return await({
+    local result, detail = await({
         level = function()
-            local result, present = api_drive.group_present(interface_id)
-            return result == "ok" and present
+            local present_result, present = api_drive.group_present(interface_id)
+            return present_result == "ok" and present
         end,
         note = "ui.await_open " .. interface,
     }, ticks or 20)
+    if result ~= "ok" then
+        return result, detail
+    end
+    return "ok", string.format("%s open (group %d)", interface, interface_id)
 end
 
 function QD.ui.await_close(interface, ticks)
@@ -389,24 +396,42 @@ end
 -- "ok" end, ... })` blocks hans.lua already writes twice (hans.leaves,
 -- hans.returns) into one verb each.
 
+-- Both answer a DETAIL on `ok` (seam27): await_present the npc it found
+-- (slot and tile, read back through npc.nearest), await_gone the radius it
+-- searched -- a bare `ok` under t.expect/t.check was a PASS row with an empty
+-- detail, which gate.py now fails.
 function QD.npc.await_present(sym, radius, ticks)
-    return await({
+    local result, detail = await({
         level = function()
-            local result = QD.npc.nearest(sym, radius)
-            return result == "ok"
+            local nearest_result = QD.npc.nearest(sym, radius)
+            return nearest_result == "ok"
         end,
         note = "npc.await_present " .. tostring(sym),
     }, ticks or 10)
+    if result ~= "ok" then
+        return result, detail
+    end
+    local nearest_result, row = QD.npc.nearest(sym, radius)
+    if nearest_result ~= "ok" then
+        return "ok", string.format("%s was present within %d (gone again on the read-back: %s %s)",
+            tostring(sym), radius or 0, tostring(nearest_result), tostring(row))
+    end
+    return "ok", string.format("%s present within %d: slot %s at %s,%s", tostring(sym), radius or 0,
+        tostring(row.slot), tostring(row.x), tostring(row.z))
 end
 
 function QD.npc.await_gone(sym, radius, ticks)
-    return await({
+    local result, detail = await({
         level = function()
-            local result = QD.npc.nearest(sym, radius)
-            return result ~= "ok"
+            local nearest_result = QD.npc.nearest(sym, radius)
+            return nearest_result ~= "ok"
         end,
         note = "npc.await_gone " .. tostring(sym),
     }, ticks or 10)
+    if result ~= "ok" then
+        return result, detail
+    end
+    return "ok", string.format("no %s within %d", tostring(sym), radius or 0)
 end
 -- end worker 2c block
 
@@ -1134,7 +1159,8 @@ function QD.shop._stocked(inv_id)
     local stocked = 0
     for slot = 0, capacity - 1 do
         local slot_result, cell = api_drive.inv_slot(inv_id, slot)
-        if slot_result == "ok" and cell.obj_id > 0 then
+        -- empty is obj -1; obj 0 is a real item (see QD.inv.slot)
+        if slot_result == "ok" and cell.obj_id >= 0 then
             stocked = stocked + 1
         end
     end
@@ -1186,7 +1212,7 @@ function QD.shop._row(item)
         if slot_result == "ok" and cell.obj_id == obj_id then
             return "ok", { slot = slot, sub = slot + 1, stock = cell.count }
         end
-        if slot_result == "ok" and cell.obj_id > 0 and #offered < 6 then
+        if slot_result == "ok" and cell.obj_id >= 0 and #offered < 6 then
             offered[#offered + 1] = tostring(cell.obj_id) .. "x" .. tostring(cell.count)
         end
     end
@@ -1555,4 +1581,153 @@ function QD.shop.close()
     QD.shop._inv_symbol = nil
     QD.shop._inv_id = nil
     return "ok", "shop.close: closed " .. tostring(was or "shopmain")
+end
+
+-- ---------------------------------------------------------------------------
+-- SEAM setup_wield_text_read_and_reach_honesty (seam29, 2026-09-29) -- A
+-- COMPONENT'S TEXT, READ INTO THE LEDGER.
+--
+-- WHAT WAS MISSING.  A book page, a journal line, a dial letter or any other
+-- IF_SETTEXT the quest puts on screen could only be PHOTOGRAPHED: grandtree's
+-- translation book, itexam's papers and ball's notes were proved by a PNG a
+-- reviewer had to read, and a page that turned to the wrong spread (or to a
+-- blank one) passed every row.  api_drive.component + api_drive.widget_text
+-- (torirs_plugin_drive_ui.c / torirs_plugin_drive_read.c) already answered
+-- the question; nothing public asked it.
+--
+-- t.ui.text(component [, sub]) -> ("ok", text) | not_visible | not_found
+--   `component` is a component symbol (`book:page_left_text_1`), a numeric
+--   component id (what t.ui.widget answers), or a LIST of either -- a page
+--   spread over fifteen rows is read as one string, the rows joined with a
+--   single space in list order and empty rows skipped.  The text is plain:
+--   markup tags come off (<col=..>, <br>, <str>) and a '|' hard break reads
+--   as a space, exactly as the journal reader strips it.
+--   `not_found`   -- the symbol does not resolve, or the component is not in
+--                    the tree (the interface is not open).  The detail names
+--                    which component.
+--   `not_visible` -- it is in the tree but hidden (its own hide or an
+--                    ancestor's, or natively invisible): text nobody can see
+--                    is not what the page shows.  The detail quotes it.
+--   An EMPTY reading is `ok` with "" -- which t.exec grades hollow, on
+--   purpose: an empty page is not evidence.  Use expect_text to assert.
+--
+-- t.ui.expect_text(component, want [, ticks [, sub]]) -> ok | not_found |
+--   not_visible.  PASSes when the (joined) text contains `want` -- a plain
+--   substring, or a Lua pattern written `/.../` like chat.play's choose.
+--   Waits up to `ticks` (default 5) server ticks for the text to land, since
+--   IF_SETTEXT arrives in the same tick as the open or one after it; a miss
+--   quotes the last reading so the row says what the page DID say.
+-- ---------------------------------------------------------------------------
+
+-- One component -> (result, plain_text, label).  Never waits.
+function QD.ui._text_one(component, sub)
+    local label = tostring(component)
+    local component_id = component
+    if type(component) == "string" then
+        local component_result, resolved = api_drive.component(component, sub or -1)
+        if component_result ~= "ok" then
+            return "not_found", label .. " is not in the tree (" .. tostring(component_result)
+                .. "): its interface is not open, or the symbol is not a component", label
+        end
+        component_id = resolved
+        if sub ~= nil and sub >= 0 then
+            label = label .. "[" .. tostring(sub) .. "]"
+        end
+    elseif type(component) ~= "number" then
+        return "not_found", "ui.text: a component is a symbol string or a component id, not a "
+            .. type(component), label
+    end
+    local text_result, text = api_drive.widget_text(component_id)
+    if text_result ~= "ok" then
+        return "not_found", label .. " (component " .. tostring(component_id)
+            .. ") is not in the tree (" .. tostring(text_result) .. ")", label
+    end
+    local plain = QD.ui._journal_plain(text)
+    local presented_result, presented = api_drive.widget_presented(component_id)
+    if presented_result ~= "ok" or presented ~= true then
+        return "not_visible", label .. " is in the tree but not shown (hidden itself, under a"
+            .. " hidden layer, or natively invisible); it holds '" .. plain .. "'", label
+    end
+    return "ok", plain, label
+end
+
+function QD.ui.text(component, sub)
+    if type(component) ~= "table" then
+        local result, text = QD.ui._text_one(component, sub)
+        return result, text
+    end
+    if #component == 0 then
+        return "not_found", "ui.text: an empty component list"
+    end
+    local parts = {}
+    for i = 1, #component do
+        local result, text = QD.ui._text_one(component[i], sub)
+        if result ~= "ok" then
+            return result, text
+        end
+        if text ~= "" then
+            parts[#parts + 1] = text
+        end
+    end
+    return "ok", table.concat(parts, " ")
+end
+
+-- `want` is a plain substring, or `/lua pattern/`.
+function QD.ui._text_matches(text, want)
+    local pattern = string.match(want, "^/(.*)/$")
+    if pattern ~= nil then
+        return string.find(text, pattern) ~= nil
+    end
+    return string.find(text, want, 1, true) ~= nil
+end
+
+function QD.ui.expect_text(component, want, ticks, sub)
+    if type(want) ~= "string" or want == "" then
+        return "not_found", "ui.expect_text: `want` must be a non-empty string"
+    end
+    local label = type(component) == "table"
+        and (tostring(component[1]) .. " +" .. tostring(#component - 1) .. " more")
+        or tostring(component)
+    local last_result, last_text = QD.ui.text(component, sub)
+    if last_result == "ok" and QD.ui._text_matches(last_text, want) then
+        return "ok", label .. " reads '" .. last_text .. "' (has '" .. want .. "')"
+    end
+    local waited = QD.await({
+        level = function()
+            last_result, last_text = QD.ui.text(component, sub)
+            return last_result == "ok" and QD.ui._text_matches(last_text, want)
+        end,
+        note = "ui.expect_text(" .. label .. ")",
+    }, ticks or 5)
+    if waited == "ok" then
+        return "ok", label .. " reads '" .. last_text .. "' (has '" .. want .. "')"
+    end
+    if last_result ~= "ok" then
+        return last_result, "ui.expect_text(" .. label .. ", '" .. want .. "'): " .. tostring(last_text)
+    end
+    return "not_found", label .. " reads '" .. tostring(last_text) .. "', which does not contain '"
+        .. want .. "' (waited " .. tostring(ticks or 5) .. " tick(s))"
+end
+
+-- How many of `item` the WORN container holds: ("ok", count) or (result,
+-- detail).  Private: the setup loop's `::wield` read-back
+-- (tools/quest_gate/run.py, write_wrapper_script) is its caller -- a
+-- `::wield` answers when the synthesized Wield click has been SENT, and
+-- content may still refuse it (`~equip`'s level check), so the wrapper waits
+-- for the worn count instead of believing the cheat.  Same reading
+-- QD.player.equip settles on (pointer.lua, api_drive.inv_count on inv worn).
+function QD.ui._worn_count(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return obj_result, "no obj named " .. tostring(item)
+    end
+    local worn_result, worn_id = api_drive.symbol("inv", "worn")
+    if worn_result ~= "ok" then
+        return worn_result, "no inv named worn"
+    end
+    local count_result, count = api_drive.inv_count(worn_id, obj_id)
+    if count_result ~= "ok" then
+        return count_result, "inv_count(worn, " .. tostring(item) .. ")"
+    end
+    return "ok", count
 end
