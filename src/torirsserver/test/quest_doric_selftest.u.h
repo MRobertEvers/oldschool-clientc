@@ -119,8 +119,8 @@ selftest_quest_doric(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     }
 
     doric_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "doric");
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "doricquest");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp31_doricquest");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     obj_pick = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_pickaxe");
     obj_clay = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "clay");
     obj_copper = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "copper_ore");

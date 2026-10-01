@@ -212,9 +212,9 @@ selftest_quest_druid(
     }
     selftest_park_player(srv, 3222, 3218);
 
-    varp_druid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "druidquest");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
-    varp_osf = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "onesmallfavour");
+    varp_druid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp80_druidquest");
+    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
+    varp_osf = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp416_onesmallfavour");
     npc_kaq = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "kaqemeex");
     npc_sanfew = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "sanfew");
     loc_cauldron = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "cauldron_of_thunder");

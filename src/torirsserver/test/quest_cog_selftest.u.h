@@ -236,9 +236,9 @@ selftest_quest_cog(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         return;
 
     npc_kojo = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "brother_kojo");
-    varp_cogquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cogquest");
-    varp_cog_bits = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cog_bits");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    varp_cogquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp10_cogquest");
+    varp_cog_bits = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5924_cog_bits");
+    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     obj_red = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "redcog");
     obj_blue = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bluecog");
     obj_black = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "blackcog");

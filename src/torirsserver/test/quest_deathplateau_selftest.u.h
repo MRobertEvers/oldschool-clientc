@@ -465,11 +465,11 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     npc_saba = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "death_hermit");
     npc_tenzing = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "death_sherpa");
     npc_dunstan = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "death_smithy");
-    varp_equip = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "death_equiproom");
-    varp_map = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "death_map");
-    varp_bits = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "death_bits");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
-    varp_troll = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "troll_quest");
+    varp_equip = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp314_death_equiproom");
+    varp_map = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5767_death_map");
+    varp_bits = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5768_death_bits");
+    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
+    varp_troll = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp317_troll_quest");
     stat_attack = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "attack");
     obj_ale = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "asgarnian_ale");
     obj_blur = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "blurberry_special");

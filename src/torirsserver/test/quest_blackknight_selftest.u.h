@@ -215,9 +215,9 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 
     amik_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "sir_amik_varze");
     guard_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "fortressguard_01");
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "spy");
-    cauldron_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "spy_cauldron");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp130_spy");
+    cauldron_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp842_spy_cauldron");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     obj_dossier = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bk_dossier");
     obj_cabbage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cabbage");
     obj_magic_cabbage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "magic_cabbage");
