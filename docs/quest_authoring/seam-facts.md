@@ -821,3 +821,31 @@ chathead is the npc's (`t.chat.head()` names the npc), and a placement centres a
 its footprint. `fresh_lumbridge.ini` starts with the run orb ON, so a test cannot see walk-vs-run of
 a scripted `p_walk`; `::run N` sets run ENERGY, not the orb. Server selftest stanza "p_temprun and
 p_animprotect".
+
+## Seam pass 36 (2026-10-01)
+
+(a) A `[mapzone]` / `[mapzoneexit]` subject is ALWAYS level 0. LostCity latches the map square with
+the level forced to 0 (`NetworkPlayer.ts:252` `CoordGrid.packCoord(0, ...)`) and dispatches
+`[mapzone,0_${x>>6}_${z>>6}]` (`Player.ts:582`; `:589` for the exit), so it fires on entering the
+64x64 square on ANY level and does not fire again on a climb inside the square. Only `[zone,...]`
+carries the level. Our engine already matched that. The bug was content: of 83 `[mapzone*]` headers
+in osrs239, only Underground Pass's `[mapzone,1_33_71]` (`~upass_spawn_demons`) and
+`[mapzone,1_33_72]` (`~upass_spawn_temple_actors`) named level 1, which is a name no dispatch forms.
+So the three demons and Iban's temple never spawned, and upass parked at leg 7 on `holthion=no_row`.
+FIXED: both are now `[mapzone,0_...]` (upass_encounters.rs2; the procs already place level-1 npcs).
+Gate on `coord` level inside the script when the level matters. Server selftest stanza "a
+[mapzone]/[mapzoneexit] whose subject starts with anything but 0_" fails any pack that carries
+another spelling, and checks that the demons' room dispatches. Conformance row
+`seam.mapzone_upper_level_square_fires`. Side effect: Iban and 13 Disciples of Iban now stand in
+the temple from stage 5. content-gaps, "upass".
+
+(b) `helper_coverage.py` grades every leaf the `steps.put` ConditionalStep tree can show, not only
+the `getPanels()` lists. Monkey Madness's Bamboo Gate (`enterGate`, only in
+`bringMonkey.addStep(onApeAtollSouth, enterGate)`) was invisible, so a leg-8 `goto_tile` from the
+Ape Atoll dock to Garkor read FULL (sampler revert 16e31e41a). Such a BRANCH-ONLY step is placed
+before the state it leads to and is graded after every panel step has taken its credit. A
+`goto_tile` that leaves its zone for a later sibling's zone without pressing its gated loc is CHEAT
+(`zone_crossing`, positions read from the run's own ledger). `ladder.py` shows the kind as
+`<Kind><<composite>[<condition>]`. mm's ladder went from 76 to 78 steps (`useWool`, `enterGate`).
+All 93 committed tests with a guide regrade with 121 steps added and no class changed; only mm moves
+(FULL -> TEST_GAP on its reverted run). coverage-and-gate, "A branch-only step".

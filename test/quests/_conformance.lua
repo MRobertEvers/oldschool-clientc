@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 84
+-- @seam-count 85
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 84
+local SEAM_COUNT = 85
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -7865,6 +7865,50 @@ return {
             end
             if last == nil or last == dayth_watch_slot then
                 return "no_subject", text .. " -- Dayth never changed slot in the window"
+            end
+            return "ok", text
+        end)
+
+        -- A [MAPZONE] TRIGGER FIRES ON A SQUARE'S UPPER LEVEL (seam36
+        -- mapzone_triggers_fire_on_every_level).  A [mapzone] subject is always
+        -- level 0 (LostCity NetworkPlayer.ts:252 latches the square with
+        -- CoordGrid.packCoord(0, ...); Player.ts:582 names it
+        -- `[mapzone,0_x_z]`), so it fires on entering the 64x64 square on ANY
+        -- level.  Underground Pass named its level-1 rooms `[mapzone,1_33_71]`
+        -- / `[mapzone,1_33_72]`, a name no dispatch forms: the three demons and
+        -- Iban's temple never spawned (build/seam_state/seam36
+        -- s36_before.ledger.tsv: holthion=no_row).  Graded on Holthion standing
+        -- in the demons' room a few ticks after stepping into 33_71 on level 1
+        -- at upass stage 6 (^upass_spoken_nilhoof, >= ^upass_entered_main_area).
+        seam("seam.mapzone_upper_level_square_fires", function()
+            local goto_tile = verb("player", "goto_tile")
+            local present = verb("npc", "await_present")
+            local server = verb("var", "server")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not present then return missing("npc", "await_present") end
+            if not server then return missing("var", "server") end
+            setup_cheat("::setvar upass 6")
+            settle(2)
+            local _, stage_value = server("upass")
+            local goto_result, goto_detail = goto_tile(2150, 4546, 1)
+            local seen, seen_detail = "not_run", nil
+            if goto_result == "ok" then
+                seen, seen_detail = present("holthion", 40, 10)
+            end
+            setup_cheat("::setvar upass 0")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            local text = "upass=" .. describe(stage_value) .. "; goto 2150,4546,1 -> " .. describe(goto_result)
+                .. " " .. describe(goto_detail) .. "; holthion await_present -> " .. describe(seen) .. " "
+                .. describe(seen_detail)
+            if stage_value ~= 6 then
+                return "no_subject", text .. " -- the stage did not take"
+            end
+            if goto_result ~= "ok" then
+                return "refused", text
+            end
+            if seen ~= "ok" then
+                return "refused", text .. " -- [mapzone,0_33_71] did not run ~upass_spawn_demons"
             end
             return "ok", text
         end)

@@ -182,6 +182,46 @@ own row, then the travel op under a row named after the step
 (`t.exec("enterHamLair", t.player.click_loc, "osf_trapdoor_open", 1)`). Fixture:
 `python3 tools/quest_gate/helper_coverage_two_op_test.py` (3 cases on the reverted losttribe run).
 
+### A branch-only step: "lands at ... without pressing the door <step> names" (seam36)
+
+*Origin: the sonnet-b45 sampler reverted mm (16e31e41a): leg 8 `goto_tile`'d from the Ape Atoll
+dock (2802,2707) straight to Garkor inside Marim (2807,2760), past the Bamboo Gate. The guide's
+`enterGate` (MonkeyMadnessI.java:854) lives only in `bringMonkey.addStep(onApeAtollSouth,
+enterGate)`, not in `getPanels()`, so the run read FULL.*
+
+The ladder is now every step the `steps.put` ConditionalStep tree can show, not only the panels: a
+leaf no panel lists (and that is not a folded sub-step or a custom class whose own panels were
+spliced) is a BRANCH-ONLY step. `ladder.py` shows it as `<Kind><<composite>[<condition>]`, placed
+before the state it leads to (`ObjectStep<bringMonkey[onApeAtollSouth]` just before
+`talkToGarkorWithMonkey`). It is graded like a promoted sub-step: a state the run may never be in.
+
+- Driven by a real row (or a click on its target) it is DRIVEN. Panel steps take their credit
+  first, so a branch-only step never steals a panel step's click.
+- Not driven, it is ALTERNATIVE (TRAVEL for a plain climb), unless the run teleported past it. A
+  strong CHEAT stays CHEAT: a debugproc named after it, a stand-on, or its own item `::give`n.
+- **CHEAT -- the zone crossing.** The step is an ObjectStep on a gated loc (door, gate, barrier,
+  raft...; a ladder or stair only when its trigger writes or reads a quest var), and its
+  `addStep` condition holds the player in zone A (a `ZoneRequirement`, by name or inline; a
+  `not(...)` is skipped). A goto row then landed in a zone that a sibling listed BEFORE it in the
+  same ConditionalStep is shown in (a later state), from a position in A, with no row between
+  pressing the loc. The positions come from the run's own ledger: a goto row's `at x,z,l`, a
+  leg's `tile=`, `checkpoint N written at`, `teleport: a -> b`, `still at`, or a detail that
+  opens with `at x,z,l`. `pressed the copy at` is a loc's tile and is never read. Example reason:
+  `ledger row 263 'goto-talkToGarkorWithMonkey' lands at 2807,2760,0 (onApeAtollNorth) from
+  2802,2707,0 (onApeAtollSouth, row 261 'leg.8.garkor_to_narnode') without pressing the door
+  enterGate names (mm_bamboo_largedoor_left)`.
+- Drive it as the game does. For mm: on the south side, wield the Karamjan greegree (`inv_op ...,
+  2`), `t.exec("enterGate", t.player.click_loc, "mm_bamboo_largedoor_left", 1)`, then Kruk's page
+  (`npc:Open the gates`). The gate `p_telejump`s you 3 tiles north (mm_bamboo_doors.rs2:32).
+  Proved by `build/seam36_proof/mm_enter_gate.lua`: 2721,2762 -> 2721,2768.
+- Limits. The rule needs a position reading before the goto: a run whose last position row is
+  elsewhere is not judged. A branch-only step whose condition names no zone is never CHEAT by
+  crossing. An NpcStep journey (Lumdo's boat) is not judged here either.
+- Regrade on 2026-10-01, all 93 committed tests with a guide: 121 steps added (DRIVEN 67,
+  ALTERNATIVE 35, TRAVEL 18, CHEAT 1), no existing step changed class, and the only verdict
+  that changed is mm, FULL -> TEST_GAP. The mm ladder grew from 76 to 78 steps (`useWool`,
+  `enterGate`).
+
 ### A setup `::give` of The Giant Dwarf's Consortium ores and bars is a brought item (sonnet-b42)
 
 *Origin: the sonnet-b42 giantdwarf reviewer left "Consortium ore/bar tasks staged with ::give:

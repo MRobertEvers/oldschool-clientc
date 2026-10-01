@@ -44,7 +44,14 @@ entry that is a ConditionalStep stands for its leaves, each its own step,
 except leaves that differ from a sibling in one name word (compareAnna /
 compareDavid: one step, done any way) and *Fallback leaves (optional).
 Panels built twice in an if/else (Heroes' Quest's two gang routes) are
-alternatives: the branch the test drove most is the spec.
+alternatives: the branch the test drove most is the spec. Since seam36 every
+leaf the steps.put ConditionalStep tree can show that no panel lists (not a
+folded sub-step, not a custom class whose own panels were spliced) is a
+BRANCH-ONLY step, placed before the state it leads to and graded like a
+promoted sub-step (Grader._grade_branch): ALTERNATIVE/TRAVEL when not driven,
+CHEAT when the ledger shows a goto from the zone its addStep condition names
+to a zone a later sibling is shown in without pressing its gated loc
+(zone_crossing; Monkey Madness's enterGate, the Bamboo Gate).
 
 CLASSES (first rule that fires wins, in this order).
   CHEAT        a quest debugproc named after the step (::mortton_repairtemple
@@ -469,6 +476,10 @@ class Guide:
                     step.point = inner.point
                     step.text = step.text or inner.text
                     step.kind = inner.kind
+        # composite -> [(child, condition text)] in addStep order: QH shows
+        # the FIRST child whose condition holds, so a child listed earlier is
+        # a state further along than one listed after it (seam36).
+        self.branch_conds = {}
         for match in re.finditer(r"\b(\w+)\s*\.\s*addStep\s*\(", code):
             open_index = match.end() - 1
             args = split_top(code[open_index + 1:matching_close(code, open_index)])
@@ -476,6 +487,9 @@ class Guide:
                 child = re.match(r"\s*(\w+)", args[-1])
                 if child:
                     self.steps[match.group(1)].children.append(child.group(1))
+                    self.branch_conds.setdefault(match.group(1), []).append(
+                        (child.group(1), ",".join(args[:-1]).strip()))
+        self._parse_zones()
         for match in re.finditer(r"\b(\w+)\s*\.\s*addSubSteps\s*\(", code):
             open_index = match.end() - 1
             args = split_top(code[open_index + 1:matching_close(code, open_index)])
@@ -525,6 +539,147 @@ class Guide:
             self.extends = extends.group(1)
         self._siblings = {}
         self._parse_panels()
+
+    # -- zones (seam36): which side of a gate a ConditionalStep branch is shown on
+
+    @staticmethod
+    def _zone_box(body):
+        """`new Zone(<body>)` as (min_x, max_x, min_y, max_y, min_plane,
+        max_plane), or None for a form this does not read (zone.dz(1))."""
+        points = [tuple(int(v) for v in p) for p in POINT_RE.findall(body)]
+        if len(points) >= 2:
+            (x1, y1, p1), (x2, y2, p2) = points[0], points[1]
+            return (min(x1, x2), max(x1, x2), min(y1, y2), max(y1, y2), min(p1, p2), max(p1, p2))
+        if len(points) == 1:
+            x, y, p = points[0]
+            return (x, x, y, y, p, p)
+        region = re.match(r"\s*(\d+)\s*(?:,\s*(\d+)\s*)?$", body)
+        if region:
+            # Zone(int regionID[, int plane]): REGION_SIZE is 64, planes 0..2
+            rid = int(region.group(1))
+            x, y = ((rid >> 8) & 0xFF) << 6, (rid & 0xFF) << 6
+            plane = (int(region.group(2)),) * 2 if region.group(2) else (0, 2)
+            return (x, x + 64, y, y + 64) + plane
+        return None
+
+    def _zone_req_boxes(self, body):
+        """The boxes a `new ZoneRequirement(<body>)` is satisfied in, or None
+        when it is a NOT-in-zone check (ZoneRequirement(false, zone) /
+        ZoneRequirement("text", true, zone)) or names no zone."""
+        args = split_top(body)
+        if not args:
+            return None
+        if string_text(args[0]) and len(args) >= 3 and args[1].strip() == "true":
+            return None
+        if args[0].strip() == "false":
+            return None
+        boxes = []
+        for arg in args:
+            arg = arg.strip()
+            if arg in self.zones:
+                boxes.extend(self.zones[arg])
+                continue
+            inline = re.match(r"new\s+Zone\s*\(", arg)
+            if inline:
+                box = self._zone_box(arg[inline.end():matching_close(arg, inline.end() - 1)])
+                if box:
+                    boxes.append(box)
+                continue
+            point = POINT_RE.match(arg)
+            if point:
+                x, y, p = (int(v) for v in point.groups())
+                boxes.append((x, x, y, y, p, p))
+        return boxes or None
+
+    def _parse_zones(self):
+        code = self.code
+        self.zones = {}      # Zone var -> [box]
+        for match in re.finditer(r"\b(\w+)\s*=\s*new\s+Zone\s*\(", code):
+            open_index = match.end() - 1
+            box = self._zone_box(code[open_index + 1:matching_close(code, open_index)])
+            if box:
+                self.zones[match.group(1)] = [box]
+        self.zone_reqs = {}  # positive ZoneRequirement var -> [box]
+        for match in re.finditer(r"\b(\w+)\s*=\s*new\s+ZoneRequirement\s*\(", code):
+            open_index = match.end() - 1
+            boxes = self._zone_req_boxes(code[open_index + 1:matching_close(code, open_index)])
+            if boxes:
+                self.zone_reqs[match.group(1)] = boxes
+
+    def condition_zones(self, text):
+        """{name: [box]} of the positive zone requirements a ConditionalStep
+        condition holds the player in: a ZoneRequirement var or an inline
+        `new ZoneRequirement(...)`; anything under not(...)/nor/nand is
+        skipped (the player is OUTSIDE it)."""
+        if not text or re.search(r"LogicType\s*\.\s*N(?:OR|AND)\b", text):
+            return {}
+        while True:
+            negated = re.search(r"\bnot\s*\(|\bnor\s*\(|\bnand\s*\(", text)
+            if not negated:
+                break
+            open_index = negated.end() - 1
+            text = text[:negated.start()] + text[matching_close(text, open_index) + 1:]
+        out = {}
+        for inline in re.finditer(r"new\s+ZoneRequirement\s*\(", text):
+            open_index = inline.end() - 1
+            body = text[open_index + 1:matching_close(text, open_index)]
+            boxes = self._zone_req_boxes(body)
+            if boxes:
+                out["ZoneRequirement(%s)" % " ".join(body.split())[:40]] = boxes
+        for ident in re.findall(r"\b([a-z]\w*)\b", text):
+            if ident in self.zone_reqs:
+                out[ident] = self.zone_reqs[ident]
+        return out
+
+    def progression(self, composite):
+        """A ConditionalStep's children in the order a player meets them: the
+        default (constructor) child, then the addStep children last-listed
+        first (QH shows the first child whose condition holds)."""
+        step = self.steps.get(composite)
+        if step is None or not step.children:
+            return []
+        default = step.children[0]
+        added = [child for child, _ in self.branch_conds.get(composite, [])]
+        return [default] + list(reversed(added))
+
+    def branch_label(self, leaf):
+        """`bringMonkey[onApeAtollSouth]`: the ConditionalStep a branch-only
+        step is shown from and the condition it is shown on."""
+        found = self.branch_of.get(leaf) if hasattr(self, "branch_of") else None
+        if not found:
+            return ""
+        composite, condition, _ = found
+        idents = [i for i in re.findall(r"\b([a-z]\w*)\b", condition or "")
+                  if i not in ("new", "true", "false", "and", "or", "not", "this")]
+        return "%s[%s]" % (composite, "+".join(idents)[:60] if condition is not None else "default")
+
+    def _branch_index(self):
+        """leaf -> (composite, condition text or None for the default child,
+        index in the composite's addStep list or None): the FIRST ConditionalStep
+        whose child (or a composite child's leaf) the leaf is, walked from the
+        steps.put ladder in stage order."""
+        out = {}
+        seen = set()
+
+        def walk(composite):
+            if composite in seen or composite not in self.steps or not self.steps[composite].is_composite():
+                return
+            seen.add(composite)
+            step = self.steps[composite]
+            entries = [(step.children[0], None, None)] if step.children else []
+            entries += [(child, cond, index) for index, (child, cond) in
+                        enumerate(self.branch_conds.get(composite, []))]
+            for child, cond, index in entries:
+                child = self.resolve(child)
+                if child not in self.steps:
+                    continue
+                if self.steps[child].is_composite():
+                    walk(child)
+                else:
+                    out.setdefault(child, (composite, cond, index))
+        for _, var in sorted(self.stage_puts, key=lambda p: p[0]):
+            walk(self.resolve(var))
+        return out
 
     def resolve(self, ident):
         """A puzzle-wrapper alias's wrapped step (pwGetMagnet -> getMagnet)."""
@@ -766,6 +921,32 @@ class Guide:
                 for leaf in self.leaves(var):
                     if leaf not in order and leaf not in folded:
                         order.append(leaf)
+        # Every step the steps.put ConditionalStep tree can show is a guide
+        # step, not only the ones getPanels() lists (seam36): Monkey Madness's
+        # enterGate -- the Bamboo Gate into Marim -- lives only in
+        # bringMonkey.addStep(onApeAtollSouth, enterGate), and a run that
+        # ::goto'd from the Ape Atoll dock to Garkor read FULL. Such a
+        # branch-only step is placed beside the sibling it leads to and
+        # graded like a promoted sub-step (Grader._grade_branch): a state the
+        # run may never be in, but never one it teleports out of.
+        self.branch_of = self._branch_index()
+        self.branch_only = {}
+        covered = set(order) | folded
+        for name in order:
+            covered.update(self.leaves(name))
+        # A custom step class whose own panels or display steps the ladder
+        # already spliced in (Pirate's Treasure's smuggleRum, Biohazard's
+        # giveChemicals) is graded by those parts, not again as itself.
+        covered.update(self.spliced_stage.values())
+        branch = []
+        for _, var in sorted(self.stage_puts, key=lambda p: p[0]):
+            for leaf in self.leaves(self.resolve(var)):
+                if leaf not in covered and leaf not in branch and not self.spliced(leaf):
+                    branch.append(leaf)
+        if any(idents for _, idents, _ in self.panels):
+            for leaf in branch:
+                self.branch_only[leaf] = self.branch_of.get(leaf)
+                order.insert(self._branch_anchor(leaf, order, stage_of), leaf)
         # A sub-step with a target of its own is a guide step of its own,
         # graded before the step it was folded into, at ANY depth
         # (x.addSubSteps(y); y.addSubSteps(z)). Folding its targets into the
@@ -810,6 +991,38 @@ class Guide:
             last_stage = step.stage
             steps.append(step)
         return steps
+
+    def _branch_anchor(self, leaf, order, stage_of):
+        """Where a branch-only step goes in `order`: just before the next
+        state of its ConditionalStep a player meets that is already placed
+        (enterGate before talkToGarkorWithMonkey; goUpF0ToF1, goUpF1ToF2,
+        goUpF2ToF3 chained before flyGandius), else just after the previous
+        placed one, else after the last step of its stage or an earlier one."""
+        found = self.branch_of.get(leaf)
+        if found:
+            progression = self.progression(found[0])
+            here = next((i for i, child in enumerate(progression)
+                         if leaf == self.resolve(child) or leaf in self.leaves(self.resolve(child))), None)
+            if here is not None:
+                for child in progression[here + 1:]:
+                    child = self.resolve(child)
+                    hits = [order.index(n) for n in [child] + self.leaves(child) if n in order]
+                    if hits:
+                        return min(hits)
+                for child in reversed(progression[:here]):
+                    child = self.resolve(child)
+                    hits = [order.index(n) for n in [child] + self.leaves(child) if n in order]
+                    if hits:
+                        return max(hits) + 1
+        stage = stage_of.get(leaf)
+        place = 0
+        for index, name in enumerate(order):
+            other = stage_of.get(name)
+            if other is None and self.steps[name].is_composite():
+                other = min((stage_of[l] for l in self.leaves(name) if l in stage_of), default=None)
+            if stage is None or (other is not None and other <= stage):
+                place = index + 1
+        return place
 
     def _promote_substeps(self, owner, name, order, promoted, chain, seen):
         """Collect, depth first, every sub-step under `name` that has a
@@ -2895,7 +3108,11 @@ class Grader:
         driven_symbols = set()
         self.loc_uses = {}
         self.line_credits = {}
-        for step in steps:
+        # A branch-only step (Guide.ladder, seam36) takes credit after every
+        # panel step: the click on a door a panel step names is that step's,
+        # and the state QH shows beside it must not take it first.
+        branch_only = getattr(self.guide, "branch_only", {})
+        for step in sorted(steps, key=lambda s: s.name in branch_only):
             for leaf in members[step.name]:
                 reason = self.driven(leaf)
                 driven[leaf.name] = reason
@@ -2917,6 +3134,8 @@ class Grader:
                 graded = [(step, "ALTERNATIVE", "a fallback the guide offers when the main way fails")]
             if step.name in getattr(self.guide, "promoted", {}):
                 graded = [self._grade_promoted(g, driven_symbols) for g in graded]
+            elif branch_only.get(step.name):
+                graded = [self._grade_branch(g) for g in graded]
             if len(graded) == 1:
                 klass, reason = graded[0][1], graded[0][2]
             else:
@@ -2979,6 +3198,133 @@ class Grader:
                 owner, klass, reason))
         return (leaf, "ALTERNATIVE", "sub-step of %s, a state its parent is shown in place of; not driven, "
                 "not skipped by a teleport or cheat (was %s: %s)" % (owner, klass, reason))
+
+    def _grade_branch(self, graded):
+        """A branch-only step (Guide.ladder, seam36): a step the guide's
+        ConditionalStep tree shows in one state -- on the Ape Atoll dock side
+        of the Bamboo Gate, on the first floor of the Grand Tree -- that its
+        getPanels() list never names. Like a promoted sub-step: a run that was
+        never in that state has nothing to drive there, so one not driven is
+        ALTERNATIVE (TRAVEL for a plain climb); but a run that WAS in it and
+        left it by goto_tile for a state the same ConditionalStep shows later,
+        never pressing the step's loc between, teleported past the step:
+        CHEAT (zone_crossing). A strong CHEAT (a debugproc named after the
+        step, a stand-on, its own item ::given) stays CHEAT."""
+        leaf, klass, reason = graded
+        if klass in NEUTRAL_CLASSES and klass != "TRAVEL":
+            return graded
+        weak = " -- shares " in reason or reason.startswith(("goto_tile ", "the journey "))
+        if klass == "CHEAT" and not weak:
+            return graded
+        crossed = self.zone_crossing(leaf)
+        if crossed:
+            return (leaf, "CHEAT", crossed)
+        where = self.guide.branch_label(leaf.name)
+        if self.is_travel(leaf):
+            return (leaf, "TRAVEL", "branch-only step (%s), travel not skipped by a teleport (was %s: %s)" % (
+                where, klass, reason))
+        return (leaf, "ALTERNATIVE", "branch-only step (%s): a state the guide shows outside its panels; not "
+                "driven, not skipped by a teleport or cheat (was %s: %s)" % (where, klass, reason))
+
+    def player_track(self):
+        """[(ledger row position, (x, z, level), is_goto)] -- where the
+        player stood, read from the run's own rows: a goto row's landing
+        (`at x,z,l`), a relay leg's `tile=`, `checkpoint N written at`,
+        `teleport: a -> b`, `never arrived, still at`, and a detail that
+        opens with `at x,z,l` (a leg's end check). `pressed the copy at` is a
+        loc's tile and is never read."""
+        if getattr(self, "_track", None) is not None:
+            return self._track
+        goto_rows = {self.test.row_name_at(number) for number, _, _, _ in self.test.gotos} - {None}
+        tile = r"(\d{3,4}),(\d{3,5}),([0-3])\b"
+        reads = [re.compile(p + tile) for p in (r"checkpoint \d+ written at ", r"\btile=",
+                                                r"\bteleport: [\d,]+ -> ", r"still at ", r"^at ")]
+        track = []
+        for position, row in enumerate(self.rows):
+            detail = row.get("detail") or ""
+            is_goto = row["step"] in goto_rows or re.search(r"(?:^|[.\-_])goto", row["step"], re.I) is not None
+            if is_goto:
+                landing = re.search(r"\bat " + tile, detail)
+                if landing and row["verdict"] == "PASS":
+                    track.append((position, tuple(int(v) for v in landing.groups()), True))
+                continue
+            best = None
+            for pattern in reads:
+                for match in pattern.finditer(detail):
+                    if best is None or match.start() > best.start():
+                        best = match
+            if best:
+                track.append((position, tuple(int(v) for v in best.groups()[-3:]), False))
+        self._track = track
+        return track
+
+    def zone_crossing(self, leaf):
+        """A branch-only ObjectStep on a gated loc (door, gate, barrier...;
+        a ladder/stair only when the quest owns the climb) whose
+        ConditionalStep shows it while the player is in zone A, where a goto
+        row took the player from a tile in A to a tile in a zone a sibling
+        listed BEFORE it (a later state) is shown in, with no row between
+        pressing the loc: Monkey Madness's leg 8 ::goto from the Ape Atoll
+        dock (2802,2707: onApeAtollSouth, where QH shows enterGate) to Garkor
+        (2807,2760: onApeAtollNorth) past mm_bamboo_largedoor_left. Read
+        from the ledger, so it is the run's own positions, not the Lua's."""
+        found = self.guide.branch_of.get(leaf.name)
+        locs = [s for k, s in leaf.targets if k == "loc"]
+        if not found or found[1] is None or leaf.kind != "ObjectStep" or not locs or not self.rows:
+            return None
+        gated = [w for w in GATE_WORDS if w in " ".join(locs).lower()] or \
+            [w for w in GATE_WORDS if w in leaf.text.lower()]
+        if not gated:
+            return None
+        if self.is_travel(leaf) and not self.writes_quest_var(locs) and not self.reads_quest_var(locs):
+            return None
+        if not any(symbol_triggers(s) for s in locs):
+            return None
+        composite, condition, index = found
+        here = self.guide.condition_zones(condition)
+        if not here:
+            return None
+        later = {}
+        for _, other in self.guide.branch_conds.get(composite, [])[:index]:
+            for name, boxes in self.guide.condition_zones(other).items():
+                if name not in here:
+                    later.setdefault(name, boxes)
+        if not later:
+            return None
+
+        def zone_of(zones, point):
+            x, z, level = point
+            return next((name for name, boxes in zones.items()
+                         if any(b[0] <= x <= b[1] and b[2] <= z <= b[3] and b[4] <= level <= b[5]
+                                for b in boxes)), None)
+
+        names = set()
+        for symbol in locs:
+            names |= family(symbol)
+        pressed = re.compile(r"\b(%s)\b" % "|".join(re.escape(n) for n in sorted(names)))
+        track = self.player_track()
+        for i in range(1, len(track)):
+            position, point, is_goto = track[i]
+            before_position, before = track[i - 1][0], track[i - 1][1]
+            if not is_goto:
+                continue
+            start, end = zone_of(here, before), zone_of(later, point)
+            if not start or not end or zone_of(here, point):
+                continue
+            between = self.rows[before_position + 1:position]
+            if any(pressed.search(row.get("detail") or "") for row in between):
+                continue
+            lines = [self.row_line(row["step"]) for row in between]
+            if any(line is not None and pressed.search(self.test.code_lines[line - 1]) for line in lines):
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            return ("ledger row %s %r lands at %d,%d,%d (%s) from %d,%d,%d (%s, row %s %r) without pressing "
+                    "the %s %s names (%s): the guide shows it in %s.addStep(%s, %s), guide line %d" % (
+                        row["index"], row["step"], point[0], point[1], point[2], end,
+                        before[0], before[1], before[2], start, from_row["index"], from_row["step"],
+                        max(gated, key=len), leaf.name, ",".join(locs), composite,
+                        " ".join(condition.split())[:60], leaf.name, leaf.line))
+        return None
 
     def teleported_across(self, leaf, owner):
         """A promoted sub-step's gated loc (a barrier, door, gate...) that the
