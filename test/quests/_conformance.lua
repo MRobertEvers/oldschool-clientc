@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 85
+-- @seam-count 86
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 85
+local SEAM_COUNT = 86
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -7909,6 +7909,67 @@ return {
             end
             if seen ~= "ok" then
                 return "refused", text .. " -- [mapzone,0_33_71] did not run ~upass_spawn_demons"
+            end
+            return "ok", text
+        end)
+
+        -- THE H.A.M. TRAPDOOR'S CLIMB-DOWN LANDS IN THE LAIR (seam37
+        -- losttribe_trapdoor_maplink).  The lair is its own underground region
+        -- (m49_150), not the plane below the trapdoor, and the maplink harvest
+        -- dropped the trapdoor's row (it names the multiloc base 5492, which
+        -- has no Climb-down op), so `~climb_ladder(-1)` answered "You can't go
+        -- any further." and the lair could only be entered by a teleport.
+        -- [oploc1,osf_trapdoor_open] now lands on ^lt_ham_trapdoor_in
+        -- (3149,9652,0: RuneLite shortest-path transports.tsv:1064-1065,
+        -- 2009scape HamHideoutPlugin) from any side.  Graded on the tile after
+        -- Pick-Lock (op 5) and Climb-down, approached from the NORTH -- the side
+        -- the harvest never listed -- and on the ladder back to 3165,3251,0.
+        seam("seam.ham_trapdoor_climb_down_lands_in_lair", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local await = verb("var", "await")
+            local tile = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not await then return missing("var", "await") end
+            if not tile then return missing("world", "tile") end
+            local goto_result, goto_detail = goto_tile(3166, 3253, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto 3166,3253,0 -> " .. describe(goto_result) .. " " .. describe(goto_detail)
+            end
+            local pick_result, pick_detail = click_loc("osf_trapdoor_closed", 5)
+            local unlocked = await("varb235_ham_thief", 1, 6)
+            local down_result, down_detail = click_loc("osf_trapdoor_open", 1)
+            settle(4)
+            local _, lair = tile()
+            local up_result, up_detail = "not_run", nil
+            local surface = nil
+            if type(lair) == "table" and lair.x == 3149 and lair.z == 9652 then
+                up_result, up_detail = click_loc("osf_ham_ladder", 1)
+                settle(4)
+                local _, after = tile()
+                surface = after
+            end
+            setup_cheat("::setvar varb235_ham_thief 0")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            local function at(where)
+                if type(where) ~= "table" then return describe(where) end
+                return describe(where.x) .. "," .. describe(where.z) .. "," .. describe(where.level)
+            end
+            local text = "pick-lock -> " .. describe(pick_result) .. " " .. describe(pick_detail)
+                .. "; ham_thief await -> " .. describe(unlocked)
+                .. "; Climb-down -> " .. describe(down_result) .. " " .. describe(down_detail)
+                .. "; at " .. at(lair) .. " (want 3149,9652,0); ladder -> " .. describe(up_result)
+                .. " " .. describe(up_detail) .. "; at " .. at(surface) .. " (want 3165,3251,0)"
+            if unlocked ~= "ok" then
+                return "no_subject", text .. " -- the Pick-Lock did not take"
+            end
+            if type(lair) ~= "table" or lair.x ~= 3149 or lair.z ~= 9652 or lair.level ~= 0 then
+                return "refused", text .. " -- [oploc1,osf_trapdoor_open] did not land in the lair"
+            end
+            if type(surface) ~= "table" or surface.x ~= 3165 or surface.z ~= 3251 or surface.level ~= 0 then
+                return "refused", text .. " -- [oploc1,osf_ham_ladder] did not return to the surface"
             end
             return "ok", text
         end)

@@ -21,9 +21,12 @@ chat line (<=5 ticks) unless `wait_for_reply=false`. A content debugproc that fa
 player stands -- it needs no `goto_tile` first, unlike the click-based grind it replaces.
 
 `::setvar` takes an EXACT name in either pack first (exact varbit, then exact varp) and only then
-guesses by substring (varp, then varbit), so `::setvar agrith_quest ^sots_fight` and
-`::setvar cowquest ^iom_fight` write the progress VARBITS (seam21; before, each substring-matched
-its carrier varp and was refused).
+guesses by substring (varp, then varbit). Write the name with its kind and id
+(`::setvar varb1372_agrith_quest ^sots_fight`, `::setvar varb20106_cowquest ^iom_fight`): it is
+always exact. A bare name falls to the substring guess, which refuses an ambiguous one
+(`Which qp? ...`); lint refuses a bare name outright (verbs-state-and-vars: Var names carry their
+kind and id). Before
+seam21 the guess found each quest's carrier varp first and was refused.
 
 ### `t.ticks(n)` -- also `t.settle`
 

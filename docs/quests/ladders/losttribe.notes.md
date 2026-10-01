@@ -29,5 +29,15 @@ Stages: 1 started, 4 dug (contact 2 = Duke's leave), 5 brooch shown (^lt_book), 
 - Sigmund: pickpocket is op 3 (needs Thieving 13), key opens the chest 3209,3217 f1 -- stand on
   3209,3216 (the loc faces south). HAM trapdoor 3166,3252 (pick-lock op 5); crate 3152,9645 inside.
   The hideout is travel here (plain trapdoor); Duke at stage 9 with silverware accepts at once.
+- H.A.M. lair entry (seam37 losttribe_trapdoor_maplink): drive it, never goto_tile into the lair.
+  `click_loc("osf_trapdoor_closed", 5)` (Pick-Lock, sets varb235_ham_thief=1), then
+  `click_loc("osf_trapdoor_open", 1)` lands on 3149,9652,0 from ANY side of the trapdoor
+  (losttribe_ham.rs2 [oploc1,osf_trapdoor_open] -> ^lt_ham_trapdoor_in); `click_loc("osf_ham_ladder", 1)`
+  returns to 3165,3251,0. Before the fix the Climb-down said "You can't go any further." (it went
+  through ~climb_ladder(-1); maplink.dbrow had no row because the harvest names the multiloc base 5492, which has no Climb-down op).
+  Sources: RuneLite shortest-path transports.tsv:1064-1068 (tools/data/shortest_path/transports/),
+  2009scape HamHideoutPlugin.java, OSRS wiki H.A.M. Hideout (entrance west of the Lumbridge general
+  store; lair focus area 3137-3199 x 9601-9663). Proof: build/quest_gate/seam37_losttribe_copy rows
+  100-106 (enter, crate, silverware, ladder out).
 - Post quest: use the brooch on Mistag for a mining helmet (losttribe_mistag.rs2 useitem).
 - Not built: the treaty-signing cutscene (wiki, spec pending: cutscenes/ owner session).

@@ -5,12 +5,35 @@ Section 3's state-reading table. The varp/varbit carrier traps are in `gaps-comb
 
 ## `var` / `inv` / `msg` / `skill` (`state.lua`)
 
+### Var names carry their kind and id
+
+Since PR #99 (OSRS-Content PR #25, 2026-10-01) every varp, varbit and varc symbol is spelled
+`varp<id>_<name>`, `varb<id>_<name>` or `varc<id>_<name>`: `varp29_cookquest`, `varp101_qp`,
+`varb3185_anma_main`. `OSRS-Content/docs/VAR_NAMES.md` is the before/after table (grep it for the
+old name). Use the prefixed spelling everywhere a var is named: `t.quest.bind{varp = ...}`, every
+`t.var.*` call, and every `::setvar` cheat. The scaffold already writes it (the bind, and a
+`::setvar varp101_qp <N>` for a guide's `QuestPointRequirement(N)`).
+
+A bare name is wrong, and often not at the row that wrote it. `t.var.server("cookquest")` answers
+`not_found/cookquest`. `t.quest.bind{varp = "cookquest"}` still answers `ok`, and the failure
+comes at the first stage read: `t.quest.stage()` answers `not_found/cookquest (no varp and no
+varbit of that name)`. In `::setvar` it misses the cheat's exact match and falls to its
+substring match. That refuses an ambiguous name: the setup row reads
+`setup.::setvar qp 43 FAIL -- setup cheat answered refused (nil); last lines: 'Which qp?
+varb456_tog_qp_before_return, varb1782_qp_max, ...'`. Ten quests failed setup this way right after
+the merge. A bare name that happens to be unique is worse: the cheat silently writes the one var whose
+name contains it, which need not be the var you meant. `lint_quest.py` refuses a bare `varp =`/`varbit =` key, a bare `::setvar <name>` and a
+bare `t.var.*` symbol, and each finding names the right spelling: `"::setvar qp": the bare var name
+qp -- ... write varp101_qp`. It also refuses a prefix whose id is wrong (`varp30_cookquest`). Proof:
+seam pass 37, `seam37_varnames_qp_bare` (FAIL) beside `seam37_varnames_qp_prefixed` (setup ok,
+`var.server(varp101_qp) -> ok/43`) and `seam37_varnames_bare_reads` (the reads above).
+
 ### `t.var.varp(name)` / `t.var.varbit(name)`
 
 `t.var.varp(name)` / `t.var.varbit(name)` -> `(ok, value)`; `t.var.server(name)` is the same read
 server-side, varp-or-varbit-transparent, and answers `(result, value, source)`: `source` is `server`
 (the client's copy of the server value) or `server content copy; no client copy` for a varp this
-tree allocates above the cache's ids (`pack/varp.alloc`: `twocats_lamp_pick`, `dwarfrock_puzzle_*`),
+tree allocates above the cache's ids (`pack/varp.alloc`: `varp7152_twocats_lamp_pick`, `varp<id>_dwarfrock_puzzle_*`),
 which the server never sends to the client -- only the server's own copy can answer for those
 (seam12).
 

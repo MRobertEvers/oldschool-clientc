@@ -146,6 +146,7 @@ topic file with one line added here.
 
 ## Vars, stages and the journal
 
+- `Which qp? varb456_tog_qp_before_return, ...` on a `setup.::setvar` row; `not_found/cookquest`; `stage() -> not_found ... (no varp and no varbit of that name)`; lint `the bare var name` -> verbs-state-and-vars: Var names carry their kind and id (seam37); seam-facts: Seam pass 37 (a)
 - `var.await_server <varbit> ... read: 0` while the dialogue moved; `(varbit, server content copy; base varp N is never transmitted)`; `-- no client copy` on `var.expect` -> verbs-state-and-vars: A quest varbit reads 0 (FIXED seam35); seam-facts: Seam pass 35 (d)
 - `::complete has no arm for that quest.` for a quest with a completion (Regicide, Family Crest, Big Chompy...) -> QUEST_SERVER_CHEATS.md `::complete` (seam35 arms table); seam-facts: Seam pass 35 (f)
 - a stage poll reads `0` forever -> gaps-world: A stage poll; gaps-combat: A varbit your quest writes
@@ -291,7 +292,7 @@ topic file with one line added here.
 - Oziach knocking `%dragon_oracle` back; a cooldown stamp misread after a server restart; `zq_rash_timer` perm -> seam-facts: Seam pass 32 (f)
 - fails under one `--name`, passes under another; druidspirit `I'm already under attack.` at killGhasts -> seam-facts: Seam pass 32 (g)
 - Zanaris Door man / market door / exit ladder missing -> gaps-world: Zanaris has no Door man (seam32)
-- `::setvar priestperil_mausoleum` in a setup; the golden-key gate after `::complete quest_priestinperil` -> seam-facts: Seam pass 31, (b) (druidspirit dropped its setvar, seam32)
+- `::setvar varp6733_priestperil_mausoleum` in a setup; the golden-key gate after `::complete quest_priestinperil` -> seam-facts: Seam pass 31, (b) (druidspirit dropped its setvar, seam32)
 - a guide step with no content branch (guild master's map questions, one-click magic door; FIXED seam31) -> content-gaps: Dragon Slayer
 - `multinpc_shells.csv` rung labels (`0=` is multinpc1, `N+=`) -> traps-23-33: Trap 28
 - a garbled note text ("bncket of nnilk") that is the real game's -> seam-facts: Seam pass 29 (f)
@@ -317,7 +318,7 @@ topic file with one line added here.
 - "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
 - sonnet-b42: `cutscene_row_required` on a route you skipped (Shilo's table raft); `by_symbol` misses a door after one use (`thzq_tombrooml2/3`); `walk_to` `timeout` under spider attacks or before a rock bridge; `checkpoint k refused: ... in combat` in the room the next leg starts in; `if_click` nil past `switch_s`; backpack full of weeds or a second weeds `drop` FAIL; Desert Treasure's ring/signet never given; no Roald cutscene; no pre-quest boatman; Consortium ores by `::give` -> verbs-cutscene: `cutscene_row_required` names a site; gaps-world: A loc that changes symbol; Underground Pass; relay: in a room the next leg; verbs-ui-and-npc: `if_click` on `nil`; verbs-inventory-shops: A rake fills; content-gaps: Rewards that are scroll text only; coverage-and-gate: A setup `::give` of The Giant Dwarf's
 - sonnet-b43: `attempt to index a string value` on `t.skill.snapshot()` or a nil `.xp`; `walk_to` never reaches Underground Pass's witch, cat or demons (`bridgecollapsed1/2`); `t.drive.op` for a timed lift or a `covered` boss press (Haunted Mine); `::god 1` in setup; a boss bar `0/30` after one hit (Desert Treasure) -> verbs-state-and-vars: `attempt to index a string value`; gaps-world: Underground Pass: `walk_to` cannot reach, A timed lift or a `covered` boss press; sampler-findings: Sample sonnet-b43
-- sonnet-b44: `Usage: ::complete quest_cooksassistant` from a scaffolded `::complete quest_gobdip`/`quest_tree`, or a `::setvar treequest`/`upass` prerequisite; a quest varbit (`mm_daero`) stuck at 0 in `var.await_server`; a nil `.current`; aground on every heading after a mooring; "Nothing interesting happens." on an agility log/leaf; a walk two tiles short of `upass_mud`; a pick-lock then `goto_tile` into a lair -> gaps-combat: The scaffold's `::complete <folder>`; verbs-state-and-vars: A quest varbit reads 0, `attempt to index a string value`; verbs-sail-session: Aground on every heading; start-and-travel: An agility crossing; gaps-world: Underground Pass: the mud pile; sampler-findings: Sample sonnet-b44
+- sonnet-b44: `Usage: ::complete quest_cooksassistant` from a scaffolded `::complete quest_gobdip`/`quest_tree`, or a `::setvar varp111_treequest`/`varp161_upass` prerequisite; a quest varbit (`mm_daero`) stuck at 0 in `var.await_server`; a nil `.current`; aground on every heading after a mooring; "Nothing interesting happens." on an agility log/leaf; a walk two tiles short of `upass_mud`; a pick-lock then `goto_tile` into a lair -> gaps-combat: The scaffold's `::complete <folder>`; verbs-state-and-vars: A quest varbit reads 0, `attempt to index a string value`; verbs-sail-session: Aground on every heading; start-and-travel: An agility crossing; gaps-world: Underground Pass: the mud pile; sampler-findings: Sample sonnet-b44
 - sonnet-b45: `goto_tile` across a gate the guide shows only in a ConditionalStep branch (Marim, `enterGate`) while helper_coverage reads FULL (FIXED seam36: CHEAT); a detail `table: 0x...` -> sampler-findings: Sample sonnet-b45; a full relay run ends `at the frame budget` though every `--from-leg` passes -> relay: The full run ends at the frame budget; a kill's bones are not in the pack -> verbs-combat: A kill's bones are on the floor
 - sonnet-b46: a `--from-leg` run moved to the background at 120 s -> running: A 3-5 minute `--from-leg` run; `walk_to` never reaches Underground Pass level 1's cage or temple -> gaps-world: `walk_to` never arrives on an upper level; `choose:How can I kill Dessous?` times out, or Damis answers "I'm already under attack." -> content-gaps: Desert Treasure: Malak
 - a multinpc shell never changes form on the client (sote_tertiary) -> seam-facts: Seam pass 30 (b)
@@ -325,6 +326,10 @@ topic file with one line added here.
 - Paterdomus trapdoor/gates/holy barrier locked after `::complete quest_priestinperil` -> seam-facts: Seam pass 30 (f); the bit-20 `::setvar` FIXED: Seam pass 31 (b)
 - a jug/bowl/vial at a sink or a bucket at the Edgeville well: `Nothing interesting happens.` -> gaps-world: A sink or water pump
 - Underground Pass demons or Iban never spawn (`holthion=no_row`); a `[mapzone,1_...]` / `[mapzone,<level>_...]` header that never fires -> gaps-world: Underground Pass: the demons and Iban's temple (FIXED seam36); seam-facts: Seam pass 36 (a)
+- "You can't go any further." on a TRAPDOOR into a separate underground region (the H.A.M. lair); a multiloc climb with no maplink row; a lair only a `goto_tile` reaches -> seam-facts: Seam pass 37 (b) (H.A.M. FIXED seam37)
+- "Nothing interesting happens." on a Regicide dense forest (`regicide_cross_over2`), stranded at 2237,3149, the forest guard `I can't reach that!`; a crossing row reading `teleport: A -> B (a jump no walk makes ...)` -> seam-facts: Seam pass 37 (c) (FIXED seam37)
+- player locked for good after a hit (Iban's bolt); `dropping [ai_timer,...], which suspended while [...] waits`; an npc death script whose `p_delay` loses `npc_coord` (Kalrag) -> seam-facts: Seam pass 37 (d); gaps-world: Underground Pass: the finale (FIXED seam37)
+- a LostCity npc symbol that finds nobody (`caveguide5`, Koftik in the post-Iban pocket); Talk-to `I can't reach that!` on Koftik -> seam-facts: Seam pass 37 (e); gaps-world: Underground Pass: the finale
 
 ## Citations: resolving a number or a name
 
@@ -337,7 +342,7 @@ topic file with one line added here.
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
-- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-36); a seam number in a verb or trap dates that behaviour
+- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-37); a seam number in a verb or trap dates that behaviour
 - samplers: b31, b32, b34, b35 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`
 - `the dialogue closed after N page(s)` right after a cutscene; a page a cutscene ends in -> verbs-cutscene: A cutscene between two dialogue pages

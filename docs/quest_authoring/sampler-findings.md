@@ -138,7 +138,9 @@ the `ham_multi_trapdoor` multiloc into `osf_trapdoor_open` (op1 Climb-down). The
 the same way, without clicking `osf_ham_ladder`. The b44 reviewer called this "acceptable travel",
 and `helper_coverage` credited `enterHamLair` to the pick-lock row because it names the multiloc.
 A step whose guide object is an entrance is driven only when you go through that entrance: click
-Climb-down and read the tile after it.
+Climb-down and read the tile after it. (Until seam37 that Climb-down answered "You can't go any
+further." and the lair had no way in but a teleport; it lands on 3149,9652,0 now: seam-facts, Seam
+pass 37 (b).)
 
 (b) A `::give` THAT UNDOES A DETOUR IS STILL A `::give`. The same test walked onto the maze's floor
 trap on purpose. The trap put its candle lantern out, and the test then ran `::give

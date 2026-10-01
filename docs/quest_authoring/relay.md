@@ -178,7 +178,7 @@ return {
     id = "dragon",
     fixture = "fresh_lumbridge.ini",
     setup = { "::clearinv", ... },
-    bind = { varp = "dragonquest", constants = { ... }, row = "quest_dragon", display = "Dragon Slayer", points = 2 },
+    bind = { varp = "varp176_dragonquest", constants = { ... }, row = "quest_dragon", display = "Dragon Slayer", points = 2 },
     legs = {
         { name = "oziach", run = function(t) ... end },
         { name = "map",    run = function(t) ... end },

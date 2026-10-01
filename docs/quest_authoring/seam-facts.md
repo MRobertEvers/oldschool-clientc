@@ -16,7 +16,7 @@ the cache's; before this `struct_param` on an authored struct answered every par
 param on a run older than that was the engine, not the quest.
 
 (b) `::setvar <varp>` is REFUSED on a carrier varp that packs varbits (`torirs_server_world.c`
-~8089): stage each varbit by its own name (`sheepherder_sheep_a` .. `_d`).
+~8089): stage each varbit by its own name (`varb2231_sheepherder_sheep_a` .. `varb2234_sheepherder_sheep_d`).
 
 (c) LANDED seam pass 9: after `npc_del` the script's bound npc stays READABLE for the rest of the
 tick -- `npc_coord`, `npc_type`, `npc_name`, `npc_stat`/`npc_basestat` and `npc_var_get` answer the
@@ -190,7 +190,7 @@ water); stage 0 does `if_close; p_delay(2)` before the guard's page, so await th
 second `chat.play`; a direct Attack before the duel is armed sets a mercenary on you.
 
 (p) Death's Coffer's balance is the server-only perm `%death_coffer_balance` (`%if1` is only the
-screen's copy): seed it with `::setvar death_coffer_balance <n>`; `::pohslayerlog` opens the POH
+screen's copy): seed it with `::setvar varp7185_death_coffer_balance <n>`; `::pohslayerlog` opens the POH
 Slayer Kill Log page (`t.ui.journal_read()`: 'Current assignment: <task> (<n> remaining)'). A test
 cannot press a slot of a non-backpack IF3 inventory (coffer side panel, deposit box).
 
@@ -482,7 +482,7 @@ resolve `^constants`; write literals.
 or the golden key; `pip_underground_door2` (3431,9897); Drezel at stage 60 gives his advice
 (-> 61); the holy barrier passes only at 61 and puts you out at 3423,3485,0; `pipeastsidetrapdoor`
 (3422,3485) open, then descend to 3440,9887,0 beside Drezel. `::complete quest_priestinperil`
-sets only the stage, so a setup that uses the temple route adds `::setvar priestperil_mausoleum
+sets only the stage, so a setup that uses the temple route adds `::setvar varp6733_priestperil_mausoleum
 1048576`.
 
 (g) A `~mesbox` opened out in Mort Myre can be closed a tick later by a ghast's attack (`chat.play`
@@ -521,7 +521,7 @@ Legends' `crystal_bit` is LostCity's spelling again). Selftest stanza "legends p
 
 (b) `::complete quest_priestinperil` also sets `%priestperil_mausoleum` bit 20, the golden-key
 unlock of `pip_underground_door1` (`gates.rs2:15`). A setup that goes through the Paterdomus
-temple no longer needs `::setvar priestperil_mausoleum 1048576` (seam30 (f) is superseded).
+temple no longer needs `::setvar varp6733_priestperil_mausoleum 1048576` (seam30 (f) is superseded).
 
 (c) `loc_del(N)` followed by `loc_add` of another loc on the SAME tile and shape (LostCity's
 double-door inviswall) loses the original loc for good here: the revert table is keyed by (tile,
@@ -612,7 +612,7 @@ too. Gujuo's blessing roll stays LostCity's: no source gives its odds (docs/ques
 name B" is a roll, not a tree regression; reproduce with the SAME `--name`. druidspirit's seam31
 137/149 was this: under `s31vm_druidspirit_shared` a second revealed ghast keeps renewing the
 player's single-way claim and every press on another ghast answers "I'm already under attack."
-druidspirit's setup no longer carries `::setvar priestperil_mausoleum` (seam31 (b)).
+druidspirit's setup no longer carries `::setvar varp6733_priestperil_mausoleum` (seam31 (b)).
 
 
 ## Seam pass 33 (2026-09-30)
@@ -849,3 +849,60 @@ before the state it leads to and is graded after every panel step has taken its 
 `<Kind><<composite>[<condition>]`. mm's ladder went from 76 to 78 steps (`useWool`, `enterGate`).
 All 93 committed tests with a guide regrade with 121 steps added and no class changed; only mm moves
 (FULL -> TEST_GAP on its reverted run). coverage-and-gate, "A branch-only step".
+
+## Seam pass 37 (2026-10-01)
+
+(a) Var names carry their kind and id (PR #99, OSRS-Content PR #25). A bare `::setvar qp 43` misses
+the cheat's exact rung and is refused by its substring rung (`Which qp? varb456_..., ...`); ten
+quests failed setup that way right after the merge. `lint_quest.py` now refuses a bare or wrong-id
+name in a `varp =`/`varbit =` key, a `::setvar` literal or a `t.var.*` symbol, naming the right
+spelling; `new_quest.py` writes the prefixed bind and a `::setvar varp101_qp <N>` for a guide's
+`QuestPointRequirement(N)`; the author and leg cards carry the rule. verbs-state-and-vars, "Var
+names carry their kind and id".
+
+(b) A climb on a multiloc whose BASE has no op of its own has no maplink row, and from level 0 into a
+separate underground region it answers "You can't go any further.". The maplink harvest
+(`tools/data/shortest_path/transports/transports.tsv`) names the multiloc base, and the importer
+drops a transport whose base carries no matching op: the H.A.M. trapdoor's Climb-down (`5492`,
+`ham_multi_trapdoor`) went through `~climb_ladder(-1)` -> `~maplink_try` -> the +/-1-plane
+default. Maplink rows are also keyed on the PLAYER's tile, so a harvested row covers only the
+approach sides the harvester used (the trapdoor's rows list west and south; the failing run came
+from the north). FIXED for the H.A.M. lair: `[oploc1,osf_trapdoor_open]` (quest_losttribe
+`losttribe_ham.rs2`) lands on `^lt_ham_trapdoor_in` 3149,9652,0 from any side, the mirror of
+`[oploc1,osf_ham_ladder]` -> 3165,3251,0 (transports.tsv:1064-1068; 2009scape
+`HamHideoutPlugin.java`). Drive it: Pick-Lock (`osf_trapdoor_closed` op 5), then Climb-down
+(`osf_trapdoor_open` op 1). Conformance row `seam.ham_trapdoor_climb_down_lands_in_lair`.
+onesmallfavour still `goto_tile`s into the lair (lines 205, 757); it is enterable now.
+
+(c) Regicide's dense forests are crossed by the loc's own geometry, as LostCity does it
+(`quest_regicide.rs2:388-480`), not by `maplink_agility.dbrow`. That table is generated from the
+wiki's transport list and missed rows per direction: west of the tracker it had o3 2240->2237 and
+o1 2231->2234 but nothing for o2, so the player was stranded on the 1x3 strip at 2237 with
+"Nothing interesting happens.", and the guard summoned beside him could not be reached ("I can't
+reach that!"). FIXED in `regicide_route.rs2` `[label,regicide_cross_dense_forest]`: stand within 1
+of the middle square of your side, and the click forcemoves you 3 squares to the far side in the
+loc's own anim (Agility 56 both ways). Each passage is three locs (o3 2238 / o2 2235 / o1 2232 on
+z=3149), and the level 110 guard spawns once per player (`varb8446_regicide_seen_guard`) when you
+land on 2231,3149 at stage 8 (LostCity `spawn_tyras_guard` :602-610). The `click_loc` row's detail
+reads `teleport: 2237,3149,0 -> 2234,3149,0 (a jump no walk makes, held 2 tick(s))`: that is the
+`p_exactmove` landing, a real crossing. Rule: a quest-owned obstacle whose LostCity source
+computes the crossing from `loc_coord`/`loc_angle` must not route through the generated agility
+table. docs/quests/ladders/regicide.notes.md has all three passages' tiles.
+
+(d) A `p_delay` inside an npc-triggered script (`[ai_timer]`, `[ai_queue3]`) that has bound a player
+is DROPPED while that player's own script is suspended (`dropping [ai_timer,iban], which suspended
+while [oplocu,cave_temple_altar] waits`). A `player_lock` before such a delay is then never
+released. Underground Pass's Iban bolt did exactly that: a hit while the doll throw at the altar
+was running left the player locked in the exit pocket for good. FIXED as LostCity has it: the bolt
+hit lands in one tick with no lock and no delay (`lord_iban.rs2`, LostCity `lord_iban.rs2:25-32`),
+and Kalrag's death only queues the PLAYER queue `defeat_kalrag`, where the delays run (LostCity
+`kalrag.rs2:1-31`; before, `npc_coord` aborted after the delay and the blessed spiders never
+turned). Put delays in a player queue, never in the npc script. gaps-world, "Underground Pass: the
+finale".
+
+(e) LostCity's `caveguide5` (npc 976, the end-pocket Koftik at 2443,9607) is `caveguide6` (4532,
+multivarbit `upass_koftik_end`) in the OSRS cache; OSRS `caveguide5` is the temple Koftik at
+2170,4727 level 1. A port that keeps the LostCity symbol finds nobody: `[oploc1,upass_last_out]`
+found no Koftik and the pocket had no way out. FIXED: it finds `caveguide6`, whose Talk-to (the one
+binding, quest_regicide `koftik.rs2`) opens `@koftik_whereami` while `%upass` is `defeated_iban`.
+When a LostCity npc symbol finds nothing, compare the OSRS spawn file's npc at that tile.

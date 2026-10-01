@@ -189,7 +189,7 @@ early on `!def->transmit` -- a varp whose per-quest `configs/*.varp` does not de
 transmit OFF, so every varbit packed into it is written server-side and then seen by nobody and
 saved nowhere. `t.var.server(<varbit>)` is the CLIENT's record of the last server-confirmed varp, so
 it answers `ok / 0` rather than `not_found` and reads exactly like content that did not run: Throne
-of Miscellania's 10,000gp reward read 0 from every channel, and `::setvar misc_coffers 4242`
+of Miscellania's 10,000gp reward read 0 from every channel, and `::setvar varb74_misc_coffers 4242`
 answered ok and read back 0.
 
 Declare the carrier `protect=no / transmit=yes / scope=perm` in the quest's own `configs/*.varp`
@@ -321,8 +321,8 @@ committed `eadgar.lua` predates the arm and still `::setvar`s it).
   the row up with `grep -n '^\[quest_' OSRS-Content/osrs239-content/configs/all.dbrow` and fix the
   scaffold's line before the first run.
 - `quest_treegnomevillage` and `quest_undergroundpass` have no arm (QUEST_SERVER_CHEATS.md lists
-  them). The b44 authors wrote `::setvar treequest 9` (Monkey Madness) and `::setvar upass
-  ^upass_complete` plus `::setvar upass_lathas_met 1` (Regicide) instead. That is the route the rule
+  them). The b44 authors wrote `::setvar varp111_treequest 9` (Monkey Madness) and `::setvar varp161_upass
+  ^upass_complete` plus `::setvar varb9125_upass_lathas_met 1` (Regicide) instead. That is the route the rule
   above forbids. A prerequisite with no arm is a `quest_cheat.rs2` seam: report it and `t.blocked`
   on it.
 

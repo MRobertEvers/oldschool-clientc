@@ -96,7 +96,7 @@ Some stages are written by leaving a map square, not by a click: Shilo Village's
 `queue(exit_ah_za_rhoon)`, and that queue re-checks `inzone` before it moves `%zombiequeen` from
 entered (7) to left (8). The exit and the queue land a few ticks after `goto_tile` returns, and
 `t.quest.expect_stage` does not wait, so a stage row straight after the goto reads 7 and FAILs.
-Wait for the write: `t.var.await("zombiequeen", 8, 10)`, or at least `t.ticks(4)` before the
+Wait for the write: `t.var.await("varp116_zombiequeen", 8, 10)`, or at least `t.ticks(4)` before the
 `expect_stage` (the zombiequeen draft needed 4).
 
 ## An `ok` from a CLICK verb is not the row's thing; the held `map_flag` ok (2026-09-20); fights are waits
@@ -606,6 +606,25 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
 - The rope swing (`crossThePit`) rolls off the player's own random stream, which is seeded by the
   account name (seam-facts, Seam pass 33 (g)). So a `--script` copy of the relay reproduces only
   under `--name upass`.
+
+## Underground Pass: the finale -- locked after Iban's bolt, no Koftik in the pocket (FIXED seam37)
+
+*Origin: author batch sonnet-b46 (upass parked at leg 8, `leg.8.player-locked`) and seam pass 37.*
+
+- A bolt that hit while the doll throw at the altar was running left the player locked for good:
+  the npc timer's `player_lock` + `p_delay(1)` + `player_unlock` was dropped mid-delay
+  (seam-facts, Seam pass 37 (d)). The hit now lands in one tick: damage, a throw back to the temple
+  entrance (2143,4648), and the stun. A probe ate a lobster and walked right after a hit.
+- The doll throw lands the player at 2482,9607 in a closed pocket. Koftik (`caveguide6`) stands
+  behind the cave wall at 2443,9607, so Talk-to on him answers "I can't reach that!". The way out
+  is the Cave beside him (`upass_last_out` at 2438,9607, op 1 Enter), which plays his whereami
+  dialogue and leads you out to 2481,9717 (seam-facts, Seam pass 37 (e)). Drive
+  `talkToKoftikAfterTemple` by clicking the Cave, and declare that with the `upass_tablets.rs2`
+  evidence if `helper_coverage` asks.
+- Proof: the parked file with its leg-8 tail replaced, run as `--name upass`, read 222 PASS / 2
+  FAIL through `quest.varp_complete` (`build/seam_state/seam37/upass_run2/`). The 2 FAILs were the
+  test's bind `display`: the scroll reads "Underground Pass", not "Underground Pass quest". The
+  hand-off with every row's verb is in `build/author_state/sonnet-b46/upass.relay.md`.
 
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 

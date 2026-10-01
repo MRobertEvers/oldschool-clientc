@@ -39,9 +39,9 @@ quest_pandemonium's ledger op1 to fall through to `port_tasks.rs2` -- open), `t.
 
 #### Setup for a Catherby leg
 
-Setup for a Catherby leg: `::setlevel sailing 20`, `::setvar sailing_boat_1_owned 1`,
-`sailing_boat_1_type 1` (skiff), `sailing_boat_1_port 6`, `sailing_last_personal_boat_boarded 1`,
-`sailing_boat_1_hotspot_6 1` (a hold); walk onto the pier from the shore (2803,3430) -- a
+Setup for a Catherby leg: `::setlevel sailing 20`, `::setvar varb19258_sailing_boat_1_owned 1`,
+`varb19259_sailing_boat_1_type 1` (skiff), `varb19260_sailing_boat_1_port 6`,
+`varb18554_sailing_last_personal_boat_boarded 1`, `varb19279_sailing_boat_1_hotspot_6 1` (a hold); walk onto the pier from the shore (2803,3430) -- a
 `goto_tile` onto the pier strands the player.
 
 ## `t.session.*` (`session.lua`, seam 18) -- listed under section 3's `world` / `drive` / `player`

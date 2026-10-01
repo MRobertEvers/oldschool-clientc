@@ -17,7 +17,7 @@ return {
         -- bind touches the world not at all: it records varp/constants/
         -- display/points for later, and reads %qp now for that delta.
         t.quest.bind({
-            varp = "cookquest",
+            varp = "varp29_cookquest",
             constants = { not_started = 0, started = 1, complete = 2 },
             display = "Cook's Assistant",
             points = 1,
@@ -190,3 +190,6 @@ loc with no row at all. Before the crossing, `grep -n -B2 -A3 '<loc symbol>'
 OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/maplink_agility.dbrow`, stand on
 the row's `src` (`click_loc(..., { at = {x, z} })` or a walk), and click. If no row names the loc
 (Regicide's `regicide_logbalance*_start`), that is a content seam, not a tile to hunt for.
+Regicide's dense forests (`regicide_cross_over*`) no longer read the table at all (FIXED seam37):
+stand within 1 of the middle square of your side and click; the crossing is a 3-square forcemove,
+and its row reads `teleport: A -> B (a jump no walk makes ...)` (seam-facts, Seam pass 37 (c)).

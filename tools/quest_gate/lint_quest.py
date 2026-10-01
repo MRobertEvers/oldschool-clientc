@@ -44,6 +44,12 @@ confusing failure three steps downstream of where the actual mistake is:
   * a content symbol that names nothing in any `all.*.compack` -- a typo'd
     npc/obj/loc/varp/varbit name that would otherwise only surface as
     `not_found` deep into a real client run.
+  * a var named without its kind and id. Every varp/varbit/varc symbol is
+    `varp<id>_<name>` / `varb<id>_<name>` / `varc<id>_<name>` since PR #99
+    (OSRS-Content/docs/VAR_NAMES.md); a `varp = "..."` / `varbit = "..."`
+    key, a `::setvar <name>` in a string literal, or a `t.var.*` symbol
+    that spells the old bare name is a finding naming the prefixed one
+    (check_var_names).
   * a malformed `-- GUIDE-GAP: <step> <reason>` marker. The marker is how a
     file declares a Quest Helper guide step the CONTENT does not implement
     (the guide is the spec -- docs/QUEST_AUTHORING.md): <step> is the
@@ -294,7 +300,134 @@ def load_packs():
         PACK_OBJ: load_compack("obj"),
         PACK_LOC: load_compack("loc"),
         PACK_VARP: load_compack("varp") | load_compack("varbit") | load_alloc("varp"),
+        PACK_VAR_BARE: load_var_names(),
     }
+
+
+# ------------------------------------------------ var names carry kind and id
+#
+# Since OSRS-Content PR #25 / parent PR #99 (merged 2026-10-01) every varp,
+# varbit and varc symbol is spelled `varp<id>_<name>`, `varb<id>_<name>` or
+# `varc<id>_<name>` (OSRS-Content/docs/VAR_NAMES.md is the before/after
+# table). A test that still writes the old bare name is wrong in one of two
+# quiet ways: `t.quest.bind{varp = "cookquest"}` and `t.var.*("cookquest")`
+# read nothing by that name, and `::setvar <bare>` falls through the cheat's
+# exact rung to its substring rung, which refuses an ambiguous name
+# (`::setvar qp 43` -> `Which qp? varb456_tog_qp_before_return, ...`: ten
+# quests failed setup that way right after the merge) and silently picks the
+# one var containing a unique one. So the lint refuses the bare spelling and
+# names the prefixed one.
+
+PACK_VAR_BARE = "var_bare"  # load_packs() key: {bare name: prefixed name}
+VAR_PREFIX_RE = re.compile(r'^var([pbc])(\d+)_(\w+)$')
+VAR_NAME_SOURCES = (
+    # (directory, file, the prefix letter every name in it carries)
+    (CONFIGS_DIR, "all.varp.compack", "p"),
+    (CONFIGS_DIR, "all.varbit.compack", "b"),
+    (CONFIGS_DIR, "all.varc.compack", "c"),
+    (PACK_ALLOC_DIR, "varp.alloc", "p"),
+)
+VAR_NAMES_DOC = "OSRS-Content/docs/VAR_NAMES.md"
+
+
+def load_var_names():
+    """{bare name: prefixed name} for every var the content declares, read
+    from the compacks and the varp allocation (`29=varp29_cookquest` ->
+    `cookquest: varp29_cookquest`). Asserts each line's prefix carries its own
+    kind and id -- a table that disagrees with itself is not one to lint
+    against -- and that no bare name maps to two vars (measured 2026-10-01:
+    27,704 bare names, none shared)."""
+    table = {}
+    for directory, filename, letter in VAR_NAME_SOURCES:
+        path = os.path.join(directory, filename)
+        if not os.path.isfile(path):
+            continue
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("//"):
+                    continue
+                var_id, _, symbol = line.partition("=")
+                symbol = symbol.split("//")[0].strip()
+                match = VAR_PREFIX_RE.match(symbol)
+                assert match, "%s: %r does not carry var<kind><id>_" % (filename, line)
+                assert match.group(1) == letter, "%s: %r has the wrong kind" % (filename, line)
+                assert match.group(2) == var_id.strip(), "%s: %r has the wrong id" % (filename, line)
+                bare = match.group(3)
+                assert table.get(bare, symbol) == symbol, \
+                    "bare var name %r is both %s and %s" % (bare, table[bare], symbol)
+                table[bare] = symbol
+    return table
+
+
+def prefixed_var_name(name, var_names):
+    """`name` if it already carries its kind and id and names a declared var;
+    the prefixed spelling of a bare `name`; or None when neither holds."""
+    assert var_names is not None
+    match = VAR_PREFIX_RE.match(name)
+    if match:
+        return name if var_names.get(match.group(3)) == name else None
+    return var_names.get(name)
+
+
+_VAR_KEY_RE = re.compile(r'(?<![\w.])(varp|varbit)\s*=\s*"([^"]*)"')
+_SETVAR_IN_LITERAL_RE = re.compile(r'::setvar\s+([^\s"\']+)')
+_ANY_STRING_LITERAL_RE = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
+
+
+def _var_name_finding(where, name, var_names):
+    """The finding for one var name in a bind key or a `::setvar`, or None."""
+    if VAR_PREFIX_RE.match(name):
+        if prefixed_var_name(name, var_names):
+            return None
+        bare = VAR_PREFIX_RE.match(name).group(3)
+        right = var_names.get(bare)
+        return ("%s: %s is not a declared var%s (%s)"
+                % (where, name, "; its id is %s" % right if right else "", VAR_NAMES_DOC))
+    right = var_names.get(name)
+    if right:
+        return ("%s: the bare var name %s -- var names carry their kind and id; write %s "
+                "(%s)" % (where, name, right, VAR_NAMES_DOC))
+    return ("%s: %s is not a var name, bare or prefixed -- var names carry their kind and id "
+            "(var<p|b|c><id>_<name>, %s)" % (where, name, VAR_NAMES_DOC))
+
+
+def check_var_names(code, var_names, test_id=None):
+    """A `varp = "..."` / `varbit = "..."` key (t.quest.bind's own, a legs
+    file's top-level bind, or any table that names a var that way) and a
+    `::setvar <name>` inside a string literal must spell the var with its
+    kind and id. Reads COMMENT-BLANKED code: a comment that quotes the old
+    spelling is history, not a call. A `"::setvar " .. name` built at run time
+    has no name in the literal and is not this rule's business.
+
+    `_`-prefixed harness files (`_cheats.lua`, `_conformance.lua`) are not
+    quests -- `make test-quests` lints `test/quests/[!_]*.lua` -- and they
+    spell bare names ON PURPOSE: they prove the cheat's substring rung and
+    its refusal of an unknown name."""
+    findings = []
+    if var_names is None or (test_id or "").startswith("_"):
+        return findings
+    # A key is code, never the inside of a string: a detail written as
+    # `"... varbit = " .. tostring(x)` is a message, and its closing quote
+    # is not the start of a var name (forgettabletale.lua, 2026-10-01).
+    in_string = bytearray(len(code))
+    for literal in _ANY_STRING_LITERAL_RE.finditer(code):
+        in_string[literal.start():literal.end()] = b"\x01" * (literal.end() - literal.start())
+    for match in _VAR_KEY_RE.finditer(code):
+        if in_string[match.start()]:
+            continue
+        message = _var_name_finding('%s = "%s"' % (match.group(1), match.group(2)),
+                                    match.group(2), var_names)
+        if message:
+            findings.append((_line_of(code, match.start()), message))
+    for literal in _ANY_STRING_LITERAL_RE.finditer(code):
+        body = literal.group(1) if literal.group(1) is not None else literal.group(2)
+        for setvar in _SETVAR_IN_LITERAL_RE.finditer(body):
+            name = setvar.group(1)
+            message = _var_name_finding("\"::setvar %s\"" % name, name, var_names)
+            if message:
+                findings.append((_line_of(code, literal.start()), message))
+    return findings
 
 
 def _find_setup_cheats(text):
@@ -521,8 +654,15 @@ def check_numeric_ids_and_symbols(text, packs):
                                     "example of this bug)" % (call_name, value)))
         elif kind == "string" and packs is not None:
             if value and value not in packs.get(pack_name, set()):
-                findings.append((line, "%s(\"%s\", ...): not in all.%s.compack -- typo, "
-                                        "or the wrong pack" % (call_name, value, pack_name)))
+                prefixed = (packs.get(PACK_VAR_BARE, {}).get(value)
+                            if pack_name == PACK_VARP else None)
+                if prefixed:
+                    findings.append((line, "%s(\"%s\", ...): the bare var name -- var names "
+                                            "carry their kind and id; write \"%s\" (%s)"
+                                            % (call_name, value, prefixed, VAR_NAMES_DOC)))
+                else:
+                    findings.append((line, "%s(\"%s\", ...): not in all.%s.compack -- typo, "
+                                            "or the wrong pack" % (call_name, value, pack_name)))
     for match in BY_SYMBOL_RE.finditer(text):
         kind_word, arg_text = match.group(1), match.group(2)
         kind, value = _literal_kind(arg_text)
@@ -846,6 +986,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings.extend(check_step_verdict_type(code))
     findings.extend(check_duplicate_exec_names(code))
     findings.extend(check_max_frames(code))
+    findings.extend(check_var_names(code, packs.get(PACK_VAR_BARE) if packs else None, test_id))
     findings.extend(check_legs(text))
     if not allow_check:
         findings.extend(check_marker(text))

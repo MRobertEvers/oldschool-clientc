@@ -43,6 +43,9 @@ index is keyed by what you SEE, so a failure is one lookup away.
 - **Setup cheats are for prerequisites only.** `::give`/`::setlevel`/`::setvar`/`::complete <other
   quest>` stage what Quest Helper lists as brought along or required. Never `::complete` your own
   quest (trap 8); `::complete` takes the DBROW name.
+- **Var names carry their kind and id** in the bind, every `t.var.*` call and every `::setvar`
+  (`varp29_cookquest`, `varb3185_anma_main`, `::setvar varp101_qp 43`), never the old bare name:
+  `OSRS-Content/docs/VAR_NAMES.md` maps old to new, lint refuses a bare one (verbs-state-and-vars).
 - **The boss is fought for real.** `boss_fight=yes` in `quest_inventory.tsv` is a guess: a boss with a
   plain op2 Attack and a stat block is fought (section 6). Arm the character in `setup`, carry food
   and EAT it (`opts.eat` on the kill wait), WEAR the weapon.
@@ -71,7 +74,7 @@ return {
         -- bind touches the world not at all: it records varp/constants/
         -- display/points for later, and reads %qp now for that delta.
         t.quest.bind({
-            varp = "cookquest",
+            varp = "varp29_cookquest",
             constants = { not_started = 0, started = 1, complete = 2 },
             display = "Cook's Assistant",
             points = 1,

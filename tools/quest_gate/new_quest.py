@@ -623,6 +623,40 @@ def guess_op(desc: str) -> tuple[int, str]:
 ITEM_REQ_RE = re.compile(r"\b(\w+)\s*=\s*new\s+ItemRequirement\s*\(")
 SKILL_REQ_RE = re.compile(r"\bnew\s+SkillRequirement\s*\(\s*Skill\.(\w+)\s*,\s*(-?\d+)")
 QUEST_REQ_RE = re.compile(r"\bnew\s+QuestRequirement\s*\(\s*QuestHelperQuest\.(\w+)")
+# A quest-point gate (`new QuestPointRequirement(43)`, Tears of Guthix) is a
+# prerequisite, staged by `::setvar <the qp varp> N` -- the setup cheat trap 16
+# names for it. The scaffold writes it so no author types the varp by hand:
+# right after the var rename (PR #99) every author who wrote the old bare
+# `::setvar qp 43` was refused at setup (`Which qp? varb456_..., ...`).
+QP_REQ_RE = re.compile(r"\bnew\s+QuestPointRequirement\s*\(\s*(\d+)\s*\)")
+# The content's own name for the quest-point total before the rename; the
+# prefixed spelling is looked up in the compacks, never written here.
+QP_VAR_BARE = "qp"
+
+
+def parse_quest_point_requirement(text: str) -> int | None:
+    """The largest `new QuestPointRequirement(N)` the guide declares, or None."""
+    values = [int(v) for v in QP_REQ_RE.findall(text)]
+    return max(values) if values else None
+
+
+# Var names carry their kind and id (`varp29_cookquest`, `varb3185_anma_main`;
+# OSRS-Content/docs/VAR_NAMES.md). lint_quest.py owns the table so the
+# scaffold and the lint can never disagree about a spelling.
+sys.path.insert(0, str(HERE))
+import lint_quest  # noqa: E402
+
+_VAR_NAMES: dict[str, str] | None = None
+
+
+def var_name(name: str) -> str | None:
+    """`name` spelled with its kind and id (`cookquest` or `varp29_cookquest`
+    -> `varp29_cookquest`), looked up in all.varp/varbit/varc.compack and
+    pack/varp.alloc; None when no declared var has that name."""
+    global _VAR_NAMES
+    if _VAR_NAMES is None:
+        _VAR_NAMES = lint_quest.load_var_names()
+    return lint_quest.prefixed_var_name(name, _VAR_NAMES)
 
 # An ItemRequirement the guide itself marks `.canBeObtainedDuringQuest()` is
 # not a setup ::give -- Quest Helper's own contract for that flag (see
@@ -1941,6 +1975,25 @@ def generate(
     emitted_id = test_id or quest_id
     display = inv_row["human_name"]
     varp = inv_row["varp"].lstrip("%")
+    # The bind's var is spelled with its kind and id; an inventory row still
+    # carrying a bare name is rewritten from the compacks, and one naming no
+    # declared var at all is a CHECK the author resolves before the first run.
+    # Two rows carry a note after the name (`%varp299_elemental_workshop_bits
+    # (bitfield)`, Recipe for Disaster's `(intro) + 9 more: ...`): the name is
+    # the first word, and the note becomes a CHECK.
+    varp_unresolved = False
+    varp_note = ""
+    if varp and not varp.startswith("?"):
+        first_word = varp.split()[0]
+        resolved = var_name(varp) or var_name(first_word)
+        if resolved:
+            if resolved != varp and first_word != varp:
+                varp_note = varp[len(first_word):].strip()
+                checks.append(f"varp: inventory note after the name: {varp_note!r}")
+            varp = resolved
+        else:
+            varp_unresolved = True
+            checks.append(f"varp: {varp!r} is not a declared var (OSRS-Content/docs/VAR_NAMES.md)")
 
     dbrow_names = qhe.load_compack_names(
         REPO / "OSRS-Content" / "osrs239-content" / "configs" / "all.dbrow.compack"
@@ -2053,6 +2106,12 @@ def generate(
 
     for skill, level in parse_skill_requirements(text):
         setup_cheats.append(f"::setlevel {skill} {level}")
+
+    qp_required = parse_quest_point_requirement(text)
+    if qp_required is not None:
+        qp_var = var_name(QP_VAR_BARE)
+        assert qp_var, f"no declared var named {QP_VAR_BARE!r} in the content's var compacks"
+        setup_cheats.append(f"::setvar {qp_var} {qp_required}")
 
     # Resolved and folded into `setup_cheats` BEFORE the setup table below is
     # emitted -- a prereq line appended after that point would land in the
@@ -2167,7 +2226,11 @@ def generate(
     lines.append("")
     lines.append("    run = function(t)")
     lines.append(f"        local bind_result, bind_detail = t.quest.bind({{")
-    lines.append(f"            varp = {lua_string(varp)},")
+    lines.append(f"            varp = {lua_string(varp)},"
+                 + (" -- CHECK: not a declared var; find its var<p|b><id>_ name in "
+                    "OSRS-Content/docs/VAR_NAMES.md" if varp_unresolved else
+                    " -- CHECK: the inventory notes " + varp_note.replace("%", "")
+                    if varp_note else ""))
     lines.append("            constants = {")
     for key, value in sorted(constants_lua.items()):
         lines.append(f"                {key} = {value},")
