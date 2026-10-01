@@ -19,7 +19,7 @@ local WALK_X, WALK_Z = 3215, 3243         -- open ground south-east of the store
 -- --from-leg run is the determinism proof.
 local function end_state(t)
     local _, tile = t.world.tile()
-    local _, stage = t.var.server("cookquest")
+    local _, stage = t.var.server("varp29_cookquest")
     local held = {}
     for slot = 0, 27 do
         local slot_result, cell = t.inv.slot(slot)
@@ -37,7 +37,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = { "::cook" },
     bind = {
-        varp = "cookquest",
+        varp = "varp29_cookquest",
         constants = { not_started = 0, started = 1, complete = 2 },
         row = "quest_cooksassistant",
         display = "Cook's Assistant",

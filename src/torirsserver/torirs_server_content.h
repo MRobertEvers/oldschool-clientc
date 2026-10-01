@@ -186,6 +186,20 @@ ToriRSServer_ContentSymbolWalk(
     int* out_id,
     const char** out_name);
 
+/*
+ * A var by its name without the kind-and-id prefix, or -1.
+ *
+ * Var names carry their kind and id (`varb542_cutscene_status`), so a name the
+ * engine *computes* -- `sailing_boat_<slot>_owned`, one varbit per slot -- cannot
+ * be formatted into the full spelling. This answers that one case: `base` is
+ * `sailing_boat_3_owned`, the answer is the id of `varb<id>_sailing_boat_3_owned`.
+ * A name written out in full goes through ToriRSServer_ContentSymbol.
+ */
+int
+ToriRSServer_ContentVarSymbol(
+    enum ToriRSServerPackKind kind,
+    const char* base);
+
 /** Symbol for an id, or NULL. Only for diagnostics — the reverse map is a
  *  linear scan. */
 const char*

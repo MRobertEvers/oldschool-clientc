@@ -50,7 +50,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "seaslugquest",
+            varp = "varp159_seaslugquest",
             constants = {
                 not_started = 0,
                 started = 1,

@@ -239,8 +239,8 @@ return {
         -- today's value of somebody else's variable.
         local setvar_result = t.cheat("::setvar cookquest ^cook_started")
         t.ticks(3)
-        local server_result, server_value = t.var.server("cookquest")
-        local client_result, client_value = t.var.varp("cookquest")
+        local server_result, server_value = t.var.server("varp29_cookquest")
+        local client_result, client_value = t.var.varp("varp29_cookquest")
         record("cheats.setvar",
             setvar_result == "ok" and server_result == "ok" and server_value == 1,
             "::setvar cookquest ^cook_started -> " .. tostring(setvar_result)
@@ -272,8 +272,8 @@ return {
                     .. ", client varbit " .. tostring(cr) .. "=" .. tostring(cv)
                     .. " (want " .. want .. ")")
         end
-        varbit_row("cheats.setvar_varbit_agrith_quest", "agrith_quest", "^sots_fight", 120)
-        varbit_row("cheats.setvar_varbit_cowquest", "cowquest", "^iom_fight", 18)
+        varbit_row("cheats.setvar_varbit_agrith_quest", "varb1372_agrith_quest", "^sots_fight", 120)
+        varbit_row("cheats.setvar_varbit_cowquest", "varb20106_cowquest", "^iom_fight", 18)
 
         -- The carrier itself, named exactly, is still refused whole.
         local carrier_result, carrier_detail = t.cheat("::setvar agrith_quest_varp 5")

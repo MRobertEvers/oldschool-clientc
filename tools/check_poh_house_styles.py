@@ -62,7 +62,7 @@ def main() -> None:
         else:
             require(
                 re.search(
-                    rf"%poh_house_style = \^poh_style_{name}\) return\({origin}\);",
+                    rf"%varb2188_poh_house_style = \^poh_style_{name}\) return\({origin}\);",
                     construct,
                 ) is not None,
                 f"template origin drifted for {name}",

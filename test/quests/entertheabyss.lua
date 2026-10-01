@@ -46,7 +46,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "abyssal_miniquest",
+            varp = "varp492_abyssal_miniquest",
             constants = {
                 not_started = 0,
                 varrock = 1,

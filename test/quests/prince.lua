@@ -57,7 +57,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "princequest",
+            varp = "varp273_princequest",
             constants = {
                 not_started = 0,
                 started = 10,

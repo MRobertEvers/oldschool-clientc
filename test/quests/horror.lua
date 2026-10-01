@@ -48,7 +48,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "horrorquest",
+            varp = "varb34_horrorquest",
             constants = {
                 not_started = 0,
                 started = 1,

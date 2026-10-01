@@ -2826,7 +2826,7 @@ run_energy_tick(
             player->run_energy = 0;
             player->run_toggle = 0;
             player->running = 0;
-            ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), 0);
+            ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("varp173_option_run"), 0);
         }
     }
     else if( player->run_energy < TORIRSSERVER_RUN_ENERGY_MAX )
@@ -6038,12 +6038,12 @@ ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
     {
         char key[64];
         snprintf(key,sizeof(key),"sailing_sidepanel_crew_slot_%d_position",slot+1);
-        int duty=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        int duty=ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT,key);
         int position=duty>=0 ? ToriRSServer_VarbitGet(player,duty) : 0;
         if( sails ? (position!=2 && !(combined && (position==3 || position==4))) :
                     (position!=3 && !(combined && position==4)) ) continue;
         snprintf(key,sizeof(key),"sailing_sidepanel_crew_slot_%d",slot+1);
-        int roster=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        int roster=ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT,key);
         if( roster<0 || ToriRSServer_VarbitGet(player,roster)==0 ) continue;
         uint32_t retained=(uint32_t)ToriRSServer_MapInstanceVarGet(vessel->instance,112+slot);
         if( !retained ) continue;
@@ -6112,7 +6112,7 @@ handle_move(
     if( ctrl && !player->run_toggle )
     {
         player->run_toggle = 1;
-        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), 1);
+        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("varp173_option_run"), 1);
     }
 
     /*
@@ -6477,7 +6477,7 @@ ToriRSServer_TeleNexusSlotVarbit(int slot, int temporary)
         return -1;
     snprintf(name, sizeof(name), "poh_nexus_tele_%d%s", slot,
              temporary ? "_temp" : "");
-    return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name);
+    return ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT, name);
 }
 
 static int
@@ -6504,7 +6504,7 @@ ToriRSServer_TeleNexusSlotSet(
 static int
 ToriRSServer_TeleNexusCapacity(struct ToriRSServerPlayer* player)
 {
-    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "poh_nexus_id");
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb6670_poh_nexus_id");
     int tier = id >= 0 ? ToriRSServer_VarbitGet(player, id) : 0;
 
     if( tier == 1 )
@@ -6586,7 +6586,7 @@ ToriRSServer_TeleNexusStageDrag(
     if( dst_com == left_click )
     {
         int varbit = ToriRSServer_ContentSymbol(
-            TORIRSSERVER_PACK_VARBIT, "poh_nexus_left_click_temp");
+            TORIRSSERVER_PACK_VARBIT, "varb6669_poh_nexus_left_click_temp");
         int destination = ToriRSServer_TeleNexusSlotGet(player, src_slot, 1);
 
         if( varbit >= 0 && destination > 0 )
@@ -6610,7 +6610,7 @@ ToriRSServer_TeleNexusStageClick(
     int mode_options = ToriRSServer_ContentSymbol(
         TORIRSSERVER_PACK_COMPONENT, "telenexus_teleport:options_layer");
     int varbit = ToriRSServer_ContentSymbol(
-        TORIRSSERVER_PACK_VARBIT, "poh_nexus_left_click_temp");
+        TORIRSSERVER_PACK_VARBIT, "varb6669_poh_nexus_left_click_temp");
     int value;
 
     if( op_num != 1 )
@@ -6618,7 +6618,7 @@ ToriRSServer_TeleNexusStageClick(
     if( component == mode_options && (sub == 2 || sub == 3) )
     {
         int mode = ToriRSServer_ContentSymbol(
-            TORIRSSERVER_PACK_VARBIT, "poh_nexus_tele_scry_mode");
+            TORIRSSERVER_PACK_VARBIT, "varb6671_poh_nexus_tele_scry_mode");
 
         if( mode >= 0 )
             ToriRSServer_VarbitSet(srv, mode, sub == 3);
@@ -8295,7 +8295,7 @@ vessel_deck_build(struct ToriRSServer* srv, struct ToriRSServerVessel* vessel,
     {
         char key[80];
         snprintf(key,sizeof(key),"sailing_boat_%d_owned",vessel->cargo_slot);
-        int id=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+        int id=ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT,key);
         newly_owned=id>=0 && !ToriRSServer_VarbitGet(srv->active_player,id);
     }
     vessel_deck_fill_from(vessel, src_x, src_z);
@@ -8314,7 +8314,7 @@ vessel_deck_build(struct ToriRSServer* srv, struct ToriRSServerVessel* vessel,
         {
             char key[80];
             snprintf(key,sizeof(key),"sailing_boat_%d_%s",vessel->cargo_slot,keys[i]);
-            int id=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+            int id=ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT,key);
             if( id>=0 ) ToriRSServer_VarbitSet(srv,id,values[i]);
         }
     }
@@ -8663,7 +8663,7 @@ ToriRSServer_RunCheatLadder(
         }
         srv->clock_skip_minutes += minutes;
         now_minutes = (int)(ToriRSServer_WorldRealtimeMs(srv) / 60000LL);
-        varp_date_minutes = ToriRSServer_WorldVarp("date_minutes");
+        varp_date_minutes = ToriRSServer_WorldVarp("varp3078_date_minutes");
         if( varp_date_minutes >= 0 )
             ToriRSServer_WorldSetVarpOn(srv, player, varp_date_minutes, now_minutes);
         fprintf(stderr, "torirsserver: clockskip +%d minute(s), world clock %d minute(s) ahead\n",
@@ -9386,7 +9386,7 @@ ToriRSServer_RunCheatLadder(
         int want = !player->run_toggle;
         (void)sscanf(text, "run %d", &want);
         player->run_toggle = want != 0;
-        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), player->run_toggle);
+        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("varp173_option_run"), player->run_toggle);
         say(srv, "Run %s (%d%%).", player->run_toggle ? "on" : "off",
             player->run_energy * 100 / TORIRSSERVER_RUN_ENERGY_MAX);
         return TORIRSSERVER_TRIGGER_RAN;
@@ -10707,7 +10707,7 @@ ToriRSServer_WorldTeleport(
     if( old_boat && ToriRSServer_MapInstanceFind(abs_x, abs_z) != old_boat->instance )
     {
         old_boat->navigator_generation[player->pid] = 0;
-        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+        int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
         if( varp >= 0 && player->varps[varp] == old_boat->instance )
             ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
         player->sailing.aboard_slot = 0;
@@ -12887,7 +12887,7 @@ void
 ToriRSServer_WorldSyncCombatVarbits(struct ToriRSServer* srv)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
-    int level_varbit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "combatlevel_transmit");
+    int level_varbit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb13027_combatlevel_transmit");
     int level = ToriRSServer_CombatLevel(player);
 
     /*
@@ -12915,7 +12915,7 @@ ToriRSServer_WorldSyncCombatVarbits(struct ToriRSServer* srv)
 static int
 attack_style_varp(void)
 {
-    return ToriRSServer_WorldVarp("com_mode");
+    return ToriRSServer_WorldVarp("varp43_com_mode");
 }
 
 int
@@ -13144,7 +13144,7 @@ varp_side_effects(
      * mirrored it *out* to the varp, so a write from the other direction
      * transmitted a lit orb and the player still walked.
      */
-    if( varp == ToriRSServer_WorldVarp("option_run") )
+    if( varp == ToriRSServer_WorldVarp("varp173_option_run") )
         player->run_toggle = value != 0;
 }
 
@@ -14603,7 +14603,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
         int iface = ids->iface_gameframe;
         int32_t args[1];
         int const mobile = ToriRSServer_PlayerIsMobile(player) && ids->iface_toplevel_osm > 0;
-        int const varp_client_mobile = ToriRSServer_WorldVarp("client_mobile");
+        int const varp_client_mobile = ToriRSServer_WorldVarp("varp7138_client_mobile");
 
         if( mode < 0 || mode > 2 )
             mode = 1;
@@ -16190,16 +16190,16 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                     if( ToriRSServer_MapInstanceVarGet(vessel->instance,8+slot*7) &&
                         ToriRSServer_MapInstanceVarGet(vessel->instance,8+slot*7+5)==player->pid+1 )
                     { operating_hotspot=slot; break; }
-            int hotspot_bit=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,"sailing_facility_hotspot_number");
+            int hotspot_bit=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,"varb19103_sailing_facility_hotspot_number");
             if( hotspot_bit>=0 && ToriRSServer_VarbitGet(player,hotspot_bit)!=operating_hotspot+1 )
                 ToriRSServer_VarbitSetOn(srv,player,hotspot_bit,operating_hotspot+1);
-            int combat_data=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,"sailing_combat_facility_data");
+            int combat_data=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,"varp5043_sailing_combat_facility_data");
             int at_cannon=operating_hotspot>=0 && combat_data>=0 && player->varps[combat_data]>0;
             for( int slot=0; slot<13; ++slot )
             {
                 char key[80];
                 snprintf(key,sizeof(key),"sailing_sidepanel_player_at_facility_%d",slot);
-                int id=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,key);
+                int id=ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT,key);
                 int value=operating_hotspot==slot;
                 if( id>=0 && ToriRSServer_VarbitGet(player,id)!=value )
                     ToriRSServer_VarbitSetOn(srv,player,id,value);

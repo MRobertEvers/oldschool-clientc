@@ -166,7 +166,7 @@ end
 -- read content can see: date_minutes, date_runeday). The quest's own
 -- catch-up still does the work -- its softtimer, or the next op that calls
 -- it -- so the row after this one reads the QUEST's effect back
--- (`t.var.await("forget_farming", 8, 110)`), never the cheat's.
+-- (`t.var.await("varb823_forget_farming", 8, 110)`), never the cheat's.
 --
 -- The reading: the cheat's reply names the new date_minutes, and the verb
 -- waits for the CLIENT's copy of varp date_minutes (teleport_cooldowns.varp,
@@ -188,7 +188,7 @@ function QD.clock.skip(minutes)
             .. tostring(minutes)
     end
     local text = string.format("::clockskip %d", minutes)
-    local before_result, before = QD.var.varp("date_minutes")
+    local before_result, before = QD.var.varp("varp3078_date_minutes")
     local serial_result, since = api_drive.message_serial()
     if serial_result ~= "ok" then
         return serial_result, "clock.skip: message_serial " .. tostring(since)
@@ -224,7 +224,7 @@ function QD.clock.skip(minutes)
     if not want then
         return "timeout", text .. " ran but its reply never arrived (last: " .. tostring(reply) .. ")"
     end
-    local awaited, note = QD.var.await("date_minutes", want, 5)
+    local awaited, note = QD.var.await("varp3078_date_minutes", want, 5)
     if awaited ~= "ok" then
         return awaited, text .. ": the server says date_minutes " .. tostring(want)
             .. " but the client varp never showed it (" .. tostring(note) .. ")"

@@ -29,7 +29,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "devious_main",
+            varp = "varb1465_devious_main",
             constants = { not_started = 0, accepted = 10, bowsword_given = 20, orb_given = 30,
                 cutscene_done = 40, priest_spoken = 50, monk_found_dead = 60,
                 reported_priest = 70, complete = 80 },
@@ -41,7 +41,7 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        local wr, wv = t.var.server("wanted_main")
+        local wr, wv = t.var.server("varb1051_wanted_main")
         t.check("prereq.wanted_main", wr == "ok", "wanted_main = " .. tostring(wv))
         t.exec("goto-talkToMonk", t.player.goto_tile, 3406, 3494, 0)
         t.exec("talkToMonk", t.player.talk_to, "devious_monk_hooded", 1)

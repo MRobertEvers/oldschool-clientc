@@ -19,7 +19,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "demonslayer_main",
+            varp = "varb2561_demonslayer_main",
             constants = {
                 not_started = 0,
                 talked_aris = 1,
@@ -153,7 +153,7 @@ return {
         t.exec("goto-drain", t.player.goto_tile, 3224, 3496, 0)
         local dr = t.player.by_symbol("loc", "questdrain")
         t.exec("drain.use_bucket", t.player.use_on, "bucket_water", dr)
-        t.exec("drain.var", t.var.await_server, "delrith_drain_key", 1, 8)
+        t.exec("drain.var", t.var.await_server, "varb2568_delrith_drain_key", 1, 8)
 
         -- sewer key
         -- goDownManhole: the manhole south east of the palace (Quest Helper WorldPoint 3237,3458)
@@ -194,7 +194,7 @@ return {
             "player:I have some bones.",
             "npc:Give 'em here then.",
         })
-        t.exec("traiborn.bones", t.var.await_server, "demon_bones_given", 25, 60)
+        t.exec("traiborn.bones", t.var.await_server, "varp7143_demon_bones_given", 25, 60)
         t.exec("traiborn.ritual", t.chat.play, {
             "npc:Hurrah! That's all 25 sets of bones.",
             "mesbox:Traiborn places the bones in a circle",
@@ -221,7 +221,7 @@ return {
         })
         t.exec("silverlight.got", t.inv.await, "silverlight", 1, 12)
         t.expect("keys.gone", t.inv.expect_absent("silverlight_key_1"))
-        t.exec("case.var", t.var.await_server, "delrith_silverlight_case", 1, 5)
+        t.exec("case.var", t.var.await_server, "varb2567_delrith_silverlight_case", 1, 5)
 
         -- ================= BOSS =================
         t.exec("equip.silverlight", t.player.equip, "silverlight")

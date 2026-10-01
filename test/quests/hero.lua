@@ -40,7 +40,7 @@
 --
 -- The candlestick-chest content bug this file used to stop at
 -- (brimhaven_scarface_mansion.rs2's opencandlechest write clobbering a
--- Phoenix player's %heroquest with the Black Arm route's own checkpoint,
+-- Phoenix player's %varp188_heroquest with the Black Arm route's own checkpoint,
 -- past hero_phoenix_obtained_armband) is FIXED as of the committed source
 -- (brimhaven_scarface_mansion.rs2:134, gated on
 -- `%heroquest >= ^hero_blackarm_gangmember_spoken`, which a Phoenix player
@@ -69,7 +69,7 @@ return {
         "::setlevel strength 99",
         "::setlevel defence 99",
         "::setlevel hitpoints 99",
-        "::give rune_mace 1", -- crush weapon: Ice Queen's own lowest defence stat is crushdefence=20 (combat_stats.generated.npc:14515), vs slashdefence=40/stabdefence=30 -- dragon_mace is unusable here, levelrequire.rs2:171-176 refuses to Wear it until %heroquest >= ^hero_complete, which is this quest's OWN completion; rune_mace carries no such gate
+        "::give rune_mace 1", -- crush weapon: Ice Queen's own lowest defence stat is crushdefence=20 (combat_stats.generated.npc:14515), vs slashdefence=40/stabdefence=30 -- dragon_mace is unusable here, levelrequire.rs2:171-176 refuses to Wear it until %varp188_heroquest >= ^hero_complete, which is this quest's OWN completion; rune_mace carries no such gate
         "::give rune_platebody 1",
         "::give rune_platelegs 1",
         "::give rune_full_helm 1",
@@ -92,7 +92,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "heroquest",
+            varp = "varp188_heroquest",
             constants = {
                 not_started = 0,
                 started = 1,

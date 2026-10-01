@@ -48,7 +48,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "cowquest",
+            varp = "varb20106_cowquest",
             constants = {
                 not_started = 0,
                 investigate = 3,
@@ -102,7 +102,7 @@ return {
             "player:Can you share what makes your cows so productive?",
             "npc:Hard work and family secrets!",
         })
-        t.exec("inv.gillieInformation", t.var.await, "cowquest_gillie_information", 1, 5)
+        t.exec("inv.gillieInformation", t.var.await, "varb20107_cowquest_gillie_information", 1, 5)
 
         t.exec("goto-talkToSeth", t.player.goto_tile, 3223, 3293, 0)
         t.exec("talkToSeth", t.player.talk_to, "favour_seth_groats", 1)

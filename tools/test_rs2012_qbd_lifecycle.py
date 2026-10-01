@@ -41,7 +41,7 @@ def main() -> None:
     varps = VARPS.read_text(encoding="utf-8")
     constants = CONSTANTS.read_text(encoding="utf-8")
 
-    handle_varp = block(varps, "rs2012_qbd_handle")
+    handle_varp = block(varps, "varp6254_rs2012_qbd_handle")
     assert "scope=temp" in handle_varp and "transmit=no" in handle_varp
     assert "^rs2012_qbd_lifecycle_ticks = 1" in constants
 
@@ -53,23 +53,23 @@ def main() -> None:
         "proc,rs2012_qbd_floor_coord",
     ):
         body = block(session, proc)
-        assert "%rs2012_qbd_handle" in body
-        assert "%map_instance_handle" not in body
+        assert "%varp6254_rs2012_qbd_handle" in body
+        assert "%varp5925_map_instance_handle" not in body
     for text in (
         session,
         ADDS.read_text(encoding="utf-8"),
         COMBAT.read_text(encoding="utf-8"),
     ):
-        assert "map_instance_find(coord) ! %map_instance_handle" not in text
+        assert "map_instance_find(coord) ! %varp5925_map_instance_handle" not in text
 
     enter = block(session, "proc,rs2012_qbd_enter_checked")
     assert "$summoning_bypass = false & stat_base(summoning) < 60" in enter
-    assert enter.count("%rs2012_qbd_handle = ") == 2
+    assert enter.count("%varp6254_rs2012_qbd_handle = ") == 2
     assert enter.count(
         "softtimer(rs2012_qbd_lifecycle, ^rs2012_qbd_lifecycle_ticks);"
     ) == 2
     assert "stat_add" not in enter and "stat_boost" not in enter
-    assert "%rs2012_song_from_depths_complete =" not in enter
+    assert "%varp6251_rs2012_song_from_depths_complete =" not in enter
 
     production = block(session, "proc,rs2012_qbd_enter")
     assert "~rs2012_qbd_enter_checked($ruleset, false);" in production
@@ -112,7 +112,7 @@ def main() -> None:
         "extreme_pulse",
     ):
         assert f"clearqueue(rs2012_qbd_{queue});" in clear
-    assert "%rs2012_qbd_reward_ready =" not in clear
+    assert "%varp6238_rs2012_qbd_reward_ready =" not in clear
     assert "inv_clear(rs2012_qbd_rewardinv)" not in clear
 
     release = block(session, "proc,rs2012_qbd_release_handle")
@@ -120,15 +120,15 @@ def main() -> None:
     assert "~rs2012_qbd_despawn_handle($handle);" in release
     assert "~rs2012_qbd_clear_state;" in release
     assert "map_instance_free($handle);" in release
-    assert "%rs2012_qbd_handle = ^map_instance_none;" in release
+    assert "%varp6254_rs2012_qbd_handle = ^map_instance_none;" in release
     assert (
-        "if (%map_instance_handle = $handle) %map_instance_handle = ^map_instance_none;"
+        "if (%varp5925_map_instance_handle = $handle) %varp5925_map_instance_handle = ^map_instance_none;"
         in release
     )
     assert "p_teleport" not in release
 
     lifecycle = block(session, "proc,rs2012_qbd_lifecycle_tick")
-    assert "def_int $handle = %rs2012_qbd_handle;" in lifecycle
+    assert "def_int $handle = %varp6254_rs2012_qbd_handle;" in lifecycle
     assert "map_instance_find(coord) = $handle" in lifecycle
     assert "~rs2012_qbd_release_handle($handle);" in lifecycle
     assert "p_teleport" not in lifecycle
@@ -138,8 +138,8 @@ def main() -> None:
     )
 
     stairs = block(session, "oploc1,rs2012_loc_70790")
-    assert "def_int $old = %rs2012_qbd_handle;" in stairs
-    assert "%rs2012_qbd_handle = $reward;" in stairs
+    assert "def_int $old = %varp6254_rs2012_qbd_handle;" in stairs
+    assert "%varp6254_rs2012_qbd_handle = $reward;" in stairs
     assert stairs.index("p_teleport(") < stairs.index(
         "~rs2012_qbd_despawn_handle($old);"
     ) < stairs.index("map_instance_free($old);")
@@ -150,13 +150,13 @@ def main() -> None:
         "~rs2012_qbd_release_handle($handle);"
     )
     logout = block(session, "proc,rs2012_qbd_on_logout")
-    assert "%rs2012_qbd_handle" in logout
+    assert "%varp6254_rs2012_qbd_handle" in logout
     assert "~rs2012_qbd_release_handle($handle);" in logout
     assert "~rs2012_qbd_on_logout;" in LOGOUT.read_text(encoding="utf-8")
 
     death = block(session, "proc,rs2012_qbd_on_death")
     finish = block(session, "proc,rs2012_qbd_finish_death")
-    assert "%rs2012_qbd_handle" in death
+    assert "%varp6254_rs2012_qbd_handle" in death
     assert "map_instance_free" not in death
     assert "~rs2012_qbd_despawn_handle($handle);" in death
     assert "map_instance_free($handle);" in finish

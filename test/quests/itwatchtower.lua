@@ -70,7 +70,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "itwatchtower",
+            varp = "varp212_itwatchtower",
             constants = {
                 complete = 13,
                 gutanoth_found_gold = 2,
@@ -830,10 +830,10 @@ return {
         })
         t.check("quest.stage.found_all_crystals", t.quest.expect_stage("itwatchtower_found_all_crystals"))
         local pillars = {
-            { n = 1, loc = "qip_watchtower_pillar_nocrystal_multi_yellow", item = "powering_crystal1", varbit = "watchtower_pillar_2" },
-            { n = 2, loc = "qip_watchtower_pillar_nocrystal_multi_magenta", item = "powering_crystal2", varbit = "watchtower_pillar_3" },
-            { n = 3, loc = "qip_watchtower_pillar_nocrystal_multi_cyan", item = "powering_crystal3", varbit = "watchtower_pillar_1" },
-            { n = 4, loc = "qip_watchtower_pillar_nocrystal_multi_white", item = "powering_crystal4", varbit = "watchtower_pillar_4" },
+            { n = 1, loc = "qip_watchtower_pillar_nocrystal_multi_yellow", item = "powering_crystal1", varbit = "varb3128_watchtower_pillar_2" },
+            { n = 2, loc = "qip_watchtower_pillar_nocrystal_multi_magenta", item = "powering_crystal2", varbit = "varb3129_watchtower_pillar_3" },
+            { n = 3, loc = "qip_watchtower_pillar_nocrystal_multi_cyan", item = "powering_crystal3", varbit = "varb3127_watchtower_pillar_1" },
+            { n = 4, loc = "qip_watchtower_pillar_nocrystal_multi_white", item = "powering_crystal4", varbit = "varb3130_watchtower_pillar_4" },
         }
         for _, p in ipairs(pillars) do
             local target = t.player.by_symbol("loc", p.loc)

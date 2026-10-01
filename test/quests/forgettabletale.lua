@@ -30,7 +30,7 @@ return {
         "::give spade 1",
     },
     bind = {
-        varp = "forget_quest",
+        varp = "varb822_forget_quest",
         constants = {
             not_started = 0, talk_drunkdwarf = 10, bring_beer = 20, collect_seeds = 30,
             grow_kelda = 40, brew_stout = 50, give_stout = 60, hear_more = 65,
@@ -121,8 +121,8 @@ return {
                 "feud_karidian_fakebeard", "flier", "king_worm", "pink_skirt", "potato", "red_cape",
                 "spinning_plate", "studded_chaps", "steel_dart", "swamp_tar", "horsey_brown", "vampire_dust",
                 "white_apron" }
-            local want_result, want = t.var.server("forget_rowdy_item")
-            if want_result ~= "ok" then want_result, want = t.var.varbit("forget_rowdy_item") end
+            local want_result, want = t.var.server("varp7194_forget_rowdy_item")
+            if want_result ~= "ok" then want_result, want = t.var.varbit("varp7194_forget_rowdy_item") end
             local item = rowdy_items[want]
             t.check("talkToRowdyDwarf-request", item ~= nil, "Rowdy asked for item index " .. tostring(want) .. " (" .. tostring(want_result) .. ")" .. " = " .. tostring(item))
             if item == nil then t.blocked("seam: cannot read forget_rowdy_item (" .. tostring(want_result) .. ")") return end
@@ -210,7 +210,7 @@ return {
 
             local _, sx = t.world.tile()
             local _, lvl = t.world.level()
-            local _, stage = t.var.server("forget_quest")
+            local _, stage = t.var.server("varb822_forget_quest")
             t.check("leg.1.end", true, "tile " .. tostring(type(sx) == "table" and (tostring(sx.x) .. "," .. tostring(sx.z)) or sx) .. " level " .. tostring(lvl) .. ", forget_quest=" .. tostring(stage)
                 .. ", seeds " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
         end },
@@ -240,10 +240,10 @@ return {
             -- plantKelda: rake the weeds, then use the seeds on the weeded patch
             t.exec("goto-plantKelda", t.player.goto_tile, 2854, 10201, 0)
             t.exec("plantKelda-rake", t.player.click_loc, "farming_hops_patch_keldagrim", 1)
-            t.exec("plantKelda-weeded", t.var.await, "forget_farming", 3, 40)
+            t.exec("plantKelda-weeded", t.var.await, "varb823_forget_farming", 3, 40)
             local patch = t.player.by_symbol("loc", "farming_hops_patch_keldagrim")
             t.exec("plantKelda", t.player.use_on, "kelda_hop_seed", patch)
-            t.exec("plantKelda-growing", t.var.await, "forget_farming", 4, 12)
+            t.exec("plantKelda-growing", t.var.await, "varb823_forget_farming", 4, 12)
             t.check("plantKelda-planted", select(2, t.inv.count("kelda_hop_seed")) == 0,
                 "kelda seeds left: " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
 
@@ -252,7 +252,7 @@ return {
             -- The documented fast-forward for a real-time wait is t.clock.skip; the quest's own
             -- forget_tick softtimer then runs the catch-up.
             t.exec("waitForKelda-skip", t.clock.skip, 16)
-            t.exec("waitForKelda", t.var.await, "forget_farming", 8, 110)
+            t.exec("waitForKelda", t.var.await, "varb823_forget_farming", 8, 110)
 
             -- harvestHops: [oploc1,kelda_hops_fullygrown] (spade in setup)
             t.exec("harvestHops", t.player.click_loc, "farming_hops_patch_keldagrim", 1)
@@ -267,7 +267,7 @@ return {
             local _, tile2 = t.world.tile()
             t.check("goUpstairsPub-level", lvl2 == 1, "level " .. tostring(lvl2) .. " at "
                 .. tostring(type(tile2) == "table" and (tile2.x .. "," .. tile2.z) or tile2))
-            local _, stage = t.var.server("forget_quest")
+            local _, stage = t.var.server("varb822_forget_quest")
             t.check("leg.2.end", lvl2 == 1, "tile " .. tostring(type(tile2) == "table" and (tile2.x .. "," .. tile2.z) or tile2)
                 .. " level " .. tostring(lvl2) .. ", forget_quest=" .. tostring(stage)
                 .. ", kelda_hops " .. tostring(select(2, t.inv.count("kelda_hops"))))
@@ -291,18 +291,18 @@ return {
             t.check("buyYeast-held", n("ale_yeast") == 1, "yeast " .. tostring(n("ale_yeast")))
             local vat = t.player.by_symbol("loc", "brewing_vat_1")
             t.exec("addWater", t.player.use_on, "bucket_water", vat)
-            t.exec("addWater-v", t.var.await_server, "brewing_vat_varbit_1", 1, 30)
-            t.check("vat-client-varp", true, "client farming_varp_9 = " .. tostring(select(2, t.var.varp("farming_varp_9"))) .. " / vat varbit = " .. tostring(select(2, t.var.varbit("brewing_vat_varbit_1"))))
+            t.exec("addWater-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 1, 30)
+            t.check("vat-client-varp", true, "client farming_varp_9 = " .. tostring(select(2, t.var.varp("varp510_farming_varp_9"))) .. " / vat varbit = " .. tostring(select(2, t.var.varbit("varb736_brewing_vat_varbit_1"))))
             t.exec("addMalts", t.player.use_on, "barley_malt", vat)
-            t.exec("addMalts-v", t.var.await_server, "brewing_vat_varbit_1", 2, 30)
+            t.exec("addMalts-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 2, 30)
             t.exec("addKelda", t.player.use_on, "kelda_hops", vat)
-            t.exec("addKelda-v", t.var.await_server, "brewing_vat_varbit_1", 68, 30)
+            t.exec("addKelda-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 68, 30)
             t.exec("addYeast", t.player.use_on, "ale_yeast", vat)
-            t.exec("addYeast-v", t.var.await_server, "brewing_vat_varbit_1", 69, 30)
+            t.exec("addYeast-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 69, 30)
             t.exec("waitBrewing-skip", t.clock.skip, 40)
-            t.exec("waitBrewing", t.var.await_server, "brewing_vat_varbit_1", 71, 130)
+            t.exec("waitBrewing", t.var.await_server, "varb736_brewing_vat_varbit_1", 71, 130)
             t.exec("turnValve", t.player.click_loc, "vat_valve_1", 1)
-            t.exec("turnValve-v", t.var.await_server, "brewing_barrel_varbit_1", 3, 30)
+            t.exec("turnValve-v", t.var.await_server, "varb738_brewing_barrel_varbit_1", 3, 30)
             local barrel = t.player.by_symbol("loc", "brewing_barrel_1")
             t.exec("useGlassOnBarrel", t.player.use_on, "beer_glass", barrel)
             t.exec("useGlassOnBarrel-v", t.inv.await, "kelda_stout", 1, 20)
@@ -366,7 +366,7 @@ return {
             t.check("takeSecretCart-hub", type(at) == "table" and at.x >= 1850 and at.x <= 1870 and at.z >= 4950 and at.z <= 4960,
                 "at " .. tostring(type(at) == "table" and (at.x .. "," .. at.z) or at) .. " level " .. tostring(select(2, t.world.level())))
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.3.end", type(endtile) == "table", "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
                 .. ", kelda_stout " .. tostring(select(2, t.inv.count("kelda_stout"))))
@@ -400,27 +400,27 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(names[i], v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             local _, okw = t.ui.widget("forget_puzzle1:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle1", 30)
             t.check("puzzle1Ok", closed == "ok", "interface closed: " .. tostring(closed)
-                .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 1")
+                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 1")
             t.exec("takePuzzle1Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform1-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
             t.exec("searchPuzzle1Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box1", stones("forget_num_right") == 1, "green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box1", stones("varb862_forget_num_right") == 1, "green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("returnFromPuzzle1", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.4.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))))
+                .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))))
             -- LEG 4 END
         end },
         { name = "puzzle_group_two", run = function(t)
@@ -449,7 +449,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             t.exec("goto-hub-routes", t.player.goto_tile, 1861, 4954, 1)
             t.exec("startPuzzle2", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
@@ -461,14 +461,14 @@ return {
             local _, okw = t.ui.widget("forget_puzzle1:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle2Ok", closed == "ok" and select(2, t.var.server("forget_route")) == 2,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 2")
+            t.check("puzzle2Ok", closed == "ok" and select(2, t.var.server("varp7193_forget_route")) == 2,
+                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 2")
             t.exec("takePuzzle2Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform2-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
             t.exec("searchPuzzle2Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box2", true, "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box2", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("returnFromPuzzle2", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             t.exec("startPuzzle3", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
@@ -478,12 +478,12 @@ return {
             t.key("escape") -- leave the machinery open-free so the boundary is quiet; the junction stays set
             t.ticks(3)
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.5.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", junction1=" .. tostring(select(2, t.var.server("forget_if1")))
-                .. ", stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+                .. ", junction1=" .. tostring(select(2, t.var.server("varb842_forget_if1")))
+                .. ", stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             -- LEG 5 END
         end },
         { name = "listening_room", run = function(t)
@@ -499,7 +499,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- group 1 route 3 (forget_puzzle.rs2:93 route_expected 300/302/305/306); junction 0 (yellow) was set by leg 5
             t.exec("goto-hub-library", t.player.goto_tile, 1861, 4955, 1)
@@ -511,8 +511,8 @@ return {
             local _, okw = t.ui.widget("forget_puzzle1:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle1", 30)
-            t.check("puzzle3Ok", closed == "ok" and select(2, t.var.server("forget_route")) == 3,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 3")
+            t.check("puzzle3Ok", closed == "ok" and select(2, t.var.server("varp7193_forget_route")) == 3,
+                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 3")
             t.exec("takePuzzle3Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.expect("quest.stage.listening_room", t.quest.expect_stage("listening_room"))
@@ -527,14 +527,14 @@ return {
                 "npc:You will have both, once our friends from the west have delivered what they promised. Now, back to work, all of you.",
             })
             t.ticks(3)
-            t.check("listened", select(2, t.var.server("forget_room1_listening")) == 1, "forget_room1_listening=" .. tostring(select(2, t.var.server("forget_room1_listening"))))
+            t.check("listened", select(2, t.var.server("varb870_forget_room1_listening")) == 1, "forget_room1_listening=" .. tostring(select(2, t.var.server("varb870_forget_room1_listening"))))
             t.exec("leaveListeningRoom1", t.player.click_loc, "forget_story_exit_next", 1)
             t.ticks(6)
             t.expect("quest.stage.tunnels_second", t.quest.expect_stage("tunnels_second"))
             t.exec("searchBox2", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-hub-box", stones("forget_num_left") == 2 and stones("forget_num_right") == 1,
-                "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. " (group 2 hub box: 2 yellow 1 green, forget_puzzle.rs2:330)")
+            t.check("stones-after-hub-box", stones("varb861_forget_num_left") == 2 and stones("varb862_forget_num_right") == 1,
+                "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. " (group 2 hub box: 2 yellow 1 green, forget_puzzle.rs2:330)")
             t.exec("startPuzzle4", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
             t.exec("startPuzzle4-open", t.ui.await_open, "forget_puzzle2", 30)
             -- group 2 route 4: 400=green, 401=yellow, 404=yellow (leg 7 sets 404)
@@ -543,12 +543,12 @@ return {
             t.key("escape")
             t.ticks(3)
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.6.state", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", junctions 1,2=" .. tostring(select(2, t.var.server("forget_if1"))) .. "," .. tostring(select(2, t.var.server("forget_if2")))
-                .. ", stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right"))
+                .. ", junctions 1,2=" .. tostring(select(2, t.var.server("varb842_forget_if1"))) .. "," .. tostring(select(2, t.var.server("varb843_forget_if2")))
+                .. ", stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
                 .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
             -- LEG 6 END
         end },
@@ -575,7 +575,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- group 2 route 4: 400 green, 401 yellow, 404 yellow (forget_puzzle.rs2:93); junctions 0 and 1 were set by leg 6
             t.exec("goto-hub-nine", t.player.goto_tile, 1861, 4955, 1)
@@ -585,14 +585,14 @@ return {
             local _, okw = t.ui.widget("forget_puzzle2:ok_button")
             t.ui.invoke(okw, 0)
             local closed = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle4Ok", closed == "ok" and select(2, t.var.server("forget_route")) == 4,
-                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 4")
+            t.check("puzzle4Ok", closed == "ok" and select(2, t.var.server("varp7193_forget_route")) == 4,
+                "interface closed: " .. tostring(closed) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 4")
             t.exec("takePuzzle4Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform4-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
             t.exec("searchPuzzle4Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box4", true, "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box4", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("returnFromPuzzle4", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- group 2 route 5: 500 yellow, 502 yellow, 505 green, 510 green
@@ -606,14 +606,14 @@ return {
             local _, ok5 = t.ui.widget("forget_puzzle2:ok_button")
             t.ui.invoke(ok5, 0)
             local closed5 = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle5Ok", closed5 == "ok" and select(2, t.var.server("forget_route")) == 5,
-                "interface closed: " .. tostring(closed5) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 5")
+            t.check("puzzle5Ok", closed5 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 5,
+                "interface closed: " .. tostring(closed5) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 5")
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.7.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. ", route=5 set (cart not yet taken), stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right"))
+                .. ", route=5 set (cart not yet taken), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
                 .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
             -- LEG 7 END
         end },
@@ -640,7 +640,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- route 5 was set by leg 7; the cart goes to the medium platform (forget_puzzle.rs2:440)
             t.exec("takePuzzle5Cart", t.player.click_loc, "forget_train_cart", 1)
@@ -648,7 +648,7 @@ return {
             t.check("platform5-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
             t.exec("searchPuzzle5Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box5", true, "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box5", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("returnFromPuzzle5", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- group 2 route 6: 600 green, 601 green, 603 yellow, 609 green, 611 yellow (forget_puzzle.rs2:93)
@@ -663,17 +663,17 @@ return {
             local _, ok6 = t.ui.widget("forget_puzzle2:ok_button")
             t.ui.invoke(ok6, 0)
             local closed6 = t.ui.await_close("forget_puzzle2", 30)
-            t.check("puzzle6Ok", closed6 == "ok" and select(2, t.var.server("forget_route")) == 6,
-                "interface closed: " .. tostring(closed6) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 6")
+            t.check("puzzle6Ok", closed6 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 6,
+                "interface closed: " .. tostring(closed6) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 6")
             t.exec("takePuzzle6Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.expect("quest.stage.library", t.quest.expect_stage("library"))
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.8.end", type(endtile) == "table",
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (library), stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right"))
+                .. " (library), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
                 .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
             -- LEG 8 END
         end },
@@ -700,28 +700,28 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- forget_story.rs2:61 the bookcase must be the one at 2_29_77_48_39 = 1904,4967
             t.exec("searchBookcase", t.player.click_loc, "dwarf_keldagrim_metal_bookcase", 1, { at = { 1904, 4967, 2 } })
             t.exec("searchBookcase-dialog", t.chat.play, { "mesbox:You search the bookcase and find a Red Axe employee handbook" })
             t.ticks(2)
-            t.check("bookcase-read", select(2, t.var.server("forget_room2_bookcase")) == 1, "forget_room2_bookcase=" .. tostring(select(2, t.var.server("forget_room2_bookcase"))))
+            t.check("bookcase-read", select(2, t.var.server("varb833_forget_room2_bookcase")) == 1, "forget_room2_bookcase=" .. tostring(select(2, t.var.server("varb833_forget_room2_bookcase"))))
             t.exec("searchCrate2", t.player.click_loc, "forget_metal_crate_withpapers2", 1)
             t.exec("searchCrate2-dialog", t.chat.play, { "mesbox:You find a second sheet of paper" })
             t.ticks(2)
             t.exec("searchCrate1", t.player.click_loc, "forget_metal_crate_withpapers1", 1)
             t.exec("searchCrate1-dialog", t.chat.play, { "mesbox:You find a sheet of paper" })
             t.ticks(2)
-            t.check("crates-read", select(2, t.var.server("forget_room2_paper1")) == 1 and select(2, t.var.server("forget_room2_paper2")) == 1,
-                "paper1=" .. tostring(select(2, t.var.server("forget_room2_paper1"))) .. " paper2=" .. tostring(select(2, t.var.server("forget_room2_paper2"))))
+            t.check("crates-read", select(2, t.var.server("varb834_forget_room2_paper1")) == 1 and select(2, t.var.server("varb835_forget_room2_paper2")) == 1,
+                "paper1=" .. tostring(select(2, t.var.server("varb834_forget_room2_paper1"))) .. " paper2=" .. tostring(select(2, t.var.server("varb835_forget_room2_paper2"))))
             t.exec("leaveLibrary", t.player.click_loc, "forget_story_exit_next", 1)
             t.exec("leaveLibrary-dialog", t.chat.play, { "choose:Yes." })
             t.ticks(6)
             t.expect("quest.stage.tunnels_third", t.quest.expect_stage("tunnels_third"))
             t.exec("searchBox3", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box3", true, "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box3", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("startPuzzle7", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
             t.exec("startPuzzle7-open", t.ui.await_open, "forget_puzzle3", 30)
             clear("forget_puzzle3", 19)
@@ -733,14 +733,14 @@ return {
             local _, ok7 = t.ui.widget("forget_puzzle3:ok_button")
             t.ui.invoke(ok7, 0)
             local closed7 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle7Ok", closed7 == "ok" and select(2, t.var.server("forget_route")) == 7,
-                "interface closed: " .. tostring(closed7) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 7")
+            t.check("puzzle7Ok", closed7 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 7,
+                "interface closed: " .. tostring(closed7) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 7")
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.9.end", type(endtile) == "table",
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (tunnels_third), route=7 set (cart not yet taken), stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right"))
+                .. " (tunnels_third), route=7 set (cart not yet taken), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
                 .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
             -- LEG 9 END
         end },
@@ -767,7 +767,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 ;(name == "puzzle8P4-811" and t.expect or t.check)(name, v == want and "ok" or "mismatch", "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- route 7 was set by leg 9; the cart goes to the small platform (forget_puzzle.rs2:440)
             t.exec("takePuzzle7Cart", t.player.click_loc, "forget_train_cart", 1)
@@ -775,7 +775,7 @@ return {
             t.check("platform7-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
             t.exec("searchPuzzle7Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box7", true, "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box7", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("returnFromPuzzle7", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- route 8 (forget_puzzle.rs2:93): 800 yellow, 802 yellow, 804 yellow, 806 green, 808 green, 811 green
@@ -791,11 +791,11 @@ return {
             t.key("escape") -- leave the machinery open-free so the boundary is quiet; the junctions stay set
             t.ticks(2)
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.10.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (tunnels_third), route 8 junctions set, Ok not pressed, stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right"))
+                .. " (tunnels_third), route 8 junctions set, Ok not pressed, stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
                 .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
             -- LEG 10 END
         end },
@@ -822,7 +822,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- route 8 (forget_puzzle.rs2:93) was set by leg 10 and its interface closed: reopen, verify, press Ok
             t.exec("startPuzzle8-reopen", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
@@ -832,14 +832,14 @@ return {
             local _, ok8 = t.ui.widget("forget_puzzle3:ok_button")
             t.ui.invoke(ok8, 0)
             local closed8 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle8Ok", closed8 == "ok" and select(2, t.var.server("forget_route")) == 8,
-                "interface closed: " .. tostring(closed8) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 8")
+            t.check("puzzle8Ok", closed8 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 8,
+                "interface closed: " .. tostring(closed8) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 8")
             t.exec("takePuzzle8Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform8-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
             t.exec("searchPuzzle8Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
             t.ticks(2)
-            t.check("stones-after-box8", true, "yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")))
+            t.check("stones-after-box8", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
             t.exec("returnFromPuzzle8", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- route 9 (forget_puzzle.rs2:114): 900 green, 901 green, 903 yellow, 905 green, 907 yellow; the guide steps in this leg are the first three
@@ -852,11 +852,11 @@ return {
             t.key("escape")
             t.ticks(2)
             local _, endtile = t.world.tile()
-            local _, endstage = t.var.server("forget_quest")
+            local _, endstage = t.var.server("varb822_forget_quest")
             t.check("leg.11.end", type(endtile) == "table" and select(2, t.world.level()) == 1,
                 "tile " .. tostring(type(endtile) == "table" and (endtile.x .. "," .. endtile.z) or endtile)
                 .. " level " .. tostring(select(2, t.world.level())) .. ", forget_quest=" .. tostring(endstage)
-                .. " (tunnels_third), route 9 junctions 0,1,3 set (5 green, 7 yellow left), stones yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right"))
+                .. " (tunnels_third), route 9 junctions 0,1,3 set (5 green, 7 yellow left), stones yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right"))
                 .. "; backpack unchanged (empty pot, buckets, dibber, rake, spade, coins, kebab)")
             -- LEG 11 END
         end },
@@ -873,7 +873,7 @@ return {
                 end
                 local v = select(2, t.var.server("forget_if" .. (i + 1)))
                 t.check(name, v == want, "junction " .. i .. " is " .. tostring(v) .. " want " .. want
-                    .. " (stones left yellow " .. tostring(stones("forget_num_left")) .. " green " .. tostring(stones("forget_num_right")) .. ")")
+                    .. " (stones left yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")) .. ")")
             end
             -- route 9 (forget_puzzle.rs2:114-125): 900 g, 901 g, 903 y, 905 g, 907 y, 910 g, 913 y, 916 y.
             -- Leg 11 set junctions 0,1,3 and closed the interface; the junctions persist.
@@ -887,8 +887,8 @@ return {
             local _, ok9 = t.ui.widget("forget_puzzle3:ok_button")
             t.ui.invoke(ok9, 0)
             local closed9 = t.ui.await_close("forget_puzzle3", 30)
-            t.check("puzzle9Ok", closed9 == "ok" and select(2, t.var.server("forget_route")) == 9,
-                "interface closed: " .. tostring(closed9) .. ", forget_route=" .. tostring(select(2, t.var.server("forget_route"))) .. " want 9")
+            t.check("puzzle9Ok", closed9 == "ok" and select(2, t.var.server("varp7193_forget_route")) == 9,
+                "interface closed: " .. tostring(closed9) .. ", forget_route=" .. tostring(select(2, t.var.server("varp7193_forget_route"))) .. " want 9")
             t.exec("takePuzzle9Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(8)
             t.exec("watchCutscene", t.chat.play, {

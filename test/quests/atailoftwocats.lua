@@ -205,7 +205,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "twocats_quest", -- a VARBIT (id 1028) packed into the
+            varp = "varb1028_twocats_quest", -- a VARBIT (id 1028) packed into the
             -- carrier varp `[twocats]` (protect=no/transmit=yes/scope=perm,
             -- atailoftwocats.varp) -- t.quest.bind resolves either kind
             -- transparently (QUEST_AUTHORING.md section 3).
@@ -236,7 +236,7 @@ return {
 
         -- Captured here (not exposed by quest.bind) for the hand-rolled
         -- quest.points row at completion -- section 8's recipe.
-        local qp_before_result, qp_before = t.var.varp("qp")
+        local qp_before_result, qp_before = t.var.varp("varp101_qp")
 
         t.exec("amulet.equip", t.player.equip, "ics_little_amulet_of_catspeak")
 
@@ -361,7 +361,7 @@ return {
             local findBob_found, findBob_turns = 0, 0
             for i = 1, 17 do
                 t.ticks(2)
-                local fr, fv = t.var.server("twocats_locator_found")
+                local fr, fv = t.var.server("varp7166_twocats_locator_found")
                 if fr == "ok" and fv == 1 then
                     findBob_found = 1
                     break
@@ -371,7 +371,7 @@ return {
                 end
                 findBob_turns = findBob_turns + 1
             end
-            local _, findBob_dir = t.var.server("twocats_locator_direction")
+            local _, findBob_dir = t.var.server("varb1034_twocats_locator_direction")
             local _, findBob_here = t.world.tile()
             t.check("findBob.dial_lit." .. hop, findBob_found == 1,
                 "turned the right whisker " .. findBob_turns .. " time(s); found="
@@ -382,7 +382,7 @@ return {
             if findBob_found == 1 and findBob_r_widget then
                 t.ui.invoke(findBob_r_widget, 1)
                 t.ticks(2)
-                local nr, nv = t.var.server("twocats_locator_found")
+                local nr, nv = t.var.server("varp7166_twocats_locator_found")
                 findBob_near = (nr == "ok" and nv == 1)
             end
             t.key("escape")
@@ -554,7 +554,7 @@ return {
             "npc:Meow.",
             "player:Hmm... My cat is trying to say something",
         })
-        t.expect("reldo.unworn_stays_gertrude_done", t.var.await_server("twocats_quest", 25, 3))
+        t.expect("reldo.unworn_stays_gertrude_done", t.var.await_server("varb1028_twocats_quest", 25, 3))
         t.exec("amulet_e.equip2", t.player.equip, "twocats_amuletofcatspeak")
         t.exec("talkToReldo", t.player.talk_to, "reldo", 1)
         t.exec("talkToReldo-dialog", t.chat.play, {
@@ -592,7 +592,7 @@ return {
             "player:Let's go!",
         })
         t.expect("quest.stage.reldo_done", t.quest.expect_stage("reldo_done"))
-        t.expect("reldo.withbook", t.var.await_server("twocats_reldo", 1, 3))
+        t.expect("reldo.withbook", t.var.await_server("varb1036_twocats_reldo", 1, 3))
 
         -- findBobAgain: the WORN "Locate" verb (equipment tab -> wornitems
         -- slot2 op 2, [inv_button2,wornitems:slot2]), the amulet already worn
@@ -618,7 +618,7 @@ return {
             local findBobAgain_found, findBobAgain_turns = 0, 0
             for i = 1, 17 do
                 t.ticks(2)
-                local fr, fv = t.var.server("twocats_locator_found")
+                local fr, fv = t.var.server("varp7166_twocats_locator_found")
                 if fr == "ok" and fv == 1 then
                     findBobAgain_found = 1
                     break
@@ -628,7 +628,7 @@ return {
                 end
                 findBobAgain_turns = findBobAgain_turns + 1
             end
-            local _, findBobAgain_dir = t.var.server("twocats_locator_direction")
+            local _, findBobAgain_dir = t.var.server("varb1034_twocats_locator_direction")
             local _, findBobAgain_here = t.world.tile()
             t.check("findBobAgain.dial_lit." .. hop, findBobAgain_found == 1,
                 "turned the right whisker " .. findBobAgain_turns .. " time(s); found="
@@ -639,7 +639,7 @@ return {
             if findBobAgain_found == 1 and findBobAgain_r_widget then
                 t.ui.invoke(findBobAgain_r_widget, 1)
                 t.ticks(2)
-                local nr, nv = t.var.server("twocats_locator_found")
+                local nr, nv = t.var.server("varp7166_twocats_locator_found")
                 findBobAgain_near = (nr == "ok" and nv == 1)
             end
             t.key("escape")
@@ -854,19 +854,19 @@ return {
         local patch = t.player.by_symbol("loc", "twocats_patch")
         t.check("patch.found", patch ~= nil, "twocats_patch resolved: " .. tostring(patch and patch.id))
         local useRake_result, useRake_detail = t.player.use_on("rake", patch)
-        t.expect("useRake", t.var.await_server("twocats_chores_tidygarden", 3, 120))
+        t.expect("useRake", t.var.await_server("varb1033_twocats_chores_tidygarden", 3, 120))
         t.check("useRake.press", useRake_result ~= nil,
             "use_on -> " .. tostring(useRake_result) .. " " .. tostring(useRake_detail)
                 .. "; tidygarden read back above")
         t.expect("chore.weeds_collected", t.inv.await("weeds", 3, 10))
         t.exec("plantSeeds", t.player.use_on, "potato_seed", patch)
-        t.expect("quest.stage.tidygarden_planted", t.var.await_server("twocats_chores_tidygarden", 4, 10))
+        t.expect("quest.stage.tidygarden_planted", t.var.await_server("varb1033_twocats_chores_tidygarden", 4, 10))
         t.expect("chore.seeds_used", t.inv.expect_absent("potato_seed"))
 
         -- makeBed
         t.exec("goto-house", t.player.goto_tile, 2918, 3558, 0)
         t.exec("makeBed", t.player.click_loc, "twocats_bed", 1)
-        t.expect("quest.stage.bed_made", t.var.await_server("twocats_chores_tidyhouse", 1, 10))
+        t.expect("quest.stage.bed_made", t.var.await_server("varb1029_twocats_chores_tidyhouse", 1, 10))
 
         -- useLogsOnFireplace / lightLogs (the lighting itself is a bare
         -- anim + p_delay, no chat line -- use_on's own settle times out on
@@ -874,9 +874,9 @@ return {
         local fireplace = t.player.by_symbol("loc", "twocats_fireplace")
         t.check("fireplace.found", fireplace ~= nil, "twocats_fireplace resolved: " .. tostring(fireplace and fireplace.id))
         t.exec("useLogsOnFireplace", t.player.use_on, "logs", fireplace)
-        t.expect("quest.stage.logs_placed", t.var.await_server("twocats_chores_warmhuman", 1, 10))
+        t.expect("quest.stage.logs_placed", t.var.await_server("varb1030_twocats_chores_warmhuman", 1, 10))
         local lightLogs_result, lightLogs_detail = t.player.use_on("tinderbox", fireplace)
-        t.expect("lightLogs", t.var.await_server("twocats_chores_warmhuman", 2, 10))
+        t.expect("lightLogs", t.var.await_server("varb1030_twocats_chores_warmhuman", 2, 10))
         t.check("lightLogs.press", lightLogs_result ~= nil,
             "use_on -> " .. tostring(lightLogs_result) .. " " .. tostring(lightLogs_detail)
                 .. "; warmhuman read back above (silent trigger, twocats.rs2:1161-1174)")
@@ -885,16 +885,16 @@ return {
         local table_loc = t.player.by_symbol("loc", "twocats_table")
         t.check("table.found", table_loc ~= nil, "twocats_table resolved: " .. tostring(table_loc and table_loc.id))
         t.exec("useChocolateCakeOnTable", t.player.use_on, "chocolate_cake", table_loc)
-        t.expect("quest.stage.cake_placed", t.var.await_server("twocats_chores_feedhuman", 3, 10))
+        t.expect("quest.stage.cake_placed", t.var.await_server("varb1031_twocats_chores_feedhuman", 3, 10))
         t.exec("useMilkOnTable", t.player.use_on, "bucket_milk", table_loc)
-        t.expect("quest.stage.milk_placed", t.var.await_server("twocats_chores_feedhuman", 4, 10))
+        t.expect("quest.stage.milk_placed", t.var.await_server("varb1031_twocats_chores_feedhuman", 4, 10))
         t.expect("chore.bucket_returned_empty", t.inv.expect_has("bucket_empty", 1))
 
         -- useShearsOnUnferth (same silent-trigger shape as lightLogs)
         local unferth = t.player.by_symbol("npc", "twocats_unferth")
         t.check("unferth.found", unferth ~= nil, "twocats_unferth resolved: " .. tostring(unferth and unferth.id))
         local useShears_result, useShears_detail = t.player.use_on("shears", unferth)
-        t.expect("useShearsOnUnferth", t.var.await_server("twocats_chores_tidyhuman", 8, 250))
+        t.expect("useShearsOnUnferth", t.var.await_server("varb1032_twocats_chores_tidyhuman", 8, 250))
         t.check("useShearsOnUnferth.press", useShears_result ~= nil,
             "use_on -> " .. tostring(useShears_result) .. " " .. tostring(useShears_detail)
                 .. "; tidyhuman read back above")
@@ -904,7 +904,7 @@ return {
         -- reaching 8 and then by the cat's own 40->45 announcement.
         local grow_result = t.cheat("::twocats_growpotatoes")
         t.check("garden.grow_cheat", grow_result == "ok", "::twocats_growpotatoes -> " .. tostring(grow_result))
-        t.expect("garden.grown", t.var.await_server("twocats_chores_tidygarden", 8, 10))
+        t.expect("garden.grown", t.var.await_server("varb1033_twocats_chores_tidygarden", 8, 10))
         t.exec("chores.finished-dialog", t.chat.play, {
             "npc:Well done, that's all the chores finished!",
             "npc:Let's talk to Unferth to see if there's anything",
@@ -970,7 +970,7 @@ return {
             "player:Good day Unferth, I am Doctor ",
             "npc:No you're not! A Doctor wouldn't be holding that",
         })
-        t.expect("cure.refused_stays_hat_given", t.var.await_server("twocats_quest", 55, 2))
+        t.expect("cure.refused_stays_hat_given", t.var.await_server("varb1028_twocats_quest", 55, 2))
         t.exec("cure.unequip_sword", t.player.unequip, "bronze_sword")
         t.exec("talkToUnferthAsDoctor", t.player.talk_to, "twocats_unferth", 1)
         t.exec("talkToUnferthAsDoctor-dialog", t.chat.play, {
@@ -1025,7 +1025,7 @@ return {
             local findBobToFinish_found, findBobToFinish_turns = 0, 0
             for i = 1, 17 do
                 t.ticks(2)
-                local fr, fv = t.var.server("twocats_locator_found")
+                local fr, fv = t.var.server("varp7166_twocats_locator_found")
                 if fr == "ok" and fv == 1 then
                     findBobToFinish_found = 1
                     break
@@ -1035,7 +1035,7 @@ return {
                 end
                 findBobToFinish_turns = findBobToFinish_turns + 1
             end
-            local _, findBobToFinish_dir = t.var.server("twocats_locator_direction")
+            local _, findBobToFinish_dir = t.var.server("varb1034_twocats_locator_direction")
             local _, findBobToFinish_here = t.world.tile()
             t.check("findBobToFinish.dial_lit." .. hop, findBobToFinish_found == 1,
                 "turned the right whisker " .. findBobToFinish_turns .. " time(s); found="
@@ -1046,7 +1046,7 @@ return {
             if findBobToFinish_found == 1 and findBobToFinish_r_widget then
                 t.ui.invoke(findBobToFinish_r_widget, 1)
                 t.ticks(2)
-                local nr, nv = t.var.server("twocats_locator_found")
+                local nr, nv = t.var.server("varp7166_twocats_locator_found")
                 findBobToFinish_near = (nr == "ok" and nv == 1)
             end
             t.key("escape")
@@ -1180,7 +1180,7 @@ return {
             "player:I'll be going now.",
             "npc:Before you go, I found the strangest thing. Ther",
         })
-        t.expect("quest.stage.complete", t.var.await_server("twocats_quest", 70, 10))
+        t.expect("quest.stage.complete", t.var.await_server("varb1028_twocats_quest", 70, 10))
         t.ticks(3) -- completion is asynchronous (section 8): let the queued
         -- [queue,twocats_quest_complete] land before reading the present.
 
@@ -1209,7 +1209,7 @@ return {
         t.check("quest.scroll_close", scroll_close_result == "ok",
             "scroll.close() -> " .. tostring(scroll_close_result))
 
-        local qp_after_result, qp_after = t.var.varp("qp")
+        local qp_after_result, qp_after = t.var.varp("varp101_qp")
         local points_delta = (qp_after_result == "ok" and qp_before_result == "ok")
             and (qp_after - qp_before) or nil
         t.step("quest.points", points_delta == 2 and "PASS" or "FAIL",

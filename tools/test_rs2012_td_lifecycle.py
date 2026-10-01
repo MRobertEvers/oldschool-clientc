@@ -67,19 +67,19 @@ def main() -> None:
     constants = integer_constants(constants_text)
     varps = VARPS.read_text(encoding="utf-8")
 
-    for name in ("rs2012_td_active", "rs2012_td_handle"):
+    for name in ("varp6252_rs2012_td_active", "varp6253_rs2012_td_handle"):
         body = block(varps, name)
         assert "scope=temp" in body and "transmit=no" in body
 
     coord = block(script, "proc,rs2012_td_coord")
-    assert "%rs2012_td_handle" in coord
-    assert "%map_instance_handle" not in coord
+    assert "%varp6253_rs2012_td_handle" in coord
+    assert "%varp5925_map_instance_handle" not in coord
 
     enter = block(script, "proc,rs2012_td_enter_checked")
     required_enter = (
-        "%map_instance_handle = $handle;",
-        "%rs2012_td_handle = $handle;",
-        "%rs2012_td_active = 1;",
+        "%varp5925_map_instance_handle = $handle;",
+        "%varp6253_rs2012_td_handle = $handle;",
+        "%varp6252_rs2012_td_active = 1;",
         "softtimer(rs2012_td_lifecycle, ^rs2012_td_lifecycle_ticks);",
         "softtimer(rs2012_td_install_exit, ^rs2012_td_lifecycle_ticks);",
     )
@@ -93,8 +93,8 @@ def main() -> None:
         "clearqueue(rs2012_td_damage_player);",
         "~rs2012_td_despawn_handle($handle);",
         "map_instance_free($handle);",
-        "%rs2012_td_active = 0;",
-        "%rs2012_td_handle = ^map_instance_none;",
+        "%varp6252_rs2012_td_active = 0;",
+        "%varp6253_rs2012_td_handle = ^map_instance_none;",
     )
     cursor = -1
     for fragment in ordered:
@@ -113,7 +113,7 @@ def main() -> None:
     assert install_exit.index("clearsofttimer(rs2012_td_install_exit);") < (
         install_exit.index("loc_add(")
     )
-    assert "%rs2012_td_active = 0" in install_exit
+    assert "%varp6252_rs2012_td_active = 0" in install_exit
     assert "map_instance_find(coord) ! $handle" in install_exit
     assert (
         "loc_add(~rs2012_td_coord(^rs2012_td_exit_lx, ^rs2012_td_exit_lz), "
@@ -126,21 +126,21 @@ def main() -> None:
         "~rs2012_td_release_handle($handle);"
     )
     opening = block(script, "oploc1,rs2012_loc_40260")
-    assert "%rs2012_td_active = 1" in opening
+    assert "%varp6252_rs2012_td_active = 1" in opening
     assert "~rs2012_td_leave;" in opening
     assert "~rs2012_td_enter;" in opening
 
     logout = block(script, "proc,rs2012_td_on_logout")
-    assert "%rs2012_td_active = 0" in logout
-    assert "%rs2012_td_handle" in logout
+    assert "%varp6252_rs2012_td_active = 0" in logout
+    assert "%varp6253_rs2012_td_handle" in logout
     assert "~rs2012_td_present" not in logout
     assert "~rs2012_td_release_handle($handle);" in logout
     assert "~rs2012_td_on_logout;" in LOGOUT.read_text(encoding="utf-8")
 
     death = block(script, "proc,rs2012_td_on_death")
     finish = block(script, "proc,rs2012_td_finish_death")
-    assert "%rs2012_td_active = 0" in death
-    assert "%rs2012_td_handle" in death
+    assert "%varp6252_rs2012_td_active = 0" in death
+    assert "%varp6253_rs2012_td_handle" in death
     assert "clearsofttimer(rs2012_td_install_exit);" in death
     assert "map_instance_free" not in death
     assert "map_instance_free($handle);" in finish

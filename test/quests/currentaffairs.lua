@@ -65,8 +65,8 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "current_affairs", -- the STAGE varbit (all.varbit.compack 18282), not the
-                                       -- packed container "current_affairs_main" (trap: the
+            varp = "varb18282_current_affairs", -- the STAGE varbit (all.varbit.compack 18282), not the
+                                       -- packed container "varp4956_current_affairs_main" (trap: the
                                        -- container reads 527, not the 0..45 ladder)
             constants = {
                 not_started = 0,
@@ -182,8 +182,8 @@ return {
             "choose:Varrock.", -- Q8 "Home port?"
         })
         t.exec("fillForm-done", t.chat.play, { "*" }) -- objbox: Mercifully, it looks like the form is finished.
-        local q1r, q1v = t.var.varbit("current_affairs_form_q1")
-        local q8r, q8v = t.var.varbit("current_affairs_form_q8")
+        local q1r, q1v = t.var.varbit("varb18290_current_affairs_form_q1")
+        local q8r, q8v = t.var.varbit("varb18297_current_affairs_form_q8")
         t.check("form.filled", q1r == "ok" and q1v == 1 and q8r == "ok" and q8v == 1,
             string.format("q1: %s %s, q8: %s %s", tostring(q1r), tostring(q1v), tostring(q8r), tostring(q8v)))
 
@@ -483,7 +483,7 @@ return {
         t.ticks(2)
         t.exec("collectDuck", t.sail._press_deck_row, "Collect", "Current duck", 16, 12)
         t.exec("collectDuck.box", t.chat.play, { "*" }) -- ~objbox(duck, "The duck recognises your boat...")
-        local chart_bit_result, chart_bit_value = t.var.varbit("sailing_charting_current_duck_catherby_bay_complete")
+        local chart_bit_result, chart_bit_value = t.var.varbit("varb18602_sailing_charting_current_duck_catherby_bay_complete")
         t.check("duck.charted", chart_bit_result == "ok" and chart_bit_value == 1,
             "var.varbit(sailing_charting_current_duck_catherby_bay_complete) -> " .. tostring(chart_bit_result) .. " " .. tostring(chart_bit_value))
         local duck_back_result, duck_back_detail = t.inv.await("sailing_charting_current_duck", 1, 10)

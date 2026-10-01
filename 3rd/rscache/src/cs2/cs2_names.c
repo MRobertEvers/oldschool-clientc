@@ -38,6 +38,10 @@ static const struct cs2_name_file cs2_name_files[] = {
     { RSCACHE_CS2_NAMES_SETTEXTALIGNH, "settextalignh-names.tsv" },
     { RSCACHE_CS2_NAMES_SETTEXTALIGNV, "settextalignv-names.tsv" },
     { RSCACHE_CS2_NAMES_WINDOWMODE, "windowmode-names.tsv" },
+    { RSCACHE_CS2_NAMES_VARP, "varp-names.tsv" },
+    { RSCACHE_CS2_NAMES_VARBIT, "varbit-names.tsv" },
+    { RSCACHE_CS2_NAMES_VARCINT, "varcint-names.tsv" },
+    { RSCACHE_CS2_NAMES_VARCSTRING, "varcstring-names.tsv" },
 };
 
 #define CS2_NAME_FILE_COUNT ((int)(sizeof(cs2_name_files) / sizeof(cs2_name_files[0])))
@@ -149,6 +153,9 @@ RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
     RSCache_CS2_ArenaInit(&names->arena);
     for( int i = 0; i < RSCACHE_CS2_NAMES_TABLE_COUNT; i++ )
         RSCache_CS2_IntMapInit(&names->tables[i]);
+    for( int i = 0; i < RSCACHE_CS2_NAMES_TABLE_COUNT; i++ )
+        RSCache_CS2_IntMapInit(&names->reverse[i]);
+    names->generation = 1;
     RSCache_CS2_IntMapInit(&names->script_names);
     RSCache_CS2_IntMapInit(&names->param_types);
     RSCache_CS2_IntMapInit(&names->script_triggers);
@@ -206,6 +213,8 @@ RSCache_CS2_NamesFree(struct RSCache_CS2_Names* names)
         return;
     for( int i = 0; i < RSCACHE_CS2_NAMES_TABLE_COUNT; i++ )
         RSCache_CS2_IntMapFree(&names->tables[i]);
+    for( int i = 0; i < RSCACHE_CS2_NAMES_TABLE_COUNT; i++ )
+        RSCache_CS2_IntMapFree(&names->reverse[i]);
     RSCache_CS2_IntMapFree(&names->script_names);
     RSCache_CS2_IntMapFree(&names->param_types);
     RSCache_CS2_IntMapFree(&names->script_triggers);
@@ -259,6 +268,7 @@ cs2_row_name(struct RSCache_CS2_Names* names, void* context, int id, const char*
 {
     struct RSCache_CS2_IntMap* table = (struct RSCache_CS2_IntMap*)context;
     RSCache_CS2_IntMapPut(table, id, RSCache_CS2_ArenaStrDup(&names->arena, value));
+    names->generation++;
 }
 
 static void
@@ -331,16 +341,60 @@ RSCache_CS2_NamesLookup(
  * would cost more to build than the scans it saves; the largest table is
  * ~30,000 entries and only the small constant tables are searched in practice.
  */
-static bool
-cs2_names_reverse(const struct RSCache_CS2_IntMap* table, const char* name, int* out_id)
+struct cs2_name_node
 {
-    for( int i = 0; i < table->capacity; i++ )
+    const char* name;
+    int id;
+    struct cs2_name_node* next;
+};
+
+static int
+cs2_name_hash(const char* name)
+{
+    unsigned h = 2166136261u;
+    for( const unsigned char* c = (const unsigned char*)name; *c; c++ )
+        h = (h ^ *c) * 16777619u;
+    return (int)(h & 0x7FFFFFFF);
+}
+
+/** name -> id through the table's reverse index, rebuilt when it is stale. */
+static bool
+cs2_names_reverse(
+    const struct RSCache_CS2_Names* const_names,
+    enum RSCache_CS2_NameTable table,
+    const char* name,
+    int* out_id)
+{
+    /* The index is a cache of `tables[table]`, not part of the logical value. */
+    struct RSCache_CS2_Names* names = (struct RSCache_CS2_Names*)const_names;
+    struct RSCache_CS2_IntMap* reverse = &names->reverse[table];
+    if( names->reverse_generation[table] != names->generation )
     {
-        if( !table->entries[i].occupied )
-            continue;
-        if( strcmp((const char*)table->entries[i].value, name) == 0 )
+        RSCache_CS2_IntMapFree(reverse);
+        RSCache_CS2_IntMapInit(reverse);
+        const struct RSCache_CS2_IntMap* forward = &names->tables[table];
+        for( int i = 0; i < forward->capacity; i++ )
         {
-            *out_id = table->entries[i].key;
+            if( !forward->entries[i].occupied )
+                continue;
+            struct cs2_name_node* node = (struct cs2_name_node*)RSCache_CS2_ArenaAlloc(
+                &names->arena, sizeof(*node));
+            node->name = (const char*)forward->entries[i].value;
+            node->id = forward->entries[i].key;
+            int key = cs2_name_hash(node->name);
+            node->next = (struct cs2_name_node*)RSCache_CS2_IntMapGet(reverse, key);
+            RSCache_CS2_IntMapPut(reverse, key, node);
+        }
+        names->reverse_generation[table] = names->generation;
+    }
+    for( struct cs2_name_node* node =
+             (struct cs2_name_node*)RSCache_CS2_IntMapGet(reverse, cs2_name_hash(name));
+         node;
+         node = node->next )
+    {
+        if( strcmp(node->name, name) == 0 )
+        {
+            *out_id = node->id;
             return true;
         }
     }
@@ -356,7 +410,7 @@ RSCache_CS2_NamesLookupId(
 {
     if( !names || !name || table < 0 || table >= RSCACHE_CS2_NAMES_TABLE_COUNT )
         return false;
-    return cs2_names_reverse(&names->tables[table], name, out_id);
+    return cs2_names_reverse(names, table, name, out_id);
 }
 
 bool
@@ -895,6 +949,7 @@ RSCache_CS2_NamesSet(
     assert(table >= 0);
     assert(table < RSCACHE_CS2_NAMES_TABLE_COUNT);
     RSCache_CS2_IntMapPut(&names->tables[table], id, RSCache_CS2_ArenaStrDup(&names->arena, name));
+    names->generation++;
 }
 
 void

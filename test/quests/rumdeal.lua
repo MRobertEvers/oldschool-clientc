@@ -92,7 +92,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "deal_quest",
+            varp = "varp600_deal_quest",
             constants = {
                 not_started = 0, started = 1, growing_blindweed = 2,
                 deliver_blindweed = 3, hopper_blindweed = 4,
@@ -157,14 +157,14 @@ return {
         t.exec("patch.rake1", t.player.use_on, "rake", patch)
         t.exec("patch.rake2", t.player.use_on, "rake", patch)
         t.exec("patch.rake3", t.player.use_on, "rake", patch)
-        t.expect("patch.raked", t.var.expect("deal_farming", 3))
+        t.expect("patch.raked", t.var.expect("varb1366_deal_farming", 3))
         t.exec("patch.plant", t.player.use_on, "deal_blindweed_seed", patch)
-        t.expect("patch.planted", t.var.expect("deal_farming", 4))
+        t.expect("patch.planted", t.var.expect("varb1366_deal_farming", 4))
         -- Named after Quest Helper's own step variable (waitForGrowth,
         -- DetailedQuestStep, "Wait 5 minutes for the blindweed to grow.") --
         -- a targetless narrative step, credited only by a row whose name
         -- equals it (trap 32/helper_coverage.py's driven()).
-        t.exec("waitForGrowth", t.var.await, "deal_farming", 5, 520)
+        t.exec("waitForGrowth", t.var.await, "varb1366_deal_farming", 5, 520)
         t.exec("patch.pick", t.player.click_loc, "deal_blindweed", 1)
         t.expect("braindeath.deliver", t.quest.expect_stage("deliver_blindweed"))
         -- click_loc's `ok` lands one server tick before the backpack update
@@ -224,7 +224,7 @@ return {
         for i = 1, 5 do
             t.exec("slugling.deposit" .. i, t.player.use_on, "deal_slugling", pressure)
         end
-        t.expect("barrel.full", t.var.expect("deal_barrel", 5))
+        t.expect("barrel.full", t.var.expect("varb1354_deal_barrel", 5))
         t.exec("lever.pull", t.player.click_loc, "deal_multi_lever", 1)
         t.expect("lever.told_spirit", t.quest.expect_stage("told_kill_spirit"))
 

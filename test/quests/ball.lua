@@ -53,7 +53,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "ballquest",
+            varp = "varp226_ballquest",
             constants = {
                 complete = 7,
                 defeated_experiment = 6,

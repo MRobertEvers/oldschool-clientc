@@ -28,7 +28,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "sheep",
+            varp = "varp179_sheep",
             constants = {
                 complete = 22,
                 last_wool = 20,

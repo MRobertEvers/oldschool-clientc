@@ -69,7 +69,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "makinghistory_prog",
+            varp = "varb1383_makinghistory_prog",
             constants = {
                 not_started = 0,
                 started = 1,
@@ -104,7 +104,7 @@ return {
         -- above ever bites.
         t.exec("quest.stage.not_started", t.quest.expect_stage, "not_started")
 
-        local qp_before_result, qp_before = t.var.varp("qp")
+        local qp_before_result, qp_before = t.var.varp("varp101_qp")
         t.check("qp.baseline", qp_before_result == "ok",
             "t.var.varp(\"qp\") before any quest progress -> " .. tostring(qp_before_result)
                 .. " " .. tostring(qp_before))
@@ -209,7 +209,7 @@ return {
             "npc:Wonderful! Speak to the silver",
         })
 
-        local prog_probe_result, prog_probe = t.var.server("makinghistory_prog")
+        local prog_probe_result, prog_probe = t.var.server("varb1383_makinghistory_prog")
         t.check("prog.serverProbeAfterOffer", true, "t.var.server(makinghistory_prog) right after Jorral's "
             .. "offer -> " .. tostring(prog_probe_result) .. " " .. tostring(prog_probe))
 
@@ -254,7 +254,7 @@ return {
             "npc:Perhaps you'll have better luck",
         })
         t.expect("haveKey", t.inv.await("makinghistory_key", 1, 10))
-        local traderprog_after_key_result, traderprog_after_key = t.var.server("makinghistory_trader_prog")
+        local traderprog_after_key_result, traderprog_after_key = t.var.server("varb1384_makinghistory_trader_prog")
         t.check("traderProg.serverProbeAfterKey", true, "t.var.server(makinghistory_trader_prog) right after "
             .. "the key lands -> " .. tostring(traderprog_after_key_result) .. " " .. tostring(traderprog_after_key))
 
@@ -552,7 +552,7 @@ return {
                 .. tostring(scroll_title and scroll_title.points) .. scroll_shot_note)
         t.scroll.close()
 
-        local qp_after_result, qp_after = t.var.varp("qp")
+        local qp_after_result, qp_after = t.var.varp("varp101_qp")
         t.check("quest.points", qp_after_result == "ok" and qp_before_result == "ok"
             and qp_after == qp_before + 3,
             "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after)
@@ -580,7 +580,7 @@ return {
                 .. tostring(final_journal and final_journal.complete) .. " lines="
                 .. tostring(final_journal and final_journal.line_count)
                 .. " -- channel: ui.journal_open (server-side proc; makinghistory_journal.rs2's own final "
-                .. "else-branch only prints 'QUEST COMPLETE!' once %makinghistory_prog is genuinely past "
+                .. "else-branch only prints 'QUEST COMPLETE!' once %varb1383_makinghistory_prog is genuinely past "
                 .. "lathas_done, so this is not readable from an incomplete quest)")
         t.ui.journal_close()
 

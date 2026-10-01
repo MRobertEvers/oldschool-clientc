@@ -301,7 +301,7 @@ def set_privacy(session: Session, report: Report, choice: int, label: str) -> di
             f"The privacy dropdown has no live choice row for {label}")
     session.checked(f"click {button['x'] + button['w'] // 2} {button['y'] + button['h'] // 2}")
     session.checked("step 40")
-    values = varbit(session, "settings_cargo_hold_privacy")
+    values = varbit(session, "varb19614_settings_cargo_hold_privacy")
     chosen = report.shot(session, f"privacy-{choice}-chosen")
     session.checked("close")
     session.checked("step 20")
@@ -415,14 +415,14 @@ def check_guest_crew_mirror(session: Session, report: Report) -> None:
     session.checked("click 256 224")
     session.checked("step 20")
     assigned = report.shot(session, "crew-management-assigned")
-    captain_slot = varbit(session, "sailing_crew_slot_1")
+    captain_slot = varbit(session, "varb19468_sailing_crew_slot_1")
     session.checked("close")
     session.checked("step 10")
     session.checked("peer proc sailing_crew_sync")
     session.checked("step 20")
-    own = peer_varbit(session, "sailing_crew_slot_1")
-    mirror_one = peer_varbit(session, "sailing_sidepanel_crew_slot_1")
-    mirror_two = peer_varbit(session, "sailing_sidepanel_crew_slot_2")
+    own = peer_varbit(session, "varb19468_sailing_crew_slot_1")
+    mirror_one = peer_varbit(session, "varb19243_sailing_sidepanel_crew_slot_1")
+    mirror_two = peer_varbit(session, "varb19244_sailing_sidepanel_crew_slot_2")
     report.add(
         "guest crew mirror follows the captain's roster, not the guest's own",
         "pass" if (captain_slot["server"] == 1 and own == 0
@@ -480,8 +480,8 @@ def run_ocean(session: Session, report: Report) -> None:
 
 # --- dock fixture ----------------------------------------------------------
 
-BOAT_OWNED_VARBIT = "sailing_boat_1_owned"
-BOAT_PORT_VARBIT = "sailing_boat_1_port"
+BOAT_OWNED_VARBIT = "varb19258_sailing_boat_1_owned"
+BOAT_PORT_VARBIT = "varb19260_sailing_boat_1_port"
 PANDEMONIUM_DOCK_ID = 1
 
 

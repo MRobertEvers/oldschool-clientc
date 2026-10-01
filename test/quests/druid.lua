@@ -37,7 +37,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "druidquest",
+            varp = "varp80_druidquest",
             constants = {
                 complete = 4,
                 given_ingredients = 3,

@@ -57,7 +57,7 @@ example_wants_orbs(struct ToriRS_Api* api)
            api->core.capability(api, "server_tick.fenced") &&
            api->core.capability(api, "cs2_scripts") &&
            api->core.capability(api, "item_bonuses") &&
-           api->core.capability(api, "varbit:ground_items_enabled");
+           api->core.capability(api, "varbit:varb14869_ground_items_enabled");
 }
 
 static void

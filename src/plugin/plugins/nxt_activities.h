@@ -74,59 +74,59 @@
  *  INVERTED. Implemented entirely by the cache now -- clientscript 6681
  *  installs the "Mark tile" client op and sets up highlight tile group 6 --
  *  so nothing here reads it; it is listed to keep the table complete. */
-#define NXT_VARBIT_TILE_MARKERS "tile_markers"
+#define NXT_VARBIT_TILE_MARKERS "varb12342_tile_markers"
 /** "Tile highlight colour". Default #00FF00. */
-#define NXT_VARP_TILE_MARKER_COLOR "tile_marker_color"
+#define NXT_VARP_TILE_MARKER_COLOR "varp3108_tile_marker_color"
 #define NXT_COL_TILE_MARKER 0x00FF00u
 /** "Clear your highlighted tiles" -- a BUTTON row, so it has no var at all. */
 #define NXT_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
 
 /** "Highlight entities on mouse-over". PLAIN. No cache script drives it. */
-#define NXT_VARBIT_HOVER_ENTITY "hover_entity"
+#define NXT_VARBIT_HOVER_ENTITY "varb13088_hover_entity"
 
 /** "Highlight hovered tile" (+ always-on-top, + colour). PLAIN. #BEBA6E. */
-#define NXT_VARBIT_HOVER_TILE "hover_tile"
-#define NXT_VARBIT_HOVER_TILE_ONTOP "hover_tile_ontop"
-#define NXT_VARP_HOVER_TILE_COLOR "hover_tile_color"
+#define NXT_VARBIT_HOVER_TILE "varb12977_hover_tile"
+#define NXT_VARBIT_HOVER_TILE_ONTOP "varb12980_hover_tile_ontop"
+#define NXT_VARP_HOVER_TILE_COLOR "varp3155_hover_tile_color"
 #define NXT_COL_HOVER_TILE 0xBEBA6Eu
 
 /** "Highlight current tile". PLAIN. #9A9733. */
-#define NXT_VARBIT_CURRENT_TILE "current_tile"
-#define NXT_VARBIT_CURRENT_TILE_ONTOP "current_tile_ontop"
-#define NXT_VARP_CURRENT_TILE_COLOR "current_tile_color"
+#define NXT_VARBIT_CURRENT_TILE "varb12978_current_tile"
+#define NXT_VARBIT_CURRENT_TILE_ONTOP "varb12981_current_tile_ontop"
+#define NXT_VARP_CURRENT_TILE_COLOR "varp3156_current_tile_color"
 #define NXT_COL_CURRENT_TILE 0x9A9733u
 
 /** "Highlight destination tile". PLAIN. #A9A753. */
-#define NXT_VARBIT_DEST_TILE "dest_tile"
-#define NXT_VARBIT_DEST_TILE_ONTOP "dest_tile_ontop"
-#define NXT_VARP_DEST_TILE_COLOR "dest_tile_color"
+#define NXT_VARBIT_DEST_TILE "varb12979_dest_tile"
+#define NXT_VARBIT_DEST_TILE_ONTOP "varb12982_dest_tile_ontop"
+#define NXT_VARP_DEST_TILE_COLOR "varp3157_dest_tile_color"
 #define NXT_COL_DEST_TILE 0xA9A753u
 
 /** "NPC highlight" and its seven qualifiers. All PLAIN. */
-#define NXT_VARBIT_NPC_HIGHLIGHT "npc_highlight"
+#define NXT_VARBIT_NPC_HIGHLIGHT "varb14168_npc_highlight"
 /** "- Display name": 0 off, 1 normal, 2 bold (enum_4604). */
-#define NXT_VARBIT_NPC_NAME "npc_name"
+#define NXT_VARBIT_NPC_NAME "varb14169_npc_name"
 /** "- Highlight tile": 0 off, 1 outline only, 2 outline and fill (enum_4603). */
-#define NXT_VARBIT_NPC_TILE "npc_tile"
+#define NXT_VARBIT_NPC_TILE "varb14171_npc_tile"
 /** "- Highlight outline": the model silhouette. */
-#define NXT_VARBIT_NPC_OUTLINE "npc_outline"
+#define NXT_VARBIT_NPC_OUTLINE "varb14170_npc_outline"
 /** "- Highlighting colour" / "- Text colour". Both default #05F8F8. */
-#define NXT_VARP_NPC_HIGHLIGHT_COLOR "npc_highlight_color"
-#define NXT_VARP_NPC_TEXT_COLOR "npc_text_color"
+#define NXT_VARP_NPC_HIGHLIGHT_COLOR "varp3540_npc_highlight_color"
+#define NXT_VARP_NPC_TEXT_COLOR "varp3541_npc_text_color"
 #define NXT_COL_NPC_HIGHLIGHT 0x05F8F8u
 /** "- Tagging": offer Tag/Untag on the right-click menu. */
-#define NXT_VARBIT_NPC_TAGGING "npc_tagging"
+#define NXT_VARBIT_NPC_TAGGING "varb11518_npc_tagging"
 /** "Clear your highlighted NPCs" -- a BUTTON row, like 117 above. */
 #define NXT_SETTING_CLEAR_NPC_TAGS "clear_npc_tags"
 /** "Display all NPC names above their body": 0 off, 1 normal, 2 bold. */
-#define NXT_VARBIT_NPC_NAMES_ALL "npc_names_all"
+#define NXT_VARBIT_NPC_NAMES_ALL "varb14178_npc_names_all"
 /** "NPC names text colour". Default #05F8F8. */
-#define NXT_VARP_NPC_NAMES_COLOR "npc_names_color"
+#define NXT_VARP_NPC_NAMES_COLOR "varp3542_npc_names_color"
 
 /* ---- Skills ------------------------------------------------------------ */
 
 /** "Bird nest notification". INVERTED -- struct_3737 carries `param_1084`. */
-#define NXT_VARBIT_BIRD_NEST "bird_nest"
+#define NXT_VARBIT_BIRD_NEST "varb13087_bird_nest"
 
 /* ---- Combat ------------------------------------------------------------ */
 
@@ -135,22 +135,22 @@
  * them: `cannon_low_notification_enabled`, `cannon_low_amount`,
  * `cannon_no_ammo_notification_enabled`. Both toggles are PLAIN.
  */
-#define NXT_VARBIT_CANNON_LOW_NOTIFY "cannon_low_notify"
-#define NXT_VARBIT_CANNON_LOW_AMOUNT "cannon_low_amount"
-#define NXT_VARBIT_CANNON_NO_AMMO_NOTIFY "cannon_no_ammo_notify"
+#define NXT_VARBIT_CANNON_LOW_NOTIFY "varb14175_cannon_low_notify"
+#define NXT_VARBIT_CANNON_LOW_AMOUNT "varb14176_cannon_low_amount"
+#define NXT_VARBIT_CANNON_NO_AMMO_NOTIFY "varb14177_cannon_no_ammo_notify"
 
 /* The two varps the notification reads. Not settings -- they are the game's
  * own state -- but they are cache ids the client knows by name all the same.
  * `rockthrower` is the count left in your cannon; `ownedmcannon_temp` is its
  * coord, 0 when you have none. */
-#define NXT_VARP_CANNON_AMMO "cannon_ammo"
-#define NXT_VARP_CANNON_COORD "cannon_coord"
+#define NXT_VARP_CANNON_AMMO "varp3_cannon_ammo"
+#define NXT_VARP_CANNON_COORD "varp3551_cannon_coord"
 
 /* ---- back to General --------------------------------------------------- */
 
 /** "Highlight poll booths". INVERTED -- clientscript 8319 lights them when
  *  this reads 0, beside `%varbit4337` for "there is an active poll". */
-#define NXT_VARBIT_POLL_BOOTHS "poll_booths"
+#define NXT_VARBIT_POLL_BOOTHS "varb9538_poll_booths"
 
 /** The two three-way name/tile choices, which share their meaning across
  *  settings 258, 264 (name) and 259 (tile). */

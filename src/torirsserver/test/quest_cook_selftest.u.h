@@ -187,8 +187,8 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         return;
 
     cook_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "cook");
-    cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cookquest");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp29_cookquest");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     cooking = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "cooking");
     milk = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_milk");
     egg = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "egg");

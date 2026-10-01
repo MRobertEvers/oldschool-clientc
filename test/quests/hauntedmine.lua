@@ -16,7 +16,7 @@ return {
     },
     run = function(t)
         t.quest.bind({
-            varp = "hauntedmine",
+            varp = "varp382_hauntedmine",
             constants = { not_started = 0, started = 1, dayth_killed = 9, key_collected = 10, complete = 11 },
             row = "quest_hauntedmine",
             display = "Haunted Mine",
@@ -52,7 +52,7 @@ return {
         t.key("escape")
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
-        local hk, hv = t.var.server("hauntedmine_heardaboutkey")
+        local hk, hv = t.var.server("varb2397_hauntedmine_heardaboutkey")
         t.check("heardaboutkey", hk, tostring(hv))
         t.exec("pickpocketZealot", t.player.press, "saradominist_zealot", 3, 8)
         t.check("zealotkey", t.inv.await("hauntedmine_lift_key", 1, 6))
@@ -140,7 +140,7 @@ return {
         t.player.walk_to(2799, 4455, 12)
         t.exec("attackDayth", t.player.attack, "hauntedmine_boss_ghost", 2, 20)
         t.exec("killDayth", t.npc.await_dead_engaged, 300, 30, { eat = { item = "shark", below = 75 } })
-        t.check("dayth-killed", t.var.await("hauntedmine", 9, 10))
+        t.check("dayth-killed", t.var.await("varp382_hauntedmine", 9, 10))
         local pkr, pkd = t.player.press("hauntedmine_boss_key", 1, 8)
         local kr, kd = t.inv.await("hauntedmine_reward_key", 1, 8)
         t.check("pickUpKey", kr, "press " .. tostring(pkr) .. " " .. tostring(pkd) .. "; key in pack: " .. tostring(kd))
@@ -154,7 +154,7 @@ return {
         click("openRewardDoor", "hauntedmine_rewarddoor_l", 2773, 4450)
         local _, xpsnap = t.skill.snapshot()
         click("cutCrystal", "crystalcorner", 2787, 4428)
-        t.check("stage-complete", t.var.await("hauntedmine", 11, 10))
+        t.check("stage-complete", t.var.await("varp382_hauntedmine", 11, 10))
         t.quest.expect_complete()
         t.check("reward.strength_xp", t.skill.expect_gain("strength", 22000, xpsnap))
         -- dark rooms

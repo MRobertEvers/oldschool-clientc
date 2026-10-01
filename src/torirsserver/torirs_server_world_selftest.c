@@ -2982,9 +2982,9 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             int station_loc =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "canoeing_canoestation_lumbridge");
             int state_bit =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoestation_state_lumbridge");
-            int type_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoe_type");
-            int from_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "canoe_startfrom");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1839_canoestation_state_lumbridge");
+            int type_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1843_canoe_type");
+            int from_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1846_canoe_startfrom");
             int log_cell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoeing:log");
             int dest_guild =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "canoe_map_lum:destination_2");
@@ -3019,12 +3019,12 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
              */
             {
                 static const char* const carriers[] = {
-                    "canoeing_river_lum",      /* stations 1-4  */
-                    "canoeing_river_lum_2",    /* Ferox Enclave */
-                    "canoeing_river_dougne",   /* stations 6, 8, 9, 10 */
-                    "canoeing_river_dougne_2", /* Tree Gnome Village   */
-                    "canoeing_menu",           /* canoe_type      */
-                    "canoeing_menu_2",         /* canoe_startfrom, canoe_river */
+                    "varp674_canoeing_river_lum",      /* stations 1-4  */
+                    "varp2742_canoeing_river_lum_2",    /* Ferox Enclave */
+                    "varp5479_canoeing_river_dougne",   /* stations 6, 8, 9, 10 */
+                    "varp5480_canoeing_river_dougne_2", /* Tree Gnome Village   */
+                    "varp675_canoeing_menu",           /* canoe_type      */
+                    "varp5481_canoeing_menu_2",         /* canoe_startfrom, canoe_river */
                 };
                 for( size_t ci = 0; ci < sizeof(carriers) / sizeof(carriers[0]); ci++ )
                 {
@@ -3582,9 +3582,9 @@ ToriRSServer_WorldSelftest(void)
             static struct ToriRSServerCapture varp_capture;
             const char* path = ToriRSServer_SavePath("gwd_restart_selftest");
             int instance_varp = ToriRSServer_ContentSymbol(
-                TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
             int faction_varp = ToriRSServer_ContentSymbol(
-                TORIRSSERVER_PACK_VARP, "gwd_private_faction");
+                TORIRSSERVER_PACK_VARP, "varp6637_gwd_private_faction");
             int client_varps = ToriRSServer_VarpClientCount();
 
             SELFTEST_CHECK(
@@ -3725,7 +3725,7 @@ ToriRSServer_WorldSelftest(void)
         {
             int td_stats[2] = { ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "fletching"),
                                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "smithing") };
-            int td_notes = ToriRSServer_WorldVarp("td_notes_read");
+            int td_notes = ToriRSServer_WorldVarp("varp6909_td_notes_read");
             int td_saved_notes = td_notes >= 0 ? player->varps[td_notes] : 0;
             int td_saved_level[2] = { 0, 0 };
             int td_saved_xp[2] = { 0, 0 };
@@ -3829,8 +3829,8 @@ ToriRSServer_WorldSelftest(void)
                 const char* varp;
                 const char* what;
             } td_ground[] = {
-                { "smouldering_gland", "td_gland_left", "crushing a smouldering gland" },
-                { "smouldering_heart", "td_heart_hold_left", "crushing a smouldering heart" },
+                { "smouldering_gland", "varp6904_td_gland_left", "crushing a smouldering gland" },
+                { "smouldering_heart", "varp6905_td_heart_hold_left", "crushing a smouldering heart" },
                 /* The flesh has no varp of its own — its counter is the ground
                  * pile's count — so it is asserted on the pile shrinking. */
                 { "smouldering_pile_of_flesh", NULL, "eating from a pile of flesh" },
@@ -4581,7 +4581,7 @@ ToriRSServer_WorldSelftest(void)
                 };
                 int slayer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "slayer");
                 int damagetype = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "damagetype");
+                    TORIRSSERVER_PACK_VARP, "varp6295_damagetype");
                 int slash = ToriRSServer_ContentConstantInt("slash_style", -1);
 
                 SELFTEST_CHECK(
@@ -4980,7 +4980,7 @@ ToriRSServer_WorldSelftest(void)
                     SSVM_ProviderGetByName(
                         srv->scripts, "[queue,ancient_godsword_sacrifice]");
                 int mark_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "ancient_godsword_mark_count");
+                    TORIRSSERVER_PACK_VARP, "varp6740_ancient_godsword_mark_count");
                 int nex_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "nex");
                 int ancient_sword = ToriRSServer_ContentSymbol(
                     TORIRSSERVER_PACK_OBJ, "ancient_godsword");
@@ -5574,7 +5574,7 @@ ToriRSServer_WorldSelftest(void)
 
                     player->stat_level[TORIRSSERVER_STAT_PRAYER] = 99;
                     player->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 99;
-                    if( selftest_prayer_on(srv, "prayer_protectfrommelee") )
+                    if( selftest_prayer_on(srv, "varb4118_prayer_protectfrommelee") )
                         selftest_prayer_toggle(srv, "prayer_protectfrommelee");
                     for( size_t style = 0;
                          style < sizeof(melee_constants) /
@@ -5604,7 +5604,7 @@ ToriRSServer_WorldSelftest(void)
                     }
                     selftest_prayer_toggle(srv, "prayer_protectfrommelee");
                     SELFTEST_CHECK(
-                        selftest_prayer_on(srv, "prayer_protectfrommelee"),
+                        selftest_prayer_on(srv, "varb4118_prayer_protectfrommelee"),
                         "Protect from Melee is active for GWD outcome matrix");
                     for( size_t style = 0;
                          style < sizeof(melee_constants) /
@@ -5643,7 +5643,7 @@ ToriRSServer_WorldSelftest(void)
                     int32_t ranged_args[3] = { 1, 16, 30 };
 
                     if( selftest_prayer_on(
-                            srv, "prayer_protectfrommissiles") )
+                            srv, "varb4117_prayer_protectfrommissiles") )
                         selftest_prayer_toggle(
                             srv, "prayer_protectfrommissiles");
                     memset(player->queue, 0, sizeof(player->queue));
@@ -5669,7 +5669,7 @@ ToriRSServer_WorldSelftest(void)
                     memset(player->queue, 0, sizeof(player->queue));
                     SELFTEST_CHECK(
                         selftest_prayer_on(
-                            srv, "prayer_protectfrommissiles") &&
+                            srv, "varb4117_prayer_protectfrommissiles") &&
                             ToriRSServer_ScriptsRunProcArgsOnNpc(
                                 srv, "[proc,playerhit_n_ranged]", slots[4],
                                 ranged_args, 3) &&
@@ -5691,7 +5691,7 @@ ToriRSServer_WorldSelftest(void)
                     int maximum_seed = -1;
 
                     if( selftest_prayer_on(
-                            srv, "prayer_protectfrommagic") )
+                            srv, "varb4116_prayer_protectfrommagic") )
                         selftest_prayer_toggle(
                             srv, "prayer_protectfrommagic");
                     for( int seed = 0;
@@ -5730,7 +5730,7 @@ ToriRSServer_WorldSelftest(void)
                         srv->script_env, (uint64_t)maximum_seed);
                     SELFTEST_CHECK(
                         selftest_prayer_on(
-                            srv, "prayer_protectfrommagic") &&
+                            srv, "varb4116_prayer_protectfrommagic") &&
                             ToriRSServer_ScriptsRunProcArgsOnNpc(
                                 srv, "[proc,gwd_boss_magic_fixed]", slots[3],
                                 magic_args, 3) &&
@@ -7418,7 +7418,7 @@ ToriRSServer_WorldSelftest(void)
                         srv->npcs[boss].script_vars[2] = 4;
                         ToriRSServer_ScriptsRunProcOnNpc(
                             srv, "[proc,nex_update_zaros_overhead]", boss);
-                        player->varps[ToriRSServer_WorldVarp("damagetype")] =
+                        player->varps[ToriRSServer_WorldVarp("varp6295_damagetype")] =
                             TORIRSSERVER_DAMAGE_CRUSH;
                         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
                         player->hitpoints = 99;
@@ -7431,7 +7431,7 @@ ToriRSServer_WorldSelftest(void)
                                 player->hitpoints == 89,
                             "Nex Deflect Melee reflects half a 20 hit (out %d, hp %d)",
                             out, player->hitpoints);
-                        player->varps[ToriRSServer_WorldVarp("damagetype")] = 4;
+                        player->varps[ToriRSServer_WorldVarp("varp6295_damagetype")] = 4;
                         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
                         player->hitpoints = 99;
                         SELFTEST_CHECK(
@@ -7830,7 +7830,7 @@ ToriRSServer_WorldSelftest(void)
                     player->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 80;
                     player->stat_boosted[TORIRSSERVER_STAT_MAGIC] = 99;
                     player->varps[ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARP, "nex_cough_until")] = srv->tick + 10;
+                        TORIRSSERVER_PACK_VARP, "varp6610_nex_cough_until")] = srv->tick + 10;
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProcOnNpc(
                             srv, "[queue,nex_cough_tick]", boss) &&
@@ -8089,7 +8089,7 @@ ToriRSServer_WorldSelftest(void)
                             remaining == 0 &&
                                 player->varps[ToriRSServer_ContentSymbol(
                                     TORIRSSERVER_PACK_VARP,
-                                    "nex_cough_until")] == 0,
+                                    "varp6610_nex_cough_until")] == 0,
                             "Nex cleanup removes every armed effect and cough "
                             "deadline (remaining %d)", remaining);
                     }
@@ -8151,15 +8151,15 @@ ToriRSServer_WorldSelftest(void)
              * contribution teardown through the production helper. */
             {
                 int kills = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "total_nex_kills");
+                    TORIRSSERVER_PACK_VARP, "varp3269_total_nex_kills");
                 int best = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_personal_best_ticks");
+                    TORIRSSERVER_PACK_VARP, "varp6608_nex_personal_best_ticks");
                 int contribution_uid = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_contribution_uid");
+                    TORIRSSERVER_PACK_VARP, "varp6606_nex_contribution_uid");
                 int contribution_damage = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_contribution_damage");
+                    TORIRSSERVER_PACK_VARP, "varp6605_nex_contribution_damage");
                 int encounter_start = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_encounter_start");
+                    TORIRSSERVER_PACK_VARP, "varp6607_nex_encounter_start");
                 static const int32_t durations[] = { 50, 80, 40 };
                 static const int expected_best[] = { 50, 50, 40 };
 
@@ -8221,13 +8221,13 @@ ToriRSServer_WorldSelftest(void)
                 int nex_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "nex");
                 int bones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "big_bones");
                 int contribution_uid = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_contribution_uid");
+                    TORIRSSERVER_PACK_VARP, "varp6606_nex_contribution_uid");
                 int contribution_damage = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_contribution_damage");
+                    TORIRSSERVER_PACK_VARP, "varp6605_nex_contribution_damage");
                 int encounter_start = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "nex_encounter_start");
+                    TORIRSSERVER_PACK_VARP, "varp6607_nex_encounter_start");
                 int kills = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "total_nex_kills");
+                    TORIRSSERVER_PACK_VARP, "varp3269_total_nex_kills");
 
                 SELFTEST_CHECK(
                     second != NULL && nex_id >= 0 && bones >= 0 &&
@@ -9189,7 +9189,7 @@ ToriRSServer_WorldSelftest(void)
                         selftest_prayer_toggle(srv, "prayer_protectfrommagic");
                         SELFTEST_CHECK(
                             selftest_prayer_on(
-                                srv, "prayer_protectfrommagic"),
+                                srv, "varb4116_prayer_protectfrommagic"),
                             "Protect from Magic is active before prison bind");
                         ToriRSServer_CaptureBegin(srv, &prison_land_capture);
                         SELFTEST_CHECK(
@@ -9201,7 +9201,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_CaptureEnd(srv);
                         SELFTEST_CHECK(
                             !selftest_prayer_on(
-                                srv, "prayer_protectfrommagic") &&
+                                srv, "varb4116_prayer_protectfrommagic") &&
                                 selftest_player_queue_match(
                                     player, freeze, 1, 0, 5) == 1 &&
                                 player->hitmark_count == 1 &&
@@ -9275,31 +9275,31 @@ ToriRSServer_WorldSelftest(void)
             {
                 const char* path = ToriRSServer_SavePath("gwd_selftest");
                 static const char* const perm_varp_names[] = {
-                    "gwd_hilt_reset_day", "gwd_ecumenical_charges",
-                    "gwd_frozen_door_state", "nex_personal_deaths",
-                    "nex_personal_best_ticks", "gwd_nex_death_items",
+                    "varp6613_gwd_hilt_reset_day", "varp6602_gwd_ecumenical_charges",
+                    "varp6603_gwd_frozen_door_state", "varp6609_nex_personal_deaths",
+                    "varp6608_nex_personal_best_ticks", "varp6604_gwd_nex_death_items",
                 };
                 static const int perm_values[] = { 77, 2, 4, 9, 321, 2 };
                 static const char* const temp_varp_names[] = {
-                    "map_instance_handle", "gwd_altar_ready",
-                    "gwd_private_faction",
-                    "nex_contribution_uid", "nex_contribution_damage",
-                    "nex_encounter_start", "nex_cough_until",
+                    "varp5925_map_instance_handle", "varp6021_gwd_altar_ready",
+                    "varp6637_gwd_private_faction",
+                    "varp6606_nex_contribution_uid", "varp6605_nex_contribution_damage",
+                    "varp6607_nex_encounter_start", "varp6610_nex_cough_until",
                 };
                 int perm_varps[sizeof(perm_values) / sizeof(perm_values[0])];
                 int temp_varps[sizeof(temp_varp_names) /
                                sizeof(temp_varp_names[0])];
                 int kc_varbits[] = {
                     ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARBIT, "godwars_counter_armadyl"),
+                        TORIRSSERVER_PACK_VARBIT, "varb3973_godwars_counter_armadyl"),
                     ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARBIT, "godwars_counter_bandos"),
+                        TORIRSSERVER_PACK_VARBIT, "varb3975_godwars_counter_bandos"),
                     ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARBIT, "godwars_counter_saradomin"),
+                        TORIRSSERVER_PACK_VARBIT, "varb3972_godwars_counter_saradomin"),
                     ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARBIT, "godwars_counter_zamorak"),
+                        TORIRSSERVER_PACK_VARBIT, "varb3976_godwars_counter_zamorak"),
                     ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARBIT, "godwars_counter_zaros"),
+                        TORIRSSERVER_PACK_VARBIT, "varb13080_godwars_counter_zaros"),
                 };
                 int kc_values[] = { 11, 22, 33, 44, 55 };
                 int resolved = 1;
@@ -9380,11 +9380,11 @@ ToriRSServer_WorldSelftest(void)
                 remove(path);
             }
 
-            tiers[0] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "ca_tier_status_hard");
-            tiers[1] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "ca_tier_status_elite");
-            tiers[2] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "ca_tier_status_master");
+            tiers[0] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb12865_ca_tier_status_hard");
+            tiers[1] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb12866_ca_tier_status_elite");
+            tiers[2] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb12867_ca_tier_status_master");
             tiers[3] =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "ca_tier_status_grandmaster");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb12868_ca_tier_status_grandmaster");
             SELFTEST_CHECK(tiers[0] >= 0 && tiers[1] >= 0 && tiers[2] >= 0 && tiers[3] >= 0,
                            "all four GWD Combat Achievement tier varbits resolve");
             for( int i = 0; i < 4; i++ )
@@ -9427,9 +9427,9 @@ ToriRSServer_WorldSelftest(void)
              * and the permanent Frozen Door unlock. */
             {
                 static const char* const kc_names[] = {
-                    "godwars_counter_armadyl", "godwars_counter_bandos",
-                    "godwars_counter_saradomin", "godwars_counter_zamorak",
-                    "godwars_counter_zaros",
+                    "varb3973_godwars_counter_armadyl", "varb3975_godwars_counter_bandos",
+                    "varb3972_godwars_counter_saradomin", "varb3976_godwars_counter_zamorak",
+                    "varb13080_godwars_counter_zaros",
                 };
                 static const char* const piece_names[] = {
                     "nex_frozen_key_armadyl", "nex_frozen_key_bandos",
@@ -9441,7 +9441,7 @@ ToriRSServer_WorldSelftest(void)
                 int frozen_key =
                     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "nex_frozen_key");
                 int frozen_state = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_frozen_door_state");
+                    TORIRSSERVER_PACK_VARP, "varp6603_gwd_frozen_door_state");
                 int resolved = eco >= 0 && frozen_key >= 0 && frozen_state >= 0;
 
                 for( int i = 0; i < 4; i++ )
@@ -9971,11 +9971,11 @@ ToriRSServer_WorldSelftest(void)
                 {
                     int status_varbits[3] = {
                         ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARBIT, "ca_tier_status_elite"),
+                            TORIRSSERVER_PACK_VARBIT, "varb12866_ca_tier_status_elite"),
                         ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARBIT, "ca_tier_status_master"),
+                            TORIRSSERVER_PACK_VARBIT, "varb12867_ca_tier_status_master"),
                         ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARBIT, "ca_tier_status_grandmaster"),
+                            TORIRSSERVER_PACK_VARBIT, "varb12868_ca_tier_status_grandmaster"),
                     };
                     int saved_status[3];
                     int rate = -1;
@@ -10068,7 +10068,7 @@ ToriRSServer_WorldSelftest(void)
 
                     {
                         int cluequest = ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARBIT, "cluequest");
+                            TORIRSSERVER_PACK_VARBIT, "varb8063_cluequest");
                         int hard = ToriRSServer_ContentSymbol(
                             TORIRSSERVER_PACK_OBJ, "trail_hard_emote_exp1");
                         int hard_box = ToriRSServer_ContentSymbol(
@@ -10162,11 +10162,11 @@ ToriRSServer_WorldSelftest(void)
                         const char* pet;
                         const char* insurance;
                     } pets[] = {
-                        { "armadylpet", "pet_insurance_armadylpet" },
-                        { "bandospet", "pet_insurance_bandospet" },
-                        { "saradominpet", "pet_insurance_saradominpet" },
-                        { "zamorakpet", "pet_insurance_zamorakpet" },
-                        { "nexpet", "pet_insurance_nex" },
+                        { "armadylpet", "varb4342_pet_insurance_armadylpet" },
+                        { "bandospet", "varb4343_pet_insurance_bandospet" },
+                        { "saradominpet", "varb4344_pet_insurance_saradominpet" },
+                        { "zamorakpet", "varb4345_pet_insurance_zamorakpet" },
+                        { "nexpet", "varb13173_pet_insurance_nex" },
                     };
 
                     for( size_t i = 0; i < sizeof(pets) / sizeof(pets[0]); i++ )
@@ -10524,9 +10524,9 @@ ToriRSServer_WorldSelftest(void)
                      * submitted, and already-owned. */
                     {
                         int quest_varp = ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARP, "rag_quest");
+                            TORIRSSERVER_PACK_VARP, "varp714_rag_quest");
                         int submit_varp = ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARP, "rag_submit");
+                            TORIRSSERVER_PACK_VARP, "varp6208_rag_submit");
                         int goblin_id = ToriRSServer_ContentSymbol(
                             TORIRSSERVER_PACK_NPC, "godwars_goblin1");
                         int bone_id = ToriRSServer_ContentSymbol(
@@ -10671,7 +10671,7 @@ ToriRSServer_WorldSelftest(void)
                      * space or another contributor's pickup permissions. */
                     {
                         int ironman = ToriRSServer_ContentSymbol(
-                            TORIRSSERVER_PACK_VARBIT, "ironman");
+                            TORIRSSERVER_PACK_VARBIT, "varb1777_ironman");
                         int filler = ToriRSServer_ContentSymbol(
                             TORIRSSERVER_PACK_OBJ, "bronze_dagger");
                         int air = ToriRSServer_ContentSymbol(
@@ -10900,9 +10900,9 @@ ToriRSServer_WorldSelftest(void)
              * loot, ownership varps, and the reservation in one pass. */
             {
                 const int instance_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                    TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
                 const int faction_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_private_faction");
+                    TORIRSSERVER_PACK_VARP, "varp6637_gwd_private_faction");
 
                 SELFTEST_CHECK(
                     instance_varp >= 0 && faction_varp >= 0,
@@ -11321,13 +11321,13 @@ ToriRSServer_WorldSelftest(void)
                 struct ToriRSServerPlayer* guest =
                     ToriRSServer_WorldAddPlayer(srv, NULL);
                 const int instance_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                    TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
                 const int faction_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_private_faction");
+                    TORIRSSERVER_PACK_VARP, "varp6637_gwd_private_faction");
                 const int zaros_kc = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARBIT, "godwars_counter_zaros");
+                    TORIRSSERVER_PACK_VARBIT, "varb13080_godwars_counter_zaros");
                 const int ca_hard = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARBIT, "ca_tier_status_hard");
+                    TORIRSSERVER_PACK_VARBIT, "varb12865_ca_tier_status_hard");
                 const int32_t source = ToriRSServer_CoordPack(
                     0, 45 * 64 + 44, 81 * 64 + 18);
                 int32_t release_args[2];
@@ -11496,11 +11496,11 @@ ToriRSServer_WorldSelftest(void)
                 struct ToriRSServerPlayer* guest_b =
                     ToriRSServer_WorldAddPlayer(srv, NULL);
                 const int instance_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                    TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
                 const int faction_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_private_faction");
+                    TORIRSSERVER_PACK_VARP, "varp6637_gwd_private_faction");
                 const int zaros_kc = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARBIT, "godwars_counter_zaros");
+                    TORIRSSERVER_PACK_VARBIT, "varb13080_godwars_counter_zaros");
                 const int32_t source = ToriRSServer_CoordPack(
                     0, 45 * 64 + 44, 81 * 64 + 18);
                 static const uint8_t host_a_reply[] = "Nex Alpha";
@@ -11676,11 +11676,11 @@ ToriRSServer_WorldSelftest(void)
                 struct ToriRSServerPlayer* guest =
                     ToriRSServer_WorldAddPlayer(srv, NULL);
                 const int instance_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                    TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
                 const int faction_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_private_faction");
+                    TORIRSSERVER_PACK_VARP, "varp6637_gwd_private_faction");
                 const int zaros_kc = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARBIT, "godwars_counter_zaros");
+                    TORIRSSERVER_PACK_VARBIT, "varb13080_godwars_counter_zaros");
                 const int32_t source = ToriRSServer_CoordPack(
                     0, 45 * 64 + 44, 81 * 64 + 18);
                 static const uint8_t host_reply[] = "Nex Soak";
@@ -11839,17 +11839,17 @@ ToriRSServer_WorldSelftest(void)
                 int nex_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "nex");
                 int air = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "airrune");
                 int instance_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                    TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
                 int faction_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_private_faction");
+                    TORIRSSERVER_PACK_VARP, "varp6637_gwd_private_faction");
                 int altar_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_altar_ready");
+                    TORIRSSERVER_PACK_VARP, "varp6021_gwd_altar_ready");
                 int death_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "gwd_nex_death_items");
+                    TORIRSSERVER_PACK_VARP, "varp6604_gwd_nex_death_items");
                 int kills_varp = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARP, "total_nex_kills");
+                    TORIRSSERVER_PACK_VARP, "varp3269_total_nex_kills");
                 int zaros_kc = ToriRSServer_ContentSymbol(
-                    TORIRSSERVER_PACK_VARBIT, "godwars_counter_zaros");
+                    TORIRSSERVER_PACK_VARBIT, "varb13080_godwars_counter_zaros");
                 int h1 = 0, h2 = 0;
                 int x1 = 0, z1 = 0, x2 = 0, z2 = 0;
 
@@ -12225,15 +12225,15 @@ ToriRSServer_WorldSelftest(void)
         /* The specific names that were aliased. Each must be a varbit — the
          * thing that patches one bit range — and not a varp. */
         SELFTEST_CHECK(
-            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "bank_withdrawnotes") == -1 &&
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "bank_withdrawnotes") >= 0,
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varb3958_bank_withdrawnotes") == -1 &&
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3958_bank_withdrawnotes") >= 0,
             "bank_withdrawnotes should be a varbit only");
-        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "bank_insertmode") == -1 &&
-                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "bank_insertmode") >= 0,
+        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varb3959_bank_insertmode") == -1 &&
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3959_bank_insertmode") >= 0,
                        "bank_insertmode should be a varbit only");
         SELFTEST_CHECK(
-            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "bank_quantity_type") == -1 &&
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "bank_quantity_type") >= 0,
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varb6590_bank_quantity_type") == -1 &&
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb6590_bank_quantity_type") >= 0,
             "bank_quantity_type should be a varbit only");
 
         /*
@@ -12259,14 +12259,14 @@ ToriRSServer_WorldSelftest(void)
                 const char* invented;
                 int id;
             } relabelled[] = {
-                { "randomhitsound", "varp_weapon_category", 843 },
-                { "prayer23", "bank_tab_a", 867 },
-                { "prayer25", "bank_tab_b", 1052 },
-                { "prayer26", "bank_tab_c", 1053 },
-                { "wilderness_statistics", "varp_combat_level", 1105 },
-                { "gargboss_perm_transmit", "bank_quantity", 1666 },
-                { "bankdeposit", "bank_tab_d", 1793 },
-                { "bank_extratab", "bank_tab_e", 3750 },
+                { "varp843_randomhitsound", "varp_weapon_category", 843 },
+                { "varp867_prayer23", "bank_tab_a", 867 },
+                { "varp1052_prayer25", "bank_tab_b", 1052 },
+                { "varp1053_prayer26", "bank_tab_c", 1053 },
+                { "varp1105_wilderness_statistics", "varp_combat_level", 1105 },
+                { "varp1666_gargboss_perm_transmit", "bank_quantity", 1666 },
+                { "varp1793_bankdeposit", "bank_tab_d", 1793 },
+                { "varp3750_bank_extratab", "bank_tab_e", 3750 },
             };
 
             for( size_t i = 0; i < sizeof(relabelled) / sizeof(relabelled[0]); i++ )
@@ -12299,22 +12299,22 @@ ToriRSServer_WorldSelftest(void)
          * written as a varp, but scratch state parked on a varp that was
          * already somebody's varbits.
          */
-        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mcannonmulti") == 1 &&
-                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "dropcannon") == 2 &&
-                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rockthrower") == 3,
+        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1_mcannonmulti") == 1 &&
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp2_dropcannon") == 2 &&
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp3_rockthrower") == 3,
                        "varps 1-3 should answer to the cache's names again");
-        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_greeting_count") ==
+        SELFTEST_CHECK(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6_mock_greeting_count") ==
                                SELFTEST_VARP_GREETING_COUNT &&
-                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_quest_progress") ==
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7_mock_quest_progress") ==
                                SELFTEST_VARP_QUEST_PROGRESS &&
-                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "lumbridge_visited") ==
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp8_lumbridge_visited") ==
                                SELFTEST_VARP_LUMBRIDGE_VISITED,
                        "this server's scratch varps should be %d/%d/%d, got %d/%d/%d",
                        SELFTEST_VARP_GREETING_COUNT, SELFTEST_VARP_QUEST_PROGRESS,
                        SELFTEST_VARP_LUMBRIDGE_VISITED,
-                       ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_greeting_count"),
-                       ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_quest_progress"),
-                       ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "lumbridge_visited"));
+                       ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6_mock_greeting_count"),
+                       ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7_mock_quest_progress"),
+                       ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp8_lumbridge_visited"));
 
         /* iface_gameframe is the pack-resolved *login default*
          * (toplevel_osrs_stretch). Session remounts to toplevel /
@@ -15119,9 +15119,9 @@ ToriRSServer_WorldSelftest(void)
              */
             {
                 int tutorial_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
-                                                           "tutorial");
+                                                           "varp281_tutorial");
                 int seeded_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
-                                                          "newplayer_seeded");
+                                                          "varp6298_newplayer_seeded");
                 /* Somewhere that is not the home tile and not in the map
                  * instance band. The real island is 3094,3106; any tile does,
                  * because what is under test is the placement rather than the
@@ -15186,7 +15186,7 @@ ToriRSServer_WorldSelftest(void)
                          */
                         {
                             int bar = ToriRSServer_ContentSymbol(
-                                TORIRSSERVER_PACK_VARP, "tutorial_progress_overlay");
+                                TORIRSSERVER_PACK_VARP, "varp406_tutorial_progress_overlay");
 
                             SELFTEST_CHECK(bar >= 0,
                                            "varp `tutorial_progress_overlay` should "
@@ -15230,7 +15230,7 @@ ToriRSServer_WorldSelftest(void)
                          */
                         {
                             int flash_bit = ToriRSServer_ContentSymbol(
-                                TORIRSSERVER_PACK_VARBIT, "flashside");
+                                TORIRSSERVER_PACK_VARBIT, "varb3756_flashside");
                             int32_t tab_args[1];
 
                             SELFTEST_CHECK(flash_bit >= 0,
@@ -16483,7 +16483,7 @@ ToriRSServer_WorldSelftest(void)
                 { 6, "Avan" },
             };
             int avan_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "avan");
-            int crestquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "crestquest");
+            int crestquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp148_crestquest");
             int settext = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_SETTEXT);
             /* Both random streams go back where they were found: a spawn and a
              * dialogue draw from them, and the combat section's goblin fight
@@ -17222,7 +17222,7 @@ ToriRSServer_WorldSelftest(void)
                 int cook_row =
                     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBROW, "quest_cooksassistant");
                 int latest =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "latest_quest_journal");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp3679_latest_quest_journal");
                 static struct ToriRSServerCapture arm;
                 static struct ToriRSServerCapture capture;
                 int mask = -1;
@@ -17418,9 +17418,9 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "questjournal_overview");
             int overview_switch = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_COMPONENT, "questjournal_overview:switch");
-            int qj_lines = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qj_lines");
-            int latest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "latest_quest_journal");
-            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cookquest");
+            int qj_lines = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp4398_qj_lines");
+            int latest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp3679_latest_quest_journal");
+            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp29_cookquest");
             uint8_t button[6];
             static struct ToriRSServerCapture capture;
             int open_at;
@@ -17698,7 +17698,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 static const uint8_t command[] = "complete quest_cooksassistant\n";
                 static const uint8_t unknown[] = "complete quest_no_such_quest\n";
-                int qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+                int qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
                 int endstate = -1;
                 int points = -1;
                 int qp_before;
@@ -17788,7 +17788,7 @@ ToriRSServer_WorldSelftest(void)
              */
             {
                 static int32_t varps_before[TORIRSSERVER_VARP_COUNT];
-                int qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+                int qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
                 int points_col = table ? ToriRSServer_DbColumnIndex(table, "questpoints") : -1;
                 int rows = ToriRSServer_DbRowCount(quest_table);
                 int covered = 0;
@@ -18053,7 +18053,7 @@ ToriRSServer_WorldSelftest(void)
                 static struct ToriRSServerCapture capture;
                 uint8_t button[6];
                 int run_at;
-                int playtime = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "playtime_minutes");
+                int playtime = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5730_playtime_minutes");
 
                 button[0] = (uint8_t)(layer >> 24);
                 button[1] = (uint8_t)(layer >> 16);
@@ -18416,13 +18416,13 @@ ToriRSServer_WorldSelftest(void)
             };
             int rake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rake");
             int bucket = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_empty");
-            int vb_rake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_tools_rake");
-            int vb_extra = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_tools_extrarakes");
+            int vb_rake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1435_farming_tools_rake");
+            int vb_extra = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb8357_farming_tools_extrarakes");
             int vb_qty =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_tools_selectedquantity");
-            int vb_b0 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_tools_buckets");
-            int vb_b1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_tools_extrabuckets");
-            int vb_b2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_tools_extra2buckets");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb7792_farming_tools_selectedquantity");
+            int vb_b0 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1441_farming_tools_buckets");
+            int vb_b1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb4731_farming_tools_extrabuckets");
+            int vb_b2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb6265_farming_tools_extra2buckets");
             int leprechaun = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "farming_tools_leprechaun");
             int ok = 1;
 
@@ -18989,16 +18989,16 @@ ToriRSServer_WorldSelftest(void)
                 ACTION_EXTEND_ALL = 75,
                 ACTION_CANCEL = 67
             };
-            int vb_points = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "slayer_points");
-            int vb_master = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "slayer_master_in_focus");
-            int vp_master = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "slayer_misc");
+            int vb_points = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb4068_slayer_points");
+            int vb_master = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb17868_slayer_master_in_focus");
+            int vp_master = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp4844_slayer_misc");
             int vp_own[3];
             int turael = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "slayer_master_1_tureal");
             int ok = 1;
 
-            vp_own[0] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "slayer_rewards_unlocks");
-            vp_own[1] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "slayer_rewards_unlocks1");
-            vp_own[2] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "slayer_rewards_unlocks2");
+            vp_own[0] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1076_slayer_rewards_unlocks");
+            vp_own[1] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1344_slayer_rewards_unlocks1");
+            vp_own[2] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5587_slayer_rewards_unlocks2");
 
             for( size_t i = 0; i < sizeof(sym) / sizeof(sym[0]); i++ )
             {
@@ -19824,11 +19824,11 @@ ToriRSServer_WorldSelftest(void)
         if( loaded && goblin >= 0 )
         {
             int option_nodef =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "option_nodef");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
             int action_delay =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "action_delay");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5732_action_delay");
             int damagestyle =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "damagestyle");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6294_damagestyle");
             int retaliate = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_COMPONENT, "combat_interface:retaliate");
             int armed = 0;
@@ -21004,7 +21004,7 @@ ToriRSServer_WorldSelftest(void)
             int hp_level_before = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
             int hp_boost_before = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
             int hp_xp_before = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
-            int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "option_nodef");
+            int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
             int nodef_before = option_nodef >= 0 ? player->varps[option_nodef] : 0;
 
             a->huntmode = TORIRSSERVER_HUNT_NONE;
@@ -21951,7 +21951,7 @@ ToriRSServer_WorldSelftest(void)
         int stat = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_UPDATE_STAT);
         int inv_full = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_UPDATE_INV_FULL);
         int tick_end = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_SERVER_TICK_END);
-        int date_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "date_minutes");
+        int date_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp3078_date_minutes");
         int clock_at = -1;
         int clock_opentop_at = -1;
         /* PLAYER_INFO must precede interfaces/stats; classic wires identify
@@ -22208,12 +22208,12 @@ ToriRSServer_WorldSelftest(void)
         }
         if( srv->scripts_ok )
         {
-            int com_mode = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "com_mode");
-            int sa_energy = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "sa_energy");
+            int com_mode = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp43_com_mode");
+            int sa_energy = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp300_sa_energy");
             int player_attack_priority =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "option_attackpriority");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1107_option_attackpriority");
             int npc_attack_priority =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "option_attackpriority_npc");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1306_option_attackpriority_npc");
 
             player->login_pending = 1;
             ToriRSServer_CaptureBegin(srv, &capture);
@@ -22304,7 +22304,7 @@ ToriRSServer_WorldSelftest(void)
              */
             {
                 int sheepherdervar =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "sheepherdervar");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp61_sheepherdervar");
 
                 SELFTEST_CHECK(sheepherdervar >= 0,
                                "sheepherdervar should be in pack/varp.pack");
@@ -22327,7 +22327,7 @@ ToriRSServer_WorldSelftest(void)
              */
             {
                 int quiver = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
-                                                    "dizanas_quiver_temp_ammo");
+                                                    "varp4142_dizanas_quiver_temp_ammo");
                 const struct ToriRSServerVarpDef* quiver_def =
                     quiver >= 0 ? ToriRSServer_ContentVarp(quiver) : NULL;
                 int varp_small = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_VARP_SMALL);
@@ -22418,7 +22418,7 @@ ToriRSServer_WorldSelftest(void)
                 "settings_side:display_dynamic_setting_1_buttons");
             int arrangement = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_VARBIT,
-                "resizable_stone_arrangement");
+                "varb4607_resizable_stone_arrangement");
 
             SELFTEST_CHECK(layout_buttons > 0 && arrangement >= 0,
                            "layout callback/varbit symbols should resolve (%d/%d)",
@@ -22917,9 +22917,9 @@ ToriRSServer_WorldSelftest(void)
 
             /* Content decided this, and the shot below depends on it: a bow that
              * left the player in a melee style would swing instead. */
-            SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("damagetype")] == 3,
+            SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("varp6295_damagetype")] == 3,
                            "wielding the bow should select the ranged style, got %d",
-                           player->varps[ToriRSServer_WorldVarp("damagetype")]);
+                           player->varps[ToriRSServer_WorldVarp("varp6295_damagetype")]);
 
             selftest_npc_payload(player, goblin, payload);
 
@@ -23078,7 +23078,7 @@ ToriRSServer_WorldSelftest(void)
             int npc_mode = npc->mode;
             int magic = player->stat_level[TORIRSSERVER_STAT_MAGIC];
             int magic_boosted = player->stat_boosted[TORIRSSERVER_STAT_MAGIC];
-            int delay_varp = ToriRSServer_WorldVarp("action_delay");
+            int delay_varp = ToriRSServer_WorldVarp("varp5732_action_delay");
             int stamp_at[2] = { 0, 0 };
             int stamps = 0;
             int last_stamp = 0;
@@ -23370,11 +23370,11 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_ScriptsRunProc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
 
         ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-        strength_before = player->varps[ToriRSServer_WorldVarp("com_maxhit")];
+        strength_before = player->varps[ToriRSServer_WorldVarp("varp6287_com_maxhit")];
         SELFTEST_CHECK(strength_before > 0,
                        "the block should be populated, com_maxhit was %d",
                        strength_before);
-        SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("com_crushattack")] > 0,
+        SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("varp6282_com_crushattack")] > 0,
                        "and carry an attack roll for the unarmed crush type");
 
         /* Ultimate Strength: +15 % to the RAW strength level, before the +8 and
@@ -23384,10 +23384,10 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK(selftest_prayer("prayer_ultimatestrength") >= 0,
                        "prayers.constant should name ultimatestrength");
         selftest_prayer_toggle(srv, "prayer_ultimatestrength");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_ultimatestrength"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4114_prayer_ultimatestrength"),
                        "a level 60 prayer stat can switch Ultimate Strength on");
         ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-        strength_after = player->varps[ToriRSServer_WorldVarp("com_maxhit")];
+        strength_after = player->varps[ToriRSServer_WorldVarp("varp6287_com_maxhit")];
         SELFTEST_CHECK(strength_after > strength_before,
                        "Ultimate Strength should raise the max hit: %d -> %d",
                        strength_before, strength_after);
@@ -23426,7 +23426,7 @@ ToriRSServer_WorldSelftest(void)
          * of these may be queued for transmission. */
         {
             const struct ToriRSServerVarpDef* def =
-                ToriRSServer_ContentVarp(ToriRSServer_WorldVarp("com_maxhit"));
+                ToriRSServer_ContentVarp(ToriRSServer_WorldVarp("varp6287_com_maxhit"));
 
             SELFTEST_CHECK(def && !def->transmit,
                            "com_maxhit must be declared and must not transmit");
@@ -26196,9 +26196,9 @@ ToriRSServer_WorldSelftest(void)
             int crew =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "sailing_transport_trader_stan_crew_man3");
             int prev_bit =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "chartering_previous_destination");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb11209_chartering_previous_destination");
             int coins = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "coins");
-            int regicide = ToriRSServer_WorldVarp("regicide_quest");
+            int regicide = ToriRSServer_WorldVarp("varp328_regicide_quest");
             int slot = -1;
 
             SELFTEST_CHECK(stan >= 0, "sailing_transport_trader_stan should be a cache npc");
@@ -26618,9 +26618,9 @@ ToriRSServer_WorldSelftest(void)
         {
             const struct SSVM_Script* probe = SSVM_ProviderGetByName(
                 srv->scripts, "[walktrigger,rs2012_qbd_walkstep_probe]");
-            int phase_varp = ToriRSServer_WorldVarp("rs2012_qbd_phase");
-            int count_varp = ToriRSServer_WorldVarp("rs2012_qbd_platform_ticks");
-            int candidate_varp = ToriRSServer_WorldVarp("rs2012_qbd_soul_separation");
+            int phase_varp = ToriRSServer_WorldVarp("varp6237_rs2012_qbd_phase");
+            int count_varp = ToriRSServer_WorldVarp("varp6244_rs2012_qbd_platform_ticks");
+            int candidate_varp = ToriRSServer_WorldVarp("varp6246_rs2012_qbd_soul_separation");
 
             SELFTEST_CHECK(probe != NULL,
                            "the QBD per-step movement probe should be in the script pack");
@@ -27429,7 +27429,7 @@ ToriRSServer_WorldSelftest(void)
         /* The level gate reads the base level, so a level-1 character is
          * refused Protect from Melee no matter how many points they have. */
         selftest_prayer_toggle(srv, "prayer_protectfrommelee");
-        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_protectfrommelee"),
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "varb4118_prayer_protectfrommelee"),
                        "a level-1 character cannot protect");
 
         player->stat_level[TORIRSSERVER_STAT_PRAYER] = 99;
@@ -27447,9 +27447,9 @@ ToriRSServer_WorldSelftest(void)
          * and nothing else says they conflict. */
         selftest_prayer_toggle(srv, "prayer_rockskin");
         selftest_prayer_toggle(srv, "prayer_steelskin");
-        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_rockskin"),
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "varb4107_prayer_rockskin"),
                        "steel skin replaces rock skin");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_steelskin"), "steel skin is up");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4113_prayer_steelskin"), "steel skin is up");
         SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "and left the overhead alone — a different group");
 
@@ -27461,13 +27461,13 @@ ToriRSServer_WorldSelftest(void)
          * up together.
          */
         selftest_prayer_toggle(srv, "prayer_ultimatestrength");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_ultimatestrength") &&
-                           selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4114_prayer_ultimatestrength") &&
+                           selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "strength and defence prayers stack with each other");
         selftest_prayer_toggle(srv, "prayer_piety");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_piety"), "piety is up");
-        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_ultimatestrength") &&
-                           !selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4129_prayer_piety"), "piety is up");
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "varb4114_prayer_ultimatestrength") &&
+                           !selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "and dropped both of the groups it claims");
 
         /*
@@ -27479,37 +27479,37 @@ ToriRSServer_WorldSelftest(void)
          * same ~prayer_shares_group walk as the checks above.
          */
         selftest_prayer_toggle(srv, "prayer_sharpeye");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_sharpeye") &&
-                           !selftest_prayer_on(srv, "prayer_piety"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4122_prayer_sharpeye") &&
+                           !selftest_prayer_on(srv, "varb4129_prayer_piety"),
                        "a ranged boost drops piety right back");
         selftest_prayer_toggle(srv, "prayer_steelskin");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_sharpeye") &&
-                           selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4122_prayer_sharpeye") &&
+                           selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "ranged and defence prayers stack");
         selftest_prayer_toggle(srv, "prayer_clarityofthought");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_clarityofthought") &&
-                           !selftest_prayer_on(srv, "prayer_sharpeye") &&
-                           selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4106_prayer_clarityofthought") &&
+                           !selftest_prayer_on(srv, "varb4122_prayer_sharpeye") &&
+                           selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "an attack boost drops the ranged one, not the defence one");
         selftest_prayer_toggle(srv, "prayer_ultimatestrength");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_clarityofthought") &&
-                           selftest_prayer_on(srv, "prayer_ultimatestrength") &&
-                           selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4106_prayer_clarityofthought") &&
+                           selftest_prayer_on(srv, "varb4114_prayer_ultimatestrength") &&
+                           selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "attack, strength and defence all stack");
         selftest_prayer_toggle(srv, "prayer_mysticwill");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_mysticwill") &&
-                           !selftest_prayer_on(srv, "prayer_clarityofthought") &&
-                           !selftest_prayer_on(srv, "prayer_ultimatestrength") &&
-                           selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4123_prayer_mysticwill") &&
+                           !selftest_prayer_on(srv, "varb4106_prayer_clarityofthought") &&
+                           !selftest_prayer_on(srv, "varb4114_prayer_ultimatestrength") &&
+                           selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "a magic boost drops both melee boosts, not the defence one");
         selftest_prayer_toggle(srv, "prayer_rigour");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_rigour") &&
-                           !selftest_prayer_on(srv, "prayer_mysticwill") &&
-                           !selftest_prayer_on(srv, "prayer_steelskin"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb5464_prayer_rigour") &&
+                           !selftest_prayer_on(srv, "varb4123_prayer_mysticwill") &&
+                           !selftest_prayer_on(srv, "varb4113_prayer_steelskin"),
                        "rigour stands alone -- it drops the defence prayer too");
         selftest_prayer_toggle(srv, "prayer_augury");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_augury") &&
-                           !selftest_prayer_on(srv, "prayer_rigour"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb5465_prayer_augury") &&
+                           !selftest_prayer_on(srv, "varb5464_prayer_rigour"),
                        "the combination prayers are exclusive with each other");
 
         /*
@@ -27521,7 +27521,7 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_ScriptsRunProc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
         SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "pray 18"),
                        "::pray should reach [debugproc,pray]");
-        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_protectfrommelee"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "varb4118_prayer_protectfrommelee"),
                        "::pray 18 is protect from melee");
         SELFTEST_CHECK(!ToriRSServer_ScriptsRunDebugproc(srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
@@ -27846,7 +27846,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 int loc_ctfoodtrough = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ctfoodtrough");
                 int obj_rat_poison = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rat_poison");
-                int varp_cogquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cogquest");
+                int varp_cogquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp10_cogquest");
                 /* ^quest_cog_rat_door_bit = 4, quest_cog.constant. */
                 const int rat_door_bit = 4;
 
@@ -27885,7 +27885,7 @@ ToriRSServer_WorldSelftest(void)
             int npc_arena_ogre = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "arena_ogre");
             int npc_general_khazard_arena =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_khazard_arena");
-            int varp_arenaquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "arenaquest");
+            int varp_arenaquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp17_arenaquest");
             /* ^arena_entered_ogre_fight = 6, ^arena_sent_jail = 9
              * (quest_arena.constant). [label,arena_defeat_ogre] sets
              * ^arena_defeated_ogre (8) and immediately falls into
@@ -28031,8 +28031,8 @@ ToriRSServer_WorldSelftest(void)
          */
         {
             int npc_alomone = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "alomone_hazeel_cultist_2op");
-            int varp_hazeelcultquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "hazeelcultquest");
-            int varp_hazeelcult_side = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "hazeelcult_side");
+            int varp_hazeelcultquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp223_hazeelcultquest");
+            int varp_hazeelcult_side = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5927_hazeelcult_side");
             /* ^hazeelcult_clivet_decision = 4, ^hazeelcult_finished_side_task = 6,
              * ^hazeelcult_goodside = 0 (quest_hazeelcult.constant). */
             const int hazeelcult_clivet_decision = 4;
@@ -28894,9 +28894,9 @@ ToriRSServer_WorldSelftest(void)
             button[4] = 0xff;
             button[5] = 0xff;
             selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-            SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_rockskin"),
+            SELFTEST_CHECK(selftest_prayer_on(srv, "varb4107_prayer_rockskin"),
                            "clicking 541:12 should toggle Rock Skin");
-            SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_sharpeye"),
+            SELFTEST_CHECK(!selftest_prayer_on(srv, "varb4122_prayer_sharpeye"),
                            "and must not light Sharp Eye (the naive map's answer)");
         }
 
@@ -28937,7 +28937,7 @@ ToriRSServer_WorldSelftest(void)
             srv->tick++;
             ToriRSServer_ScriptsProcessTimers(srv);
         }
-        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_protectfrommelee"),
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "varb4118_prayer_protectfrommelee"),
                        "running out clears every prayer");
         SELFTEST_CHECK(player->headicons == 0, "and the overhead icon");
 
@@ -28966,7 +28966,7 @@ ToriRSServer_WorldSelftest(void)
          * directions: a one-way mirror would pass the "on" half.
          */
         {
-            int option_run = ToriRSServer_WorldVarp("option_run");
+            int option_run = ToriRSServer_WorldVarp("varp173_option_run");
             int loaded =
                 ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
 
@@ -29177,7 +29177,7 @@ ToriRSServer_WorldSelftest(void)
         selftest_tick(srv);
         SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
         SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
-        SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("option_run")] == 0,
+        SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("varp173_option_run")] == 0,
                        "and the varp the orb reads");
         selftest_tick(srv);
         SELFTEST_CHECK(player->move_count == 1, "out of energy is one tile a tick");
@@ -38272,9 +38272,9 @@ ToriRSServer_WorldSelftest(void)
         static struct ToriRSServerCapture capture;
         const struct ToriRSServerWire* saved_wire = srv->wire;
         const struct ToriRSServerWire* wire239 = ToriRSServer_WireByName("osrs239");
-        int hp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "inferno_zuk_hp");
+        int hp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb5653_inferno_zuk_hp");
         int base =
-            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "inferno_zuk_base_hp");
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb5654_inferno_zuk_base_hp");
         int opcode = wire239 ? ToriRSServer_WireOpcode(wire239, PKT_NAME_VARP_LARGE) : -1;
 
         selftest_reset_world(srv, player, 402, 402);
@@ -38695,7 +38695,7 @@ ToriRSServer_WorldSelftest(void)
             fprintf(stderr, "  SKIP  no compiled script pack\n");
             goto bank_worn_done;
         }
-        if2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if2");
+        if2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp262_if2");
         SELFTEST_CHECK(if2 == 262, "if2 must be varp 262 (the mask the client reads), got %d",
                        if2);
 
@@ -38976,7 +38976,7 @@ ToriRSServer_WorldSelftest(void)
         {
             int spell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
                                                "magic_spellbook:teleport_home_standard");
-            int stamp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "aide_tele_timer");
+            int stamp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp892_aide_tele_timer");
             /* Far enough from the Lumbridge respawn tile that arrival is not
              * something the fixture could have been standing on already. */
             int const away_x = 3200;
@@ -39141,9 +39141,9 @@ ToriRSServer_WorldSelftest(void)
         {
             const struct ToriRSServerIds* ids = ToriRSServer_Ids();
             int keypad = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "bankpin_keypad");
-            int varp_code = ToriRSServer_WorldVarp("bankpin_code");
-            int varp_set = ToriRSServer_WorldVarp("bankpin_set");
-            int varp_verified = ToriRSServer_WorldVarp("bankpin_verified");
+            int varp_code = ToriRSServer_WorldVarp("varp5727_bankpin_code");
+            int varp_set = ToriRSServer_WorldVarp("varp5728_bankpin_set");
+            int varp_verified = ToriRSServer_WorldVarp("varp5729_bankpin_verified");
             const int k_pin = 4622;
 
             SELFTEST_CHECK(keypad > 0, "bankpin_keypad should resolve in the interface pack");
@@ -39163,7 +39163,7 @@ ToriRSServer_WorldSelftest(void)
              * fresh server-allocated varps — and this is what stops a later
              * "tidy-up" pointing it back at the cache's own name.
              */
-            SELFTEST_CHECK(varp_code != ToriRSServer_WorldVarp("bankpin_2"),
+            SELFTEST_CHECK(varp_code != ToriRSServer_WorldVarp("varp563_bankpin_2"),
                            "the PIN must not live in bankpin_2 — the GE owns all 32 of its bits");
             SELFTEST_CHECK(ToriRSServer_VarbitCarrierBits(varp_code) == 0 &&
                                ToriRSServer_VarbitCarrierBits(varp_set) == 0 &&
@@ -41413,8 +41413,8 @@ ToriRSServer_WorldSelftest(void)
         else
         {
             const struct ToriRSServerIds* ids = ToriRSServer_Ids();
-            int varp_zone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_zone_log");
-            int varp_mapzone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_mapzone_log");
+            int varp_zone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5726_mock_zone_log");
+            int varp_mapzone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6299_mock_mapzone_log");
             int armed_at;
 
             player->delayed_until = 0;
@@ -42472,7 +42472,7 @@ ToriRSServer_WorldSelftest(void)
                 int saved_level[2] = { 0, 0 };
                 int saved_xp[2] = { 0, 0 };
                 /* `%desertrescue` >= ^desertrescue_learned_darts (16). */
-                int desertrescue = ToriRSServer_WorldVarp("desertrescue");
+                int desertrescue = ToriRSServer_WorldVarp("varp197_desertrescue");
                 int saved_desertrescue = desertrescue >= 0 ? player->varps[desertrescue] : 0;
 
                 if( desertrescue >= 0 )
@@ -42614,9 +42614,9 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int zone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_zone_log");
-            int mapzone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_mapzone_log");
-            int zone_clock = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_zone_clock");
+            int zone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5726_mock_zone_log");
+            int mapzone_log = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6299_mock_mapzone_log");
+            int zone_clock = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5725_mock_zone_clock");
             int detected_at;
 
             SELFTEST_CHECK(zone_log > 0 && mapzone_log > 0 && zone_clock > 0,
@@ -44212,7 +44212,7 @@ ToriRSServer_WorldSelftest(void)
         else
         {
             int cook_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "cook");
-            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cookquest");
+            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp29_cookquest");
             int milk = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_milk");
             int egg = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "egg");
             int flour = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "pot_flour");
@@ -46466,7 +46466,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "tzhaar_fightcave_swarm_boss");
                     int healer_type = ToriRSServer_ContentSymbol(
                         TORIRSSERVER_PACK_NPC, "tzhaar_fightcave_swarm_boss_cleric");
-                    int test_varp = ToriRSServer_WorldVarp("fightcave_test_fails");
+                    int test_varp = ToriRSServer_WorldVarp("varp6730_fightcave_test_fails");
                     int jad = -1;
 
                     selftest_reset_world(srv, player, 300, 636);
@@ -47061,11 +47061,11 @@ ToriRSServer_WorldSelftest(void)
             const struct SSVM_Script* zuk_start =
                 SSVM_ProviderGetByName(srv->scripts, "[queue,inferno_zuk_start]");
             int inferno_active =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "inferno_active");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5889_inferno_active");
             int inferno_death_pending =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "inferno_death_pending");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6256_inferno_death_pending");
             int instance_handle =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
             int zuk_type = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_NPC, "inferno_tzkalzuk_placeholder");
             int overlay_hud = ToriRSServer_ContentSymbol(
@@ -47707,7 +47707,7 @@ ToriRSServer_WorldSelftest(void)
         else
         {
             struct ToriRSServerPlayer* p = srv->active_player;
-            int varp_date = ToriRSServer_WorldVarp("date_minutes");
+            int varp_date = ToriRSServer_WorldVarp("varp3078_date_minutes");
             int saved_skip = srv->clock_skip_minutes;
             long long real_before;
             long long real_after;
@@ -48531,9 +48531,9 @@ ToriRSServer_WorldSelftest(void)
             int obj_twigz = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_twigz");
             int obj_twigo = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_twigo");
             int obj_daconiarock = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_daconiarock");
-            int varp_grandtree = ToriRSServer_WorldVarp("grandtree");
-            int varp_tuzo = ToriRSServer_WorldVarp("grandtree_tuzo_mask");
-            int varp_qp = ToriRSServer_WorldVarp("qp");
+            int varp_grandtree = ToriRSServer_WorldVarp("varp150_grandtree");
+            int varp_tuzo = ToriRSServer_WorldVarp("varp6674_grandtree_tuzo_mask");
+            int varp_qp = ToriRSServer_WorldVarp("varp101_qp");
             int c_given_twigs = ToriRSServer_ContentConstantInt("grandtree_given_twigs", -1);
             int c_unlocked_trapdoor = ToriRSServer_ContentConstantInt("grandtree_unlocked_trapdoor", -1);
             int c_defeated_demon = ToriRSServer_ContentConstantInt("grandtree_defeated_black_demon", -1);
@@ -48791,13 +48791,13 @@ ToriRSServer_WorldSelftest(void)
             int npc_paladin1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "upass_paladin1");
             int obj_badge1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "paladinbadge1");
             int obj_meatpie = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "meat_pie");
-            int varp_upass = ToriRSServer_WorldVarp("upass");
+            int varp_upass = ToriRSServer_WorldVarp("varp161_upass");
             /* upass_paladinbadge_1 is a named VARBIT (configs/all.varbit), not a
              * top-level varp -- ToriRSServer_WorldVarp resolves TORIRSSERVER_PACK_VARP
              * only, so this needs the varbit registry and the Varbit{Get,Set}
              * accessors instead of player->varps[]/WorldSetVarp directly. */
             int varbit_badge1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
-                                                            "upass_paladinbadge_1");
+                                                            "varb9128_upass_paladinbadge_1");
             int c_entered_second_area =
                 ToriRSServer_ContentConstantInt("upass_entered_second_area", -1);
             int c_defeated_iban = ToriRSServer_ContentConstantInt("upass_defeated_iban", -1);
@@ -49513,7 +49513,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 int npc_rat_indoors = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "rat_indoors");
                 int obj_rats_tail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rats_tail");
-                int varp_hetty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "hetty");
+                int varp_hetty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp67_hetty");
 
                 SELFTEST_CHECK(npc_rat_indoors >= 0 && obj_rats_tail >= 0 && varp_hetty >= 0,
                                "the ::hettyrun C-side names should all resolve: "
@@ -49843,7 +49843,7 @@ ToriRSServer_WorldSelftest(void)
              * death dispatch. */
             {
                 int npc_lucien2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "ikov_lucien2");
-                int varp_ikov = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "ikov");
+                int varp_ikov = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp26_ikov");
                 int obj_pendant = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ikov_pendantofarmardyl");
 
                 SELFTEST_CHECK(npc_lucien2 >= 0 && varp_ikov >= 0 && obj_pendant >= 0,
@@ -49889,7 +49889,7 @@ ToriRSServer_WorldSelftest(void)
                         player->varps[varp_ikov] = 70; /* ikov_helping_armadyl */
                         player->worn[2].obj_id = obj_pendant; /* wearpos=2, cache-confirmed */
                         player->worn[2].count = 1;
-                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")];
+                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")];
 
                         ToriRSServer_WorldNpcDied(srv, slot);
                         /*
@@ -49920,11 +49920,11 @@ ToriRSServer_WorldSelftest(void)
                                        "ikov_lucien2's death should complete the Armadyl path, "
                                        "got ikov=%d",
                                        player->varps[varp_ikov]);
-                        SELFTEST_CHECK(player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")] ==
+                        SELFTEST_CHECK(player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")] ==
                                        qp_before + 1,
                                        "ikov_lucien2's death should award +1 QP, went %d -> %d",
                                        qp_before,
-                                       player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")]);
+                                       player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")]);
                     }
                 }
             }
@@ -49974,7 +49974,7 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int varp_grail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "grail");
+            int varp_grail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5_grail");
             int obj_napkin = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "holy_table_napkin");
             int obj_whistle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "magic_whistle");
             int obj_grail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "holy_grail");
@@ -50429,7 +50429,7 @@ ToriRSServer_WorldSelftest(void)
 
             /* itkeepgatelock transmit fix. */
             {
-                int carrier = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "itkeepgatelock");
+                int carrier = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp113_itkeepgatelock");
 
                 SELFTEST_CHECK(carrier >= 0,
                                "itkeepgatelock should resolve in configs/all.varp.compack");
@@ -50449,11 +50449,11 @@ ToriRSServer_WorldSelftest(void)
             {
                 int npc_professor =
                     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "observatory_professor");
-                int varp_itgronigen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "itgronigen");
+                int varp_itgronigen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp112_itgronigen");
                 int vb_starsign =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "observatory_starsign");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3828_observatory_starsign");
                 int vb_scopelooked =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "observatory_scopelooked");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3836_observatory_scopelooked");
                 int obj_sapphire = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "uncut_sapphire");
                 int obj_tuna = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "tuna");
                 int stat_crafting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
@@ -50535,7 +50535,7 @@ ToriRSServer_WorldSelftest(void)
                         craft_xp_before = player->stat_xp_tenths[stat_crafting];
                         sapphire_before = selftest_count_obj(player, obj_sapphire);
                         tuna_before = selftest_count_obj(player, obj_tuna);
-                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")];
+                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")];
 
                         selftest_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                         SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
@@ -50670,11 +50670,11 @@ ToriRSServer_WorldSelftest(void)
                             tuna_before,
                             selftest_count_obj(player, obj_tuna));
                         SELFTEST_CHECK(
-                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")] ==
+                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")] ==
                                 qp_before + 2,
                             "completing the quest should award +2 QP, went %d -> %d",
                             qp_before,
-                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")]);
+                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")]);
 
                         ToriRSServer_WorldNpcFree(srv, slot);
                         ToriRSServer_WorldNpcReap(srv);
@@ -50717,7 +50717,7 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int varp_elena = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "elenaquest");
+            int varp_elena = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp165_elenaquest");
             int obj_bucket_water = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_water");
             int obj_bucket_empty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_empty");
             int obj_spade = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "spade");
@@ -50752,7 +50752,7 @@ ToriRSServer_WorldSelftest(void)
                                                    22, 23, 24, 25, 26, 27, 28, 29, 30 };
                 int mud_slot;
                 int i;
-                int varp_biohazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "biohazard");
+                int varp_biohazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp68_biohazard");
 
                 /* mud_patch.rs2 also answers to Biohazard ("the ground's
                  * been filled in") -- an earlier stanza in this same run
@@ -51175,8 +51175,8 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int varp_biohazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "biohazard");
-            int varp_bioerrand = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "bioerrand");
+            int varp_biohazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp68_biohazard");
+            int varp_bioerrand = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6004_bioerrand");
 
             int npc_jerico = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "jerico");
             int npc_omart = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "omart");
@@ -52084,7 +52084,7 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int varp_seaslug = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "seaslugquest");
+            int varp_seaslug = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp159_seaslugquest");
             int loc_ladder = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "seaslug_ladder");
             int loc_panel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "slug_breakable_panel");
             int loc_crane = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "seaslug_crane");
@@ -52391,7 +52391,7 @@ ToriRSServer_WorldSelftest(void)
         else
         {
         int loc_snake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "snake_vine_full");
-        int varp_jp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "junglepotion");
+        int varp_jp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp175_junglepotion");
         int obj_unid_snake =
             ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "unidentified_snake_weed");
         int obj_snake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "snake_weed");
@@ -52626,9 +52626,9 @@ ToriRSServer_WorldSelftest(void)
         {
         int npc_mosol = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "mosol_rei");
         int npc_trufitus = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "trufitus");
-        int varp_zq = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "zombiequeen");
-        int varp_zqmech = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "zq_map_mechanisms");
-        int varp_jp2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "junglepotion");
+        int varp_zq = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp116_zombiequeen");
+        int varp_zqmech = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6201_zq_map_mechanisms");
+        int varp_jp2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp175_junglepotion");
         int obj_belt = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "mosol_wampum_belt");
         int obj_spade = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "spade");
         int obj_chisel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "chisel");
@@ -53248,8 +53248,8 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int varp_waterfall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "waterfall_quest");
-            int varp_puzzle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "waterfall_golrie_and_puzzle");
+            int varp_waterfall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp65_waterfall_quest");
+            int varp_puzzle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5917_waterfall_golrie_and_puzzle");
             int npc_almera = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "almera_waterfall_quest");
             int obj_airrune = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "airrune");
             int obj_waterrune = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "waterrune");
@@ -53526,7 +53526,7 @@ ToriRSServer_WorldSelftest(void)
                          * chasing it further didn't converge in the time
                          * available. Disclosed, not masked.
                          */
-                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")];
+                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")];
                         (void)qp_before;
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
@@ -54126,8 +54126,8 @@ ToriRSServer_WorldSelftest(void)
                 int npc_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "count_draynor");
                 int obj_stake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "stake");
                 int obj_hammer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hammer");
-                int varp_vampire = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "vampire");
-                int varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+                int varp_vampire = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp178_vampire");
+                int varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
 
                 SELFTEST_CHECK(npc_type >= 0 && obj_stake >= 0 && obj_hammer >= 0 &&
                                    varp_vampire >= 0 && varp_qp >= 0,
@@ -55262,7 +55262,7 @@ ToriRSServer_WorldSelftest(void)
                 int npc_spider = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "shapeshifterspider");
                 int npc_bear = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "shapeshifterbear");
                 int npc_wolf = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "shapeshifterwolf");
-                int varp_ballquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "ballquest");
+                int varp_ballquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp226_ballquest");
 
                 SELFTEST_CHECK(npc_glob >= 0 && npc_spider >= 0 && npc_bear >= 0 &&
                                    npc_wolf >= 0 && varp_ballquest >= 0,
@@ -55501,8 +55501,8 @@ ToriRSServer_WorldSelftest(void)
             if( slot >= 0 )
             {
                 int category = ToriRSServer_LocCategory(loc_pete_sidedoor);
-                int varp_phoenixgang = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "phoenixgang");
-                int varp_heroquest2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "heroquest");
+                int varp_phoenixgang = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp145_phoenixgang");
+                int varp_heroquest2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp188_heroquest");
                 int obj_misc_key = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "misc_key");
 
                 SELFTEST_CHECK(varp_phoenixgang >= 0, "pete_sidedoor check needs phoenixgang, got %d",
@@ -55632,7 +55632,7 @@ ToriRSServer_WorldSelftest(void)
                 int obj_grip_keys = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grip_keys");
                 int obj_ice_gloves = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ice_gloves");
                 int obj_hot_feather = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hot_feather");
-                int varp_heroquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "heroquest");
+                int varp_heroquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp188_heroquest");
                 /* Literal, not a symbol lookup -- TORIRSSERVER_PACK_CONSTANT has no
                  * other caller in this file to trust, and these four values
                  * are read directly off
@@ -55967,8 +55967,8 @@ ToriRSServer_WorldSelftest(void)
             int compost = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_compost");
             int seed_art = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "potato_seed");
             int wet_art = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "potato_seed_watered");
-            int vb_state = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varbit_708");
-            int vb_show = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "farming_transmit_a");
+            int vb_state = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb708_varbit_708");
+            int vb_show = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb4771_farming_transmit_a");
             int slot = -1;
 
             SELFTEST_CHECK(patch_loc > 0 && rake > 0 && weeds > 0 && seed > 0 && can8 > 0 &&
@@ -56124,7 +56124,7 @@ ToriRSServer_WorldSelftest(void)
              */
             {
                 int patch3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "farming_veg_patch_3");
-                int vb710 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varbit_710");
+                int vb710 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb710_varbit_710");
                 int slot3 = -1;
 
                 selftest_park_player(srv, 2805, 3466);
@@ -56259,7 +56259,7 @@ ToriRSServer_WorldSelftest(void)
             int grain = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grain");
             int pot_empty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "pot_empty");
             int pot_flour = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "pot_flour");
-            int vb_show = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "mill_showflour");
+            int vb_show = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb5325_mill_showflour");
             int hopper_slot = -1;
             int levers_slot = -1;
             int bin_slot = -1;
@@ -56428,7 +56428,7 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            int vb_order = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rd_room_order");
+            int vb_order = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb658_rd_room_order");
             int wrappers[12];
             int canonical[12];
             int all_symbols = vb_order > 0;
@@ -56503,7 +56503,7 @@ ToriRSServer_WorldSelftest(void)
             int tinderbox = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "tinderbox");
             int fire_loc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "fire");
             int firemaking = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "firemaking");
-            int action_delay = ToriRSServer_WorldVarp("action_delay");
+            int action_delay = ToriRSServer_WorldVarp("varp5732_action_delay");
             /* Two tiles apart, so the second round's logs do not land on the
              * first fire — `~area_allow_loc_add` would refuse that tile. */
             int fire_x[2] = { g_home_x, g_home_x + 2 };
@@ -56839,7 +56839,7 @@ ToriRSServer_WorldSelftest(void)
         else
         {
             int range_loc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "cooksquestrange");
-            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cookquest");
+            int cookquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp29_cookquest");
             int raw_shrimp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "raw_shrimp");
             int raw_beef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "raw_beef");
             int shrimp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "shrimp");
@@ -56984,7 +56984,7 @@ ToriRSServer_WorldSelftest(void)
             const struct SSVM_Script* probe =
                 SSVM_ProviderGetByName(srv->scripts, "[proc,rs2012_qbd_add_hit_host_probe]");
             int caster_alive =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_qbd_time_caster_alive");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6241_rs2012_qbd_time_caster_alive");
             int soul_type =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "rs2012_qbd_tortured_soul");
             int worm_type =
@@ -57120,14 +57120,14 @@ ToriRSServer_WorldSelftest(void)
                 SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_platform_hazard]");
             const struct SSVM_Script* coffer_arrive =
                 SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_coffer_arrive]");
-            int qbd_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_qbd_active");
-            int qbd_handle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_qbd_handle");
+            int qbd_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6231_rs2012_qbd_active");
+            int qbd_handle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6254_rs2012_qbd_handle");
             int reward_ready =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_qbd_reward_ready");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6238_rs2012_qbd_reward_ready");
             int time_stopped =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_qbd_time_stopped");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6243_rs2012_qbd_time_stopped");
             int instance_handle =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
             int overlay_hud = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_COMPONENT, "toplevel_osrs_stretch:overlay_hud");
             int mainmodal = ToriRSServer_ContentSymbol(
@@ -58340,10 +58340,10 @@ ToriRSServer_WorldSelftest(void)
                 SSVM_ProviderGetByName(srv->scripts, "[softtimer,rs2012_td_install_exit]");
             const struct SSVM_Script* death =
                 SSVM_ProviderGetByName(srv->scripts, "[queue,player_death]");
-            int td_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_td_active");
-            int td_handle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "rs2012_td_handle");
+            int td_active = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6252_rs2012_td_active");
+            int td_handle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6253_rs2012_td_handle");
             int instance_handle =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
             int cave = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "rs2012_loc_40260");
             int td_types[3] = {
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "rs2012_tormented_demon_melee"),
@@ -59060,7 +59060,7 @@ ToriRSServer_WorldSelftest(void)
                 int inside_z = player->z;
                 int inside_level = player->level;
                 int generic_handle_varp =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
                 /* A second session, parked on ordinary map for the whole
                  * stanza. The linger window is ticked out below with the
                  * dropped session gone, and a wholly empty world cannot tick:

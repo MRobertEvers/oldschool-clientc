@@ -4,7 +4,7 @@ return {
     setup = { "::clearinv", "::give bluedye 1", "::give orangedye 1" },
     run = function(t)
         local br, bd = t.quest.bind({
-            varp = "gobdip_main",
+            varp = "varb2378_gobdip_main",
             constants = { not_started = 0, waiting_orange = 3, waiting_blue = 4, waiting_brown = 5, complete = 6 },
             row = "quest_goblindiplomacy",
             display = "Goblin Diplomacy",
@@ -151,7 +151,7 @@ return {
         local _, orange_n = t.inv.count("goblin_armour_orange")
         t.check("orange.consumed", orange_n == 0, "goblin_armour_orange left " .. tostring(orange_n) .. " (want 0)")
         -- Grubfoot in orange
-        t.expect("grub.vis.orange", t.var.expect("gobdip_grubfoot_vis", 1))
+        t.expect("grub.vis.orange", t.var.expect("varb13594_gobdip_grubfoot_vis", 1))
         for i = 1, 2 do
             res, det = t.player.talk_to("catwalk_goblin", 1)
             t.step("grub.orange.talk.try" .. i, res == "ok" and "PASS" or "FAIL", tostring(det):sub(1, 200))
@@ -184,7 +184,7 @@ return {
             "player:Never mind, anything is worth a try.",
         })
         t.expect("stage.waiting_brown", t.quest.expect_stage("waiting_brown"))
-        t.expect("grub.vis.blue", t.var.expect("gobdip_grubfoot_vis", 2))
+        t.expect("grub.vis.blue", t.var.expect("varb13594_gobdip_grubfoot_vis", 2))
         for i = 1, 2 do
             res, det = t.player.talk_to("catwalk_goblin", 1)
             t.step("grub.blue.talk.try" .. i, res == "ok" and "PASS" or "FAIL", tostring(det):sub(1, 200))

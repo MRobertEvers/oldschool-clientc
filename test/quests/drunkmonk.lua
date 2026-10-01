@@ -24,7 +24,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "drunkmonkquest",
+            varp = "varp30_drunkmonkquest",
             constants = {
                 complete = 80,
                 finding_water = 40,

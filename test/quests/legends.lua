@@ -45,7 +45,7 @@ return {
         "::give soulrune 1", "::give mindrune 1", "::give earthrune 1", "::give lawrune 2",
     },
     bind = {
-        varp = "legendsquest",
+        varp = "varp139_legendsquest",
         constants = {
             not_started = 0, started = 1, mapped_jungle = 2, got_bullroarer = 3,
             swung_bullroarer = 4, accepted_rescue_ungadulu = 5,
@@ -180,13 +180,13 @@ return {
             for _, sketch in ipairs({ { "moveToWest", 2791, 2917 }, { "moveToMiddle", 2852, 2915 }, { "moveToEast", 2910, 2916 } }) do
                 local step, x, z = sketch[1], sketch[2], sketch[3]
                 t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
-                local _, bits_before = t.var.server("legends_bits")
+                local _, bits_before = t.var.server("varp6202_legends_bits")
                 local drawn = false
                 for try = 1, 5 do
                     t.exec(step .. "-map-" .. try, t.player.inv_op, "thkaramjamap", 2)
                     t.chat.drain({ max_pages = 4 })
                     t.ticks(3)
-                    local _, bits_after = t.var.server("legends_bits")
+                    local _, bits_after = t.var.server("varp6202_legends_bits")
                     local _, complete = t.inv.count("thkaramjamapcomp")
                     if bits_after ~= bits_before or complete > 0 then
                         t.ticks(3)
@@ -265,7 +265,7 @@ return {
             local _, logs_after = t.inv.count("logs")
             t.check("leg.1.logs", logs_after == 0, "dropped " .. dropped .. " logs from the jungle cuts: "
                 .. tostring(logs_before) .. " -> " .. tostring(logs_after))
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             local _, roarer = t.inv.count("bullroarer")
             t.check("leg.1.end", true, "tile " .. at.x .. "," .. at.z .. " level " .. (at.level or 0)
@@ -494,7 +494,7 @@ return {
             t.ticks(2)
             t.inv.expect_absent("soulrune")
 
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             t.check("leg.2.end", true, "tile " .. at.x .. "," .. at.z .. " level " .. (at.level or 0)
                 .. ", legendsquest=" .. tostring(stage) .. " read from the server, soul rune set into the marked wall; "
@@ -580,7 +580,7 @@ return {
             place("useEmerald", "emerald", 2757, 9297)
 
             local _, opal = t.inv.count("opal")
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             t.check("leg.3.end", opal == 1 and t.chat.kind() == "none", "tile " .. at.x .. "," .. at.z .. " level "
                 .. (at.level or 0) .. ", legendsquest=" .. tostring(stage) .. " read from the server; six gems set "
@@ -869,7 +869,7 @@ return {
             t.ticks(2)
             t.expect("quest.stage.defeated_nezikchened_fire", t.quest.expect_stage(12))
 
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             local _, sharks_left = t.inv.count("shark")
             local _, pure_bowl = t.inv.count("goldbowlbless_pure")
@@ -999,7 +999,7 @@ return {
             t.ticks(2)
             t.expect("quest.stage.talk_gujuo_pool", t.quest.expect_stage(15))
 
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             local _, germ = t.inv.count("yommiseeds_germ")
             local _, reed = t.inv.count("reed_hollow")
@@ -1347,7 +1347,7 @@ return {
             t.exec("talkToEchned-dagger", t.inv.await, "deathdagger", 1, 10)
             t.expect("quest.stage.received_dagger", t.quest.expect_stage(20))
 
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             t.check("leg.6.end", stage == 20 and t.chat.kind() == "none",
                 "tile " .. at.x .. "," .. at.z .. " level " .. (at.level or 0) .. ", legendsquest=" .. tostring(stage)
@@ -1684,7 +1684,7 @@ return {
             end
 
             ---------------------------------------------------------------- the quiet point
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             t.check("leg.7.end", t.chat.kind() == "none",
                 "tile " .. at.x .. "," .. at.z .. " level " .. (at.level or 0) .. ", legendsquest=" .. tostring(stage)
@@ -1768,7 +1768,7 @@ return {
 
             ---------------------------------------------------------------- the quiet point
             t.ticks(12)
-            local _, stage = t.var.server("legendsquest")
+            local _, stage = t.var.server("varp139_legendsquest")
             local _, at = t.world.tile()
             local _, pure = t.inv.count("goldbowlbless_pure")
             t.check("leg.8.end", t.chat.kind() == "none" and pure == 1,
@@ -1908,7 +1908,7 @@ return {
             end
             t.ticks(6)
             do
-                local _, stage = t.var.server("legendsquest")
+                local _, stage = t.var.server("varp139_legendsquest")
                 local _, at = t.world.tile()
                 local _, totem = t.inv.count("thtotempole")
                 t.check("leg.9.end", t.chat.kind() == "none" and totem == 1,
@@ -1963,7 +1963,7 @@ return {
                 t.check("useTotemOnTotem-prayerwidget", widget_result == "ok", "prayerbook:prayer15 -> " .. tostring(widget_result) .. " " .. tostring(widget))
                 t.ui.invoke(widget, 1)
                 t.ticks(2)
-                local _, on = t.var.varbit("prayer_protectfrommelee")
+                local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
                 t.check("useTotemOnTotem-protect", on == 1, "prayer_protectfrommelee varbit " .. tostring(on))
             end
 

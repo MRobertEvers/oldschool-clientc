@@ -188,8 +188,8 @@ def check_content_contract() -> None:
     ):
         require(CRAFT, needle, "native recipe dispatch")
     for needle in (
-        "%gauntlet_combo_tick ! map_clock", "%gauntlet_combo_tick = map_clock;",
-        "%gauntlet_eat_delay = add(map_clock, $delay);", "%action_delay = %gauntlet_eat_delay;",
+        "%varp6681_gauntlet_combo_tick ! map_clock", "%varp6681_gauntlet_combo_tick = map_clock;",
+        "%varp6682_gauntlet_eat_delay = add(map_clock, $delay);", "%varp5732_action_delay = %varp6682_gauntlet_eat_delay;",
     ):
         require(CRAFT, needle, "crystal-paddlefish combo timing")
     for npc in DATA["npc_roster"]:
@@ -237,11 +237,11 @@ def check_content_contract() -> None:
         require(prepare, denominator, "tertiary denominator")
     require(prepare, "if ($hm = 1) { $clue_rate = 19; } else { $clue_rate = 23; }", "Elite clue-rate reward")
     require(prepare, "inv_total(collection_transmit, gauntletpet)", "durable pet ownership")
-    require(prepare, "%pet_insurance_gauntlet = 0", "insured pet ownership")
-    require(prepare, "%pet_menagerie_gauntlet = 0", "menagerie pet ownership")
+    require(prepare, "%varb8439_pet_insurance_gauntlet = 0", "insured pet ownership")
+    require(prepare, "%varb8441_pet_menagerie_gauntlet = 0", "menagerie pet ownership")
     cape_owned = proc_body(REWARDS, "gauntlet_owns_cape")
     require(cape_owned, "inv_total(worn, gauntlet_crystalline_cape)", "worn cape ownership")
-    require(cape_owned, "%gauntlet_cape_rack = 1", "cape-rack ownership")
+    require(cape_owned, "%varp6698_gauntlet_cape_rack = 1", "cape-rack ownership")
     require(prepare, "~gauntlet_owns_cape = false", "cape-rack ownership")
     require(INV_CONFIG, "[gauntlet_pending_reward]\nsize=12", "immutable pending rewards")
     deliver = proc_body(REWARDS, "gauntlet_deliver_reward")
@@ -252,12 +252,12 @@ def check_content_contract() -> None:
     ids = {int(value) for value in re.findall(r"~ca_task_complete\((\d+)\)", PROGRESS)}
     assert ids == set(DATA["combat_achievement_ids"]), f"CA ids drifted: {sorted(ids)}"
     for needle in (
-        "%gauntlet_layout_seed = add(random(32767), 1);",
+        "%varp6668_gauntlet_layout_seed = add(random(32767), 1);",
         "~gauntlet_layout_pick($dx, $dz)", "map_instance_build($handle);",
         "inv_movetoslot(worn, gauntlet_holding_worn, $slot, $slot);",
         "inv_movetoslot(gauntlet_holding_worn, worn, $slot, $slot);",
         "midi_song(^gauntlet_music_track);", "midi_song(-1);",
-        "%summoning_pet_active = 1", "%gauntlet_pet_active = 1", "npc_findowned = true",
+        "%varp6259_summoning_pet_active = 1", "%varp6689_gauntlet_pet_active = 1", "npc_findowned = true",
         "You are already in the starting room.", "~gauntlet_award_completion_cape;",
     ):
         require(CORE, needle, "session/layout contract")
@@ -265,30 +265,30 @@ def check_content_contract() -> None:
         "[proc,gauntlet_pet_spawn]", "[timer,gauntlet_pet_follow]",
         "[opheld5,gauntletpet]", "[opnpc4,gauntlet_pet]",
         "[opnpc3,gauntlet_pet]", "[opnpc1,gauntlet_pet]",
-        "%total_completed_gauntlet_hm > 0", "%pet_insurance_gauntlet = 1",
+        "%varp2354_total_completed_gauntlet_hm > 0", "%varb8439_pet_insurance_gauntlet = 1",
     ):
         require(PROGRESS, needle, "Youngllef follower lifecycle")
     # The Gauntlet cape's own storage hook was retired in favor of the
     # cache-enum Costume Room; `%gauntlet_cape_rack` survives only as the
     # one-time migration flag Construction imports on cape-rack open.
-    require(PROGRESS, "%gauntlet_cape_rack", "cape-rack migration flag retained")
+    require(PROGRESS, "%varp6698_gauntlet_cape_rack", "cape-rack migration flag retained")
     for needle in (
-        "[proc,poh_costume_open]", "%gauntlet_cape_rack = 1",
+        "[proc,poh_costume_open]", "%varp6698_gauntlet_cape_rack = 1",
         "inv_add(poh_costumes, gauntlet_crystalline_cape, 1)",
-        "%gauntlet_cape_rack = 0",
+        "%varp6698_gauntlet_cape_rack = 0",
     ):
         require(COSTUME_ROOM, needle, "Gauntlet cape costume-room migration")
     constants = (GAUNTLET / "configs" / "gauntlet.constant").read_text()
     require(constants, "^gauntlet_music_track = 650", "cache music dbrow contract")
     for needle in (
         "[proc,gauntlet_layout_east]", "[proc,gauntlet_layout_north]",
-        "[proc,gauntlet_layout_pick]", "modulo(%gauntlet_layout_seed, 2)",
+        "[proc,gauntlet_layout_pick]", "modulo(%varp6668_gauntlet_layout_seed, 2)",
     ):
         require(LAYOUT, needle, "seeded layout contract")
     for needle in (
         "[proc,gauntlet_floor_place]", "[proc,gauntlet_floor_damage_tick]",
         "[proc,gauntlet_spawn_tornadoes]", "[queue,gauntlet_commit_hunllef]",
-        "%gauntlet_offpray_hits >= 6", "%gauntlet_hunllef_attacks < 4",
+        "%varp6096_gauntlet_offpray_hits >= 6", "%varp6094_gauntlet_hunllef_attacks < 4",
     ):
         require(HUNLLEF, needle, "Hunllef state machine")
     # The tornado wave is a clock, not a dice roll, and the floor pulses rather
@@ -296,8 +296,8 @@ def check_content_contract() -> None:
     # pass and both are invisible in a short test — a `random(6)` tornado and a
     # gapless floor still look like a working fight.
     for needle in (
-        "~gauntlet_tornado_ready", "%gauntlet_tornado_cd <= 0",
-        "%gauntlet_tornado_cd = ^gauntlet_tornado_cooldown;",
+        "~gauntlet_tornado_ready", "%varp6902_gauntlet_tornado_cd <= 0",
+        "%varp6902_gauntlet_tornado_cd = ^gauntlet_tornado_cooldown;",
         "[proc,gauntlet_floor_idle_ticks]", "[proc,gauntlet_floor_pattern_count]",
         "[proc,gauntlet_floor_rect_easy]", "[proc,gauntlet_floor_rect_hard]",
         "[proc,gauntlet_hunllef_trample]",
@@ -319,17 +319,17 @@ def check_content_contract() -> None:
         require(SELFTEST, needle, "::gauntletrun encounter checks")
     for needle in (
         "[oploc1,gauntlet_scoreboard]", "[oploc1,gauntlet_deposit_box]",
-        "if_openmain(gauntlet_recipes)", "%gauntlet_bryn_intro = 1",
+        "if_openmain(gauntlet_recipes)", "%varp6699_gauntlet_bryn_intro = 1",
     ):
         require(LOBBY, needle, "lobby interaction")
     require(CORE, "npc_findexact(^gauntlet_bryn_coord, gauntlet_instructor)", "Bryn introduction gate")
     for needle in (
         "[if_button,gauntlet_overlay:timer]", "if_opensub(toplevel_osrs_stretch:mainmodal, gauntlet_map, 0)",
-        "~gauntlet_mark_room(%gauntlet_start)",
+        "~gauntlet_mark_room(%varb9291_gauntlet_start)",
     ):
         require(MAP_STATE + CORE, needle, "map/UI contract")
     for text in (MAGIC, TELEPORT, HOME_TELEPORT):
-        require(text, "%player_in_gauntlet = 1", "Gauntlet teleport block")
+        require(text, "%varb9178_player_in_gauntlet = 1", "Gauntlet teleport block")
 
 
 def main() -> None:

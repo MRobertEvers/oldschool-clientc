@@ -68,7 +68,7 @@ return {
             "worn rune_scimitar " .. tostring(worn_result) .. " " .. tostring(worn)
                 .. " (the second of two given; one stays in the backpack)")
         t.expect("setup.give_shark", t.inv.expect_has("shark", 10))
-        t.expect("setup.setvar", t.var.await_server("ballquest", 1, 1))
+        t.expect("setup.setvar", t.var.await_server("varp226_ballquest", 1, 1))
         t.finish(0)
     end,
 }

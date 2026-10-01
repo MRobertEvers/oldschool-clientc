@@ -42,7 +42,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "feud_var",
+            varp = "varb334_feud_var",
             constants = {
                 accepted = 1,
                 bandit_beaten = 26,
@@ -289,7 +289,7 @@ return {
         })
         t.expect("operatorTask3-blackjack", t.inv.await("blackjack_oak", 1, 10))
         t.exec("equipBlackjack", t.player.equip, "blackjack_oak")
-        t.expect("operatorTask3-lureTaught", t.var.await_server("feud_npc_multi", 2, 5))
+        t.expect("operatorTask3-lureTaught", t.var.await_server("varb340_feud_npc_multi", 2, 5))
 
         -- blackjackVillager: Lure (op4), Knock-Out (op5), Pickpocket (op3).
         -- Wiki The_Feud (oldid 15315438) "3rd villager": "lure a villager ...,
@@ -588,7 +588,7 @@ return {
         t.expect("quest.stage.ready_confront", t.quest.expect_stage("ready_confront"))
         -- The Bandit Leader waits for the villager talk (Transcript:The_Feud,
         -- varbit 338 0 -> 1 there), not for these orders.
-        local bvis_r, bvis = t.var.server("feud_bandit_boss_vis")
+        local bvis_r, bvis = t.var.server("varb338_feud_bandit_boss_vis")
         t.check("ready_confront-banditLeaderHidden", bvis_r == "ok" and bvis == 0, "feud_bandit_boss_vis=" .. tostring(bvis) .. " after the final orders")
 
         -- ==================== talkToMenaphiteLeader / killMenaphiteThug
@@ -631,8 +631,8 @@ return {
             "player:Would you please?",
             "npc:Just run the bandits out of town.",
         })
-        t.expect("talkToAVillager-talked", t.var.await_server("feud_talk_villager", 1, 5))
-        t.expect("talkToAVillager-banditLeaderShown", t.var.await_server("feud_bandit_boss_vis", 1, 5))
+        t.expect("talkToAVillager-talked", t.var.await_server("varb343_feud_talk_villager", 1, 5))
+        t.expect("talkToAVillager-banditLeaderShown", t.var.await_server("varb338_feud_bandit_boss_vis", 1, 5))
 
         -- ==================== talkToBanditLeader / killBanditChampion
         t.exec("goto-talkToBanditLeader", t.player.goto_tile, 3353, 3000, 0)
@@ -647,7 +647,7 @@ return {
         t.exec("killBanditChampion-dead", t.npc.await_dead_engaged, 80)
         t.ticks(5)
         t.expect("quest.stage.bandit_beaten", t.quest.expect_stage("bandit_beaten"))
-        t.expect("bandit_beaten-mayorHidden", t.var.await_server("feud_mayor_multivar", 2, 5))
+        t.expect("bandit_beaten-mayorHidden", t.var.await_server("varb14604_feud_mayor_multivar", 2, 5))
 
         -- ==================== talkToAVillagerToSpawnMayor: "talk to the mayor"
         -- feud_villagers.rs2 [label,feud_villager_talk_to_mayor] (Transcript:The_Feud,
@@ -662,8 +662,8 @@ return {
             "npc:Thank you? For what?",
             "player:I wonder why I bother sometimes!",
         })
-        t.expect("talkToAVillagerToSpawnMayor-talked", t.var.await_server("feud_talk_villager", 2, 5))
-        t.expect("talkToAVillagerToSpawnMayor-mayorShown", t.var.await_server("feud_mayor_multivar", 0, 5))
+        t.expect("talkToAVillagerToSpawnMayor-talked", t.var.await_server("varb343_feud_talk_villager", 2, 5))
+        t.expect("talkToAVillagerToSpawnMayor-mayorShown", t.var.await_server("varb14604_feud_mayor_multivar", 0, 5))
 
         -- ==================== talkToMayor: Ali the Mayor's reveal
         t.exec("goto-talkToMayor", t.player.goto_tile, 3360, 2972, 0)

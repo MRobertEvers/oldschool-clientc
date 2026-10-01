@@ -95,7 +95,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "morttonquest",
+            varp = "varp339_morttonquest",
             constants = {
                 complete = 85,
                 mortton_can_light_altar = 60,
@@ -704,7 +704,7 @@ return {
 
         if temple_stage_now < 60 then
             t.blocked("the temple wall repair (flamtaer_temple.rs2's ::mortton_repairtemple debugproc) did not "
-                .. "reach %morttonquest=mortton_can_light_altar(60) after " .. tostring(temple_trip)
+                .. "reach %varp339_morttonquest=mortton_can_light_altar(60) after " .. tostring(temple_trip)
                 .. " materials trip(s) (5 timberbeam/5 limestonebrick/up-to-25 swamppaste per trip, capped by "
                 .. "Razmire's own restock and by backpack space) -- morttonquest last read "
                 .. tostring(temple_stage_now) .. ". Razmire's builders' store restocks only 5 timberbeam/5 "
@@ -901,7 +901,7 @@ return {
             local pyre_stage_final_result, pyre_stage_final_value = t.quest.stage()
             t.blocked("the funeral pyre ([oploc1,_pyre_remains_loaded] -> light_funeral_pyre's self-re-arming "
                 .. "stat_random(firemaking, 64, 512) roll, mortton_pyre.rs2) never reached "
-                .. "%morttonquest=mortton_lit_pyre(80) after " .. tostring(pyre_rounds) .. " round(s) of 10 ticks "
+                .. "%varp339_morttonquest=mortton_lit_pyre(80) after " .. tostring(pyre_rounds) .. " round(s) of 10 ticks "
                 .. "with firemaking 99 (setup) -- morttonquest last read " .. tostring(pyre_stage_final_value)
                 .. " (" .. tostring(pyre_stage_final_result) .. ")")
             return

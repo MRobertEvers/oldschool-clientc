@@ -84,7 +84,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "grail",
+            varp = "varp5_grail",
             constants = {
                 complete = 10,
                 failed_defeat_titan = 7,

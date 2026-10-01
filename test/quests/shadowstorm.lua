@@ -35,7 +35,7 @@ return {
 
     run = function(t)
         local bind_r, bind_d = t.quest.bind({
-            varp = "agrith_quest",
+            varp = "varb1372_agrith_quest",
             constants = {
                 not_started = 0,
                 see_badden = 10,
@@ -167,7 +167,7 @@ return {
             "npc:Thank you, Dave",
         })
         t.expect("quest.stage.denath", t.quest.expect_stage("denath"))
-        t.expect("reen.moved_to_uzer", t.var.await_server("agrith_reen_uzer", 1, 5))
+        t.expect("reen.moved_to_uzer", t.var.await_server("varb1382_agrith_reen_uzer", 1, 5))
         t.ticks(3)
         local tr0, tile0 = t.world.tile()
         local inroom0 = tr0 == "ok" and tile0.level == 2 and tile0.x >= 2709 and tile0.x <= 2731 and tile0.z >= 4879 and tile0.z <= 4919
@@ -246,7 +246,7 @@ return {
             "*", "*", "npc:reverse order", "*", "*", "*", "*", "*",
             "npc:Thank goodness", "npc:time for the ritual",
         })
-        t.expect("quest.stage.perform_ritual", t.var.await_server("agrith_quest", 80, 5))
+        t.expect("quest.stage.perform_ritual", t.var.await_server("varb1372_agrith_quest", 80, 5))
         local dn_r, dn_d = t.npc.nearest("agrith_denath", 20)
         local jn_r, jn_d = t.npc.nearest("agrith_jennifer", 20)
         t.check("circle.plain_forms_gone", dn_r ~= "ok" and jn_r ~= "ok", "plain denath " .. tostring(dn_r) .. " " .. tostring(dn_d and (dn_d.tile_x or dn_d)) .. "; plain jennifer " .. tostring(jn_r))
@@ -272,7 +272,7 @@ return {
             "npc:Who knows what Denath", "npc:we need eight people",
             "npc:get those three to come back",
         })
-        t.expect("quest.stage.ritual_done", t.var.await_server("agrith_quest", 90, 8))
+        t.expect("quest.stage.ritual_done", t.var.await_server("varb1372_agrith_quest", 90, 8))
         -- ---- QH steps.put(90): pickUpSigil (Denath's sigil left on the circle floor) ----
         local _, sigils_before = t.inv.count("agrith_sigil")
         local pr, pd = t.player.click_obj("agrith_sigil")
@@ -300,7 +300,7 @@ return {
         t.expect("has.tanya_sigil", t.inv.await("agrith_sigil", sig_b2 + 1, 5))
 
         -- ---- QH tellDaveToReturn (2721,4900,0): Evil Dave in the passage ----
-        t.expect("dave.in_passage_var", t.var.await_server("agrith_convinced_dave", 1, 3))
+        t.expect("dave.in_passage_var", t.var.await_server("varb1380_agrith_convinced_dave", 1, 3))
         local dave_in_passage_r = t.npc.await_present("agrith_dave_in_passage", 20, 5)
         t.step("dave.in_passage", dave_in_passage_r == "ok" and "PASS" or "FAIL",
             "agrith_dave_in_passage in the npc pool within 20 ticks -> " .. tostring(dave_in_passage_r))
@@ -316,7 +316,7 @@ return {
             "npc:You can kill him",
             "npc:It was Eric's sigil",
         })
-        t.expect("dave.moved", t.var.await_server("agrith_convinced_dave", 2, 5))
+        t.expect("dave.moved", t.var.await_server("varb1380_agrith_convinced_dave", 2, 5))
         t.expect("has.eric_sigil", t.inv.await("agrith_sigil", sig_b3 + 1, 5))
 
         -- ---- QH goUpToBadden: leave the ruins by the stairs (2722,4885,0) ----
@@ -331,24 +331,24 @@ return {
         t.exec("goto-badden2", t.player.goto_tile, 3486, 3091, 0)
         t.exec("talkToBaddenAfterRitual", t.player.talk_to, "agrith_badden_uzer")
         t.exec("talkToBaddenAfterRitual-dialog", t.chat.play, { "npc:Denath fled", "player:Will you join", "npc:Give me that sigil" })
-        t.expect("badden.moved", t.var.await_server("agrith_badden_uzer", 2, 5))
+        t.expect("badden.moved", t.var.await_server("varb1381_agrith_badden_uzer", 2, 5))
         t.exec("talkToReenAfterRitual", t.player.talk_to, "agrith_reen_uzer")
         t.exec("talkToReenAfterRitual-dialog", t.chat.play, { "npc:A demonic ritual", "player:simple-minded", "npc:For Saradomin" })
-        t.expect("reen.moved", t.var.await_server("agrith_reen_uzer", 2, 5))
+        t.expect("reen.moved", t.var.await_server("varb1382_agrith_reen_uzer", 2, 5))
 
         -- ---- QH talkToTheGolemAfterRitual / useImplementOnGolem / talkToGolemAfterReprogramming ----
         t.exec("goto-golem2", t.player.goto_tile, 3486, 3088, 0)
         t.exec("talkToTheGolemAfterRitual", t.player.talk_to, "golem_golem")
         t.exec("talkToTheGolemAfterRitual-dialog", t.chat.play, { "npc:I will not help", "mesbox:strange implement" })
-        t.expect("golem.rejected", t.var.await_server("agrith_convinced_golem", 1, 5))
+        t.expect("golem.rejected", t.var.await_server("varb1379_agrith_convinced_golem", 1, 5))
         local golem_target, gtr = t.player.by_symbol("npc", "golem_golem")
         t.step("golem.by_symbol", gtr == "ok" and "PASS" or "FAIL", "by_symbol npc golem_golem -> " .. tostring(gtr))
         t.exec("useImplementOnGolem", t.player.use_on, "golem_golemkey", golem_target)
         t.exec("useImplementOnGolem-dialog", t.chat.play, { "mesbox:dusty scrolls", "mesbox:PORTAL OF THAMMARON" })
-        t.expect("golem.reprogrammed", t.var.await_server("agrith_convinced_golem", 2, 5))
+        t.expect("golem.reprogrammed", t.var.await_server("varb1379_agrith_convinced_golem", 2, 5))
         t.exec("talkToGolemAfterReprogramming", t.player.talk_to, "golem_golem")
         t.exec("talkToGolemAfterReprogramming-dialog", t.chat.play, { "npc:New task" })
-        t.expect("golem.moved", t.var.await_server("agrith_convinced_golem", 3, 5))
+        t.expect("golem.moved", t.var.await_server("varb1379_agrith_convinced_golem", 3, 5))
 
         -- ---- QH enterRuinAfterRecruiting / enterPortalAfterRecruiting ----
         t.exec("goto-ruinstairs3", t.player.goto_tile, 3493, 3090, 0)

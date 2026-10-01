@@ -377,27 +377,27 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     npc_kebbit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "eaglepeak_uber_kebbit");
     npc_guard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "eaglepeak_eagle_guard");
     npc_boulder = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "eaglepeak_desert_boulder");
-    vb_quest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_quest");
-    vb_nick = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_nickolaus_chat");
-    vb_gold = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_eagledoor_feather1");
-    vb_bronze = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_eagledoor_feather3");
-    vb_track = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle2_tracking");
-    vb_net = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle3_nettrap");
-    vb_w1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle3_winch1");
-    vb_w2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle3_winch2");
-    vb_w3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle3_winch3");
-    vb_w4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle3_winch4");
-    vb_g1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_gate1");
-    vb_g3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_gate3");
-    vb_g4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_gate4");
-    vb_b1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_mechbird1");
-    vb_b2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_mechbird2");
-    vb_b3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_mechbird3");
-    vb_b4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_mechbird4");
-    vb_b5 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_puzzle1_mechbird5");
-    vb_desert = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_unblocked_desert");
-    vb_jungle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_unblocked_jungle");
-    vb_vine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "eaglepeak_jungle_vine");
+    vb_quest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2780_eaglepeak_quest");
+    vb_nick = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3110_eaglepeak_nickolaus_chat");
+    vb_gold = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3107_eaglepeak_eagledoor_feather1");
+    vb_bronze = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3108_eaglepeak_eagledoor_feather3");
+    vb_track = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3099_eaglepeak_puzzle2_tracking");
+    vb_net = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3105_eaglepeak_puzzle3_nettrap");
+    vb_w1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3101_eaglepeak_puzzle3_winch1");
+    vb_w2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3102_eaglepeak_puzzle3_winch2");
+    vb_w3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3103_eaglepeak_puzzle3_winch3");
+    vb_w4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3104_eaglepeak_puzzle3_winch4");
+    vb_g1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3090_eaglepeak_puzzle1_gate1");
+    vb_g3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3092_eaglepeak_puzzle1_gate3");
+    vb_g4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3093_eaglepeak_puzzle1_gate4");
+    vb_b1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3094_eaglepeak_puzzle1_mechbird1");
+    vb_b2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3095_eaglepeak_puzzle1_mechbird2");
+    vb_b3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3096_eaglepeak_puzzle1_mechbird3");
+    vb_b4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3097_eaglepeak_puzzle1_mechbird4");
+    vb_b5 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3098_eaglepeak_puzzle1_mechbird5");
+    vb_desert = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3088_eaglepeak_unblocked_desert");
+    vb_jungle = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3087_eaglepeak_unblocked_jungle");
+    vb_vine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3109_eaglepeak_jungle_vine");
     obj_book = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hunting_book_of_birds");
     obj_metal = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "eaglepeak_metal_feather");
     obj_feather = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hunting_eagle_feather");
@@ -440,7 +440,7 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     loc_vine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_vines_patch");
     stat_hunter = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "hunter");
     stat_str = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "strength");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
 
     SELFTEST_CHECK(npc_charlie > 0 && npc_nick > 0 && npc_asyff > 0 && vb_quest > 0 &&
                        obj_book > 0 && obj_goldf > 0 && loc_feeder4 > 0 && loc_door > 0 &&

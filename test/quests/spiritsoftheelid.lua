@@ -73,7 +73,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "elidquest",
+            varp = "varb1444_elidquest",
             constants = {
                 not_started = 0,
                 started = 5,
