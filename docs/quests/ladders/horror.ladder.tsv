@@ -1,0 +1,24 @@
+# ladder horror quest_dir=quest_horror guide=src/main/java/com/questhelper/helpers/quests/horrorfromthedeep/HorrorFromTheDeep.java steps=21 legs=1:1-21@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToLarrissa	NpcStep	npc:horror_girlfriend_prequest	2507,3634,0	Talk to Larrissa outside the Lighthouse north of the Barbarian Outpost. You can get here by Fairy Ring (alp), by jumping over the bassalt rocks from the Barbar…			With what? | But how can I help? | Okay, I'll help!	quests/quest_horror/scripts/horror_girlfriend.rs2:10 opnpc1
+1	2	1	usePlankOnBridge	ObjectStep	loc:horror_broken_bridge_left_spot	2596,3608,0	Use a plank on the bridge east of the Lighthouse.		Plank; Steel nails; Hammer		quests/quest_horror/scripts/horror_interactions.rs2:87 oploc1; +1
+1	3	1	useSecondPlank	ObjectStep	loc:horror_broken_bridge_right_spot	2598,3608,0	Use a plank on the other side of the bridge east of the Lighthouse.		=		quests/quest_horror/scripts/horror_interactions.rs2:88 oploc1; +1
+1	4	1	talkToGunnjorn	NpcStep	npc:gunnjorn	2547,3553,0	Talk to Gunnjorn in the Barbarian Agility Course south of the lighthouse.				areas/area_barbarian_outpost/scripts/gunnjorn.rs2:11 opnpc1
+1	5	1	openLighthouse	ObjectStep	loc:horror_lighthouse_doorway	2509,3636,0	Unlock the Lighthouse.		Lighthouse key		quests/quest_horror/scripts/horror_interactions.rs2:22 oploc1; +1
+1	6	2	enterLighthouse	ObjectStep	loc:horror_lighthouse_doorway	2509,3636,0	Enter the Lighthouse.				quests/quest_horror/scripts/horror_interactions.rs2:22 oploc1; +1
+1	7	2	useTar	ObjectStep	loc:horror_lighthouse_cog_broken	2445,4601,2	Use swamp tar on the lighting mechanism.		Swamp tar		quests/quest_horror/scripts/horror_interactions.rs2:312 oplocu
+1	8	2	useTinderbox	ObjectStep	loc:horror_lighthouse_cog_broken	2445,4601,2	Use a tinderbox on the lighting mechanism.		Tinderbox		quests/quest_horror/scripts/horror_interactions.rs2:312 oplocu
+1	9	2	useGlass	ObjectStep	loc:horror_lighthouse_cog_broken	2445,4601,2	Use molten glass on the lighting mechanism.		Molten glass		quests/quest_horror/scripts/horror_interactions.rs2:312 oplocu
+1	10	4	goDownToF1	ObjectStep	loc:horror_lighthouse_spiralstairs_top	2443,4601,1	Go to the basement of the lighthouse.				quests/quest_horror/scripts/horror_interactions.rs2:235 oploc1
+1	11	4	goDownToBasement	ObjectStep	loc:horror_ladder_top loc:horror_lighthouse_spiralstairs_top	2445,4604,0	Go to the basement of the lighthouse.	goDownToF1			quests/quest_horror/scripts/horror_interactions.rs2:185 oploc1; +1
+1	12	4	useAirRune	ObjectStep	loc:horror_mid_right_door	2515,4627,0	Use an air rune on the strange wall.		Air rune		quests/quest_horror/scripts/horror_interactions.rs2:396 oploc1; +1
+1	13	4	useWaterRune	ObjectStep	loc:horror_mid_right_door	2515,4627,0	Use a water rune on the strange wall.		Water rune		quests/quest_horror/scripts/horror_interactions.rs2:396 oploc1; +1
+1	14	4	useEarthRune	ObjectStep	loc:horror_mid_right_door	2515,4627,0	Use an earth rune on the strange wall.		Earth rune		quests/quest_horror/scripts/horror_interactions.rs2:396 oploc1; +1
+1	15	4	useFireRune	ObjectStep	loc:horror_mid_right_door	2515,4627,0	Use a fire rune on the strange wall.		Fire rune		quests/quest_horror/scripts/horror_interactions.rs2:396 oploc1; +1
+1	16	4	useArrow	ObjectStep	loc:horror_mid_right_door	2515,4627,0	Use an arrow on the strange wall.		Any arrow		quests/quest_horror/scripts/horror_interactions.rs2:396 oploc1; +1
+1	17	4	useSword	ObjectStep	loc:horror_mid_right_door	2515,4627,0	Use a sword on the strange wall. You will lose it.		Any sword you're willing to lose		quests/quest_horror/scripts/horror_interactions.rs2:396 oploc1; +1
+1	18	4	goThroughDoor	ObjectStep	loc:horror_far_right_door	2516,4627,0	Go through the strange wall, ready for fighting.				quests/quest_horror/scripts/horror_interactions.rs2:377 oploc1
+1	19	4	talkToJossik	NpcStep	npc:horror_lighthousekeeeper_injured	2518,4634,0	Talk to Jossik.				quests/quest_horror/scripts/horror_encounter.rs2:12 opnpc1
+1	20	4	killDagannoth	NpcStep	npc:horror_dagannoth_jr4	2518,4640,0	Defeat the dagannoth.				quests/quest_horror/scripts/horror_encounter.rs2:106 opnpc2; +2
+1	21	5	killMother	NpcStep	npc:horror_dagganoth_aira	2518,4640,0	Defeat the Dagannoth mother. She can only be hurt by air spells when white, water spells when blue, earth spells when brown, fire spells when red, melee when o…		Magic combat gear; 20+ casts of each element spell		

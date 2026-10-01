@@ -1,0 +1,14 @@
+# ladder cooks_assistant quest_dir=quest_cook guide=src/main/java/com/questhelper/helpers/quests/cooksassistant/CooksAssistant.java steps=11 legs=1:1-11@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	getBucket	NpcStep	npc:generalshopkeeper1 npc:generalassistant1	3212,3246,0	Purchase a bucket from the Lumbridge General Store.		Coins		areas/lumbridge/scripts/tutors.rs2:65 opnpc1; +3
+1	2	0	getPot	NpcStep	npc:generalshopkeeper1 npc:generalassistant1	3212,3246,0	Purchase a pot from the Lumbridge General Store.		=		areas/lumbridge/scripts/tutors.rs2:65 opnpc1; +3
+1	3	0	getEgg	ItemStep	obj:egg	3177,3296,0	Grab an egg from the farm north of Lumbridge.		Egg		skill_cooking/scripts/cakes.rs2:18 opheldu
+1	4	0	getWheat	ObjectStep	loc:fai_varrock_wheat_corner	3161,3292,0	Pick some wheat north of Lumbridge.				general_use/scripts/pickables.rs2:49 oploc2
+1	5	0	climbLadderOne	ObjectStep	loc:qip_cook_ladder loc:qip_cook_ladder_middle	3164,3307,0	Climb up the ladder in the Mill north of Lumbridge to the top floor.	climbLadderTwoUp	Pot; Grain		ladders_stairs/scripts/ladders.rs2:199 oploc1; +4
+1	6	0	fillHopper	ObjectStep	loc:hopper1	3166,3307,2	Fill the hopper with your grain.		=		general_use/scripts/windmills.rs2:112 oploc1; +1
+1	7	0	operateControls	ObjectStep	loc:hopperlevers1	3166,3305,2	Operate the hopper controls.		Pot		general_use/scripts/windmills.rs2:116 oploc1
+1	8	0	climbLadderThree	ObjectStep	loc:qip_cook_ladder_top loc:qip_cook_ladder_middle	3164,3307,2	Climb down the ladder in the Mill to the ground floor.	climbLadderTwoDown	=		ladders_stairs/scripts/ladders.rs2:202 oploc1; +5
+1	9	0	collectFlour	ObjectStep	loc:millbase_flour	3166,3306,0	Collect the flour in the bin.		=		general_use/scripts/windmills.rs2:37 oploc1; +1
+1	10	0	milkCow	ObjectStep	loc:fat_cow	3172,3317,0	Milk the dairy cow north of Lumbridge.		Bucket		general_use/scripts/dairy_cow.rs2:13 oploc1; +2
+1	11	0	finishQuest	NpcStep	npc:cook npc:cook	3206,3214,0	Give the Cook in Lumbridge Castle's kitchen the required items to finish the quest.		Egg; Bucket of milk; Pot of flour	What's wrong? | Can I help? | Yes.	quests/quest_cook/scripts/quest_cook.rs2:11 opnpc1

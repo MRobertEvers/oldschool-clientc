@@ -221,6 +221,10 @@ enum
      * stream's own TORIRSSERVER_TRACKED_NPC_MAX.
      */
     TORIRSSERVER_NPC_MAX = 4096,
+    /* Spawn keys `npc_seed_lives` remembers. A full probe window recycles its
+     * home entry, so a key that ages out seeds as a first life again: a
+     * repeated stream, never a crash. */
+    TORIRSSERVER_NPC_SEED_LIVES = 1024,
     TORIRSSERVER_TRACKED_NPC_MAX = 255,
 
     /*
@@ -2224,6 +2228,48 @@ enum
  *  angle 0, due south, which is the resting facing the game gives an npc. */
 #define TORIRSSERVER_FACE_SOUTH 6
 
+/*
+ * One entity's own random streams.
+ *
+ * The world used to have ONE stream (`srv->rng`, plus the script VM's single
+ * java.util.Random state), and every npc's wander roll drew from it each tick
+ * in processing order. So one more npc anywhere -- a quest's spawn row, an
+ * `[ai_timer]` ambience -- consumed draws every tick, and every other npc's
+ * walk, every fight and every scripted roll in the world fell differently.
+ * Bisected three times in parity3a/3b (seam28 per_entity_random_streams):
+ * Death Plateau's soldier ambience sent Bob the cat out of reach in A Tail of
+ * Two Cats, the Gnome Exam's archaeological expert turned four other quests'
+ * tests and ten goblin-combat selftest rows red, and Temple of Ikov's Lucien
+ * spawns did the same to Bob again.
+ *
+ * Now each npc and each player owns its draws. An npc is seeded from STABLE
+ * identity -- its spawn tile, plane and type (and its ordinal among npcs
+ * stood up on the same key) -- never from its pool slot, because a slot index
+ * shifts when a spawn row is added and would bring the coupling straight
+ * back. A player is seeded from its account name (`name37`). The world keeps
+ * `ToriRSServer.world_random` only for draws with no entity.
+ *
+ * Determinism is THIS engine's test affordance, not a parity fact: LostCity
+ * draws every one of these from `Math.random` (engine/src/engine/entity/Npc.ts
+ * 700-734 for the wander roll, whose SHAPE -- 1/8 per tick, round(u*2r - r)
+ * per axis -- is unchanged here). What the streams buy is that a test that
+ * reads one npc's walk or one fight reads the same thing however many other
+ * npcs the content tree stands up.
+ *
+ * `engine` is the xorshift32 the C side rolls (wander, roam stagger, a stacked
+ * step-off, map_findsquare). `script` is the java.util.Random LCG state the
+ * VM's `random`/`randominc` advance: torirs_server_scripts.c swaps it into
+ * `SSVM_Env.rng` for exactly as long as a script of this entity runs.
+ */
+struct ToriRSServerRandomStream
+{
+    uint32_t engine;
+    uint64_t script;
+    /** 0 until seeded. A player's streams are seeded lazily, on first use,
+     *  because its name arrives after the slot is cleared. */
+    uint8_t seeded;
+};
+
 struct ToriRSServerNpc
 {
     int active;
@@ -2350,6 +2396,9 @@ struct ToriRSServerNpc
     const struct ToriRSServerNpcDef* def;
     /** RSMod/xrsps parity: idle NPCs try to roam every 15-30 ticks. */
     int next_roam_tick;
+    /** This npc's own draws -- see `struct ToriRSServerRandomStream`. Seeded
+     *  by `npc_spawn` from the spawn tile and type, never the slot. */
+    struct ToriRSServerRandomStream random;
 
     /** Packed zone index **plus one** — 0 means "filed nowhere". Maintained by
      *  `ToriRSServer_ZoneSyncNpcs`, which reconciles rather than hooks because an
@@ -3936,6 +3985,11 @@ struct ToriRSServerPlayer
      */
     int64_t name37;
 
+    /** This player's own draws: its combat rolls and every `random` in a
+     *  script run on its behalf. Read through `ToriRSServer_WorldPlayerRandom`,
+     *  which seeds it from `name37` on first use. */
+    struct ToriRSServerRandomStream random;
+
     /**
      * The reference's `socialProtect`: one social packet per tick, spent by the
      * first of the six that arrives and cleared in phase 11 (the reference
@@ -4244,6 +4298,18 @@ struct ToriRSServer
      *  `TORIRSSERVER_FREE_WORLD=1` to force it to 0 for free-world testing. */
     int members_world;
 
+    /**
+     * Minutes `::clockskip` has moved this world's wall clock forward; added
+     * to every CLOCK_REALTIME read content can see (`date_minutes`,
+     * `date_runeday`, through ToriRSServer_WorldRealtimeMs). A real-time wait
+     * -- a crop, a brew, Forgettable Tale's kelda patch -- is a grind by
+     * another name, and this is its documented fast-forward
+     * (docs/QUEST_SERVER_CHEATS.md). Only ever grows, so every deadline
+     * content compares against stays monotonic. World state for the life of
+     * the process: never saved, never checkpointed.
+     */
+    int clock_skip_minutes;
+
     /** 1 once ToriRSServer_WorldInit has built the scene and the entities. Both
      *  hosts call that on every login, so this is what stops the second one
      *  respawning the roster under the first player. */
@@ -4300,8 +4366,36 @@ struct ToriRSServer
      * first one's [login], and one player's walk ending must not clear the
      * other's map flag. They are on `ToriRSServerPlayer` now. */
 
-    /** Deterministic per-connection RNG so a session replays identically. */
-    uint32_t rng;
+    /** The draws that belong to no entity -- see
+     *  `struct ToriRSServerRandomStream`. Nothing that runs per tick per npc
+     *  may touch it: that is what coupled every npc in the world. `.script`
+     *  is seeded by ToriRSServer_ScriptsInit, `.engine` by WorldInit. */
+    struct ToriRSServerRandomStream world_random;
+
+    /** The stream whose `.script` state is loaded into `script_env->rng`
+     *  right now, or NULL between scripts. Lets a script that runs another
+     *  script synchronously hand the VM register back intact. */
+    struct ToriRSServerRandomStream* script_random_loaded;
+
+    /** How many npcs have LEFT each spawn key (tile, plane, type): the
+     *  `life` `npc_random_seed` mixes in. Without it every npc allocated on a
+     *  key whose last holder was freed (a `::spawn`, a content `npc_add`, a
+     *  boss re-spawned for a second attempt) replayed the identical stream,
+     *  so its drop was a function of how many draws the fight used: 40
+     *  `::spawn imp` kills at one tile gave 14 beads and never a yellow one
+     *  (seam29). Counted at free, so a key that never loses an npc (every
+     *  boot spawn; a respawn keeps its struct) seeds exactly as before. Open
+     *  addressing; key 0 is empty (every spawn key has bit 62 set). */
+    struct
+    {
+        uint64_t key;
+        uint32_t lives;
+    } npc_seed_lives[TORIRSSERVER_NPC_SEED_LIVES];
+
+    /** Selftest affordance: nonzero means scripts draw straight from
+     *  `script_env->rng` as the test seeded it (`SSVM_EnvSeed`), with no
+     *  per-entity swap. Never set outside a selftest. */
+    int script_random_pinned;
 
     /** The `last_int` the NEXT trigger dispatch must give its script, and
      *  whether one is stated. Set only across `ToriRSServer_ScriptsRunTriggerLastint`
@@ -5610,12 +5704,31 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv);
 /* Shared world helpers (torirs_server_world.c)                              */
 /* ------------------------------------------------------------------ */
 
-/** Deterministic roll in [lo, hi]. */
+/** Deterministic roll in [lo, hi] from the WORLD stream -- a draw no entity
+ *  owns. An npc's or a player's roll uses ToriRSServer_RandomFrom on its own
+ *  stream instead (see `struct ToriRSServerRandomStream`). */
 int
 ToriRSServer_Random(
     struct ToriRSServer* srv,
     int lo,
     int hi);
+
+/** Deterministic roll in [lo, hi] from one stream's `engine` state. */
+int
+ToriRSServer_RandomFrom(
+    struct ToriRSServerRandomStream* stream,
+    int lo,
+    int hi);
+
+/** The player's own stream, seeded from its `name37` (its slot when it has
+ *  no name, which only a selftest player lacks) the first time it is asked. */
+struct ToriRSServerRandomStream*
+ToriRSServer_WorldPlayerRandom(struct ToriRSServerPlayer* player);
+
+/** The java.util.Random state `SSVM_EnvSeed(env, seed)` would give, so an
+ *  entity's script stream starts where a seeded env would. */
+uint64_t
+ToriRSServer_RandomScriptSeed(uint64_t seed);
 
 /** An npc reached zero hitpoints: run its drop table and leave the loot. */
 /** Spawn an npc and return its slot, or -1. `npc_add`'s entry point. */
@@ -6598,6 +6711,22 @@ ToriRSServer_RunCheatLadder(
     const char* text);
 
 /*
+ * This world's wall clock: CLOCK_REALTIME in milliseconds since the Unix
+ * epoch, plus the minutes `::clockskip` has advanced it
+ * (`srv->clock_skip_minutes`). Every wall-clock read content can see
+ * (`date_minutes`, `date_runeday`) goes through here, so one skip moves all
+ * of them together and none can disagree with another.
+ */
+long long
+ToriRSServer_WorldRealtimeMs(const struct ToriRSServer* srv);
+
+/* `::clockskip` bounds: one call moves at most a week, and the world never
+ * runs more than a year ahead -- far below the point `date_minutes` (an int
+ * of minutes since 1970, ~29.8 million in 2026) could wrap. */
+#define TORIRSSERVER_CLOCK_SKIP_STEP_MAX (7 * 24 * 60)
+#define TORIRSSERVER_CLOCK_SKIP_TOTAL_MAX (366 * 24 * 60)
+
+/*
  * quest-driver: what `t.cheat` actually dispatches. Owner: core-scheduler.
  *
  * `handle_cheat`'s WHOLE job minus the packet: content's `[debugproc]` first,
@@ -6925,6 +7054,15 @@ struct ToriRSServerSceneLoc*
 ToriRSServer_ScriptLocResolve(
     struct ToriRSServer* srv,
     void* handle_ptr);
+
+/*
+ * The op's active loc (primary or secondary by its `.` operand) for a READ:
+ * the live loc, else the one this handle's `loc_del` removed while the handle
+ * still names it -- LostCity leaves `state.activeLoc` after `World.removeLoc`.
+ * NULL when neither. Writes resolve through ToriRSServer_ScriptLocResolve.
+ */
+const struct ToriRSServerSceneLoc*
+ToriRSServer_ScriptLocReadable(struct SSVM_State* state);
 
 /** A handle for the ZoneMap record at this key, for SSVM_SetActive. */
 void*

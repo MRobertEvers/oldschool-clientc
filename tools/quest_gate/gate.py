@@ -9,6 +9,8 @@ Red on, and only on, things that mean the test did not actually happen:
   * a listed quest with no ledger at all -- run.py always creates
     build/quest_gate/<quest>/ before it launches a client, so this also
     catches a process that never got that far,
+  * a PASS row whose detail is empty (EMPTY DETAIL below): t.exec already
+    grades a bare `ok` FAIL `hollow`; t.expect/t.check/t.step did not,
   * a step that claims a shot (its `shots` column) that is not on disk,
   * a shot that is on disk but undersized (a capture that raced the
     renderer -- less than 1000 bytes),
@@ -158,6 +160,10 @@ MIN_SHOTS_BLOCKED = 2
 # core.lua's flush() folds this into the detail of a row whose capture was
 # suppressed as an unchanged frame (see UNCHANGED FRAMES in the banner).
 UNCHANGED_MARKER = "[frame unchanged]"
+
+
+FROM_LEG_REFUSAL = "a checkpoint run is for authoring; grade the full run"
+FROM_LEG_RUN_RE = re.compile(r"^.+\.leg\d+$")
 
 
 def artefact_dir(name):
@@ -447,8 +453,16 @@ def strip_lua_comments(source_text):
     return "".join(out)
 
 
+# A relay (legs) file binds through its top-level `bind = {...}` field, which
+# the harness hands to t.quest.bind before the first leg it runs
+# (docs/quest_authoring/relay.md "Checkpoints"): the same bind, so the same
+# minimum-shape rules.
 def _uses_quest_bind(source_text):
-    return "quest.bind" in strip_lua_comments(source_text)
+    if "quest.bind" in strip_lua_comments(source_text):
+        return True
+    import lint_quest  # lazy: the one reader of a relay file's layout
+    layout = lint_quest.legs_layout(source_text)
+    return bool(layout and layout["bind"])
 
 
 # The two verbs that shoot a row by themselves (core.lua's record_with_shot):
@@ -556,6 +570,27 @@ def minimum_shape_findings(name, rows, shots_dir):
     return findings
 
 
+# EMPTY DETAIL (seam27). A PASS row whose detail is empty proves nothing to
+# whoever reads the ledger later: t.exec already grades a verb's bare `ok`
+# FAIL `hollow` (core.lua), but t.expect / t.check / t.step write whatever
+# they are handed, so `t.expect("x.present", t.npc.await_present(...))` or
+# `t.check("x", t.await{...})` wrote PASS with nothing behind it, and the
+# sampler sent two files back for it before any gate did. The unchanged-frame
+# marker is the driver's note about the SHOT, not about the step, so a row
+# that carries only that marker is still empty.
+EMPTY_DETAIL_FINDING = (
+    "step %r PASSed with an empty detail -- a row that proves nothing; pass the "
+    "verb's own detail through (`t.expect(name, verb(...))` keeps both returns, "
+    "`local r = verb(...)` drops the second) or write one naming what was read "
+    "(docs/QUEST_AUTHORING.md trap 12)")
+
+
+def empty_detail_text(detail):
+    """The part of a ledger detail that says something about the step: the
+    detail with the driver's `[frame unchanged]` shot marker removed."""
+    return (detail or "").replace(UNCHANGED_MARKER, "").strip()
+
+
 def check_quest(name, allow_blocked):
     """(findings, blocked) for one quest -- findings is every RED-level
     problem (as plain strings); blocked is every BLOCKED row's own
@@ -572,6 +607,15 @@ def check_quest(name, allow_blocked):
         findings.append("no ledger.tsv at %s" % ledger_path)
         return findings, blocked
 
+    # A checkpoint run (run.py --from-leg K / --only-leg K) started from a
+    # saved player, skipped the setup list and legs 1..K-1: it proves the
+    # legs it ran from a state it did not reach itself. It is for authoring
+    # (docs/quest_authoring/relay.md "Checkpoints"), never a verdict.
+    if FROM_LEG_RUN_RE.match(name) or (summary is not None and len(summary) > 5 and any(
+            token.startswith("from_leg=") for token in summary[5].split())):
+        findings.append(FROM_LEG_REFUSAL)
+        return findings, blocked
+
     if not rows:
         findings.append("ledger.tsv has no step rows")
 
@@ -581,6 +625,8 @@ def check_quest(name, allow_blocked):
         elif row["verdict"] != "PASS":
             findings.append("step %r: verdict %s -- %s" % (
                 row["step"], row["verdict"], row["detail"]))
+        elif not empty_detail_text(row["detail"]):
+            findings.append(EMPTY_DETAIL_FINDING % row["step"])
 
     if summary is None:
         findings.append("ledger.tsv has no trailing SUMMARY row")
@@ -649,6 +695,77 @@ def check_quest(name, allow_blocked):
     return findings, blocked
 
 
+# cutscene_row_required (seam32 cutscene_verb_and_camera_read). The guide has
+# no "watch the cutscene" step, so a port could drop a camera cutscene and its
+# test stayed green (Fight Arena's ogre pen). A quest whose OWN content scripts
+# cam_moveto/cam_lookat (cutscene_sweep.quests_with_cutscene) must hold a PASS
+# row whose detail begins `cutscene:` -- t.cutscene.await's row -- and the
+# union of those rows' keyframes must cover every framing SITE (one script
+# file:line, cutscene_sweep.cutscene_sites): a site whose coord is a literal
+# needs a keyframe of its op on that exact tile, one whose coord is an
+# expression (`coord`, `movecoord(...)`) any keyframe of its op. Graded only on
+# a run that is otherwise green, like the guide coverage: a blocked run that
+# stopped before the cutscene is blocked, not red twice.
+CUTSCENE_ROW_PREFIX = "cutscene:"
+CUTSCENE_KEYFRAME_RE = re.compile(r"#\d+ t=-?\d+ (moveto|lookat) (-?\d+),(-?\d+)")
+_CUTSCENE_SITES = None
+
+
+def cutscene_sites_by_quest():
+    """test_id -> sites, read once per gate run (lazy: the sweep walks every
+    quest's scripts)."""
+    global _CUTSCENE_SITES
+    if _CUTSCENE_SITES is None:
+        import cutscene_sweep  # lazy: only a would-be-green run is graded
+        _CUTSCENE_SITES = cutscene_sweep.cutscene_sites(REPO_ROOT)
+    return _CUTSCENE_SITES
+
+
+def cutscene_keyframes(rows):
+    """[(op, x, z)] from every PASS `cutscene:` row, and those rows' names."""
+    keyframes = []
+    names = []
+    for row in rows:
+        detail = row["detail"] or ""
+        if row["verdict"] != "PASS" or not detail.startswith(CUTSCENE_ROW_PREFIX):
+            continue
+        names.append(row["step"])
+        # Only the keyframe list: the text after ";;" is the verb's notes.
+        listing = detail.split(";;", 1)[0]
+        for m in CUTSCENE_KEYFRAME_RE.finditer(listing):
+            keyframes.append((m.group(1), int(m.group(2)), int(m.group(3))))
+    return keyframes, names
+
+
+def site_text(site):
+    tile = site["tile"]
+    where = " -> %d,%d" % (tile[0], tile[1]) if tile else " (an expression: any %s)" % site["op"]
+    return "%s:%d cam_%s(%s)%s" % (site["file"], site["line"], site["op"], site["arg"], where)
+
+
+def cutscene_findings(name, rows):
+    """cutscene_row_required: [] for a quest whose content frames no camera,
+    or whose PASS cutscene rows cover every site; else one finding per gap."""
+    sites = cutscene_sites_by_quest().get(name)
+    if not sites:
+        return []
+    keyframes, row_names = cutscene_keyframes(rows)
+    if not row_names:
+        return ["cutscene_row_required: %s's content scripts %d camera site(s) and the ledger has "
+                "no PASS row whose detail begins `cutscene:` (t.cutscene.await, "
+                "docs/quest_authoring/verbs-cutscene.md) -- sites: %s"
+                % (name, len(sites), "; ".join(site_text(s) for s in sites))]
+    findings = []
+    for site in sites:
+        tile = site["tile"]
+        covered = any(op == site["op"] and (tile is None or (x, z) == (tile[0], tile[1]))
+                      for op, x, z in keyframes)
+        if not covered:
+            findings.append("cutscene_row_required: %s: no keyframe in its cutscene row(s) (%s) "
+                            "covers %s" % (name, ", ".join(row_names), site_text(site)))
+    return findings
+
+
 def coverage_findings(name):
     """The guide-coverage findings for a run that is otherwise green; [] when
     it reads FULL or declares every content gap, or when the file has no guide
@@ -690,6 +807,11 @@ def main():
     any_accepted_blocked = False
     for name in names:
         findings, blocked = check_quest(name, arguments.allow_blocked)
+        if not findings and not blocked:
+            # A would-be-green run whose content frames the camera must have
+            # asserted it (cutscene_row_required, above).
+            rows, _summary = ledger.read(os.path.join(artefact_dir(name), "ledger.tsv"))
+            findings = cutscene_findings(name, rows or [])
         if not findings and not blocked and not arguments.no_coverage:
             # Only a run that would be GREEN is graded against its guide: a
             # green that skips a guide step is not green.

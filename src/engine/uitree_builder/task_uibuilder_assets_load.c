@@ -31,7 +31,7 @@ unique_obj_add(
     int obj_id)
 {
     assert(self);
-    if( obj_id <= 0 )
+    if( obj_id < 0 ) /* obj 0 is a real item */
         return 0;
     for( int i = 0; i < self->unique_obj_count; i++ )
     {

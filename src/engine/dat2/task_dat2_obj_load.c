@@ -117,12 +117,14 @@ Task_Dat2ObjLoad_Run(
          * "" — is what a note or placeholder record carries. */
         if( obj && (obj->name[0] == '\0' || strcmp(obj->name, "null") == 0) )
         {
-            if( obj->cert_template > 0 && obj->cert_link > 0 )
+            /* >= 0: a link to obj 0 (Dwarf remains' placeholder) is a link;
+             * the decoder's "none" is -1. */
+            if( obj->cert_template > 0 && obj->cert_link >= 0 )
                 link = obj->cert_link;
-            else if( obj->placeholder_template >= 0 && obj->placeholder_link > 0 )
+            else if( obj->placeholder_template >= 0 && obj->placeholder_link >= 0 )
                 link = obj->placeholder_link;
         }
-        if( link > 0 && !CacheProvider_ObjtypeHas(&task->bc->base, link) )
+        if( link >= 0 && !CacheProvider_ObjtypeHas(&task->bc->base, link) )
         {
             link_pos = Dat2Group_IndexOf(task->group, link);
             if( link_pos >= 0 )

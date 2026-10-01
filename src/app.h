@@ -727,6 +727,20 @@ enum ToriRS_WorldRenderMode
  */
 #define APP_SERVER_TICK_LOGIC_CYCLES 30
 
+/** Which CAM_* packet an App_CamScript event records (app.h cam_script). */
+enum App_CamScriptOp
+{
+    APP_CAM_SCRIPT_OP_NONE = 0,
+    APP_CAM_SCRIPT_OP_MOVETO = 1,
+    APP_CAM_SCRIPT_OP_LOOKAT = 2,
+    APP_CAM_SCRIPT_OP_SHAKE = 3,
+    APP_CAM_SCRIPT_OP_RESET = 4,
+};
+
+/** Size of App_CamScript.events: the camera packets the driver can read back.
+ *  A cutscene sends one to four per tick and the driver polls every frame. */
+#define APP_CAM_SCRIPT_EVENTS 64
+
 /** 20ms logic cycles in one second — the client's own clock read as wall time. */
 #define APP_LOGIC_CYCLES_PER_SECOND 50
 
@@ -2421,8 +2435,17 @@ struct App
      * Shake is per axis and all five can run at once — the encounter scripts
      * fire one call per axis and expect them to compound, so a single slot
      * would keep only whichever arrived last.
+     *
+     * `serial` and `events` are the READ side (seam32
+     * cutscene_verb_and_camera_read): every CAM_* packet the client executes
+     * bumps the serial and lands one event in the ring, in WORLD tiles (the
+     * scene-local split in rs_gameproto_exec.c is resolved at arrival, against
+     * the scene the shot played in). The quest driver's t.world.camera() and
+     * t.cutscene.await read them (torirs_plugin_drive_pointer.c,
+     * DrivePointer_CameraState / DrivePointer_CameraEvents); nothing that
+     * draws reads them.
      */
-    struct
+    struct App_CamScript
     {
         int scripted; /* 1 while a CAM_MOVETO/LOOKAT script overrides free-fly */
         int move_lx, move_lz, move_height, move_rate, move_rate2;
@@ -2432,6 +2455,18 @@ struct App
         int shake_amplitude[5]; /* sine amplitude */
         int shake_speed[5];     /* sine rate, hundredths */
         int shake_cycle[5];
+        /** Camera packets executed this session; events[serial % RING] is the
+         *  newest once serial > 0. */
+        int serial;
+        struct App_CamScriptEvent
+        {
+            int serial;
+            int op; /* enum App_CamScriptOp */
+            int world_x, world_z; /* MOVETO/LOOKAT target tile; -1 otherwise */
+            int height;           /* MOVETO/LOOKAT height; SHAKE amplitude */
+            int rate, rate2;      /* MOVETO/LOOKAT speeds; SHAKE axis, speed */
+            int tick;             /* world->cycle / APP_SERVER_TICK_LOGIC_CYCLES */
+        } events[APP_CAM_SCRIPT_EVENTS];
     } cam_script;
     /**
      * HINT_ARROW state -- the server pointing at something. type 0 = none.

@@ -1246,25 +1246,28 @@ app_minimenu_inv_action(
         /*
          * selectedArea / cc_settrans_temporarily — not for Use (below).
          *
-         * KNOWN DEFECT, NOT FIXED HERE (seam pass 2026-09-20).  `op_index` is
+         * The flash speaks the CELL's op space, not OPHELD's.  `op_index` is
          * handed to the cell's own cc_setonop handler, and on rev-239's
-         * backpack that handler is script 6014, the shift-click-drop chain,
-         * whose op 1 answers by naming the real Drop op through cc_triggerop.
-         * The OPHELD index is NOT the cell's op number (the cell's are 2, 3,
-         * 4, 6, 7 -- net_out_opheld_component_op), so every OPHELD1 press
-         * runs the drop chain one tick later and puts the item on the floor:
-         * `<- OPHELD1 obj=952 (Spade)` followed every time by `<- IF_BUTTONX
-         * 149:0 op=7` and `<- OPHELD5`, at three separate dig tiles
-         * (build/quest_gate/seam_heldop1_probe2/client.log), and in the GREEN
-         * Pirate's Treasure run too (build/quest_gate/hunt/ledger.tsv row 61,
-         * "spade slot 1 op 1 -> 0 left").  The one-line fix is to translate
-         * through net_out_opheld_component_op here; it is held back because
-         * hunt's `quest.varp_complete` row currently depends on the extra
-         * settle ticks the stray drop buys it (measured twice: 70/71 with the
-         * translation in, 71/71 with it out), and that race is
-         * quest.expect_complete's to fix first.
+         * backpack that handler is clientscript 6014
+         * (torirs_inv_shiftclick_op.cs2), whose `$int3 = 1` branch is the
+         * shift-click-drop chain: it names the real Drop op through
+         * cc_triggerop.  The cell's own ops for the five ObjType actions are
+         * 2, 3, 4, 6, 7 (net_out_opheld_component_op, the same table the
+         * packet above goes out with), so a real "Dig" / "Blow-on" / "Read"
+         * row is an IF_BUTTON op 2 and its flash is op 2.  Handing it the
+         * OPHELD index 1 instead ran the drop chain a tick after every
+         * OPHELD1 press and put the item on the floor -- `<- OPHELD1 obj=952
+         * (Spade)` then `<- IF_BUTTONX 149:0 op=7` and `<- OPHELD5`
+         * (build/quest_gate/seam_heldop1_probe2/client.log), and the Holy
+         * Grail's magic_golden_feather (`ifop1=Blow-on`) went `-> 0 left`
+         * after `[opheld1,magic_golden_feather]`, which never inv_dels
+         * (build/quest_gate/seam19_invop1_before, seam pass 19).  The only
+         * OPHELD rows a rev-239 backpack ever dispatches are the quest
+         * driver's (app_plugin_inv_op); the menu builder gives a scripted
+         * cell IF_BUTTON rows, which already flash in the cell's own space.
          */
-        app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
+        app_inv_cell_op_flash(
+            app, com_id, slot, net_out_opheld_component_op(opt->action_index + 1));
         return 1;
     case REVCONFIG_MINIMENU_INV_BUTTON1:
     case REVCONFIG_MINIMENU_INV_BUTTON2:
@@ -1381,7 +1384,7 @@ app_obj_cell_at(
         struct InvSlot inv_slot;
         if( !InvManager_GetSlot(&app->invs, out->inv_source_id, out->slot, &inv_slot) )
             return false;
-        if( inv_slot.obj_id <= 0 )
+        if( inv_slot.obj_id <= INV_MANAGER_EMPTY_OBJ_ID )
             return false;
         out->obj_id = inv_slot.obj_id;
         out->obj_count = inv_slot.obj_count;
@@ -1529,10 +1532,10 @@ app_inv_resolve_drop(
             {
                 struct InvSlot inv_slot;
                 if( InvManager_GetSlot(&app->invs, dest.inv_source_id, dest.slot, &inv_slot) &&
-                    inv_slot.obj_id > 0 )
+                    inv_slot.obj_id > INV_MANAGER_EMPTY_OBJ_ID )
                     *out_obj = inv_slot.obj_id;
             }
-            else if( dest.obj_id > 0 )
+            else if( dest.obj_id >= 0 )
             {
                 *out_obj = dest.obj_id;
             }
@@ -1573,7 +1576,7 @@ app_inv_resolve_drop(
         *out_com = com;
         *out_slot = slot;
         *out_node = node;
-        if( node >= 0 && app->tree->components[node].item_id > 0 )
+        if( node >= 0 && app->tree->components[node].item_id >= 0 )
             *out_obj = app->tree->components[node].item_id;
         return 1;
     }
@@ -1598,15 +1601,15 @@ app_inv_drag_drop(
         struct InvSlot inv_slot;
         if( InvManager_GetSlot(
                 &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, &inv_slot) &&
-            inv_slot.obj_id > 0 )
+            inv_slot.obj_id > INV_MANAGER_EMPTY_OBJ_ID )
             src_obj = inv_slot.obj_id;
     }
     else
     {
-        int obj = 0;
+        int obj = UITREE_NO_OBJ;
         if( UITree_ObjCellDynamicAtSlot(
                 app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, &src_node, &obj, NULL) &&
-            obj > 0 )
+            obj >= 0 )
             src_obj = obj;
     }
 
@@ -1764,17 +1767,17 @@ app_inv_drag_source_live(struct App const* app)
     if( app->inv_drag.source_id >= 0 )
     {
         struct InvSlot slot;
-        return app->inv_drag.obj_id > 0 &&
+        return app->inv_drag.obj_id >= 0 &&
                InvManager_GetSlot(
                    &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, &slot) &&
                slot.obj_id == app->inv_drag.obj_id;
     }
     {
         int32_t node = -1;
-        int obj = 0;
+        int obj = UITREE_NO_OBJ;
         if( !UITree_ObjCellDynamicAtSlot(
                 app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, &node, &obj, NULL) ||
-            obj <= 0 || obj != app->inv_drag.obj_id ||
+            obj < 0 || obj != app->inv_drag.obj_id ||
             UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
             return 0;
     }
@@ -2001,17 +2004,18 @@ app_minimenu_ui_pick_live_reason(
                 app->tree->components[idx].u.rs_inv.inv_source_id,
                 pick->secondary_id,
                 &slot) ||
-            slot.obj_id <= 0 || (pick->tertiary_id > 0 && slot.obj_id != pick->tertiary_id) )
+            slot.obj_id <= INV_MANAGER_EMPTY_OBJ_ID ||
+            (pick->tertiary_id >= 0 && slot.obj_id != pick->tertiary_id) )
             PICK_NOT_LIVE("that container slot does not hold the picked obj");
     }
     else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
     {
         int32_t cell = -1;
-        int obj = 0;
+        int obj = UITREE_NO_OBJ;
         if( !UITree_ObjCellDynamicAtSlot(
                 app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) )
             PICK_NOT_LIVE("no dynamic item cell is painted at that slot");
-        if( obj <= 0 )
+        if( obj < 0 )
             PICK_NOT_LIVE("the dynamic item cell at that slot is empty");
         if( UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
             PICK_NOT_LIVE("the item cell or an ancestor of it is display-hidden");
@@ -2019,7 +2023,7 @@ app_minimenu_ui_pick_live_reason(
             PICK_NOT_LIVE("the stamped node is not the cell at that slot any more");
         /* Do not execute an old item's row on a new item which was painted
          * into the same dynamic slot while the menu was open. */
-        if( pick->tertiary_id > 0 && obj != pick->tertiary_id )
+        if( pick->tertiary_id >= 0 && obj != pick->tertiary_id )
             PICK_NOT_LIVE("a different obj is painted in that cell now");
     }
     else if( pick->has_node_identity && pick->node_index != idx )

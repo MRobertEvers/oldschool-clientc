@@ -83,7 +83,8 @@ grid_cell(
     out->component_id = node->component_id;
     out->slot = slot;
     out->inv_source_id = node->u.rs_inv.inv_source_id;
-    out->obj_id = 0;
+    /* The grid cell's obj is the container slot's; the caller reads it. */
+    out->obj_id = UITREE_NO_OBJ;
     out->obj_count = 0;
     out->can_drag = node->u.rs_inv.can_drag;
     out->obj_ops = node->u.rs_inv.obj_ops;
@@ -117,8 +118,8 @@ UITree_ObjCellForNode(
     /* A CS2 item child. `item_id` is set by CC_SETOBJECT and is the only thing
      * that distinguishes an item cell from the chrome graphics beside it — the
      * backpack's slots and the worn tab's silhouettes are all plain dynamic
-     * RS_GRAPHICs otherwise. */
-    if( !node->dynamic || node->item_id <= 0 )
+     * RS_GRAPHICs otherwise. Obj 0 is a real item; empty is UITREE_NO_OBJ. */
+    if( !node->dynamic || node->item_id < 0 )
         return false;
 
     out->kind = UITREE_OBJ_CELL_DYNAMIC;

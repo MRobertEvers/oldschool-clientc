@@ -62,6 +62,7 @@ static void
 app_loc_change_apply_ops(
     struct App* app,
     struct World* world,
+    struct WorldBuilder* builder,
     const struct Task_AppSpawn* self);
 static void
 app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self);
@@ -1295,6 +1296,7 @@ static void
 app_loc_change_apply_ops(
     struct App* app,
     struct World* world,
+    struct WorldBuilder* builder,
     const struct Task_AppSpawn* self)
 {
     int idx;
@@ -1303,12 +1305,33 @@ app_loc_change_apply_ops(
     assert(app);
     (void)app; /* asserted only; unused under NDEBUG */
     assert(world);
+    assert(builder);
     assert(self);
     if( self->loc_id < 0 )
         return; /* a pure delete has no placement to describe */
     idx = World_SceneryFindAt(world, self->tile_x, self->tile_z, self->level, self->loc_shape);
     if( idx < 0 )
-        return; /* the spawn was refused (unknown loc, off-scene) — nothing to dress */
+    {
+        /*
+         * Either the spawn was refused (unknown loc, off-scene) -- nothing to
+         * dress -- or the loc is a multiloc whose varbit picks -1 right now,
+         * and ApplyLocChange kept the placement as a hidden record. The
+         * menu belongs to that placement, not to whichever child draws it
+         * (the reference's scene loc holds the mask and labels across every
+         * re-resolve, deob class108 / DynamicObject), so it rides the record
+         * and comes back with the re-placement. A refused spawn has no
+         * record, and the stamp finds none.
+         */
+        (void)WorldBuilder_HiddenLocSetOps(
+            builder,
+            self->tile_x,
+            self->tile_z,
+            self->level,
+            self->loc_shape,
+            self->loc_op_flags,
+            self->loc_ops);
+        return;
+    }
     sc = World_EntityPoolGet(&world->entities.scenery, idx);
     if( !sc )
         return;
@@ -1701,7 +1724,7 @@ Task_AppSpawn_Run(
              * loc carries the mask and the labels, and the menu builder reads
              * the loctype first and lets the placement win (deob class108).
              */
-            app_loc_change_apply_ops(app, world, self);
+            app_loc_change_apply_ops(app, world, wv->builder, self);
             /*
              * The cache's own "a loc was placed" script, for a loc that arrived
              * AFTER the scene was built.

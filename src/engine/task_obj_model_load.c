@@ -78,7 +78,9 @@ obj_model_resolve_count_obj_id(
     int countobj_id = -1;
 
     assert(provider);
-    if( obj_id <= 0 || count <= 1 )
+    /* obj_id 0 is a real item; countobj_id > 0 below is the objtype's own
+     * "no variant" (count_obj defaults to 0) and stays. */
+    if( obj_id < 0 || count <= 1 )
         return -1;
     if( !CacheProvider_ObjtypeHas(provider, obj_id) )
         return -1;
@@ -104,7 +106,7 @@ obj_model_render_obj_id(
 {
     struct ToriRS_Objtype* obj;
 
-    if( resolved_id <= 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+    if( resolved_id < 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
         return -1;
     obj = CacheProvider_ObjtypeGet(provider, resolved_id);
     assert(obj);
@@ -115,7 +117,7 @@ obj_model_render_obj_id(
      * reference's item-sprite builder generates `placeholderId`'s sprite and
      * blits it with nothing under it. */
     if( obj->inventory_model_id <= 0 && obj->placeholder_template >= 0 &&
-        obj->placeholder_link > 0 )
+        obj->placeholder_link >= 0 )
         return obj->placeholder_link;
     return resolved_id;
 }
@@ -130,11 +132,11 @@ obj_model_cert_link_id(
 {
     struct ToriRS_Objtype* obj;
 
-    if( resolved_id <= 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
+    if( resolved_id < 0 || !CacheProvider_ObjtypeHas(provider, resolved_id) )
         return -1;
     obj = CacheProvider_ObjtypeGet(provider, resolved_id);
     assert(obj);
-    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 && obj->cert_link > 0 )
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 && obj->cert_link >= 0 )
         return obj->cert_link;
     return -1;
 }
@@ -147,7 +149,7 @@ obj_model_objtype_model_id(
 {
     struct ToriRS_Objtype* obj;
 
-    if( obj_id <= 0 || !CacheProvider_ObjtypeHas(provider, obj_id) )
+    if( obj_id < 0 || !CacheProvider_ObjtypeHas(provider, obj_id) )
         return -1;
     obj = CacheProvider_ObjtypeGet(provider, obj_id);
     assert(obj);
@@ -166,7 +168,7 @@ obj_model_resolve_inventory_model_id(
 
     assert(provider);
     render_id = obj_model_render_obj_id(provider, resolved_id);
-    if( render_id <= 0 || !CacheProvider_ObjtypeHas(provider, render_id) )
+    if( render_id < 0 || !CacheProvider_ObjtypeHas(provider, render_id) )
         return -1;
 
     obj = CacheProvider_ObjtypeGet(provider, render_id);
@@ -217,7 +219,7 @@ ObjModelLoad_RenderObjId(
     int count_obj_id;
 
     assert(provider);
-    if( obj_id <= 0 )
+    if( obj_id < 0 )
         return obj_id;
     count_obj_id = obj_model_resolve_count_obj_id(provider, obj_id, count);
     return count_obj_id > 0 ? count_obj_id : obj_id;
@@ -236,7 +238,7 @@ ObjModelLoad_NeedsWork(
     int f;
 
     assert(provider);
-    if( obj_id <= 0 )
+    if( obj_id < 0 ) /* obj 0 (Dwarf remains) is a real item */
         return 0;
     if( !CacheProvider_ObjtypeHas(provider, obj_id) )
         return 1;
@@ -248,7 +250,7 @@ ObjModelLoad_NeedsWork(
     /* A bank note's model lives on its cert template objtype, which must be
      * resident before the model (and the icon) can resolve. */
     render_obj_id = obj_model_render_obj_id(provider, count_obj_id > 0 ? count_obj_id : obj_id);
-    if( render_obj_id > 0 && !CacheProvider_ObjtypeHas(provider, render_obj_id) )
+    if( render_obj_id >= 0 && !CacheProvider_ObjtypeHas(provider, render_obj_id) )
         return 1;
 
     /* A bank note also composites its base item (cert_link) icon on top, so the
@@ -256,7 +258,7 @@ ObjModelLoad_NeedsWork(
     {
         int base_obj_id = obj_model_cert_link_id(
             provider, count_obj_id > 0 ? count_obj_id : obj_id);
-        if( base_obj_id > 0 )
+        if( base_obj_id >= 0 )
         {
             int base_model_id;
             int base_faces;
@@ -336,7 +338,7 @@ Task_ObjModelLoad_Run(
     {
         for( int k = 0; k < self->n; k++ )
         {
-            if( self->obj_ids[k] <= 0 )
+            if( self->obj_ids[k] < 0 )
                 continue;
             ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->provider->asset_queue,
@@ -353,7 +355,7 @@ Task_ObjModelLoad_Run(
         self->obj_id = self->obj_ids[self->i];
         self->count = self->counts ? self->counts[self->i] : 1;
 
-        if( self->obj_id <= 0 )
+        if( self->obj_id < 0 )
             continue;
 
         PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->obj_id));
@@ -367,7 +369,7 @@ Task_ObjModelLoad_Run(
          * (base obj/count obj are resident now, so render-id resolves). */
         self->render_obj_id = obj_model_render_obj_id(
             self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
-        if( self->render_obj_id > 0 && self->render_obj_id != self->obj_id &&
+        if( self->render_obj_id >= 0 && self->render_obj_id != self->obj_id &&
             self->render_obj_id != self->count_obj_id )
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
 
@@ -375,7 +377,7 @@ Task_ObjModelLoad_Run(
          * textures — the icon composites the base's icon over the note paper. */
         self->base_obj_id = obj_model_cert_link_id(
             self->provider, self->count_obj_id > 0 ? self->count_obj_id : self->obj_id);
-        if( self->base_obj_id > 0 )
+        if( self->base_obj_id >= 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
             self->base_model_id =

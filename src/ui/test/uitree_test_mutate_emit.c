@@ -899,7 +899,7 @@ test_apply_object_silhouette(void)
         /* Static targets keep their identity even when they have dynamic children. */
         TEST_ASSERT(UITree_ApplyObject(tree, 200, 1725, 1, 21, 0, 0), "setobject via static parent");
         TEST_ASSERT(tree->components[slot].item_id == 1725, "static target owns its content");
-        TEST_ASSERT(tree->components[overlay].item_id == 0, "static content does not redirect to child");
+        TEST_ASSERT(tree->components[overlay].item_id == UITREE_NO_OBJ, "static content does not redirect to child");
     }
 
     /*

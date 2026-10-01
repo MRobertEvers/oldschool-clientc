@@ -1244,7 +1244,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -4042,6 +4042,17 @@ check-revconfig-roles:
 check-drive-abi:
 	python3 $(REPO_ROOT)/tools/quest_gate/check_drive_abi.py
 
+# A quest port that dropped a LostCity camera cutscene (DROPPED: LostCity
+# frames the camera, the port never does; PARTIAL: fewer moveto/lookat ops)
+# fails here -- the guide never asks for a cutscene, so no quest test would
+# notice (Fight Arena's ogre pen, 2026-09-30). WIKI_MISSING never fails it:
+# the post-LostCity quests are the wiki backlog specced in docs/quests/
+# cutscenes/, not a port that lost something. gate.py's cutscene_row_required
+# is the other half: a quest whose content frames the camera must assert it.
+.PHONY: check-quest-cutscenes
+check-quest-cutscenes:
+	python3 $(REPO_ROOT)/tools/quest_gate/cutscene_sweep.py --repo $(REPO_ROOT) --only-open --fail-on-dropped
+
 # The quest gate: static lint first (cheap, no client boot needed to catch a
 # numeric id, a self-completing setup cheat, a pinned "PASS", a duplicate
 # t.do name or an unknown content symbol), then one private-session client
@@ -4916,6 +4927,40 @@ check-quest-combat-manifest:
 check-quest-combat-contract:
 	@cd $(REPO_ROOT) && python3 tools/check_quest_combat_contract.py
 
+# The two repo-wide sweeps alone, listed: every name-specific [opnpc2]/[apnpc2]
+# that reaches ~npc_retaliate must also reach @player_combat_start/_ap
+# (QUEST_AUTHORING.md trap 31), and every quest's progress varp (or its
+# varbit's carrier) must be transmit=yes scope=perm. Exits non-zero on a miss.
+# check-quest-combat-contract runs both too, so torirsserver-scripts refuses one.
+check-quest-contract-sweeps:
+	@cd $(REPO_ROOT) && python3 tools/check_quest_combat_contract.py --sweeps
+
+# Every npc-driven script ([ai_queue<n>], [ai_opplayer<n>], [ai_timer], ...)
+# that reaches a player suspend -- a dialogue (p_pausebutton), p_delay,
+# p_countdialog -- must bind the player first (npc_findhero / p_finduid) or
+# queue() the dialogue onto the player. The engine aborts that script at the
+# suspend (torirs_server_scripts.c SCRIPT_PTR_BORROWED_PLAYER, seam21; LostCity
+# checkedHandler(ProtectedActivePlayer)), so this refuses it at build time.
+check-npc-script-player-suspend:
+	@cd $(REPO_ROOT) && python3 tools/check_npc_script_player_suspend.py --strict --brief
+
+# Every ~chatnpc/~chatnpc_anim reached from a trigger that binds no npc
+# ([oploc*], [opheld*], [queue], [softtimer], ...) with no npc_find*/npc_add*
+# before it: those procs read npc_type/npc_name/npc_coord and abort, so the
+# page mounts and the conversation dies on its first continue (Mountain
+# Daughter's Shining Pool, seam23). Speak through npc_find, the npc-free
+# ~chatnpc_specific_anim, or ~mesbox instead. Known open hits are listed in
+# the tool's KNOWN_OPEN; a new one fails the build.
+check-chatnpc-without-npc:
+	@cd $(REPO_ROOT) && python3 tools/check_chatnpc_without_npc.py --strict --brief
+
+# Every quest journal (a script body calling ~quest_journal) must carry the red
+# "QUEST COMPLETE!" banner in its done branch, as all 57 LostCity quest
+# journals do. Without it the journal reads unfinished after a real completion
+# and the quest driver's quest.journal row FAILs (Recruitment Drive, seam25).
+check-quest-journal-banner:
+	@cd $(REPO_ROOT) && python3 tools/check_quest_journal_banner.py --brief
+
 check-charter-contract:
 	@cd $(REPO_ROOT) && python3 tools/check_charter_contract.py
 
@@ -5106,7 +5151,7 @@ torirsserver-lanes: sscompile
 # the lane variants below are development builds of the same tree and do not
 # re-run gates the default build has already passed. The three settled audits
 # are the exception and live on check-content-audits instead; see there for why.
-torirsserver-scripts: check-design-colours check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
+torirsserver-scripts: check-design-colours check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-tob-pillar-contract
 	@$(MAKE) torirsserver-scripts-lanes \
 		TORIRSSERVER_SCRIPT_LANES= \
 		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build

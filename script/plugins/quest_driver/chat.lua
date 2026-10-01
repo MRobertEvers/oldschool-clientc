@@ -830,7 +830,9 @@ end
 -- "kind:fragment" per entry matched, in order, the fragment being the first
 -- ~30 characters of the page's own text where an entry read one (npc/
 -- player/mesbox, tags stripped) or the entry itself otherwise (choose/
--- count/name/end/any), the whole joined string capped at ~200 characters.
+-- count/name/end), or for "*" the page it actually continued past
+-- ("*=npc 'Hello Effendi!'"), the whole joined string capped at ~480
+-- characters.
 -- Never ("ok", nil) -- chat.play used to be the hollow rule's own textbook
 -- case (QUEST_AUTHORING.md trap 12): a verb whose successful answer IS
 -- legitimately informative cannot go through t.exec unless it says so.
@@ -926,6 +928,85 @@ function QD.chat._play_describe(kind)
     return kind
 end
 
+-- A page named for a person: its kind plus the first words of its text
+-- (npc/player/mesbox/objbox), or its rows (options).  Read raw, like
+-- _play_describe, and short: it goes into every "*" entry's summary.
+function QD.chat._play_page_name(kind)
+    if kind == "options" then
+        local result, options = api_drive.options()
+        if result == "ok" then
+            return "options[" .. table.concat(options.rows, "|"):sub(1, 40) .. "]"
+        end
+        return "options"
+    end
+    local text = QD.read._presented_text(QD.read._text_symbols)
+    if text == nil then
+        return kind
+    end
+    return kind .. " '" .. QD.read._strip_tags(tostring(text)):sub(1, 24) .. "'"
+end
+
+-- Before entry `index` is graded: the click the previous entry made must have
+-- been ANSWERED.  nil when it was (or when nothing was clicked yet and no
+-- resume is outstanding); otherwise (result, detail) for chat.play to return.
+--
+-- The answer to a continue is the server's next mount or close, and the
+-- client's pause_pending latch (_resume_outstanding) is up until it lands.
+-- A page the server follows with a p_delay and no if_close keeps the latch
+-- up for that whole delay, which is legitimate -- so a latch still up when
+-- the first 8-tick readiness wait runs out gets a second 8 ticks of its own.
+--
+-- A latch still up after that is not a race this verb can win by waiting:
+-- the server has taken the click and nothing it runs will ever answer it.
+-- desertrescue, seam23 (build/quest_gate/s23cr_full1, TORIRSSERVER_VERBOSE):
+-- Al Shabim's [opnpc1] opened "Hello Effendi!" and was then DROPPED by the
+-- one-parked-script rule ("dropping [proc,chatnpc_anim], which suspended
+-- while [proc,mercenary_attack] waits"), and the click on it answered "no
+-- trigger for [if_button0,chat_left:continue]".  chat.play used to walk
+-- straight into continue_ there and report its double-submit refusal, "a
+-- resume is already outstanding" -- which named the driver as the culprit
+-- for a page no script owned.  The row now says what happened: which
+-- entry's click, on which page, went unanswered, and where to look.
+--
+-- Third answer, (nil, note): the latch DID clear, but only in the second
+-- wait.  A page nobody owns is also cleared by whatever script closes the
+-- chatbox next (Al Shabim's orphan was closed ~10 ticks later by the parked
+-- ~mercenary_attack), and the entry that follows then reads "the dialogue
+-- closed" -- true, and useless without the note that the click before it
+-- went unanswered all that time.  chat.play appends the note to that entry's
+-- failure detail; on success it is dropped (a long legitimate p_delay).
+function QD.chat._play_await_answer(index, entry, acted_kind, acted_identity, acted_page)
+    local started = api_drive.tick()
+    QD.chat._await_page_ready(acted_kind, acted_identity, 8)
+    if not QD.chat._resume_outstanding() then
+        return nil
+    end
+    local clicked
+    if acted_kind == nil then
+        clicked = "a click made before this chat.play (the page up is "
+            .. QD.chat._play_page_name(QD.chat.kind()) .. ")"
+    else
+        clicked = "entry " .. (index - 1) .. "'s click on " .. tostring(acted_page)
+    end
+    await({
+        level = function()
+            return not QD.chat._resume_outstanding()
+        end,
+        note = "chat.play: answer to the last click",
+    }, 8)
+    if not QD.chat._resume_outstanding() then
+        return nil, " [" .. clicked .. " was unanswered ('Please wait...') for "
+            .. (api_drive.tick() - started) .. " ticks before the page changed -- a long p_delay "
+            .. "after the page, or a page no script was parked on (TORIRSSERVER_VERBOSE=1 prints the "
+            .. "server's 'dropping [...]' line)]"
+    end
+    return "timeout", "chat.play: entry " .. index .. " ('" .. entry .. "'): the server never answered "
+        .. clicked .. " in " .. (api_drive.tick() - started) .. " ticks -- the page still says "
+        .. "'Please wait...' and no script took the resume (an orphaned page: the script that "
+        .. "opened it was dropped or is not parked on it; TORIRSSERVER_VERBOSE=1 prints the "
+        .. "server's 'dropping [...]' line)"
+end
+
 function QD.chat.play(list)
     local summary = {}
     -- The page THIS call's last SUBMITTING entry acted on (continue_/
@@ -936,6 +1017,10 @@ function QD.chat.play(list)
     -- (QD.chat._await_page_ready's banner).
     local acted_kind = nil
     local acted_identity = nil
+    -- The same page, described for a person (kind plus the first words of
+    -- its text, or its rows): what a detail names when the answer to the
+    -- click on it never came.
+    local acted_page = nil
 
     for index, entry in ipairs(list) do
         local parsed, parse_detail = QD.chat._play_parse(entry)
@@ -960,7 +1045,13 @@ function QD.chat.play(list)
         -- so neither chat.kind() nor the t.ticks(5) in haunted.lua could
         -- tell them apart.  The next chat.play read the old page's sentence
         -- and failed on it, and five rows behind it failed too.
-        QD.chat._await_page_ready(acted_kind, acted_identity, 8)
+        local ready_res, ready_detail = QD.chat._play_await_answer(index, entry, acted_kind,
+            acted_identity, acted_page)
+        if ready_res ~= nil then
+            return ready_res, ready_detail
+        end
+        -- ready_detail with a nil result is the slow-answer note (above).
+        local answer_note = ready_detail or ""
 
         -- Same race chat.drain's own banner documents (measured 2026-09-19:
         -- the cook's Talk-to page lands its reply during exactly this
@@ -989,7 +1080,7 @@ function QD.chat.play(list)
                     .. QD.chat._no_dialogue
             end
             return "not_visible", "chat.play: entry " .. index .. " ('" .. entry
-                .. "'): the dialogue closed after " .. (index - 1) .. " page(s)"
+                .. "'): the dialogue closed after " .. (index - 1) .. " page(s)" .. answer_note
         end
         -- Overridden below for a "text" action that actually reads one;
         -- everything else summarises as the LIST entry it matched, capped
@@ -999,7 +1090,7 @@ function QD.chat.play(list)
         if parsed.action == "expect" or parsed.action == "text" then
             if actual_kind ~= parsed.kind then
                 return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
-                    .. "') expected kind=" .. parsed.kind .. ", got " .. QD.chat._play_describe(actual_kind)
+                    .. "') expected kind=" .. parsed.kind .. ", got " .. QD.chat._play_describe(actual_kind) .. answer_note
             end
             if parsed.action == "text" then
                 local text_res, text = QD.chat.text()
@@ -1021,6 +1112,7 @@ function QD.chat.play(list)
                 -- Read BEFORE the click: this is the page the NEXT entry's
                 -- readiness wait must see the back of.
                 acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+                acted_page = QD.chat._play_page_name(actual_kind)
                 local r, d = QD.chat.continue_()
                 if r ~= "ok" then
                     return r, "chat.play: entry " .. index .. " continue_ -- " .. tostring(d)
@@ -1033,6 +1125,7 @@ function QD.chat.play(list)
                     .. "') expected options, got " .. QD.chat._play_describe(actual_kind)
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
             local r, d = QD.chat.choose(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') choose -- " .. tostring(d)
@@ -1044,6 +1137,7 @@ function QD.chat.play(list)
                     .. "') expected count, got " .. QD.chat._play_describe(actual_kind)
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
             local r, d = QD.chat.count(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') count -- " .. tostring(d)
@@ -1055,6 +1149,7 @@ function QD.chat.play(list)
                     .. "') expected name, got " .. QD.chat._play_describe(actual_kind)
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
             local r, d = QD.chat.name_entry(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') name_entry -- " .. tostring(d)
@@ -1070,12 +1165,17 @@ function QD.chat.play(list)
             if actual_kind == "options" or actual_kind == "count" or actual_kind == "name"
                 or actual_kind == "none" then
                 return "mismatch", "chat.play: entry " .. index
-                    .. " ('*') cannot blindly continue past " .. QD.chat._play_describe(actual_kind)
+                    .. " ('*') cannot blindly continue past " .. QD.chat._play_describe(actual_kind) .. answer_note
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
+            -- "*" matched whatever was up; the summary names THAT page, so a
+            -- reader can see which page each wildcard graded.
+            fragment = "*=" .. acted_page
             local r, d = QD.chat.continue_()
             if r ~= "ok" then
-                return r, "chat.play: entry " .. index .. " ('*') continue_ -- " .. tostring(d)
+                return r, "chat.play: entry " .. index .. " ('*') on " .. acted_page
+                    .. " continue_ -- " .. tostring(d)
             end
         end
 
@@ -1125,8 +1225,348 @@ function QD.chat.play(list)
     end
 
     local joined = table.concat(summary, ", ")
-    if #joined > 200 then
-        joined = joined:sub(1, 200)
+    if #joined > 480 then
+        joined = joined:sub(1, 480)
     end
     return "ok", #summary .. " page(s): " .. joined
+end
+
+-- ============================================================ t.game
+--
+-- Chat-driven minigames a quest must WIN, played through the same chat.play
+-- clicks a person makes.  Seam24 rune_draw_strategy (2026-09-28).
+--
+--   t.game.runedraw(policy) -> ("ok", reading) | refused | mismatch | ...
+--
+-- ONE game of Robin's Rune-Draw (Ghosts Ahoy), from the page talk_to on
+-- `ahoy_robin` leaves up (his "Yes, I'll give you a game." options, or any
+-- page after it) until the dialogue closes.  Every Draw/Hold is chosen from
+-- the state the game's OWN pages have printed -- which runes are out of the
+-- bag, the player's total, Robin's total, whether he has held -- never from a
+-- server read.  `reading` is { outcome = "won"|"lost"|"level", mine, robin,
+-- draws, holds, debt (Robin's own sentence; nil on a level game), signed
+-- (true once he signed the bow), pages, text }.
+--
+-- THE RULES ARE THE CONTENT'S, read from quest_ghostsahoy/scripts/
+-- ahoy_manual.rs2 [proc,ahoy_runedraw_round] (wiki Rune-Draw oldid 14666162):
+-- a ten-rune bag (values 1..9 and the Death rune), each draw uniform among
+-- what is left, never replaced; the player draws first and turns alternate;
+-- a Death rune loses at once, both holding (or an exhausted bag) compares
+-- totals.  Robin's own turn is a fixed rule: hold when one rune is left
+-- (only Death can be), hold when the player has held and he is AHEAD, hold at
+-- 15+ while the player is still drawing, otherwise draw.
+--
+-- THE POLICY.  Because Robin is a fixed rule and the bag is exact, the value
+-- of every state (runes out, player total, who has held) is computable, and
+-- QD.game._runedraw_player does it: expected (P(win) - P(loss)) under the
+-- best reply, memoised over at most 512 * 46 * 4 states.  Played this way the
+-- player wins 54.5% and loses 45.1% (0.4% level): +0.094 per game.  A fixed
+-- "hold at 12" threshold -- the parked ghostsahoy.lua's -- wins 37.1% and
+-- loses 62.0%, which is why sixty games never lifted the debt past 25: with
+-- the debt floored at 0 the walk to 100 (four net wins) takes 15.4 games on
+-- average under the exact policy, P(more than 100 games) = 0.0002; under hold
+-- at 12 it drifts DOWN.  (Every hold-at-N threshold is worse than the exact
+-- policy; the best, N=19, is +0.050.)
+--
+-- `policy` is nil or "optimal" for the above, or a function(state) ->
+-- "draw"|"hold" (state = { out = {[v]=true}, mine, robin, robin_held,
+-- left }) for a test that wants to measure something else.
+
+QD.game = {}
+
+-- Rune values out of the bag, as a bitmask over bits 1..9 (bit v = value v):
+-- their sum and how many runes (Death included) are still in the bag, one
+-- table each, built on first use so the search below reads instead of loops.
+function QD.game._runedraw_tables()
+    if QD.game._runedraw_sum_of ~= nil then
+        return
+    end
+    local sum_of, left_of = {}, {}
+    for mask = 0, 1023, 2 do
+        local total, left = 0, 10
+        for v = 1, 9 do
+            if (mask >> v) & 1 == 1 then
+                total = total + v
+                left = left - 1
+            end
+        end
+        sum_of[mask], left_of[mask] = total, left
+    end
+    QD.game._runedraw_sum_of, QD.game._runedraw_left_of = sum_of, left_of
+end
+
+-- The search is ~8,000 states, more than one resume's instruction budget
+-- (torirs_plugin_lua.c PLUGIN_LUA_STEP_BUDGET), so it gives the frame back
+-- every _RUNEDRAW_SLICE states; a Rune-Draw options page waits for its
+-- answer, so the ticks this costs (a handful, once per run: the tables are
+-- memoised for the life of the driver) change nothing in the game.
+QD.game._runedraw_work = 0
+function QD.game._runedraw_count()
+    QD.game._runedraw_work = QD.game._runedraw_work + 1
+    if QD.game._runedraw_work >= 400 then
+        QD.game._runedraw_work = 0
+        QD.ticks(1)
+    end
+end
+
+QD.game._runedraw_memo_player = {}
+QD.game._runedraw_memo_robin = {}
+
+-- End of the loop body: the content's while-condition, then the player's turn.
+function QD.game._runedraw_loop(mask, mine, my_held, robin_held)
+    if QD.game._runedraw_left_of[mask] <= 0 or (my_held == 1 and robin_held == 1) then
+        local robin = QD.game._runedraw_sum_of[mask] - mine
+        if mine > robin then return 1 end
+        if robin > mine then return -1 end
+        return 0
+    end
+    return QD.game._runedraw_player(mask, mine, my_held, robin_held)
+end
+
+-- The player's turn (content lines 136-154) at its best reply: the value, and
+-- "draw"/"hold" (nil once the player has held and only Robin moves).
+function QD.game._runedraw_player(mask, mine, my_held, robin_held)
+    if my_held == 1 then
+        return QD.game._runedraw_robin(mask, mine, 1, robin_held), nil
+    end
+    local key = (mask * 64 + mine) * 2 + robin_held
+    local memo = QD.game._runedraw_memo_player[key]
+    if memo ~= nil then
+        return memo[1], memo[2]
+    end
+    QD.game._runedraw_count()
+    local hold = QD.game._runedraw_robin(mask, mine, 1, robin_held)
+    local left = QD.game._runedraw_left_of[mask]
+    local draw = -1 / left -- the Death rune
+    for v = 1, 9 do
+        if (mask >> v) & 1 == 0 then
+            draw = draw + QD.game._runedraw_robin(mask | (1 << v), mine + v, 0, robin_held) / left
+        end
+    end
+    local value, choice = draw, "draw"
+    if hold > draw then
+        value, choice = hold, "hold"
+    end
+    QD.game._runedraw_memo_player[key] = { value, choice }
+    return value, choice
+end
+
+-- Robin's turn (content lines 155-178), his fixed rule.
+function QD.game._runedraw_robin(mask, mine, my_held, robin_held)
+    local left = QD.game._runedraw_left_of[mask]
+    if robin_held == 1 or left <= 0 then
+        return QD.game._runedraw_loop(mask, mine, my_held, robin_held)
+    end
+    local key = ((mask * 64 + mine) * 2 + my_held)
+    local memo = QD.game._runedraw_memo_robin[key]
+    if memo ~= nil then
+        return memo
+    end
+    QD.game._runedraw_count()
+    local robin = QD.game._runedraw_sum_of[mask] - mine
+    local value
+    if left == 1 or (my_held == 1 and robin > mine) or (my_held == 0 and robin >= 15) then
+        value = QD.game._runedraw_loop(mask, mine, my_held, 1)
+    else
+        value = 1 / left -- he draws the Death rune
+        for v = 1, 9 do
+            if (mask >> v) & 1 == 0 then
+                value = value + QD.game._runedraw_loop(mask | (1 << v), mine, my_held, 0) / left
+            end
+        end
+    end
+    QD.game._runedraw_memo_robin[key] = value
+    return value
+end
+
+-- The exact policy's choice for the state the pages have printed.
+function QD.game._runedraw_choice(state)
+    QD.game._runedraw_tables()
+    local mask = QD.game._runedraw_mask(state)
+    local _, choice = QD.game._runedraw_player(mask, state.mine, 0, state.robin_held and 1 or 0)
+    return choice
+end
+
+function QD.game._runedraw_mask(state)
+    local mask = 0
+    for v = 1, 9 do
+        if state.out[v] then
+            mask = mask | (1 << v)
+        end
+    end
+    return mask
+end
+
+-- Folds one text page into `state`; answers a problem string when the page
+-- contradicts what the earlier pages said (a missed or double-read page).
+function QD.game._runedraw_read(state, text)
+    local worth, total = text:match("You draw .-, worth (%d+)%. Your total is (%d+)")
+    if worth then
+        worth, total = tonumber(worth), tonumber(total)
+        if state.out[worth] or state.mine + worth ~= total then
+            return "the page says 'worth " .. worth .. ", total " .. total .. "' after a read total of "
+                .. state.mine .. " with " .. QD.game._runedraw_describe(state)
+        end
+        state.out[worth] = true
+        state.mine = total
+        state.draws = state.draws + 1
+        return nil
+    end
+    local robin_total = text:match("Robin draws .-, bringing his total to (%d+)")
+    if robin_total then
+        robin_total = tonumber(robin_total)
+        local rune = robin_total - state.robin
+        if rune < 1 or rune > 9 or state.out[rune] then
+            return "Robin's total went " .. state.robin .. " -> " .. robin_total
+                .. " with " .. QD.game._runedraw_describe(state)
+        end
+        state.out[rune] = true
+        state.robin = robin_total
+        return nil
+    end
+    if text:find("Robin draws the Death rune", 1, true) then
+        state.robin_dead = true
+    elseif text:find("pull out the Death rune", 1, true) then
+        state.my_dead = true
+    elseif text:find("You hold at", 1, true) then
+        state.holds = state.holds + 1
+    elseif text:find("holds at", 1, true) and text:find("Robin", 1, true) then
+        state.robin_held = true
+    elseif text:find("You got me", 1, true) then
+        state.outcome = "won"
+    elseif text:find("Pay up", 1, true) or text:find("comes off what I owe you", 1, true) then
+        state.outcome = "lost"
+    elseif text:find("Level scores", 1, true) then
+        state.outcome = "level"
+    elseif text:find("signed as promised", 1, true) then
+        state.signed = true
+    end
+    local debt = text:match("I owe you (%d+) coins now") or text:match("what I owe you %-%- (%d+) coins now")
+    if debt then
+        state.debt = tonumber(debt)
+    elseif text:find("Pay up", 1, true) then
+        state.debt = 0
+    end
+    return nil
+end
+
+function QD.game._runedraw_describe(state)
+    local out = {}
+    for v = 1, 9 do
+        if state.out[v] then
+            out[#out + 1] = tostring(v)
+        end
+    end
+    return "out={" .. table.concat(out, ",") .. "} mine=" .. state.mine .. " robin=" .. state.robin
+        .. (state.robin_held and " robin_held" or "")
+end
+
+function QD.game.runedraw(policy)
+    if policy ~= nil and policy ~= "optimal" and type(policy) ~= "function" then
+        return "unsupported", "game.runedraw: policy is nil, \"optimal\" or a function(state), not "
+            .. tostring(policy)
+    end
+    QD.game._runedraw_tables()
+    local state = {
+        out = {}, mine = 0, robin = 0, robin_held = false, my_dead = false, robin_dead = false,
+        draws = 0, holds = 0, outcome = nil, debt = nil, signed = false, pages = 0, text = {},
+    }
+    local started = false
+    while true do
+        state.pages = state.pages + 1
+        if state.pages > 80 then
+            return "timeout", "game.runedraw: 80 pages and the game has not ended -- "
+                .. QD.game._runedraw_describe(state) .. " -- last: " .. tostring(state.text[#state.text])
+        end
+        local kind = QD.chat.kind()
+        if kind == "none" then
+            break
+        end
+        if kind == "options" then
+            local ores, rows = QD.chat.options()
+            if ores ~= "ok" then
+                return ores, "game.runedraw: options unread -- " .. tostring(rows)
+            end
+            local selector
+            if rows[1] == "Yes, I'll give you a game." then
+                selector = rows[1]
+            elseif rows[1] == "Draw a rune." and rows[2] == "Hold." then
+                started = true
+                local choice
+                if policy == nil or policy == "optimal" then
+                    choice = QD.game._runedraw_choice(state)
+                else
+                    choice = policy({
+                        out = state.out, mine = state.mine, robin = state.robin,
+                        robin_held = state.robin_held, left = QD.game._runedraw_left_of[QD.game._runedraw_mask(state)],
+                    })
+                end
+                if choice ~= "draw" and choice ~= "hold" then
+                    return "unsupported", "game.runedraw: the policy answered " .. tostring(choice)
+                        .. ", not \"draw\" or \"hold\""
+                end
+                selector = choice == "draw" and "Draw a rune." or "Hold."
+            else
+                return "refused", "game.runedraw: not a Rune-Draw page -- options '"
+                    .. table.concat(rows, "|") .. "'"
+            end
+            state.text[#state.text + 1] = "choose:" .. selector
+            local pr, pd = QD.chat.play({ "choose:" .. selector })
+            if pr ~= "ok" then
+                return pr, "game.runedraw: choose(" .. selector .. ") -- " .. tostring(pd)
+            end
+        elseif kind == "npc" or kind == "player" or kind == "mesbox" then
+            local tres, text = QD.chat.text()
+            if tres ~= "ok" then
+                return tres, "game.runedraw: page unread -- " .. tostring(text)
+            end
+            text = QD.read._strip_tags(text)
+            state.text[#state.text + 1] = text:sub(1, 60)
+            if text:find("Robin tips ten runes", 1, true) then
+                started = true
+            end
+            local problem = QD.game._runedraw_read(state, text)
+            if problem ~= nil then
+                return "mismatch", "game.runedraw: " .. problem
+            end
+            local pr, pd = QD.chat.play({ "*" })
+            if pr ~= "ok" then
+                return pr, "game.runedraw: continue past '" .. text:sub(1, 40) .. "' -- " .. tostring(pd)
+            end
+        else
+            return "refused", "game.runedraw: a " .. tostring(kind) .. " page is up, not a Rune-Draw page"
+        end
+    end
+    if not started then
+        return "refused", "game.runedraw: no game was played -- Robin said '"
+            .. tostring(state.text[#state.text]) .. "'"
+    end
+    if state.outcome == nil then
+        return "mismatch", "game.runedraw: the dialogue closed with no settlement page -- "
+            .. QD.game._runedraw_describe(state)
+    end
+    -- The settlement must agree with the pages that led to it.
+    local expected
+    if state.my_dead then
+        expected = "lost"
+    elseif state.robin_dead then
+        expected = "won"
+    elseif state.mine > state.robin then
+        expected = "won"
+    elseif state.robin > state.mine then
+        expected = "lost"
+    else
+        expected = "level"
+    end
+    if expected ~= state.outcome then
+        return "mismatch", "game.runedraw: Robin settled '" .. state.outcome .. "' but the pages read "
+            .. expected .. " -- " .. QD.game._runedraw_describe(state)
+    end
+    return "ok", {
+        outcome = state.outcome, mine = state.mine, robin = state.robin, draws = state.draws,
+        holds = state.holds, debt = state.debt, signed = state.signed, pages = state.pages,
+        text = state.outcome .. " " .. state.mine .. "-" .. state.robin
+            .. (state.my_dead and " (you drew Death)" or "") .. (state.robin_dead and " (Robin drew Death)" or "")
+            .. " debt=" .. tostring(state.debt) .. (state.signed and " SIGNED" or ""),
+    }
 end

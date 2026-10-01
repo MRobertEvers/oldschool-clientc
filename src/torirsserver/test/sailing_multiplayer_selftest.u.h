@@ -281,7 +281,7 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
     if( srv->wire->revision < 239 ) return;
     fprintf(stderr, "ToriRSServer selftest: production sailing multiplayer/client decoder\n");
     int saved_x = player->x, saved_z = player->z, saved_level = player->level;
-    int saved_rng = srv->rng;
+    int saved_rng = srv->world_random.engine;
     ToriRSServer_WorldSetActive(srv, player);
     ToriRSServer_WorldTeleport(srv, 0, 3080, 3160);
     int handle = ToriRSServer_VesselSpawn(srv, 9, 6, 12, 0, 3072, 3160, 0);
@@ -655,7 +655,7 @@ done:
     ToriRSServer_WorldPlayerReap(srv);
     ToriRSServer_VesselFree(srv, handle);
     ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
-    srv->rng = saved_rng;
+    srv->world_random.engine = saved_rng;
 }
 
 /* Exhaust every actual published identity and keep non-boat instances usable. */

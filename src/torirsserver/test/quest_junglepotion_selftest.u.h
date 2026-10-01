@@ -643,7 +643,12 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         player->last_useslot = jungle_inv_slot(player, obj_belt);
         jungle_release(srv, player);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, truf_slot);
+        /* LostCity trufitus.rs2 belt path: legend -> temple -> tell me more -> search for
+         * Ah Za Rhoon -> "Yes, I will seriously look" (trufitus_searchfor starts Shilo). */
+        jungle_choose(srv, player, 2);
+        jungle_choose(srv, player, 2);
         jungle_choose(srv, player, 1);
+        jungle_choose(srv, player, 3);
         jungle_choose(srv, player, 1);
         jungle_drain(srv, player, 0);
         jungle_release(srv, player);
@@ -652,6 +657,39 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         SELFTEST_CHECK(player->varps[varp_jp] == 13, "Shilo start must not rewrite junglepotion, got %d",
                        player->varps[varp_jp]);
         jungle_pass("shilo_wampum", "opnpcu,trufitus", "zombiequeen=1");
+    }
+
+    /* ---- opnpcu matrix (LostCity trufitus.rs2 [opnpcu,trufitus]): dirty herb declined, other herb
+     *      rejected, unknown item / unstarted quest -> default message, clean herb accepted ---- */
+    {
+        static const struct { int state; int use_obj; int expect_state; int expect_kept; const char* what; } rows[] = {
+            { 0, 0, 0, 1, "unstarted_snake_default" },
+            { 2, 1, 2, 1, "dirty_snake_declined" },
+            { 2, 2, 2, 1, "dirty_ardrigal_wrong_herb" },
+            { 2, 3, 3, 0, "clean_snake_accepted" },
+        };
+        int r;
+
+        for( r = 0; r < 4; r++ )
+        {
+            int use = rows[r].use_obj == 0 ? obj_snake : rows[r].use_obj == 1 ? obj_u_snake
+                    : rows[r].use_obj == 2 ? obj_u_ard : obj_snake;
+
+            selftest_clear_inv(player);
+            selftest_give(player, use, 1);
+            player->varps[varp_jp] = rows[r].state;
+            player->last_useitem = use;
+            player->last_useslot = jungle_inv_slot(player, use);
+            jungle_release(srv, player);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, truf_slot);
+            jungle_drain(srv, player, 0);
+            jungle_release(srv, player);
+            SELFTEST_CHECK(player->varps[varp_jp] == rows[r].expect_state, "%s: junglepotion should be %d, got %d",
+                           rows[r].what, rows[r].expect_state, player->varps[varp_jp]);
+            SELFTEST_CHECK((selftest_count(player, use) > 0) == (rows[r].expect_kept != 0),
+                           "%s: item kept=%d expected", rows[r].what, rows[r].expect_kept);
+            jungle_pass(rows[r].what, "opnpcu,trufitus", "state+item");
+        }
     }
 
 jungle_done:

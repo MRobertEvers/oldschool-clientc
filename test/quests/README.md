@@ -5,7 +5,9 @@ One file per quest: `test/quests/<quest>.lua`, returning a table.
 The verb kit, a full worked example (`quest.bind`/`t.exec`/`chat.play`/
 `quest.expect_complete`), the result vocabulary and the twelve traps that cost
 someone hours each all live in `docs/QUEST_AUTHORING.md` -- read that page
-before writing a quest. This file states the rules the runner and the gate
+before writing a quest. It is the core (under 25 KB); the depth is in
+`docs/quest_authoring/`, reached through `docs/quest_authoring/INDEX.md` when a
+row fails. This file states the rules the runner and the gate
 enforce, not how to write to them.
 
 A quest file is `{ id, fixture, setup = {cheats}, run = function(t) ... end }`.

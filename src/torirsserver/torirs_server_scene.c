@@ -1169,10 +1169,24 @@ apply_terrain_column(
         /* Unknown, inland, partial shore and empty upper planes all block
          * boats. Ocean itself blocks walking even where the cache omits BLOCK.
          * Player bridge shifts still apply: water below a raised pier must not
-         * replace the pier's walkable deck with blocked floor. */
+         * replace the pier's walkable deck with blocked floor.
+         *
+         * A ROOFED sea tile is not open ocean: it is the inside of something
+         * standing in the water, and the cache left it walkable on purpose.
+         * The Ghosts Ahoy wreck's lower hull (3613..3621,3542..3544,0: jm2
+         * `o507;0;0 f4`, REMOVE_ROOF and no BLOCK) is flooded floor under a
+         * deck; blocking it walled the player in on the chest square, and the
+         * lobster and both chests answered "I can't reach that!" (seam20
+         * wreck_lower_hull_reach). The reference stamps FLOOR from BLOCK alone
+         * (LostCity GameMap.ts:225); the ocean rule is this port's own, for
+         * open sea that carries no BLOCK, and open sea is never roofed. The
+         * boat domain above is unchanged: a hull still sails the tile. */
+        int ocean_blocks_walk = g_ocean[level][scene_x][scene_z] &&
+                                (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) == 0;
+
         if( level != 0 || !g_ocean[level][scene_x][scene_z] )
             collision_map_add_floor(g_boat_collision[level], scene_x, scene_z);
-        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 || g_ocean[level][scene_x][scene_z] )
+        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 || ocean_blocks_walk )
         {
             if( link_below )
                 true_level--;
@@ -2615,6 +2629,43 @@ ToriRSServer_SceneRouteOp(
         *out_arrive_z = arrive_z;
     route_trace(level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
     return steps;
+}
+
+/*
+ * Melee reach between a 1x1 attacker square and an entity's footprint: the
+ * reference's reachRectangle for an entity target (shape -2, exclusive -- never
+ * on the footprint, never across a corner) with the SHARED EDGE's wall bit
+ * read. LostCity decides every melee op this way (PathingEntity
+ * inOperableDistance -> ReachStrategy.reached, rsmod reachExclusiveRectangle):
+ * a monster behind a closed door or a fence is not in reach of the player on
+ * the other side, and neither is the player in reach of it.
+ *
+ * Where no collision window covers the two squares there is no wall to read,
+ * and the caller's own footprint test (flush and cardinal) is the whole answer,
+ * so this answers yes.
+ */
+int
+ToriRSServer_SceneMeleeReached(
+    int level,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    int dst_size)
+{
+    struct ToriRSServerSceneWindow* window = window_containing2(x, z, dst_x, dst_z);
+    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    struct CollisionApproach approach = {
+        .kind = COLL_APPROACH_RECT_EXCLUSIVE,
+        .loc_width = dst_size > 0 ? dst_size : 1,
+        .loc_length = dst_size > 0 ? dst_size : 1,
+        .mover_size = 1,
+    };
+
+    if( !map )
+        return 1;
+    return collision_map_reached(map, x - window->base_x, z - window->base_z,
+                                 dst_x - window->base_x, dst_z - window->base_z, &approach);
 }
 
 int

@@ -45,6 +45,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 
 import build_support  # noqa: E402
+import pack_fingerprint  # noqa: E402
 import verb_list  # noqa: E402
 
 HARNESS = os.path.join(REPO_ROOT, "test", "quests", "_conformance.lua")
@@ -310,8 +311,10 @@ def main():
         return 1
 
     # The server REFUSES to boot on a stale pack, and this tree carries
-    # uncommitted content, so the pack is rebuilt every run.
-    code = run(["make", "-C", os.path.join(REPO_ROOT, "src"), "torirsserver-scripts"])
+    # uncommitted content, so the pack is rebuilt whenever its inputs changed
+    # (a stat fingerprint, shared with run.py; TORIRS_QUEST_ALWAYS_BUILD=1
+    # rebuilds every run).
+    code = pack_fingerprint.ensure_pack(run, label="conformance")
     if code != 0:
         print("conformance: the script pack did not build", file=sys.stderr)
         return code
@@ -333,6 +336,7 @@ def main():
     summary = None
     exit_code = 1
     attempts = []
+    stale_retried = False
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         directory = os.path.join(root, "attempt-%02d" % attempt)
@@ -341,6 +345,20 @@ def main():
         script = harness_with_skips(skips, os.path.join(directory, "_conformance.lua"))
         log_path = os.path.join(directory, "log.txt")
         exit_code = client(binary, manifest_path, directory, saves, log_path, script)
+        if not stale_retried and pack_fingerprint.stale_pack_refused(log_path):
+            # The fingerprint said current and the server disagreed: its
+            # refusal wins -- rebuild once and run this attempt again.
+            stale_retried = True
+            if pack_fingerprint.rebuild_after_refusal(run, label="conformance") != 0:
+                print("conformance: the script pack did not rebuild after the STALE refusal",
+                      file=sys.stderr)
+                return 1
+            directory = os.path.join(root, "attempt-%02d-after-rebuild" % attempt)
+            os.makedirs(directory, exist_ok=True)
+            saves = session(directory)
+            script = harness_with_skips(skips, os.path.join(directory, "_conformance.lua"))
+            log_path = os.path.join(directory, "log.txt")
+            exit_code = client(binary, manifest_path, directory, saves, log_path, script)
         rows, summary = read_ledger(os.path.join(directory, "ledger.tsv"))
         attempts.append((attempt, directory, exit_code, len(rows)))
 

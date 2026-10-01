@@ -20,8 +20,16 @@ supporting files, and record the link in test/quests/BATCHES.tsv.
 Reads build/quest_gate/<id>/ledger.tsv and shots/*.png (the reviewer's last
 run of each quest) and test/quests/QUEUE.tsv for the row's status/owner/note.
 """
-import argparse, csv, json, os, sys
+import argparse, csv, json, os, re, sys
 from PIL import Image
+
+
+def shot_sort_key(filename):
+    """Chronological order of a shots/ entry: its numeric prefix
+    ("007-talkToGuard.png" -> 7), then the name; a file without one last."""
+    assert filename
+    match = re.match(r"(\d+)-", filename)
+    return (int(match.group(1)) if match else 10 ** 9, filename)
 
 THUMB_W, THUMB_H, COLS = 380, 250, 4
 FULL_W, FULL_H = 765, 503
@@ -71,7 +79,10 @@ def main():
             index["quests"].append({"id": tid, "missing": True, "queue": queue.get(tid, {})})
             continue
         rows, summary = read_ledger(ledger)
-        shot_files = sorted(f for f in os.listdir(shots_dir) if f.endswith(".png")) if os.path.isdir(shots_dir) else []
+        # By the numeric prefix, never the string: "100-" sorted between
+        # "10-" and "11-" on every sheet before shots were three digits.
+        shot_files = sorted((f for f in os.listdir(shots_dir) if f.endswith(".png")),
+                            key=shot_sort_key) if os.path.isdir(shots_dir) else []
         owner_of = {}
         for r in rows:
             for s in r["shots"]:

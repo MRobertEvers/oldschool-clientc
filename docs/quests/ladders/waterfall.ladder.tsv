@@ -1,0 +1,30 @@
+# ladder waterfall quest_dir=quest_waterfall guide=src/main/java/com/questhelper/helpers/quests/waterfallquest/WaterfallQuest.java steps=27 legs=1:1-27@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToAlmera	NpcStep	npc:almera_waterfall_quest	2521,3495,0	Talk to Almera on top of Baxtorian Falls, south of Barbarian Outpost.			Yes.	quests/quest_waterfall/scripts/almera.rs2:8 opnpc1
+1	2	1	boardRaft	ObjectStep	loc:lograft_waterfall_quest	2509,3494,0	Board the log raft west of Almera.		Rope		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:193 oploc1
+1	3	1	talkToHudon	NpcStep	npc:hudon_waterfall_quest	2511,3484,0	Talk to Hudon.		=		quests/quest_waterfall/scripts/hudon.rs2:8 apnpc1
+1	4	2	useRopeOnRock	ObjectStep	loc:crossing_rock_waterfall_quest	2512,3468,0	Use a rope on the rock to the south.		=		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:224 aploc1; +1
+1	5	2	useRopeOnTree	ObjectStep	loc:overhanging_tree1_waterfall_quest	2512,3465,0	Use a rope on the dead tree.		=		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:280 oploc1; +1
+1	6	2	getInBarrel	ObjectStep	loc:barrel_waterfall_quest	2512,3463,0	Get in the barrel.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:325 oploc1
+1	7	2	goUpstairsHadley	ObjectStep	loc:spiralstairs	2518,3430,0	Go up the stairs in the house south of Almera's house.				minigames/minigame_warriorsguild/scripts/warriorsguild_doors.rs2:88 oploc1; +2
+1	8	2	searchBookcase	ObjectStep	loc:bookcase_waterfall_quest	2520,3427,1	Search the south east bookcase.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:333 oploc1
+1	9	2	readBook	DetailedQuestStep			Read the book.		Book on baxtorian		
+1	10	3	leaveHouse	ObjectStep	loc:spiralstairstop	2518,3430,1	Go to the centre of the Tree Gnome Village and go down the ladder at the entrance.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+1	11	3	enterGnomeDungeon	ObjectStep	loc:roving_golrie_ladder_to_cellar loc:spiralstairstop	2533,3155,0	Go to the centre of the Tree Gnome Village and go down the ladder at the entrance.	leaveHouse			ladders_stairs/scripts/ladders.rs2:202 oploc1; +5
+1	12	3	searchGnomeCrate	ObjectStep	loc:golrie_crate_waterfall_quest	2548,9565,0	Search the off-coloured crate in the east room.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:348 oploc1
+1	13	3	enterGnomeDoor	ObjectStep	loc:golrie_gate_waterfall_quest	2515,9575,0	Go through the gate in the west room.		Key		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:363 oploc1; +1
+1	14	3	talkToGolrie	NpcStep	npc:golrie_waterfall_quest	2514,9580,0	Talk to Golrie.				quests/quest_waterfall/scripts/golrie.rs2:10 opnpc1
+1	15	3	usePebble	ObjectStep	loc:glarials_tombstone_waterfall_quest	2559,3445,0	Bank everything besides the pebble and some food. Then use Glarial's pebble on Glarial's Tombstone east of Baxtorian Falls.		Glarial's pebble		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:19 oploc1; +1
+1	16	3	searchGlarialChest	ObjectStep	loc:glarials_chest_closed_waterfall_quest loc:glarials_chest_open_waterfall_quest	2530,9844,0	Search the chest in the western room for Glarial's amulet.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:179 oploc1; +2
+1	17	3	searchGlarialCoffin	ObjectStep	loc:glarials_tomb_waterfall_quest	2542,9812,0	Search Glarial's Tomb in the south room for Glarial's urn.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:164 oploc1
+1	18	3	getFinalItems	DetailedQuestStep			Leave Glarial's Tomb and get 6 air, water, and earth runes, a rope, glarial's amulet, glarial's urn, and some food.		Air runes; Earth runes; Water runes; Glarial's amulet; Glarial's urn; Rope		
+1	19	3	boardRaftFinal	ObjectStep	loc:lograft_waterfall_quest	2509,3494,0	Board the log raft west of Almera.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:193 oploc1
+1	20	3	useRopeOnRockFinal	ObjectStep	loc:crossing_rock_waterfall_quest	2512,3468,0	Use a rope on the rock to the south.		Rope		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:224 aploc1; +1
+1	21	3	useRopeOnTreeFinal	ObjectStep	loc:overhanging_tree1_waterfall_quest	2512,3465,0	Use a rope on the dead tree.		=		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:280 oploc1; +1
+1	22	3	equipAmulet	DetailedQuestStep			Equip Glarial's amulet.		Glarial's amulet		
+1	23	3	enterFalls	ObjectStep	loc:waterfall_ledge_door	2511,3464,0	Enter the falls with Glarial's amulet equipped.		=		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:299 oploc1
+1	24	3	searchFallsCrate	ObjectStep	loc:baxtorian_crate_waterfall_quest	2589,9888,0	Search the crate in the east room for a key.				quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:397 oploc1
+1	25	3	useKeyOnFallsDoor	ObjectStep	loc:baxtorian_door_2_waterfall_quest	2566,9901,0	Enter the west room with the key.		Key		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:407 oploc1; +1
+1	26	3	useRunes	DetailedQuestStep			Use 1 earth, water and air rune on each of the 6 pillars in the room. Afterwards, use Glarial's amulet on the statue of Glarial.		Air rune; Water rune; Earth rune		
+1	27	3	useUrnOnChalice	ObjectStep	loc:baxtorian_chalice_waterfall_quest	2604,9911,0	DO NOT LEFT-CLICK THE CHALICE! Use Glarial's urn on the Chalice to finish the quest.		Glarial's urn		quests/quest_waterfall/scripts/quest_waterfall_locs.rs2:481 oploc1; +1

@@ -111,28 +111,186 @@ ToriRSServer_WorldCacheDir(void)
 }
 
 
-/* xorshift32: a session replays identically for a given seed, which matters
- * when a screenshot test has to land on the same frame twice. */
+/*
+ * xorshift32 over ONE stream: a session replays identically for a given seed,
+ * which matters when a screenshot test has to land on the same frame twice.
+ *
+ * Which stream is the whole point -- see `struct ToriRSServerRandomStream`
+ * (torirs_server.h). An npc's roll takes the npc's, a player's the player's,
+ * and only a draw no entity owns takes `srv->world_random`.
+ */
 static uint32_t
-next_random(struct ToriRSServer* srv)
+next_random(struct ToriRSServerRandomStream* stream)
 {
-    uint32_t x = srv->rng;
+    uint32_t x = stream->engine;
+
+    assert(stream->seeded);
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
-    srv->rng = x;
+    stream->engine = x;
     return x;
 }
 
 static int
 random_range(
-    struct ToriRSServer* srv,
+    struct ToriRSServerRandomStream* stream,
     int lo,
     int hi)
 {
     if( hi <= lo )
         return lo;
-    return lo + (int)(next_random(srv) % (uint32_t)(hi - lo + 1));
+    return lo + (int)(next_random(stream) % (uint32_t)(hi - lo + 1));
+}
+
+/* splitmix64's finaliser: spreads a small identity key (neighbouring tiles,
+ * consecutive names) over the whole state so two npcs a tile apart do not
+ * start on correlated sequences. */
+static uint64_t
+random_mix(uint64_t key)
+{
+    key += 0x9e3779b97f4a7c15ull;
+    key = (key ^ (key >> 30)) * 0xbf58476d1ce4e5b9ull;
+    key = (key ^ (key >> 27)) * 0x94d049bb133111ebull;
+    return key ^ (key >> 31);
+}
+
+uint64_t
+ToriRSServer_RandomScriptSeed(uint64_t seed)
+{
+    /* SSVM_EnvSeed's scramble (serverscript/ssvm.c), java.util.Random's
+     * setSeed: (seed ^ 0x5DEECE66D) & ((1 << 48) - 1). */
+    return (seed ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+}
+
+static void
+random_seed(
+    struct ToriRSServerRandomStream* stream,
+    uint64_t key)
+{
+    uint64_t mixed = random_mix(key);
+    uint32_t engine = (uint32_t)(mixed >> 32);
+
+    /* xorshift32 has one fixed point, and it is 0. */
+    if( engine == 0 )
+        engine = 0x5eed1234u;
+    stream->engine = engine;
+    stream->script = ToriRSServer_RandomScriptSeed(random_mix(mixed));
+    stream->seeded = 1;
+}
+
+/*
+ * What an npc IS, as a spawn key: its spawn tile and plane and its type. The
+ * slot is deliberately not in it -- a spawn row added anywhere shifts every
+ * later slot. Bit 62 keeps every key nonzero (0 is `npc_seed_lives`' empty).
+ */
+static uint64_t
+npc_spawn_key(const struct ToriRSServerNpc* npc)
+{
+    return ((uint64_t)(uint32_t)npc->spawn_x & 0x3fffu) |
+           (((uint64_t)(uint32_t)npc->spawn_z & 0x3fffu) << 14) |
+           (((uint64_t)(uint32_t)npc->spawn_level & 0x3u) << 28) |
+           (((uint64_t)(uint32_t)npc->spawn_type & 0xffffu) << 30) | (1ull << 62);
+}
+
+/* The `npc_seed_lives` entry for `key`, or NULL when it has none and `add` is
+ * false. With `add`, a key with no entry takes the first empty one in its probe
+ * window, or recycles its home entry when the window is full. */
+static uint32_t*
+npc_seed_lives_find(
+    struct ToriRSServer* srv,
+    uint64_t key,
+    int add)
+{
+    enum
+    {
+        PROBE = 16
+    };
+    uint32_t home = (uint32_t)(random_mix(key) % TORIRSSERVER_NPC_SEED_LIVES);
+
+    for( uint32_t i = 0; i < PROBE; i++ )
+    {
+        uint32_t at = (home + i) % TORIRSSERVER_NPC_SEED_LIVES;
+
+        if( srv->npc_seed_lives[at].key == key )
+            return &srv->npc_seed_lives[at].lives;
+        if( srv->npc_seed_lives[at].key == 0 )
+        {
+            if( !add )
+                return NULL;
+            srv->npc_seed_lives[at].key = key;
+            srv->npc_seed_lives[at].lives = 0;
+            return &srv->npc_seed_lives[at].lives;
+        }
+    }
+    if( !add )
+        return NULL;
+    srv->npc_seed_lives[home].key = key;
+    srv->npc_seed_lives[home].lives = 0;
+    return &srv->npc_seed_lives[home].lives;
+}
+
+/*
+ * An npc's stream, from what the npc IS rather than where it sits in the pool:
+ * its spawn key, how many live npcs already stand on that same key (two
+ * identical rows on one tile, or a boss spawning three adds on its own tile,
+ * must not walk in lockstep), and how many have LEFT it (its life): the fifth
+ * `::spawn imp` on a tile is not the first one again. A first life on a key
+ * seeds exactly as it did before lives were counted.
+ */
+static void
+npc_random_seed(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc)
+{
+    uint64_t spawn_key = npc_spawn_key(npc);
+    uint64_t key;
+    uint64_t ordinal = 0;
+    uint32_t* lives;
+
+    /* One pass over the npc pool per spawn -- not per tick. */
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        const struct ToriRSServerNpc* other = &srv->npcs[slot];
+
+        if( other == npc || !other->active )
+            continue;
+        if( other->spawn_x == npc->spawn_x && other->spawn_z == npc->spawn_z &&
+            other->spawn_level == npc->spawn_level && other->spawn_type == npc->spawn_type )
+            ordinal++;
+    }
+    key = spawn_key | ((ordinal & 0xffffu) << 46);
+    lives = npc_seed_lives_find(srv, spawn_key, 0);
+    if( lives && *lives > 0 )
+        key = random_mix(key) + (uint64_t)*lives * 0x9e3779b97f4a7c15ull;
+    random_seed(&npc->random, key);
+}
+
+struct ToriRSServerRandomStream*
+ToriRSServer_WorldPlayerRandom(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    if( !player->random.seeded )
+    {
+        /* The account, not the slot: a second login ahead of this one must not
+         * change this player's fights. A nameless player is only ever a
+         * selftest fixture, and its slot is all the identity it has. */
+        uint64_t key = player->name37 != 0 ? (uint64_t)player->name37
+                                           : (uint64_t)(uint32_t)player->pid | (1ull << 63);
+
+        random_seed(&player->random, key);
+    }
+    return &player->random;
+}
+
+int
+ToriRSServer_RandomFrom(
+    struct ToriRSServerRandomStream* stream,
+    int lo,
+    int hi)
+{
+    assert(stream);
+    return random_range(stream, lo, hi);
 }
 
 /*
@@ -148,10 +306,10 @@ random_range(
  */
 static int
 npc_wander_offset(
-    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
     int range)
 {
-    uint64_t v = (uint64_t)(next_random(srv) >> 8);
+    uint64_t v = (uint64_t)(next_random(&npc->random) >> 8);
 
     assert(range >= 0);
     return (int)((v * (uint64_t)(range * 2) + (1u << 23)) >> 24) - range;
@@ -163,7 +321,7 @@ ToriRSServer_Random(
     int lo,
     int hi)
 {
-    return random_range(srv, lo, hi);
+    return random_range(&srv->world_random, lo, hi);
 }
 
 /*
@@ -180,7 +338,7 @@ ToriRSServer_WorldNpcRoamStagger(
     struct ToriRSServer* srv,
     struct ToriRSServerNpc* npc)
 {
-    npc->next_roam_tick = srv->tick + random_range(srv, 5, 30);
+    npc->next_roam_tick = srv->tick + random_range(&npc->random, 5, 30);
 }
 
 static void
@@ -358,6 +516,88 @@ void
 steps_clear(struct ToriRSServerPlayer* player)
 {
     ToriRSServer_WorldStepsClear(player);
+}
+
+/*
+ * The interaction fired (or was given up) and the walk toward it is over:
+ * drop the route AND the destination flag that named it.
+ *
+ * LostCity `Player.tryInteract` clears the waypoints when an op or ap trigger
+ * runs, `processInteraction` calls `unsetMapFlag()` (clearWaypoints + the
+ * UnsetMapFlag packet) when the target no longer validates, and again at the
+ * end of the tick whenever the route is empty after a step (Player.ts
+ * 1258-1262, 1310-1313, 2249). The reference never routes at click time --
+ * `OpNpcTHandler` / `P_OPNPCT` only latch the interaction, and a route exists
+ * only once `pathToPathingTarget` ran because the interaction could NOT fire --
+ * so an interaction that resolves in range leaves no flag behind. This server
+ * sends SET_MAP_FLAG the moment a route is queued (the click, and every
+ * `p_opnpc`/`p_opnpct` re-arm), so a cast or a bow that fires from range
+ * before a step is taken used to leave that flag standing on the far tile:
+ * the arrival block in advance_player only takes it down after a step or on
+ * the flag's own tile, and api_drive.player_idle read "not idle" for a whole
+ * magic fight (seam22, build/quest_gate/s22cast_after4).
+ */
+static void
+route_abandoned(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    steps_clear(player);
+    if( player->dest_x >= 0 || player->dest_z >= 0 )
+        player->clear_map_flag = 1;
+    player->dest_x = -1;
+    player->dest_z = -1;
+}
+
+/*
+ * LostCity's `player.delayed`: a script of this player's own is parked on
+ * `p_delay`/`p_arrivedelay` and has not resumed yet.
+ *
+ * Two halves, because the reference's flag outlives the tick count by the
+ * width of one phase. `P_DELAY` sets `delayed = true` (PlayerOps.ts:376-380)
+ * and only `World.processPlayers` clears it, right before it resumes the
+ * script (World.ts:693) -- AFTER `processClientsIn` has read the tick's
+ * packets. So a click that arrives on the tick the delay ends is still
+ * refused there. `srv->tick < delayed_until` alone would accept it and start
+ * a trigger on top of the parked script one phase early; the parked SUSPENDED
+ * state is what says "not resumed yet". A dialogue wait (PAUSEBUTTON,
+ * COUNTDIALOG, NAMEDIALOG) is not a delay: the reference answers a click
+ * during one by closing the dialogue (`clearPendingAction` -> `closeModal`),
+ * which this engine already does.
+ */
+static int
+player_delayed(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    assert(srv);
+    assert(player);
+    if( srv->tick < player->delayed_until )
+        return 1;
+    return player->active_script && player->active_script->execution == SSVM_SUSPENDED;
+}
+
+/*
+ * An interface click that would START a content script, arriving while the
+ * player is delayed: refuse it, and say so in the verbose log.
+ *
+ * LostCity's IfButtonHandler runs the `[if_button]` script with protected
+ * access (`root.overlay == false`), and `Player.runScript` returns -1 without
+ * running it when `this.delayed` (Player.ts:2174-2178). A resume button is
+ * forced through and is not asked here -- nothing can be waiting on one while
+ * the only parked script is the delayed one. Returns 1 when refused.
+ */
+static int
+if_button_refused_while_delayed(
+    struct ToriRSServer* srv,
+    int uid,
+    const char* what)
+{
+    if( !player_delayed(srv, srv->active_player) )
+        return 0;
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: <- %s %d:%d refused: player is delayed (p_delay)\n", what,
+                uid >> 16, uid & 0xffff);
+    return 1;
 }
 
 /*
@@ -1649,7 +1889,7 @@ interaction_build_approach(
 
 /*
  * LostCity PathingEntity.randomWalk — one cardinal step off a stacked target.
- * Deterministic via ToriRSServer_Random (selftests need a stable chase).
+ * Deterministic via the player's own stream (selftests need a stable chase).
  *
  * The reference guards this branch with `moveStrategy === NAIVE`, so it is what
  * an *npc* does when it ends up under its target; rsmod spells the same thing
@@ -1664,10 +1904,12 @@ interaction_random_walk(struct ToriRSServer* srv)
     int x = player->x;
     int z = player->z;
 
-    if( ToriRSServer_Random(srv, 0, 1) == 0 )
-        x += ToriRSServer_Random(srv, 0, 1) == 0 ? -1 : 1;
+    struct ToriRSServerRandomStream* random = ToriRSServer_WorldPlayerRandom(player);
+
+    if( random_range(random, 0, 1) == 0 )
+        x += random_range(random, 0, 1) == 0 ? -1 : 1;
     else
-        z += ToriRSServer_Random(srv, 0, 1) == 0 ? -1 : 1;
+        z += random_range(random, 0, 1) == 0 ? -1 : 1;
     player->waypoints[0].x = (int16_t)x;
     player->waypoints[0].z = (int16_t)z;
     player->waypoint_index = 0;
@@ -1771,9 +2013,7 @@ interaction_attack_refused(struct ToriRSServer* srv)
      * same "the click did nothing" this whole seam exists to remove.
      */
     ToriRSServer_PlayerSetFaceEntity(player);
-    steps_clear(player);
-    player->dest_x = -1;
-    player->dest_z = -1;
+    route_abandoned(player);
     ToriRSServer_WorldInteractionClear(srv);
     return 1;
 }
@@ -1819,8 +2059,11 @@ interaction_try(
          * anything, and nothing else on this path would stop it: with the
          * interaction cleared, next tick's gate on `interaction.kind` is
          * false and advance_player keeps draining the queue regardless,
-         * walking the player onto the corpse over the following ticks. */
-        steps_clear(player);
+         * walking the player onto the corpse over the following ticks.
+         * LostCity's invalid-target arm is `clearInteraction()` +
+         * `unsetMapFlag()` (Player.ts processInteraction), so the flag goes
+         * with the route. */
+        route_abandoned(player);
         ToriRSServer_WorldInteractionClear(srv);
         return 1;
     }
@@ -1921,12 +2164,12 @@ interaction_try(
                  * of the restore — only the walk has to go. */
                 if( player->interaction_serial != serial )
                 {
-                    steps_clear(player);
+                    route_abandoned(player);
                     return 1;
                 }
                 if( ran && !interaction->ap_range_called )
                 {
-                    steps_clear(player);
+                    route_abandoned(player);
                     ToriRSServer_WorldInteractionClear(srv);
                     return 1;
                 }
@@ -2023,9 +2266,7 @@ interaction_try(
          * one it just asked for.
          */
         ToriRSServer_WorldInteractionClear(srv);
-        steps_clear(player);
-        player->dest_x = -1;
-        player->dest_z = -1;
+        route_abandoned(player);
 
         /*
          * A use-on takes its own arm and leaves before the switch below, rather
@@ -2427,6 +2668,18 @@ interaction_continue_or_give_up(struct ToriRSServer* srv)
 void
 ToriRSServer_WorldProcessInteraction(struct ToriRSServer* srv)
 {
+    /* A click that arrives while the player is delayed only latches: the
+     * trigger must not start on top of the parked script (Player.ts:1257,
+     * tryInteract behind canAccess). phase_player tries it once the delay is
+     * over -- see `player_delayed_blocks_packet` for why it is not refused. */
+    if( player_delayed(srv, srv->active_player) )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "torirsserver: interaction latched: player is delayed "
+                            "(p_delay until tick %d)\n",
+                    srv->active_player->delayed_until);
+        return;
+    }
     if( interaction_try(srv, 1) )
         return;
     interaction_continue_or_give_up(srv);
@@ -3708,6 +3961,8 @@ npc_spawn(
         npc->spawn_x = x;
         npc->spawn_z = z;
         npc->spawn_level = level;
+        /* Before the roam stagger below, which is its first draw. */
+        npc_random_seed(srv, npc);
         /* Projected now, not left to the memset.
          * `ToriRSServer_WorldRefreshObservation` overwrites these at the top of
          * every tick's info phase, but an encoder reached before the first of
@@ -3881,6 +4136,10 @@ ToriRSServer_WorldNpcFree(
     npc = &srv->npcs[slot];
     if( !npc->active )
         return; /* already dead (or already queued) — do not double-queue */
+
+    /* The key's next npc is a new life (`npc_random_seed`), counted here
+     * because `active` makes this once per npc. */
+    (*npc_seed_lives_find(srv, npc_spawn_key(npc), 1))++;
 
     /*
      * A CORPSE THAT WAS NEVER SEEN TO DIE.
@@ -4523,6 +4782,75 @@ npc_player_distance(
 }
 
 /*
+ * Must this npc's mode-path swing (`opplayer2`) at `player` be given up,
+ * single-way? The mode is already cleared by the caller, which is the
+ * reference's npc_setmode(null).
+ *
+ * The same question torirs_server_combat.c's npc_single_way_swing_refused asks
+ * of a clock-owned swing -- LostCity [proc,npc_check_notcombat]
+ * (skill_combat/scripts/npc/npc_combat.rs2:343-352): outside multi, measured
+ * at the SWINGING npc's tile, a live claim on the player by a different npc
+ * refuses. The claim fields are read the way player_claimed_npc reads them:
+ * expired by tick, and naming nothing once that npc died or its slot was
+ * reused (generation).
+ */
+static int
+npc_mode_swing_refused(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int slot)
+{
+    int claimed;
+    const struct ToriRSServerNpc* holder;
+
+    assert(srv);
+    assert(player);
+    if( ToriRSServer_CombatMultiway(&srv->npcs[slot]) )
+        return 0;
+    if( srv->tick >= player->combat_claim_tick )
+        return 0;
+    claimed = player->combat_claim_npc;
+    if( claimed < 0 || claimed >= TORIRSSERVER_NPC_MAX || claimed == slot )
+        return 0;
+    holder = &srv->npcs[claimed];
+    if( !holder->active || holder->death_tick >= 0 ||
+        holder->generation != player->combat_claim_npc_gen )
+        return 0;
+    return 1;
+}
+
+/*
+ * Is the player in this npc's MELEE reach -- the footprints flush on a
+ * cardinal side (never a corner, never overlapping) and no wall on the shared
+ * edge? The reference's reachExclusiveRectangle, which is what LostCity asks
+ * before an npc's op on a player fires (see the opplayer arrival below);
+ * torirs_server_combat.c in_attack_range_with asks the same of a melee swing.
+ */
+static int
+npc_player_melee_reached(
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    assert(npc);
+    assert(player);
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+    if( dx + dz != 1 )
+        return 0;
+    return ToriRSServer_SceneMeleeReached(npc->level, player->x, player->z, npc->x, npc->z, size);
+}
+
+/*
  * One step toward the player, for every player-facing npc mode including
  * `playerfollow`. Naive destination handles the perimeter, so the npc ends up
  * beside the player rather than on them.
@@ -4865,7 +5193,14 @@ npc_run_mode(
     {
         int op = npc->mode - TORIRSSERVER_NPCMODE_OPPLAYER1;
 
-        if( range > 1 )
+        /* Arrival is the reference's operable distance for an entity target
+         * (PathingEntity.inOperableDistance -> ReachStrategy.reached, shape
+         * -2): the footprints flush on a cardinal side with no wall on the
+         * shared edge. `range` is the corner Chebyshev distance, which called
+         * a DIAGONAL arrival and read no wall: Druidic Ritual's prison-door
+         * suit ran [ai_opplayer2] on a player standing diagonally across the
+         * closed door from it (seam22, build/quest_gate/s22pc_druid_probe). */
+        if( !npc_player_melee_reached(npc, player) )
         {
             npc_walk_to_player(npc, player);
             return 1;
@@ -4875,6 +5210,25 @@ npc_run_mode(
          * and for the same reason. Continuous combat does not use this path:
          * combat_npc_tick fires AI_OPPLAYER2 on the attack clock instead. */
         npc->mode = TORIRSSERVER_NPCMODE_NONE;
+        /* `opplayer2` is a SWING, whoever set the mode (npc_retaliate's
+         * npc_setmode(opplayer2) is the common one), so it answers to the same
+         * single-way rule as combat_npc_tick's clock-owned swing: LostCity
+         * `[ai_opplayer2,_] gosub(npc_default_attack)` gives the player up
+         * with npc_setmode(null) when a DIFFERENT npc hit him in the last
+         * eight ticks, and otherwise stamps %lastcombat / %aggressive_npc
+         * through [proc,npc_set_attack_vars] (LostCity_Content2
+         * skill_combat/scripts/npc/npc_combat.rs2:1-4, 40-55, 338-352).
+         * This path used to fire the trigger and stamp nothing, so the first
+         * swing of a retaliating npc left the player unclaimed and a second
+         * monster free to engage him (seam22 passive_cheat_rows_regressed:
+         * combat_trace read claim=-1/0 after the prison-door suit's first
+         * swing). */
+        if( op == 1 )
+        {
+            if( npc_mode_swing_refused(srv, player, slot) )
+                return 1;
+            ToriRSServer_CombatClaim(srv, player, slot);
+        }
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_OPPLAYER1 + op, npc->type, -1, slot);
         return 1;
     }
@@ -5236,23 +5590,36 @@ advance_npcs(struct ToriRSServer* srv)
          * could roll away while the player was still walking up to it. That
          * is a separate parity question from this branch.
          */
-        if( srv->tick >= npc->next_roam_tick && next_random(srv) % 8u == 0u )
+        /*
+         * The roll QUEUES THE ROLLED TILE, and the step below walks it -- the
+         * reference's `wander()` is `queueWaypoint(destX, destZ)` and
+         * `wanderMode()` then calls `updateMovement()` on the same tick
+         * (Npc.ts:700-721).
+         *
+         * This used to hand the roll to `ToriRSServer_WorldNpcWalkTo`, which
+         * is the CHASE mover: it asks `SceneNaivePath` for a tile ADJACENT to
+         * the target (the approach an npc wants toward a player), so a roll of
+         * 3199,3175 from 3198,3175 queued 3197,3175 -- a tile beside or past
+         * the one rolled, and sometimes outside the box. The parity2c pass
+         * measured it walking the giant frog (spawn 3203,3174, radius 5) to
+         * 3197,3175 once an unrelated spawn row reshuffled the world's RNG,
+         * and seam21 reproduced that on HEAD (selftest 14 -> 21 FAIL; 14
+         * with this change). The waypoint is the rolled
+         * tile itself, so a wanderer can never leave the box the roll draws.
+         */
+        if( srv->tick >= npc->next_roam_tick && (!npc->def || npc->def->moverestrict != 5) &&
+            next_random(&npc->random) % 8u == 0u )
         {
-            int dest_x = npc->spawn_x + npc_wander_offset(srv, npc->wander_radius);
-            int dest_z = npc->spawn_z + npc_wander_offset(srv, npc->wander_radius);
+            /* The npc's OWN stream (see `struct ToriRSServerRandomStream`):
+             * this runs for every wanderer every tick, and on the world stream
+             * it made each npc's walk a function of how many npcs were ahead
+             * of it in the pool. */
+            int dest_x = npc->spawn_x + npc_wander_offset(npc, npc->wander_radius);
+            int dest_z = npc->spawn_z + npc_wander_offset(npc, npc->wander_radius);
             if( dest_x != npc->x || dest_z != npc->z )
-                ToriRSServer_WorldNpcWalkTo(npc, dest_x, dest_z);
-            else if( npc->waypoint_index >= 0 )
-            {
-                if( npc_take_step(npc) )
-                    npc->stuck_counter = 0;
-                else
-                    npc->stuck_counter++;
-            }
-            else
-                npc->stuck_counter++;
+                npc_queue_waypoint(npc, dest_x, dest_z);
         }
-        else if( npc->waypoint_index >= 0 )
+        if( npc->waypoint_index >= 0 )
         {
             if( npc_take_step(npc) )
                 npc->stuck_counter = 0;
@@ -7746,6 +8113,37 @@ cheat_varbit_from_name(
 }
 
 /*
+ * The id `arg` names EXACTLY in one var pack (rung 2 of `cheat_id_from_name`
+ * alone), or -1. A bare number is not a name and answers -1 here, so it still
+ * reaches the varp resolver's rung 1.
+ *
+ * `::setvar` asks this of both packs before it lets either one guess, because
+ * `cheat_id_from_name` is a whole ladder per pack: asking the varp pack first
+ * let its substring rung answer for a name the varbit pack holds exactly.
+ * `::setvar agrith_quest` found the carrier varp `agrith_quest_varp` and
+ * `::setvar cowquest` found `cowquest_main` -- each the unique varp containing
+ * the typed name -- and both were then refused as carriers, while the varbits
+ * actually named `agrith_quest` (1372) and `cowquest` (20106) were never asked.
+ */
+static int
+cheat_var_exact(
+    enum ToriRSServerPackKind kind,
+    const char* arg)
+{
+    char wanted[128];
+    char* end = NULL;
+
+    assert(arg);
+    (void)strtol(arg, &end, 10);
+    if( end && end != arg && *end == '\0' )
+        return -1;
+    obj_name_underscore(wanted, sizeof(wanted), arg);
+    if( !wanted[0] )
+        return -1;
+    return ToriRSServer_ContentSymbol(kind, wanted);
+}
+
+/*
  * A `::setvar` value: a decimal literal, or a `^constant` this tree declares.
  *
  * `^name` rather than a number is the point. A quest's stages are named --
@@ -8037,7 +8435,15 @@ ToriRSServer_RunDebugprocForTest(
  * `canAccess()` (the reference's "Please finish what you are doing first.")
  * is not ported here: this tree's predicate is scripts.c's static
  * `player_can_access`, and every quest test's `goto_tile` would begin
- * refusing while a content script is delayed. That is a separate question.
+ * refusing while a content script is delayed. Measured in seam24 with the
+ * refusal in place (closeModal, then refuse a `player_delayed` player):
+ * Ernest the Chicken went 67/67 -> 60/67 -- thirteen goto_tile rows needed a
+ * second attempt behind a lever's or a door's p_delay, and the retried
+ * landing left `pickup.rubber_tube` covered (build/quest_gate/haunted,
+ * against s24_haunted_head on the HEAD binary). The orphaned-page half of
+ * that seam is closed without it: no trigger STARTS while the player is
+ * delayed (`player_delayed`). A goto that lands inside a script's p_delay
+ * still moves the player under that script.
  */
 static void
 cheat_teleport_stop_action(
@@ -8111,6 +8517,148 @@ ToriRSServer_RunCheatLadder(
      * mistyped argument. Nothing below claims either word.
      */
 
+    if( strncmp(text, "checkpoint", 10) == 0 )
+    {
+        /*
+         * `::checkpoint <leg>` -- the quest harness's leg checkpoint
+         * (tools/quest_gate/run.py, docs/quest_authoring/relay.md
+         * "Checkpoints"): write this player, through the save serialiser in
+         * its checkpoint mode, to `<TORIRSSERVER_SAVES>/checkpoints/<leg>.ini`.
+         * run.py wraps that file in a manifest, and `run.py <id> --from-leg K`
+         * logs the same player back in from it.
+         *
+         * A checkpoint is PER-PLAYER state only: no npc position, spawned loc,
+         * instance, parked script or open interface comes back with it. So it
+         * is refused -- FAILED, naming which -- at a point that state would be
+         * lost from: a dialogue or interface open, a script parked on the
+         * player, or a fight on either side. The leg boundary belongs at a
+         * quiet point; the refusal is how an author learns theirs is not one.
+         */
+        int leg = 0;
+        const char* path;
+
+        if( sscanf(text, "checkpoint %d", &leg) != 1 || leg <= 0 )
+        {
+            say(srv, "Usage: ::checkpoint <leg number, 1 or more>");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->chatmodal_group > 0 )
+        {
+            say(srv, "checkpoint %d refused: a dialogue is open (chat modal interface %d)", leg,
+                player->chatmodal_group);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->mainmodal_group > 0 || player->sidemodal_group > 0 )
+        {
+            say(srv, "checkpoint %d refused: an interface is open (main %d, side %d)", leg,
+                player->mainmodal_group, player->sidemodal_group);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->active_script )
+        {
+            say(srv, "checkpoint %d refused: a script is parked on the player (a dialogue, "
+                     "delay or cutscene is still running)", leg);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->combat_target >= 0 )
+        {
+            /* `combat_target` is an npc slot (torirs_server_combat.c sets it
+             * from the attacked npc's slot). */
+            int target = player->combat_target;
+
+            if( target < TORIRSSERVER_NPC_MAX && srv->npcs[target].active )
+                say(srv, "checkpoint %d refused: the player is in combat (attacking %s, slot %d)",
+                    leg, ToriRSServer_NpcInfo(srv->npcs[target].type)->name, target);
+            else
+                say(srv, "checkpoint %d refused: the player is in combat (attacking slot %d)",
+                    leg, target);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( srv->tick < player->combat_claim_tick )
+        {
+            say(srv, "checkpoint %d refused: the player is in combat (single-way claim for %d "
+                     "more tick(s))", leg, player->combat_claim_tick - srv->tick);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
+        {
+            const struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+            if( !npc->active || npc->death_tick >= 0 || npc->combat_target != player->pid )
+                continue;
+            say(srv, "checkpoint %d refused: the player is in combat (%s is attacking)", leg,
+                ToriRSServer_NpcInfo(npc->type)->name);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        path = ToriRSServer_CheckpointPath(leg);
+        if( !ToriRSServer_SavePlayerCheckpoint(player, path) )
+        {
+            say(srv, "checkpoint %d refused: could not write %s", leg, path);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        say(srv, "checkpoint %d written at %d,%d,%d", leg, player->x, player->z, player->level);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
+    if( strncmp(text, "clockskip", 9) == 0 && (text[9] == '\0' || text[9] == ' ') )
+    {
+        /*
+         * `::clockskip <minutes>` -- move this world's wall clock forward
+         * (docs/QUEST_SERVER_CHEATS.md, "Grind fast-forwards"). A real-time
+         * wait is a grind by another name: Forgettable Tale's kelda patch is
+         * four stages of `^forget_kelda_stage_minutes` against `date_minutes`
+         * (forget_farming.rs2 [proc,forget_kelda_catchup]), sixteen real
+         * minutes no quest run can sit through. Content's own catch-up still
+         * does the work -- the softtimer or the next op that calls it -- so
+         * the effect a test reads back is the quest's, not the cheat's.
+         *
+         * Forward only, and bounded: a clock that went backward would make
+         * every `date_minutes - stamp` in content (the Home Teleport cooldown,
+         * home_teleport.rs2) read negative, and one far past int range would
+         * wrap `date_minutes` itself. The skip is world state
+         * (`srv->clock_skip_minutes`), never saved: it lasts as long as this
+         * server process does.
+         *
+         * `%date_minutes` (varp 3078, teleport_cooldowns.varp) is the
+         * client-visible copy content refreshes once a minute; it is written
+         * here too, so the spellbook and a test reading the varp see the new
+         * minute at once instead of up to 100 ticks later.
+         */
+        int minutes = 0;
+        int consumed = 0;
+        int varp_date_minutes;
+        int now_minutes;
+
+        if( sscanf(text, "clockskip %d%n", &minutes, &consumed) != 1 ||
+            text[consumed + strspn(text + consumed, " ")] != '\0' )
+        {
+            say(srv, "Usage: ::clockskip <minutes, 1-%d>", TORIRSSERVER_CLOCK_SKIP_STEP_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( minutes < 1 || minutes > TORIRSSERVER_CLOCK_SKIP_STEP_MAX )
+        {
+            say(srv, "::clockskip refused: %d minute(s); the clock only moves forward, 1-%d at a time",
+                minutes, TORIRSSERVER_CLOCK_SKIP_STEP_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( srv->clock_skip_minutes > TORIRSSERVER_CLOCK_SKIP_TOTAL_MAX - minutes )
+        {
+            say(srv, "::clockskip refused: the world is already %d minute(s) ahead (limit %d)",
+                srv->clock_skip_minutes, TORIRSSERVER_CLOCK_SKIP_TOTAL_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        srv->clock_skip_minutes += minutes;
+        now_minutes = (int)(ToriRSServer_WorldRealtimeMs(srv) / 60000LL);
+        varp_date_minutes = ToriRSServer_WorldVarp("date_minutes");
+        if( varp_date_minutes >= 0 )
+            ToriRSServer_WorldSetVarpOn(srv, player, varp_date_minutes, now_minutes);
+        fprintf(stderr, "torirsserver: clockskip +%d minute(s), world clock %d minute(s) ahead\n",
+                minutes, srv->clock_skip_minutes);
+        say(srv, "Clock skipped %d minute(s): date_minutes %d, %d minute(s) ahead of real time.",
+            minutes, now_minutes, srv->clock_skip_minutes);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "setvar ", 7) == 0 )
     {
         /*
@@ -8127,17 +8675,24 @@ ToriRSServer_RunCheatLadder(
          * those, and every one of them would be a second copy of the stage
          * numbering the quest already declares.
          *
-         * The varp namespace is tried before the varbit one, which is the
-         * order every caller already means: a quest's own progress variable is
-         * a varp, and a varbit's name only ever collides with a varp's by
-         * accident. `^constant` is what makes the command writable in a test —
-         * `::setvar cookquest ^cook_started`, never `::setvar cookquest 1`.
+         * An EXACT name wins in either pack before any pack may guess: the
+         * varbit pack's exact name first, then the varp pack's, and only then
+         * the substring rungs (varp, then varbit). A quest's progress variable
+         * is as often a varbit (`agrith_quest`, `cowquest`) as a varp
+         * (`cookquest`), and a substring guess in the varp pack used to
+         * answer before the varbit pack was asked at all -- see
+         * `cheat_var_exact`. The two packs share no name today; if they ever
+         * do, the varbit is the narrower write and wins. `^constant` is what
+         * makes the command writable in a test -- `::setvar cookquest
+         * ^cook_started`, never `::setvar cookquest 1`.
          */
         char name[64] = { 0 };
         char value_text[64] = { 0 };
         char suggest[256] = { 0 };
         int value = 0;
         int id;
+        int exact_varbit;
+        int exact_varp;
 
         if( sscanf(text, "setvar %63s %63s", name, value_text) != 2 )
         {
@@ -8151,7 +8706,14 @@ ToriRSServer_RunCheatLadder(
             return TORIRSSERVER_TRIGGER_FAILED;
         }
 
-        id = cheat_varp_from_name(name, suggest, sizeof(suggest));
+        exact_varbit = cheat_var_exact(TORIRSSERVER_PACK_VARBIT, name);
+        exact_varp = exact_varbit >= 0 ? -1 : cheat_var_exact(TORIRSSERVER_PACK_VARP, name);
+        if( exact_varbit >= 0 )
+            id = -1;
+        else if( exact_varp >= 0 )
+            id = exact_varp;
+        else
+            id = cheat_varp_from_name(name, suggest, sizeof(suggest));
         if( id >= 0 )
         {
             /*
@@ -8171,7 +8733,18 @@ ToriRSServer_RunCheatLadder(
             return TORIRSSERVER_TRIGGER_RAN;
         }
 
-        id = cheat_varbit_from_name(name, suggest, sizeof(suggest));
+        if( exact_varbit >= 0 )
+            id = exact_varbit;
+        else
+        {
+            char varbit_suggest[256] = { 0 };
+
+            /* A varp miss's candidates are kept when the varbit pack has
+             * none of its own, so an ambiguous name still lists them. */
+            id = cheat_varbit_from_name(name, varbit_suggest, sizeof(varbit_suggest));
+            if( varbit_suggest[0] )
+                snprintf(suggest, sizeof(suggest), "%s", varbit_suggest);
+        }
         if( id >= 0 )
         {
             if( ToriRSServer_VarbitSetOn(srv, player, id, value) < 0 )
@@ -8627,45 +9200,84 @@ ToriRSServer_RunCheatLadder(
          * stat pack keeps game-facing names and ids out of this engine seam.
          * XP is set to the threshold for that level so base survives logout
          * (LostCity setLevel). */
+        /*
+         * A refusal is TRIGGER_FAILED with a message, as `::setvar`'s are.
+         * Before, a misspelt stat (`strenght`), a level outside 1..99 or a
+         * missing level set nothing, said nothing and answered RAN, so a
+         * `t.cheat("::setlevel ...")` inside a quest's run() reported ok and
+         * the fight that followed ran at level 1 (seam19 made only the setup
+         * loop read the stat back; this makes every caller hear it).
+         */
         char stat_arg[64] = { 0 };
         int stat = -1;
-        int level = 1;
+        int level = 0;
+        char* end = NULL;
+        long numeric;
 
-        if( sscanf(text, "setlevel %63s %d", stat_arg, &level) == 2 )
+        if( sscanf(text, "setlevel %63s %d", stat_arg, &level) != 2 )
         {
-            char* end = NULL;
-            long numeric = strtol(stat_arg, &end, 10);
-
-            if( end && end != stat_arg && *end == '\0' )
-                stat = (int)numeric;
-            else
-                stat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, stat_arg);
+            say(srv, "Usage: ::setlevel <stat> <level 1-99>");
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
-        if( stat >= 0 && stat < TORIRSSERVER_STAT_COUNT && level >= 1 && level <= 99 )
+        numeric = strtol(stat_arg, &end, 10);
+        if( end && end != stat_arg && *end == '\0' )
+            stat = (int)numeric;
+        else
+            stat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, stat_arg);
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
         {
-            ToriRSServer_CombatSetLevel(player, stat, level);
-            say(srv, "Set stat %d to %d.", stat, level);
+            say(srv, "::setlevel: no stat is named '%s'.", stat_arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
+        if( level < 1 || level > 99 )
+        {
+            say(srv, "::setlevel: level %d is outside 1-99.", level);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        ToriRSServer_CombatSetLevel(player, stat, level);
+        say(srv, "Set stat %d to %d.", stat, level);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "wield ", 6) == 0 )
     {
         /*
-         * `::wield <objid>` — harness shortcut: find the obj in the backpack
-         * and run the SAME synthesized-OPHELD path an inventory Wield click
-         * takes, so equip requirements, the two-handed swap and the worn
+         * `::wield <item_name|objid>` — harness shortcut: find the obj in the
+         * backpack and run the SAME synthesized-OPHELD path an inventory Wield
+         * click takes, so equip requirements, the two-handed swap and the worn
          * mirror all behave exactly as a real click. Exists because a capture
          * harness cannot reliably aim a pixel click at whichever inventory
          * cell the item landed in.
+         *
+         * The argument is resolved exactly like `::give`'s
+         * (cheat_obj_from_name: a gameval symbol, a display name, or a bare
+         * number). Seam pass 29 (setup_wield_text_read_and_reach_honesty):
+         * arthur's setup said `::wield rune_scimitar`, this branch took only
+         * a number, printed its Usage line and returned RAN -- so the setup
+         * loop heard `ok` and the quest fought its boss unarmed. Every miss
+         * now returns FAILED (t.cheat -> refused), and the sentence names
+         * what was wrong. The wield itself is still content's to refuse
+         * (`~equip`'s level check); whether the item ended up WORN is the
+         * caller's reading (run.py's setup loop reads the worn container).
          */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
         int obj_id = -1;
         int slot = -1;
 
-        if( sscanf(text, "wield %d", &obj_id) != 1 || obj_id < 0 )
+        if( sscanf(text, "wield %63s", arg) != 1 )
         {
-            say(srv, "Usage: ::wield <objid> (must be in the backpack)");
-            return TORIRSSERVER_TRIGGER_RAN;
+            say(srv, "Usage: ::wield <item_name|objid> (must be in the backpack)");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "::wield: which %s? %s", arg, suggest);
+            else
+                say(srv, "::wield: no item named '%s'.", arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
             if( player->inv[i].obj_id == obj_id )
@@ -8675,8 +9287,8 @@ ToriRSServer_RunCheatLadder(
             }
         if( slot < 0 )
         {
-            say(srv, "No obj %d in the backpack.", obj_id);
-            return TORIRSSERVER_TRIGGER_RAN;
+            say(srv, "::wield: no %s (%d) in the backpack.", arg, obj_id);
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
         {
             uint8_t held[8];
@@ -8688,7 +9300,8 @@ ToriRSServer_RunCheatLadder(
             rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
             handle_opheld(srv, 2, held, (int)rsab_len(&out));
         }
-        say(srv, "Wielded %d from slot %d.", obj_id, slot);
+        /* "Sent", not "Wielded": content may refuse it (level, quest). */
+        say(srv, "::wield: sent Wield for %s (%d) from slot %d.", arg, obj_id, slot);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
@@ -10362,6 +10975,8 @@ handle_resume_pausebutton(
      */
     if( ToriRSServer_WorldMapHandleButton(srv, uid, 1) )
         return;
+    if( if_button_refused_while_delayed(srv, uid, "RESUME_PAUSEBUTTON") )
+        return;
     srv->active_player->last_com = uid;
     if( !ToriRSServer_ScriptsFallback(srv, TORIRSSERVER_FALLBACK_IF_BUTTON,
                                   ToriRSServer_ScriptsRunIfButton(srv, uid, 0)) )
@@ -10407,6 +11022,8 @@ handle_if_button(
     /* The world map's close buttons carry no cache op, so a click on the
      * red X arrives here rather than as IF_BUTTON1. */
     if( ToriRSServer_WorldMapHandleButton(srv, uid, 1) )
+        return;
+    if( if_button_refused_while_delayed(srv, uid, "IF_BUTTON") )
         return;
 
     /* Content bound to the component wins. The bank's router is what is left,
@@ -10523,6 +11140,8 @@ handle_if_button_op(
     }
     if( ToriRSServer_ScriptsResumeButton(srv, uid) )
         return;
+    if( if_button_refused_while_delayed(srv, uid, "IF_BUTTONN") )
+        return;
     /*
      * The component uid is the trigger's subject; an interface button has
      * neither a category nor an npc. `sub` reaches content through last_slot,
@@ -10587,6 +11206,17 @@ handle_if_buttonx_packet(
      * selects content's [inv_buttonN,wornitems:slotN] binding. Routing only
      * the sentinel variant made the C client's item-backed leaf click fall
      * through as IF_BUTTONN, where no Remove binding exists. */
+    /* A worn slot's op and a backpack cell's op are rev 239's INV_BUTTON and
+     * OPHELD, which LostCity refuses outright while delayed
+     * (InvButtonHandler.ts:14, OpHeldHandler.ts:16): an unequip inside another
+     * script's p_delay used to run. A plain widget op goes on to
+     * handle_if_button_op, whose content dispatch asks the same question. */
+    if( (ToriRSServer_EquipmentWornSlot(button.component_id) >= 0 ||
+         button.component_id == ToriRSServer_Ids()->com_inventory_items) &&
+        if_button_refused_while_delayed(srv, button.component_id,
+                                        has_subop ? "IF_SUBOP" : "IF_BUTTONX") )
+        return;
+
     if( ToriRSServer_EquipmentWornSlot(button.component_id) >= 0 )
     {
         handle_worn_inv_button(srv, button.component_id, button.op);
@@ -11842,6 +12472,46 @@ player_stun_blocks_packet(int name)
 }
 
 /*
+ * The packets a DELAYED player's client may not act with (see
+ * `player_delayed`): the held-item and inventory-button families, whose
+ * handlers start a script on the spot.
+ *
+ * LostCity refuses these outright while delayed (OpHeldHandler.ts:16,
+ * OpHeldTHandler.ts:16, OpHeldUHandler.ts:16, InvButtonHandler.ts:14,
+ * InvButtonDHandler.ts:40), and so does this.
+ *
+ * The WORLD ops (OPNPC/OPLOC/OPOBJ/OPPLAYER and their T/U forms) and the
+ * move clicks are a stated divergence. The reference refuses them too (the
+ * same `if (player.delayed)` opening in each handler, and World.ts:618-623);
+ * here they are accepted and the op only LATCHES the interaction, which
+ * `player_delayed` then keeps from firing until the delay is over
+ * (`ToriRSServer_WorldProcessInteraction`, `phase_player`). What the
+ * reference's refusal protects -- no trigger starting on top of a parked
+ * script -- holds either way; refusing as well broke committed quest tests
+ * that press a loc while the door they just walked through is still in its
+ * p_delay (desertrescue useAnvil, seam24 build/quest_gate/desertrescue), and
+ * content here walks during a p_delay on purpose (home_teleport.rs2's
+ * cancel-by-walk: "p_delay does not stop movement in this engine").
+ *
+ * Before any of this an OPNPC1 clicked beside Al Shabim while
+ * [proc,mercenary_attack] sat in its p_delay ran [opnpc1,al_shabim] at once
+ * from the handler; its first ~chatnpc then lost the one-parked-script race
+ * ("dropping [proc,chatnpc_anim], which suspended while
+ * [proc,mercenary_attack] waits") and left 'Hello Effendi!' mounted with
+ * nothing to resume it (seam23, desertrescue).
+ *
+ * The interface family is not here: rev 239 carries world, inventory and
+ * plain widget ops in the same IF_BUTTONX, so those are asked at the point
+ * each would start a script (`if_button_refused_while_delayed`).
+ */
+static int
+player_delayed_blocks_packet(int name)
+{
+    return (name >= PKTOUT_NAME_OPHELD1 && name <= PKTOUT_NAME_OPHELDU) ||
+           (name >= PKTOUT_NAME_INV_BUTTON1 && name <= PKTOUT_NAME_INV_BUTTOND);
+}
+
+/*
  * The routing table. Adding a packet is a line here plus a handler; nothing
  * else in the file has to change, which is the whole point of it being a table.
  */
@@ -11980,6 +12650,16 @@ ToriRSServer_WorldHandle(
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- player packet name %d dropped while stunned (%d)\n",
                     name, player->stun_ticks);
+        return;
+    }
+
+    if( player_delayed_blocks_packet(name) && player_delayed(srv, player) )
+    {
+        if( srv->verbose )
+            fprintf(stderr,
+                    "torirsserver: <- player packet name %d refused: player is delayed "
+                    "(p_delay until tick %d)\n",
+                    name, player->delayed_until);
         return;
     }
 
@@ -13065,7 +13745,8 @@ ToriRSServer_WorldInit(
 
     srv->zone_x = zone_x;
     srv->zone_z = zone_z;
-    srv->rng = 0x5eed1234u;
+    srv->world_random.engine = 0x5eed1234u;
+    srv->world_random.seeded = 1;
     srv->tick = 0;
 
     /* Collision before anything is placed: a spawn on a blocked tile is worth
@@ -14427,6 +15108,7 @@ phase_player(struct ToriRSServerPlayer* player)
     struct ToriRSServer* srv = player->world;
     int bd_on = tick_bd_on();
     uint64_t bd_t = bd_on ? tick_bd_now_us() : 0;
+    int delayed;
 
     ToriRSServer_WorldSetActive(srv, player);
 
@@ -14508,9 +15190,21 @@ phase_player(struct ToriRSServerPlayer* player)
      * adjacent this tick before a stale walk carries the player past them;
      * last-waypoint full repath aims the step at where they are now.
      */
+    /*
+     * Both tries are gated on the delayed half of `canAccess()`
+     * (Player.ts:1257 and :1289): an interaction latched before a queue or a
+     * timer p_delayed the player waits the delay out -- still walking -- and
+     * fires once it is over. Without the gate the npc's [opnpc1] started on
+     * top of the parked script and the one-parked-script rule dropped
+     * whichever suspended second, dialogue page and all. The post-move
+     * give-up is inside the same gate in the reference, so a delayed player
+     * standing still does not lose the target to "I can't reach that!".
+     * (The modal half of canAccess is not ported here.)
+     */
+    delayed = player_delayed(srv, player);
     if( player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
     {
-        if( !interaction_try(srv, 0) )
+        if( delayed || !interaction_try(srv, 0) )
             interaction_path_to_pathing_target(srv);
     }
     PP_MARK(bd_on, bd_t, PP_INTERACT_PRE);
@@ -14526,7 +15220,7 @@ phase_player(struct ToriRSServerPlayer* player)
     PP_MARK(bd_on, bd_t, PP_ADVANCE);
     player_process_locstep(srv);
 
-    if( player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
+    if( !delayed && player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
     {
         if( !interaction_try(srv, player->steps_taken == 0) )
             interaction_continue_or_give_up(srv);
@@ -15035,6 +15729,38 @@ ToriRSServer_WorldLocReverts(struct ToriRSServer* srv)
  * themselves. Clamping here rather than in the content keeps any script's
  * "forever" from meaning "next tick".
  */
+/*
+ * Whether a loc stands on (x, z, level, shape) right now: the covering
+ * window's scene when one is built there, else the ZoneMap record (the only
+ * memory of a tile no window covers). The bound window is restored.
+ */
+static int
+world_loc_key_live(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int shape)
+{
+    struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+    struct ToriRSServerSceneWindow* covering = ToriRSServer_SceneWindowFind(x, z);
+    struct ToriRSServerZoneLoc* record;
+
+    if( covering )
+    {
+        struct ToriRSServerSceneLoc* standing;
+        int live;
+
+        ToriRSServer_SceneBindWindow(covering);
+        standing = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(x, z, level, shape));
+        live = standing && standing->active;
+        ToriRSServer_SceneBindWindow(bound);
+        return live;
+    }
+    record = ToriRSServer_ZoneLocFind(srv, x, z, level, shape);
+    return record && record->loc_id >= 0;
+}
+
 int
 ToriRSServer_WorldLocRevertQueue(
     struct ToriRSServer* srv,
@@ -15046,22 +15772,46 @@ ToriRSServer_WorldLocRevertQueue(
     int z,
     int level)
 {
-    if( duration <= 0 || duration >= INT_MAX )
-        return 1;
+    int forever = duration <= 0 || duration >= INT_MAX;
+
     /*
-     * RE-STATING a tile's revert REPLACES the pending one; it does not add a
-     * second. Two reverts for one tile is not a state the world can be in —
-     * whichever fires first undoes the loc, and the other then undoes whatever
-     * happens to be standing there when it lands.
+     * RE-STATING a tile's revert restarts the pending one's CLOCK; it does not
+     * add a second, and it does not change what the revert puts back. Two
+     * reverts for one tile is not a state the world can be in — whichever
+     * fires first undoes the loc, and the other then undoes whatever happens
+     * to be standing there when it lands.
      *
-     * The case that made it matter is the Maiden's blood trails. A blood spawn
-     * that walks back over its own trail re-covers the tile, and the reference
-     * restarts the clock: Zenyte's `BloodTrail.resetTimer()` sets `ticks = 30`
-     * again, which is what produces the runs of 40, 50, 60, 90 and 110 ticks in
-     * the recorded raids (docs/TOB_RESEARCH.md M5). Queueing a second revert
-     * instead left the FIRST one standing, so a re-covered tile expired 30
-     * ticks after it was first painted however many times it was refreshed —
-     * the patch under a circling spawn would blink out from under it.
+     * The clock: the Maiden's blood trails. A blood spawn that walks back over
+     * its own trail re-covers the tile, and the reference restarts the clock:
+     * Zenyte's `BloodTrail.resetTimer()` sets `ticks = 30` again, which is what
+     * produces the runs of 40, 50, 60, 90 and 110 ticks in the recorded raids
+     * (docs/TOB_RESEARCH.md M5). Queueing a second revert instead left the
+     * FIRST one standing, so a re-covered tile expired 30 ticks after it was
+     * first painted however many times it was refreshed.
+     *
+     * The target: LostCity gives a loc ONE lifecycle, on the Loc entity. A
+     * `loc_add` onto a tile whose same-layer loc was `loc_del`ed does not make
+     * a second loc; it is `World.changeLoc` on the removed static one
+     * (LocOps.ts LOC_ADD: `getLocsUnsafe` includes inactive locs), and every
+     * mutation after the first only calls `setLifeCycle(duration)`
+     * (World.ts changeLoc/removeLoc). What the timer does when it runs out is
+     * fixed by the entity, not by the last opcode: a map-square loc goes back
+     * to its `baseInfo` (Loc.turn: `revertLoc`, or `addLoc` -> `Zone.addLoc`
+     * -> `loc.revert()`), an added loc is removed. So the FIRST entry's target
+     * — the tile as it was before anything pending touched it — stands, and a
+     * re-statement moves only the delay. Replacing the target instead is what
+     * lost a loc for good: `loc_del(N)` then `loc_add(same tile, same shape,
+     * M)` (LostCity doubledoors.rs2 open_double_doors_left2's inviswall) turned
+     * "put the door leaf back" into "remove the inviswall", and every Legends
+     * double door vanished for the session after one swing. A door closed
+     * again had the mirror bug: the open leaf's "remove" became "put the open
+     * leaf back" 500 ticks later.
+     *
+     * Two re-statements end the lifecycle instead, as `setLifeCycle(-1)` does:
+     * a "forever" duration, and a `loc_del` of an added loc — World.removeLoc
+     * makes a DESPAWN loc's removal permanent. The second is told apart from a
+     * `loc_change` of the added loc by looking: after a delete nothing stands
+     * on the key.
      *
      * Matched on tile and shape, which together are what `loc_add` addresses:
      * one shape per tile is the scene's own rule (`ToriRSServer_SceneFindLocExact`
@@ -15076,11 +15826,21 @@ ToriRSServer_WorldLocRevertQueue(
         if( entry->x != x || entry->z != z || entry->level != level ||
             entry->shape != shape )
             continue;
+        if( forever )
+        {
+            entry->active = 0;
+            return 1;
+        }
+        if( entry->loc_id < 0 && loc_id >= 0 && !world_loc_key_live(srv, x, z, level, shape) )
+        {
+            entry->active = 0;
+            return 1;
+        }
         entry->delay = duration + 1;
-        entry->loc_id = loc_id;
-        entry->angle = angle;
         return 1;
     }
+    if( forever )
+        return 1;
     for( int i = 0; i < TORIRSSERVER_LOC_REVERT_MAX; i++ )
     {
         struct ToriRSServerLocRevert* entry = &srv->loc_reverts[i];

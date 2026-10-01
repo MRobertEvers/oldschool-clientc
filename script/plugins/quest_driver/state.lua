@@ -266,7 +266,9 @@ function QD.inv.slot(index)
     if result ~= "ok" then
         return result, slot
     end
-    if slot.obj_id <= 0 then
+    -- An empty slot is obj -1 (INV_MANAGER_EMPTY_OBJ_ID); obj 0 is a real
+    -- item (mcannonremains, Dwarf remains), so the test is `< 0`, never `<= 0`.
+    if slot.obj_id < 0 then
         return "ok", { name = "", count = 0 }
     end
     local name_result, name = api_drive.symbol_name("obj", slot.obj_id)

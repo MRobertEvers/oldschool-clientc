@@ -1,12 +1,12 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo		
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		
-quest_arena	arena	fightarena		3	todo		
-quest_arthur	arthur	merlinscrystal		3	todo		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup
+quest_arena	arena	fightarena		3	green	sonnet-b33	
+quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33	
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
-quest_ball	ball	witchshouse		2	todo		
+quest_ball	ball	witchshouse		2	green	sonnet-b29	
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
@@ -17,88 +17,88 @@ quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo		
-quest_chompybird	chompybird	bigchompybirdhunting		3	todo		
+quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35	
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo		
 quest_cog	cog	clocktower		1	green	sonnet-b18	
 quest_coldwar	coldwar	coldwar		4	todo		
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo		
+quest_crest	crest	familycrest		2	green	sonnet-b32	
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
-quest_death	death	deathplateau		3	todo		
+quest_death	death	deathplateau		3	green	sonnet-b35	
 quest_deathontheisle	deathontheisle	deathontheisle		4	todo		
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo		
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo		
-quest_demon	demon	demonslayer		3	todo		
+quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
-quest_desertrescue	desertrescue	thetouristtrap		2	todo		
-quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
+quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b42	REJECTED (sonnet-b42): run/gate/lint green and helper_coverage FULL 58/58, setvars on prerequisites replaced by ::complete, but the file hands over in-game-obtained items by ::give: Eblis ingredients (cert_magic_logs 12, cert_steel_bar 6, cert_molten_glass 6), bones/ashes/charcoal/bloodrune, gasmask, ice_gloves, garlic powder, spice pot, cake, silver bar, spiked boots, fire/death/air runes; and the Ancient signet / Ring of visibility rewards have no literal row (only scroll text and magic xp). Re-author: obtain the guide items through the game or buy/cook them, add literal reward rows or a content_bug note. ORCHESTRATOR NOTE 2026-09-30: the reviewer's 'Ancient signet' is not a Desert Treasure I reward -- source the reward rows from the OSRS wiki Desert Treasure I page (quest points, Magic XP, Ancient Magicks; the ring of visibility is obtained from Rasolo mid-quest) and cite it; never add a row for an item the sources do not grant.
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
-quest_deviousminds	deviousminds	deviousminds		3	todo		
+quest_deviousminds	deviousminds	deviousminds		3	todo	sonnet-b42	REJECTED (sonnet-b42): no reward row asserts the literal skill XP (Smithing 6500, Runecraft 5000, Fletching 5000 are granted per deviousminds_tiffy.rs2:40-42 and listed on the scroll shot, but the file only checks quest.points); and the boat branch is skipped -- goto-entrana2 teleports Varrock to Entrana church past the Port Sarim Monk of Entrana/gangplank (guide stage 60 useGangPlank/talkToEntranaMonk), helper_coverage marks it ALTERNATIVE only. Run/gate/lint green 51 rows, kept uncommitted for re-author.
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
-quest_dragon	dragon	dragonslayer		3	todo		
-quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		
+quest_dragon	dragon	dragonslayer		3	green	sonnet-b36	
+quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
-quest_druidspirit	druidspirit	naturespirit		3	todo		
+quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35	
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
-quest_elena	elena	plaguecity		3	todo		
+quest_elena	elena	plaguecity		3	green	sonnet-b34	
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo		
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15	
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
-quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
+quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27	
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
-quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
+quest_forgettabletale	forgettabletale	forgettabletale		3	green	sonnet-b42	
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo		
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
-quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		
+quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42	
 quest_gettingahead	gettingahead	gettingahead		4	todo		
-quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		
-quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
-quest_gobdip	gobdip	goblindiplomacy		3	todo		
+quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28	
+quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo	sonnet-b42	"REJECTED (sonnet-b42): gate RED even with --allow-blocked: t.quest.expect_complete() runs the quest.journal step, which FAILs on the real content bug (gdwarf_journal.rs2:84 needs `& %giantdwarf_quest < ^gdwarf_complete`; bug confirmed in source). The file must not call expect_complete before the t.blocked row: use t.quest.expect_stage(""complete"") plus the six reward rows, then t.blocked content_bug. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b42/rejected/giantdwarf.lua"
+quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34	
 quest_golem	golem	thegolem		1	green	sonnet-b15	
-quest_grail	grail	holygrail		2	todo		
-quest_grandtree	grandtree	thegrandtree		3	todo		
+quest_grail	grail	holygrail		2	green	sonnet-b28	
+quest_grandtree	grandtree	thegrandtree		3	green	sonnet-b34	
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16	
-quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
-quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
+quest_hauntedmine	hauntedmine	hauntedmine		3	todo		parity3e partial at 72e481670b: driver build/parity_state/parity3e/hauntedmine.driver.lua 96/96 (lift and Dayth attack via t.drive.op); legs left: cutscene (spec pending: the cart ride); points panel is the loc op, wrong lever settings have no distinct routes; Treus Dayth shared not instanced; postquest key, crystal shortcut, key ring, salve consumers
+quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34	
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
-quest_horror	horror	horrorfromthedeep		3	todo		
+quest_horror	horror	horrorfromthedeep		3	todo		parity3e partial at 72e481670b: LostCity port driven to completion (build/parity_state/parity3e/scratch/h2-h11 lineage; close3e_horror_h10 28/28 kills the mother with 17 elemental casts after ::god 1, h11 13/13 casket game); legs left: Barcrawl prerequisite/Yes-No offer; per-player lighthouse instance; god-book pages and 5,000-coin book purchases (LostCity horror_godbook.rs2)
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
-quest_idesofmilk	idesofmilk	theidesofmilk		2	todo		
-quest_ikov	ikov	templeofikov		3	todo		
-quest_imp	imp	impcatcher		3	todo		
+quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
+quest_ikov	ikov	templeofikov		3	green	sonnet-b35	
+quest_imp	imp	impcatcher		3	green	sonnet-b35	
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
-quest_itexam	itexam	thedigsite		3	todo		
-quest_itgronigen	itgronigen	observatoryquest		3	todo		
-quest_itwatchtower	itwatchtower	watchtower		2	todo		
-quest_junglepotion	junglepotion	junglepotion		3	todo		
+quest_itexam	itexam	thedigsite		3	green	sonnet-b34	
+quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36	
+quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41
+quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36	
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
-quest_legends	legends	legendsquest		3	todo		
+quest_legends	legends	legendsquest		3	green	sonnet-b39	
 quest_losttribe	losttribe	thelosttribe		3	todo		
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
-quest_mcannon	mcannon	dwarfcannon		3	todo		
+quest_mcannon	mcannon	dwarfcannon		3	green	sonnet-b36	
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
@@ -106,20 +106,20 @@ quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
-quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
+quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b25	
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24	
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo		
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	sonnet-b32	
 quest_pandemonium	pandemonium	pandemonium		4	todo		
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
 quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo		
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
-quest_priestperil	priestperil	priestinperil		3	todo		
+quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36	
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
@@ -135,29 +135,29 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo		
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	sonnet-b31	green after 75a234743 (seam26 closer): Miss Cheevers' room gathered from its locs + Initiate sallet reward (OSRS-Content 2ea9f6b7eb); the parked sonnet-b31 file extended through the gathered room and committed, 152/152, helper_coverage FULL 51 steps (5-of-7 random rooms still a PARITY leg)
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	
 quest_routequest	routequest	insearchofthemyreque		3	todo		
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17	
-quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
-quest_rumdeal	rumdeal	rumdeal		2	todo		
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo		RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)
+quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27	
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15	
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
-quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
+quest_shadowstorm	shadowstorm	shadowofthestorm		2	green	sonnet-b31	green after 75a234743 (seam26 closer): exit portal to the ruin, Evil Dave's clothing check/escort, recruit vars, golem implement, second ritual and Darklight worn ported (OSRS-Content 2ea9f6b7eb); shadowstorm.lua extended to the completion scroll, 129/129, helper_coverage FULL 31/31
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
 quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b22	
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
 quest_soulsbane	soulsbane	asoulsbane		4	todo		
-quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	todo		
+quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	green	sonnet-b28	
 quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, batch haiku-b2): the author never returned a report; its file 'fixed' the sampler's cheated-hand-in finding by adding MORE cheats -- ::setvar squire 3/4/5 for the pie, Thurgo and portrait stages and ::give knights_portrait -- so every quest objective after the accept was cheated. Drive the Squire/Reldo/Thurgo/Vyvin/mining steps through clicks; ::give only for redberry_pie and the two iron bars.
 quest_swansong	swansong	swansong		4	todo		
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
@@ -166,25 +166,25 @@ quest_tbwt	tbwt	taibwowannaitrio		3	todo
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
-quest_thefeud	thefeud	thefeud		2	todo		
+quest_thefeud	thefeud	thefeud		2	green	sonnet-b32	
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
-quest_totem	totem	tribaltotem		3	todo		
+quest_totem	totem	tribaltotem		3	green	sonnet-b36	
 quest_toweroflife	toweroflife	toweroflife		4	todo		
-quest_tree	tree	treegnomevillage		2	todo		
-quest_troll	troll	trollstronghold		3	todo		
+quest_tree	tree	treegnomevillage		2	green	sonnet-b28	
+quest_troll	troll	trollstronghold		3	green	sonnet-b36	
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
-quest_upass	upass	undergroundpass		3	todo		
-quest_vampire	vampire	vampyreslayer		2	todo		
+quest_upass	upass	undergroundpass		3	todo	sonnet-b42	REJECTED (sonnet-b42): gate RED, 10 findings. Relay stops at leg 4 of 8: leg.4.wield FAIL (adamant_scimitar op 2 -> 0 left); checkpoint 4 not written; no completion scroll, no quest.varp_complete, missing hop shots. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b42/rejected/upass.lua
+quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
 quest_viking	viking	thefremenniktrials		3	todo		
-quest_wanted	wanted	wanted		2	todo		
-quest_waterfall	waterfall	waterfallquest		3	todo		
+quest_wanted	wanted	wanted		2	green	sonnet-b29	
+quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40	
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
-quest_zanaris	zanaris	lostcity		3	todo		
-quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo		
-quest_zombiequeen	zombiequeen	shilovillage		3	todo		
+quest_zanaris	zanaris	lostcity		3	green	sonnet-b41	
+quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	sonnet-b30	green after 200d127cb (seam25 closer): Sithik's ladder writes sithik_ogre, Slash Bash drops the artefact; test extended to the completion scroll, 123/123, helper_coverage FULL
+quest_zombiequeen	zombiequeen	shilovillage		3	green	sonnet-b42	

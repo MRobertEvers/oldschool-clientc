@@ -1,0 +1,43 @@
+# ladder hauntedmine quest_dir=quest_hauntedmine guide=src/main/java/com/questhelper/helpers/quests/hauntedmine/HauntedMine.java steps=40 legs=1:1-10@s0 2:11-20@s1 3:21-30@s1 4:31-40@s1
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToZealot	NpcStep	npc:saradominist_zealot	3443,3258,0	Talk to the Zealot outside the Abandoned Mine in south west Morytania.			And what sort of purpose would that be? | Yes. | Is there a…	quests/quest_hauntedmine/scripts/hauntedmine_zealot.rs2:9 opnpc1; +1
+1	2	1	pickpocketZealot	NpcStep	npc:saradominist_zealot	3443,3258,0	Pickpocket the Zealot outside the Abandoned Mine in south west Morytania.				quests/quest_hauntedmine/scripts/hauntedmine_zealot.rs2:9 opnpc1; +1
+1	3	1	enterMine	ObjectStep	loc:hauntedmine_back_entrance2	3429,3225,0	Enter the south cart tunnel around the back of the mine.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:10 oploc1
+1	4	1	goDownFromLevel1South	ObjectStep	loc:hauntedmine_laddertop	3422,9625,0	Climb down the ladder to the east.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:32 oploc1; +2
+1	5	1	goDownFromLevel2South	ObjectStep	loc:hauntedmine_laddertop_1sw	2798,4567,0	Climb down another ladder to the east.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:47 oploc1; +2
+1	6	1	goDownToFungusRoom	ObjectStep	loc:hauntedmine_laddertop_1e	2725,4486,0	Go down the ladder to the south, making sure to avoid the moving mine cart.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:65 oploc1; +2
+1	7	1	pickFungus	ObjectStep	loc:glowing_mushroom2	2793,4493,0	Pick a glowing fungus.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:170 oploc1
+1	8	1	putFungusInCart	ObjectStep	loc:hauntedmine_puzzle_cart	2778,4506,0	Put the glowing fungus into the mine cart north west of the ladder.		Glowing fungus		quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:183 oploc1
+1	9	1	pullLeverA	ObjectStep	loc:hauntedmine_point_lever1	2785,4517,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:227 oploc1
+1	10	1	pullLeverB	ObjectStep	loc:hauntedmine_point_lever2	2784,4517,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:235 oploc1
+2	11	1	pullLeverC	ObjectStep	loc:hauntedmine_point_lever3	2786,4517,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:243 oploc1
+2	12	1	pullLeverD	ObjectStep	loc:hauntedmine_point_lever4	2786,4515,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:251 oploc1
+2	13	1	pullLeverE	ObjectStep	loc:hauntedmine_point_lever5	2785,4515,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:259 oploc1
+2	14	1	pullLeverF	ObjectStep	loc:hauntedmine_point_lever6	2768,4533,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:267 oploc1
+2	15	1	pullLeverG	ObjectStep	loc:hauntedmine_point_lever7	2769,4533,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:275 oploc1
+2	16	1	pullLeverH	ObjectStep	loc:hauntedmine_point_lever8	2770,4533,0	Pull the marked lever.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:283 oploc1
+2	17	1	solvePuzzle	DetailedQuestStep	loc:hauntedmine_point_lever1 loc:hauntedmine_point_lever2 loc:hauntedmine_point_lever3 loc:hauntedmine_point_lever4 loc:hauntedmine_point_lever5 loc:hauntedmine_point_lever6 loc:hauntedmine_point_lever7 loc:hauntedmine_point_lever8		Pull levers until the tracks are lined up to take the cart to the north west corner (the panel's map UI shows north as pointing to the right).	pullLeverA pullLeverB pullLeverC pullLeverD pullLeverE pullLeverF pullLeverG pullLeverH			quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:227 oploc1; +7
+2	18	1	readPanel	ObjectStep	loc:hauntedmine_points_info	2770,4522,0	Check the Points Settings panel in the centre of the room. Click the 'Start' button in the interface.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:291 oploc1
+2	19	1	goUpFromLevel3South	ObjectStep	loc:hauntedmine_ladder_1ne	2734,4503,0	Climb back up to the surface.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:138 oploc1; +1
+2	20	1	goUpFromLevel2South	ObjectStep	loc:hauntedmine_ladder	2782,4569,0	Climb back up to the surface.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:127 oploc1; +1
+3	21	1	leaveLevel1South	ObjectStep	loc:lotr_back_entrance1_inside	3408,9623,0	Leave through the cart tunnel.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:26 oploc1
+3	22	1	goUpFromFungusRoom	ObjectStep	loc:hauntedmine_ladder_1w loc:hauntedmine_ladder_1ne loc:hauntedmine_ladder loc:lotr_back_entrance1_inside	2789,4486,0	Climb back up to the surface.	goUpFromLevel3South goUpFromLevel2South leaveLevel1South			quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:148 oploc1; +6
+3	23	1	enterMineNorth	ObjectStep	loc:hauntedmine_back_entrance1	3430,3233,0	Make sure you're prepared to fight Treus Dayth (level 95), then enter the north area of the Haunted Mine.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:18 oploc1
+3	24	1	goDownLevel1North	ObjectStep	loc:hauntedmine_laddertop	3413,9633,0	Climb down the west ladder.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:32 oploc1; +2
+3	25	1	goDownLevel2North	ObjectStep	loc:hauntedmine_laddertop_1sw	2797,4599,0	Climb down the north east ladder.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:47 oploc1; +2
+3	26	1	goDownToCollectFungus	ObjectStep	loc:hauntedmine_laddertop_1e	2710,4540,0	Go down the north west ladder to collect the glowing fungus.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:65 oploc1; +2
+3	27	1	collectFungus	ObjectStep	loc:hauntedmine_puzzle_cart	2774,4537,0	Search the mine cart for the glowing fungus.			Take it.	quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:183 oploc1
+3	28	1	goUpFromCollectRoom	ObjectStep	loc:hauntedmine_ladder_1w	2774,4540,0	Take the fungus back upstairs.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:148 oploc1; +1
+3	29	1	goDownFromLevel3NorthEast	ObjectStep	loc:hauntedmine_laddertop_1e	2732,4529,0	Climb down the ladder in the room in the north east.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:65 oploc1; +2
+3	30	1	pickUpChisel	DetailedQuestStep		2800,4500,0	Pick up the chisel nearby.		Chisel		
+4	31	1	openValve	ObjectStep	loc:hauntedmine_lift_valve	2808,4496,0	Turn the valve. Make sure you have some energy as you'll need to race to the lift afterwards.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:355 oploc1
+4	32	1	useKeyOnValve	ObjectStep	loc:hauntedmine_lift_valve	2808,4496,0	Use the Zealot's key on the water valve. Make sure you have some energy as you'll need to race to the lift afterwards.	openValve	Zealot's key		quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:355 oploc1
+4	33	1	goDownLift	ObjectStep	loc:lift_side_r	2807,4492,0	Race to the lift before the ghost turns off the valve.				quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2:377 oploc1
+4	34	1	goDownToDayth	ObjectStep	loc:hauntedmine_dark_stairs_top	2748,4437,0	Go down the east stairs.				quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:9 oploc1
+4	35	1	killDayth	NpcStep	npc:hauntedmine_boss_ghost	2788,4450,0	Kill Treus Dayth.				quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:126 ai_queue1; +5
+4	36	1	tryToPickUpKey	NpcStep	npc:hauntedmine_boss_key npc:hauntedmine_boss_ghost	2788,4455,0	Attempt to pick up the innocent-looking key. Treus Dayth (level 95) will spawn. Kill him.	killDayth			quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:73 opnpc1; +6
+4	37	1	pickUpKey	NpcStep	npc:hauntedmine_boss_key	2788,4455,0	Pick up the innocent-looking key.				quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:73 opnpc1
+4	38	1	goUpFromDayth	ObjectStep	loc:hauntedmine_light_stairs_bottom	2813,4454,0	Go back up to the flooded area.				quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:53 oploc1
+4	39	1	goDownToCrystals	ObjectStep	loc:hauntedmine_dark_stairs_top	2694,4437,0	Go down the west stairs.				quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:9 oploc1
+4	40	1	cutCrystal	ObjectStep	loc:crystalcorner	2787,4428,0	Cut from a crystal outcrop with a chisel in the south room to finish the quest.		Chisel		quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2:278 oploc1

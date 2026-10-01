@@ -276,6 +276,42 @@ death_take_ground(
     selftest_tick(srv);
 }
 
+/* Play out Harold's dice table: he rolls (the script parks on p_delay), the
+ * Roll Dice! button is pressed like the client would, Continue is answered by
+ * death_drain, the interface closes and the queued settlement runs. */
+static void
+death_dice_play(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int press_roll)
+{
+    int roll_button;
+    int round;
+
+    assert(srv);
+    assert(player);
+    roll_button = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
+                                             "death_dice:death_gamble_roll_button");
+    SELFTEST_CHECK(roll_button > 0, "death_dice:death_gamble_roll_button should resolve");
+    death_drain(srv, player, 0);
+    for( round = 0; round < 12 && player->mainmodal_group <= 0; round++ )
+    {
+        selftest_tick(srv);
+        death_drain(srv, player, 0);
+    }
+    SELFTEST_CHECK(player->mainmodal_group > 0, "the dice table (interface 99) should be open");
+    for( round = 0; round < 12 && player->delayed_until > srv->tick; round++ )
+        selftest_tick(srv);
+    if( press_roll )
+        ToriRSServer_ScriptsRunIfButton(srv, roll_button, 1);
+    else
+        ToriRSServer_WorldCloseModal(srv);
+    for( round = 0; round < 24; round++ )
+    {
+        death_drain(srv, player, 0);
+        selftest_tick(srv);
+    }
+    death_drain(srv, player, 0);
+    SELFTEST_CHECK(player->mainmodal_group <= 0, "the dice table should close after Continue");
+}
+
 static void
 death_place_ball(
     struct ToriRSServer* srv,
@@ -597,24 +633,61 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
                    player->varps[varp_equip]);
     death_pass("give_ale", "opnpcu,death_guard_equiproom", "death_equiproom=50");
 
+    /* ---- a sober game, both ways ---- */
+    {
+        int before;
+        int after;
+        int gold_before;
+
+        selftest_give(player, obj_coins, 50);
+        before = selftest_count(player, obj_coins);
+        gold_before = (player->varps[varp_bits] >> 9) & 0x7fff;
+        death_talk(srv, player, npc_harold, har_slot);
+        death_choose(srv, player, 2);
+        death_drain(srv, player, 0);
+        if( player->active_script && player->active_script->execution == SSVM_COUNTDIALOG )
+            ToriRSServer_ScriptsResumeCountdialog(srv, 10);
+        death_dice_play(srv, player, 1);
+        death_release(srv, player);
+        after = selftest_count(player, obj_coins);
+        SELFTEST_CHECK(after == before + 10 || after == before - 10,
+                       "a rolled 10 gp stake should be won or lost outright, %d -> %d", before, after);
+        SELFTEST_CHECK(((player->varps[varp_bits] >> 9) & 0x7fff) == (after > before ? gold_before - 10 : gold_before + 10),
+                       "Harold's purse should move by the stake");
+        death_pass("harold_dice_roll", "if_button,death_dice:death_gamble_roll_button", "coins settled");
+
+        /* Closing the table instead of rolling forfeits the stake. */
+        before = selftest_count(player, obj_coins);
+        death_talk(srv, player, npc_harold, har_slot);
+        death_choose(srv, player, 2);
+        death_drain(srv, player, 0);
+        if( player->active_script && player->active_script->execution == SSVM_COUNTDIALOG )
+            ToriRSServer_ScriptsResumeCountdialog(srv, 5);
+        death_dice_play(srv, player, 0);
+        death_release(srv, player);
+        after = selftest_count(player, obj_coins);
+        SELFTEST_CHECK(after == before - 5, "closing the dice table forfeits the stake, %d -> %d", before, after);
+        death_pass("harold_dice_forfeit", "queue,haroldgamble_end", "stake lost");
+    }
+
     selftest_give(player, obj_blur, 1);
     death_use_on_npc(srv, player, npc_harold, har_slot, obj_blur);
     death_drain(srv, player, 0);
     death_release(srv, player);
     death_pass("give_blurberry", "opnpcu,death_guard_equiproom", "harold_verydrunk");
 
-    selftest_give(player, obj_coins, 200);
+    selftest_give(player, obj_coins, 1000);
     death_talk(srv, player, npc_harold, har_slot);
     death_choose(srv, player, 2);
     death_drain(srv, player, 0);
     if( player->active_script && player->active_script->execution == SSVM_COUNTDIALOG )
-        ToriRSServer_ScriptsResumeCountdialog(srv, 101);
-    death_drain(srv, player, 0);
+        ToriRSServer_ScriptsResumeCountdialog(srv, 1000);
+    death_dice_play(srv, player, 1);
     death_release(srv, player);
     SELFTEST_CHECK(player->varps[varp_equip] == 55 && selftest_count(player, obj_iou) >= 1,
-                   "101 Blurberry wager should grant IOU and write 55, got %d",
+                   "1000 Blurberry wager should grant IOU and write 55, got %d",
                    player->varps[varp_equip]);
-    death_pass("harold_iou", "opnpc1+countdialog", "death_equiproom=55 iou=1");
+    death_pass("harold_iou", "opnpc1+countdialog+if_button", "death_equiproom=55 iou=1");
 
     /* ---- read IOU ---- */
     iou_slot = death_inv_slot(player, obj_iou);
@@ -636,11 +709,11 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     ToriRSServer_ScriptsRunDebugproc(srv, "deathballs");
     death_drain(srv, player, 0);
     death_release(srv, player);
-    death_take_ground(srv, player, obj_blue, 2893, 3561, 0);
-    death_take_ground(srv, player, obj_yellow, 2893, 3562, 0);
-    death_take_ground(srv, player, obj_red, 2893, 3563, 0);
-    death_take_ground(srv, player, obj_purple, 2893, 3564, 0);
-    death_take_ground(srv, player, obj_green, 2893, 3565, 0);
+    death_take_ground(srv, player, obj_yellow, 2893, 3561, 0);
+    death_take_ground(srv, player, obj_green, 2893, 3562, 0);
+    death_take_ground(srv, player, obj_purple, 2893, 3563, 0);
+    death_take_ground(srv, player, obj_blue, 2893, 3564, 0);
+    death_take_ground(srv, player, obj_red, 2893, 3565, 0);
     SELFTEST_CHECK(selftest_count(player, obj_blue) >= 1 && selftest_count(player, obj_yellow) >= 1 &&
                        selftest_count(player, obj_red) >= 1 && selftest_count(player, obj_purple) >= 1 &&
                        selftest_count(player, obj_green) >= 1,

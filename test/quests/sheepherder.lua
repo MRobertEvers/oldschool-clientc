@@ -184,6 +184,7 @@ return {
             "npc:However, four sheep recently e",
             "npc:They believe that the sheep ha",
             "npc:As the councillor responsible ",
+            "npc:in a special incinerator.",
             "npc:Unfortunately nobody wants to ",
             "choose:I can do that for you.",
             "player:I can do that for you.",
@@ -547,7 +548,33 @@ return {
             -- presses once the tracked tile reads inside the zone, instead
             -- of stopping the instant it looks reached.
             local confirm_tries = 0
-            while pressed < 130 and slot and (bit_result ~= "ok" or bit_value == 0) do
+            -- RETRY after seam21 (wander_roll_and_cheat_varbit_lookup): the
+            -- engine's wander roll now queues the ROLLED tile itself
+            -- (LostCity Npc.ts:700-721 `wander()` -> `queueWaypoint`, then
+            -- `updateMovement()` the same tick) instead of a chase-path tile
+            -- beside it, so a sheep back in wander mode (its [ai_timer]
+            -- `npc_setmode(null)`, diseased_sheep.rs2) really walks between
+            -- two presses. A plan built from the tile the PREVIOUS press
+            -- reported then aims at where the sheep was, not where it is:
+            -- measured on the first seam21 run, plaguesheep_2 tracked at
+            -- 2622,3367 was pressed at 2622,3365 from 2622,3366 and the
+            -- player ended up standing ON the sheep, pushing it north to
+            -- 2620,3393 (BLOCKED after 130 presses). So every iteration
+            -- re-reads the tracked slot's live tile before planning
+            -- (`resync(slot)` keeps the slot), and re-reads it once more
+            -- after the walk: a sheep that moved while the player walked
+            -- is re-planned instead of pressed from the wrong side
+            -- (`drifted`, bounded by DRIFT_MAX so the loop still ends).
+            local drifted = 0
+            local DRIFT_MAX = 200
+            -- 200, was 130: seam21's green runs spent 118 presses on
+            -- plaguesheep_3 (a far-west spawn, ~60 tiles of route, plus one
+            -- abandoned copy restarted from its spawn) -- 12 from BLOCKED
+            -- on a fully deterministic run, so any RNG reshuffle would tip
+            -- it. Every press is still a real prod.
+            local PRESS_MAX = 200
+            while pressed < PRESS_MAX and slot and (bit_result ~= "ok" or bit_value == 0) do
+                resync(slot)
                 local x, z = tracked_x, tracked_z
                 local axis, want_x, want_z, desc = herd_plan_move(x, z)
                 if axis == nil then
@@ -671,8 +698,27 @@ return {
                     end
                 end
 
+                -- Where is the sheep NOW, after the walk? A sheep that moved
+                -- off x,z makes the stand tile wrong; re-plan from its live
+                -- tile rather than press (see the RETRY note above the loop).
+                local drift_skip = false
+                if reached and drifted < DRIFT_MAX then
+                    local tiles_result, _, rows = t.npc.tiles(def.npc, 40)
+                    if tiles_result == "ok" and rows then
+                        for i = 1, #rows do
+                            if rows[i].slot == slot and (rows[i].x ~= x or rows[i].z ~= z) then
+                                drift_skip = true
+                                drifted = drifted + 1
+                                break
+                            end
+                        end
+                    end
+                end
+
                 local press_result, press_detail
-                if not reached then
+                if drift_skip then
+                    press_result, press_detail = "drifted", "sheep moved off the planned tile during the walk; re-planning"
+                elseif not reached then
                     -- Pressing from here would push the sheep away from
                     -- the goal (the bug this retry fixes) -- skip the
                     -- press this attempt instead of landing a harmful
@@ -685,7 +731,9 @@ return {
                 else
                     press_result, press_detail = t.player.press(def.npc, 1, 8, { slot = slot })
                 end
-                pressed = pressed + 1
+                if not drift_skip then
+                    pressed = pressed + 1
+                end
 
                 local moved_x, moved_z = string.match(press_detail or "", "npc slot %d+ %d+,%d+ %-> (%d+),(%d+)")
                 local outcome
@@ -701,6 +749,8 @@ return {
                     outcome = "no_row"
                 elseif press_result == "wrong_side" then
                     outcome = "wrong_side"
+                elseif press_result == "drifted" then
+                    outcome = "drifted"
                 else
                     outcome = "other"
                 end
@@ -710,12 +760,17 @@ return {
                     pressed, tostring(slot), x, z, desc, want_x, want_z,
                     tostring(walk_result), tostring(walk_detail),
                     tostring(press_result), tostring(press_detail), outcome)
-                history[#history + 1] = last_detail
+                if outcome ~= "drifted" then
+                    history[#history + 1] = last_detail
+                end
                 if def.id == "1" and pressed <= 8 then
                     t.shot("herdprobe1." .. pressed)
                 end
 
-                if outcome == "stepped" then
+                if outcome == "drifted" then
+                    -- Nothing was pressed; the next iteration's resync(slot)
+                    -- plans from the sheep's live tile.
+                elseif outcome == "stepped" then
                     tracked_x, tracked_z = tonumber(moved_x), tonumber(moved_z)
                     unmoved_streak = 0
                     stuck_x, stuck_z, stuck_count = nil, nil, 0
@@ -790,9 +845,10 @@ return {
             -- its detail either way.
             local herded = bit_result == "ok" and bit_value ~= 0
             t.check("herd.sheep" .. def.id .. "_in_pen", true,
-                string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d) -- %s",
+                string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d, re-planned %d drift(s)) -- %s",
                     tostring(herded), def.bitvar, tostring(bit_value), pressed,
                     outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, outcome_counts.wrong_side,
+                    drifted,
                     table.concat(history, " || ")))
             if not herded then
                 t.blocked(string.format(

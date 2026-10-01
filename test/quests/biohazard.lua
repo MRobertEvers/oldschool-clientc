@@ -351,6 +351,41 @@ return {
                 .. tostring(poison_settle_result) .. " " .. tostring(poison_settle_detail))
         t.expect("quest.stage.poisoned_stew", t.quest.expect_stage("poisoned_stew"))
 
+        -- Guide step exitBackyardOfHeadquarters (Quest Helper
+        -- Biohazard.java:262-265, a sub-step of searchSarahsCupboard:
+        -- ObjectID.MOURNERSTEWFENCE at WorldPoint(2541,3331,0), shown while
+        -- inMournerBackyard). The yard is left the way it was entered,
+        -- through the same fence: [oploc1,mournerstewfence]
+        -- (general_use/scripts/fence.rs2:5-32, ported from LostCity) swaps
+        -- $start/$end when ~check_axis says the player is on the loc's far
+        -- side, so the squeeze runs east-to-west from inside and ends on
+        -- the fence's own loc_coord, x = 2541. The goto to the nurse's hut
+        -- below is then plain travel through the open city.
+        t.exec("exitBackyardOfHeadquarters", t.player.click_loc, "mournerstewfence", 1)
+        local fence_exit_result, fence_exit_detail = t.await({
+            level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile and tile.x and tile.x <= 2541
+            end,
+            note = "fence.exited_settle",
+        }, 10)
+        -- MEASURED seam31 run 1: the client tile reads x <= 2541 while the
+        -- exactmove is still in flight, and fence.rs2's p_delay(2) +
+        -- p_teleport($end) then lands AFTER the next goto had already
+        -- reached the nurse's hut, pulling the player back to the fence
+        -- ("I can't reach that!" at the cupboard). Let the script finish,
+        -- then read where it left the player (run 2: after 3 ticks the
+        -- next goto's first ::goto still did not stick -- 5).
+        t.ticks(5)
+        local fence_rest_result, fence_rest = t.world.tile()
+        t.step("exitBackyardOfHeadquarters.crossed",
+            (fence_exit_result == "ok" and fence_rest_result == "ok" and fence_rest
+                and fence_rest.x == 2541 and fence_rest.z == 3331) and "PASS" or "FAIL",
+            "await(world.tile().x <= 2541) after the squeeze back out -> "
+                .. tostring(fence_exit_result) .. " " .. tostring(fence_exit_detail)
+                .. "; 5 ticks later at " .. tostring(fence_rest and fence_rest.x) .. ","
+                .. tostring(fence_rest and fence_rest.z) .. " (fence loc_coord 2541,3331, the west side)")
+
         -- Search the nurse's cupboard for a doctor's gown -- only fills
         -- once %biohazard >= ^biohazard_poisoned_stew (quest_biohazard_locs.rs2:
         -- 123-142). MEASURED run 1: a hand-guessed WorldPoint (2544,3326,0)

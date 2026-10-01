@@ -1,16 +1,40 @@
 # Creature of Fenkenstrain modernization audit
 
-Status: `audit-pending` — the native quest row, castle and dungeon maps, most
-actors/objects/items, modern dialogue choices, a journal, an organic completion
-call, the correct headline reward, and downstream quest stubs exist. The
-canonical route does not work. The implementation advances a parallel packed
-`%creatureoffenkenstrain` varbit while native morphs, Quest Helper, and
-`::complete` use `%fenk_quest` varp 399. It then reverses the grave types: the
-Mausoleum's ornate graves cannot yield the torso, arms, or legs, while arbitrary
-Haunted Woods graves can. Cavern, mausoleum, shed, furnace, conductor, and tower
-mechanics are deliberately bypassed or left to ungated generic doors. A player
-can force completion through undocumented shortcuts, but not by following the
-current quick guide. This is a legacy soft implementation, not a modern quest.
+Status: `partial` (2026-09-27, `tools/quest_gate/PARITY.tsv` row
+`quest_fenkenstrain`, parity2b). The body below is the 2026-08-17 audit; three
+of its headline findings no longer describe the tree:
+
+- **Graves are not reversed.** `fenkenstrain_parts.rs2` routes each dig by the
+  grave's exact `loc_coord` (`^fenk_mausoleum_torso_grave`, `_arms_grave`,
+  `_legs_grave`, `^fenk_ed_grave`), so only the three Mausoleum graves yield
+  the torso, arms and legs and only Ed's grave (after the Gardener Ghost) yields
+  the head. OSRS-Content 443bcae9c gated those digs on the hired stage, made
+  each re-diggable while its part is missing from the backpack, and gave a full
+  backpack its own refusal line instead of a silent empty grave.
+- **Keys are not bypassed.** The Mausoleum door takes the dropped
+  `fenk_mausoleum_key` and sets `%fenk_unlocked_cavern`, the shed door takes
+  `fenk_shed_key` (`fenkenstrain_lightning.rs2`), and the tower door takes
+  `fenk_tower_key` (`fenkenstrain_finish.rs2`). None of them is an ungated
+  generic door.
+- **The two progress carriers move together.** OSRS-Content 7e91c06fe3
+  (parity2b) writes `%fenk_quest` (varp 399, the `fenk_table_multi`
+  multivarp) at every stage where `%creatureoffenkenstrain` is written, from
+  sign_read through lightning. Before that, `%fenk_quest` stayed at 0 until the
+  conductor, so the sewn corpse never appeared on the ritual table.
+
+- **The tower is the map's own route** (seam20 `fenkenstrain_tower_route`).
+  The Tower key opens `fenk_tower_door` (3548,3551,1) once and sets
+  `%fenk_unlocked_tower`; the ladder (3548,3554,1) climbs to plane 2, where the
+  map already places `fenk_creature` (3547,3555,2). The plane-0 `p_teleport`
+  and the `npc_add`'d creature are gone. Both Ring of Charos pickpockets check
+  `inv_freespace` first. Sources: Quest Helper CreatureOfFenkenstrain.java
+  :242, :349-354; OSRS wiki Creature of Fenkenstrain and Tower key. There is no
+  fight on the tower: the creature is talked to.
+
+What is still open is listed in the PARITY.tsv row: completion is not atomic
+across the pickpocket's `p_delay(1)`, the Werewolf Agility Course ring gate and
+the ring reclaim matrix are not built, and the optional clock and letter lore
+is absent.
 
 Audited: 2026-08-17
 
@@ -603,4 +627,5 @@ Creature of Fenkenstrain may become `verified-modern` only when:
    transition/lifecycle/multi-player tests, and a captured real-client smoke
    all pass with evidence recorded.
 
-Until those conditions hold, the inventory status remains `audit-pending`.
+Until those conditions hold, the status stays `partial`. The Status line at the
+top of this file records which audit findings are already fixed.
