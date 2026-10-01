@@ -1,598 +1,598 @@
 switch_type,switch_name,shell_count,variant_count,spawned_in_world,spawned_shell_bases,spawned_default_state,content_ref_count,sample_content_refs
-varbit,deadman_guarded_mode,32,32,yes,"deadman_guard_ardougne, deadman_guard_catherby, deadman_guard_falador, deadman_guard_gnome, deadman_guard_ja, deadman_guard_lumbridge, deadman_guard_portphas, deadman_guard_prif, deadman_guard_rellekka, deadman_guard_seers, deadman_guard_sophanem, deadman_guard_varrock, deadman_guard_voidknight, deadman_guard_yanille",all_hidden,0,
-varbit,shadow_realm_visibility,28,84,yes,"camdozaal_ghost_1, camdozaal_ghost_2, camdozaal_ghost_3, hosdun_faeded_beast, prif_ghost, secret_ghost1, secret_ghost10, secret_ghost11, secret_ghost12, secret_ghost13, secret_ghost14, secret_ghost15, secret_ghost16, secret_ghost2, secret_ghost3, secret_ghost4, secret_ghost5, secret_ghost6, secret_ghost7, secret_ghost8, secret_ghost9, shadow_maj_multi_scout1, shadow_maj_multi_scout2, shadow_maj_multi_scout3, shadow_maj_multi_scout4, sw_armadyl_ghost, sw_bandos_ghost",all_hidden,0,
-varbit,hunting_hidetrapnpcs,25,25,yes,"ii_common_impling_precursor, ii_crop_circle_npc, ii_impling_adder, ii_maze_blocking_timer, ii_maze_gate_timer, ii_rare_impling_precursor_maze, ii_uncommon_impling_precursor",all_hidden,0,
-varbit,fossil_pool_bob,8,8,yes,"fossil_pool_bobber_1, fossil_pool_bobber_2, fossil_pool_bobber_3, fossil_pool_bobber_4, fossil_pool_bobber_5, fossil_pool_bobber_6, fossil_pool_bobber_7, fossil_pool_bobber_8",all_hidden,0,
-varbit,fossil_puffer_seefish,7,7,yes,"fossil_puffer_fish_1, fossil_puffer_fish_2, fossil_puffer_fish_3, fossil_puffer_fish_4, fossil_puffer_fish_5, fossil_puffer_fish_6, fossil_puffer_fish_7",all_hidden,0,
-varbit,wgs_movario_vis,6,6,yes,"dorgesh_dark_wizard, dorgesh_khazard_bodyguard",all_hidden,0,
-varbit,prisonpete_multinpcs,4,96,yes,"prisonpete_balloon1, prisonpete_balloon2, prisonpete_balloon3, prisonpete_balloon4",all_hidden,0,
-varp,macro_transmit,4,96,yes,"macro_pheasant_fourtail, macro_pheasant_onetail, macro_pheasant_threetail, macro_pheasant_twotail",all_hidden,0,
-varbit,mm2_le_smith_pos,4,4,yes,"mm2_le_smith_pos1_multi, mm2_le_smith_pos2_multi, mm2_le_smith_pos3_multi, mm2_le_smith_pos4_multi",all_hidden,0,
-varbit,ivan_strom_location,3,7,yes,myq5_ivan_hideout,all_hidden,0,
-varbit,fairy_godfather_check,3,6,yes,"fairy_godfather_multi, fairy_henchman1_multi, fairy_henchman2_multi",all_hidden,0,
-varbit,gublinch_state,3,6,yes,"gub_musa_multi_child_1, gub_musa_multi_child_2, gub_musa_multi_child_3",all_hidden,0,
-varbit,sote_trah_vis,2,2,yes,"sote_lady_trahaearn, sote_lady_trahaearn_wander",all_hidden,0,
-varbit,sote_amlodd_vis,2,2,yes,"sote_lord_amlodd, sote_lord_amlodd_wander",all_hidden,0,
-varbit,sote_crwys_vis,2,2,yes,"sote_lord_crwys, sote_lord_crwys_wander",all_hidden,0,
-varbit,sote_hefin_vis,2,2,yes,"sote_lady_hefin, sote_lady_hefin_wander",all_hidden,0,
-varbit,dream_cyris_multi,2,6,yes,"dream_cyrisus_outsidebraziermulti, dream_cyrisus_outsidemulti",all_hidden,0,
-varbit,enakh_akthanakos_form,2,2,yes,enakh_akthanakos_multinpc,all_hidden,0,
-varbit,ics_wanderermulti,2,2,yes,"ics_little_multi_wanderer1, ics_little_multi_wanderer2",all_hidden,0,
-varbit,100_ogre_jubbly_boat_visible,2,2,yes,"100_jubbly_multi_boat_feldip, 100_jubbly_multi_boat_karamja",all_hidden,0,
-varbit,mm2_nieve_at_tree,1,1,yes,mm2_nieve_waiting,all_hidden,0,
-varbit,ics_specvis,1,1,yes,ics_little_spectre,all_hidden,0,
-varbit,giantdwarf_cutscene_guard_visible,1,1,yes,dwarf_city_berserker_cutscene_multi,all_hidden,0,
-varbit,dorgesh_zanik_in_city,1,1,yes,dorgesh_zanik,all_hidden,0,
-varbit,sote_trah,1,5,yes,sote_lady_trahaearn_cave,all_hidden,0,
-varbit,sote_amlodd,1,2,yes,sote_lord_amlodd_valley,all_hidden,0,
-varbit,sote_hefin,1,2,yes,sote_lady_hefin_island,all_hidden,0,
-varbit,mm2_zep_gnome_pilot,1,1,yes,zep_multi_assistant_gno,all_hidden,0,
-varbit,shadow_maj_visibility,1,1,yes,shadow_maj_multi_khazard,all_hidden,0,
-varbit,niete_visible,1,1,yes,twocats_niete,all_hidden,0,
-varbit,100_ogre_rantz_visible,1,1,yes,100_rantz_multi_npc,all_hidden,0,
-varbit,fairy_farmers_quest,1,9,yes,fairy_mindslayer_guard_multi,all_hidden,0,
-varbit,chat_sharimika,1,7,yes,tbwcu_sharimika_multinpc,all_hidden,0,
-varbit,chat_mamma,1,7,yes,tbwcu_mamma_bufetta_multinpc,all_hidden,0,
-varbit,chat_layleen,1,7,yes,tbwcu_layleen_multinpc,all_hidden,0,
-varbit,chat_karaday,1,7,yes,tbwcu_karaday_multinpc,all_hidden,0,
-varbit,chat_safta,1,7,yes,tbwcu_safta_doc_multinpc,all_hidden,0,
-varbit,chat_gabooty,1,7,yes,tbwcu_gabooty_multinpc,all_hidden,0,
-varbit,chat_fanellaman,1,7,yes,tbwcu_fanellaman_multinpc,all_hidden,0,
-varbit,chat_jag,1,7,yes,tbwcu_jagbakoba_multinpc,all_hidden,0,
-varbit,chat_murc,1,7,yes,tbwcu_murcaily_multinpc,all_hidden,0,
-varbit,chat_rion,1,7,yes,tbwcu_rionasta_multinpc,all_hidden,0,
-varbit,sophia_hughes_vis,1,1,yes,piscquest_councillor,all_hidden,0,
-varbit,myq5_safalaan_hideout,1,1,yes,myq4_safalaan_new_hideout,all_hidden,0,
-varbit,myq5_vertida_hideout,1,1,yes,myq4_vertida_new_hideout,all_hidden,0,
-varbit,myq5_kael_hideout,1,1,yes,myq4_kael_new_hideout,all_hidden,0,
-varbit,sote_meilyr_vis,1,1,yes,sote_lady_meilyr_upass_pre,all_hidden,0,
-varbit,sote_ithell_vis,1,1,yes,sote_lady_ithell_upass_pre,all_hidden,0,
-varbit,adventurepath_player_participating,1,2,yes,ap_guide_parent,all_hidden,0,
-varbit,veliaf_paterdomus_vis,1,2,yes,myq5_veliaf_paterdomus,all_hidden,0,
-varbit,hallowed_ghost_owlknight_visible,1,1,yes,hallowed_ghost_lobby_owl,all_hidden,0,
-varbit,hallowed_ghost_unicornknight_visible,1,1,yes,hallowed_ghost_lobby_unicorn,all_hidden,0,
-varbit,hallowed_ghost_wolfknight_visible,1,1,yes,hallowed_ghost_lobby_wolf,all_hidden,0,
-varbit,hallowed_ghost_lionknight_visible,1,1,yes,hallowed_ghost_lobby_lion,all_hidden,0,
-varbit,hallowed_ghost_archpriest_visible,1,1,yes,hallowed_ghost_lobby_archpriest,all_hidden,0,
-varbit,tentacle_port,1,3,yes,trawler_tentacle_port,all_hidden,0,
-varbit,tentacle_starboard,1,3,yes,trawler_tentacle_starboard,all_hidden,0,
-varbit,akd_orson_lookout,1,1,yes,akd_councillor_orson_lookout,all_hidden,0,
-varbit,deadman_mode,18,34,yes,"castlewars_judge, contact_banker_deadman, cws_doomsayer, deadman_banker_ahoy_north, deadman_banker_blue_north, deadman_banker_blue_south, deadman_banker_blue_west, deadman_banker_gnome_east, deadman_banker_gnome_north, deadman_banker_grey_north, deadman_banker_grey_south, deadman_banker_grey_west, deadman_banker_neitiznot, deadman_banker_pest_north, deadman_banker_wildy, deadman_insurancebroker, deadman_nigel, frisd_banker",mixed,0,
-varbit,fairy2_queencure_quest,14,114,yes,"fairy_godfatherarmy_multi1, fairy_godfatherarmy_multi2, fairy_multi, fairy_nuff_multi2, fairy_queen_multi2, fairyliquid_multi, fairyliquid_multi2, fairyqueen_multi3, fairyresistance_multi, fairyresistance_multi2, fairyresistance_multi3, fairyresistance_multi4, fairyresistance_multi5",mixed,0,
-varbit,desert_alkharid_alis_visible,5,6,yes,"ali_the_farmer_multinpc, ali_the_guard_multinpc, ali_the_smith_multinpc, ali_the_tailor_multinpc, alice_the_camel_multinpc",mixed,0,
-varbit,raids_guide_travel_unlock,3,4,yes,"raids_mountainguide_temple_multi, raids_mountainguide_wall_multi",mixed,0,
-varbit,pilot_multinpc_var,2,31,yes,"gnormadium_avlafrim, pilot_apeatoll",mixed,0,
-varbit,wearing_ghost_speak_amulet,2,2,yes,"protester_ghostspeak_multi, protester_standardspeak_multi",mixed,0,
-varbit,this_is_a_pvp_or_bh_world,2,2,yes,"lost_property_merchant_combatty, lost_property_merchant_standard",mixed,0,
-varbit,myq5_veliaf_location,2,2,yes,"myq5_veliaf_burgh_hideout, myq5_veliaf_slepe",mixed,0,
-varbit,varlamore_sun_knight,2,2,yes,"hosdun_varlamore_knight, varlamore_sun_knight_parent",mixed,0,
-varbit,camdozaal_ramarno_intro,2,3,yes,"camdozaal_ramarno_entrance_multi, camdozaal_ramarno_multi",mixed,0,
-varbit,league_account,7,9,yes,"ironman_tutor_2, league_tutor, thessalia",all_visible,0,
-varbit,giantdwarf_red_axe_gone,6,6,yes,"dwarf_city_director_red_axe_multi, dwarf_city_evil_cat_multi, dwarf_city_gnome_emissary_multi, dwarf_city_gnome_female_emissary_multi, dwarf_city_gnome_male_emissary_multi, dwarf_city_secretary_red_axe_multi",all_visible,0,
-varbit,shayzien_armour_challenge,5,35,yes,"shayzien_armour_1_challenge, shayzien_armour_2_challenge, shayzien_armour_3_challenge, shayzien_armour_4_challenge, shayzien_armour_5_challenge",all_visible,0,
-varbit,route_hideout_npcs,5,5,yes,"route_curpile_fyod, route_ivan_strom_parent, route_polmafi_ferdygris_parent, route_radigad_ponfit_parent, route_veliaf_hurtz_parent",all_visible,0,
-varbit,pilot_previous_destination,4,32,yes,"pilot_al_kharid, pilot_grand_tree, pilot_karamja, pilot_white_wolf",all_visible,0,
-varbit,con_contract_discussed,4,8,yes,"con_contractor, con_contractor_ardougne, con_contractor_hosidius, con_contractor_varrock",all_visible,0,
-varbit,mm2_slayer_master,2,4,yes,"slayer_master_6, wyvern_cave_guardian",all_visible,0,
-varbit,fenk_gardener_directions,2,2,yes,fenk_gardener_multi_2,all_visible,0,
-varbit,askelladen_hasop,2,4,yes,"viking_askelapen, viking_askelapen_dagganoth_mountain",all_visible,0,
-varbit,sote_ithell,2,7,yes,"mourning_town_elf_5, sote_lady_ithell_village",all_visible,0,
-varbit,sailing_crew_captain_siad_visibility,2,2,yes,capt_siad,all_visible,0,
-varbit,giantdwarf_red_traders_gone,2,2,yes,"dwarf_city_red_trader1_multi, dwarf_city_red_trader2_multi",all_visible,0,
-varbit,chasm_voice_progress,2,9,yes,"disciple_of_yama_entrance, voice_of_yama",all_visible,0,
-varbit,ilfeen_prif,2,4,yes,"ilfeen_prif, sote_ilfeen_upass",all_visible,0,
-varbit,karam_dungeon_backdoor,1,4,yes,karam_dungeon_backdoor,all_visible,0,
-varbit,mm2_keef_challenge,1,1,yes,mm2_keef_multi,all_visible,0,
-varbit,mm2_kob_challenge,1,1,yes,mm2_kob_multi,all_visible,0,
-varbit,fairy2_rewardgiven,1,2,yes,fairy2_repair,all_visible,0,
-varbit,soulbane_launa_pres,1,1,yes,soulbane_launa_multi,all_visible,0,
-varbit,fairy2_nuffvisible,1,1,yes,fairy_nuff_multi,all_visible,0,
-varbit,keldagrim_kebab_status,1,2,yes,dwarf_city_drunken_dwarf_multi,all_visible,0,
-varbit,skippy_state,1,4,yes,multi_skippy,all_visible,0,
-varbit,deadman_finalarea_hidenpcs,1,1,yes,sos_barb,all_visible,0,
-varbit,morgan_postquest_dialogue,1,2,yes,morgan,all_visible,0,
-varbit,priestperilevilmonk_dead,1,1,yes,priestperilevilmonk3,all_visible,0,
-varbit,roving_update_female_woodelf,1,3,yes,roving_update_female_woodelf,all_visible,0,
-varbit,bob_invisible,1,1,yes,death_growncat_black,all_visible,0,
-varbit,gobdip_met_aggie,1,2,yes,aggie,all_visible,0,
-varbit,upass_koftik_outside,1,2,yes,caveguide1,all_visible,0,
-varbit,upass_koftik_bridge,1,1,yes,caveguide2,all_visible,0,
-varbit,upass_koftik_grid,1,1,yes,caveguide3,all_visible,0,
-varbit,upass_koftik_temple,1,1,yes,caveguide5,all_visible,0,
-varbit,upass_koftik_end,1,1,yes,caveguide6,all_visible,0,
-varbit,sote_crwys,1,3,yes,sote_lord_crwys_forest,all_visible,0,
-varbit,khazard_warlord_fighting,1,1,yes,khazard_warlord,all_visible,0,
-varbit,soa_weaponmaster_dead,1,1,yes,weaponsmaster,all_visible,0,
-varbit,ardougne_medium_reward,1,2,yes,ardounge_wizard,all_visible,0,
-varbit,karamja_elite_reward,1,3,yes,agilityarena_tickettrader,all_visible,0,
-varbit,fairy_queen_check,1,1,yes,fairy_queen_multi,all_visible,0,
-varbit,bond_npc_hide,1,1,yes,bond_james_bond,all_visible,0,
-varbit,rick_has_opened_shop,1,2,yes,telecrystal_wizard,all_visible,0,
-varbit,enakh_enakhra_form,1,2,yes,enakh_enakhra_multinpc,all_visible,0,
-varbit,contact_maisa_invis,1,1,yes,contact_maisa_multi,all_visible,0,
-varbit,surok_vis,1,2,yes,surok_surok,all_visible,0,
-varbit,romjul_juliet_visible,1,2,yes,juliet_multi_visible,all_visible,0,
-varbit,grim_dwarf_vis_tower,1,2,yes,grim_rupert_intower,all_visible,0,
-varbit,dag_island_quick_travel,1,2,yes,viking_dagganoth_cave_ferryman_rellekka,all_visible,0,
-varbit,trail_watson_spoken,1,2,yes,trail_watson,all_visible,0,
-varbit,piscarilius_burglary_completed,1,2,yes,piscarilius_captain_khaled_multi,all_visible,0,
-varbit,br_tutorial,1,2,yes,br_host,all_visible,0,
-varbit,minnow_access,1,3,yes,minnow_fisherman_multi,all_visible,0,
-varbit,tobquest_stranger_vis,1,4,yes,tob_stranger,all_visible,0,
-varbit,ga_mary_dialogue,1,2,yes,ga_mary,all_visible,0,
-varbit,kourend_medium_reward,1,2,yes,lovakengj_thirus,all_visible,0,
-varbit,farmguild_contract_discussed,1,2,yes,farming_guild_master,all_visible,0,
-varbit,hosdun_olbertus_status,1,2,yes,hosdun_olbertus,all_visible,0,
-varbit,upass_koftik_maze,1,1,yes,caveguide4,all_visible,0,
-varbit,mourning_mourner_vis,1,1,yes,mourning_overpass_mourner,all_visible,0,
-varbit,prif_acorn_trade,1,2,yes,prif_acorn_trader,all_visible,0,
-varbit,nightmare_first_entry,1,2,yes,shura,all_visible,0,
-varbit,nightmare_challenge_first_entry,1,2,yes,nightmare_challenge_sister,all_visible,0,
-varbit,garlic_cocktail_shop_unlocked,1,2,yes,darkm_werewolf_3,all_visible,0,
-varbit,hallowed_tutorial,1,2,yes,hallowed_lobby_npc,all_visible,0,
-varbit,dmine_daeyalt_converter_intro,1,2,yes,dmine_daeyalt_converter,all_visible,0,
-varbit,porcine_rosie,1,2,yes,porcine_sheepdog_multi,all_visible,0,
-varbit,soul_wars_finished_tutorial,1,2,yes,soul_wars_nomad,all_visible,0,
-varbit,jad_challenge_master_met,1,2,yes,jad_challenge_master,all_visible,0,
-varbit,star_trader_met,1,2,yes,star_trader,all_visible,0,
-varbit,myq6,150,10823,yes,"burgh_vilager_rat_1, darkm_auctioneer, darkm_buyer_1, darkm_buyer_2, darkm_buyer_3, darkm_buyer_4, darkm_buyer_5, darkm_buyer_6, darkm_prisoner_01, darkm_prisoner_02, dmine_miner_1, dmine_miner_2, dmine_miner_3, dmine_miner_4, dmine_miner_5, dmine_miner_6, dr_harlow, lord_myrmel, myq3_citizen_male_old_1, myq3_citizen_male_old_2, myq4_garth, myq4_harpert, myq5_prison_guard, myq5_prisoner, myreque_pt3_female_citizen1, myreque_pt3_female_citizen10, myreque_pt3_female_citizen2, myreque_pt3_female_citizen3, myreque_pt3_female_citizen4, myreque_pt3_female_citizen5, myreque_pt3_female_citizen6, myreque_pt3_female_citizen7, myreque_pt3_female_citizen8, myreque_pt3_female_citizen9, myreque_pt3_female_huddled1, myreque_pt3_female_huddled2, myreque_pt3_male_citizen1, myreque_pt3_male_citizen2, myreque_pt3_male_citizen3, myreque_pt3_male_citizen4, myreque_pt3_male_citizen5, myreque_pt3_male_citizen6, myreque_pt3_male_citizen7, myreque_pt3_male_citizen8, myreque_pt3_male_huddled1, myreque_pt3_male_huddled2, myreque_pt3_male_looking_out1, myreque_pt3_male_looking_out2, myreque_pt3_miner1, myreque_pt3_miner2, myreque_pt3_miner3, myreque_pt3_miner4, myreque_pt3_miner5, myreque_pt3_miner6, priestperilevilmonk1, priestperilevilmonk2, sanguinesti_old_man_ral, tob_citizen_1, tob_citizen_2, tob_citizen_3, tob_citizen_4, tob_female_orator, tob_male_orator",all_visible,2,skill_hunter/scripts/stymphike.rs2:50; skill_hunter/scripts/stymphike.rs2:56
-varbit,sote,69,4236,yes,"carla, councillor_halgrive, elena_basement, elena_lletya, elena_lletya_hq, elena_prison, headmourner, jethick, kilron, kinglathas, knight_of_ardougne_west, knight_of_ardougne_west_noop, lord_iorwerth, mourner1, mourner2, mourner3, mourner_armed, mourner_armed_guard, mourner_elena_guard, mourner_hideout_gnome_guard, mourner_hideout_guard, mourner_hideout_head_mourner, mourner_hideout_slave_guard, mourner_slave_no_tools, mourner_slave_pickaxe, mourner_slave_spade, mournerstew1, mournerstew2, mournerstew3, mournertwa, mournertwb, mournerwatchtower, mourning_arianwyn, mourning_town_elf_2, omart, paladin_west, prif_city_guard_multi, sote_arianwyn_waterfall, sote_arianwyn_waterfall_baxtorian, sote_baxtorian, sote_baxtorian_gates, sote_baxtorian_ruined_lletya, sote_baxtorian_waterfall, sote_carla, sote_elena_upass, sote_eluned_lletya, sote_halgrive, sote_iestin_forest, sote_iestin_ruined_lletya, sote_ilfeen, sote_ilfeen_lletya, sote_islwyn, sote_islwyn_lletya, sote_islwyn_upass_pre, sote_jethick, sote_kilron, sote_lady_hefin_upass_pre, sote_lady_trahaearn_upass_pre, sote_lletya_gravestone, sote_lord_amlodd_upass_pre, sote_lord_crwys_upass_pre, sote_omart, sote_upass_gravestone, sote_ysgawyn, sote_ysgawyn_forest, wint_cluehunter",mixed,255,quests/quest_elena/scripts/alrena.rs2:10; quests/quest_elena/scripts/alrena.rs2:10; quests/quest_elena/scripts/alrena.rs2:12
-varbit,akd,62,3725,yes,"akd_asteros_arceuus, akd_councillor_andrews_jailed, akd_councillor_orson_rose_basement, akd_councillor_unkar, akd_councillor_unkar_jailed, akd_elena_hosidius, akd_ice_block, akd_kandur_hosidius, akd_king, akd_lydia_fullore_castle, akd_lydia_fullore_castle_outside, akd_lydia_fullore_kingstown, akd_lydia_fullore_lookout, akd_lydia_fullore_piscarilius, akd_lydia_fullore_rose_basement, akd_lydia_fullore_rose_outside, akd_martin_holt_castle, akd_martin_holt_hosidius, akd_martin_holt_jailed, akd_martin_holt_kingstown, akd_martin_holt_piscarilius, akd_martin_holt_settlement_ruins, akd_pandur_hosidius, akd_protest_guard, akd_protest_guard_2, akd_protest_guard_3, akd_protest_guard_4, akd_shauna_piscarilius, akd_shiro_shayzien, akd_trobin_arceuus, akd_vulcana_lovakengj, asteros_arceuus, cabin_boy_herbert_pisc, cabin_boy_herbert_ship, councillor_unkar, hosidius_pandur, hosidiusquest_lady, hosidiusquest_lord, kourend_protester, kourend_protester_10, kourend_protester_11, kourend_protester_12, kourend_protester_2, kourend_protester_3, kourend_protester_4, kourend_protester_5, kourend_protester_6, kourend_protester_7, kourend_protester_8, kourend_protester_9, molch_temple_shaman, pmod_town_crier_kingstown, raidquest_library_historian, shiro_shayzien, vulcana_lovakengj, zeah_head_councillor",mixed,214,quests/scripts/quest_cheat.rs2:724; quests/scripts/quest_cheat.rs2:727; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:142
-varbit,myq5,58,2360,yes,"myq5_ivan_boathouse, myq5_ivan_burgh_de_rott, myq5_ivan_graveyard, myq5_ivan_paterdomus, myq5_ivan_woods, myq5_kael_graveyard, myq5_maria, myq5_polmafi_burgh_hideout, myq5_polmafi_graveyard, myq5_polmafi_hideout, myq5_radigad_burgh_hideout, myq5_radigad_graveyard, myq5_radigad_hideout, myq5_ron, myq5_safalaan_graveyard, myq5_safalaan_graveyard_meeting, myq5_safalaan_graveyard_walk, myq5_safalaan_lab, myq5_safalaan_lab_inner, myq5_safalaan_mausoleum, myq5_safalaan_mausoleum_inner, myq5_vanescula_graveyard, myq5_vanescula_mausoleum, myq5_veliaf_boathouse, myq5_veliaf_graveyard, myq5_veliaf_graveyard_inner, myq5_veliaf_graveyard_meeting, myq5_veliaf_hideout, myq5_veliaf_slepe_manor, myq5_veliaf_woods, myq5_vertida_graveyard, slepe_bartender, slepe_child_female_1, slepe_child_female_1_inside, slepe_child_female_2, slepe_child_female_2_inside, slepe_child_female_3, slepe_child_female_3_post, slepe_child_female_4, slepe_child_female_4_post, slepe_child_male_2, slepe_child_male_2_inside, slepe_child_male_3, slepe_child_male_3_inside, slepe_child_male_4, slepe_child_male_4_post, slepe_crombwick, slepe_damien, slepe_kroy, slepe_monk, slepe_poor_man1, slepe_poor_man1_inside, slepe_poor_man2, slepe_poor_man2_inside, slepe_poor_woman1, slepe_poor_woman1_inside, slepe_poor_woman2, slepe_poor_woman2_inside",mixed,252,quests/quest_tasteofhope/scripts/tasteofhope.rs2:308; quests/quest_tasteofhope/scripts/tasteofhope.rs2:308; quests/quest_sinsofthefather/scripts/sf_bmp.rs2:53
-varbit,my2arm_status,29,1937,yes,"my2arm_ambassador_multi, my2arm_dontknowwhat_throneroom, my2arm_entry_postquest, my2arm_entry_quest, my2arm_leprechaun, my2arm_mother_multi_enthroned, my2arm_mother_multi_standing, my2arm_mushroom_outside, my2arm_mushroom_throneroom, my2arm_sentry_boulder_background, my2arm_sentry_butterfly_background, my2arm_sentry_butterfly_fakespectator, my2arm_sentry_oddstone_background, my2arm_sentry_oddstone_fakespectator, my2arm_sentry_squirrel_background, my2arm_sentry_squirrel_fakespectator, my2arm_snowflake_outside, my2arm_snowflake_postquest, my2arm_wom_endquest, myarm, myarm_multi_cliffbottom, myarm_multi_larry, myarm_multi_outside, myarm_multi_postquest, myarm_multi_teacher, myarm_multi_throneroom, myarm_pupil_multi",mixed,194,quests/quest_secretsofthenorth/scripts/sn_bmp.rs2:67; quests/quest_secretsofthenorth/scripts/sn_bmp.rs2:93; quests/quest_secretsofthenorth/scripts/sn_bmp.rs2:101
-varbit,mm2_progress,29,1843,yes,"grandtree_anita, grandtree_narnode, mm2_bunkdo_postquest, mm2_bunkwicket_postquest, mm2_carado_postboss_multi, mm2_carado_postquest, mm2_garkor_breach_multi, mm2_garkor_postquest, mm2_karam_postquest, mm2_lumo_breach_multi, mm2_lumo_postquest, mm2_monkey_banker, mm2_monkey_boat_guard_multi, mm2_waymottin_postquest, mm2_zooknock_postboss_multi, mm2_zooknock_postquest, mm_bunkdo, mm_bunkwicket, mm_carado, mm_duke_postquest, mm_garkor, mm_karam, mm_karam_talker, mm_kruk_multi, mm_lumo, mm_waymottin, mm_zooknock, zep_assist_gno_replacement",mixed,221,quests/quest_monkeymadnessii/scripts/mm2_bmp.rs2:238; quests/quest_monkeymadnessii/scripts/mm2_bmp.rs2:244; quests/quest_monkeymadnessii/scripts/mm2_bmp.rs2:250
-varbit,ds2,18,626,yes,"dallas_jones_crandor_lab, dallas_jones_crandor_lair, dallas_jones_dungeon, dallas_jones_fossil_boat, dallas_jones_fossil_island, dallas_jones_lithkren, dallas_jones_musa, death_growncat_black_astral, death_growncat_black_lithkren, death_growncat_black_lunar, death_growncat_black_sophanem, death_growncat_black_varrock, ics_little_cat, jardric_boat, jardric_camp, jardric_dungeon, jardric_varrock, niete_burthorpe",mixed,396,quests/quest_viking/scripts/viking_brundt.rs2:26; quests/quest_viking/scripts/viking_brundt.rs2:26; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:43
-varp,upass,17,167,yes,"cave_slave1, cave_slave2, cave_slave3, cave_slave4, cave_slave5, cave_slave6, cave_slave7, cavewitch, souless, soulman, unicorn_upass, upassmage",all_visible,98,quests/quest_recipefordisaster/scripts/recipefordisaster_selftest.rs2:51; quests/quest_recipefordisaster/scripts/recipefordisaster_amikvarze.rs2:130; quests/quest_upass/scripts/upass_obstacles.rs2:407
-varbit,myq4,14,918,yes,"myq4_andiess, myq4_flaygian, myq4_kael, myq4_kael_theatre, myq4_magic_mercenary, myq4_mekritus, myq4_melee_mercenary, myq4_ranged_mercenary, myq4_safalaan_basement, myq5_slepe_jester, myq5_slepe_thief, sanguinesti_vertida_sefalatis, slepe_jester, slepe_thief",mixed,157,quests/quest_nightatthetheatre/scripts/natt_bmp.rs2:8; quests/quest_nightatthetheatre/scripts/natt_bmp.rs2:47; quests/quest_nightatthetheatre/scripts/natt_bmp.rs2:51
-varbit,bcs,13,519,yes,contact_osman_multi,all_visible,164,quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:30; quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:491; quests/quest_deserttreasureii/scripts/dt2_bmp.rs2:69
-varbit,feud_var,12,292,yes,feud_black_jack_seller_multi,all_hidden,139,quests/quest_thefeud/scripts/feud_villagers.rs2:29; quests/quest_thefeud/scripts/feud_villagers.rs2:32; quests/quest_thefeud/scripts/feud_heist.rs2:30
-varbit,sailing_intro,12,227,yes,"captain_tobias, customs_officer, seaman_lorris, seaman_thresnor",all_visible,173,quests/quest_pandemonium/scripts/pandemonium.rs2:9; quests/quest_pandemonium/scripts/pandemonium.rs2:47; quests/quest_pandemonium/scripts/pandemonium.rs2:58
-varbit,corscurs_progress,11,815,yes,"corsair_captain_crossroads, corsair_captain_throne, corsair_ferry_covedocks, corsair_ferry_rimmington, corscurs_banker_multi, corscurs_cabinboy_sick, corscurs_cook_postquest, corscurs_cook_sick, corscurs_navigator_sick, corscurs_thief_postquest, corscurs_thief_sick",mixed,120,quests/quest_corsaircurse/scripts/cc_bmp.rs2:21; quests/quest_corsaircurse/scripts/cc_bmp.rs2:106; quests/quest_corsaircurse/scripts/cc_bmp.rs2:112
-varbit,kr_quest,10,27,yes,"kr_anna_sinclair_multi, kr_bob_sinclair_multi, kr_carol_sinclair_multi, kr_david_sinclair_multi, kr_elizabeth_sinclair_multi, kr_frank_sinclair_multi, kr_multi_king_arthur, kr_multi_merlin_jail, kr_multi_murderer, kr_murderguard_house_multi",mixed,181,quests/quest_murder/scripts/gossip.rs2:113; quests/quest_murder/scripts/gossip.rs2:134; quests/quest_murder/scripts/gossip.rs2:135
-varbit,slug2_main,10,102,yes,"slug2_hobb, slug2_jeb, slug2_maledict, slug2_oniall, slug2_villager1_stage1_multi, slug2_villager1_stage2_multi, slug2_villager2_stage1_multi, slug2_villager2_stage2_multi, slug2_villager3_stage1_multi, slug2_villager3_stage2_multi",mixed,91,quests/quest_makinghistory/scripts/makinghistory_jorral.rs2:21; quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:25; quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:44
-varbit,mistmyst_progress,10,396,yes,"mistmyst_abigale, mistmyst_hewey, mistmyst_killer_background, mistmyst_lacey, mistmyst_mandy, mistmyst_mandy_post, mistmyst_mirror, mistmyst_sid, mistmyst_tayten",mixed,139,quests/quest_misthalinmystery/scripts/misthalinmystery.rs2:10; quests/quest_misthalinmystery/scripts/misthalinmystery.rs2:16; quests/quest_misthalinmystery/scripts/misthalinmystery.rs2:18
-varbit,brain_multi_monk,9,13,yes,"brain_multi_monk_1, brain_multi_monk_2, brain_multi_monk_3, brain_multi_monk_4, brain_multi_monk_5, brain_multi_monk_6, brain_multi_monk_7, brain_multi_monk_8, brain_multi_tranquility",all_visible,2,quests/quest_thegreatbrainrobbery/scripts/brain_shared.rs2:58; quests/quest_thegreatbrainrobbery/scripts/brain_bmp.rs2:32
-varbit,fossil_herbiboar_visible,9,9,yes,"fossil_herbiboar_1, fossil_herbiboar_2, fossil_herbiboar_3, fossil_herbiboar_4, fossil_herbiboar_5, fossil_herbiboar_6, fossil_herbiboar_7, fossil_herbiboar_8, fossil_herbiboar_9",all_hidden,3,skill_hunter/scripts/herbiboar.rs2:47; skill_hunter/scripts/herbiboar.rs2:176; skill_hunter/scripts/herbiboar.rs2:316
-varbit,contact,8,559,yes,"contact_osman_desert_multi, ics_little_locust, ics_little_plague_frog",mixed,137,quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:8; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:72; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:459
-varbit,contact_people_vis,8,8,yes,"contact_guard_female_01_multi, contact_guard_female_02_multi, contact_guard_male_01_multi, contact_guard_male_02_multi, contact_market_baker_multi, contact_market_craft_multi, contact_market_dagger_multi, contact_stone_mason_multi",all_hidden,5,quests/quest_contact/scripts/contact_jex.rs2:21; quests/quest_contact/scripts/contact_debug.rs2:6; quests/quest_contact/scripts/contact_debug.rs2:40
-varbit,ics_little_var,7,137,yes,"ics_little_hipriest_town, ics_little_linen1, ics_little_multi_wanderer, magic_carpet_multi_monkey1, magic_carpet_seller6, magic_carpet_seller7",mixed,117,quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:10; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:78; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:459
-varbit,myarm,7,17,yes,"myarm_multi_ardougne, myarm_multi_brimhaven, myarm_multi_kitchen, myarm_multi_village",all_hidden,166,quests/quest_secretsofthenorth/scripts/secretsofthenorth.rs2:31; quests/quest_makingfriendswithmyarm/scripts/mf_bmp.rs2:9; quests/quest_makingfriendswithmyarm/scripts/mf_bmp.rs2:28
-varbit,chartering_previous_destination,7,168,yes,"sailing_transport_trader_stan, sailing_transport_trader_stan_crew_man1, sailing_transport_trader_stan_crew_man2, sailing_transport_trader_stan_crew_man3, sailing_transport_trader_stan_crew_woman1, sailing_transport_trader_stan_crew_woman2, sailing_transport_trader_stan_crew_woman3",all_visible,2,transport_charter/scripts/charter_travel.rs2:97; transport_charter/scripts/charter_npc.rs2:63
-varbit,slice_quest,7,19,yes,"slice_dwarf_alvijar, slice_dwarf_alvijar_postquest, slice_goblin_archaeologist_post_quest, slice_sergeant_mossfists_cave, slice_sergeant_mossfists_swamp, slice_sergeant_slimetoes_cave, slice_sergeant_slimetoes_swamp",mixed,193,quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:17; quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:21; quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:23
-varbit,bim,7,39,yes,"bim_burntof_postquest, bim_checkal_postquest, bim_marley_postquest, bim_willow_outside, bim_willow_outside_entrace, bim_willow_postquest",mixed,140,quests/quest_defenderofvarrock/scripts/dov_rovin.rs2:8; quests/quest_defenderofvarrock/scripts/dov_elias.rs2:61; quests/quest_defenderofvarrock/scripts/dov_elias.rs2:390
-varbit,eaglepeak_quest,6,12,yes,"eaglepeak_eagle_desert, eaglepeak_eagle_jungle, eaglepeak_eagle_polar, eaglepeak_ferret_zoo, eaglepeak_nickolaus, eaglepeak_nickolaus_campsite",mixed,241,quests/scripts/quest_cheat.rs2:426; quests/scripts/quest_cheat.rs2:429; quests/quest_eaglepeak/scripts/silver_room.rs2:21
-varbit,feud_npc_multi,6,18,yes,"feud_arabian_guard2_multi, feud_arabian_guard_multi, feud_egyptian_doorman_multi, feud_villager_multi_1, feud_villager_multi_2, feud_villager_multi_3",all_visible,13,quests/quest_thefeud/scripts/feud_recruitment.rs2:223; skill_thieving/scripts/blackjack.rs2:245; skill_thieving/scripts/blackjack.rs2:250
-varbit,swansong,6,123,yes,"swan_boat_boatwoman, swan_boat_colonist, swan_multioutside, swan_wom_office, wom_multi",mixed,164,quests/quest_swansong/scripts/swansong_colony.rs2:24; quests/quest_swansong/scripts/swansong_colony.rs2:26; quests/quest_swansong/scripts/swansong_colony.rs2:28
-varbit,templetrek_npcs_visible,6,6,yes,"templetrek_multi_child_hard, templetrek_multi_man_med, templetrek_multi_oldman_hard, templetrek_multi_retired_man_easy, templetrek_multi_retired_soldier_easy, templetrek_multi_woman_med",all_hidden,3,minigames/minigame_templetrek/scripts/templetrek_shared.rs2:32; minigames/minigame_templetrek/scripts/templetrek_shared.rs2:34; player/login.rs2:119
-varbit,ramble_npcs_visible,6,6,yes,"ramble_multi_easy_fighter, ramble_multi_easy_mage, ramble_multi_hard_fighter, ramble_multi_hard_ranger, ramble_multi_med_mage, ramble_multi_med_ranger",all_hidden,3,minigames/minigame_templetrek/scripts/templetrek_shared.rs2:37; minigames/minigame_templetrek/scripts/templetrek_shared.rs2:39; player/login.rs2:119
-varp,tbwt_main,6,21,yes,"tbwt_tamayu_multinpc_house, tbwt_tamayu_multinpc_jungle, tbwt_tiadeche_multinpc_house, tbwt_tiadeche_multinpc_shore, tbwt_tinsay_multinpc_house, tbwt_tinsay_multinpc_island",mixed,43,quests/scripts/quest_cheat.rs2:1196; quests/scripts/quest_cheat.rs2:1199; quests/quest_tbwt/scripts/tbwt_lubufu.rs2:161
-varbit,poh_servant_type,5,40,yes,"poh_servant_multi_cook_woman, poh_servant_multi_demon, poh_servant_multi_dogsbody, poh_servant_multi_maitre_d_man, poh_servant_multi_waiter_woman",all_visible,3,skill_construction/scripts/poh_servants.rs2:120; skill_construction/scripts/poh_servants.rs2:144; skill_construction/scripts/poh_state.rs2:34
-varbit,agrith_quest,5,15,yes,"agrith_dave_at_portal, agrith_reen_alkharid, agrith_sandstorm",mixed,110,quests/quest_shadowstorm/scripts/shadowstorm_dye.rs2:14; quests/quest_shadowstorm/scripts/shadowstorm_dye.rs2:43; quests/quest_shadowstorm/scripts/shadowstorm_dye.rs2:43
-varbit,dttd_main,5,11,yes,"dttd_delivery_dwarf, dttd_maze_guide, dttd_mill_man_invisible",all_hidden,151,quests/quest_anothersliceofham/scripts/slice_bmp.rs2:11; quests/quest_anothersliceofham/scripts/slice_bmp.rs2:167; quests/quest_anothersliceofham/scripts/slice_bmp.rs2:173
-varbit,fossilquest_progress,5,253,yes,"fossilquest_barge_guard_port, fossilquest_david, fossilquest_john, fossilquest_jr_navigator, fossilquest_lead_navigator",all_visible,133,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:115; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1695; quests/quest_dragonslayer2/scripts/ds2_bmp.rs2:102
-varp,dragonquest,4,23,yes,"cabin_boy_jenkins, dragonslayer_ned_on_crandor, dragonslayer_ned_on_ship, elvarg",mixed,97,quests/quest_hero/scripts/quest_hero.rs2:5; quests/quest_hero/scripts/quest_hero.rs2:25; quests/quest_hero/scripts/quest_hero.rs2:89
-varp,fenk_quest,4,19,yes,"fenk_creature, fenk_creature_released, fenk_fenkenstrain, fenk_fenkenstrain_in_tower",mixed,18,quests/quest_fenkenstrain/scripts/fenkenstrain_finish.rs2:8; quests/quest_fenkenstrain/scripts/fenkenstrain_finish.rs2:66; quests/quest_fenkenstrain/scripts/fenkenstrain_finish.rs2:103
-varp,haunted,4,6,yes,"anma_assistant_multi, anma_witch_multi, ernest_multichicken",mixed,32,quests/quest_animalmagnetism/scripts/anma.rs2:27; quests/quest_animalmagnetism/scripts/anma.rs2:306; quests/quest_animalmagnetism/scripts/anma_bmp.rs2:15
-varp,runemysteries,4,28,yes,"aubury, gnome_brimstail, guild_wizard, head_wizard",all_visible,64,quests/quest_runemysteries/scripts/runemysteries_journal.rs2:6; quests/quest_runemysteries/scripts/runemysteries_journal.rs2:16; quests/quest_runemysteries/scripts/runemysteries_journal.rs2:34
-varbit,vikingexile,4,236,yes,"haskell_rellekka, viking_brundt, vikingexile_brundt_island_multi, vikingexile_brundt_multi",mixed,128,quests/quest_fremennikexiles/scripts/fremennikexiles.rs2:116; quests/quest_fremennikexiles/scripts/fremennikexiles.rs2:128; quests/quest_fremennikexiles/scripts/fremennikexiles.rs2:130
-varbit,blood_tithe_visible,4,5,yes,"burgh_gadderanks_multinpc, burgh_juve1_multinpc, burgh_juve2_multinpc, burgh_villager_tithe_multinpc",all_hidden,2,quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:31; quests/quest_inaidofthemyreque/scripts/myreque2_fight.rs2:131
-varp,seaslugquest,4,19,yes,"holgartland, kennith, kennith_land, kent_land",mixed,69,quests/quest_theslugmenace/scripts/slugmenace_tiffy.rs2:14; quests/quest_theslugmenace/scripts/slugmenace_debug.rs2:24; quests/quest_theslugmenace/scripts/slugmenace_debug.rs2:30
-varbit,lost_tribe_quest,4,30,yes,"lost_tribe_guide, lost_tribe_mistag, lost_tribe_sigmund, lost_tribe_sigmund_ham",mixed,83,quests/quest_theslugmenace/scripts/slugmenace_debug.rs2:37; quests/quest_wanted/scripts/wanted_shared.rs2:14; quests/quest_cook/scripts/quest_cook.rs2:14
-varbit,enakh_where_is_lazim,4,4,yes,"enakh_lazim_altar_multinpc, enakh_lazim_fallen_statue_east_multinpc, enakh_lazim_pedestal_multinpc, enakh_lazim_statue_east_multinpc",mixed,9,quests/quest_enakhraslament/scripts/enakhraslament_quarry.rs2:93; quests/quest_enakhraslament/scripts/enakhraslament_quarry.rs2:174; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:159
-varbit,tol_prog,4,33,yes,"tol_homonculus_multi, tol_npc_efergy01_multi, tol_npc_mage01_multi, tol_npc_mage02_multi",mixed,161,quests/quest_toweroflife/scripts/tol_bmp.rs2:11; quests/quest_toweroflife/scripts/tol_bmp.rs2:158; quests/quest_toweroflife/scripts/tol_bmp.rs2:165
-varbit,shayzienquest,4,51,yes,"phileas_rimor, raids_temple_duffy, raids_temple_gnosi, raids_temple_historian",all_visible,121,quests/quest_taleoftherighteous/scripts/taleoftherighteous.rs2:45; quests/quest_taleoftherighteous/scripts/taleoftherighteous.rs2:63; quests/quest_taleoftherighteous/scripts/taleoftherighteous.rs2:70
-varp,option_attackpriority_npc,3,15,yes,"fossil_zygomite_cap, slayer_mutated_zygomite_adolescent_cap, slayer_mutated_zygomite_adult_cap",all_visible,3,interface_settings_side/scripts/settings_side.rs2:23; interface_settings_side/scripts/settings_side.rs2:23; interface_settings_side/scripts/settings_side.rs2:131
-varbit,peng_multi_kgp,3,4,yes,"peng_multi_kgp, peng_multi_kgp_booth, peng_noodle_multi",mixed,14,quests/quest_coldwar/scripts/coldwar_bmp.rs2:17; quests/quest_coldwar/scripts/coldwar_bmp.rs2:977; quests/quest_coldwar/scripts/coldwar_bmp.rs2:990
-varp,brain_quest_var,3,35,yes,"brain_island_fenkenstrain, brain_island_tranquility, brain_tranquility",mixed,154,quests/quest_fenkenstrain/scripts/fenkenstrain.rs2:176; quests/quest_fenkenstrain/scripts/fenkenstrain.rs2:176; quests/quest_thegreatbrainrobbery/scripts/brain_door.rs2:38
-varbit,deserttreasure,3,19,yes,"azzanadra, fourdiamonds_elder, fourdiamonds_elder2",mixed,82,quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:24; quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:489; quests/quest_deserttreasureii/scripts/dt2_bmp.rs2:67
-varbit,fd_icewarrior_subquest,3,10,yes,"fourdiamonds_troll_child, troll_frozen_1, troll_frozen_2",mixed,6,quests/quest_deserttreasure/scripts/deserttreasure.rs2:911; quests/quest_deserttreasure/scripts/deserttreasure.rs2:918; quests/quest_deserttreasure/scripts/deserttreasure.rs2:928
-varp,priestperil,3,62,yes,"priestperiltrappedmonk, priestperiltrappedmonk2",all_hidden,119,quests/quest_makinghistory/scripts/makinghistory_jorral.rs2:156; quests/quest_theslugmenace/scripts/slugmenace_debug.rs2:38; quests/quest_priestperil/scripts/mausoleum_drezel.rs2:7
-varbit,lunar_quest_main,3,421,yes,"lunar_fremennik_pirate, lunar_pirate_cabin_boy, lunar_pirate_captain",all_visible,204,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1544; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1563; quests/quest_dreammentor/scripts/dreammentor_cyrisus.rs2:27
-varp,crestquest,3,39,yes,"avan, caleb_fitzharmon, johnathon_fitzharmon",all_visible,80,quests/quest_recipefordisaster/scripts/recipefordisaster_selftest.rs2:47; quests/quest_recipefordisaster/scripts/recipefordisaster_selftest.rs2:813; quests/quest_recipefordisaster/scripts/recipefordisaster_amikvarze.rs2:130
-varbit,arcquest,3,20,yes,"arcquest_mori, arcquest_mori_postquest, trobin_arceuus_focus",mixed,144,quests/scripts/quest_cheat.rs2:131; quests/scripts/quest_cheat.rs2:134; quests/quest_ascentofarceuus/scripts/ascentofarceuus.rs2:60
-varbit,golem_a,2,2,yes,"magic_carpet_multi_monkey2, magic_carpet_seller5",all_hidden,53,quests/quest_shadowstorm/scripts/shadowstorm_dye.rs2:108; quests/quest_shadowstorm/scripts/shadowstorm.rs2:10; quests/quest_shadowstorm/scripts/shadowstorm.rs2:217
-varp,regicide_quest,2,25,yes,"recruiter, regicide_old_camp_tracker",all_visible,90,quests/quest_biohazard/scripts/chemist.rs2:62; quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:26; quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:5
-varbit,agrith_convinced_dave,2,2,yes,agrith_dave_in_passage,all_hidden,11,quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:39; quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:536; quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:540
-varbit,agrith_badden_uzer,2,2,yes,agrith_badden_uzer,all_hidden,10,quests/quest_shadowstorm/scripts/shadowstorm_dye.rs2:110; quests/quest_shadowstorm/scripts/shadowstorm.rs2:90; quests/quest_shadowstorm/scripts/shadowstorm.rs2:117
-varbit,agrith_reen_uzer,2,2,yes,agrith_reen_uzer,all_hidden,9,quests/quest_shadowstorm/scripts/shadowstorm.rs2:44; quests/quest_shadowstorm/scripts/shadowstorm.rs2:59; quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:45
-varp,mm_main,2,11,yes,grandtree_glough,all_visible,78,quests/quest_recipefordisaster/scripts/recipefordisaster_selftest.rs2:53; quests/quest_recipefordisaster/scripts/recipefordisaster_selftest.rs2:907; quests/quest_recipefordisaster/scripts/recipefordisaster_monkey.rs2:9
-varbit,myarm_barnabyswap,2,2,yes,"captain_barnaby, myarm_barnaby",mixed,6,quests/quest_myarmsbigadventure/scripts/maba_bmp.rs2:273; quests/quest_myarmsbigadventure/scripts/maba_bmp.rs2:593; quests/quest_myarmsbigadventure/scripts/maba_debug.rs2:13
-varp,abyssal_miniquest,2,9,yes,"rcu_zammy_mage1, rcu_zammy_mage1_edge",mixed,33,quests/quest_templeoftheeye/scripts/toe_bmp.rs2:41; quests/quest_templeoftheeye/scripts/toe_bmp.rs2:118; quests/quest_templeoftheeye/scripts/templeoftheeye.rs2:10
-varbit,anma_main,2,54,yes,nasty_tree,all_visible,253,quests/quest_animalmagnetism/scripts/anma.rs2:75; quests/quest_animalmagnetism/scripts/anma.rs2:81; quests/quest_animalmagnetism/scripts/anma.rs2:90
-varbit,dream_prog,2,15,yes,"dream_birds_eye_jack_multi, lunar_pirate_navigator_multi",mixed,120,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:103; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1563; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1563
-varbit,myq3_safalaan_visible,2,2,yes,"myreque_pt3_multi_safalaan_basecamp, myreque_pt3_multi_safalaan_castle",all_hidden,3,quests/quest_darknessofhallowvale/scripts/doh_bmp.rs2:29; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:124; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:216
-varbit,golem_clay,2,6,yes,golem_golem,all_visible,4,quests/quest_golem/scripts/golem.rs2:139; quests/quest_golem/scripts/golem.rs2:153; quests/quest_golem/scripts/golem_portal.rs2:432
-varbit,plaguecity_can_see_edmond_up_top,2,2,yes,"edmond_bottom, edmond_top",mixed,3,quests/quest_elena/scripts/mud_pile.rs2:13; quests/quest_elena/scripts/mud_pile.rs2:34; quests/quest_elena/scripts/mud_patch.rs2:38
-varbit,burgh_bank_teller,2,2,yes,"burgh_actual_bank_teller_multinpc, burgh_potential_bank_teller_multinpc",mixed,3,quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:24; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:342; quests/quest_inaidofthemyreque/scripts/myreque2_bank.rs2:48
-varbit,devious_monk,2,2,yes,"devious_monk_dead, devious_monk_hooded",mixed,4,quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:9; quests/quest_deviousminds/scripts/deviousminds_monk.rs2:10; quests/quest_deviousminds/scripts/deviousminds_monk.rs2:82
-varbit,tourtrap_qip_irena_state,2,2,yes,"tourtrap_qip_irena_multi_happy, tourtrap_qip_irena_multi_sad",mixed,2,quests/quest_desertrescue/scripts/irena.rs2:9; quests/quest_desertrescue/scripts/irena.rs2:73
-varbit,slug2_npc_track1,2,3,yes,"slug2_holgart_jeb, slug2_invisi_lobster",mixed,9,quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:93; quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:97; quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:104
-varbit,hundred_dwarf_multi_dad,2,3,yes,"hundred_dwarf_dad_multi, hundred_dwarf_drunk_multi",mixed,1,quests/quest_recipefordisaster/scripts/recipefordisaster_dwarf.rs2:137
-varbit,dwarfrock_quest,2,13,yes,"dwarfrock_multi_dondakan, dwarfrock_multi_gold_boatman",mixed,63,quests/quest_betweenarock/scripts/betweenarock_travel.rs2:104; quests/quest_betweenarock/scripts/betweenarock_schematics.rs2:57; quests/quest_betweenarock/scripts/betweenarock_schematics.rs2:61
-varp,treequest,2,20,yes,"elkoy, elkoy_village",all_visible,155,quests/quest_grandtree/scripts/king_narnode.rs2:29; quests/quest_tree/scripts/khazard_warlord.rs2:4; quests/quest_tree/scripts/khazard_warlord.rs2:49
-varp,itgronigen,2,9,yes,"observatory_professor_multi, observatory_professor_multi2",mixed,43,quests/quest_atailoftwocats/scripts/twocats.rs2:1944; quests/scripts/quest_cheat.rs2:900; quests/scripts/quest_cheat.rs2:903
-varbit,handsand_sandy_multi,2,2,yes,"handsand_sandy, handsand_sandy_looking",mixed,4,quests/quest_handinthesand/scripts/handsand_sandy.rs2:6; quests/quest_handinthesand/scripts/handsand_sandy.rs2:65; quests/quest_handinthesand/scripts/handsand_sandy.rs2:163
-varbit,ds2_frem,2,52,yes,"torfinn_rellekka, torfinn_ungael",all_visible,5,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:45; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1140; quests/quest_dragonslayer2/scripts/ds2_bmp.rs2:36
-varbit,piscquest,2,14,yes,"piscquest_official, piscquest_target",mixed,131,quests/quest_queenofthieves/scripts/qot_bmp.rs2:28; quests/quest_queenofthieves/scripts/qot_bmp.rs2:178; quests/quest_queenofthieves/scripts/qot_bmp.rs2:184
-varbit,tomas_lawry_location,2,2,yes,"akd_tomas_lawry_kingstown, piscquest_official_castle",all_hidden,1,player/newplayer.rs2:180
-varp,routequest,2,160,yes,"route_harold_evans, route_sani_piliu",all_visible,93,quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:6; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:111; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:117
-varbit,prif_learnt_crystal_singing,2,4,yes,"prif_singer1_multi, prif_singer2_multi",all_visible,2,minigames/minigame_gauntlet/scripts/crystal_npcs.rs2:20; minigames/minigame_gauntlet/scripts/crystal_npcs.rs2:26
-varbit,bim_marley,2,45,yes,"bim_marley_edge, bim_marley_temple_outside",mixed,41,quests/quest_belowicemountain/scripts/belowicemountain.rs2:53; quests/quest_belowicemountain/scripts/belowicemountain.rs2:289; quests/quest_belowicemountain/scripts/belowicemountain.rs2:297
-varbit,bim_checkal,2,41,yes,"bim_checkal_barb, bim_checkal_temple_outside",mixed,35,quests/quest_belowicemountain/scripts/belowicemountain.rs2:53; quests/quest_belowicemountain/scripts/belowicemountain.rs2:59; quests/quest_belowicemountain/scripts/belowicemountain.rs2:225
-varbit,bim_burntof,2,45,yes,"bim_burntof_pub, bim_burntof_temple_outside",mixed,37,quests/quest_belowicemountain/scripts/belowicemountain.rs2:53; quests/quest_belowicemountain/scripts/belowicemountain.rs2:402; quests/quest_belowicemountain/scripts/belowicemountain.rs2:410
-varp,legendsquest,2,101,yes,"radimus_erkle_guild, radimus_erkle_hut",mixed,187,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:100; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1690; quests/quest_dragonslayer2/scripts/ds2_bmp.rs2:97
-varbit,akd_lovakengj_helped,2,15,yes,"akd_jorra, lovakengj_assistant",mixed,7,quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:136; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:296; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:429
-varbit,myarm_dwarfjoke,1,1,yes,myarm_troll_deaddwarf_multi,all_hidden,1,quests/quest_myarmsbigadventure/scripts/maba_debug.rs2:11
-varbit,roving_bowyer,1,3,yes,roving_bowyer,all_visible,3,quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:17; quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:19; quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:21
-varbit,veos_sarim_vis,1,4,yes,veos_sarim,all_hidden,4,quests/quest_clientofkourend/scripts/clientofkourend.rs2:159; quests/quest_xmarksthespot/scripts/xmarks_bmp.rs2:43; quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:137
-varbit,regicide_given_rabbit,1,1,yes,regicide_tyras_lazy_guard,all_visible,8,quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:5; quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:7; quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:12
-varbit,roving_female_woodelf,1,2,yes,roving_female_woodelf,all_visible,3,quests/quest_rovingelves/scripts/rovingelves_eluned.rs2:13; quests/quest_rovingelves/scripts/rovingelves_eluned.rs2:16; quests/quest_rovingelves/scripts/rovingelves_eluned.rs2:18
-varp,chompybird,1,67,yes,rantz,all_visible,84,quests/quest_zogreflesheaters/scripts/zogreflesheaters.rs2:10; quests/quest_zogreflesheaters/scripts/zogreflesheaters.rs2:407; quests/quest_chompybird/scripts/raw_chompy.rs2:26
-varbit,gobdip_grubfoot_vis,1,3,yes,catwalk_goblin,all_visible,8,quests/quest_gobdip/scripts/quest_gobdip.rs2:9; quests/quest_gobdip/scripts/quest_gobdip.rs2:336; quests/quest_gobdip/scripts/quest_gobdip.rs2:355
-varbit,fd_icewarrior_dadfree,1,2,yes,troll_block_1,all_visible,4,quests/quest_deserttreasure/scripts/deserttreasure.rs2:1085; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1098; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1132
-varbit,fd_icewarrior_mumfree,1,2,yes,troll_block_2,all_visible,4,quests/quest_deserttreasure/scripts/deserttreasure.rs2:1086; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1097; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1132
-varbit,feud_bandit_boss_vis,1,1,yes,feud_bandit_boss,all_hidden,5,quests/quest_thefeud/scripts/feud_villagers.rs2:11; quests/quest_thefeud/scripts/feud_villagers.rs2:56; quests/quest_thefeud/scripts/feud_confrontation.rs2:10
-varbit,peng_multi_larry,1,1,yes,peng_multi_larry_lumb,all_hidden,1,player/newplayer.rs2:179
-varbit,peng_multi_hide,1,3,yes,peng_generic_surface_multi,all_visible,20,quests/quest_coldwar/scripts/coldwar_larry.rs2:127; quests/quest_coldwar/scripts/coldwar_bmp.rs2:16; quests/quest_coldwar/scripts/coldwar_bmp.rs2:319
-varbit,soulbane_tolna_pres,1,1,yes,soulbane_tolna_multi,all_hidden,4,quests/quest_soulsbane/scripts/soulsbane_bmp.rs2:31; quests/quest_soulsbane/scripts/soulsbane_tolna.rs2:95; quests/quest_soulsbane/scripts/soulsbane.rs2:198
-varbit,plaguecity_elena_at_home,1,1,yes,elena2,all_hidden,5,quests/quest_elena/scripts/quest_elena.rs2:11; quests/quest_elena/scripts/quest_elena.rs2:13; quests/quest_biohazard/scripts/quest_biohazard.rs2:96
-varbit,mdaughter_bear_multi_state,1,1,yes,mdaughter_multi_bear,all_visible,1,quests/quest_mountaindaughter/scripts/mountaindaughter_kendal.rs2:106
-varbit,mm_daero,1,16,yes,mm_daero,all_visible,32,quests/quest_grandtree/scripts/glough.rs2:25; quests/quest_mm/scripts/mm_puzzle.rs2:5; quests/quest_mm/scripts/mm_puzzle.rs2:28
-varbit,mm_waydar,1,4,yes,mm_waydar,all_visible,4,quests/quest_mm/scripts/mm_journal.rs2:88; quests/quest_mm/scripts/mm_waydar.rs2:4; quests/quest_mm/scripts/mm_waydar.rs2:53
-varbit,mm_lumdo,1,8,yes,mm_lumdo,all_visible,9,quests/quest_mm/scripts/mm_journal.rs2:94; quests/quest_mm/scripts/mm_journal.rs2:98; quests/quest_mm/scripts/mm_waydar.rs2:4
-varbit,snakeboss_info,1,4,yes,snakeboss_priest,all_visible,2,minigames/minigame_zulrah/scripts/zulrah.rs2:79; minigames/minigame_zulrah/scripts/zulrah.rs2:80
-varbit,veos_pisc_vis,1,2,yes,veos,all_hidden,1,quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:138
-varbit,giantdwarf_quest,1,2,yes,dwarf_city_boatman_mines,all_visible,155,quests/quest_anothersliceofham/scripts/slice_bmp.rs2:12; quests/quest_anothersliceofham/scripts/slice_bmp.rs2:174; quests/quest_anothersliceofham/scripts/slice_urtag.rs2:15
-varbit,fris_king,1,2,yes,fris_r_burgher,all_visible,4,quests/quest_thefremennikisles/scripts/fris_mawnis.rs2:63; quests/quest_thefremennikisles/scripts/fris_bmp.rs2:807; quests/quest_thefremennikisles/scripts/fris_debug.rs2:10
-varbit,giantdwarf_model_state,1,8,yes,dwarf_city_shop_sculpture_model_multi,all_visible,7,quests/quest_giantdwarf/scripts/gdwarf_debug.rs2:8; quests/quest_giantdwarf/scripts/gdwarf_debug.rs2:78; quests/quest_giantdwarf/scripts/gdwarf_debug.rs2:94
-varp,fluffs,1,7,yes,gertrude,all_visible,70,quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:11; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:81; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:535
-varp,misc_quest,1,101,yes,misc_advisor_ghrim,all_visible,68,quests/quest_royaltrouble/scripts/royal_bmp.rs2:310; quests/quest_royaltrouble/scripts/royal_bmp.rs2:344; quests/quest_royaltrouble/scripts/royal_bmp.rs2:687
-varbit,sheepherder_sheep_a,1,1,yes,herder_plaguesheep_1_enclosure,all_hidden,4,quests/quest_sheepherder/scripts/quest_sheepherder.rs2:232; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:237; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241
-varbit,sheepherder_sheep_b,1,1,yes,herder_plaguesheep_2_enclosure,all_hidden,3,quests/quest_sheepherder/scripts/quest_sheepherder.rs2:238; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241; quests/quest_sheepherder/scripts/councillor_halgrive.rs2:72
-varbit,sheepherder_sheep_c,1,1,yes,herder_plaguesheep_3_enclosure,all_hidden,3,quests/quest_sheepherder/scripts/quest_sheepherder.rs2:239; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241; quests/quest_sheepherder/scripts/councillor_halgrive.rs2:73
-varbit,sheepherder_sheep_d,1,1,yes,herder_plaguesheep_4_enclosure,all_hidden,3,quests/quest_sheepherder/scripts/quest_sheepherder.rs2:240; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241; quests/quest_sheepherder/scripts/councillor_halgrive.rs2:74
-varp,fever_quest,1,131,yes,fever_port_ship_teach,all_hidden,144,quests/quest_cabinfever/scripts/cabinfever_shared.rs2:40; quests/quest_cabinfever/scripts/cabinfever_bmp.rs2:15; quests/quest_cabinfever/scripts/cabinfever_bmp.rs2:110
-varbit,dttd_zanik_in_cellar,1,1,yes,dttd_zanik_cellar,all_hidden,8,quests/quest_deathtothedorgeshuun/scripts/dttd_start.rs2:6; quests/quest_deathtothedorgeshuun/scripts/dttd_start.rs2:60; quests/quest_deathtothedorgeshuun/scripts/dttd_start.rs2:90
-varbit,zep_multi_piccard,1,2,yes,zep_multi_piccard,all_hidden,10,quests/quest_enlightenedjourney/scripts/ej_debug.rs2:22; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:23; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:385
-varbit,zep_multi_cast,1,1,yes,zep_multi_assistant_cast,all_hidden,6,quests/quest_enlightenedjourney/scripts/ej_debug.rs2:23; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:24; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:457
-varbit,zep_multi_craft,1,1,yes,zep_multi_assistant_craft,all_hidden,6,quests/quest_enlightenedjourney/scripts/ej_debug.rs2:25; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:26; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:497
-varbit,zep_multi_varr,1,1,yes,zep_multi_assistant_varr,all_hidden,6,quests/quest_enlightenedjourney/scripts/ej_debug.rs2:26; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:27; quests/quest_enlightenedjourney/scripts/ej_bmp.rs2:517
-varbit,elid_rangingchannel,1,2,yes,elid_ranging_target_multinpc,all_visible,3,quests/quest_spiritsoftheelid/scripts/elid_dungeon.rs2:210; quests/quest_spiritsoftheelid/scripts/elid_dungeon.rs2:225; quests/quest_spiritsoftheelid/scripts/elid_dungeon.rs2:231
-varp,imp,1,3,yes,wizard_mizgog,all_visible,19,quests/quest_imp/scripts/quest_imp.rs2:38; quests/quest_imp/scripts/quest_imp.rs2:41; quests/quest_imp/scripts/quest_imp.rs2:42
-varp,phoenixgang,1,9,yes,jonny_the_beard,all_visible,86,quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:31; quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:379; quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:380
-varp,barcrawl,1,4,yes,barbguard1,all_visible,5,areas/area_yanille/scripts/dragon_bartender.rs2:6; areas/area_brimhaven/scripts/deadmans_bartender.rs2:6; areas/falador/scripts/barmaid.rs2:7
-varbit,handsand_quest,1,161,yes,handsand_bert,all_visible,197,quests/quest_handinthesand/scripts/handsand_bert.rs2:5; quests/quest_handinthesand/scripts/handsand_bert.rs2:14; quests/quest_handinthesand/scripts/handsand_bert.rs2:16
-varbit,ahoy_questvar,1,5,yes,ahoy_akharanu_multi,all_hidden,78,quests/quest_animalmagnetism/scripts/anma_farm.rs2:183; quests/quest_animalmagnetism/scripts/anma_farm.rs2:183; quests/quest_animalmagnetism/scripts/anma_bmp.rs2:17
-varbit,godwars_palladin2,1,1,yes,godwars_paladin_multi,all_visible,1,areas/area_godwars/scripts/godwars_entrance.rs2:417
-varbit,makinghistory_melina_pres,1,1,yes,makinghistory_melina_multi,all_visible,3,quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:6; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:69; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:113
-varbit,makinghistory_droalak_pres,1,1,yes,makinghistory_droalak_multi,all_visible,3,quests/quest_makinghistory/scripts/makinghistory_jorral.rs2:84; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:6; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:90
-varbit,feud_mayor_multivar,1,2,yes,feud_mayor,all_visible,4,quests/quest_thefeud/scripts/feud_villagers.rs2:12; quests/quest_thefeud/scripts/feud_villagers.rs2:77; quests/quest_thefeud/scripts/feud_alimorrisane.rs2:58
-varbit,feud_boss_vis,1,1,yes,feud_menap_boss,all_hidden,2,quests/quest_thefeud/scripts/feud_confrontation.rs2:9; quests/quest_thefeud/scripts/feud_recruitment.rs2:285
-varbit,enakh_quest,1,51,yes,enakh_boneguard_multinpc,all_visible,114,quests/quest_enakhraslament/scripts/enakhraslament_quarry.rs2:11; quests/quest_enakhraslament/scripts/enakhraslament_quarry.rs2:15; quests/quest_enakhraslament/scripts/enakhraslament_quarry.rs2:26
-varbit,enakh_ice_room,1,1,yes,enakh_dummy_fountain_multinpc,all_visible,7,quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:221; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:229; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:267
-varbit,enakh_smoke_room,1,1,yes,enakh_dummy_furnace_multinpc,all_visible,7,quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:237; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:245; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:267
-varbit,tol_homonc_pres,1,1,yes,tol_homonculus_multi2,all_hidden,8,quests/quest_toweroflife/scripts/tol_bmp.rs2:17; quests/quest_toweroflife/scripts/tol_bmp.rs2:208; quests/quest_toweroflife/scripts/tol_bmp.rs2:898
-varbit,myq3_sarius_visible,1,1,yes,myq3_multi_sarius_castle,all_hidden,3,quests/quest_darknessofhallowvale/scripts/doh_bmp.rs2:30; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:125; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:228
-varbit,mourning_sheep_red,1,2,yes,plaguesheep_1,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:286; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:8; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:35
-varbit,mourning_sheep_green,1,2,yes,plaguesheep_2,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:296; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:9; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:36
-varbit,mourning_sheep_blue,1,2,yes,plaguesheep_3,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:306; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:11; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:38
-varbit,mourning_sheep_yellow,1,2,yes,plaguesheep_4,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:316; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:10; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:37
-varbit,mourning_dwarf_vis,1,1,yes,mourning_deathalter_dwarf,all_hidden,2,quests/quest_mourningsendpartii/scripts/mend2_puzzle6.rs2:832; quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:239
-varbit,fishingcompo_stranger,1,2,yes,sinister_stranger,all_visible,5,quests/quest_fishingcompo/scripts/quest_fishingcompo.rs2:20; quests/quest_fishingcompo/scripts/quest_fishingcompo.rs2:77; quests/quest_fishingcompo/scripts/quest_fishingcompo_gate.rs2:30
-varbit,twocats_chores_tidyhuman,1,9,yes,twocats_unferth,all_visible,6,quests/quest_atailoftwocats/scripts/twocats.rs2:960; quests/quest_atailoftwocats/scripts/twocats.rs2:965; quests/quest_atailoftwocats/scripts/twocats.rs2:1002
-varbit,twocats_reldo,1,2,yes,reldo,all_visible,2,quests/quest_atailoftwocats/scripts/twocats.rs2:793; areas/varrock/scripts/reldo.rs2:13
-varp,elenaquest,1,28,yes,elenap,all_visible,128,quests/quest_elena/scripts/bravek.rs2:5; quests/quest_elena/scripts/bravek.rs2:11; quests/quest_elena/scripts/bravek.rs2:47
-varbit,watchtower_shaman_1,1,2,yes,qip_watchtower_ogre_shaman_01,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:88; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:110; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
-varbit,watchtower_shaman_2,1,2,yes,qip_watchtower_ogre_shaman_02,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:91; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:113; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
-varbit,watchtower_shaman_3,1,2,yes,qip_watchtower_ogre_shaman_03,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:94; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:116; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
-varbit,watchtower_shaman_4,1,2,yes,qip_watchtower_ogre_shaman_04,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:97; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:119; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
-varbit,watchtower_shaman_5,1,2,yes,qip_watchtower_ogre_shaman_05,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:100; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:122; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
-varbit,watchtower_shaman_6,1,2,yes,qip_watchtower_ogre_shaman_06,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:103; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:125; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
-varbit,vc_raton_off1,1,1,yes,vc_partyrat_multi1,all_visible,2,quests/quest_ratcatchers/scripts/ratcatchers.rs2:182; quests/quest_ratcatchers/scripts/ratcatchers.rs2:197
-varbit,vc_raton_off2,1,1,yes,vc_partyrat_multi2,all_visible,2,quests/quest_ratcatchers/scripts/ratcatchers.rs2:184; quests/quest_ratcatchers/scripts/ratcatchers.rs2:197
-varbit,vc_raton_off3,1,1,yes,vc_partyrat_multi3,all_visible,2,quests/quest_ratcatchers/scripts/ratcatchers.rs2:186; quests/quest_ratcatchers/scripts/ratcatchers.rs2:197
-varbit,vc_raton_off4,1,1,yes,vc_partyrat_multi4,all_visible,2,quests/quest_ratcatchers/scripts/ratcatchers.rs2:188; quests/quest_ratcatchers/scripts/ratcatchers.rs2:197
-varbit,vc_raton_off5,1,1,yes,vc_partyrat_multi5,all_visible,2,quests/quest_ratcatchers/scripts/ratcatchers.rs2:190; quests/quest_ratcatchers/scripts/ratcatchers.rs2:197
-varbit,vc_raton_off6,1,1,yes,vc_partyrat_multi6,all_visible,2,quests/quest_ratcatchers/scripts/ratcatchers.rs2:192; quests/quest_ratcatchers/scripts/ratcatchers.rs2:197
-varbit,tourtrap_qip_ana_state,1,1,yes,tourtrap_qip_ana_multi,all_visible,3,quests/quest_desertrescue/scripts/mining_camp_gate.rs2:330; quests/quest_desertrescue/scripts/ana.rs2:10; quests/quest_desertrescue/scripts/ana.rs2:127
-varbit,tourtrap_ana_visible_shanty_pass,1,1,yes,tourtrap_qip_ana_shanty_multi,all_hidden,3,quests/quest_desertrescue/scripts/irena.rs2:12; quests/quest_desertrescue/scripts/irena.rs2:74; quests/quest_desertrescue/scripts/ana.rs2:14
-varbit,tourtrap_qip_mineslave,1,2,yes,tourtrap_qip_mineslave_clothes_multi,all_visible,3,quests/quest_desertrescue/scripts/mining_slave.rs2:52; quests/quest_desertrescue/scripts/mining_slave.rs2:306; quests/quest_desertrescue/scripts/mining_slave.rs2:330
-varbit,thsfm_vanstrom_hide,1,2,yes,multi_vanstrom_stranger_entity,all_visible,3,quests/quest_routequest/scripts/routequest_hideout.rs2:48; quests/quest_routequest/scripts/routequest_hideout.rs2:180; quests/quest_routequest/scripts/routequest_hideout.rs2:181
-varbit,grim_griffin_asleep,1,1,yes,grim_grimgnash,all_visible,16,quests/quest_grimtales/scripts/grim_grimgnash.rs2:18; quests/quest_grimtales/scripts/grim_grimgnash.rs2:119; quests/quest_grimtales/scripts/grim_grimgnash.rs2:143
-varbit,grim_dwarf_vis,1,2,yes,grim_rupert,all_visible,16,quests/quest_grimtales/scripts/grim_watchtower.rs2:121; quests/quest_grimtales/scripts/grim_watchtower.rs2:156; quests/quest_grimtales/scripts/grim_watchtower.rs2:158
-varbit,slice_zanik_at_dig,1,1,yes,slice_zanik_archaeology,all_hidden,12,quests/quest_anothersliceofham/scripts/slice_bmp.rs2:23; quests/quest_anothersliceofham/scripts/slice_bmp.rs2:441; quests/quest_anothersliceofham/scripts/slice_bmp.rs2:454
-varbit,mourning_can_see_eluned,1,1,yes,roving_female_woodelf_temp,all_hidden,7,quests/quest_mourningsendpartii/scripts/mend2_shared.rs2:77; quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:8; quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:19
-varbit,mourning_gnome,1,11,yes,mourner_hideout_gnome,all_hidden,25,quests/quest_mourningsendparti/scripts/mend1_gnome.rs2:91; quests/quest_mourningsendparti/scripts/mend1_gnome.rs2:97; quests/quest_mourningsendparti/scripts/mend1_gnome.rs2:100
-varbit,ds2_dragon_head_west,1,2,yes,ds2_dragon_head_west,all_visible,4,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1440; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1455; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1498
-varbit,ds2_dragon_head_north,1,2,yes,ds2_dragon_head_north,all_visible,4,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1458; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1473; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1498
-varbit,ds2_dragon_head_east,1,2,yes,ds2_dragon_head_east,all_visible,4,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1476; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1491; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1498
-varp,total_zuk_kills,1,2,yes,inferno_master,all_visible,1,skill_construction/scripts/poh_achievement_gallery.rs2:219
-varbit,hosidiusquest_artur_vis,1,1,yes,hosidiusquest_son_home,all_hidden,4,quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:216; quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:292; quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:305
-varbit,piscquest_queen_vis,1,2,yes,piscquest_queen,all_visible,4,quests/quest_queenofthieves/scripts/qot_bmp.rs2:30; quests/quest_queenofthieves/scripts/queenofthieves.rs2:220; quests/quest_queenofthieves/scripts/queenofthieves.rs2:261
-varbit,trobin_arceuus_tower_vis,1,1,yes,trobin_arceuus,all_hidden,1,player/newplayer.rs2:181
-varbit,lovaquest,1,12,yes,wint_master_smith,all_visible,91,quests/quest_forsakentower/scripts/forsakentower.rs2:44; quests/quest_forsakentower/scripts/forsakentower.rs2:49; quests/quest_forsakentower/scripts/forsakentower.rs2:56
-varbit,veos_lumbridge_vis,1,2,yes,veos_lumbridge,all_hidden,5,quests/quest_xmarksthespot/scripts/xmarks_bmp.rs2:42; quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:92; quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:256
-varp,zombiequeen,1,18,yes,mosol_rei_multi,all_visible,88,quests/quest_recipefordisaster/scripts/recipefordisaster_selftest.rs2:49; quests/quest_recipefordisaster/scripts/recipefordisaster_amikvarze.rs2:12; quests/quest_recipefordisaster/scripts/recipefordisaster_amikvarze.rs2:130
-varbit,hosdun_aimeri_status,1,6,yes,hosdun_aimeri,all_visible,57,quests/quest_insearchofknowledge/scripts/insearchofknowledge.rs2:43; quests/quest_insearchofknowledge/scripts/insearchofknowledge.rs2:55; quests/quest_insearchofknowledge/scripts/insearchofknowledge.rs2:64
-varbit,upass_gavecat,1,1,yes,cavewitchcat,all_visible,6,quests/quest_upass/scripts/kardia.rs2:6; quests/quest_upass/scripts/kardia.rs2:13; quests/quest_upass/scripts/kardia.rs2:29
-varbit,porcine,1,37,yes,slayer_master_9,all_visible,110,quests/quest_porcineofinterest/scripts/poi_bmp.rs2:34; quests/quest_porcineofinterest/scripts/poi_bmp.rs2:89; quests/quest_porcineofinterest/scripts/poi_bmp.rs2:104
-varbit,akd_hosidius_helped,1,7,yes,akd_phileas_rimor,all_hidden,7,quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:136; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:297; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:430
-varbit,gravestone_visible,510,510,no,,not_spawned,0,
-varbit,vmq4,71,1137,no,,not_spawned,182,quests/scripts/quest_cheat.rs2:492; quests/scripts/quest_cheat.rs2:495; quests/quest_finaldawn/scripts/finaldawn.rs2:10
-varbit,doti,46,995,no,,not_spawned,190,quests/quest_deathontheisle/scripts/di_bmp.rs2:163; quests/quest_deathontheisle/scripts/di_bmp.rs2:169; quests/quest_deathontheisle/scripts/di_bmp.rs2:181
-varbit,bcs_excavation_status,38,40,no,,not_spawned,0,
-varbit,vmq2,28,406,no,,not_spawned,219,quests/quest_twilightspromise/scripts/tp_bmp.rs2:41; quests/quest_twilightspromise/scripts/tp_bmp.rs2:242; quests/quest_twilightspromise/scripts/tp_bmp.rs2:248
-varbit,itt,22,296,no,,not_spawned,0,
-varbit,pmoon_quest,18,223,no,,not_spawned,161,quests/quest_perilousmoons/scripts/perilousmoons.rs2:39; quests/quest_perilousmoons/scripts/perilousmoons.rs2:48; quests/quest_perilousmoons/scripts/perilousmoons.rs2:50
-varbit,sotn,14,147,no,,not_spawned,169,quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:27; quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:490; quests/quest_deserttreasureii/scripts/dt2_bmp.rs2:68
-varbit,vmq1,13,81,no,,not_spawned,138,quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:27; quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:378; quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:390
-varbit,tt,12,264,no,,not_spawned,128,quests/quest_troubledtortugans/scripts/troubledtortugans.rs2:83; quests/quest_troubledtortugans/scripts/troubledtortugans.rs2:92; quests/quest_troubledtortugans/scripts/troubledtortugans.rs2:94
-varbit,lotg,10,277,no,,not_spawned,189,quests/scripts/quest_cheat.rs2:748; quests/scripts/quest_cheat.rs2:751; quests/quest_landofthegoblins/scripts/lotg_bmp.rs2:200
-varbit,sailing_sidepanel_player_role,10,40,no,,not_spawned,1,sailing/scripts/boat_crew.rs2:420
-varbit,dt2,9,244,no,,not_spawned,160,quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:9; quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:108; quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:119
-varp,arenaquest,9,60,no,,not_spawned,98,quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:41; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:156; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:164
-varbit,fossil_herbiboar_anim,9,9,no,,not_spawned,1,skill_hunter/scripts/herbiboar.rs2:48
-varbit,trr,9,73,no,,not_spawned,138,quests/quest_pandemonium/scripts/pandemonium.rs2:326; quests/quest_pandemonium/scripts/pandemonium.rs2:326; quests/quest_redreef/scripts/redreef.rs2:19
-varbit,elias_white_vis,8,8,no,,not_spawned,0,
-varbit,pmoon_boss_current_focus,8,8,no,,not_spawned,0,
-varbit,soul_wars_tutorial,7,24,no,,not_spawned,0,
-varbit,vmq3_itzla_vis,7,8,no,,not_spawned,0,
-varbit,vmq3,7,272,no,,not_spawned,153,quests/quest_twilightspromise/scripts/twilightspromise.rs2:245; quests/quest_twilightspromise/scripts/twilightspromise.rs2:245; quests/quest_twilightspromise/scripts/twilightspromise.rs2:245
-varbit,tobquest,6,78,no,,not_spawned,149,quests/quest_nightatthetheatre/scripts/natt_bmp.rs2:45; quests/quest_nightatthetheatre/scripts/natt_bmp.rs2:157; quests/quest_nightatthetheatre/scripts/natt_bmp.rs2:163
-varbit,pog,6,254,no,,not_spawned,186,quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:40; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:148; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:155
-varbit,wgs_silif_vis,5,6,no,,not_spawned,0,
-varbit,macro_transmitted,5,40,no,,not_spawned,0,
-varbit,tote,5,130,no,,not_spawned,178,quests/quest_templeoftheeye/scripts/toe_bmp.rs2:21; quests/quest_templeoftheeye/scripts/toe_bmp.rs2:157; quests/quest_templeoftheeye/scripts/toe_bmp.rs2:163
-varbit,frog_quest,5,30,no,,not_spawned,183,quests/quest_ribbitingtale/scripts/ribbitingtale_locs.rs2:24; quests/quest_ribbitingtale/scripts/ribbitingtale_locs.rs2:34; quests/quest_ribbitingtale/scripts/ribbitingtale_locs.rs2:41
-varbit,wgs_hero_part_2_vis,5,8,no,,not_spawned,0,
-varbit,bas,5,92,no,,not_spawned,0,
-varbit,poh_clockwork_recentdrop,4,12,no,,not_spawned,0,
-varp,princequest,4,244,no,,not_spawned,86,quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:9; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:75; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:533
-varbit,pmoon_boss_hide_npc,4,7,no,,not_spawned,0,
-varbit,wgs_hero_part_1_vis_falador,4,4,no,,not_spawned,0,
-varbit,wgs_hero_part_1_vis,4,9,no,,not_spawned,0,
-varbit,mag,4,53,no,,not_spawned,116,quests/quest_meatandgreet/scripts/meatandgreet.rs2:9; quests/quest_meatandgreet/scripts/meatandgreet.rs2:63; quests/quest_meatandgreet/scripts/meatandgreet.rs2:69
-varbit,spiritofadventure,4,10,no,,not_spawned,0,
-varbit,sailing_crew_on_dock,4,40,no,,not_spawned,0,
-varbit,grimstone_uncerter_status,4,5,no,,not_spawned,0,
-varbit,wgs_thaeriskvis,3,3,no,,not_spawned,0,
-varbit,essencemine_portal,3,9,no,,not_spawned,0,
-varbit,hundred_main_quest_var,3,5,no,,not_spawned,0,
-varbit,dt2_lassar,3,125,no,,not_spawned,0,
-varbit,pmoon_boss_icicle_state,3,12,no,,not_spawned,0,
-varbit,vmq2_drunk_knight_vis,3,3,no,,not_spawned,0,
-varbit,wgs_hero_part_2_vis_falador,3,3,no,,not_spawned,0,
-varbit,aec,3,28,no,,not_spawned,0,
-varbit,soc,3,25,no,,not_spawned,142,quests/scripts/quest_cheat.rs2:1108; quests/scripts/quest_cheat.rs2:1111; quests/quest_shadowsofcustodia/scripts/shadowsofcustodia.rs2:11
-varbit,scrambled,3,25,no,,not_spawned,104,quests/scripts/quest_cheat.rs2:1084; quests/scripts/quest_cheat.rs2:1087; quests/quest_scrambled/scripts/sc_bmp.rs2:20
-varbit,100goblinsvisible,2,4,no,,not_spawned,0,
-varbit,wanted_mission3,2,2,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:15; quests/quest_wanted/scripts/wanted_debug.rs2:102; quests/quest_wanted/scripts/wanted_hunt.rs2:562
-varbit,wgs_armadyl_guardian_vis,2,2,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor3_treasure,2,2,no,,not_spawned,0,
-varbit,clan_hall_colour_displayed,2,18,no,,not_spawned,0,
-varbit,nex_story_npc,2,3,no,,not_spawned,0,
-varbit,sleeping_giants,2,41,no,,not_spawned,108,quests/scripts/quest_cheat.rs2:1148; quests/scripts/quest_cheat.rs2:1151; quests/quest_sleepinggiants/scripts/sg_bmp.rs2:29
-varbit,this_is_a_pvp_arena_world,2,2,no,,not_spawned,0,
-varbit,hw22_trick_ghostvision,2,4,no,,not_spawned,0,
-varbit,sotn_start_ready,2,3,no,,not_spawned,0,
-varbit,hazeelcult_jones_location,2,2,no,,not_spawned,5,quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2:246; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:107; quests/quest_hazeelcult/scripts/ceril_carnillean.rs2:35
-varbit,hazeelcult_clivet_location,2,2,no,,not_spawned,5,quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:55; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:60; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:102
-varbit,ironman,2,13,no,,not_spawned,7,interface_settings_side/scripts/settings_side.rs2:98; skill_construction/scripts/poh_costume_room.rs2:231; skill_construction/scripts/poh_costume_room.rs2:236
-varbit,dt2_stranglewood,2,47,no,,not_spawned,0,
-varbit,dt2_ghorrock,2,2,no,,not_spawned,0,
-varbit,dt2_scar,2,34,no,,not_spawned,0,
-varbit,vmq2_first_travel,2,8,no,,not_spawned,5,quests/quest_twilightspromise/scripts/tp_bmp.rs2:48; quests/quest_twilightspromise/scripts/twilightspromise.rs2:471; quests/quest_twilightspromise/scripts/twilightspromise.rs2:538
-varbit,afl,2,9,no,,not_spawned,133,quests/scripts/quest_cheat.rs2:139; quests/scripts/quest_cheat.rs2:142; quests/quest_atfirstlight/scripts/atfirstlight.rs2:80
-varbit,wgs_idriavis,2,2,no,,not_spawned,0,
-varbit,wgs_spyvis_draynor,2,2,no,,not_spawned,0,
-varbit,ikov_lucien_vis,2,3,no,,not_spawned,15,quests/quest_ikov/scripts/ikov_lucien2.rs2:6; quests/quest_ikov/scripts/ikov_lucien2.rs2:54; quests/quest_ikov/scripts/ikov_dungeon.rs2:540
-varbit,huey_food_errand_state,2,10,no,,not_spawned,0,
-varbit,scrambled_replacement_egg_3,2,2,no,,not_spawned,0,
-varbit,scrambled_replacement_egg_2,2,2,no,,not_spawned,0,
-varbit,scrambled_replacement_egg_1,2,2,no,,not_spawned,0,
-varbit,scrambled_kings_man_1,2,8,no,,not_spawned,6,quests/quest_scrambled/scripts/sc_bmp.rs2:157; quests/quest_scrambled/scripts/sc_bmp.rs2:243; quests/quest_scrambled/scripts/scrambled.rs2:18
-varbit,scrambled_kings_man_2,2,8,no,,not_spawned,6,quests/quest_scrambled/scripts/sc_bmp.rs2:158; quests/quest_scrambled/scripts/sc_bmp.rs2:244; quests/quest_scrambled/scripts/scrambled.rs2:18
-varbit,scrambled_kings_man_3,2,8,no,,not_spawned,6,quests/quest_scrambled/scripts/sc_bmp.rs2:159; quests/quest_scrambled/scripts/sc_bmp.rs2:245; quests/quest_scrambled/scripts/scrambled.rs2:18
-varbit,ent_totems_intro,2,133,no,,not_spawned,0,
-varbit,tlati_lost_lover_xilo,2,3,no,,not_spawned,0,
-varbit,tlati_lost_lover_fabia,2,3,no,,not_spawned,0,
-varbit,sailing_boat_facility_lockedin,2,10,no,,not_spawned,0,
-varbit,sailing_bt_tempor_tantrum_master_state,2,6,no,,not_spawned,0,
-varbit,sailing_crew_generic_1_visibility,2,2,no,,not_spawned,0,
-varbit,sailing_crew_generic_3_visibility,2,2,no,,not_spawned,0,
-varbit,sailing_crew_generic_4_visibility,2,2,no,,not_spawned,0,
-varbit,sailing_crew_generic_5_visibility,2,2,no,,not_spawned,0,
-varbit,sailing_crew_werewolf_visibility,2,2,no,,not_spawned,0,
-varbit,sailing_crew_fremennik_visibility,2,2,no,,not_spawned,0,
-varbit,sailing_crew_spirit_angler_visibility,2,2,no,,not_spawned,0,
-varbit,vampyrium_traversal_aranei_saved,2,2,no,,not_spawned,0,
-varp,grandtree,1,12,no,,not_spawned,99,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:7; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:74; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:80
-varbit,yama_throne_state,1,2,no,,not_spawned,0,
-varbit,tog_juna_bowl,1,2,no,,not_spawned,25,quests/quest_tearsofguthix/scripts/tearsofguthix_lantern.rs2:114; quests/quest_tearsofguthix/scripts/tearsofguthix_lantern.rs2:134; quests/quest_tearsofguthix/scripts/tearsofguthix_lantern.rs2:182
-varbit,100guidevisible,1,2,no,,not_spawned,0,
-varbit,sotn_entry_cultist,1,1,no,,not_spawned,0,
-varbit,sotn_clivet_vis,1,1,no,,not_spawned,0,
-varbit,eyeglo_killed_eye_1,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:68; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:129; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:269
-varbit,eyeglo_killed_eye_2,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:69; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:130; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:270
-varbit,eyeglo_killed_eye_3,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:70; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:131; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:271
-varbit,eyeglo_killed_eye_4,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:71; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:132; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:272
-varbit,eyeglo_killed_eye_5,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:72; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:133; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:273
-varbit,eyeglo_killed_eye_6,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:73; quests/quest_theeyesofglouphrie/scripts/eyeglo_shared.rs2:134; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:274
-varbit,garden_trolley_varbit,1,3,no,,not_spawned,5,quests/quest_gardenoftranquility/scripts/garden_debug.rs2:29; quests/quest_gardenoftranquility/scripts/garden_statues.rs2:19; quests/quest_gardenoftranquility/scripts/garden_statues.rs2:25
-varbit,100amikvisible,1,2,no,,not_spawned,0,
-varbit,lotg_grubfoot_at_entrance,1,1,no,,not_spawned,0,
-varbit,wgs_pit_trap_broav,1,2,no,,not_spawned,0,
-varbit,100monkeyvisible,1,2,no,,not_spawned,0,
-varbit,kr_court_witness,1,6,no,,not_spawned,14,quests/quest_murder/scripts/mary.rs2:42; quests/quest_murder/scripts/mary.rs2:47; quests/quest_murder/scripts/pierre.rs2:41
-varbit,sote_meilyr,1,1,no,,not_spawned,0,
-varbit,100piratevisible,1,2,no,,not_spawned,0,
-varbit,wanted_mission1,1,1,no,,not_spawned,3,quests/quest_wanted/scripts/wanted_debug.rs2:11; quests/quest_wanted/scripts/wanted_debug.rs2:96; quests/quest_wanted/scripts/wanted_hunt.rs2:714
-varbit,wanted_mission2,1,1,no,,not_spawned,5,quests/quest_wanted/scripts/wanted_debug.rs2:13; quests/quest_wanted/scripts/wanted_debug.rs2:99; quests/quest_wanted/scripts/wanted_hunt.rs2:291
-varbit,wanted_mission4,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:17; quests/quest_wanted/scripts/wanted_debug.rs2:105; quests/quest_wanted/scripts/wanted_hunt.rs2:630
-varbit,wanted_mission5,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:19; quests/quest_wanted/scripts/wanted_hunt.rs2:41; quests/quest_wanted/scripts/wanted_hunt.rs2:77
-varbit,wanted_mission6,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:21; quests/quest_wanted/scripts/wanted_hunt.rs2:42; quests/quest_wanted/scripts/wanted_hunt.rs2:78
-varbit,wanted_mission7,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:23; quests/quest_wanted/scripts/wanted_hunt.rs2:43; quests/quest_wanted/scripts/wanted_hunt.rs2:79
-varbit,wanted_mission8,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:25; quests/quest_wanted/scripts/wanted_hunt.rs2:44; quests/quest_wanted/scripts/wanted_hunt.rs2:80
-varbit,wanted_mission9,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:27; quests/quest_wanted/scripts/wanted_hunt.rs2:45; quests/quest_wanted/scripts/wanted_hunt.rs2:81
-varbit,wanted_mission10,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:29; quests/quest_wanted/scripts/wanted_hunt.rs2:46; quests/quest_wanted/scripts/wanted_hunt.rs2:82
-varbit,wanted_mission11,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:31; quests/quest_wanted/scripts/wanted_hunt.rs2:47; quests/quest_wanted/scripts/wanted_hunt.rs2:83
-varbit,wanted_mission12,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:33; quests/quest_wanted/scripts/wanted_hunt.rs2:48; quests/quest_wanted/scripts/wanted_hunt.rs2:84
-varbit,wanted_mission13,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:35; quests/quest_wanted/scripts/wanted_hunt.rs2:49; quests/quest_wanted/scripts/wanted_hunt.rs2:85
-varbit,wanted_mission14,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:37; quests/quest_wanted/scripts/wanted_hunt.rs2:50; quests/quest_wanted/scripts/wanted_hunt.rs2:86
-varbit,wanted_mission15,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:39; quests/quest_wanted/scripts/wanted_hunt.rs2:51; quests/quest_wanted/scripts/wanted_hunt.rs2:87
-varbit,wanted_mission16,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:41; quests/quest_wanted/scripts/wanted_hunt.rs2:52; quests/quest_wanted/scripts/wanted_hunt.rs2:88
-varbit,wanted_mission17,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:43; quests/quest_wanted/scripts/wanted_hunt.rs2:53; quests/quest_wanted/scripts/wanted_hunt.rs2:89
-varbit,wanted_mission18,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:45; quests/quest_wanted/scripts/wanted_hunt.rs2:54; quests/quest_wanted/scripts/wanted_hunt.rs2:90
-varbit,wanted_mission19,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:47; quests/quest_wanted/scripts/wanted_hunt.rs2:55; quests/quest_wanted/scripts/wanted_hunt.rs2:91
-varbit,feud_boss_vis2,1,1,no,,not_spawned,2,quests/quest_thefeud/scripts/feud_confrontation.rs2:10; quests/quest_thefeud/scripts/feud_recruitment.rs2:286
-varbit,100davevisible,1,5,no,,not_spawned,0,
-varbit,100ogrevisible,1,2,no,,not_spawned,0,
-varbit,elemental_quest_2_jig_state,1,6,no,,not_spawned,46,quests/quest_elementalworkshopii/scripts/elem2_bmp.rs2:36; quests/quest_elementalworkshopii/scripts/elem2_bmp.rs2:508; quests/quest_elementalworkshopii/scripts/elem2_bmp.rs2:566
-varbit,lost_tribe_sigmund_leaving,1,1,no,,not_spawned,1,quests/quest_losttribe/scripts/losttribe_finish.rs2:8
-varbit,gotr_cordelia_repair_pouch,1,2,no,,not_spawned,0,
-varbit,vmq1_guard_1,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:23; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:178; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:276
-varbit,vmq1_guard_2,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:23; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:179; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:277
-varbit,vmq1_guard_3,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:23; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:180; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:278
-varbit,vmq1_guard_4,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:23; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:181; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:279
-varbit,vmq1_guard_5,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:193; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:280; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:295
-varbit,vmq1_guard_6,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:194; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:281; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:296
-varbit,vmq1_guard_7,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:195; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:282; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:297
-varbit,vmq1_guard_8,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:196; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:283; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:298
-varbit,vmq1_guard_9,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:197; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:284; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:299
-varbit,vmq1_guard_10,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:198; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:285; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:300
-varbit,corscurs_cook,1,1,no,,not_spawned,9,quests/quest_corsaircurse/scripts/cc_bmp.rs2:23; quests/quest_corsaircurse/scripts/cc_bmp.rs2:132; quests/quest_corsaircurse/scripts/cc_bmp.rs2:176
-varp,total_completed_theatreofblood,1,2,no,,not_spawned,1,skill_construction/scripts/poh_achievement_gallery.rs2:228
-varbit,my2arm_mother_type,1,4,no,,not_spawned,0,
-varbit,upass_paladinbadge_1,1,1,no,,not_spawned,6,quests/quest_upass/scripts/upass_bloodwell.rs2:6; quests/quest_upass/scripts/upass_bloodwell.rs2:26; quests/quest_upass/scripts/upass_bloodwell.rs2:43
-varbit,upass_paladinbadge_2,1,1,no,,not_spawned,5,quests/quest_upass/scripts/upass_bloodwell.rs2:26; quests/quest_upass/scripts/upass_bloodwell.rs2:52; quests/quest_upass/scripts/upass_encounters.rs2:47
-varbit,upass_paladinbadge_3,1,1,no,,not_spawned,5,quests/quest_upass/scripts/upass_bloodwell.rs2:26; quests/quest_upass/scripts/upass_bloodwell.rs2:61; quests/quest_upass/scripts/upass_encounters.rs2:52
-varbit,upass_venom_on_doll,1,1,no,,not_spawned,13,quests/quest_upass/scripts/upass_journal.rs2:6; quests/quest_upass/scripts/upass_journal.rs2:204; quests/quest_upass/scripts/upass_journal.rs2:227
-varbit,hallowed_adventurer_floor1_east,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor1_west,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor1_melvin,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor2_north,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor2_south,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor2_west,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor3_east,1,1,no,,not_spawned,0,
-varbit,hallowed_adventurer_floor3_west,1,1,no,,not_spawned,0,
-varp,total_completed_theatreofblood_hard,1,2,no,,not_spawned,1,skill_construction/scripts/poh_achievement_gallery.rs2:230
-varbit,lotg_zanik_in_lab,1,1,no,,not_spawned,0,
-varbit,lotg_zanik_outside_temple,1,1,no,,not_spawned,0,
-varbit,gotr_tamara_lock_op,1,2,no,,not_spawned,0,
-varbit,itt_met_osmumten,1,3,no,,not_spawned,0,
-varbit,speedrunning_shop_owner_met,1,2,no,,not_spawned,0,
-varbit,sotn_khazard_scout,1,1,no,,not_spawned,0,
-varbit,hazeelcult_alomone_vis,1,2,no,,not_spawned,12,quests/quest_hazeelcult/scripts/alomone.rs2:28; quests/quest_hazeelcult/scripts/alomone.rs2:35; quests/quest_hazeelcult/scripts/alomone.rs2:36
-varbit,carnillean_dog_vis,1,1,no,,not_spawned,2,quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:112; quests/quest_hazeelcult/scripts/claus_the_chef.rs2:74
-varbit,coa,1,1,no,,not_spawned,134,quests/quest_curseofarrav/scripts/curseofarrav_bmp.rs2:5; quests/quest_curseofarrav/scripts/curseofarrav_bmp.rs2:152; quests/quest_curseofarrav/scripts/curseofarrav_bmp.rs2:158
-varbit,osb10_post_npc_state,1,2,no,,not_spawned,0,
-varbit,dt2_banikan_war_room,1,1,no,,not_spawned,0,
-varbit,dt2_war_room_smoke_totem,1,2,no,,not_spawned,0,
-varbit,dt2_war_room_shadow_totem,1,2,no,,not_spawned,0,
-varbit,dt2_war_room_blood_totem,1,2,no,,not_spawned,0,
-varbit,dt2_war_room_ice_totem,1,2,no,,not_spawned,0,
-varbit,dt2_ring_npc_vis,1,1,no,,not_spawned,0,
-varbit,dt2_catalytic_guardian,1,2,no,,not_spawned,0,
-varbit,pog_watcher_multivar,1,2,no,,not_spawned,7,quests/quest_pathofglouphrie/scripts/pog_storeroom.rs2:103; quests/quest_pathofglouphrie/scripts/pog_storeroom.rs2:119; quests/quest_pathofglouphrie/scripts/pog_quest.rs2:242
-varbit,rat_boss_biologist_npc,1,2,no,,not_spawned,0,
-varbit,pmoon_eyatlalli_vis,1,1,no,,not_spawned,0,
-varbit,quetzal_fortis,1,7,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:45; skill_hunter/scripts/quetzal_transport.rs2:45
-varbit,quetzal_teomat,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:46; skill_hunter/scripts/quetzal_transport.rs2:46
-varbit,quetzal_sunsetcoast,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:47; skill_hunter/scripts/quetzal_transport.rs2:47
-varbit,quetzal_hunterguild,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:48; skill_hunter/scripts/quetzal_transport.rs2:48
-varbit,quetzal_camtorum,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:32; skill_hunter/scripts/quetzal_transport.rs2:146
-varbit,quetzal_colossalwyrm,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:33; skill_hunter/scripts/quetzal_transport.rs2:147
-varbit,quetzal_outerfortis,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:34; skill_hunter/scripts/quetzal_transport.rs2:148
-varbit,quetzal_colosseum,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:35; skill_hunter/scripts/quetzal_transport.rs2:149
-varbit,frog_quest_patch_unlocked,1,2,no,,not_spawned,6,quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:384; quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:433; quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:452
-varbit,vmq4_attala_cam_torum_market_vis,1,1,no,,not_spawned,0,
-varbit,varlamore_thieving_house_stranger_met,1,2,no,,not_spawned,0,
-varbit,wildy_zombie_pirate_friendly_intro_chat,1,3,no,,not_spawned,0,
-varbit,wgs_hazelmere_vis_house_inverse,1,1,no,,not_spawned,0,
-varbit,wgs_akrisae_vis,1,1,no,,not_spawned,0,
-varbit,wgs_spyvis,1,2,no,,not_spawned,0,
-varbit,wgs,1,6,no,,not_spawned,176,quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:8; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:27; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:347
-varbit,wgs_hazelmere_vis_falador,1,1,no,,not_spawned,0,
-varbit,quetzal_aldarin,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:49; skill_hunter/scripts/quetzal_transport.rs2:49
-varbit,quetzal_quetzacalligorge,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:50; skill_hunter/scripts/quetzal_transport.rs2:50
-varbit,quetzal_salvageroverlook,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:36; skill_hunter/scripts/quetzal_transport.rs2:150
-varbit,vmq4_servius_palace_vis,1,1,no,,not_spawned,0,
-varbit,mm_met_supervisor,1,2,no,,not_spawned,0,
-varbit,varlamore_wyrm_agility_met_guide,1,2,no,,not_spawned,0,
-varbit,hw24_main,1,9,no,,not_spawned,0,
-varbit,yama_imp_contract_signed,1,3,no,,not_spawned,0,
-varbit,vmq4_sun_puzzle_itzla_state,1,2,no,,not_spawned,0,
-varbit,scrambled_egg_vis,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_1_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_1_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_1_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_1_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_1_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_2_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_2_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_2_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_2_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_2_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_3_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_3_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_3_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_3_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_3_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_4_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_4_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_4_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_4_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_4_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_5_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_5_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_5_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_5_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_5_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_6_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_6_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_6_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_6_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_6_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_7_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_7_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_7_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_7_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_7_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_8_multianimal_a_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_8_multianimal_b_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_8_multianimal_c_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_8_multianimal_d_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_8_multianimal_e_1,1,1,no,,not_spawned,0,
-varbit,ent_totems_site_1_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_2_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_3_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_4_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_5_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_6_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_7_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,ent_totems_site_8_trail_buff_active,1,3,no,,not_spawned,0,
-varbit,quetzal_talteklan,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:51; skill_hunter/scripts/quetzal_transport.rs2:51
-varbit,quetzal_auburnvalley,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:52; skill_hunter/scripts/quetzal_transport.rs2:52
-varbit,quetzal_kastori,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:37; skill_hunter/scripts/quetzal_transport.rs2:151
-varbit,events_shop_owner_met,1,2,no,,not_spawned,0,
-varbit,tt_free_shield,1,3,no,,not_spawned,0,
-varbit,port_roberts_in_jail,1,3,no,,not_spawned,0,
-varbit,current_affairs,1,36,no,,not_spawned,73,quests/quest_currentaffairs/scripts/currentaffairs.rs2:184; quests/quest_currentaffairs/scripts/currentaffairs.rs2:282; quests/quest_currentaffairs/scripts/currentaffairs.rs2:290
-varbit,floopa_conch_vis,1,2,no,,not_spawned,0,
-varbit,trr_parrot,1,3,no,,not_spawned,0,
-varbit,conch_coral_patches_unlocked,1,2,no,,not_spawned,0,
-varbit,sailing_bt_jubbly_jive_master_state,1,3,no,,not_spawned,0,
-varbit,sailing_bt_gwenith_glide_master_state,1,3,no,,not_spawned,0,
-varbit,sailing_chance_encounters_clam_state,1,3,no,,not_spawned,0,
-varbit,sailing_charting_tutor_met,1,2,no,,not_spawned,0,
-varbit,sailing_crew_generic_2_visibility,1,2,no,,not_spawned,0,
-varbit,sailing_crew_ghost_jenkins_visibility_crandor,1,1,no,,not_spawned,0,
-varbit,sailing_crew_ghost_jenkins_visibility_control,1,1,no,,not_spawned,0,
-varbit,sleve_mcdichael_met,1,2,no,,not_spawned,0,
-varbit,deepfin_dwarf_durrik_met,1,2,no,,not_spawned,0,
-varbit,cowquest,1,20,no,,not_spawned,85,quests/quest_idesofmilk/scripts/idesofmilk_locs.rs2:5; quests/quest_idesofmilk/scripts/idesofmilk_locs.rs2:19; quests/quest_idesofmilk/scripts/idesofmilk_locs.rs2:20
-varbit,equipment_activity_locked_temp,1,1,no,,not_spawned,0,
-varbit,bucket_aranei_met,1,2,no,,not_spawned,0,
-varbit,vampyrium_gravestone_aranei_met,1,2,no,,not_spawned,0,
-varbit,vampyrium_venator_aranei_met,1,2,no,,not_spawned,0,
-varbit,myq6_sarius_guile_vis,1,1,no,,not_spawned,0,
+varbit,varb12425_deadman_guarded_mode,32,32,yes,"deadman_guard_ardougne, deadman_guard_catherby, deadman_guard_falador, deadman_guard_gnome, deadman_guard_ja, deadman_guard_lumbridge, deadman_guard_portphas, deadman_guard_prif, deadman_guard_rellekka, deadman_guard_seers, deadman_guard_sophanem, deadman_guard_varrock, deadman_guard_voidknight, deadman_guard_yanille",all_hidden,0,
+varbit,varb3075_hunting_hidetrapnpcs,25,25,yes,"ii_common_impling_precursor, ii_crop_circle_npc, ii_impling_adder, ii_maze_blocking_timer, ii_maze_gate_timer, ii_rare_impling_precursor_maze, ii_uncommon_impling_precursor",all_hidden,0,
+varbit,varb5930_fossil_pool_bob,8,8,yes,"fossil_pool_bobber_1, fossil_pool_bobber_2, fossil_pool_bobber_3, fossil_pool_bobber_4, fossil_pool_bobber_5, fossil_pool_bobber_6, fossil_pool_bobber_7, fossil_pool_bobber_8",all_hidden,0,
+varbit,varb8355_fossil_puffer_seefish,7,7,yes,"fossil_puffer_fish_1, fossil_puffer_fish_2, fossil_puffer_fish_3, fossil_puffer_fish_4, fossil_puffer_fish_5, fossil_puffer_fish_6, fossil_puffer_fish_7",all_hidden,0,
+varbit,varb10809_wgs_movario_vis,6,6,yes,"dorgesh_dark_wizard, dorgesh_khazard_bodyguard",all_hidden,0,
+varbit,varb1549_prisonpete_multinpcs,4,96,yes,"prisonpete_balloon1, prisonpete_balloon2, prisonpete_balloon3, prisonpete_balloon4",all_hidden,0,
+varp,varp531_macro_transmit,4,96,yes,"macro_pheasant_fourtail, macro_pheasant_onetail, macro_pheasant_threetail, macro_pheasant_twotail",all_hidden,0,
+varbit,varb5040_mm2_le_smith_pos,4,4,yes,"mm2_le_smith_pos1_multi, mm2_le_smith_pos2_multi, mm2_le_smith_pos3_multi, mm2_le_smith_pos4_multi",all_hidden,0,
+varbit,varb15467_ivan_strom_location,3,7,yes,myq5_ivan_hideout,all_hidden,0,
+varbit,varb1808_fairy_godfather_check,3,6,yes,"fairy_godfather_multi, fairy_henchman1_multi, fairy_henchman2_multi",all_hidden,0,
+varbit,varb3201_gublinch_state,3,6,yes,"gub_musa_multi_child_1, gub_musa_multi_child_2, gub_musa_multi_child_3",all_hidden,0,
+varbit,varb9019_sote_trah_vis,2,2,yes,"sote_lady_trahaearn, sote_lady_trahaearn_wander",all_hidden,0,
+varbit,varb9021_sote_amlodd_vis,2,2,yes,"sote_lord_amlodd, sote_lord_amlodd_wander",all_hidden,0,
+varbit,varb9023_sote_crwys_vis,2,2,yes,"sote_lord_crwys, sote_lord_crwys_wander",all_hidden,0,
+varbit,varb9025_sote_hefin_vis,2,2,yes,"sote_lady_hefin, sote_lady_hefin_wander",all_hidden,0,
+varbit,varb3634_dream_cyris_multi,2,6,yes,"dream_cyrisus_outsidebraziermulti, dream_cyrisus_outsidemulti",all_hidden,0,
+varbit,varb1606_enakh_akthanakos_form,2,2,yes,enakh_akthanakos_multinpc,all_hidden,0,
+varbit,varb415_ics_wanderermulti,2,2,yes,"ics_little_multi_wanderer1, ics_little_multi_wanderer2",all_hidden,0,
+varbit,varb1908_100_ogre_jubbly_boat_visible,2,2,yes,"100_jubbly_multi_boat_feldip, 100_jubbly_multi_boat_karamja",all_hidden,0,
+varbit,varb5038_mm2_nieve_at_tree,1,1,yes,mm2_nieve_waiting,all_hidden,0,
+varbit,varb449_ics_specvis,1,1,yes,ics_little_spectre,all_hidden,0,
+varbit,varb579_giantdwarf_cutscene_guard_visible,1,1,yes,dwarf_city_berserker_cutscene_multi,all_hidden,0,
+varbit,varb3980_dorgesh_zanik_in_city,1,1,yes,dorgesh_zanik,all_hidden,0,
+varbit,varb9018_sote_trah,1,5,yes,sote_lady_trahaearn_cave,all_hidden,0,
+varbit,varb9020_sote_amlodd,1,2,yes,sote_lord_amlodd_valley,all_hidden,0,
+varbit,varb9024_sote_hefin,1,2,yes,sote_lady_hefin_island,all_hidden,0,
+varbit,varb5032_mm2_zep_gnome_pilot,1,1,yes,zep_multi_assistant_gno,all_hidden,0,
+varbit,varb14716_shadow_maj_visibility,1,1,yes,shadow_maj_multi_khazard,all_hidden,0,
+varbit,varb6145_niete_visible,1,1,yes,twocats_niete,all_hidden,0,
+varbit,varb1905_100_ogre_rantz_visible,1,1,yes,100_rantz_multi_npc,all_hidden,0,
+varbit,varb1803_fairy_farmers_quest,1,9,yes,fairy_mindslayer_guard_multi,all_hidden,0,
+varbit,varb892_chat_sharimika,1,7,yes,tbwcu_sharimika_multinpc,all_hidden,0,
+varbit,varb893_chat_mamma,1,7,yes,tbwcu_mamma_bufetta_multinpc,all_hidden,0,
+varbit,varb894_chat_layleen,1,7,yes,tbwcu_layleen_multinpc,all_hidden,0,
+varbit,varb895_chat_karaday,1,7,yes,tbwcu_karaday_multinpc,all_hidden,0,
+varbit,varb896_chat_safta,1,7,yes,tbwcu_safta_doc_multinpc,all_hidden,0,
+varbit,varb897_chat_gabooty,1,7,yes,tbwcu_gabooty_multinpc,all_hidden,0,
+varbit,varb898_chat_fanellaman,1,7,yes,tbwcu_fanellaman_multinpc,all_hidden,0,
+varbit,varb899_chat_jag,1,7,yes,tbwcu_jagbakoba_multinpc,all_hidden,0,
+varbit,varb900_chat_murc,1,7,yes,tbwcu_murcaily_multinpc,all_hidden,0,
+varbit,varb901_chat_rion,1,7,yes,tbwcu_rionasta_multinpc,all_hidden,0,
+varbit,varb12143_sophia_hughes_vis,1,1,yes,piscquest_councillor,all_hidden,0,
+varbit,varb10355_myq5_safalaan_hideout,1,1,yes,myq4_safalaan_new_hideout,all_hidden,0,
+varbit,varb10357_myq5_vertida_hideout,1,1,yes,myq4_vertida_new_hideout,all_hidden,0,
+varbit,varb10356_myq5_kael_hideout,1,1,yes,myq4_kael_new_hideout,all_hidden,0,
+varbit,varb9056_sote_meilyr_vis,1,1,yes,sote_lady_meilyr_upass_pre,all_hidden,0,
+varbit,varb9057_sote_ithell_vis,1,1,yes,sote_lady_ithell_upass_pre,all_hidden,0,
+varbit,varb9340_adventurepath_player_participating,1,2,yes,ap_guide_parent,all_hidden,0,
+varbit,varb15468_veliaf_paterdomus_vis,1,2,yes,myq5_veliaf_paterdomus,all_hidden,0,
+varbit,varb10401_hallowed_ghost_owlknight_visible,1,1,yes,hallowed_ghost_lobby_owl,all_hidden,0,
+varbit,varb10404_hallowed_ghost_unicornknight_visible,1,1,yes,hallowed_ghost_lobby_unicorn,all_hidden,0,
+varbit,varb10403_hallowed_ghost_wolfknight_visible,1,1,yes,hallowed_ghost_lobby_wolf,all_hidden,0,
+varbit,varb10402_hallowed_ghost_lionknight_visible,1,1,yes,hallowed_ghost_lobby_lion,all_hidden,0,
+varbit,varb10405_hallowed_ghost_archpriest_visible,1,1,yes,hallowed_ghost_lobby_archpriest,all_hidden,0,
+varbit,varb12120_tentacle_port,1,3,yes,trawler_tentacle_port,all_hidden,0,
+varbit,varb12121_tentacle_starboard,1,3,yes,trawler_tentacle_starboard,all_hidden,0,
+varbit,varb12311_akd_orson_lookout,1,1,yes,akd_councillor_orson_lookout,all_hidden,0,
+varbit,varb4153_deadman_mode,18,34,yes,"castlewars_judge, contact_banker_deadman, cws_doomsayer, deadman_banker_ahoy_north, deadman_banker_blue_north, deadman_banker_blue_south, deadman_banker_blue_west, deadman_banker_gnome_east, deadman_banker_gnome_north, deadman_banker_grey_north, deadman_banker_grey_south, deadman_banker_grey_west, deadman_banker_neitiznot, deadman_banker_pest_north, deadman_banker_wildy, deadman_insurancebroker, deadman_nigel, frisd_banker",mixed,0,
+varbit,varb2326_fairy2_queencure_quest,14,114,yes,"fairy_godfatherarmy_multi1, fairy_godfatherarmy_multi2, fairy_multi, fairy_nuff_multi2, fairy_queen_multi2, fairyliquid_multi, fairyliquid_multi2, fairyqueen_multi3, fairyresistance_multi, fairyresistance_multi2, fairyresistance_multi3, fairyresistance_multi4, fairyresistance_multi5",mixed,0,
+varbit,varb1353_desert_alkharid_alis_visible,5,6,yes,"ali_the_farmer_multinpc, ali_the_guard_multinpc, ali_the_smith_multinpc, ali_the_tailor_multinpc, alice_the_camel_multinpc",mixed,0,
+varbit,varb5421_raids_guide_travel_unlock,3,4,yes,"raids_mountainguide_temple_multi, raids_mountainguide_wall_multi",mixed,0,
+varbit,varb9567_pilot_multinpc_var,2,31,yes,"gnormadium_avlafrim, pilot_apeatoll",mixed,0,
+varbit,varb3732_wearing_ghost_speak_amulet,2,2,yes,"protester_ghostspeak_multi, protester_standardspeak_multi",mixed,0,
+varbit,varb5401_this_is_a_pvp_or_bh_world,2,2,yes,"lost_property_merchant_combatty, lost_property_merchant_standard",mixed,0,
+varbit,varb10352_myq5_veliaf_location,2,2,yes,"myq5_veliaf_burgh_hideout, myq5_veliaf_slepe",mixed,0,
+varbit,varb8409_varlamore_sun_knight,2,2,yes,"hosdun_varlamore_knight, varlamore_sun_knight_parent",mixed,0,
+varbit,varb12068_camdozaal_ramarno_intro,2,3,yes,"camdozaal_ramarno_entrance_multi, camdozaal_ramarno_multi",mixed,0,
+varbit,varb10031_league_account,7,9,yes,"ironman_tutor_2, league_tutor, thessalia",all_visible,0,
+varbit,varb582_giantdwarf_red_axe_gone,6,6,yes,"dwarf_city_director_red_axe_multi, dwarf_city_evil_cat_multi, dwarf_city_gnome_emissary_multi, dwarf_city_gnome_female_emissary_multi, dwarf_city_gnome_male_emissary_multi, dwarf_city_secretary_red_axe_multi",all_visible,0,
+varbit,varb4904_shayzien_armour_challenge,5,35,yes,"shayzien_armour_1_challenge, shayzien_armour_2_challenge, shayzien_armour_3_challenge, shayzien_armour_4_challenge, shayzien_armour_5_challenge",all_visible,0,
+varbit,varb10367_route_hideout_npcs,5,5,yes,"route_curpile_fyod, route_ivan_strom_parent, route_polmafi_ferdygris_parent, route_radigad_ponfit_parent, route_veliaf_hurtz_parent",all_visible,0,
+varbit,varb9584_pilot_previous_destination,4,32,yes,"pilot_al_kharid, pilot_grand_tree, pilot_karamja, pilot_white_wolf",all_visible,0,
+varbit,varb10562_con_contract_discussed,4,8,yes,"con_contractor, con_contractor_ardougne, con_contractor_hosidius, con_contractor_varrock",all_visible,0,
+varbit,varb5037_mm2_slayer_master,2,4,yes,"slayer_master_6, wyvern_cave_guardian",all_visible,0,
+varbit,varb185_fenk_gardener_directions,2,2,yes,fenk_gardener_multi_2,all_visible,0,
+varbit,varb6486_askelladen_hasop,2,4,yes,"viking_askelapen, viking_askelapen_dagganoth_mountain",all_visible,0,
+varbit,varb9035_sote_ithell,2,7,yes,"mourning_town_elf_5, sote_lady_ithell_village",all_visible,0,
+varbit,varb19501_sailing_crew_captain_siad_visibility,2,2,yes,capt_siad,all_visible,0,
+varbit,varb581_giantdwarf_red_traders_gone,2,2,yes,"dwarf_city_red_trader1_multi, dwarf_city_red_trader2_multi",all_visible,0,
+varbit,varb16284_chasm_voice_progress,2,9,yes,"disciple_of_yama_entrance, voice_of_yama",all_visible,0,
+varbit,varb9053_ilfeen_prif,2,4,yes,"ilfeen_prif, sote_ilfeen_upass",all_visible,0,
+varbit,varb5629_karam_dungeon_backdoor,1,4,yes,karam_dungeon_backdoor,all_visible,0,
+varbit,varb5066_mm2_keef_challenge,1,1,yes,mm2_keef_multi,all_visible,0,
+varbit,varb5067_mm2_kob_challenge,1,1,yes,mm2_kob_multi,all_visible,0,
+varbit,varb2335_fairy2_rewardgiven,1,2,yes,fairy2_repair,all_visible,0,
+varbit,varb2026_soulbane_launa_pres,1,1,yes,soulbane_launa_multi,all_visible,0,
+varbit,varb2332_fairy2_nuffvisible,1,1,yes,fairy_nuff_multi,all_visible,0,
+varbit,varb559_keldagrim_kebab_status,1,2,yes,dwarf_city_drunken_dwarf_multi,all_visible,0,
+varbit,varb1344_skippy_state,1,4,yes,multi_skippy,all_visible,0,
+varbit,varb2449_deadman_finalarea_hidenpcs,1,1,yes,sos_barb,all_visible,0,
+varbit,varb15611_morgan_postquest_dialogue,1,2,yes,morgan,all_visible,0,
+varbit,varb15615_priestperilevilmonk_dead,1,1,yes,priestperilevilmonk3,all_visible,0,
+varbit,varb9052_roving_update_female_woodelf,1,3,yes,roving_update_female_woodelf,all_visible,0,
+varbit,varb6144_bob_invisible,1,1,yes,death_growncat_black,all_visible,0,
+varbit,varb13597_gobdip_met_aggie,1,2,yes,aggie,all_visible,0,
+varbit,varb9138_upass_koftik_outside,1,2,yes,caveguide1,all_visible,0,
+varbit,varb9139_upass_koftik_bridge,1,1,yes,caveguide2,all_visible,0,
+varbit,varb9140_upass_koftik_grid,1,1,yes,caveguide3,all_visible,0,
+varbit,varb9142_upass_koftik_temple,1,1,yes,caveguide5,all_visible,0,
+varbit,varb9143_upass_koftik_end,1,1,yes,caveguide6,all_visible,0,
+varbit,varb9022_sote_crwys,1,3,yes,sote_lord_crwys_forest,all_visible,0,
+varbit,varb3460_khazard_warlord_fighting,1,1,yes,khazard_warlord,all_visible,0,
+varbit,varb11513_soa_weaponmaster_dead,1,1,yes,weaponsmaster,all_visible,0,
+varbit,varb4500_ardougne_medium_reward,1,2,yes,ardounge_wizard,all_visible,0,
+varbit,varb4567_karamja_elite_reward,1,3,yes,agilityarena_tickettrader,all_visible,0,
+varbit,varb1807_fairy_queen_check,1,1,yes,fairy_queen_multi,all_visible,0,
+varbit,varb6707_bond_npc_hide,1,1,yes,bond_james_bond,all_visible,0,
+varbit,varb13673_rick_has_opened_shop,1,2,yes,telecrystal_wizard,all_visible,0,
+varbit,varb1605_enakh_enakhra_form,1,2,yes,enakh_enakhra_multinpc,all_visible,0,
+varbit,varb3284_contact_maisa_invis,1,1,yes,contact_maisa_multi,all_visible,0,
+varbit,varb9654_surok_vis,1,2,yes,surok_surok,all_visible,0,
+varbit,varb1838_romjul_juliet_visible,1,2,yes,juliet_multi_visible,all_visible,0,
+varbit,varb3711_grim_dwarf_vis_tower,1,2,yes,grim_rupert_intower,all_visible,0,
+varbit,varb814_dag_island_quick_travel,1,2,yes,viking_dagganoth_cave_ferryman_rellekka,all_visible,0,
+varbit,varb5195_trail_watson_spoken,1,2,yes,trail_watson,all_visible,0,
+varbit,varb4905_piscarilius_burglary_completed,1,2,yes,piscarilius_captain_khaled_multi,all_visible,0,
+varbit,varb5304_br_tutorial,1,2,yes,br_host,all_visible,0,
+varbit,varb5669_minnow_access,1,3,yes,minnow_fisherman_multi,all_visible,0,
+varbit,varb15607_tobquest_stranger_vis,1,4,yes,tob_stranger,all_visible,0,
+varbit,varb696_ga_mary_dialogue,1,2,yes,ga_mary,all_visible,0,
+varbit,varb7930_kourend_medium_reward,1,2,yes,lovakengj_thirus,all_visible,0,
+varbit,varb7947_farmguild_contract_discussed,1,2,yes,farming_guild_master,all_visible,0,
+varbit,varb8394_hosdun_olbertus_status,1,2,yes,hosdun_olbertus,all_visible,0,
+varbit,varb9141_upass_koftik_maze,1,1,yes,caveguide4,all_visible,0,
+varbit,varb9154_mourning_mourner_vis,1,1,yes,mourning_overpass_mourner,all_visible,0,
+varbit,varb9297_prif_acorn_trade,1,2,yes,prif_acorn_trader,all_visible,0,
+varbit,varb10137_nightmare_first_entry,1,2,yes,shura,all_visible,0,
+varbit,varb10239_nightmare_challenge_first_entry,1,2,yes,nightmare_challenge_sister,all_visible,0,
+varbit,varb15478_garlic_cocktail_shop_unlocked,1,2,yes,darkm_werewolf_3,all_visible,0,
+varbit,varb10408_hallowed_tutorial,1,2,yes,hallowed_lobby_npc,all_visible,0,
+varbit,varb10448_dmine_daeyalt_converter_intro,1,2,yes,dmine_daeyalt_converter,all_visible,0,
+varbit,varb10586_porcine_rosie,1,2,yes,porcine_sheepdog_multi,all_visible,0,
+varbit,varb3804_soul_wars_finished_tutorial,1,2,yes,soul_wars_nomad,all_visible,0,
+varbit,varb11875_jad_challenge_master_met,1,2,yes,jad_challenge_master,all_visible,0,
+varbit,varb11887_star_trader_met,1,2,yes,star_trader,all_visible,0,
+varbit,varb15464_myq6,150,10823,yes,"burgh_vilager_rat_1, darkm_auctioneer, darkm_buyer_1, darkm_buyer_2, darkm_buyer_3, darkm_buyer_4, darkm_buyer_5, darkm_buyer_6, darkm_prisoner_01, darkm_prisoner_02, dmine_miner_1, dmine_miner_2, dmine_miner_3, dmine_miner_4, dmine_miner_5, dmine_miner_6, dr_harlow, lord_myrmel, myq3_citizen_male_old_1, myq3_citizen_male_old_2, myq4_garth, myq4_harpert, myq5_prison_guard, myq5_prisoner, myreque_pt3_female_citizen1, myreque_pt3_female_citizen10, myreque_pt3_female_citizen2, myreque_pt3_female_citizen3, myreque_pt3_female_citizen4, myreque_pt3_female_citizen5, myreque_pt3_female_citizen6, myreque_pt3_female_citizen7, myreque_pt3_female_citizen8, myreque_pt3_female_citizen9, myreque_pt3_female_huddled1, myreque_pt3_female_huddled2, myreque_pt3_male_citizen1, myreque_pt3_male_citizen2, myreque_pt3_male_citizen3, myreque_pt3_male_citizen4, myreque_pt3_male_citizen5, myreque_pt3_male_citizen6, myreque_pt3_male_citizen7, myreque_pt3_male_citizen8, myreque_pt3_male_huddled1, myreque_pt3_male_huddled2, myreque_pt3_male_looking_out1, myreque_pt3_male_looking_out2, myreque_pt3_miner1, myreque_pt3_miner2, myreque_pt3_miner3, myreque_pt3_miner4, myreque_pt3_miner5, myreque_pt3_miner6, priestperilevilmonk1, priestperilevilmonk2, sanguinesti_old_man_ral, tob_citizen_1, tob_citizen_2, tob_citizen_3, tob_citizen_4, tob_female_orator, tob_male_orator",all_visible,2,skill_hunter/scripts/stymphike.rs2:50; skill_hunter/scripts/stymphike.rs2:56
+varbit,varb9016_sote,69,4236,yes,"carla, councillor_halgrive, elena_basement, elena_lletya, elena_lletya_hq, elena_prison, headmourner, jethick, kilron, kinglathas, knight_of_ardougne_west, knight_of_ardougne_west_noop, lord_iorwerth, mourner1, mourner2, mourner3, mourner_armed, mourner_armed_guard, mourner_elena_guard, mourner_hideout_gnome_guard, mourner_hideout_guard, mourner_hideout_head_mourner, mourner_hideout_slave_guard, mourner_slave_no_tools, mourner_slave_pickaxe, mourner_slave_spade, mournerstew1, mournerstew2, mournerstew3, mournertwa, mournertwb, mournerwatchtower, mourning_arianwyn, mourning_town_elf_2, omart, paladin_west, prif_city_guard_multi, sote_arianwyn_waterfall, sote_arianwyn_waterfall_baxtorian, sote_baxtorian, sote_baxtorian_gates, sote_baxtorian_ruined_lletya, sote_baxtorian_waterfall, sote_carla, sote_elena_upass, sote_eluned_lletya, sote_halgrive, sote_iestin_forest, sote_iestin_ruined_lletya, sote_ilfeen, sote_ilfeen_lletya, sote_islwyn, sote_islwyn_lletya, sote_islwyn_upass_pre, sote_jethick, sote_kilron, sote_lady_hefin_upass_pre, sote_lady_trahaearn_upass_pre, sote_lletya_gravestone, sote_lord_amlodd_upass_pre, sote_lord_crwys_upass_pre, sote_omart, sote_upass_gravestone, sote_ysgawyn, sote_ysgawyn_forest, wint_cluehunter",mixed,255,sailing/scripts/boat_facility_navigation.rs2:114; transport_charter/scripts/charter_port.rs2:121; areas/area_ardougne_east/scripts/king_lathas.rs2:73
+varbit,varb12296_akd,62,3725,yes,"akd_asteros_arceuus, akd_councillor_andrews_jailed, akd_councillor_orson_rose_basement, akd_councillor_unkar, akd_councillor_unkar_jailed, akd_elena_hosidius, akd_ice_block, akd_kandur_hosidius, akd_king, akd_lydia_fullore_castle, akd_lydia_fullore_castle_outside, akd_lydia_fullore_kingstown, akd_lydia_fullore_lookout, akd_lydia_fullore_piscarilius, akd_lydia_fullore_rose_basement, akd_lydia_fullore_rose_outside, akd_martin_holt_castle, akd_martin_holt_hosidius, akd_martin_holt_jailed, akd_martin_holt_kingstown, akd_martin_holt_piscarilius, akd_martin_holt_settlement_ruins, akd_pandur_hosidius, akd_protest_guard, akd_protest_guard_2, akd_protest_guard_3, akd_protest_guard_4, akd_shauna_piscarilius, akd_shiro_shayzien, akd_trobin_arceuus, akd_vulcana_lovakengj, asteros_arceuus, cabin_boy_herbert_pisc, cabin_boy_herbert_ship, councillor_unkar, hosidius_pandur, hosidiusquest_lady, hosidiusquest_lord, kourend_protester, kourend_protester_10, kourend_protester_11, kourend_protester_12, kourend_protester_2, kourend_protester_3, kourend_protester_4, kourend_protester_5, kourend_protester_6, kourend_protester_7, kourend_protester_8, kourend_protester_9, molch_temple_shaman, pmod_town_crier_kingstown, raidquest_library_historian, shiro_shayzien, vulcana_lovakengj, zeah_head_councillor",mixed,214,skill_magic/scripts/spellbook_switch.rs2:18; skill_magic/scripts/spellbook_switch.rs2:43; skill_magic/scripts/spells/spellbook_swap.rs2:24
+varbit,varb7255_myq5,58,2360,yes,"myq5_ivan_boathouse, myq5_ivan_burgh_de_rott, myq5_ivan_graveyard, myq5_ivan_paterdomus, myq5_ivan_woods, myq5_kael_graveyard, myq5_maria, myq5_polmafi_burgh_hideout, myq5_polmafi_graveyard, myq5_polmafi_hideout, myq5_radigad_burgh_hideout, myq5_radigad_graveyard, myq5_radigad_hideout, myq5_ron, myq5_safalaan_graveyard, myq5_safalaan_graveyard_meeting, myq5_safalaan_graveyard_walk, myq5_safalaan_lab, myq5_safalaan_lab_inner, myq5_safalaan_mausoleum, myq5_safalaan_mausoleum_inner, myq5_vanescula_graveyard, myq5_vanescula_mausoleum, myq5_veliaf_boathouse, myq5_veliaf_graveyard, myq5_veliaf_graveyard_inner, myq5_veliaf_graveyard_meeting, myq5_veliaf_hideout, myq5_veliaf_slepe_manor, myq5_veliaf_woods, myq5_vertida_graveyard, slepe_bartender, slepe_child_female_1, slepe_child_female_1_inside, slepe_child_female_2, slepe_child_female_2_inside, slepe_child_female_3, slepe_child_female_3_post, slepe_child_female_4, slepe_child_female_4_post, slepe_child_male_2, slepe_child_male_2_inside, slepe_child_male_3, slepe_child_male_3_inside, slepe_child_male_4, slepe_child_male_4_post, slepe_crombwick, slepe_damien, slepe_kroy, slepe_monk, slepe_poor_man1, slepe_poor_man1_inside, slepe_poor_man2, slepe_poor_man2_inside, slepe_poor_woman1, slepe_poor_woman1_inside, slepe_poor_woman2, slepe_poor_woman2_inside",mixed,252,skill_runecraft/scripts/runecraft_abyss.rs2:364; skill_runecraft/scripts/runecraft_kourend.rs2:18; skill_runecraft/scripts/runecraft_kourend.rs2:63
+varbit,varb6528_my2arm_status,29,1937,yes,"my2arm_ambassador_multi, my2arm_dontknowwhat_throneroom, my2arm_entry_postquest, my2arm_entry_quest, my2arm_leprechaun, my2arm_mother_multi_enthroned, my2arm_mother_multi_standing, my2arm_mushroom_outside, my2arm_mushroom_throneroom, my2arm_sentry_boulder_background, my2arm_sentry_butterfly_background, my2arm_sentry_butterfly_fakespectator, my2arm_sentry_oddstone_background, my2arm_sentry_oddstone_fakespectator, my2arm_sentry_squirrel_background, my2arm_sentry_squirrel_fakespectator, my2arm_snowflake_outside, my2arm_snowflake_postquest, my2arm_wom_endquest, myarm, myarm_multi_cliffbottom, myarm_multi_larry, myarm_multi_outside, myarm_multi_postquest, myarm_multi_teacher, myarm_multi_throneroom, myarm_pupil_multi",mixed,194,areas/varrock/scripts/apothecary.rs2:40; areas/varrock/scripts/apothecary.rs2:40; areas/area_godwars/scripts/godwars_entrance.rs2:119
+varbit,varb5027_mm2_progress,29,1843,yes,"grandtree_anita, grandtree_narnode, mm2_bunkdo_postquest, mm2_bunkwicket_postquest, mm2_carado_postboss_multi, mm2_carado_postquest, mm2_garkor_breach_multi, mm2_garkor_postquest, mm2_karam_postquest, mm2_lumo_breach_multi, mm2_lumo_postquest, mm2_monkey_banker, mm2_monkey_boat_guard_multi, mm2_waymottin_postquest, mm2_zooknock_postboss_multi, mm2_zooknock_postquest, mm_bunkdo, mm_bunkwicket, mm_carado, mm_duke_postquest, mm_garkor, mm_karam, mm_karam_talker, mm_kruk_multi, mm_lumo, mm_waymottin, mm_zooknock, zep_assist_gno_replacement",mixed,224,skill_hunter/scripts/maniacal_monkey.rs2:16; skill_hunter/scripts/maniacal_monkey.rs2:96; skill_hunter/scripts/maniacal_monkey.rs2:278
+varbit,varb15152_shadow_realm_visibility,28,84,yes,"camdozaal_ghost_1, camdozaal_ghost_2, camdozaal_ghost_3, hosdun_faeded_beast, prif_ghost, secret_ghost1, secret_ghost10, secret_ghost11, secret_ghost12, secret_ghost13, secret_ghost14, secret_ghost15, secret_ghost16, secret_ghost2, secret_ghost3, secret_ghost4, secret_ghost5, secret_ghost6, secret_ghost7, secret_ghost8, secret_ghost9, shadow_maj_multi_scout1, shadow_maj_multi_scout2, shadow_maj_multi_scout3, shadow_maj_multi_scout4, sw_armadyl_ghost, sw_bandos_ghost",all_hidden,2,quests/quest_deserttreasure/scripts/deserttreasure.rs2:1644; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1646
+varbit,varb6104_ds2,18,626,yes,"dallas_jones_crandor_lab, dallas_jones_crandor_lair, dallas_jones_dungeon, dallas_jones_fossil_boat, dallas_jones_fossil_island, dallas_jones_lithkren, dallas_jones_musa, death_growncat_black_astral, death_growncat_black_lithkren, death_growncat_black_lunar, death_growncat_black_sophanem, death_growncat_black_varrock, ics_little_cat, jardric_boat, jardric_camp, jardric_dungeon, jardric_varrock, niete_burthorpe",mixed,396,areas/area_ardougne_east/scripts/king_lathas.rs2:84; areas/area_ardougne_east/scripts/king_lathas.rs2:84; areas/area_ardougne_east/scripts/king_lathas.rs2:272
+varp,varp161_upass,17,167,yes,"cave_slave1, cave_slave2, cave_slave3, cave_slave4, cave_slave5, cave_slave6, cave_slave7, cavewitch, souless, soulman, unicorn_upass, upassmage",all_visible,104,areas/area_ardougne_east/scripts/king_lathas.rs2:4; areas/area_ardougne_east/scripts/king_lathas.rs2:144; areas/area_ardougne_east/scripts/king_lathas.rs2:199
+varbit,varb6396_myq4,14,918,yes,"myq4_andiess, myq4_flaygian, myq4_kael, myq4_kael_theatre, myq4_magic_mercenary, myq4_mekritus, myq4_melee_mercenary, myq4_ranged_mercenary, myq4_safalaan_basement, myq5_slepe_jester, myq5_slepe_thief, sanguinesti_vertida_sefalatis, slepe_jester, slepe_thief",mixed,157,skill_construction/scripts/poh_quest_status_generated.rs2:703; skill_construction/scripts/poh_quest_status_generated.rs2:704; quests/quest_tasteofhope/scripts/tasteofhope.rs2:65
+varbit,varb13841_bcs,13,519,yes,contact_osman_multi,all_visible,164,skill_construction/scripts/poh_fairy_ring.rs2:113; skill_construction/scripts/poh_quest_status_generated.rs2:48; skill_construction/scripts/poh_quest_status_generated.rs2:49
+varbit,varb334_feud_var,12,292,yes,feud_black_jack_seller_multi,all_hidden,139,skill_thieving/scripts/blackjack_selftest.rs2:199; skill_thieving/scripts/blackjack_selftest.rs2:201; skill_thieving/scripts/blackjack_selftest.rs2:207
+varbit,varb18314_sailing_intro,12,227,yes,"captain_tobias, customs_officer, seaman_lorris, seaman_thresnor",all_visible,173,sailing/scripts/boat_log.rs2:80; sailing/scripts/port_masters.rs2:22; sailing/scripts/port_masters.rs2:26
+varbit,varb6071_corscurs_progress,11,815,yes,"corsair_captain_crossroads, corsair_captain_throne, corsair_ferry_covedocks, corsair_ferry_rimmington, corscurs_banker_multi, corscurs_cabinboy_sick, corscurs_cook_postquest, corscurs_cook_sick, corscurs_navigator_sick, corscurs_thief_postquest, corscurs_thief_sick",mixed,120,skill_construction/scripts/poh_quest_status_generated.rs2:103; skill_construction/scripts/poh_quest_status_generated.rs2:104; quests/scripts/quest_cheat.rs2:253
+varbit,varb3888_kr_quest,10,27,yes,"kr_anna_sinclair_multi, kr_bob_sinclair_multi, kr_carol_sinclair_multi, kr_david_sinclair_multi, kr_elizabeth_sinclair_multi, kr_frank_sinclair_multi, kr_multi_king_arthur, kr_multi_merlin_jail, kr_multi_murderer, kr_murderguard_house_multi",mixed,181,areas/area_camelot/scripts/king_arthur.rs2:15; areas/area_camelot/scripts/king_arthur.rs2:18; areas/area_camelot/scripts/merlin.rs2:12
+varbit,varb2610_slug2_main,10,102,yes,"slug2_hobb, slug2_jeb, slug2_maledict, slug2_oniall, slug2_villager1_stage1_multi, slug2_villager1_stage2_multi, slug2_villager2_stage1_multi, slug2_villager2_stage2_multi, slug2_villager3_stage1_multi, slug2_villager3_stage2_multi",mixed,93,areas/area_fishing_platform/scripts/holgart.rs2:29; areas/area_fishing_platform/scripts/holgart.rs2:29; areas/area_fishing_platform/scripts/bailey.rs2:14
+varbit,varb3468_mistmyst_progress,10,396,yes,"mistmyst_abigale, mistmyst_hewey, mistmyst_killer_background, mistmyst_lacey, mistmyst_mandy, mistmyst_mandy_post, mistmyst_mirror, mistmyst_sid, mistmyst_tayten",mixed,139,skill_construction/scripts/poh_quest_status_generated.rs2:448; skill_construction/scripts/poh_quest_status_generated.rs2:449; quests/scripts/quest_cheat.rs2:830
+varbit,varb3407_brain_multi_monk,9,13,yes,"brain_multi_monk_1, brain_multi_monk_2, brain_multi_monk_3, brain_multi_monk_4, brain_multi_monk_5, brain_multi_monk_6, brain_multi_monk_7, brain_multi_monk_8, brain_multi_tranquility",all_visible,2,quests/quest_thegreatbrainrobbery/scripts/brain_bmp.rs2:32; quests/quest_thegreatbrainrobbery/scripts/brain_shared.rs2:58
+varbit,varb5943_fossil_herbiboar_visible,9,9,yes,"fossil_herbiboar_1, fossil_herbiboar_2, fossil_herbiboar_3, fossil_herbiboar_4, fossil_herbiboar_5, fossil_herbiboar_6, fossil_herbiboar_7, fossil_herbiboar_8, fossil_herbiboar_9",all_hidden,3,skill_hunter/scripts/herbiboar.rs2:47; skill_hunter/scripts/herbiboar.rs2:176; skill_hunter/scripts/herbiboar.rs2:316
+varbit,varb3274_contact,8,559,yes,"contact_osman_desert_multi, ics_little_locust, ics_little_plague_frog",mixed,137,skill_construction/scripts/poh_quest_status_generated.rs2:93; skill_construction/scripts/poh_quest_status_generated.rs2:94; quests/quest_beneathcursedsands/scripts/beneathcursedsands.rs2:8
+varbit,varb3275_contact_people_vis,8,8,yes,"contact_guard_female_01_multi, contact_guard_female_02_multi, contact_guard_male_01_multi, contact_guard_male_02_multi, contact_market_baker_multi, contact_market_craft_multi, contact_market_dagger_multi, contact_stone_mason_multi",all_hidden,5,quests/quest_contact/scripts/contact_jex.rs2:21; quests/quest_contact/scripts/contact_debug.rs2:6; quests/quest_contact/scripts/contact_debug.rs2:40
+varbit,varb418_ics_little_var,7,137,yes,"ics_little_hipriest_town, ics_little_linen1, ics_little_multi_wanderer, magic_carpet_multi_monkey1, magic_carpet_seller6, magic_carpet_seller7",mixed,138,areas/area_desert/scripts/magic_carpet.rs2:370; areas/area_desert/scripts/magic_carpet_cheat.rs2:61; skill_construction/scripts/poh_quest_status_generated.rs2:368
+varbit,varb2790_myarm,7,17,yes,"myarm_multi_ardougne, myarm_multi_brimhaven, myarm_multi_kitchen, myarm_multi_village",all_hidden,166,skill_construction/scripts/poh_quest_status_generated.rs2:488; skill_construction/scripts/poh_quest_status_generated.rs2:489; quests/quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2:8
+varbit,varb11209_chartering_previous_destination,7,168,yes,"sailing_transport_trader_stan, sailing_transport_trader_stan_crew_man1, sailing_transport_trader_stan_crew_man2, sailing_transport_trader_stan_crew_man3, sailing_transport_trader_stan_crew_woman1, sailing_transport_trader_stan_crew_woman2, sailing_transport_trader_stan_crew_woman3",all_visible,2,transport_charter/scripts/charter_npc.rs2:63; transport_charter/scripts/charter_travel.rs2:97
+varbit,varb3550_slice_quest,7,19,yes,"slice_dwarf_alvijar, slice_dwarf_alvijar_postquest, slice_goblin_archaeologist_post_quest, slice_sergeant_mossfists_cave, slice_sergeant_mossfists_swamp, slice_sergeant_slimetoes_cave, slice_sergeant_slimetoes_swamp",mixed,193,skill_combat/scripts/player/specs/pvm_ancient_goblin_mace.rs2:20; skill_construction/scripts/poh_quest_status_generated.rs2:28; skill_construction/scripts/poh_quest_status_generated.rs2:29
+varbit,varb12063_bim,7,39,yes,"bim_burntof_postquest, bim_checkal_postquest, bim_marley_postquest, bim_willow_outside, bim_willow_outside_entrace, bim_willow_postquest",mixed,140,skill_construction/scripts/poh_quest_status_generated.rs2:43; skill_construction/scripts/poh_quest_status_generated.rs2:44; quests/scripts/quest_cheat.rs2:147
+varbit,varb2780_eaglepeak_quest,6,12,yes,"eaglepeak_eagle_desert, eaglepeak_eagle_jungle, eaglepeak_eagle_polar, eaglepeak_ferret_zoo, eaglepeak_nickolaus, eaglepeak_nickolaus_campsite",mixed,241,skill_hunter/scripts/box_trap.rs2:24; skill_hunter/scripts/box_trap.rs2:249; skill_hunter/scripts/rabbit_hole.rs2:5
+varbit,varb340_feud_npc_multi,6,18,yes,"feud_arabian_guard2_multi, feud_arabian_guard_multi, feud_egyptian_doorman_multi, feud_villager_multi_1, feud_villager_multi_2, feud_villager_multi_3",all_visible,13,skill_thieving/scripts/blackjack_selftest.rs2:6; skill_thieving/scripts/blackjack_selftest.rs2:198; skill_thieving/scripts/blackjack_selftest.rs2:202
+varbit,varb2098_swansong,6,123,yes,"swan_boat_boatwoman, swan_boat_colonist, swan_multioutside, swan_wom_office, wom_multi",mixed,164,skill_fishing/scripts/fishing_spots/monkfish.rs2:21; skill_fishing/scripts/fishing_spots/monkfish.rs2:209; areas/area_yanille/scripts/yanille_thin_npcs.rs2:43
+varbit,varb1954_templetrek_npcs_visible,6,6,yes,"templetrek_multi_child_hard, templetrek_multi_man_med, templetrek_multi_oldman_hard, templetrek_multi_retired_man_easy, templetrek_multi_retired_soldier_easy, templetrek_multi_woman_med",all_hidden,3,minigames/minigame_templetrek/scripts/templetrek_shared.rs2:32; minigames/minigame_templetrek/scripts/templetrek_shared.rs2:34; player/login.rs2:119
+varbit,varb3412_ramble_npcs_visible,6,6,yes,"ramble_multi_easy_fighter, ramble_multi_easy_mage, ramble_multi_hard_fighter, ramble_multi_hard_ranger, ramble_multi_med_mage, ramble_multi_med_ranger",all_hidden,3,minigames/minigame_templetrek/scripts/templetrek_shared.rs2:37; minigames/minigame_templetrek/scripts/templetrek_shared.rs2:39; player/login.rs2:119
+varp,varp320_tbwt_main,6,21,yes,"tbwt_tamayu_multinpc_house, tbwt_tamayu_multinpc_jungle, tbwt_tiadeche_multinpc_house, tbwt_tiadeche_multinpc_shore, tbwt_tinsay_multinpc_house, tbwt_tinsay_multinpc_island",mixed,45,areas/area_karamja/scripts/tbwt_timfraku.rs2:4; areas/area_karamja/scripts/tbwt_timfraku.rs2:10; areas/area_karamja/scripts/tbwt_timfraku.rs2:74
+varbit,varb2190_poh_servant_type,5,40,yes,"poh_servant_multi_cook_woman, poh_servant_multi_demon, poh_servant_multi_dogsbody, poh_servant_multi_maitre_d_man, poh_servant_multi_waiter_woman",all_visible,3,skill_construction/scripts/poh_state.rs2:34; skill_construction/scripts/poh_servants.rs2:120; skill_construction/scripts/poh_servants.rs2:144
+varbit,varb1372_agrith_quest,5,15,yes,"agrith_dave_at_portal, agrith_reen_alkharid, agrith_sandstorm",mixed,110,skill_crafting/scripts/jewellery/jewellery_if.rs2:77; skill_construction/scripts/poh_quest_status_generated.rs2:628; skill_construction/scripts/poh_quest_status_generated.rs2:629
+varbit,varb2258_dttd_main,5,11,yes,"dttd_delivery_dwarf, dttd_maze_guide, dttd_mill_man_invisible",all_hidden,151,skill_thieving/scripts/ham_pickpocket.rs2:99; skill_construction/scripts/poh_fairy_ring.rs2:109; skill_construction/scripts/poh_quest_status_generated.rs2:138
+varbit,varb5795_fossilquest_progress,5,253,yes,"fossilquest_barge_guard_port, fossilquest_david, fossilquest_john, fossilquest_jr_navigator, fossilquest_lead_navigator",all_visible,133,skill_hunter/scripts/birdhouse.rs2:214; skill_hunter/scripts/herbiboar.rs2:216; skill_hunter/scripts/drift_net_fishing.rs2:47
+varp,varp176_dragonquest,4,23,yes,"cabin_boy_jenkins, dragonslayer_ned_on_crandor, dragonslayer_ned_on_ship, elvarg",mixed,102,skill_combat/scripts/levelrequire.rs2:179; areas/lumbridge/scripts/duke_horacio.rs2:23; areas/draynor/scripts/ned.rs2:5
+varp,varp399_fenk_quest,4,19,yes,"fenk_creature, fenk_creature_released, fenk_fenkenstrain, fenk_fenkenstrain_in_tower",mixed,20,skill_construction/scripts/poh_quest_status_generated.rs2:108; skill_construction/scripts/poh_quest_status_generated.rs2:109; skill_construction/scripts/poh_crest.rs2:242
+varp,varp32_haunted,4,6,yes,"anma_assistant_multi, anma_witch_multi, ernest_multichicken",mixed,32,areas/draynor/scripts/veronica.rs2:4; areas/draynor/scripts/veronica.rs2:18; areas/draynor/scripts/veronica.rs2:29
+varp,varp63_runemysteries,4,28,yes,"aubury, gnome_brimstail, guild_wizard, head_wizard",all_visible,64,skill_runecraft/scripts/essence_mine.rs2:16; areas/lumbridge/scripts/duke_horacio.rs2:43; areas/lumbridge/scripts/duke_horacio.rs2:45
+varbit,varb9459_vikingexile,4,236,yes,"haskell_rellekka, viking_brundt, vikingexile_brundt_island_multi, vikingexile_brundt_multi",mixed,129,skill_construction/scripts/poh_quest_status_generated.rs2:268; skill_construction/scripts/poh_quest_status_generated.rs2:269; quests/quest_fremennikexiles/scripts/fremennikexiles.rs2:116
+varbit,varb1981_blood_tithe_visible,4,5,yes,"burgh_gadderanks_multinpc, burgh_juve1_multinpc, burgh_juve2_multinpc, burgh_villager_tithe_multinpc",all_hidden,2,quests/quest_inaidofthemyreque/scripts/myreque2_fight.rs2:131; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:31
+varp,varp159_seaslugquest,4,19,yes,"holgartland, kennith, kennith_land, kent_land",mixed,72,areas/ardougne_east/scripts/caroline.rs2:5; areas/ardougne_east/scripts/caroline.rs2:12; areas/ardougne_east/scripts/caroline.rs2:14
+varbit,varb532_lost_tribe_quest,4,30,yes,"lost_tribe_guide, lost_tribe_mistag, lost_tribe_sigmund, lost_tribe_sigmund_ham",mixed,88,skill_construction/scripts/poh_quest_status_generated.rs2:418; skill_construction/scripts/poh_quest_status_generated.rs2:419; skill_construction/scripts/poh_crest.rs2:48
+varbit,varb1604_enakh_where_is_lazim,4,4,yes,"enakh_lazim_altar_multinpc, enakh_lazim_fallen_statue_east_multinpc, enakh_lazim_pedestal_multinpc, enakh_lazim_statue_east_multinpc",mixed,9,quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:159; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:340; quests/quest_enakhraslament/scripts/enakhraslament_debug.rs2:36
+varbit,varb3337_tol_prog,4,33,yes,"tol_homonculus_multi, tol_npc_efergy01_multi, tol_npc_mage01_multi, tol_npc_mage02_multi",mixed,161,skill_construction/scripts/poh_quest_status_generated.rs2:723; skill_construction/scripts/poh_quest_status_generated.rs2:724; quests/quest_toweroflife/scripts/tol_shared.rs2:15
+varbit,varb6358_shayzienquest,4,51,yes,"phileas_rimor, raids_temple_duffy, raids_temple_gnosi, raids_temple_historian",all_visible,121,skill_construction/scripts/poh_quest_status_generated.rs2:698; skill_construction/scripts/poh_quest_status_generated.rs2:699; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:49
+varp,varp1306_option_attackpriority_npc,3,15,yes,"fossil_zygomite_cap, slayer_mutated_zygomite_adolescent_cap, slayer_mutated_zygomite_adult_cap",all_visible,3,interface_settings_side/scripts/settings_side.rs2:23; interface_settings_side/scripts/settings_side.rs2:23; interface_settings_side/scripts/settings_side.rs2:131
+varbit,varb3299_peng_multi_kgp,3,4,yes,"peng_multi_kgp, peng_multi_kgp_booth, peng_noodle_multi",mixed,14,quests/quest_coldwar/scripts/coldwar_bmp.rs2:17; quests/quest_coldwar/scripts/coldwar_bmp.rs2:977; quests/quest_coldwar/scripts/coldwar_bmp.rs2:990
+varp,varp980_brain_quest_var,3,35,yes,"brain_island_fenkenstrain, brain_island_tranquility, brain_tranquility",mixed,154,general_use/scripts/bookcases.rs2:10; areas/area_canifis/scripts/rufus.rs2:16; areas/area_canifis/scripts/rufus.rs2:26
+varbit,varb358_deserttreasure,3,19,yes,"azzanadra, fourdiamonds_elder, fourdiamonds_elder2",mixed,87,skill_magic/scripts/spellbook_switch.rs2:16; skill_magic/scripts/spellbook_switch.rs2:35; skill_magic/scripts/spells/spellbook_swap.rs2:20
+varbit,varb382_fd_icewarrior_subquest,3,10,yes,"fourdiamonds_troll_child, troll_frozen_1, troll_frozen_2",mixed,20,quests/quest_deserttreasure/scripts/deserttreasure.rs2:1091; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1098; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1108
+varp,varp302_priestperil,3,62,yes,"priestperiltrappedmonk, priestperiltrappedmonk2",all_hidden,119,transport_charter/scripts/charter_port.rs2:94; transport_charter/scripts/charter_port.rs2:100; skill_slayer/scripts/slayer_masters.rs2:87
+varbit,varb2448_lunar_quest_main,3,421,yes,"lunar_fremennik_pirate, lunar_pirate_cabin_boy, lunar_pirate_captain",all_visible,204,skill_magic/scripts/spellbook_switch.rs2:17; skill_magic/scripts/spellbook_switch.rs2:39; skill_construction/scripts/poh_quest_status_generated.rs2:423
+varp,varp148_crestquest,3,39,yes,"avan, caleb_fitzharmon, johnathon_fitzharmon",all_visible,84,areas/alkharid/scripts/gem_trader.rs2:5; areas/alkharid/scripts/gem_trader.rs2:18; areas/alkharid/scripts/gem_trader.rs2:40
+varbit,varb7856_arcquest,3,20,yes,"arcquest_mori, arcquest_mori_postquest, trobin_arceuus_focus",mixed,144,skill_construction/scripts/poh_quest_status_generated.rs2:33; skill_construction/scripts/poh_quest_status_generated.rs2:34; quests/quest_ascentofarceuus/scripts/aoa_bmp.rs2:27
+varbit,varb346_golem_a,2,2,yes,"magic_carpet_multi_monkey2, magic_carpet_seller5",all_hidden,53,areas/varrock/scripts/curator.rs2:64; areas/varrock/scripts/curator.rs2:64; areas/varrock/scripts/curator.rs2:84
+varp,varp328_regicide_quest,2,25,yes,"recruiter, regicide_old_camp_tracker",all_visible,100,transport_charter/scripts/charter_port.rs2:115; areas/area_ardougne_east/scripts/king_lathas.rs2:12; areas/area_ardougne_east/scripts/king_lathas.rs2:66
+varbit,varb1380_agrith_convinced_dave,2,2,yes,agrith_dave_in_passage,all_hidden,11,quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:39; quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:536; quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:540
+varbit,varb1381_agrith_badden_uzer,2,2,yes,agrith_badden_uzer,all_hidden,10,quests/quest_shadowstorm/scripts/shadowstorm.rs2:90; quests/quest_shadowstorm/scripts/shadowstorm.rs2:117; quests/quest_shadowstorm/scripts/shadowstorm.rs2:130
+varbit,varb1382_agrith_reen_uzer,2,2,yes,agrith_reen_uzer,all_hidden,9,quests/quest_shadowstorm/scripts/shadowstorm.rs2:44; quests/quest_shadowstorm/scripts/shadowstorm.rs2:59; quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2:45
+varp,varp365_mm_main,2,11,yes,grandtree_glough,all_visible,89,transport_charter/scripts/charter_port.rs2:106; skill_magic/scripts/spells/teleport.rs2:53; skill_construction/scripts/poh_fairy_ring.rs2:137
+varbit,varb2798_myarm_barnabyswap,2,2,yes,"captain_barnaby, myarm_barnaby",mixed,6,quests/quest_myarmsbigadventure/scripts/maba_debug.rs2:13; quests/quest_myarmsbigadventure/scripts/maba_debug.rs2:56; quests/quest_myarmsbigadventure/scripts/maba_travel.rs2:6
+varp,varp492_abyssal_miniquest,2,9,yes,"rcu_zammy_mage1, rcu_zammy_mage1_edge",mixed,33,skill_runecraft/scripts/runecraft_abyss.rs2:82; skill_construction/scripts/poh_quest_status_generated.rs2:13; skill_construction/scripts/poh_quest_status_generated.rs2:14
+varbit,varb3185_anma_main,2,54,yes,nasty_tree,all_visible,253,skill_slayer/scripts/slayer_masters.rs2:246; skill_slayer/scripts/slayer_masters.rs2:246; skill_slayer/scripts/slayer_masters.rs2:255
+varbit,varb3618_dream_prog,2,15,yes,"dream_birds_eye_jack_multi, lunar_pirate_navigator_multi",mixed,120,skill_magic/scripts/spells/lunar_utility.rs2:209; skill_construction/scripts/poh_quest_status_generated.rs2:193; skill_construction/scripts/poh_quest_status_generated.rs2:194
+varbit,varb2592_myq3_safalaan_visible,2,2,yes,"myreque_pt3_multi_safalaan_basecamp, myreque_pt3_multi_safalaan_castle",all_hidden,3,quests/quest_darknessofhallowvale/scripts/doh_bmp.rs2:29; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:124; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:216
+varbit,varb348_golem_clay,2,6,yes,golem_golem,all_visible,4,quests/quest_golem/scripts/golem_portal.rs2:432; quests/quest_golem/scripts/golem_portal.rs2:443; quests/quest_golem/scripts/golem.rs2:139
+varbit,varb1783_plaguecity_can_see_edmond_up_top,2,2,yes,"edmond_bottom, edmond_top",mixed,3,quests/quest_elena/scripts/mud_patch.rs2:38; quests/quest_elena/scripts/mud_pile.rs2:13; quests/quest_elena/scripts/mud_pile.rs2:34
+varbit,varb1979_burgh_bank_teller,2,2,yes,"burgh_actual_bank_teller_multinpc, burgh_potential_bank_teller_multinpc",mixed,3,quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:24; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:342; quests/quest_inaidofthemyreque/scripts/myreque2_bank.rs2:48
+varbit,varb1467_devious_monk,2,2,yes,"devious_monk_dead, devious_monk_hooded",mixed,5,quests/quest_deviousminds/scripts/deviousminds_debug.rs2:10; quests/quest_deviousminds/scripts/deviousminds_monk.rs2:11; quests/quest_deviousminds/scripts/deviousminds_monk.rs2:140
+varbit,varb2807_tourtrap_qip_irena_state,2,2,yes,"tourtrap_qip_irena_multi_happy, tourtrap_qip_irena_multi_sad",mixed,2,quests/quest_desertrescue/scripts/irena.rs2:9; quests/quest_desertrescue/scripts/irena.rs2:73
+varbit,varb2614_slug2_npc_track1,2,3,yes,"slug2_holgart_jeb, slug2_invisi_lobster",mixed,9,areas/area_fishing_platform/scripts/holgart.rs2:29; quests/quest_theslugmenace/scripts/slugmenace_debug.rs2:7; quests/quest_theslugmenace/scripts/slugmenace_debug.rs2:44
+varbit,varb1890_hundred_dwarf_multi_dad,2,3,yes,"hundred_dwarf_dad_multi, hundred_dwarf_drunk_multi",mixed,1,quests/quest_recipefordisaster/scripts/recipefordisaster_dwarf.rs2:137
+varbit,varb299_dwarfrock_quest,2,13,yes,"dwarfrock_multi_dondakan, dwarfrock_multi_gold_boatman",mixed,63,skill_construction/scripts/poh_quest_status_generated.rs2:53; skill_construction/scripts/poh_quest_status_generated.rs2:54; skill_construction/scripts/poh_jewellery_boxes.rs2:27
+varp,varp111_treequest,2,20,yes,"elkoy, elkoy_village",all_visible,158,areas/area_gnome/scripts/remsai.rs2:4; areas/area_gnome/scripts/remsai.rs2:9; areas/area_gnome/scripts/remsai.rs2:13
+varp,varp112_itgronigen,2,9,yes,"observatory_professor_multi, observatory_professor_multi2",mixed,43,skill_crafting/scripts/glass/glass.rs2:56; drop_tables/scripts/chaos_druid.rs2:46; drop_tables/scripts/chaos_druid.rs2:47
+varbit,varb1535_handsand_sandy_multi,2,2,yes,"handsand_sandy, handsand_sandy_looking",mixed,4,quests/quest_handinthesand/scripts/handsand_selftest.rs2:66; quests/quest_handinthesand/scripts/handsand_sandy.rs2:6; quests/quest_handinthesand/scripts/handsand_sandy.rs2:65
+varbit,varb6108_ds2_frem,2,52,yes,"torfinn_rellekka, torfinn_ungael",all_visible,5,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:45; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1140; quests/quest_dragonslayer2/scripts/ds2_bmp.rs2:36
+varbit,varb6037_piscquest,2,14,yes,"piscquest_official, piscquest_target",mixed,131,skill_construction/scripts/poh_quest_status_generated.rs2:558; skill_construction/scripts/poh_quest_status_generated.rs2:559; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:40
+varbit,varb12144_tomas_lawry_location,2,2,yes,"akd_tomas_lawry_kingstown, piscquest_official_castle",all_hidden,1,player/newplayer.rs2:180
+varp,varp387_routequest,2,160,yes,"route_harold_evans, route_sani_piliu",all_visible,112,skill_construction/scripts/poh_fairy_ring.rs2:149; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:6; quests/quest_inaidofthemyreque/scripts/myreque2_bmp.rs2:111
+varbit,varb9295_prif_learnt_crystal_singing,2,4,yes,"prif_singer1_multi, prif_singer2_multi",all_visible,2,minigames/minigame_gauntlet/scripts/crystal_npcs.rs2:20; minigames/minigame_gauntlet/scripts/crystal_npcs.rs2:26
+varbit,varb12064_bim_marley,2,45,yes,"bim_marley_edge, bim_marley_temple_outside",mixed,41,quests/quest_belowicemountain/scripts/belowicemountain.rs2:53; quests/quest_belowicemountain/scripts/belowicemountain.rs2:289; quests/quest_belowicemountain/scripts/belowicemountain.rs2:297
+varbit,varb12065_bim_checkal,2,41,yes,"bim_checkal_barb, bim_checkal_temple_outside",mixed,35,quests/quest_belowicemountain/scripts/belowicemountain.rs2:53; quests/quest_belowicemountain/scripts/belowicemountain.rs2:59; quests/quest_belowicemountain/scripts/belowicemountain.rs2:225
+varbit,varb12066_bim_burntof,2,45,yes,"bim_burntof_pub, bim_burntof_temple_outside",mixed,37,quests/quest_belowicemountain/scripts/belowicemountain.rs2:53; quests/quest_belowicemountain/scripts/belowicemountain.rs2:402; quests/quest_belowicemountain/scripts/belowicemountain.rs2:410
+varp,varp139_legendsquest,2,101,yes,"radimus_erkle_guild, radimus_erkle_hut",mixed,254,drop_tables/scripts/shared_droptables.rs2:173; drop_tables/scripts/mountain_troll.rs2:123; skill_smithing/scripts/smithing/smithing.rs2:274
+varbit,varb12320_akd_lovakengj_helped,2,15,yes,"akd_jorra, lovakengj_assistant",mixed,7,quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:136; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:296; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:429
+varbit,varb2796_myarm_dwarfjoke,1,1,yes,myarm_troll_deaddwarf_multi,all_hidden,1,quests/quest_myarmsbigadventure/scripts/maba_debug.rs2:11
+varbit,varb9051_roving_bowyer,1,3,yes,roving_bowyer,all_visible,3,quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:26; quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:28; quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2:30
+varbit,varb12148_veos_sarim_vis,1,4,yes,veos_sarim,all_hidden,4,quests/quest_xmarksthespot/scripts/xmarks_bmp.rs2:43; quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:137; quests/quest_clientofkourend/scripts/clientofkourend.rs2:159
+varbit,varb8447_regicide_given_rabbit,1,1,yes,regicide_tyras_lazy_guard,all_visible,9,quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:5; quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:7; quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:12
+varbit,varb9050_roving_female_woodelf,1,2,yes,roving_female_woodelf,all_visible,3,quests/quest_rovingelves/scripts/rovingelves_eluned.rs2:29; quests/quest_rovingelves/scripts/rovingelves_eluned.rs2:32; quests/quest_rovingelves/scripts/rovingelves_eluned.rs2:34
+varp,varp293_chompybird,1,67,yes,rantz,all_visible,87,skill_fletching/scripts/ogre_arrows.rs2:13; skill_fletching/scripts/ogre_arrows.rs2:111; skill_fletching/scripts/ogre_arrows.rs2:130
+varbit,varb13594_gobdip_grubfoot_vis,1,3,yes,catwalk_goblin,all_visible,8,quests/quest_gobdip/scripts/quest_gobdip.rs2:9; quests/quest_gobdip/scripts/quest_gobdip.rs2:336; quests/quest_gobdip/scripts/quest_gobdip.rs2:355
+varbit,varb380_fd_icewarrior_dadfree,1,2,yes,troll_block_1,all_visible,3,quests/quest_deserttreasure/scripts/deserttreasure.rs2:1394; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1417; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1429
+varbit,varb381_fd_icewarrior_mumfree,1,2,yes,troll_block_2,all_visible,3,quests/quest_deserttreasure/scripts/deserttreasure.rs2:1400; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1418; quests/quest_deserttreasure/scripts/deserttreasure.rs2:1428
+varbit,varb338_feud_bandit_boss_vis,1,1,yes,feud_bandit_boss,all_hidden,5,quests/quest_thefeud/scripts/feud_recruitment.rs2:287; quests/quest_thefeud/scripts/feud_confrontation.rs2:10; quests/quest_thefeud/scripts/feud_confrontation.rs2:154
+varbit,varb3298_peng_multi_larry,1,1,yes,peng_multi_larry_lumb,all_hidden,1,player/newplayer.rs2:179
+varbit,varb3294_peng_multi_hide,1,3,yes,peng_generic_surface_multi,all_visible,20,quests/quest_coldwar/scripts/coldwar_birdhide.rs2:2; quests/quest_coldwar/scripts/coldwar_birdhide.rs2:17; quests/quest_coldwar/scripts/coldwar_birdhide.rs2:28
+varbit,varb2025_soulbane_tolna_pres,1,1,yes,soulbane_tolna_multi,all_hidden,4,quests/quest_soulsbane/scripts/soulsbane.rs2:198; quests/quest_soulsbane/scripts/soulsbane.rs2:269; quests/quest_soulsbane/scripts/soulsbane_bmp.rs2:31
+varbit,varb1784_plaguecity_elena_at_home,1,1,yes,elena2,all_hidden,5,quests/quest_biohazard/scripts/quest_biohazard.rs2:96; quests/quest_biohazard/scripts/quest_biohazard.rs2:105; quests/quest_biohazard/scripts/quest_biohazard.rs2:183
+varbit,varb269_mdaughter_bear_multi_state,1,1,yes,mdaughter_multi_bear,all_visible,1,quests/quest_mountaindaughter/scripts/mountaindaughter_kendal.rs2:106
+varbit,varb123_mm_daero,1,16,yes,mm_daero,all_visible,35,quests/quest_grandtree/scripts/glough.rs2:25; quests/quest_mm/scripts/mm_daero.rs2:5; quests/quest_mm/scripts/mm_daero.rs2:30
+varbit,varb124_mm_waydar,1,4,yes,mm_waydar,all_visible,5,quests/quest_mm/scripts/debug_mm.rs2:16; quests/quest_mm/scripts/mm_waydar.rs2:4; quests/quest_mm/scripts/mm_waydar.rs2:53
+varbit,varb125_mm_lumdo,1,8,yes,mm_lumdo,all_visible,11,quests/quest_mm/scripts/mm_lumdo.rs2:4; quests/quest_mm/scripts/mm_lumdo.rs2:22; quests/quest_mm/scripts/mm_lumdo.rs2:42
+varbit,varb4391_snakeboss_info,1,4,yes,snakeboss_priest,all_visible,2,minigames/minigame_zulrah/scripts/zulrah.rs2:79; minigames/minigame_zulrah/scripts/zulrah.rs2:80
+varbit,varb12146_veos_pisc_vis,1,2,yes,veos,all_hidden,1,quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:138
+varbit,varb571_giantdwarf_quest,1,2,yes,dwarf_city_boatman_mines,all_visible,161,areas/varrock/scripts/reldo.rs2:22; areas/port_sarim/scripts/thurgo.rs2:4; areas/port_sarim/scripts/thurgo.rs2:4
+varbit,varb3316_fris_king,1,2,yes,fris_r_burgher,all_visible,4,quests/quest_thefremennikisles/scripts/fris_debug.rs2:10; quests/quest_thefremennikisles/scripts/fris_mawnis.rs2:63; quests/quest_thefremennikisles/scripts/fris_bmp.rs2:807
+varbit,varb576_giantdwarf_model_state,1,8,yes,dwarf_city_shop_sculpture_model_multi,all_visible,7,quests/quest_giantdwarf/scripts/gdwarf_axe.rs2:101; quests/quest_giantdwarf/scripts/gdwarf_clothes.rs2:31; quests/quest_giantdwarf/scripts/gdwarf_debug.rs2:8
+varp,varp180_fluffs,1,7,yes,gertrude,all_visible,71,general_use/scripts/crates.rs2:16; areas/varrock/scripts/gertrude.rs2:10; areas/varrock/scripts/gertrude.rs2:11
+varp,varp359_misc_quest,1,101,yes,misc_advisor_ghrim,all_visible,68,areas/area_miscellania/scripts/lumberjack_leif.rs2:19; areas/area_miscellania/scripts/lumberjack_leif.rs2:35; areas/area_miscellania/scripts/misc_people.rs2:5
+varbit,varb2231_sheepherder_sheep_a,1,1,yes,herder_plaguesheep_1_enclosure,all_hidden,4,quests/quest_sheepherder/scripts/councillor_halgrive.rs2:71; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:232; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:237
+varbit,varb2232_sheepherder_sheep_b,1,1,yes,herder_plaguesheep_2_enclosure,all_hidden,3,quests/quest_sheepherder/scripts/councillor_halgrive.rs2:72; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:238; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241
+varbit,varb2233_sheepherder_sheep_c,1,1,yes,herder_plaguesheep_3_enclosure,all_hidden,3,quests/quest_sheepherder/scripts/councillor_halgrive.rs2:73; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:239; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241
+varbit,varb2234_sheepherder_sheep_d,1,1,yes,herder_plaguesheep_4_enclosure,all_hidden,3,quests/quest_sheepherder/scripts/councillor_halgrive.rs2:74; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:240; quests/quest_sheepherder/scripts/quest_sheepherder.rs2:241
+varp,varp655_fever_quest,1,131,yes,fever_port_ship_teach,all_hidden,143,transport_charter/scripts/charter_port.rs2:91; skill_construction/scripts/poh_quest_status_generated.rs2:68; skill_construction/scripts/poh_quest_status_generated.rs2:69
+varbit,varb2264_dttd_zanik_in_cellar,1,1,yes,dttd_zanik_cellar,all_hidden,8,quests/quest_deathtothedorgeshuun/scripts/dttd_bmp.rs2:129; quests/quest_deathtothedorgeshuun/scripts/dttd_bmp.rs2:136; quests/quest_deathtothedorgeshuun/scripts/dttd_debug.rs2:11
+varbit,varb2868_zep_multi_piccard,1,2,yes,zep_multi_piccard,all_hidden,10,quests/quest_monkeymadnessii/scripts/mm2_bmp.rs2:335; quests/quest_monkeymadnessii/scripts/monkeymadnessii.rs2:242; quests/quest_enlightenedjourney/scripts/ej_network.rs2:54
+varbit,varb2869_zep_multi_cast,1,1,yes,zep_multi_assistant_cast,all_hidden,6,quests/quest_enlightenedjourney/scripts/ej_network.rs2:80; quests/quest_enlightenedjourney/scripts/ej_debug.rs2:23; quests/quest_enlightenedjourney/scripts/ej_shared.rs2:30
+varbit,varb2871_zep_multi_craft,1,1,yes,zep_multi_assistant_craft,all_hidden,6,quests/quest_enlightenedjourney/scripts/ej_network.rs2:134; quests/quest_enlightenedjourney/scripts/ej_debug.rs2:25; quests/quest_enlightenedjourney/scripts/ej_shared.rs2:32
+varbit,varb2872_zep_multi_varr,1,1,yes,zep_multi_assistant_varr,all_hidden,6,quests/quest_enlightenedjourney/scripts/ej_network.rs2:160; quests/quest_enlightenedjourney/scripts/ej_debug.rs2:26; quests/quest_enlightenedjourney/scripts/ej_shared.rs2:33
+varbit,varb1451_elid_rangingchannel,1,2,yes,elid_ranging_target_multinpc,all_visible,3,quests/quest_spiritsoftheelid/scripts/elid_dungeon.rs2:210; quests/quest_spiritsoftheelid/scripts/elid_dungeon.rs2:225; quests/quest_spiritsoftheelid/scripts/elid_dungeon.rs2:231
+varp,varp160_imp,1,3,yes,wizard_mizgog,all_visible,19,areas/wizard_tower/scripts/wizard_mizgog.rs2:11; areas/wizard_tower/scripts/wizard_mizgog.rs2:13; areas/wizard_tower/scripts/wizard_mizgog.rs2:46
+varp,varp145_phoenixgang,1,9,yes,jonny_the_beard,all_visible,86,areas/varrock/scripts/reldo.rs2:42; areas/varrock/scripts/reldo.rs2:46; areas/varrock/scripts/reldo.rs2:58
+varp,varp77_barcrawl,1,4,yes,barbguard1,all_visible,5,areas/area_seers/scripts/bartender.rs2:7; areas/varrock/scripts/bartender.rs2:7; areas/area_yanille/scripts/dragon_bartender.rs2:6
+varbit,varb1527_handsand_quest,1,161,yes,handsand_bert,all_visible,197,areas/port_sarim/scripts/betty.rs2:16; skill_construction/scripts/poh_quest_status_generated.rs2:338; skill_construction/scripts/poh_quest_status_generated.rs2:339
+varbit,varb217_ahoy_questvar,1,5,yes,ahoy_akharanu_multi,all_hidden,78,skill_construction/scripts/poh_quest_status_generated.rs2:303; skill_construction/scripts/poh_quest_status_generated.rs2:304; skill_construction/scripts/poh_crest.rs2:241
+varbit,varb3970_godwars_palladin2,1,1,yes,godwars_paladin_multi,all_visible,1,areas/area_godwars/scripts/godwars_entrance.rs2:417
+varbit,varb1387_makinghistory_melina_pres,1,1,yes,makinghistory_melina_multi,all_visible,3,quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:6; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:69; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:113
+varbit,varb1388_makinghistory_droalak_pres,1,1,yes,makinghistory_droalak_multi,all_visible,3,quests/quest_makinghistory/scripts/makinghistory_jorral.rs2:149; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:6; quests/quest_makinghistory/scripts/makinghistory_ghost.rs2:90
+varbit,varb14604_feud_mayor_multivar,1,2,yes,feud_mayor,all_visible,4,quests/quest_thefeud/scripts/feud_confrontation.rs2:128; quests/quest_thefeud/scripts/feud_villagers.rs2:12; quests/quest_thefeud/scripts/feud_villagers.rs2:77
+varbit,varb335_feud_boss_vis,1,1,yes,feud_menap_boss,all_hidden,2,quests/quest_thefeud/scripts/feud_recruitment.rs2:285; quests/quest_thefeud/scripts/feud_confrontation.rs2:9
+varbit,varb1560_enakh_quest,1,51,yes,enakh_boneguard_multinpc,all_visible,114,skill_construction/scripts/poh_quest_status_generated.rs2:218; skill_construction/scripts/poh_quest_status_generated.rs2:219; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:152
+varbit,varb1577_enakh_ice_room,1,1,yes,enakh_dummy_fountain_multinpc,all_visible,7,quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:221; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:229; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:267
+varbit,varb1578_enakh_smoke_room,1,1,yes,enakh_dummy_furnace_multinpc,all_visible,7,quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:237; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:245; quests/quest_enakhraslament/scripts/enakhraslament_temple.rs2:267
+varbit,varb3359_tol_homonc_pres,1,1,yes,tol_homonculus_multi2,all_hidden,8,quests/quest_toweroflife/scripts/tol_homunculus.rs2:52; quests/quest_toweroflife/scripts/tol_bmp.rs2:17; quests/quest_toweroflife/scripts/tol_bmp.rs2:208
+varbit,varb2593_myq3_sarius_visible,1,1,yes,myq3_multi_sarius_castle,all_hidden,3,quests/quest_darknessofhallowvale/scripts/doh_bmp.rs2:30; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:125; quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:228
+varbit,varb801_mourning_sheep_red,1,2,yes,plaguesheep_1,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:286; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:8; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:35
+varbit,varb803_mourning_sheep_green,1,2,yes,plaguesheep_2,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:296; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:9; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:36
+varbit,varb800_mourning_sheep_blue,1,2,yes,plaguesheep_3,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:306; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:11; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:38
+varbit,varb802_mourning_sheep_yellow,1,2,yes,plaguesheep_4,all_visible,6,quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:316; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:10; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:37
+varbit,varb8467_mourning_dwarf_vis,1,1,yes,mourning_deathalter_dwarf,all_hidden,2,quests/quest_mourningsendpartii/scripts/mend2_puzzle6.rs2:832; quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:239
+varbit,varb2054_fishingcompo_stranger,1,2,yes,sinister_stranger,all_visible,5,areas/area_seers/scripts/hemenster/bonzo.rs2:77; quests/quest_fishingcompo/scripts/quest_fishingcompo.rs2:20; quests/quest_fishingcompo/scripts/quest_fishingcompo.rs2:77
+varbit,varb1032_twocats_chores_tidyhuman,1,9,yes,twocats_unferth,all_visible,6,quests/quest_atailoftwocats/scripts/twocats.rs2:960; quests/quest_atailoftwocats/scripts/twocats.rs2:965; quests/quest_atailoftwocats/scripts/twocats.rs2:1002
+varbit,varb1036_twocats_reldo,1,2,yes,reldo,all_visible,2,areas/varrock/scripts/reldo.rs2:13; quests/quest_atailoftwocats/scripts/twocats.rs2:793
+varp,varp165_elenaquest,1,28,yes,elenap,all_visible,128,skill_magic/scripts/spells/teleport.rs2:17; skill_magic/scripts/spells/teleport.rs2:19; areas/area_ardougne_east/scripts/doors.rs2:4
+varbit,varb3131_watchtower_shaman_1,1,2,yes,qip_watchtower_ogre_shaman_01,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:88; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:110; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
+varbit,varb3132_watchtower_shaman_2,1,2,yes,qip_watchtower_ogre_shaman_02,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:91; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:113; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
+varbit,varb3133_watchtower_shaman_3,1,2,yes,qip_watchtower_ogre_shaman_03,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:94; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:116; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
+varbit,varb3134_watchtower_shaman_4,1,2,yes,qip_watchtower_ogre_shaman_04,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:97; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:119; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
+varbit,varb3135_watchtower_shaman_5,1,2,yes,qip_watchtower_ogre_shaman_05,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:100; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:122; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
+varbit,varb3136_watchtower_shaman_6,1,2,yes,qip_watchtower_ogre_shaman_06,all_visible,3,quests/quest_itwatchtower/scripts/ogre_shaman.rs2:103; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:125; quests/quest_itwatchtower/scripts/ogre_shaman.rs2:129
+varbit,varb1424_vc_raton_off1,1,1,yes,vc_partyrat_multi1,all_visible,3,quests/quest_ratcatchers/scripts/ratcatchers.rs2:207; quests/quest_ratcatchers/scripts/ratcatchers.rs2:249; quests/quest_ratcatchers/scripts/ratcatchers.rs2:265
+varbit,varb1425_vc_raton_off2,1,1,yes,vc_partyrat_multi2,all_visible,3,quests/quest_ratcatchers/scripts/ratcatchers.rs2:208; quests/quest_ratcatchers/scripts/ratcatchers.rs2:251; quests/quest_ratcatchers/scripts/ratcatchers.rs2:265
+varbit,varb1426_vc_raton_off3,1,1,yes,vc_partyrat_multi3,all_visible,3,quests/quest_ratcatchers/scripts/ratcatchers.rs2:209; quests/quest_ratcatchers/scripts/ratcatchers.rs2:253; quests/quest_ratcatchers/scripts/ratcatchers.rs2:265
+varbit,varb1427_vc_raton_off4,1,1,yes,vc_partyrat_multi4,all_visible,3,quests/quest_ratcatchers/scripts/ratcatchers.rs2:210; quests/quest_ratcatchers/scripts/ratcatchers.rs2:255; quests/quest_ratcatchers/scripts/ratcatchers.rs2:265
+varbit,varb1428_vc_raton_off5,1,1,yes,vc_partyrat_multi5,all_visible,3,quests/quest_ratcatchers/scripts/ratcatchers.rs2:211; quests/quest_ratcatchers/scripts/ratcatchers.rs2:257; quests/quest_ratcatchers/scripts/ratcatchers.rs2:265
+varbit,varb1429_vc_raton_off6,1,1,yes,vc_partyrat_multi6,all_visible,3,quests/quest_ratcatchers/scripts/ratcatchers.rs2:212; quests/quest_ratcatchers/scripts/ratcatchers.rs2:259; quests/quest_ratcatchers/scripts/ratcatchers.rs2:265
+varbit,varb2805_tourtrap_qip_ana_state,1,1,yes,tourtrap_qip_ana_multi,all_visible,3,quests/quest_desertrescue/scripts/mining_camp_gate.rs2:330; quests/quest_desertrescue/scripts/ana.rs2:10; quests/quest_desertrescue/scripts/ana.rs2:127
+varbit,varb3733_tourtrap_ana_visible_shanty_pass,1,1,yes,tourtrap_qip_ana_shanty_multi,all_hidden,3,quests/quest_desertrescue/scripts/irena.rs2:12; quests/quest_desertrescue/scripts/irena.rs2:74; quests/quest_desertrescue/scripts/ana.rs2:14
+varbit,varb2803_tourtrap_qip_mineslave,1,2,yes,tourtrap_qip_mineslave_clothes_multi,all_visible,3,quests/quest_desertrescue/scripts/mining_slave.rs2:52; quests/quest_desertrescue/scripts/mining_slave.rs2:306; quests/quest_desertrescue/scripts/mining_slave.rs2:330
+varbit,varb396_thsfm_vanstrom_hide,1,2,yes,multi_vanstrom_stranger_entity,all_visible,3,quests/quest_routequest/scripts/routequest_hideout.rs2:554; quests/quest_routequest/scripts/routequest_hound.rs2:81; quests/quest_routequest/scripts/routequest_hound.rs2:82
+varbit,varb3717_grim_griffin_asleep,1,1,yes,grim_grimgnash,all_visible,16,quests/quest_grimtales/scripts/grim_sylas.rs2:22; quests/quest_grimtales/scripts/grim_journal.rs2:15; quests/quest_grimtales/scripts/grim_grimgnash.rs2:18
+varbit,varb3701_grim_dwarf_vis,1,2,yes,grim_rupert,all_visible,16,quests/quest_grimtales/scripts/grim_sylas.rs2:16; quests/quest_grimtales/scripts/grim_sylas.rs2:26; quests/quest_grimtales/scripts/grim_journal.rs2:25
+varbit,varb3557_slice_zanik_at_dig,1,1,yes,slice_zanik_archaeology,all_hidden,12,quests/quest_anothersliceofham/scripts/slice_debug.rs2:11; quests/quest_anothersliceofham/scripts/slice_debug.rs2:65; quests/quest_anothersliceofham/scripts/slice_debug.rs2:71
+varbit,varb797_mourning_can_see_eluned,1,1,yes,roving_female_woodelf_temp,all_hidden,7,quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:8; quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:19; quests/quest_mourningsendpartii/scripts/mend2_debug.rs2:43
+varbit,varb799_mourning_gnome,1,11,yes,mourner_hideout_gnome,all_hidden,25,quests/quest_mourningsendparti/scripts/mend1_debug.rs2:5; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:32; quests/quest_mourningsendparti/scripts/mend1_debug.rs2:76
+varbit,varb6109_ds2_dragon_head_west,1,2,yes,ds2_dragon_head_west,all_visible,4,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1440; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1455; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1498
+varbit,varb6110_ds2_dragon_head_north,1,2,yes,ds2_dragon_head_north,all_visible,4,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1458; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1473; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1498
+varbit,varb6111_ds2_dragon_head_east,1,2,yes,ds2_dragon_head_east,all_visible,4,quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1476; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1491; quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:1498
+varp,varp1585_total_zuk_kills,1,2,yes,inferno_master,all_visible,1,skill_construction/scripts/poh_achievement_gallery.rs2:219
+varbit,varb12153_hosidiusquest_artur_vis,1,1,yes,hosidiusquest_son_home,all_hidden,4,quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:216; quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:292; quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:305
+varbit,varb12145_piscquest_queen_vis,1,2,yes,piscquest_queen,all_visible,4,quests/quest_queenofthieves/scripts/qot_bmp.rs2:30; quests/quest_queenofthieves/scripts/queenofthieves.rs2:220; quests/quest_queenofthieves/scripts/queenofthieves.rs2:261
+varbit,varb12147_trobin_arceuus_tower_vis,1,1,yes,trobin_arceuus,all_hidden,1,player/newplayer.rs2:181
+varbit,varb7796_lovaquest,1,12,yes,wint_master_smith,all_visible,91,skill_construction/scripts/poh_quest_status_generated.rs2:263; skill_construction/scripts/poh_quest_status_generated.rs2:264; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:46
+varbit,varb12151_veos_lumbridge_vis,1,2,yes,veos_lumbridge,all_hidden,5,quests/quest_xmarksthespot/scripts/xmarks_bmp.rs2:42; quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:92; quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:256
+varp,varp116_zombiequeen,1,18,yes,mosol_rei_multi,all_visible,119,areas/area_karamja/scripts/trufitus.rs2:15; areas/area_karamja/scripts/trufitus.rs2:19; areas/area_karamja/scripts/trufitus.rs2:20
+varbit,varb8393_hosdun_aimeri_status,1,6,yes,hosdun_aimeri,all_visible,57,quests/quest_insearchofknowledge/scripts/isok_bmp.rs2:55; quests/quest_insearchofknowledge/scripts/isok_bmp.rs2:122; quests/quest_insearchofknowledge/scripts/isok_bmp.rs2:128
+varbit,varb9123_upass_gavecat,1,1,yes,cavewitchcat,all_visible,6,quests/quest_upass/scripts/kardia.rs2:6; quests/quest_upass/scripts/kardia.rs2:13; quests/quest_upass/scripts/kardia.rs2:29
+varbit,varb10582_porcine,1,37,yes,slayer_master_9,all_visible,110,skill_slayer/scripts/slayer_masters.rs2:93; skill_construction/scripts/poh_quest_status_generated.rs2:538; skill_construction/scripts/poh_quest_status_generated.rs2:539
+varbit,varb12321_akd_hosidius_helped,1,7,yes,akd_phileas_rimor,all_hidden,7,quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:136; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:297; quests/quest_kingdomdivided/scripts/kingdomdivided.rs2:430
+varbit,varb10464_gravestone_visible,510,510,no,,not_spawned,0,
+varbit,varb16663_vmq4,71,1137,no,,not_spawned,182,skill_construction/scripts/poh_quest_status_generated.rs2:248; skill_construction/scripts/poh_quest_status_generated.rs2:249; quests/scripts/quest_cheat.rs2:492
+varbit,varb11210_doti,46,995,no,,not_spawned,190,skill_construction/scripts/poh_quest_status_generated.rs2:128; skill_construction/scripts/poh_quest_status_generated.rs2:129; quests/scripts/quest_cheat.rs2:293
+varbit,varb13843_bcs_excavation_status,38,40,no,,not_spawned,0,
+varbit,varb9649_vmq2,28,406,no,,not_spawned,219,skill_hunter/scripts/quetzal_transport.rs2:44; skill_hunter/scripts/quetzal_transport.rs2:55; skill_hunter/scripts/quetzal_transport.rs2:155
+varbit,varb13836_itt,22,296,no,,not_spawned,0,
+varbit,varb9819_pmoon_quest,18,223,no,,not_spawned,161,skill_hunter/scripts/moss_lizard.rs2:33; skill_hunter/scripts/moss_lizard.rs2:89; skill_hunter/scripts/moss_lizard.rs2:119
+varbit,varb14722_sotn,14,147,no,,not_spawned,169,skill_construction/scripts/poh_quest_status_generated.rs2:623; skill_construction/scripts/poh_quest_status_generated.rs2:624; quests/quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2:434
+varbit,varb9632_vmq1,13,81,no,,not_spawned,138,skill_construction/scripts/poh_fairy_ring.rs2:105; skill_construction/scripts/poh_quest_status_generated.rs2:73; skill_construction/scripts/poh_quest_status_generated.rs2:74
+varbit,varb18321_tt,12,264,no,,not_spawned,128,skill_construction/scripts/poh_quest_status_generated.rs2:733; skill_construction/scripts/poh_quest_status_generated.rs2:734; quests/scripts/quest_cheat.rs2:1333
+varbit,varb13599_lotg,10,277,no,,not_spawned,189,skill_construction/scripts/poh_fairy_ring.rs2:125; skill_construction/scripts/poh_quest_status_generated.rs2:408; skill_construction/scripts/poh_quest_status_generated.rs2:409
+varbit,varb19233_sailing_sidepanel_player_role,10,40,no,,not_spawned,1,sailing/scripts/boat_crew.rs2:420
+varbit,varb14862_dt2,9,244,no,,not_spawned,160,skill_construction/scripts/poh_quest_status_generated.rs2:163; skill_construction/scripts/poh_quest_status_generated.rs2:164; quests/quest_itexam/scripts/archaeological_expert.rs2:13
+varp,varp17_arenaquest,9,60,no,,not_spawned,103,quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:41; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:156; quests/quest_whileguthixsleeps/scripts/wgs_bmp.rs2:164
+varbit,varb5945_fossil_herbiboar_anim,9,9,no,,not_spawned,1,skill_hunter/scripts/herbiboar.rs2:48
+varbit,varb18335_trr,9,73,no,,not_spawned,124,sailing/scripts/boat_gangplank.rs2:76; sailing/scripts/boat_gangplank.rs2:76; skill_construction/scripts/poh_quest_status_generated.rs2:578
+varbit,varb9658_elias_white_vis,8,8,no,,not_spawned,0,
+varbit,varb9848_pmoon_boss_current_focus,8,8,no,,not_spawned,0,
+varbit,varb3798_soul_wars_tutorial,7,24,no,,not_spawned,0,
+varbit,varb11123_vmq3_itzla_vis,7,8,no,,not_spawned,0,
+varbit,varb11117_vmq3,7,272,no,,not_spawned,153,skill_hunter/scripts/quetzal_transport.rs2:176; skill_hunter/scripts/quetzal_transport.rs2:176; skill_hunter/scripts/quetzal_transport.rs2:176
+varbit,varb12276_tobquest,6,78,no,,not_spawned,149,skill_construction/scripts/poh_quest_status_generated.rs2:498; skill_construction/scripts/poh_quest_status_generated.rs2:499; quests/quest_druidspirit/scripts/quest_druidspirit.rs2:125
+varbit,varb15288_pog,6,254,no,,not_spawned,186,skill_construction/scripts/poh_quest_status_generated.rs2:518; skill_construction/scripts/poh_quest_status_generated.rs2:519; skill_construction/scripts/poh_superior_garden.rs2:87
+varbit,varb10780_wgs_silif_vis,5,6,no,,not_spawned,0,
+varbit,varb1547_macro_transmitted,5,40,no,,not_spawned,0,
+varbit,varb13738_tote,5,130,no,,not_spawned,178,areas/draynor/scripts/traiborn.rs2:17; areas/draynor/scripts/traiborn.rs2:17; areas/varrock/scripts/tea_seller.rs2:12
+varbit,varb9844_frog_quest,5,30,no,,not_spawned,183,skill_construction/scripts/poh_quest_status_generated.rs2:588; skill_construction/scripts/poh_quest_status_generated.rs2:589; quests/quest_ribbitingtale/scripts/ribbit_bmp.rs2:10
+varbit,varb10792_wgs_hero_part_2_vis,5,8,no,,not_spawned,0,
+varbit,varb18274_bas,5,92,no,,not_spawned,0,
+varbit,varb9450_poh_clockwork_recentdrop,4,12,no,,not_spawned,0,
+varp,varp273_princequest,4,244,no,,not_spawned,86,areas/draynor/scripts/ned.rs2:22; areas/draynor/scripts/ned.rs2:22; areas/draynor/scripts/ned.rs2:226
+varbit,varb9862_pmoon_boss_hide_npc,4,7,no,,not_spawned,0,
+varbit,varb10783_wgs_hero_part_1_vis_falador,4,4,no,,not_spawned,0,
+varbit,varb10782_wgs_hero_part_1_vis,4,9,no,,not_spawned,0,
+varbit,varb11182_mag,4,53,no,,not_spawned,116,skill_construction/scripts/poh_quest_status_generated.rs2:438; skill_construction/scripts/poh_quest_status_generated.rs2:439; quests/quest_twilightspromise/scripts/twilightspromise.rs2:352
+varbit,varb16643_spiritofadventure,4,10,no,,not_spawned,0,
+varbit,varb19503_sailing_crew_on_dock,4,40,no,,not_spawned,0,
+varbit,varb11623_grimstone_uncerter_status,4,5,no,,not_spawned,0,
+varbit,varb10839_wgs_thaeriskvis,3,3,no,,not_spawned,0,
+varbit,varb2313_essencemine_portal,3,9,no,,not_spawned,0,
+varbit,varb1850_hundred_main_quest_var,3,5,no,,not_spawned,0,
+varbit,varb15126_dt2_lassar,3,125,no,,not_spawned,0,
+varbit,varb9863_pmoon_boss_icicle_state,3,12,no,,not_spawned,0,
+varbit,varb9834_vmq2_drunk_knight_vis,3,3,no,,not_spawned,0,
+varbit,varb10801_wgs_hero_part_2_vis_falador,3,3,no,,not_spawned,0,
+varbit,varb16661_aec,3,28,no,,not_spawned,0,
+varbit,varb16632_soc,3,25,no,,not_spawned,142,skill_construction/scripts/poh_quest_status_generated.rs2:633; skill_construction/scripts/poh_quest_status_generated.rs2:634; quests/quest_shadowsofcustodia/scripts/soc_bmp.rs2:8
+varbit,varb16758_scrambled,3,25,no,,not_spawned,104,skill_construction/scripts/poh_quest_status_generated.rs2:618; skill_construction/scripts/poh_quest_status_generated.rs2:619; quests/scripts/quest_cheat.rs2:1107
+varbit,varb1859_100goblinsvisible,2,4,no,,not_spawned,0,
+varbit,varb1069_wanted_mission3,2,2,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:15; quests/quest_wanted/scripts/wanted_debug.rs2:102; quests/quest_wanted/scripts/wanted_hunt.rs2:562
+varbit,varb10775_wgs_armadyl_guardian_vis,2,2,no,,not_spawned,0,
+varbit,varb10444_hallowed_adventurer_floor3_treasure,2,2,no,,not_spawned,0,
+varbit,varb926_clan_hall_colour_displayed,2,18,no,,not_spawned,0,
+varbit,varb13182_nex_story_npc,2,3,no,,not_spawned,0,
+varbit,varb13902_sleeping_giants,2,41,no,,not_spawned,108,skill_construction/scripts/poh_quest_status_generated.rs2:658; skill_construction/scripts/poh_quest_status_generated.rs2:659; quests/scripts/quest_cheat.rs2:1171
+varbit,varb13679_this_is_a_pvp_arena_world,2,2,no,,not_spawned,0,
+varbit,varb14589_hw22_trick_ghostvision,2,4,no,,not_spawned,0,
+varbit,varb14724_sotn_start_ready,2,3,no,,not_spawned,0,
+varbit,varb14774_hazeelcult_jones_location,2,2,no,,not_spawned,5,quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:107; quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2:246; quests/quest_hazeelcult/scripts/ceril_carnillean.rs2:35
+varbit,varb14769_hazeelcult_clivet_location,2,2,no,,not_spawned,5,quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:55; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:60; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:102
+varbit,varb1777_ironman,2,13,no,,not_spawned,7,interface_settings_side/scripts/settings_side.rs2:98; skill_construction/scripts/poh_tipjar.rs2:96; skill_construction/scripts/poh_tipjar.rs2:129
+varbit,varb15125_dt2_stranglewood,2,47,no,,not_spawned,0,
+varbit,varb15127_dt2_ghorrock,2,2,no,,not_spawned,0,
+varbit,varb15128_dt2_scar,2,34,no,,not_spawned,0,
+varbit,varb9652_vmq2_first_travel,2,8,no,,not_spawned,5,quests/quest_twilightspromise/scripts/tp_bmp.rs2:48; quests/quest_twilightspromise/scripts/twilightspromise.rs2:471; quests/quest_twilightspromise/scripts/twilightspromise.rs2:538
+varbit,varb9835_afl,2,9,no,,not_spawned,133,skill_hunter/scripts/hunter_rumours.rs2:449; skill_hunter/scripts/hunter_rumours.rs2:514; skill_hunter/scripts/hunter_rumours.rs2:514
+varbit,varb10773_wgs_idriavis,2,2,no,,not_spawned,0,
+varbit,varb10800_wgs_spyvis_draynor,2,2,no,,not_spawned,0,
+varbit,varb10753_ikov_lucien_vis,2,3,no,,not_spawned,15,quests/quest_ikov/scripts/ikov_lucien_vis.rs2:4; quests/quest_ikov/scripts/ikov_lucien_vis.rs2:26; quests/quest_ikov/scripts/ikov_lucien_vis.rs2:28
+varbit,varb11411_huey_food_errand_state,2,10,no,,not_spawned,0,
+varbit,varb16770_scrambled_replacement_egg_3,2,2,no,,not_spawned,0,
+varbit,varb16769_scrambled_replacement_egg_2,2,2,no,,not_spawned,0,
+varbit,varb16766_scrambled_replacement_egg_1,2,2,no,,not_spawned,0,
+varbit,varb16759_scrambled_kings_man_1,2,8,no,,not_spawned,6,quests/quest_scrambled/scripts/sc_bmp.rs2:157; quests/quest_scrambled/scripts/sc_bmp.rs2:243; quests/quest_scrambled/scripts/scrambled.rs2:18
+varbit,varb16764_scrambled_kings_man_2,2,8,no,,not_spawned,6,quests/quest_scrambled/scripts/sc_bmp.rs2:158; quests/quest_scrambled/scripts/sc_bmp.rs2:244; quests/quest_scrambled/scripts/scrambled.rs2:18
+varbit,varb16765_scrambled_kings_man_3,2,8,no,,not_spawned,6,quests/quest_scrambled/scripts/sc_bmp.rs2:159; quests/quest_scrambled/scripts/sc_bmp.rs2:245; quests/quest_scrambled/scripts/scrambled.rs2:18
+varbit,varb17227_ent_totems_intro,2,133,no,,not_spawned,0,
+varbit,varb17224_tlati_lost_lover_xilo,2,3,no,,not_spawned,0,
+varbit,varb17225_tlati_lost_lover_fabia,2,3,no,,not_spawned,0,
+varbit,varb19105_sailing_boat_facility_lockedin,2,10,no,,not_spawned,0,
+varbit,varb18427_sailing_bt_tempor_tantrum_master_state,2,6,no,,not_spawned,0,
+varbit,varb19493_sailing_crew_generic_1_visibility,2,2,no,,not_spawned,0,
+varbit,varb19495_sailing_crew_generic_3_visibility,2,2,no,,not_spawned,0,
+varbit,varb19496_sailing_crew_generic_4_visibility,2,2,no,,not_spawned,0,
+varbit,varb19497_sailing_crew_generic_5_visibility,2,2,no,,not_spawned,0,
+varbit,varb19498_sailing_crew_werewolf_visibility,2,2,no,,not_spawned,0,
+varbit,varb19499_sailing_crew_fremennik_visibility,2,2,no,,not_spawned,0,
+varbit,varb19500_sailing_crew_spirit_angler_visibility,2,2,no,,not_spawned,0,
+varbit,varb15446_vampyrium_traversal_aranei_saved,2,2,no,,not_spawned,0,
+varp,varp150_grandtree,1,12,no,,not_spawned,99,transport_charter/scripts/charter_port.rs2:109; areas/area_gnome/scripts/hazelmere.rs2:4; areas/area_gnome/scripts/hazelmere.rs2:23
+varbit,varb16286_yama_throne_state,1,2,no,,not_spawned,0,
+varbit,varb451_tog_juna_bowl,1,2,no,,not_spawned,25,skill_construction/scripts/poh_quest_status_generated.rs2:708; skill_construction/scripts/poh_quest_status_generated.rs2:709; skill_construction/scripts/poh_jewellery_boxes.rs2:19
+varbit,varb1861_100guidevisible,1,2,no,,not_spawned,0,
+varbit,varb14739_sotn_entry_cultist,1,1,no,,not_spawned,0,
+varbit,varb14740_sotn_clivet_vis,1,1,no,,not_spawned,0,
+varbit,varb2504_eyeglo_killed_eye_1,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:16; quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:292; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:269
+varbit,varb2505_eyeglo_killed_eye_2,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:17; quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:299; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:270
+varbit,varb2506_eyeglo_killed_eye_3,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:18; quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:306; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:271
+varbit,varb2507_eyeglo_killed_eye_4,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:19; quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:313; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:272
+varbit,varb2508_eyeglo_killed_eye_5,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:20; quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:320; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:273
+varbit,varb2509_eyeglo_killed_eye_6,1,3,no,,not_spawned,8,quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:21; quests/quest_theeyesofglouphrie/scripts/eyeglo_bmp.rs2:327; quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:274
+varbit,varb965_garden_trolley_varbit,1,3,no,,not_spawned,13,quests/quest_gardenoftranquility/scripts/garden_statues.rs2:3; quests/quest_gardenoftranquility/scripts/garden_statues.rs2:25; quests/quest_gardenoftranquility/scripts/garden_statues.rs2:45
+varbit,varb1864_100amikvisible,1,2,no,,not_spawned,0,
+varbit,varb13600_lotg_grubfoot_at_entrance,1,1,no,,not_spawned,0,
+varbit,varb10929_wgs_pit_trap_broav,1,2,no,,not_spawned,0,
+varbit,varb1865_100monkeyvisible,1,2,no,,not_spawned,0,
+varbit,varb3907_kr_court_witness,1,6,no,,not_spawned,14,quests/quest_murder/scripts/pierre.rs2:41; quests/quest_murder/scripts/pierre.rs2:46; quests/quest_murder/scripts/mary.rs2:42
+varbit,varb9036_sote_meilyr,1,1,no,,not_spawned,0,
+varbit,varb1860_100piratevisible,1,2,no,,not_spawned,0,
+varbit,varb1065_wanted_mission1,1,1,no,,not_spawned,3,quests/quest_wanted/scripts/wanted_debug.rs2:11; quests/quest_wanted/scripts/wanted_debug.rs2:96; quests/quest_wanted/scripts/wanted_hunt.rs2:714
+varbit,varb1067_wanted_mission2,1,1,no,,not_spawned,5,quests/quest_wanted/scripts/wanted_debug.rs2:13; quests/quest_wanted/scripts/wanted_debug.rs2:99; quests/quest_wanted/scripts/wanted_hunt.rs2:291
+varbit,varb1071_wanted_mission4,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:17; quests/quest_wanted/scripts/wanted_debug.rs2:105; quests/quest_wanted/scripts/wanted_hunt.rs2:630
+varbit,varb1073_wanted_mission5,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:19; quests/quest_wanted/scripts/wanted_hunt.rs2:41; quests/quest_wanted/scripts/wanted_hunt.rs2:77
+varbit,varb1075_wanted_mission6,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:21; quests/quest_wanted/scripts/wanted_hunt.rs2:42; quests/quest_wanted/scripts/wanted_hunt.rs2:78
+varbit,varb1077_wanted_mission7,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:23; quests/quest_wanted/scripts/wanted_hunt.rs2:43; quests/quest_wanted/scripts/wanted_hunt.rs2:79
+varbit,varb1079_wanted_mission8,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:25; quests/quest_wanted/scripts/wanted_hunt.rs2:44; quests/quest_wanted/scripts/wanted_hunt.rs2:80
+varbit,varb1081_wanted_mission9,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:27; quests/quest_wanted/scripts/wanted_hunt.rs2:45; quests/quest_wanted/scripts/wanted_hunt.rs2:81
+varbit,varb1083_wanted_mission10,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:29; quests/quest_wanted/scripts/wanted_hunt.rs2:46; quests/quest_wanted/scripts/wanted_hunt.rs2:82
+varbit,varb1085_wanted_mission11,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:31; quests/quest_wanted/scripts/wanted_hunt.rs2:47; quests/quest_wanted/scripts/wanted_hunt.rs2:83
+varbit,varb1087_wanted_mission12,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:33; quests/quest_wanted/scripts/wanted_hunt.rs2:48; quests/quest_wanted/scripts/wanted_hunt.rs2:84
+varbit,varb1089_wanted_mission13,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:35; quests/quest_wanted/scripts/wanted_hunt.rs2:49; quests/quest_wanted/scripts/wanted_hunt.rs2:85
+varbit,varb1091_wanted_mission14,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:37; quests/quest_wanted/scripts/wanted_hunt.rs2:50; quests/quest_wanted/scripts/wanted_hunt.rs2:86
+varbit,varb1093_wanted_mission15,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:39; quests/quest_wanted/scripts/wanted_hunt.rs2:51; quests/quest_wanted/scripts/wanted_hunt.rs2:87
+varbit,varb1095_wanted_mission16,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:41; quests/quest_wanted/scripts/wanted_hunt.rs2:52; quests/quest_wanted/scripts/wanted_hunt.rs2:88
+varbit,varb1097_wanted_mission17,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:43; quests/quest_wanted/scripts/wanted_hunt.rs2:53; quests/quest_wanted/scripts/wanted_hunt.rs2:89
+varbit,varb1099_wanted_mission18,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:45; quests/quest_wanted/scripts/wanted_hunt.rs2:54; quests/quest_wanted/scripts/wanted_hunt.rs2:90
+varbit,varb1101_wanted_mission19,1,1,no,,not_spawned,4,quests/quest_wanted/scripts/wanted_debug.rs2:47; quests/quest_wanted/scripts/wanted_hunt.rs2:55; quests/quest_wanted/scripts/wanted_hunt.rs2:91
+varbit,varb336_feud_boss_vis2,1,1,no,,not_spawned,2,quests/quest_thefeud/scripts/feud_recruitment.rs2:286; quests/quest_thefeud/scripts/feud_confrontation.rs2:10
+varbit,varb1862_100davevisible,1,5,no,,not_spawned,0,
+varbit,varb1863_100ogrevisible,1,2,no,,not_spawned,0,
+varbit,varb2643_elemental_quest_2_jig_state,1,6,no,,not_spawned,46,quests/quest_elementalworkshopii/scripts/elem2_bmp.rs2:36; quests/quest_elementalworkshopii/scripts/elem2_bmp.rs2:508; quests/quest_elementalworkshopii/scripts/elem2_bmp.rs2:566
+varbit,varb540_lost_tribe_sigmund_leaving,1,1,no,,not_spawned,1,quests/quest_losttribe/scripts/losttribe_finish.rs2:8
+varbit,varb14672_gotr_cordelia_repair_pouch,1,2,no,,not_spawned,0,
+varbit,varb9633_vmq1_guard_1,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:26; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:185; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:195
+varbit,varb9634_vmq1_guard_2,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:27; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:186; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:196
+varbit,varb9635_vmq1_guard_3,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:28; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:187; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:197
+varbit,varb9636_vmq1_guard_4,1,3,no,,not_spawned,9,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:29; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:188; quests/quest_childrenofthesun/scripts/cots_bmp.rs2:198
+varbit,varb9637_vmq1_guard_5,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:30; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:193; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:280
+varbit,varb9640_vmq1_guard_6,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:31; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:194; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:281
+varbit,varb9641_vmq1_guard_7,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:32; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:195; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:282
+varbit,varb9642_vmq1_guard_8,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:33; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:196; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:283
+varbit,varb9643_vmq1_guard_9,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:34; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:197; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:284
+varbit,varb9644_vmq1_guard_10,1,3,no,,not_spawned,4,quests/quest_childrenofthesun/scripts/cots_bmp.rs2:35; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:198; quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:285
+varbit,varb6073_corscurs_cook,1,1,no,,not_spawned,9,quests/quest_corsaircurse/scripts/corsaircurse.rs2:14; quests/quest_corsaircurse/scripts/corsaircurse.rs2:163; quests/quest_corsaircurse/scripts/corsaircurse.rs2:170
+varp,varp1748_total_completed_theatreofblood,1,2,no,,not_spawned,1,skill_construction/scripts/poh_achievement_gallery.rs2:228
+varbit,varb6522_my2arm_mother_type,1,4,no,,not_spawned,0,
+varbit,varb9128_upass_paladinbadge_1,1,1,no,,not_spawned,6,quests/quest_upass/scripts/upass_encounters.rs2:42; quests/quest_upass/scripts/upass_encounters.rs2:69; quests/quest_upass/scripts/upass_encounters.rs2:148
+varbit,varb9129_upass_paladinbadge_2,1,1,no,,not_spawned,5,quests/quest_upass/scripts/upass_encounters.rs2:47; quests/quest_upass/scripts/upass_encounters.rs2:73; quests/quest_upass/scripts/upass_encounters.rs2:153
+varbit,varb9130_upass_paladinbadge_3,1,1,no,,not_spawned,5,quests/quest_upass/scripts/upass_encounters.rs2:52; quests/quest_upass/scripts/upass_encounters.rs2:77; quests/quest_upass/scripts/upass_encounters.rs2:158
+varbit,varb9115_upass_venom_on_doll,1,1,no,,not_spawned,13,quests/quest_upass/scripts/upass_encounters.rs2:311; quests/quest_upass/scripts/upass_encounters.rs2:316; quests/quest_upass/scripts/upass_encounters.rs2:325
+varbit,varb10436_hallowed_adventurer_floor1_east,1,1,no,,not_spawned,0,
+varbit,varb10437_hallowed_adventurer_floor1_west,1,1,no,,not_spawned,0,
+varbit,varb10438_hallowed_adventurer_floor1_melvin,1,1,no,,not_spawned,0,
+varbit,varb10439_hallowed_adventurer_floor2_north,1,1,no,,not_spawned,0,
+varbit,varb10440_hallowed_adventurer_floor2_south,1,1,no,,not_spawned,0,
+varbit,varb10442_hallowed_adventurer_floor2_west,1,1,no,,not_spawned,0,
+varbit,varb10441_hallowed_adventurer_floor3_east,1,1,no,,not_spawned,0,
+varbit,varb10443_hallowed_adventurer_floor3_west,1,1,no,,not_spawned,0,
+varp,varp3057_total_completed_theatreofblood_hard,1,2,no,,not_spawned,1,skill_construction/scripts/poh_achievement_gallery.rs2:230
+varbit,varb13601_lotg_zanik_in_lab,1,1,no,,not_spawned,0,
+varbit,varb13610_lotg_zanik_outside_temple,1,1,no,,not_spawned,0,
+varbit,varb13897_gotr_tamara_lock_op,1,2,no,,not_spawned,0,
+varbit,varb14464_itt_met_osmumten,1,3,no,,not_spawned,0,
+varbit,varb14527_speedrunning_shop_owner_met,1,2,no,,not_spawned,0,
+varbit,varb14747_sotn_khazard_scout,1,1,no,,not_spawned,0,
+varbit,varb14770_hazeelcult_alomone_vis,1,2,no,,not_spawned,12,quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:103; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:141; quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:197
+varbit,varb14779_carnillean_dog_vis,1,1,no,,not_spawned,2,quests/quest_hazeelcult/scripts/quest_hazeelcult.rs2:112; quests/quest_hazeelcult/scripts/claus_the_chef.rs2:74
+varbit,varb11479_coa,1,1,no,,not_spawned,134,skill_construction/scripts/poh_quest_status_generated.rs2:118; skill_construction/scripts/poh_quest_status_generated.rs2:119; quests/quest_curseofarrav/scripts/curseofarrav.rs2:69
+varbit,varb6563_osb10_post_npc_state,1,2,no,,not_spawned,0,
+varbit,varb15110_dt2_banikan_war_room,1,1,no,,not_spawned,0,
+varbit,varb15117_dt2_war_room_smoke_totem,1,2,no,,not_spawned,0,
+varbit,varb15118_dt2_war_room_shadow_totem,1,2,no,,not_spawned,0,
+varbit,varb15119_dt2_war_room_blood_totem,1,2,no,,not_spawned,0,
+varbit,varb15120_dt2_war_room_ice_totem,1,2,no,,not_spawned,0,
+varbit,varb15151_dt2_ring_npc_vis,1,1,no,,not_spawned,0,
+varbit,varb15130_dt2_catalytic_guardian,1,2,no,,not_spawned,0,
+varbit,varb15294_pog_watcher_multivar,1,2,no,,not_spawned,7,quests/quest_pathofglouphrie/scripts/pog_storeroom.rs2:103; quests/quest_pathofglouphrie/scripts/pog_storeroom.rs2:119; quests/quest_pathofglouphrie/scripts/pog_quest.rs2:242
+varbit,varb9586_rat_boss_biologist_npc,1,2,no,,not_spawned,0,
+varbit,varb16624_pmoon_eyatlalli_vis,1,1,no,,not_spawned,0,
+varbit,varb9951_quetzal_fortis,1,7,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:45; skill_hunter/scripts/quetzal_transport.rs2:45
+varbit,varb9952_quetzal_teomat,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:46; skill_hunter/scripts/quetzal_transport.rs2:46
+varbit,varb9953_quetzal_sunsetcoast,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:47; skill_hunter/scripts/quetzal_transport.rs2:47
+varbit,varb9954_quetzal_hunterguild,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:48; skill_hunter/scripts/quetzal_transport.rs2:48
+varbit,varb9955_quetzal_camtorum,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:32; skill_hunter/scripts/quetzal_transport.rs2:146
+varbit,varb9956_quetzal_colossalwyrm,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:33; skill_hunter/scripts/quetzal_transport.rs2:147
+varbit,varb9957_quetzal_outerfortis,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:34; skill_hunter/scripts/quetzal_transport.rs2:148
+varbit,varb9958_quetzal_colosseum,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:35; skill_hunter/scripts/quetzal_transport.rs2:149
+varbit,varb9845_frog_quest_patch_unlocked,1,2,no,,not_spawned,6,quests/quest_ribbitingtale/scripts/ribbit_bmp.rs2:36; quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:384; quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:433
+varbit,varb16669_vmq4_attala_cam_torum_market_vis,1,1,no,,not_spawned,0,
+varbit,varb9940_varlamore_thieving_house_stranger_met,1,2,no,,not_spawned,0,
+varbit,varb10671_wildy_zombie_pirate_friendly_intro_chat,1,3,no,,not_spawned,0,
+varbit,varb10838_wgs_hazelmere_vis_house_inverse,1,1,no,,not_spawned,0,
+varbit,varb10846_wgs_akrisae_vis,1,1,no,,not_spawned,0,
+varbit,varb10778_wgs_spyvis,1,2,no,,not_spawned,0,
+varbit,varb9653_wgs,1,6,no,,not_spawned,176,skill_construction/scripts/poh_quest_status_generated.rs2:768; skill_construction/scripts/poh_quest_status_generated.rs2:769; quests/quest_whileguthixsleeps/scripts/wgs_journal.rs2:6
+varbit,varb10826_wgs_hazelmere_vis_falador,1,1,no,,not_spawned,0,
+varbit,varb11377_quetzal_aldarin,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:49; skill_hunter/scripts/quetzal_transport.rs2:49
+varbit,varb11378_quetzal_quetzacalligorge,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:50; skill_hunter/scripts/quetzal_transport.rs2:50
+varbit,varb11379_quetzal_salvageroverlook,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:36; skill_hunter/scripts/quetzal_transport.rs2:150
+varbit,varb16668_vmq4_servius_palace_vis,1,1,no,,not_spawned,0,
+varbit,varb11336_mm_met_supervisor,1,2,no,,not_spawned,0,
+varbit,varb11354_varlamore_wyrm_agility_met_guide,1,2,no,,not_spawned,0,
+varbit,varb11438_hw24_main,1,9,no,,not_spawned,0,
+varbit,varb16285_yama_imp_contract_signed,1,3,no,,not_spawned,0,
+varbit,varb16712_vmq4_sun_puzzle_itzla_state,1,2,no,,not_spawned,0,
+varbit,varb16994_scrambled_egg_vis,1,1,no,,not_spawned,0,
+varbit,varb17623_ent_totems_site_1_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17624_ent_totems_site_1_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17625_ent_totems_site_1_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17626_ent_totems_site_1_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17627_ent_totems_site_1_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17641_ent_totems_site_2_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17642_ent_totems_site_2_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17643_ent_totems_site_2_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17644_ent_totems_site_2_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17645_ent_totems_site_2_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17659_ent_totems_site_3_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17660_ent_totems_site_3_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17661_ent_totems_site_3_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17662_ent_totems_site_3_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17663_ent_totems_site_3_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17677_ent_totems_site_4_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17678_ent_totems_site_4_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17679_ent_totems_site_4_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17680_ent_totems_site_4_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17681_ent_totems_site_4_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17695_ent_totems_site_5_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17696_ent_totems_site_5_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17697_ent_totems_site_5_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17698_ent_totems_site_5_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17699_ent_totems_site_5_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17713_ent_totems_site_6_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17714_ent_totems_site_6_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17715_ent_totems_site_6_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17716_ent_totems_site_6_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17717_ent_totems_site_6_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17731_ent_totems_site_7_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17732_ent_totems_site_7_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17733_ent_totems_site_7_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17734_ent_totems_site_7_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17735_ent_totems_site_7_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17749_ent_totems_site_8_multianimal_a_1,1,1,no,,not_spawned,0,
+varbit,varb17750_ent_totems_site_8_multianimal_b_1,1,1,no,,not_spawned,0,
+varbit,varb17751_ent_totems_site_8_multianimal_c_1,1,1,no,,not_spawned,0,
+varbit,varb17752_ent_totems_site_8_multianimal_d_1,1,1,no,,not_spawned,0,
+varbit,varb17753_ent_totems_site_8_multianimal_e_1,1,1,no,,not_spawned,0,
+varbit,varb17347_ent_totems_site_1_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17348_ent_totems_site_2_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17351_ent_totems_site_3_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17352_ent_totems_site_4_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17353_ent_totems_site_5_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17605_ent_totems_site_6_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17606_ent_totems_site_7_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17607_ent_totems_site_8_trail_buff_active,1,3,no,,not_spawned,0,
+varbit,varb17755_quetzal_talteklan,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:51; skill_hunter/scripts/quetzal_transport.rs2:51
+varbit,varb17756_quetzal_auburnvalley,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:52; skill_hunter/scripts/quetzal_transport.rs2:52
+varbit,varb17757_quetzal_kastori,1,5,no,,not_spawned,2,skill_hunter/scripts/quetzal_transport.rs2:37; skill_hunter/scripts/quetzal_transport.rs2:151
+varbit,varb18105_events_shop_owner_met,1,2,no,,not_spawned,0,
+varbit,varb18333_tt_free_shield,1,3,no,,not_spawned,0,
+varbit,varb18153_port_roberts_in_jail,1,3,no,,not_spawned,0,
+varbit,varb18282_current_affairs,1,36,no,,not_spawned,73,sailing/scripts/boat_cargo.rs2:25; areas/area_catherby/scripts/harry.rs2:16; areas/area_catherby/scripts/harry.rs2:16
+varbit,varb18337_floopa_conch_vis,1,2,no,,not_spawned,3,quests/quest_redreef/scripts/redreef.rs2:626; quests/quest_redreef/scripts/redreef.rs2:724; quests/quest_redreef/scripts/redreef.rs2:773
+varbit,varb18342_trr_parrot,1,3,no,,not_spawned,0,
+varbit,varb18334_conch_coral_patches_unlocked,1,2,no,,not_spawned,0,
+varbit,varb18432_sailing_bt_jubbly_jive_master_state,1,3,no,,not_spawned,0,
+varbit,varb18437_sailing_bt_gwenith_glide_master_state,1,3,no,,not_spawned,0,
+varbit,varb18555_sailing_chance_encounters_clam_state,1,3,no,,not_spawned,0,
+varbit,varb19571_sailing_charting_tutor_met,1,2,no,,not_spawned,0,
+varbit,varb19494_sailing_crew_generic_2_visibility,1,2,no,,not_spawned,0,
+varbit,varb19610_sailing_crew_ghost_jenkins_visibility_crandor,1,1,no,,not_spawned,0,
+varbit,varb19613_sailing_crew_ghost_jenkins_visibility_control,1,1,no,,not_spawned,0,
+varbit,varb19568_sleve_mcdichael_met,1,2,no,,not_spawned,0,
+varbit,varb19567_deepfin_dwarf_durrik_met,1,2,no,,not_spawned,0,
+varbit,varb20106_cowquest,1,20,no,,not_spawned,85,areas/lumbridge/scripts/duke_horacio.rs2:18; skill_construction/scripts/poh_quest_status_generated.rs2:373; skill_construction/scripts/poh_quest_status_generated.rs2:374
+varbit,varb16289_equipment_activity_locked_temp,1,1,no,,not_spawned,0,
+varbit,varb15451_bucket_aranei_met,1,2,no,,not_spawned,0,
+varbit,varb15448_vampyrium_gravestone_aranei_met,1,2,no,,not_spawned,0,
+varbit,varb15450_vampyrium_venator_aranei_met,1,2,no,,not_spawned,0,
+varbit,varb15466_myq6_sarius_guile_vis,1,1,no,,not_spawned,0,

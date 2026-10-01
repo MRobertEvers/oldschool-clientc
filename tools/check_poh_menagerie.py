@@ -54,9 +54,9 @@ def main() -> None:
     varbits = VARBIT.read_text()
     compack = COMPACK.read_text()
     aliases = (
-        "poh_menagerie_wardens_stored",
-        "poh_menagerie_cow_stored",
-        "poh_menagerie_maggot_stored",
+        "varb20411_poh_menagerie_wardens_stored",
+        "varb20412_poh_menagerie_cow_stored",
+        "varb20413_poh_menagerie_maggot_stored",
     )
     for config_id, name in enumerate(aliases, start=20411):
         if f"[{name}]" not in varbits or f"{config_id}={name}" not in compack:

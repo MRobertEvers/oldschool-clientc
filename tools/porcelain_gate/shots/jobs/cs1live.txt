@@ -8,7 +8,7 @@
 # Every line opens the same way and it is not boilerplate:
 #   click (259,285)  -- accept the character designer; a new account is parked
 #                       on it and nothing else happens until it is dismissed.
-#   ~skiptutorial    -- set %tutorial past the end AND re-run the login block's
+#   ~skiptutorial    -- set %varp281_tutorial past the end AND re-run the login block's
 #                       tab mount. Without it the sidebar has NO tabs at all:
 #                       no inventory to hover, no skills tab, no prayer book.
 #   ~varrock         -- somewhere with scenery, npcs and other players in it.

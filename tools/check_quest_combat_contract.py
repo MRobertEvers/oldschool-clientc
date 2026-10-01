@@ -304,6 +304,24 @@ CONTENT_INI = ROOT / "OSRS-Content/osrs239-content/content.ini"
 VARN_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varn.alloc"
 
 
+def _load_var_names() -> dict[str, str]:
+    """Base name -> spelled name. Var names carry their kind and id
+    (`ca_tier_status_hard` is `varb<id>_ca_tier_status_hard`), so a needle
+    built from a base name goes through this."""
+    tree = ROOT / "OSRS-Content/osrs239-content"
+    names = {}
+    for path in (tree / "configs/all.varbit.compack", tree / "configs/all.varp.compack",
+                 tree / "configs/all.varc.compack", tree / "pack/varp.alloc"):
+        for name in re.findall(r"^\d+=(\S+)", path.read_text(errors="replace"), re.M):
+            m = re.match(r"^var[bpc]\d+_(.+)$", name)
+            if m:
+                names[m.group(1)] = name
+    return names
+
+
+VAR_NAMES = _load_var_names()
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
@@ -600,9 +618,9 @@ def check_delrith() -> None:
             "[proc,demon_slayer_incantation_text]()(string)",
             "[proc,demon_slayer_choose_incantation_word](string $position)(int)",
             "[proc,demon_slayer_incantation_ready]()(boolean)",
-            "%delrith_incantation_1 = random(5);",
+            "%varb2562_delrith_incantation_1 = random(5);",
             "def_int $word_5 = ~demon_slayer_choose_incantation_word(\"fifth\");",
-            "calc($word_5 - 1) = %delrith_incantation_5",
+            "calc($word_5 - 1) = %varb2566_delrith_incantation_5",
             "[opnpc2,delrith]",
             "@player_combat_start;",
             "[apnpc2,delrith]",
@@ -640,13 +658,13 @@ def check_delrith() -> None:
     require_text(
         varp,
         (
-            "[demon_delrith_engaged]",
+            "[varp6628_demon_delrith_engaged]",
             "scope=temp",
-            "[demon_incantation_1]",
-            "[demon_incantation_2]",
-            "[demon_incantation_3]",
-            "[demon_incantation_4]",
-            "[demon_incantation_5]",
+            "[varp6632_demon_incantation_1]",
+            "[varp6633_demon_incantation_2]",
+            "[varp6634_demon_incantation_3]",
+            "[varp6635_demon_incantation_4]",
+            "[varp6636_demon_incantation_5]",
         ),
         "Delrith engagement/incantation state",
     )
@@ -754,8 +772,8 @@ def check_witches_experiment() -> None:
             "npc_changetype(shapeshifterwolf, 500);",
             "[ai_queue3,shapeshifterwolf]",
             "@defeat_witches_experiment;",
-            "%ballquest = ^ball_defeated_experiment;",
-            "%ball_shed_unlocked = 1;",
+            "%varp226_ballquest = ^ball_defeated_experiment;",
+            "%varp6660_ball_shed_unlocked = 1;",
         ),
         "Witch's experiment",
     )
@@ -790,7 +808,7 @@ def check_witches_experiment() -> None:
         )
     require(npc.count("param=death_drop,null") == 4,
             "Witch's experiment: all four forms must suppress ordinary drops")
-    require_text(WITCH_VARP.read_text(), ("[ball_shed_unlocked]", "scope=temp"),
+    require_text(WITCH_VARP.read_text(), ("[varp6660_ball_shed_unlocked]", "scope=temp"),
                  "Witch's House shed lock state")
 
 
@@ -808,9 +826,9 @@ def check_fight_arena() -> None:
             "[label,arena_start_general]",
             "npc_add(0_40_49_44_18, general_khazard_arena, 32000);",
             "[label,arena_after_ogre]",
-            "%arenaquest = ^arena_sent_jail;",
+            "%varp17_arenaquest = ^arena_sent_jail;",
             "[label,arena_general_after_bouncer]",
-            "%arenaquest = ^arena_freed_servils;",
+            "%varp17_arenaquest = ^arena_freed_servils;",
             "[proc,arena_remove_owned_fighters]",
             "[ai_queue3,arena_ogre]",
             "[ai_queue3,arena_scorpion]",
@@ -931,8 +949,8 @@ def check_fight_arena() -> None:
     require_text(
         lady,
         (
-            "%arenaquest = ^arena_complete;",
-            "%arenaquest = ^arena_complete_defeated_genkhazard;",
+            "%varp17_arenaquest = ^arena_complete;",
+            "%varp17_arenaquest = ^arena_complete_defeated_genkhazard;",
             "inv_add(inv, coins, 1000);",
             "stat_advance(attack, 121750);",
             "stat_advance(thieving, 21750);",
@@ -955,7 +973,7 @@ def check_hazeel_cult() -> None:
             "[proc,hazeelcult_alomone_talk]",
             "[ai_queue3,alomone_hazeel_cultist_2op]",
             "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
-            "%hazeelcultquest = ^hazeelcult_finished_side_task;",
+            "%varp223_hazeelcultquest = ^hazeelcult_finished_side_task;",
             "npc_add(0_40_151_47_5, hazeel, 100);",
         ),
         "Hazeel Cult Alomone",
@@ -1057,7 +1075,7 @@ def check_grand_tree() -> None:
             "[ai_queue3,grandtree_blackdemon]",
             "if (p_finduid(uid) = true)",
             "[label,grandtree_defeat_black_demon]",
-            "%grandtree = ^grandtree_defeated_black_demon;",
+            "%varp150_grandtree = ^grandtree_defeated_black_demon;",
         ),
         "The Grand Tree Black demon death",
     )
@@ -1114,19 +1132,19 @@ def check_grand_tree() -> None:
             "case grandtree_pillaru : $expected = grandtree_twigu; $bit = 2;",
             "case grandtree_pillarz : $expected = grandtree_twigz; $bit = 4;",
             "case grandtree_pillaro : $expected = grandtree_twigo; $bit = 8;",
-            "%grandtree_tuzo_mask = or(%grandtree_tuzo_mask, $bit);",
-            "if (%grandtree_tuzo_mask = 15)",
-            "%grandtree = ^grandtree_unlocked_trapdoor;",
+            "%varp6674_grandtree_tuzo_mask = or(%varp6674_grandtree_tuzo_mask, $bit);",
+            "if (%varp6674_grandtree_tuzo_mask = 15)",
+            "%varp150_grandtree = ^grandtree_unlocked_trapdoor;",
         ),
         "The Grand Tree TUZO gate",
     )
-    require_text(GRAND_VARP.read_text(), ("[grandtree_tuzo_mask]", "scope=temp"),
+    require_text(GRAND_VARP.read_text(), ("[varp6674_grandtree_tuzo_mask]", "scope=temp"),
                  "The Grand Tree TUZO state")
 
     require_text(
         GRAND_ROOTS.read_text(),
         (
-            "%daconia_rock_root",
+            "%varp5869_daconia_rock_root",
             "~obj_gettotal(grandtree_daconiarock) = 0",
             "inv_freespace(inv) = 0",
             "inv_add(inv, grandtree_daconiarock, 1);",
@@ -1136,7 +1154,7 @@ def check_grand_tree() -> None:
     require_text(
         GRAND_KING.read_text(),
         (
-            "%daconia_rock_root = ~random_range(1, 15);",
+            "%varp5869_daconia_rock_root = ~random_range(1, 15);",
             "stat_advance(agility, 79000);",
             "stat_advance(attack, 184000);",
             "stat_advance(magic, 21500);",
@@ -1292,7 +1310,7 @@ def check_underground_pass() -> None:
         kalrag,
         ("[ai_queue3,kalrag]", "~obj_gettotal(ibandoll) = 0", "player_lock();",
          "anim(human_stunned, 0);", "spotanim_pl(stunned, 124, 0);",
-         "%upass_venom_on_doll = 1;", "queue(upass_respawn_kalrag, 50, 0);"),
+         "%varb9115_upass_venom_on_doll = 1;", "queue(upass_respawn_kalrag, 50, 0);"),
         "Underground Pass Kalrag",
     )
     require("obj_add" not in kalrag, "Underground Pass: Kalrag must not drop loot")
@@ -1311,14 +1329,14 @@ def check_underground_pass() -> None:
     cages = UPASS_CAGES.read_text()
     require_text(
         cages,
-        ("inv_total(inv, ibandoll) > 0", "%upass_dove_on_doll = 1;",
-         "%upass_shadow_on_doll = 1;", "inv_add(inv, ibansdove, 1);",
+        ("inv_total(inv, ibandoll) > 0", "%varb9116_upass_dove_on_doll = 1;",
+         "%varb9118_upass_shadow_on_doll = 1;", "inv_add(inv, ibansdove, 1);",
          "inv_add(inv, ibansshadow, 1);"),
         "Underground Pass doll auto-application",
     )
     tomb = UPASS_TOMB.read_text()
-    require_text(tomb, ("%upass_ashes_on_doll = 1;", "inv_add(inv, ibanstaff, 1);",
-                        "^iban_staff_max_charges", "%upass = ^upass_defeated_iban;"),
+    require_text(tomb, ("%varb9117_upass_ashes_on_doll = 1;", "inv_add(inv, ibanstaff, 1);",
+                        "^iban_staff_max_charges", "%varp161_upass = ^upass_defeated_iban;"),
                  "Underground Pass Iban finale")
     require("inv_add(inv, deathrune" not in tomb and "inv_add(inv, firerune" not in tomb,
             "Underground Pass: removed Iban rune bundle restored")
@@ -1342,9 +1360,9 @@ def check_underground_pass() -> None:
 
     bloodwell = UPASS_BLOODWELL.read_text()
     for badge, bit, coord_name in (
-        ("paladinbadge1", "%upass_paladinbadge_1 = 1;", "0_37_151_56_57"),
-        ("paladinbadge2", "%upass_paladinbadge_2 = 1;", "0_37_151_54_54"),
-        ("paladinbadge3", "%upass_paladinbadge_3 = 1;", "0_37_151_58_54"),
+        ("paladinbadge1", "%varb9128_upass_paladinbadge_1 = 1;", "0_37_151_56_57"),
+        ("paladinbadge2", "%varb9129_upass_paladinbadge_2 = 1;", "0_37_151_54_54"),
+        ("paladinbadge3", "%varb9130_upass_paladinbadge_3 = 1;", "0_37_151_58_54"),
     ):
         require_text(bloodwell, (f"case {badge} :", bit, coord_name, "npc_del;"),
                      f"Underground Pass well {badge}")
@@ -1383,8 +1401,8 @@ def check_observatory_quest() -> None:
             "[opnpc2,goblin_guard]", "[ai_queue3,goblin_guard]",
             "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
             "def_int $drop = random(128);", "if ($drop < 3)",
-            "else if ($drop < 90)", "%rag_quest = ^rag_collecting",
-            "testbit(%rag_submit, ^rag_bit_goblin) = ^false", "random(4)",
+            "else if ($drop < 90)", "%varp714_rag_quest = ^rag_collecting",
+            "testbit(%varp6208_rag_submit, ^rag_bit_goblin) = ^false", "random(4)",
             "obj_add(npc_coord, rag_goblin_bone, 1, ^lootdrop_duration);",
             "random(35)", "arceuus_corpse_goblin", "random(64)",
             "trail_clue_beginner", "$easy_rate = 121;",
@@ -1408,7 +1426,7 @@ def check_observatory_quest() -> None:
             "~observatory_search_key_chest(0);",
             "~observatory_search_key_chest(1);",
             "~observatory_search_key_chest(2);",
-            "%observatory_chestchoice ! $which",
+            "%varb3827_observatory_chestchoice ! $which",
             "~obj_gettotal(keep_key) > 0",
             "inv_add(inv, keep_key, 1);",
             "[oploc1,qip_obs_keep_chest_open]",
@@ -1416,14 +1434,14 @@ def check_observatory_quest() -> None:
             "npc_add(map_findsquare(coord, 1, 1, ^map_findsquare_lineofwalk), poisonspider, 1000);",
             "[oploc1,opendungeonchest]", "inv_add(inv, 1doseantipoison, 1);",
             "[oploc1,keepgate_closed]", "[oploc1,keepgate_closed_left]",
-            "%observatory_gatelock = 0 & inv_total(inv, keep_key) = 0",
+            "%varb3826_observatory_gatelock = 0 & inv_total(inv, keep_key) = 0",
             "npc_find(loc_coord, qip_obs_goblin_guard, 8, 0)",
             "~door_selfstage_open;",
             "[oploc1,qip_obs_dungeon_stove_top_multi]",
-            "%observatory_mould_pres = 1",
+            "%varb3837_observatory_mould_pres = 1",
             "inv_add(inv, lens_mould, 1);",
             "[opheld5,keep_key]", "[opheld5,lens_mould]", "[opheld5,lens]",
-            "%observatory_mould_pres = 0;",
+            "%varb3837_observatory_mould_pres = 0;",
         ),
         "Observatory Quest dungeon route",
     )
@@ -1435,7 +1453,7 @@ def check_observatory_quest() -> None:
         require(dungeon.count(coord) == 2,
                 f"Observatory Quest: spider chest mapping drift at {coord}")
     for seen in range(1, 8):
-        require_text(dungeon, (f"%observatory_chest{seen}_seen = 1",),
+        require_text(dungeon, (f"%{VAR_NAMES[f'observatory_chest{seen}_seen']} = 1",),
                      f"Observatory Quest spider chest {seen}")
     require("npc_findhero" not in dungeon and "ai_queue3,goblin_guard" not in dungeon,
             "Observatory Quest: gate route was coupled to killing the guard")
@@ -1444,9 +1462,9 @@ def check_observatory_quest() -> None:
     require_text(
         professor,
         (
-            "%observatory_chestchoice = random(3);",
-            "%observatory_gatelock = 0;", "%observatory_chest1_seen = 0;",
-            "%observatory_chest7_seen = 0;", "%observatory_mould_pres = 0;",
+            "%varb3827_observatory_chestchoice = random(3);",
+            "%varb3826_observatory_gatelock = 0;", "%varb3829_observatory_chest1_seen = 0;",
+            "%varb3835_observatory_chest7_seen = 0;", "%varb3837_observatory_mould_pres = 0;",
         ),
         "Observatory Quest player-random initialization",
     )
@@ -1455,7 +1473,7 @@ def check_observatory_quest() -> None:
         glass,
         (
             "[opheldu,lens_mould]", "[proc,observatory_cast_lens]",
-            "%itgronigen ! ^itgronigen_given_mould", "stat(crafting) < 10",
+            "%varp112_itgronigen ! ^itgronigen_given_mould", "stat(crafting) < 10",
             "inv_del(inv, molten_glass, 1);", "mat2cost = No",
             "inv_add(inv, lens, 1);",
         ),
@@ -1479,18 +1497,18 @@ def check_tourist_trap() -> None:
         captain,
         (
             "[opnpc1,desertminingcaptain]",
-            "%desertrescue = ^desertrescue_approached_captain;",
+            "%varp197_desertrescue = ^desertrescue_approached_captain;",
             "It's a funny captain who can't fight his own battles!",
             "[label,desertrescue_captain_begin_duel]",
-            "%desertrescue_captain_duel = 1;",
+            "%varp6704_desertrescue_captain_duel = 1;",
             "~npc_retaliate(0);",
             "[opnpc2,desertminingcaptain]",
             "[apnpc2,desertminingcaptain]",
             "[label,desertrescue_captain_attack_warning]",
             "npc_setmode(playerescape);",
             "[label,desertrescue_captain_randompunish]",
-            "getbit_range(%desertrescue_map_mechanisms, 0, 1)",
-            "setbit_range_toint(%desertrescue_map_mechanisms, $next_stage, 0, 1);",
+            "getbit_range(%varp5981_desertrescue_map_mechanisms, 0, 1)",
+            "setbit_range_toint(%varp5981_desertrescue_map_mechanisms, $next_stage, 0, 1);",
             "~desertrescue_find_camp_merc(coord, 7, 0)",
             "pretends to start hitting you.",
             "gives you a sharp kick.",
@@ -1504,7 +1522,7 @@ def check_tourist_trap() -> None:
             "[ai_queue3,desertminingcaptain]",
             "if (npc_findhero = ^false)",
             "obj_add_private(npc_coord, bones, 1",
-            "%desertrescue = ^desertrescue_killed_capt;",
+            "%varp197_desertrescue = ^desertrescue_killed_capt;",
             "inv_total(bank, metal_key) > 0",
             "inv_add(inv, metal_key, 1);",
             "obj_add_private(npc_coord, metal_key, 1",
@@ -1545,7 +1563,7 @@ def check_tourist_trap() -> None:
     )
     require_text(
         TOURIST_VARP.read_text(),
-        ("[desertrescue_captain_duel]", "scope=temp"),
+        ("[varp6704_desertrescue_captain_duel]", "scope=temp"),
         "The Tourist Trap duel state",
     )
     require("[ai_queue3,desertminingcaptain]" not in TOURIST_GENERIC_DROP.read_text(),
@@ -1567,7 +1585,7 @@ def check_tourist_trap() -> None:
             "oc_category($weapon) ! weapon_pickaxe",
             "[proc,desertrescue_open_camp_gate](int $side)",
             "inv_total(inv, metal_key) < 1",
-            "%desertrescue = ^desertrescue_entered_camp;",
+            "%varp197_desertrescue = ^desertrescue_entered_camp;",
             "~desertrescue_cross_wall($gate_coord, $gate_angle);",
             "[timer,desertrescue_mercenary_check]",
             "[label,desertrescue_camp_jail]",
@@ -1597,7 +1615,7 @@ def check_watchtower() -> None:
         gorad,
         (
             "[opnpc1,gorad]",
-            "getbit_range(%itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
+            "getbit_range(%varp6190_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
             "~npc_retaliate(0);",
             "[ai_queue3,gorad]", "if (npc_findhero = ^false)",
             "obj_add_private(npc_coord, big_bones, 1",
@@ -1606,7 +1624,7 @@ def check_watchtower() -> None:
             "if (random(400) = 0)", "dorgesh_construction_bone",
             "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
             "queue(defeat_gorad, 0, 0);", "[queue,defeat_gorad]",
-            "getbit_range(%itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) ! 1",
+            "getbit_range(%varp6190_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) ! 1",
             "~obj_gettotal(ogretooth) > 0", "inv_freespace(inv) = 0",
             "inv_add(inv, ogretooth, 1);",
             "[proc,watchtower_gorad_uncommon_seed]()(namedobj, int)",
@@ -1621,7 +1639,7 @@ def check_watchtower() -> None:
             "Watchtower: Gorad drops must remain owner-private")
     require("obj_add_private(npc_coord, ogretooth" not in gorad,
             "Watchtower: quest tooth must remain a direct inventory reward")
-    require("%itwatchtower < ^itwatchtower_given_relic" not in gorad,
+    require("%varp212_itwatchtower < ^itwatchtower_given_relic" not in gorad,
             "Watchtower: broad legacy tooth eligibility restored")
     require("rag_ogre_bone" not in gorad,
             "Watchtower: ogre ribs must wait for Rag and Bone Man II state")
@@ -1631,9 +1649,9 @@ def check_watchtower() -> None:
         grew,
         (
             "[opnpc1,grew]", "[label,grew_spoken]", "[opnpcu,grew]",
-            "getbit_range(%itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
+            "getbit_range(%varp6190_itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
             "inv_total(inv, ogretooth) > 0",
-            "setbit_range_toint(%itwatchtower_bits, 2, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew)",
+            "setbit_range_toint(%varp6190_itwatchtower_bits, 2, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew)",
             "inv_del(inv, ogretooth, 1);", "inv_add(inv, relicpart2, 1);",
             "inv_add(inv, powering_crystal1, 1);",
         ),
@@ -1665,10 +1683,10 @@ def check_legends_quest() -> None:
             "random(10) ! 0", "stat_random(agility, 0, 254)",
             "max(divide(stat(hitpoints), 4), 1)",
             "[ai_queue3,nezikchened]", "if (npc_findhero = ^false)",
-            "%legendsquest = ^legends_defeated_nezikchened_fire;",
+            "%varp139_legendsquest = ^legends_defeated_nezikchened_fire;",
             "damage(uid, hitsplat_damage, randominc(20));",
-            "%legendsquest = ^legends_defeated_nezikchened_water;",
-            "%legendsquest = ^legends_defeated_nezikchened_final;",
+            "%varp139_legendsquest = ^legends_defeated_nezikchened_water;",
+            "%varp139_legendsquest = ^legends_defeated_nezikchened_final;",
             "[label,summon_nezi_part3]", "[label,legends_nezi_summon_ancient_hero]",
             "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), san_tojalon, 500);",
             "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), irvig_senay, 500);",
@@ -1692,7 +1710,7 @@ def check_legends_quest() -> None:
         ungadulu,
         (
             "[opnpcu,ungadulu_good]", "last_useitem = book_of_binding",
-            "%legendsquest = ^legends_summoned_nezikchened_fire;",
+            "%varp139_legendsquest = ^legends_summoned_nezikchened_fire;",
             "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), nezikchened, 500);",
             "npc_setowner;", "stat_sub(prayer, 0, 90);",
         ),
@@ -1706,7 +1724,7 @@ def check_legends_quest() -> None:
         (
             "[oplocu,fertilesoil]", "last_useitem ! yommiseeds_germ",
             "stat(herblore) < 45", "stat(woodcutting) < 50",
-            "%legendsquest < ^legends_sacred_water_collected",
+            "%varp139_legendsquest < ^legends_sacred_water_collected",
             "[oplocu,yommitree_sapling]", "[oplocu,yommitree_adult]",
             "[oplocu,yommitree_felled]", "[oplocu,yommitree_trimmed]",
             "[oploc1,yommitree_totem]", "[proc,legends_yommi_axe](obj $axe)(boolean)",
@@ -1752,9 +1770,9 @@ def check_legends_quest() -> None:
         quest,
         (
             "[oplocu,lg_ord_totem_pole]", "last_useitem = thtotempole",
-            "@summon_nezi_part3;", "%legendsquest = ^legends_replaced_totem;",
+            "@summon_nezi_part3;", "%varp139_legendsquest = ^legends_replaced_totem;",
             "npc_setowner;", "[opheldu,goldbowlbless_pure]",
-            "getbit_range(%legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
+            "getbit_range(%varp6202_legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
             "inv_add(inv, holy_water, 1);", "if ($bowl_uses >= 9)",
         ),
         "Legends' Quest bowl and final totem",
@@ -1768,7 +1786,7 @@ def check_legends_quest() -> None:
         boulder,
         (
             "[oplocu,lgwaterpool]", "last_useitem = goldbowlbless_empty",
-            "%legendsquest = ^legends_sacred_water_collected;",
+            "%varp139_legendsquest = ^legends_sacred_water_collected;",
             "last_useitem = vial_enchanted", "inv_add(inv, holy_water, 1);",
         ),
         "Legends' Quest deep sacred-water source",
@@ -1797,14 +1815,14 @@ def check_legends_quest() -> None:
             "oc_param(holy_water, rangebonus_ammo)",
             "multiply($holy_base, 16)", "add(divide(multiply($holy_base, 16), 10), 5)",
             "npc_statsub(defence, 0, 5);",
-            "%legends_nezikchened_holy_water = 2;",
+            "%varp6732_legends_nezikchened_holy_water = 2;",
         ),
         "Legends' Quest Holy Water combat formula",
     )
 
     require_text(
         LEGENDS_VARP.read_text(),
-        ("[legends_nezikchened_dagger_used]", "[legends_nezikchened_holy_water]"),
+        ("[varp6731_legends_nezikchened_dagger_used]", "[varp6732_legends_nezikchened_holy_water]"),
         "Legends' Quest attempt state",
     )
 
@@ -1858,7 +1876,7 @@ def check_big_chompy() -> None:
             "~player_ranged_use_weapon($bow, $ammo)",
             "[ai_queue3,chompybird]", "queue(chompybird_kill, 0, 0);",
             "npc_add($death, chompybird_dead, 200);", "[queue,chompybird_kill]",
-            "%chompybird = ^chompybird_player_killed_chompy;",
+            "%varp293_chompybird = ^chompybird_player_killed_chompy;",
             "[opnpc4,chompybird_dead]", "add(random(21), 10)",
             "obj_add_private(npc_coord, raw_chompy, 1",
             "obj_add_private(npc_coord, bones, 1",
@@ -1876,10 +1894,10 @@ def check_big_chompy() -> None:
         (
             "[proc,chompy_rantz_dialogue]", "inv_total(inv, ogre_arrow) < 6",
             "inv_del(inv, ogre_arrow, 6);",
-            "%chompybird = ^chompybird_given_arrows;",
-            "%chompybird = ^chompybird_shown_toad;",
-            "%chompybird = ^chompybird_rantz_gave_player_bow;",
-            "%chompybird = ^chompybird_told_to_cook_chompy;",
+            "%varp293_chompybird = ^chompybird_given_arrows;",
+            "%varp293_chompybird = ^chompybird_shown_toad;",
+            "%varp293_chompybird = ^chompybird_rantz_gave_player_bow;",
+            "%varp293_chompybird = ^chompybird_told_to_cook_chompy;",
             "[opnpcu,rantz]", "[label,hand_chompy_to_rantz]",
             "inv_del(inv, cooked_s_chompy, 1);",
             "[queue,quest_chompybird_complete]",
@@ -1907,7 +1925,7 @@ def check_big_chompy() -> None:
             "$bugs_item = cabbage;", "$fycie_item = doogleleaves;",
             "stat_random(cooking, 200, 255)", "inv_add(inv, ruined_chompy, 1);",
             "inv_add(inv, cooked_s_chompy, 1);",
-            "%chompybird = ^chompybird_chompy_cooked;",
+            "%varp293_chompybird = ^chompybird_chompy_cooked;",
         ),
         "Big Chompy Bird Hunting spit recipe",
     )
@@ -1915,7 +1933,7 @@ def check_big_chompy() -> None:
     require_text(
         CHOMPY_ARROWS.read_text(),
         ("[opheldu,wolf_bones]", "[label,make_ogre_arrows]",
-         "%chompybird_kills = setbit(%chompybird_kills, ^chompybird_varbit_made_arrows);"),
+         "%varp6192_chompybird_kills = setbit(%varp6192_chompybird_kills, ^chompybird_varbit_made_arrows);"),
         "Big Chompy Bird Hunting arrow recipe",
     )
     require_text(CHOMPY_CHEST.read_text(),
@@ -1996,9 +2014,9 @@ def check_elemental_workshops() -> None:
         (
             "[oploc1,elemental_workshop_bookcase]",
             "[oploc1,elemental_workshop_valve_1_red]",
-            "coordx(loc_coord) > 2719", "%elemental_workshop_gate2 =",
+            "coordx(loc_coord) > 2719", "%varb2059_elemental_workshop_gate2 =",
             "[oploc1,elemental_workshop_water_lever]",
-            "%elemental_workshop_gate1 = 1 & %elemental_workshop_gate2 = 1",
+            "%varb2058_elemental_workshop_gate1 = 1 & %varb2059_elemental_workshop_gate2 = 1",
             "[oploc1,elemental_workshop_bellows_noanim]",
             "stat(crafting) < 20", "inv_del(inv, thread, 1);",
             "inv_del(inv, leather, 1);", "[oploc1,elemental_workshop_air_lever]",
@@ -2008,7 +2026,7 @@ def check_elemental_workshops() -> None:
             "[proc,elem1_furnace](obj $used)", "inv_del(inv, coal, 4);",
             "inv_add(inv, elemental_workshop_bar, 1);",
             "[proc,elem1_make_shield]", "inv_add(inv, elemental_shield, 1);",
-            "%elemental_workshop_finished = 1;",
+            "%varb2067_elemental_workshop_finished = 1;",
             "stat_advance(crafting, 50000);", "stat_advance(smithing, 50000);",
             "~quest_complete_rewards(quest_elementalworkshop1",
         ),
@@ -2086,7 +2104,7 @@ def check_nature_spirit() -> None:
     require_text(
         ghast,
         (
-            "add(%ghast_delay, 26) > map_clock", "def_int $rand = random(10);",
+            "add(%varp6217_ghast_delay, 26) > map_clock", "def_int $rand = random(10);",
             "if ($rand < 3)", "~random_range(1, 3)",
             "[opnpcu,ghast_invis]", "~player_in_combat_check = false",
             "inv_del(inv, druid_pouch, 1);", "inv_add(inv, druid_pouch_empty, 1);",
@@ -2105,9 +2123,9 @@ def check_nature_spirit() -> None:
             "obj_add(npc_coord, ~randomherb, ^lootdrop_duration);",
             "$random < 125", "obj_add(npc_coord, ~randomjewel, ^lootdrop_duration);",
             "stat_advance(prayer, 300);",
-            "%druidspirit = ^druidspirit_killed_ghast1;",
-            "%druidspirit = ^druidspirit_killed_ghast2;",
-            "%druidspirit = ^druidspirit_killed_ghast3;",
+            "%varp307_druidspirit = ^druidspirit_killed_ghast1;",
+            "%varp307_druidspirit = ^druidspirit_killed_ghast2;",
+            "%varp307_druidspirit = ^druidspirit_killed_ghast3;",
             # npc_findhero reads the active npc, which npc_del removes: asked
             # after the removal it aborted the death queue (2026-09-29).
             "def_int $hero = npc_findhero;", "if ($hero = ^false)",
@@ -2151,8 +2169,8 @@ def check_nature_spirit() -> None:
     require_text(
         filliman,
         (
-            "%druidspirit >= ^druidspirit_blessed_sickle",
-            "%druidspirit < ^druidspirit_added_pouch",
+            "%varp307_druidspirit >= ^druidspirit_blessed_sickle",
+            "%varp307_druidspirit < ^druidspirit_added_pouch",
             "inv_total(inv, druid_pouch_empty) = 0",
             "inv_total(inv, druid_pouch) = 0",
             "if (inv_freespace(inv) = 0)",
@@ -2223,13 +2241,13 @@ def check_priest_in_peril() -> None:
         guardian,
         (
             "[zone,0_53_154_8_40]", "[zone,0_53_154_8_48]",
-            "%priestperil ! ^priestperil_agree_to_kill_dog",
+            "%varp302_priestperil ! ^priestperil_agree_to_kill_dog",
             "npc_add(0_53_154_13_46, priestperilguarddog, 32000);",
             "npc_setowner;", "[opnpc2,priestperilguarddog]",
             "[apnpc2,priestperilguarddog]", "@player_combat_start;",
             "@player_combat_start_ap;", "[ai_queue3,priestperilguarddog]",
             "if (npc_findhero = ^false)", "npc_statheal(hitpoints, 0, 100);",
-            "%priestperil = ^priestperil_killed_dog;",
+            "%varp302_priestperil = ^priestperil_killed_dog;",
         ),
         "Priest in Peril owner-private Guardian lifecycle",
     )
@@ -2270,7 +2288,7 @@ def check_priest_in_peril() -> None:
             "obj_add_private(npc_coord, monkrobetop, 1, ^lootdrop_duration, 100);",
             "else if ($robe = 1)",
             "obj_add_private(npc_coord, monkrobebottom, 1, ^lootdrop_duration, 100);",
-            "npc_type = priestperilevilmonk3 & %priestperil < ^priestperil_unlocked_drezel",
+            "npc_type = priestperilevilmonk3 & %varp302_priestperil < ^priestperil_unlocked_drezel",
             "obj_add_private(npc_coord, pipkey_gold, 1, ^lootdrop_duration, 100);",
         ),
         "Priest in Peril monk AI and private loot",
@@ -2290,26 +2308,26 @@ def check_priest_in_peril() -> None:
         (
             "[oploc1,priestperil_grave_base1]", "[oploc1,priestperil_grave_base7]",
             "[oploc2,priestperil_grave_base1]", "[oplocu,priestperil_grave_base7]",
-            "testbit(%priestperil_mausoleum, 21)",
-            "setbit_range_toint(%priestperil_mausoleum, random(100), 22, 28)",
+            "testbit(%varp6733_priestperil_mausoleum, 21)",
+            "setbit_range_toint(%varp6733_priestperil_mausoleum, random(100), 22, 28)",
             "multiply($grave_no, 17)", "modulo($seed, 7)",
             "if ($grave_item = pipkey_iron)", "last_useitem ! pipkey_gold",
             "if (~obj_gettotal(pipkey_iron) > 0)",
             "inv_del(inv, pipkey_gold, 1);", "inv_add(inv, pipkey_iron, 1);",
-            "setbit(%priestperil_mausoleum, $swap_bit)",
+            "setbit(%varp6733_priestperil_mausoleum, $swap_bit)",
             "damage(uid, hitsplat_damage, add(random(6), 1));",
         ),
         "Priest in Peril randomized monument swaps",
     )
-    require("6733=priestperil_mausoleum" in PIP_VARP_ALLOC.read_text(),
+    require("6733=varp6733_priestperil_mausoleum" in PIP_VARP_ALLOC.read_text(),
             "Priest in Peril: durable monument varp allocation missing")
 
     gates = PIP_GATES.read_text()
     require_text(
         gates,
         (
-            "[oploc1,pip_underground_door1]", "testbit(%priestperil_mausoleum, 20)",
-            "inv_total(inv, pipkey_gold) = 0", "setbit(%priestperil_mausoleum, 20)",
+            "[oploc1,pip_underground_door1]", "testbit(%varp6733_priestperil_mausoleum, 20)",
+            "inv_total(inv, pipkey_gold) = 0", "setbit(%varp6733_priestperil_mausoleum, 20)",
             "[oploc1,pip_underground_door2]",
             "~check_priest_peril_gate(^priestperil_meet_in_mausoleum);",
         ),
@@ -2319,22 +2337,22 @@ def check_priest_in_peril() -> None:
     require_text(
         PIP_KING.read_text(),
         (
-            "[label,roald_priestperil_dialogue]", "%priestperil = ^priestperil_started;",
-            "%priestperil = ^priestperil_return_to_drezel;",
-            "%priestperil = ^priestperil_poured_blessed_water",
+            "[label,roald_priestperil_dialogue]", "%varp302_priestperil = ^priestperil_started;",
+            "%varp302_priestperil = ^priestperil_return_to_drezel;",
+            "%varp302_priestperil = ^priestperil_poured_blessed_water",
         ),
         "Priest in Peril King Roald start and return path",
     )
     require_text(
         PIP_TEMPLE_DOORS.read_text(),
-        ("[label,templedoors_agree_help]", "%priestperil = ^priestperil_agree_to_kill_dog;"),
+        ("[label,templedoors_agree_help]", "%varp302_priestperil = ^priestperil_agree_to_kill_dog;"),
         "Priest in Peril temple deception",
     )
     require_text(
         PIP_TRAPPED_DREZEL.read_text(),
         (
             "[oplocu,pip_prisondoor]", "inv_del(inv, pipkey_iron, 1);",
-            "%priestperil = ^priestperil_unlocked_drezel;", "def_int $water = inv_total(inv, bucket_murkywater);",
+            "%varp302_priestperil = ^priestperil_unlocked_drezel;", "def_int $water = inv_total(inv, bucket_murkywater);",
             "inv_del(inv, bucket_murkywater, $water);", "inv_add(inv, bucket_blessedwater, $water);",
         ),
         "Priest in Peril cell and all-bucket blessing",
@@ -2342,7 +2360,7 @@ def check_priest_in_peril() -> None:
     require_text(
         PIP_COFFIN.read_text(),
         (
-            "last_useitem = bucket_blessedwater", "%priestperil = ^priestperil_poured_blessed_water;",
+            "last_useitem = bucket_blessedwater", "%varp302_priestperil = ^priestperil_poured_blessed_water;",
             "inv_del(inv, bucket_blessedwater, 1);", "inv_add(inv, bucket_empty, 1);",
         ),
         "Priest in Peril vampyre containment",
@@ -2355,7 +2373,7 @@ def check_priest_in_peril() -> None:
             "[oploc1,priestperil_well]", "[proc,priestperil_use_well]",
             "inv_del(inv, bucket_empty, 1);", "inv_add(inv, bucket_murkywater, 1);",
             "inv_add(inv, bucket_water, 1);", "[oploc1,pip_underground_wall_side_withportal]",
-            "%priestperil = ^priestperil_access_holy_barrier", "p_telejump(0_53_54_31_29);",
+            "%varp302_priestperil = ^priestperil_access_holy_barrier", "p_telejump(0_53_54_31_29);",
             "[label,priestperil_barrier_blocked]", "[oploc1,pipeastsidetrapdoor]",
             "[oploc1,pipeastsidetrapdoor_open]", "p_telejump(0_53_154_48_31);",
         ),
@@ -2377,10 +2395,10 @@ def check_priest_in_peril() -> None:
             "[opnpc1,priestperiltrappedmonk2]", "[opnpcu,priestperiltrappedmonk2]",
             "add(inv_total(inv, blankrune), inv_total(inv, blankrune_high))",
             "def_int $take_rune = min($to_give, $have_rune);", "inv_del(inv, blankrune, $take_rune);",
-            "inv_del(inv, blankrune_high, $take_pure);", "%priestperil = add(%priestperil, $given);",
+            "inv_del(inv, blankrune_high, $take_pure);", "%varp302_priestperil = add(%varp302_priestperil, $given);",
             "stat_advance(prayer, ^priestperil_reward_prayer_xp);",
             "inv_add(inv, dagger_wolfbane, 1);", "~quest_complete_rewards(quest_priestinperil",
-            "if (~obj_gettotal(dagger_wolfbane) = 0)", "%priestperil = ^priestperil_access_holy_barrier;",
+            "if (~obj_gettotal(dagger_wolfbane) = 0)", "%varp302_priestperil = ^priestperil_access_holy_barrier;",
         ),
         "Priest in Peril essence, reward, reclaim and barrier access",
     )
@@ -2397,7 +2415,7 @@ def check_regicide() -> None:
             "npc_setowner;", "[oploc1,regicide_cross_over2_tyras_camp]",
             "stat(agility) < 56", "regicide_old_camp_guard, 500", "regicide_cross_over3", "^regicide_entered_camp",
             "[zone,0_40_51_24_32]", "@regicide_arianwyn_encounter;",
-            "%regicide_quest = ^regicide_spoken_arianwyn;", "[opheld1,regicide_iorwerth_message]",
+            "%varp328_regicide_quest = ^regicide_spoken_arianwyn;", "[opheld1,regicide_iorwerth_message]",
         ),
         "Regicide Well, Idris, private guard and Arianwyn route",
     )
@@ -2423,7 +2441,7 @@ def check_regicide() -> None:
             "[ai_queue3,regicide_tyras_guard]\n@wiki_tyras_guard_drop;",
             "[ai_queue3,regicide_tyras_camp_guard]", "queue(regicide_quest_guard_defeated, 0, 0);",
             "@wiki_tyras_guard_drop;",
-            "[queue,regicide_quest_guard_defeated]", "%regicide_quest = ^regicide_defeated_guard;",
+            "[queue,regicide_quest_guard_defeated]", "%varp328_regicide_quest = ^regicide_defeated_guard;",
         ),
         "Regicide encounter-specific guard credit",
     )
@@ -2447,7 +2465,7 @@ def check_regicide() -> None:
             "stat(crafting) < 10", "inv_total(inv, ball_of_wool) < 4",
             "inv_total(inv, tinderbox) = 0", "anim(regicide_catapultwind, 0);",
             "loc_anim(fire_catapult);", "regicide_barrelflight", "regicide_tent_human_fire",
-            "%regicide_quest = ^regicide_killed_tyras;",
+            "%varp328_regicide_quest = ^regicide_killed_tyras;",
         ),
         "Regicide bomb and catapult pipeline",
     )
@@ -2456,7 +2474,7 @@ def check_regicide() -> None:
         (
             "[oplocu,regicide_fractionalizing_still]", "[if_close,regicide_still]",
             "[if_button,regicide_still:regicide_add_coal]", "[softtimer,regicide_still_progress]",
-            "%regicide_still_total >= 26", "inv_add(inv, regicide_barrel_naphtha, 1);",
+            "%varp330_regicide_still_total >= 26", "inv_add(inv, regicide_barrel_naphtha, 1);",
         ),
         "Regicide fractionalising still",
     )
@@ -2488,7 +2506,7 @@ def check_regicide() -> None:
         (
             "case ^regicide_killed_tyras, ^regicide_reported_iorwerth :", "case ^regicide_spoken_arianwyn :",
             "stat_advance(agility, 137500);", "inv_add(inv, coins, 15000);",
-            "~quest_complete_rewards(quest_regicide", "%regicide_quest = ^regicide_complete;",
+            "~quest_complete_rewards(quest_regicide", "%varp328_regicide_quest = ^regicide_complete;",
         ),
         "Regicide Arianwyn gate and reward",
     )
@@ -2500,7 +2518,7 @@ def check_tai_bwo_wannai_trio() -> None:
         monkey,
         (
             "[opnpc2,monkey]", "~player_attackrange(inv_getobj(worn, ^wearpos_rhand))",
-            "%tbwt_main >= ^tbwt_started & %tbwt_main < ^tbwt_complete & $attackrange <= 1",
+            "%varp320_tbwt_main >= ^tbwt_started & %varp320_tbwt_main < ^tbwt_complete & $attackrange <= 1",
             "npc_setmode(playerescape);", "@player_combat_start;", "[ai_queue3,monkey]",
             "obj_add(npc_coord, tbwt_monkey_corpse, 1, ^lootdrop_duration);",
             "obj_add(npc_coord, mm_normal_monkey_bones, 1, ^lootdrop_duration);",
@@ -2520,7 +2538,7 @@ def check_tai_bwo_wannai_trio() -> None:
             "[opheldu,tbwt_poisonous_karambwan_paste]", "inv_setslot(inv, last_useslot, $product, 1);",
             "[oploc1,tbwt_bamboo_door]", "~door_selfstage_open;",
             "[oploc2,tbwt_bamboo_door]", "~door_selfstage_close;",
-            "%tbwt_tinsay < ^tbwt_tinsay_claimed_final_reward | %tbwt_tiadeche < ^tbwt_tiadeche_claimed_final_reward",
+            "%varp6054_tbwt_tinsay < ^tbwt_tinsay_claimed_final_reward | %varp321_tbwt_tiadeche < ^tbwt_tiadeche_claimed_final_reward",
             "@pray_at_altar(stat_base(prayer));", "[queue,tbwt_quest_complete]",
             '"2000 coins|The three brothers return to Tai Bwo Wannai"',
         ),
@@ -2535,13 +2553,13 @@ def check_tai_bwo_wannai_trio() -> None:
         (
             "sub(4, $current)", "~set_tbwt_tamayu_agility_count(add($doses, $current));",
             "~tbwt_is_acceptable_tamayu_spear($spear)", "~tbwt_is_kp_spear($spear)",
-            "testbit(%tbwt_flags, ^tbwt_tamayu_received_acceptable_spear) = ^true",
-            "testbit(%tbwt_flags, ^tbwt_tamayu_received_kp_spear) = ^true",
+            "testbit(%varp6051_tbwt_flags, ^tbwt_tamayu_received_acceptable_spear) = ^true",
+            "testbit(%varp6051_tbwt_flags, ^tbwt_tamayu_received_kp_spear) = ^true",
             "npc_add(^tbwt_tamayu_hunter_cutscene_spawn, tbwt_tamayu_hunter, 200);",
             "npc_add(^tbwt_shaikahan_cutscene_spawn, tbwt_beast_cutscene, 200);",
             "npc_add(^tbwt_tamayu_hunter_cutscene_final_spawn, tbwt_tamayu_final_hunter, 100);",
             "npc_add(^tbwt_shaikahan_cutscene_final_spawn, tbwt_beast_cutscene, 100);",
-            "sound_synth(beast_hit, 1, 0);", "%tbwt_tamayu = ^tbwt_tamayu_complete;",
+            "sound_synth(beast_hit, 1, 0);", "%varp6053_tbwt_tamayu = ^tbwt_tamayu_complete;",
         ),
         "Tai Bwo Wannai Trio Tamayu hunt",
     )
@@ -2591,7 +2609,7 @@ def check_tai_bwo_wannai_trio() -> None:
         cooking,
         (
             "[label,cook_tbwt_karambwan](category $source)",
-            "%tbwt_tinsay >= ^tbwt_tinsay_claimed_final_reward & stat(cooking) >= 30",
+            "%varp6054_tbwt_tinsay >= ^tbwt_tinsay_claimed_final_reward & stat(cooking) >= 30",
             '"Cook it thoroughly."', "stat_random(cooking, 70, 256)",
             "inv_add(inv, tbwt_burnt_karambwan, 1);", "inv_add(inv, tbwt_cooked_karambwan, 1);",
             "stat_advance(cooking, 1900);", "inv_add(inv, tbwt_poorly_cooked_karambwan, 1);",
@@ -2652,7 +2670,7 @@ def check_tai_bwo_wannai_trio() -> None:
 
     shaikahan = TBWT_SHAIKAHAN.read_text()
     require_text(shaikahan,
-                 ("[opnpc2,tbwt_beast]", "%tbwt_main < ^tbwt_complete", "@player_combat_start;"),
+                 ("[opnpc2,tbwt_beast]", "%varp320_tbwt_main < ^tbwt_complete", "@player_combat_start;"),
                  "Tai Bwo Wannai Trio post-quest Shaikahan gate")
     require_text(PLAYER_HIT_FUNNEL.read_text(),
                  ("npc_type = tbwt_beast & ~tbwt_is_kp_spear", "$prepared = 0;"),
@@ -2668,19 +2686,19 @@ def check_troll_stronghold() -> None:
     require_text(
         core,
         (
-            "[oploc1,troll_climbingrocks]", "%troll_quest < ^troll_started",
+            "[oploc1,troll_climbingrocks]", "%varp317_troll_quest < ^troll_started",
             "stat(agility) < 15", "inv_total(worn, death_climbingboots) = 0",
             "[mapzone,0_45_56]", "[proc,troll_ensure_dad]", "npc_setowner;",
-            "[oploc1,troll_stronghold_arena_exit_left]", "%troll_accepted_challenge = ^true",
+            "[oploc1,troll_stronghold_arena_exit_left]", "%varb3_troll_accepted_challenge = ^true",
             "[oploc1,troll_stronghold_prison_door_closed]", "inv_del(inv, troll_key_prison, 1);",
             "[mapzone,0_44_157]", "[proc,troll_ensure_prisoners]",
             "npc_add(0_44_157_11_29, troll_godric, 32000);",
             "npc_add(0_44_157_11_33, troll_eadgar, 32000);",
-            "[label,troll_unlock_cell_1]", "%troll_quest = ^troll_freed_godric;",
+            "[label,troll_unlock_cell_1]", "%varp317_troll_quest = ^troll_freed_godric;",
             "inv_del(inv, troll_key_godric, 1);", "[label,troll_unlock_cell_2]",
-            "%troll_freed_eadgar = ^true;", "inv_del(inv, troll_key_eadgar, 1);",
+            "%varb0_troll_freed_eadgar = ^true;", "inv_del(inv, troll_key_eadgar, 1);",
             "[proc,troll_npc_forcewalk]", "[queue,troll_quest_complete]",
-            "inv_freespace(inv) < 1", "%troll_quest = ^troll_complete;",
+            "inv_freespace(inv) < 1", "%varp317_troll_quest = ^troll_complete;",
             "inv_add(inv, law_talisman, 1);", "~quest_complete_rewards(quest_trollstronghold",
         ),
         "Troll Stronghold route, private prisoners and reward",
@@ -2694,11 +2712,11 @@ def check_troll_stronghold() -> None:
         (
             "[opnpc2,troll_champion]", "[apnpc2,troll_champion]",
             "[ai_opplayer2,troll_champion]", "random(3) = 0",
-            "%aggressive_npc = npc_uid;", "movecoord($centre, $step_x, 0, $step_z)",
+            "%varp5756_aggressive_npc = npc_uid;", "movecoord($centre, $step_x, 0, $step_z)",
             "npc_attackdelay(8);", "[ai_queue2,troll_champion]",
             "$damage = max(0, sub(npc_stat(hitpoints), 19));",
-            "[label,troll_dad_surrender]", "%troll_quest = ^troll_defeated_dad;",
-            "I'm not done yet! Prepare to die!", "%troll_to_the_death = ^true;",
+            "[label,troll_dad_surrender]", "%varp317_troll_quest = ^troll_defeated_dad;",
+            "I'm not done yet! Prepare to die!", "%varb5_troll_to_the_death = ^true;",
             "[ai_queue3,troll_champion]", "obj_add(npc_coord, big_bones, 1",
             "random(400) = 0", "random(10025) < 2", "troll_spectator7",
             "npc_setmode(opplayer2);",
@@ -2793,13 +2811,13 @@ def check_troll_stronghold() -> None:
 
     require_text(
         TROLL_DENULTH.read_text(),
-        ("%troll_quest >= ^troll_started", "[label,denulth_troll]",
-         "%troll_quest = ^troll_started;", "[label,denulth_trollquest]"),
+        ("%varp317_troll_quest >= ^troll_started", "[label,denulth_troll]",
+         "%varp317_troll_quest = ^troll_started;", "[label,denulth_trollquest]"),
         "Troll Stronghold Denulth start and reminders",
     )
     require_text(
         TROLL_DUNSTAN.read_text(),
-        ("%troll_quest = ^troll_freed_godric", "inv_freespace(inv) = 0",
+        ("%varp317_troll_quest = ^troll_freed_godric", "inv_freespace(inv) = 0",
          "queue(troll_quest_complete, 0, 0);", "~obj_gettotal(law_talisman) = 0",
          "[label,dunstan_lawtali]", "inv_total(inv, coins) < 1000",
          "inv_del(inv, coins, 1000);", "inv_add(inv, law_talisman, 1);"),
@@ -2813,8 +2831,8 @@ def check_shades_of_mortton() -> None:
         core,
         (
             "[proc,mortton_mix_serum]", "~attempt_brew_potion($ashes_slot, $tarromin_slot)",
-            "%morttonquest = ^mortton_made_serum;", "[queue,mortton_quest_complete]",
-            "%morttonquest = ^mortton_quest_complete;", "stat_advance(crafting,20000);",
+            "%varp339_morttonquest = ^mortton_made_serum;", "[queue,mortton_quest_complete]",
+            "%varp339_morttonquest = ^mortton_quest_complete;", "stat_advance(crafting,20000);",
             "stat_advance(herblore,20000);", "shadekey_silver_purple",
         ),
         "Shades of Mort'ton quest and reward route",
@@ -2827,8 +2845,8 @@ def check_shades_of_mortton() -> None:
             "[ai_queue3,_shade]", "npc_param(death_drop)",
             "npc_type = shadeshadow_level1 | npc_type = shade_level1",
             "queue(mortton_quest_shade_kill, 0, 0);", "[queue,mortton_quest_shade_kill]",
-            "%morttonquest = ^mortton_killed_5_shades;", "random(20) = 0",
-            "stat_sub(strength, 1, 0);", "%temple_sanctity = min(3000",
+            "%varp339_morttonquest = ^mortton_killed_5_shades;", "random(20) = 0",
+            "stat_sub(strength, 1, 0);", "%varp6753_temple_sanctity = min(3000",
         ),
         "Shades of Mort'ton shade combat, remains and five-kill credit",
     )
@@ -2844,7 +2862,7 @@ def check_shades_of_mortton() -> None:
             "[timer,sanctity_drain]", "[timer,mortton_temple_attack]",
             "%current_temple_build = max(0, sub(%current_temple_build, 20));",
             "[proc,mortton_degrade_temple_wall]", "[oploc1,templefire_altar_nofire]",
-            "%morttonquest = ^mortton_created_sacred_oil;",
+            "%varp339_morttonquest = ^mortton_created_sacred_oil;",
         ),
         "Shades of Mort'ton Flamtaer temple contract",
     )
@@ -2858,7 +2876,7 @@ def check_shades_of_mortton() -> None:
             "[oploc1,temple_pyre]", "[proc,mortton_best_pyre_logs]",
             "[oploc1,_pyre_loaded]", "[proc,mortton_best_pyre_remains]",
             "[oploc1,_pyre_remains_loaded]", "[label,light_funeral_pyre]",
-            "%morytania_diary_elite_complete", "%morytania_diary_hard_complete",
+            "%varb4490_morytania_diary_elite_complete", "%varb4489_morytania_diary_hard_complete",
             "[proc,mortton_pyre_prayer_xp]", "[proc,give_shade_rewards]",
             "obj_add_private($coord, $reward, $count, 500, 500);",
         ),
@@ -2900,7 +2918,7 @@ def check_shades_of_mortton() -> None:
     require_text(
         catacombs,
         (
-            "[label,enter_shade_catacombs]", "%morttonquest < ^mortton_quest_complete",
+            "[label,enter_shade_catacombs]", "%varp339_morttonquest < ^mortton_quest_complete",
             "[oploc1,shadelair_steeldoor]", "[oploc1,shadelair_blackdoor]",
             "[oploc1,shadelair_silverdoor]", "[oploc1,shadelair_golddoor]",
             "[label,open_shade_chest]", "add(inv_freespace(inv), 1) < $slots_needed",
@@ -2911,7 +2929,7 @@ def check_shades_of_mortton() -> None:
             "~mortton_chest_preroll(shades_lock_gold, 54)",
             "sub(63, $wealth_bonus)", "[proc,mortton_splitbark_reward]",
             "~obj_gettotal(flamtaer_bag) = 0 & random(2) = 0",
-            "[oplocu,shade_lair_temple_altar]", "%mortton_altar_charges = add",
+            "[oplocu,shade_lair_temple_altar]", "%varp6754_mortton_altar_charges = add",
             "[oploc1,shade_lair_temple_altar]", "stat_heal(prayer, stat_base(prayer), 0);",
         ),
         "Shades of Mort'ton catacombs, chest and Altar of the Damned contract",
@@ -2942,11 +2960,11 @@ def check_shades_of_mortton() -> None:
                   "inv_add(inv, shadekey_bronze_bloodred, 1);"),
                  "Shades of Mort'ton afflicted serum reward tables")
     require_text(MORTTON_RAZMIRE.read_text(),
-                 ("%morttonquest = ^mortton_kill_shades;", "[label,razmire_general_open]",
+                 ("%varp339_morttonquest = ^mortton_kill_shades;", "[label,razmire_general_open]",
                   "[label,razmire_building_open]"),
                  "Shades of Mort'ton Razmire route and shops")
     require_text(MORTTON_ULSQUIRE.read_text(),
-                 ("%morttonquest = ^mortton_shades_to_ulsquire;",
+                 ("%varp339_morttonquest = ^mortton_shades_to_ulsquire;",
                   "queue(mortton_quest_complete, 0, 0);", "inv_add(inv, oliveoil3, 1);"),
                  "Shades of Mort'ton Ulsquire route")
 
@@ -2993,8 +3011,8 @@ def check_fremennik_trials() -> None:
     )
     require_text(
         VIKING_VARP.read_text(),
-        ("[viking_draugen_spot]", "[viking_draugen_active]",
-         "[viking_koschei_active]", "[viking_koschei_phase]"),
+        ("[varp6757_viking_draugen_spot]", "[varp6756_viking_draugen_active]",
+         "[varp6758_viking_koschei_active]", "[varp6759_viking_koschei_phase]"),
         "The Fremennik Trials private encounter state",
     )
 
@@ -3020,7 +3038,7 @@ def check_fremennik_trials() -> None:
     require_text(
         thorvald,
         ("[oploc2,viking_warrior_ladder]", "~viking_koschei_forbidden_loadout",
-         "%viking_koschei_phase = 0;", "~viking_koschei_spawn(1);",
+         "%varp6759_viking_koschei_phase = 0;", "~viking_koschei_spawn(1);",
          "[ai_queue3,viking_enemy1]", "~viking_koschei_spawn(2);",
          "[ai_queue3,viking_enemy2]", "~viking_koschei_spawn(3);",
          "[ai_queue3,viking_enemy3]", "~viking_koschei_spawn(4);",
@@ -3031,7 +3049,7 @@ def check_fremennik_trials() -> None:
          "obj_add_private(^viking_koschei_upstairs, viking_sword, 1, ^lootdrop_duration, 100);",
          "[proc,viking_koschei_try_safe_death]()(boolean)",
          "[proc,viking_koschei_on_logout]", "[proc,viking_koschei_drop_blocked]()(boolean)",
-         "[opheld2,viking_sword]", "if (%viking ! ^viking_complete)",
+         "[opheld2,viking_sword]", "if (%varp347_viking ! ^viking_complete)",
          "case magic_runes, firemaking_logs, arrowheads"),
         "The Fremennik Trials Thorvald and Koschei controller",
     )
@@ -3059,12 +3077,12 @@ def check_fremennik_trials() -> None:
         citizens,
         ("obj_add(npc_coord, bones, 1", "def_int $roll = random(512);",
          "$roll < 100", "bronze_warhammer", "$roll < 170", "iron_warhammer",
-         "%viking = ^viking_complete", "viking_sword", "viking_shield", "viking_helmet",
+         "%varp347_viking = ^viking_complete", "viking_sword", "viking_shield", "viking_helmet",
          "$roll < 183", "~randomherb", "copper_ore, 5", "tin_ore, 5", "iron_ore, 5",
          "coal, 1", "steel_bar, 1", "coins, 6", "coins, 15", "coins, 16",
          "coins, 20", "coins, 38", "tinderbox", "vial_empty", "vial_water",
          "bucket_empty", "$roll < 490", "viking_unstrung_lyre", "beer",
-         "eye_of_newt", "snape_grass", "jangerberries", "%heroquest = ^hero_complete",
+         "eye_of_newt", "snape_grass", "jangerberries", "%varp188_heroquest = ^hero_complete",
          "blamish_oil", "$roll < 502", "~troll_gem_drop(true)",
          "if (random(128) = 0)", "trail_clue_easy_simple001"),
         "The Fremennik Trials citizen 512-slot and tertiary loot contract",
@@ -3162,7 +3180,7 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         HORROR_VARP.read_text(),
-        ("[horror_boss_active]", "[horror_magic_element]", "[horror_reward_book]",
+        ("[varp6775_horror_boss_active]", "[varp6776_horror_magic_element]", "[varp6777_horror_reward_book]",
          "scope=temp", "scope=perm"),
         "Horror from the Deep private encounter and reward state",
     )
@@ -3175,7 +3193,7 @@ def check_horror_from_the_deep() -> None:
          "npc_statheal(hitpoints, 1, 0);", "npc_settimer(20);",
          "[timer,horror_timeout]", "settimer(horror_timeout, 1000);",
          "[ai_queue3,horror_dagannoth_jr4]", "if (npc_findhero = ^false)",
-         "%horrorquest = ^horror_defeated_dagjr;",
+         "%varb34_horrorquest = ^horror_defeated_dagjr;",
          "npc_add($start, horror_dagganoth_aira, 1000);",
          "[ai_timer,horror_dagganoth_air]", "~horror_mother_change(horror_dagganoth_water);",
          "[ai_timer,horror_dagganoth_water]", "~horror_mother_change(horror_dagganoth_melee);",
@@ -3188,24 +3206,24 @@ def check_horror_from_the_deep() -> None:
          "~playerhit_n_ranged(true, $hit1, $duration);",
          "~playerhit_n_ranged(true, $hit2, $duration);",
          "obj_add_private($drop, bones, 1", "inv_add(inv, horror_casket, 1);",
-         "%horrorquest = ^horror_complete;", "p_teleport(0_39_156_19_17);",
+         "%varb34_horrorquest = ^horror_complete;", "p_teleport(0_39_156_19_17);",
          "stat_advance(magic, 46625);", "stat_advance(strength, 46625);",
          "stat_advance(ranged, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
          "[proc,horror_abort]", "[proc,horror_on_logout]", "[proc,horror_on_death]",
          "[proc,horror_mother_prepare_hit]", "case horror_dagganoth_air",
-         "%horror_magic_element = ^element_air", "case horror_dagganoth_water",
-         "%horror_magic_element = ^element_water", "case horror_dagganoth_melee",
-         "%damagetype = ^melee_style", "case horror_dagganoth_earth",
-         "%horror_magic_element = ^element_earth", "case horror_dagganoth_fire",
-         "%horror_magic_element = ^element_fire", "case horror_dagganoth_ranged",
-         "%damagetype = ^ranged_style", "return(0);"),
+         "%varp6776_horror_magic_element = ^element_air", "case horror_dagganoth_water",
+         "%varp6776_horror_magic_element = ^element_water", "case horror_dagganoth_melee",
+         "%varp6295_damagetype = ^melee_style", "case horror_dagganoth_earth",
+         "%varp6776_horror_magic_element = ^element_earth", "case horror_dagganoth_fire",
+         "%varp6776_horror_magic_element = ^element_fire", "case horror_dagganoth_ranged",
+         "%varp6295_damagetype = ^ranged_style", "return(0);"),
         "Horror from the Deep owner-private combat and reward controller",
     )
 
     require_text(
         HORROR_JOSSIK.read_text(),
-        ("[opnpc1,horror_lighthousekeeeper_well]", "%horror_reward_book = 1;",
-         "%horror_reward_book = 2;", "%horror_reward_book = 3;",
+        ("[opnpc1,horror_lighthousekeeeper_well]", "%varp6777_horror_reward_book = 1;",
+         "%varp6777_horror_reward_book = 2;", "%varp6777_horror_reward_book = 3;",
          "~p_choice3_header(\"Saradomin\", 1, \"Zamorak\", 2, \"Guthix\", 3",
          "unfinished_saradominbook", "unfinished_zamorakbook", "unfinished_guthixbook",
          "inv_del(inv, horror_casket, 1);", "[opnpc4,horror_lighthousekeeeper_well]",
@@ -3227,8 +3245,8 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         HORROR_MAGIC.read_text(),
-        ("%horror_magic_element = ~elemental_spell_element($spell);",
-         "%horror_magic_element = ^element_none;"),
+        ("%varp6776_horror_magic_element = ~elemental_spell_element($spell);",
+         "%varp6776_horror_magic_element = ^element_none;"),
         "Horror from the Deep elemental spell latch",
     )
     require_text(PLAYER_DEATH.read_text(), ("~horror_on_death;",),
@@ -3257,8 +3275,8 @@ def check_monkey_madness_i() -> None:
     require_text(
         MM1_GARKOR.read_text(),
         ("case ^garkor_need_correct_disguise", "~mm_wearing_greegree = true",
-         "mm_monkey_greegree_for_normal_monkey", "%varbit_118 = ^awowogei_complete_mission",
-         "case ^garkor_learned_plan", "%mm_garkor = ^garkor_joined_10th_squad;",
+         "mm_monkey_greegree_for_normal_monkey", "%varb118_varbit_118 = ^awowogei_complete_mission",
+         "case ^garkor_learned_plan", "%varb126_mm_garkor = ^garkor_joined_10th_squad;",
          "inv_freespace(inv) < 1", "inv_add(inv, mm_sigil, 1);",
          "inv_total(bank, mm_sigil) = 0"),
         "Monkey Madness I disguise, alliance and sigil induction",
@@ -3279,15 +3297,15 @@ def check_monkey_madness_i() -> None:
     )
     require_text(
         MM1_VARP.read_text(),
-        ("[mm_demon_active]", "protect=no", "transmit=no", "scope=temp"),
+        ("[varp6783_mm_demon_active]", "protect=no", "transmit=no", "scope=temp"),
         "Monkey Madness I private encounter state",
     )
 
     demon = MM1_DEMON.read_text()
     require_text(
         demon,
-        ("[opheld2,mm_sigil]", "%mm_main ! ^monkeymadness_completed_ch3",
-         "%mm_garkor ! ^garkor_joined_10th_squad", "~wilderness_level(coord) > 0",
+        ("[opheld2,mm_sigil]", "%varp365_mm_main ! ^monkeymadness_completed_ch3",
+         "%varb126_mm_garkor ! ^garkor_joined_10th_squad", "~wilderness_level(coord) > 0",
          "~p_choice2(\"Let the sigil teleport you\", 1, \"Not yet\", 2)",
          "p_telejump(1_42_143_14_21);", "[proc,mm_demon_spawn_squad]",
          "mm_garkor_final_battle", "mm_zooknock_final_battle",
@@ -3304,8 +3322,8 @@ def check_monkey_madness_i() -> None:
          "npc_range(coord) < 3", "~npc_meleeattack;",
          "~npc_cast_spell_with_forced_max_hit($spell, 6, 32);",
          "[ai_queue3,mm_demon]", "if (npc_findhero = ^false)",
-         "def_npc_uid $dead_demon = npc_uid;", "%mm_demon_active = 2;",
-         "%mm_main = ^monkeymadness_defeated_demon;",
+         "def_npc_uid $dead_demon = npc_uid;", "%varp6783_mm_demon_active = 2;",
+         "%varp365_mm_main = ^monkeymadness_defeated_demon;",
          "obj_add_private(npc_coord, malicious_ashes, 1",
          "npc_finduid($dead_demon);", "~npc_default_death;",
          "[timer,mm_demon_monitor]", "[proc,mm_demon_cleanup]",
@@ -3321,13 +3339,13 @@ def check_monkey_madness_i() -> None:
         MM1_NARNODE.read_text(),
         ("[label,mm_narnode_reward]", "if (inv_freespace(inv) < 3)",
          "inv_add(inv, coins, 10000);", "inv_add(inv, diamond, 3);",
-         "[queue,mm_quest_complete]", "%mm_main = ^monkeymadness_complete;",
+         "[queue,mm_quest_complete]", "%varp365_mm_main = ^monkeymadness_complete;",
          "~quest_complete_rewards(quest_monkeymadness1"),
         "Monkey Madness I Narnode reward and completion",
     )
     require_text(
         MM1_DAERO.read_text(),
-        ("[label,daero_training]", "%mm_main = ^monkeymadness_complete_training;",
+        ("[label,daero_training]", "%varp365_mm_main = ^monkeymadness_complete_training;",
          "stat_advance(attack, 200000);", "stat_advance(defence, 200000);",
          "stat_advance(strength, 350000);", "stat_advance(hitpoints, 350000);",
          "stat_advance(attack, 350000);", "stat_advance(defence, 350000);",
@@ -3345,7 +3363,7 @@ def check_monkey_madness_i() -> None:
 def check_haunted_mine() -> None:
     require_text(
         HMQ_ZEALOT.read_text(),
-        ("[opnpc1,saradominist_zealot]", "%priestperil < ^priestperil_complete",
+        ("[opnpc1,saradominist_zealot]", "%varp302_priestperil < ^priestperil_complete",
          "[opnpc3,saradominist_zealot]",
          "inv_total(bank, hauntedmine_lift_key) > 0", "inv_freespace(inv) < 1",
          "obj_add_private(npc_coord, hauntedmine_lift_key, 1"),
@@ -3356,12 +3374,12 @@ def check_haunted_mine() -> None:
         ("[oploc1,glowing_mushroom]", "[oploc1,glowing_mushroom2]",
          "settimer(hmq_fungus_monitor, 1);", "[opheld5,glowing_fungus]",
          "obj_add_private(coord, ashes, 1", "[proc,hmq_inside_mine]()(boolean)",
-         "%hauntedmine_endcart_fungus = 0;", "Oh dear, the mine cart seems to have sunk.",
+         "%varb2396_hauntedmine_endcart_fungus = 0;", "Oh dear, the mine cart seems to have sunk.",
          "How useful, it's come right back to where it started.",
          "[proc,hmq_levers_correct]()(boolean)", "[oploc1,hauntedmine_lift_valve]",
          "inv_total(inv, hauntedmine_lift_key) < 1", "hauntedmine_cheeky_ghost",
          "settimer(hmq_lift_ghost, ^hmq_lift_race_ticks);", "[timer,hmq_lift_ghost]",
-         "%hauntedmine_liftpoweredonce = 1;", "cleartimer(hmq_lift_ghost);"),
+         "%varb2393_hauntedmine_liftpoweredonce = 1;", "cleartimer(hmq_lift_ghost);"),
         "Haunted Mine fungus, cart and valve/lift route",
     )
     require_text(
@@ -3385,7 +3403,7 @@ def check_haunted_mine() -> None:
     )
     require_text(
         HMQ_VARP.read_text(),
-        ("[hmq_dayth_active]", "[hmq_dayth_crane_cd]", "protect=no",
+        ("[varp6792_hmq_dayth_active]", "[varp6793_hmq_dayth_crane_cd]", "protect=no",
          "transmit=no", "scope=temp"),
         "Haunted Mine private encounter state",
     )
@@ -3394,12 +3412,12 @@ def check_haunted_mine() -> None:
         dayth,
         ("[opnpc1,hauntedmine_boss_key]", "npc_add(^hmq_dayth_key_coord, hauntedmine_boss_ghost, 2000);",
          "npc_setowner;", "[ai_timer,hauntedmine_boss_ghost]", "randominc(15)",
-         "%prayer_protectfrommissiles = ^true", "randominc(8)",
-         "%prayer_protectfrommelee = ^true", "[proc,hmq_dayth_shift]",
+         "%varb4117_prayer_protectfrommissiles = ^true", "randominc(8)",
+         "%varb4118_prayer_protectfrommelee = ^true", "[proc,hmq_dayth_shift]",
          "if (npc_stat(hitpoints) <= 25)", "[timer,hmq_dayth_hazards]",
          "crane_posessed_mine", "randominc(10)", "[proc,hmq_on_dayth_track]()(boolean)",
          "randominc(9)", "[ai_queue3,hauntedmine_boss_ghost]",
-         "def_npc_uid $dead_dayth = npc_uid;", "%hauntedmine = ^hmq_dayth_killed;",
+         "def_npc_uid $dead_dayth = npc_uid;", "%varp382_hauntedmine = ^hmq_dayth_killed;",
          "stat(crafting) < ^hmq_req_crafting",
          "if (random(90) = 0)", "trail_clue_beginner", "[proc,hmq_dayth_cleanup]",
          "[proc,hmq_dayth_on_death]", "[proc,hmq_dayth_on_logout]",
@@ -3455,7 +3473,7 @@ def check_troll_romance() -> None:
     )
     require_text(
         TROLLLOVE_VARP.read_text(),
-        ("[troll_love_arrg_active]", "[troll_love_sled_riding]",
+        ("[varp6804_troll_love_arrg_active]", "[varp6805_troll_love_sled_riding]",
          "protect=no", "transmit=no", "scope=temp"),
         "Troll Romance private session state",
     )
@@ -3468,7 +3486,7 @@ def check_troll_romance() -> None:
          "~playerhit_n_ranged($check_prayer, $damage, $duration);",
          "multiply(~npc_ranged_attack_roll, ^troll_love_arrg_ranged_accuracy_scale)",
          "[ai_queue3,trollromance_arrg_attackable]",
-         "%troll_love = ^troll_love_defeated_arrg;",
+         "%varp385_troll_love = ^troll_love_defeated_arrg;",
          "[proc,trollromance_arrg_drop_table](coord $where)",
          "obj_add_private($where, bones, 1", "def_int $roll = random(128);",
          "else if ($roll < 123)", "~troll_gem_drop(true)",
@@ -3490,7 +3508,7 @@ def check_troll_romance() -> None:
     require_text(
         TROLLLOVE_DUNSTAN.read_text(),
         ("~trollromance_has_sled = false", "Lost it, did you?",
-         "if (%troll_love < ^troll_love_dunstan_made_sled)"),
+         "if (%varp385_troll_love < ^troll_love_dunstan_made_sled)"),
         "Troll Romance sled replacement",
     )
     require_text(
@@ -3537,7 +3555,7 @@ def check_in_search_of_the_myreque() -> None:
             "In Search of the Myreque: Skeleton Hellhound must not be undead")
     require_text(
         ROUTEQUEST_VARP.read_text(),
-        ("[routequest_hound_active]", "[routequest_hound_death]",
+        ("[varp6816_routequest_hound_active]", "[varp6817_routequest_hound_death]",
          "protect=no", "transmit=no", "scope=temp"),
         "In Search of the Myreque private encounter state",
     )
@@ -3546,7 +3564,7 @@ def check_in_search_of_the_myreque() -> None:
         route,
         ("stat(agility) < ^routequest_agility_req", "[opnpc1,route_cyreg_paddlehorn]",
          "inv_total(inv, steel_longsword) < 1", "inv_total(inv, steel_sword) < 2",
-         "%routequest = ^routequest_boatman_agreed", "inv_total(inv, druid_pouch) < ^routequest_pouch_charges",
+         "%varp387_routequest = ^routequest_boatman_agreed", "inv_total(inv, druid_pouch) < ^routequest_pouch_charges",
          "inv_del(inv, woodplank, ^routequest_boat_planks);",
          "[oploc1,route_rowboat_mortton]", "[oploc2,route_rowboat_mortton]",
          "inv_total(worn, ring_of_charos_unlocked) = 0", "inv_del(inv, coins, ^routequest_boat_fee);",
@@ -3560,15 +3578,15 @@ def check_in_search_of_the_myreque() -> None:
     hideout = ROUTEQUEST_HIDEOUT.read_text() + "\n" + ROUTEQUEST_HOUND.read_text()
     require_text(
         hideout,
-        ("[proc,routequest_veliaf]", "getbit_range(%routequest_myreque_bits",
+        ("[proc,routequest_veliaf]", "getbit_range(%varp6203_routequest_myreque_bits",
          "inv_del(inv, steel_longsword, 1);", "inv_del(inv, steel_sword, 2);",
          "inv_del(inv, steel_mace, 1);", "inv_del(inv, steel_warhammer, 1);",
-         "inv_del(inv, steel_dagger, 1);", "%routequest = ^routequest_ambush;",
-         "%thsfm_vanstrom_hide = 1;", "npc_add(^routequest_hound_spawn, skeleton_hellhound",
+         "inv_del(inv, steel_dagger, 1);", "%varp387_routequest = ^routequest_ambush;",
+         "%varb396_thsfm_vanstrom_hide = 1;", "npc_add(^routequest_hound_spawn, skeleton_hellhound",
          "npc_setowner;", "npc_setmode(applayer2);", "[ai_queue3,skeleton_hellhound]",
-         "%routequest = ^routequest_saved_myreque;", "It drops nothing",
+         "%varp387_routequest = ^routequest_saved_myreque;", "It drops nothing",
          "[timer,routequest_hound_monitor]", "[proc,routequest_hound_cleanup]",
-         "[proc,routequest_on_death]", "%routequest_hound_death = 1;",
+         "[proc,routequest_on_death]", "%varp6817_routequest_hound_death = 1;",
          "[proc,routequest_on_logout]", "[proc,routequest_on_login]",
          "inzone(^routequest_chamber_min, ^routequest_chamber_max, coord) = true",
          "[oploc1,thrttavernbasementfalsewall]", "[oploc1,thrttavernbasementladder]",
@@ -3582,7 +3600,7 @@ def check_in_search_of_the_myreque() -> None:
             "In Search of the Myreque: Skeleton Hellhound must have no loot path")
     require_text(
         ROUTEQUEST_MYREQUE2.read_text(),
-        ("%routequest < ^routequest_complete", "~routequest_veliaf;",
+        ("%varp387_routequest < ^routequest_complete", "~routequest_veliaf;",
          "~routequest_polmafi;", "~routequest_ivan;"),
         "In Search of the Myreque additive In Aid NPC dispatch",
     )
@@ -3594,7 +3612,7 @@ def check_in_search_of_the_myreque() -> None:
     require_text(PLAYER_LOGIN.read_text(), ("~routequest_on_login;",),
                  "In Search of the Myreque login reconciliation hook")
     alloc = PIP_VARP_ALLOC.read_text()
-    require("6816=routequest_hound_active" in alloc and "6817=routequest_hound_death" in alloc,
+    require("6816=varp6816_routequest_hound_active" in alloc and "6817=varp6817_routequest_hound_death" in alloc,
             "In Search of the Myreque: private varp allocations drifted")
 
 
@@ -3611,8 +3629,8 @@ def check_creature_of_fenkenstrain() -> None:
     core = FENK_CORE.read_text()
     require_text(
         core,
-        ("Partial completion of The Restless Ghost", "%prieststart < ^priest_started",
-         "%priestperil < ^fenk_pip_gate", "They are checked at conductor casting"),
+        ("Partial completion of The Restless Ghost", "%varp107_prieststart < ^priest_started",
+         "%varp302_priestperil < ^fenk_pip_gate", "They are checked at conductor casting"),
         "Creature of Fenkenstrain requirements",
     )
     require_text(FENK_FINISH.read_text(),
@@ -3624,12 +3642,12 @@ def check_creature_of_fenkenstrain() -> None:
         ("[oploc1,fenk_coffin]", "p_teleport(^fenk_experiment_cave);",
          "[opnpc2,fenk_experiment_1]", "[apnpc2,fenk_experiment_1]",
          "[proc,fenk_can_attack_key_experiment]()(boolean)",
-         "%fenk_unlocked_cavern = 1 | inv_total(inv, fenk_mausoleum_key) > 0",
+         "%varb199_fenk_unlocked_cavern = 1 | inv_total(inv, fenk_mausoleum_key) > 0",
          "You don't have the heart to kill the poor creature again.",
          "[ai_queue3,fenk_experiment_1]",
          "obj_add_private(npc_coord, fenk_mausoleum_key, 1, ^lootdrop_duration, 100);",
          "~npc_default_death;", "[oploc1,fenk_mausoleum_door]",
-         "inv_del(inv, fenk_mausoleum_key, 1);", "%fenk_unlocked_cavern = 1;",
+         "inv_del(inv, fenk_mausoleum_key, 1);", "%varb199_fenk_unlocked_cavern = 1;",
          "[oploc1,fenk_chest_open]", "inv_total(inv, fenk_mausoleum_key) > 0",
          "inv_freespace(inv) < 1", "You take a key out of the chest.",
          "loc_coord = ^fenk_ed_grave", "loc_coord = ^fenk_mausoleum_torso_grave",
@@ -3659,7 +3677,7 @@ def check_creature_of_fenkenstrain() -> None:
     require_text(
         FENK_LIGHTNING.read_text(),
         ("[oploc1,fenk_shed_door]", "inv_total(inv, fenk_shed_key) < 1",
-         "%fenk_unlocked_shed = 1;", "inv_add(inv, fenk_cane, 1);",
+         "%varb200_fenk_unlocked_shed = 1;", "inv_add(inv, fenk_cane, 1);",
          "inv_total(inv, bronzecraftwire) < 1", "inv_del(inv, bronzecraftwire, 1);",
          "if (loc_coord ! 1_55_55_24_35)", "[proc,fenk_try_cast_conductor]()(boolean)",
          "stat(crafting) < ^fenk_craft_req", "inv_del(inv, silver_bar, 1);",
@@ -3712,7 +3730,7 @@ def check_roving_elves() -> None:
             "while ($slot < inv_size(inv))", "while ($slot < inv_size(worn))",
             "[proc,waterfall_can_enter_glarials_tomb]",
             "[oplocu,glarials_tombstone_waterfall_quest]",
-            "if (%waterfall_quest = ^waterfall_complete | inv_total(worn, glarials_amulet_waterfall_quest) > 0 | inv_total(inv, glarials_amulet_waterfall_quest) > 0)",
+            "if (%varp65_waterfall_quest = ^waterfall_complete | inv_total(worn, glarials_amulet_waterfall_quest) > 0 | inv_total(inv, glarials_amulet_waterfall_quest) > 0)",
             "[oploc1,baxtorian_crate_waterfall_quest]",
             "inv_add(inv, baxtorian_key_waterfall_quest, 1);",
         ),
@@ -3748,7 +3766,7 @@ def check_roving_elves() -> None:
             "npc_attackdelay(6);", "[ai_queue3,roving_mossgiant]",
             "npc_findhero", "p_finduid(uid)",
             "obj_add_private(npc_coord, roving_old_consecration_seed, 1",
-            "%rovingelves_quest = ^rovingelves_obtained_old_seed;",
+            "%varp6262_rovingelves_quest = ^rovingelves_obtained_old_seed;",
             "if (random(400) = 0)", "dorgesh_construction_bone",
             "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
             "~npc_default_death;",
@@ -3761,7 +3779,7 @@ def check_roving_elves() -> None:
     require_text(
         eluned,
         (
-            "[proc,rovingelves_eluned_login]", "%roving_female_woodelf = 2;",
+            "[proc,rovingelves_eluned_login]", "%varb9050_roving_female_woodelf = 2;",
             "[opnpc1,roving_female_woodelf]", "[opnpc1,eluned_prif]",
             "inv_del(inv, roving_old_consecration_seed, 1);",
             "inv_add(inv, roving_new_consecration_seed, 1);",
@@ -3778,7 +3796,7 @@ def check_roving_elves() -> None:
             "inzone(^rovingelves_chalice_zone_min, ^rovingelves_chalice_zone_max, coord)",
             "loc_find(^rovingelves_chalice_coord, baxtorian_chalice_waterfall_quest)",
             "inv_del(inv, roving_new_consecration_seed, 1);",
-            "%rovingelves_quest = ^rovingelves_seed_planted;",
+            "%varp6262_rovingelves_quest = ^rovingelves_seed_planted;",
             "loc_add(^rovingelves_chalice_coord, roving_crystal_growth, 0, centrepiece_straight, 20);",
         ),
         "Roving Elves spade, Chalice and growth ritual",
@@ -3787,8 +3805,8 @@ def check_roving_elves() -> None:
     require_text(
         islwyn,
         (
-            "[proc,rovingelves_islwyn_login]", "%roving_bowyer = 2;",
-            "if (%regicide_quest ! ^regicide_complete | %waterfall_quest ! ^waterfall_complete)",
+            "[proc,rovingelves_islwyn_login]", "%varb9051_roving_bowyer = 2;",
+            "if (%varp328_regicide_quest ! ^regicide_complete | %varp65_waterfall_quest ! ^waterfall_complete)",
             "~p_choice3(\"Shields are for wimps! Give me the bow!\"",
             "inv_add(inv, crystal_bow, 1);",
             "inv_add(inv, crystal_shield, 1);",
@@ -3808,7 +3826,7 @@ def check_roving_elves() -> None:
         (
             "case crystal_bow, crystal_bow_2500, crystal_shield, crystal_shield_2500",
             "roving_crystal_bow_new", "roving_crystal_shield_new",
-            "if (%rovingelves_quest < ^rovingelves_complete)",
+            "if (%varp6262_rovingelves_quest < ^rovingelves_complete)",
         ),
         "Roving Elves crystal equipment completion gate",
     )
@@ -3835,10 +3853,10 @@ def check_ghosts_ahoy() -> None:
     require_text(
         AHOY_VARP.read_text(),
         (
-            "[ahoy_lobster_active]", "scope=temp",
-            "[ahoy_flag_top]", "[ahoy_flag_bottom]", "[ahoy_flag_skull]",
-            "[ahoy_ship_top]", "[ahoy_ship_bottom]", "[ahoy_ship_skull]",
-            "[ahoy_dragontooth_pass]", "[ahoy_captain_chest_unlocked]",
+            "[varp6827_ahoy_lobster_active]", "scope=temp",
+            "[varp6828_ahoy_flag_top]", "[varp6829_ahoy_flag_bottom]", "[varp6830_ahoy_flag_skull]",
+            "[varp6831_ahoy_ship_top]", "[varp6832_ahoy_ship_bottom]", "[varp6833_ahoy_ship_skull]",
+            "[varp6834_ahoy_dragontooth_pass]", "[varp6835_ahoy_captain_chest_unlocked]",
         ),
         "Ghosts Ahoy private persistent puzzle state",
     )
@@ -3878,7 +3896,7 @@ def check_ghosts_ahoy() -> None:
             "case reddye", "case bluedye", "case yellowdye",
             "case orangedye", "case greendye", "case purpledye",
             "if_openoverlay(ahoy_windspeed)", "[timer,ahoy_wind]",
-            "%ahoy_ship_top ! %ahoy_flag_top",
+            "%varp6831_ahoy_ship_top ! %varp6828_ahoy_flag_top",
             "if (loc_coord = ^ahoy_rock_chest_coord)",
             "if (loc_coord ! ^ahoy_lobster_chest_coord)",
             "if (loc_coord ! ^ahoy_lobster_loot_coord)",
@@ -3894,7 +3912,7 @@ def check_ghosts_ahoy() -> None:
             "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
             "[opnpc2,giant_lobster]", "[apnpc2,giant_lobster]",
             "[ai_queue3,giant_lobster]", "npc_findhero", "p_finduid(uid)",
-            "%ahoy_killed_lobster = 1;",
+            "%varb215_ahoy_killed_lobster = 1;",
             "obj_add_private($drop, seaweed, 1",
             "random(^ahoy_lobster_head_rate)", "arceuus_corpse_scorpion",
             "random(^ahoy_lobster_clue_rate)", "trail_clue_beginner",
@@ -3913,7 +3931,7 @@ def check_ghosts_ahoy() -> None:
             "inv_total(inv, ahoy_map_scrap_3) < 1",
             "inv_add(inv, ahoy_map_complete, 1);",
             "inv_total(worn, ring_of_charos_unlocked) > 0", "$fare = 10;",
-            "inv_total(inv, ectotoken) < 500", "%ahoy_dragontooth_pass = 1;",
+            "inv_total(inv, ectotoken) < 500", "%varp6834_ahoy_dragontooth_pass = 1;",
             "distance(coord, ^ahoy_dragontooth_dock_coord) <= 24",
             "coord = ^ahoy_dig_book_coord", "inv_add(inv, ahoy_book_of_haricanto, 1);",
         ),
@@ -3936,9 +3954,9 @@ def check_ghosts_ahoy() -> None:
     )
     require_text(
         AHOY_SHARED.read_text(),
-        ("%prieststart < ^priest_complete", "%priestperil < ^priestperil_complete",
-         "%priestperil = ^priestperil_complete;", "%ahoy_flag_top = 0;",
-         "%ahoy_dragontooth_pass = 0;", "%ahoy_captain_chest_unlocked = 0;"),
+        ("%varp107_prieststart < ^priest_complete", "%varp302_priestperil < ^priestperil_complete",
+         "%varp302_priestperil = ^priestperil_complete;", "%varp6828_ahoy_flag_top = 0;",
+         "%varp6834_ahoy_dragontooth_pass = 0;", "%varp6835_ahoy_captain_chest_unlocked = 0;"),
         "Ghosts Ahoy deterministic reset coverage",
     )
     require_text(AHOY_COOKING.read_text(), ("if (last_useitem = bowl_nettlewater)", "~ahoy_boil_nettle_tea;"),
@@ -3969,7 +3987,7 @@ def check_one_small_favour() -> None:
     )
     require_text(
         OSF_VARP.read_text(),
-        ("[osf_gang_kills]", "[osf_slagilith_active]", "scope=temp"),
+        ("[varp6868_osf_gang_kills]", "[varp6869_osf_slagilith_active]", "scope=temp"),
         "One Small Favour owner and dwarf state",
     )
     require(OSF_VARP.read_text().count("scope=temp") == 2,
@@ -3994,13 +4012,13 @@ def check_one_small_favour() -> None:
         (
             "[oplocu,favour_lady_in_wall]",
             "if (last_useitem ! favour_animate_rock)",
-            "%onesmallfavour = ^osf_slagilith_fight;",
+            "%varp416_onesmallfavour = ^osf_slagilith_fight;",
             "~osf_spawn_slagilith;",
-            "if (%osf_slagilith_active = 1)",
-            "if (%onesmallfavour = ^osf_slagilith_defeated)",
+            "if (%varp6869_osf_slagilith_active = 1)",
+            "if (%varp416_onesmallfavour = ^osf_slagilith_defeated)",
             "npc_add(^osf_slagilith_coord, favour_petra, ^osf_petra_lifetime);",
             "npc_setowner;",
-            "%onesmallfavour = ^osf_petra_freed;",
+            "%varp416_onesmallfavour = ^osf_petra_freed;",
         ),
         "One Small Favour retained-scroll cast, retry and Petra release",
     )
@@ -4010,7 +4028,7 @@ def check_one_small_favour() -> None:
     require_text(
         relay,
         (
-            "%osf_gang_kills = 0;",
+            "%varp6868_osf_gang_kills = 0;",
             "[opnpc2,favour_gangster_dwarf]",
             "[opnpc2,favour_gangster_dwarf_2]",
             "[opnpc2,favour_gangster_dwarf_3]",
@@ -4018,12 +4036,12 @@ def check_one_small_favour() -> None:
             "[apnpc2,favour_gangster_dwarf_2]",
             "[apnpc2,favour_gangster_dwarf_3]",
             "[proc,osf_record_gang_kill](int $bit)",
-            "%osf_gang_kills = setbit(%osf_gang_kills, $bit);",
-            "if (%osf_gang_kills = ^osf_gang_complete_mask)",
+            "%varp6868_osf_gang_kills = setbit(%varp6868_osf_gang_kills, $bit);",
+            "if (%varp6868_osf_gang_kills = ^osf_gang_complete_mask)",
             "~osf_record_gang_kill(^osf_gang_dwarf_1_bit);",
             "~osf_record_gang_kill(^osf_gang_dwarf_2_bit);",
             "~osf_record_gang_kill(^osf_gang_dwarf_3_bit);",
-            "%onesmallfavour = ^osf_hammerspike_done;",
+            "%varp416_onesmallfavour = ^osf_hammerspike_done;",
         ),
         "One Small Favour distinct all-three dwarf credit",
     )
@@ -4050,7 +4068,7 @@ def check_one_small_favour() -> None:
             "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
             "[opnpc2,slagilith]", "[apnpc2,slagilith]",
             "[ai_queue3,slagilith]", "npc_findhero", "p_finduid(uid)",
-            "%onesmallfavour = ^osf_slagilith_defeated;",
+            "%varp416_onesmallfavour = ^osf_slagilith_defeated;",
             "obj_add_private($drop, adamantite_ore, 1",
             "obj_add_private($drop, uncut_ruby, 1",
             "obj_add_private($drop, uncut_diamond, 1",
@@ -4354,17 +4372,17 @@ def check_apnpc2_twins() -> None:
 # its test's `quest.bind` reads).
 # needs: tools/quest_gate/quest_inventory.tsv -- correct these rows at source.
 PROGRESS_VARP_OVERRIDES = {
-    "quest_chompybird": ("chompybird",),                    # was chompybird_kills
-    "quest_cog": ("cogquest",),                             # was cog_bits; cog.lua binds cogquest
-    "quest_crest": ("crestquest",),                         # was crest_spells_levers_gauntlets
-    "quest_desertrescue": ("desertrescue",),                # was desertrescue_map_mechanisms
-    "quest_eadgar": ("eadgar_quest",),                      # was eadgar_bits; eadgar.lua binds it
-    "quest_elemental_workshop": ("elemental_workshop_finished",),  # elemental_workshop.lua binds it
-    "quest_horror": ("horrorquest",),                       # was horror_boss_active
-    "quest_onesmallfavour": ("onesmallfavour",),            # was osf_gang_kills (temp by design)
-    "quest_routequest": ("routequest",),                    # was routequest_myreque_bits
-    "quest_totem": ("totemquest",),                         # was handelmort_traps_disabled
-    "quest_zombiequeen": ("zombiequeen",),                  # was zq_map_mechanisms
+    "quest_chompybird": ("varp293_chompybird",),                    # was chompybird_kills
+    "quest_cog": ("varp10_cogquest",),                             # was cog_bits; cog.lua binds cogquest
+    "quest_crest": ("varp148_crestquest",),                         # was crest_spells_levers_gauntlets
+    "quest_desertrescue": ("varp197_desertrescue",),                # was desertrescue_map_mechanisms
+    "quest_eadgar": ("varp335_eadgar_quest",),                      # was eadgar_bits; eadgar.lua binds it
+    "quest_elemental_workshop": ("varb2067_elemental_workshop_finished",),  # elemental_workshop.lua binds it
+    "quest_horror": ("varb34_horrorquest",),                       # was horror_boss_active
+    "quest_onesmallfavour": ("varp416_onesmallfavour",),            # was osf_gang_kills (temp by design)
+    "quest_routequest": ("varp387_routequest",),                    # was routequest_myreque_bits
+    "quest_totem": ("varp200_totemquest",),                         # was handelmort_traps_disabled
+    "quest_zombiequeen": ("varp116_zombiequeen",),                  # was zq_map_mechanisms
 }
 QUEST_INVENTORY = ROOT / "tools/quest_gate/quest_inventory.tsv"
 ALL_VARP = ROOT / "OSRS-Content/osrs239-content/configs/all.varp"
