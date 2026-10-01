@@ -50,7 +50,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "ahoy_questvar",
+            varp = "varb217_ahoy_questvar",
             constants = {
                 not_started = 0,
                 talked_velorina = 1,
@@ -265,7 +265,7 @@ return {
                 return
             end
         end
-        local sig_res, sig_val = t.var.server("ahoy_signaturecounter")
+        local sig_res, sig_val = t.var.server("varb209_ahoy_signaturecounter")
         t.check("petition.full", sig_res == "ok" and sig_val ~= nil and sig_val >= 11,
             "ahoy_signaturecounter = " .. tostring(sig_val) .. " (" .. tostring(sig_res) .. ")")
 
@@ -306,7 +306,7 @@ return {
             "player:I have an oak longbow.",
             "npc:Okay, wait here",
         })
-        local bow_res0, bow_val0 = t.var.server("ahoy_subquest_bow")
+        local bow_res0, bow_val0 = t.var.server("varb212_ahoy_subquest_bow")
         t.check("bow.talked_akharanu", bow_res0 == "ok" and bow_val0 ~= nil and bow_val0 >= 1,
             "ahoy_subquest_bow = " .. tostring(bow_val0) .. " (" .. tostring(bow_res0) .. ")")
 
@@ -320,7 +320,7 @@ return {
         -- (QD.game banner, chat.lua).  The cap is that tail, not a hope.
         local rd_games = 0
         while true do
-            local bow_res, bow_val = t.var.server("ahoy_subquest_bow")
+            local bow_res, bow_val = t.var.server("varb212_ahoy_subquest_bow")
             if bow_res == "ok" and bow_val ~= nil and bow_val >= 2 then
                 break
             end
@@ -342,11 +342,11 @@ return {
                 t.blocked("Rune-Draw: game " .. rd_games .. " answered " .. tostring(gr) .. " -- " .. tostring(game))
                 return
             end
-            local debt_res, debt_val = t.quest._read_content("ahoy_robin_debt")
+            local debt_res, debt_val = t.quest._read_content("varp7172_ahoy_robin_debt")
             t.step("runedraw.debt." .. rd_games, debt_res == "ok" and "PASS" or "FAIL",
                 "ahoy_robin_debt = " .. tostring(debt_val) .. " (" .. tostring(debt_res) .. ") after game " .. rd_games)
         end
-        t.exec("quest.stage.bow_signed", t.var.expect, "ahoy_subquest_bow", 2)
+        t.exec("quest.stage.bow_signed", t.var.expect, "varb212_ahoy_subquest_bow", 2)
 
         t.exec("goto-bringSignedBow", t.player.goto_tile, 3689, 3499, 0)
         t.exec("bringSignedBow", t.player.talk_to, "ahoy_akharanu_multi", 1)
@@ -372,9 +372,9 @@ return {
 
         t.exec("goto-checkMast", t.player.goto_tile, 3618, 3542, 2)
         t.exec("checkMast", t.player.click_loc, "ahoy_mast", 1)
-        local top_res, top_val = t.quest._read_content("ahoy_flag_top")
-        local bot_res, bot_val = t.quest._read_content("ahoy_flag_bottom")
-        local sku_res, sku_val = t.quest._read_content("ahoy_flag_skull")
+        local top_res, top_val = t.quest._read_content("varp6828_ahoy_flag_top")
+        local bot_res, bot_val = t.quest._read_content("varp6829_ahoy_flag_bottom")
+        local sku_res, sku_val = t.quest._read_content("varp6830_ahoy_flag_skull")
         local mast_ok = top_res == "ok" and bot_res == "ok" and sku_res == "ok"
         t.step("mast.target", mast_ok and "PASS" or "FAIL",
             "top=" .. tostring(top_val) .. " bottom=" .. tostring(bot_val) .. " skull=" .. tostring(sku_val))

@@ -38,7 +38,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "fluffs",
+            varp = "varp180_fluffs",
             constants = {
                 complete = 6,
                 gave_milk = 3,
@@ -225,7 +225,7 @@ return {
         end
         t.check("kittenFound", kitten_found == true,
             "kittens_mew crate search: found at crate index " .. tostring(kitten_crate_index)
-                .. " of 6 tried (%fluffs_crate matched)")
+                .. " of 6 tried (%varp5749_fluffs_crate matched)")
         t.expect("haveKitten", t.inv.expect_has("gertrudekittens", 1))
 
         -- Give the found kitten back to Fluffs (OPNPCU, quest_fluffs.rs2:249-
