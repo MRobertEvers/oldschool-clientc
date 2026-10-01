@@ -202,6 +202,14 @@ return {
         -- quests/quest_deathtothedorgeshuun/scripts/dttd_haminfiltrate.rs2:74-83.
         -- Instanced band (z+6400): goto_tile the destination tile+level
         -- directly, no click_loc on ham_multi_trapdoor first (section 2).
+        t.exec("goto-hamTrapdoor", t.player.goto_tile, 3166, 3253, 0)
+        t.exec("hamPickLock", t.player.click_loc, "osf_trapdoor_closed", 5)
+        t.ticks(4)
+        t.exec("hamClimbDown", t.player.click_loc, "osf_trapdoor_open", 1)
+        t.ticks(4)
+        local _, lair_in = t.world.tile()
+        t.check("hamClimbDown.tile", lair_in.x == 3149 and lair_in.z == 9652 and lair_in.level == 0,
+            string.format("after Climb-down at %d,%d,%d (want 3149,9652,0)", lair_in.x, lair_in.z, lair_in.level))
         t.exec("goto-talkToJohanhus", t.player.goto_tile, 3171, 9620, 0)
         t.exec("talkToJohanhus", t.player.talk_to, "favour_johanhus_ulsbrecht", 1)
         t.exec("talkToJohanhus-dialog", t.chat.play, {
@@ -754,6 +762,12 @@ return {
         })
         t.expect("quest.stage.seth_done", t.quest.expect_stage("seth_done"))
 
+        t.exec("goto-returnHamTrapdoor", t.player.goto_tile, 3166, 3253, 0)
+        t.exec("hamClimbDownAgain", t.player.click_loc, "osf_trapdoor_open", 1)
+        t.ticks(4)
+        local _, lair_back = t.world.tile()
+        t.check("hamClimbDownAgain.tile", lair_back.x == 3149 and lair_back.z == 9652 and lair_back.level == 0,
+            string.format("after Climb-down at %d,%d,%d (want 3149,9652,0)", lair_back.x, lair_back.z, lair_back.level))
         t.exec("goto-returnToJohnahus", t.player.goto_tile, 3171, 9620, 0)
         t.exec("returnToJohnahus", t.player.talk_to, "favour_johanhus_ulsbrecht", 1)
         t.exec("returnToJohnahus-dialog", t.chat.play, {
