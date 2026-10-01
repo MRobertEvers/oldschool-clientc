@@ -88,7 +88,7 @@ tool_prefetch_collect(struct Tool_Prefetch* pf, const char* dir, int depth)
         if( stat(path, &st) != 0 )
             continue;
 
-        if( (st.st_mode & S_IFDIR) != 0 )
+        if( S_ISDIR(st.st_mode) )
         {
             tool_prefetch_collect(pf, path, depth + 1);
             continue;

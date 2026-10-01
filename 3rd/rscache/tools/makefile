@@ -25,6 +25,15 @@ CFLAGS  ?= -std=c11 -g -O3 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
 CFLAGS  += $(INCLUDES)
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 
+# glibc under -std=c11 hides POSIX (strdup, getline, fdopen, ...). An undeclared
+# strdup is implicitly `int`, truncates the pointer, and cachepack segfaults on
+# its first lane name. macOS exposes them regardless; src/platform/platform.mk
+# gives the client the same flag on Linux. Appended, so `make CFLAGS=...` keeps it.
+ifeq ($(shell uname -s),Linux)
+CFLAGS     += -D_GNU_SOURCE
+DEP_CFLAGS += -D_GNU_SOURCE
+endif
+
 # Header dependency tracking. Without it a stale object keeps the struct layout
 # it was compiled against while the rest of the build moves on, and every field
 # past the changed one is read at the wrong offset — which reads as a decoder

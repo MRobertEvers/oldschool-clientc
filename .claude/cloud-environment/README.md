@@ -23,9 +23,21 @@ Environment edits apply to **new** sessions only.
 | `libsdl2-dev libgl1-mesa-dev imagemagick xdotool` | setup script, else the hook | Xvfb is already in the base image |
 | `Client-TS` submodule | hook | public |
 | `OSRS-Content` submodule | hook | **private** — the session must be granted `MRobertEvers/OSRS-Content` first; the hook warns and continues if it cannot clone |
+| RuneStar cs2 name tables | hook → `~/Documents/git_repos/cs2` | where `RUNESTAR_CS2_NAMES` looks; the cache bake needs them |
 | `cache.osrs239/` | hook → `tools/fetch_cache_osrs239.sh` | OpenRS2 #2644, ~180 MB zip; skipped when already present |
 
 The client build is left to the session (`make -C src release`, ~1 min).
+
+## Booting the cache built from OSRS-Content
+
+```sh
+make -C src torirsserver-cache          # -> cache.osrs239.baked, ~2.5 min
+sed 's#^dir=../../cache.osrs239$#dir=../../cache.osrs239.baked#' \
+    build/manifests/osrs239.ini > build/manifests/osrs239_baked.ini   # after one ./launch run osrs239
+DISPLAY=:99 SDL_AUDIODRIVER=dummy TORIRS_TRANSPORT=embed \
+    TORIRSSERVER_CACHE=$PWD/cache.osrs239.baked \
+    ./src/torirs --manifest build/manifests/osrs239_baked.ini
+```
 
 ## Running the client headless
 

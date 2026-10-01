@@ -33,7 +33,16 @@ if ! git submodule update --init OSRS-Content; then
 	echo "session-start:   git submodule update --init OSRS-Content" >&2
 fi
 
-# 3. The osrs239 cache. Needs archive.openrs2.org allowed by the environment's
+# 3. RuneStar's cs2 name tables, where src/makefile's RUNESTAR_CS2_NAMES looks
+#    for them. Without them `make -C src torirsserver-cache` cannot resolve
+#    CS2 command and constant names.
+if [ ! -d "$HOME/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2" ]; then
+	mkdir -p "$HOME/Documents/git_repos"
+	git clone --depth 1 https://github.com/RuneStar/cs2 "$HOME/Documents/git_repos/cs2" ||
+		echo "session-start: WARNING: could not clone RuneStar/cs2" >&2
+fi
+
+# 4. The osrs239 cache. Needs archive.openrs2.org allowed by the environment's
 #    network policy.
 if ! tools/fetch_cache_osrs239.sh; then
 	echo "session-start: WARNING: cache.osrs239 download failed;" >&2

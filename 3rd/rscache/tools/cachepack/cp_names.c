@@ -119,7 +119,7 @@ cp_names_load_ported_allocs(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", root, entry->d_name);
-        if( stat(path, &info) != 0 || (info.st_mode & S_IFDIR) == 0 )
+        if( stat(path, &info) != 0 || !S_ISDIR(info.st_mode) )
             continue;
         if( lane_count == lane_capacity )
         {
@@ -157,7 +157,7 @@ cp_names_load_ported_allocs(
             snprintf(path, sizeof(path), "%s/%s/pack/%s.alloc", root, lanes[lane], type);
             if( stat(path, &info) != 0 )
                 continue;
-            if( (info.st_mode & S_IFREG) == 0 )
+            if( !S_ISREG(info.st_mode) )
             {
                 fprintf(stderr, "cachepack: imported allocation is not a regular file: %s\n",
                         path);
