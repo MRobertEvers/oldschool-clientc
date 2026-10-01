@@ -35,7 +35,7 @@ quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo
 quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
-quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b43	REVERTED by sampler (sonnet-b43): Fareed, Damis (fd_damis_normal, fd_damis_tougher), Dessous (blooddiamond_vampirewarrior) and Kamil (icediamond_icewarrior) have no .npc block, so they spawn at npc_default.npc's 10 hp (seam pass 24 (a)): Damis read 0/30 after one 10 hitsplat (186-killDamis1.png), Kamil left the pool inside the first fire blast's settle; a boss that dies to one hit is a content_bug naming the missing blocks -- add the wiki stat blocks first, then re-author. Also: Fareed's diamond was never picked up at the kill; leg 6 goto_tile'd back into the Smoke Dungeon past sword_haunted_well (its trigger writes fd_torch_count1-4) to take the 'found its way back' copy -- pick it up in leg 2 instead.
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo		RE-AUTHOR after a3158be819: content now has the wiki stat blocks for Fareed, Damis (both forms), Dessous and Kamil (no more one-hit bosses) and a 3000-tick boss lifespan; Fareed's diamond lands at the kill -- pick it up in leg 2 (op 3), never goto back past sword_haunted_well; bring 30+ food, rune armour and a whip/water spells and refill; drivers build/parity_state/parity3g/dt_scratch/{fareed,damis,dessous,kamil}.lua; legs left: Smoke Dungeon well path driveability unchecked, boss styles vs wiki
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43	
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
@@ -103,7 +103,7 @@ quest_meatandgreet	meatandgreet	meatandgreet		4	todo
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
-quest_mm	mm	monkeymadnessi		3	todo	sonnet-b44	REJECTED (sonnet-b44): gate.py mm --allow-blocked RED: shot 163-clickPuzzle-cutscene.png matches the pre_login fingerprint (cutscene frame reads as boot/login); blocker itself (monkeymadnessii.rs2:335 oploc1 overrides ladder) reproduced live at leg 3. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b44/rejected/mm.lua
+quest_mm	mm	monkeymadnessi		3	todo		RE-AUTHOR after a3158be819: content now has the leg 3 dungeon ladder (mm_bamboo_ladder_dungeon_entrance climbs, MM2 no longer shadows it) and mm_demon's LostCity cam_lookat pair; resume the parked build/author_state/sonnet-b44/rejected/mm.lua from leg 3 (drivers build/parity_state/parity3g/scratch/drivers/parity_mm.lua, parity_mm_demon.lua); gate.py reading the puzzle cutscene frame as pre_login (shot 163) is a gate seam, not the author's; legs left: see PARITY.tsv
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)
@@ -124,7 +124,7 @@ quest_prince	prince	princealirescue		1	green	sonnet-b16
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
-quest_ratcatchers	ratcatchers	ratcatchers		3	content_bug	sonnet-b44	content_bug: ratcatchers.rs2:93 [opnpc1,rat] is the only sewer rat count increment but cache npc rat (all.npc:73643) has op2=Attack and no op1; relay stopped at leg 1 of 4 (catch8Rats)
+quest_ratcatchers	ratcatchers	ratcatchers		3	todo		RE-AUTHOR after a3158be819: content now catches sewer rats on op2 (press rat 2 + chat.continue per catch; the committed file stops at the old op1 content_bug) and the six mansion rats are owner-private vc_rat (op2) placed when you climb the trellis; drive per the guide to jimmy_done (template build/parity_state/parity3g/ratcatchers.scratch.lua); legs left: cutscene (spec pending); mansion guard stealth
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo		
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo		
 quest_recipefordisaster_dwarf	rfd_dwarf	recipefordisaster	RFDDwarf.java	5	todo		
@@ -137,7 +137,7 @@ quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	sonnet-b31	green after 75a234743 (seam26 closer): Miss Cheevers' room gathered from its locs + Initiate sallet reward (OSRS-Content 2ea9f6b7eb); the parked sonnet-b31 file extended through the gathered room and committed, 152/152, helper_coverage FULL 51 steps (5-of-7 random rooms still a PARITY leg)
 quest_redreef	redreef	theredreef		3	green	sonnet-b44	
-quest_regicide	regicide	regicide		3	content_bug	sonnet-b44	relay stopped at leg 3 of 6: regicide_traps.rs2:74 log crossing to Iorwerth's camp is inert (maplink_agility.dbrow has no regicide_logbalance*_start row)
+quest_regicide	regicide	regicide		3	todo		RE-AUTHOR after a3158be819: content now has the log balance (click regicide_logbalance1_start at 2201,3237 -> walk to 2196,3237 and back; LostCity forcemoves), the footprints Follow, the camp-guard ambush before stage 9, an un-narrated camp entry and Arianwyn's op1; resume from leg 3 of the committed file (drivers build/parity_state/parity3g/scratch/drivers/regicide_legs.lua, regicide_cat.lua); legs left: cutscene (spec pending); LostCity trap/timer triggers not re-diffed
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44	
@@ -162,24 +162,24 @@ quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, b
 quest_swansong	swansong	swansong		4	todo		
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo		
-quest_tbwt	tbwt	taibwowannaitrio		3	todo		
+quest_tbwt	tbwt	taibwowannaitrio		3	todo		parity3g done at a3158be819: LostCity monkey greegree guard + in-quest no-retaliation added; melee on a quest monkey is dodged (use ranged/magic/spear); no committed test yet -- author per the guide (notes docs/quests/ladders/tbwt.notes.md)
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32	
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
-quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
+quest_theslugmenace	theslugmenace	theslugmenace		3	todo		parity3g partial at a3158be819: the fragment puzzle is real (interface 460/462: select rows, move/rotate/flip until Quest Helper's PuzzleStep test holds), Bailey turns the dead sea slug (pick it up on the dungeon path) into glue, runes are shaped by the page ops (chisel + essence, can shatter); drivers build/parity_state/parity3g/scratch/drivers/slugA-D.lua; legs left: Prince melee-only/prayer drain, Savant scan, Mother Mallum reveal, cutscene (spec pending)
 quest_totem	totem	tribaltotem		3	green	sonnet-b36	
 quest_toweroflife	toweroflife	toweroflife		4	todo		
 quest_tree	tree	treegnomevillage		2	green	sonnet-b28	
 quest_troll	troll	trollstronghold		3	green	sonnet-b36	
-quest_troll_love	troll_love	trollromance		3	todo		
+quest_troll_love	troll_love	trollromance		3	todo		parity3g partial at a3158be819: the piste is two real sled rides (worn waxed sled, Agility 28) with camera ops, landing 2790,3794 then 2794,3719; ::trollromance_crash runs the rare crash; driver build/parity_state/parity3g/scratch/drivers/tl.lua 18/18; legs left: tunnel unequip by the monitor timer, no %lastcombat gate
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
 quest_upass	upass	undergroundpass		3	todo	sonnet-b43	REJECTED (sonnet-b43): gave_up at killHolthion (no_row); gate red: no quest.varp_complete/scroll_title row, missing shots, leg.4.end no shot. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b43/rejected/upass.lua
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
-quest_viking	viking	thefremenniktrials		3	todo		
+quest_viking	viking	thefremenniktrials		3	todo		parity3g partial at a3158be819: all seven trials ported from LostCity (Olaf lyre, Lalli stew, Swensen maze, Peer riddle + house, Manni contest, Sigmund barter chain, Thorvald via the ground ladder op2 at 2667,3694, Sigli); drivers build/parity_state/parity3g/viking_drv/{olaf,manni,sigmund,sigli,thorvald,swensen,peer,finish}.lua (finish: scroll + qp 3); Peer must be talked to from the north tile 2634,3671; legs left: Askeladden Claim Pet Rock op3, Rellekka stall guards, arena login teleport, Peer riddle pages/mural UI undriven
 quest_wanted	wanted	wanted		2	green	sonnet-b29	
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40	
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
