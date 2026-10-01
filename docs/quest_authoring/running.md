@@ -151,3 +151,80 @@ the attempt budget or the state before the roll (drink a restore, retry beyond N
 count. The player NAME seeds the stream (seam-facts: Seam pass 32 (g)): a scratch copy under
 another `--name` rolls differently (Zombie Queen's loose rocks caved in on 3 of 7 differently named
 runs, seam33), so a test loops every roll it depends on instead of trusting its own id's luck.
+
+### Render skip: a run draws only the frames something reads (seam34)
+
+*Origin: owner request 2026-09-30 ("send commands to the client to stop rendering the scene ...
+Make sure screenshot requests still work. Just don't waste time rendering every frame").*
+
+A quest client is frame-locked (one 20 ms tick per frame) and uncapped, so a run goes as fast as
+a frame costs, and the software renderer drawing 765x503 was most of that cost. `run.py` (and
+`conformance.py`) now start every client with `TORIRS_RENDER_SKIP=1`: a frame still runs its
+tick, input, net, plugins, UI layout and emit walk, but `App_Render` and the present are skipped
+unless something must see the frame. `--render-every-frame` turns it off (the A/B; it is exactly
+the old run). Nothing in a quest file changes.
+
+The run is the SAME run as with skip off, frame for frame: render-time state (the world
+pickset, posed model heights) is drawn late, at the moment something reads it, never waited for.
+A first version cost a frame per screenshot and per pick read; five quests (hazeelcult,
+idesofmilk, ikov, junglepotion, rovingelves) went red on the shifted timeline -- a death, a
+missed item race -- and green again once nothing moved a frame. What draws (src/app/app_render.c's
+render-skip banner is the source):
+
+- a screenshot (`t.shot`, every `t.exec`/`t.check` shot): its own frame, and a skipped frame
+  before it is drawn late first (the overlays and the mouseover text in the picture are laid out
+  from the frame before, as with skip off);
+- a pushed click or move (`api_drive.mouse_move`/`mouse_button`): the current frame, the pickset
+  the click is resolved against next frame;
+- a pickset read (`api_drive.pick_holds`/`pick_point`) or a camera move (`api_drive.camera`): a
+  skipped previous frame is drawn late, with the camera it had, before the read or the move;
+- a live sailing hull standing in the loaded scene (which hulls are drawn in full is decided
+  while painting): every frame -- a sailing quest saves less;
+- a GPU renderer: every frame (only the software lane can skip; quest runs are `--soft3d`).
+
+Skip only ever takes a draw away: a frame the client would not have drawn anyway (an async
+settle, a world load -- `App_RunOnce` withheld the commit) is not drawn, or drawn late, for any
+of these. (Forcing one crashed conformance: its emit list still pointed at a widget model's
+freed render cache.) A pick read that finds the skipped frame behind such a stretch answers
+"nothing stamped" (`held=false`, `valid=false`) rather than an older frame's set.
+
+Under skip a quest-script run also drops the content-test mailbox's 1 ms idle nap
+(`ContentTest_End`), which a quest run -- never idle -- was paying every frame.
+
+Render-time state NOT covered, all pictures-only on the 87-quest suite (ledgers identical, 63%
+of shots byte-identical): the cursor tooltip box (the cache's `~mouseover_tooltip` reads mouseover
+entries built from the last DRAWN frame's pickset, so it can name what the pointer hovered
+earlier -- 96% of the differing shots differ only there); a model whose bind pose was never
+captured accumulates its animation once per draw, so its pose depends on the draw count
+(druid's suits of armour); and `CAM_SHAKE` jitter draws `rand()` while painting, which `cs2vm2`'s
+random opcode shares (only during a camera shake; the server's rolls are its own). The
+top-left mouseover text, overlays and everything else in a picture match skip off.
+
+The verbs, for the rare test that reads render-time state no verb knows about:
+`t.render.skip(true|false)` -> `ok refused` (detail names the old state and the frame counts);
+`t.render.frame()` -> `ok timeout`, forces one drawn frame and waits for it. Live clients: type
+`::renderskip` (toggle) or `::renderskip on|off` in the chatbox; the screen stops updating while it
+is on, and the chatbox still takes the line that turns it off. `client.log` ends with
+`render-skip: N frame(s) drawn, M not drawn, K of those drawn late for a read` whenever the knob
+was set.
+
+Speed, measured when it landed (2026-10-01, one binary, `run.py <quest> --no-build --no-publish`
+wall, off then on back to back, other seam workers sharing the machine; every pair's ledgers
+identical row for row, SUMMARY ticks included):
+
+| quest | ticks | `--render-every-frame` | default (skip on) | speedup |
+|---|---|---|---|---|
+| cooks_assistant | 58 | 11.1 s | 5.4 s | 2.1x (boot-bound) |
+| druid | 79 | 13.9 s | 7.0 s | 2.0x |
+| elena | 393 | 51.4 s | 18.8 s | 2.7x |
+| arena | 295 | 39.3 s | 10.9 s | 3.6x |
+| zombiequeen | 707 | 69.0 s | 17.0 s | 4.1x |
+| druidspirit | 845 | 90.1 s | 22.6 s | 4.0x |
+| currentaffairs (sails) | 751 | 80.1 s | 42.9 s | 1.9x |
+| pryingtimes (sails) | 1701 | 173.2 s | 101.3 s | 1.7x |
+| legends | 5499 | 563.6 s (seam34 fixer's run) | 72.3 s | 7.8x |
+
+All 88 discovered quests with skip on: 611 s wall at three at a time (the sum of the 88 runs
+1,802 s), every ledger identical to the previous skip-off green run and `gate.py --all`
+green; the fixer's skip-off suite was 1,318 s wall at four at a time (client sum 5,149 s).
+Sailing saves least: a hull in the scene draws every frame.

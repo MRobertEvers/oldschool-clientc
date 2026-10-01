@@ -1840,6 +1840,15 @@ app_update_world_viewport(struct App* app);
 int
 app_world_drawable(struct App* app);
 
+/* Render skip's boot and exit halves (app_render.c): App_Init reads
+ * TORIRS_RENDER_SKIP, App_Shutdown prints the frame counts and frees the
+ * catch-up buffer. */
+void
+app_render_skip_init(struct App* app);
+
+void
+app_render_skip_shutdown(struct App* app);
+
 void
 app_draw_rebuild_loading_overlay(
     struct App* app,

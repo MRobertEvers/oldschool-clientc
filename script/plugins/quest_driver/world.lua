@@ -237,3 +237,111 @@ function QD.clock.skip(minutes)
     return "ok", string.format("date_minutes %s -> %d (+%d skipped, world %s min ahead; client varp)",
         tostring(before), want, minutes, tostring(ahead))
 end
+
+-- t.render.skip(on) / t.render.frame() -- RENDER SKIP (seam34, owner request
+-- 2026-09-30: "don't waste time rendering every frame").  A quest run is
+-- frame-locked and uncapped, so its speed is how fast the software renderer
+-- draws 765x503; with skip on a frame runs its tick, input, net, plugins, UI
+-- layout and emit walk but draws and presents nothing unless something must
+-- see it.  run.py starts every client with TORIRS_RENDER_SKIP=1
+-- (--render-every-frame turns it off), so a test rarely calls either verb.
+-- The run is the SAME run as with skip off, frame for frame -- render-time
+-- state is drawn late, at the moment it is read, never waited for:
+--   - a screenshot draws its frame, and a skipped frame before it is drawn
+--     late first (the mouseover text and the overlay heights in the picture
+--     are laid out from the frame before, as with skip off);
+--   - api_drive.mouse_move / mouse_button owe the current frame a draw (the
+--     pickset the click is resolved against next frame); pick_holds /
+--     pick_point and api_drive.camera draw a skipped previous frame late
+--     before they read or move anything -- the pointer verbs need nothing new;
+--   - a sailing hull in the loaded scene draws every frame (which hulls are
+--     drawn in full is decided while painting).
+-- What is NOT covered is named in src/app/app_render.c's render-skip banner.
+--
+-- t.render.skip(true|false): switch it; `ok` detail names the old state and
+-- the drawn/skipped counts so far.  t.render.frame(): force one drawn frame
+-- and wait for it -- for a read of render-time state no verb knows about.
+QD.render = {}
+
+function QD.render.skip(on)
+    if type(on) ~= "boolean" then
+        return "refused", "render.skip: wants true or false, got " .. tostring(on)
+    end
+    local before_result, before = api_drive.render_skip()
+    if before_result ~= "ok" then
+        return before_result, "render.skip: api_drive.render_skip read answered " .. tostring(before_result)
+    end
+    local result, state = api_drive.render_skip(on)
+    if result ~= "ok" then
+        return result, "render.skip: api_drive.render_skip(" .. tostring(on) .. ") answered " .. tostring(result)
+    end
+    return "ok", string.format("render skip %s (was %s; %d frame(s) drawn, %d skipped while on)",
+        state.skip and "on" or "off", before.skip and "on" or "off", state.drawn, state.skipped)
+end
+
+function QD.render.frame()
+    local result, before = api_drive.render_frame()
+    if result ~= "ok" then
+        return result, "render.frame: api_drive.render_frame answered " .. tostring(result)
+    end
+    local after = nil
+    local awaited = await({
+        level = function()
+            local read_result, state = api_drive.render_skip()
+            if read_result == "ok" and state.rendered > before.rendered then
+                after = state
+                return true
+            end
+            return false
+        end,
+        note = "render.frame",
+    }, 2)
+    if awaited ~= "ok" or after == nil then
+        return "timeout", string.format("render.frame: no frame drawn within 2 ticks (rendered %d, skip %s)",
+            before.rendered, before.skip and "on" or "off")
+    end
+    return "ok", string.format("frame drawn (rendered %d -> %d, skip %s)",
+        before.rendered, after.rendered, after.skip and "on" or "off")
+end
+
+-- Private: the counters both verbs report ({skip, rendered, drawn, skipped}),
+-- for a conformance row that has to see frames move.
+function QD.render._state()
+    return api_drive.render_skip()
+end
+
+-- Private: the pickset rule render skip adds, read end to end (conformance's
+-- seam.render_skip_pick_read_catches_up).  Point at the player, let a frame
+-- stamp the pick there, idle three ticks (nothing owes a draw, so the frames
+-- are skipped), then read the stamp.  With skip off the frame before the read
+-- was drawn, so the stamp is there; with skip on the read must draw that
+-- frame late (caught_up + 1) and answer the same -- valid, at the same pixel,
+-- with no frame waited for.  Answers (result, detail, facts).
+function QD.render._pick_catch_up_probe()
+    local facts = {}
+    local state_result, state = api_drive.render_skip()
+    if state_result ~= "ok" or not state.skip then
+        return "refused", "render skip is off", facts
+    end
+    local pos_result, pos = api_drive.screen_position("player", -1)
+    if pos_result ~= "ok" or type(pos) ~= "table" then
+        return "no_subject", "the player has no screen position (" .. tostring(pos_result) .. ")", facts
+    end
+    api_drive.mouse_move(pos.x, pos.y)
+    facts.stamped = QD.drive._pick_settled(pos.x, pos.y, 2) == "ok"
+    local _, before_idle = api_drive.render_skip()
+    QD.ticks(3)
+    local _, after_idle = api_drive.render_skip()
+    facts.skipped_idle = after_idle.skipped - before_idle.skipped
+    facts.drawn_idle = after_idle.drawn - before_idle.drawn
+    local tick_before = api_drive.tick()
+    local _, point = api_drive.pick_point()
+    local _, after_read = api_drive.render_skip()
+    facts.caught_up = after_read.caught_up - after_idle.caught_up
+    facts.valid = point.valid == true and point.x == pos.x and point.y == pos.y
+    facts.same_tick = api_drive.tick() == tick_before
+    return "ok", string.format("player at %d,%d: stamped=%s; idle 3 ticks drew %d, skipped %d; "
+        .. "then the read drew %d frame(s) late and answered valid=%s at the same pixel, same tick=%s",
+        pos.x, pos.y, tostring(facts.stamped), facts.drawn_idle, facts.skipped_idle,
+        facts.caught_up, tostring(facts.valid), tostring(facts.same_tick)), facts
+end

@@ -1,4 +1,4 @@
-# Cutscene verbs: `t.cutscene.await`, `t.cutscene.mark`, `t.world.camera`
+# Cutscene verbs: `t.cutscene.await`, `t.cutscene.mark`, `t.cutscene.exempt`, `t.world.camera`
 
 Seam32 (`cutscene_verb_and_camera_read`, 2026-09-30). Driver: `script/plugins/quest_driver/cutscene.lua`
 and `world.lua`. Engine: `rs_gameproto_exec.c` (`exec_cam_script_record`) and `app.h`
@@ -111,12 +111,32 @@ whose OWN `.rs2` calls `cam_moveto` or `cam_lookat`.
   `cutscene_sweep.cutscene_sites`.
   - A literal coord needs a keyframe of that op on that exact tile.
   - An expression coord needs any keyframe of that op.
+- A site OFF the guide's route may instead be exempted by a `t.cutscene.exempt` row (below); the
+  gate accepts or refuses each one (`cutscene_exempt_refused: ...`) and prints every accepted one
+  as `(<quest>: cutscene: <site> exempt by row ... (entered from [oploc2,X], no guide step's; drove
+  <step> instead))`.
 - The finding names the quest, the site and its `file:line`.
 - Blocked runs are not graded.
+- `gate.py --cutscene-as <test_id> <artefact dir>...` grades ONLY this rule (with exemptions) of
+  scratch runs (`run.py --script ... --name`) against `<test_id>`'s sites and guide.
 
 `make -C src check-quest-cutscenes` (`cutscene_sweep.py --fail-on-dropped`) fails on a DROPPED or
 PARTIAL port. WIKI_MISSING is the wiki backlog specced in `docs/quests/cutscenes/` and never fails
 it.
+
+The sweep reads TWO LostCity trees (seam34): `LostCity_Content2/scripts/quests/<quest_dir>` first,
+then `LostCity_Server/content/scripts/quests/<quest_dir>`; a quest in either is a LostCity quest and
+the `lostcity_tree` column says which was read. Ten quests live only in LostCity_Server (eadgar,
+horror, misc, mm, mortton, regicide, routequest, tbwt, troll_love, viking); reading Content2 alone
+graded them WIKI_* and hid two real losses. Neither tree's `[debugproc,...]` blocks are graded (a
+developer's `::camtest` is not a cutscene; LostCity's `debug_routequest.rs2` made routequest a false
+PARTIAL). A LostCity quest graded NONE whose `CUTSCENES.tsv` row says the wiki has one reads
+WIKI_MISSING (Regicide's catapult). `--sites` lists, under each DROPPED/PARTIAL row, every LostCity
+framing call with no same-op same-coord call in ours -- the next content pass's work list. Since
+seam34 the check is RED on true losses: mm PARTIAL (`mm_demon.rs2:98`'s `cam_lookat` in
+`[timer,teleport_mm_sigil]` is dropped) and troll_love DROPPED (both sled rides,
+`quest_troll_love.rs2:145-293`, have no camera op in the port). Both are content-port work for the
+cutscene session, not a gate bug.
 
 ## A cutscene no guide step reaches
 
@@ -126,14 +146,55 @@ Death Plateau's troll-thrower cut plays from Reading the Danger sign (`death_dan
 sign. A loc the content gives a cutscene is driven like any other loc. The rule only asks that the
 cutscene is asserted.
 
-### `cutscene_row_required` names a site on a route you did not take (sonnet-b42)
+### `cutscene_row_required` names a site on a route you did not take: `t.cutscene.exempt`
 
 The gate counts every `cam_moveto`/`cam_lookat` site in the quest's `.rs2`, including one on an
-OPTIONAL route. Shilo Village's way out of Ah Za Rhoon can be the table turned into a raft
-(`zqtableraft`, `quest_zombiequeen.rs2:674-770`), which the guide never names, and its camera site
-still reds the gate until a ledger row covers it. Take that route in the test, as
-`zombiequeen.lua` does (`leaveCavernsRaft` + `leaveCavernsRaft.cutscene` with the `.rs2`'s literal
-`moveto 0_45_146_48_7`), rather than leave the quest red over a cut no guide step reaches.
+OPTIONAL route. Shilo Village frames its camera only on the table raft (`zqtableraft`,
+`quest_zombiequeen.rs2:674-770`, sites `:738`/`:739`), one of the caverns' ways out. The guide names
+no way out at all: its next step is `buryCorpse` at Tai Bwo Wannai. Driving the raft only to cover
+the site (sonnet-b42's first green) tests a route the guide never takes. Seam34 added the exemption:
+
+```lua
+-- after the guide step driven instead (seam34's proof copy of zombiequeen.lua, after buryCorpse):
+t.cutscene.exempt("quest_zombiequeen.rs2:738", "the guide leaves the caverns by no named step; "
+    .. "this test left by the waterfall path (leaveCavernsWaterfall) and drove buryCorpse instead "
+    .. "of the table raft ([oploc2,zqtableraft], rs2:674)")
+```
+
+`t.cutscene.exempt(site, reason)` -> `ok refused`. Call it DIRECTLY, never under `t.exec`. It
+writes its own row `cutscene.exempt.<site>` (no shot), PASS with detail
+`cutscene-exempt: <site> ;; <reason>`, one call per site. A `site` that is not `<path>.rs2:<line>`,
+or an empty reason, is FAIL `refused`. The row is a claim. `gate.py` decides, and accepts it only when
+all three of these hold:
+
+1. `site` is a path suffix naming exactly ONE of the quest's camera sites (the `file:line` the
+   `cutscene_row_required` finding prints).
+2. `reason` names a guide step (a Quest Helper step variable, not a panel) that the ledger PASSed
+   (`<step>`, `<step>-...` or `<step>.…`). That is the step the test drove instead.
+3. The site is OFF the guide's route. The gate walks up from the site's script block: a proc to its
+   `~` callers, a label to its `@` callers, a queue to `queue(...)`, a timer to `settimer(...)`,
+   across all content. Every block it reaches must be a player-op trigger (`[op*,X]`/`[ap*,X]`)
+   whose subject `X` no guide step targets or carries as an item. Multi-npc/loc families and
+   categories count as the same subject.
+
+When rule 3 fails, the finding is `cutscene_exempt_refused: ... is ON the guide's route ([opnpc1,rantz]
+<- guide step talkToRantzWithToad...) -- a site a guide step reaches is covered by t.cutscene.await,
+never exempt`. A walk that reaches something it cannot name is refused too, and so is a quest with
+no guide. Things it cannot name include an npc `ai_*` script, a debugproc, an `if_button`, a mapzone
+and a label nothing calls (`cannot show ... is off the guide's route`). The rule is strict because
+a wrong "off route" lets a dropped cutscene pass. On 2026-10-01 the sites it calls OFF are
+zombiequeen `:738/:739` (`[oploc2,zqtableraft]`) and death's danger sign (`death_locs.rs2:64/65`,
+which `death.lua` asserts anyway). Every other site is ON or unresolved.
+
+Proof (seam34, on a copy of the test kept at
+`build/seam_state/seam34/zombiequeen.seam34_waterfall_exempt.lua`; the committed `zombiequeen.lua`
+still drives the raft and covers both sites with `t.cutscene.await` until its next author adopts the
+copy): the test leaves by the waterfall path (`zqwaterfallrocks` op2,
+`quest_zombiequeen.rs2:996`; "You climb your way out of the cavern"). It reaches `left_ah_za_rhoon`
+by the `[queue,exit_ah_za_rhoon]` mapzone exit (`:1077-1084`, any route) and is green with both
+exemptions accepted, FULL 30/30. The same file without the exempt rows is RED
+`cutscene_row_required`. A worktree mutant of `chompybird.lua` that exempts Rantz's `rantz.rs2:317/318`
+(on `talkToRantzWithToad`'s route) is refused on both sites.
 
 ## Test affordance: `::cutscene <level_mx_mz_lx_lz> [times] [hold]`
 

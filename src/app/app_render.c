@@ -136,6 +136,253 @@ App_PickFinish(
     app_world_pick_finish(app, hits);
 }
 
+/* ------------------------------------------------------------ render skip
+ *
+ * Owner request 2026-09-30: a run that only needs the logic -- a frame-locked
+ * quest test, whose speed is bounded by how fast the software rasteriser
+ * draws 765x503 -- can stop drawing, and screenshots must still work.
+ *
+ * What is skipped is App_Render (world paint + 3D + the 2D raster) and the
+ * present. NOT skipped, because App_RunOnce does it before the host is asked
+ * to draw: the logic tick, input, the network, the plugins, the UI layout and
+ * the emit walk (app->emit, and from it app->world_emit_desc, the viewport
+ * rectangle every projection and the world gate read). So hit testing, the
+ * camera and every projection stay exactly current.
+ *
+ * THE GOAL IS AN IDENTICAL RUN: the same virtual timeline, frame for frame,
+ * as with skip off -- so every roll, wander and race lands the same way and
+ * a test green with skip off is green with skip on. A first version cost one
+ * frame per screenshot and per pick read, and five quests (hazeelcult,
+ * idesofmilk, ikov, junglepotion, rovingelves) went red on the shifted
+ * timeline, skip off green on the same binary. So nothing here may move a
+ * frame: render-time state is drawn LATE, never waited for.
+ *
+ * What the draw itself produces, and so what goes stale on a skipped frame:
+ *
+ *   1. app->world_pickset and the hover tile -- App_PickFinish, from the pick
+ *      the rasteriser runs at the pointer as each model projects. Read by the
+ *      right-click menu build, the left-click default action, the mouseover
+ *      text, and api.drive.pick_holds / pick_point.
+ *      - A driver READ catches up first (App_RenderSkipCatchUp): the skipped
+ *        frame is drawn then, from the plugin pump, when the app still holds
+ *        exactly that frame's emit list, scene, camera and pointer.
+ *      - A pushed click or move owes the CURRENT frame a draw
+ *        (App_RenderSkipRequestDraw): the push drains next frame and is
+ *        resolved there against the set this frame stamps.
+ *      - A camera write that lands at once (DrivePointer_Camera,
+ *        App_SetCameraPose) catches up FIRST, so the late draw sees the
+ *        camera that frame had.
+ *   2. Which world-entity views (sailing hulls) are drawn in full -- decided
+ *      while painting (app_wev_decide_flatten), and read by the actor
+ *      projection, the pick classifier and a deck's dynamic population.
+ *      Covered by drawing every frame while a live hull stands inside the
+ *      loaded scene (App_RenderSkipHullsInScene).
+ *   3. A model's bounds cylinder -- posed by the renderer, read by the
+ *      overlay heights the NEXT emit draws (health bars, headicons, overhead
+ *      text), and the mouseover text the next frame builds from (1). Only a
+ *      picture shows either: a screenshot request catches up (app_plugin_
+ *      screenshot), so the captured frame is laid out from a drawn one.
+ *   4. CAM_SHAKE's jitter draws from rand() while painting, which cs2vm2's
+ *      random opcode shares. Not covered: a skipped frame during a camera
+ *      shake leaves the C library's sequence where it was.
+ *   5. The mouseover entries app_hover_text_update publishes every frame are
+ *      built from the last DRAWN frame's pickset, and the cache's cursor
+ *      tooltip script (~mouseover_tooltip) reads them a frame later. Not
+ *      covered (catching up every frame the pointer rests on the world would
+ *      be drawing every frame): a picture can carry a tooltip naming what the
+ *      pointer hovered at the last drawn frame. Measured over the 87-quest
+ *      suite: the ledgers are identical, 63% of shots byte-identical, and
+ *      96% of the rest differ only in that tooltip box.
+ *   6. A model whose bind pose was never captured accumulates its animation
+ *      once per draw (toridraw_scene.c's own comment: "the model does not
+ *      animate, it accumulates"), so its picture depends on how many frames
+ *      were drawn. Pre-existing; skipping draws only makes it show
+ *      (druid's suits of armour).
+ *
+ * And one rule over all of them: skip only removes draws. A frame the host
+ * would not have drawn (App_RunOnce withheld its commit) is not drawn for any
+ * of the reasons above either, and is never caught up -- its emit list may
+ * point into tree components freed since (a widget model's render cache:
+ * forcing such a frame crashed conformance in ToriRS_FrameNextCommand,
+ * SIGBUS on the freed cache's release pointer, after a ::goto).
+ */
+
+void
+App_RenderSkipSet(
+    struct App* app,
+    int enabled)
+{
+    assert(app);
+    if( enabled && !app->render_skip.enabled )
+    {
+        app->render_skip.fresh = 1;
+        app->render_skip.catch_up_ok = 0;
+    }
+    app->render_skip.enabled = enabled ? 1 : 0;
+}
+
+int
+App_RenderSkipEnabled(struct App const* app)
+{
+    assert(app);
+    return app->render_skip.enabled;
+}
+
+void
+App_RenderSkipRequestDraw(
+    struct App* app,
+    int frames)
+{
+    assert(app);
+    assert(frames > 0);
+    if( app->render_skip.draw_frames < frames )
+        app->render_skip.draw_frames = frames;
+}
+
+int
+App_RenderSkipCatchUp(struct App* app)
+{
+    int const width = UITREE_LAYOUT_ROOT_W;
+    int const height = UITREE_LAYOUT_ROOT_H;
+
+    assert(app);
+    if( !app->render_skip.enabled || app->render_skip.fresh )
+        return 1;
+    if( !app->render_skip.catch_up_ok )
+        return 0;
+    if( !app->render_skip.scratch )
+    {
+        app->render_skip.scratch = malloc((size_t)width * (size_t)height * sizeof(int));
+        assert(app->render_skip.scratch);
+    }
+    /* The skipped frame, drawn now: the pick arms from the pointer it had
+     * (world_mouse_* are rewritten later in this App_RunOnce, not before the
+     * pump), exactly as the on-time draw would have armed it. */
+    App_Render(app, app->render_skip.scratch, width, height);
+    app->render_skip.fresh = 1;
+    app->render_skip.catch_up_ok = 0;
+    app->render_skip.frames_caught_up++;
+    return 1;
+}
+
+void
+app_render_skip_init(struct App* app)
+{
+    char const* skip = getenv("TORIRS_RENDER_SKIP");
+
+    assert(app);
+    /* tools/quest_gate/run.py sets it for every quest run (1, or 0 under
+     * --render-every-frame); `::renderskip` and api.drive.render_skip switch
+     * it afterwards. */
+    App_RenderSkipSet(app, skip && skip[0] == '1');
+}
+
+/* What render skip saved, for a run that wants to know: client.log's last
+ * word on a quest run, and the speed table's frame count. A REPORT, not
+ * narration: it prints only when someone asked -- the knob is set (run.py
+ * sets it either way) or skip was switched on. Then the scratch buffer goes. */
+void
+app_render_skip_shutdown(struct App* app)
+{
+    assert(app);
+    if( getenv("TORIRS_RENDER_SKIP") || app->render_skip.enabled )
+        TORIRS_REPORT(
+            "render-skip: %llu frame(s) drawn, %llu not drawn, %llu of those drawn late "
+            "for a read (skip %s at exit)\n",
+            (unsigned long long)app->render_skip.frames_drawn,
+            (unsigned long long)app->render_skip.frames_skipped,
+            (unsigned long long)app->render_skip.frames_caught_up,
+            app->render_skip.enabled ? "on" : "off");
+    free(app->render_skip.scratch);
+    app->render_skip.scratch = NULL;
+}
+
+/* Item 2 above: the live hulls standing inside the loaded scene. One outside
+ * it is never painted, picked or projected onto the viewport, and the client
+ * keeps a hull it has sailed away from live (conformance: the sailing rows'
+ * hull is still in the registry after a ::tele home and after a relog), so
+ * "any hull live" would draw every frame for the rest of such a run. A
+ * nested view's transform is deck-local and lands "inside" -- the safe
+ * direction. WORLDVIEW_MAX slots, never the tree: a constant per frame. */
+int
+App_RenderSkipHullsInScene(struct App* app)
+{
+    int count = 0;
+    int x0;
+    int z0;
+    int span;
+
+    assert(app);
+    if( !app->world )
+        return 0;
+    x0 = app->world->_base_tile_x * 128;
+    z0 = app->world->_base_tile_z * 128;
+    span = app->world->_scene_size * 128;
+    for( int id = 1; id < WORLDVIEW_MAX; id++ )
+    {
+        struct Wev const* wev;
+
+        if( !Wevs_IsLive(&app->wevs, id) )
+            continue;
+        wev = Wevs_Get(&app->wevs, id);
+        if( wev->x >= x0 && wev->x < x0 + span && wev->z >= z0 && wev->z < z0 + span )
+            count++;
+    }
+    return count;
+}
+
+int
+App_RenderSkipFrame(
+    struct App* app,
+    int redraw,
+    int forced)
+{
+    int draw = redraw;
+
+    assert(app);
+    if( app->render_skip.enabled )
+    {
+        int capture_pending = 0;
+        int must;
+
+        for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+            capture_pending |= app->plugin_screenshots[i].in_use;
+        must = forced || capture_pending || app->render_skip.draw_frames > 0 ||
+               App_RenderSkipHullsInScene(app) > 0;
+        /* Only ever TAKES a draw away (the banner's last rule). */
+        draw = redraw && must;
+        if( draw )
+        {
+            app->render_skip.fresh = 1;
+            app->render_skip.catch_up_ok = 0;
+        }
+        else if( redraw )
+        {
+            /* Committed and skipped: the state goes stale, and this frame's
+             * emit list -- the current one until the next commit -- can
+             * still be drawn late. */
+            app->render_skip.fresh = 0;
+            app->render_skip.catch_up_ok = 1;
+        }
+        else
+        {
+            /* Not committed: with skip off nothing is drawn either, so a
+             * fresh state stays fresh; a stale one can no longer be caught
+             * up -- the tree may have moved under the old emit list. */
+            app->render_skip.catch_up_ok = 0;
+        }
+    }
+    if( draw )
+        app->render_skip.frames_drawn++;
+    else
+        app->render_skip.frames_skipped++;
+    /* A request is for frames DRAWN, not frames passed: one owed across an
+     * uncommitted stretch is still owed when the stretch ends. */
+    if( draw && app->render_skip.draw_frames > 0 )
+        app->render_skip.draw_frames--;
+    return draw;
+}
+
 /* Damage drawing is off unless asked for, so the A/B is a process restart and
  * every measurement below is against a binary that also contains the other
  * arm. Read once; off is one predicted branch. */

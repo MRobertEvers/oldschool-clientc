@@ -158,6 +158,7 @@ banners: the topic file named in each group heading.
 - `t.await({level=fn, note=text}, ticks)` -> `ok timeout`; give it a `note`, the `ok` detail is `<note>: met after N tick(s)`.
 - `t.shot(name)` -> `ok refused timeout`; only for a bare narrative shot. `t.note(text)` folds into the next row.
 - `t.key(name)` / `t.text(str)` -> `ok`/error. `t.key("escape")` closes a modal.
+- `t.render.skip(on)` -> `ok refused`; `t.render.frame()` -> `ok timeout`. Render skip is ON in every run and changes no frame of it (shots, clicks and pick reads draw what they need); `--render-every-frame` is the A/B (running: Render skip).
 
 ### `quest`, `scroll`, `levelup` -- `verbs-root-and-quest.md`
 
@@ -230,6 +231,7 @@ banners: the topic file named in each group heading.
 
 - `t.cutscene.await(name, {expect=, timeout=100, quiet=30, shots=})` -> `ok no_cutscene unfinished not_found`; the row right after the one that starts it, named `<step>.cutscene`. Detail `cutscene: <n> keyframes, ... reset=yes -- #1 t=.. moveto x,z ...`; `expect` entries (`{op="moveto", coord="0_38_154_44_13", height=2000}`, copied from the `.rs2`) must appear in order. A quest whose content calls `cam_moveto`/`cam_lookat` is RED under `gate.py` (`cutscene_row_required`) until its rows cover every site.
 - `t.world.camera()` -> a bare table `{x, z, level, yaw, pitch, zoom, server_driven, serial, last_op, last_target}`; `t.cutscene.mark()` -> the serial, for `opts.since`.
+- `t.cutscene.exempt(site, reason)` -> `ok refused`, its own row, called directly: a site OFF the guide's route only, `reason` naming the guide step driven instead; `gate.py` accepts or refuses it (seam34).
 
 ### Sea and session -- `verbs-sail-session.md`
 

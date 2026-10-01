@@ -675,3 +675,68 @@ for line): the loose rocks roll `stat_random(agility, 75, 250)` and a miss is th
 and the gallows run `mes()` + `p_delay(2)` before the first page (await `t.chat.kind()` first).
 "3 misses in 7 runs" were 7 different `--name`s, i.e. 7 streams (Seam pass 32 (g)): a roll is
 looped in the test, never assumed (docs/quests/ladders/zombiequeen.notes.md).
+
+## Seam pass 34 (2026-10-01)
+
+(a) Render skip is ON in every quest run (`TORIRS_RENDER_SKIP=1` from `run.py` and `conformance.py`;
+`--render-every-frame` is the A/B). A frame still runs its tick, input, net, plugins, layout and
+emit walk; only the draw and present are skipped unless a screenshot, a pushed click or a pickset
+read needs the frame, and render-time state is drawn LATE, never waited for, so the timeline is the
+skip-off one. Proof: all 88 ledgers identical row for row (step, verdict, ticks) to the skip-off
+green run; summed client time over the suite 5,149 s -> 1,802 s, legends 7.8x. Pictures can differ only in the cursor tooltip box,
+a never-bind-posed model (druid's suits of armour) and `CAM_SHAKE` jitter. running.md, "Render
+skip"; verbs `t.render.skip` / `t.render.frame`; rows `render.skip`, `render.frame`,
+`seam.render_skip_pick_read_catches_up`, `seam.render_skip_shot_draws_its_frame`.
+
+(b) `t.player.inv_op(item, 2)` on a Wield/Wear answered `timeout ... -> 0 left
+[settle_after_click]` because a landed `~equip` prints, mounts and routes nothing. It now resolves
+on the item's worn total rising and tags the row `[WORN <item>: worn 0 -> 1, wear slot N]`
+(verbs-inventory-shops). And a stalled `walk_to` names the locs with an op within two tiles of where
+it stopped: a rock bridge, stepping stone or log is a WALL in the game until its op is pressed
+(Underground Pass `walkway_upass_narrow_mid_top`, `blockwalk=1` `op1=Cross`, LostCity the same), so
+the stop is the game's answer and the fix is `click_loc`, never a walk that paths over it
+(verbs-pointer, "A walk stops at an obstacle"). Underground Pass's rejected relay ran unchanged to
+checkpoint 4 (114/0). Row: `seam.inv_op_wield_reads_worn`.
+
+(c) A cache-declared transmit hook (`onvarptransmit=` / `oninvtransmit=` / `onstattransmit=` with
+`varptriggers=` in the `.if`) was dead on a group's FIRST open: `Task_InterfaceOpen` armed the
+record's hooks before baking the group, each hook's node ref resolved to nothing, and the var
+dispatch drops a hook whose ref does not resolve (a regression of the incarnation refs, 31b64f3f0;
+boot-baked groups were fine). Symptom: a modal's counters and models never change while
+`t.var.varp(sym)` on the client already equals `t.var.server(sym)`; rows read `[frame unchanged]`
+(Forgettable Tale's junction puzzle, interface 248: shots 194-196 byte-identical). FIXED: armed
+after the bake (`src/engine/uitree_builder/task_interface_open.c`). Diagnostic recipe: after each
+press compare the client and server varp and read the component with `t.ui.text`; equal varps and
+stale text is the client hook, not transmission and not render skip. Row:
+`seam.cache_transmit_hook_first_open`. Open, content: with the counters drawing, interface 248's
+GREEN-icon row shows `forget_num_left` (varbit 861) while the port spends `forget_num_right` for a
+green junction (`forget_puzzle.rs2`); needs a sourced colour/varbit check.
+
+(d) `cutscene_row_required` can be met for a site on a route the guide never takes:
+`t.cutscene.exempt(site, reason)` writes a claim row, and `gate.py` accepts it only for a site
+entered solely from player-op triggers no guide step targets or carries, with the reason naming a
+PASSed guide step; everything else is refused (`cutscene_exempt_refused:`). `gate.py --cutscene-as
+<test_id> <dirs>` grades scratch runs. verbs-cutscene, "`cutscene_row_required` names a site on a
+route you did not take".
+
+(e) `cutscene_sweep.py` reads LostCity_Server too: ten quests exist only there (eadgar horror misc
+mm mortton regicide routequest tbwt troll_love viking) and graded WIKI_* before, hiding troll_love's
+DROPPED sled-ride camera and mm's PARTIAL sigil-teleport lookat. `make -C src check-quest-cutscenes`
+is RED on those two until the cutscene session ports them (verbs-cutscene, the sweep paragraph).
+
+(f) A transmogged player is DRAWN as the npc: the client decoded the appearance block's 0xffff entry
+and drew the player's own body (Monkey Madness's greegree wearer, a human in a monkey's stance). The
+player entity now keeps `transmog_npc_id`; the body reconcile builds the npc type's model (multinpc
+resolved per frame, LostCity `ClientPlayer.getTempModel2`) and puts the human body back when it
+ends. Ladder cheat `::transmog <npc>|off` (QUEST_SERVER_CHEATS). gaps-world, "Monkey Madness".
+Row: `seam.transmog_draws_the_npc`.
+
+(g) The Entrana monks' ferry lands on the ship's DECK, not the dock (OSRS-Content, LostCity
+`~set_sail` coords `1_44_52_18_3` / `1_47_50_40_31` in `monk_of_entrana.rs2`); the old Entrana jump
+0_44_52_15_6 put the player at 2831,3334,0, in the sea, and made the guide's `useGangPlank`
+undrivable. A ship landing's source is LostCity's `~set_sail` destination; a `p_telejump` that skips
+a deck skips a guide step. zanaris, grail and hero (the committed ferry users) stay green. Recipe:
+docs/quests/ladders/deviousminds.notes.md. Desert Treasure's guide items are all obtainable in
+content (docs/quests/ladders/deserttreasure.notes.md); open: the Ardougne SILVER shop opens EMPTY in
+the client (a content-declared inv, `cell 3 of shopmain:items is not mounted`), and the Entrana
+monk's weapon search is unported.

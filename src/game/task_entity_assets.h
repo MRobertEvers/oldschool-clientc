@@ -80,6 +80,16 @@ CreateTask_PlayerBodyLand(
     int seq_count);
 
 /**
+ * A transmogged player's body: load npc `npc_id`'s config chain (multinpc
+ * rungs included), then the models and stances of the type it selects. A
+ * plain fetch like PlayerBodyLand -- the per-frame reconcile mounts it.
+ */
+struct ToriRS_Task*
+CreateTask_PlayerTransmogLand(
+    struct App* app,
+    int npc_id);
+
+/**
  * Load sequence `seq_id`, then the obj configs and wear models it swaps into
  * the player's hands (replaceheldleft/right), gendered as the player with
  * `server_pid` is when the configs are in.

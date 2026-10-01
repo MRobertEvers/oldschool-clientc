@@ -243,6 +243,22 @@ distance 7 and 17 from the seaslug crane on walkable deck, both answered `ok` wi
 stage change and no script run at all. Await the REFUSAL sentence, not only the success sentence, or
 a never-ran op and a refusal read the same.
 
+## A timed lift or a `covered` boss press is not a licence for `t.drive.op` (Haunted Mine, sonnet-b43)
+
+*Origin: reviewer of author batch sonnet-b43 (hauntedmine, sent back).*
+
+The Haunted Mine test was sent back with run, gate and lint green and helper_coverage FULL, because
+two guide steps went out only through `t.drive.op`. The first was `goDownLift`. Turning the valve
+gives an 80-tick window (`^hmq_lift_race_ticks`, `hauntedmine_dungeon.rs2:364-375`) before the
+cheeky ghost shuts it, and the author said the camera hunt for `lift_side_r` took longer. The
+second was Dayth's Attack. Treus Dayth rises on the key tile behind crates and track, so the pixel
+press answered `covered`. A `t.drive.op` row sends the packet with no pixel and no route, so it is
+never a guide step's row (verbs-pointer: `t.drive.op`). Turn the camera or step to a clear tile
+first, and use `click_loc` or `t.player.attack`. If that still misses an 80-tick window, the file
+ends in `t.blocked("<the seam>")`. The same review also wanted a row asserting the literal 22,000
+Strength XP reward (`hauntedmine_dayth.rs2:298`); a scroll shot that shows the amount is not a
+row.
+
 ## `coordz(...) < coordz(movecoord(...))` is a SIDE test; `stood on with ::goto` is a FAIL
 
 *Origin: section 8 ("Gaps reported by authors").*
@@ -527,7 +543,7 @@ symbol on each use, with `{ at = { 2892, 9480 } }` because two `thzq_tombrooml1`
 (seam-facts: Seam pass 32 (e)). The way back out is op1 on whichever of the three is there now:
 try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
 
-## Underground Pass: `walk_to` stalls under attack and treats rock bridges as walls (sonnet-b42)
+## Underground Pass: `walk_to` stalls under attack and stops at rock bridges (sonnet-b42; bridges seam34)
 
 *Origin: author batch sonnet-b42 (upass legs 3-4, rejected; relay notes in
 `build/author_state/sonnet-b42/upass.relay.md`).*
@@ -536,7 +552,46 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   way to orb 2, `m37_151.spawn`). A 10-hitpoint account dies in the hops. Put the combat levels in
   `setup` (hitpoints 40 and defence 30 survived), hop-walk in short legs, and retry a stalled hop;
   `::setlevel` inside a leg is too late for an earlier leg's resume.
-- `walk_to` routes around the narrow rock bridges of the maze after the ledge as if they were
-  walls, so a straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
+- `walk_to` stops before the narrow rock bridges of the maze after the ledge. They ARE walls in the
+  game until crossed (`blockwalk=1`, `op1=Cross`; LostCity blocks them too), so this is not a driver
+  bug: a stalled walk now names them (verbs-pointer: "A walk stops at an obstacle", seam34), and a
+  straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
   `click_loc` the `walkway_upass_narrow_mid_top` copy at 2380,9634 / 2387,9631 / 2392,9627 /
   2399,9632 / 2406,9637, then walk on to the pipe (`upass_pipe6`, 2417,9605).
+
+## Underground Pass: `walk_to` cannot reach the witch's cat, house or demons (collapsed bridges, sonnet-b43)
+
+*Origin: author batch sonnet-b43 (upass leg 7, gave up; notes in
+`build/author_state/sonnet-b43/upass.leg7.progress.md`).*
+
+- On Iban's level (`m33_71`, level 1) the paths between the witch's house, her cat and the three
+  demons are cut by COLLAPSED BRIDGES, which are different locs from the maze's narrow rock bridges
+  above. A straight `walk_to` never arrives there. The witch's door (`cavewitch_door` 2158,4566) is
+  not path-reachable from the east cliff (2172,4561) either, because the house sits in a pocket of
+  its own.
+- `bridgecollapsed1` and `bridgecollapsed2` are crossed with op1 (`upass_obstacles.rs2:425-426`,
+  `@upass_cross_bridge`). The crossing rolls `stat_random(agility, 160, 300)`. A failed roll drops
+  you into the darkness below (`0_36_153_31_29` or `0_36_154_29_10`), hits for 25% of hitpoints
+  plus 4, and spawns Koftik the first time. Set agility in `setup` (leg 7 used 70), and read
+  `t.world.tile()` after every crossing.
+- The crossings the leg used are 2156,4582 (c2), 2147,4583 (c2), 2142,4562 (c1, approached from the
+  north) and 2126,4566 (c2). A static BFS over `maps/m33_71` (jm2 and jl2) found that route faster
+  than probing it with walks.
+
+## Monkey Madness: a greegree wearer is drawn as the monkey (seam34)
+
+*Origin: seam34 greegree_transmog_render (mm parity3f legs_left: "client rendering of player
+transmog").*
+
+- Since seam34 the client draws a transmogged player as the npc (`p_transmogrify`, a greegree held):
+  the appearance block's 0xffff entry was decoded and then dropped, so the wearer stayed a human in a
+  monkey's stance. Proof read is the pick-set silhouette (`t.drive._projection` of `{kind="player",
+  id=-1}`, then the highest pixel that still holds the player): a human is about 84 px tall at camera
+  (0,400,350), a Karamjan monkey 18-24 px. `::transmog <npc>` / `::transmog off` is the ladder twin
+  for a scratch probe (`docs/QUEST_SERVER_CHEATS.md`).
+- The Ape Atoll ravine archers knock a HUMAN out at 1/20 per arrow: hold the greegree before any
+  probe there. The Ardougne zoo monkey pen (2604,3277) is inside `~mm_greegree_zone` and quiet; the
+  reusable greegree drivers are `build/parity_state/parity3f/mm_scratch/transmog.lua` and
+  `transmog_apeatoll.lua` (Hold -> monkey drawn -> unequip -> human).
+- Not built yet (no quest needs it): a transmog into an npc bigger than one tile is not re-centred
+  (the reference's `transformedSize`), and a transmogged player's chathead is still the player's.

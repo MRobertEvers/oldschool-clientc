@@ -25,4 +25,21 @@ Dialogue choices gating progress: monk "Yes." to start; Tiffy "Devious Minds."
 Tiffy's stage-70 branch answers first in rd_teleporter_guy opnpc1
 (quest_recruitmentdrive/scripts/recruitmentdrive.rs2:36), before RD/Wanted branches.
 No fights. Abyssal creatures may attack in the outer ring; strip no gear needed here
-(the test does not go via Entrana's boat, it leaves the altar by the portal).
+(the outbound trip does not use Entrana's boat, it leaves the Law altar by the portal).
+
+Stage 60 return to Entrana (guide talkToEntranaMonk + useGangPlank) is the ordinary
+ferry, NOT a goto: goto 3045,3236 (shipmonk, Port Sarim), talk_to shipmonk op1,
+chat "npc:Do you seek passage" / "choose:Yes, okay, I'm ready to go." / player / "npc:Very
+well. One moment please." / "mesbox:The monk quickly searches you.". Since seam34
+(parity3f_carry_overs) the crossing lands on the ship's DECK, 2834,3331 level 1 (LostCity
+~set_sail ... 1_44_52_18_3); then click_loc ship_from_entrana_off op1 (the gangplank,
+2834,3333 level 1) puts you on the pier at 2834,3335,0; goto the church after that.
+Proof: build/quest_gate/p3f_dm_boat_after2 17/17, p3f_dm_authorboat rows 41-46.
+The old landing 2831,3334,0 is in the sea -- never goto it. The way back (shipmonk2 on
+the Entrana pier, 2830,3335) lands on the Port Sarim deck 3048,3231,1; ship_to_entrana_off
+walks you ashore to 3048,3234,0. The monk does NOT search for weapons/armour in this pack
+(LostCity's has_entrana_restricted_items is unported), so the pickaxe/axe can stay.
+Abyss check: a test's "inner ring" box must exclude the mage's outer-ring landing tiles
+(3020,4824 is one); a box of x3020-3056 z4818-4848 passes on the landing itself.
+Reward XP is 6,500 Smithing / 5,000 Runecraft / 5,000 Fletching (deviousminds_tiffy.rs2,
+constants are tenths): assert them with skill.expect_gain, not only quest.points.

@@ -19,6 +19,10 @@ app_player_wanted_body(
     struct App* app,
     struct WorldEntity_Player const* player,
     int slots[12]);
+static void
+app_world_reconcile_player_transmog(
+    struct App* app,
+    struct WorldEntity_Player* player);
 
 /*
  * LOC_ANIM: attach a sequence to the scenery element on a tile.
@@ -419,6 +423,99 @@ app_player_wanted_body(
     }
 }
 
+/*
+ * A transmogged player's body: the npc's own model, nothing of the player's.
+ *
+ * Reference: LostCity ClientPlayer.ts getTempModel2 (`if (this.transmog !=
+ * null) return this.transmog.getTempModel(...)`) and the 2019 deob
+ * PlayerAppearance.getModel / getModelData (`if (npcTransformId != -1) return
+ * getNpcDefinition(npcTransformId).getModel(...)`): the npc type's models,
+ * recolours and scale, with no player colour, no worn item and no held-item
+ * swap. NpcType.getModel transforms a multinpc first and is asked on every
+ * draw, so the chain is resolved here, each frame, under this client's vars.
+ * The decode leaves the worn-item team at 0 (its loop breaks on the 0xffff
+ * entry before the team read), and so does this.
+ *
+ * Like the slot body, nothing is mounted until it is whole: the element keeps
+ * its last body while PlayerTransmogLand (game/task_entity_assets.c) fetches
+ * the npc config and models.
+ */
+static void
+app_world_reconcile_player_transmog(
+    struct App* app,
+    struct WorldEntity_Player* player)
+{
+    struct ToriRS_Npctype* npctype;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+    int drawn;
+
+    assert(app);
+    assert(player);
+    assert(player->transmog_npc_id >= 0);
+
+    /* The shell's config is not in yet: keep the last body. */
+    if( !CacheProvider_NpctypeHas(app->provider, player->transmog_npc_id) )
+        return;
+    drawn = App_NpctypeResolveMultiId(app, player->transmog_npc_id);
+    if( drawn < 0 )
+    {
+        /* The multinpc selects nothing: NpcType.getModel answers null and
+         * the reference draws no player at all. */
+        if( player->body.npc_id == WORLD_PLAYER_BODY_HIDDEN )
+            return;
+        model = ToriDraw_ModelNew(0, 0, 0);
+        assert(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
+        drawn = WORLD_PLAYER_BODY_HIDDEN;
+    }
+    else
+    {
+        if( drawn == player->body.npc_id )
+            return;
+        npctype = CacheProvider_NpctypeGet(app->provider, drawn);
+        /* A rung of the chain is still cold. */
+        if( !npctype )
+            return;
+        if( npctype->models_count <= 0 )
+        {
+            model = ToriDraw_ModelNew(0, 0, 0);
+            assert(model);
+            ToriDraw_ModelSetBoundsCylinder(model);
+        }
+        else
+        {
+            if( !app_world_npc_models_resident(app, npctype) )
+                return;
+            model = app_world_build_npc_model(app, drawn, npctype);
+            if( !model )
+            {
+                /* Resident models that do not build: the same failure the
+                 * npc retype logs, and the element keeps the last body. */
+                TORIRS_ERR("player_transmog: npc %d models failed to build\n", drawn);
+                return;
+            }
+            app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(drawn, npctype));
+        }
+    }
+    if( !ToriDraw_SceneElementIsLive(app->scene, player->element_id) )
+    {
+        ToriDraw_ModelFree(model);
+        return;
+    }
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_SceneElementSetModel(app->scene, player->element_id, hnd);
+    app_element_pose_after_model_swap(app, player->element_id);
+
+    player->body.npc_id = drawn;
+    player->team = 0;
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
 void
 app_world_reconcile_player_body(
     struct App* app,
@@ -431,8 +528,17 @@ app_world_reconcile_player_body(
     assert(app);
     assert(player);
 
+    if( player->transmog_npc_id >= 0 )
+    {
+        app_world_reconcile_player_transmog(app, player);
+        return;
+    }
+
     app_player_wanted_body(app, player, slots);
-    if( memcmp(slots, player->body.slots, sizeof(slots)) == 0 &&
+    /* A body still built from an npc is never the wanted one, whatever the
+     * slots say: the transmog ended and the player's own body goes back. */
+    if( player->body.npc_id == WORLD_PLAYER_BODY_FROM_SLOTS &&
+        memcmp(slots, player->body.slots, sizeof(slots)) == 0 &&
         memcmp(player->appearance.colors, player->body.colors, sizeof(player->body.colors)) ==
             0 &&
         player->gender == player->body.gender )
@@ -467,6 +573,7 @@ app_world_reconcile_player_body(
     memcpy(player->body.slots, slots, sizeof(slots));
     memcpy(player->body.colors, player->appearance.colors, sizeof(player->body.colors));
     player->body.gender = player->gender;
+    player->body.npc_id = WORLD_PLAYER_BODY_FROM_SLOTS;
     /* Every obj config of the appearance is resident (checked above). */
     player->team = app_appearance_team(app, player->appearance.slots);
     app_sync_textures(app);
@@ -515,6 +622,11 @@ App_WorldApplyPlayerAppearance(
             if( ent )
             {
                 ent->headicon = appearance->headicon;
+                /* The 0xffff first equipment entry's npc (LostCity
+                 * ClientPlayer.ts setAppearance: `this.transmog = null` then
+                 * set by the block, so every appearance restates it). Drawn
+                 * by app_world_reconcile_player_transmog. */
+                ent->transmog_npc_id = appearance->npc_id;
             }
         }
 

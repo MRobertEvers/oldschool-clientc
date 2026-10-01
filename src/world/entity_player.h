@@ -3,6 +3,12 @@
 
 #include "entity_facets.h"
 
+/* WorldEntity_Player.body.npc_id when the mounted model is not an npc's: built
+ * from the appearance slots, or an empty model because the transmog's multinpc
+ * selected nothing. Every other value is the npc type the body was built from. */
+#define WORLD_PLAYER_BODY_FROM_SLOTS (-1)
+#define WORLD_PLAYER_BODY_HIDDEN (-2)
+
 struct WorldEntity_Player
 {
     int element_id;
@@ -29,6 +35,11 @@ struct WorldEntity_Player
     int team;
     /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
     int server_pid;
+    /** The npc type the appearance says this player is drawn as (the 239
+     *  block's 0xffff first equipment entry, p_transmogrify); -1 = the
+     *  player's own body. Reference ClientPlayer.transmog (LostCity
+     *  ClientPlayer.ts setAppearance) / PlayerAppearance.npcTransformId. */
+    int transmog_npc_id;
     /** What the scene element's model was built from: the appearance
      *  slots with any held-item override of the playing seq folded in
      *  (reference ClientPlayer.getSequencedModel: replaceheldleft/right swap
@@ -42,6 +53,9 @@ struct WorldEntity_Player
         int slots[12];
         int colors[5];
         int gender;
+        /** The npc type the mounted model was built from when the body is a
+         *  transmog (multinpc already resolved); -1 = built from the slots. */
+        int npc_id;
     } body;
 
     /** P_LOCMERGE / LOC_MERGE (ClientPlayer.locStartCycle/locStopCycle): while

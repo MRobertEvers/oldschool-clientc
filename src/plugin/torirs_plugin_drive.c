@@ -1142,6 +1142,69 @@ lua_drive_session(struct lua_State* L)
     return 1;
 }
 
+/* ------------------------------------------------------------ render skip
+ *
+ * t.render.skip / t.render.frame (script/plugins/quest_driver/world.lua).
+ * The switch and the one-frame request are the App's (App::render_skip,
+ * app_render.c, which also lists every piece of render-time state and what
+ * forces a draw for it); these only reach them. run.py starts every quest
+ * client with TORIRS_RENDER_SKIP=1, so a test rarely needs either: the
+ * pointer verbs and t.shot already ask for the frames they read. */
+
+static void
+drive_push_render_state(struct lua_State* L)
+{
+    assert(L);
+    assert(g_app);
+    lua_createtable(L, 0, 6);
+    lua_pushboolean(L, App_RenderSkipEnabled(g_app));
+    lua_setfield(L, -2, "skip");
+    lua_pushinteger(L, (lua_Integer)g_app->frames_rendered);
+    lua_setfield(L, -2, "rendered");
+    lua_pushinteger(L, (lua_Integer)g_app->render_skip.frames_drawn);
+    lua_setfield(L, -2, "drawn");
+    lua_pushinteger(L, (lua_Integer)g_app->render_skip.frames_skipped);
+    lua_setfield(L, -2, "skipped");
+    lua_pushinteger(L, (lua_Integer)g_app->render_skip.frames_caught_up);
+    lua_setfield(L, -2, "caught_up");
+    /* While a hull stands in the scene every frame is drawn
+     * (App_RenderSkipFrame): a reader wondering why frames are not being
+     * skipped is told so. */
+    lua_pushinteger(L, App_RenderSkipHullsInScene(g_app));
+    lua_setfield(L, -2, "hulls");
+}
+
+/* api.drive.render_skip([on]) -> "ok", {skip, rendered, drawn, skipped}.
+ * With no argument (or nil) a pure read; a boolean switches skip first. */
+static int
+lua_drive_render_skip(struct lua_State* L)
+{
+    assert(g_app);
+    if( !lua_isnoneornil(L, 1) )
+    {
+        /* Not luaL_checktype: the argument is optional, and check_drive_abi
+         * reads a luaL_check* index as the caller's required floor. */
+        if( lua_type(L, 1) != LUA_TBOOLEAN )
+            return luaL_error(L, "drive.render_skip: wants true, false or nothing");
+        App_RenderSkipSet(g_app, lua_toboolean(L, 1));
+    }
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    drive_push_render_state(L);
+    return 2;
+}
+
+/* api.drive.render_frame() -> "ok", state: owe the current frame a draw.
+ * t.render.frame awaits `rendered` moving past the state returned here. */
+static int
+lua_drive_render_frame(struct lua_State* L)
+{
+    assert(g_app);
+    App_RenderSkipRequestDraw(g_app, 1);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    drive_push_render_state(L);
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"await", lua_drive_await},
     {"pump", lua_drive_pump},
@@ -1155,6 +1218,8 @@ static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"report", lua_drive_report},
     {"finish", lua_drive_finish},
     {"session", lua_drive_session},
+    {"render_skip", lua_drive_render_skip},
+    {"render_frame", lua_drive_render_frame},
     {NULL, NULL},
 };
 

@@ -62,6 +62,10 @@ Usage:
       background and returns; --wait blocks up to --timeout seconds and exits
       with the run's own exit (0/1) / 2 no such run / 3 still running;
       docs/quest_authoring/relay.md "Runs longer than the shell cap")
+  tools/quest_gate/run.py <quest> --render-every-frame
+      (every client starts with TORIRS_RENDER_SKIP=1 -- a frame is drawn only
+      for a screenshot, a click or a pickset read; this flag draws every frame,
+      the A/B -- docs/quest_authoring/running.md "Render skip")
   tools/quest_gate/run.py --script test/quests/_conformance.lua --name proof
       (advanced: drives an arbitrary standalone driver script -- no quest
       table; a non-empty `setup` list is run by the same wrapper loop, an
@@ -1007,6 +1011,17 @@ def summary_from_leg(summary):
     return None
 
 
+# RENDER SKIP (seam34, owner request 2026-09-30: "When running these clips -
+# do so. Make sure screenshot requests still work. Just don't waste time
+# rendering every frame."). A quest client is frame-locked and uncapped, so a
+# run goes as fast as the software renderer draws; TORIRS_RENDER_SKIP=1 makes
+# a frame draw only when something must see it -- a screenshot, a pickset
+# read, a pushed click (src/app/app_render.c's render-skip banner lists every
+# piece of render-time state and what forces a draw for it). On by default;
+# --render-every-frame is the A/B (main() clears this).
+RENDER_SKIP = True
+
+
 def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
     environment = dict(os.environ)
     environment.update({
@@ -1037,6 +1052,7 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
         "TORIRSSERVER_HOME": "3222,3218",
         "TORIRS_MAX_FRAMES": str(max_frames),
         "TORIRS_EMBED_CLOCK_MS": "20",
+        "TORIRS_RENDER_SKIP": "1" if RENDER_SKIP else "0",
     })
     return environment
 
@@ -2310,7 +2326,12 @@ def main():
                              "exits with the run's own exit (0 clean, 1 not; gate.py is the "
                              "verdict), 2 no such run, %d still running"
                              % (DETACH_WAIT_DEFAULT, DETACH_WAIT_EXIT_RUNNING))
+    parser.add_argument("--render-every-frame", action="store_true",
+                        help="draw every frame (TORIRS_RENDER_SKIP=0); by default a quest "
+                             "client draws only the frames a screenshot or a click needs")
     arguments = parser.parse_args()
+    global RENDER_SKIP
+    RENDER_SKIP = not arguments.render_every_frame
     detach_code = detach_dispatch(parser, arguments)
     if detach_code is not None:
         return detach_code

@@ -115,32 +115,78 @@ return {
         t.check("teleToAbyss-tile", at ~= nil and at.z > 4000, "tile " .. tostring(at and at.x) .. "," .. tostring(at and at.z))
         local passed = false
         local tried = {}
-        for attempt = 1, 1 do
-            if passed then break end
-            for _, sym in ipairs({"rcu_abyssal_barrier_teeth1","rcu_abyssal_barrier_tendrils1","rcu_abyssal_barrier_boil1","rcu_abyssal_barrier_eyes1","rcu_abyssal_barrier_agility","rcu_outer_multi1","rcu_outer_multi2","rcu_outer_multi3","rcu_outer_multi4","rcu_outer_multi5","rcu_outer_multi6","rcu_outer_multi7","rcu_outer_multi8","rcu_outer_multi9","rcu_outer_multi10","rcu_outer_multi11","rcu_outer_multi12"}) do
-                if not passed then
-                    local lr = t.world.loc_near(sym, 12)
-                    if lr == "ok" then
-                        local cr = t.player.click_loc(sym, 1)
-                        t.ticks(6)
-                        local _, now = t.world.tile()
-                        local far = math.max(math.abs(now.x - 3040), math.abs(now.z - 4832))
-                        tried[#tried + 1] = sym .. ":" .. tostring(cr) .. "@" .. now.x .. "," .. now.z
-                        if far < 9 then passed = true end
-                    end
+        for _, sym in ipairs({"rcu_abyssal_barrier_teeth1","rcu_abyssal_barrier_tendrils1","rcu_abyssal_barrier_boil1","rcu_abyssal_barrier_eyes1","rcu_abyssal_barrier_agility"}) do
+            if not passed and t.world.loc_near(sym, 14) == "ok" then
+                for attempt = 1, 4 do
+                    if passed then break end
+                    local cr = t.player.click_loc(sym, 1)
+                    t.ticks(6)
+                    local _, now = t.world.tile()
+                    tried[#tried + 1] = sym .. ":" .. tostring(cr) .. "@" .. now.x .. "," .. now.z
+                    if now.x >= 3023 and now.x <= 3056 and now.z >= 4818 and now.z <= 4848 then passed = true end
                 end
             end
         end
-        local walked = {}
-        for _, d in ipairs({{3055,4834},{3053,4836},{3057,4836},{3055,4838}}) do
-            t.player.walk_to(d[1], d[2], 8)
-            t.ticks(4)
-            local _, w = t.world.tile()
-            walked[#walked + 1] = d[1] .. "," .. d[2] .. "->" .. w.x .. "," .. w.z
-        end
-        t.check("abyss-pocket", true, "walk probes from 3055,4836: " .. table.concat(walked, " "))
-        t.check("abyss-obstacle", tried[1] ~= nil, table.concat(tried, " "))
-        t.blocked("content_bug: runecraft_abyss.rs2 abyss_move_inward p_telejump (~line 245) lands the player on a tile walled in on all four sides (3055,4836 after passing the layout-6 eyes from 3052,4850; walk_to 3055,4834/3053,4836/3057,4836/3055,4838 all stay put, every other obstacle and abyss_exit_to_law 3049,4839 answer I can't reach that), so enterLawRift/leaveLawAltar/usePouchOnAltar and every later guide step are unreachable without a goto_tile cheat past the passage")
-        return
+        t.check("abyss-obstacle-inner", passed, table.concat(tried, " "))
+        t.exec("enterLawRift", t.player.click_loc, "abyss_exit_to_law", 1)
+        t.ticks(8)
+        local _, lt = t.world.tile()
+        t.check("enterLawRift-tile", lt.x >= 2400 and lt.x < 2500, "tile " .. lt.x .. "," .. lt.z)
+        t.exec("leaveLawAltar", t.player.click_loc, "lawtemple_exit_portal", 1)
+        t.ticks(8)
+        local _, et = t.world.tile()
+        t.check("leaveLawAltar-tile", et.x > 2790 and et.x < 2890 and et.z > 3300, "tile " .. et.x .. "," .. et.z)
+        t.exec("goto-church", t.player.goto_tile, 2851, 3347, 0)
+        t.exec("usePouchOnAltar", t.player.use_on, "devious_glowingpouch", t.player.by_symbol("loc", "devious_altar"))
+        t.exec("usePouchOnAltar.cutscene", t.cutscene.await, "usePouchOnAltar", { expect = {
+            { op = "moveto" }, { op = "lookat" }, { op = "reset" } }, timeout = 200, quiet = 80 })
+        t.ticks(20)
+        t.chat.continue_(true)
+        t.ticks(3)
+        t.chat.continue_(true)
+        t.expect("quest.stage.cutscene_done", t.quest.expect_stage("cutscene_done"))
+        t.exec("talkToHighPriest", t.player.talk_to, "high_priest_of_entrana", 1)
+        t.exec("talkToHighPriest-dialog", t.chat.play, {"npc:The relic","npc:Adventurer","player:Uh","npc:What is it","player:I put","npc:What?","player:There was","npc:No worshipper","player:I'll go"})
+        t.ticks(2)
+        t.expect("quest.stage.priest_spoken", t.quest.expect_stage("priest_spoken"))
+        t.exec("goto-deadmonk", t.player.goto_tile, 3406, 3494, 0)
+        t.exec("gotoDeadMonk", t.player.talk_to, "devious_monk_dead", 1)
+        t.exec("gotoDeadMonk-dialog", t.chat.play, {"mesbox:The poor guy","player:This isn't good"})
+        t.ticks(2)
+        t.expect("quest.stage.monk_found_dead", t.quest.expect_stage("monk_found_dead"))
+        t.exec("goto-talkToEntranaMonk", t.player.goto_tile, 3045, 3236, 0)
+        t.exec("talkToEntranaMonk", t.player.talk_to, "shipmonk", 1)
+        t.exec("talkToEntranaMonk-dialog", t.chat.play, {
+            "npc:Do you seek passage",
+            "choose:Yes, okay, I'm ready to go.",
+            "player:Yes",
+            "npc:Very well",
+            "mesbox:The monk quickly searches you.",
+        })
+        t.ticks(8)
+        local _, dk = t.world.tile()
+        t.check("talkToEntranaMonk-deck", dk.x >= 2830 and dk.x <= 2838 and dk.z >= 3328 and dk.z <= 3334,
+            "tile " .. dk.x .. "," .. dk.z .. " level " .. tostring(t.world.level()))
+        t.exec("useGangPlank", t.player.click_loc, "ship_from_entrana_off", 1)
+        t.ticks(8)
+        local _, pk = t.world.tile()
+        t.check("useGangPlank-pier", pk.x >= 2830 and pk.x <= 2838 and pk.z >= 3334, "tile " .. pk.x .. "," .. pk.z)
+        t.exec("goto-church2", t.player.goto_tile, 2851, 3347, 0)
+        t.exec("talkToHighPriest2", t.player.talk_to, "high_priest_of_entrana", 1)
+        t.exec("talkToHighPriest2-dialog", t.chat.play, {"npc:Adventurer","player:I went","npc:What?","player:It looked","npc:This is not good","player:I'll head"})
+        t.ticks(2)
+        t.expect("quest.stage.reported_priest", t.quest.expect_stage("reported_priest"))
+        local _, snap = t.skill.snapshot()
+        t.exec("goto-tiffy", t.player.goto_tile, 2997, 3371, 0)
+        t.exec("talkToSirTiffy", t.player.talk_to, "rd_teleporter_guy", 1)
+        t.exec("talkToSirTiffy-dialog", t.chat.play, {"npc:Jolly good","npc:Now how","choose:Devious Minds.","player:Devious","player:I've got","npc:This wouldn't","player:Uh","npc:Part of","player:Well","*","player:... and so","npc:Good","player:Is there","npc:Not yet"})
+        t.quest.expect_complete()
+        local sg = t.skill.expect_gain("smithing", 6500, snap)
+        t.check("reward.smithing", sg == "ok", "smithing gain 6500 -> " .. tostring(sg))
+        local rg = t.skill.expect_gain("runecraft", 5000, snap)
+        t.check("reward.runecraft", rg == "ok", "runecraft gain 5000 -> " .. tostring(rg))
+        local fg = t.skill.expect_gain("fletching", 5000, snap)
+        t.check("reward.fletching", fg == "ok", "fletching gain 5000 -> " .. tostring(fg))
+        t.finish(0)
     end,
 }

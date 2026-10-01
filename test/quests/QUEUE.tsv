@@ -35,9 +35,9 @@ quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo
 quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
-quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b42	REJECTED (sonnet-b42): run/gate/lint green and helper_coverage FULL 58/58, setvars on prerequisites replaced by ::complete, but the file hands over in-game-obtained items by ::give: Eblis ingredients (cert_magic_logs 12, cert_steel_bar 6, cert_molten_glass 6), bones/ashes/charcoal/bloodrune, gasmask, ice_gloves, garlic powder, spice pot, cake, silver bar, spiked boots, fire/death/air runes; and the Ancient signet / Ring of visibility rewards have no literal row (only scroll text and magic xp). Re-author: obtain the guide items through the game or buy/cook them, add literal reward rows or a content_bug note. ORCHESTRATOR NOTE 2026-09-30: the reviewer's 'Ancient signet' is not a Desert Treasure I reward -- source the reward rows from the OSRS wiki Desert Treasure I page (quest points, Magic XP, Ancient Magicks; the ring of visibility is obtained from Rasolo mid-quest) and cite it; never add a row for an item the sources do not grant.
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b43	REVERTED by sampler (sonnet-b43): Fareed, Damis (fd_damis_normal, fd_damis_tougher), Dessous (blooddiamond_vampirewarrior) and Kamil (icediamond_icewarrior) have no .npc block, so they spawn at npc_default.npc's 10 hp (seam pass 24 (a)): Damis read 0/30 after one 10 hitsplat (186-killDamis1.png), Kamil left the pool inside the first fire blast's settle; a boss that dies to one hit is a content_bug naming the missing blocks -- add the wiki stat blocks first, then re-author. Also: Fareed's diamond was never picked up at the kill; leg 6 goto_tile'd back into the Smoke Dungeon past sword_haunted_well (its trigger writes fd_torch_count1-4) to take the 'found its way back' copy -- pick it up in leg 2 instead.
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
-quest_deviousminds	deviousminds	deviousminds		3	todo	sonnet-b42	REJECTED (sonnet-b42): no reward row asserts the literal skill XP (Smithing 6500, Runecraft 5000, Fletching 5000 are granted per deviousminds_tiffy.rs2:40-42 and listed on the scroll shot, but the file only checks quest.points); and the boat branch is skipped -- goto-entrana2 teleports Varrock to Entrana church past the Port Sarim Monk of Entrana/gangplank (guide stage 60 useGangPlank/talkToEntranaMonk), helper_coverage marks it ALTERNATIVE only. Run/gate/lint green 51 rows, kept uncommitted for re-author.
+quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43	
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
 quest_dragon	dragon	dragonslayer		3	green	sonnet-b36	
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
@@ -65,7 +65,7 @@ quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42	
 quest_gettingahead	gettingahead	gettingahead		4	todo		
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28	
-quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		parity3f partial at b9022124fb: the journal now reads complete at stage 50 (gdwarf_journal.rs2) and all seven consortium companies are joinable -- resume the parked build/author_state/sonnet-b42/rejected/giantdwarf.lua WITHOUT t.blocked and end on t.quest.expect_complete() (proof run parity_giantdwarf 138/0); legs left: cutscene (spec pending); clothes/boots/axe fixed order; task time limits
+quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo	sonnet-b43	REJECTED (sonnet-b43): run/gate/lint green and helper_coverage FULL, but cheated hand-ins: (1) consortium task ores/bars (coal, iron, silver, gold, mithril, bars) are staged with t.cheat('::give ...') after each secretary/director task, where gdwarf_consortium.rs2 makes the player fetch and hand them over; (2) setup ::give of coal, logs, tinderbox, sapphires x3, law/air runes, iron bar, redberry pie, coins that the guide has you obtain in game. Rewrite so tasks are fulfilled by mining/smelting/buying or stop at t.blocked. File kept.
 quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34	
 quest_golem	golem	thegolem		1	green	sonnet-b15	
 quest_grail	grail	holygrail		2	green	sonnet-b28	
@@ -73,14 +73,14 @@ quest_grandtree	grandtree	thegrandtree		3	green	sonnet-b34
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16	
-quest_hauntedmine	hauntedmine	hauntedmine		3	todo		parity3e partial at 72e481670b: driver build/parity_state/parity3e/hauntedmine.driver.lua 96/96 (lift and Dayth attack via t.drive.op); legs left: cutscene (spec pending: the cart ride); points panel is the loc op, wrong lever settings have no distinct routes; Treus Dayth shared not instanced; postquest key, crystal shortcut, key ring, salve consumers
+quest_hauntedmine	hauntedmine	hauntedmine		3	todo	sonnet-b43	REJECTED (sonnet-b43): gate/lint/run green, helper_coverage FULL, but no row asserts the documented 22000 Strength XP reward (hauntedmine_dayth.rs2:298; only the scroll shot shows it) and Lift/Dayth attack are driven by t.drive.op bypass
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34	
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
-quest_horror	horror	horrorfromthedeep		3	todo		parity3e partial at 72e481670b: LostCity port driven to completion (build/parity_state/parity3e/scratch/h2-h11 lineage; close3e_horror_h10 28/28 kills the mother with 17 elemental casts after ::god 1, h11 13/13 casket game); legs left: Barcrawl prerequisite/Yes-No offer; per-player lighthouse instance; god-book pages and 5,000-coin book purchases (LostCity horror_godbook.rs2)
+quest_horror	horror	horrorfromthedeep		3	todo	sonnet-b43	REVERTED by sampler (sonnet-b43): setup '::god 1' makes the 10-hp player invulnerable for the Dagannoth and the mother (the only quest file using ::god; it is not a documented convention) -- the boss is fought for real: give combat levels, food and EAT it (opts.eat), Protect from Missiles per the guide. Also six t.check(name, true, ...) tile rows (after_repair/goDownToF1/goDownToF0/goDownToBasement/goThroughDoor/climbDownToCavern .tile) cannot fail -- assert the level/zone; reward.magic is '>= 4662', read the scroll's '4,662.5 Magic XP' line or snapshot after the last cast.
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
-quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		parity3f partial at b9022124fb: soft-skips replaced (pit jump, 25-tile door game x2, Apparitions per jar, jar drop, embalming gates, ceremony + Possessed Priest); drivers build/parity_state/parity3f/scratch/legA, legBC..BC4, legD, legE3, legF fold into one test (::icthlarinenergy for the pit; jar is random per run, read %ics_little_jar_multi); legs left: cutscene (spec pending: 3 scenes); cat follower; hostile Sophanem; Apparition prayer/weakness
+quest_icthlarin	icthlarin	icthlarinslittlehelper		3	green	sonnet-b43	
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35	
 quest_imp	imp	impcatcher		3	green	sonnet-b35	
@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	sonnet-b36
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
-quest_upass	upass	undergroundpass		3	todo	sonnet-b42	REJECTED (sonnet-b42): gate RED, 10 findings. Relay stops at leg 4 of 8: leg.4.wield FAIL (adamant_scimitar op 2 -> 0 left); checkpoint 4 not written; no completion scroll, no quest.varp_complete, missing hop shots. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b42/rejected/upass.lua
+quest_upass	upass	undergroundpass		3	todo	sonnet-b43	REJECTED (sonnet-b43): gave_up at killHolthion (no_row); gate red: no quest.varp_complete/scroll_title row, missing shots, leg.4.end no shot. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b43/rejected/upass.lua
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
 quest_viking	viking	thefremenniktrials		3	todo		
 quest_wanted	wanted	wanted		2	green	sonnet-b29	

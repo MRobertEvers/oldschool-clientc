@@ -47637,6 +47637,61 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: ::transmog draws the caller as an npc\n");
+    {
+        /*
+         * seam34 greegree_transmog_render: the ladder twin of p_transmogrify
+         * (LostCity quest_mm ape_atoll_dungeon.rs2:182
+         * [debugproc,transmogrify]). It must set the field the appearance
+         * encoder reads (put_appearance_v5 writes 0xffff + transmog_npc) and
+         * raise the appearance mask, exactly as the script op does; `off`
+         * puts the player's own body back; a name that is no npc is FAILED,
+         * not a silent no-op.
+         */
+        struct ToriRSServerPlayer* p = srv->active_player;
+        int monkey = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC,
+                                                "mm_transmogrification_normal_monkey");
+
+        assert(p);
+        if( monkey < 0 )
+        {
+            fprintf(stderr, "  SKIP  no mm_transmogrification_normal_monkey symbol\n");
+        }
+        else
+        {
+            int saved = p->transmog_npc;
+
+            p->transmog_npc = -1;
+            p->masks &= ~TORIRSSERVER_PMASK_APPEARANCE;
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(
+                               srv, p, "transmog mm_transmogrification_normal_monkey") ==
+                               TORIRSSERVER_TRIGGER_RAN,
+                           "::transmog <npc> runs");
+            SELFTEST_CHECK(p->transmog_npc == monkey, "transmog_npc is the monkey %d, got %d",
+                           monkey, p->transmog_npc);
+            SELFTEST_CHECK((p->masks & TORIRSSERVER_PMASK_APPEARANCE) != 0,
+                           "::transmog raises the appearance mask");
+
+            p->masks &= ~TORIRSSERVER_PMASK_APPEARANCE;
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "transmog off") ==
+                               TORIRSSERVER_TRIGGER_RAN,
+                           "::transmog off runs");
+            SELFTEST_CHECK(p->transmog_npc == -1, "::transmog off clears it, got %d",
+                           p->transmog_npc);
+            SELFTEST_CHECK((p->masks & TORIRSSERVER_PMASK_APPEARANCE) != 0,
+                           "::transmog off raises the appearance mask");
+
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "transmog no_such_npc_xyz") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::transmog of an unknown npc is FAILED");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "transmog") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::transmog with no argument is FAILED");
+            SELFTEST_CHECK(p->transmog_npc == -1, "a refused ::transmog leaves the body alone");
+            p->transmog_npc = saved;
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: ::chargesrun\n");
     {
         /*

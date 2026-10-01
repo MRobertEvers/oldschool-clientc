@@ -104,3 +104,24 @@ after the first hit.
 `t.ui.invoke` and after the remains pickup. mcannon passed only because a later row proves the
 outcome (`repair.message` plus stage 8, and Lawgof's hand-in at stage 3). Grade each press on the
 varp or the chat line it moves (`%mcannon_spring_set`, "You hook the spring back into place.").
+
+## Sample sonnet-b43 (2026-10-01)
+
+*Origin: the sampler checked deserttreasure and horror, and sent both back.*
+
+(a) `::god 1` IS NOT A SETUP CONVENTION. Horror from the Deep (`horror`) put `::god 1` in `setup`.
+That made the 10-hitpoint account invulnerable, and it beat the Dagannoth and the mother without
+food. The reviewer called this "a documented convention", but it is only a cheat listed in
+`QUEST_SERVER_CHEATS.md`, and no other quest file uses it. The boss is fought for real: set combat
+levels, carry food and eat it (`opts.eat`), and use the prayer the guide names.
+
+(b) THE SAME 10 HP BOSSES, FOUR AT ONCE (b36 (a) again). Desert Treasure's Fareed, both forms of
+Damis, Dessous and Kamil have no `.npc` block, so each spawns at `npc_default.npc`'s 10 hitpoints.
+Damis read `0/30` after one 10 hitsplat, and Kamil left the pool inside the settle of the first fire
+blast. The gate and `helper_coverage` were both green. Before you author a quest with a boss, grep
+`--include='*.npc'` for every boss symbol.
+
+(c) A DROP LEFT ON THE FLOOR IS NOT A REASON TO TELEPORT BACK. Desert Treasure never picked up
+Fareed's diamond after the kill. Leg 6 then used `goto_tile` to get back into the Smoke Dungeon,
+past `sword_haunted_well` (its trigger writes `fd_torch_count1-4`), to take the copy that "found its
+way back". Pick up a kill's drop in the leg that made the kill.

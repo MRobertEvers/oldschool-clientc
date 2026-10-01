@@ -258,6 +258,15 @@ four runs in a row. Move the boundary, not the fight: end the leg BEFORE the roo
 door click into the leg so it ends on the far side. Arm the account in `setup` for the fight the
 room forces.
 
+Clearing the room for real also works when the npcs do not respawn at once. Seam34 ran that same
+leg 4 unchanged on the fixed driver. It armed the account, wore the scimitar and killed all five
+skeletons with `t.player.attack` plus `t.npc.await_dead_engaged` (`leg.4.skeletons ... attack ok
+dead ok`), and the quiet wait then passed: `checkpoint 4 written at 2380,9607,0`
+(build/quest_gate/upass, 114/0). The author's refused runs ended with skeletons still alive: run 9
+fought unarmed and died, and run 10's attacks answered `refused` (already under attack). Run 10's
+`leg.4.wield` row also failed. That `timeout` on a wield that had landed was a driver seam;
+`inv_op` now answers `ok ... [WORN <item>: worn 0 -> 1, wear slot N]`.
+
 ### Running one leg
 
 ```sh

@@ -36,12 +36,16 @@ topic file with one line added here.
 - a portal lands somewhere else (multiloc child) -> seam-facts: Seam pass 24, (b); Seam pass 25, (c)
 - a loc with only Examine; no op to go back down a hole (`goDownHole`) -> gaps-world: A loc with only Examine
 - `the cast never ran` right after a `p_delay` step (a chop, a door); `refused: player is delayed`; `(press N: ...)` in a cast detail; `zanarismagicdoor` -> gaps-world: Leaving the Entrana dungeon
+- `walk_to ... stalled at ... -- locs with an op beside the stop: <loc>`; a walk that stops before a rock bridge, stepping stone or log -> verbs-pointer: A walk stops at an obstacle (seam34); seam-facts: Seam pass 34 (b)
+- a ship trip lands in the sea (2831,3334,0); `useGangPlank` has no menu row; the Entrana monks' ferry -> seam-facts: Seam pass 34 (g) (FIXED); docs/quests/ladders/deviousminds.notes.md
 
 ## Pressing and clicking
 
 - `map_flag: no dialogue in 5 tick(s)` on a freed/respawned multinpc form (Desert Treasure's troll parents) -> seam-facts: Seam pass 33 (e); traps-13-22: trap 19
 - a search that sometimes gives nothing (a `stat_random` roll, a cave-in mesbox); passes on one `--name`, fails on another -> seam-facts: Seam pass 33 (g); running: `--script` runs are deterministic
 - `t.inv.slot` reads `''` for Dwarf remains (obj id 0) -> seam-facts: Seam pass 33 (b) (FIXED)
+- an interface does not redraw while open; client varp == server varp but `t.ui.text` unchanged; `[frame unchanged]` rows on a puzzle panel -> seam-facts: Seam pass 34 (c) (FIXED)
+- a greegree wearer (any `p_transmogrify`) still drawn as a human in a monkey stance; `::transmog` -> gaps-world: Monkey Madness (FIXED seam34); seam-facts: Seam pass 34 (f)
 - `click_obj` op 5 answers covered/no row on a knife; picking one obj from a drop pile -> verbs-pointer: `t.player.click_obj`
 - `click_obj`: the menu shows only the table's/rock's rows (`pickset held=false`) for an item lying ON it; `hunted ... hovered +0,-64` -> verbs-pointer: `t.player.click_obj` (raised stacks, seam32)
 - `talk_to` `refused -- the client said 'I can't reach that!'` -> traps-23-33: Trap 26 (FIXED seam29)
@@ -123,6 +127,8 @@ topic file with one line added here.
 - `[npc reach retry: ...]`, `[backpack: gained X ...]` -> verbs-inventory-shops: `t.player.use_on`; traps-23-33: Trap 24
 - `armed by this call (tab nil nil)`; every later `use_on` refuses -> gaps-world: `t.player.use_on` waits
 - `inv_op` `refused` vs `timeout`; `[pressed on attempt 2` -> verbs-inventory-shops: `t.player.inv_op`
+- `inv_op ... -> 0 left [settle_after_click]` on a Wield/Wear; `[WORN <item>: worn 0 -> 1, wear slot N]` -> verbs-inventory-shops: A Wield/Wear through `inv_op` (FIXED seam34)
+- a shop that opens EMPTY (`cell 3 of shopmain:items is not mounted`; Ardougne silver stall) -> seam-facts: Seam pass 34 (g) (open)
 - `[STRAY DROP: ...]`; op 1 dropped the item -> verbs-inventory-shops: `ifop1=`..`ifop5=`
 - `inv_op` on a reward casket is `timeout` -> seam-facts: Seam pass 22, (j)
 - a held op silently refused during a `p_delay`; `(press N)` -> verbs-inventory-shops: `t.player.equip`; seam-facts: Seam pass 26, (d)
@@ -249,6 +255,7 @@ topic file with one line added here.
 - `setup.::setlevel ...` FAIL -> running: `run.py --script` runs setup
 - `SIGSEGV` (exit -11), a whole-client hang -> running: SIGSEGV, whole-client hangs
 - run moved to the background; is it alive? -> running: A long run is moved to the background
+- `render-skip: N frame(s) drawn` in client.log; `TORIRS_RENDER_SKIP`, `--render-every-frame`, `::renderskip`, `t.render.skip`/`frame`; does skip change a run (no -- same frames, state drawn late) -> running: Render skip
 - ~2,000 ticks, `max_frames`, `MAX_FRAMES_CEILING`, a long content wait -> gaps-combat: A run has about
 - `after 0 repair(s)` -> traps-01-12: Grind debugprocs; gaps-combat: `::mortton_repairtemple`
 - a rejected quest's file is gone -> gaps-dialogue: A rejected quest's file; running: Resuming
@@ -298,6 +305,7 @@ topic file with one line added here.
 - a quest stage moves BACK after re-asking an npc (Oracle, Oziach) -> seam-facts: Seam pass 33 (f); Seam pass 32 (f)
 - "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
 - sonnet-b42: `cutscene_row_required` on a route you skipped (Shilo's table raft); `by_symbol` misses a door after one use (`thzq_tombrooml2/3`); `walk_to` `timeout` under spider attacks or before a rock bridge; `checkpoint k refused: ... in combat` in the room the next leg starts in; `if_click` nil past `switch_s`; backpack full of weeds or a second weeds `drop` FAIL; Desert Treasure's ring/signet never given; no Roald cutscene; no pre-quest boatman; Consortium ores by `::give` -> verbs-cutscene: `cutscene_row_required` names a site; gaps-world: A loc that changes symbol; Underground Pass; relay: in a room the next leg; verbs-ui-and-npc: `if_click` on `nil`; verbs-inventory-shops: A rake fills; content-gaps: Rewards that are scroll text only; coverage-and-gate: A setup `::give` of The Giant Dwarf's
+- sonnet-b43: `attempt to index a string value` on `t.skill.snapshot()` or a nil `.xp`; `walk_to` never reaches Underground Pass's witch, cat or demons (`bridgecollapsed1/2`); `t.drive.op` for a timed lift or a `covered` boss press (Haunted Mine); `::god 1` in setup; a boss bar `0/30` after one hit (Desert Treasure) -> verbs-state-and-vars: `attempt to index a string value`; gaps-world: Underground Pass: `walk_to` cannot reach, A timed lift or a `covered` boss press; sampler-findings: Sample sonnet-b43
 - a multinpc shell never changes form on the client (sote_tertiary) -> seam-facts: Seam pass 30 (b)
 - `COORD requires an active entity` after `.huntnext`; `the active loc is gone`; an npc death script aborting after `p_delay` -> seam-facts: Seam pass 30 (d), (e) (the `.huntnext` / `loc_del` gaps FIXED: Seam pass 31 (a))
 - Paterdomus trapdoor/gates/holy barrier locked after `::complete quest_priestinperil` -> seam-facts: Seam pass 30 (f); the bit-20 `::setvar` FIXED: Seam pass 31 (b)
@@ -319,3 +327,5 @@ topic file with one line added here.
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`
 - `the dialogue closed after N page(s)` right after a cutscene; a page a cutscene ends in -> verbs-cutscene: A cutscene between two dialogue pages
 - `cutscene_row_required`; `cutscene:` rows; `no_cutscene`/`unfinished`; `expected keyframe #N ... not found`; `checkpoint k NOT written: the camera is server-driven`; a quest whose content scripts `cam_moveto`/`cam_lookat` (`cutscene_sweep.py`, DROPPED/PARTIAL fail `check-quest-cutscenes`) -> verbs-cutscene (`t.cutscene.await`, `t.world.camera`); a fade with no camera op -> verbs-ui-and-npc: Fade overlays
+- `cutscene_row_required` names a site on a route the guide never takes; `cutscene_exempt_refused:`; `t.cutscene.exempt`; `gate.py --cutscene-as` -> verbs-cutscene: `cutscene_row_required` names a site on a route you did not take (seam34)
+- `check-quest-cutscenes` red on mm PARTIAL / troll_love DROPPED; `lostcity_tree`; `cutscene_sweep.py --sites` -> verbs-cutscene: the sweep paragraph (seam34); seam-facts: Seam pass 34 (e)

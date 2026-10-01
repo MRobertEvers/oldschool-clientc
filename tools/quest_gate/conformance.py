@@ -55,6 +55,10 @@ FIXTURE = os.path.join(REPO_ROOT, "test", "quests", "fixtures", "fresh_lumbridge
 NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 USER = "qdconform"
 MAX_FRAMES = "40000"
+# Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
+# banner). The harness proves the quest runs' own mode, and its render.* rows
+# switch it themselves either way.
+RENDER_SKIP = True
 
 
 def run(command, **kwargs):
@@ -182,6 +186,7 @@ def client(binary, manifest_path, directory, saves, log_path, script):
         "TORIRSSERVER_HOME": "3222,3218",
         "TORIRS_MAX_FRAMES": MAX_FRAMES,
         "TORIRS_EMBED_CLOCK_MS": "20",
+        "TORIRS_RENDER_SKIP": "1" if RENDER_SKIP else "0",
     })
     command = [binary, "--manifest", manifest_path, "--user", USER, "--pass", "test",
                "--soft3d", "--window", "765x503"]
@@ -292,7 +297,11 @@ def main():
                              "build_support.py for why this is safe)")
     parser.add_argument("--no-warm", action="store_true",
                         help="always build cold; overrides --warm-from")
+    parser.add_argument("--render-every-frame", action="store_true",
+                        help="draw every frame (TORIRS_RENDER_SKIP=0), as run.py's flag")
     arguments = parser.parse_args()
+    global RENDER_SKIP
+    RENDER_SKIP = not arguments.render_every_frame
 
     if run([sys.executable, os.path.join(HERE, "verb_list.py"), "--check"]) != 0:
         print("conformance: the harness and the driver disagree about the verb set",

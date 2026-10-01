@@ -2043,11 +2043,87 @@ function QD.player.walk_to(x, z, ticks)
         return "ok", nil
     end
     local now_result, now = QD.world.tile()
-    return result, string.format(
+    local text = string.format(
         "walk_to %d,%d from %s stalled at %s",
         x, z,
         (start_result == "ok" and start) and (start.x .. "," .. start.z) or "?",
         (now_result == "ok" and now) and (now.x .. "," .. now.z) or "?")
+    if now_result == "ok" and now then
+        local obstacles = QD.player._walk_obstacles(now, x, z)
+        if obstacles ~= nil then
+            text = text .. " -- " .. obstacles
+        end
+    end
+    return result, text
+end
+
+-- SEAM upass_wield_and_rock_bridges (seam34, 2026-10-01) -- A WALK THAT
+-- STOPS AT AN OBSTACLE.
+--
+-- walk_to is a route on the collision map, and a loc the game makes you
+-- CROSS -- a rock bridge, a stepping stone, a log, a ledge, a pipe -- is a
+-- wall on that map until its op is pressed.  Underground Pass's maze is the
+-- case that found it: walkway_upass_narrow_mid_top is `blockwalk=1` with
+-- `op1=Cross` (configs/all.loc:28420; LostCity's upass.loc:581 leaves
+-- blockwalk at its default, yes), and its [oploc1]
+-- (upass_obstacles.rs2:360) is an agility obstacle that can drop you off it.
+-- A walk_to across one stops beside it -- build/quest_gate/s34bridge_before:
+-- `walk_to 2383,9634 from 2379,9634 stalled at 2380,9632` -- and THAT IS THE
+-- GAME, the same answer the server's own pathing gives; a walk_to that
+-- pathed over it would skip the guide's navigateMaze and its falls.
+--
+-- What was missing is the row saying so: an author read "stalled at" as a
+-- driver bug (sonnet-b42's upass doc_gaps, "walk_to pathing treats rock
+-- bridges as walls").  So a stalled walk now names every loc with an op
+-- within two tiles of where it stopped, nearest the destination first, up to
+-- three: `-- locs with an op beside the stop: walkway_upass_narrow_mid_top at
+-- 2380,9634 op1 (a bridge, log or stone among them is crossed with click_loc,
+-- then walk on)`.  Any loc with an op is listed (upass pickCellLock's stall
+-- names cavefood1, which is no obstacle), so the words say "among them".
+-- Read only on the stall, so a walk that arrives pays nothing.  It is a hint, not a verdict:
+-- the result word is unchanged.
+QD.player._walk_obstacle_range = 2
+QD.player._walk_obstacle_names = 3
+
+function QD.player._walk_obstacles(stop, x, z)
+    local rows_result, rows = api_drive.locs(QD.player._walk_obstacle_range + 1)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    local found = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if QD.player._tile_distance(row.x, row.z, stop.x, stop.z) <= QD.player._walk_obstacle_range then
+            local first_op = nil
+            for option = 1, 5 do
+                local op_result, available = api_drive.op_available("loc", row.loc_id, option)
+                if op_result == "ok" and available then
+                    first_op = option
+                    break
+                end
+            end
+            if first_op ~= nil then
+                found[#found + 1] = {
+                    row = row,
+                    op = first_op,
+                    to_destination = QD.player._tile_distance(row.x, row.z, x, z),
+                }
+            end
+        end
+    end
+    if #found == 0 then
+        return nil
+    end
+    table.sort(found, function(a, b) return a.to_destination < b.to_destination end)
+    local names = {}
+    for i = 1, math.min(#found, QD.player._walk_obstacle_names) do
+        local entry = found[i]
+        local named_result, named = api_drive.symbol_name("loc", entry.row.loc_id)
+        names[#names + 1] = (named_result == "ok" and named or ("loc " .. tostring(entry.row.loc_id)))
+            .. " at " .. entry.row.x .. "," .. entry.row.z .. " op" .. entry.op
+    end
+    return "locs with an op beside the stop: " .. table.concat(names, ", ")
+        .. " (a bridge, log or stone among them is crossed with click_loc, then walk on)"
 end
 
 -- How near "near" is: the Chebyshev tile distance from the player to the
@@ -2799,7 +2875,13 @@ end
 -- Returns (result, detail, arm, line): `arm` is which of the five resolved --
 -- talk_to needs that word, not a parse of the detail string -- and `line` is
 -- the chat line the chat_message arm resolved on, "" for every other arm.
-function QD.player._settle_after_click(ticks, before_kind, before_text)
+--
+-- `extra` (optional, seam34): a function the caller supplies for an edge only
+-- it can name -- inv_op's "the item is now WORN" (SEAM
+-- upass_wield_and_rock_bridges, the banner over QD.player._inv_worn_edge).
+-- It is polled inside the level predicate, answers nil while nothing
+-- happened and a detail string once it did; the arm word is `worn`.
+function QD.player._settle_after_click(ticks, before_kind, before_text, extra)
     local serial_result, since = api_drive.message_serial()
     local chat_result, chat_interface_id = api_drive.symbol("interface", "chat")
     local route_issued = false
@@ -2859,6 +2941,14 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
             return false
         end,
         level = function()
+            if extra ~= nil then
+                local extra_detail = extra()
+                if extra_detail ~= nil then
+                    resolved_by = "worn"
+                    resolved_detail = extra_detail
+                    return true
+                end
+            end
             local kind, text = QD.player._chat_page()
             if kind == before_kind and text == before_text then
                 return QD.player._settle_jump_landed(jump, route_issued)
@@ -3783,6 +3873,10 @@ function QD.player.inv_op(item, op)
     -- What was on the floor before the press, so a stack the press itself
     -- put there can be named (QD.player._inv_stray_drop, seam pass 19).
     local ground_before = QD.player._inv_ground_count(item)
+    -- What was WORN before the press, so a Wield/Wear answered by the item
+    -- moving into the worn container is an edge the settle can resolve on
+    -- (SEAM upass_wield_and_rock_bridges, QD.player._inv_worn_edge).
+    local worn_edge = QD.player._inv_worn_edge(item)
     -- The press itself, and the tab-not-painted-yet retry behind it, are
     -- QD.player._inv_press's (the SEAM banner at the end of this file).
     local result, cell, where, refusal = QD.player._inv_press(item, op)
@@ -3794,7 +3888,7 @@ function QD.player.inv_op(item, op)
     end
     -- The op left as a packet; the server answers on a later tick and every
     -- caller that knows WHAT to expect (equip, drop) asserts it itself.
-    local settle_result, settle_detail = QD.player._settle_after_click(10)
+    local settle_result, settle_detail = QD.player._settle_after_click(10, nil, nil, worn_edge)
     -- And then wait for the BACKPACK to stop moving.  A held op's effect is
     -- the server's answer plus, on rev-239's backpack, whatever the cell's own
     -- on_op hook did -- op 1 there is the shift-click-drop chain, which every
@@ -3817,6 +3911,26 @@ function QD.player.inv_op(item, op)
     -- and an `ok` row's detail is unchanged by this.
     local text = where .. " -> " .. tostring(count_result == "ok" and after or count_result)
         .. " left"
+    -- An op whose answer is the item going ON says so, whichever arm resolved
+    -- the settle: `... -> 0 left [WORN adamant_scimitar: worn 0 -> 1, wear
+    -- slot 3]` (QD.player._inv_worn_edge).  Read again here as well as in the
+    -- settle, because a wield that also printed a line resolves on the line,
+    -- and one that landed after the settle's deadline still landed: a settle
+    -- `timeout` with the item now worn is that wield, and answers `ok`.  A
+    -- `refused` (the fence's own sentence) is never promoted.
+    local worn_text = nil
+    if settle_result == "ok" and type(settle_detail) == "string"
+        and settle_detail:sub(1, 5) == "WORN " then
+        worn_text = settle_detail
+    elseif worn_edge ~= nil then
+        worn_text = worn_edge()
+        if worn_text ~= nil and settle_result == "timeout" then
+            settle_result = "ok"
+        end
+    end
+    if worn_text ~= nil then
+        text = text .. " [" .. worn_text .. "]"
+    end
     -- A detail tag, never a verdict of its own: see _inv_stray_drop's banner.
     local stray = QD.player._inv_stray_drop(item, op, ground_before)
     if stray ~= nil then
@@ -3834,6 +3948,66 @@ function QD.player.inv_op(item, op)
         text = text .. " [" .. settle_detail .. "]"
     end
     return settle_result, text
+end
+
+-- SEAM upass_wield_and_rock_bridges (seam34, 2026-10-01) -- A HELD OP THAT
+-- WIELDS.
+--
+-- WHAT WAS WRONG.  inv_op's settle resolves on a chat sub mounting, a
+-- chat line, a route, a page change, a teleport, a modal -- and a Wield or
+-- Wear (`[opheld2,_] ~equip`, player/scripts/equip.rs2) produces none of them
+-- when it succeeds: the item leaves the backpack cell, lands in the worn
+-- container, and the server says nothing.  So the press timed out at its full
+-- ten ticks on a click that visibly landed, and the row read like a vanished
+-- item: Underground Pass leg 4, build/quest_gate/upass row 111
+-- `leg.4.wield FAIL 16 adamant_scimitar slot 5 op 2 (tab ok nil) -> 0 left
+-- [settle_after_click]`, with the leg's own end row showing the scimitar gone
+-- from the backpack and the shortbow it displaced back in it.  Reproduced
+-- alone in build/quest_gate/s34wield_before2 (worn 0 -> 1, shortbow worn
+-- 1 -> 0 and backpack 0 -> 1): the item was WORN, not lost.
+--
+-- THE ARM.  The worn total of THIS item, read before the press; the settle
+-- resolves (arm `worn`) the first time it is higher, and the detail names the
+-- wear slot.  The refusal fence is untouched: "You need to have an Attack
+-- level of 30." is not a worn edge -- the total never rises -- so an
+-- under-levelled wield still answers as it did.  Only a worn total that ROSE
+-- counts: an item that was already worn and is pressed again is not a wield.
+--
+-- player.equip is still the verb for wielding (it asserts the worn container
+-- and re-presses a press the server dropped); this arm only stops inv_op from
+-- calling a landed wield a timeout.
+function QD.player._inv_worn_edge(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return nil
+    end
+    local worn_result, worn_id = api_drive.symbol("inv", "worn")
+    if worn_result ~= "ok" then
+        return nil
+    end
+    local before_result, before = api_drive.inv_count(worn_id, obj_id)
+    if before_result ~= "ok" then
+        return nil
+    end
+    return function()
+        local count_result, now = api_drive.inv_count(worn_id, obj_id)
+        if count_result ~= "ok" or now <= before then
+            return nil
+        end
+        local wear_slot = "?"
+        local capacity_result, capacity = api_drive.inv_capacity(worn_id)
+        if capacity_result == "ok" then
+            for index = 0, capacity - 1 do
+                local slot_result, slot = api_drive.inv_slot(worn_id, index)
+                if slot_result == "ok" and slot.obj_id == obj_id then
+                    wear_slot = tostring(index)
+                    break
+                end
+            end
+        end
+        return "WORN " .. item .. ": worn " .. tostring(before) .. " -> " .. tostring(now)
+            .. ", wear slot " .. wear_slot
+    end
 end
 
 -- Neither of these settles for "the dispatcher ran", and neither settles for
