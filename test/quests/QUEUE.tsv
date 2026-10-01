@@ -73,7 +73,7 @@ quest_grandtree	grandtree	thegrandtree		3	green	sonnet-b34
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16	
-quest_hauntedmine	hauntedmine	hauntedmine		3	todo	sonnet-b43	REJECTED (sonnet-b43): gate/lint/run green, helper_coverage FULL, but no row asserts the documented 22000 Strength XP reward (hauntedmine_dayth.rs2:298; only the scroll shot shows it) and Lift/Dayth attack are driven by t.drive.op bypass
+quest_hauntedmine	hauntedmine	hauntedmine		3	todo	sonnet-b43	RETRY after 0cb98842b: goDownLift and Dayth's Attack are real presses now (click_loc follows the 60-step valve-to-lift walk; t.player.attack recovers a covered first press; await_dead_engaged follows Dayth's npc_tele re-slots) -- replace both t.drive.op rows with click_loc lift_side_r / t.player.attack + await_dead_engaged (copy: build/seam_state/seam35/covered_press/hauntedmine.seam35.lua, 66/67 to the Dayth fight); the fight still kills in 5 of 7 runs: bring Protect from Missiles or more food and fight off the track rows; add the 22000 Strength XP reward row
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34	
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
-quest_legends	legends	legendsquest		3	green	sonnet-b39	
+quest_legends	legends	legendsquest		3	todo	sonnet-b39	RETRY after 0cb98842b: deterministic RED at talkToUngaduluForForce-holyforce -- leg 7's ::give shark 9 assumes leg 6 left one shark, but seam35's covered-press recovery shortened killIrvig/killRanalph so leg 6 leaves two; the pack is full when Ungadulu inv_adds the holy force (ungadulu.rs2:547) and it is lost. Top the sharks up TO a count (give 9 - current, or drop one) before Ungadulu and re-run from leg 7; rows from talkToUngaduluForForce-holyforce on must be re-run (HEAD Lua on the same binary: 538/0)
 quest_losttribe	losttribe	thelosttribe		3	todo	sonnet-b44	REVERTED by sampler (sonnet-b44): HAM lair entered by goto_tile after the Pick-Lock (oploc5 only sets %ham_thief; the osf_trapdoor_open Climb-down was never clicked, shot 162 'Teleported to 3152,9644,0') and left by goto (osf_ham_ladder unused); also ::give candle_lantern_lit after the floor trap instead of relighting
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
@@ -103,7 +103,7 @@ quest_meatandgreet	meatandgreet	meatandgreet		4	todo
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
-quest_mm	mm	monkeymadnessi		3	todo		RE-AUTHOR after a3158be819: content now has the leg 3 dungeon ladder (mm_bamboo_ladder_dungeon_entrance climbs, MM2 no longer shadows it) and mm_demon's LostCity cam_lookat pair; resume the parked build/author_state/sonnet-b44/rejected/mm.lua from leg 3 (drivers build/parity_state/parity3g/scratch/drivers/parity_mm.lua, parity_mm_demon.lua); gate.py reading the puzzle cutscene frame as pre_login (shot 163) is a gate seam, not the author's; legs left: see PARITY.tsv
+quest_mm	mm	monkeymadnessi		3	todo		RETRY after 0cb98842b: gate.py no longer reads the puzzle cutscene fade (shot 163) as pre_login, and var.server/var.await_server read mm_daero/mm_caranock/mm_narnode off the server (base varp 372 is never transmitted); resume build/author_state/sonnet-b44/rejected/mm.lua (legs 1-3 re-ran 107/107 as build/seam_state/seam35/mm_unblocked.lua) from leg 4 (talkToZooknock, useDentures) -- legs 4-8 still to write; grade per-npc steps on the varbits now
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)
