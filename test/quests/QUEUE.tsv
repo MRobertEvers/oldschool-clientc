@@ -37,7 +37,7 @@ quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
 quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b41	REJECTED (sonnet-b41): three ::setvar on prerequisite quest varps (ikov, desertrescue, troll_quest) although quest_cheat.rs2 has ::complete arms for quest_templeofikov/touristtrap/trollstronghold (f0c06df74); Ancient signet/Smoke Dungeon/ring rewards have no literal rows, only magic xp. Run, gate, lint and helper_coverage (FULL 58/58) were green.
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
-quest_deviousminds	deviousminds	deviousminds		3	content_bug	sonnet-b41	runecraft_abyss.rs2:245 abyss_move_inward p_telejump strands the player in an enclosed pocket (3055,4836); enterLawRift onward unreachable
+quest_deviousminds	deviousminds	deviousminds		3	todo		RE-AUTHOR after 72e481670b: content now has the Abyss inward passage to the law rift (runecraft_abyss.rs2 abyss_move_inward), the High Priest stage-40/60 lines and Sir Tiffy's stage-70 report; the committed test still ends on the old content_bug block -- drive enterLawRift/leaveLawAltar/usePouchOnAltar through Tiffy per the guide (proof driver build/parity_state/parity3e/deviousminds.driver.lua 50/50); legs left: talkToEntranaMonk/useGangPlank boat branch
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
 quest_dragon	dragon	dragonslayer		3	green	sonnet-b36	
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
@@ -58,14 +58,14 @@ quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
-quest_forgettabletale	forgettabletale	forgettabletale		3	todo	sonnet-b40	RETRY after f0c06df74: t.clock.skip(16) (::clockskip) replaces the waitForKelda t.blocked, then t.exec t.var.await forget_farming 8 110 -- rows in build/seam_state/seam33/s33clock/forgettabletale.lua ~250-272 (s33clock_ft 67/0 to leg 3); legs 3-12 still unported (parity3e): stop there with t.blocked; the Rowdy Dwarf ::give and addKelda CONTENT_GAP still stand
+quest_forgettabletale	forgettabletale	forgettabletale		3	todo		RE-AUTHOR after 72e481670b: content now carries the vat/barrel varp 510 to the client and legs 3-12 are proven (build/parity_state/parity3e/scratch/ft.lua 255/255: t.clock.skip for Kelda, t.var.await_server for the vat, Blue Opal director 2869,10203,1, bookcase at={1904,4967,2}, display 'Forgettable Tale...'); drive legs 3-12 per the guide (parked file test/quests/forgettabletale.lua stops after leg 2); legs left: cutscene (spec pending)
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo		
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
-quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		
+quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		parity3e partial at 72e481670b: content rebuilt to the guide ladder (scratch drivers build/parity_state/parity3e/scratch/garden_*.lua); legs left: cutscene (spec pending: Falador guard distraction, Roald garden tour); Destroy route at Althric's well; ordinary topics beside the quest topic; White Tree fruit XP/eat, Varrock trellis gate, compost-bin potion; Falador statue auto reset
 quest_gettingahead	gettingahead	gettingahead		4	todo		
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28	
-quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
+quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		parity3e partial at 72e481670b: boots (Dromund's gaze + telegrab) and consortium points game are real (drivers build/parity_state/parity3e/scratch/gd_boots.lua, gd_consortium.lua); legs left: cutscene (spec pending: boat crash, statue fade, consortium meeting); task time limits; four companies without spawns; journal reports complete=false at stage 50
 quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34	
 quest_golem	golem	thegolem		1	green	sonnet-b15	
 quest_grail	grail	holygrail		2	green	sonnet-b28	
@@ -73,12 +73,12 @@ quest_grandtree	grandtree	thegrandtree		3	green	sonnet-b34
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16	
-quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
+quest_hauntedmine	hauntedmine	hauntedmine		3	todo		parity3e partial at 72e481670b: driver build/parity_state/parity3e/hauntedmine.driver.lua 96/96 (lift and Dayth attack via t.drive.op); legs left: cutscene (spec pending: the cart ride); points panel is the loc op, wrong lever settings have no distinct routes; Treus Dayth shared not instanced; postquest key, crystal shortcut, key ring, salve consumers
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34	
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
-quest_horror	horror	horrorfromthedeep		3	todo		
+quest_horror	horror	horrorfromthedeep		3	todo		parity3e partial at 72e481670b: LostCity port driven to completion (build/parity_state/parity3e/scratch/h2-h11 lineage; close3e_horror_h10 28/28 kills the mother with 17 elemental casts after ::god 1, h11 13/13 casket game); legs left: Barcrawl prerequisite/Yes-No offer; per-player lighthouse instance; god-book pages and 5,000-coin book purchases (LostCity horror_godbook.rs2)
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	sonnet-b36
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
-quest_upass	upass	undergroundpass		3	todo	sonnet-b41	REJECTED (sonnet-b41): file not green up to t.blocked: collectOrb2 is a FAIL row (click_loc caveorb_vis: no copy at 2385,9685) before the blocked row; gate RED. Underlying content gap: upass_obstacles.rs2:295 oploc3 caveorb_vis vs op1 Take only; logtrap always adds caveorb1 RELAY STATE: legs 1-3 of 8 written (leg 3 ends at t.blocked content_bug); parked at build/author_state/sonnet-b41/rejected/upass.lua (recovered from build/quest_gate/upass/); relay notes build/author_state/sonnet-b41/upass.relay.md
+quest_upass	upass	undergroundpass		3	todo		RE-AUTHOR after 72e481670b: content now has [oploc1,caveorb_vis] (orbs 2-4 taken by click_loc at 2416,9698 / 2385,9685 / 2386,9677; the logtrap orb 2382,9668 fires the LostCity trap, disarm upass_logtrap_trigger first); resume the parked relay build/author_state/sonnet-b41/rejected/upass.lua at leg 3 and drive per the guide (proof run parity_upass3)
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
 quest_viking	viking	thefremenniktrials		3	todo		
 quest_wanted	wanted	wanted		2	green	sonnet-b29	
