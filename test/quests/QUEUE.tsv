@@ -94,7 +94,7 @@ quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
 quest_legends	legends	legendsquest		3	green	sonnet-b39	
-quest_losttribe	losttribe	thelosttribe		3	green	sonnet-b44	
+quest_losttribe	losttribe	thelosttribe		3	todo	sonnet-b44	REVERTED by sampler (sonnet-b44): HAM lair entered by goto_tile after the Pick-Lock (oploc5 only sets %ham_thief; the osf_trapdoor_open Climb-down was never clicked, shot 162 'Teleported to 3152,9644,0') and left by goto (osf_ham_ladder unused); also ::give candle_lantern_lit after the floor trap instead of relighting
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
