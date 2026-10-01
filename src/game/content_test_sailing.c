@@ -139,7 +139,7 @@ static int peer_role_varbit(void)
 
     if( resolved == -2 )
         resolved = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
-                                              "sailing_sidepanel_player_role");
+                                              "varb19233_sailing_sidepanel_player_role");
     return resolved;
 }
 
@@ -226,7 +226,7 @@ int ContentTestSailing_PeerCommand(struct ToriRSServerEmbed* embed, const char* 
     else if( sscanf(command, "walk %d %d %d", &x, &z, &run) >= 2 &&
              x >= 0 && x < 16384 && z >= 0 && z < 16384 && (run == 0 || run == 1) )
     {
-        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), run);
+        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("varp173_option_run"), run);
         peer->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
         ToriRSServer_WorldWalkTo(srv, x, z);
     }

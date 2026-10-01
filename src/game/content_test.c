@@ -221,8 +221,8 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
         size_t facing_end = strlen(result);
         snprintf(result + facing_end - 1, sizeof(result) - facing_end + 1,
             ",\"player_yaw\":%d}", player ? player->orientation.yaw : -1);
-        int cutscene_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "cutscene_status");
-        int fov_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fov_clamp");
+        int cutscene_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb542_cutscene_status");
+        int fov_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb4606_fov_clamp");
         int visible_orbs = 0;
         /* The minimap-orbs plugin owns one image control per orb, created
          * under these keys; an orb counts when its control exists and no

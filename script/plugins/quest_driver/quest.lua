@@ -16,8 +16,8 @@
 --
 -- quest.bind{ varp=, constants=, row=, display=, points= }
 --   varp       content symbol name of the quest's progress var: EITHER a
---              plain varp ("cookquest", configs/all.varp:61) or a VARBIT
---              ("quest_pry", configs/all.varbit:84653 basevar=pry_main,
+--              plain varp ("varp29_cookquest", configs/all.varp:61) or a VARBIT
+--              ("varb18317_quest_pry", configs/all.varbit:84653 basevar=pry_main,
 --              with no all.varp row of its own at all). The field keeps its
 --              name for every quest file already written; what it holds is
 --              a var NAME, and which table that name lives in is this
@@ -75,7 +75,7 @@
 --              title to equal it exactly; omitted, it requires only that the
 --              journal carried a title at all and prints the one it found.
 --   points     quest points this quest is worth. quest.expect_complete reads
---              %qp (content symbol "qp", a plain varp: OSRS-Content
+--              %qp (content symbol "varp101_qp", a plain varp: OSRS-Content
 --              .../quests/configs/questpoints.varp) at BIND time and again
 --              at expect_complete time, and checks the delta equals this.
 --
@@ -269,7 +269,7 @@ function QD.quest.bind(spec)
     if type(constants) ~= "table" then
         constants = {}
     end
-    local qp_result, qp_before = QD.quest._read_client("qp")
+    local qp_result, qp_before = QD.quest._read_client("varp101_qp")
     QD.quest._bound = {
         varp = spec.varp,
         varp_kind = QD.quest._kind_of(spec.varp),
@@ -532,7 +532,7 @@ function QD.quest.expect_complete()
     -- `qp` is a plain varp in this pack (configs/all.varp:206) and read
     -- through the same transparent pair anyway: the point of the pair is
     -- that no read in this file has to know which table a name lives in.
-    local qp_result, qp_after, qp_kind = QD.quest._read_client("qp")
+    local qp_result, qp_after, qp_kind = QD.quest._read_client("varp101_qp")
     local points_pass = false
     local points_detail
     if bound.qp_before == nil then

@@ -331,7 +331,7 @@ selftest_combat_reach_flag(
          * skill_combat.rs2's ^player_auto_retaliate_on is 0): the player's own
          * retaliation re-arms p_opnpc(2), which stamps the same claim, and would
          * hide a mode-path swing that stamped nothing. */
-        int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "option_nodef");
+        int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
         int saved_nodef = 0;
 
         SELFTEST_CHECK(option_nodef >= 0, "combat_reach_flag: option_nodef resolves");

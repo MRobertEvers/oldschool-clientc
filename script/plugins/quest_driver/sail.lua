@@ -733,7 +733,7 @@ function QD.sail._tasks_text()
 end
 
 function QD.sail._carrying()
-    local result, value = QD.var.server("sailing_carrying_cargo")
+    local result, value = QD.var.server("varb19134_sailing_carrying_cargo")
     return result == "ok" and value == 1
 end
 
