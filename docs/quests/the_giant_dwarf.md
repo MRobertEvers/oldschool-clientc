@@ -38,7 +38,6 @@ Thieving and Firemaking XP.
 Boots and the consortium points game follow the sections above
 (`gdwarf_boots.rs2`, `gdwarf_consortium.rs2`, telegrab hook in
 `skill_magic/scripts/spells/telegrab.rs2`). Not modelled: the task time
-limits; the four companies whose secretary and director have no spawn rows in
-this cache (Green Gemstone, White Chisel, Silver Cog, Brown Engine); the
-cutscenes (spec pending, docs/quests/cutscenes/). Driving notes:
+limits; the strict any-order of
+clothes/boots/axe (the ladder is linear); the cutscenes (spec pending, docs/quests/cutscenes/). Driving notes:
 docs/quests/ladders/giantdwarf.notes.md.

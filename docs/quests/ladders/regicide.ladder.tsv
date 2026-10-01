@@ -1,0 +1,66 @@
+# ladder regicide quest_dir=quest_regicide guide=src/main/java/com/questhelper/helpers/quests/regicide/Regicide.java steps=63 legs=1:1-10@s0 2:11-21@s2 3:22-32@s2 4:33-42@s2 5:43-52@s2 6:53-63@s11
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	goToArdougneCastleFloor2	ObjectStep<goTalkToLathasToFinish	loc:stairs	2572,3296,0	Go to the second floor of Ardougne Castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +3
+1	2	0	talkToKingLathas	NpcStep<goTalkToLathasToFinish	npc:kinglathas_vis loc:stairs	2578,3293,1	Talk to King Lathas.	goToArdougneCastleFloor2		I assume you have a plan? | I can handle it. | Yes.	areas/area_ardougne_east/scripts/king_lathas.rs2:79 opnpc1; +4
+1	3	2	enterTheDungeon	ObjectStep<goThroughUndergroundPass	loc:upass_caveentrance2	2434,3315,0	Enter the Underground Pass.		Bow (not crossbow); Arrows (metal, unpoisoned); Rope; Spade		quests/quest_upass/scripts/upass_entrance.rs2:9 oploc1
+1	4	2	climbOverRockslide1	ObjectStep<goThroughUndergroundPass	loc:rockslide2_obstacle_upass	2480,9713,0	Climb-over rockslide.				quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1
+1	5	2	shootBridgeRope	ObjectStep<goThroughUndergroundPass	loc:oldbridge_guiderope		Wield a lit arrow and shoot the guide-rope.	searchBagForCloth useClothOnArrow lightArrow walkNorthEastOfBridge	Bow (not crossbow); Lit Arrow		quests/quest_upass/scripts/upass_bridge.rs2:64 aploc1
+1	6	2	walkNorthEastOfBridge	DetailedQuestStep<goThroughUndergroundPass		2447,9722,0	Walk to the room north of Koftik.		Lit Arrow		
+1	7	2	lightArrow	ObjectStep<goThroughUndergroundPass	loc:fire	2451,9715,0	Light the fire arrow.		Fire Arrow		skill_cooking/scripts/cooking.rs2:37 oplocu
+1	8	2	useClothOnArrow	DetailedQuestStep<goThroughUndergroundPass			Use the oily cloth on an arrow.		Oily Cloth; Arrows (metal, unpoisoned)		
+1	9	2	searchBagForCloth	ObjectStep<goThroughUndergroundPass	loc:upass_gear	2452,9715,0	Search the abandoned equipment for an oily cloth.				quests/quest_upass/scripts/koftik.rs2:143 oploc1
+1	10	2	goBackUpToIbansCavern	ObjectStep<goThroughUndergroundPass	loc:cavewalltunnel_upass_up	2336,9793,0	Return up to Iban's Cavern.				quests/quest_upass/scripts/upass_tunnels.rs2:21 oploc1
+2	11	2	leaveWellCave	ObjectStep<goThroughUndergroundPass	loc:regicide_voyage_temple_exit	2313,9624,0	Leave the cave.				quests/quest_regicide/scripts/regicide_route.rs2:27 oploc1
+2	12	2	enterWell	ObjectStep<goThroughUndergroundPass	loc:regicide_voyage_temple_well1	2009,4712,1	Enter the well.				quests/quest_regicide/scripts/regicide_route.rs2:11 oploc1
+2	13	2	openIbansDoor	ObjectStep<goThroughUndergroundPass	loc:cavetempledoor2r	2369,9720,0	Open the door at the end of the path.				quests/quest_upass/scripts/upass_bloodwell.rs2:88 oploc1
+2	14	2	leaveUnicornArea	ObjectStep<goThroughUndergroundPass	loc:upass_unicorn_doorl	2375,9611,0	Enter the tunnel.				quests/quest_upass/scripts/upass_unicorn_tunnels.rs2:25 oploc1
+2	15	2	pickCellLock	ObjectStep<goThroughUndergroundPass	loc:cave_railings2	2393,9655,0	Pick the lock to enter the cell.				quests/quest_upass/scripts/upass_unicorn.rs2:11 oploc1; +1
+2	16	2	goThroughPipe	ObjectStep<goThroughUndergroundPass	loc:upass_pipe6	2418,9605,0	Enter the pipe to the next section.				quests/quest_upass/scripts/upass_obstacles.rs2:390 oploc1
+2	17	2	navigateMaze	DetailedQuestStep<goThroughUndergroundPass			Navigate the maze, or use the shortcut to the south with 50 Thieving.	pickCellLock digMud crossLedge goThroughPipe			
+2	18	2	crossLedge	ObjectStep<goThroughUndergroundPass	loc:upass_ledge	2374,9644,0	Cross the ledge.				quests/quest_upass/scripts/upass_obstacles.rs2:313 oploc1
+2	19	2	digMud	ObjectStep<goThroughUndergroundPass	loc:upass_mud	2393,9650,0	Dig the loose mud.		Spade		quests/quest_upass/scripts/upass_unicorn_tunnels.rs2:9 oplocu
+2	20	2	climbDownWell	ObjectStep<goThroughUndergroundPass	loc:cave_well	2417,9675,0	Climb down the well.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +4
+2	21	2	collectPlank	DetailedQuestStep<goThroughUndergroundPass		2435,9726,0	Pick up the plank in the north room.		Plank		
+3	22	2	crossThePit	ObjectStep<goThroughUndergroundPass	loc:obstical_rockswing_norope	2463,9699,0	Swing across the pit with a rope.	collectPlank	Rope		quests/quest_upass/scripts/upass_obstacles.rs2:110 oplocu
+3	23	2	pullLeverAfterGrid	ObjectStep<goThroughUndergroundPass	loc:portcullis_lever_up		Pull the lever to raise the gate.				quests/quest_upass/scripts/upass_grid.rs2:25 oploc1
+3	24	2	passTrap1	ObjectStep<goThroughUndergroundPass	loc:upass_speartrap	2443,9678,0	Either disable or walk past the traps.	passTrap2 passTrap3 passTrap4 passTrap5			quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
+3	25	2	talkToIdris	NpcStep	npc:regicide_good_elf1		Talk to Idris.				
+3	26	2	talkToIorwerth	NpcStep<goTalkToIorwerth	npc:lord_iorwerth_vis	2203,3255,0					quests/quest_regicide/scripts/lord_iorwerth.rs2:12 opnpc1
+3	27	2	goCrossLogToCamp	ObjectStep<goTalkToIorwerth	loc:regicide_logbalance1_start	2201,3237,0	Cross the log to the north to the Iorwerth Camp.				quests/quest_regicide/scripts/regicide_traps.rs2:70 oploc1
+3	28	2	goUpToLeafTowardsLog	ObjectStep<goTalkToIorwerth	loc:regicide_pitfall_side	2209,3202,0	Go north, and jump over the leaves.				quests/quest_regicide/scripts/regicide_traps.rs2:32 oploc1
+3	29	2	climbThroughForest	ObjectStep<goTalkToIorwerth	loc:regicide_cross_over3	2239,3149,0					quests/quest_regicide/scripts/regicide_route.rs2:72 oploc1
+3	30	2	goFromTyrasToTrap	ObjectStep<goTalkToIorwerth	loc:regicide_trap_tripwire	2220,3154,0	Return back out the camp, to the east, then south to the traps and cross them.				quests/quest_regicide/scripts/regicide_traps.rs2:19 oploc1
+3	31	2	goFromLeavesToStickTrap	ObjectStep<goTalkToIorwerth	loc:regicide_trap_woodspring	2236,3181,0	Head west, and cross the sticks there. To do so without failing, stand next to them and spam-click it until you cross it.				quests/quest_regicide/scripts/regicide_traps.rs2:8 oploc1
+3	32	2	goFromCaveToLeaves	ObjectStep<goTalkToIorwerth	loc:regicide_pitfall_corner	2268,3204,0	Follow the path along and hop over the leaves.				quests/quest_regicide/scripts/regicide_traps.rs2:31 oploc1
+4	33	2	talkToTracker	NpcStep<goTalkToTracker	npc:regicide_old_camp_tracker_vis	2258,3148,0					quests/quest_regicide/scripts/regicide_camp_tracker.rs2:44 opnpc1; +1
+4	34	2	goFromCampToLeavesSouth	ObjectStep<goTalkToTracker	loc:regicide_pitfall_side	2209,3204,0	Go south, and jump over the leaves.				quests/quest_regicide/scripts/regicide_traps.rs2:32 oploc1
+4	35	2	crossLogFromCamp	ObjectStep<goTalkToTracker	loc:regicide_logbalance1_start	2197,3237,0	Cross the log from the camp.				quests/quest_regicide/scripts/regicide_traps.rs2:70 oploc1
+4	36	2	goReturnToIorwerth	ConditionalStep			Return to Lord Iorwerth in the north west of the elven forest.				
+4	37	2	goReturnToTracker	ConditionalStep			Return to the Elven Tracker in the south of the forest.				
+4	38	2	clickTracks	ObjectStep<goClickTracks	loc:regicide_old_camp_footprints?	2241,3150,0					
+4	39	2	goTalkToTrackerAfterTracks	ConditionalStep			Talk to the Elven Tracker again.				
+4	40	2	enterTyrasCamp	DetailedQuestStep<goDefeatGuard		2190,3144,0	Enter the Tyras Camp.				
+4	41	2	crossTripwire	ObjectStep<goDefeatGuard	loc:regicide_trap_tripwire	2220,3154,0	Cross the tripwire to the north. It may poison you if you fail it.				quests/quest_regicide/scripts/regicide_traps.rs2:19 oploc1
+4	42	2	killGuard	NpcStep<goDefeatGuard	npc:regicide_old_camp_guard		Kill the guard.				quests/quest_regicide/scripts/regicide_tyras_guard.rs2:37 opnpc2; +3
+5	43	2	goKillGuardAtSecondForest	NpcStep<goDefeatGuard	npc:regicide_tyras_camp_guard	2188,3170,0	Go through the dense forest north then to the west, and fight the guard there.				quests/quest_regicide/scripts/regicide_tyras_guard.rs2:51 opnpc1; +5
+5	44	2	goIntoTyrasCamp	ConditionalStep			Enter the Tyras Camp.				
+5	45	2	getSulphur	ObjectStep<goToIorwerthAfterCamp	loc:regicide_sulphar2	2261,3130,0	Pick up some sulphur.				quests/quest_regicide/scripts/regicide_bombcraft.rs2:33 oploc1
+5	46	2	fill2Barrels	ObjectStep<goToIorwerthAfterCamp	loc:regicide_tar_collection	2263,3127,0	Fill the barrels from the waste to the south.				quests/quest_regicide/scripts/regicide_bombcraft.rs2:53 oploc1; +1
+5	47	11	readBigBookOfBangs	DetailedQuestStep			Read the big book of bangs.		Big book of bangs		
+5	48	2	askAboutFuse	NpcStep<goLearnAboutBomb	npc:lord_iorwerth_vis	2203,3255,0	Ask Iorwerth about a fuse.			More options... | I need a fuse.	quests/quest_regicide/scripts/lord_iorwerth.rs2:12 opnpc1
+5	49	11	useLimestoneOnFurnace	DetailedQuestStep			Use some limestone on a furnace whilst wearing gloves.		Limestone; Gloves which fully cover your hand		
+5	50	11	usePestleOnQuicklime	DetailedQuestStep			Use a pestle and mortar on the quicklime with a pot in your inventory.		Pestle and mortar; Quicklime; Pot		
+5	51	11	usePestleOnSulphur	DetailedQuestStep			Use a pestle and mortar on some sulphur.		Pestle and mortar; Sulphur		
+5	52	11	talkToChemist	NpcStep	npc:chemist	2933,3210,0	Talk to the Chemist in Rimmington.		Barrel of coal tar; Coal	Your quest.	quests/quest_biohazard/scripts/chemist.rs2:19 opnpc1
+6	53	11	useTarOnFractionalisingStill	ObjectStep	loc:regicide_fractionalizing_still	2927,3212,0	Use a barrel of coal on the still outside the Chemist's house.		Barrel of coal tar		quests/quest_regicide/scripts/regicide_fractionalising_still.rs2:8 oplocu
+6	54	11	operateStill	ObjectStep	loc:regicide_fractionalizing_still	2927,3212,0	Operate the still. To properly distill the barrel:				quests/quest_regicide/scripts/regicide_fractionalising_still.rs2:8 oplocu
+6	55	11	useQuicklimeOnNaphtha	DetailedQuestStep			Make another barrel of naphtha for Mourning's End if you'd like, then add the quicklime to the naphtha.		Pot of quicklime; Barrel of naphtha		
+6	56	11	useGroundSulphurOnNaphtha	DetailedQuestStep			Add the ground sulphur to the naphtha mix.		Ground sulphur; Naphtha mix		
+6	57	11	useClothOnBarrelBomb	DetailedQuestStep			Use the cloth on the barrel bomb.		Strip of cloth; Barrel bomb (unfused)		
+6	58	2	goThroughUndergroundPassAgain	ConditionalStep			Traverse the Underground Pass again.				
+6	59	2	useRabbitOnGuard	NpcStep<goGiveRabbitToGuard	npc:regicide_tyras_lazy_guard_vis	2183,3185,0			Cooked rabbit		quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:9 opnpc1; +1
+6	60	11	useBombOnCatapult	ObjectStep	loc:regicide_catapult_right	2184,3185,0	Use the barrel bomb on the catapult.		Barrel bomb (fused)		quests/quest_regicide/scripts/regicide_bombcraft.rs2:215 oplocu
+6	61	2	leaveFromCatapult	ObjectStep<goTalkToIorwerthAfterRegicide	loc:regicide_trap_tripwire	2220,3154,0	Go to the east, then south to the traps and cross them.				quests/quest_regicide/scripts/regicide_traps.rs2:19 oploc1
+6	62	13	talkToArianwyn	NpcStep	npc:regicide_good_elf3	2582,3298,0	Talk to Arianwyn outside Ardougne Castle.		Iorwerth's message		
+6	63	0	goTalkToLathasToFinish	ConditionalStep			Report back to King Lathas to finish the quest.				

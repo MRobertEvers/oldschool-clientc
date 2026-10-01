@@ -236,6 +236,7 @@ TROLLLOVE_DUNSTAN = CONTENT / "quests/quest_death/scripts/death_dunstan.rs2"
 TROLLLOVE_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
 ROUTEQUEST_ROUTE = CONTENT / "quests/quest_routequest/scripts/routequest_start_and_route.rs2"
 ROUTEQUEST_HIDEOUT = CONTENT / "quests/quest_routequest/scripts/routequest_hideout.rs2"
+ROUTEQUEST_HOUND = CONTENT / "quests/quest_routequest/scripts/routequest_hound.rs2"
 ROUTEQUEST_NPC = CONTENT / "quests/quest_routequest/configs/quest_routequest.npc"
 ROUTEQUEST_VARP = CONTENT / "quests/quest_routequest/configs/quest_routequest.varp"
 ROUTEQUEST_CONSTANT = CONTENT / "quests/quest_routequest/configs/quest_routequest.constant"
@@ -2394,7 +2395,7 @@ def check_regicide() -> None:
             "[zone,0_36_50_8_16]", "@regicide_idris_encounter;",
             "npc_add(map_findsquare(coord, 1, 3, ^map_findsquare_lineofwalk), regicide_good_elf1, 200);",
             "npc_setowner;", "[oploc1,regicide_cross_over2_tyras_camp]",
-            "stat(agility) < 56", "regicide_old_camp_guard, 32000", "^regicide_entered_camp",
+            "stat(agility) < 56", "regicide_old_camp_guard, 500", "regicide_cross_over3", "^regicide_entered_camp",
             "[zone,0_40_51_24_32]", "@regicide_arianwyn_encounter;",
             "%regicide_quest = ^regicide_spoken_arianwyn;", "[opheld1,regicide_iorwerth_message]",
         ),
@@ -2420,7 +2421,8 @@ def check_regicide() -> None:
         guard,
         (
             "[ai_queue3,regicide_tyras_guard]\n@wiki_tyras_guard_drop;",
-            "[ai_queue3,regicide_tyras_camp_guard]\n@wiki_tyras_guard_drop;",
+            "[ai_queue3,regicide_tyras_camp_guard]", "queue(regicide_quest_guard_defeated, 0, 0);",
+            "@wiki_tyras_guard_drop;",
             "[queue,regicide_quest_guard_defeated]", "%regicide_quest = ^regicide_defeated_guard;",
         ),
         "Regicide encounter-specific guard credit",
@@ -2484,7 +2486,7 @@ def check_regicide() -> None:
     require_text(
         king,
         (
-            "case ^regicide_reported_iorwerth :", "case ^regicide_spoken_arianwyn :",
+            "case ^regicide_killed_tyras, ^regicide_reported_iorwerth :", "case ^regicide_spoken_arianwyn :",
             "stat_advance(agility, 137500);", "inv_add(inv, coins, 15000);",
             "~quest_complete_rewards(quest_regicide", "%regicide_quest = ^regicide_complete;",
         ),
@@ -3549,19 +3551,19 @@ def check_in_search_of_the_myreque() -> None:
          "[oploc1,route_rowboat_mortton]", "[oploc2,route_rowboat_mortton]",
          "inv_total(worn, ring_of_charos_unlocked) = 0", "inv_del(inv, coins, ^routequest_boat_fee);",
          "[oploc1,route_rowboat_hollows]", "[oploc1,swamp_bridge1]",
-         "inv_del(inv, nails, ^routequest_nails_per_rung);", "%route_bridgecomplete != 7",
-         "[opnpc1,route_curpile_fyod]", "while ($i < ^routequest_question_count)",
-         "p_teleport(^routequest_hollows_boat_land);",
+         "inv_del(inv, nails, ^routequest_nails_per_rung);", "[proc,routequest_cross_rung]",
+         "[opnpc1,route_curpile_fyod]", "[proc,routequest_curpile_challenge]",
+         "~routequest_boat_trip(^routequest_hollows_boat_land, swamp_boatjourney);",
          "[oploc1,freedomfighterentrancel]", "[oploc1,freedomfighterundergroundentrancel]"),
         "In Search of the Myreque Cyreg, boat, bridge and Curpile route",
     )
-    hideout = ROUTEQUEST_HIDEOUT.read_text()
+    hideout = ROUTEQUEST_HIDEOUT.read_text() + "\n" + ROUTEQUEST_HOUND.read_text()
     require_text(
         hideout,
         ("[proc,routequest_veliaf]", "getbit_range(%routequest_myreque_bits",
          "inv_del(inv, steel_longsword, 1);", "inv_del(inv, steel_sword, 2);",
          "inv_del(inv, steel_mace, 1);", "inv_del(inv, steel_warhammer, 1);",
-         "inv_del(inv, steel_dagger, 1);", "%routequest = calc(^routequest_ambush + 1);",
+         "inv_del(inv, steel_dagger, 1);", "%routequest = ^routequest_ambush;",
          "%thsfm_vanstrom_hide = 1;", "npc_add(^routequest_hound_spawn, skeleton_hellhound",
          "npc_setowner;", "npc_setmode(applayer2);", "[ai_queue3,skeleton_hellhound]",
          "%routequest = ^routequest_saved_myreque;", "It drops nothing",
