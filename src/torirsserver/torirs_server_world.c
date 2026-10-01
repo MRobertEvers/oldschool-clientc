@@ -2828,15 +2828,19 @@ run_energy_tick(
             player->running = 0;
             ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), 0);
         }
-        return;
     }
-
-    if( player->run_energy < TORIRSSERVER_RUN_ENERGY_MAX )
+    else if( player->run_energy < TORIRSSERVER_RUN_ENERGY_MAX )
     {
         player->run_energy += ToriRSServer_RunEnergyRestore(model, agility);
         if( player->run_energy > TORIRSSERVER_RUN_ENERGY_MAX )
             player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
     }
+
+    /* `p_temprun` lapses under 1% (Player.ts:720, `runenergy < 100`), after
+     * the drain and below the delayed early return, as the reference's
+     * updateEnergy orders it. */
+    if( player->run_energy < 100 )
+        player->temp_run = 0;
 }
 
 /* Put the orb's two numbers on the wire, but only when one of them moved: at
@@ -2993,8 +2997,18 @@ advance_player(struct ToriRSServer* srv)
     /* Running is a request, not a state: the toggle says the player wants to,
      * the energy says whether they can. Deciding it here rather than at the
      * move packet is what makes energy run out mid-walk. */
-    player->running = player->run_toggle && player->run_energy > 0;
+    /* `p_temprun` (torirs_server_ops_player.c) runs the route whatever the
+     * toggle says: Player.ts:684, `else if (this.tempRun) moveSpeed = RUN`. */
+    player->running = (player->run_toggle && player->run_energy > 0) || player->temp_run;
     max_tiles = player->running ? 2 : 1;
+    /* Player.ts:690: `if (!super.processMovement()) this.tempRun = 0` --
+     * processMovement is false exactly when there is no route to step, so a
+     * temporary run lasts while the player keeps moving and ends on the first
+     * movement phase that finds nothing to walk. Decided on the route as the
+     * phase found it, not on whether a step landed: a blocked step still
+     * "processed movement". */
+    if( !player_has_waypoints(player) )
+        player->temp_run = 0;
 
     player->move_count = 0;
     player->steps_taken = 0;
@@ -15160,6 +15174,8 @@ phase_player(struct ToriRSServerPlayer* player)
     int bd_on = tick_bd_on();
     uint64_t bd_t = bd_on ? tick_bd_now_us() : 0;
     int delayed;
+    int interacted_pre_move;
+    int temp_run;
 
     ToriRSServer_WorldSetActive(srv, player);
 
@@ -15253,9 +15269,12 @@ phase_player(struct ToriRSServerPlayer* player)
      * (The modal half of canAccess is not ported here.)
      */
     delayed = player_delayed(srv, player);
+    interacted_pre_move = 0;
     if( player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
     {
-        if( delayed || !interaction_try(srv, 0) )
+        if( !delayed && interaction_try(srv, 0) )
+            interacted_pre_move = 1;
+        else
             interaction_path_to_pathing_target(srv);
     }
     PP_MARK(bd_on, bd_t, PP_INTERACT_PRE);
@@ -15267,7 +15286,16 @@ phase_player(struct ToriRSServerPlayer* player)
     /* advance_player fires an armed walktrigger immediately before each
      * concrete tile. That preserves the ordinary freeze/stun veto and also
      * gives controller-style content both tiles of a running tick. */
+    temp_run = player->temp_run;
     advance_player(srv);
+    /* A tick whose interaction fired before movement is one on which the
+     * reference never reaches updateMovement (Player.ts processInteraction:
+     * the `if (!interacted)` block holds it), so the `p_temprun` that
+     * interaction's script just set is not cleared by this tick's empty route
+     * -- it is the next tick's p_walk it was set for (a sled ride's
+     * p_teleport; p_temprun; p_delay(0); p_walk). */
+    if( interacted_pre_move )
+        player->temp_run = temp_run;
     PP_MARK(bd_on, bd_t, PP_ADVANCE);
     player_process_locstep(srv);
 

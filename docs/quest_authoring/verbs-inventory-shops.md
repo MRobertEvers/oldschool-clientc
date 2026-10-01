@@ -26,6 +26,14 @@ the count it did reach, the coins it spent and the server's own sentence ("You d
 coins.", "The shop has run out of stock.", "You don't have enough inventory space."), because a shop
 refuses in prose and never in a result word.
 
+#### `cell N of shopmain:items is not mounted` after `holds K stocked slot(s) of K` (FIXED seam35)
+
+The stock was there and the grid had no cells: a shop whose inv is declared in CONTENT
+(`pack/inv.alloc` + `size=`; the Ardougne silver stall, Zaff, the Pie Shop) has no cache InvType,
+the client's `INV_SIZE` answered 0, and `shop_main_init` built 0 cells. Since seam35 `INV_SIZE`
+falls back to the capacity the server transmitted, and these shops open with their stock
+(seam-facts: Seam pass 35 (a)). If it comes back, it is the client, not your buy.
+
 #### `no_row` "this shop was not opened through shop.open"
 
 It also REQUIRES that the shop was opened through `t.shop.open` specifically: `shop.buy` answers

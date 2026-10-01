@@ -308,6 +308,72 @@ test_standard_sizes_exist_before_first_packet(void)
 }
 
 /* ==========================================================================
+ * A server-allocated inv (no InvType in the cache) answers INV_SIZE from the
+ * capacity UPDATE_INV_FULL gave its container.
+ *
+ * `pack/inv.alloc` shops (ardougne_silver_stall_shop = 2023, size=3) have no
+ * cache record, so the type lookup caches a miss as 0. `shop_main_init`
+ * (1074) builds `inv_size($shop)` grid cells once, so a 0 here was the
+ * Ardougne silver stall opening empty with its stock resident. A cache inv
+ * still answers from its type, never from the container.
+ * ========================================================================== */
+
+static void
+test_server_allocated_inv_size_reads_the_container(void)
+{
+    enum { SERVER_INV = 2023, CACHE_INV = 516 };
+    struct Fixture fx;
+    struct CS2VM2 vm;
+    struct CS2VM2_Thread* thread;
+    struct CS2VM_HostRequest request = { 0 };
+    struct CacheProvider* provider;
+    int size = -1;
+
+    printf("pump: a server-allocated inv's INV_SIZE is its transmitted capacity\n");
+
+    fixture_init(&fx);
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &fx.host, RS_CS2Host_Exec);
+    thread = CS2VM2_ThreadMain(&vm);
+    provider = dat2_buildcache_as_provider(fx.bc);
+
+    request.kind = CS2VM_HOST_REQUEST_INV_SIZE;
+    request.u.INV_SIZE.inv_id = SERVER_INV;
+
+    /* Before any container: the miss still answers 0, it does not invent one. */
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_YIELD,
+        "uncached INV_SIZE(2023) yields once for its InvType");
+    CacheProvider_InvtypeAdd(provider, SERVER_INV, 0);
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK,
+        "INV_SIZE(2023) completes on the cached miss");
+    CHECK(CS2VM2_PopInt(thread, &size) == CS2VM_EXECNO_OK, "INV_SIZE(2023) pushes a result");
+    CHECK(size == 0, "no type and no container is 0, got %d", size);
+
+    /* UPDATE_INV_FULL sized the container at 3: that is the answer now. */
+    InvManager_EnsureContainer(&fx.invs, SERVER_INV, 3, NULL);
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK,
+        "INV_SIZE(2023) completes with a resident container");
+    CHECK(CS2VM2_PopInt(thread, &size) == CS2VM_EXECNO_OK, "INV_SIZE(2023) pushes a result");
+    CHECK(size == 3, "INV_SIZE(2023) is the container's transmitted capacity 3, got %d", size);
+
+    /* A cache type wins over a container that disagrees with it. */
+    request.u.INV_SIZE.inv_id = CACHE_INV;
+    CacheProvider_InvtypeAdd(provider, CACHE_INV, 40);
+    InvManager_EnsureContainer(&fx.invs, CACHE_INV, 15, NULL);
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK,
+        "INV_SIZE(516) completes from its InvType");
+    CHECK(CS2VM2_PopInt(thread, &size) == CS2VM_EXECNO_OK, "INV_SIZE(516) pushes a result");
+    CHECK(size == 40, "a cache inv answers its type's 40, not the container's 15, got %d", size);
+
+    CS2VM2_Free(&vm);
+    fixture_free(&fx);
+}
+
+/* ==========================================================================
  * Part 2 — every flag, ALONE, opens the guard and is consumed
  *
  * One case per dirty flag the pump's table lists. `setter` sets ONLY that flag,
@@ -1454,6 +1520,7 @@ main(void)
     test_transmit_registry_identity();
     test_quiet_tick();
     test_standard_sizes_exist_before_first_packet();
+    test_server_allocated_inv_size_reads_the_container();
     test_each_flag_alone();
     test_stat_notify_reaches_a_dispatch();
     test_widgets_loaded_queues_stat_unhide();

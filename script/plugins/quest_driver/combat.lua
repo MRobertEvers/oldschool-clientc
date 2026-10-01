@@ -282,9 +282,62 @@ end
 -- `verdict` is nil while the fight is not over, else the corroboration
 -- sentence a kill detail must carry.  `result`/`row` are the pool read's own,
 -- so the caller's health/hitsplat/re-engagement logic is unchanged.
+-- SEAM covered_press_and_timed_lift_without_drive_op (seam35) -- A TELEPORT
+-- IS NOT A DEATH.  The server names an npc to each client by a per-observer
+-- slot, and `npc_tele` RELEASES that slot and re-adds the npc under a new one
+-- (torirs_server_encode.c, TORIRSSERVER_NPC_TRACE: "RELEASE why=tele
+-- (teleport forces re-add) ... a re-add later gets a DIFFERENT slot").  Treus
+-- Dayth shifts across his room by npc_tele (hauntedmine_dayth.rs2,
+-- [proc,hmq_dayth_shift]); the watch saw slot 63 leave the pool at 27/30 and
+-- graded it "dead after 28 tick(s) ... corroborated by ABSENCE" while he
+-- stood alive at slot 64 (build/quest_gate/s35cp_reprot, ticks 69-71).
+--
+-- So an absence with NO zero bar is first checked for that re-add: a copy of
+-- the watched npc's id, under a slot this watch has never seen, appearing on
+-- the very poll the watched slot went missing, within _combat_tele_reach
+-- tiles of where it stood.  When there is one, the watch follows it -- the
+-- fourth return is the new slot, the caller re-points its own `slot` and says
+-- so in the row.  A death still reads as one: a corpse's bar reads 0 before
+-- the release, and that arm runs first; and a copy that was already in the
+-- pool, or turns up a poll later, is someone else.
+QD._combat_tele_reach = 20
+
+function QD._combat_watch_note_seen(watch, rows)
+    if watch.npc_id == nil or type(rows) ~= "table" then
+        return
+    end
+    for i = 1, #rows do
+        if rows[i].npc_id == watch.npc_id or rows[i].base_npc_id == watch.npc_id then
+            watch.seen[rows[i].slot] = true
+        end
+    end
+end
+
+function QD._combat_watch_reslot(watch, rows)
+    if watch.npc_id == nil or watch.last_tile == nil or type(rows) ~= "table" then
+        return nil
+    end
+    for i = 1, #rows do
+        local r = rows[i]
+        if (r.npc_id == watch.npc_id or r.base_npc_id == watch.npc_id) and not watch.seen[r.slot] then
+            local dx = math.abs(r.x - watch.last_tile.x)
+            local dz = math.abs(r.z - watch.last_tile.z)
+            if math.max(dx, dz) <= QD._combat_tele_reach then
+                return r
+            end
+        end
+    end
+    return nil
+end
+
 function QD._combat_watch_read(watch, slot)
     local result, row, count, rows = QD._combat_row_by_slot(slot)
+    if watch.seen == nil then
+        watch.seen = {}
+    end
     if result == "ok" and row then
+        watch.npc_id = row.npc_id
+        QD._combat_watch_note_seen(watch, rows)
         watch.absent = 0
         watch.uncovered = 0
         watch.last_tile = { x = row.x, z = row.z }
@@ -311,6 +364,22 @@ function QD._combat_watch_read(watch, slot)
             .. " read " .. tostring(watch.zero_text) .. " at tick " .. tostring(watch.zero_tick)
             .. " and then left the npc pool (the corpse was released)"
     end
+    if watch.absent == 1 then
+        local moved = QD._combat_watch_reslot(watch, rows)
+        if moved then
+            local from = watch.last_tile
+            QD._combat_watch_note_seen(watch, rows)
+            watch.absent = 0
+            watch.uncovered = 0
+            watch.last_tile = { x = moved.x, z = moved.z }
+            watch.reslots = (watch.reslots or 0) + 1
+            return "ok", moved, nil, moved.slot, string.format(
+                "slot %d left the pool at %d,%d and the same npc came back as slot %d at %d,%d"
+                .. " on the same poll (npc_tele re-adds under a new client slot) -- followed it",
+                slot, from.x, from.z, moved.slot, moved.x, moved.z)
+        end
+    end
+    QD._combat_watch_note_seen(watch, rows)
     local covered, sentence = QD._combat_pool_covers(watch, count, rows)
     watch.pool_text = sentence
     if not covered then
@@ -1030,7 +1099,18 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
         QD._combat_eat_tick(eater)
         QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
-        local result, row, verdict = QD._combat_watch_read(watch, slot)
+        local result, row, verdict, reslot, reslot_text = QD._combat_watch_read(watch, slot)
+        if reslot then
+            -- seam35: a teleport re-added the npc under a new slot (the
+            -- banner over QD._combat_watch_read); the fight goes on there.
+            slot = reslot
+            QD.note("await_dead: " .. tostring(reslot_text))
+            -- A re-added npc is a new client entity: its hit cycle and bar
+            -- start over, so the readings compared against are its own.
+            hit = row.hit_cycle
+            health = QD._combat_health_text(row)
+            still = 0
+        end
         if verdict then
             -- The slot left the POOL: ask whether the character is still
             -- alive before calling that a kill (the no-row-is-not-a-kill
@@ -1152,7 +1232,25 @@ function QD._combat_press_attack(target, label, op, element)
     while true do
         presses = presses + 1
         target.reach_element = element
-        click_result, click = QD.drive.click_minimenu(target, op)
+        if presses == 1 then
+            -- seam35 (QD.player._npc_cover_recovery's banner, end of
+            -- pointer.lua): the first press is the press this loop always
+            -- made, and a `covered` from it is re-taken from a SETTLED camera
+            -- and then from a clear tile before the unsettled pose loop below
+            -- is paid for -- Treus Dayth, raised one row earlier by a press
+            -- that walked the player, answered `covered` to every unsettled
+            -- pose for 64 ticks and killed the character
+            -- (build/quest_gate/s35cp_daythcam rows 6-7).
+            click_result, click = QD.drive.click_minimenu(target, op, nil, nil, true)
+            if click_result == "covered" then
+                local recovery
+                click_result, click, recovery =
+                    QD.player._npc_cover_recovery(target, op, click)
+                QD.note("player.attack: " .. tostring(recovery))
+            end
+        else
+            click_result, click = QD.drive.click_minimenu(target, op)
+        end
         if click_result == "covered" and not walked then
             -- A named copy the pose loop and the hunt could not find a pixel
             -- for is, measured, a FAR one: the eleventh fever spider fifteen
@@ -1496,7 +1594,26 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
         QD._combat_eat_tick(eater)
         QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
-        local result, row, verdict = QD._combat_watch_read(watch, slot)
+        local result, row, verdict, reslot, reslot_text = QD._combat_watch_read(watch, slot)
+        if reslot then
+            -- seam35: a teleport re-added the npc under a new slot (the
+            -- banner over QD._combat_watch_read); the stamp follows it, so a
+            -- later wait or re-engagement holds the npc and not its old name.
+            slot = reslot
+            engaged.slot = reslot
+            QD.note("await_dead_engaged: " .. tostring(reslot_text))
+            -- A re-added npc is a new client entity: its hit cycle and bar
+            -- start over, so the readings compared against are its own.
+            hit = row.hit_cycle
+            health = QD._combat_health_text(row)
+            -- And the teleport dropped the player's attack (the parity3e
+            -- driver's own measurement: "Dayth teleports away, which drops the
+            -- attack"), so the re-engagement below is due NOW rather than
+            -- after five still polls: a player who sees the boss blink across
+            -- the room clicks him again.  Still gated on the player being
+            -- idle, so a player already walking after him is left to it.
+            still = 5
+        end
         if verdict then
             if QD.player._death_fence("t.npc.await_dead_engaged, when slot "
                     .. tostring(slot) .. " left the npc pool " .. tostring(elapsed)

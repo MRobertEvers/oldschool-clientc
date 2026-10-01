@@ -41,6 +41,8 @@ topic file with one line added here.
 
 ## Pressing and clicking
 
+- `player.attack: first press covered (...) -> settled camera: ...`; a boss raised one row after a press that walked you answers `covered` -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35); seam-facts: Seam pass 35 (e)
+- `click_loc: the walk outlasted the 20-tick settle; followed it N more tick(s)`; a timed lift missed while walking -> verbs-pointer: A press whose walk outlasts the 20-tick settle (seam35)
 - `map_flag: no dialogue in 5 tick(s)` on a freed/respawned multinpc form (Desert Treasure's troll parents) -> seam-facts: Seam pass 33 (e); traps-13-22: trap 19
 - a search that sometimes gives nothing (a `stat_random` roll, a cave-in mesbox); passes on one `--name`, fails on another -> seam-facts: Seam pass 33 (g); running: `--script` runs are deterministic
 - `t.inv.slot` reads `''` for Dwarf remains (obj id 0) -> seam-facts: Seam pass 33 (b) (FIXED)
@@ -128,7 +130,7 @@ topic file with one line added here.
 - `armed by this call (tab nil nil)`; every later `use_on` refuses -> gaps-world: `t.player.use_on` waits
 - `inv_op` `refused` vs `timeout`; `[pressed on attempt 2` -> verbs-inventory-shops: `t.player.inv_op`
 - `inv_op ... -> 0 left [settle_after_click]` on a Wield/Wear; `[WORN <item>: worn 0 -> 1, wear slot N]` -> verbs-inventory-shops: A Wield/Wear through `inv_op` (FIXED seam34)
-- a shop that opens EMPTY (`cell 3 of shopmain:items is not mounted`; Ardougne silver stall) -> seam-facts: Seam pass 34 (g) (open)
+- a shop that opens EMPTY (`cell 3 of shopmain:items is not mounted` after `holds K stocked slot(s) of K`; Ardougne silver stall, Zaff, Pie Shop) -> verbs-inventory-shops: `cell N of shopmain:items is not mounted` (FIXED seam35); seam-facts: Seam pass 35 (a)
 - `[STRAY DROP: ...]`; op 1 dropped the item -> verbs-inventory-shops: `ifop1=`..`ifop5=`
 - `inv_op` on a reward casket is `timeout` -> seam-facts: Seam pass 22, (j)
 - a held op silently refused during a `p_delay`; `(press N)` -> verbs-inventory-shops: `t.player.equip`; seam-facts: Seam pass 26, (d)
@@ -144,6 +146,8 @@ topic file with one line added here.
 
 ## Vars, stages and the journal
 
+- `var.await_server <varbit> ... read: 0` while the dialogue moved; `(varbit, server content copy; base varp N is never transmitted)`; `-- no client copy` on `var.expect` -> verbs-state-and-vars: A quest varbit reads 0 (FIXED seam35); seam-facts: Seam pass 35 (d)
+- `::complete has no arm for that quest.` for a quest with a completion (Regicide, Family Crest, Big Chompy...) -> QUEST_SERVER_CHEATS.md `::complete` (seam35 arms table); seam-facts: Seam pass 35 (f)
 - a stage poll reads `0` forever -> gaps-world: A stage poll; gaps-combat: A varbit your quest writes
 - `[server content]`, `no client copy`, `pack/varp.alloc` -> verbs-state-and-vars: `t.var.varp`; gaps-combat: Unaddressable varps
 - `t.var.expect` answers `not_found` -> verbs-state-and-vars: `t.var.expect`
@@ -157,6 +161,8 @@ topic file with one line added here.
 
 ## Fights
 
+- `slot N left the pool ... came back as slot M ... -- followed it`; a teleporting boss graded dead `corroborated by ABSENCE` while alive -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35)
+- a Haunted Mine `t.drive.op` for Dayth's Attack or the lift -> gaps-world: A timed lift or a `covered` boss press (both real presses since seam35)
 - `; progress t+10 hp .., ..` at the end of an await_dead detail -> verbs-combat: `t.npc.await_dead(npc, ticks=60`
 - a quest boss's first bar reading is empty (`0/60` after one hit, Elvarg; FIXED seam31) -> gaps-combat: Elvarg dies to the first hit
 - Dad's surrender page closes before the loop reads it -> gaps-combat: Troll Stronghold: Dad's surrender
@@ -222,7 +228,9 @@ topic file with one line added here.
 - `[bad ledger argument]`; a boolean in `t.step` -> gaps-dialogue: `t.step`'s second argument
 - `no shot recorded` on a row that never shot -> gaps-combat: What the ledger
 - duplicate MD5, `[frame unchanged]`, `unchanged since` -> traps-01-12: Trap 4; verbs-root-and-quest: `t.shot`
-- a fingerprint match on a real frame -> coverage-and-gate: Fingerprints; sampler-findings: What `helper_coverage`, (d); seam-facts: Seam pass 26, (g)
+- a fingerprint match on a real frame (a cutscene fade, a dark corner) -> coverage-and-gate: Fingerprints (FIXED seam35: both canvas probes); seam-facts: Seam pass 35 (b)
+- `matches the title_screen fingerprint` (rows driven while logged out, e.g. after a refused relog); `gate.py --probe` -> coverage-and-gate: Fingerprints; seam-facts: Seam pass 35 (b)
+- `presses opN '<op>' on <loc>, a gating op: a '<verb>' step needs the travel op`; Pick-Lock then `goto_tile` past a trapdoor -> coverage-and-gate: "presses op5 'pick-lock' ..." (seam35); seam-facts: Seam pass 35 (c)
 - no `quest.*` row; stage row names -> traps-13-22: Trap 14; coverage-and-gate: Minimum shape
 - 8 rows / 4 PNGs, 4 / 2 -> coverage-and-gate: Minimum shape; traps-13-22: Trap 15
 - a FAIL right before `t.blocked()` -> gaps-combat: What the ledger
@@ -274,6 +282,8 @@ topic file with one line added here.
 
 ## Content-side facts (content_bug reports, reviewers)
 
+- a sled ride that walks; `P_TEMPRUN is not implemented`; an anim that plays over a protected stance; a monkey body with a human chathead; `TORIRSSERVER_ANIM_TRACE` -> seam-facts: Seam pass 35 (g)
+- `::run 0` leaves the run orb on (it sets run ENERGY) -> QUEST_SERVER_CHEATS.md `run` row; seam-facts: Seam pass 35 (g)
 - `COORD requires an active entity` on `.huntnext`; `the active loc is gone` after `loc_del`; `not implemented` obj_name / inv_dropitem; `cannot resolve param value ^...` -> seam-facts: Seam pass 31, (a) (FIXED)
 - a double door gone for the session after one swing (`loc_del` + `loc_add` on the same tile) -> seam-facts: Seam pass 31, (c) (FIXED: Seam pass 32 (e))
 - `LOC_CHANGE requires an active entity` on a `.loc_*` op; `.loc_find` changing the wrong leaf; `loc_name`/`loc_param` aborting after `loc_del` -> seam-facts: Seam pass 32 (e) (FIXED)
@@ -323,7 +333,7 @@ topic file with one line added here.
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
-- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-32); a seam number in a verb or trap dates that behaviour
+- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-35); a seam number in a verb or trap dates that behaviour
 - samplers: b31, b32, b34, b35 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`
 - `the dialogue closed after N page(s)` right after a cutscene; a page a cutscene ends in -> verbs-cutscene: A cutscene between two dialogue pages

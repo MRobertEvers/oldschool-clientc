@@ -927,6 +927,83 @@ STEP_VERB_ALIAS = {"speak": "talk", "ask": "talk", "tell": "talk", "chat": "talk
 STATE_OPS = ("open", "close", "unlock", "lock")
 
 
+# A guide step that GOES somewhere through a loc ("Enter the H.A.M. lair",
+# "Climb down the trapdoor", "Cross the bridge") -- its leading verb (seam35).
+TRAVEL_STEP_VERBS = ("enter", "climb", "cross", "go", "exit", "leave", "descend", "ascend",
+                     "squeeze", "crawl", "jump", "walk", "pass", "swing", "board")
+# Loc ops that move the player across the loc (op_word of the menu text).
+# Anything else on a loc that also has one of these -- Pick-Lock, Unlock,
+# Light, Search, Knock -- is the GATING op: it readies the crossing and does
+# not make it (seam35 two_op_loc_credits_the_wrong_op: Lost Tribe's
+# ham_multi_trapdoor is Open/Pick-Lock while closed, Climb-down/Close while
+# open, and a Pick-Lock press credited "enterHamLair" while the test then
+# ::goto'd into the lair).
+TRAVEL_OPS = ("climb", "enter", "cross", "open", "go", "walk", "squeeze", "crawl", "jump",
+              "exit", "leave", "pass", "board", "descend", "ascend", "swing", "push", "use",
+              "slide", "ride", "dive", "travel")
+# `teleport: 3166,3253,0 -> 3152,9644,0` (pointer.lua's jump readout) or any
+# `x,z,level -> x,z,level` / `tile x,z -> x,z` the driver writes after a press.
+MOVED_RE = re.compile(r"(\d+),\s*(\d+)(?:,\s*(\d+))?\s*->\s*(\d+),\s*(\d+)(?:,\s*(\d+))?")
+
+
+def family_op_words(kind, symbol):
+    """Every op word the client can show for `symbol` in ANY of its states:
+    its own ops and every multiloc/multinpc child's, all numbers kept
+    (ops_of folds children by op number, so a closed trapdoor's op1 Open
+    hides the open one's op1 Climb-down)."""
+    content_index()
+    found = set()
+    frontier = [symbol]
+    seen = set()
+    while frontier:
+        current = frontier.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        found.update(op_word(name) for name in OPS.get((kind, current), {}).values())
+        frontier.extend(CHILDREN.get(current, ()))
+    found.discard("")
+    return found
+
+
+def shown_by(kind, guide_symbol, test_string):
+    """Is `test_string` one of the multiloc/multinpc states the guide's
+    `guide_symbol` shows (the test pressed `osf_trapdoor_closed`, the guide
+    names its parent `ham_multi_trapdoor`)? same_thing only walks UP from the
+    guide's symbol; a press on a child state is a press on the guide's loc,
+    and is held to the step's op like one (seam35)."""
+    if not test_string or not re.match(r"^[a-z0-9_]+$", test_string) or test_string == guide_symbol:
+        return False
+    return guide_symbol in family(test_string)
+
+
+def loc_states(symbol):
+    """Every multiloc child `symbol` can show, at any depth (not itself)."""
+    content_index()
+    out = []
+    frontier = list(CHILDREN.get(symbol, ()))
+    while frontier:
+        child = frontier.pop(0)
+        if child in out or child == symbol or child in ("-1", ""):
+            continue
+        out.append(child)
+        frontier.extend(CHILDREN.get(child, ()))
+    return out
+
+
+def detail_moved(detail):
+    """The `a -> b` tile pair a row's detail reports, when the two differ by a
+    level or by more than one tile (a press that put the player across the
+    loc, not the approach walk to it); None otherwise."""
+    for match in MOVED_RE.finditer(detail or ""):
+        x1, z1, l1, x2, z2, l2 = match.groups()
+        if l1 is not None and l2 is not None and l1 != l2:
+            return match.group(0)
+        if max(abs(int(x1) - int(x2)), abs(int(z1) - int(z2))) > 1:
+            return match.group(0)
+    return None
+
+
 def op_word(op_name):
     """`Talk-to` -> 'talk', `Pick-up` -> 'pick', `Climb up` -> 'climb'."""
     return re.split(r"[-\s]", (op_name or "").strip().lower())[0]
@@ -1897,7 +1974,7 @@ class Grader:
         if kind == "npc" and verb == "attack":
             menu.setdefault(0, "attack")
         if not any(op_word(op) == verb for op in menu.values()):
-            return None
+            return self.travel_op_conflict(step, line, kind, symbol, text, verb, menu)
         pressed = self.test.pressed_op(line, kind)
         if pressed is None:
             return None
@@ -1908,6 +1985,34 @@ class Grader:
             return None
         return "line %d presses %r on %s, not the step's %r" % (
             line, pressed_name if isinstance(pressed, str) else "op%d %s" % (pressed, pressed_name), text, verb)
+
+    def travel_op_conflict(self, step, line, kind, symbol, text, verb, menu):
+        """A step that goes THROUGH a loc (`enterHamLair`, "Climb down ...",
+        "Cross ...") whose verb is not itself a menu op: the press must be one
+        of the loc's travel ops (Climb-down/Enter/Cross/Open...), or the row it
+        writes must show the player moved across it. A gating op alone --
+        Pick-Lock, Unlock, Light -- readies the crossing and is not it (seam35
+        two_op_loc_credits_the_wrong_op). Only a loc that HAS a travel op in
+        some state is held to this; a `use` press or an unread op is not."""
+        if kind != "loc" or verb not in TRAVEL_STEP_VERBS:
+            return None
+        offered = family_op_words(kind, symbol) | family_op_words(kind, text)
+        if not offered & set(TRAVEL_OPS):
+            return None
+        pressed = self.test.pressed_op(line, kind)
+        if not isinstance(pressed, int):
+            return None
+        pressed_name = ops_of(kind, text).get(pressed) or menu.get(pressed)
+        if pressed_name is None or op_word(pressed_name) in TRAVEL_OPS:
+            return None
+        row_name = self.test.row_name_at(line)
+        row = next((r for r in self.pass_rows if r["step"] == row_name), None) if row_name else None
+        if row is not None and detail_moved(row["detail"]):
+            return None
+        return "line %d presses op%d %r on %s, a gating op: a %r step needs the travel op (%s) " \
+            "or a row that moves the player across it" % (
+                line, pressed, pressed_name, text, verb,
+                "/".join(sorted(offered & set(TRAVEL_OPS))))
 
     def line_refused(self, step, line, kind=None, symbol=None, text=None):
         """Why action line `line` cannot drive `step` (claimed by another
@@ -1945,7 +2050,7 @@ class Grader:
                     for kind, symbol in step.targets:
                         named = next((named for number, named in self.test.action_lines if number == line), ())
                         for text in named:
-                            if same_thing(kind, symbol, text):
+                            if same_thing(kind, symbol, text) or shown_by(kind, symbol, text):
                                 conflict = conflict or self.op_conflict(step, line, kind, symbol, text)
                 if conflict:
                     conflicted.append(row["step"])
@@ -2129,7 +2234,7 @@ class Grader:
                     continue
                 for kind2, symbol2 in step.targets:
                     for candidate in named:
-                        if same_thing(kind2, symbol2, candidate):
+                        if same_thing(kind2, symbol2, candidate) or shown_by(kind2, symbol2, candidate):
                             conflict = self.op_conflict(step, line, kind2, symbol2, candidate)
                             if conflict:
                                 return "ledger row %s %r: %s" % (row["index"], row["step"], conflict)
@@ -2329,7 +2434,12 @@ class Grader:
         lowered = (step.text + " " + " ".join(s for k, s in step.targets if k == "loc")).lower()
         gated = [w for w in GATE_WORDS if w in lowered]
         if gated and step.kind == "ObjectStep" and self.test.gotos:
+            # A multiloc the guide names (ham_multi_trapdoor) carries no
+            # trigger of its own: its states' [oploc] are its triggers, and a
+            # climb on its open state that writes a quest var is no plain
+            # travel (seam35).
             locs = [s for k, s in step.targets if k == "loc"]
+            locs = locs + [c for s in locs for c in loc_states(s) if c not in locs]
             if any(s in driven_symbols for s in locs):
                 return None
             if locs and not any(self.relevant_triggers(s) for s in locs):
@@ -2343,8 +2453,18 @@ class Grader:
                 # (Prince Ali's goto-ned, 30 tiles off, used to be cited for
                 # the jail door that goto-prince-cell walked past).
                 goto = min(near, key=lambda g: (_distance(step.point, g), -g[0]))
+                # A climb's far side is the other map frame (a dungeon is the
+                # surface's y + 6400) or another level: the goto landing THERE
+                # is the one that skipped the trapdoor, not the one that
+                # walked up to it (Lost Tribe's goto-enterHamLair, seam35).
+                climbs = any("climb" in family_op_words("loc", s) for s in locs)
+                if climbs and step.point is not None:
+                    across = [g for g in near if abs(g[2] - step.point[1]) > 3200 or
+                              (len(step.point) > 2 and g[3] != step.point[2])]
+                    if across:
+                        goto = min(across, key=lambda g: (_distance(step.point, g), g[0]))
                 return "goto_tile %d,%d,%d at line %d lands past the %s the guide names (%s)" % (
-                    goto[1], goto[2], goto[3], goto[0], gated[0], ",".join(locs) or step.text[:40])
+                    goto[1], goto[2], goto[3], goto[0], max(gated, key=len), ",".join(locs) or step.text[:40])
         return None
 
     def readback(self, line):

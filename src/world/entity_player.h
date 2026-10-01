@@ -40,6 +40,13 @@ struct WorldEntity_Player
      *  player's own body. Reference ClientPlayer.transmog (LostCity
      *  ClientPlayer.ts setAppearance) / PlayerAppearance.npcTransformId. */
     int transmog_npc_id;
+    /** The footprint a placement centres the player on: the transmog npc
+     *  type's own `size` while transmogged and its config is resident, else 1.
+     *  Reference Player.transformedSize() (deob Player.java), read only by
+     *  Player.resetPath -- a teleport/placement puts the model at
+     *  tile*128 + size*64; walking steps keep the 1-tile centre, since a
+     *  player's Actor.size is never set. Kept by app_world_reconcile_player_body. */
+    int transmog_size;
     /** What the scene element's model was built from: the appearance
      *  slots with any held-item override of the playing seq folded in
      *  (reference ClientPlayer.getSequencedModel: replaceheldleft/right swap

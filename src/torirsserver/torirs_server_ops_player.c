@@ -52,6 +52,7 @@
 #include "ss_trigger.h"
 #include "ssvm.h"
 
+#include <assert.h>
 #include <stdint.h>
 
 int
@@ -300,6 +301,48 @@ ToriRSServer_OpsPlayer(
         /* Not resolved here, for the same reason `p_oploc` does not: an
          * `[opplayer<n>]` that re-issues itself would recurse inside its own
          * tick. */
+        return 1;
+    }
+
+    /*
+     * `[command,p_animprotect](int $toggle)` / `.p_animprotect` -- engine.rs2,
+     * `PlayerOps.ts:1236`: `activePlayer.animProtect = check(popInt(),
+     * NumberNotNull)`. Stored as given; `SS_OP_ANIM` reads it (the only player
+     * animation writer, as `Player.playAnimation` is the reference's). The VM's
+     * pointer table has already demanded protected access to the player the
+     * `.` operand names.
+     */
+    case SS_OP_P_ANIMPROTECT:
+    {
+        struct ToriRSServerPlayer* player =
+            (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+        int32_t toggle;
+
+        assert(player);
+        if( !SSVM_PopInt(state, &toggle) )
+            return 1;
+        if( toggle == -1 )
+        {
+            /* NumberNotNull: `p_animprotect(null)` throws in the reference. */
+            SSVM_Abort(state, "p_animprotect: toggle is null");
+            return 1;
+        }
+        player->anim_protect = (int)toggle;
+        return 1;
+    }
+
+    /*
+     * `[command,p_temprun]` -- `PlayerOps.ts:1276`: `activePlayer.tempRun = 1`.
+     * Nothing else happens here; the movement phase reads it
+     * (torirs_server_world.c advance_player) and clears it the reference's way.
+     */
+    case SS_OP_P_TEMPRUN:
+    {
+        struct ToriRSServerPlayer* player =
+            (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+
+        assert(player);
+        player->temp_run = 1;
         return 1;
     }
 

@@ -72,7 +72,7 @@ every line below shifted with it.
 | `setlevel` | 8244 | `::setlevel <stat> <level>` sets a stat's level (base + xp to threshold) |
 | `wield ` | 8273 | `::wield <item_name\|objid>` (resolved like `::give`) runs the real OPHELD-equip path on a backpack item; every miss answers FAILED naming it (seam29), and run.py's setup loop reads the worn container back |
 | `equipstats` | 8316 | `::equipstats` opens the equipment bonus screen |
-| `run` | 8324 | `::run [0\|1]` toggles the run-energy option |
+| `run` | 8324 | `::run [0\|1]` toggles the run-energy option -- SHADOWED: content's `[debugproc,run]` (general/scripts/misc/cheat_run.rs2) answers first and SETS run energy to N%, so no cheat turns the orb off; use a fixture with `run_toggle = 0` (seam35) |
 | `god` | 8338 | `::god [0\|1]` player invulnerability; heals to full on enable |
 | `bank` | 8363 | `::bank` opens the bank |
 | `fight` | 8372 | `::fight [slot]` engages an npc (nearest attackable if no slot given) |
@@ -665,9 +665,49 @@ collision still miscompiles `interface_questjournal/scripts/quest_journal.rs2`
 `skill_construction/scripts/poh_quest_status_generated.rs2`; run
 `SSCOMPILE_AMBIGUOUS=all` sscompile and grep `dbrow` to find any other.
 
-Rows passed to `~quest_complete_rewards` that still have NO arm (2026-09-30):
-bigchompybirdhunting, eadgarsruse, elementalworkshop1, familycrest, fightarena,
-horrorfromthedeep, insearchofthemyreque, lostcity, onesmallfavour, regicide,
-scorpioncatcher, seaslug, shadesofmortton, shilovillage, treegnomevillage,
-tribaltotem, undergroundpass, witchshouse (all `quest_` rows). A test that
-needs one as a prerequisite is a seam for this file, not a `::setvar`.
+Arms added by parity3g (2026-10-01): `quest_undergroundpass` (`%upass =
+^upass_complete`, 10; king_lathas.rs2 `upass_quest_complete`) and
+`quest_treegnomevillage` (`%treequest = ^tree_complete`, 9; king_bolren.rs2
+`[queue,tree_quest_complete]`).
+
+Arms added by seam35 (`complete_cheat_arms_for_every_quest_row`, 2026-10-01).
+Every row that a completion site passes to `~quest_complete_rewards` now has an
+arm. Each arm writes what that site writes, including the site's own side
+resets:
+
+| row | writes | source |
+|---|---|---|
+| `quest_bigchompybirdhunting` | `%chompybird = ^chompybird_complete` (65), `%chompybird_kills = 0` | quest_chompybird/scripts/rantz.rs2 `[queue,quest_chompybird_complete]` |
+| `quest_eadgarsruse` | `%eadgar_quest = ^eadgar_complete` (110) | area_taverly/scripts/sanfew.rs2 `[label,sanfew_eadgar_turnin]` |
+| `quest_elementalworkshop1` | varbit `%elemental_workshop_finished = 1`, plus book/key/fire/bellows/bellows_switch/switch = 1 | quest_elemental_workshop.rs2 `[proc,elem1_make_shield]`. The side bits are the set EW2's own EW1-complete stage writes (elem2_bmp.rs2 `[proc,elem2bmp_ew1]`), so the bookcase's lost-key branch behaves as it does after a real finish |
+| `quest_familycrest` | `%crestquest = ^crest_complete` (11), `%crest_spells_levers_gauntlets = 0` | quest_crest/scripts/crest_dimintheis.rs2 (crest hand-in) |
+| `quest_fightarena` | `%arenaquest = ^arena_complete` (14) | quest_arena/scripts/lady_servil.rs2. The General-killed ending writes 15; 14 is the lower ending and the cache endstate, so every `>=` gate opens |
+| `quest_horrorfromthedeep` | `%horrorquest = ^horror_complete` (10) | quest_horror/scripts/horror_encounter.rs2 `[queue,horror_quest_complete]` |
+| `quest_insearchofthemyreque` | `%routequest = ^routequest_complete` (105) | quest_routequest/scripts/routequest_hideout.rs2 `[queue,routequest_complete]` |
+| `quest_lostcity` | `%zanaris = ^zanaris_complete` (6) | quest_zanaris/scripts/leprechaun_tree.rs2 `[queue,zanaris_quest_complete]` |
+| `quest_onesmallfavour` | `%onesmallfavour = ^osf_complete` (285) | area_shilo/scripts/yanni_salika.rs2 (mahogany hand-in) |
+| `quest_regicide` | `%regicide_quest = ^regicide_complete` (15) | area_ardougne_east/scripts/king_lathas.rs2 (Iorwerth's message) |
+| `quest_scorpioncatcher` | `%scorpcatcher = ^scorpcatcher_complete` (6) | quest_scorpcatcher/scripts/scorpcatcher_scorpions.rs2 `[queue,scorpcatcher_quest_complete]` |
+| `quest_seaslug` | `%seaslugquest = ^seaslug_complete` (12) | ardougne_east/scripts/caroline.rs2 `[queue,seaslug_quest_complete]` |
+| `quest_shadesofmortton` | `%morttonquest = ^mortton_quest_complete` (85) | quest_mortton/scripts/quest_mortton.rs2 `[queue,mortton_quest_complete]` |
+| `quest_shilovillage` | `%zombiequeen = ^zombiequeen_complete` (15) | quest_zombiequeen/scripts/quest_zombiequeen.rs2 `[queue,zombiequeen_quest_complete]` |
+| `quest_tribaltotem` | `%totemquest = ^totem_complete` (5) | area_brimhaven/scripts/kangai_mau.rs2 `[proc,totem_finish_quest]` |
+| `quest_witchshouse` | `%ballquest = ^ball_complete` (7) | area_taverly/scripts/boy.rs2 `[queue,ball_quest_complete]` |
+
+None of these sixteen names is also a varp, varbit or constant, so the bare
+`$row = <name>` compare compiles to the dbrow (`SSCOMPILE_AMBIGUOUS=all` prints
+nothing for quest_cheat.rs2). Rows: `seam.complete_cheat_arms` (now with upass
+and treegnomevillage) and `seam.complete_cheat_arms.<row>`, one per new arm.
+Each reads the var and `%qp` back from the server.
+
+The `quest` rows with no completion anywhere in content still answer
+`::complete has no arm for that quest.` That is the honest answer, because
+there is no completion for an arm to copy. They are the miniquests
+(barcrawl, curseoftheemptylord, daddyshome, enchantedkey, familypest,
+generalsshadow, lairoftarnrazorlor, magearena1/2, skippyandthemogres,
+frozendoor, hopespearswill, intothetombs, hisfaithfulservants,
+barbariantraining, valetotems) and fairytale1/2, ragandboneman2, the
+recipefordisaster overview row, existentialcrisis, impendingchaos,
+burialatsea, learningtheropes and bloodmoonrises. When one of these quests
+gets ported, it needs an arm in the same change. A test that needs one as a
+prerequisite is a seam for this file, not a `::setvar`.

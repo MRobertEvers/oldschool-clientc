@@ -21,17 +21,24 @@ server-side). Detail on `ok`: `<name> = <value> (client|server <varp|varbit>) af
 timeout names the last value read. `await_server` works for `pack/varp.alloc` varps too; its detail
 then reads `(varp, server content copy; no client copy)`.
 
-#### A quest varbit reads 0 through `var.server` / `var.await_server` (Monkey Madness `mm_daero`, sonnet-b44)
+#### A quest varbit reads 0 through `var.server` / `var.await_server` (Monkey Madness `mm_daero`, sonnet-b44) -- FIXED seam35
 
-*Origin: author batch sonnet-b44 (mm leg 1).*
+*Origin: author batch sonnet-b44 (mm leg 1); fixed in seam pass 35.*
 
 Monkey Madness's per-npc progress varbits (`mm_caranock`, `mm_daero`, `mm_narnode`, all on base varp
-`mm_gnomes`) read 0 through `t.var.server` and `t.var.await_server` for the whole run, while the
-dialogue showed the stage had moved. For a VARBIT both verbs read only the client's copy of the
-server value (`api_drive.varbit_server`, `script/plugins/quest_driver/state.lua` `_var_await`).
-There is no server-content fallback like the one the varp path has for `pack/varp.alloc` ids. Grade
-such a step on the main quest varp (`mm_main`) or on the dialogue pages, and do not wait on the
-varbit.
+`mm_gnomes`, 372) read 0 through `t.var.server` and `t.var.await_server` for the whole run, while
+the dialogue showed the stage had moved. A varbit's client record holds only what the server SENT,
+and the server sends a varp only when a content `.varp` declares it `transmit=yes`; nothing
+declares 372. Since seam35 both verbs read the embedded server's own copy for a varbit whose base
+varp is never transmitted (or is past the client's varp array), and the source/detail says so:
+`mm_daero = 5 (varbit, server content copy; base varp 372 is never transmitted) after 0 tick(s)`
+(also `hazeelcult_alomone_vis` on 3748). A varbit on a transmitted base keeps the client-record
+channel (`(server varbit)`). `var.server`'s third return (the source) applies to varbits too.
+
+`t.var.expect` still requires a client copy; for such a varbit its refusal ends `-- no client copy
+(server content copy; ...); var.server reads N`: use `var.server` / `var.await_server`. Not covered
+yet: a `quest.bind{varp=<varbit on an untransmitted base>}` stage still grades the client pair
+(quest.lua `_reading`). Row: `seam.varbit_server_reads_untransmitted_base`.
 
 ### `t.var.expect(name, value)`
 

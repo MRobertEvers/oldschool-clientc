@@ -259,6 +259,13 @@ ends in `t.blocked("<the seam>")`. The same review also wanted a row asserting t
 Strength XP reward (`hauntedmine_dayth.rs2:298`); a scroll shot that shows the amount is not a
 row.
 
+Since seam35 both are real presses with no help from the test: `click_loc` follows the 60-step
+valve-to-lift walk past its 20-tick settle (the lift answers inside the window), and
+`t.player.attack` re-takes Dayth's `covered` first press from a settled camera, while the kill
+wait follows him across his `npc_tele` re-slots (verbs-combat: "A covered Attack press, a boss that
+teleports, a timed walk"). What is left is the fight's damage: bring Protect from Missiles or more
+food and fight off the track rows.
+
 ## `coordz(...) < coordz(movecoord(...))` is a SIDE test; `stood on with ::goto` is a FAIL
 
 *Origin: section 8 ("Gaps reported by authors").*

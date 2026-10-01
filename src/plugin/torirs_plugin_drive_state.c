@@ -29,6 +29,7 @@
 #include "game/rs_player_stats.h"
 #include "inv/inv_manager.h"
 #include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_vessel.h"
 #include "world/wev.h"
 #include "varp/varp_manager.h"
@@ -185,6 +186,73 @@ DriveState_VarpContent(struct App* app, int varp_id, int* out_value)
     if( varp_id >= TORIRSSERVER_VARP_COUNT )
         return DRIVE_NOT_FOUND;
     *out_value = (int)player->varps[varp_id];
+    return DRIVE_OK;
+}
+
+/*
+ * The SERVER's own value for a varbit, plus whether its base varp ever reaches
+ * the client at all.
+ *
+ * DriveState_VarbitServer reads the bits out of var_serv[], the client's record
+ * of what the server sent -- and the server sends a varp only when content
+ * declares it `transmit=yes` (ToriRSServer_WorldMarkVarp; an undeclared varp is
+ * server-only) and the id is one the client's array can address
+ * (ToriRSServer_VarpClientCount).  Monkey Madness's progress varbits
+ * (mm_caranock, mm_daero, mm_narnode on base varp mm_gnomes, 372) sit on a varp
+ * no content file declares, so var_serv[372] stays 0 for the whole run and the
+ * client-record read answers a confident ok/0 while the server holds 3 -- not a
+ * not_found, so the varp path's not_found fallback (DriveState_VarpContent)
+ * cannot trigger on it (seam35, sonnet-b44 mm leg 1).
+ *
+ * `*out_reaches_client` is that transmit fact, so the caller decides the
+ * channel from a static property of the varp, never from the two values
+ * disagreeing (which is the desync var.expect exists to catch).  The value is
+ * ToriRSServer_VarbitGet's -- the same read content's `%mm_daero` makes.
+ *
+ * The varbit's existence and base come from the client's varbit table (the
+ * same cache config group 14 the server loads, torirs_server.h "Varbits"):
+ * an id neither can resolve is `not_found`, never a guessed zero.
+ */
+static enum DriveResult
+drive_state_varbit_content(
+    struct App* app,
+    int varbit_id,
+    int* out_value,
+    int* out_base_varp,
+    int* out_reaches_client)
+{
+    struct ToriRSServer* srv;
+    struct ToriRSServerPlayer const* player;
+    struct ToriRSServerVarpDef const* def;
+    int base = -1;
+    enum DriveResult result;
+
+    assert(app);
+    assert(out_value);
+    assert(out_base_varp);
+    assert(out_reaches_client);
+    assert(varbit_id >= 0);
+
+    *out_value = 0;
+    *out_base_varp = -1;
+    *out_reaches_client = 0;
+    srv = PluginDrive_EmbedWorld();
+    if( !srv )
+        /* Socket-server run: the server's varps are not ours to read. */
+        return DRIVE_UNSUPPORTED;
+    player = srv->active_player;
+    if( !player )
+        return DRIVE_NOT_FOUND;
+    result = DriveState_VarbitBaseVarp(app, varbit_id, &base);
+    if( result != DRIVE_OK )
+        return result;
+    if( base >= TORIRSSERVER_VARP_COUNT )
+        return DRIVE_NOT_FOUND;
+    def = ToriRSServer_ContentVarp(base);
+    *out_base_varp = base;
+    *out_reaches_client =
+        (def && def->transmit && base < ToriRSServer_VarpClientCount()) ? 1 : 0;
+    *out_value = ToriRSServer_VarbitGet(player, varbit_id);
     return DRIVE_OK;
 }
 
@@ -426,6 +494,29 @@ lua_drive_var_content(struct lua_State* L)
     lua_pushstring(L, DriveResultName(result));
     lua_pushinteger(L, value);
     return 2;
+}
+
+/* api_drive.varbit_content(id) -> ("ok", value, base_varp, reaches_client)
+ * or (result word, detail).  See drive_state_varbit_content. */
+static int
+lua_drive_varbit_content(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int varbit_id = PluginDrive_ArgInt(L, 1);
+    int value = 0;
+    int base_varp = -1;
+    int reaches_client = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_state_varbit_content(app, varbit_id, &value, &base_varp, &reaches_client);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, NULL);
+    lua_pushstring(L, DriveResultName(result));
+    lua_pushinteger(L, value);
+    lua_pushinteger(L, base_varp);
+    lua_pushboolean(L, reaches_client);
+    return 4;
 }
 
 static int
@@ -692,6 +783,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"var_server", lua_drive_var_server},
     {"varbit_server", lua_drive_varbit_server},
     {"var_content", lua_drive_var_content},
+    {"varbit_content", lua_drive_varbit_content},
     {"inv_count", lua_drive_inv_count},
     {"inv_slot", lua_drive_inv_slot},
     {"inv_capacity", lua_drive_inv_capacity},

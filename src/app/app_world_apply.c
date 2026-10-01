@@ -528,6 +528,22 @@ app_world_reconcile_player_body(
     assert(app);
     assert(player);
 
+    /* Player.transformedSize(): the transmog npc type's size -- the type the
+     * appearance names, not the multinpc rung it resolves to (deob
+     * `getNpcDefinition(npcTransformId).size`) -- or 1. Read by the next
+     * placement (World_PlayerPathJump), so a config still loading answers 1,
+     * as a missing definition would. */
+    player->transmog_size = 1;
+    if( player->transmog_npc_id >= 0 )
+    {
+        /* NULL: the npc config is not resident yet (CacheProvider_NpctypeHas
+         * is the same lookup). */
+        struct ToriRS_Npctype* shell =
+            CacheProvider_NpctypeGet(app->provider, player->transmog_npc_id);
+        if( shell && shell->size > 1 )
+            player->transmog_size = shell->size;
+    }
+
     if( player->transmog_npc_id >= 0 )
     {
         app_world_reconcile_player_transmog(app, player);

@@ -27,9 +27,10 @@ the items over in dialogue grades them UNMATCHED.
 an empty one, and a sampler sends the quest back for it (The Feud rows `carpet-landed`, `safe-open`)
 -- pass your own string naming what landed and where.
 
-(d) The gate's `pre_login` fingerprint can match a real in-game frame (Recruitment Drive's Spishyus
-bridge room at the default camera pose); camera yaw decides it and the pose persists across rows
-until reset, so turn or reset the camera before that room's shots instead of re-running.
+(d) FIXED (seam35): the gate's `pre_login` fingerprint could match a real in-game frame (Recruitment
+Drive's Spishyus bridge room at the default camera pose). It now needs both canvas probes, and an
+in-game frame's bottom-left is the chat stone (coverage-and-gate, "Fingerprints"); no camera turn is
+needed.
 
 ## Sample sonnet-b32 (2026-09-28)
 

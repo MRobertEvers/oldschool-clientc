@@ -2549,7 +2549,18 @@ exec_inv_size(
 
     provider = rs_cs2_provider(host);
     if( inv_id >= 0 && provider && CacheProvider_InvtypeGet(provider, inv_id, &size) )
+    {
+        /* The cache answered 0: no record for this id (the loader caches a
+         * miss as size 0). A server that allocates invs of its own --
+         * `pack/inv.alloc` shops sized with `size=` -- states their size only
+         * on the wire, as UPDATE_INV_FULL's capacity, so that container is
+         * the one place the client can learn it. Without this,
+         * `shop_main_init` built `inv_size($shop)` = 0 cells and the
+         * Ardougne silver stall opened empty. */
+        if( size <= 0 && host->invs )
+            size = InvManager_Size(host->invs, inv_id);
         return CS2VM2_PushInt(thread, size);
+    }
 
     /* INV_SIZE reads the immutable inventory type, not the live container. A
      * script can ask before UPDATE_INV_FULL has created that container (the
@@ -2561,6 +2572,8 @@ exec_inv_size(
     {
         if( !rs_cs2_await_spent(thread, exact_request->kind, inv_id, -1) )
             return rs_cs2_yield_load(host, thread, exact_request, inv_id, -1);
+        if( host->invs )
+            return CS2VM2_PushInt(thread, InvManager_Size(host->invs, inv_id));
     }
     return CS2VM2_PushInt(thread, 0);
 }
