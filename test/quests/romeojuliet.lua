@@ -72,7 +72,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "rjquest",
+            varp = "varp144_rjquest",
             constants = {
                 complete = 100,
                 juliet_crypt = 60,

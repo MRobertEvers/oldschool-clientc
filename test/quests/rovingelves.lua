@@ -123,7 +123,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "rovingelves_quest",
+            varp = "varp6262_rovingelves_quest",
             constants = {
                 not_started = 0,
                 spoken_islwyn = 10,
@@ -140,7 +140,7 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3) -- setup cheats' effect is not client-side yet
 
-        local qp_before_result, qp_before = t.var.varp("qp")
+        local qp_before_result, qp_before = t.var.varp("varp101_qp")
         t.step("qp.baseline", qp_before_result == "ok" and "PASS" or "FAIL",
             "t.var.varp(\"qp\") before any quest progress -> " .. tostring(qp_before_result)
                 .. " " .. tostring(qp_before))
@@ -615,7 +615,7 @@ return {
         -- execution as the drop message, so that message IS the stage
         -- transition's own evidence.
         t.check("quest.stage.seed_planted", plant_pass,
-            "rovingelves_seed.rs2's [opheld1,roving_new_consecration_seed] sets %rovingelves_quest = "
+            "rovingelves_seed.rs2's [opheld1,roving_new_consecration_seed] sets %varp6262_rovingelves_quest = "
                 .. "^rovingelves_seed_planted in the same execution as the 'You drop the crystal seed in "
                 .. "the hole.' message read above -- plantSeed's own evidence is this row's evidence too "
                 .. "(ui.journal_open is skipped here: it opens the Quest List on the Free tab and never "
@@ -686,7 +686,7 @@ return {
                 .. tostring(scroll_title and scroll_title.name))
         t.scroll.close()
 
-        local qp_after_result, qp_after = t.var.varp("qp")
+        local qp_after_result, qp_after = t.var.varp("varp101_qp")
         t.check("quest.points", qp_after_result == "ok" and qp_before_result == "ok"
             and qp_after == qp_before + 1,
             "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after)

@@ -20,7 +20,7 @@ return {
         "::give coins 10", -- guide: the ten gold boat fee
     },
     bind = {
-        varp = "routequest",
+        varp = "varp387_routequest",
         row = "quest_routequest",
         constants = { not_started = 0, started = 5, spoke_to_boatman = 10, boatman_agreed = 15, boatman_repaired = 20,
             entered_hollowed = 25, found_guard = 52, answered_questions = 55, entered_underground = 60,
@@ -150,7 +150,7 @@ return {
             end
             t.ticks(2)
             -- repairBridge1: the three rungs were mended in leg 1 (repairBridge, repairBridge2, repairBridge3); read the server stage.
-            local _, stg = t.var.server("routequest")
+            local _, stg = t.var.server("varp387_routequest")
             t.check("repairBridge1", stg == 52, "bridge mended in leg 1, server stage routequest=" .. tostring(stg) .. " (found_guard 52) at " .. where())
 
             -- Curpile asks three of six questions (routequest_start_and_route.rs2:~560). The guide's talkToCurpile1/3/4/5/6 are the
@@ -206,7 +206,7 @@ return {
                     t.chat.continue_(true); t.ticks(1)
                 end
                 t.ticks(8)
-                local _, st = t.var.server("routequest")
+                local _, st = t.var.server("varp387_routequest")
                 t.check(rname .. "-verdict", true, "round " .. round .. " all_right=" .. tostring(all_right) .. " stage " .. tostring(st) .. " at " .. where())
                 if st == 55 then solved = true break end
             end
@@ -230,7 +230,7 @@ return {
             pages("talkToVeliaf", 40)
             t.ticks(3)
             t.expect("quest.stage.introduced_veliaf", t.quest.expect_stage("introduced_veliaf"))
-            local _, fin = t.var.server("routequest")
+            local _, fin = t.var.server("varp387_routequest")
             t.check("leg.2.end", fin == 65, "ends at " .. where() .. ", server stage routequest=" .. tostring(fin) .. " (introduced_veliaf 65); backpack keeps the steel weapons for the Myreque, hammer, druid pouch")
         end },
         { name = "myreque_to_cutscene", run = function(t)
@@ -251,7 +251,7 @@ return {
                 end
             end
             t.ticks(2)
-            local _, st0 = t.var.server("routequest")
+            local _, st0 = t.var.server("varp387_routequest")
             t.check("leg.3.start", st0 == 65, "begins at " .. where() .. ", server stage routequest=" .. tostring(st0) .. " (introduced_veliaf 65)")
 
             -- The five introductions (routequest_hideout.rs2:70-300; each ends on its own "Ok, thanks." menu row).
@@ -265,7 +265,7 @@ return {
             talk("talkToSani", "route_sani_piliu")
             talk("talkToPolmafi", "route_polmafi_ferdygris_parent")
             talk("talkToIvan", "route_ivan_strom_parent")
-            local _, bits = t.var.server("routequest_myreque_bits")
+            local _, bits = t.var.server("varp6203_routequest_myreque_bits")
             t.check("talkToMembers", bits == 31, "all five members met, routequest_myreque_bits=" .. tostring(bits) .. " (routequest_hideout.rs2:62 routequest_member_met)")
 
             -- Veliaf again: hand over the steel weapons, then the ambush cutscene plays (routequest_hideout.rs2:276-330, 438-550).
@@ -274,7 +274,7 @@ return {
             pages("talkToVeliafAgain", 60, "/talk about the weapons/")
             t.exec("talkToVeliafAgain.cutscene", t.cutscene.await, "talkToVeliafAgain", { since = mark, expect = { { op = "moveto" }, { op = "lookat" }, { op = "reset" } } })
             t.ticks(3)
-            local _, stc = t.var.server("routequest")
+            local _, stc = t.var.server("varp387_routequest")
             t.check("talkToVeliafForCutscene", stc >= 70, "cutscene played, server stage routequest=" .. tostring(stc) .. " (enter_cutscene 70, ambush 80)")
             local _, lsw = t.inv.count("steel_longsword")
             local _, ssw = t.inv.count("steel_sword")
@@ -288,7 +288,7 @@ return {
             t.ticks(8)
             -- LEG 3 END
             t.ticks(4)
-            local _, fin = t.var.server("routequest")
+            local _, fin = t.var.server("varp387_routequest")
             t.check("leg.3.end", fin == 80, "ends at " .. where() .. ", server stage routequest=" .. tostring(fin) .. " (ambush 80); steel weapons handed over, hammer and druid pouch kept; left the hideout, hound cleaned up (re-entering the cave via route_cavewalltunnel 3492,9823 brings it back)")
         end },
         { name = "hellhound_to_stranger", run = function(t)
@@ -324,7 +324,7 @@ return {
                 t.check("leg.4.food", lob == 12, "lobsters in the backpack: " .. tostring(lob))
             end
             t.ticks(2)
-            local _, st0 = t.var.server("routequest")
+            local _, st0 = t.var.server("varp387_routequest")
             t.check("leg.4.start", st0 == 80, "begins at " .. where() .. ", server stage routequest=" .. tostring(st0) .. " (ambush 80)")
             gear()
 

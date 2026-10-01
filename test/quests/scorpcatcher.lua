@@ -19,7 +19,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "scorpcatcher",
+            varp = "varp76_scorpcatcher",
             constants = {
                 not_started = 0,
                 started = 1,

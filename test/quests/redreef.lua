@@ -18,7 +18,7 @@ return {
 
     run = function(t)
         local br, bd = t.quest.bind({
-            varp = "trr",
+            varp = "varb18335_trr",
             constants = { not_started = 0, finn = 4, katt = 6, floopa = 8, sail = 10, receptionist = 12,
                 cases = 14, paxton = 16, pirates = 18, dock = 20, shore = 22, bethel = 24, ["return"] = 26,
                 zenith = 28, diving_gear = 30, east_dredger = 38, plans = 40, complete = 42 },
@@ -111,8 +111,8 @@ return {
         t.exec("sinkBlackEyeBethelBoats", t.sail._press_deck_row, "Attack", "Pirate")
         for i = 1, 60 do
             t.ticks(10)
-            local _, v = t.var.server("trr")
-            local _, n = t.var.server("trr_crew_slain")
+            local _, v = t.var.server("varb18335_trr")
+            local _, n = t.var.server("varp7206_trr_crew_slain")
             t.check("sinkBlackEyeBethelBoats.watch" .. i, true, "trr=" .. tostring(v) .. " slain=" .. tostring(n))
             if v ~= 18 then break end
             t.sail._press_deck_row("Attack", "Pirate")
@@ -153,7 +153,7 @@ return {
                 t.exec("killPiratesAtLastLight." .. i, t.npc.await_dead_engaged, 80, 12, { eat = { item = "shark", below = 50 } })
                 t.ticks(4)
             end
-            local _, v2 = t.var.server("trr")
+            local _, v2 = t.var.server("varb18335_trr")
             if v2 == 24 then break end
         end
         t.expect("quest.stage.bethel", t.quest.expect_stage("bethel"))
