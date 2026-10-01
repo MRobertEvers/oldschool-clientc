@@ -103,7 +103,7 @@ quest_meatandgreet	meatandgreet	meatandgreet		4	todo
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
-quest_mm	mm	monkeymadnessi		3	green	sonnet-b45	
+quest_mm	mm	monkeymadnessi		3	todo	sonnet-b45	REVERTED by sampler (sonnet-b45): leg 8 ::goto 2807,2760 jumps from the Ape Atoll dock (checkpoint 7, 2802,2707, QH apeAtollSouth) straight to Garkor inside Marim, past the Bamboo Gate the guide names (QH enterGate, mm_bamboo_largedoor_left 2721,2766; mm_bamboo_doors.rs2 open_mm_largedoor needs a worn greegree) -- hold the Karamjan greegree, walk the ravine north from 2721,2750 and click the gate (a row named enterGate), then walk to Garkor; the rest of the file was sound: restore it with git show 33b94aef4:test/quests/mm.lua and re-run from leg 8
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)
