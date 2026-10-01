@@ -80,3 +80,19 @@ GuildmasterDialogue.java / DSMagicDoorPlugin.java and the OSRS wiki brief
   placed nowhere; the only placement is `dwarf_city_boatman_mines` (`areas/world/configs/m44_158.spawn`).
   `gdwarf_start.rs2:11-14` sends that npc's op1 to the pre-quest proc while
   `%giantdwarf_quest = ^gdwarf_not_started`, so talk to `dwarf_city_boatman_mines` to start.
+
+## Desert Treasure: Malak has no "How can I kill Dessous?" option; Damis's true form under the wanderers' claim (sonnet-b46)
+
+*Origin: author batch sonnet-b46 (deserttreasure leg 3).*
+
+- MALAK HAS NO "HOW CAN I KILL DESSOUS?" ROW. Quest Helper's `askAboutKillingDessous` chooses that
+  option, but `[opnpc1,fourdiamonds_vampire_lord]` (`deserttreasure.rs2:444`) opens no menu once
+  `%dt_blood_stage >= ^dt_blood_agreed`. The repeat talk says "Why are you still here? I notice
+  Dessous still lives." and repeats the silver-bar instructions (`deserttreasure.rs2:489-490`).
+  Drive the step as that repeat talk and say in a comment that the option does not exist; a
+  `choose:How can I kill Dessous?` entry only times out.
+- DAMIS'S TRUE FORM REFUSED EVERY ATTACK. In the Shadow Dungeon, each Attack on `fd_damis_tougher`
+  answered "I'm already under attack." while the dungeon's aggressive wanderers held the single-way
+  claim. `::passive` on the four wanderer types (`sword_skeleton_3`, `sword_skeleton_3b`,
+  `shadow_dog_wild`, `small_bat`) let the swing land (gaps-combat: `::passive <npc_symbol>`). Never
+  make Damis passive: he must still fight back and die for real.

@@ -617,6 +617,29 @@ spade use never lands (`[oplocu,upass_mud]`, `upass_unicorn_tunnels.rs2:9`, `p_a
 player comes out at 2392,9646. That opt-in needs its `-- GUIDE-GAP:` marker (traps-23-33:
 `stand_on_square` needs).
 
+## `walk_to` never arrives on an upper level: plan the route from jm2/jl2 (Underground Pass level 1, sonnet-b46)
+
+*Origin: author batch sonnet-b46 (upass leg 8: the cage and Iban's temple).*
+
+Underground Pass's level-1 cavern (`maps/m33_71`, `m33_72`) is cut into pockets joined by rock
+bridges, collapsed bridges and doors, so a straight `walk_to` toward the cage or the temple stalls
+and its detail does not say which pocket you are in. The leg-8 author found the route with a static
+BFS over the region's map files, faster than probing it with walks. relay.md has no tool for this;
+write the script in your scratchpad:
+
+- Region `mX_Z` covers x `X*64`..`X*64+63` and z `Z*64`..`Z*64+63`; the `lx lz` in its files are
+  offsets from that corner.
+- Each `maps/mX_Z.jm2` line is `level lx lz: h.. [o..] [f<flags>] [u..]`. A flag value with bit 1
+  set (`f1`, `f5`) is a blocked tile (traps-23-33: naming a blocker from jm2/jl2).
+- Each `maps/mX_Z.jl2` line is `level lx lz: <loc id> <shape> [rot]`. Resolve the id through
+  `configs/all.loc.compack`; a loc with `blockwalk` blocks its tile, and a wall blocks one edge
+  (traps-23-33: Decoding a wall's `rot`).
+- A column whose jm2 level-1 flag carries `LINK_BELOW` is held one plane lower (`t.world.loc_near`
+  reports a loc's raw cache level, above). Read the plane you stand on from `t.world.tile()`.
+- Search 4-neighbour from your tile to the target's op tile. Treat each bridge or obstacle loc as
+  a stop: press it, then read `t.world.tile()`, because a crossing can fail
+  (`bridgecollapsed1/2` above). Give `walk_to` the path as hops of 10-15 tiles.
+
 ## Monkey Madness: a greegree wearer is drawn as the monkey (seam34)
 
 *Origin: seam34 greegree_transmog_render (mm parity3f legs_left: "client rendering of player

@@ -117,6 +117,14 @@ meanwhile: `build/quest_gate/.locks/<id>.lock` holds run.py's pid (`ps -p <pid>`
 per step as it happens (`torirs_plugin_drive.c` appends each one) even while run.py's own output has
 not surfaced -- a lock whose pid is gone and a ledger with no `SUMMARY` row is a dead run.
 
+#### A 3-5 minute `--from-leg` run slips into the background at 120 s: pass the tool's timeout (sonnet-b46)
+
+The 120 s window is the Bash tool's DEFAULT timeout, not a ceiling. A `run.py <id> --from-leg K` on
+a long quest takes 3-5 minutes (Underground Pass leg 8: about 3), so with the default it is moved
+to the background. Pass `timeout: 590000` on the Bash call (just under the tool's 600000 ms
+maximum) and the run stays in the foreground until its SUMMARY. A run you expect to pass about 9
+minutes still goes through `--detach` / `--wait` (relay: Runs longer than the shell cap).
+
 ### A run that ended unfinished: `run.unfinished FAIL run ended without finishing` (seam31)
 
 *Origin: seam31 run_never_ends_silently (legends leg 7: exit 0, no SUMMARY, three runs in a row).*
