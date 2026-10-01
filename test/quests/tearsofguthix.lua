@@ -66,7 +66,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::setvar qp 43",              -- prerequisite quest points (^tog_qp_req), earned elsewhere -- not this quest's own reward
+        "::setvar varp101_qp 43",      -- prerequisite quest points (^tog_qp_req), earned elsewhere -- not this quest's own reward
         "::setlevel firemaking 49",
         "::setlevel crafting 20",
         "::setlevel mining 20",
