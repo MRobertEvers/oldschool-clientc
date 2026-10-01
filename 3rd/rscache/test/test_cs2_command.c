@@ -7,16 +7,19 @@ int
 main(void)
 {
     RSCACHE_TEST_GROUP("canonical names from current VM metadata");
-    RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(103), "overlay_cc_create");
-    RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(1703), "cc_getcomponentparam");
+    RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(103), "cc_create_entityoverlay");
+    RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(1703), "cc_param");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(7000), "highlight_npc_setup");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(6750), "npc_name");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(6902), "p_routelength");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(7040), "highlight_group_setup");
     RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(8021), "enum_getoutputs");
-    RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(8022), "array_new");
+    RSCACHE_CHECK_STR_EQ(RSCache_CS2_CommandName(8022), "array_create");
 
     RSCACHE_TEST_GROUP("compiler command lookup");
+    RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("cc_param"), 1703);
+    RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("cc_create_entityoverlay"), 103);
+    RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("array_create"), 8022);
     RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("cc_getcomponentparam"), 1703);
     RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("CC_GETCOMPONENTPARAM"), 1703);
     RSCACHE_CHECK_EQ(RSCache_CS2_CommandOfName("highlight_npc_setup"), 7000);

@@ -642,19 +642,22 @@ cs2_cc_declare_local(
     /*
      * Which bank the name lives in.
      *
-     * A plain string local is the obvious case. An array *argument* is the
-     * other one: at this revision the elements live in the interpreter's own
-     * table (`Statics.field5246`, indexed by the array slot — see opcodes 44/45/
-     * 46 in the client), and what a caller actually passes is a handle, pushed
-     * with `push_string_local`. Script 465 in cache.osrs239 is the plain
-     * example: `[proc,script465](intarray, int, int)` and a trailer that reads
-     * `args 2i/1s`, with the recursive call pushing string local 0 first.
+     * A plain string local is the obvious case. Every array is the other one:
+     * an array *is* a string local holding a handle. DEFINE_ARRAY's operand
+     * names the string local that receives the handle (high half) and the
+     * element type (low byte); PUSH/POP_ARRAY_INT name that local and reach
+     * the elements through it. So passing an array to a proc pushes the string
+     * local (`[proc,script465](intarray, int, int)` reads `args 2i/1s`), a proc
+     * returning one is popped into a string local, and `array_create` stores
+     * its handle the same way. Across all of cache.osrs239 no array slot is
+     * ever also used as a plain string, and every array slot sits below the
+     * trailer's string-local count — there is no separate array bank.
      *
-     * A locally *defined* array is not an argument and gets no handle: it is
-     * reached only through its slot, so it stays where it was.
+     * So the bare name moves the handle: `$intarray0` alone is
+     * PUSH_STRING_LOCAL 0, `$intarray0 = ...` is POP_STRING_LOCAL 0, and
+     * `$intarray0(i)` is the element.
      */
-    cc->locals[index].is_string =
-        is_array ? is_argument : type == RSCACHE_CS2_TYPE_STRING;
+    cc->locals[index].is_string = is_array || type == RSCACHE_CS2_TYPE_STRING;
 
     if( cc->locals[index].is_string )
     {
@@ -708,7 +711,13 @@ cs2_cc_declare_local_from_name(struct cs2_cc_compiler* cc, const char* name)
     memcpy(identifier, name, head);
     identifier[head] = '\0';
 
+    /* A named local keeps its type as a suffix — `$count_int3`,
+     * `$label_string0`, `$order_intarray0` — so when the whole head is not a
+     * type, its last `_` word is. */
     enum RSCache_CS2_Type type = RSCache_CS2_TypeOfIdentifier(identifier);
+    const char* last_word = strrchr(identifier, '_');
+    if( type == RSCACHE_CS2_TYPE_NONE && last_word && last_word[1] != '\0' )
+        type = RSCache_CS2_TypeOfIdentifier(last_word + 1);
     if( type == RSCACHE_CS2_TYPE_NONE )
         type = RSCACHE_CS2_TYPE_INT;
     return cs2_cc_declare_local(cc, name, type, false);
@@ -3106,7 +3115,8 @@ cs2_cc_assign_target_type(struct cs2_cc_compiler* cc, const struct cs2_cc_token*
         int index = cs2_cc_find_local(cc, target->text);
         if( index < 0 )
             index = cs2_cc_declare_local_from_name(cc, target->text);
-        if( index >= 0 )
+        /* An array's value is its handle, not an element. */
+        if( index >= 0 && !cc->locals[index].is_array )
             return cc->locals[index].type;
         return RSCACHE_CS2_TYPE_NONE;
     }
@@ -3359,10 +3369,24 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         return;
     }
 
-    /* `def_<type> $name ...` — a declaration, and for an array also its size. */
+    /* `def_<type> $name ...` — a declaration, and for an array also its size.
+     * `def_<type>array $namearrayN = ...` declares an array local from a
+     * handle (`array_create`, a proc's return) rather than defining a new one. */
     if( cc->token.kind == CS2_CC_TOK_IDENT && strncmp(cc->token.text, "def_", 4) == 0 )
     {
-        enum RSCache_CS2_Type type = RSCache_CS2_TypeOfLiteral(cc->token.text + 4);
+        const char* type_text = cc->token.text + 4;
+        size_t type_length = strlen(type_text);
+        bool handle_array = false;
+        char base[64];
+        if( type_length > 5 && strcmp(type_text + type_length - 5, "array") == 0 &&
+            type_length - 5 < sizeof(base) )
+        {
+            memcpy(base, type_text, type_length - 5);
+            base[type_length - 5] = '\0';
+            type_text = base;
+            handle_array = true;
+        }
+        enum RSCache_CS2_Type type = RSCache_CS2_TypeOfLiteral(type_text);
         if( type == RSCACHE_CS2_TYPE_NONE )
         {
             cs2_cc_fail(cc, "'%s' does not name a type", cc->token.text);
@@ -3379,8 +3403,13 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         int index = cs2_cc_declare_local(cc, name, type, false);
         if( index < 0 )
             return;
+        if( handle_array && !cc->locals[index].is_array )
+        {
+            cs2_cc_fail(cc, "def_%sarray: '$%s' is not named as an array", type_text, name);
+            return;
+        }
 
-        if( cs2_cc_accept_punct(cc, '(') )
+        if( !handle_array && cs2_cc_accept_punct(cc, '(') )
         {
             cs2_cc_expression(cc, RSCACHE_CS2_TYPE_INT);
             cs2_cc_expect_punct(cc, ')');
@@ -3394,7 +3423,8 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
         }
         if( !cs2_cc_expect_punct(cc, '=') )
             return;
-        cs2_cc_expression(cc, type);
+        /* An array's value is its handle, not an element. */
+        cs2_cc_expression(cc, cc->locals[index].is_array ? RSCACHE_CS2_TYPE_NONE : type);
         cs2_cc_emit(
             cc,
             cc->locals[index].is_string ? RSCACHE_CS2_OP_POP_STRING_LOCAL
@@ -3439,9 +3469,9 @@ cs2_cc_statement(struct cs2_cc_compiler* cc)
 
         if( array_store )
         {
-            /* An array outlives a `gosub`, so a proc stores into one its caller
-             * defined and this script holds no `def_`. The name still says which
-             * slot and which element type. */
+            /* A proc can store into an array whose handle it received or was
+             * returned, so this script may hold no `def_` for it. The name
+             * still says which slot and which element type. */
             int index = cs2_cc_find_local(cc, targets[0].text);
             if( index < 0 )
                 index = cs2_cc_declare_local_from_name(cc, targets[0].text);
