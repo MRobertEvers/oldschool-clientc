@@ -333,7 +333,8 @@ server owns its state, shown back through `if_settext`: drive it with `t.ui.invo
 component text (Sir Ren's lock, seam20).
 
 **An IF1 button bound as `[if_button1,...]` never fires for a real click (matthew-mbp-m4-b47;
-FIXED for Ratcatchers in seam pass matthew-mbp-m4-b49-seam1).** A real click on an IF1 component
+FIXED for Ratcatchers in seam pass matthew-mbp-m4-b49-seam1, for Dwarf Cannon's toolkit and Grim
+Tales' piano in matthew-mbp-m4-b49-seam2).** A real click on an IF1 component
 (`if3=no` in its `.if`, any `buttontype`) sends the op-less IF_BUTTON (`app_send_if_button`,
 `src/app/app_net.c`), and the server runs `[if_button,<if>:<com>]` for it and nothing else
 (`handle_if_button` -> `ToriRSServer_ScriptsRunIfButton(uid, 0)`). That is LostCity's shape:
@@ -351,12 +352,18 @@ the plain IF_BUTTON (`<- IF_BUTTON 282:12` for the flute, seam1_flute_op1). On o
 with `if_setevents(..., ^if_event_op1)` it sends IF_BUTTON1 and runs `[if_button1,...]`
 (`<- IF_BUTTON1 409:3` in `mcannon`). A player's menu row on an IF1 button carries no op slot
 (`action_index -1`, `app_minimenu.c`), so it skips the numbered send and goes out as the plain
-IF_BUTTON (`RS_IF1_ApplyButtonClick`). Dwarf Cannon's toolkit (`mcannon.lua`, six
-`t.ui.invoke(w, 1)` rows, `mcannon_broken_cannon.rs2:87-93` arming op 1) is green on a press that,
-going by that code path, no click makes. Press an IF1 button with `op=0`. If that does nothing and
+IF_BUTTON (`RS_IF1_ApplyButtonClick`). Press an IF1 button with `op=0`. If that does nothing and
 the `.rs2` binds `[if_button1,...]` on an `if3=no` component, it is a `content_bug` naming that
-line. Still bound that way when this was written: `mcannon_broken_cannon.rs2:103-159` (7) and
-`grim_witchhouse.rs2:47-89` (Grim Tales' piano, 15, unarmed, so no press reaches it at all).
+line.
+
+FIXED (seam pass matthew-mbp-m4-b49-seam2): Dwarf Cannon's toolkit was green on six
+`t.ui.invoke(w, 1)` presses that no click makes, and Grim Tales' piano (15 keys, unarmed) took no
+press at all; both now bind `[if_button,...]` (`mcannon_broken_cannon.rs2`, 7;
+`grim_witchhouse.rs2`, 15). `mcannon.lua` presses op 0 (114/0 to the scroll); the piano's 8-note
+sequence on op 0 sets `varb3698_grim_piano_used` (scratch 22/0); conformance row
+`seam.if1_toolkit_and_piano_op0`. The op-1 arming at `mcannon_broken_cannon.rs2:87-93` is left in
+(an op-1 press now falls through to `[if_button,...]`). The last numbered binding seam1's scan of
+all 580 left on an IF1 name is `wornitems:call_follower` (summoning lane, compiled off).
 
 `%if1..%if6` are `scope=temp` screen scratch since seam24 (every open screen refills them; Death's
 Coffer's balance is `%death_coffer_balance`, and `~death_coffer_login_migrate` moves a pre-seam23

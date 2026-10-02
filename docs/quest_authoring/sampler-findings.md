@@ -190,6 +190,8 @@ still in view. `passTrap5-tile` passed on it while shot 117 shows "...and fail, 
 trap!", and the next `goto_tile` hopped past the trap. `passTrap2-again` and `passTrap4-again` did
 the same. Grade a retry on the tile it moved you to, or count the success lines before and after
 the press, as `climb()` in the same file already does.
+FIXED (b49-seam2): `helper_coverage` reads (a)'s hop and (b)'s stale trap rows as CHEAT
+(coverage-and-gate, "lands at ... without pressing the rockslide").
 
 (c) The Lost Tribe still steps onto the maze's floor trap on purpose and then `goto_tile`s from the
 Lumbridge Swamp Caves back to the cellar. It no longer `::give`s a lit lantern back, but the content
@@ -205,6 +207,8 @@ over the Underground Pass grid (Sample matthew-mbp-m4-b47 (a)). Leg 3 got the re
 leg 6's second walk still ran `goto-pullLeverAfterGrid-again` from the pit landing to the lever.
 Shot 382 reads "Teleported to 2466,9673,0". A relay leg that walks a route again is a copy of the
 first walk. After fixing a hop, `grep` the file for the same coordinates and fix every copy.
+FIXED (b49-seam2): `helper_coverage` reads the copy's hop as CHEAT on its own (coverage-and-gate,
+"lands at ... without pressing the rockslide").
 
 (b) A ROW THAT SUMS UP A ROUTE IS NOT EVIDENCE THAT IT WAS WALKED. `navigateMaze` and
 `goThroughUndergroundPassAgain` were `t.check(name, true, "<list of what ran>")`. Between those
@@ -250,6 +254,8 @@ the grid and the spear traps). It then drove those obstacles in a later leg, ent
 voyage cave by `goto_tile` and leaving the same way. Every guide step had a row, so FULL could not
 see this. Walk each route once, in guide order. Use `goto_tile` only between two tiles that a walk
 connects with no guide loc in the way.
+FIXED (b49-seam2): `helper_coverage` now reads (b)'s and (c)'s hops as CHEAT (coverage-and-gate,
+"lands at ... without pressing the rockslide"; the round-6 file d3505f4ee reads TEST_GAP).
 
 ## Sample matthew-mbp-m4-b48, fourth check (2026-10-02)
 

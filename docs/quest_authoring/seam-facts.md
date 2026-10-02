@@ -1004,7 +1004,8 @@ unchanged. Proof: scratch `flute_if1` 0 -> 27/0 (stage 105, "procession of rats"
 test with its `t.blocked` replaced by the tune ran to the completion scroll, 211/0; conformance row
 `seam.if1_button_unnumbered_trigger`. Still bound the dead way: `mcannon_broken_cannon.rs2:103-159`
 (7, green only because content arms op 1 and the test presses op 1) and `grim_witchhouse.rs2:47-89`
-(Grim Tales' piano, 15, unarmed). Detail: traps-23-33, Trap 33.
+(Grim Tales' piano, 15, unarmed); both FIXED in seam pass matthew-mbp-m4-b49-seam2 (a). Detail:
+traps-23-33, Trap 33.
 
 (b) Zembo had no spawn, script or stock, so Tai Bwo Wannai Trio's getRum answered `no_row zembo`.
 Ported from LostCity_Server (m45_49.jm2 `0 45 7: zambo` = 2925,3143; `zambo.rs2`; `karamja.npc`
@@ -1029,4 +1030,39 @@ fixer proved it on a private pack, before 12/6, after 18/18, control 12/6; runni
 file with the armour kit ran 97/97 to the scroll on the shared pack (`closer_tl_shared`).
 
 Not run this pass: the design seam "a travel goto across a guide-named obstacle is CHEAT" (Regicide
-9c28a4e0c) had no fixer; `helper_coverage.py` is unchanged.
+9c28a4e0c) had no fixer; `helper_coverage.py` is unchanged. FIXED in seam pass
+matthew-mbp-m4-b49-seam2 (c).
+
+## Seam pass matthew-mbp-m4-b49-seam2 (2026-10-02, batch matthew-mbp-m4-b49)
+
+(a) Dwarf Cannon's toolkit and Grim Tales' piano take the IF1 press. Both interfaces are `if3=no`,
+so a click sends the op-less IF_BUTTON and only `[if_button,...]` runs (LostCity_Server
+`IfButtonHandler.ts:31`); the content bound them `[if_button1,...]`. Rebound: 7 in
+`mcannon_broken_cannon.rs2`, 15 in `grim_witchhouse.rs2`; `mcannon.lua`'s toolkit loop presses
+op 0. Before: an op-0 press set nothing (`seam2_mcannon_before`, `seam2_piano_before`: "no trigger
+for [if_button0,grim_piano:ue] or [if_button,grim_piano:ue]"). After: scratch 17/0 and 22/0, and
+mcannon 114/0 to the scroll. Conformance row `seam.if1_toolkit_and_piano_op0`. Trap 33.
+
+(b) Tai Bwo Wannai Trio's XP is CLAIMED FROM THE BROTHERS, not awarded at completion. The b49
+review read "the quest gives none of its documented XP"; the OSRS wiki ("Tai Bwo Wannai Trio",
+oldid 15265886, Rewards: "claimed upon speaking to Tinsay / Tiadeche / Tamayu after quest
+completion"), Quest Helper (`TaiBwoWannaiTrio.java` talkToTimfrakuEnd) and LostCity's
+`tbwt_{tinsay,tiadeche,tamayu}_final.rs2` all pay it when you talk to each brother in the village
+afterwards, and the port already does. So at the scroll every skill delta is +0; assert
+`t.skill.expect_gain` after each claim (Tinsay 5000 Cooking, Tiadeche 5000 Fishing, Tamayu 2500
+Attack + 2500 Strength and the kp rune spear; the npcs are the `*_multinpc_house` symbols). The
+scroll itself now reads the wiki's `File:Tai_Bwo_Wannai_Trio_reward_scroll.png`: `2 Quest Points |
+5000 Fishing XP | 5000 Cooking XP | 2500 Attack XP | 2500 Strength XP`, karambwan model, no coins
+line (the 2,000 coins are Timfraku's own `inv_add`). That string is pinned by
+`tools/check_quest_combat_contract.py`, so it changed in one commit with the pin: a content seam
+whose string a contract check pins cannot land from a content-only worker -- name the pin in the
+triage's files. Proof: scratch `close2_tbwt_scroll` 36/0 on the shared pack; a copy of the working
+`tbwt.lua` with the claim legs 211/0 (relay in `wip/tbwt`). The vessel now loads ONE karambwanji
+(content-gaps, Tai Bwo Wannai Trio).
+
+(c) A travel `goto_tile` across a route obstacle the guide names reads CHEAT in `helper_coverage`,
+even when another row pressed the same loc elsewhere, and a crossing row that passed on an earlier
+attempt's server line reads CHEAT too (coverage-and-gate, "lands at ... without pressing the
+rockslide"). The three reverted Regicide runs go FULL/FULL/CONTENT_GAP -> TEST_GAP/TEST_GAP/MIXED on
+the hops their samplers named; the green regicide and all 99 committed greens are unchanged step by
+step. `--ledger` grades another run's ledger.

@@ -133,7 +133,88 @@ FULL grades only the steps the ladder holds. Regicide read FULL (64 of 64) while
 `crossTheGrid` and its sub-steps `climbOverRockslide4` and `climbOverRockslide5` (the grid between
 the pit and the lever) never appeared in the ladder, and the test crossed them with one `goto_tile`
 (sampler-findings: Sample matthew-mbp-m4-b47). Read the guide's whole `ConditionalStep` tree for
-the stretch you drive, and drive every obstacle in it, listed or not.
+the stretch you drive, and drive every obstacle in it, listed or not. Since seam
+matthew-mbp-m4-b49-seam2 such a hop reads CHEAT anyway: see "lands at ... without pressing the
+rockslide" below.
+
+### "lands at ... without pressing the rockslide ... names" / "PASSed, but the newest server line of its attempt is" (b49-seam2)
+
+*Origin: Regicide was sent back three times (reverts 9c28a4e0c, 9260f12d8, 7fc9688a4) for `goto_tile`
+hops across the Underground Pass and the Tirannwn forest, each read FULL 64/64. The ladder grades
+`climbOverRockslide1`..`5` and `passTrap1`..`5` as one step each (siblings that differ in one name word
+are "one step, done any way"), so one press of rockslide 1 drove all five, and `crossTheGrid` was in no
+ladder at all.*
+
+**A goto across a route obstacle is CHEAT, whatever else drove the step.** Every `ConditionalStep` in
+the guide is read, not only the branch-only states (seam36). An ObjectStep on an obstacle loc (a
+door or gate, a rockslide, spear trap, rock swing, log, pitfall, tripwire, dense forest, ledge, ...; a
+plain ladder or stair stays travel) that an `addStep(<zone>, step)` shows in zone A is skipped when a
+goto row:
+
+- left from a reading inside A (the run's own positions: a goto's `at x,z,l`, `standing at x,z level
+  l`, `from a,b to x,z`, `tile=`, `teleport: a -> b`, a bare `x,z`; never the server lines quoted after
+  ` :: `, and never `pressed the copy at`),
+- landed outside A in another state of that route (a zone of the same `ConditionalStep`, or of any
+  `ConditionalStep` that shows it, such as the pass section around a sub-route),
+- on the same level of the same map frame (a climb or a dungeon exit is judged by the climb rules
+  above),
+- with no press of that step's own copy between them. A press names its copy as `pressed the copy at
+  x,z,l`; a copy more than 4 tiles from the step's WorldPoint, like rockslide 1 for rockslide 4, does
+  not count.
+
+The step reads CHEAT even when another row pressed the same loc elsewhere. A step no ladder lists is
+added to the report as its own CHEAT row. Example:
+`climbOverRockslide4: ledger row 71 'goto-pullLeverAfterGrid' lands at 2466,9673,0 (isAfterTheGrid)
+from 2466,9699,0 (isAfterThePit, row 69 'crossThePit-tile') without pressing the rockslide
+climbOverRockslide4 names (rockslide2_obstacle_upass)`.
+
+Where one zone is a state of several routes heading different ways (Regicide's `inWestForestPath`
+shows the ring of leaves on the way to Iorwerth and the dense forest on the way to Tyras), the hop is
+charged to the step whose WorldPoint it heads toward. It is charged to every candidate only when it
+heads toward none of them.
+
+**A crossing row passes on THIS attempt's line.** A PASS row named after an obstacle step whose last
+` :: ` chat block opens with a failure (`...and fail, activating the trap!`; the block lists the
+newest line first, and a multi-attempt detail's last block is its last attempt) is CHEAT: `ledger row
+93 'passTrap5-tile' PASSed, but the newest server line of its attempt is '...and fail, activating the
+trap!'`. Regicide's own `last_lines(4)` check found trap 4's "...and succeed" still in view. Count
+the success lines before and after the press, or check the tile the attempt moved you to.
+
+Drive it as the game does. Walk the route with `walk_to` hops and `click_loc` each obstacle, and
+re-read the tile after each crossing (`standing at x,z level l`). Use `goto_tile` only between two
+tiles in one state of the route, or out of it the way a player teleports out.
+
+Not judged:
+
+- a hop with any loc press, walk, `use_on` or cast between the last reading and the goto, because the
+  start is unknown (re-read the tile after a crossing and the hop is judged from there);
+- a hop back into the zone the run walked into A from (Regicide leg 6's two-tile step back east
+  to `passTrap5`'s stand tile);
+- a hop that starts outside every obstacle zone (re-entering the pass from the surface).
+
+Proof (`--ledger` grades another run's ledger):
+
+```sh
+git show 2c35057c6:test/quests/regicide.lua > /tmp/r.lua
+git -C OSRS-Content show 5f4908df1:osrs239-content/server/scripts/selftest/quests/quest_regicide/play/ledger.tsv > /tmp/r.tsv
+python3 tools/quest_gate/helper_coverage.py regicide --lua /tmp/r.lua --ledger /tmp/r.tsv
+```
+
+Results:
+
+| Run | Before | After |
+| --- | --- | --- |
+| 2c35057c6 | FULL 64/64 | TEST_GAP |
+| d3505f4ee | FULL 64/64 | TEST_GAP |
+| 5deefa070 | CONTENT_GAP | MIXED |
+| Green regicide (473 rows) | FULL | FULL |
+| Committed greens, last runs (`build/quest_gate`) | 99 FULL | 99 FULL, no step changed class |
+| Committed greens, published ledgers | 93 FULL + 6 older evidence | the same, no step changed class |
+
+The reverted runs read TEST_GAP from the hops their samplers named: pit to lever, plank room to well,
+temple to Iban's room, trap to trap, Tyras's camp to the sulphur, past the forests, ring to log, and
+the three stale trap rows. 5deefa070's ring-to-log re-teleport reads CHEAT; its mid-run `::setlevel
+agility 99` is not a goto and is not this rule's.
 
 ### A `BLOCKED` row reports `blocked`
 

@@ -119,15 +119,13 @@ ported from its source, kept in a quest-local `.spawn` the generator cannot clea
 `t.shop.open("zembo", 3, "boozeshop")`; rum is 30 coins (conformance row
 `seam.zembo_boozeshop_sells_rum`).
 
-## Tai Bwo Wannai Trio: loading the karambwan vessel eats the WHOLE karambwanji stack (matthew-mbp-m4-b49)
+## Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji (FIXED b49-seam2)
 
-Symptom: after `fillVessel` the backpack has no raw karambwanji left, and a later step that needs one
-fails: a second vessel load, or `makeKarambwanjiPaste` (the pestle on a karambwanji). The cause is
-`[proc,tbwt_load_karambwan_vessel]` (`quest_tbwt.rs2:96-107`). It removes the karambwanji with
-`inv_delslot`, which clears the whole slot, and `tbwt_raw_karambwanji` is `stackable=1` (`all.obj`).
-So the 23 the guide asks for all go into one vessel. LostCity's `quest_tbwt.rs2:42-54` is the same
-code, so this is the port's source and not a slip. Whether it matches the game is open: nobody has
-sourced it against the OSRS wiki. Do not "fix" it in a test, and do not change the content until a
-source settles it. For now, net again before each load and before the paste, as `tbwt.lua` does (the
-re-net loops are bounded). If a source shows that one load uses one fish, it becomes a content_bug
-report that names `quest_tbwt.rs2:98/103`.
+Symptom before the fix: after `fillVessel` the backpack had no raw karambwanji left, so a second
+load or `makeKarambwanjiPaste` found none. `[proc,tbwt_load_karambwan_vessel]` cleared the
+karambwanji's slot with `inv_delslot`, and this cache's `tbwt_raw_karambwanji` is `stackable=1`, so
+one load ate the stack. LostCity's code is the same, but its karambwanji is not stackable
+(`fishing.obj`), so there the slot was one fish. The OSRS wiki ("Raw karambwanji", oldid 15184350)
+loads one. The proc now does `inv_del(inv, tbwt_raw_karambwanji, 1)`: 5 -> 4 -> 3 in both use
+orders (conformance row `seam.tbwt_vessel_loads_one_karambwanji`). Leftover karambwanji stay in the
+pack, so a test no longer has to net again before each load.
