@@ -1,5 +1,5 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
-quest_animalmagnetism	animalmagnetism	animalmagnetism		4	content_bug	matthew-mbp-m4-b50	content_bug: Turael (talkToTurael, 2931,3536 Burthorpe) has no spawn row; no *.spawn places slayer_master_1_tureal, so the blessed axe (stage 170 to 180) is unreachable without ::give. Stages 0..170 green.		
+quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
