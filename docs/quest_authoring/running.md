@@ -23,7 +23,8 @@ python3 tools/quest_gate/queue.py summary                       # tier x status
 python3 tools/quest_gate/new_quest.py <test_id>
 # Run: first time or after a C change; --no-build for Lua-only iteration
 # (always pass it -- trap 9); --all --no-build --no-publish for every
-# quest without touching OSRS-Content's copy:
+# quest without touching OSRS-Content's copy (a seam pass's regression runs too:
+# without it a green run republishes selftest/quests/<dir>/play, vm-b1-seam3 (d)):
 python3 tools/quest_gate/run.py <quest>
 python3 tools/quest_gate/gate.py <quest>   # the verdict; read this, not run.py's exit code
 # Report back (status is one of todo green blocked content_bug):

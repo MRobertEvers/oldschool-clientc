@@ -717,17 +717,23 @@ presses again from 2629,4057) -> `peng_jump_stone_clickzone_01..07`. The first i
 flake (`pickset held=false`): retry it. Not ported: the crushers do not move or hit (no source
 gives the timing).
 
-## Burgh de Rott inn: the Broken wall and the pub trapdoor (Darkness of Hallowvale, vm-b1-seam2)
+## Burgh de Rott inn: the Broken wall and the pub trapdoor (Darkness of Hallowvale, FIXED vm-b1-seam2/seam3)
 
 `burgh_inn_climb_over` (loc 12737) sits on the NORTH edge of 3491,3230,0 and crosses 3491,3230 <->
 3491,3231 (FIXED vm-b1-seam2, OSRS-Content a0bdfa073c; before it answered "Nothing interesting happens."). Agility 10
 northward only (a mesbox refuses below it), none southward, 0.5 XP a crossing (OSRS wiki 'Broken
-wall (Burgh de Rott)'): `t.skill.expect_gain` cannot see one crossing, read a pair as +1. Open (the
-next stop): the opened trapdoor `burgh_inn_trapdoor_open` binds `~climb_ladder(-1)`
-(`ladders_stairs/scripts/climb_shared.rs2`), which from plane 0 answers "You can't go any further."
--- the basement is underground (z+6400), so guide step `enterBurghPubBasement` needs an explicit
-`~climb_ladder_to(<basement tile>)`, and the basement ladder up (`burgh_inn_basement_ladderup`,
-`myreque2_burgh.rs2`) is probably wrong the same way; confirm both tiles from m54_50/m54_150.
+wall (Burgh de Rott)'): `t.skill.expect_gain` cannot see one crossing, read a pair as +1.
+
+The pub trapdoor (FIXED vm-b1-seam3, OSRS-Content dca1c3a937; before, the generated
+`~climb_ladder(-1)` answered "You can't go any further." from plane 0): the Myreque hideout under the
+inn is a separate underground region (`m54_150`, z+6400), not the plane below. Drive it as op 1 Open
+then op 1 Climb-down on `burgh_inn_trapdoor_multiloc` (3490,3232,0): you land on your own x with z
+plus 6400 (`teleport: 3491,3232,0 -> 3491,9632,0`), inside Quest Helper's `newBase`, Veliaf at
+3494,9628. The ladder `burgh_inn_basement_ladderup` (3490,9632,0) op 1 is the mirror (z minus 6400,
+back into the trapdoor room, e.g. 3490,3231,0). `[oploc1,burgh_inn_trapdoor_open]` is owned by
+`doh_burgh.rs2`; the ladder by `myreque2_burgh.rs2` (it still writes In Aid of the Myreque's stage).
+A scratch copy drove the wall, the trapdoor, Veliaf, the boat and the chute to stage 40
+(`arrived_wall`, 3604,3161,1); seam-facts, Seam pass vm-b1-seam3 (b).
 
 ## A player-owned house is bare grass; `loc_near` finds no hotspot (FIXED vm-b1-seam1)
 
