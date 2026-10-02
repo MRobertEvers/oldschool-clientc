@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""A fake `gh` for the claim.py two-machine test: pr create / view / edit,
+state in $GH_SHIM_STATE (per repo, keyed by the cwd's origin basename)."""
+import json, os, subprocess, sys
+
+state_path = os.environ["GH_SHIM_STATE"]
+state = json.load(open(state_path)) if os.path.exists(state_path) else {}
+url = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True).stdout.strip()
+repo = os.path.basename(url).replace(".git", "") or "unknown"
+prs = state.setdefault(repo, {})
+args = sys.argv[1:]
+with open(state_path + ".log", "a") as log:
+    log.write("gh[%s] %s\n" % (repo, " ".join(a if " " not in a else repr(a) for a in args)))
+
+
+def opt(name):
+    return args[args.index(name) + 1] if name in args else None
+
+
+def save():
+    json.dump(state, open(state_path, "w"), indent=1)
+
+
+if args[:2] == ["pr", "create"]:
+    n = str(len(prs) + 1)
+    prs[n] = {"number": int(n), "head": opt("--head"), "base": opt("--base"), "title": opt("--title"),
+              "state": "OPEN", "body": open(opt("--body-file")).read(),
+              "url": "https://github.com/fake/%s/pull/%s" % (repo, n), "mergeable": "MERGEABLE"}
+    save()
+    print(prs[n]["url"])
+elif args[:2] == ["pr", "view"]:
+    ref = args[2]
+    pr = prs.get(ref) or next((p for p in reversed(list(prs.values())) if p["head"] == ref), None)
+    if not pr:
+        print("no pull requests found for branch \"%s\"" % ref, file=sys.stderr)
+        sys.exit(1)
+    fields = opt("--json").split(",")
+    out = {f: pr.get(f) for f in fields}
+    if "mergedAt" in fields:
+        out["mergedAt"] = "2026-10-01T23:00:00Z" if pr["state"] == "MERGED" else None
+    print(json.dumps(out))
+elif args[:2] == ["pr", "edit"]:
+    pr = prs[args[2]]
+    pr["title"] = opt("--title") or pr["title"]
+    if opt("--body-file"):
+        pr["body"] = open(opt("--body-file")).read()
+    save()
+elif args[:1] == ["shim-set"]:          # gh shim-set <repo> <n> <STATE>
+    state[args[1]][args[2]]["state"] = args[3]
+    save()
+else:
+    print("gh shim: unsupported %s" % args, file=sys.stderr)
+    sys.exit(1)

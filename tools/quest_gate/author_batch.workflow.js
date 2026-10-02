@@ -3,11 +3,11 @@ export const meta = {
   description: 'Resumable author batch: one author per quest, a reviewer per quest, one queue write, an Opus sample, a contact sheet -- every step persists under build/author_state/<batch>/ and relaunching with the same args continues from disk',
   phases: [
     { title: 'State', detail: 'Sonnet: which quests of this batch are already reviewed' },
-    { title: 'Claim', detail: 'Sonnet: claim.py batch -- claims the quests across machines; a quest another machine holds is dropped' },
+    { title: 'Claim', detail: 'Sonnet: claim.py batch -- claims the quests across machines; a quest another machine holds is dropped (batch mode: no claim here -- the State step checked the batch holds every quest)' },
     { title: 'Author', detail: 'Sonnet authors; each writes <id>.author.json and a progress notebook' },
     { title: 'Review', detail: 'Sonnet reviewers; each commits and writes <id>.review.json; nobody touches QUEUE.tsv here' },
     { title: 'Queue', detail: 'Sonnet: ONE write of every row from the review files (no clobber race)' },
-    { title: 'Sample', detail: 'Opus: adversarial sample, reverts, commits wip/, syncs with origin, pushes, releases claims; idempotent' },
+    { title: 'Sample', detail: 'Opus: adversarial sample, reverts, commits wip/, syncs with origin, pushes (batch mode: claim.py pr-prepare --push to the branch, no release), releases claims; idempotent' },
     { title: 'Sheet', detail: 'Sonnet: builds the contact sheet under the artifact size limit; the orchestrator publishes' },
   ],
 }
@@ -35,21 +35,40 @@ export const meta = {
 // TRACKED test/quests/wip/<id>/ so another machine can resume them; the
 // sampler (or the closer when nothing was accepted) commits wip/, syncs both
 // repos with origin before pushing, and releases the batch's leftover claims.
+//
+// BATCH MODE (2026-10-01, docs/QUEST_ORCHESTRATOR.md): args { batch:
+// "mac1-b49", round: N, tests: [...], relay, sheet_dir } -- the authoring
+// round of a batch of quests this machine claimed with claim.py start, run on
+// the batch's branch in both repos and named <batch>-author<N> (its state dir
+// build/author_state/<batch>-author<N>/). There is no Claim phase: the State
+// step runs claim.py status --batch <batch> --require <tests> and the batch
+// stops unless the batch holds every test on v3. The queue step and the
+// sampler write verdicts into the BRANCH's QUEUE.tsv (v3 keeps the rows
+// `claimed` until claim.py done); the sampler commits on the branch, runs
+// claim.py pr-prepare <batch> --push, and releases nothing. Without
+// args.round this is the v3 batch above, and it refuses any branch but v3
+// (and batch mode refuses v3).
 
 const WT = '/Users/matthewevers/Documents/git_repos/3draster'
-const batch = args && args.batch
+const round = args && args.round
+const batchMode = round !== undefined && round !== null
+const questBatch = args && args.batch
+const batch = batchMode ? (questBatch && `${questBatch}-author${round}`) : questBatch
 const tests = (args && args.tests) || []
 const authorModel = (args && args.author_model) || 'claude-sonnet-5-5'
 const relay = (args && args.relay) || {}   // { test_id: number of legs } -- from `python3 tools/quest_gate/ladder.py <id>`; a quest over ~30 guide steps is authored as a relay
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
-if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
+if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11"; batch mode: the batch of quests claim.py start claimed, with args.round)')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
 const STATE = `${WT}/build/author_state/${batch}`
 const WIP = (id) => `${WT}/test/quests/wip/${id}`   // tracked: relay legs, notebooks, hand-off, parked file
 
-const COMMON = `Work ONLY inside ${WT} (branch v3). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.`
+const COMMON = `Work ONLY inside ${WT} (${batchMode ? `on batch ${questBatch}'s branch in BOTH repos -- never v3` : 'branch v3'}). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.`
 
-const SYNC = `SYNC WITH ORIGIN BEFORE YOU COMMIT -- several machines push to v3 (docs/QUEST_ORCHESTRATOR.md "Closing"): (a) git -C ${WT}/OSRS-Content fetch origin && git -C ${WT}/OSRS-Content merge --no-edit origin/v3 ; (b) git -C ${WT} fetch origin && git -C ${WT} merge --no-edit origin/v3. If git refuses a merge because a file you edited would be overwritten (test/quests/QUEUE.tsv is the usual one: other machines' claims land there), commit that file first and merge after -- the clash then becomes a conflict. A conflict in test/quests/QUEUE.tsv, test/quests/BATCHES.tsv or tools/quest_gate/PARITY.tsv: python3 ${WT}/tools/quest_gate/claim.py merge-tsv <each conflicted tsv> then git commit --no-edit (one row per test_id/batch; for QUEUE.tsv a verdict beats claimed beats todo; otherwise ours). A conflict in a file this pass changed: resolve it by hand keeping both sides' work and re-run the gate it touches; a conflict anywhere else: git merge --abort and report it. Then commit the submodule, stage the OSRS-Content gitlink of the MERGED submodule in the parent, commit, and push both (git -C ${WT}/OSRS-Content push origin HEAD:v3 ; git -C ${WT} push origin v3). A rejected push: fetch and merge again ((a)-(b)) once, then push. Never force, rebase, reset or stash.`
+const V3_SYNC = `SYNC WITH ORIGIN BEFORE YOU COMMIT -- several machines push to v3 (docs/QUEST_ORCHESTRATOR.md "Closing"): (a) git -C ${WT}/OSRS-Content fetch origin && git -C ${WT}/OSRS-Content merge --no-edit origin/v3 ; (b) git -C ${WT} fetch origin && git -C ${WT} merge --no-edit origin/v3. If git refuses a merge because a file you edited would be overwritten (test/quests/QUEUE.tsv is the usual one: other machines' claims land there), commit that file first and merge after -- the clash then becomes a conflict. A conflict in test/quests/QUEUE.tsv, test/quests/BATCHES.tsv or tools/quest_gate/PARITY.tsv: python3 ${WT}/tools/quest_gate/claim.py merge-tsv <each conflicted tsv> then git commit --no-edit (one row per test_id/batch; for QUEUE.tsv a verdict beats claimed beats todo; otherwise ours). A conflict in a file this pass changed: resolve it by hand keeping both sides' work and re-run the gate it touches; a conflict anywhere else: git merge --abort and report it. Then commit the submodule, stage the OSRS-Content gitlink of the MERGED submodule in the parent, commit, and push both (git -C ${WT}/OSRS-Content push origin HEAD:v3 ; git -C ${WT} push origin v3). A rejected push: fetch and merge again ((a)-(b)) once, then push. Never force, rebase, reset or stash.`
+// Batch mode: the work stays on the batch branch; claim.py pr-prepare merges v3 in and pushes the branch.
+const BATCH_SYNC = `SYNC (BATCH MODE, docs/QUEST_ORCHESTRATOR.md "Closing on a batch branch"): this checkout and its OSRS-Content are on batch ${questBatch}'s branch, never v3 -- nothing this batch does is pushed to v3 (only claim.py writes claims there). Commit by explicit path, the SUBMODULE first, then the parent with the OSRS-Content gitlink, WITHOUT pushing; then run python3 ${WT}/tools/quest_gate/claim.py pr-prepare ${questBatch} --push in the FOREGROUND: it fetches both repos, merges origin/v3 into the batch branch (QUEUE/BATCHES/PARITY.tsv row by row; OSRS-Content pack/*.alloc by v3's copy plus a re-allocation and a pack rebuild; the gitlink), commits the merge and pushes both repos to origin <branch>. Exit 0 = pushed. Exit 2 = refused with the reason: a conflict in a file this batch changed is yours -- resolve it by hand keeping both sides' work, commit, run pr-prepare again; any other conflict: stop and report. Never push to v3, never force, rebase, reset or stash.`
+const SYNC = batchMode ? BATCH_SYNC : V3_SYNC
 const CLAIM_SCHEMA = { type: 'object', properties: { exit: { type: 'integer' }, claimed: { type: 'array', items: { type: 'string' } }, dropped: { type: 'array', items: { type: 'string' } }, output: { type: 'string' } }, required: ['exit', 'claimed', 'dropped', 'output'] }
 
 const AUTHOR_SCHEMA = { type: 'object', properties: {
@@ -75,7 +94,8 @@ const STATE_SCHEMA = { type: 'object', properties: {
   authored: { type: 'array', items: AUTHOR_SCHEMA },
   queue_written: { type: 'boolean' }, sampled: { type: 'boolean' }, sheet_built: { type: 'boolean' },
   queue_written_ids: { type: 'array', items: { type: 'string' } }, sample_considered: { type: 'array', items: { type: 'string' } }, sample_sent_back: { type: 'array', items: { type: 'string' } },
-}, required: ['reviewed', 'authored', 'queue_written', 'sampled', 'sheet_built', 'queue_written_ids', 'sample_considered', 'sample_sent_back'] }
+  branch: { type: 'string' }, gate_exit: { type: 'integer' }, gate_output: { type: 'string' },
+}, required: ['reviewed', 'authored', 'queue_written', 'sampled', 'sheet_built', 'queue_written_ids', 'sample_considered', 'sample_sent_back', 'branch', 'gate_exit', 'gate_output'] }
 const SHEET_SCHEMA = { type: 'object', properties: { index_html: { type: 'string' }, files: { type: 'array', items: { type: 'string' } }, bytes: { type: 'integer' }, quality: { type: 'integer' }, quests: { type: 'array', items: { type: 'string' } } }, required: ['index_html', 'files', 'bytes', 'quality', 'quests'] }
 
 const attempt = async (label, tries, make) => {
@@ -144,7 +164,10 @@ Do NOT edit QUEUE.tsv (the Queue phase writes every row once from the review fil
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
-YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; queue_written_ids = its "written" list (or []); sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or its "checked" list, or []); sample_sent_back = its "sent_back" list (or []); sheet_built = ${STATE}/sheet.json exists. Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false, queue_written_ids: [], sample_considered: [], sample_sent_back: [] }
+YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; queue_written_ids = its "written" list (or []); sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or its "checked" list, or []); sample_sent_back = its "sent_back" list (or []); sheet_built = ${STATE}/sheet.json exists. BRANCH: branch = the output of git -C ${WT} branch --show-current, verbatim (empty when detached). ${batchMode ? `THE BATCH GATE: run python3 ${WT}/tools/quest_gate/claim.py status --batch ${questBatch} --require ${tests.join(' ')} in the foreground; gate_exit = its exit code, gate_output = its LAST line verbatim.` : 'gate_exit 0 and gate_output "" without running anything.'} Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false, queue_written_ids: [], sample_considered: [], sample_sent_back: [], branch: '', gate_exit: -1, gate_output: 'the state agent returned nothing' }
+if (batchMode && state.branch === 'v3') throw new Error(`batch mode (args.round) runs on batch ${questBatch}'s branch, and this checkout is on v3: python3 tools/quest_gate/claim.py start ${questBatch} <ids...> creates it in both repos (docs/QUEST_ORCHESTRATOR.md)`)
+if (!batchMode && state.branch !== 'v3') throw new Error(`this checkout is on '${state.branch}', not v3: an author round on a batch branch is launched in batch mode (args { batch, round, tests }); without args.round it would claim and push to v3 from the wrong branch`)
+if (batchMode && state.gate_exit !== 0) throw new Error(`batch gate failed (claim.py status exit ${state.gate_exit}): ${state.gate_output} -- exit 3: batch ${questBatch} does not hold every test on v3 (claim.py batch ${questBatch} <ids>, or drop them from args.tests); exit 2: wrong branch`)
 // A quest the sampler sent back is authored again: its old author/review files are ignored (the author removes them).
 const sentBack = new Set(state.sample_sent_back || [])
 const keptReviews = state.reviewed.filter(r => !sentBack.has(r.test_id))
@@ -158,7 +181,10 @@ phase('Claim')
 // machine took in between is dropped (docs/QUEST_ORCHESTRATOR.md).
 const toClaim = tests.filter(id => !reviewedIds.has(id))
 let claim = { exit: 0, claimed: [], dropped: [], output: 'nothing to claim: every quest of this batch is reviewed' }
-if (toClaim.length) {
+if (batchMode) {
+  // The State step's gate proved batch questBatch holds every test on v3.
+  claim = { exit: 0, claimed: toClaim, dropped: [], output: `batch mode: ${state.gate_output}` }
+} else if (toClaim.length) {
   claim = (await attempt('claim', 2, () => agent(`${COMMON}
 
 YOUR JOB: claim this batch's quests in test/quests/QUEUE.tsv for this machine, nothing else (docs/QUEST_ORCHESTRATOR.md). Quests: ${toClaim.join(' ')}. (1) For each, python3 ${WT}/tools/quest_gate/queue.py show <id>: a row whose status is claimed and whose owner starts with "${batch}@" is already this batch's. (2) If every quest is already this batch's, run nothing else: exit 0, claimed = all of them, dropped = []. (3) Otherwise run, in the FOREGROUND, exactly once: python3 ${WT}/tools/quest_gate/claim.py batch ${batch} <the quests not already this batch's>. It fetches, claims, commits and pushes test/quests/QUEUE.tsv itself: never edit QUEUE.tsv by hand, never commit or push anything else, never retry it, never merge or fix the checkout if it refuses. Report exit = its exit code (0 claimed, 2 refused, 3 nothing left to claim), claimed = the ids it printed after "claimed by ...:" plus the ids already this batch's from (1), dropped = one entry per "dropped: <id> (<reason>)" line it printed, verbatim, output = its stdout and stderr verbatim (at most 1200 characters).`, { label: 'claim', model: 'claude-sonnet-5-5', effort: 'low', schema: CLAIM_SCHEMA }))) || { exit: -1, claimed: [], dropped: [], output: 'the claim agent returned nothing' }
@@ -235,7 +261,8 @@ phase('Sample')
 // The batch's last commits -- the wip/ directories, the sync with origin, the
 // push, and the release of claims the batch did not finish -- run in the
 // sampler, or in a closer of their own when nothing new was accepted.
-const landSteps = `WORK IN PROGRESS: for each quest of this batch (${batchTests.join(' ')}) -- if its QUEUE row is green now, remove test/quests/wip/<id>/ if it exists (git rm -r -q test/quests/wip/<id> for tracked files, rm -r for untracked ones); otherwise, if test/quests/wip/<id>/ exists, git add test/quests/wip/<id> -- then commit exactly those paths ("quests: work in progress after ${batch}", trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"); never commit build/. ${SYNC} Then, with both repos pushed and level (git rev-list --count origin/v3..HEAD prints 0 in both), release this batch's leftover claims: python3 ${WT}/tools/quest_gate/claim.py release ${batch} (it commits and pushes QUEUE.tsv itself; a row whose verdict the Queue phase or you wrote is no longer claimed and is untouched; a row you sent back to todo is now free, and a relaunch of this batch re-claims it first)`
+const RELEASE_STEP = batchMode ? `Do NOT run claim.py release: in batch mode the batch keeps every quest claimed on v3 until the orchestrator runs claim.py done ${questBatch} (a row you sent back to todo is still the batch's)` : `Then, with both repos pushed and level (git rev-list --count origin/v3..HEAD prints 0 in both), release this batch's leftover claims: python3 ${WT}/tools/quest_gate/claim.py release ${batch} (it commits and pushes QUEUE.tsv itself; a row whose verdict the Queue phase or you wrote is no longer claimed and is untouched; a row you sent back to todo is now free, and a relaunch of this batch re-claims it first)`
+const landSteps = `WORK IN PROGRESS: for each quest of this batch (${batchTests.join(' ')}) -- if its QUEUE row is green now, remove test/quests/wip/<id>/ if it exists (git rm -r -q test/quests/wip/<id> for tracked files, rm -r for untracked ones); otherwise, if test/quests/wip/<id>/ exists, git add test/quests/wip/<id> -- then commit exactly those paths ("quests: work in progress after ${batch}", trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"); never commit build/. ${SYNC} ${RELEASE_STEP}`
 const consideredIds = new Set((state.sample_considered || []).filter(x => !sentBack.has(x)))
 const accepted = reviewed.filter(r => r.verdict === 'accepted' && !consideredIds.has(r.test_id))
 let sample = null

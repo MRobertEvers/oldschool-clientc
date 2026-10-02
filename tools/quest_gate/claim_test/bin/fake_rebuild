@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Stands in for `make -C src torirsserver-scripts` in the claim.py test: like
+tools/ss_allocate.py, appends every [name] declared in configs/*.dbrow that
+pack/dbrow.alloc does not know, from one past the largest id. Runs in REPO."""
+import glob, os, re
+
+tree = os.path.join(os.getcwd(), "OSRS-Content", "osrs239-content")
+alloc = os.path.join(tree, "pack", "dbrow.alloc")
+text = open(alloc).read()
+have = {m.group(2): int(m.group(1)) for m in re.finditer(r"^(\d+)=(\S+)$", text, re.M)}
+declared = set()
+for path in glob.glob(os.path.join(tree, "server", "scripts", "**", "*.dbrow"), recursive=True):
+    declared |= set(re.findall(r"^\[(\w+)\]", open(path).read(), re.M))
+nxt = max(have.values()) + 1
+for name in sorted(declared - set(have)):
+    text += "%d=%s\n" % (nxt, name)
+    print("fake_rebuild: + %d=%s" % (nxt, name))
+    nxt += 1
+open(alloc, "w").write(text)

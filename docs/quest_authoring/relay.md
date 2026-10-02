@@ -279,8 +279,9 @@ fought unarmed and died, and run 10's attacks answered `refused` (already under 
 ### The hand-off and the relay record: `test/quests/wip/<id>/`
 
 The relay's record is TRACKED, so a relay can stop on one machine and go on from another
-(docs/QUEST_ORCHESTRATOR.md). Each runner writes only its own leg's files there and never
-commits them; the batch's sampler (or closer) commits them with the queue rows.
+(docs/QUEST_ORCHESTRATOR.md, "Work in progress"). Each runner writes only its own leg's files
+there and never commits them. The batch's sampler (or closer) commits them with the queue
+rows, on the batch branch. They reach v3 when the batch's PR merges.
 
 - `leg<K>.json` is leg K's report. A runner whose leg already has one with outcome `done`
   returns it and stops.
