@@ -710,6 +710,22 @@ return {
                 t.blocked("makeBowl: six gold bars did not forge a bowl (stat_random(smithing,31,256) misses); rerun")
                 return
             end
+            -- The forging roll (quest_legends.rs2:1286-1300: stat_random, random(256) < 135 burns one or
+            -- two bars) leaves 0-4 of the six bars; any left over fill the backpack before Ungadulu's holy
+            -- force (b51-seam1: 'Your inventory is full.' three runs of three). They are spares the
+            -- setup staged, not quest items, so drop every one. The drop verb grades on the ground
+            -- count rising, which a second identical bar on the same tile does not do, so the backpack
+            -- count below is the evidence, not each drop.
+            for _ = 1, 6 do
+                local _, left = t.inv.count("gold_bar")
+                if left == 0 then break end
+                t.player.drop("gold_bar")
+                t.ticks(1)
+            end
+            do
+                local _, left = t.inv.count("gold_bar")
+                t.check("makeBowl.spare-bars-dropped", left == 0, "gold bars left " .. tostring(left))
+            end
 
             ---------------------------------------------------------------- enterJungleWithBowl
             t.exec("goto-enterJungleWithBowl", t.player.goto_tile, 2791, 2917, 0)

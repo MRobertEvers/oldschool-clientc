@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo				
 quest_kingsransom	kingsransom	kingsransom		4	todo				
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo				
-quest_legends	legends	legendsquest		3	todo	sonnet-b45	RETRY after 7c7960476: test RNG fragility, not content: makeBowl (quest_legends.rs2:1286-1300, stat_random + random(256)<135 burns 1 or 2 bars) leaves 0-4 of the six gold bars; with bars left the backpack is full at talkToUngaduluForForce-holyforce ('Your inventory is full.', inv.await holyforce 0 -> 0, three runs in seam1). Drop every leftover gold_bar right after makeBowl (and recheck free slots before Ungadulu); only that leg changes		
+quest_legends	legends	legendsquest		3	green	matthew-mbp-m4-b51			
 quest_losttribe	losttribe	thelosttribe		3	green	matthew-mbp-m4-b47			
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo				
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
