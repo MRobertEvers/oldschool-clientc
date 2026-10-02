@@ -132,7 +132,12 @@ GitHub tool, or `gh pr create --base v3 --head <batch>`), then stamp the claims:
 ```sh
 python3 tools/quest_gate/claim.py done <batch> --pr <N> --no-build
 ```
-Report the table and the PR to the owner. A quest you cannot finish:
+**The orchestrator merges its own PR and starts the next batch without waiting (owner,
+2026-10-02).** When every quest of the batch is green, or honestly blocked / content_bug with
+its claim released (`claim.py release <batch> <id> --note`), run `claim.py done`, take the PR
+out of draft with the final table, merge it into `v3` once its checks are green and it has
+no conflict, run `claim.py pr-sync`, then claim and launch `<hostname>-b<N+1>` in the same
+turn. Report the table, the PR and the next batch to the owner; do not wait for an answer. A quest you cannot finish:
 `claim.py release <batch> <id> --note "<why>"`, so another machine may take it. Then start
 the next batch (`<hostname>-b<N+1>`).
 
