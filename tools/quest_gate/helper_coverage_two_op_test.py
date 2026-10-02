@@ -13,8 +13,9 @@ was credited to a Pick-Lock press while the test then ::goto'd into the lair
 
 The fixture is that accepted-then-reverted run: the Lua at 65ce7e0e1 (read
 from git) and its published ledger (OSRS-Content
-selftest/quests/quest_losttribe/play/ledger.tsv), graded against the real
-guide and content. Each case edits the pair and checks enterHamLair:
+selftest/quests/quest_losttribe/play/ledger.tsv at d2b3188d1e, also read from
+git: later runs republish that file), graded against the real guide and
+content. Each case edits the pair and checks enterHamLair:
 
   picklock_then_goto   as accepted: Pick-Lock, then goto_tile into the
                        lair                                      -> CHEAT
@@ -38,8 +39,8 @@ sys.path.append(HERE)
 import helper_coverage  # noqa: E402
 
 ACCEPTED = "65ce7e0e1"
-LEDGER = os.path.join(helper_coverage.REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
-                      "selftest", "quests", "quest_losttribe", "play", "ledger.tsv")
+LEDGER_COMMIT = "d2b3188d1e"
+LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_losttribe/play/ledger.tsv"
 GOTO_LINE = 't.exec("goto-enterHamLair", t.player.goto_tile, 3152, 9644, 0)'
 CLIMB_LINE = 't.exec("enterHamLair", t.player.click_loc, "osf_trapdoor_open", 1)'
 JUMP = "teleport: 3166,3253,0 -> 3152,9644,0 (a jump no walk makes, held 2 tick(s)) -- "
@@ -49,8 +50,9 @@ def accepted():
     lua = subprocess.run(["git", "-C", helper_coverage.REPO_ROOT, "show",
                           ACCEPTED + ":test/quests/losttribe.lua"],
                          capture_output=True, text=True, check=True).stdout
-    with open(LEDGER, "r", encoding="utf-8") as handle:
-        ledger = handle.read()
+    ledger = subprocess.run(["git", "-C", os.path.join(helper_coverage.REPO_ROOT, "OSRS-Content"), "show",
+                             LEDGER_COMMIT + ":" + LEDGER],
+                            capture_output=True, text=True, check=True).stdout
     assert GOTO_LINE in lua, "the accepted Lua no longer carries %r" % GOTO_LINE
     assert "\tham.picklock\tPASS\t" in ledger and "\tgoto-enterHamLair\tPASS\t" in ledger
     return lua, ledger
