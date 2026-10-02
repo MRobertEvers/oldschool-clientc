@@ -446,7 +446,7 @@ Why the solo Phoenix player needs both Heroes' Quest affordances: the cabinet (2
 Black Arm player at `^hero_blackarm_mansion_unlocked` passes (`garv.rs2`); LostCity's
 `[oplocu,pete_treasuredoor]` accepts only `%heroquest >= ^hero_blackarm_id_papers_given`, and the chest
 gives "one for you, and one for the person who killed Grip for you". Proof:
-`test/quests/wip/hero/relay.md` (run `seam2_hero_full_a`, 125/125 to the scroll).
+the green `test/quests/hero.lua` rows `inSecretRoom`..`getCandlestick` (125/125 to the scroll).
 
 Sources: `quest_hero/scripts/quest_hero.rs2` `[debugproc,hero_partner]`,
 `[debugproc,hero_partner_lure]`, `[debugproc,hero_partner_candlestick]`,

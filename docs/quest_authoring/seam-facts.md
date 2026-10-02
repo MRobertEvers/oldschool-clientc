@@ -1192,7 +1192,7 @@ trades one `petecandlestick`, only at `^hero_phoenix_killed_grip` (your own kill
 `[ai_queue3,grip]`) and never a second. The player still kills Grip for real through the slit
 (gaps-combat: Shooting through an arrow slit). Declare the trade `-- PARTNER: getCandlestick
 ::hero_partner_candlestick <reason>` (helper_coverage verifies it against the cheats table). Rows:
-`test/quests/wip/hero/relay.md`; proof copy `seam2_hero_full_a` 125/0 to the scroll, FULL 43.
+the green `test/quests/hero.lua` `inSecretRoom`..`getCandlestick`; 125/0 to the scroll, FULL 43.
 
 (b) A goto to 2780,3197 for Heroes' Quest's side door lands INSIDE the secret room (QH `secretRoom`
 2780..2782 x 3197..3198, HeroesQuest.java:258), past the door; `useKeyOnSideDoor` then walks you
