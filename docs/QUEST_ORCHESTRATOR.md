@@ -186,6 +186,23 @@ QUEUE.tsv has two claim columns:
 A claimed row has status `claimed` and owner `<batch>@<host>`. Writing any other status
 with `queue.py set` ends the claim.
 
+## Where an orchestrator keeps its files (owner, 2026-10-02)
+
+**Never store a work product, even a partial one, in a session scratchpad.** A scratchpad is
+for one-off throwaway scripts only. Everything else lives in the repo checkout:
+
+- `build/orchestrator/workflows/` -- this machine's saved copies of the three workflow
+  scripts (the `WT` constant set to this checkout). Launch from these paths.
+- `build/orchestrator/backup/<UTC time>/` -- snapshots of uncommitted work (a
+  `git diff HEAD` patch per repo, tarballs of untracked files, the pass state) taken before
+  anything risky.
+- `build/orchestrator/worktrees/` -- temporary git worktrees (a cherry-pick onto `v3`, a
+  mutation check per CLAUDE.md); removed when done.
+- `build/<kind>_state/<pass>/` -- the passes' own state, as before.
+
+`build/` is gitignored, so none of this is pushed; work that must survive the machine is
+committed on the batch branch.
+
 ## Never stop a running pass (owner, 2026-10-02)
 
 **An orchestrator never stops a workflow while any of its agents is working.** Stopping one
