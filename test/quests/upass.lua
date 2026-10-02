@@ -549,7 +549,40 @@ return {
             local _, start = t.world.tile()
             t.check("leg.4.start", true, "at " .. start.x .. "," .. start.z .. " level " .. start.level .. "; hitpoints " .. hp_now() .. "; upass stage " .. tostring(select(2, t.quest.stage())))
             -- orbsToFurnace: plain travel back east over the planks the guide already crossed, then the orbs go into the furnace
-            t.exec("goto-orbsToFurnace", t.player.goto_tile, 2453, 9683, 0)
+            -- The spear traps stand between the orbs, the furnace and the well, and the guide crosses them both ways:
+            -- "Return to the furnace to the east" (QH UndergroundPass.java:411), then from beforeTrap1 the
+            -- theUndergroundPass ConditionalStep sends you through passTrap1..5 again before climbDownWell (:619-623).
+            -- LostCity upass_obstacles.rs2:150-173 [oploc1,upass_speartrap]: a disarm that succeeds forcemoves the
+            -- player 2 tiles past the trap AWAY from the side they stand on; a failure costs 10% hp + 1 (b52: a goto
+            -- across the line read CHEAT for passTrap1).
+            local function cross_trap(name, trap_x, trap_z, eastward)
+                local detail, passed = "", false
+                for attempt = 1, 6 do
+                    if hp_now() <= 20 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
+                    local _, here = t.world.tile()
+                    local result = t.player.click_loc("upass_speartrap", 1, { at = { trap_x, trap_z } })
+                    t.ticks(2)
+                    if t.chat.kind() ~= "none" then
+                        t.chat.play({ "mesbox:It's a trap", "choose:Yes, I'll give it a go." })
+                    end
+                    t.ticks(6)
+                    local _, there = t.world.tile()
+                    detail = "attempt " .. attempt .. ": click " .. tostring(result) .. ", x " .. here.x .. " -> " .. there.x .. "," .. there.z .. ", hp " .. hp_now() .. " :: " .. last_lines(2)
+                    if (eastward and there.x > trap_x) or ((not eastward) and there.x < trap_x) then passed = true break end
+                end
+                t.check(name, passed, detail)
+            end
+            local traps = { { "1", 2443, 9677 }, { "2", 2440, 9677 }, { "3", 2435, 9675 }, { "4", 2432, 9675 }, { "5", 2430, 9675 } } -- trap 5 stands at 2430,9675 (leg 3 presses it there; QH prints 2430,9676)
+            -- back east from the orbs (west of the well) to the trap line, on foot
+            local back = t.player.walk_to(2428, 9676, 60)
+            local _, at_line = t.world.tile()
+            t.check("walk-toTrapLine-east", back == "ok" and at_line.x <= 2429, "walk_to 2428,9676 -> " .. tostring(back) .. " at " .. at_line.x .. "," .. at_line.z)
+            for i = 5, 1, -1 do
+                cross_trap("passTrap" .. traps[i][1] .. "-east", traps[i][2], traps[i][3], true)
+            end
+            local to_furnace = t.player.walk_to(2453, 9682, 30) -- the tile beside furnace_upass (2454,9682 is under it)
+            local _, at_furnace = t.world.tile()
+            t.check("walk-orbsToFurnace", to_furnace == "ok", "walk_to 2453,9682 -> " .. tostring(to_furnace) .. " at " .. at_furnace.x .. "," .. at_furnace.z)
             local furnace = t.player.by_symbol("loc", "furnace_upass")
             for i = 1, 4 do
                 local name = i == 1 and "orbsToFurnace" or ("orbsToFurnace-" .. i)
@@ -559,7 +592,13 @@ return {
             t.check("orbsToFurnace-all", select(2, t.inv.count("caveorb1")) + select(2, t.inv.count("caveorb2")) + select(2, t.inv.count("caveorb3")) + select(2, t.inv.count("caveorb4")) == 0,
                 "orbs left in the backpack after four furnace uses; :: " .. last_lines(3))
             -- climbDownWell
-            t.exec("goto-climbDownWell", t.player.goto_tile, 2417, 9677, 0) -- from the furnace; the fall is in leg 1 now
+            -- west again past all five traps (the guide's passTrap1..5 from beforeTrap1), then on foot to the well
+            for i = 1, 5 do
+                cross_trap("passTrap" .. traps[i][1] .. "-west", traps[i][2], traps[i][3], false)
+            end
+            local to_well = t.player.walk_to(2418, 9677, 30)
+            local _, at_well = t.world.tile()
+            t.check("walk-climbDownWell", to_well == "ok", "walk_to 2418,9677 -> " .. tostring(to_well) .. " at " .. at_well.x .. "," .. at_well.z)
             t.exec("climbDownWell", t.player.click_loc, "cave_well", 1) -- upass_well.rs2:10
             t.ticks(8)
             local _, down = t.world.tile()
