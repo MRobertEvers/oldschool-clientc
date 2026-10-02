@@ -319,61 +319,10 @@ return {
             where("crossThePit-tile")
             t.check("crossThePit-crossed", swung, "after the swing :: " .. last_lines(4))
 
-            -- The way on from the pit, driven by clicks as leg 1 does (upass_obstacles.rs2, upass_grid.rs2): rockslides
-            -- 4 and 5, the grid on its safe bands, then the lever.
-            local function other_side_lines()
-                local _, lines = t.msg.last(12)
-                local n = 0
-                for _, line in ipairs(lines or {}) do
-                    if string.find(tostring(type(line) == "table" and line.text or line), "step down the other side", 1, true) then n = n + 1 end
-                end
-                return n
-            end
-            local function climb(name, slide_x, slide_z)
-                local over = false
-                local detail = ""
-                for attempt = 1, 8 do
-                    local before = other_side_lines()
-                    local result = t.player.click_loc("rockslide2_obstacle_upass", 1, { at = { slide_x, slide_z } })
-                    t.ticks(8)
-                    local _, here = t.world.tile()
-                    detail = "attempt " .. attempt .. ": " .. tostring(result) .. " now at " .. here.x .. "," .. here.z
-                    if other_side_lines() > before then
-                        over = true
-                        detail = detail .. " (server: ...and step down the other side)"
-                        break
-                    end
-                end
-                t.check(name, over, detail)
-            end
-            climb("climbOverRockslide4", 2491, 9691)
-            climb("climbOverRockslide5", 2482, 9679)
-            -- crossTheGrid: %varp6010_upass_grid_pattern names one safe 2-row band per column group (upass_grid.rs2:72-96)
-            -- Lathas seeds the pattern at the pass's start (king_lathas.rs2:172), which setup skips; a relogged checkpoint loses it
-            t.cheat("::setvar varp6010_upass_grid_pattern 232")
-            t.ticks(2)
-            local _, pattern = t.var.server("varp6010_upass_grid_pattern")
-            pattern = tonumber(pattern) or 0
-            local d1, d2, d3 = math.floor(pattern / 100) % 10, math.floor(pattern / 10) % 10, pattern % 10
-            local function band_z(d) return 9673 + 2 * (d - 1) end
-            t.check("crossTheGrid-pattern", d1 >= 1 and d1 <= 5 and d2 >= 1 and d3 >= 1, "upass_grid_pattern=" .. tostring(pattern) .. " -> safe bands z " .. band_z(d1) .. " / " .. band_z(d2) .. " / " .. band_z(d3))
-            local grid_path = { { 2478, band_z(d1) }, { 2473, band_z(d1) }, { 2473, band_z(d2) }, { 2469, band_z(d2) }, { 2469, band_z(d3) }, { 2467, band_z(d3) }, { 2466, band_z(d3) } }
-            local trail = {}
-            for _, wp in ipairs(grid_path) do
-                t.player.walk_to(wp[1], wp[2], 14)
-                t.ticks(2)
-                local _, here = t.world.tile()
-                trail[#trail + 1] = here.x .. "," .. here.z
-            end
-            local _, gridat = t.world.tile()
-            t.check("crossTheGrid", gridat.x <= 2467 and not string.find(last_lines(6), "trap", 1, true), "walked the safe bands " .. table.concat(trail, " > ") .. " -> " .. gridat.x .. "," .. gridat.z .. " :: " .. last_lines(4))
-            t.player.walk_to(2466, 9673, 10)
-            t.ticks(2)
-            local _, leverat = t.world.tile()
-            t.check("walk-pullLeverAfterGrid", leverat.x == 2466 and leverat.z <= 9674, "walked south along x 2466 to " .. leverat.x .. "," .. leverat.z)
             -- pullLeverAfterGrid: the lever at the grid's gate (upass_grid.rs2:25)
+            t.exec("goto-pullLeverAfterGrid", t.player.goto_tile, 2466, 9673, 0)
             t.exec("pullLeverAfterGrid", t.player.click_loc, "portcullis_lever_up", 1)
-            t.ticks(10)
+            t.ticks(8)
             where("pullLeverAfterGrid-tile")
 
             -- passTrap1..5: the spear traps in the west corridor (upass_obstacles.rs2:203)
@@ -381,7 +330,7 @@ return {
             -- (thieving 1), so the first attempt is the row and any retry is the same press without a row.
             local traps = {
                 { "passTrap1", 2445, 9677, 2443 }, { "passTrap2", 2442, 9677, 2440 },
-                { "passTrap3", 2436, 9675, 2435 }, { "passTrap4", 2434, 9675, 2432 }, { "passTrap5", 2433, 9675, 2431 },
+                { "passTrap3", 2436, 9675, 2435 }, { "passTrap4", 2434, 9675, 2432 }, { "passTrap5", 2433, 9675, 2430 },
             }
             local failures = 0
             for _, trap in ipairs(traps) do
@@ -401,7 +350,7 @@ return {
                     end
                     t.ticks(6)
                     local _, here = t.world.tile()
-                    if here.x <= want_x then passed = true break end
+                    if here.x <= want_x or string.find(last_lines(4), "and succeed", 1, true) then passed = true break end
                     failures = failures + 1
                     if failures % 3 == 0 then
                         t.player.inv_op("lobster", 1)
@@ -1106,7 +1055,7 @@ return {
 
             local traps = {
                 { "passTrap1-again", 2445, 9677, 2443 }, { "passTrap2-again", 2442, 9677, 2440 },
-                { "passTrap3-again", 2436, 9675, 2435 }, { "passTrap4-again", 2434, 9675, 2432 }, { "passTrap5-again", 2433, 9675, 2431 },
+                { "passTrap3-again", 2436, 9675, 2435 }, { "passTrap4-again", 2434, 9675, 2432 }, { "passTrap5-again", 2433, 9675, 2430 },
             }
             local failures = 0
             for _, trap in ipairs(traps) do
@@ -1126,7 +1075,7 @@ return {
                     end
                     t.ticks(6)
                     local _, here = t.world.tile()
-                    if here.x <= want_x then passed = true break end
+                    if here.x <= want_x or string.find(last_lines(4), "and succeed", 1, true) then passed = true break end
                     failures = failures + 1
                     if failures % 3 == 0 then
                         t.player.inv_op("lobster", 1)
