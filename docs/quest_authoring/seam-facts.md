@@ -1157,7 +1157,8 @@ the wall stayed and the walk north stalled at 2120,5098 after "You open the gate
 with `deal_gate_open`): the gate swings off the wall line like every door and the north island is
 walkable (Quest Helper RumDeal.java:358 `openGate`, then `northIsland` z >= 5099; OSRS wiki Rum Deal
 oldid 15315444). Below that stage it still answers with its lock line. Route and proof:
-`test/quests/wip/rumdeal/relay.md` (walk in hops; a 33-tile `walk_to` to the lake is refused).
+the green `test/quests/rumdeal.lua` rows `openGate.walk_north`..`lake.fill` (walk in hops; a 33-tile
+`walk_to` to the lake is refused).
 
 (c) Npcs whose dump id the cache gave to newer content were dropped by `tools/gen_spawns.py` as
 name drift and are back: `NPC_SPAWN_ID_CORRECTIONS` adds Mazchna (3511,3509), Duradel

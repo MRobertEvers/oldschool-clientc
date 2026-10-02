@@ -375,7 +375,7 @@ topic file with one line added here.
 - the client segfaults after many interface models (`::ejmodels`, `UITreeSceneBridge_EnsureModel`); `model_pose` reads `model=-1` -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (e)
 - `if_setevents(..., ^if_event_op1)` on an IF1 button does nothing -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (g)
 - `no_row slayer_master_2_mazchna`, a Warriors' Guild npc, Mac or Patchy missing; an npc the spawn dump had that this cache renumbered (name drift) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (c); docs/ITEM_AND_NPCS.md section 3
-- Rum Deal: "You open the gate." then `walk_to` stalls at 2120,5098 (pier gate) -> FIXED b51 seam1: seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (b); test/quests/wip/rumdeal/relay.md
+- Rum Deal: "You open the gate." then `walk_to` stalls at 2120,5098 (pier gate) -> FIXED b51 seam1: seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (b); test/quests/rumdeal.lua
 
 ## Citations: resolving a number or a name
 
