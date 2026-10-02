@@ -13,7 +13,7 @@ quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25			
-quest_blackknight	blackknight	blackknightfortress		1	todo	matthew-mbp-m4-b51	REOPENED (orchestrator, matthew-mbp-m4-b51 round 2 sample): row 26 goto-cabbage-path teleports from the listening room (3026,3507,0) up to 3030,3512,1, skipping the guide's pushWall3 (the secret wall pushed from the other side) and the bkfortressdoor2 'I'm going in anyway' dialogue; the grader cannot judge a hop that starts inside the building and changes floor, the sampler let it stand, the guide-is-the-spec rule does not. Drive pushWall3 and bkfortressdoor2 (and the stairs) on foot; keep the rest. Also: fix the stale comment at blackknight.lua:137-145 (the goto is no longer one tile inside), and make enterFortress's evidence the door (row 18's inside-tile read), not the wilderness-warning box shot 030 caught.		
+quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo				
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo				
@@ -76,7 +76,7 @@ quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	sonnet-b45			
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34			
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo				
-quest_hero	hero	heroesquest		1	todo	matthew-mbp-m4-b51	RETRY after 39c813ae5: ::hero_partner_lure (summon_grip case 1) and ::hero_partner_candlestick (the partner's trade) now exist; follow test/quests/wip/hero/relay.md -- goto-sidedoor to 2781,3196 (garden side), add magic_shortbow/rune_arrow/ranged 99 to setup, replace the t.blocked after useKeyOnSideDoor with the relay's rows (lure, ranged kill through snipable_wall from 2780,3198, PARTNER-marked getCandlestick), then the Straven hand-in and the rest of the quest		
+quest_hero	hero	heroesquest		1	green	matthew-mbp-m4-b51			
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15			
 quest_horror	horror	horrorfromthedeep		3	green	sonnet-b45			
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16			
