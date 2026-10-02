@@ -769,7 +769,7 @@ Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth 
 town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
 the same `~openbank`).
 
-## Meiyerditch: wall ladders answer on op 2; the Drakan wall shortcut only works from its own tile (vm-b1)
+## Meiyerditch: wall ladders answer on op 2; the Drakan wall shortcut only works from its own tile (vm-b1; the shortcut FIXED vm-b1-seam4)
 
 *Origin: the vm-b1 Darkness of Hallowvale relay (`test/quests/wip/darknessofhallowvale/relay.md`).*
 
@@ -778,12 +778,17 @@ The Meiyerditch wall ladders (`myq3_ladder_up`, `myq3_ladder_down`, `_2` at 3588
 `click_loc(sym, 2, { at = {...} })` and not op 1. Some of them need the camera turned first
 (yaw 0, pitch 450, zoom 500 at 3588,3251).
 
-CONTENT BUG. The Drakan wall shortcut `darkm_outer_wall_3h_meyerditch_wall_shortcut_bottom` at
-3595,3310,1 is keyed in `maplink.dbrow` (`[maplink_1_56_51_11_46_up]`) on the loc's own tile. A
-`click_loc` walks to 3595,3309 first, no maplink row matches, and the generic climb lands the
-player at a dead end on 3595,3309,2 instead of 3595,3312,0. The relay walks onto 3595,3310 and
-presses with `t.drive.op(loc, 1)`, the logged bypass. That row is not evidence of reach, so report
-the maplink row as a content bug.
+FIXED in seam pass vm-b1-seam4 (`doh_drakan_shortcut_maplink`). The Drakan wall shortcut
+`darkm_outer_wall_3h_meyerditch_wall_shortcut_bottom` at 3595,3310,1 was keyed in `maplink.dbrow`
+(`[maplink_1_56_51_11_46_up]`) on the loc's own tile, but `maplink.rs2` looks rows up by the player's
+tile. A `click_loc` reaches the loc from 3595,3309,1, so no row matched and the generic climb left
+the player at a dead end on 3595,3309,2. `doh_castle.rs2` now binds
+`[oploc1,darkm_outer_wall_3h_meyerditch_wall_shortcut_bottom]` by name to the harvested landing
+3595,3312,0 (the name rung beats the category rung; Quest Helper `climbUpDrakanWalls`
+DarknessOfHallowvale.java:553 and its drakanWalls zone at :247). Press it from the walkway with
+`click_loc(sym, 1)` from 3595,3309,1: the row reads `teleport: 3595,3309,1 -> 3595,3312,0`. The
+`t.drive.op(loc, 1)` bypass is no longer needed; replace it. `maplink.dbrow` is generated and was
+left alone.
 
 ## The Fremennik Isles: yak hair, the window tax amount, stage 275, Bork's supplies, the runts (vm-b1)
 

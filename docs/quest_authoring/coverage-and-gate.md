@@ -271,3 +271,16 @@ them is the op the guide names, not a gating op. The leading "Climb up the walls
 A gating op the text does not name (Lost Tribe's Pick-Lock for `enterHamLair`) is still
 refused. Write the row on the op the guide names (`kickBoard` = the Search press, then its Yes) and
 give the following Climb-down its own guide step's row (`climbDownBoard`); no GUIDE-GAP is needed.
+
+### CONTENT_GAP at an unrelated line on a `goToX` step that has its own PASS rows (FIXED vm-b1-seam4)
+
+*Origin: seam pass vm-b1-seam4 (`doh_gotomines_graded_gap`, v3 c458a4d92).*
+
+Darkness of Hallowvale's `goToMines` is a talk to a Vyrewatch ("Send me to the mines"), but it graded
+CONTENT_GAP citing `doh_castle.rs2:64`, a Safalaan line that only shares the words "sent" and
+"vyrewatch". `Grader.action_rows` dropped every row whose name starts with `goto`/`walk`/`travel`
+(case-folded) as a travel row, so the test's own `goToMines`, `goToMines-dialog` and `goToMines.at`
+rows never counted, and the step fell through to a weak narration match. Now a row whose head segment
+names a guide step (or alias) is graded as the step's action. It stays travel only when its source
+line is itself a `goto_tile`, `::goto`, `::tele` or `player.teleport` call (Fenkenstrain's
+`goToMonsterFloor1`). Name the row after the guide step, as usual; no GUIDE-GAP is needed.
