@@ -7,7 +7,7 @@ quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
-quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo	matthew-mbp-m4-b50	REVERTED by sampler (matthew-mbp-m4-b50): goto_tile 2884,9796 -> 2874,9846 jumps the dusty-key gate (deepdungeondoor 2924,9803) the guide names ('Dusty key, or another way into deep Taverley Dungeon'); give dusty_key in setup and use it on the gate, then walk to hellhound_cave_entrance_a_01. Prior test at a5f4d7fa2:test/quests/bearyoursoul.lua		
+quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo	matthew-mbp-m4-b50	RETRY after 71a5337bb: the deep Taverley Dungeon way in is real content (no change needed) -- setup ::give dusty_key 1 (QH item requirement), ::setlevel hitpoints 80 + defence 75; from the ladder walk the proved hops (cauldrondoor x3, metal gates 2898,9831, 2933,9813 / 2951,9790 / 2949,9774 / 2925,9803), use_on dusty_key -> deepdungeondoor ('You unlock the gate.'), hops 2905,9805 / 2892,9799 / 2877,9813 to the cave mouth (test/quests/wip/bearyoursoul/relay.md); rewrite the goto 2884,9796 -> 2874,9846 row; proof copy s1_bys_copy 48/0		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo				
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
@@ -51,7 +51,7 @@ quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
 quest_elena	elena	plaguecity		3	green	sonnet-b34			
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo				
-quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo	matthew-mbp-m4-b50	REJECTED (matthew-mbp-m4-b50): run/gate/lint green and helper_coverage FULL, but the file ::gives items the guide has you obtain in game: sack_potato_10, sack_empty 8, reddye, yellowdye, silk 10, bowl_empty, willow_branch 12, logs 10 (each is a finding; guide steps fillSacks/talkToAugusteWithBranches/WithLogs say get them). Gather legs must be driven or the file must stop at t.blocked content_bug naming the missing source (notes: no willow branch source in pack). Cutscenes spec-pending.		
+quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo	matthew-mbp-m4-b50	RETRY after 71a5337bb (OSRS-Content 1fa25def66): every hand-in now has an in-game source -- willow branches from Auguste's sapling grown in the Falador park tree patch (6 x clock.skip 40 + await varb701, check-health, clock.skip 30 + secateurs x2 for 12), Potatoes(10) by Fill on an empty sack, sacks from Sarah, redberries from Wydin, dyes from Aggie, silk trader, bowl up Auguste's ladder, logs with Bob's bronze axe; rewrite every mid-run ::give in round1_rejected.lua as the driven legs in test/quests/wip/enlightenedjourney/relay.md (proof copy s1_ej_copy 221/0)		
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15			
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo				
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27			
