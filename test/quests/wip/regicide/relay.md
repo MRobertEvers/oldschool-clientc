@@ -85,3 +85,9 @@
 - The sampler (9c28a4e0c) reverted it for TWO places only: leg 3 `goto-pullLeverAfterGrid` (goto 2466,9673, line ~323) jumps over crossTheGrid and rockslides 4/5 on the way out, and leg 6 `goto-pullLeverAfterGrid-again` (line ~1051) does the same on the second walk; and passTrap5 / passTrap2-again / passTrap4-again read PASS on a stale 'and succeed' line while the server said fail.
 - Legs 1, 2, 4 and 5 stand (their json is done). LEGS 3 AND 6 ARE REOPENED: replace each goto with the real crossing. Round 1 already wrote it honestly -- copy the approach from wip/regicide/b48_redriven.lua lines ~160-245: the safe-band grid walk read from %varp6010_upass_grid_pattern (upass_grid.rs2:72-96), rockslides 4/5 by click_loc, the lever, and every trap row awaiting the server's success line of THAT attempt (retry on fail).
 - Setup line 14 `::setvar varp161_upass ^upass_complete`: ::complete quest_undergroundpass exists now (quest_cheat.rs2:611) -- use it instead.
+
+## leg 3 (b48 round 2, re-driven; supersedes the earlier leg 3 blocks)
+- Ends at 2204,3252 level 0 (Iorwerth's camp, quiet); regicide_quest = 4 (spoken_iorwerth). Pack as before: shortbow + magic_shortbow/rune_arrow, bronze arrows, spade, tinderbox, woodplank, lobsters, sharks.
+- The goto over the grid is gone: pit swing, rockslides 4/5 (click_loc at=), the grid on safe bands, walk to 2466,9673, lever, then five traps. varp6010_upass_grid_pattern reads 0 after a checkpoint relog (Lathas seeds it, king_lathas.rs2:172), so leg 3 writes ::setvar varp6010_upass_grid_pattern 232 before the grid.
+- passTrap5 passes when x <= 2431 (success forcemoves 2 west from 2433); the stale 'and succeed' line is no longer accepted.
+- LEG 6 STILL HAS THE SAME BUGS: goto-pullLeverAfterGrid-again, and passTrap5-again expects x <= 2430 (never true; full run failed there after 12 fails, row 320). Same fixes: pattern setvar, climbs, want_x 2431.
