@@ -1,5 +1,5 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
-quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo				
+quest_animalmagnetism	animalmagnetism	animalmagnetism		4	claimed	matthew-mbp-m4-b50@matthew-mbp-m4		2026-10-02T08:42:30Z	todo|
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
@@ -7,7 +7,7 @@ quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
-quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo				
+quest_bearyoursoul	bearyoursoul	bearyoursoul		4	claimed	matthew-mbp-m4-b50@matthew-mbp-m4		2026-10-02T08:42:30Z	todo|
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo				
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
@@ -18,7 +18,7 @@ quest_bonevoyage	bonevoyage	bonevoyage		4	todo
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo				
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
-quest_clientofkourend	clientofkourend	clientofkourend		4	todo				
+quest_clientofkourend	clientofkourend	clientofkourend		4	claimed	matthew-mbp-m4-b50@matthew-mbp-m4		2026-10-02T08:42:30Z	todo|
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
 quest_contact	contact	contact		4	todo				
@@ -46,12 +46,12 @@ quest_druid	druid	druidicritual		1	green	sonnet-b15
 quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35			
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15			
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25			
-quest_eaglepeak	eaglepeak	eaglespeak		4	todo				
+quest_eaglepeak	eaglepeak	eaglespeak		4	claimed	matthew-mbp-m4-b50@matthew-mbp-m4		2026-10-02T08:42:30Z	todo|
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16			
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
 quest_elena	elena	plaguecity		3	green	sonnet-b34			
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo				
-quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo				
+quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	claimed	matthew-mbp-m4-b50@matthew-mbp-m4		2026-10-02T08:42:30Z	todo|
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15			
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo				
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27			
@@ -63,7 +63,7 @@ quest_forsakentower	forsakentower	theforsakentower		4	todo
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo				
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo				
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42			
-quest_gettingahead	gettingahead	gettingahead		4	todo				
+quest_gettingahead	gettingahead	gettingahead		4	claimed	matthew-mbp-m4-b50@matthew-mbp-m4		2026-10-02T08:42:30Z	todo|
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28			
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	green	matthew-mbp-m4-b47			
 quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34			
