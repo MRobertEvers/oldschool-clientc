@@ -925,3 +925,25 @@ doors puts you back outside Iban's temple (`:629-631`). The doors are placed twi
 right leaf lands back on 2145,4648 level 1. A player below Regicide stage 2 gets the old answers.
 Conformance row `seam.iban_temple_door_regicide_shortcut`. The route from Iban's door to the
 temple doors crosses four collapsed bridges: gaps-world, "Underground Pass: Iban's temple door".
+
+## Seam pass matthew-mbp-m4-b48-seam2 (2026-10-01)
+
+(a) "The ledge pocket is sealed" was a rock bridge never clicked, not a map bug. Regicide's round 4
+walked off the Underground Pass ledge (landing 2374,9638) and found every `walk_to` toward the pipe
+(`upass_pipe6`, 2417,9605) or `upass_unicorn_doorl` (2375,9611) stalled at 2374,9638, and blamed a
+wall line on z 9615 in `m37_150.jl2`. No map, loc, collision or script was wrong: the pocket is left
+by the maze's five rock bridges `walkway_upass_narrow_mid_top` (op1 Cross, `blockwalk=1`, level-1
+ground decor over the pits; `[oploc1,...]` `upass_obstacles.rs2:360` = LostCity_Server
+`upass_obstacles.rs2:291`), at 2380,9634 / 2387,9631 / 2392,9627 / 2399,9632 / 2406,9637, each
+clicked from x-1 and landing on x+1 ("...and make it."). The copies at 2396,9636 and 2406,9632 are
+dead ends. A fall ("...and fall off it.") drops you one tile south (north under 2399,9632 and
+2406,9632, the two `0_37_150_31_32`/`_38_32` copies) and every fall tile walks back. The same seven
+copies stand at the same tiles in LostCity's `m37_150`, and every quest loc of the square (doors,
+pipes, ledge, mud, railings) matches LostCity. The hop list is in gaps-world, "Underground Pass:
+`walk_to` stalls under attack and stops at rock bridges". The Thieving-50 cage `cave_railings5`
+2380,9619 is the guide's optional shortcut ("Navigate the maze, or use the shortcut to the south
+with 50 Thieving", Regicide.java:517). Proof: `build/seam_state/matthew-mbp-m4-b48-seam2/scratch/maze_walk.lua`
+20/20 with no goto after the well (row `repro.walk_to_pipe_stalls` reproduces the stall, then the
+five bridges, the pipe and the door), and Regicide leg 2 with its maze marker replaced 26/0 to the
+temple marker, 42/42 with seam1's temple route. Hand-off: `test/quests/wip/regicide/relay.md`,
+"seam2 (maze)".

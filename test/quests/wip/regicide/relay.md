@@ -113,3 +113,18 @@
 ## leg 2 (round 4, BLOCKED at leaveUnicornArea/goThroughPipe)
 - Rows climbDownWell, pickCellLock, digMud, crossLedge now run on foot (walk_to 2376,9644 between mud tunnel and ledge); ledge lands 2374,9638, a pocket down to 2376,9616 walled on z 9615 (m37_150.jl2 locs 1459). doorl 2375,9611 and the pipe corridor (2376,9610; west pipe east to 2419,9605; east pipe 2418 back west to 2391) are only reachable by goto. No walked route found from the well landing/cell/mud/ledge to them; teleport doors: upass_unicorn_doorr/l telejump to 2376,9610 (unicorn killed) or 2401,9610 (upass_tunnels.rs2:21-29).
 - Idea for the next look: a doorl copy near 2400,9612 and a pen at 2404,9620 exist east of the corridor; find the walkable link from the ledge/cell side there (maybe the mud's doorr must be clicked within 3 ticks of the dig, loc_change(...,3)).
+
+## seam2 (maze)
+- NOT a content bug: the ledge pocket is left by the maze's five rock bridges, which round 4 never clicked. `walkway_upass_narrow_mid_top` (op1 Cross, blockwalk=1: a walk stops beside each one by the game's rule, verbs-pointer.md "A walk stops at an obstacle") at `upass_obstacles.rs2:360` (= LostCity upass_obstacles.rs2:291; the same seven copies stand in LostCity's m37_150). The "wall on z 9615" is the pocket's real floor; the Thieving-50 cage `cave_railings5` 2380,9619 is the guide's optional shortcut ("Navigate the maze, or use the shortcut to the south with 50 Thieving", Regicide.java:517).
+- Route (proved: build/seam_state/matthew-mbp-m4-b48-seam2/scratch/regicide_leg2_maze.lua, run seam2_regicide_leg2_maze 26/0 + the temple marker, and with seam1's temple route too 42/42 through quest.stage.spoken_scouts):
+  ledge landing 2374,9638 -> walk 2373,9634 -> 2379,9634, click bridge 2380,9634 -> 2381,9634;
+  walk 2384,9634 -> 2384,9631 -> 2386,9631, bridge 2387,9631 -> 2388;
+  walk 2389,9631 -> 2389,9627 -> 2391,9627, bridge 2392,9627 -> 2393;
+  walk 2395,9627 -> 2395,9632 -> 2398,9632, bridge 2399,9632 -> 2400;
+  walk 2403,9632 -> 2403,9637 -> 2405,9637, bridge 2406,9637 -> 2407;
+  walk 2421,9637 -> 2422,9634 -> 2422,9610 -> 2421,9606 -> 2419,9605. Each bridge: `t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { bx, bz } })` from bx-1,bz, `t.ticks(10)`, success = standing on bx+1,bz ("...and make it."). The bridges at 2396,9636 and 2406,9632 are dead ends.
+- A failed roll ("...and fall off it.", 5 damage) drops you under the bridge (z-1; z+1 at 2399,9632 and 2406,9632). Every fall tile walks back to the near side (no goto), so retry = walk the same hops again and click. One `covered` click on 2392 in the run; a retry loop covers it.
+- goThroughPipe: click `upass_pipe6` `{ at = { 2417, 9605 } }` from 2419,9605, `t.ticks(16)`. Underground Pass is complete, so the crawl lands 26 tiles further west in the room where the unicorn died: 2387,9605 (upass_obstacles.rs2:410-414). Skeletons there hit you.
+- leaveUnicornArea: walk 2378,9605 -> 2378,9607 -> 2375,9607 -> 2375,9610, click `upass_unicorn_doorl` `{ at = { 2375, 9611 } }`: teleport 2375,9610 -> 2371,9666 (angle south, upass_unicorn_tunnels.rs2:27-29). Then openIbansDoor as before.
+- Also: leg 2's `goto-pickCellLock 2393,9657` lands INSIDE the north cell (z 9657-9660, closed by cave_railings2 at z 9656). The guide's tile is the corridor 2393,9655, reached on foot from the well landing: walk_to 2410,9656 then 2393,9655 (seam2_maze_walk row walkToCell-tile), then pick the 9655 railing.
+- Leg 6's second walk (`goto-crossLedge-again` .. the "second walk's maze" marker) is the same route with -again names; the copy did not drive leg 6.

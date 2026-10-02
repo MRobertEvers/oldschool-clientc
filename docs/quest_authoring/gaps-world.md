@@ -565,6 +565,24 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
   `click_loc` the `walkway_upass_narrow_mid_top` copy at 2380,9634 / 2387,9631 / 2392,9627 /
   2399,9632 / 2406,9637, then walk on to the pipe (`upass_pipe6`, 2417,9605).
+- The hops between the bridges (proved in seam pass matthew-mbp-m4-b48-seam2, seam-facts (a)):
+  ledge landing 2374,9638 -> 2373,9634 -> 2379,9634, bridge 2380,9634; 2384,9634 -> 2384,9631 ->
+  2386,9631, bridge 2387,9631; 2389,9631 -> 2389,9627 -> 2391,9627, bridge 2392,9627; 2395,9627 ->
+  2395,9632 -> 2398,9632, bridge 2399,9632; 2403,9632 -> 2403,9637 -> 2405,9637, bridge 2406,9637;
+  then 2421,9637 -> 2422,9634 -> 2422,9610 -> 2421,9606 -> 2419,9605, the pipe's east mouth. Click
+  each bridge with `{ at = { bx, bz } }` and `t.ticks(10)`; success is standing on bx+1. A `covered`
+  click happens (2392 once in a run): retry the hop and the click.
+- Where the pipe drops you depends on `%varp161_upass` (`upass_obstacles.rs2:410-414`). Before
+  `^upass_killed_unicorn` the crawl lands one tile on, in the live-unicorn room (x 2393-2417); from
+  that stage on (Regicide's walks, Underground Pass complete) it lands 26 tiles further west, at
+  2387,9605 in the dead-unicorn copy (x 2368-2392), where skeletons attack. From there walk
+  2378,9605 -> 2378,9607 -> 2375,9607 -> 2375,9610 and click `upass_unicorn_doorl`
+  `{ at = { 2375, 9611 } }` (angle south): it teleports you to 2371,9666
+  (`upass_unicorn_tunnels.rs2:27-29`).
+- A `goto` to a cell-door tile can land INSIDE the cell. `goto_tile 2393,9657` puts you in the north
+  cell row (z 9657-9660), closed by `cave_railings2` on z 9656. The guide's `pickCellLock` tile is
+  the corridor 2393,9655, reached on foot from the well landing (`walk_to` 2410,9656, then
+  2393,9655). Check the guide's ObjectStep tile against the railing walls before a goto.
 
 ## Underground Pass: `walk_to` cannot reach the witch's cat, house or demons (collapsed bridges, sonnet-b43)
 

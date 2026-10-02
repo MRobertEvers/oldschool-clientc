@@ -333,6 +333,9 @@ topic file with one line added here.
 - player locked for good after a hit (Iban's bolt); `dropping [ai_timer,...], which suspended while [...] waits`; an npc death script whose `p_delay` loses `npc_coord` (Kalrag) -> seam-facts: Seam pass 37 (d); gaps-world: Underground Pass: the finale (FIXED seam37)
 - a LostCity npc symbol that finds nobody (`caveguide5`, Koftik in the post-Iban pocket); Talk-to `I can't reach that!` on Koftik -> seam-facts: Seam pass 37 (e); gaps-world: Underground Pass: the finale
 - "The temple is in ruins... / ...You cannot enter." on Iban's temple doors (`upass_templedoor_closed_*`) in Regicide; `goto_tile 2010,4709,1` to the Well of Voyage; `click_loc` on the temple door `not_found` from Iban's door landing -> gaps-world: Underground Pass: Iban's temple door; seam-facts: Seam pass matthew-mbp-m4-b48-seam1 (a) (FIXED b48-seam1)
+- `walk_to ... stalled at 2374,9638 -- locs with an op beside the stop: upass_ledge`; "the ledge pocket is sealed" / "walled on z 9615" after the Underground Pass ledge -> seam-facts: Seam pass matthew-mbp-m4-b48-seam2 (a); gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
+- after `upass_pipe6` you stand 26 tiles further west than expected (2387,9605), or one tile on; `upass_unicorn_doorl` sends you to 2371,9666 -> gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
+- a `goto_tile` to a cell door lands inside the cell (`goto 2393,9657`, Underground Pass cells; `pickCellLock`) -> gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
 
 ## Citations: resolving a number or a name
 
