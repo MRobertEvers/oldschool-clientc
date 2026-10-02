@@ -1,0 +1,14 @@
+{
+ "key": "coldwar_course_water",
+ "report": {
+  "key": "coldwar_course_water",
+  "summary": "NOT ATTEMPTED: the relayed user message asked a question about .git disk usage, not for this seam fix; answered that read-only instead. No files changed.",
+  "files_changed": [],
+  "verified_by": "n/a",
+  "open_issues": [
+   "Seam coldwar_course_water (terrain_is_ocean counting overlay 537) still open; needs a run the user actually requests."
+  ],
+  "unblocks": [],
+  "doc_notes": []
+ }
+}
