@@ -23,9 +23,12 @@ Debrief: KGP in the first room west, 2648,10384. All three reports needed. Noodl
 free slots. Corridor door 2633,10404 puts you at the course start 2643,4034,1 and sets 100.
 Course (vm-b1-seam1): the instructor refuses 100 -> 105 until %varb3305_peng_agility_state reads
 3 (1 stone 7, 2 the last icicle pillar x=2662, 3 the ice); a goto into the finish no longer works.
-The water leg (steps, stepstone, crushers: level 0) is NOT drivable yet -- the water is blocked by
-the engine's ocean rule and nothing leads down into it (gaps-world, Penguin Agility Course); cross
-it with goto_tile onto the first stone 2630,4057,1 and say so. Stones 1-7 jump from two tiles
+The water leg is drivable since vm-b1-seam2 (gaps-world, Penguin Agility Course): walk_to
+2636,4054 (the ledge climbs you down to 2634,4054,0), walk_to 2630,4055 (wade past the crushers,
+no op), click_loc peng_agility_crushcourse_stepstone01 (lands 2630,4057,1, +55 xp; the approach
+retry may need a second press). No goto_tile onto the first stone. Retry the first icicle press
+(a pick flake). The Thing (sheep_shearer_the_thing) has Talk-to on op3 and Shear on op1 in
+all.npc; content still answers op1. Stones 1-7 jump from two tiles
 (stone 7 is an aploc). The ice ends with a slide to the finish 2657,4039,1; talk to the instructor
 there, then the fence gate (west edge of 2652,4039) takes you west to 2651,4039, and the door
 2643,4032 leads back to the corridor.

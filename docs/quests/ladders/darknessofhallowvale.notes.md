@@ -22,6 +22,10 @@ Wandering and fights
 - Vyrewatch hover and Vertida drifts a tile; the Vyrewatch are set huntmode=none (the generated block made them lethal).
 - Vanstrom: bound to his five blows (8 ticks apart), cannot be hurt, Protect from Melee zeroes the damage. Bring 60+ hitpoints.
 
+Burgh inn (vm-b1-seam2): the Broken wall (north edge of 3491,3230) climbs north with Agility 10,
+south with none, 0.5 xp a crossing. The pub trapdoor's Climb-down still answers "You can't go any
+further." (climb_ladder(-1) into the z+6400 basement): the next blocker, gaps-world Burgh de Rott inn.
+
 Differences from the guide
 - Stage 52, 195 are not written (the guide redraws one arrow there); 50 is the kick, 60 the citizen.
 - Bush search has no camera work; the two triaged cutscenes are not ported (owner is speccing them).

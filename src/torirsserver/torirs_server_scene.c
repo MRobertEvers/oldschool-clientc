@@ -1097,17 +1097,47 @@ record_loc(
  * Map overlay IDs are one-based; configs/all.overlay records 441..624 are
  * the sea textures. The transparent middle record of each triplet is an
  * underlay companion, not proof of water. Partial shore tiles also refuse a
- * hull. See docs/sailing_collision.md for cache evidence and fixture coords. */
-static int
-terrain_is_ocean(const struct RSCache_MapFloor* tile, int source_level)
+ * hull. See docs/sailing_collision.md for cache evidence and fixture coords.
+ *
+ * Two kinds of sea, because the walk rule differs (the boat rule does not):
+ *
+ * TERRAIN_OCEAN_SEA blocks walking even where the cache omits BLOCK -- open
+ * sea carries no BLOCK, and nothing else stops a player walking onto it.
+ *
+ * TERRAIN_OCEAN_WADE is the Penguin Agility Course's wading water, map
+ * overlay 537 (config overlay_536, texture 160). It is in the sea family,
+ * but in the whole revision-239 cache it appears only in m41_63, on 271
+ * level-0 tiles (2626..2651 x 4048..4066), and there the cache sets BLOCK
+ * tile by tile: the corridor the player wades through (2628..2634 x
+ * 4054..4055 and the crushers' squares) is clear, the ice around it is
+ * BLOCK. The wiki puts the Crushers (npc 856-859, 2629..2634 x 4053..4056)
+ * and the climbed first stepping stone in that water ("Climb down the steps
+ * and into the water. Avoid the moving ice in the water. Climb the stepping
+ * stone at the end." -- Cold War/Quick guide), so the cache's own BLOCK is
+ * the walk rule there, as it is on land. The boat domain still reads it as
+ * sea, so no hull's world changes. */
+enum TerrainOceanKind
+{
+    TERRAIN_OCEAN_NONE = 0,
+    TERRAIN_OCEAN_SEA = 1,
+    TERRAIN_OCEAN_WADE = 2,
+};
+
+#define TERRAIN_OVERLAY_PENGUIN_COURSE_WADE 537
+
+static enum TerrainOceanKind
+terrain_ocean_kind(const struct RSCache_MapFloor* tile, int source_level)
 {
     int overlay;
 
     assert(tile);
     overlay = tile->overlay_id;
-    return TORIRSSERVER_CACHE_REVISION == 239 && source_level == 0 &&
-           tile->shape == 0 && overlay >= 442 && overlay <= 625 &&
-           (overlay - 442) % 3 != 1;
+    if( TORIRSSERVER_CACHE_REVISION != 239 || source_level != 0 || tile->shape != 0 ||
+        overlay < 442 || overlay > 625 || (overlay - 442) % 3 == 1 )
+        return TERRAIN_OCEAN_NONE;
+    if( overlay == TERRAIN_OVERLAY_PENGUIN_COURSE_WADE )
+        return TERRAIN_OCEAN_WADE;
+    return TERRAIN_OCEAN_SEA;
 }
 
 static void
@@ -1132,7 +1162,7 @@ gather_terrain_square(
                 const struct RSCache_MapFloor* tile =
                     &terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(local_x, local_z, level)];
                 g_settings[level][scene_x][scene_z] = tile->settings;
-                g_ocean[level][scene_x][scene_z] = (uint8_t)terrain_is_ocean(tile, level);
+                g_ocean[level][scene_x][scene_z] = (uint8_t)terrain_ocean_kind(tile, level);
             }
         }
     }
@@ -1180,8 +1210,11 @@ apply_terrain_column(
          * wreck_lower_hull_reach). The reference stamps FLOOR from BLOCK alone
          * (LostCity GameMap.ts:225); the ocean rule is this port's own, for
          * open sea that carries no BLOCK, and open sea is never roofed. The
-         * boat domain above is unchanged: a hull still sails the tile. */
-        int ocean_blocks_walk = g_ocean[level][scene_x][scene_z] &&
+         * boat domain above is unchanged: a hull still sails the tile.
+         *
+         * Wading water (TERRAIN_OCEAN_WADE, the Penguin Agility Course) is
+         * walked by the cache's own BLOCK, like land; see terrain_ocean_kind. */
+        int ocean_blocks_walk = g_ocean[level][scene_x][scene_z] == TERRAIN_OCEAN_SEA &&
                                 (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) == 0;
 
         if( level != 0 || !g_ocean[level][scene_x][scene_z] )
@@ -1443,7 +1476,7 @@ gather_terrain_zone(
                                                           zone->src_level)];
             g_settings[dst_level][scene_x][scene_z] = tile->settings;
             g_ocean[dst_level][scene_x][scene_z] =
-                (uint8_t)terrain_is_ocean(tile, zone->src_level);
+                (uint8_t)terrain_ocean_kind(tile, zone->src_level);
         }
     }
 }
