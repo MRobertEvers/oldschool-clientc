@@ -121,6 +121,8 @@ The parity closer, the seam closer and the batch's sampler commit on the batch b
 
 ```sh
 python3 tools/quest_gate/claim.py done <batch>                 # on the branch, both repos clean
+# a change that is not the batch's and must never be staged (the owner's deleted zip):
+#   claim.py done <batch> --ignore lib/emsdk-macos-toolchain.zip
 ```
 `done` merges `origin/v3` into the branch in both repos -- `pack/*.alloc` conflicts take
 `v3`'s copy and the pack is rebuilt (`make -C src torirsserver-scripts`) so the batch's ids
