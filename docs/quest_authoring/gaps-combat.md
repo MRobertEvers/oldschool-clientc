@@ -417,3 +417,13 @@ reach, not unhittable. Bring the target into line first (for Grip, `::hero_partn
 seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a)), then attack. Proof:
 `build/quest_gate/seam2_hero_full_a` rows 35 (refused before the lure) and 38-41 (hit 22/30, dead
 in 8 ticks, player still on 2780,3198).
+
+## A drain row reads the stat back at base; an owner-raised boss stands still (Porcine of Interest, b52-seam1)
+
+Two engine facts that bite a row asserting a boss's special effect. First, ANY xp gain raises a
+drained stat back to its base level (torirs_server_combat.c:1174), which LostCity's `addXp` does not
+do. So a Sourhog spit's 90% Attack drain is gone the moment you earn Attack xp. Fight on a style
+that pays the asserted stat no xp (aggressive pays Strength only) and poll the stat each tick.
+Second, a quest boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`)
+does not walk to an idle owner. Engage it with `t.player.attack` before you wait on its attacks.
+Both are OPEN engine seams (seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)).
