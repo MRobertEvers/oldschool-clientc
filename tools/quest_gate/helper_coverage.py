@@ -130,6 +130,14 @@ CLASSES (first rule that fires wins, in this order).
                where the route's entry ConditionalStep leads, without
                pressing that entry's obstacles (route_entries; Regicide's
                voyage-cave-to-pit re-entry charged to crossTheBridge); or a
+               goto from outside a building into the room the door a
+               ConditionalStep's DEFAULT step names opens on, without
+               pressing it (door_entries; Black Knights' Fortress's
+               Falador-to-entrance hop past enterFortress); or a goto out of
+               a room an obstacle step's door opens on to a nearby tile in no
+               zone, after which the step the guide shows only inside that
+               room is driven (room_exits; Heroes' Quest's hop out of the
+               secret room to melee Grip, charged to killGrip); or a
                PASS row named after an obstacle step whose newest server
                line is that attempt's failure (stale_success: passTrap5-tile
                on "...and fail, activating the trap!").
@@ -166,6 +174,7 @@ _sys.path[:] = [_p for _p in _sys.path if _os.path.abspath(_p or ".") != _HERE]
 _sys.path.append(_HERE)
 
 import argparse
+import copy
 import csv
 import json
 import os
@@ -385,6 +394,9 @@ class Guide:
         self.stage_puts = []     # (value, step var)
         self.panels = []         # (title, [step vars])
         self._parse()
+        # each step's targets as the guide wrote them, before ladder() folds
+        # its sub-steps' in (enterFortress stands for the castle stairs too)
+        self.own_targets = {name: list(step.targets) for name, step in self.steps.items()}
 
     def line_of(self, index):
         return self.code.count("\n", 0, index) + 1
@@ -3611,9 +3623,9 @@ class Grader:
                                 other.setdefault(zone, boxes)
                 if other:
                     candidates.append((leaf, composite, condition, here, other) + obstacle)
-        if not candidates:
-            return self._route_hops
-        track = self.player_track()
+        # no obstacle state of its own: the entry/door/room rules below may
+        # still charge a hop (Black Knights' Fortress's only door is a default)
+        track = self.player_track() if candidates else []
         for i in range(1, len(track)):
             position, point, is_goto = track[i]
             if not is_goto:
@@ -3667,11 +3679,12 @@ class Grader:
                         before[0], before[1], before[2], start, from_row["index"], from_row["step"],
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
-        for name, items in self.route_entries().items():
-            have = {key for key, _ in self._route_hops.get(name, [])}
-            merged = self._route_hops.setdefault(name, [])
-            merged.extend(item for item in items if item[0] not in have)
-            merged.sort(key=lambda item: int(item[0][0]) if str(item[0][0]).isdigit() else 0)
+        for found in (self.route_entries(), self.door_entries(), self.room_exits()):
+            for name, items in found.items():
+                have = {key for key, _ in self._route_hops.get(name, [])}
+                merged = self._route_hops.setdefault(name, [])
+                merged.extend(item for item in items if item[0] not in have)
+                merged.sort(key=lambda item: int(item[0][0]) if str(item[0][0]).isdigit() else 0)
         return self._route_hops
 
     # -- entering a route from where it does not lead (gap (a) of b49-seam2)
@@ -3864,6 +3877,294 @@ class Grader:
                             composite, word, leaf.name, ",".join(locs), end_zone, entry, composite,
                             self.guide.steps[self.guide.resolve(composite)].line or 0)))
         return self._route_entries
+
+    # -- a guarded interior: entered through its door, left only through it
+    #    (seam goto_into_a_guarded_interior_from_outside_any_zone, b51)
+
+    ROOM_EXIT_TILES = 24
+
+    def _region_of(self, composite):
+        """[(zone, box)] over every addStep condition of `composite` and the
+        ConditionalSteps under it."""
+        return self.route_zone_boxes(self.route_subtree(composite))
+
+    def _own_obstacle(self, step):
+        """route_obstacle on the step's OWN targets: ladder() folds a
+        parent's sub-steps' targets into it (enterFortress gains the White
+        Knights' Castle stairs), which would make a door read as a stair and
+        the answer depend on whether the ladder was built yet."""
+        own = self.guide.own_targets.get(step.name)
+        if own is None or own == step.targets:
+            return self.route_obstacle(step)
+        proxy = copy.copy(step)
+        proxy.targets = list(own)
+        return self.route_obstacle(proxy)
+
+    def door_routes(self):
+        """[(composite X, door D, locs, word, rooms [(zone, box)], footprint
+        rectangle)] for every ConditionalStep X whose constructor default D is
+        ONE ObjectStep on a route obstacle (a door, gate, barrier...; a plain
+        ladder or stair is travel) whose WorldPoint touches X's own state
+        zones on D's level: the guide shows D whenever the player is in none
+        of X's zones, so D is the way into the room it opens on (Black
+        Knights' Fortress's infiltrateTheFortress = new ConditionalStep(this,
+        enterFortress), bkfortressdoor1 at 3016,3514,0 opening on
+        mainEntrance3). The rooms are the zone boxes D's point touches
+        (within ROUTE_ZONE_SLACK); a zone the guide shows D itself in is the
+        door's outside and is left out. The footprint is the x,z hull of the
+        island of X's zones those rooms belong to (zones within
+        ROUTE_ZONE_SLACK tiles are one island) plus every zone on another
+        level whose x,z footprint touches it (the floors above and below).
+        Only the rooms the door opens on are judged: a building may have
+        other doors the guide does not name (Ernest the Chicken's pickupSpade
+        leaves Draynor Manor's east room "through the door in the same
+        room"), so a landing deeper inside is not a hop past D.
+
+        route_gates reads a default that is a single step as no way in at all
+        (Quest Helper puts a route's LAST step there as often as its first:
+        talkToIorwerth, climbDownWell, enterTyrasCamp). Here it is read only
+        when it is an obstacle on the edge of X's zones: a last step does not
+        open on the zones the route walks through."""
+        if getattr(self, "_door_routes", None) is not None:
+            return self._door_routes
+        self._door_routes = []
+        resolve = self.guide.resolve
+        for composite in sorted(self.guide.branch_conds):
+            step = self.guide.steps.get(resolve(composite))
+            if step is None or not step.children:
+                continue
+            door = self.guide.steps.get(resolve(step.children[0]))
+            if door is None or door.is_composite() or door.point is None:
+                continue
+            obstacle = self._own_obstacle(door)
+            if obstacle is None:
+                continue
+            # a zone the guide shows D in is the door's OUTSIDE (Eadgar's
+            # Ruse: returnParrotToEadgar.addStep(inTrollheimArea,
+            # enterEadgarCaveWithTrainedParrot) -- the mountain before the cave)
+            outside = set()
+            for name in self.route_subtree(composite):
+                for child, condition in self.guide.branch_conds.get(name, []):
+                    if resolve(child) == door.name:
+                        outside.update(self.guide.condition_zones(condition))
+            region = [(zone, box) for zone, box in self._region_of(composite) if zone not in outside]
+            if not region:
+                continue
+            x, z, level = door.point
+            spot = (x, x, z, z, level, level)
+            parent = list(range(len(region)))
+
+            def find(i):
+                while parent[i] != i:
+                    parent[i] = parent[parent[i]]
+                    i = parent[i]
+                return i
+
+            for i in range(len(region)):
+                for j in range(i + 1, len(region)):
+                    if self._boxes_touch(region[i][1], region[j][1]):
+                        parent[find(i)] = find(j)
+            rooms = [region[i] for i, (_, box) in enumerate(region) if self._boxes_touch(spot, box)]
+            seeds = {find(i) for i, (_, box) in enumerate(region) if self._boxes_touch(spot, box)}
+            if not seeds:
+                continue
+            island = [i for i in range(len(region)) if find(i) in seeds]
+
+            def flat_touch(a, b):
+                return max(0, b[0] - a[1], a[0] - b[1]) <= self.ROUTE_ZONE_SLACK and \
+                    max(0, b[2] - a[3], a[2] - b[3]) <= self.ROUTE_ZONE_SLACK
+
+            interior = [region[i] for i in range(len(region))
+                        if i in island or any(flat_touch(region[i][1], region[k][1]) for k in island)]
+            hull = (min(b[0] for _, b in interior), max(b[1] for _, b in interior),
+                    min(b[2] for _, b in interior), max(b[3] for _, b in interior))
+            self._door_routes.append((composite, door, obstacle[0], obstacle[1], rooms, hull))
+        return self._door_routes
+
+    def door_entries(self):
+        """{door step name: [((row index, row step), reason)]}: a goto that
+        lands in a room of a door route (door_routes) from a tile outside its
+        footprint on the same map frame (any level: the start is not in the
+        building at all), with nothing between to make the start unknown and
+        no press of the door's copy between. A start in a dungeon frame is
+        not judged: a ladder out of it may come up inside (In Search of the
+        Myreque's hideout opens on the entrance island). A door several
+        ConditionalSteps share as their default (Mourning's End Part I's
+        mournerstewdoor, four of them) is charged to each. Black Knights'
+        Fortress 4b849c46b row 16: goto-fortress-entrance from the White
+        Knights' Castle (2960,3335,2) to 3016,3516,0 (inMainEntrance), past
+        bkfortressdoor1 and the disguise check its [oploc1] makes.
+
+        Not judged: a start inside the footprint (a hop between the
+        interior's floors skips a ladder, not the front door: the climb rules
+        judge those), a hop with a press, walk, use or cast between, and a
+        hop with a press of the door between."""
+        if getattr(self, "_door_entries", None) is not None:
+            return self._door_entries
+        self._door_entries = {}
+        routes = self.door_routes()
+        if not routes or not self.rows:
+            return self._door_entries
+        track = self.player_track()
+        slack = self.ROUTE_ZONE_SLACK
+        for i in range(1, len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            if abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200:
+                continue  # from a dungeon: its ladder may come up inside (the Myreque hideout)
+            for composite, door, locs, word, rooms, hull in routes:
+                end_zone = next((zone for zone, box in rooms if self._in_box(box, point)), None)
+                if end_zone is None:
+                    continue
+                if hull[0] - slack <= before[0] <= hull[1] + slack and hull[2] - slack <= before[1] <= hull[3] + slack:
+                    continue  # started in the building: not the front door's hop
+                if self._pressed_between(between, locs, door.point):
+                    continue
+                items = self._door_entries.setdefault(door.name, [])
+                if any(key == (row["index"], row["step"]) for key, _ in items):
+                    continue
+                start_zone = next((zone for zone, box in self._region_of(composite) if self._in_box(box, before)),
+                                  "no zone of it")
+                items.append(((row["index"], row["step"]),
+                    "ledger row %s %r lands at %d,%d,%d (%s) from %d,%d,%d (%s, row %s %r), outside the building "
+                    "%s's zones make, without pressing the %s %s names (%s): the guide's way in is %s (%s's "
+                    "default, guide line %d), whose %s at %d,%d,%d opens on %s" % (
+                        row["index"], row["step"], point[0], point[1], point[2], end_zone,
+                        before[0], before[1], before[2], start_zone, from_row["index"], from_row["step"],
+                        composite, word, door.name, ",".join(locs), door.name, composite,
+                        self.guide.steps[self.guide.resolve(composite)].line or 0, word,
+                        door.point[0], door.point[1], door.point[2], end_zone)))
+        return self._door_entries
+
+    def guarded_rooms(self):
+        """[(composite X, room step S, room zones Z, door step O, O's zones A,
+        O's locs, word)]: a state zone Z of X that holds (within one tile) the
+        WorldPoint of an obstacle step O which X shows in ANOTHER zone A --
+        the room O's door opens on, and the guide's only way between A and Z.
+        S is the step X shows while the player is in Z. Heroes' Quest's
+        getThievesArmband: useKeyOnDoor (pete_sidedoor at 2781,3197) is shown
+        inGarden and opens on secretRoom, where the guide shows killGrip
+        ("kill him with magic/ranged" from inside it, HeroesQuest.java:411)."""
+        if getattr(self, "_guarded_rooms", None) is not None:
+            return self._guarded_rooms
+        self._guarded_rooms = []
+        resolve = self.guide.resolve
+        for composite, entries in sorted(self.guide.branch_conds.items()):
+            states = []
+            for child, condition in entries:
+                leaf = self.guide.steps.get(resolve(child))
+                zones = self.guide.condition_zones(condition)
+                if leaf is not None and not leaf.is_composite() and zones:
+                    states.append((leaf, zones))
+            for door, door_zones in states:
+                if door.point is None:
+                    continue
+                obstacle = self._own_obstacle(door)
+                if obstacle is None:
+                    continue
+                x, z, level = door.point
+                door_boxes = [b for boxes in door_zones.values() for b in boxes]
+                for room, room_zones in states:
+                    if room is door:
+                        continue
+                    room_boxes = [b for boxes in room_zones.values() for b in boxes]
+                    # the door's tile is in the room or on its edge
+                    if not any(b[4] <= level <= b[5] and b[0] - 1 <= x <= b[1] + 1 and b[2] - 1 <= z <= b[3] + 1
+                               for b in room_boxes):
+                        continue
+                    if any(self._in_box(b, (x, z, level)) for b in door_boxes):
+                        continue  # the door stands in its own zone: not a room behind it
+                    if any(max(0, a[0] - b[1], b[0] - a[1]) == 0 and max(0, a[2] - b[3], b[2] - a[3]) == 0 and
+                           not (a[5] < b[4] or b[5] < a[4]) for a in room_boxes for b in door_boxes):
+                        continue  # the room overlaps the door's side
+                    self._guarded_rooms.append((composite, room, room_zones, door, door_zones) + obstacle)
+        return self._guarded_rooms
+
+    def room_exits(self):
+        """{room step name: [((row index, row step), reason)]}: a goto that
+        leaves a guarded room Z (guarded_rooms) for a tile within
+        ROOM_EXIT_TILES on the same level -- outside Z, outside the door's
+        side A and outside every zone of the route -- with no press of the
+        door between, after which a row drives the step the guide shows only
+        INSIDE Z. The test left the room through a wall and did the room's
+        step from somewhere the guide never shows it. Heroes' Quest
+        9bdd40c4d row 30: goto-grip from 2781,3197 (secretRoom) to 2774,3192,
+        then attackGrip/killGrip melee Grip in his own room.
+
+        Not judged: a hop further than ROOM_EXIT_TILES or to another level or
+        frame (a player may teleport out of a room), a hop back to the door's
+        side or into another zone of the route (route_hops' business), a hop
+        with an unknown start, and a room whose step is not driven after the
+        hop. A room the guide does not enter through a named door (no
+        obstacle step points into it) is not known to be sealed: judging it
+        needs the map's walls (coverage-and-gate.md, "A goto out of a sealed
+        room")."""
+        if getattr(self, "_room_exits", None) is not None:
+            return self._room_exits
+        self._room_exits = {}
+        rooms = self.guarded_rooms()
+        if not rooms or not self.rows:
+            return self._room_exits
+        track = self.player_track()
+        for i in range(1, len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if before[2] != point[2] or max(abs(before[0] - point[0]), abs(before[1] - point[1])) > \
+                    self.ROOM_EXIT_TILES:
+                continue
+            if any(self._row_moves(row) for row in between):
+                continue
+            later = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            after = [r for r in self.rows[position + 1:later] if r.get("verdict") == "PASS"]
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            for composite, room, room_zones, door, door_zones, locs, word in rooms:
+                inside = next((zone for zone, boxes in room_zones.items()
+                               if any(self._in_box(b, before) for b in boxes)), None)
+                if inside is None or any(self._in_box(b, point) for boxes in room_zones.values() for b in boxes):
+                    continue
+                if any(self._in_box(box, point) for _, box in self._region_of(composite)):
+                    continue
+                if self._pressed_between(between, locs, door.point):
+                    continue
+                symbols = sorted({s for _, s in room.targets})
+                quoted = re.compile(r"[\"'](%s)[\"']" % "|".join(re.escape(s) for s in symbols)) if symbols else None
+                drove = None
+                for candidate in after:
+                    if self.row_names_step(candidate["step"], room.name):
+                        drove = candidate
+                        break
+                    line = self.row_line(candidate["step"])
+                    if quoted is not None and line is not None and quoted.search(self.test.code_lines[line - 1]):
+                        drove = candidate
+                        break
+                if drove is None:
+                    continue
+                items = self._room_exits.setdefault(room.name, [])
+                if any(key == (row["index"], row["step"]) for key, _ in items):
+                    continue
+                condition = next((c for child, c in self.guide.branch_conds.get(composite, [])
+                                  if self.guide.resolve(child) == room.name), "")
+                items.append(((row["index"], row["step"]),
+                    "ledger row %s %r leaves %s (from %d,%d,%d, row %s %r) for %d,%d,%d, in no zone of %s, "
+                    "without pressing the %s %s names (%s) that is the room's only way out, and row %s %r "
+                    "drives %s there: the guide shows it only inside the room (%s.addStep(%s, %s), guide "
+                    "line %d)" % (
+                        row["index"], row["step"], inside, before[0], before[1], before[2],
+                        from_row["index"], from_row["step"], point[0], point[1], point[2], composite,
+                        word, door.name, ",".join(locs), drove["index"], drove["step"], room.name, composite,
+                        " ".join(condition.split())[:60], room.name, room.line or 0)))
+        return self._room_exits
 
     def stale_success(self, leaf):
         """A PASS row named after an obstacle step whose own reading says the

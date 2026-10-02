@@ -243,6 +243,7 @@ topic file with one line added here.
 - `leaveFallArea` CHEAT naming a later leg's `goto_tile 2417,9677` (Underground Pass) -> gaps-world: Underground Pass: the fall pocket is left over five rockslides (last paragraph)
 
 - `lands at ... without pressing the <obstacle> <step> names` / `PASSed, but the newest server line of its attempt is`; `helper_coverage --ledger` -> coverage-and-gate: "lands at ... without pressing the rockslide" (b49-seam2)
+- `outside the building ... the guide's way in is ...` / `that is the room's only way out`; a goto into a building past its door default, or out of a door-guarded room to do its step elsewhere -> coverage-and-gate: "outside the building ..." (b51 seam1); seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (a)
 - `t.check(name, true, ...)` after a `t.ui.invoke` or a pickup -> sampler-findings: Sample sonnet-b36
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`
 - `[bad ledger argument]`; a boolean in `t.step` -> gaps-dialogue: `t.step`'s second argument
@@ -373,6 +374,8 @@ topic file with one line added here.
 - an edit to a generated `areas/world/configs/m*.spawn`; `gen_spawns.py` tables; regenerating drops hand edits -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (d)
 - the client segfaults after many interface models (`::ejmodels`, `UITreeSceneBridge_EnsureModel`); `model_pose` reads `model=-1` -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (e)
 - `if_setevents(..., ^if_event_op1)` on an IF1 button does nothing -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (g)
+- `no_row slayer_master_2_mazchna`, a Warriors' Guild npc, Mac or Patchy missing; an npc the spawn dump had that this cache renumbered (name drift) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (c); docs/ITEM_AND_NPCS.md section 3
+- Rum Deal: "You open the gate." then `walk_to` stalls at 2120,5098 (pier gate) -> FIXED b51 seam1: seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (b); test/quests/wip/rumdeal/relay.md
 
 ## Citations: resolving a number or a name
 

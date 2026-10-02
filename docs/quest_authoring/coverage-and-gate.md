@@ -226,8 +226,9 @@ Not judged:
 
 - A default that is a single step. Quest Helper puts a route's last step in the default as often as its
   first: `pathToIorwerth`'s `talkToIorwerth`, `theUndergroundPass`'s `climbDownWell`,
-  `goToTyrasCampEntrance`'s `enterTyrasCamp`.
-- A start in no zone of X. Open ground may reach the landing some way the guide does not name.
+  `goToTyrasCampEntrance`'s `enterTyrasCamp`. A single DOOR default is judged by the next section.
+- A start in no zone of X. Open ground may reach the landing some way the guide does not name (except
+  through the door of the next section).
 - A start on D's island. The rule above judges those hops.
 
 In the committed greens, 4 guides have such a route (grandtree, losttribe, regicide, tearsofguthix),
@@ -290,6 +291,97 @@ The reverted runs read TEST_GAP from the hops their samplers named: pit to lever
 temple to Iban's room, trap to trap, Tyras's camp to the sulphur, past the forests, ring to log, and
 the three stale trap rows. 5deefa070's ring-to-log re-teleport reads CHEAT; its mid-run `::setlevel
 agility 99` is not a goto and is not this rule's.
+
+### "outside the building ... the guide's way in is ..." / "leaves ... that is the room's only way out" (b51 seam1)
+
+*Origin: the matthew-mbp-m4-b51 sampler sent back two greens the grader read FULL. Black Knights'
+Fortress 4b849c46b row 16 `goto-fortress-entrance` went from the White Knights' Castle (2960,3335,2)
+straight to 3016,3516,0 inside the fortress, past `bkfortressdoor1`, whose `[oploc1]` is the disguise
+check (quest_blackknight.rs2:10). Heroes' Quest 9bdd40c4d row 30 `goto-grip` went from inside the
+sealed secret room (2781,3197) to 2774,3192 and meleed Grip, where the guide's `killGrip` says "kill
+him with magic/ranged" from your own room (HeroesQuest.java:411). Seam
+`goto_into_a_guarded_interior_from_outside_any_zone`.*
+
+**A goto into the room a door default opens on is CHEAT** (`door_entries`). Take a `ConditionalStep` X
+whose constructor default D is ONE ObjectStep on a route obstacle (door, gate, barrier...; a plain
+ladder or stair is travel) with a WorldPoint. QH shows D whenever the player is in none of X's zones,
+so D is the way in. The rooms D opens on are X's zone boxes within 2 tiles of D's point on its level;
+a zone the guide shows D itself in is the door's outside and is left out (Eadgar's Ruse:
+`returnParrotToEadgar.addStep(inTrollheimArea, enterEadgarCaveWithTrainedParrot)` is the mountain
+before the cave). The building's footprint is the x,z hull of those rooms' island of X's zones plus
+the floors above and below it. A goto is CHEAT for D when:
+
+- it lands in one of the rooms D opens on;
+- it starts outside the footprint on the same map frame, on any level (Falador's second floor counts);
+- nothing between makes the start unknown (a departure stamp, or a reading with no press or walk after
+  it), and no row between presses D's copy.
+
+Example: `enterFortress: ledger row 16 'goto-fortress-entrance' lands at 3016,3516,0 (inMainEntrance)
+from 2960,3335,2 (inFaladorF2, ...), outside the building infiltrateTheFortress's zones make, without
+pressing the door enterFortress names (bkfortressdoor1): the guide's way in is enterFortress
+(infiltrateTheFortress's default, guide line 299), whose door at 3016,3514,0 opens on
+inMainEntrance`. Drive it as the game does: goto to the outside of the door, wear the disguise,
+`click_loc` the door under a row named `enterFortress`.
+
+Not judged:
+
+- A landing deeper in the building than the room the door opens on. A building can have doors the guide
+  does not name: Ernest the Chicken's `pickupSpade` says to leave Draynor Manor's east room "through the
+  door in the same room", so the goto from the fountain into that room is not a hop past `enterManor`.
+- A start in a dungeon frame (z + 6400). A ladder out of it may come up inside: In Search of the
+  Myreque's hideout ladder comes up on the entrance island past `climbTree`.
+- A start inside the footprint. A hop between the building's floors skips a ladder, not the front door;
+  the climb rules judge it.
+- A door several ConditionalSteps share as their default is charged to each of them. Mourning's End
+  Part I's `mournerstewdoor` is the default of four, so one hop reads four CHEAT rows.
+
+**A goto out of a guarded room, after which the room's step is driven elsewhere, is CHEAT**
+(`room_exits`). A guarded room is a state zone Z of X that holds, within one tile, the WorldPoint of
+an obstacle step O that X shows in ANOTHER zone A (Heroes' Quest: `useKeyOnDoor`, `pete_sidedoor` at
+2781,3197, is shown `inGarden` and opens on `secretRoom`). S is the step X shows in Z (`killGrip`). The
+step S is CHEAT when a goto meets all of these:
+
+- it starts in Z;
+- it lands within 24 tiles on the same level, outside Z, outside A and outside every zone of X;
+- nothing between makes the start unknown, and no row between presses O;
+- a PASS row before the next goto is named after S or quotes S's target (`killGrip`, `attackGrip`).
+
+Example: `killGrip: ledger row 30 'goto-grip' leaves inSecretRoom (from 2781,3197,0, ...) for
+2774,3192,0, in no zone of getThievesArmband, without pressing the door useKeyOnDoor names
+(pete_sidedoor) that is the room's only way out, and row 32 'killGrip' drives killGrip there`. Drive
+it as the guide does: stay in the room and use `t.player.cast` or a ranged weapon on Grip once he is
+lured next door.
+
+Not judged: a hop further than 24 tiles or to another level (a player may teleport out of a room), a
+hop back to the door's side, a hop with an unknown start, and a room whose step is not driven after
+the hop.
+
+**Known gap: a sealed room the guide does not door-guard.** `room_exits` knows a room is closed only
+because an obstacle step's door opens on it. A room enclosed by walls the guide never names (no
+obstacle step points into it), or a goto through a wall between two zones that the guide joins with no
+step, cannot be judged without the map's walls. `walkable_probe` (src/torirsserver/test/) reads
+standability, not wall edges, and no Python reader of the `.jl2` walls or the server's
+`collision_map_bfs_path` exists for the grader. Until one does, the samplers judge these hops from the
+map square (Heroes' Quest's room is walled in `maps/m43_49.jl2`, `snipable_wall` at 2780,3198).
+
+Results (`--lua`/`--ledger` on the reverted runs; every committed green on both its last-run ledger and
+its published ledger, 208 grades, `PYTHONHASHSEED=0`):
+
+| Run | Before | After |
+| --- | --- | --- |
+| blackknight 4b849c46b + OSRS-Content 0baada3fd2 | FULL 32 | TEST_GAP: `enterFortress` CHEAT (row 16), nothing else changes |
+| hero 9bdd40c4d + OSRS-Content 45e8690c34 | FULL 43 | TEST_GAP: `killGrip` CHEAT (rows 30/32), nothing else changes |
+| regicide 2c35057c6 | TEST_GAP CHEAT 9 | the same |
+| `helper_coverage_two_op_test.py` | 3/3 | 3/3 |
+| Committed greens (104 x 2 ledgers) | 202 FULL + 6 already not FULL (eaglepeak x2, misc, itwatchtower, shadowstorm: older published evidence; ratcatchers: a concurrent run's ledger) | 200 FULL; the 6 unchanged step by step; mourningsendparti x2 is the only change |
+
+The one green that changes is a real cheat: mourningsendparti row 172 `goto-cookToxin` goes from
+Rimmington (2927,3211,0) into the Mourner HQ (2547,3323,0) to use its range. The HQ door
+`mournerstewdoor` is quest-gated: area_ardougne_west/scripts/doors.rs2:19 checks the full mourner
+disguise (mend1_disguise.rs2:335). Re-author that hop: go to the door, wear the gear, and press it.
+Evidence: `build/seam_state/matthew-mbp-m4-b51-seam1/fix_guarded/` (`sweep_diff.txt`,
+`synthetic/`: a landing outside the door, a door press before an unstamped goto, a hop to the
+garden and an 81-tile hop each stay uncharged).
 
 ### A `BLOCKED` row reports `blocked`
 

@@ -144,7 +144,8 @@ fresh_lumbridge giant spider stuck behind the castle fence made `_cheats` passiv
 (h) `%if1..%if6` (varps 261-266) are the cache's per-screen interface scratch: never store state
 there. The Slayer task is `%slayer_count`/`%slayer_target` (var394/395) plus server-only
 `%slayer_task_id`/`%slayer_stored_*`; a test that needs a task asks Vannaka (`slayer_master_3`,
-3146,9914, combat 40; Turael is not spawned).
+3146,9914, combat 40; "Turael is not spawned" is FIXED: b50 put him back, and Mazchna and Duradel
+stand since seam pass matthew-mbp-m4-b51-seam1 (c)).
 
 (i) The Lumbridge Swamp Dark hole refuses without a rope while `swamp_caves_roped_entrance` is 0
 (wiki Dark hole): tearsofguthix, wanted and anothersliceofham give a rope; that bit is on the
@@ -1171,3 +1172,39 @@ is only placed while `varb3298_peng_multi_larry` is 1: a scratch that stages sta
 (d) A regression run in a seam pass takes `--no-publish`: two fixers ran `run.py cooks_assistant`
 and `druid` without it and republished `selftest/quests/quest_{cook,druid}/play` in OSRS-Content
 (restored by hand). Seam pass 17 has the rule; running.md now says it at the run command.
+
+## Seam pass matthew-mbp-m4-b51-seam1 (2026-10-02, batch matthew-mbp-m4-b51)
+
+(a) Two goto hops the grader read FULL now read CHEAT (coverage-and-gate, "outside the building ...
+the guide's way in is ..."). `door_entries`: a goto from outside a building into the room a
+ConditionalStep's single-door default opens on, with no press of that door (Black Knights'
+Fortress's Falador-to-entrance hop past `bkfortressdoor1`, charged to `enterFortress`).
+`room_exits`: a goto out of a room an obstacle step's door opens on, to a nearby tile in no zone,
+after which the room's own step is driven there (Heroes' Quest's hop out of the secret room to
+melee Grip, charged to `killGrip`). Of the committed greens only mourningsendparti changes: row 172
+`goto-cookToxin` teleports from Rimmington into the Mourner HQ past the disguise-gated
+`mournerstewdoor`, a real cheat, reopened. A room sealed by walls no guide step names is still not
+judged: the grader has no reader of the map's walls (known gap, same section).
+
+(b) Rum Deal's pier gate (`deal_gate_closed`, 2120,5098,0) opened in place at its closed angle, so
+the wall stayed and the walk north stalled at 2120,5098 after "You open the gate.". From
+`^deal_get_water` on, the press now goes through the shared `~door_open_active` (doors.loc pairs it
+with `deal_gate_open`): the gate swings off the wall line like every door and the north island is
+walkable (Quest Helper RumDeal.java:358 `openGate`, then `northIsland` z >= 5099; OSRS wiki Rum Deal
+oldid 15315444). Below that stage it still answers with its lock line. Route and proof:
+`test/quests/wip/rumdeal/relay.md` (walk in hops; a 33-tile `walk_to` to the lake is refused).
+
+(c) Npcs whose dump id the cache gave to newer content were dropped by `tools/gen_spawns.py` as
+name drift and are back: `NPC_SPAWN_ID_CORRECTIONS` adds Mazchna (3511,3509), Duradel
+(2869,2982,1), Harrallak, Ghommal and Sloane (Warriors' Guild), Mac and Patchy, each to the named
+symbol content binds (`slayer_master_2_mazchna`, `warguild_ghommal_npc`, ...); `NPC_NAME_ALIASES`
+keeps six same-id renames (`warrior_woman` "Warrior", `jungle_savage` "Tormented Warrior",
+`feud_desert_snake` "Snake", the two Ethereal Beings, `hosidius_chief_farmer` "Dale"). Each row
+cites the OSRS wiki oldid whose infobox holds the id and whose map marker holds the tile. Drift
+fell 219 -> 145 rows; 20 squares gained spawns (never `m45_159`). A scratch `npc.by_name` probe
+went 12/12 `no_row` -> 55/55 PASS, and Mazchna and Duradel open their slayer pages. Before you call
+a drifted name absent, check every `.spawn` under `server/scripts` (quest-local files too:
+Traiborn, Hassan, Aris and Zembo stand in `quest_demon.spawn`, `quest_prince.spawn`,
+`tbwt_zembo.spawn`) and every `npc_add`, under the cache's name as well as the dump's. Npcs left
+out on purpose (quest-spawned by `npc_add`, Kourend favour-era, Sailing fauna, the reworked
+Sophanem) are listed in `docs/ITEM_AND_NPCS.md` section 3.
