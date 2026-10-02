@@ -26,7 +26,9 @@ local plugin = {
 -- leaves its namespace empty and the first quest step calls nil thirty steps
 -- later. Counting them at on_start is what turns that into one line at boot.
 local PARTS = { "chat", "scroll", "levelup", "player", "var", "inv", "msg",
-                "ui", "npc", "world", "drive", "t" }
+                "ui", "npc", "world", "drive", "t",
+                -- the raid seam's parts (docs/RAID_ORCHESTRATOR.md section 4)
+                "prayer", "raid", "ticklog" }
 
 function plugin.on_start(api)
     -- The quest coroutine is resumed from C with no `api` of its own (it

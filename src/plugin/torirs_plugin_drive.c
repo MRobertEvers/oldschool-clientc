@@ -101,6 +101,13 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     /* After combat.lua: t.player.cast stamps QD._combat_last, the record
      * npc.await_dead_engaged holds (seam cast_spell_on_npc, 2026-09-27). */
     "plugins/quest_driver/spell.lua",
+    /* The raid seam (docs/RAID_ORCHESTRATOR.md section 4): prayer.lua adds
+     * QD.prayer, raid.lua adds QD.raid, ticklog.lua adds QD.ticklog. None of
+     * them wraps anything; they follow combat.lua because raid.lua reads
+     * QD._combat_last. */
+    "plugins/quest_driver/prayer.lua",
+    "plugins/quest_driver/raid.lua",
+    "plugins/quest_driver/ticklog.lua",
     /* Last: t.cutscene wraps QD.core_row_begin (core.lua) to remember the
      * camera serial each t.exec row began at, and reads QD.shot (ui.lua)
      * (seam32 cutscene_verb_and_camera_read). */

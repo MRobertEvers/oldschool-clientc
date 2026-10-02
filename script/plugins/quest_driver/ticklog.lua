@@ -1,0 +1,5 @@
+-- quest-driver / ticklog: the embedded server's per-tick event log (npc
+-- animations, projectiles, hits, spawns, deaths, loc changes, tiles), read by a
+-- test to build its tick ledger. Raid seam 1 (docs/RAID_ORCHESTRATOR.md
+-- sections 4 and 6). Verbs are added by the seam fixer that owns this file; the
+-- namespace QD.ticklog is declared in core.lua.

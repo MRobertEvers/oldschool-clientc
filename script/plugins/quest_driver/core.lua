@@ -27,6 +27,9 @@ local QD = {
                      -- bind/stage/expect_stage/expect_complete
     session = {},   -- session.lua (seam 18 D): logout/login/relog through
                      -- the client's own logout button and title screen
+    prayer = {},    -- prayer.lua (raid seam 1): set/read a prayer by click
+    raid = {},      -- raid.lua (raid seam 1): enter a raid room, read the raid
+    ticklog = {},   -- ticklog.lua (raid seam 1): the server's per-tick event log
 }
 
 -- The one global this chunk exports. QD itself stays `local` -- a register,

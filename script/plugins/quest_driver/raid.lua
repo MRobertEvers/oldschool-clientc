@@ -1,0 +1,5 @@
+-- quest-driver / raid: enter a raid room as a player arrives in it (the room
+-- built by the raid's own debugproc), and read the raid's state back.
+-- Raid seam 1 (docs/RAID_ORCHESTRATOR.md section 4, instance resume per room).
+-- Verbs are added by the seam fixer that owns this file; the namespace QD.raid
+-- is declared in core.lua.

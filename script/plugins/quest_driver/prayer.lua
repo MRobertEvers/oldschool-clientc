@@ -1,0 +1,5 @@
+-- quest-driver / prayer: activate or deactivate a prayer by the client's own
+-- prayer-book button, and read the active set back from the server's varbits.
+-- Raid seam 1 (docs/RAID_ORCHESTRATOR.md section 4, prayer.set / prayer.read).
+-- Verbs are added by the seam fixer that owns this file; the namespace QD.prayer
+-- is declared in core.lua.
