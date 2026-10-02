@@ -122,7 +122,7 @@ quest_priest	priest	therestlessghost		1	green	sonnet-b2
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
-quest_queenofthieves	queenofthieves	thequeenofthieves		4	green	matthew-mbp-m4-b53			
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo	matthew-mbp-m4-b53	REVERTED by sampler (matthew-mbp-m4-b53): goto_tile teleports into the Queen of Thieves' tent (1764,10157 from Devan at 1766,10147, 0 ticks) and back out to the ladder, past piscquest_tentdoor 'Doorway' (1765,10149, op1 Go-through) -- the tent's only entrance; the doorway has no [oploc1,piscquest_tentdoor] script, so content must script it (gated on Devan's go-ahead) and the test click it in and out for talkToQueenOfThieves and talkToShauna		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
