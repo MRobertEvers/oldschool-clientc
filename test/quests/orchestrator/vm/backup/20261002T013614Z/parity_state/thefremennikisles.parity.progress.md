@@ -1,0 +1,3 @@
+# thefremennikisles parity notebook (started 2026-10-02T01:09:42Z)
+source=wiki (no LostCity). Existing port: stage ladder reconstructed 1..26, jester minigame collapsed, tax amounts guessed, etc.
+Plan: renumber stages to guide values (5,10,20,30,40,50,55,60,90,100-130,140,150,160,200,210,230,235,240,260,270,275,280,290,300,320,325,330,340), cat tuna gate, real jester controls (iface frisd_jestertask), slug choices, rope/log coin handovers+Thakkrad, bridge 4 rope/log + construction 20 (drop invented prayer gate), tax amounts 5000/5000/6000/8000 + beard 1000 each, decree slot gate, reward XP choice x2 (10000), Bork supplies in cave.

@@ -188,20 +188,21 @@ with `queue.py set` ends the claim.
 
 ## Where an orchestrator keeps its files (owner, 2026-10-02)
 
-**Never store a work product, even a partial one, in a session scratchpad.** A scratchpad is
-for one-off throwaway scripts only. Everything else lives in the repo checkout:
+**Never store a work product, even a partial one, in a session scratchpad or under `build/`
+(gitignored).** A scratchpad is for one-off throwaway scripts only. An orchestrator's own
+files live in the TRACKED folder `test/quests/orchestrator/<host>/`, committed and pushed on
+the batch branch:
 
-- `build/orchestrator/workflows/` -- this machine's saved copies of the three workflow
-  scripts (the `WT` constant set to this checkout). Launch from these paths.
-- `build/orchestrator/backup/<UTC time>/` -- snapshots of uncommitted work (a
-  `git diff HEAD` patch per repo, tarballs of untracked files, the pass state) taken before
-  anything risky.
-- `build/orchestrator/worktrees/` -- temporary git worktrees (a cherry-pick onto `v3`, a
-  mutation check per CLAUDE.md); removed when done.
-- `build/<kind>_state/<pass>/` -- the passes' own state, as before.
+- `workflows/` -- this machine's copies of the three workflow scripts (the `WT` constant set
+  to this checkout). Launch from these paths.
+- `backup/<UTC time>/` -- snapshots of uncommitted work taken before anything risky: a
+  `git diff HEAD` patch per repo, tarballs of untracked files, the passes' reports and
+  notebooks. Commit and push each snapshot as soon as it is taken.
 
-`build/` is gitignored, so none of this is pushed; work that must survive the machine is
-committed on the batch branch.
+Temporary git worktrees (a cherry-pick onto `v3`, a mutation check per CLAUDE.md) go under
+`build/orchestrator/worktrees/` and are removed when done; they hold no work product. The
+passes' own state stays where the scripts put it (`build/<kind>_state/<pass>/`), so the
+orchestrator copies each finished report and notebook into a backup snapshot.
 
 ## Never stop a running pass (owner, 2026-10-02)
 
