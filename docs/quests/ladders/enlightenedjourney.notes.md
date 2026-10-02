@@ -12,8 +12,10 @@ Dialogue gates (ej_shared.rs2 zep_piccard_talk):
 
 Item flow: the 8 sack fills are use sack on loc sandpit (glass.rs2:19). Sandbags are stored
 8 at most, extra ones stay in the pack.
-Branches: use 12 willow branches on zep_multi_basket_entrana (ej_crafting.rs2). Nothing in
-this pack hands out willow branches (no farming harvest of branches): ::give them.
+Branches: use 12 willow branches on zep_multi_basket_entrana (ej_crafting.rs2). Grow Auguste's
+sapling in a tree patch and cut its branches with secateurs (skill_farming/farming_tree.rs2,
+seam pass matthew-mbp-m4-b50-seam1); every hand-in's source and route is in
+test/quests/wip/enlightenedjourney/relay.md. Never ::give a hand-in.
 
 The flight (ej_flight.rs2): Auguste needs 10 logs + a tinderbox in the pack and weight <= 40 kg.
 He takes the 10 logs when you say Okay. Interface 470 (grid) + 471 (controls) open; each

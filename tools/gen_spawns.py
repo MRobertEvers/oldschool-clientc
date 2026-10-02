@@ -241,9 +241,19 @@ NPC_SPAWN_EXCLUSIONS = {
 NPC_SPAWN_RELOCATIONS = {
     ("claus_carnillean", 2566, 9670, 0): (2540, 9697, 0),
 }
+#
+# Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
+# pot (the one the flour barrel fills) on 1239,3682,1, and maps/m19_57.jl2 line
+# 397 (`1 23 34: 3025 11 2`) stands `fai_varrock_sack_pile` -- a blocking
+# centrepiece -- on that very tile, so Take answers "I can't reach that!". The
+# next tile north-west of the pile, 1239,3681,1 (local 23,33), carries no loc.
+# Quest Helper GettingAhead.java `takePot` sends the player to this pot upstairs
+# (zone 1238..1244, 3677..3687, plane 1); the wiki's Gordon and Mary's farm
+# (oldid 15229525) names the upstairs flour source.
 OBJ_SPAWN_RELOCATIONS = {
     ("knife", 2564, 9669, 0): (2538, 9696, 0),
     ("bread", 2564, 9670, 0): (2538, 9697, 0),
+    ("pot_empty", 1239, 3682, 1): (1239, 3681, 1),
 }
 
 
@@ -282,8 +292,18 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 # per player (`obj_add_private(0_38_77_41_13, rd_metal_spade, ...)` in
 # quest_recruitmentdrive/scripts/recruitmentdrive_cheevers.rs2), so the tile
 # needs no public row at all.
+#
+# Getting Ahead: the dump lays red AND yellow dye on one tile, 1240,3688 -- the
+# tile of `ga_shelves`. In the game the dyes are not ground items: the player
+# Searches the shelves and picks one ("Take some red dye." -- Quest Helper
+# GettingAhead.java `takeDye`, an ObjectStep on GA_SHELVES at 1240,3688;
+# https://oldschool.runescape.wiki/w/Shelves_(Getting_Ahead)?oldid=15202355).
+# quest_gettingahead's [oploc,ga_shelves] is that search, so a public pile of
+# both dyes beside it would only be a second, wrong source.
 OBJ_SPAWN_EXCLUSIONS = {
     ("rd_metal_spade_no_handle", 2473, 4941, 0),
+    ("reddye", 1240, 3688, 0),
+    ("yellowdye", 1240, 3688, 0),
 }
 
 
@@ -305,6 +325,14 @@ OBJ_SPAWN_ADDITIONS = (
     ("arcenia_root", 3328 + 22, 9792 + 31, 0, 1),
     ("arcenia_root", 3328 + 36, 9792 + 36, 0, 1),
     ("arcenia_root", 3328 + 40, 9792 + 42, 0, 1),
+    # Getting Ahead: the knife the clay head is carved with and the bucket the
+    # sink fills to soften the clay are both taken in the farmhouse, and the dump
+    # carries neither. Quest Helper GettingAhead.java: `takeKnife` "Take the knife
+    # near Mary." at WorldPoint(1241, 3679, 0); `takeBucket` "Take the bucket in
+    # the house." at WorldPoint(1244, 3682, 0). docs/quests/getting_ahead.md
+    # (section 5, local supply sources) records the missing knife.
+    ("knife", 1241, 3679, 0, 1),
+    ("bucket_empty", 1244, 3682, 0, 1),
 )
 
 

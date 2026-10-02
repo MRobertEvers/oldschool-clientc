@@ -721,7 +721,17 @@ app_if_head_poll(struct App* app)
                            : UITreeSceneBridge_EnsureNpcHead(&app->bridge, resolved_npc_id);
         }
         if( scene_id < 0 )
+        {
+            /* IF_SETMODEL replaced the widget's model the moment it landed
+             * (reference Client.ts IF_SETMODEL writes model1Id), and a model
+             * that is not loaded draws nothing (IfType.getModel answers null;
+             * the draw skips it). So until this one composites -- forever,
+             * for an id the cache does not hold -- the widget shows nothing,
+             * not the model it had before. -1 is the tree's "no model". */
+            if( head->kind == APP_IFHEAD_MODEL )
+                (void)UITree_ApplyModel(app->tree, head->com_id, -1);
             continue; /* assets not composited yet — retry next frame */
+        }
 
         if( UITree_ApplyModel(app->tree, head->com_id, scene_id) )
         {
