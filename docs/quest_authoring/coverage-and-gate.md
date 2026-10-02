@@ -187,10 +187,64 @@ tiles in one state of the route, or out of it the way a player teleports out.
 Not judged:
 
 - a hop with any loc press, walk, `use_on` or cast between the last reading and the goto, because the
-  start is unknown (re-read the tile after a crossing and the hop is judged from there);
+  start is unknown (re-read the tile after a crossing and the hop is judged from there). A goto row
+  whose detail reads `at <landing> from <departure>` starts at its departure tile, and nothing between
+  is consulted. The driver does not write that form yet (see "The departure tile" below);
 - a hop back into the zone the run walked into A from (Regicide leg 6's two-tile step back east
   to `passTrap5`'s stand tile);
-- a hop that starts outside every obstacle zone (re-entering the pass from the surface).
+- a hop that starts outside every obstacle zone, unless it lands in another island of a route whose
+  entry route it skips (next section).
+
+#### "which no zone of ... joins to it ... the guide's way into ... is ..." (b50-grader)
+
+*Origin: Regicide d3505f4ee row 75, `goto-crossThePit` from the voyage cave (2314,9624,
+`isInWellEntrance`) to the pit (2461,9699). The round-6 sampler called it a teleport back into the
+pass. The rule above missed it because the voyage cave's step, `leaveWellCave`, is not an obstacle.
+2c35057c6 row 67 makes the same hop.*
+
+**A goto from one island of a route to another, past the route's way in, is CHEAT.** Take a
+`ConditionalStep` X whose constructor default D is itself a `ConditionalStep` with obstacle steps in
+zones of its own (`travelThroughPassSection3 = new ConditionalStep(this, crossTheBridge)`). The guide
+sends a player who is in none of X's zones through D, so D is the way into X's states. The grader
+joins X's zones, and the zones of every ConditionalStep under X (D's included), into islands: zones
+that overlap or sit within 2 tiles of each other are one island. A goto is CHEAT when:
+
+- it lands in a state zone of X, on the island that D's zones touch, outside D's own zones;
+- it starts in a zone of X on another island (the voyage cave does not touch the pass's zones);
+- it stays on one level of one map frame, with nothing between to make the start unknown;
+- no row between presses one of D's obstacle steps.
+
+The charge goes to D's obstacle steps whose zones touch the landing state's zone, or to all of them
+when none touch it. Example: `climbOverRockslide2: ledger row 75 'goto-crossThePit' lands at
+2461,9699,0 (isInUndergroundSection2) from 2314,9624,0 (isInWellEntrance, row 74
+'reenterVoyageCave-tile'), which no zone of travelThroughPassSection3 joins to it, without pressing the
+rockslide climbOverRockslide2 names (rockslide2_obstacle_upass): the guide's way into
+isInUndergroundSection2 is crossTheBridge (travelThroughPassSection3's default, guide line 741)`. The
+bridge (`shootBridgeRope`) and rockslide 3 are charged for the same row.
+
+Not judged:
+
+- A default that is a single step. Quest Helper puts a route's last step in the default as often as its
+  first: `pathToIorwerth`'s `talkToIorwerth`, `theUndergroundPass`'s `climbDownWell`,
+  `goToTyrasCampEntrance`'s `enterTyrasCamp`.
+- A start in no zone of X. Open ground may reach the landing some way the guide does not name.
+- A start on D's island. The rule above judges those hops.
+
+In the committed greens, 4 guides have such a route (grandtree, losttribe, regicide, tearsofguthix),
+and no green step changes class.
+
+#### The departure tile (gap (b), not closed)
+
+No ledger row records where a goto left from. `player.goto_tile` writes `at <landing>`
+(script/plugins/quest_driver/pointer.lua). The server's `::goto` reply names only the destination
+(`Teleported to x,z,l.`). client.log has no per-row tile. Across the committed greens, 993 of 1,735
+goto hops have a press or walk between the last reading and the goto, and 406 change level or frame,
+so the route rules judge only about a fifth of the gotos. The smallest driver change: `goto_tile`
+reads `QD.world.tile()` once before its first `::goto`. Its ok detail then becomes
+`at <landing> from <departure>`, and a retry's detail becomes `at <landing> from <departure> on
+attempt ...`. The grader already reads that form (`hop_start`). Synthetic proof: d3505f4ee's ledger
+with row 74's reading replaced by a press reads row 75 not judged, and with row 75 stamped `at
+2461,9699,0 from 2314,9624,0` reads it CHEAT again.
 
 Proof (`--ledger` grades another run's ledger):
 
@@ -204,8 +258,8 @@ Results:
 
 | Run | Before | After |
 | --- | --- | --- |
-| 2c35057c6 | FULL 64/64 | TEST_GAP |
-| d3505f4ee | FULL 64/64 | TEST_GAP |
+| 2c35057c6 | FULL 64/64 | TEST_GAP (CHEAT=8; 9 with b50-grader's row 67) |
+| d3505f4ee | FULL 64/64 | TEST_GAP (CHEAT=6; 8 with b50-grader's row 75) |
 | 5deefa070 | CONTENT_GAP | MIXED |
 | Green regicide (473 rows) | FULL | FULL |
 | Committed greens, last runs (`build/quest_gate`) | 99 FULL | 99 FULL, no step changed class |

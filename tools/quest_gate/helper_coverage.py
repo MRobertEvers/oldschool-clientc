@@ -126,6 +126,10 @@ CLASSES (first rule that fires wins, in this order).
                pitfall, tripwire...) for another state of that route, with
                no press of that obstacle's copy between (route_crossing;
                Regicide's pit-to-lever hop past climbOverRockslide4); or a
+               goto from one island of a route's zones to another, landing
+               where the route's entry ConditionalStep leads, without
+               pressing that entry's obstacles (route_entries; Regicide's
+               voyage-cave-to-pit re-entry charged to crossTheBridge); or a
                PASS row named after an obstacle step whose newest server
                line is that attempt's failure (stale_success: passTrap5-tile
                on "...and fail, activating the trap!").
@@ -3315,6 +3319,7 @@ class Grader:
                 # where the floor trap dropped the player after the goto)
                 re.compile(r"^(\d{3,4}),(\d{3,5})(?=(?:,[0-3])?$)")]
         track = []
+        self._goto_from = {}
         for position, row in enumerate(self.rows):
             detail = row.get("detail") or ""
             # the author's reading, not the server lines quoted after ` :: `
@@ -3324,6 +3329,11 @@ class Grader:
                 landing = re.search(r"(?<!copy )\bat " + tile, own)
                 if landing and row["verdict"] == "PASS":
                     track.append((position, tuple(int(v) for v in landing.groups()), True))
+                    # `at <landing> from <departure>`: the tile goto_tile read
+                    # before it fired (hop_start)
+                    departed = re.match(r"at " + tile + r" from " + tile, own)
+                    if departed:
+                        self._goto_from[position] = tuple(int(v) for v in departed.groups()[3:])
                     continue
                 if landing:
                     continue
@@ -3344,6 +3354,20 @@ class Grader:
                 track.append((position, point, False))
         self._track = track
         return track
+
+    def hop_start(self, track, i):
+        """(start tile, start row position, rows between, stamped) for the
+        goto at track[i]. A goto row whose detail names its departure tile
+        (`at <landing> from <departure>`) starts THERE, with nothing between
+        to judge; else the start is the reading before it, and the rows
+        between are the ones a caller must clear (a press or walk among them
+        leaves the start unknown)."""
+        position = track[i][0]
+        stamped = self._goto_from.get(position)
+        if stamped is not None:
+            return stamped, position, [], True
+        before_position = track[i - 1][0]
+        return track[i - 1][1], before_position, self.rows[before_position + 1:position], False
 
     def zone_crossing(self, leaf):
         """A branch-only ObjectStep on a gated loc (door, gate, barrier...;
@@ -3594,7 +3618,7 @@ class Grader:
             position, point, is_goto = track[i]
             if not is_goto:
                 continue
-            before_position, before = track[i - 1][0], track[i - 1][1]
+            before, before_position, between, stamped = self.hop_start(track, i)
             # A hop to another level or map frame (down a ladder, out of a
             # dungeon to the surface) is a climb: goto_cheat and
             # teleported_across judge those against the climb the guide
@@ -3602,7 +3626,6 @@ class Grader:
             # not cross the shed door shown in the same hall zone.
             if before[2] != point[2] or abs(before[1] - point[1]) > 3200:
                 continue
-            between = self.rows[before_position + 1:position]
             # Something between moved the player with no reading after it (a
             # press, a walk): where the goto left from is not known.
             if any(self._row_moves(row) for row in between):
@@ -3630,6 +3653,8 @@ class Grader:
             if any(hit[0] for hit in hits):
                 hits = [hit for hit in hits if hit[0]]
             row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
             charged = set()
             for _, leaf, composite, condition, start, end, locs, word in hits:
                 if leaf.name in charged:
@@ -3642,7 +3667,203 @@ class Grader:
                         before[0], before[1], before[2], start, from_row["index"], from_row["step"],
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
+        for name, items in self.route_entries().items():
+            have = {key for key, _ in self._route_hops.get(name, [])}
+            merged = self._route_hops.setdefault(name, [])
+            merged.extend(item for item in items if item[0] not in have)
+            merged.sort(key=lambda item: int(item[0][0]) if str(item[0][0]).isdigit() else 0)
         return self._route_hops
+
+    # -- entering a route from where it does not lead (gap (a) of b49-seam2)
+
+    def route_subtree(self, composite):
+        """Every step name under `composite` (itself included), through the
+        constructor default and every addStep child."""
+        resolve = self.guide.resolve
+        out, todo = [], [resolve(composite)]
+        while todo:
+            name = todo.pop()
+            if name in out:
+                continue
+            out.append(name)
+            step = self.guide.steps.get(name)
+            if step is not None and step.is_composite():
+                todo.extend(resolve(child) for child in step.children)
+                todo.extend(resolve(child) for child, _ in self.guide.branch_conds.get(name, []))
+        return out
+
+    def route_zone_boxes(self, names):
+        """[(zone, box)] over every addStep condition of the composites in
+        `names`."""
+        out = []
+        for name in names:
+            for _, condition in self.guide.branch_conds.get(name, []):
+                for zone, boxes in self.guide.condition_zones(condition).items():
+                    out.extend((zone, box) for box in boxes)
+        return out
+
+    ROUTE_ZONE_SLACK = 2
+
+    @classmethod
+    def _boxes_touch(cls, a, b):
+        """Two zone boxes on a shared level that overlap or sit within
+        ROUTE_ZONE_SLACK tiles of each other (Quest Helper leaves one-tile
+        seams between the zones of a route: Regicide's westOfBridge ends at
+        x 2443 and northEastOfBridge starts at 2445)."""
+        if a[5] < b[4] or b[5] < a[4]:
+            return False
+        return max(0, b[0] - a[1], a[0] - b[1]) <= cls.ROUTE_ZONE_SLACK and \
+            max(0, b[2] - a[3], a[2] - b[3]) <= cls.ROUTE_ZONE_SLACK
+
+    @staticmethod
+    def _in_box(box, point):
+        return box[0] <= point[0] <= box[1] and box[2] <= point[1] <= box[3] and box[4] <= point[2] <= box[5]
+
+    def route_gates(self):
+        """[(composite X, entry D, gate leaves, state zones, region boxes,
+        component of each box)] for every ConditionalStep X whose
+        constructor default D is itself a ConditionalStep route with route
+        obstacles in zones of its own, and whose zones touch X's states:
+        the guide's way into X's states from anywhere else is D (Regicide's
+        travelThroughPassSection3 = new ConditionalStep(this,
+        crossTheBridge) -- the rockslides and the bridge are how the route
+        reaches isInUndergroundSection2).
+
+        A default that is a single step is not read as the way in: Quest
+        Helper uses the default for the route's LAST step as often as for
+        its first (pathToIorwerth's talkToIorwerth, theUndergroundPass's
+        climbDownWell, goToTyrasCampEntrance's enterTyrasCamp)."""
+        if getattr(self, "_route_gates", None) is not None:
+            return self._route_gates
+        self._route_gates = []
+        resolve = self.guide.resolve
+        for composite in sorted(self.guide.branch_conds):
+            step = self.guide.steps.get(resolve(composite))
+            if step is None or not step.children:
+                continue
+            entry = resolve(step.children[0])
+            entry_step = self.guide.steps.get(entry)
+            if entry_step is None or not entry_step.is_composite():
+                continue
+            entry_names = self.route_subtree(entry)
+            gate_leaves = []
+            for name in entry_names:
+                for child, condition in self.guide.branch_conds.get(name, []):
+                    leaf = self.guide.steps.get(resolve(child))
+                    if leaf is None or leaf.is_composite() or leaf in [g for g, _ in gate_leaves]:
+                        continue
+                    if not self.guide.condition_zones(condition):
+                        continue
+                    obstacle = self.route_obstacle(leaf)
+                    if obstacle is not None:
+                        gate_leaves.append((leaf, obstacle))
+            if not gate_leaves:
+                continue
+            states = []
+            for child, condition in self.guide.branch_conds.get(composite, []):
+                if resolve(child) == entry:
+                    continue
+                zones = self.guide.condition_zones(condition)
+                if zones:
+                    states.append((resolve(child), condition, zones))
+            if not states:
+                continue
+            names = [n for n in self.route_subtree(composite) if n not in entry_names] + entry_names
+            region = self.route_zone_boxes(names)
+            parent = list(range(len(region)))
+
+            def find(i):
+                while parent[i] != i:
+                    parent[i] = parent[parent[i]]
+                    i = parent[i]
+                return i
+
+            for i in range(len(region)):
+                for j in range(i + 1, len(region)):
+                    if self._boxes_touch(region[i][1], region[j][1]):
+                        parent[find(i)] = find(j)
+            component = [find(i) for i in range(len(region))]
+            entry_boxes = self.route_zone_boxes(entry_names)
+            entry_components = {component[i] for i, (zone, box) in enumerate(region) if (zone, box) in entry_boxes}
+            self._route_gates.append((composite, entry, gate_leaves, states, region, component, entry_components,
+                                      entry_boxes))
+        return self._route_gates
+
+    def route_entries(self):
+        """{leaf name: [((row index, row step), reason)]}: a goto on one
+        level of one map frame that lands in a state of a route X from a
+        tile of X's own zones that does not touch the landing's (the two
+        are islands of the route), when the guide's way into the landing's
+        island is X's entry route D: the gate leaves of D (its obstacle
+        steps that touch the landing state's zone, else all of them) are
+        charged. Regicide d3505f4ee row 75: goto-crossThePit from the voyage
+        cave (2314,9624: isInWellEntrance) to 2461,9699
+        (isInUndergroundSection2), re-entering the pass by teleport --
+        travelThroughPassSection3's way into section 2 is crossTheBridge.
+
+        Not judged: a start in no zone of X (open ground may walk in some
+        other way than the guide's), a start on D's own island (route_hops
+        reads those), a hop with a press, walk, use or cast between, and a
+        hop with a press of a gate leaf's copy between."""
+        if getattr(self, "_route_entries", None) is not None:
+            return self._route_entries
+        self._route_entries = {}
+        if not self.rows:
+            return self._route_entries
+        gates = self.route_gates()
+        if not gates:
+            return self._route_entries
+        track = self.player_track()
+        for i in range(1, len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if before[2] != point[2] or abs(before[1] - point[1]) > 3200:
+                continue
+            if any(self._row_moves(row) for row in between):
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            for composite, entry, gate_leaves, states, region, component, entry_components, entry_boxes in gates:
+                landing = next(((child, condition, zones) for child, condition, zones in states
+                                if any(self._in_box(b, point) for boxes in zones.values() for b in boxes)), None)
+                if landing is None:
+                    continue
+                if any(self._in_box(box, point) for _, box in entry_boxes):
+                    continue  # landed on the entry route itself: route_hops' business
+                end_components = {component[k] for k, (_, box) in enumerate(region) if self._in_box(box, point)}
+                start_components = {component[k] for k, (_, box) in enumerate(region) if self._in_box(box, before)}
+                if not start_components or start_components & end_components:
+                    continue
+                if start_components & entry_components:
+                    continue
+                if not end_components & entry_components:
+                    continue  # D does not lead to where the goto landed
+                start_zone = next(zone for zone, box in region if self._in_box(box, before))
+                end_zone = next(zone for zone, boxes in landing[2].items() if any(self._in_box(b, point) for b in boxes))
+                touching = [(leaf, obstacle) for leaf, obstacle in gate_leaves
+                            if any(self._boxes_touch(gb, lb)
+                                   for _, condition in self.route_states()[0].get(leaf.name, [])
+                                   for gbs in self.guide.condition_zones(condition).values() for gb in gbs
+                                   for lbs in landing[2].values() for lb in lbs)]
+                charged = touching or gate_leaves
+                if any(self._pressed_between(between, obstacle[0], leaf.point) for leaf, obstacle in charged):
+                    continue
+                for leaf, (locs, word) in charged:
+                    items = self._route_entries.setdefault(leaf.name, [])
+                    if any(key == (row["index"], row["step"]) for key, _ in items):
+                        continue
+                    items.append(((row["index"], row["step"]),
+                        "ledger row %s %r lands at %d,%d,%d (%s) from %d,%d,%d (%s, row %s %r), which no zone of "
+                        "%s joins to it, without pressing the %s %s names (%s): the guide's way into %s is %s "
+                        "(%s's default, guide line %d)" % (
+                            row["index"], row["step"], point[0], point[1], point[2], end_zone,
+                            before[0], before[1], before[2], start_zone, from_row["index"], from_row["step"],
+                            composite, word, leaf.name, ",".join(locs), end_zone, entry, composite,
+                            self.guide.steps[self.guide.resolve(composite)].line or 0)))
+        return self._route_entries
 
     def stale_success(self, leaf):
         """A PASS row named after an obstacle step whose own reading says the
