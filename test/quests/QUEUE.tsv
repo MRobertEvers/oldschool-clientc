@@ -21,7 +21,7 @@ quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
-quest_contact	contact	contact		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4		2026-10-02T21:04:57Z	todo|
+quest_contact	contact	contact		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	parity b53 at a9aefa1206 (wiki): real route trapdoor->dungeon->chasm, Maisa in the chasm, private boss instance, Keris recovery, one Combat lamp two wishes, traps; legs left: cutscene (3 scenes spec pending), High Priest states 10/20 + Coenus scene, Jex supply guard, scarab darkness/poison specials + pit-fall, Keris special, maze on foot. No test yet -- author from docs/quests/ladders/contact.notes.md + build/parity_state/matthew-mbp-m4-b53-parity/contact.scratch.lua (61/0)	2026-10-02T21:04:57Z	todo|
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
@@ -59,7 +59,7 @@ quest_finaldawn	finaldawn	thefinaldawn		4	todo
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25			
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5			
 quest_forgettabletale	forgettabletale	forgettabletale		3	green	sonnet-b42			
-quest_forsakentower	forsakentower	theforsakentower		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4		2026-10-02T21:04:57Z	todo|
+quest_forsakentower	forsakentower	theforsakentower		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	parity b53 at a9aefa1206 (wiki): four real puzzles (jug/furnace, power grid iface 624, refinery notes+fluid, pylon Hanoi), display-case hammer, door/ladder gates; legs left: ancient-letter crate, full refuse trees, Graceful recolour, invented fluid/riddle prose, Undor quest-talk entry. No test yet -- author from docs/quests/ladders/forsakentower.notes.md + the ft_full driver (forsakentower.full_run.ledger.tsv 133/0)	2026-10-02T21:04:57Z	todo|
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo				
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo				
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42			
@@ -112,7 +112,7 @@ quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-
 quest_murder	murder	murdermystery		1	green	sonnet-b15			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
-quest_olafsquest	olafsquest	olafsquest		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4		2026-10-02T21:04:57Z	todo|
+quest_olafsquest	olafsquest	olafsquest		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	parity b53 at a9aefa1206 (wiki): food hand-in choice, Agility walkway fall; legs left: parchment reward + map/note viewer ifaces, walkway roll per action not per tile, gate/picture wall teleport. No test yet -- author from docs/quests/ladders/olafsquest.notes.md (parity_olafsquest 29/0)	2026-10-02T21:04:57Z	todo|
 quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b47			
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
@@ -122,7 +122,7 @@ quest_priest	priest	therestlessghost		1	green	sonnet-b2
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
-quest_queenofthieves	queenofthieves	thequeenofthieves		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4		2026-10-02T21:04:57Z	todo|
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	parity b53 at a9aefa1206 (wiki): wiki dialogue beats Lawry/poor woman/O'Reilly/Devan/Conrad/Queen/Shauna; legs left: Graceful recolour + Piscarilius favour, Conrad death dialogue-only, Hughes door lockpick unverified. No test yet -- author from docs/quests/ladders/queenofthieves.notes.md (parity_queenofthieves 61/0)	2026-10-02T21:04:57Z	todo|
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
@@ -138,7 +138,7 @@ quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
 quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
-quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4		2026-10-02T21:04:57Z	todo|
+quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	parity b53 at a9aefa1206 (wiki): chest opens on cache combination lock iface 809 (NALIA); legs left: cutscene (hop-off, spec pending), Marcellus farming trade, refuse trees, instant chop/sabotage. No test yet -- author from docs/quests/ladders/ribbitingtale.notes.md + build/parity_state/matthew-mbp-m4-b53-parity/ribbitingtale.chest_driver.lua (12/12)	2026-10-02T21:04:57Z	todo|
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
@@ -182,7 +182,7 @@ quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
-quest_whatliesbelow	whatliesbelow	whatliesbelow		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4		2026-10-02T21:04:57Z	todo|
+quest_whatliesbelow	whatliesbelow	whatliesbelow		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	parity b53 at a9aefa1206 (wiki): Zaff shop, Tunnel of Chaos reward (Anna pickaxe, statue, portals), surok_portal at completion; legs left: cutscene (2 scenes, spec pending). No test yet -- author from docs/quests/ladders/whatliesbelow.notes.md + build/parity_state/matthew-mbp-m4-b53-parity/wlb_tunnel.lua	2026-10-02T21:04:57Z	todo|
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	green	matthew-mbp-m4-b52			
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
