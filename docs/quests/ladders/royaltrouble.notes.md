@@ -4,10 +4,11 @@ Where things really stand
 - Sailor: the guide says 2578,3845; he stands at 2581,3847 (areas/world/configs/m40_60.spawn:12).
 - Ladder down: stand on 2509,3847 (maplink row src); it lands on 2509,10245 in the dwarf village.
 - Armod and the four others wander around 2571-2573,10277-10278: walk near, then talk.
-- Giant Sea Snake: the guide's tile 2615,10280 is inside the pool, which the cache flags blocked
-  (maps/m40_160.jm2 `f1`, the real quest instances it). Port: body on the shore, 2613..2617 x
-  10276..10280 (configs/royaltrouble.constant ^royal_snake_coord). Melee works from the shingle
-  (2610-2618 x 10274-10277); the heavy box drops on 2613,10276 and lasts 5 minutes.
+- Giant Sea Snake (vm-b1-seam1): the guide's 2615,10280 is the MIDDLE of its 5x5 body (RuneLite
+  centre), SW 2613,10278, body 2613..2617 x 10278..10282 in the pool. Melee from 2613..2617,10277;
+  anywhere else on the shingle it shoots (poison). Slayer 40 to attack. Wiki stats (100 hp, def
+  160): bring antipoison and food or Protect from Melee. The heavy box drops on 2615,10277 and lasts
+  5 minutes; no snake respawns once ROYAL_MISC is 120.
 
 Barriers between steps
 - Village -> lift room: crevice 2505,10281 needs the mining prop USED on it (royal_dungeon.rs2:202),

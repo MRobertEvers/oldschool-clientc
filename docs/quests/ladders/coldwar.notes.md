@@ -21,9 +21,19 @@ three emotes are varbits 3300-3302 (1 shiver 2 spin 3 clap 4 bow 5 cheer 6 wave 
 
 Debrief: KGP in the first room west, 2648,10384. All three reports needed. Noodle needs 2
 free slots. Corridor door 2633,10404 puts you at the course start 2643,4034,1 and sets 100.
-Course: stones 1-6 and the icicles click fine; the steps (level 0 loc) and stone 7 are not
-pressable by the driver. After the ice, walk to 2652,4041 and click the fence gate 2652,4039
-from there, instructor 2653,4038. The door 2643,4032 leads back to the corridor.
+Course (vm-b1-seam1): the instructor refuses 100 -> 105 until %varb3305_peng_agility_state reads
+3 (1 stone 7, 2 the last icicle pillar x=2662, 3 the ice); a goto into the finish no longer works.
+The water leg (steps, stepstone, crushers: level 0) is NOT drivable yet -- the water is blocked by
+the engine's ocean rule and nothing leads down into it (gaps-world, Penguin Agility Course); cross
+it with goto_tile onto the first stone 2630,4057,1 and say so. Stones 1-7 jump from two tiles
+(stone 7 is an aploc). The ice ends with a slide to the finish 2657,4039,1; talk to the instructor
+there, then the fence gate (west edge of 2652,4039) takes you west to 2651,4039, and the door
+2643,4032 leads back to the corridor.
+
+Suit (vm-b1-seam1): setup ::coldwarpoh (Rimmington house + Workshop + Crafting table 3, player at
+the portal 2953,3224,0) with Construction 34 / Crafting 30, steel bar, plank, silk. enterPoh =
+click_loc poh_rimmington_portal op 2 (Home); bench poh_clockmaking_3 op 1 -> Clockwork, then
+Clockwork toys -> Clockwork penguin.
 
 Ping and Pong room via the door 2662,10396. Bongos only with the suit OFF and Crafting 30.
 Booth guard 2655,10408, panel 2655,10407, blast door 2656,10409 (opens 50 ticks). War room door

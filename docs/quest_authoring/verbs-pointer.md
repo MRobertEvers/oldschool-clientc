@@ -249,6 +249,14 @@ the locs on your floor at that square: a ladder's two ends are usually two locs,
 (Watchtower first floor `qip_watchtower_ladder_top`, ground `towerladder`) -- read the square's jl2
 rows for your plane.
 
+`other_floor` is never a driver seam (vm-b1-seam1). The game's own client cannot press a loc on
+another plane either: the pick drops it, and an oploc names only x,z and resolves on the player's
+plane. The detail now ends `-- the game's client cannot press it from here either: reach level N by
+the guide's route first (a missing route is a content seam, not a driver one)`. Reach that plane by
+the guide's route; if the port has no route, report a CONTENT seam. Measured: Cold War's Ice steps
+(`peng_agility_steps01`, 2635,4054,0) answer `other_floor` from level 1 and climb first time from
+2634,4054,0 (`teleport: 2634,4054,0 -> 2634,4054,1`).
+
 ### `t.player.click_obj(obj, op=3)`
 
 `t.player.click_obj(obj, op=3)` -> same, waits for the backpack count to rise.

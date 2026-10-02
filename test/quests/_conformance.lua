@@ -6432,6 +6432,13 @@ return {
                 return "refused", "the answer must say other_floor and name the loc on this floor -- "
                     .. text
             end
+            -- vm-b1-seam1 driver_other_floor_loc: the detail also says the
+            -- game's client cannot press it either and names the level to
+            -- reach (towerladder's copy is on level 0), so a triage does not
+            -- file an other_floor answer as a driver seam.
+            if not string.find(tostring(detail), "reach level 0 by the guide's route first", 1, true) then
+                return "refused", "the answer must name the level to reach by the guide's route -- " .. text
+            end
             return "ok", text
         end)
 

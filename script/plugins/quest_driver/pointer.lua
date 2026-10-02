@@ -3525,6 +3525,15 @@ QD.player._talk_walk_ticks = 15
 -- naming the floor the copies are on and the locs on the player's floor at
 -- the nearest copy's square; otherwise nil, and click_loc goes on as before.
 -- Asked only after the first press failed, so a press that works pays nothing.
+--
+-- NOT A DRIVER SEAM, and the detail says so (vm-b1-seam1
+-- driver_other_floor_loc).  The game's own client cannot press such a copy
+-- either: the pick drops it, and an oploc names only x,z and is resolved on
+-- the player's own plane.  Measured 2026-10-02 (build/quest_gate/ofl_seam):
+-- Cold War's Ice steps (2635,4054,0) refused from 2643,4034,1 with this
+-- answer and climbed first time from 2634,4054,0 (teleport -> 2634,4054,1).
+-- The fix for an author is the route onto that plane, never a driver change;
+-- a guide step whose route is missing is a content seam.
 function QD.player._loc_other_floor(target, loc)
     local player_result, player = api_drive.player_tile()
     if player_result ~= "ok" or type(player) ~= "table" or player.level == nil then
@@ -3567,9 +3576,11 @@ function QD.player._loc_other_floor(target, loc)
     local on_square = #here > 0 and table.concat(here, ", ") or "nothing"
     return "not_visible", string.format(
         "other_floor: %s has no copy a press on level %d can pick -- nearest %d,%d is on level %d"
-            .. " (torirs_pick.c keeps scenery only on the player's paint level); on level %d at %d,%d: %s",
+            .. " (torirs_pick.c keeps scenery only on the player's paint level); on level %d at %d,%d: %s"
+            .. " -- the game's client cannot press it from here either: reach level %d by the guide's"
+            .. " route first (a missing route is a content seam, not a driver one)",
         tostring(loc), player.level, nearest.x, nearest.z, nearest.level,
-        player.level, nearest.x, nearest.z, on_square)
+        player.level, nearest.x, nearest.z, on_square, nearest.level)
 end
 
 function QD.player.click_loc(loc, op, opts)
