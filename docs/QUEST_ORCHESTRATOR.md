@@ -132,6 +132,8 @@ The parity closer, the seam closer and the batch's sampler commit on the batch b
 
 ```sh
 python3 tools/quest_gate/claim.py done <batch>                 # on the branch, both repos clean
+# a change that is not the batch's and must never be staged (the owner's deleted zip):
+#   claim.py done <batch> --ignore lib/emsdk-macos-toolchain.zip
 ```
 **Before `done`, check for var-id collisions.** `done` takes `v3`'s `pack/*.alloc` and
 rebuilds, which re-allocates the batch's new ids after `v3`'s. That is right for every

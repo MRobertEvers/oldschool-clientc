@@ -441,6 +441,9 @@ def cmd_done(args) -> int:
         dirty = [l for l in git("status", "--porcelain", repo=repo).stdout.splitlines()
                  if l and not l.startswith("?? build/")]
         dirty = [l for l in dirty if not (repo == REPO and l.split()[-1] == SUBMODULE)]
+        # --ignore PATH: a change that is not the batch's and must not be staged, such as
+        # the owner's own deletion of lib/emsdk-macos-toolchain.zip in the parent.
+        dirty = [l for l in dirty if l.split()[-1] not in (args.ignore or [])]
         if dirty:
             raise Refused("%s has uncommitted changes; a batch lands only committed work:\n  %s"
                           % (label, "\n  ".join(dirty[:12])))
@@ -689,6 +692,7 @@ def main() -> int:
     p = sub.add_parser("done", help="merge v3 into the batch branch, push it, print the PR table")
     p.add_argument("batch")
     p.add_argument("--pr", type=int, help="the PR's number, once opened: stamps the v3 claims with it")
+    p.add_argument("--ignore", action="append", metavar="PATH", help="a dirty path that is not the batch's (repeatable): left alone and not counted as uncommitted work")
     p.add_argument("--no-build", action="store_true", help="skip the script-pack rebuild after the alloc merge")
     p.set_defaults(func=cmd_done)
     p = sub.add_parser("content-lock", help="take test/quests/CONTENT_LOCK")
