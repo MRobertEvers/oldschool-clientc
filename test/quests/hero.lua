@@ -1,7 +1,8 @@
 -- Heroes' Quest -- driven for real through the Phoenix Gang route
--- (Achietties -> Straven -> Alfonse -> Charlie the cook -> kill Grip ->
--- loot the treasure chest -> Straven's candlestick hand-in for the
--- armband), then the two solo-collectible arms (Ice Queen -> ice gloves ->
+-- (Achietties -> Straven -> Alfonse -> Charlie the cook -> the misc key on
+-- the side door -> ::hero_partner_lure, Grip shot through the arrow slit
+-- from inside the secret room -> ::hero_partner_candlestick -> Straven's
+-- candlestick hand-in for the armband), then the two solo-collectible arms (Ice Queen -> ice gloves ->
 -- Entrana firebird -> feather; Gerrant -> Blamish oil -> oily rod -> lava
 -- eel -> cook it), then the real hand-in to Achietties. Never ::setvar on
 -- %heroquest itself past `hero_started` -- every later value is written by
@@ -34,9 +35,14 @@
 -- -- fishingRod, fishingBait, harralanderUnf (harralandervial, the
 -- unfinished potion Blamish Slime mixes into) and pickaxe are NOT marked
 -- that way, so they are given directly. blamish_snail_slime, blamish_oil,
--- oily_fishing_rod, raw_lava_eel, lava_eel, hot_feather, master_thief_armband,
--- petecandlestick and grip_keys ARE the quest's own deliverables and are
--- driven for real below.
+-- oily_fishing_rod, raw_lava_eel, lava_eel, hot_feather and
+-- master_thief_armband ARE the quest's own deliverables and are driven for
+-- real below. petecandlestick is the partner's half: Grip's keyring and the
+-- treasure room lie behind the Black Arm-only garvdoor, so the partner loots
+-- the chest and trades one over (Quest Helper getCandlestick, "Get your
+-- candlestick from your partner"); ::hero_partner_candlestick stands in for
+-- that trade, at the player's own kill credit only (docs/QUEST_SERVER_CHEATS.md
+-- section D, beside ::hero_partner and ::hero_partner_lure).
 --
 -- The candlestick-chest content bug this file used to stop at
 -- (brimhaven_scarface_mansion.rs2's opencandlechest write clobbering a
@@ -44,10 +50,11 @@
 -- past hero_phoenix_obtained_armband) is FIXED as of the committed source
 -- (brimhaven_scarface_mansion.rs2:134, gated on
 -- `%heroquest >= ^hero_blackarm_gangmember_spoken`, which a Phoenix player
--- sitting at hero_phoenix_killed_grip(5) never satisfies) -- confirmed
--- below by reading %heroquest right after the loot and asserting it is
--- STILL hero_phoenix_killed_grip, then driving on to Straven for the
--- armband for real.
+-- sitting at hero_phoenix_killed_grip(5) never satisfies). A solo Phoenix
+-- player no longer opens that chest (the partner does): this file asserts
+-- the stage at phoenix_killed_grip right after the kill
+-- (quest.stage.phoenix_killed_grip), takes the partner's candlestick, and
+-- drives on to Straven for the armband for real.
 
 return {
     id = "hero",

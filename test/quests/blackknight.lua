@@ -6,10 +6,11 @@
 -- Grepping the quest's own .rs2 shows only [oploc1,witchgrill] and
 -- [oplocu,blackknighthole] ever touch %spy -- bkfortressdoor1/2/3's own
 -- guard dialogue and banquet-hall warning are optional flavour that never
--- gates %spy. bkfortressdoor1 and every ladder are plain travel
--- (helper_coverage.py classifies them TRAVEL, "merged into the step it
--- leads to") and are crossed with player.goto_tile (doc section 2:
--- "goto_tile ... climbs stairs and ladders for you"). `bksecretdoor`
+-- gates %spy. bkfortressdoor1 (the disguise check) and bkfortressdoor2 (the
+-- guard's warning) are still CLICKED from outside, never crossed by a goto
+-- (b51: a goto into a room a guide door opens on reads CHEAT). The plain
+-- ladders are travel (helper_coverage.py classifies them TRAVEL, "merged
+-- into the step it leads to") and a goto may climb them. `bksecretdoor`
 -- (Push-Wall) is different: Quest Helper names it its own step twice
 -- (pushWall at 3016,3517,0 before listening, pushWall2 at 3030,3510,1
 -- before the hole) and it is a secret WALL, so goto_tile'ing past it reads
@@ -125,8 +126,8 @@ return {
 
         -- ---------------------------------------- push the secret wall in
         -- Quest Helper's "Infiltrate the fortress" step is enterFortress
-        -- (bkfortressdoor1, TRAVEL -- helper_coverage.py classifies it
-        -- "merged into the step it leads to", same as the ladders below)
+        -- (bkfortressdoor1, clicked above from the outside tile with the
+        -- disguise on; the evidence is the inside tile read after it)
         -- then pushWall: a real Push-Wall click on `bksecretdoor` at
         -- 3016,3517,0 (BlackKnightFortress.java:231). `[oploc1,bksecretdoor]`
         -- (quest_blackknight.rs2:240-242) is a bare mes() + p_teleport, no
