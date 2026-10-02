@@ -220,3 +220,33 @@ is deferred. The test then used `goto_tile` to reach 2010,4709. End the leg in
 `t.blocked("content_bug: ...")` naming that file and line.
 FIXED (b48-seam1, OSRS-Content 2dd52a46a5): the doors take a Regicide player through; click them
 (gaps-world, "Underground Pass: Iban's temple door").
+
+## Sample matthew-mbp-m4-b48, second check (2026-10-01)
+
+*Origin: the sampler checked regicide's round-6 green (d3505f4ee) and sent it back a third time.*
+
+(a) ONE ANSWER FROM A MENU OF FIVE IS NOT THE STEP. The guide's `goLearnAboutBomb`
+(Regicide.java:817-844) asks Iorwerth about quicklime, naphtha, sulphur, a barrel and a fuse, and
+`knowHowToMakeBomb` needs all five `*_chat` varbits. `helper_coverage`'s ladder listed only
+`askAboutFuse`, so the run read FULL after the one question. Shot 322 shows the menu offering the
+other four. When the guide declares sibling `NpcStep`s on one npc, drive each of them by name, and
+check the content sets every varbit (`lord_iorwerth.rs2:143-192`).
+
+(b) A DETOUR THAT TELEPORTS INTO A SEALED AREA TO PRESS A BRANCH STEP IS A CHEAT. At stage 3 the
+test used `goto_tile` to reach the pocket north of the tripwire and pressed `goFromTyrasToTrap` there.
+It then jumped from 2220,3152 to 2240,3149, past the three dense forests west of the tracker. The
+next row's press of that forest read "You can see no way to get past this." (shot 148), because
+`regicide_route.rs2` refuses it below `spoken_tracker2`. If a press would only answer in an area the
+quest has not opened yet, do not teleport into that area to make it. Drive the step when the route
+reaches it, or leave it ALTERNATIVE.
+
+(c) A STEP PRESSED IN A DETOUR IS NOT WALKED WHEN THE ROUTE NEEDS IT. Leg 5 went by `goto_tile`
+from inside Tyras's camp (2190,3146) to the sulphur (2261,3132). Leg 6 went by `goto_tile` from
+2238,3181 into the tripwire pocket and from that pocket to the ring of leaves. Those jumps skip the
+camp passage, the middle forests, the tripwire and `climbThroughForest`, which the guide's
+`goToIorwerthAfterCamp`, `goGiveRabbitToGuard` and `goTalkToIorwerthAfterRegicide` route through.
+The same file's first Underground Pass walk went from the plank room to the well (past the pit,
+the grid and the spear traps). It then drove those obstacles in a later leg, entering from the
+voyage cave by `goto_tile` and leaving the same way. Every guide step had a row, so FULL could not
+see this. Walk each route once, in guide order. Use `goto_tile` only between two tiles that a walk
+connects with no guide loc in the way.
