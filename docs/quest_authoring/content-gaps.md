@@ -129,3 +129,21 @@ one load ate the stack. LostCity's code is the same, but its karambwanji is not 
 loads one. The proc now does `inv_del(inv, tbwt_raw_karambwanji, 1)`: 5 -> 4 -> 3 in both use
 orders (conformance row `seam.tbwt_vessel_loads_one_karambwanji`). Leftover karambwanji stay in the
 pack, so a test no longer has to net again before each load.
+
+## Enlightened Journey: no willow branch source in the pack; check a hand-in's source before you `::give` it (matthew-mbp-m4-b50)
+
+*Origin: the b50 reviewer rejected enlightenedjourney for `::give`s of items the guide has you get.*
+
+Nothing in the content pack hands out `willow_branch`. A grep finds it only in the quest's own
+`ej_crafting.rs2` and `enlightenedjourney.constant` and in `skill_crafting` weaving. No farming
+harvest gives branches. So QH's "Get 12 willow branches" (`talkToAugusteWithBranches`) has no
+source to drive. A `::give willow_branch 12` grades as a cheat. The file must stop at `t.blocked`
+with a `content_bug` that names the missing source. The ladder notes say the same thing
+(`docs/quests/ladders/enlightenedjourney.notes.md:15`).
+
+The quest's other hand-ins, the potato sacks, red and yellow dye, silk and the bowl, were
+`::give`n too. Each is the same finding: the guide has you obtain them. Silk has a source in the
+world (`areas/alkharid/scripts/silk_trader.rs2`). The b50 reviewer did not trace the dye, sack,
+potato or bowl sources. Grep the content for the `inv_add` before you write that leg. Do not
+assume an item has no source.
+

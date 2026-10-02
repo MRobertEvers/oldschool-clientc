@@ -278,3 +278,27 @@ were real, and leg 4 crossed it from its west `src` east toward the tracker, the
 when the traps had eaten the setup's food. It does none of the quest's work, so it stayed. A
 reviewer reading `Gave 6 x Lobster` in a shot should check that the item is food the guide
 recommends, not a quest item.
+
+## Sample matthew-mbp-m4-b50 (2026-10-02)
+
+*Origin: the sampler checked bearyoursoul (a5f4d7fa2) and eaglepeak (6d75971d2) and sent both
+back. All 34 and all 222 shots matched their names.*
+
+(a) A `goto_tile` INSIDE A DUNGEON CAN JUMP A GATE THAT THE GUIDE NAMES ONLY AS AN ITEM. Bear Your
+Soul went down the Taverley ladder (2884,9796) and then `goto_tile`d to the Cerberus cave mouth at
+2874,9846. That hop skips the dusty-key gate, `deepdungeondoor` at 2924,9803
+(`areas/taverly/dungeon/scripts/jail_doors.rs2`). QH lists the gate only as the required item
+"Dusty key, or another way to get into the deep Taverley Dungeon", and helper_coverage read FULL.
+The fix is cheap: put `dusty_key` in the setup (it is a required item, not one a guide step has you
+get), use it on the gate, and walk to `hellhound_cave_entrance_a_01`. Before each `goto_tile`, read
+the step's `items:` line in `ladder.py`. A key or "another way into" there names an obstacle.
+
+(b) A RECOVERY STEP TAKEN EARLY TURNS A MAIN-PATH STEP INTO A REFUSED PRESS. In the gold room,
+Eagles' Peak fed `eaglepeak_bird_feeder1a` (QH `fillFeeder7`, commented "If you've blocked lever
+1") while lever 1 was still down. QH shows `pushLever1Up` in that state. Feeding feeder1a moved
+mechbird 1, so the main path's `fillFeeder5` (feeder1, the same bird) answered "This feeder already
+has seed" and the file passed it as `fillFeeder5.kept`. A row that asserts a refusal is not a
+driven step. Follow `ladder.py`'s state order (`createDisguises.addStep` read bottom-up). The
+content accepts feeder1 on that path (`gold_room.rs2` `eaglepeak_gold_feeder_ready` 1: gate3 up,
+gates 4 and 1 down). Press a recovery step only in the state its condition names.
+
