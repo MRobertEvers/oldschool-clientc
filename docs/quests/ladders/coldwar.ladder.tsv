@@ -1,0 +1,54 @@
+# ladder coldwar quest_dir=quest_coldwar guide=src/main/java/com/questhelper/helpers/quests/coldwar/ColdWar.java steps=51 legs=1:1-8@s0 2:9-22@s25 3:23-31@s50 4:32-41@s85 5:42-51@s115
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToLarry	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry at the Ardougne Zoo.			Yes. | Okay, why not!	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+1	2	5	talkToLarryAgain	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry again.		Oak Planks (unnoted); Steel Nails; Hammer; Spade	Yes, I have all the materials. | Yes	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+1	3	5	usePlankOnFirmSnow	ObjectStep	loc:peng_observer_cabin_multiloc	2666,3991,1	Use an oak plank on the firm snow patch.		Oak Plank		quests/quest_coldwar/scripts/coldwar_birdhide.rs2:67 oploc1; +1
+1	4	5	useSpadeOnBirdHide	ObjectStep	loc:peng_observer_cabin_multiloc	2666,3991,1	Use a spade on the bird hide to cover it in snow.		Spade		quests/quest_coldwar/scripts/coldwar_birdhide.rs2:67 oploc1; +1
+1	5	10	learnPenguinEmotes	NpcStep	npc:peng_larry_ice	2670,3988,1	Talk to Larry on the iceberg to enter the bird hide.				quests/quest_coldwar/scripts/coldwar_larry.rs2:378 opnpc1; +2
+1	6	15	talkToLarryAfterEmotes	NpcStep	npc:peng_larry_ice	2670,3988,1	Talk to Larry again.			That's crazy!	quests/quest_coldwar/scripts/coldwar_larry.rs2:378 opnpc1; +2
+1	7	20	returnToRelleka	ObjectStep	loc:peng_row_boat_clickzone		Click the boat to return to Relleka.				quests/quest_coldwar/scripts/coldwar_larry.rs2:675 oploc1
+1	8	15	talkToLarryInRelleka	NpcStep	npc:peng_larry_rell	2707,3732,0	Talk to Larry in Relleka.				quests/quest_coldwar/scripts/coldwar_larry.rs2:601 opnpc1; +1
+2	9	25	enterPoh	DetailedQuestStep			Travel to your POH or another POH with a Crafting table 3 or 4.		Clockwork or Steel Bar; Normal Plank; Silk		
+2	10	25	makeClockwork	ObjectStep	loc:poh_clockmaking_3		Craft a steel bar into a clockwork at a crafting table 3.		Steel Bar	Clockwork mechanism	skill_construction/scripts/poh_workshop_functions.rs2:284 oploc1; +4
+2	11	25	makePenguin	ObjectStep	loc:poh_clockmaking_3		Craft a clockwork penguin at a crafting table 3 or 4.		Clockwork; Normal Plank; Silk	Clockwork toy | Clockwork penguin	skill_construction/scripts/poh_workshop_functions.rs2:284 oploc1; +4
+2	12	25	bringSuitToLarry	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry back in the Ardougne Zoo.			Yes, I have it. | Yes	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+2	13	30	talkToLarryOnIcebergWithSuit	NpcStep	npc:peng_larry_ice	2670,3988,1	Talk to Larry on the iceberg.			It looks like a warning message to keep us away. | Yes	quests/quest_coldwar/scripts/coldwar_larry.rs2:378 opnpc1; +2
+2	14	35	tuxedoTime	NpcStep	npc:peng_larry_zoo	2597,3266,0	Unequip cape and weapons and right-click Tuxedo-time Larry at the Ardougne Zoo.			Yes	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+2	15	35	enterPenguinPen	ObjectStep	loc:peng_ardougne_enclosure_door	2594,3266,0	Enter the penguin pen.				quests/quest_coldwar/scripts/coldwar_zoo.rs2:8 oploc1
+2	16	35	talkToZooPenguin	NpcStep	npc:peng_zoo	2596,3270,0	Talk to the zoo penguin.				quests/quest_coldwar/scripts/coldwar_zoo.rs2:17 opnpc1
+2	17	35	emoteAtPenguin	PenguinEmote<zooPenguinTrust[isEmoting]			Perform the correct series of emotes to the penguin.				
+2	18	45	exitSuit	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry to exit the penguin suit.				quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+2	19	45	talkToLarryMissionReport	NpcStep	npc:peng_larry_zoo	2597,3266,0	Talk to Larry about the mission report, then travel to the sheep farm in Lumbridge.	exitSuit			quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+2	20	45	tuxedoTimeLumbridge	NpcStep	npc:peng_larry_zoo	3212,3263,0	Tuxedo-time Larry in the Lumbridge sheep farm.				quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+2	21	45	talkToThing	NpcStep	npc:sheep_shearer_the_thing	3201,3266,0	Talk to the penguins disguised as a sheep in the Lumbridge sheep farm. You will need to use the same 3 emotes as the penguin from the bird hide cutscene.				quests/quest_coldwar/scripts/coldwar_lumbridge.rs2:5 opnpc1
+2	22	45	emoteAtPenguinInLumbridge	PenguinEmote<lumbridgeVisit1[isEmoting]			Perform the correct series of emotes to the penguin.				
+3	23	50	returnToZooPenguin	NpcStep	npc:peng_zoo	2596,3270,0	Return to the Ardougne Zoo penguin with either a raw cod, or wearing the ring of charos.		Raw Cod	I need that phrase! | The penguins in Lumbridge refuse to t…	quests/quest_coldwar/scripts/coldwar_zoo.rs2:17 opnpc1
+3	24	55	returnToThing	NpcStep	npc:sheep_shearer_the_thing	3201,3266,0	Speak to the sheep-penguins again in the Lumbridge sheep farm.		Clockwork suit		quests/quest_coldwar/scripts/coldwar_lumbridge.rs2:5 opnpc1
+3	25	60	fredTheFarmer	NpcStep	npc:fred_the_farmer	3189,3273,0	Talk to Fred the Farmer without the penguin suit.			I need to talk to you about penguins. | Bully Fred	areas/lumbridge/scripts/fred_the_farmer.rs2:20 opnpc1
+3	26	65	stealCowbell	ObjectStep	loc:fat_cow	3172,3318,0	Steal a cowbell from a dairy cow.				quests/quest_coldwar/scripts/coldwar_lumbridge.rs2:147 oploc2
+3	27	65	askThingAboutOutpost	NpcStep	npc:sheep_shearer_the_thing	3201,3266,0	Speak to the sheep-penguins once again in the Lumbridge sheep farm to learn about the outpost.		Clockwork suit	The Farmer is harmless.	quests/quest_coldwar/scripts/coldwar_lumbridge.rs2:5 opnpc1
+3	28	70	tellLarryAboutOutpost	NpcStep	npc:peng_larry_zoo	3212,3263,0	Tell Larry about the outpost and travel back to the iceberg.		Swamp Tar; Feathers; Lumbridge mission report	Yes	quests/quest_coldwar/scripts/coldwar_larry.rs2:49 opnpc1; +3
+3	29	70	kgpAgent	NpcStep	npc:peng_kgp	2639,4008,1	Jump in the penguin suit and talk to the KGP Agent on the north west portion of the iceberg.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:41 opnpc1; +2
+3	30	75	noodle1	NpcStep	npc:peng_noodle	2644,4008,1	Talk to Noodle.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:96 opnpc1; +1
+3	31	80	noodle2	NpcStep	npc:peng_noodle	2644,4008,1	Give Noodle the swamp tar to get an ID card and a mission report.		Swamp Tar; Feathers	Yeah, I got it.	quests/quest_coldwar/scripts/coldwar_outpost.rs2:96 opnpc1; +1
+4	32	85	kgpAgent2	NpcStep	npc:peng_kgp	2639,4008,1	Talk to the KGP Agent again.		Kgp id card		quests/quest_coldwar/scripts/coldwar_outpost.rs2:41 opnpc1; +2
+4	33	90	enterAvalanche	ObjectStep	loc:peng_aval_l	2638,4011,1	Enter the avalanche.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:22 oploc1
+4	34	90	kgpAgentInAvalanche	NpcStep	npc:peng_kgp	2647,10384,0	Talk to the KGP Agent in the first room to the west of the entrance.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:41 opnpc1; +2
+4	35	100	enterAgilityCourse	ObjectStep	loc:peng_base_double_door_mid_agility	2633,10404,0	Enter the door to the west of the KGP Agent to begin the agility course.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:273 oploc1
+4	36	100	agilityExitWater	ObjectStep	loc:peng_agility_crushcourse_stepstone01	2630,4057,0	Avoid the ice and exit the water.				ladders_stairs/scripts/ladders.rs2:182 oploc1; +2
+4	37	100	agilityDone	NpcStep	npc:peng_agility_instructor		Talk to the Agility Instructor.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:297 opnpc1
+4	38	100	agilityCourse	DetailedQuestStep	loc:peng_base_double_door_mid_agility loc:peng_agility_crushcourse_stepstone01 npc:peng_agility_instructor		Complete the agility course.	enterAgilityCourse agilityEnterWater agilityExitWater agilityJumpStones agilityTreadSoftly agilityCrossIce agilityDone			quests/quest_coldwar/scripts/coldwar_outpost.rs2:273 oploc1; +1
+4	39	105	tellLarryAboutArmy	NpcStep	npc:peng_larry_ice	2670,3988,1	Return to Larry to tell him about the penguin army. You can quickly return to him by removing the penguin suit.				quests/quest_coldwar/scripts/coldwar_larry.rs2:378 opnpc1; +2
+4	40	110	enterAvalanche2	ObjectStep<goTalkToPingPong[default]	loc:peng_aval_l	2638,4011,1	Enter the avalanche as a penguin.		Clockwork suit		quests/quest_coldwar/scripts/coldwar_outpost.rs2:22 oploc1
+4	41	110	pingPong1	NpcStep	npc:peng_ping	2668,10396,0	Talk to Ping or Pong in the room to the east.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:320 opnpc1
+5	42	115	makeBongos	DetailedQuestStep			Use the mahogany plank on the leather to make bongos.	removePenguinSuitForBongos	Mahogany Plank; Leather		
+5	43	115	enterAvalanche3	ObjectStep	loc:peng_aval_l	2638,4011,1	Enter the avalanche as a penguin.		Clockwork suit		quests/quest_coldwar/scripts/coldwar_outpost.rs2:22 oploc1
+5	44	120	pingPong3	NpcStep	npc:peng_ping	2668,10396,0	Return to Ping or Pong.			Yes.	quests/quest_coldwar/scripts/coldwar_outpost.rs2:320 opnpc1
+5	45	115	pingPong2	NpcStep	npc:peng_ping loc:peng_aval_l	2668,10396,0	Return to Ping or Pong to give them the bongos and cowbells.	enterAvalanche3 pingPong3	Penguin bongos; Cowbell	Yes.	quests/quest_coldwar/scripts/coldwar_outpost.rs2:320 opnpc1; +1
+5	46	120	openControlDoor	ObjectStep	loc:peng_base_booth_front		Open the control room doors via the control panel.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:477 oploc1
+5	47	120	enterWarRoom	ObjectStep	loc:peng_base_door	2671,10418,0	Enter the war room and walk a few steps in to be captured.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:491 oploc1
+5	48	130	exitIcelordPen	ObjectStep	loc:peng_icelord_pen_door	2639,10424,0	Leave through the door to the west.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:564 oploc1
+5	49	125	killIcelords	NpcStep	npc:peng_icelord_warrior01 loc:peng_icelord_pen_door	2647,10425,0	Kill icelords until you are able to leave through the door to the west. May take up to 3 kills.	exitIcelordPen			quests/quest_coldwar/scripts/coldwar_outpost.rs2:564 oploc1; +1
+5	50	130	useChasm	ObjectStep	loc:peng_base_chasm	2657,10423,0	Use the chasm to exit the cave.				quests/quest_coldwar/scripts/coldwar_outpost.rs2:573 oploc1
+5	51	130	tellLarryPlans	NpcStep	npc:peng_larry_ice	2670,3988,1	Return to Larry to finish the quest.				quests/quest_coldwar/scripts/coldwar_larry.rs2:378 opnpc1; +2
