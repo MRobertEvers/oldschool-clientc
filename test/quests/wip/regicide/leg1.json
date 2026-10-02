@@ -1,1 +1,0 @@
-{"test_id":"regicide","leg":1,"outcome":"done","runs":3,"last_step":"goBackUpToIbansCavern","last_failure":"","blocker":"","doc_gaps":["::complete has no arm for quest_undergroundpass; setup uses ::setvar upass and upass_lathas_met","unlisted pass obstacles between bridge and the tunnel crossed by one goto_tile hop"],"compacted":false}
