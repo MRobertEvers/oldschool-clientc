@@ -26,11 +26,18 @@ fi
 # 2. Submodules. Client-TS is public. OSRS-Content is private: it clones only
 #    once the session has been granted MRobertEvers/OSRS-Content, so a
 #    failure here is reported, not fatal.
+#    OSRS-Content is a PARTIAL clone (--filter=blob:none): its history holds
+#    hundreds of committed evidence screenshots per quest, so a full clone runs
+#    to gigabytes of a cloud session's fixed disk allowance. Commits and trees
+#    come down now; a blob is fetched only when a checkout or a diff needs it.
+#    Never fetch it with --depth afterwards: shallow fetches renegotiate badly
+#    and re-download blobs into duplicate packs (2026-10-02, vm: 10.4 GB in 11
+#    packs, 6 of them pure duplicates). Use a plain `git fetch origin <branch>`.
 git submodule update --init Client-TS
-if ! git submodule update --init OSRS-Content; then
+if ! git submodule update --init --filter=blob:none OSRS-Content; then
 	echo "session-start: WARNING: could not clone OSRS-Content (private)." >&2
 	echo "session-start: add MRobertEvers/OSRS-Content to the session, then run" >&2
-	echo "session-start:   git submodule update --init OSRS-Content" >&2
+	echo "session-start:   git submodule update --init --filter=blob:none OSRS-Content" >&2
 fi
 
 # 3. The osrs239 cache: OpenRS2 #2639, the build OSRS-Content/osrs239-content
