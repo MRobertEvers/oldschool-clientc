@@ -27,8 +27,10 @@ The water leg is drivable since vm-b1-seam2 (gaps-world, Penguin Agility Course)
 2636,4054 (the ledge climbs you down to 2634,4054,0), walk_to 2630,4055 (wade past the crushers,
 no op), click_loc peng_agility_crushcourse_stepstone01 (lands 2630,4057,1, +55 xp; the approach
 retry may need a second press). No goto_tile onto the first stone. Retry the first icicle press
-(a pick flake). The Thing (sheep_shearer_the_thing) has Talk-to on op3 and Shear on op1 in
-all.npc; content still answers op1. Stones 1-7 jump from two tiles
+(a pick flake). Talk to the Thing (sheep_shearer_the_thing) with op 3 (Talk-to). Op 1 Shear
+makes it walk away with no wool, or says you need shears (vm-b1-seam3 coldwar_thing_talk_op).
+Lumbridge Larry (peng_multi_larry_lumb) is placed only while varb3298_peng_multi_larry=1, so a
+scratch that stages state 45 sets it too. Stones 1-7 jump from two tiles
 (stone 7 is an aploc). The ice ends with a slide to the finish 2657,4039,1; talk to the instructor
 there, then the fence gate (west edge of 2652,4039) takes you west to 2651,4039, and the door
 2643,4032 leads back to the corridor.

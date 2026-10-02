@@ -23,8 +23,12 @@ Wandering and fights
 - Vanstrom: bound to his five blows (8 ticks apart), cannot be hurt, Protect from Melee zeroes the damage. Bring 60+ hitpoints.
 
 Burgh inn (vm-b1-seam2): the Broken wall (north edge of 3491,3230) climbs north with Agility 10,
-south with none, 0.5 xp a crossing. The pub trapdoor's Climb-down still answers "You can't go any
-further." (climb_ladder(-1) into the z+6400 basement): the next blocker, gaps-world Burgh de Rott inn.
+south with none, 0.5 xp a crossing. The pub trapdoor (vm-b1-seam3): op 1 Open then op 1 Climb-down
+on burgh_inn_trapdoor_multiloc (3490,3232,0) lands on your own x, z+6400 (3491,9632 from the east
+side), in the hideout with Veliaf (3494,9628); the ladder burgh_inn_basement_ladderup op 1 returns
+to the trapdoor room (3490,3231,0). A copy drove Veliaf, the plank on the boat and the chute and
+the boat to stage 40 (arrived_wall, 3604,3161,1); kickBoard, climbDownBoard and talkToCitizen were
+not driven yet. gaps-world Burgh de Rott inn.
 
 Differences from the guide
 - Stage 52, 195 are not written (the guide redraws one arrow there); 50 is the kick, 60 the citizen.

@@ -1,0 +1,11 @@
+# The Fremennik Isles: relay legs as stage ranges in walking order (tools/quest_gate/ladder.py, relay.md
+# "The legs follow the guide's order, and the route does not"). The guide files stage 90 (help Mawnis)
+# and 280/290 (yak armour, shield) first; the game writes the stages in ascending order
+# (quest_thefremennikisles/configs: ^fris_started 5 .. ^fris_complete 340; 90 only from the jester act
+# after spy 1, fris_jester.rs2), so each leg below starts where the one before it ends.
+0-60      # Mord, Jatizso ore, jester outfit, Slug, spy 1 (^fris_started .. ^fris_spy1_done)
+90-150    # Mawnis: rope, split logs, the two bridges (^fris_help_mawnis .. ^fris_bridges_done)
+160-210   # report to Gjuki, window tax, beard tax (^fris_to_gjuki .. ^fris_beard_tax)
+230-275   # spy 2, report, the decree to Mawnis (^fris_spy2_start .. ^fris_decree_given)
+280-290   # yak-hide armour and the Neitiznot shield (^fris_yak_armour, ^fris_shield)
+300-      # trolls' cave, the Ice Troll King, his head back (^fris_kill .. ^fris_complete)

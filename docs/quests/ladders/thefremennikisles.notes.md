@@ -1,6 +1,8 @@
 # The Fremennik Isles -- what the ladder cannot know (driven 2026-10-02)
 
 Doors and reach
+- Legs are cut by ROUTE (thefremennikisles.legs: 0-60, 90-150, 160-210, 230-275, 280-290, 300-; vm-b1-seam3); leg 1 starts from ::fremennikisles at stage 0.
+- Jatizso, leg 1: from the dock 2420,3782 walk to 2412,3796, open frisd_outer_city_wall_door_left (2413,3797), walk to 2407,3807 and open frisd_town_wall_door (2407,3806): King Gjuki's hall is entered from the NORTH; walking straight north from the gate stalls at the jester chest (2407,3800).
 - Mawnis's hall is entered from the EAST (door guards Kjedelig/Trogen at 2338,3798/3800); goto 2341,3799 first.
 - The jester chest (2407,3800) is clicked from the throne-room side (stand on 2407,3801); from outside it is "can't reach".
 - Ferry landings: Jatizso 2420,3782; Neitiznot 2311,3782; Rellekka 2644,3709. Maria in Rellekka ferries only from stage 50.
