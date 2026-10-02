@@ -907,6 +907,47 @@ found no Koftik and the pocket had no way out. FIXED: it finds `caveguide6`, who
 binding, quest_regicide `koftik.rs2`) opens `@koftik_whereami` while `%upass` is `defeated_iban`.
 When a LostCity npc symbol finds nothing, compare the OSRS spawn file's npc at that tile.
 
+## Seam pass matthew-mbp-m4-b48-seam1 (2026-10-01)
+
+(a) Iban's temple doors had no Regicide branch. Regicide's two walks to the Well of Voyage
+(`enterTemple` in leg 2 and again in `goThroughUndergroundPassAgain`) go through the doors of
+Iban's temple after Underground Pass is complete, and `upass_tomb.rs2` `[label,open_iban_door]`
+carried only a "Regicide shortcut deferred" comment: with `%varp161_upass` complete the click
+answered "The temple is in ruins... / ...You cannot enter." and the author jumped the door with
+`goto_tile 2010,4709,1` (sampler-findings, Sample matthew-mbp-m4-b48 (c)). FIXED (OSRS-Content
+2dd52a46a5) as LostCity_Server has it: entering from the east at `%varp328_regicide_quest >=
+^regicide_spoken_lathas` (2), before the Zamorak-robe check, opens the doors and teleports you
+into the ruined temple's copy of the room (`quest_upass.rs2:576-585`); leaving by that copy's
+doors puts you back outside Iban's temple (`:629-631`). The doors are placed twice:
+`upass_templedoor_closed_right`/`_left` at 2143,4648/4647 level 1 (Iban's temple, `m33_72`) and at
+2015,4712/4711 level 1 (the ruined temple, `m31_73`, with `regicide_voyage_temple_well1` at
+2008,4711). The right leaf lands on 2014,4712 level 1 (the left on 2014,4711); the ruined copy's
+right leaf lands back on 2145,4648 level 1. A player below Regicide stage 2 gets the old answers.
+Conformance row `seam.iban_temple_door_regicide_shortcut`. The route from Iban's door to the
+temple doors crosses four collapsed bridges: gaps-world, "Underground Pass: Iban's temple door".
+
+## Seam pass matthew-mbp-m4-b48-seam2 (2026-10-01)
+
+(a) "The ledge pocket is sealed" was a rock bridge never clicked, not a map bug. Regicide's round 4
+walked off the Underground Pass ledge (landing 2374,9638) and found every `walk_to` toward the pipe
+(`upass_pipe6`, 2417,9605) or `upass_unicorn_doorl` (2375,9611) stalled at 2374,9638, and blamed a
+wall line on z 9615 in `m37_150.jl2`. No map, loc, collision or script was wrong: the pocket is left
+by the maze's five rock bridges `walkway_upass_narrow_mid_top` (op1 Cross, `blockwalk=1`, level-1
+ground decor over the pits; `[oploc1,...]` `upass_obstacles.rs2:360` = LostCity_Server
+`upass_obstacles.rs2:291`), at 2380,9634 / 2387,9631 / 2392,9627 / 2399,9632 / 2406,9637, each
+clicked from x-1 and landing on x+1 ("...and make it."). The copies at 2396,9636 and 2406,9632 are
+dead ends. A fall ("...and fall off it.") drops you one tile south (north under 2399,9632 and
+2406,9632, the two `0_37_150_31_32`/`_38_32` copies) and every fall tile walks back. The same seven
+copies stand at the same tiles in LostCity's `m37_150`, and every quest loc of the square (doors,
+pipes, ledge, mud, railings) matches LostCity. The hop list is in gaps-world, "Underground Pass:
+`walk_to` stalls under attack and stops at rock bridges". The Thieving-50 cage `cave_railings5`
+2380,9619 is the guide's optional shortcut ("Navigate the maze, or use the shortcut to the south
+with 50 Thieving", Regicide.java:517). Proof: `build/seam_state/matthew-mbp-m4-b48-seam2/scratch/maze_walk.lua`
+20/20 with no goto after the well (row `repro.walk_to_pipe_stalls` reproduces the stall, then the
+five bridges, the pipe and the door), and Regicide leg 2 with its maze marker replaced 26/0 to the
+temple marker, 42/42 with seam1's temple route. Hand-off: `test/quests/wip/regicide/relay.md`,
+"seam2 (maze)".
+
 ## Seam pass vm-b1-seam1 (2026-10-02, batch vm-b1)
 
 (a) `other_floor` is an honest answer, not a driver seam: the game's own client cannot press a loc

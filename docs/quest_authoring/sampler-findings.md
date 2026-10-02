@@ -195,3 +195,80 @@ the press, as `climb()` in the same file already does.
 Lumbridge Swamp Caves back to the cellar. It no longer `::give`s a lit lantern back, but the content
 has no relight (content-gaps, The Lost Tribe), so the tunnels are walked with the lantern out. The
 detour is in no guide step and skips none, so the quest stayed. Leave it out of new tests.
+
+## Sample matthew-mbp-m4-b48 (2026-10-01)
+
+*Origin: the sampler checked regicide and sent it back again.*
+
+(a) A FIX MADE IN ONE LEG IS NOT MADE IN ITS COPY. Round 2 was opened to replace the `goto_tile`
+over the Underground Pass grid (Sample matthew-mbp-m4-b47 (a)). Leg 3 got the real crossing, but
+leg 6's second walk still ran `goto-pullLeverAfterGrid-again` from the pit landing to the lever.
+Shot 382 reads "Teleported to 2466,9673,0". A relay leg that walks a route again is a copy of the
+first walk. After fixing a hop, `grep` the file for the same coordinates and fix every copy.
+
+(b) A ROW THAT SUMS UP A ROUTE IS NOT EVIDENCE THAT IT WAS WALKED. `navigateMaze` and
+`goThroughUndergroundPassAgain` were `t.check(name, true, "<list of what ran>")`. Between those
+rows, a `goto_tile` jumped from the ledge's far side (2374,9638) to the pipe (2420,9605), across
+the maze's narrow rock bridges (gaps-world, Underground Pass). Grade a summary row on a tile or a
+server line that only the real route produces, or leave it out.
+
+(c) A DOOR THE CONTENT REFUSES IS A CONTENT_BUG, NOT A REASON TO TELEPORT. After `openIbansDoor`
+the player lands at 2173,4725 on level 1. The guide's `enterTemple` (a ConditionalStep branch,
+missing from `helper_coverage`'s ladder) is the way to the well room. After Underground Pass,
+`upass_tomb.rs2:141-152` answers "The temple is in ruins..." and notes that the Regicide shortcut
+is deferred. The test then used `goto_tile` to reach 2010,4709. End the leg in
+`t.blocked("content_bug: ...")` naming that file and line.
+FIXED (b48-seam1, OSRS-Content 2dd52a46a5): the doors take a Regicide player through; click them
+(gaps-world, "Underground Pass: Iban's temple door").
+
+## Sample matthew-mbp-m4-b48, second check (2026-10-01)
+
+*Origin: the sampler checked regicide's round-6 green (d3505f4ee) and sent it back a third time.*
+
+(a) ONE ANSWER FROM A MENU OF FIVE IS NOT THE STEP. The guide's `goLearnAboutBomb`
+(Regicide.java:817-844) asks Iorwerth about quicklime, naphtha, sulphur, a barrel and a fuse, and
+`knowHowToMakeBomb` needs all five `*_chat` varbits. `helper_coverage`'s ladder listed only
+`askAboutFuse`, so the run read FULL after the one question. Shot 322 shows the menu offering the
+other four. When the guide declares sibling `NpcStep`s on one npc, drive each of them by name, and
+check the content sets every varbit (`lord_iorwerth.rs2:143-192`).
+
+(b) A DETOUR THAT TELEPORTS INTO A SEALED AREA TO PRESS A BRANCH STEP IS A CHEAT. At stage 3 the
+test used `goto_tile` to reach the pocket north of the tripwire and pressed `goFromTyrasToTrap` there.
+It then jumped from 2220,3152 to 2240,3149, past the three dense forests west of the tracker. The
+next row's press of that forest read "You can see no way to get past this." (shot 148), because
+`regicide_route.rs2` refuses it below `spoken_tracker2`. If a press would only answer in an area the
+quest has not opened yet, do not teleport into that area to make it. Drive the step when the route
+reaches it, or leave it ALTERNATIVE.
+
+(c) A STEP PRESSED IN A DETOUR IS NOT WALKED WHEN THE ROUTE NEEDS IT. Leg 5 went by `goto_tile`
+from inside Tyras's camp (2190,3146) to the sulphur (2261,3132). Leg 6 went by `goto_tile` from
+2238,3181 into the tripwire pocket and from that pocket to the ring of leaves. Those jumps skip the
+camp passage, the middle forests, the tripwire and `climbThroughForest`, which the guide's
+`goToIorwerthAfterCamp`, `goGiveRabbitToGuard` and `goTalkToIorwerthAfterRegicide` route through.
+The same file's first Underground Pass walk went from the plank room to the well (past the pit,
+the grid and the spear traps). It then drove those obstacles in a later leg, entering from the
+voyage cave by `goto_tile` and leaving the same way. Every guide step had a row, so FULL could not
+see this. Walk each route once, in guide order. Use `goto_tile` only between two tiles that a walk
+connects with no guide loc in the way.
+
+## Sample matthew-mbp-m4-b48, fourth check (2026-10-02)
+
+*Origin: the sampler checked regicide's round-9 green (d06b64289, 473/0, 626 shots) and accepted
+it.*
+
+The run drove all 63 ladder steps by click, walk or dialogue, including the five Iorwerth questions,
+both full walks of the Underground Pass, and a real bridge fall with `goBackUpToIbansCavern`. Every
+`goto_tile` joins two tiles that a walk in the same file connects, or leaves Tirannwn the way a
+player would teleport out (to the furnace, the chemist and Arianwyn). All 626 shots match their
+names. The scroll reads 3 quest points, 13,750 Agility XP and 15,000 coins, and the reward rows
+assert those literal numbers.
+
+(a) A CROSSING ROW CAN PASS FROM THE SIDE IT STARTED ON. The Sticks in leg 3 were crossed east, not
+west, and the 6-tile `-tile` check passed (start-and-travel: "A trap you can walk over gets crossed
+the wrong way"). This did not send the quest back. The trap is not a gate, the press and the roll
+were real, and leg 4 crossed it from its west `src` east toward the tracker, the way that walk goes.
+
+(b) A MID-LEG FOOD REFILL IS NOT A STEP. `t.cheat("::give lobster 6")` fired twice, in legs 4 and 6,
+when the traps had eaten the setup's food. It does none of the quest's work, so it stayed. A
+reviewer reading `Gave 6 x Lobster` in a shot should check that the item is food the guide
+recommends, not a quest item.

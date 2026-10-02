@@ -54,7 +54,11 @@ MAX_ATTEMPTS = 12
 FIXTURE = os.path.join(REPO_ROOT, "test", "quests", "fixtures", "fresh_lumbridge.ini")
 NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 USER = "qdconform"
-MAX_FRAMES = "40000"
+# The quest default (quest_list.DEFAULT_MAX_FRAMES).  At 40000 the harness had
+# outgrown its cap: with 86 seam rows a clean run drew 39,510 frames (about 30
+# a tick), so the 87th row (seam.iban_temple_door_regicide_shortcut, b48-seam1)
+# was cut off mid-row as "frame cap, or the client exited 0".
+MAX_FRAMES = "60000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.

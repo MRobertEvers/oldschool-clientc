@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 86
+-- @seam-count 87
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 86
+local SEAM_COUNT = 87
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -7970,6 +7970,91 @@ return {
             end
             if type(surface) ~= "table" or surface.x ~= 3165 or surface.z ~= 3251 or surface.level ~= 0 then
                 return "refused", text .. " -- [oploc1,osf_ham_ladder] did not return to the surface"
+            end
+            return "ok", text
+        end)
+
+        -- IBAN'S TEMPLE DOORS TAKE A REGICIDE PLAYER TO THE RUINED TEMPLE
+        -- (matthew-mbp-m4-b48-seam1 regicide_temple_shortcut).  Regicide's
+        -- route to the Well of Voyage goes through the doors of Iban's temple
+        -- after Underground Pass is done; [label,open_iban_door] had only a
+        -- "deferred" comment there, so a player with upass complete got "The
+        -- temple is in ruins... You cannot enter." and the walk could only
+        -- jump the door with a goto.  The branch is LostCity_Server
+        -- quest_upass.rs2:576-585 (enter, before the Zamorak-robe check) and
+        -- :629-631 (leave).  Graded on the tile after clicking the right leaf
+        -- at 2143,4648,1 from the east (want 2014,4712,1, the ruined temple
+        -- beside regicide_voyage_temple_well1), on the ruined copy at
+        -- 2015,4712 putting the player back at 2145,4648,1, and on a player
+        -- WITHOUT Regicide progress still being refused (stays east).
+        seam("seam.iban_temple_door_regicide_shortcut", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local server = verb("var", "server")
+            local tile = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not server then return missing("var", "server") end
+            if not tile then return missing("world", "tile") end
+            setup_cheat("::setvar varp161_upass ^upass_complete")
+            setup_cheat("::setvar varp328_regicide_quest ^regicide_spoken_lathas")
+            settle(2)
+            local _, regicide_value = server("varp328_regicide_quest")
+            local goto_result, goto_detail = goto_tile(2145, 4648, 1)
+            local enter_result, enter_detail = "not_run", nil
+            local leave_result, leave_detail = "not_run", nil
+            local inside, outside = nil, nil
+            if goto_result == "ok" then
+                enter_result, enter_detail = click_loc("upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
+                settle(4)
+                local _, here = tile()
+                inside = here
+                if type(here) == "table" and here.x == 2014 and here.z == 4712 then
+                    leave_result, leave_detail = click_loc("upass_templedoor_closed_right", 1, { at = { 2015, 4712 } })
+                    settle(6)
+                    local _, back = tile()
+                    outside = back
+                end
+            end
+            -- The control: no Regicide progress, so the branch must not run.
+            local control_result, control_detail = "not_run", nil
+            local control_at = nil
+            setup_cheat("::setvar varp328_regicide_quest 0")
+            settle(6)
+            local control_goto = goto_tile(2145, 4648, 1)
+            if control_goto == "ok" then
+                control_result, control_detail = click_loc("upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
+                settle(4)
+                local _, here = tile()
+                control_at = here
+            end
+            setup_cheat("::setvar varp161_upass 0")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            local function at(where)
+                if type(where) ~= "table" then return describe(where) end
+                return describe(where.x) .. "," .. describe(where.z) .. "," .. describe(where.level)
+            end
+            local text = "regicide=" .. describe(regicide_value) .. "; goto 2145,4648,1 -> " .. describe(goto_result)
+                .. " " .. describe(goto_detail) .. "; enter -> " .. describe(enter_result) .. " "
+                .. describe(enter_detail) .. "; at " .. at(inside) .. " (want 2014,4712,1); leave -> "
+                .. describe(leave_result) .. " " .. describe(leave_detail) .. "; at " .. at(outside)
+                .. " (want 2145,4648,1); control (regicide 0) -> " .. describe(control_result) .. " "
+                .. describe(control_detail) .. "; at " .. at(control_at) .. " (want x >= 2144)"
+            if regicide_value ~= 2 then
+                return "no_subject", text .. " -- the Regicide stage did not take"
+            end
+            if goto_result ~= "ok" then
+                return "no_subject", text
+            end
+            if type(inside) ~= "table" or inside.x ~= 2014 or inside.z ~= 4712 or inside.level ~= 1 then
+                return "refused", text .. " -- [label,open_iban_door] did not take the Regicide player in"
+            end
+            if type(outside) ~= "table" or outside.x ~= 2145 or outside.z ~= 4648 or outside.level ~= 1 then
+                return "refused", text .. " -- the ruined temple's doors did not put the player back outside"
+            end
+            if type(control_at) ~= "table" or control_at.x < 2144 or control_at.level ~= 1 then
+                return "refused", text .. " -- a player without Regicide progress went through"
             end
             return "ok", text
         end)

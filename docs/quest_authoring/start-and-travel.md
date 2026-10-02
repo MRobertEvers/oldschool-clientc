@@ -193,3 +193,17 @@ the row's `src` (`click_loc(..., { at = {x, z} })` or a walk), and click. If no 
 Regicide's dense forests (`regicide_cross_over*`) no longer read the table at all (FIXED seam37):
 stand within 1 of the middle square of your side and click; the crossing is a 3-square forcemove,
 and its row reads `teleport: A -> B (a jump no walk makes ...)` (seam-facts, Seam pass 37 (c)).
+
+#### A trap you can walk over gets crossed the wrong way (matthew-mbp-m4-b48, fourth check)
+
+*Origin: sampler matthew-mbp-m4-b48, fourth check of regicide (accepted, d06b64289).*
+
+Regicide's Sticks (`regicide_trap_woodspring`, `configs/all.loc`: `blockwalk=0`) do not block the
+path. Leg 3 stood on the east side (2238,3181) to cross west. The first press came from 2236,3181,
+which is not the row's `src`. `click_loc` then walked the player over the trap and
+pressed it from the west side ("pressed again from side 1 ... 2236,3181 -> 2234,3181"). The
+successful roll carried the player back EAST, to 2237,3181. The `-tile` row passed anyway, because
+it allows 6 tiles. The walk that followed went west straight over the trap tile, which shot 164
+shows. Two fixes: stand on the `src` of the direction you want before you click (`walk_to` to the
+exact tile), and grade the crossing on the exact far-side tile, not on a 6-tile box. A trap the
+player can walk over is not a gate. Drive it because the guide names it, and check the direction.
