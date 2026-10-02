@@ -245,3 +245,20 @@ content root (the shared root makes the lane dirs compile as base and fail), the
 `TORIRSSERVER_SCRIPTS=<that build> python3 tools/quest_gate/run.py ...`; `client.log` names the pack
 it loaded. Build a control pack without the edit too: before 12/6, after 18/18, control 12/6 is what
 makes the one line the whole difference. Report the line as `needs:` for the closer.
+
+### `new_quest.py`: `helper dir not found` on Linux, and the scaffold is one `run`, not legs (vm-b1)
+
+`new_quest.py <test_id>` takes the queue row's `helper_dir` and looks for it under `--qh-root`.
+That defaults to a macOS checkout (`DEFAULT_QH` in `tools/questhelper_extract.py`), so on any
+other machine it stops with `helper dir not found: <helper_dir>` even though the row is right.
+Pass the helpers root yourself:
+
+```sh
+python3 tools/quest_gate/new_quest.py <test_id> \
+    --qh-root /home/user/quest-helper/src/main/java/com/questhelper/helpers/quests
+```
+
+The scaffold it writes is a single `run = function(t)`, not the `legs = { ... }` form that
+`relay.md` and `run.py --from-leg` need. For a quest over 30 steps, split it into legs by hand
+before the first run: one `{ name =, run = function(t) ... end }` per leg of the ladder, with the
+setup list kept at the top.

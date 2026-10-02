@@ -830,3 +830,27 @@ only on the give (`:110`), so the same talk works once there is room. A leg that
 earlier (fewer slips, a shorter fight) arrives with fewer free slots. So before `killJerro-talk`,
 count the empty slots (`t.inv.slot(i)` over the 28 slots) and eat or drop down to 7 free. Do not assume
 the earlier legs' food use is fixed. Read the run's mesbox shot before you put a FAIL down to RNG.
+
+## Miscellania and Etceteria: which door to click, Donal's pub door, the bank with no booth (vm-b1)
+
+*Origin: Royal Trouble review and sample, batch vm-b1 (`test/quests/royaltrouble.lua`).*
+
+Miscellania's castle is a ring of towers, and every stair sits behind a `castledoor`. A bare
+`click_loc("castledoor", 1)` picks the nearest copy, which is often the wrong one, so pass `at`:
+
+- South tower: `castledoor` at 2506,3851 (level 0 and level 1), stairs `spiralstairs_wooden` /
+  `spiralstairsmiddle_wooden` at 2505,3848.
+- Throne room: `misc_ulby_throneroomdoor` at 2506,3857 level 1.
+- North tower: `castledoor` at 2506,3869 (level 0 and level 1), stairs at 2505,3871; Princess
+  Astrid's room door is `castledoor` at 2504,3867 level 1.
+- Etceteria: `spiralstairs` at 2613,3867, Queen Sigrid's door `castledoor` at 2615,3870 level 1.
+
+Donal's pub in the dungeon village is not walled off. Its door is `royal_village_door` at
+2525,10256 on the west wall (op1 Open, the generic door in `doors/configs/doors.loc`). The Royal
+Trouble test reached Donal with `goto_tile 2527,10257`. That is legal plain travel, because the
+guide names no door, but a later author should open the door with
+`click_loc("royal_village_door", 1, { at = { 2525, 10256, 0 } })` rather than copy the jump.
+
+Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth in the cache. The
+town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
+the same `~openbank`).
