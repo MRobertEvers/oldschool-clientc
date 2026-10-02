@@ -204,6 +204,7 @@ return {
         end },
         { name = "gold_room", run = function(t)
         -- LEG 4 BEGIN: enterGoldRoom
+        -- GUIDE-GAP: fillFeeder7 (feeder1a) is the guide's recovery step for a blocked lever 1 (gold_room.rs2:173); the main path never blocks lever 1, and pressing it early moves mechanical bird 1 out of order
         -- GUIDE-GAP: fillFeeder3 shown only after the wrong bird (bird 2) was moved; the guide's own route never shows it, gold_room.rs2:186 maps feeder3a to bird 2 and gold_room.rs2:63 refuses it before the wing gate is down
         t.ticks(2)
         -- the silver mouth tile is boxed in for the walker (leg 3 note): step off it by teleport, then walk the cavern floor
@@ -236,7 +237,6 @@ return {
         t.exec("pullLever2Down", t.player.click_loc, "eaglepeak_puzzle1_lever4", 1)
         t.ticks(2)
         t.expect("gold.lever4.gate", t.var.expect("varb3093_eaglepeak_puzzle1_gate4", 1))
-        t.blocked("ROUND 2 (orchestrator, sampler matthew-mbp-m4-b50): REMOVE the fillFeeder7 rows that stood here. fillFeeder7 (feeder1a) is the guide's RECOVERY step ('if you've blocked lever 1'); pressing it before pushLever1Up moved mechanical bird 1 early and made the guide's main-path fillFeeder5 a refused press. Follow the guide's main-path order; leg.4.end's seed count changes with it.")
         t.exec("goto-pushLever1Up", t.player.goto_tile, 1943, 4910, 2)
         t.exec("pushLever1Up", t.player.click_loc, "eaglepeak_puzzle1_lever3", 2)
         t.ticks(2)
@@ -251,7 +251,7 @@ return {
         local _, seeds = t.inv.count("eaglepeak_bird_seed")
         local _, bronze = t.inv.count("eaglepeak_crystal_feather3")
         local _, silver = t.inv.count("eaglepeak_crystal_feather2")
-        t.check("leg.4.end", seeds == 2 and lvl == 2 and bronze == 1 and silver == 1, "tile " .. tostring(type(tile) == "table" and (tile.x .. "," .. tile.z) or tile) .. " level " .. tostring(lvl) .. " stage " .. tostring(stage) .. " seeds " .. tostring(seeds) .. " bronze " .. tostring(bronze) .. " silver " .. tostring(silver))
+        t.check("leg.4.end", seeds == 3 and lvl == 2 and bronze == 1 and silver == 1, "tile " .. tostring(type(tile) == "table" and (tile.x .. "," .. tile.z) or tile) .. " level " .. tostring(lvl) .. " stage " .. tostring(stage) .. " seeds " .. tostring(seeds) .. " bronze " .. tostring(bronze) .. " silver " .. tostring(silver))
         -- LEG 4 END
         end },
         { name = "gold_to_door", run = function(t)
@@ -261,8 +261,14 @@ return {
         t.exec("pullLever3Down", t.player.click_loc, "eaglepeak_puzzle1_lever1", 1)
         t.ticks(2)
         t.expect("gold.lever1.gate", t.var.expect("varb3090_eaglepeak_puzzle1_gate1", 1))
-        -- feeder1 already served bird 1 in leg 4 (gold_room.rs2:215 refuses a second seed), so the seed must stay in the pack
-        t.blocked("ROUND 2 (orchestrator, sampler matthew-mbp-m4-b50): fillFeeder5 must be a DRIVEN press that feeder1 accepts (gold_room.rs2 eaglepeak_gold_feeder_ready case 1 accepts it in the guide's order) and that moves bird 1 -- not a fillFeeder5.kept row asserting the refusal. A .kept row is not a driven step.")
+        -- guide order (gold_room.rs2 eaglepeak_gold_feeder_ready which=1): gate3 up, gate4 down, gate1 down -> feeder1 takes the seed and moves bird 1
+        t.exec("goto-fillFeeder5", t.player.goto_tile, 1945, 4914, 2)
+        local _, seeds_before_5 = t.inv.count("eaglepeak_bird_seed")
+        t.exec("fillFeeder5", t.player.use_on, "eaglepeak_bird_seed", t.player.by_symbol("loc", "eaglepeak_bird_feeder1"))
+        t.ticks(2)
+        t.expect("gold.feeder1.bird", t.var.expect("varb3094_eaglepeak_puzzle1_mechbird1", 1))
+        local _, seeds_after_5 = t.inv.count("eaglepeak_bird_seed")
+        t.check("fillFeeder5.spent", seeds_after_5 == seeds_before_5 - 1, "seed spent on feeder1: " .. tostring(seeds_before_5) .. " -> " .. tostring(seeds_after_5))
         t.exec("goto-pullLever4Down", t.player.goto_tile, 1926, 4915, 2)
         t.exec("pullLever4Down", t.player.click_loc, "eaglepeak_puzzle1_lever2", 1)
         t.ticks(2)
