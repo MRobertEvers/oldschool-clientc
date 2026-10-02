@@ -773,14 +773,26 @@ return {
                     k = k + 1
                 end
 
-                -- the slippery rock at 2545,10287: stand beside it on the east side and lay the plank (royal_cave.rs2:28)
-                t.exec("goto-plankRock2", t.player.goto_tile, 2546, 10287, 0)
+                -- plankRock1: the slippery rock at 2548,10288, plain travel to the tile beside it from the fire, then the plank (royal_cave.rs2:28)
+                t.exec("goto-plankRock1", t.player.goto_tile, 2549, 10288, 0)
                 local x0 = select(2, t.world.tile()).x
                 local tgr = t.player.by_symbol("loc", "royal_invisible_puddletrap")
                 local r10, d10 = t.player.use_on("woodplank", tgr)
                 t.ticks(6)
                 local _, rt = t.world.tile()
-                t.check("plankRock2", rt ~= nil and rt.x < x0, "use_on woodplank royal_invisible_puddletrap -> " .. tostring(r10) .. " " .. tostring(d10):sub(1, 60) .. "; from x " .. tostring(x0) .. " to " .. tile_str() .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))))
+                t.check("plankRock1", rt ~= nil and rt.x == 2547, "use_on woodplank royal_invisible_puddletrap -> " .. tostring(r10) .. " " .. tostring(d10):sub(1, 60) .. "; from x " .. tostring(x0) .. " to " .. tile_str() .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))))
+                t.ticks(2)
+                -- plankRock2: walk the one tile to the east side of the rock at 2545,10287 (no teleport onto the island)
+                t.player.walk_to(2546, 10287, 8)
+                t.ticks(4)
+                local _, wt = t.world.tile()
+                t.check("walk-plankRock2", wt ~= nil and wt.x == 2546, "walked from 2547 to " .. tile_str())
+                x0 = wt.x
+                local tgr2 = t.player.by_symbol("loc", "royal_invisible_puddletrap")
+                local r11, d11 = t.player.use_on("woodplank", tgr2)
+                t.ticks(6)
+                local _, rt2 = t.world.tile()
+                t.check("plankRock2", rt2 ~= nil and rt2.x == 2544, "use_on woodplank royal_invisible_puddletrap -> " .. tostring(r11) .. " " .. tostring(d11):sub(1, 60) .. "; from x " .. tostring(x0) .. " to " .. tile_str() .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))))
                 t.ticks(2)
                 t.check("leg.6.end", t.chat.kind() == "none", "tile " .. tile_str() .. ", varb2140_royal_quest=" .. tostring(select(2, t.var.server("varb2140_royal_quest"))) .. ", varb2148_royal_misc_numberofchapters=" .. tostring(select(2, t.var.server("varb2148_royal_misc_numberofchapters"))) .. "; backpack: royal_diary1, woodplank (kept), royal_lift_manual")
                 -- LEG 6 END
@@ -806,25 +818,22 @@ return {
                     end
                     return k
                 end
-                -- lay the plank on the slippery rock beside the player (royal_cave.rs2:28 oplocu): the player lands on the far side
-                local function plank(name, stand_x, stand_z)
-                    t.exec("goto-" .. name, t.player.goto_tile, stand_x, stand_z, 0)
+                t.ticks(2)
+                t.check("leg.7.start", chapters() == 1 and select(2, t.inv.count("woodplank")) == 1, "varb2148 chapters = " .. tostring(chapters()) .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))) .. " at " .. tile_str())
+
+                -- plankRock3 then plankRock4: walk beside each rock (no teleport onto the islands), lay the plank
+                local function walk_plank(name, stand_x, stand_z, land_x)
+                    t.player.walk_to(stand_x, stand_z, 8)
+                    t.ticks(4)
                     local x0 = select(2, t.world.tile()).x
                     local tg = t.player.by_symbol("loc", "royal_invisible_puddletrap")
                     local r, d = t.player.use_on("woodplank", tg)
                     t.ticks(6)
                     local _, rt = t.world.tile()
-                    local moved = rt ~= nil and math.abs(rt.x - x0) >= 2
-                    t.check(name, moved, "use_on woodplank royal_invisible_puddletrap -> " .. tostring(r) .. " " .. tostring(d):sub(1, 60) .. "; from x " .. tostring(x0) .. " to " .. tile_str() .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))))
+                    t.check(name, rt ~= nil and rt.x == land_x, "use_on woodplank royal_invisible_puddletrap -> " .. tostring(r) .. " " .. tostring(d):sub(1, 60) .. "; from x " .. tostring(x0) .. " to " .. tile_str() .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))))
                 end
-                t.ticks(2)
-                t.check("leg.7.start", chapters() == 1 and select(2, t.inv.count("woodplank")) == 1, "varb2148 chapters = " .. tostring(chapters()) .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))) .. " at " .. tile_str())
-
-                -- the rock at 2548,10288 first (east of the one leg 6 crossed), then back west over 2545 again, 2542 and 2539
-                plank("plankRock1", 2549, 10288)
-                plank("plankRock2-again", 2546, 10287)
-                plank("plankRock3", 2543, 10287)
-                plank("plankRock4", 2540, 10286)
+                walk_plank("plankRock3", 2543, 10287, 2541)
+                walk_plank("plankRock4", 2540, 10286, 2538)
 
                 t.exec("goto-searchFire2", t.player.goto_tile, 2535, 10281, 0)
                 local r1, d1 = t.player.click_loc("royal_fire_remains2", 1)
@@ -863,6 +872,8 @@ return {
                 local _, kt = t.world.tile()
                 t.check("enterSnakesRoom", select(2, t.var.server("varb2157_royal_meddlingkids_cutscene")) == 1, "click_loc royal_cavewall_crack_fremenniks_in -> " .. tostring(r6) .. " " .. tostring(d6):sub(1, 60) .. "; now " .. tile_str() .. ", varb2157_royal_meddlingkids_cutscene = " .. tostring(select(2, t.var.server("varb2157_royal_meddlingkids_cutscene"))))
 
+                local rw, dw = t.player.walk_near(t.player.by_symbol("npc", "royal_fremennik_teen3"), 20)
+                t.ticks(2)
                 local r7, d7 = t.player.talk_to("royal_fremennik_teen3", 1)
                 t.ticks(2)
                 local n7 = pump(40)
