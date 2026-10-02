@@ -13,12 +13,16 @@ return {
         "::give swamp_tar 1",
         "::give bucket_wax 1",
         "::setlevel agility 28",
-        "::setlevel attack 75",
-        "::setlevel strength 75",
-        "::setlevel defence 75",
+        "::setlevel attack 85",
+        "::setlevel strength 85",
+        "::setlevel defence 85",
         "::setlevel hitpoints 90",
-        "::give rune_scimitar 1",
-        "::give shark 14",
+        "::give dragon_scimitar 1",
+        "::give rune_full_helm 1",
+        "::give rune_chainbody 1",
+        "::give rune_platelegs 1",
+        "::give rune_kiteshield 1",
+        "::give shark 16",
     },
 
     run = function(t)
@@ -43,6 +47,11 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        -- seam troll_love_arrg_and_sleds: Arrg is the OSRS wiki block (max 38 melee / 30 ranged);
+        -- the armour is worn from the start (the guide's "Combat gear").
+        for _, item in ipairs({ "rune_full_helm", "rune_chainbody", "rune_platelegs", "rune_kiteshield" }) do
+            t.exec("wear-" .. item, t.player.equip, item)
+        end
 
         ---------------------------------------------------------------- 0: Ug
         t.exec("goto-enterStronghold", t.player.goto_tile, 2839, 3691, 0)
@@ -207,11 +216,10 @@ return {
         } })
         t.ticks(15)
         do local _, p = t.world.tile(); t.check("sledSouthAgain.landed", "ok", "landed at " .. p.x .. "," .. p.z .. "," .. p.level) end
-        t.ticks(5)
-        t.exec("sled.stowed", t.inv.await, "trollromance_toboggon_waxed", 1, 10)
 
         ---------------------------------------------------------------- 30: back to Ug
         t.exec("goto-enterStrongholdAgain", t.player.goto_tile, 2839, 3691, 0)
+        t.exec("sled.stowed", t.inv.await, "trollromance_toboggon_waxed", 1, 10)
         t.exec("enterStrongholdAgain", t.player.click_loc, "troll_stronghold_door", 1)
         t.ticks(4)
         t.exec("goto-goDownToUgAgain", t.player.goto_tile, 2844, 10109, 2)
@@ -238,7 +246,7 @@ return {
         t.expect("quest.stage.dispose_of_arrg", t.quest.expect_stage("dispose_of_arrg"))
 
         ---------------------------------------------------------------- 35: Arrg
-        t.exec("equipScimitar", t.player.equip, "rune_scimitar")
+        t.exec("equipScimitar", t.player.equip, "dragon_scimitar")
         t.ticks(2)
         t.exec("goto-challengeArrg", t.player.goto_tile, 2829, 10094, 1)
         t.exec("challengeArrg", t.player.talk_to, "trollromance_arrg", 1)
@@ -253,7 +261,7 @@ return {
         })
         t.ticks(4)
         t.exec("killArrg", t.player.attack, "trollromance_arrg_attackable", 2, 20)
-        t.exec("killArrg.dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 45 } })
+        t.exec("killArrg.dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 50 } })
         t.ticks(10)
         t.expect("quest.stage.defeated_arrg", t.quest.expect_stage("defeated_arrg"))
 
