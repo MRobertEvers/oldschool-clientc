@@ -1,9 +1,30 @@
 # Quest orchestrator -- running the quest loop on any machine
 
-This is what a Fable orchestrator does, on whichever machine it runs. Several machines may
-run the loop against one origin (`v3` in both repos) at once. Claims and the content lock
-are tracked files, so a `git fetch` shows every machine's holds. The tool is
+This is what a Fable orchestrator does, on whichever machine it runs. Several machines run
+the loop against one origin (`v3` in both repos) at once. The tool is
 `tools/quest_gate/claim.py`; its docstring is the reference.
+
+## The model: one batch, one branch, one PR
+
+The unit of work is a **batch of quests that one machine owns for the whole lifecycle**:
+content parity, seam fixes, authoring, review, sampling, green.
+
+- **`v3` carries only the claim ledger**: `test/quests/QUEUE.tsv` rows marked
+  `claimed` / `<batch>@<host>`. A claim on `v3` is the lock -- two machines never hold the
+  same quest. `claim.py` writes the ledger on `origin/v3` itself (through a throwaway
+  worktree), so it works from any branch at any time.
+- **Everything else lives on the batch branch** `<batch>` -- the same name in the parent and
+  in `OSRS-Content` -- and reaches `v3` through **one PR per batch** (`claim.py done`).
+  Content, engine and driver fixes, tests, evidence, docs, relay files: all on the branch.
+  The closers and the sampler commit on the branch and push the branch; they never touch
+  `v3` and never merge `v3` into the branch mid-batch.
+- **No content lock.** Each batch allocates compiler ids on its own branch; when the batch
+  finishes, `claim.py done` merges `origin/v3` into the branch taking `v3`'s `pack/*.alloc`
+  files and rebuilds the pack, so the batch's new ids land after everything `v3` already has.
+  `CONTENT_LOCK` stays for the older serialised model and is otherwise untouched.
+- Batch names are `<hostname>-b<N>`, never reused. The passes inside a batch are named
+  after it: `<batch>-parity`, `<batch>-seam1`, `<batch>-seam2`, ... and the author batch
+  is `<batch>` itself.
 
 ## The loop
 
@@ -14,29 +35,16 @@ are tracked files, so a `git fetch` shows every machine's holds. The tool is
 3. **Author batch** (`author_batch.workflow.js`) has Sonnet authors write the tests. Then a
    reviewer per quest, one queue write, an Opus sampler, and a contact sheet.
 
-- **On one machine the three never overlap.** Authors load `script/plugins/quest_driver/*.lua`
-  live from the checkout, so a seam agent's half-written function crashes an author mid-quest.
-  The order is: batch, its sampler push, its sheet, then the seam pass, then the next batch.
-- **Author batches may run on several machines at once**, each on rows it has claimed.
+- **Inside a batch the three never overlap on one machine.** Authors load
+  `script/plugins/quest_driver/*.lua` live from the checkout, so a seam agent's half-written
+  function crashes an author mid-quest. The order is: parity, then seam passes for the
+  seams parity names, then the author batch, then seam passes for what the batch blocked on,
+  then the author batch again, until each quest is green or honestly blocked.
+- **Batches run on several machines at once**, each on rows it has claimed, each on its own
+  branch. Another machine's half-finished content is invisible to you until its PR merges.
 - **Every machine runs the whole loop.** No machine is "authors only" or "content only":
-  whichever orchestrator finds the next work takes it. When every parity-passed row is
-  claimed by another machine, the next step is a parity pass on the next tier's rows, not
-  a wait (owner, 2026-10-01).
-- **A content pass (parity or seam) holds the content lock**, so only one runs at a time
-  across all machines. Both kinds edit OSRS-Content. The script compiler allocates ids into
-  `pack/varp.alloc`, `dbrow.alloc`, `varn.alloc` and the other `pack/*.alloc` files, and two
-  machines allocating at once hand out the same id twice. That is the only reason for the
-  lock: it serialises the two machines' content passes, it does not reserve them for one
-  machine. The pass takes the lock itself (its State step runs `claim.py content-lock`) and
-  exits 3 when another machine holds it; take it when it is free. An author batch on
-  machine B may run while machine A holds the lock. B's checkout does not see A's
-  uncommitted edits, and B's sampler merges A's pushed result.
-- **A parity pass claims its rows too**: the orchestrator runs `claim.py batch <pass> <ids...>`
-  (the same command an author batch uses, with the pass name as the batch) before launching
-  the pass, so the other machine's author batch drops a quest whose content is mid-port
-  instead of authoring against half of it.
-  The parity closer releases them with `claim.py release <pass>`; a row it reopens with a
-  `parityN done` note is `todo` again for whichever machine claims it next.
+  any tier is fine, the batch runs its own parity. Never wait on another machine's claim;
+  if the rows you wanted are taken, take others.
 
 ## Who runs what
 
@@ -60,62 +68,77 @@ Until the card update of 2026-10-01 is on a machine, a relay started there keeps
 records under `build/` and cannot be resumed elsewhere. After the update,
 `test/quests/wip/<id>/` is the shared record.
 
-## Launch checklist (every pass, every batch)
+## Launch checklist (every batch)
 
-1. **Fetch both repos and get level.** Run `git fetch origin` and
-   `git -C OSRS-Content fetch origin`. Merge in both: `git merge --no-edit origin/v3`, then
-   in the submodule `git -C OSRS-Content merge --no-edit origin/v3`. Push anything you were
-   ahead by. Then check:
-   - `git rev-list --count origin/v3..HEAD` and `git rev-list --count HEAD..origin/v3` are
-     both 0.
-   - The same two counts in OSRS-Content are both 0.
-   - `git submodule status OSRS-Content` shows no `+`.
-2. **Pick a fresh, machine-unique name**: `<machine>-b<N>`, `<machine>-seam<N>` or
-   `<machine>-parity<N>`, for example `mac1-b47`, `mac1-seam38` or `win1-parity3g`. Each
-   machine keeps one prefix. Names from before 2026-10-01 (`sonnet-b46`, `seam37`) have no
-   prefix. The name must appear nowhere yet. Check all of these:
-   - `ls build/author_state build/seam_state build/parity_state`
-   - `git log origin/v3 --oneline | grep <name>`
-   - the owner column of `test/quests/QUEUE.tsv`
-   - `test/quests/BATCHES.tsv`
+1. **Start level with `v3`, settle finished batches, see who holds what:**
+   ```sh
+   git fetch origin && git checkout v3 && git merge --ff-only origin/v3
+   git -C OSRS-Content fetch origin && git -C OSRS-Content checkout v3 \
+       && git -C OSRS-Content merge --ff-only origin/v3
+   python3 tools/quest_gate/claim.py pr-sync     # releases leftover claims of merged batches
+   python3 tools/quest_gate/claim.py status      # claims, lock, each batch branch's state
+   ```
+2. **Pick 4-8 unclaimed rows** (`python3 tools/quest_gate/queue.py summary`): status `todo`,
+   `blocked` or `content_bug`, no owner. Any tier.
+3. **Pick a fresh, machine-unique batch name** `<hostname>-b<N>`. It must appear nowhere:
+   `claim.py status`, `git ls-remote --heads origin | grep <name>`, `test/quests/BATCHES.tsv`,
+   `ls build/author_state build/seam_state build/parity_state`.
+4. **Cut the branch and claim:**
+   ```sh
+   git checkout -b <batch> origin/v3
+   git -C OSRS-Content checkout -b <batch> origin/v3
+   python3 tools/quest_gate/claim.py batch <batch> <ids...>
+   ```
+   `claim.py` tells you which rows it kept; a row another machine took in between is
+   dropped and named. Launch only with the rows it kept.
+5. **Run the flow on the branch** with the Workflow tool and the repo's scripts (saved
+   copies with the `WT` constant set to this checkout): `content_parity.workflow.js` as pass
+   `<batch>-parity`; `seam_pass.workflow.js` as `<batch>-seamN` for the seams parity or an
+   author batch names (write the triage file yourself); `author_batch.workflow.js` as
+   `<batch>`, with `relay` = the leg counts `ladder.py` prints for quests over ~30 steps.
+   Never pass `author_model` or `worker_model`. Launch from a substantive turn, never from a
+   bare "Hello?": workflow agents see the turn's user message.
+6. **After each author batch** publish the contact sheet (Artifact tool: root = the sheet
+   dir, every `*.webp`, icon "map"; two publishes if over 64 MB) and append its row to
+   `test/quests/BATCHES.tsv` on the branch.
 
-   `claim.py` refuses a batch name that another host already holds rows under.
-3. **Author batch: pick rows that are free.** `python3 tools/quest_gate/queue.py summary`
-   lists every claimed row with its owner and age. Pick from rows that are `todo`, `blocked`
-   or `content_bug` and not claimed. The batch's first step runs
-   `claim.py batch <batch> <ids...>`. A quest it could not claim is dropped from the batch
-   and named in the log. You may also claim before launching, with the same command; the
-   step then re-claims what it already holds as a no-op.
-4. **Content pass: the first step takes the lock** (`claim.py content-lock <pass>`). Exit 3
-   means another machine holds it: that launch does nothing, so wait for that pass to close.
-5. Launch from a substantive turn or a wakeup prompt, never from a bare "Hello?": workflow
-   agents see the turn's user message.
+## Closing a pass (the closers and the sampler)
 
-## Closing (the closers and the sampler)
+The parity closer, the seam closer and the batch's sampler commit on the batch branch:
 
-Before committing their own work, the parity closer, the seam closer and the batch's
-sampler all do the same steps:
+1. Commit the submodule first (explicit paths) and push the branch:
+   `git -C OSRS-Content push -u origin <batch>`.
+2. In the parent, stage the gitlink of the committed submodule (`git add OSRS-Content`) with
+   the pass's own files, commit, and push: `git push -u origin <batch>`.
+3. A rejected push on the batch branch means another agent of this batch pushed first:
+   `git pull --no-rebase origin <batch>` in that repo, then push again. Never force.
+4. **Never** `git merge origin/v3` into the branch mid-batch, never push to `v3`, never
+   take or release the content lock. `QUEUE.tsv` rows the pass writes (`queue.py set`,
+   the reopen of a row after parity) are the batch's view and ride the branch; `v3`'s claim
+   stays until the PR merges and merge-tsv lets the verdict beat the claim.
 
-1. Fetch and merge both repos: `git fetch origin && git merge --no-edit origin/v3`, and
-   the same in OSRS-Content.
-2. If the merge conflicts in `QUEUE.tsv`, `BATCHES.tsv` or `PARITY.tsv`, run
-   `python3 tools/quest_gate/claim.py merge-tsv <the conflicted tsv>...`, then
-   `git commit --no-edit`. merge-tsv keeps one row per key (test_id; for BATCHES.tsv, the
-   batch) and keeps rows that only one side added. When both sides changed the same row:
-   - **QUEUE.tsv:** a verdict (green, blocked or content_bug) beats `claimed`, which beats
-     `todo`. Between two claims, the earlier `claimed_at` holds, because that is the claim
-     every other machine saw. Between two verdicts, ours wins.
-   - **Other TSVs:** ours wins.
-3. Resolve any other conflict by hand, and only if it is in the closer's own files.
-   Otherwise stop and report.
-4. Commit the submodule first and push it. In the parent, stage the gitlink of the merged
-   submodule (`git add OSRS-Content`), commit, and push.
-5. If a push is rejected, fetch and merge again, then push once more. Never force.
+## Finishing a batch
 
-**After closing:**
-- A content pass closer runs `claim.py content-unlock <pass>`.
-- The sampler runs `claim.py release <batch>` for rows the batch did not finish. A row
-  whose verdict was written with `queue.py set` is no longer claimed and needs no release.
+```sh
+python3 tools/quest_gate/claim.py done <batch>                 # on the branch, both repos clean
+```
+`done` merges `origin/v3` into the branch in both repos -- `pack/*.alloc` conflicts take
+`v3`'s copy and the pack is rebuilt (`make -C src torirsserver-scripts`) so the batch's ids
+are re-allocated after `v3`'s; `QUEUE.tsv`, `BATCHES.tsv` and `PARITY.tsv` conflicts go
+through merge-tsv; any other conflict refuses with the merge aborted, for you to resolve on
+the branch by hand -- then pushes both branches and prints the honest per-quest table
+(`build/<batch>.pr.md`). Open the PR `<batch> -> v3` with that table as its body (the
+GitHub tool, or `gh pr create --base v3 --head <batch>`), then stamp the claims:
+```sh
+python3 tools/quest_gate/claim.py done <batch> --pr <N> --no-build
+```
+Report the table and the PR to the owner. A quest you cannot finish:
+`claim.py release <batch> <id> --note "<why>"`, so another machine may take it. Then start
+the next batch (`<hostname>-b<N+1>`).
+
+When the PR merges, `v3` receives the batch's verdicts (merge-tsv: a verdict beats a claim),
+and the next `claim.py pr-sync` on any machine releases whatever rows the batch left
+`claimed`. A PR closed without merging is settled with `claim.py pr-sync --closed <batch>`.
 
 ## Work in progress that follows the quest: `test/quests/wip/<id>/`
 
@@ -149,10 +172,10 @@ every other machine. What another machine needs to resume a quest is tracked her
 
 | file | writers |
 |---|---|
-| `test/quests/QUEUE.tsv` | `claim.py` (claim and release); the batch's Queue phase and sampler; the seam closer and parity closer (reopen) |
+| `test/quests/QUEUE.tsv` | on `v3`: `claim.py` only (claim, release, pr-sync, done --pr). On a batch branch: the batch's Queue phase and sampler, the seam closer and parity closer (reopen); the PR brings those rows to `v3` |
 | `test/quests/BATCHES.tsv` | the orchestrator, one row per batch after publishing its contact sheet |
 | `tools/quest_gate/PARITY.tsv` | the parity closer |
-| `test/quests/CONTENT_LOCK` | `claim.py` only. Empty when free, else `<pass>@<host> <UTC ISO time>` |
+| `test/quests/CONTENT_LOCK` | `claim.py` only; unused by the batch-branch model (empty when free, else `<pass>@<host> <UTC ISO time>`) |
 | `test/quests/wip/<id>/` | see above |
 
 QUEUE.tsv has two claim columns:
@@ -166,20 +189,18 @@ with `queue.py set` ends the claim.
 ## Recovery
 
 - **A stale claim may be released by anyone.** A claim is stale when it is older than 24
-  hours and its batch has no commits since. Check `git log origin/v3 --oneline | grep <batch>`
-  for commits; `queue.py summary` marks claims older than 24 h as STALE. Then run
+  hours and its batch branch has no commits since (`git log origin/<batch>`). Run
   `claim.py release <batch> --stale`. Without `--stale`, `release` only touches this host's
   claims. Say in your report whose claim you released.
-- **A stale content lock**, under the same 24-hour rule: `claim.py content-unlock <pass> --stale`.
-- **A batch killed on its own machine:** relaunch it there with the same args. It resumes
-  from `build/author_state/<batch>/` and `test/quests/wip/`.
-- **Moving a batch's quests to another machine:**
-  1. On the old machine (or `--stale` from the new one), run `claim.py release <batch>`.
-  2. Commit and push the wip/ files the batch wrote.
-  3. On the new machine, claim the quests under a new batch name. Relays resume from
-     `wip/<id>/`.
-- **`claim.py` exit 2** means it refused (not level, a dirty file, an unknown id, or a
-  conflict outside its file). Nothing was pushed. Fix the cause and run it again.
+- **A pass killed on its own machine:** relaunch it with the same args. It resumes from
+  `build/<kind>_state/<pass>/` and, for relays, `test/quests/wip/`.
+- **Moving a batch's quests to another machine:** the old machine runs
+  `claim.py release <batch> <ids> --note "<state>"` (or `--stale` from the new one) and pushes
+  its branch; the new machine claims them under its own batch name and starts from the
+  pushed branch's `wip/` files and content.
+- **`claim.py` exit 2** means it refused (an unknown id, a push error, a merge it could not
+  resolve, `done` off its branch or with uncommitted work). Nothing was pushed to `v3`. Fix
+  the cause and run it again.
 - **Exit 3** means nothing to claim, a lock held by someone else, or a release that left
   another host's fresh claim in place.
 
@@ -197,7 +218,7 @@ with `queue.py set` ends the claim.
 - **Models:** the table under "Who runs what". Fable orchestrates only: it never does worker
   work, except landing a pass that a closer proved but could not commit.
 - **Every batch publishes a contact sheet artifact and a `BATCHES.tsv` row.**
-- **Commit and push both repos between passes, submodule first.** Never `git stash`,
+- **Commit and push the batch branch in both repos between passes, submodule first.** Never `git stash`,
   `reset`, `checkout -- <path>`, `clean`, `--amend`, `add -A` or `add -u`. Commit by
   explicit path. Never stage `lib/emsdk-macos-toolchain.zip`, which the owner deleted.
 - **Never edit another session's files while they carry uncommitted edits.** That includes
