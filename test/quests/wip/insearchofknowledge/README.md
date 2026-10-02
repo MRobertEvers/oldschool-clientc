@@ -12,3 +12,12 @@ and 1/25 on a baby red dragon, inside 28_155 only, and each hit is one of the th
 Next round: drive every page for real against red dragons (expect about 150 kills, so check
 `max_frames`), or have a seam pass add a sanctioned page debugproc. See
 docs/quest_authoring/coverage-and-gate.md, "A `-- GUIDE-GAP:` over a `::give` of a quest drop".
+
+## Round 2 (rejected by the reviewer)
+
+`rejected_round2.lua` is round 2's file (71/0, gate green, coverage FULL; never committed). The
+page kills are real now: `::passive` on every Forthos type and `osmumtens_fang` with the
+`dragonfire_shield` (docs/quest_authoring/gaps-combat.md, "A drop hunt lands too few drops"). The
+reviewer rejected it because `goto-aimeri` teleports past the knife/slash web the guide names
+(`bigweb_slashable`) and `goto-logosia` leaves the dungeon by teleport. Walk from the ladder to
+Aimeri, slash the web by click, and use the exit ladder.
