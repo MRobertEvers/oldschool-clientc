@@ -197,13 +197,178 @@ return {
         t.expect("quest.stage.get_water", t.quest.expect_stage("get_water"))
         t.exec("gate.goto", t.player.goto_tile, 2120, 5098, 0)
         t.exec("gate.open", t.player.click_loc, "deal_gate_closed", 1)
+        -- seam rumdeal_gate_keeps_its_wall: the gate now opens through the
+        -- shared door code; walk north through 2120,5098 to the lake.
+        local w1r, w1d = t.player.walk_to(2120, 5125, 30)
+        local w1t, w1 = t.world.tile()
+        t.check("openGate.walk_north", w1t == "ok" and w1.z >= 5120,
+            "walk_to 2120,5125 -> " .. tostring(w1r) .. " (" .. tostring(w1d) .. ") at " .. tostring(w1.x) .. "," .. tostring(w1.z))
+        local w2r, w2d = t.player.walk_to(2128, 5142, 40)
+        local w2t, w2 = t.world.tile()
+        t.check("walk-north_island", w2t == "ok" and w2.z >= 5138,
+            "walk_to 2128,5142 -> " .. tostring(w2r) .. " (" .. tostring(w2d) .. ") at " .. tostring(w2.x) .. "," .. tostring(w2.z))
+        local w3r, w3d = t.player.walk_to(2132, 5158, 40)
+        local w3t, w3 = t.world.tile()
+        t.check("walk-useBucketOnWater", w3t == "ok" and w3.z >= 5150,
+            "walk_to 2132,5158 -> " .. tostring(w3r) .. " (" .. tostring(w3d) .. ") at " .. tostring(w3.x) .. "," .. tostring(w3.z))
         local stagnant = t.player.by_symbol("loc", "deal_stagnant")
-        local walk_result, walk_detail = t.player.walk_to(2120, 5125, 20)
-        local _, gate_tile = t.world.tile()
-        t.check("gate.walk_through", walk_result == "timeout",
-            "STALLED as the content_bug predicts: walk_to 2120,5125 after 'You open the gate.' -> " .. tostring(walk_result) .. " " .. tostring(walk_detail)
-            .. " at " .. tostring(gate_tile.x) .. "," .. tostring(gate_tile.z))
-        t.blocked("content_bug: deal_water_hopper.rs2:5 [oploc1,deal_gate_closed] swaps in deal_gate_open at the SAME loc_angle/loc_shape (loc_add($deal_gate_c, deal_gate_open, $deal_gate_a, $deal_gate_s, 500)); all.loc:112368 deal_gate_open has the same shape1=0,9872 wall, and the map places it as a wall (m33_79.jl2:3586 '1 8 42: 10172 0 1'), so the opened gate keeps blocking 2120,5098 -> north and the player cannot reach the lake. The generic door handler (doors.rs2:110) rotates the angle by +1 on open; the quest handler does not. The real game's gate opens and lets the player through (OSRS wiki Rum Deal: the gate on the pier is opened to reach the north of the island).")
-        return
+        t.exec("lake.fill", t.player.use_on, "bucket_empty", stagnant)
+        t.expect("inv.stagnant", t.inv.expect_has("deal_stagnant_bucket", 1))
+        t.exec("hopper.goto2", t.player.goto_tile, 2142, 5102, 2)
+        t.exec("hopper.water", t.player.use_on, "deal_stagnant_bucket", hopper)
+        t.expect("hopper.told_sluglings", t.quest.expect_stage("told_get_sluglings"))
+
+        -- Leg 6: five sluglings, fished around the coast, into the
+        -- pressure barrel, lever pulled (deal_sluglings.rs2 + SlugSteps.java).
+        t.exec("braindeath.goto4", t.player.goto_tile, 2144, 5109, 1)
+        t.exec("braindeath.sluglings.talk", t.player.talk_to, "deal_captian_braindeath")
+        t.exec("braindeath.sluglings.dialogue", t.chat.play, {
+            "player:water's in the hopper",
+            "npc:sluglings",
+        })
+        t.expect("braindeath.get_sluglings", t.quest.expect_stage("get_sluglings"))
+        t.exec("coast.goto", t.player.goto_tile, 2173, 5074, 0)
+        for i = 1, 5 do
+            t.exec("slugling.fish" .. i, t.player.talk_to, "deal_squid")
+        end
+        t.expect("inv.sluglings", t.inv.expect_has("deal_slugling", 5))
+        local pressure = t.player.by_symbol("loc", "deal_pressure")
+        t.exec("barrel.goto", t.player.goto_tile, 2142, 5102, 2)
+        for i = 1, 5 do
+            t.exec("slugling.deposit" .. i, t.player.use_on, "deal_slugling", pressure)
+        end
+        t.expect("barrel.full", t.var.expect("varb1354_deal_barrel", 5))
+        t.exec("lever.pull", t.player.click_loc, "deal_multi_lever", 1)
+        t.expect("lever.told_spirit", t.quest.expect_stage("told_kill_spirit"))
+
+        -- Leg 7: the evil spirit -- Braindeath's wrench, Davey's blessing,
+        -- a REAL fight (deal_combat.rs2, [opnpc2,deal_evil_spirit] ->
+        -- @player_combat_start per the seam20 trap-31 fix).
+        t.exec("braindeath.goto5", t.player.goto_tile, 2144, 5109, 1)
+        t.exec("braindeath.spirit.talk", t.player.talk_to, "deal_captian_braindeath")
+        t.exec("braindeath.spirit.dialogue", t.chat.play, {
+            "player:barrel's full",
+            "npc:evil spirit",
+        })
+        t.expect("braindeath.kill_spirit", t.quest.expect_stage("kill_spirit"))
+        t.expect("inv.wrench", t.inv.expect_has("deal_wrench", 1))
+        t.exec("davey.goto", t.player.goto_tile, 2132, 5100, 1)
+        t.exec("davey.talk", t.player.talk_to, "deal_davey")
+        t.exec("davey.dialogue", t.chat.play, {
+            "player:might be able to help",
+            "npc:possessed",
+            "mesbox:blesses the wrench",
+        })
+        t.expect("inv.wrench_blessed", t.inv.expect_has("deal_wrench_blessed", 1))
+        local multicontrol = t.player.by_symbol("loc", "deal_multicontrol")
+        t.exec("control.goto", t.player.goto_tile, 2144, 5101, 1)
+        t.exec("control.wrench", t.player.use_on, "deal_wrench_blessed", multicontrol)
+        -- `~mesbox(...)` suspends the calling script (trap 22) --
+        -- `~deal_spawn_evilspirit` is the line AFTER the mesbox call in
+        -- `[oplocu,deal_multicontrol]`, so it does not run until this
+        -- dialogue closes.
+        t.exec("control.mesbox_continue", t.chat.play, { "mesbox:*" })
+        local spirit_present = t.npc.await_present("deal_evil_spirit", 10, 10)
+        t.check("spirit.spawned", spirit_present == "ok",
+            "npc.await_present(deal_evil_spirit,10,10) -> " .. tostring(spirit_present))
+        t.exec("spirit.attack", t.player.attack, "deal_evil_spirit", 2, 20)
+        t.exec("spirit.dead", t.npc.await_dead_engaged, 80, 8)
+        t.ticks(6)
+        t.expect("spirit.told_spider", t.quest.expect_stage("told_kill_spider"))
+
+        -- Leg 8: the fever spider basement -- a REAL kill on a world-
+        -- spawned npc, carcass carried up to the hopper (deal_combat.rs2's
+        -- [ai_queue3,deal_fever_spiders1] via the wildcard [opnpc2,_]
+        -- combat-start binding; deal_water_hopper.rs2's oplocu branch).
+        t.exec("braindeath.goto6", t.player.goto_tile, 2144, 5109, 1)
+        t.exec("braindeath.spider.talk", t.player.talk_to, "deal_captian_braindeath")
+        t.exec("braindeath.spider.dialogue", t.chat.play, {
+            "player:evil spirit's gone",
+            "npc:fever spiders",
+        })
+        t.expect("braindeath.kill_spider", t.quest.expect_stage("kill_spider"))
+        t.exec("basement.goto", t.player.goto_tile, 2148, 5103, 0)
+        t.exec("scimitar.equip", t.player.equip, "rune_scimitar")
+        -- Slayer gloves worn: slayer_gear.rs2's slayer_needs_gloves gates
+        -- on npc_type = deal_fever_spiders1, and slayer_specials.rs2's
+        -- slayer_on_npc_hit_player only forces the extra 12.5%-of-Hitpoints
+        -- hit + ~apply_disease when the gloves are NOT worn -- with them
+        -- on, only the spider's ordinary accuracy-rolled melee can land,
+        -- so a plain attack + kill wait is safe here (no eat loop needed).
+        t.exec("gloves.equip", t.player.equip, "deal_slayer_gloves")
+        t.exec("spider.attack", t.player.attack, "deal_fever_spiders1", 2, 30)
+        -- Run 1: (40, 6) timed out with the spider already at 2/40 hp and
+        -- 0 re-engagements (the fight was progressing the whole time, just
+        -- short of budget) -- widened to match the evil spirit's own (80, 8)
+        -- ceiling; the spider has less HP so this has room to spare.
+        t.exec("spider.dead", t.npc.await_dead_engaged, 80, 10)
+        local carcass_click_result = t.player.click_obj("deal_spider_body")
+        local carcass_count_result, carcass_count = t.inv.count("deal_spider_body")
+        -- click_obj answers ok with a nil detail (trap 12/section 8's
+        -- hollow list) -- call it directly and write the counts read back.
+        t.check("carcass.pickup",
+            carcass_click_result == "ok" and carcass_count_result == "ok" and carcass_count == 1,
+            "click_obj deal_spider_body -> " .. tostring(carcass_click_result)
+                .. "; deal_spider_body count " .. tostring(carcass_count_result)
+                .. " " .. tostring(carcass_count))
+        t.expect("inv.carcass", t.inv.expect_has("deal_spider_body", 1))
+        t.exec("hopper.goto3", t.player.goto_tile, 2142, 5102, 2)
+        t.exec("hopper.spider", t.player.use_on, "deal_spider_body", hopper)
+        t.expect("hopper.told_swill", t.quest.expect_stage("told_get_swill"))
+
+        -- Leg 9: the finished mash -- fill a bucket from the output tap,
+        -- Donnie's taste test, back to Braindeath to finish
+        -- (deal_water_hopper.rs2's tap, deal_donnie.rs2).
+        t.exec("braindeath.goto7", t.player.goto_tile, 2144, 5109, 1)
+        t.exec("braindeath.swill.talk", t.player.talk_to, "deal_captian_braindeath")
+        t.exec("braindeath.swill.dialogue", t.chat.play, {
+            "player:spider's in the hopper",
+            "npc:mash done",
+        })
+        t.expect("braindeath.get_swill", t.quest.expect_stage("get_swill"))
+        local tap = t.player.by_symbol("loc", "deal_brewvat_tap")
+        -- walk from Braindeath to the tap on the same floor (a ::goto out of
+        -- the north-island region reads as skipping the gate step).
+        local tapr, tapd = t.player.walk_to(2142, 5094, 30)
+        local tapt, tapp = t.world.tile()
+        t.check("tap.walk", tapt == "ok" and tapp.z <= 5096,
+            "walk_to 2142,5094 -> " .. tostring(tapr) .. " (" .. tostring(tapd) .. ") at " .. tostring(tapp.x) .. "," .. tostring(tapp.z))
+        t.exec("tap.fill", t.player.use_on, "bucket_empty", tap)
+        t.expect("inv.swill", t.inv.expect_has("deal_bucket_swill", 1))
+        t.exec("donnie.goto", t.player.goto_tile, 2150, 5078, 0)
+        t.exec("donnie.talk", t.player.talk_to, "deal_captian_donnie")
+        t.exec("donnie.dialogue", t.chat.play, {
+            "player:Here, try this",
+            "npc:rough",
+            "mesbox:approval",
+        })
+        t.expect("donnie.return_to_finish", t.quest.expect_stage("return_to_finish"))
+
+        -- Leg 10: finish with Braindeath -- ~deal_quest_complete grants
+        -- 7000 Fishing/Prayer/Farming XP each (deal_shared.rs2's
+        -- stat_advance calls against configs/rumdeal.constant's
+        -- ^deal_reward_*_xp = 70000 tenths, matching RumDeal.java's
+        -- ExperienceReward list and the wiki's Rewards section).
+        local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
+        t.step("rumdeal.xp_before_read", xp_snapshot_result == "ok" and "PASS" or "FAIL",
+            "skill.snapshot before hand-in -> " .. tostring(xp_snapshot_result))
+        t.exec("braindeath.goto8", t.player.goto_tile, 2144, 5109, 1)
+        t.exec("braindeath.finish.talk", t.player.talk_to, "deal_captian_braindeath")
+        t.exec("braindeath.finish.dialogue", t.chat.play, {
+            "player:taste of the swill",
+            "npc:Then it's done",
+            "npc:work fixing that control.",
+        })
+        t.quest.expect_complete()
+
+        -- Every reward Quest Helper lists (getExperienceRewards +
+        -- getItemRewards): three literal XP grants and the retained holy
+        -- wrench. "Access to Braindeath Island" has no readable signal.
+        t.exec("reward.fishing_xp", t.skill.expect_gain, "fishing", 7000, xp_snapshot)
+        t.exec("reward.prayer_xp", t.skill.expect_gain, "prayer", 7000, xp_snapshot)
+        t.exec("reward.farming_xp", t.skill.expect_gain, "farming", 7000, xp_snapshot)
+        t.expect("reward.holy_wrench", t.inv.expect_has("deal_wrench_blessed", 1))
+
+        t.finish(0)
     end,
 }
