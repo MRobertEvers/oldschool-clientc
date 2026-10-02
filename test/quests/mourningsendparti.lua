@@ -1141,7 +1141,20 @@ return {
         -- enumerated). ----
         t.exec("goto-enterBaseAfterSheep", t.player.goto_tile, 2551, 3320, 0)
         t.exec("enterBaseAfterSheep", t.player.click_loc, "mournerstewdoor", 1)
-        t.exec("goto-talkToEssylltAfterSheep", t.player.goto_tile, 2043, 4631, 0)
+        t.exec("goto-enterBasementAfterSheep", t.player.goto_tile, 2542, 3327, 0)
+        t.exec("enterBasementAfterSheep", t.player.click_loc, "mourning_hideout_trap_door", 1)
+        local sheep_basement_result, sheep_basement_detail = t.await({
+            level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile and tile.x and tile.z
+                    and math.abs(tile.x - 2044) <= 8 and math.abs(tile.z - 4628) <= 8
+            end,
+            note = "trapdoor.landed_basement_after_sheep",
+        }, 10)
+        t.step("enterBasementAfterSheep.landed", sheep_basement_result == "ok" and "PASS" or "FAIL",
+            "await(world.tile() within 8 of 2044,4628) after the trap door -> "
+                .. tostring(sheep_basement_result) .. " " .. tostring(sheep_basement_detail))
+        t.ticks(3)
         t.exec("talkToEssylltAfterSheep", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         -- mend1_essyllt_after_sheep (mend1_disguise.rs2:543-566): "New
         -- orders", verbatim, falling straight into mend1_essyllt_poison_
@@ -1586,6 +1599,16 @@ return {
         -- range (2547,3322 -- symbol "range", the client's cooking-range
         -- category) instead of the underground Carnillean one. ----
         -- ANY-OF: cookNaphtha cookToxin the guide targets only carnilleanrange, but the content cooks the naphtha on ANY range via skill_cooking/scripts/cooking.rs2:11's [oplocu,_cooking_oven] hook (mend1_poison.rs2's ~mend1_heat_toxic_naphtha) -- cooked below at the Mourner HQ range as cookToxin.
+        t.exec("goto-enterMournerBaseForCook", t.player.goto_tile, 2551, 3320, 0)
+        local cook_door_before_r, cook_door_before = t.world.tile()
+        t.exec("enterMournerBaseForCook", t.player.click_loc, "mournerstewdoor", 1)
+        t.ticks(4)
+        local cook_door_after_r, cook_door_after = t.world.tile()
+        t.check("enterMournerBaseForCook.walked_through",
+            cook_door_before_r == "ok" and cook_door_after_r == "ok"
+                and (cook_door_after.x ~= cook_door_before.x or cook_door_after.z ~= cook_door_before.z),
+            "tile before=" .. tostring(cook_door_before and cook_door_before.x) .. "," .. tostring(cook_door_before and cook_door_before.z)
+                .. " after=" .. tostring(cook_door_after and cook_door_after.x) .. "," .. tostring(cook_door_after and cook_door_after.z))
         t.exec("goto-cookToxin", t.player.goto_tile, 2547, 3323, 0)
         local range_result, range_row = t.world.loc_near("range", 6)
         t.check("cookToxin.range_present", range_result == "ok",

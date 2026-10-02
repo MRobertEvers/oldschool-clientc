@@ -1192,7 +1192,8 @@ the wall stayed and the walk north stalled at 2120,5098 after "You open the gate
 with `deal_gate_open`): the gate swings off the wall line like every door and the north island is
 walkable (Quest Helper RumDeal.java:358 `openGate`, then `northIsland` z >= 5099; OSRS wiki Rum Deal
 oldid 15315444). Below that stage it still answers with its lock line. Route and proof:
-`test/quests/wip/rumdeal/relay.md` (walk in hops; a 33-tile `walk_to` to the lake is refused).
+the green `test/quests/rumdeal.lua` rows `openGate.walk_north`..`lake.fill` (walk in hops; a 33-tile
+`walk_to` to the lake is refused).
 
 (c) Npcs whose dump id the cache gave to newer content were dropped by `tools/gen_spawns.py` as
 name drift and are back: `NPC_SPAWN_ID_CORRECTIONS` adds Mazchna (3511,3509), Duradel
@@ -1226,7 +1227,7 @@ trades one `petecandlestick`, only at `^hero_phoenix_killed_grip` (your own kill
 `[ai_queue3,grip]`) and never a second. The player still kills Grip for real through the slit
 (gaps-combat: Shooting through an arrow slit). Declare the trade `-- PARTNER: getCandlestick
 ::hero_partner_candlestick <reason>` (helper_coverage verifies it against the cheats table). Rows:
-`test/quests/wip/hero/relay.md`; proof copy `seam2_hero_full_a` 125/0 to the scroll, FULL 43.
+the green `test/quests/hero.lua` `inSecretRoom`..`getCandlestick`; 125/0 to the scroll, FULL 43.
 
 (b) A goto to 2780,3197 for Heroes' Quest's side door lands INSIDE the secret room (QH `secretRoom`
 2780..2782 x 3197..3198, HeroesQuest.java:258), past the door; `useKeyOnSideDoor` then walks you

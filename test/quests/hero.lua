@@ -1,7 +1,8 @@
 -- Heroes' Quest -- driven for real through the Phoenix Gang route
--- (Achietties -> Straven -> Alfonse -> Charlie the cook -> kill Grip ->
--- loot the treasure chest -> Straven's candlestick hand-in for the
--- armband), then the two solo-collectible arms (Ice Queen -> ice gloves ->
+-- (Achietties -> Straven -> Alfonse -> Charlie the cook -> the misc key on
+-- the side door -> ::hero_partner_lure, Grip shot through the arrow slit
+-- from inside the secret room -> ::hero_partner_candlestick -> Straven's
+-- candlestick hand-in for the armband), then the two solo-collectible arms (Ice Queen -> ice gloves ->
 -- Entrana firebird -> feather; Gerrant -> Blamish oil -> oily rod -> lava
 -- eel -> cook it), then the real hand-in to Achietties. Never ::setvar on
 -- %heroquest itself past `hero_started` -- every later value is written by
@@ -34,9 +35,14 @@
 -- -- fishingRod, fishingBait, harralanderUnf (harralandervial, the
 -- unfinished potion Blamish Slime mixes into) and pickaxe are NOT marked
 -- that way, so they are given directly. blamish_snail_slime, blamish_oil,
--- oily_fishing_rod, raw_lava_eel, lava_eel, hot_feather, master_thief_armband,
--- petecandlestick and grip_keys ARE the quest's own deliverables and are
--- driven for real below.
+-- oily_fishing_rod, raw_lava_eel, lava_eel, hot_feather and
+-- master_thief_armband ARE the quest's own deliverables and are driven for
+-- real below. petecandlestick is the partner's half: Grip's keyring and the
+-- treasure room lie behind the Black Arm-only garvdoor, so the partner loots
+-- the chest and trades one over (Quest Helper getCandlestick, "Get your
+-- candlestick from your partner"); ::hero_partner_candlestick stands in for
+-- that trade, at the player's own kill credit only (docs/QUEST_SERVER_CHEATS.md
+-- section D, beside ::hero_partner and ::hero_partner_lure).
 --
 -- The candlestick-chest content bug this file used to stop at
 -- (brimhaven_scarface_mansion.rs2's opencandlechest write clobbering a
@@ -44,10 +50,11 @@
 -- past hero_phoenix_obtained_armband) is FIXED as of the committed source
 -- (brimhaven_scarface_mansion.rs2:134, gated on
 -- `%heroquest >= ^hero_blackarm_gangmember_spoken`, which a Phoenix player
--- sitting at hero_phoenix_killed_grip(5) never satisfies) -- confirmed
--- below by reading %heroquest right after the loot and asserting it is
--- STILL hero_phoenix_killed_grip, then driving on to Straven for the
--- armband for real.
+-- sitting at hero_phoenix_killed_grip(5) never satisfies). A solo Phoenix
+-- player no longer opens that chest (the partner does): this file asserts
+-- the stage at phoenix_killed_grip right after the kill
+-- (quest.stage.phoenix_killed_grip), takes the partner's candlestick, and
+-- drives on to Straven for the armband for real.
 
 return {
     id = "hero",
@@ -83,6 +90,9 @@ return {
         "::give logs 3",
         "::give tinderbox 1",
         "::give rune_pickaxe 1", -- White Wolf Mountain rockslide fallback (mine_ice_queen_lair_rockslide, white_wolf_mountain.rs2:23-32) if the ice queen's own tile answers screen_position through goto_tile
+        "::give magic_shortbow 1", -- QH rangedMage bring-along (HeroesQuest.java:214)
+        "::give rune_arrow 100",
+        "::setlevel ranged 99", -- killGrip with the shortbow (HeroesQuest.java:214)
         "::setlevel mining 50", -- rockslide fallback's own gate (white_wolf_mountain.rs2:29)
         "::setlevel fishing 99", -- lava eel fishing gate is level 53 (lavafish.rs2:90)
         "::setlevel cooking 99", -- lava eel cooking gate is level 53 (cooking_generic.dbrow's cooking_generic_lava_eel row, never burns)
@@ -240,7 +250,7 @@ return {
         -- relying on use_on's own approach-tile hunt from wherever the
         -- panel walk-through left us (measured: every hunted side from
         -- there answered "I can't reach that!").
-        t.exec("goto-sidedoor", t.player.goto_tile, 2780, 3197, 0)
+        t.exec("goto-sidedoor", t.player.goto_tile, 2781, 3196, 0)  -- garden side (QH garden2 2780..2786 x 3188..3196)
 
         -- trap 298: use_on's backpack-tab press is not settled before its
         -- own arming, so an arm issued right after another action can
@@ -273,148 +283,92 @@ return {
             "use_on(misc_key, pete_sidedoor) -> " .. tostring(sidedoor_click_result) .. " (" .. tostring(sidedoor_click_detail)
                 .. "), t.world.tile() " .. predoor_str .. " -> " .. postdoor_str .. " (hero_pete_walk_door's own bare p_teleport)")
 
-        -- ---------------------------------------------------------------
-        -- Grip: a real fight, at his own confirmed *.spawn tile
-        -- (areas/world/configs/m43_49.spawn:19).
-        -- ---------------------------------------------------------------
-        t.exec("goto-grip", t.player.goto_tile, 2774, 3192, 0)
 
-        local grip_attack_result, grip_attack_detail = t.player.attack("grip", 2, 20)
-        t.check("attackGrip", grip_attack_result == "ok" or grip_attack_result == "timeout", grip_attack_detail)
-        t.exec("killGrip", t.npc.await_dead, "grip", 60)
-        t.ticks(3) -- ai_queue3,grip's %heroquest write is not client-side the instant the corpse clears
+        -- ---------------------------------------------------------------
+        -- SEAM hero_partner_lures_grip (matthew-mbp-m4-b51-seam2).
+        -- QH secretRoom zone = 2780..2782 x 3197..3198 (HeroesQuest.java:258);
+        -- the side door (2781,3197, south edge) opens it from the garden side.
+        -- ---------------------------------------------------------------
+        local room_result, room_tile = t.world.tile()
+        local in_room = room_result == "ok" and room_tile ~= nil and room_tile.level == 0
+            and room_tile.x >= 2780 and room_tile.x <= 2782 and room_tile.z >= 3197 and room_tile.z <= 3198
+        t.check("inSecretRoom", in_room, "t.world.tile() -> " .. tostring(room_result) .. " "
+            .. (room_tile and string.format("%s,%s,%s", tostring(room_tile.x), tostring(room_tile.z), tostring(room_tile.level)) or "nil")
+            .. " (QH secretRoom 2780..2782 x 3197..3198)")
+
+        -- Stand at the arrow slit (snipable_wall 2780,3198, blockrange=0): a
+        -- plain walk inside the room, never a goto.
+        local slit_walk = t.player.walk_to(2780, 3198, 10)
+        local slit_r, slit_tile = t.world.tile()
+        t.check("walkToSlit", slit_r == "ok" and slit_tile.x == 2780 and slit_tile.z == 3198,
+            "walk_to(2780,3198) -> " .. tostring(slit_walk) .. ", tile " .. tostring(slit_tile and (slit_tile.x .. "," .. slit_tile.z) or slit_r))
+
+        t.exec("equipShortbow", t.player.equip, "magic_shortbow")
+        t.exec("equipArrows", t.player.equip, "rune_arrow")
+
+        -- BEFORE the lure: Grip at his spawn (2774,3192) is behind walls.
+        local g0r, g0 = t.npc.nearest("grip", 15)
+        t.check("grip.unlured.where", g0r == "ok",
+            "npc.nearest(grip,15) -> " .. tostring(g0r) .. " " .. (g0 and (tostring(g0.x) .. "," .. tostring(g0.z)) or "nil"))
+
+        -- The seam, reproduced: with no partner's lure Grip is out of sight
+        -- of the slit and the server refuses the swing.
+        local u_r, u_d = t.player.attack("grip", 2, 10)
+        t.check("killGrip.unlured.refused", u_r == "refused",
+            "attack(grip) before any lure -> " .. tostring(u_r) .. " " .. tostring(u_d))
+        t.player.walk_to(2780, 3198, 10)
+
+        -- The gate holds before the kill: the partner has no candlestick to
+        -- trade until THIS player has killed Grip.
+        local pre_r = t.cheat("::hero_partner_candlestick")
+        t.ticks(2)
+        local pre_c_r, pre_c = t.inv.count("petecandlestick")
+        local pre_msg_r, pre_msg = t.msg.expect("HERO_PARTNER_CANDLESTICK FAILED")
+        t.check("candlestick.refusedBeforeKill", pre_c_r == "ok" and pre_c == 0 and pre_msg_r == "ok",
+            "t.cheat(::hero_partner_candlestick) at stage 4 -> " .. tostring(pre_r) .. ", petecandlestick " .. tostring(pre_c)
+            .. ", msg.expect -> " .. tostring(pre_msg_r) .. " " .. tostring(pre_msg))
+
+        -- The partner's lure: ::hero_partner_lure (quest_hero.rs2
+        -- [debugproc,hero_partner_lure], mirrors [label,summon_grip] case 1).
+        -- One cabinet search moves Grip for the 6-tick hold; a partner whose
+        -- Grip has not reached the cabinet room searches again (the cabinet
+        -- stays searchable, [oploc1,gripcbopen] -> @summon_grip).
+        local lured, g1, lure_tries, lure_trail = false, nil, 0, ""
+        for attempt = 1, 3 do
+            lure_tries = attempt
+            local lure_r, lure_d = t.cheat("::hero_partner_lure")
+            local said_r = t.msg.await("Grip lured", 12)
+            local g1r
+            g1r, g1 = t.npc.nearest("grip", 15)
+            lure_trail = lure_trail .. string.format(" #%d cheat=%s done=%s grip=%s", attempt, tostring(lure_r), tostring(said_r),
+                g1 and (tostring(g1.x) .. "," .. tostring(g1.z)) or tostring(g1r))
+            if g1r == "ok" and g1 ~= nil and g1.z >= 3196 and g1.z <= 3198 and g1.x >= 2770 and g1.x <= 2779 then
+                lured = true
+                break
+            end
+        end
+        t.check("hero_partner_lure", lured,
+            "::hero_partner_lure x" .. lure_tries .. ":" .. lure_trail .. " (want Grip in the cabinet room next to the secret room, 2770..2779 x 3196..3198, walk target 2777,3198)")
+
+        -- killGrip: ranged through the slit, without leaving the room.
+        local ga_r, ga_d = t.player.attack("grip", 2, 20)
+        t.check("killGrip.attack", ga_r == "ok" or ga_r == "timeout", "attack(grip) -> " .. tostring(ga_r) .. " " .. tostring(ga_d))
+        t.exec("killGrip", t.npc.await_dead_engaged, 60)
+        t.ticks(3)
         t.expect("quest.stage.phoenix_killed_grip", t.quest.expect_stage("phoenix_killed_grip"))
-        t.expect("player.aliveAfterGrip", t.player.alive())
+        local k_r, k_tile = t.world.tile()
+        t.check("killGrip.stillInRoom", k_r == "ok" and k_tile.x >= 2780 and k_tile.x <= 2782 and k_tile.z >= 3197 and k_tile.z <= 3198,
+            "t.world.tile() after the kill -> " .. tostring(k_tile and (k_tile.x .. "," .. k_tile.z .. "," .. k_tile.level) or k_r))
 
-        -- grip_keys is a real ground drop (ai_queue3,grip -- obj_add at
-        -- npc_coord), not a chat grant -- poll the entity pool before
-        -- clicking, same idiom as rovingelves.lua's seed pickup.
-        local keys_visible_result = t.await({
-            level = function()
-                return t.world.obj_near("grip_keys", 10) == "ok"
-            end,
-            note = "waiting for Grip's dropped keyring to reach the client's entity pool",
-        }, 10)
-        t.step("gripKeys.visible", keys_visible_result == "ok" and "PASS" or "FAIL",
-            "t.world.obj_near(grip_keys, 10) polled up to 10 ticks -> " .. tostring(keys_visible_result))
+        -- getCandlestick (HeroesQuest.java:412): the partner's trade.
+        -- PARTNER: getCandlestick ::hero_partner_candlestick the partner loots the chest behind garvdoor and trades one (HeroesQuest.java:412)
+        local cs_r, cs_d = t.cheat("::hero_partner_candlestick")
+        t.check("hero_partner_candlestick.cheat", cs_r == "ok", "t.cheat(::hero_partner_candlestick) -> " .. tostring(cs_r) .. " " .. tostring(cs_d))
+        local cw_r, cw_d = t.inv.await("petecandlestick", 1, 10)
+        t.check("getCandlestick", cw_r == "ok", "inv.await(petecandlestick, 1, 10) -> " .. tostring(cw_r) .. " " .. tostring(cw_d))
 
-        local keys_before_result, keys_before = t.inv.count("grip_keys")
-        local keys_click_result, keys_click_detail = t.player.click_obj("grip_keys")
-        if keys_click_result ~= "ok" then
-            -- Grip's own corpse/death animation can cover his ground drop
-            -- for a moment (the same "covered" geometry class section 8
-            -- describes for a loc) -- settle and press once more.
-            t.ticks(3)
-            keys_click_result, keys_click_detail = t.player.click_obj("grip_keys")
-        end
-        t.inv.await("grip_keys", 1, 10)
-        local keys_after_result, keys_after = t.inv.count("grip_keys")
-        local keys_pass = keys_click_result == "ok" and keys_after_result == "ok"
-            and keys_after > (keys_before_result == "ok" and keys_before or 0)
-        t.step("pickUpGripKeys", keys_pass and "PASS" or "FAIL",
-            string.format("click_obj grip_keys -> %s (%s), count %s -> %s",
-                tostring(keys_click_result), tostring(keys_click_detail), tostring(keys_before), tostring(keys_after)))
-
-        -- ---------------------------------------------------------------
-        -- Treasure door + chest: two candlesticks.
-        -- ---------------------------------------------------------------
-        local treasuredoor_near_result, treasuredoor_near = t.world.loc_near("pete_treasuredoor", 15)
-        local treasuredoor_near_detail = "not_found"
-        if treasuredoor_near_result == "ok" and treasuredoor_near ~= nil then
-            treasuredoor_near_detail = string.format("match=%s tile=%s,%s,%s",
-                tostring(treasuredoor_near.match), tostring(treasuredoor_near.tile_x),
-                tostring(treasuredoor_near.tile_z), tostring(treasuredoor_near.level))
-            t.exec("goto-treasuredoor", t.player.goto_tile, treasuredoor_near.tile_x, treasuredoor_near.tile_z, treasuredoor_near.level)
-        end
-        t.check("treasuredoor.locNear", treasuredoor_near_result == "ok",
-            "t.world.loc_near(pete_treasuredoor, 15) -> " .. tostring(treasuredoor_near_result) .. " " .. treasuredoor_near_detail)
-
-        local treasuredoor_target = t.player.by_symbol("loc", "pete_treasuredoor")
-        local unlock_result, unlock_detail = t.player.use_on("grip_keys", treasuredoor_target)
-        t.check("unlockTreasureDoor", unlock_result == "ok", "use_on(grip_keys, pete_treasuredoor) -> "
-            .. tostring(unlock_result) .. " " .. tostring(unlock_detail))
-
-        -- The chest sequence (shutcandlechest -> opencandlechest via
-        -- loc_change, brimhaven_scarface_mansion.rs2:93-110) is a plain
-        -- loc_change PAIR -- trap 20's door bullet ("name the _open half")
-        -- applies: press "shutcandlechest" to open it, then
-        -- "opencandlechest" for the second press. Same cached tile for
-        -- both, no second loc_near call on the just-transformed symbol
-        -- (section 8's documented run-2 crash for this exact pair).
-        local chest_near_result, chest_near = t.world.loc_near("shutcandlechest", 15)
-        local chest_near_detail = "not_found"
-        local chest_x, chest_z, chest_level = nil, nil, nil
-        if chest_near_result == "ok" and chest_near ~= nil then
-            chest_x, chest_z, chest_level = chest_near.tile_x, chest_near.tile_z, chest_near.level
-            chest_near_detail = string.format("match=%s tile=%s,%s,%s",
-                tostring(chest_near.match), tostring(chest_x), tostring(chest_z), tostring(chest_level))
-        end
-        t.check("chest.locNear", chest_near_result == "ok",
-            "t.world.loc_near(shutcandlechest, 15) -> " .. tostring(chest_near_result) .. " " .. chest_near_detail)
-
-        local open1_result, open1_detail, open1_tries = "refused", "not attempted", 0
-        for attempt = 1, 2 do
-            open1_tries = attempt
-            if chest_x ~= nil then
-                t.player.goto_tile(chest_x, chest_z, chest_level)
-            end
-            open1_result, open1_detail = t.player.click_loc("shutcandlechest")
-            if open1_result == "ok" then
-                break
-            end
-            t.ticks(2)
-        end
-        t.check("openChest-1", open1_result == "ok",
-            string.format("click_loc shutcandlechest [oploc1,shutcandlechest], attempt %d/2 -> %s (%s)",
-                open1_tries, tostring(open1_result), tostring(open1_detail)))
-        t.ticks(3) -- the loc_change to opencandlechest is not client-side yet (section 8)
-
-        local candlesticks_before_result, candlesticks_before = t.inv.count("petecandlestick")
-
-        local open2_result, open2_detail, open2_tries = "refused", "not attempted", 0
-        for attempt = 1, 2 do
-            open2_tries = attempt
-            if chest_x ~= nil then
-                t.player.goto_tile(chest_x, chest_z, chest_level)
-            end
-            open2_result, open2_detail = t.player.click_loc("opencandlechest")
-            if open2_result == "ok" then
-                break
-            end
-            t.ticks(2)
-        end
-        t.check("openChest-2", open2_result == "ok",
-            string.format("click_loc opencandlechest [the transformed pair's other half], attempt %d/2 -> %s (%s)",
-                open2_tries, tostring(open2_result), tostring(open2_detail)))
-
-        -- Section 8: a `~mesbox` PAUSES the content script -- opencandlechest
-        -- (98-109) is entirely inv_add/mesbox/%heroquest INSIDE the branch
-        -- that only runs once the page is dismissed.
-        local chest_text_result, chest_text = t.chat.text()
-        t.check("chest.mesboxText", chest_text_result == "ok",
-            "t.chat.text() -> " .. tostring(chest_text_result) .. " " .. tostring(chest_text))
-        t.exec("chest.dismissMesbox", t.chat.continue_, true)
-        t.inv.await("petecandlestick", 2, 10)
-        local candlesticks_after_result, candlesticks_after = t.inv.count("petecandlestick")
-        local stage_after_chest_result, stage_after_chest = t.quest.stage()
-        local candles_grew = candlesticks_before_result == "ok" and candlesticks_after_result == "ok"
-            and candlesticks_after == candlesticks_before + 2
-        t.step("lootCandlesticks", candles_grew and "PASS" or "FAIL",
-            string.format("petecandlestick count %s -> %s, %%heroquest (t.quest.stage) -> %s %s",
-                tostring(candlesticks_before), tostring(candlesticks_after),
-                tostring(stage_after_chest_result), tostring(stage_after_chest)))
-
-        -- RETRY: brimhaven_scarface_mansion.rs2:134 now gates the
-        -- Black-Arm-route stage write on `%heroquest >=
-        -- ^hero_blackarm_gangmember_spoken` (7) -- this Phoenix player sits
-        -- at hero_phoenix_killed_grip (5), so the write no longer fires.
-        -- Assert the FIX for real: %heroquest reads unchanged, still 5, not
-        -- clobbered to 12.
-        t.check("chest.heroquestUnclobbered",
-            stage_after_chest_result == "ok" and stage_after_chest == 5,
-            string.format("t.quest.stage() -> %s %s (want 5=hero_phoenix_killed_grip; 12=hero_blackarm_looted_chest "
-                .. "would mean brimhaven_scarface_mansion.rs2:134's route gate regressed)",
-                tostring(stage_after_chest_result), tostring(stage_after_chest)))
+        t.exec("reequipMace", t.player.equip, "rune_mace")
+        t.exec("reequipKiteshield", t.player.equip, "rune_kiteshield")
 
         -- ---------------------------------------------------------------
         -- Straven, second visit: hand in a candlestick for the armband

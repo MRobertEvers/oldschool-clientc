@@ -44,7 +44,9 @@ topic file with one line added here.
 - a loc with only Examine; no op to go back down a hole (`goDownHole`) -> gaps-world: A loc with only Examine
 - `the cast never ran` right after a `p_delay` step (a chop, a door); `refused: player is delayed`; `(press N: ...)` in a cast detail; `zanarismagicdoor` -> gaps-world: Leaving the Entrana dungeon
 - `walk_to ... stalled at ... -- locs with an op beside the stop: <loc>`; a walk that stops before a rock bridge, stepping stone or log -> verbs-pointer: A walk stops at an obstacle (seam34); seam-facts: Seam pass 34 (b)
+- Eadgar's Ruse / Troll Stronghold: a `walk_to` from the first `troll_climbingrocks` toward the secret entrance (2827,3646) stops short; a second rock pair at 2833-2834,3628 -> gaps-world: Troll Stronghold approach
 - a ship trip lands in the sea (2831,3334,0); `useGangPlank` has no menu row; the Entrana monks' ferry -> seam-facts: Seam pass 34 (g) (FIXED); docs/quests/ladders/deviousminds.notes.md
+- Rum Deal: Pete says "take a boat over" but nothing takes you to Braindeath Island; the goto from the Port Phasmatys dock is the only way -> gaps-world: Rum Deal: Pete says "take a boat over"
 - Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
 
 ## Pressing and clicking
@@ -378,7 +380,7 @@ topic file with one line added here.
 - the client segfaults after many interface models (`::ejmodels`, `UITreeSceneBridge_EnsureModel`); `model_pose` reads `model=-1` -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (e)
 - `if_setevents(..., ^if_event_op1)` on an IF1 button does nothing -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (g)
 - `no_row slayer_master_2_mazchna`, a Warriors' Guild npc, Mac or Patchy missing; an npc the spawn dump had that this cache renumbered (name drift) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (c); docs/ITEM_AND_NPCS.md section 3
-- Rum Deal: "You open the gate." then `walk_to` stalls at 2120,5098 (pier gate) -> FIXED b51 seam1: seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (b); test/quests/wip/rumdeal/relay.md
+- Rum Deal: "You open the gate." then `walk_to` stalls at 2120,5098 (pier gate) -> FIXED b51 seam1: seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (b); test/quests/rumdeal.lua
 
 ## Citations: resolving a number or a name
 

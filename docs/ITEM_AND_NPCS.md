@@ -161,6 +161,37 @@ freed low ids to new content, and the dump predates that content:
 The full table with counts is `spawn_report.txt`, kept beside the generated
 files so the finding is auditable without re-running the tool.
 
+**Restored since (seam passes b50 and matthew-mbp-m4-b51-seam1).** The table
+above predates the corrections. Drift is now 145 rows, down from 219; the
+committed `spawn_report.txt` is older still and has not been regenerated.
+
+- `NPC_SPAWN_ID_CORRECTIONS` moves a dump row whose id the cache reallocated
+  onto the named symbol content binds: Turael (b50), and now Mazchna, Duradel,
+  Harrallak, Ghommal, Sloane, Mac and Patchy. Each row cites the OSRS wiki
+  oldid whose infobox holds the id and whose map marker holds the tile.
+- `NPC_NAME_ALIASES` keeps same-id renames: Warrior woman -> Warrior,
+  Jungle savage -> Tormented Warrior, Desert snake -> Snake, Ethereal Lady and
+  Ethereal Man -> Ethereal Being, Chief Farmer -> Dale. The source for each is
+  the wiki redirect.
+
+Some names in the drift table were not absent. Traiborn, Hassan, Gypsy Aris,
+Zembo (wiki "Zambo"), Lucien, Alice's husband and the Fightslave are spawned
+by quest-local `.spawn` files. Some are left out on purpose:
+
+- quest-spawned by `npc_add`: Hazeel Cult's Butler Jones, Ceril, Clivet and
+  Alomone; the Tears of Guthix light creatures; General Khazard at the arena;
+  Oldak in Dorgesh-Kaan;
+- favour-era Kourend npcs that no record in this cache carries;
+- Sailing's gulls, pelicans and cormorants;
+- the reworked Sophanem rows (Slave, Plague cow, Priest);
+- the `*_lowxp` frenzied ice trolls;
+- Ian/Floki and the "Solider" typo;
+- Archaeologist 684.
+
+A drifted name is absent only when no `.spawn` anywhere under
+`server/scripts` and no `npc_add` carries it, under the cache's name as well
+as the dump's.
+
 ### The obj half is weaker, and the report says so
 
 The ground-item dump has **no name field**, so gate 2 cannot run on it. Only
