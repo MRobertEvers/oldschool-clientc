@@ -768,3 +768,40 @@ guide names no door, but a later author should open the door with
 Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth in the cache. The
 town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
 the same `~openbank`).
+
+## Meiyerditch: wall ladders answer on op 2; the Drakan wall shortcut only works from its own tile (vm-b1)
+
+*Origin: the vm-b1 Darkness of Hallowvale relay (`test/quests/wip/darknessofhallowvale/relay.md`).*
+
+The Meiyerditch wall ladders (`myq3_ladder_up`, `myq3_ladder_down`, `_2` at 3588,3210, 3593,3230,
+3588,3251 and 3588,3259) are the generic `climb_*_ladder` category. Climb-up/Climb-down is op 2, so
+`click_loc(sym, 2, { at = {...} })` and not op 1. Some of them need the camera turned first
+(yaw 0, pitch 450, zoom 500 at 3588,3251).
+
+CONTENT BUG. The Drakan wall shortcut `darkm_outer_wall_3h_meyerditch_wall_shortcut_bottom` at
+3595,3310,1 is keyed in `maplink.dbrow` (`[maplink_1_56_51_11_46_up]`) on the loc's own tile. A
+`click_loc` walks to 3595,3309 first, no maplink row matches, and the generic climb lands the
+player at a dead end on 3595,3309,2 instead of 3595,3312,0. The relay walks onto 3595,3310 and
+presses with `t.drive.op(loc, 1)`, the logged bypass. That row is not evidence of reach, so report
+the maplink row as a content bug.
+
+## The Fremennik Isles: yak hair, the window tax amount, stage 275, Bork's supplies, the runts (vm-b1)
+
+*Origin: the vm-b1 review and sample of `test/quests/thefremennikisles.lua`.*
+
+- The ladder lists no step for the rope. Mawnis's 8 ropes (and the shield's 1) are spun from
+  `yak_hair`, which comes from killing yaks on Neitiznot (a drop per kill, picked with
+  `click_obj`). The spinning wheel (`iznot_spinning_wheel`, `use_on` + `skillmulti:a`) makes ONE
+  rope per use, so the leg loops: use, menu, await `rope` i. Crafting 30 is needed.
+- The window tax is typed. Each collection opens an Enter amount prompt (`fris_tax.rs2:157`
+  `p_countdialog`). Answer it with `t.chat.count(amount)`: Keepa 5000, Vanligga 5000, Skuli 6000,
+  Hring 8000. The beard round (1000 each) is a plain choice.
+- Stage 275 never rests. The decree dialogue writes 275 (`fris_mawnis.rs2:347`) and 280
+  (`:361`) in one conversation, so expect 280 after it. A step on 275 has no stage of its own to
+  assert.
+- Bork Sigmundson's potions and food go only into FREE backpack slots (`fris_cave.rs2`
+  `fris_bork_give`: a short pack gets as many as fit, and the request is spent). Drop spent tools
+  before asking him, and ask for the food after the trolls, once the pack has room.
+- The ice troll runts (level 74) out-trade a melee fighter who has to eat. The green run set
+  Attack/Strength 90, Defence 80, Hitpoints 90 and Prayer 99, prayed Protect from Melee for the ten
+  kills, and switched to Protect from Magic for the King.

@@ -246,3 +246,24 @@ iron, coal, silver, gold and mithril ore and bronze, iron, silver, gold, steel a
 (lines 134-146). No guide step mines or smelts them, so a setup `::give` of them stages a brought
 item and is not trap 16. The deliveries themselves are the quest's work: every hand-in to the
 Consortium must be a driven `talk_to`/`use_on` row that moves the points varp.
+
+### Gate RED on the last leg's `leg.N.end` row, and a Search press graded UNMATCHED (vm-b1)
+
+*Origin: the vm-b1 Darkness of Hallowvale review (`test/quests/wip/darknessofhallowvale/relay.md`).*
+
+GATE RED: "step 'leg.6.end' is written with t.exec/t.check, which always shoots, but has no shot
+recorded". After the LAST leg the legs driver writes its own `leg.<k>.end` row with the checkpoint
+reply and no shot (`core.lua`, `if k == last`). `gate.py` collects every literal row name the file
+passes to `t.check`/`t.exec`, so an author's own `t.check("leg.6.end", ...)` in the last leg makes the
+driver's shotless row of that name a finding. Name your closing row of the last leg something else
+(`leg.6.finish`, Cold War's `leg.5.quiet`). Earlier legs may keep `leg.N.end`, because the driver
+writes the end row only for the last leg.
+
+`kickBoard` UNMATCHED, "presses op1 'Search' ... a gating op". `travel_op_conflict` reads the first
+word of the guide text as the step's verb. Quest Helper's `kickBoard` says "Climb up the walls and
+search the marked floor", and its floorboards loc (`meiyerditch_wall_floorboards_multi_loc`) also has
+Climb-down in its kicked state. The step is therefore held to a travel op, and the Search press,
+which is the step's real work (`doh_meiyerditch.rs2:47`, it moves nobody), does not count. Either
+write the row so its detail shows the player moving across the loc (the following Climb-down,
+`climbDownBoard`, does this), or declare `-- GUIDE-GAP: kickBoard <reason citing
+doh_meiyerditch.rs2:47>`.
