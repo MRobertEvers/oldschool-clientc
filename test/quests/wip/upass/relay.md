@@ -264,3 +264,8 @@ Owner: Underground Pass is a LostCity quest; fix it against the LostCity impleme
   2417,9675). Carry food for the fall (15% hp) plus slips.
 - Then grade the WHOLE file with the current grader (departure stamp + door_entries/room_exits): any other goto it
   reads as CHEAT is in scope for this batch.
+- (orchestrator, b52) DONE IN THE FILE: test/quests/upass.lua is b49r3_end.lua with the fall block moved into leg 1 (after
+  climbOverRockslide3: walk-enterSwampBubbles, enterSwampBubbles, the five pocket rockslides, leaveFallArea, then
+  climbOverRockslide1..3-again) and removed from leg 4 (goto-climbDownWell now leaves from the furnace). Legs 1 and 4
+  reopened (leg1.json, leg4.json removed; leg 4's notebook retired as leg4.progress.b49r2-3.md). Legs 2, 3, 5-8 stand.
+  The leg-1 proof run is pending: the shared checkout's script pack was not building during b52's parity pass.
