@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo	matthew-mbp-m4-b52	REVERTED by sampler (matthew-mbp-m4-b52): 12 of 12 inserted tattered pages are ::give (4 sun, 4 moon, 4 temple given; the one real temple drop was left over, 5->1). Page drops are implemented (insearchofknowledge_locs.rs2:166 isok_page_drop, called from red_dragon.rs2:10 and npc_combat.rs2:145; red dragons in 28_155 roll 1/10), so the GUIDE-GAP citing leftover_forthos_combat_page_drops is stale and ::give of a page is not a sanctioned grind fast-forward: drive the drops for real (kill red dragons) or get a sanctioned page debugproc from a seam pass		
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo	matthew-mbp-m4-b52	REJECTED (matthew-mbp-m4-b52): run 71/0, gate green, lint clean, helper_coverage FULL, red dragon page kills now real; but the guide's knife/slash web on the Forthos route is skipped by t.player.goto_tile 'goto-aimeri' (teleport 'Teleported to 1840,9929', notes admit 'web/knife cut on the route are not driven (route taken by goto)'). Walk from the ladder to Aimeri and slash/cut the web (bigweb_slashable) by click; also walk or use the dungeon exit ladder instead of goto-logosia teleport.		
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
-quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b52	REJECTED (matthew-mbp-m4-b52): fresh run.py upass --no-build ledger is FAIL (241 rows, pass=173 fail=68). First non-PASS row 137 killJerro: take timeout, paladinbadge1 x0, 'You don't have enough inventory space' (free slots were 7 before the knight talk, but the pickup still failed). Later rows fail through quest.varp_complete (varp161 = 4, expected 10), quest.scroll_title, quest.points delta 0. Legs 5-7 wrote non-PASS rows so checkpoints 5-7 were not written. test/quests/upass.lua is kept uncommitted in the tree.		
+quest_upass	upass	undergroundpass		3	green	matthew-mbp-m4-b52			
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
