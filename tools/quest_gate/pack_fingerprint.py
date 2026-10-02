@@ -53,7 +53,7 @@ PACK_DIR = os.path.join(SCRIPTS, "build")
 PACK_FILES = [os.path.join(PACK_DIR, "script.dat"), os.path.join(PACK_DIR, "script.idx")]
 FINGERPRINT_PATH = os.path.join(PACK_DIR, "pack.fingerprint")
 LOCK_PATH = os.path.join(REPO_ROOT, "build", "quest_gate", ".pack_build.lock")
-MAKEFILE = os.path.join(REPO_ROOT, "src", "Makefile")
+MAKEFILE = os.path.join(REPO_ROOT, "src", "makefile")
 # `make -C src torirsserver-scripts` with no variables: OPT=1, so OBJ_DIR is
 # build_opt (the Makefile's own default).
 SSCOMPILE = os.path.join(REPO_ROOT, "src", "build_opt", "sscompile")
