@@ -325,3 +325,21 @@ last line. This did not send either quest back.
 The shots' hover text reads "Open Gate". The guide names the pen but not the gate, so this did not
 send the quest back. An author can avoid the question by walking to 3078,3257 and pressing the
 gate.
+
+## Sample matthew-mbp-m4-b52, round 2 (2026-10-02)
+
+*Origin: the sampler checked upass's full-run green (91d1da7a9, 255/0, 367 shots) and sent it back
+(revert 42ecba163). The green file is kept at `test/quests/wip/upass/sent_back_b52.lua`.*
+
+(a) A FALLBACK `goto_tile` INSIDE A RETRY LOOP FIRES IN A CASE ITS COMMENT DOES NOT NAME. The
+`navigateMaze` loop (upass.lua:689-694) had a bare `t.player.goto_tile` to the near side of the
+last rock bridge, "for a failed roll there". Its condition was "not standing on the near side,
+attempt > 1, last bridge". In the full run the player fell off bridge 2387,9631 and walked
+into the pit as far as 2392,9625 (bridge 2 then answered `refused` seven times, bridge 3 eight
+times, and bridge 4 answered `covered`). The goto then jumped to 2405,9637. Shot 188 reads "I can't reach that!"
+three times, then "Teleported to 2405,9637,0". The row passed because it graded only the final
+tile, which is (b) of Sample matthew-mbp-m4-b48 again. Because the goto was not a `t.exec` row, it
+had no ledger row and no departure, so `helper_coverage` could not judge it and read FULL. A
+fall drops you one tile off the bridge (`upass_obstacles.rs2` `[oploc1,walkway_upass_narrow_mid_top]`,
+`p_teleport` to z-1 or z+1). Drive a way out of the pit on foot and cross each bridge again in
+order. Every `goto_tile` in a file goes through `t.exec("goto-...")` so that it has a row.
