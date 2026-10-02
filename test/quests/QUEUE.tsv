@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	green	matthew-mbp-m4-b52			
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo	matthew-mbp-m4-b52	REVERTED by sampler (matthew-mbp-m4-b52): 12 of 12 inserted tattered pages are ::give (4 sun, 4 moon, 4 temple given; the one real temple drop was left over, 5->1). Page drops are implemented (insearchofknowledge_locs.rs2:166 isok_page_drop, called from red_dragon.rs2:10 and npc_combat.rs2:145; red dragons in 28_155 roll 1/10), so the GUIDE-GAP citing leftover_forthos_combat_page_drops is stale and ::give of a page is not a sanctioned grind fast-forward: drive the drops for real (kill red dragons) or get a sanctioned page debugproc from a seam pass		
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
