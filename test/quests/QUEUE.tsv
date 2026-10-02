@@ -13,7 +13,7 @@ quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25			
-quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
+quest_blackknight	blackknight	blackknightfortress		1	todo	matthew-mbp-m4-b51	REOPENED (orchestrator, matthew-mbp-m4-b51 round 2 sample): row 26 goto-cabbage-path teleports from the listening room (3026,3507,0) up to 3030,3512,1, skipping the guide's pushWall3 (the secret wall pushed from the other side) and the bkfortressdoor2 'I'm going in anyway' dialogue; the grader cannot judge a hop that starts inside the building and changes floor, the sampler let it stand, the guide-is-the-spec rule does not. Drive pushWall3 and bkfortressdoor2 (and the stairs) on foot; keep the rest. Also: fix the stale comment at blackknight.lua:137-145 (the goto is no longer one tile inside), and make enterFortress's evidence the door (row 18's inside-tile read), not the wilderness-warning box shot 030 caught.		
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo				
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo				
