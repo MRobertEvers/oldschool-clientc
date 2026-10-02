@@ -670,6 +670,26 @@ matthew-mbp-m4-b48-seam1.*
   (`build/seam_state/matthew-mbp-m4-b48-seam1/scratch/regicide_r2_door.lua`); the hand-off is
   `test/quests/wip/regicide/relay.md`, "seam1 (temple door)".
 
+## Underground Pass: `goBackUpToIbansCavern` reads CONTENT_GAP -- the dwarf cavern is where a bridge fall lands
+
+*Origin: sampler matthew-mbp-m4-b48, third check of regicide (green 5deefa070, reverted).*
+
+- The guide's `goBackUpToIbansCavern` (Regicide.java:528, the `isInDwarfCavern` branch at :742;
+  Underground Pass has the same step) is the way back after a FALL from one of Iban's collapsed
+  bridges. On a failed `stat_random(agility, 160, 300)`, `upass_obstacles.rs2:431-436` sends you to
+  2335,9821 or 2333,9866 on level 0. Both tiles are inside the guide's `inDwarfCavern` zone
+  (2304,9789 - 2365,9921, Regicide.java:344). The way up is `cavewalltunnel_upass_up` at 2336,9793
+  (`upass_tunnels.rs2:21`), which lands at 2150,4546 on level 1. In Underground Pass's ladder, the
+  next step after it starts at the bridges' south-east corner (`upass.ladder.tsv:61-62`).
+- The cavern is NOT reached only through the down tunnel (`upass_tunnels.rs2:9`). A `-- GUIDE-GAP:`
+  that says so is false, and helper_coverage's CONTENT_GAP on it proves nothing.
+- Never raise a stat mid-run to close a branch. The reverted file ran
+  `t.cheat("::setlevel agility 99")` before the bridges. At 99, `stat_random(agility, 160, 300)`
+  cannot fail, so the branch never opens. Setup cheats stage prerequisites only (QUEST_AUTHORING,
+  the contract). Keep agility at the guide's 56, where each crossing fails about 7% of the time.
+  When a roll sends you down, click the tunnel up and walk back to the bridges. A GUIDE-GAP is honest
+  only when it cites `upass_obstacles.rs2:431-436` and says the run's rolls never failed.
+
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 
 *Origin: author batch sonnet-b44 (regicide's Underground Pass section).*
