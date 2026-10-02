@@ -13,7 +13,7 @@ quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25			
-quest_blackknight	blackknight	blackknightfortress		1	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 27 goto-hole: cabbage-hole room -> east room is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b16
+quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo				
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo				
@@ -34,7 +34,7 @@ quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo				
 quest_demon	demon	demonslayer		3	green	sonnet-b33			
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo				
-quest_desertrescue	desertrescue	thetouristtrap		2	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 145: deep mine -> mine 1 past the winch and exit is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b28
+quest_desertrescue	desertrescue	thetouristtrap		2	green	matthew-mbp-m4-b51			
 quest_deserttreasure	deserttreasure	deserttreasure		3	green	sonnet-b46			
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo				
 quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43			
@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15			
 quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35			
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15			
-quest_eadgar	eadgar	eadgarsruse		1	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 14: mountain path -> troll area past troll_climbingrocks is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b25
+quest_eadgar	eadgar	eadgarsruse		1	green	matthew-mbp-m4-b51			
 quest_eaglepeak	eaglepeak	eaglespeak		4	green	matthew-mbp-m4-b50			
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16			
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
@@ -76,7 +76,7 @@ quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	sonnet-b45			
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34			
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo				
-quest_hero	hero	heroesquest		1	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 27: garden -> secret room past pete_sidedoor is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b17
+quest_hero	hero	heroesquest		1	green	matthew-mbp-m4-b51			
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15			
 quest_horror	horror	horrorfromthedeep		3	green	sonnet-b45			
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16			
@@ -107,8 +107,8 @@ quest_mm	mm	monkeymadnessi		3	green	sonnet-b46
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo				
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16			
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 125: HQ -> basement past the trapdoor is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b25
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 18: basement -> caves past mourner_hideout_door4 is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b24
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	matthew-mbp-m4-b51			
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-mbp-m4-b51			
 quest_murder	murder	murdermystery		1	green	sonnet-b15			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
@@ -135,7 +135,7 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo				
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo				
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo				
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 33: west side -> Sir Kuam's room past rd_bridge_right is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b31
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
 quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo				
@@ -143,7 +143,7 @@ quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
 quest_royaltrouble	royaltrouble	royaltrouble		4	claimed	vm-b1@vm	RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)	2026-10-02T01:17:03Z	todo|
-quest_rumdeal	rumdeal	rumdeal		2	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 95: onto the north island past deal_gate_closed is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b27
+quest_rumdeal	rumdeal	rumdeal		2	content_bug	matthew-mbp-m4-b51	content_bug: deal_water_hopper.rs2:5 [oploc1,deal_gate_closed] swaps in deal_gate_open at the same loc_angle/shape; deal_gate_open keeps the wall so 2120,5098 northward stays blocked; doors.rs2:110 rotates the angle on open, quest handler does not. Goto removed, not kept.		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
 quest_scrambled	scrambled	scrambled		4	todo				
@@ -170,10 +170,10 @@ quest_thefeud	thefeud	thefeud		2	green	sonnet-b32
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
 quest_theslugmenace	theslugmenace	theslugmenace		3	green	matthew-mbp-m4-b47			
-quest_totem	totem	tribaltotem		3	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 29: entrance -> stairway past combodoor is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b36
+quest_totem	totem	tribaltotem		3	green	matthew-mbp-m4-b51			
 quest_toweroflife	toweroflife	toweroflife		4	todo				
 quest_tree	tree	treegnomevillage		2	green	sonnet-b28			
-quest_troll	troll	trollstronghold		3	claimed	matthew-mbp-m4-b51@matthew-mbp-m4	"REOPENED (matthew-mbp-m4-b50): green with every row PASS, but with the goto departure stamp (seam1, pointer.lua) helper_coverage reads TEST_GAP: row 17: troll area -> arena past its entrance is a goto past an obstacle the guide names; drive the obstacle instead. Hop list: docs/quest_authoring/coverage-and-gate.md ""The departure tile""; evidence build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt (matthew-mbp-m4). The rest of the file stays: fix the one hop."	2026-10-02T12:47:04Z	todo|sonnet-b36
+quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51			
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
