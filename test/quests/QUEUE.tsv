@@ -8,7 +8,7 @@ quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	green	matthew-mbp-m4-b50			
-quest_belowicemountain	belowicemountain	belowicemountain		4	todo				
+quest_belowicemountain	belowicemountain	belowicemountain		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
@@ -16,7 +16,7 @@ quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25
 quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo				
 quest_cabinfever	cabinfever	cabinfever		4	todo				
-quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo				
+quest_childrenofthesun	childrenofthesun	childrenofthesun		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
@@ -33,7 +33,7 @@ quest_deathontheisle	deathontheisle	deathontheisle		4	todo
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo				
 quest_demon	demon	demonslayer		3	green	sonnet-b33			
-quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo				
+quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_desertrescue	desertrescue	thetouristtrap		2	green	matthew-mbp-m4-b51			
 quest_deserttreasure	deserttreasure	deserttreasure		3	green	sonnet-b46			
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo				
@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo				
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
@@ -117,7 +117,7 @@ quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b47
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo				
-quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo				
+quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_priest	priest	therestlessghost		1	green	sonnet-b2			
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
@@ -184,7 +184,7 @@ quest_wanted	wanted	wanted		2	green	sonnet-b29
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo				
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
-quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo				
+quest_xmarksthespot	xmarksthespot	xmarksthespot		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
 quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	sonnet-b30	green after 200d127cb (seam25 closer): Sithik's ladder writes sithik_ogre, Slash Bash drops the artefact; test extended to the completion scroll, 123/123, helper_coverage FULL		
 quest_zombiequeen	zombiequeen	shilovillage		3	green	sonnet-b42			
