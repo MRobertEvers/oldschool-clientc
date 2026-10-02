@@ -853,7 +853,7 @@ from its east side, then `caverockpile` 2443,9651 (op 1 Climb, `:77`) surfaces y
 LostCity's m38_150 places the same slides and pile. A slip ("...but you slip back down.") costs
 3 hp; at Agility 1 about ten slips took 40 hp to 6, so carry food. `upass_swampbubbles1` 2465,9713
 answers `I can't reach that!` from 2482,9715; click it from Koftik's ledge 2453,9716. The full route
-with hops: `test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
+with hops: `test/quests/upass.lua` leg 1, `git show 2a404b410:test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
 as the maze bridges: list the locs with an op in a pocket before calling it a map bug.
 
 Without those rows, `helper_coverage` grades `leaveFallArea` CHEAT, and the reason names a goto from

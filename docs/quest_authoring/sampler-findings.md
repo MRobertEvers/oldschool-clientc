@@ -329,7 +329,7 @@ gate.
 ## Sample matthew-mbp-m4-b52, round 2 (2026-10-02)
 
 *Origin: the sampler checked upass's full-run green (91d1da7a9, 255/0, 367 shots) and sent it back
-(revert 42ecba163). The green file is kept at `test/quests/wip/upass/sent_back_b52.lua`.*
+(revert 42ecba163). The green file was kept at `test/quests/wip/upass/sent_back_b52.lua` (removed once green; read it at 2a404b410).*
 
 (a) A FALLBACK `goto_tile` INSIDE A RETRY LOOP FIRES IN A CASE ITS COMMENT DOES NOT NAME. The
 `navigateMaze` loop (upass.lua:689-694) had a bare `t.player.goto_tile` to the near side of the

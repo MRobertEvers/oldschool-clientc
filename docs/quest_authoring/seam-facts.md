@@ -1312,10 +1312,10 @@ or north for 2399,9632 and 2406,9632. Live landings: 2380,9632 2387,9629 2399,96
 - Bridge 5 (2406,9637) lands in the pit 2406..2410,9632..9635. It is walled in on foot, but it is
   the east side of bridge 2406,9632. Walk to 2407,9632 and cross 2406,9632 west to 2405,9632 (a fall
   there lands back in the pit). Then go 2403,9632 -> 2403,9637 -> 2405,9637 and cross bridge 5 again.
-`test/quests/wip/upass/seam3_maze.lua` drives this as a `walk-navigateMaze-<n>` row per hop and a
+`test/quests/upass.lua` (leg 4; it was `wip/upass/seam3_maze.lua`) drives this as a `walk-navigateMaze-<n>` row per hop and a
 `navigateMaze-<n>-bridgeK` / `-pitExit-2406-9632` row per press, judged by tile (crossed or fell).
 It has no `goto_tile`. Proof: scratch agility-1 runs 40/40 and 375/375 exercised every recovery;
-the full file ran 289/289 to the scroll (relay.md, seam3 section in `test/quests/wip/upass/`).
+the full file ran 289/289 to the scroll (relay.md, seam3 section; `wip/upass/` was removed once green, read it at 2a404b410).
 
 (b) To ask "is this pocket sealed?" before any run, build a collision model from the `.jm2`/`.jl2`
 the way LostCity's `GameMap.ts:219-281` does: land flag 1, LINK_BELOW 2 lifting level-1 walkways onto
