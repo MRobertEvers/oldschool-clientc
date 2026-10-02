@@ -244,3 +244,23 @@
 - Ends 2355,9802 level 0 (beside Iban's tomb); upass stage 7; shadow_on_doll 1, brew_tomb 1. Hitpoints ~86.
 - Round 3 fix: before the demons the leg drops weak food (half pies, pie, pizza, bread, stew, lobsters) until 16 slots are free, ::give shark (supply) up to 16, eats sharks below 60 (kill_demon eats via opts.eat item shark). Earlier rerun died to Othainian because a full pack took only 1 shark.
 - Backpack: leftover sharks, ibandoll, old_journal, tinderbox, spade, bucket_empty, potions; adamant_scimitar worn. Levels set inside leg 7: agility 70, hitpoints 99, defence 80.
+
+## orchestrator note (matthew-mbp-m4-b52, 2026-10-02) -- the fall pocket, settled from LostCity
+Owner: Underground Pass is a LostCity quest; fix it against the LostCity implementation.
+- The pocket is NOT sealed. LostCity_Content2 scripts/quests/quest_upass/scripts/upass_obstacles.rs2:
+  [oploc1,upass_swampbubbles1] (:33-48) drops the player to 0_38_150_53_49 = 2485,9649 and deals 15% of hitpoints;
+  [label,rockslide_obstacle] (:3-31) is the climb (stat_random(agility,160,300), a slip = 3 damage, retry);
+  the five rockslides in maps/m38_150.jm2 stand at 2448,9650 2455,9647 2456,9633 2467,9646 2479,9629;
+  [oploc1,caverockpile] (:50-55) at 2443,9651 teleports to 0_38_151_50_51 = 2482,9715, "You surface by the swamp".
+  b49-seam1's proof (build/seam_state/matthew-mbp-m4-b49-seam1/scratch/fall_pocket.lua, 11/11) is that route.
+- 2482,9715 is BESIDE rockslide 1 (2480,9713). Quest Helper UndergroundPass.java:591-594 crossTheBridge:
+  isInFallArea -> leaveFallArea, isBeforeRockslide1 -> climbOverRockslide1 (:338), then 2 (2471,9706), 3 (2458,9712).
+  The guide's fall is at the START, in the swamp before Koftik's bridge, and the way on is re-climbing rockslides 1-3.
+- THE FIX: move the swamp fall into leg 1, right after climbOverRockslide3 (the swamp is there): press
+  upass_swampbubbles1, land at 2485,9649, climb the five pocket rockslides west (retry slips; eat), press caverockpile,
+  surface at 2482,9715, climb rockslides 1, 2, 3 again for real, then talkToKoftikAtBridge as before. DELETE leg 4's
+  swamp detour (goto 2453,9716 ... caverockpile) and its goto-climbDownWell from 2482,9715 -- leg 4 then starts from
+  wherever leg 3 really ends and reaches the well by the guide's own route (theUndergroundPass default, climbDownWell
+  2417,9675). Carry food for the fall (15% hp) plus slips.
+- Then grade the WHOLE file with the current grader (departure stamp + door_entries/room_exits): any other goto it
+  reads as CHEAT is in scope for this batch.
