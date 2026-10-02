@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo	matthew-mbp-m4-b52	REJECTED (matthew-mbp-m4-b52): run/gate/lint green (91/91, helper_coverage FULL) but goto-exitLadder (goto_tile 1830,9972 from the page room) teleports past the bigweb_slashable webs the guide names on the Forthos route; the return must cut respawned webs by click (loop walk_to + click_loc bigweb_slashable like the inbound leg) then walk to the ladder. Goto-logosia surface->library is the only other long goto; file kept at test/quests/insearchofknowledge.lua		
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	green	matthew-mbp-m4-b52			
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
