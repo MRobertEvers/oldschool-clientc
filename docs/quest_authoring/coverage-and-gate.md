@@ -522,3 +522,41 @@ the drops: about fifteen pages give four of each kind, so expect roughly 150 red
 check the frame budget first (gaps-combat: "A run has about 2,000 server ticks"). If the budget
 cannot hold that, ask a seam pass for a `[debugproc]` that runs `isok_page_drop`'s own roll on a
 real kill, with a read-back row after each call.
+
+### Gate RED on the last leg's `leg.N.end` row, and a Search press graded UNMATCHED (vm-b1; the Search half fixed in vm-b1-seam4)
+
+*Origin: the vm-b1 Darkness of Hallowvale review (`test/quests/wip/darknessofhallowvale/relay.md`).*
+
+GATE RED: "step 'leg.6.end' is written with t.exec/t.check, which always shoots, but has no shot
+recorded". After the LAST leg the legs driver writes its own `leg.<k>.end` row with the checkpoint
+reply and no shot (`core.lua`, `if k == last`). `gate.py` collects every literal row name the file
+passes to `t.check`/`t.exec`, so an author's own `t.check("leg.6.end", ...)` in the last leg makes the
+driver's shotless row of that name a finding. Name your closing row of the last leg something else
+(`leg.6.finish`, Cold War's `leg.5.quiet`). Earlier legs may keep `leg.N.end`, because the driver
+writes the end row only for the last leg.
+
+`kickBoard` UNMATCHED, "presses op1 'Search' ... a gating op" -- FIXED in seam pass vm-b1-seam4
+(`doh_kickboard_travel_grade`). `travel_op_conflict` reads the first word of the guide text as the
+step's verb. Quest Helper's `kickBoard` says "Climb up the walls and search the marked floor", and
+its floorboards loc (`meiyerditch_wall_floorboards_multi_loc`) also has Climb-down in its kicked
+state, so the step was held to a travel op, and the Search press, which is the step's real work
+(`doh_meiyerditch.rs2:47`; it moves nobody: a scratch run reads `tile 3590,3173,1 -> 3590,3173,1`
+across the kick), did not count. The grader now also reads the verbs that open the guide text's LATER
+clauses (`Grader.clause_verbs`: split at `and`/`then`/`,`/`;`/`.`): a press whose op word is one of
+them is the op the guide names, not a gating op. The leading "Climb up the walls" is the walk there.
+A gating op the text does not name (Lost Tribe's Pick-Lock for `enterHamLair`) is still
+refused. Write the row on the op the guide names (`kickBoard` = the Search press, then its Yes) and
+give the following Climb-down its own guide step's row (`climbDownBoard`); no GUIDE-GAP is needed.
+
+### CONTENT_GAP at an unrelated line on a `goToX` step that has its own PASS rows (FIXED vm-b1-seam4)
+
+*Origin: seam pass vm-b1-seam4 (`doh_gotomines_graded_gap`, v3 c458a4d92).*
+
+Darkness of Hallowvale's `goToMines` is a talk to a Vyrewatch ("Send me to the mines"), but it graded
+CONTENT_GAP citing `doh_castle.rs2:64`, a Safalaan line that only shares the words "sent" and
+"vyrewatch". `Grader.action_rows` dropped every row whose name starts with `goto`/`walk`/`travel`
+(case-folded) as a travel row, so the test's own `goToMines`, `goToMines-dialog` and `goToMines.at`
+rows never counted, and the step fell through to a weak narration match. Now a row whose head segment
+names a guide step (or alias) is graded as the step's action. It stays travel only when its source
+line is itself a `goto_tile`, `::goto`, `::tele` or `player.teleport` call (Fenkenstrain's
+`goToMonsterFloor1`). Name the row after the guide step, as usual; no GUIDE-GAP is needed.

@@ -1,0 +1,645 @@
+diff --git a/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_debug.rs2 b/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_debug.rs2
+index 88b7603b55..73e388b426 100644
+--- a/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_debug.rs2
++++ b/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_debug.rs2
+@@ -130,3 +130,83 @@ if (%varb3293_peng_quest >= ^coldwar_complete) {
+ } else {
+     mes("cwrun FAIL: complete=<tostring(%varb3293_peng_quest)>");
+ }
++
++// Prerequisite staging, not quest work: Cold War's "Additional access" is a
++// player-owned house with a Crafting table 3 or 4 (docs/quests/cold_war.md
++// section 2; Quest Helper ColdWar.java enterPoh "Travel to your POH or another
++// POH with a Crafting table 3 or 4", general requirement Construction 34).
++// Building that table is Construction training (table 1 -> 2 -> 3, the last an
++// upgrade costing 2 molten glass), never a Cold War step, so a test stages it
++// here the way it stages a skill level -- and then makes the clockwork and
++// the suit itself at the bench (poh_workshop_functions.rs2,
++// [oploc1,poh_clockmaking_3]). The house is the Rimmington starter house plus
++// one Workshop east of the Parlour, laid out exactly as
++// ~poh_build_room_from_door lays a room built from the Parlour's east door;
++// the table is recorded exactly as ~poh_build_single records it. The player is
++// left beside the Rimmington portal, outside the house.
++[debugproc,coldwarpoh]
++if (%varp5925_map_instance_handle ! ^map_instance_none) {
++    mes("Cold War POH: leave your house first (::pohleave).");
++    return;
++}
++if (~poh_has_house = 0) {
++    %varb2187_poh_house_location = ^poh_loc_rimmington;
++    %varb2188_poh_house_style = 0;
++}
++if (~poh_state_ensure = 0) {
++    mes("Cold War POH: the house record could not be created.");
++    return;
++}
++def_dbrow $workshop_row = ~poh_row(poh_dummy_workshop);
++def_dbrow $table3 = ~poh_row(poh_crafting_table_3);
++def_dbrow $table4 = ~poh_row(poh_crafting_table_4);
++def_int $workshop = -1;
++def_int $index = 0;
++while ($index < poh_room_count) {
++    if (poh_room_get($index, ^poh_room_dbrow) = $workshop_row) {
++        $workshop = $index;
++    }
++    $index = calc($index + 1);
++}
++if ($workshop < 0) {
++    def_int $parlour = ~poh_room_at(^poh_parlour_grid_x, ^poh_parlour_grid_z, ^poh_ground_level);
++    if ($parlour < 0) {
++        mes("Cold War POH: the house has no starter Parlour to extend.");
++        return;
++    }
++    def_int $target_x = calc(^poh_parlour_grid_x + 1);
++    if (~poh_room_at($target_x, ^poh_parlour_grid_z, ^poh_ground_level) >= 0) {
++        mes("Cold War POH: the space east of the Parlour is already built on.");
++        return;
++    }
++    // Parlour door east (^loc_east); the Workshop's first doorway (west) is
++    // the shared wall, so it is placed unrotated.
++    def_int $needed_door = modulo(calc(^loc_east + 2), 4);
++    def_int $source_door = db_getfield($workshop_row, poh_room:door_locations, 0);
++    def_int $rotation = modulo(calc($needed_door - $source_door + 4), 4);
++    poh_room_set($parlour, ^poh_room_door_mask,
++        setbit(poh_room_get($parlour, ^poh_room_door_mask), ^loc_east));
++    $workshop = poh_room_add($workshop_row, $target_x, ^poh_parlour_grid_z,
++        ^poh_ground_level, $rotation, ~poh_door_mask($needed_door));
++    if ($workshop < 0) {
++        mes("Cold War POH: the Workshop could not be added.");
++        return;
++    }
++    poh_state_set(^poh_state_grid_size,
++        max(poh_state_get(^poh_state_grid_size), ~poh_room_dimension(stat_base(construction))));
++}
++// Slot 1 is the Workshop's crafting-table space (poh_build.rs2
++// [oploc5,poh_workshop_2] -> crafting_table_hotspot, slot 1).
++if (poh_decor_get($workshop, 1, ^poh_decor_furniture) ! $table3 &
++    poh_decor_get($workshop, 1, ^poh_decor_furniture) ! $table4) {
++    if (poh_decor_set($workshop, 1, $table3, 0, 0) = 0) {
++        mes("Cold War POH: the Crafting table 3 could not be recorded.");
++        return;
++    }
++}
++if (poh_state_commit = 0) {
++    mes("Cold War POH: the house could not be saved.");
++    return;
++}
++p_teleport(^poh_rimmington_exit);
++mes("Cold War POH: Rimmington house with a Workshop and a Crafting table 3.");
+diff --git a/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2 b/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2
+index f6c5fea5eb..e9b33bfdaf 100644
+--- a/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2
++++ b/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2
+@@ -294,11 +294,38 @@ if (%varb3306_peng_transmog = 0) {
+ p_teleport(^coldwar_course_door_inside);
+ mes("You go back through the door.");
+ 
++// The physical is the course itself (wiki Cold War/Quick guide: water, stepping
++// stones, icicles, ice, THEN "Talk to Agility Instructor"; Quest Helper
++// ColdWar.java steps.put(100) walks the same zones in that order), and the
++// instructor's line says it was completed. So state 100 -> 105 is written only
++// for a player who ran it. `%varb3305_peng_agility_state` (2 bits, the cache's
++// own course varbit) counts the course's legs in order while the state is 100:
++// 1 across the stepping stones, 2 past the last icicle pillar, 3 down the ice
++// (penguin_course.rs2 calls this proc from each). The shared lap tracker cannot
++// carry it: its first step is the Crusher, an npc with no op in the cache, so a
++// penguin lap never starts. After the instructor the varbit goes back to 0 and
++// is the Icelord count from state 125 (coldwar_capture).
++[proc,coldwar_course_leg](int $leg)
++if (%varb3293_peng_quest ! ^coldwar_agility_done) {
++    return;
++}
++if ($leg = calc(%varb3305_peng_agility_state + 1)) {
++    %varb3305_peng_agility_state = $leg;
++}
++
+ [opnpc1,peng_agility_instructor]
+ if (%varb3293_peng_quest >= ^coldwar_agility_done & %varb3306_peng_transmog = 1) {
+     if (%varb3293_peng_quest = ^coldwar_agility_done) {
++        if (%varb3305_peng_agility_state < 3) {
++            // Port wording: no transcript line exists for a soldier who has
++            // not been round; the refusal itself is the guide's order.
++            ~chatnpc("You haven't finished the course yet, soldier. Back to the start and get round it!");
++            return;
++        }
+         ~chatnpc("Well done soldier! You've successfully completed the physical. You're free to do as you like.");
+         ~chatplayer("What do I do now?");
++        // The varbit goes back to the Icelord count it also carries (state 125).
++        %varb3305_peng_agility_state = 0;
+         %varb3293_peng_quest = ^coldwar_army_report;
+     } else {
+         ~chatnpc("Well done soldier! You can come back whenever you like to tone up your body.");
+diff --git a/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.constant b/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.constant
+index 76f11c2d94..3988e1096f 100644
+--- a/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.constant
++++ b/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.constant
+@@ -174,13 +174,21 @@
+ ^royal_kids_side_coord = 0_40_160_25_22
+ ^royal_path3_side_coord = 0_40_160_25_19
+ // Boss room crevice (royal_cavewall_crack_seasnake_in 2617,10272 / _out 2617,10273) and the
+-// snake's own tile. The guide's point is 2615,10280, but the cache flags every tile of the
+-// pool (2606-2622 x 10276-10290) blocked (jm2 `f1`; the real quest runs it as an instance),
+-// so a melee player could never reach it; the snake stands on the shore instead, its 5x5 body
+-// on 2613..2617 x 10276..10280 with the walkable shingle (2610-2618 x 10274-10277) around it.
++// snake's own tile. The guide's killBoss point is 2615,10280 (Quest Helper NpcStep). A RuneLite
++// WorldPoint for an npc is the tile under its model's centre (Actor.getWorldLocation reads the
++// centre LocalPoint), so for this 5x5 body it is the middle tile: south-west corner 2613,10278,
++// body 2613..2617 x 10278..10282. That puts it in the pool -- maps/m40_160.jm2 flags every tile
++// from z 10280 up blocked (`f1`), maps/m40_160.jl2 lays pier_shadow_on_water (loc 816) on
++// 2614-2616 x 10280-10282, both inside the body -- with its front row on the shingle's edge. The
++// walkable shingle is 2609-2621 x 10273-10279: a player on 2613..2617,10277 touches the body
++// (melee), anywhere further off is "from a distance" (ranged), as the wiki describes the fight.
++// The real quest runs this room as an instance; here one snake.
+ ^royal_boss_in_coord = 0_40_160_57_34
+ ^royal_boss_out_coord = 0_40_160_57_31
+-^royal_snake_coord = 0_40_160_53_36
++^royal_snake_coord = 0_40_160_53_38
++// The heavy box: the snake's own tile is in the water, so it lands on the shingle in front of
++// the middle of its body (2615,10277), 5 minutes (wiki 'Heavy box').
++^royal_box_coord = 0_40_160_55_37
+ // The rope the guard threw: royal_light_exit_multiloc 2618,10265 -> beside the surface hole
+ // royal_cave_exit_hole_multiloc 2620,3865.
+ ^royal_return_coord = 0_40_60_60_24
+diff --git a/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.npc b/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.npc
+index ea530be60c..bb7489d15e 100644
+--- a/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.npc
++++ b/osrs239-content/server/scripts/quests/quest_royaltrouble/configs/royaltrouble.npc
+@@ -8,3 +8,43 @@ op1=Talk-to
+ 
+ [royal_cutscene_princess_astrid]
+ op1=Talk-to
++
++// The Giant Sea Snake (npc 1101). OSRS wiki 'Giant Sea Snake' (read 2026-10-02) and
++// docs/quests/royal_trouble.md:19-20: combat 149; Hitpoints 100, Attack 170, Strength 90,
++// Defence 160, Magic 1, Ranged 130 (the cache's own stat1..5 = 170/160/90/100/130 agree);
++// every aggressive and defensive bonus +0; "Crush, Ranged" every 4 ticks, max hit 14 (the
++// Ranged 130 roll with +0 bonus is exactly 14); poison starting at 9 (severity 41, the
++// 5d-4 spelling godwars.npc uses: (41+4)/5 = 9); 20% weakness to earth spells.
++// Melee up close, ranged from a distance: royal_kids_boss.rs2 [ai_opplayer2] picks the
++// style, so attackrange is the ranged reach. It lies in the pool and never leaves it: no
++// wander, no chase (givechase=no) -- a player who steps away is shot at, not followed.
++// No generated block exists for it (npc_stats/ has no file: the wiki join missed it), so
++// without this it fought on the engine's [default] 10 hp / level-1 stats.
++[royal_sea_snake_mother_smaller]
++hitpoints=100
++attack=170
++strength=90
++defence=160
++magic=1
++ranged=130
++wanderrange=0
++givechase=no
++param=attackrate,4
++param=attackrange,10
++param=damagetype,^crush_style
++param=stabattack,0
++param=slashattack,0
++param=crushattack,0
++param=strengthbonus,0
++param=rangeattack,0
++param=rangebonus,0
++param=magicattack,0
++param=stabdefence,0
++param=slashdefence,0
++param=crushdefence,0
++param=magicdefence,0
++param=rangedefence,0
++param=poison_severity,41
++param=elemental_weakness,^element_earth
++param=elemental_weakness_percent,20
++param=death_drop,null
+diff --git a/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_kids_boss.rs2 b/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_kids_boss.rs2
+index b003198274..a11b9939c6 100644
+--- a/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_kids_boss.rs2
++++ b/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_kids_boss.rs2
+@@ -84,17 +84,57 @@ if (%varb73_misc_affection ! ^misc_affection_not_started) {
+ // (skill_combat/combat.rs2; LostCity player_combat.rs2:1-2), and
+ // `~npc_retaliate(0)` is only the npc's half -- without the jump the player's
+ // Attack landed here and no swing, hitsplat or health bar ever followed.
++//
++// Slayer 40 to damage it (wiki 'Giant Sea Snake': "Level 40 Slayer is required to damage
++// the snake"; docs/quests/royal_trouble.md:20). The snake is in no slayer_task_member row,
++// so combat.rs2's ~slayer_attack_blocked answers 0 for it; the refusal is checked here, at
++// the door, in the same words that gate uses for every other Slayer monster.
++// Both halves of the interaction carry the gate (trap 31): a bow or a staff at range takes
++// [apnpc2] and never reaches [opnpc2].
+ [opnpc2,royal_sea_snake_mother_smaller]
++if (~royal_snake_slayer_ok = false) {
++    return;
++}
+ ~npc_retaliate(0);
+ @player_combat_start;
+ 
++[apnpc2,royal_sea_snake_mother_smaller]
++if (~royal_snake_slayer_ok = false) {
++    return;
++}
++@player_combat_start_ap;
++
++[proc,royal_snake_slayer_ok]()(boolean)
++if (stat(slayer) < ^royal_req_slayer) {
++    mes("You need a Slayer level of <tostring(^royal_req_slayer)> to attack this creature.");
++    return(false);
++}
++return(true);
++
++// "It fights with melee up close and ranged from a distance" (wiki 'Giant Sea Snake';
++// Royal_Trouble: "Protect from Melee works fine if you want to run up close. From a distance
++// the snake uses ranged attacks"). It lies in the pool and does not follow (givechase=no), so
++// "up close" is a player on a tile touching its 5x5 body (npc_range measures from the body).
++// Owning [ai_opplayer2] owns the whole swing (bosses.rs2 header); both helpers roll the
++// npc's own stats and poison on a hit (param poison_severity, royaltrouble.npc).
++[ai_opplayer2,royal_sea_snake_mother_smaller]
++npc_anim(npc_param(attack_anim), 0);
++if (npc_range(coord) <= 1) {
++    ~npc_meleeattack;
++} else {
++    ~npc_rangeattack;
++}
++npc_attackdelay(npc_param(attackrate));
++
+ // The kill: the heavy box tumbles from the nest and stays on the floor for five minutes
+ // (wiki 'Heavy box'); ROYAL_MISC 110 -> 120 lights the rope home (royal_light_exit_multiloc).
+ [ai_queue3,royal_sea_snake_mother_smaller]
+ if (npc_findhero = true) {
+     if (%varb2141_royal_misc = ^royal_misc_kids_talked) {
+         mes("A box of Etceterian items tumbles from the sea snake's nest.");
+-        obj_add(npc_coord, royal_box, 1, 500);
++        // The snake's tile is water (see ^royal_snake_coord), so the box lands on the
++        // shingle in front of its body, where the player who killed it is standing.
++        obj_add(^royal_box_coord, royal_box, 1, 500);
+         %varb2141_royal_misc = ^royal_misc_snake_dead;
+     }
+ }
+diff --git a/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_shared.rs2 b/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_shared.rs2
+index 9f3a519ea9..654b383390 100644
+--- a/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_shared.rs2
++++ b/osrs239-content/server/scripts/quests/quest_royaltrouble/scripts/royal_shared.rs2
+@@ -67,9 +67,14 @@ if (%varb2144_royal_etc_villagers_aboutthefts >= 1) {
+ return(true);
+ 
+ // The Giant Sea Snake lives in a boss room that is its own instance on the real game; here one
+-// copy stands at the guide's tile (2615,10280) for as long as somebody is fighting it. It is
+-// added when a player squeezes in (royal_cavewall_crack_seasnake_in) and only if none is there.
++// copy lies at the guide's tile (2615,10280 is the middle of its body, ^royal_snake_coord) for as long as somebody is fighting it. It is
++// added when a player squeezes in (royal_cavewall_crack_seasnake_in) and only if none is there,
++// and only while that player's snake is alive: "It cannot be fought after completion of the
++// Royal Trouble quest" (wiki 'Giant Sea Snake'), and ROYAL_MISC 120 is its death.
+ [proc,royal_spawn_snake]
++if (%varb2141_royal_misc ! ^royal_misc_kids_talked) {
++    return;
++}
+ if (npc_find(^royal_snake_coord, royal_sea_snake_mother_smaller, 12, 0) = false) {
+     npc_add(^royal_snake_coord, royal_sea_snake_mother_smaller, 1000);
+ }
+diff --git a/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2 b/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2
+index 6b28b05e12..e4bcb13333 100644
+--- a/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2
++++ b/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2
+@@ -28,6 +28,10 @@
+ // pass — the wiki describes it as preventing damage, not as travel — so each
+ // of the four segments pays its 40 and lets the player walk on.
+ //
++// Cold War's physical (state 100) is this course: the stones, the last icicle
++// pillar and the ice each tell ~coldwar_course_leg (quest_coldwar/coldwar_outpost.rs2)
++// they were cleared, and the Agility Instructor reads that before state 105.
++//
+ // Failure: the wiki says obstacles here can be failed "even at level 99", but
+ // publishes no rate pair, so nothing fails yet (agility_lap.rs2). This course
+ // also has the best giant squirrel rate in the game, which `~agility_pet_roll`
+@@ -73,7 +77,19 @@ sound_synth(jump_no_land, 1, 0);
+ p_delay(1);
+ p_telejump(loc_coord);
+ 
+-[oploc1,peng_jump_stone_clickzone_07]
++// The last stone is the one the ice shore blocks: 2635,4064 between it and
++// stone 6 carries the level-0 coast (`peng_coast_6`, shape 10) and stone 6 its
++// serverside invisible wall, so no walked tile is op-adjacent to it and an
++// [oploc1] answered "I can't reach that!" from stone 6. It is jumped to from the
++// stone before it, two tiles away, like the six before it.
++[aploc1,peng_jump_stone_clickzone_07]
++if (distance(coord, loc_coord) > 2) {
++    p_aprange(2);
++    return;
++}
++if (coord = loc_coord) {
++    return;
++}
+ if (~penguin_course_ok = false) {
+     return;
+ }
+@@ -84,6 +100,7 @@ p_delay(1);
+ p_telejump(loc_coord);
+ stat_advance(agility, 800);
+ ~agility_lap_advance(^agility_course_penguin, 2);
++~coldwar_course_leg(1);
+ 
+ // Four pillars of icicles, 40 each. Treading softly is the careful pass, not a
+ // move; the lap step is keyed off the pillar's x, west to east.
+@@ -101,7 +118,9 @@ switch_int(coordx(loc_coord)) {
+     case 2644 : ~agility_lap_advance(^agility_course_penguin, 3);
+     case 2652 : ~agility_lap_advance(^agility_course_penguin, 4);
+     case 2658 : ~agility_lap_advance(^agility_course_penguin, 5);
+-    case 2662 : ~agility_lap_advance(^agility_course_penguin, 6);
++    case 2662 :
++        ~agility_lap_advance(^agility_course_penguin, 6);
++        ~coldwar_course_leg(2);
+ }
+ 
+ // The ice is one crossing however many glittering patches it is made of.
+@@ -125,7 +144,27 @@ p_delay(3);
+ p_telejump(1_41_63_40_36);
+ stat_advance(agility, 1800);
+ ~agility_lap_advance(^agility_course_penguin, 7);
++~coldwar_course_leg(3);
++// Over the top of the hill the player slides down the snow jumps to the finish
++// line by the gate (wiki Penguin Agility Course: "the player slides down the
++// snow jumps until they reach the finish line near the gate"; Quick guide: a
++// cutscene of sliding down a hill, then talk to the Agility Instructor). The
++// slide lane is closed at the finish by an invisible wall (m41_63.jl2 loc 38848,
++// south edge of 2656-2657,4040), so it is ridden, not walked: the player lands
++// just past it, at the finish posts, with the instructor and the gate ahead.
++p_delay(1);
++mes("You slide down the hill to the finish line.");
++p_telejump(1_41_63_33_7);
+ 
++// The gate is a fence wall on the WEST edge of its square (m41_63.jl2: shape 0,
++// rotation 0 at 2652,4039): the finish -- where the ice run ends and the
++// instructor stands -- is east of it, the start and the door back into the
++// headquarters west of it. Going through it from the finish is the lap's last
++// obstacle (wiki: Gate, 65 XP; Cold War's instructor: "just go through the gate
++// in the fence and use the same door you came out of"). It used to drop the
++// player one square SOUTH of the gate whichever side they clicked from, which
++// carried a player standing at the start into the finish pen without running a
++// single obstacle, and left one at the finish still inside it.
+ [oploc1,peng_agility_fencing_door]
+ if (~penguin_course_ok = false) {
+     return;
+@@ -134,7 +173,12 @@ p_arrivedelay;
+ mes("You squeeze through the gate.");
+ sound_synth(door_open, 1, 0);
+ p_delay(1);
+-p_telejump(movecoord(loc_coord, 0, 0, -1));
++if (coordx(coord) < coordx(loc_coord)) {
++    // From the start side: only a way through, not the obstacle.
++    p_telejump(loc_coord);
++    return;
++}
++p_telejump(movecoord(loc_coord, -1, 0, 0));
+ stat_advance(agility, 650);
+ ~agility_lap_advance(^agility_course_penguin, 8);
+ if (~agility_lap_complete(^agility_course_penguin, 8) = true) {
+diff --git a/osrs239-content/server/scripts/skill_construction/scripts/poh_construct.rs2 b/osrs239-content/server/scripts/skill_construction/scripts/poh_construct.rs2
+index c9df83dc52..a8cac2b199 100644
+--- a/osrs239-content/server/scripts/skill_construction/scripts/poh_construct.rs2
++++ b/osrs239-content/server/scripts/skill_construction/scripts/poh_construct.rs2
+@@ -214,7 +214,7 @@ while ($auxiliary_index < db_getfieldcount($runtime, poh_furniture_runtime:auxil
+ [proc,poh_restore_decorations](int $handle)
+ def_int $room_index = 0;
+ while ($room_index < poh_room_count) {
+-    if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_garden) {
++    if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_garden)) {
+         ~poh_sync_saved_variant($handle, $room_index, 0, poh_crude_garden_1);
+         ~poh_sync_saved_variant($handle, $room_index, 1, poh_crude_garden_2);
+         ~poh_sync_saved_variant($handle, $room_index, 2, poh_crude_garden_3);
+@@ -223,7 +223,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 5, poh_crude_garden_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_crude_garden_7, 0);
+         ~poh_sync_group($handle, $room_index, 7, poh_garden_8, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_parlour) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_parlour)) {
+         ~poh_restore_single($handle, $room_index, 0, 2, 4, poh_parlour_1);
+         ~poh_restore_single($handle, $room_index, 1, 5, 4, poh_parlour_2);
+         ~poh_restore_single($handle, $room_index, 2, 4, 3, poh_parlour_3);
+@@ -233,7 +233,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 4, poh_parlour_5, 0);
+         ~poh_restore_single($handle, $room_index, 5, 3, 7, poh_parlour_6);
+         ~poh_sync_group($handle, $room_index, 6, poh_parlour_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_dining_room) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_dining_room)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_dining_room_1, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_dining_room_2, 0);
+         ~poh_sync_group($handle, $room_index, 2, poh_dining_room_3, 0);
+@@ -241,7 +241,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 4, poh_dining_room_5, 0);
+         ~poh_sync_saved_variant($handle, $room_index, 5, poh_dining_room_6);
+         ~poh_sync_group($handle, $room_index, 6, poh_dining_room_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_chapel) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_chapel)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_chapel_1, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_chapel_2,
+             ~poh_chapel_altar_variant($room_index));
+@@ -253,9 +253,9 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 5, poh_chapel_6,
+             ~poh_chapel_statue_variant($room_index));
+         ~poh_sync_group($handle, $room_index, 6, poh_chapel_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_hall1 |
+-               poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_hall1a) {
+-        if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_hall1) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_hall1) |
++               poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_hall1a)) {
++        if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_hall1)) {
+             ~poh_sync_saved_variant($handle, $room_index, 0, poh_hall1_1_stairs_up);
+         } else {
+             ~poh_sync_saved_variant($handle, $room_index, 0, poh_hall1_1_stairs_top);
+@@ -268,9 +268,9 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 4, poh_hall1_5, 0);
+         ~poh_sync_group($handle, $room_index, 5, poh_hall1_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_hall1_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_hall2 |
+-               poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_hall2a) {
+-        if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_hall2) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_hall2) |
++               poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_hall2a)) {
++        if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_hall2)) {
+             ~poh_sync_saved_variant($handle, $room_index, 0, poh_hall2_1_stairs_up);
+         } else {
+             ~poh_sync_saved_variant($handle, $room_index, 0, poh_hall2_1_stairs_top);
+@@ -284,20 +284,20 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 4, poh_hall2_5, 0);
+         ~poh_sync_group($handle, $room_index, 5, poh_hall2_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_hall2_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_oubliette) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_oubliette)) {
+         ~poh_restore_oubliette($handle, $room_index);
+     } else if (poh_room_get($room_index, ^poh_room_dbrow) =
+-               poh_dummy_dungeon_corridor |
++               ~poh_row(poh_dummy_dungeon_corridor) |
+                poh_room_get($room_index, ^poh_room_dbrow) =
+-               poh_dummy_dungeon_cross |
++               ~poh_row(poh_dummy_dungeon_cross) |
+                poh_room_get($room_index, ^poh_room_dbrow) =
+-               poh_dummy_dungeon_stairs) {
++               ~poh_row(poh_dummy_dungeon_stairs)) {
+         ~poh_restore_dungeon_room($handle, $room_index);
+         ~poh_restore_garden_dungeon_entrance($handle, $room_index);
+     } else if (poh_room_get($room_index, ^poh_room_dbrow) =
+-               poh_dummy_dungeon_treasure) {
++               ~poh_row(poh_dummy_dungeon_treasure)) {
+         ~poh_restore_treasure_room($handle, $room_index);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_formal_garden) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_formal_garden)) {
+         ~poh_sync_saved_variant($handle, $room_index, 0, poh_posh_garden_1);
+         ~poh_sync_group($handle, $room_index, 1, poh_posh_garden_4, 0);
+         ~poh_sync_group($handle, $room_index, 2, poh_posh_garden_5end, 0);
+@@ -308,7 +308,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_saved_variant($handle, $room_index, 5, poh_posh_garden_6);
+         ~poh_sync_saved_variant($handle, $room_index, 6, poh_posh_garden_7);
+         ~poh_sync_group($handle, $room_index, 7, poh_garden_8, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_superior_garden) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_superior_garden)) {
+         ~poh_sync_saved_variant($handle, $room_index, 0,
+             poh_superior_garden_hotspot_treering);
+         ~poh_sync_saved_variant($handle, $room_index, 1,
+@@ -330,7 +330,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 6,
+             poh_superior_garden_hotspot_seating_b_right, 1);
+     } else if (poh_room_get($room_index, ^poh_room_dbrow) =
+-               poh_dummy_achievement_gallery) {
++               ~poh_row(poh_dummy_achievement_gallery)) {
+         ~poh_sync_saved_variant($handle, $room_index, 0,
+             poh_achievement_hotspot_altar);
+         ~poh_sync_group($handle, $room_index, 1,
+@@ -346,7 +346,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 5,
+             poh_achievement_hotspot_questlist, 0);
+     } else if (poh_room_get($room_index, ^poh_room_dbrow) =
+-               poh_dummy_leaguehall) {
++               ~poh_row(poh_dummy_leaguehall)) {
+         ~poh_sync_saved_variant($handle, $room_index, 0,
+             poh_leaguehall_pedestal_hotspot_1);
+         ~poh_sync_saved_variant($handle, $room_index, 1,
+@@ -364,7 +364,7 @@ while ($room_index < poh_room_count) {
+             poh_leaguehall_statue_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 8,
+             poh_leaguehall_accomplishment_scroll_hotspot, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_kitchen) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_kitchen)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_kitchen_1, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_kitchen_2, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_kitchen_2_crockery, 1);
+@@ -374,7 +374,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 5, poh_kitchen_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_kitchen_7, 0);
+         ~poh_sync_group($handle, $room_index, 7, poh_kitchen_8, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_bedroom) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_bedroom)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_bedroom_1_doublebed, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_bedroom_2, 0);
+         ~poh_sync_group($handle, $room_index, 2, poh_bedroom_3, 0);
+@@ -384,7 +384,7 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 4, poh_bedroom_5_middle, 2);
+         ~poh_sync_group($handle, $room_index, 5, poh_bedroom_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_bedroom_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_workshop) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_workshop)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_workshop_1, 0);
+         ~poh_sync_auxiliary($handle, $room_index, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_workshop_2, 0);
+@@ -396,44 +396,44 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 2, poh_workshop_3e, 0);
+         ~poh_sync_group($handle, $room_index, 3, poh_workshop_4, 0);
+         ~poh_sync_group($handle, $room_index, 4, poh_workshop_5, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_study) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_study)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_study_1, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_study_2, 0);
+         ~poh_sync_group($handle, $room_index, 3, poh_study_4, 0);
+         ~poh_sync_group($handle, $room_index, 4, poh_study_5, 0);
+         ~poh_sync_group($handle, $room_index, 5, poh_study_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_study_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_games_room) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_games_room)) {
+         ~poh_sync_group($handle, $room_index, 1, poh_games_room_2, 0);
+         ~poh_sync_group($handle, $room_index, 3, poh_games_room_4, 1);
+         ~poh_sync_group($handle, $room_index, 4, poh_games_room_5, 0);
+         ~poh_sync_group($handle, $room_index, 5, poh_games_room_6, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_games_room_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_costume_room) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_costume_room)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_cos_room_cape_rack_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_cos_room_magic_wardrobe_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 3, poh_cos_room_toy_box_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 4, poh_cos_room_tresure_chest_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 5, poh_cos_room_fancy_dress_box_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_cos_room_armour_case_hotspot, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_portalroom) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_portalroom)) {
+         ~poh_restore_portal_frame($handle, $room_index, 3, poh_teleroom_1);
+         ~poh_restore_portal_frame($handle, $room_index, 4, poh_teleroom_2);
+         ~poh_restore_portal_frame($handle, $room_index, 5, poh_teleroom_3);
+         ~poh_sync_group($handle, $room_index, 6, poh_teleroom_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_combat_room) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_combat_room)) {
+         ~poh_restore_combat_ring($handle, $room_index);
+         ~poh_sync_group($handle, $room_index, 3, poh_combat_room_4, 0);
+         ~poh_sync_saved_variant($handle, $room_index, 4, poh_combat_room_5);
+         ~poh_restore_combat_dummy($handle, $room_index);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_portalnexus) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_portalnexus)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_telenexus_1, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_telenexus_2_corner, 0);
+         ~poh_sync_group($handle, $room_index, 1, poh_telenexus_2_side, 1);
+         ~poh_sync_group($handle, $room_index, 1, poh_telenexus_2_middle, 2);
+         ~poh_sync_group($handle, $room_index, 2, poh_telenexus_3, 0);
+         ~poh_restore_portal_nexus_amulets($handle, $room_index);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_throneroom) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_throneroom)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_throne_room_1, 0);
+         ~poh_sync_group($handle, $room_index, 1,
+             poh_throne_room_3_rimmington,
+@@ -443,15 +443,15 @@ while ($room_index < poh_room_count) {
+         ~poh_sync_group($handle, $room_index, 4, poh_throne_room_5, 1);
+         ~poh_sync_group($handle, $room_index, 5, poh_throne_room_6, 1);
+         ~poh_sync_group($handle, $room_index, 6, poh_throne_room_7, 0);
+-    } else if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_menagerie_indoors |
+-               poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_menagerie_outdoors) {
++    } else if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_menagerie_indoors) |
++               poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_menagerie_outdoors)) {
+         ~poh_sync_group($handle, $room_index, 0, poh_menagerie_pethouse_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 3, poh_menagerie_scratchingpost_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 4, poh_menagerie_combatring_hotspot, 0);
+         ~poh_sync_auxiliary($handle, $room_index, 4);
+         ~poh_sync_group($handle, $room_index, 5, poh_menagerie_petlist_hotspot, 0);
+         ~poh_sync_group($handle, $room_index, 6, poh_menagerie_petfeeder_hotspot, 0);
+-        if (poh_room_get($room_index, ^poh_room_dbrow) = poh_dummy_menagerie_outdoors) {
++        if (poh_room_get($room_index, ^poh_room_dbrow) = ~poh_row(poh_dummy_menagerie_outdoors)) {
+             ~poh_sync_group($handle, $room_index, 2, poh_menagerie_habitat_ground_middle, 0);
+             ~poh_sync_group($handle, $room_index, 2, poh_menagerie_habitat_ground_side, 1);
+             ~poh_sync_group($handle, $room_index, 2, poh_menagerie_habitat_ground_corner, 2);
+diff --git a/osrs239-content/server/scripts/skill_construction/scripts/poh_state.rs2 b/osrs239-content/server/scripts/skill_construction/scripts/poh_state.rs2
+index e1e7dd55db..02147777bf 100644
+--- a/osrs239-content/server/scripts/skill_construction/scripts/poh_state.rs2
++++ b/osrs239-content/server/scripts/skill_construction/scripts/poh_state.rs2
+@@ -3,17 +3,29 @@
+ // The host commands store bounded integers only. Room definitions, positions,
+ // defaults and every gameplay decision remain here and in cache DB rows.
+ 
++// Names a room or furniture DB row where nothing else types the position.
++// 102+ POH rows share their name with the room/furniture obj (`poh_dummy_garden`
++// is obj 8415 and dbrow 4167), and since the compiler gave dbrows their own
++// symbol kind (37f8b2a84) a bare name in an untyped position -- a command
++// argument such as poh_room_add's, the right side of `poh_room_get(...) =` --
++// compiles to the OBJ: the house then stored obj 8415 as its garden row and
++// db_getfield read a sailing row instead (sscompile's "nothing here says
++// which" warning). A dbrow-typed parameter is a typed position, so passing the
++// name through here compiles the row.
++[proc,poh_row](dbrow $row)(dbrow)
++return($row);
++
+ [proc,poh_state_create_starter](int $location, int $style)(int)
+ poh_state_reset;
+ if (poh_state_set(^poh_state_owns, 1) = 0) return(0);
+ if (poh_state_set(^poh_state_location, $location) = 0) return(0);
+ if (poh_state_set(^poh_state_style, $style) = 0) return(0);
+ if (poh_state_set(^poh_state_grid_size, 3) = 0) return(0);
+-if (poh_room_add(poh_dummy_garden, ^poh_garden_grid_x, ^poh_garden_grid_z, ^poh_ground_level, ^map_instance_turn_none, ^poh_starter_garden_doors) < 0) {
++if (poh_room_add(~poh_row(poh_dummy_garden), ^poh_garden_grid_x, ^poh_garden_grid_z, ^poh_ground_level, ^map_instance_turn_none, ^poh_starter_garden_doors) < 0) {
+     poh_state_reset;
+     return(0);
+ }
+-if (poh_room_add(poh_dummy_parlour, ^poh_parlour_grid_x, ^poh_parlour_grid_z, ^poh_ground_level, ^map_instance_turn_none, ^poh_starter_parlour_doors) < 0) {
++if (poh_room_add(~poh_row(poh_dummy_parlour), ^poh_parlour_grid_x, ^poh_parlour_grid_z, ^poh_ground_level, ^map_instance_turn_none, ^poh_starter_parlour_doors) < 0) {
+     poh_state_reset;
+     return(0);
+ }

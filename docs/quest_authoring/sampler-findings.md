@@ -343,3 +343,20 @@ had no ledger row and no departure, so `helper_coverage` could not judge it and 
 fall drops you one tile off the bridge (`upass_obstacles.rs2` `[oploc1,walkway_upass_narrow_mid_top]`,
 `p_teleport` to z-1 or z+1). Drive a way out of the pit on foot and cross each bridge again in
 order. Every `goto_tile` in a file goes through `t.exec("goto-...")` so that it has a row.
+
+## Sample vm-b1, round 3 (2026-10-02)
+
+*Origin: the sampler checked royaltrouble (020cb78fe) and darknessofhallowvale (247253c72). It sent
+Royal Trouble back and passed Darkness of Hallowvale (all 421 shots matched their names).*
+
+(a) FULL WHILE A `goto_tile` LANDS ON THE FIRST ISLAND OF A CHAIN OF TRAPS. Royal Trouble's
+slippery rocks are four `royal_invisible_puddletrap` tiles (2548, 2545, 2542, 2539), and the plank
+crosses one at a time. QH picks the step from the zone the player stands in: `inPath2` asks for
+plankRock1 (2548), `jumpIsland1` for plankRock2, and so on. Leg 6 `goto_tile`d from the first fire
+(2553,10295) to 2546,10287, which is on jumpIsland1, so rock 2548 was never planked. The grader
+only flagged the later goto that walked back east over 2545. The round-3 "fix" deleted that goto
+and the only plankRock1 press with it. helper_coverage still read FULL, because plankRock1 matched
+an unrelated line that names the same trap symbol. A shared loc symbol is not a press of the step's
+tile. When a step's sub-steps are zones (`jumpIsland1..3`), stand in the zone that asks for the
+first step (path2p2, 2549,10288) and plank each rock in order. Do not `goto_tile` into a later
+zone, and check that every rock tile appears in some `from x .. to ..` detail.

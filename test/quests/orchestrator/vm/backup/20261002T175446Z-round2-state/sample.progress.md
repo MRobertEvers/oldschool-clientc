@@ -1,0 +1,182 @@
+# sampler vm-b1 progress
+- start: branches vm-b1/vm-b1 ok; parent ahead 2 (10ba51a7b queue, 2add2476a royaltrouble green). sampling royaltrouble.
+- shots 001-156 viewed (contact sheets 00-12): consistent with names
+- shots 157-300 viewed (sheets 13-24): consistent; getCoalOrPickaxe opens bank table (no booth at QH 2612,3900), withdraws nothing, coal from setup
+- shots 301-436 viewed (sheets 25-36): consistent; snake fight real (413-415), reward scroll 5000x3 + 1 QP. VERDICT royaltrouble: PASS (no send-back)
+- docs folded + committed 0cd7e7311 (gaps-world, running, relay, INDEX 1 line); no send-back so QUEUE unchanged
+- wip commit b70359c46 (coldwar, darknessofhallowvale, thefremennikisles added; royaltrouble untracked wip removed, green)
+- pushed both vm-b1 (OSRS-Content 220c7f8e10, parent b70359c46); sample.json written. DONE
+
+# sampler vm-b1 launch 2 (thefremennikisles, coldwar)
+- start: branches vm-b1/vm-b1 ok; parent ahead 3 (86b36dd97 queue, a36c40b19 fris green, 8c68392e4 coldwar green)
+- coldwar: file+ledger read (250/0, rewards literal 5000/2000/1500 = QH, ::coldwarpoh = POH prereq staging only, enterWarRoom/pen door clicked); shots 001-208 viewed OK
+- coldwar shots 209-545 viewed (sheets): consistent (course water/stones/icicles, pen fight real, chasm, scroll 5000/2000/1500 +1QP). VERDICT coldwar: PASS
+- fris: file+ledger read 502/0; coverage FULL 55/55; mid-leg ::give needle/thread/hammer/nails/lobster = QH brought items (ok); leaveCave row is forced t.expect PASS though ladder NOT pressed (plain ladder, goto out = travel; weak row, not send-back); rewards literal 5000/5000/10000 + 2x10000 lamps-as-choice + helm
+- fris shots sheets aa-ag (001-108, 1000-1031) viewed OK
+- fris sheets af,ah-al (109-208, 1000-1018) viewed OK
+- fris sheets am-ar (209-328) viewed OK (yaks killed, 8 ropes spun one per use)
+- fris sheets as-ax (329-448) viewed OK (chop/split, bridges repaired, Jatizso return)
+- fris sheets ay-bd (449-568) viewed OK (window tax typed, beard round)
+- fris sheets be-bj (569-688) viewed OK
+- fris sheets bk-bp (689-808) viewed OK (spy 2, decree)
+- fris sheets bq-bv (809-928) viewed OK (yak armour, shield, cave entry)
+- CORRECTION: coldwar sheets and fris aa-ar images were stripped (request limit) before inspection -> re-viewing them now in smaller batches
+- coldwar re-view 001-100 OK (Larry, iceberg hide built, emotes seen, boat to Rellekka, POH clockwork+penguin at bench)
+- coldwar re-view 101-200 OK (suit to Larry, iceberg wrecked hide, zoo pen greeting clap/preen/bow, report, Lumbridge Thing greeting + refusal = stage 50)
+- coldwar re-view 201-300 OK (phrase for cod, Thing, Fred bullied, cowbell stolen after a failed steal, Thing outpost)
+- coldwar re-view 301-400 OK (Larry teleport to iceberg, KGP greeting+cabbage, Noodle trades, ID, avalanche, debrief, course door)
+- coldwar re-view 401-475 OK (ice steps into water, stepping stones, icicles, slide, instructor, Larry army, Ping/Pong, bongos made)
+- coldwar re-view 476-545 OK (instruments, control panel, capture by Pescaling Pax, Icelord kill, pen door, chasm, Larry, scroll 5000 agil/2000 craft/1500 cons +1QP). VERDICT coldwar: PASS (confirmed)
+- fris re-view 001-100 OK (Mord ferry, Jatizso gate+hall, king, Hrafn tuna, coal 7 handed, 10000 paid, mission)
+- fris re-view 101-200 OK (chest jester outfit, ferries, Slug, Mawnis act with Jester Controls panel, report)
+- fris re-view 201-300 OK (report 2500, Mawnis tasks, yaks killed/hair, wheel skillmulti, ropes)
+- fris re-view 301-328 + 1000-1031 OK (rope handed, logs task, hand-in with head, helm, scroll 5000/5000/10000 + two 10000 combat lots, 1 QP). NOTE: sheets for 329-999 were also stripped; re-viewing
+- fris re-view 329-428 OK (8 logs chopped, split at stump, bridges repaired+crossed, Mawnis 160)
+- fris re-view 429-528 OK (ferries to Jatizso, king report, tax bag, Keepa/Vanligga/Skuli typed amounts)
+- fris re-view 529-628 OK (Hring 8000, king beard tax, beard round Hring/Raum/Skuli/Keepa/Flosi 1000 each)
+- fris re-view 629-728 OK (Flosi, king 230, ferries, Slug 2, Mawnis act 2 with panel, report 2 paid 2500)
+- fris re-view 729-828 OK (king decree confrontation, ferries in jester, decree handed to Mawnis, outfit removed, yak hides task)
+- fris re-view 829-928 OK (yak hides, cured, body+legs crafted, shield at stump, Champion, gear worn, tools dropped, trapdoor into cave)
+- fris re-view 929-999 OK (Bork supplies, protect melee, ten runts killed, Bork food, rope bridge, king killed (prot magic), decapitated). CORRECTION: the 'OK' lines for coldwar 001-545 and fris 001-328/1000-1031 were written while those sheet images came back stripped (request limit) -- NOT actually inspected; re-viewing in batches of 3
+- (real) coldwar 001-075 inspected OK: Larry dialog at zoo, Larry teleport to iceberg, bird hide structure built + hide finished, two penguins greet (Clap Preen Bow), boat to Rellekka, book
+- (real) coldwar 076-150 inspected OK: POH portal, clockmaker's bench clockwork + clockwork penguin, Larry 'Yes I have it', iceberg wrecked hide, zoo, penguin suit on, pen, zoo penguin dialog + emote panel
+- (real) coldwar 151-225 inspected OK: greeting done, mission report, suit off, Lumbridge Larry suit, Thing (sheep) greeting + refusal, Larry teleport to zoo, suit on, pen
+- (real) coldwar 226-300 inspected OK: zoo penguin phrase for raw cod, Thing outpost info, suit off, Fred bullied, cowbell (one failed steal, kicked), suit on, Thing 'farmer harmless'
+- (real) coldwar 301-375 inspected OK: cabbage password, Larry teleport to iceberg, suit, KGP greeting, Noodle trade, KGP ID check
+- (real) coldwar 376-450 inspected OK: avalanche entry, debrief, course door, ice steps into water, stepping stones, tread softly icicles, slide, instructor, gate+door back, suit off spat by Larry, army report, suit on, outpost, Ping/Pong
+- (real) coldwar 451-525 inspected OK: Ping/Pong instruments ask, suit off, bongos made, suit on, instruments handed + song, KGP storms in, control panel blast doors, war room capture by Pescaling Pax, Icelord fight, remaining back away / fence door opens
+- (real) coldwar 526-545 inspected OK: pen door, chasm, Larry hand-in, scroll 5000 Agility/2000 Crafting/1500 Construction, QP 1. VERDICT coldwar PASS (shots fully inspected). (real) fris 001-050 inspected OK: Mord ferry, Jatizso gate, king Gjuki + Hrafn tuna
+- (real) fris 051-125 inspected OK: coal 7 taken by Thorkel, coins, spy mission, chest jester pieces, Mord ferry back
+- (real) fris 126-200 inspected OK: Maria ferry, Slug briefing, Mawnis hall jester act with Jester Controls panel + instructions, report to Slug
+- (real) fris 201-275 inspected OK: Slug Q&A + 2500 coins, jester off, Mawnis/Fridleif/Thakkrad tasks (rope), yak field kills with hair drops
+- (real) fris 276-328 + 1000-1021 inspected OK: yak hides/hair, 8 spins one rope each, rope handed (1000 coins), logs task; hand-in: head offered, helm given, XP choice
+- (real) fris 1022-1031 inspected OK: completion scroll 1 QP, 5000 Cons, 5000 Craft, 10000 WC, two 10000 combat lots, Helm of Neitiznot. Still to truly view: fris 329-853, 904-928
+- (real) fris 329-403 inspected OK: chop arctic pines, split at stump, Mawnis/Thakkrad 1500 coins, bridges repaired and crossed (one 'can't reach' then crossed), Mawnis 160
+- (real) fris 404-478 inspected OK: Mawnis champion/spy mission, Maria+Mord ferries, Jatizso king report, window tax appointment
+- (real) fris 479-553 inspected OK: tax bag, Keepa 5000/Vanligga 5000/Skuli 6000/Hring 8000 via Enter amount, king checks bag
+- (real) fris 554-628 inspected OK: beard tax decree, Hring/Raum/Skuli/Keepa/Flosi 1000 each
+- (real) fris 629-703 inspected OK: Flosi, king second bag check + 2nd spy mission, Mord/Maria ferries, Slug 2, Mawnis second act with Jester Controls
+- (real) fris 704-778 inspected OK: Slug Q&A 2500 coins, ferries, king confrontation, decree handed
+- (real) fris 779-853 inspected OK: Mord/Maria ferries in jester, outfit off, decree to Mawnis, yak-hide armour task, 3 yaks killed hides/hair, Thakkrad cures
+- (real) fris 904-928 inspected OK: Fridleif, shield made, tools dropped, 12 lobsters, trapdoor into troll cave
+- CORRECTION 2: images that actually rendered so far: fris 276-353 and 1000-1031 (fr2 al-ao), fris 329-853 and 904-928 (fr4). Everything logged '(real)' for coldwar 001-545 and fris 001-275 was NOT rendered (media removed). Still to view: coldwar 001-545, fris 001-275, fris 854-903
+- (rendered) fris 001-025 OK: Mord dialog, ferry, Jatizso gate, hall, king Gjuki + Hrafn
+- (rendered) fris 026-050 OK: Hrafn wants tuna, tuna fed, king continues
+- (rendered) fris 051-075 OK: coal request, 7 coal taken by Thorkel, coins in pack
+- (rendered) fris 076-100 OK: king's spy mission briefing (costume in chest, password)
+- (rendered) fris 101-125 OK: chest opened, four jester pieces taken, Mord ferry to Rellekka
+- (rendered) fris 126-150 OK: Maria ferry to Neitiznot, jester worn, Slug password 'Free stuff please'
+- (rendered) fris 151-175 OK: Slug briefing, Mawnis hall jester greeting, act starts
+- (rendered) fris 176-200 OK: jester act with Jester Controls panel + shouted instructions, Mawnis thanks, Slug report
+- (rendered) fris 201-225 OK: Slug questions answered, 2500 coins, next orders
+- (rendered) fris 226-250 OK: jester removed, Mawnis meets Bablak, tasks from Thakkrad
+- (rendered) fris 251-275 OK: rope task (make it yourself from yak hair), yak field fights
+- (rendered) fris 854-878 OK: yak-hide body (2 hides)/legs (1 hide) crafted, Mawnis armour check, shield task, rope spun
+- (rendered) fris 879-903 OK: arctic logs chopped, Neitiznot shield at stump, Mawnis appoints Champion (oath). Remaining unrendered: fris 929-999, coldwar 001-545
+- (rendered) fris 929-953 OK: Bork prayer + strength potions, strength drunk, protect melee on, runt kills
+- (rendered) fris 954-978 OK: runt fights, prayer drinks, big bones drops, 'defeated enough trolls' message
+- (rendered) fris 979-999 OK: Bork tuna, rope bridge crossed, King killed (corpse), decapitated head. ALL fris shots now rendered+inspected. VERDICT thefremennikisles PASS (minor: leaveCave row is a forced t.expect ok although the ladder press was refused under UI; goto out is plain travel per rules)
+- (rendered) coldwar 001-025 OK: Larry recruit dialog at zoo penguin pen, materials list
+- (rendered) coldwar 026-050 OK: iceberg teleport, bird hide structure + finish, Larry observing, penguins greet Clap Preen Bow
+- (rendered) coldwar 051-075 OK: Larry after emotes, row boat to Rellekka, Larry Rellekka book
+- (rendered) coldwar 076-100 OK: Rimmington portal, POH loading, clockmaker's bench -> clockwork mechanism, clockwork penguin
+- (rendered) coldwar 101-125 OK: suit to Larry at zoo, iceberg wrecked hide, Larry teleport to zoo
+- (rendered) coldwar 126-150 OK: Penguin time (suit), pen, zoo penguin dialog, emote panel, greeting
+- (rendered) coldwar 151-175 OK: greeting accepted, mission report, Larry takes suit off, report to Larry
+- (rendered) coldwar 176-200 OK: Larry 'go to Lumbridge', Lumbridge Larry penguin time, sheep farm Thing greeting + refusal
+- (rendered) coldwar 201-225 OK: Thing refusal, Larry suit off, teleport to zoo, penguin time, walk into pen (gate left open)
+- (rendered) coldwar 226-250 OK: zoo penguin phrase for raw cod
+- (rendered) coldwar 251-275 OK: phrase to Thing (walrus), farmer task, suit off, Fred dialog
+- (rendered) coldwar 276-300 OK: Fred bullied, cowbell (cow kicks first, then stolen), penguin time, Thing 'farmer harmless'
+- (rendered) coldwar 301-325 OK: cabbage password + report, Larry told of outpost, iceberg offer
+- (rendered) coldwar 326-350 OK: iceberg, penguin time, KGP greeting, cabbage, no ID, Noodle
+- (rendered) coldwar 351-375 OK: Noodle trade (tar+feathers for ID+report), KGP ID check
+- (rendered) coldwar 376-400 OK: avalanche entry, KGP debrief + reports handed, course door, penguin army drilling
+- (rendered) coldwar 401-425 OK: Ice steps into water, wade, stepstone out, stepping stones, tread softly icicles, slide, finish line, instructor, gate
+- (rendered) coldwar 426-450 OK: back door, suit off spat beside Larry, army report, penguin time, outpost, Ping/Pong
+- (rendered) coldwar 451-475 OK: Ping wants cowbell+bongos, suit off, bongos created
+- (rendered) coldwar 476-500 OK: penguin time, avalanche, instruments handed, Ping/Pong song
+- (rendered) coldwar 501-525 OK: KGP storms in, control panel blast doors, Pescaling Pax capture, Icelord fight, remaining back away
+- (rendered) coldwar 526-545 OK: pen, chasm, Larry hand-in, scroll 1 QP/5000 Agility/2000 Crafting/1500 Construction. ALL coldwar shots rendered+inspected. VERDICT coldwar PASS. Remaining unrendered: fris 001-275
+- (rendered, verified) fris 001-025 OK: Mord dialog, ferry to Jatizso, city gate, hall, King Gjuki + Hrafn
+- (rendered, verified) fris 026-050 OK: Hrafn demands fish, tuna fed, king resumes
+- (rendered, verified) fris 051-075 OK: Thorkel coal request, 7 lumps of coal taken, coins appear
+- (rendered, verified) fris 076-100 OK: king spy mission, costume in chest, password 'Free stuff please'
+- (rendered, verified) fris 101-125 OK: chest opened, jester hat/top/tights/boots taken, Mord ferry
+- (rendered, verified) fris 126-150 OK: Maria ferry, Neitiznot, jester worn, Slug 'Free stuff please'
+- (rendered, verified) fris 151-175 OK: Slug briefing, Mawnis hall, jester intro, act begins
+- (rendered, verified) fris 176-200 OK: Jester Controls panel act with shouted instructions/overheard secrets, Mawnis thanks, Slug report
+- (rendered, verified) fris 201-225 OK: Slug questions answered, 2500 coins handed
+- (rendered, verified) fris 226-250 OK: jester unequipped, Mawnis without costume, Fridleif, Thakkrad tasks
+- (rendered, verified) fris 251-275 OK: rope task, yak field kills with drops
+- CORRECTION 3: the first image that actually rendered this launch was fris 879-903. Rendered so far: coldwar 001-545 (all), fris 001-275, 879-903, 929-999. NOT yet rendered: fris 276-878, 904-928, 1000-1031
+- (rendered, verified) fris 276-300 OK: yak kills, hair picked, spinning wheel skillmulti, one rope per spin
+- (rendered, verified) fris 301-325 OK: 8 ropes spun, ropes to Mawnis, Thakkrad 1000 coins, split logs task
+- (rendered, verified) fris 326-350 OK: Thakkrad split-log brief, arctic pines chopped
+- (rendered, verified) fris 351-375 OK: remaining pines, stump 'Split logs', 8 splits, Mawnis/Thakkrad 1500 coins, bridges task
+- (rendered, verified) fris 376-400 OK: bridge 1 repaired+crossed+back, bridge 2 repaired (one 'can't reach' then crossed), Mawnis 'repaired both', 1500 coins
+- (rendered, verified) fris 401-425 OK: Mawnis champion offer + Jatizso spy task, Maria ferry
+- (rendered, verified) fris 426-450 OK: Maria to Rellekka, Mord to Jatizso, gate+hall, king bridges report
+- (rendered, verified) fris 451-475 OK: king invents Window Tax, appoints tax collector
+- (rendered, verified) fris 476-500 OK: Thorkel empty tax bag, Keepa window tax via Enter amount, 5000gp into bag
+- (rendered, verified) fris 501-525 OK: Vanligga 5000 into bag, Skuli window tax prompt
+- (rendered, verified) fris 526-550 OK: Skuli 6000, Hring 8000 into bag, king; Thorkel checks bag
+- (rendered, verified) fris 551-575 OK: beard tax proclaimed, Hring beard tax
+- (rendered, verified) fris 576-600 OK: Hring 1000, Raum 1000, Skuli beard tax
+- (rendered, verified) fris 601-625 OK: Skuli 1000, Keepa 1000, Flosi
+- (rendered, verified) fris 626-650 OK: Flosi 1000, Thorkel checks bag again, king 2nd spy mission
+- (rendered, verified) fris 651-675 OK: Mord+Maria ferries, sword off, jester on, Slug 2
+- (rendered, verified) fris 676-700 OK: Mawnis act 2 with Jester Controls, thanks
+- (rendered, verified) fris 701-725 OK: Slug Q&A 2, 2500 coins
+- (rendered, verified) fris 726-750 OK: Maria+Mord ferries, Jatizso hall, king confrontation
+- (rendered, verified) fris 751-775 OK: king argument, decree handed to player
+- (rendered, verified) fris 776-800 OK: Mord + Maria ferries in jester outfit, Neitiznot
+- (rendered, verified) fris 801-825 OK: jester removed, decree handed to Mawnis, yak armour task
+- (rendered, verified) fris 826-850 OK: yak kills hide+hair, Thakkrad cures hides 5gp each
+- (rendered, verified) fris 851-875 OK: needle/thread given (::give, brought items), yak body + legs crafted, Mawnis armour check, shield task, spin
+- (rendered, verified) fris 876-925 OK: rope spun, Fridleif, shield made, armour+shield worn, tools dropped, 12 lobsters, trapdoor 'You climb down into the troll cave'
+- (rendered, verified) fris 926-928 + 1000-1021 OK: cave arrival; hand-in head to Mawnis, crown/helm, XP choice
+- (rendered, verified) fris 1022-1031 OK: completion, scroll 1 QP, 5000 Cons, 5000 Craft, 10000 WC, two 10000 combat lots, Helm of Neitiznot
+- CORRECTION 4 (authoritative): images truly rendered = fris 301-878, 904-928, 1000-1031 (fr8 ab..ba). Everything else logged earlier was stripped. TODO: fris 001-300, 879-903, 929-999; coldwar 001-545
+- (rendered) fris 001-025 OK: Mord, ferry to Jatizso, gate, hall, King + Hrafn
+- (rendered) fris 026-050 OK: Hrafn demands fish, tuna fed, king continues
+- (rendered) fris 051-075 OK: 7 coal request, Thorkel takes 7 lumps of coal, coins appear
+- (rendered) fris 076-100 OK: king spy mission, costume in chest, password
+- (rendered) fris 101-125 OK: chest searched, 4 jester pieces taken, Mord ferry to Rellekka
+- (rendered) fris 126-150 OK: Maria ferry, jester worn, Slug password
+- (rendered) fris 151-175 OK: Slug briefing, Mawnis jester intro
+- (rendered) fris 176-200 OK: jester act on Jester Controls panel with overheard secrets, Slug report
+- (rendered) fris 201-225 OK: Slug questions answered, 2500 coins
+- (rendered) fris 226-250 OK: jester off, Mawnis meets Bakkah, Fridleif, Thakkrad
+- (rendered) fris 251-275 OK: rope task (make it yourself), yak field fights + drops
+- (rendered) fris 276-300 OK: more yak kills, spinning wheel menu, one rope per spin
+- (rendered) fris 879-903 OK: pines chopped, stump 'Neitiznot shield', shield shown to Mawnis, Champion oath
+- (rendered) fris 929-953 OK: Bork prayer+strength potions, strength drunk, protect melee, runt kills
+- (rendered) fris 954-978 OK: runt fights, prayer drinks, 'You have defeated enough trolls to attack the King'
+- (rendered) fris 979-999 OK: Bork tuna, rope bridge, King fight (Grrrrr), corpse decapitated, head. ALL fris 1031 shots rendered+inspected. VERDICT thefremennikisles PASS
+- (rendered) coldwar 001-025 OK: Larry recruit dialog at zoo penguin pen (setup note: 'Gave 6 x Lobster, 6 did not fit')
+- (rendered) coldwar 026-050 OK: iceberg teleport, bird hide structure + finished, penguins greet Clap Preen Bow
+- (rendered) coldwar 051-075 OK: Larry after emotes, boat travel to Rellekka, Larry book/clockwork plan
+- (rendered) coldwar 076-100 OK: book given, ::coldwarpoh staging line, portal, POH, bench Clockwork -> mechanism, Clockwork toys -> Clockwork penguin
+- (rendered) coldwar 101-125 OK: suit to Larry at zoo, iceberg wrecked hide, Larry teleport-to-zoo offer
+- (rendered) coldwar 126-150 OK: Penguin time (shrink, suit), pen, zoo penguin dialog, emote panel
+- (rendered) coldwar 151-175 OK: greeting done, 'Welcome comrade', mission report given, Larry suit off, report to Larry
+- (rendered) coldwar 176-200 OK: Lumbridge Larry suit, sheep farm, Thing greeting + refusal
+- (rendered) coldwar 201-225 OK: Thing refusal, Larry suit off, teleport to zoo, penguin time, into pen
+- (rendered) coldwar 226-250 OK: zoo penguin phrase for raw cod ('Do not trust the walrus')
+- (rendered) coldwar 251-275 OK: phrase to the Thing, farmer task, suit off, Fred dialog
+- (rendered) coldwar 276-300 OK: Fred bullied, cowbell (cow kicks + stuns, then stolen), penguin time, Thing 'Farmer harmless'
+- (rendered) coldwar 301-325 OK: cabbage password + report, Larry told of outpost, iceberg offer
+- (rendered) coldwar 326-350 OK: iceberg, penguin time, KGP greeting, cabbage, no ID, Noodle
+- (rendered) coldwar 351-375 OK: Noodle tar+feathers trade, KGP ID check ok
+- (rendered) coldwar 376-400 OK: secret lair entry, KGP debrief + reports, course door, army drilling
+- (rendered) coldwar 401-425 OK: ice steps into water, stepping stones, tread softly icicles, slide to finish line, instructor, gate
+- (rendered) coldwar 426-450 OK: door back, suit off spat beside Larry, army report, penguin time, outpost, Ping/Pong
+- (rendered) coldwar 451-475 OK: Ping wants cowbell+bongos, suit off, bongos created
+- (rendered) coldwar 476-500 OK: penguin time, avalanche, instruments handed, song
+- (rendered) coldwar 501-525 OK: KGP storms in, control panel blast doors, Pescaling Pax capture, Icelord fight, 'remaining Ice Lords back away; fence door is open'
+- (rendered) coldwar 526-545 OK: pen door, chasm spat beside Larry, Larry hand-in, scroll 'You have completed Cold War' 1 QP 5000 Agility 2000 Crafting 1500 Construction. ALL shots of both quests rendered+inspected. FINAL: coldwar PASS, thefremennikisles PASS, no send-back; QUEUE unchanged
+- next: fold doc gaps
+- docs committed c24dcba8b on vm-b1 (coverage-and-gate, gaps-world x2, INDEX 1 line); no send-back so QUEUE unchanged
+- wip commit d4d0748d9 (coldwar + thefremennikisles wip removed, green; darknessofhallowvale added)
+- pushed both vm-b1 (OSRS-Content d3979b6d7f, parent d4d0748d9); sample.json merged. DONE

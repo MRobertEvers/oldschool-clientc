@@ -40,7 +40,9 @@ remain blocked. Above-ground empty planes never become ocean.
 
 The terrain pass also blocks walking on full sea tiles, except roofed
 (REMOVE_ROOF) ones -- the inside of a structure standing in water, such as the
-Ghosts Ahoy wreck lower hull (seam20); the boat map is unaffected. Bridge level handling
+Ghosts Ahoy wreck lower hull (seam20); the boat map is unaffected. Wading water
+(map overlay 537, the Penguin Agility Course only) stays sea for boats but is
+walked by the cache's BLOCK (`TERRAIN_OCEAN_WADE`, vm-b1-seam2). Bridge level handling
 must preserve a walkable raised pier while retaining the sea beneath it for
 the boat domain. Locs stamp their wall and footprint blockers into each map
 independently. Runtime loc removal restores overlapping loc and terrain flags

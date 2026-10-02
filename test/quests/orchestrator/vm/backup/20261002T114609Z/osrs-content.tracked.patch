@@ -1,0 +1,35 @@
+diff --git a/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2 b/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2
+index 35b5dfbe86..2b7fa138a9 100644
+--- a/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2
++++ b/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2
+@@ -1,7 +1,29 @@
+ // Darkness of Hallowvale -- Burgh de Rott: Veliaf's hub (called additively from
+ // `route_veliaf_hurtz` in `quest_inaidofthemyreque/scripts/myreque2_hideout.rs2`
+ // and from `myq5_veliaf_child` in `quest_sinsofthefather/scripts/
+-// sinsofthefather.rs2`), the boat and its chute, and the crossing.
++// sinsofthefather.rs2`), the inn's broken wall, the boat and its chute, and
++// the crossing.
++
++// ---- the inn's broken wall --------------------------------------------------
++//
++// Quest Helper: climbOverBrokenWall (3491,3230,0) into the trapdoor room
++// (3489..3491,3231..3232) and back out of it. The wall sits on the north edge
++// of its tile (m54_50 `0 35 30: 12737 0 1`), so the crossing is one tile along
++// z. OSRS wiki, 'Broken wall (Burgh de Rott)': Agility 10 to climb northward
++// toward the basement, no requirement southward, 0.5 Agility XP either way.
++[oploc1,burgh_inn_climb_over]
++def_coord $end = movecoord(loc_coord, 0, 0, 1);
++def_int $dir = ^exact_north;
++if (coordz(coord) > coordz(loc_coord)) {
++    $end = loc_coord;
++    $dir = ^exact_south;
++} else if (stat_base(agility) < 10) {
++    ~mesbox("You need an Agility level of 10 to attempt this.");
++    return;
++}
++p_arrivedelay;
++~agility_exactmove(agility_shortcut_wall_jump, 0, 2, coord, $end, 30, 60, $dir, false);
++stat_advance(agility, 5);
+ 
+ [proc,doh_veliaf_hub]
+ def_int $q = %varb2573_myq3_main_quest;
