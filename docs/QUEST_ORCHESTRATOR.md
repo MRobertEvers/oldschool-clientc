@@ -13,11 +13,6 @@ content parity, seam fixes, authoring, review, sampling, green.
   `claimed` / `<batch>@<host>`. A claim on `v3` is the lock -- two machines never hold the
   same quest. `claim.py` writes the ledger on `origin/v3` itself (through a throwaway
   worktree), so it works from any branch at any time.
-- **Two kinds of commit go to `v3` directly** (owner, 2026-10-01): `claim.py`'s ledger
-  commits (claim, release, `done --pr`, `pr-sync`), and **protocol work** -- this document,
-  the workflow cards and the shared quest tooling (see "Changing the protocol or shared
-  tooling"). Protocol work never rides a batch branch or a batch PR. Everything else -- the
-  quest work of a batch -- goes on the batch branch and reaches `v3` only through its PRs.
 - **Everything else lives on the batch branch** `<batch>` -- the same name in the parent and
   in `OSRS-Content` -- and reaches `v3` through **one PR per batch** (`claim.py done`).
   Content, engine and driver fixes, tests, evidence, docs, relay files: all on the branch.
@@ -30,9 +25,6 @@ content parity, seam fixes, authoring, review, sampling, green.
 - Batch names are `<hostname>-b<N>`, never reused. The passes inside a batch are named
   after it: `<batch>-parity`, `<batch>-seam1`, `<batch>-seam2`, ... and the author batch
   is `<batch>` itself.
-- **One batch per checkout at a time.** A checkout sits on one branch, and the passes load
-  the driver and the content live from it. A second batch on the same machine needs its own
-  checkout (and its own `WT` in that checkout's workflow copies).
 
 ## The loop
 
@@ -67,7 +59,7 @@ Read from the three workflow scripts; each `agent()` call pins its model.
 | parity worker | content_parity | Sonnet 5.5 (the `worker_model` default) |
 | seam triage, seam fixer | seam_pass | Opus (triage transcribing a given file: Sonnet 5.5) |
 | parity closer, seam closer | content_parity, seam_pass | Opus |
-| orchestrator | -- | the session the owner started (Fable or Opus); never an agent model |
+| orchestrator | -- | Fable; never an agent model |
 
 **An orchestrator never passes `author_model` or `worker_model`.** The defaults are the
 owner's pins. `claude-sonnet-5-5` is spelled out because the `sonnet` alias is still Sonnet 5.
@@ -120,11 +112,8 @@ The parity closer, the seam closer and the batch's sampler commit on the batch b
    the pass's own files, commit, and push: `git push -u origin <batch>`.
 3. A rejected push on the batch branch means another agent of this batch pushed first:
    `git pull --no-rebase origin <batch>` in that repo, then push again. Never force.
-4. **Never** `git merge origin/v3` into the branch mid-batch, never push quest work to
-   `v3`, never take or release the content lock. The one thing a closer or sampler pushes
-   to `v3` is protocol work: the doc lines it folds into `docs/quest_authoring/` (see
-   "Changing the protocol or shared tooling"), committed in a `v3` worktree and then
-   cherry-picked onto the branch. `QUEUE.tsv` rows the pass writes (`queue.py set`,
+4. **Never** `git merge origin/v3` into the branch mid-batch, never push to `v3`, never
+   take or release the content lock. `QUEUE.tsv` rows the pass writes (`queue.py set`,
    the reopen of a row after parity) are the batch's view and ride the branch; `v3`'s claim
    stays until the PR merges and merge-tsv lets the verdict beat the claim.
 
@@ -133,64 +122,28 @@ The parity closer, the seam closer and the batch's sampler commit on the batch b
 ```sh
 python3 tools/quest_gate/claim.py done <batch>                 # on the branch, both repos clean
 ```
-**Before `done`, check for var-id collisions.** `done` takes `v3`'s `pack/*.alloc` and
-rebuilds, which re-allocates the batch's new ids after `v3`'s. That is right for every
-namespace except varp, varbit and varc: their NAMES carry the id (`varp7213_b_thing`, PR #99),
-so a collision leaves a name whose prefix no longer matches its id, and
-`OSRS-Content/tools/var_prefix_names.py` would then mint `varp7214_varp7213_b_thing`. So,
-after `git -C OSRS-Content merge origin/v3` and before the rebuild: for each var this batch
-added whose id `v3` now uses for another name, rename it in BOTH repos to a free id
-(`git grep -l <old name>` in the parent and the submodule, rewrite each by explicit path,
-update the `.varp`/`.varbit`/`.varc` header and the alloc line), rebuild, and confirm
-`python3 OSRS-Content/tools/var_prefix_names.py` (dry run) prints `0 name(s) in 0 file(s)`.
-`done` does not do this for you.
 `done` merges `origin/v3` into the branch in both repos -- `pack/*.alloc` conflicts take
 `v3`'s copy and the pack is rebuilt (`make -C src torirsserver-scripts`) so the batch's ids
 are re-allocated after `v3`'s; `QUEUE.tsv`, `BATCHES.tsv` and `PARITY.tsv` conflicts go
 through merge-tsv; any other conflict refuses with the merge aborted, for you to resolve on
 the branch by hand -- then pushes both branches and prints the honest per-quest table
-(`build/<batch>.pr.md`). Open **two PRs, content first**, because the parent's gitlink must point at a commit
-that is on `OSRS-Content`'s `v3`:
-1. `OSRS-Content`: `gh pr create --repo MRobertEvers/OSRS-Content --base v3 --head <batch>`.
-2. The parent: `gh pr create --base v3 --head <batch>`, with the table as its body and a
-   first line naming the content PR and "merge the content PR first, with a merge commit".
-Never squash or rebase either PR: a squashed content PR leaves the parent's gitlink on a
-commit that is not on `v3`. Then stamp the claims with the PARENT PR's number:
+(`build/<batch>.pr.md`). Open the PR `<batch> -> v3` with that table as its body (the
+GitHub tool, or `gh pr create --base v3 --head <batch>`), then stamp the claims:
 ```sh
 python3 tools/quest_gate/claim.py done <batch> --pr <N> --no-build
 ```
-Report the table and the PR to the owner. A quest you cannot finish:
+**The orchestrator merges its own PR and starts the next batch without waiting (owner,
+2026-10-02).** When every quest of the batch is green, or honestly blocked / content_bug with
+its claim released (`claim.py release <batch> <id> --note`), run `claim.py done`, take the PR
+out of draft with the final table, merge it into `v3` once its checks are green and it has
+no conflict, run `claim.py pr-sync`, then claim and launch `<hostname>-b<N+1>` in the same
+turn. Report the table, the PR and the next batch to the owner; do not wait for an answer. A quest you cannot finish:
 `claim.py release <batch> <id> --note "<why>"`, so another machine may take it. Then start
 the next batch (`<hostname>-b<N+1>`).
 
 When the PR merges, `v3` receives the batch's verdicts (merge-tsv: a verdict beats a claim),
 and the next `claim.py pr-sync` on any machine releases whatever rows the batch left
 `claimed`. A PR closed without merging is settled with `claim.py pr-sync --closed <batch>`.
-
-## Changing the protocol or shared tooling
-
-**Protocol work is committed directly to `v3`** (owner, 2026-10-01), so both machines run
-one protocol. Protocol work is: this document, `docs/QUEST_SUITE_KIT.md`,
-`docs/quest_authoring/` (relay.md, INDEX.md and the topic files), `tools/quest_gate/*.py`
-(`claim.py`, `queue.py`, `run.py`, `gate.py`, `helper_coverage.py`, `lint_quest.py`,
-`new_quest.py`, `ladder.py`, ...) and `tools/quest_gate/*.workflow.js`.
-
-- **Make it in a v3 worktree, not on the batch branch:**
-  `git worktree add --detach build/orchestrator/worktrees/v3 origin/v3` (after a fetch),
-  edit, commit by explicit path, `git push origin HEAD:v3`; on a rejected push fetch, rebase
-  onto `origin/v3` and push again (never force); remove the worktree. The checkout stays on
-  its batch branch and a running pass is not disturbed.
-- **Look before you change:** `git log origin/v3 -5 -- <the files>`. If the other machine
-  changed the same files in the last hour, build on its version; never push a rival
-  rewrite. On 2026-10-01 both machines rewrote `claim.py`, the cards and this document at
-  once, and one version (PR #100) had to be thrown away.
-- **A batch branch takes a protocol commit between passes, never during one:**
-  `git cherry-pick <sha>` of the `v3` commit (it touches only protocol paths, so it never
-  conflicts with quest work), and refresh the card copies in
-  `test/quests/orchestrator/<host>/workflows/` from `origin/v3`. A running pass finishes
-  under the cards it started with (see "Never stop a running pass").
-- **Quest content, tests, evidence, `QUEUE.tsv` verdicts, `BATCHES.tsv`, `PARITY.tsv` and
-  `wip/` are never protocol work**, even when a protocol change motivated them.
 
 ## Work in progress that follows the quest: `test/quests/wip/<id>/`
 
@@ -313,8 +266,7 @@ never lose work like that.
 - **Models:** the table under "Who runs what". Fable orchestrates only: it never does worker
   work, except landing a pass that a closer proved but could not commit.
 - **Every batch publishes a contact sheet artifact and a `BATCHES.tsv` row.**
-- **Commit and push the batch branch in both repos between passes, submodule first.** Use
-  the attribution trailer your session's instructions name. Never `git stash`,
+- **Commit and push the batch branch in both repos between passes, submodule first.** Never `git stash`,
   `reset`, `checkout -- <path>`, `clean`, `--amend`, `add -A` or `add -u`. Commit by
   explicit path. Never stage `lib/emsdk-macos-toolchain.zip`, which the owner deleted.
 - **Never edit another session's files while they carry uncommitted edits.** That includes
