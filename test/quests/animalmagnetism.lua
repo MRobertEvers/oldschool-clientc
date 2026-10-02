@@ -244,13 +244,99 @@ return {
         -- 1.16 talkToTurael (twice)
         t.exec("goto-talkToTurael", t.player.goto_tile, 2931, 3538, 0)
         local tur_r, tur_d = t.npc.nearest("slayer_master_1_tureal", 25)
-        t.expect("talkToTurael-npc-spawned", tur_r == "no_row" and "ok" or "refused",
-            "npc.nearest(slayer_master_1_tureal, 25) at 2931,3538 = " .. tostring(tur_r) .. " " .. tostring(tur_d)
-            .. " -- no *.spawn row names slayer_master_1_tureal / wgs_heroes_tureal / wgs_tureal_multi (m45_55.spawn has none at 2931,3536)")
-        t.blocked("content_bug: Turael (guide talkToTurael, 2931,3536 Burthorpe) has no spawn row: no areas/world/configs/*.spawn "
-            .. "(m45_55.spawn) places slayer_master_1_tureal / wgs_heroes_tureal, although [opnpc1,slayer_master_1_tureal] "
-            .. "(skill_slayer/scripts/slayer_masters.rs2:246) carries the anma_turael_dispatch splice (anma_trees.rs2:106); "
-            .. "the blessed axe (stage 170->180) is unreachable without a ::give")
-        return
+        t.check("talkToTurael-npc-spawned", tur_r == "ok", "npc.nearest(slayer_master_1_tureal, 25) = " .. tostring(tur_r) .. " " .. tostring(tur_d))
+        t.exec("talkToTurael", t.player.talk_to, "slayer_master_1_tureal", 1)
+        t.exec("talkToTurael-dialogue", t.chat.play, {
+            "player:I'm here about those undead trees",
+            "npc:Ahh, you came to the right man",
+            "player:I think I need some of the wood",
+            "npc:Sounds like you need a blessed axe",
+            "npc:If you can give me a mithril axe",
+            "player:Okay, so I'll see whether I can spare",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.turael_axe-heard", t.quest.expect_stage("turael_axe"))
+        t.exec("talkToTurael2", t.player.talk_to, "slayer_master_1_tureal", 1)
+        t.exec("talkToTurael2-dialogue", t.chat.play, {
+            "npc:I can make an axe for you now",
+            "choose:I'd love one, thanks.",
+            "npc:Here's a new axe",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.cut_twigs", t.quest.expect_stage("cut_twigs"))
+        t.exec("talkToTurael-axe", t.inv.expect_has, "anma_axe", 1)
+
+        -- 1.17 cutTree (30% of cuts fail by design: retry until the twigs land)
+        t.exec("goto-cutTree", t.player.goto_tile, 3108, 3350, 0)
+        local twig_have = 0
+        for attempt = 1, 8 do
+            t.player.talk_to("nasty_tree_choppable", 1)
+            t.ticks(6)
+            local _, twig_count = t.inv.count("anma_wood")
+            twig_have = twig_count or 0
+            if twig_have >= 1 then break end
+        end
+        t.check("cutTree-twigs", twig_have >= 1, "anma_wood in backpack after chopping with the blessed axe = " .. tostring(twig_have))
+        t.expect("quest.stage.give_twigs", t.quest.expect_stage("give_twigs"))
+
+        -- 1.18 giveTwigsToAva / 1.19 getNotesFromAva
+        t.exec("goto-giveTwigsToAva", t.player.goto_tile, 3093, 3358, 0)
+        t.exec("giveTwigsToAva", t.player.talk_to, "anma_assistant", 1)
+        t.exec("giveTwigsToAva-dialogue", t.chat.play, {
+            "npc:You certainly took your time",
+            "player:I'd say they didn't grow on trees",
+            "npc:Quite. Now that we have all",
+            "npc:I've gathered research notes",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.notes", t.quest.expect_stage("notes"))
+        t.exec("getNotesFromAva-notes", t.inv.expect_has, "anma_garb_notes", 1)
+
+        -- 1.20 translateNotes: all nine start on; the fixed solution turns 1,3,4,6,7,8 off
+        t.exec("translateNotes-open", t.player.inv_op, "anma_garb_notes", 1)
+        t.exec("translateNotes-await", t.ui.await_open, "anma_rgb", 10)
+        for _, n in ipairs({1, 3, 4, 6, 7, 8}) do
+            local _, sw = t.ui.widget("anma_rgb:anma_buton_" .. n .. "_on")
+            local inv_r = t.ui.invoke(sw, 1)
+            t.ticks(2)
+            local _, bit_value = t.var.varp("varp6204_anma_note_bits")
+            t.check("translateNotes-switch" .. n, inv_r == "ok", "clicked anma_buton_" .. n .. "_on (component " .. tostring(sw) .. "); varp6204_anma_note_bits = " .. tostring(bit_value))
+        end
+        t.ticks(2)
+        t.expect("quest.stage.translate", t.quest.expect_stage("translate"))
+        t.exec("translateNotes-translated", t.inv.expect_has, "anma_trans_notes", 1)
+        t.key("escape")
+
+        -- 1.21 giveNotesToAva
+        t.exec("giveNotesToAva", t.player.talk_to, "anma_assistant", 1)
+        t.exec("giveNotesToAva-dialogue", t.chat.play, {
+            "npc:For all I know",
+            "npc:I've given you a pattern",
+            "npc:If you are having trouble",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.pattern", t.quest.expect_stage("pattern"))
+        t.exec("giveNotesToAva-pattern", t.inv.expect_has, "anma_pattern", 1)
+
+        -- 1.22 buildPattern
+        t.exec("buildPattern", t.player.use_item_on_item, "anma_pattern", "hard_leather")
+        t.exec("buildPattern-container", t.inv.await, "anma_container", 1, 10)
+        t.expect("quest.stage.give_container", t.quest.expect_stage("give_container"))
+
+        -- 1.23 giveContainerToAva
+        local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
+        t.check("giveContainerToAva-snapshot", xp_snapshot_result == "ok", "skill.snapshot before hand-in -> " .. tostring(xp_snapshot_result))
+        t.exec("giveContainerToAva", t.player.talk_to, "anma_assistant", 1)
+        t.exec("giveContainerToAva-dialogue", t.chat.play, {
+            "npc:Perfect! With the undead chicken",
+        })
+        t.ticks(3)
+        t.expect("reward.crafting_xp", t.skill.expect_gain("crafting", 1000, xp_snapshot))
+        t.expect("reward.fletching_xp", t.skill.expect_gain("fletching", 1000, xp_snapshot))
+        t.expect("reward.slayer_xp", t.skill.expect_gain("slayer", 1000, xp_snapshot))
+        t.expect("reward.woodcutting_xp", t.skill.expect_gain("woodcutting", 2500, xp_snapshot))
+        t.exec("reward.attractor", t.inv.expect_has, "anma_30_reward", 1)
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }
