@@ -1,0 +1,26 @@
+# ladder animalmagnetism quest_dir=quest_animalmagnetism guide=src/main/java/com/questhelper/helpers/quests/animalmagnetism/AnimalMagnetism.java steps=23 legs=1:1-23@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToAva	NpcStep	npc:anma_assistant	3093,3357,0	Talk to Ava to begin the quest.			I would be happy to make your home a better place.	quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
+1	2	10	talkToAlicesHusband	NpcStep	npc:anma_ghost_farmer	3618,3526,0	Talk to Malcolm at the farm west of the Ectofuntus.		Ghostspeak amulet		quests/quest_animalmagnetism/scripts/anma_farm.rs2:5 opnpc1
+1	3	20	talkToAlice	NpcStep	npc:farming_shopkeeper_4	3627,3526,0	Talk to Alice.			I'm here about a quest.	quests/quest_animalmagnetism/scripts/anma_farm.rs2:136 opnpc1
+1	4	30	talkToAlicesHusband2	NpcStep	npc:anma_ghost_farmer	3618,3526,0	Talk to Malcolm again.		Ghostspeak amulet		quests/quest_animalmagnetism/scripts/anma_farm.rs2:5 opnpc1
+1	5	40	talkToAlice2	NpcStep	npc:farming_shopkeeper_4	3627,3526,0	Talk to Alice again.			I'm here about a quest.	quests/quest_animalmagnetism/scripts/anma_farm.rs2:136 opnpc1
+1	6	70	talkToOldCrone	NpcStep	npc:ahoy_crone	3461,3558,0	Talk to the Old crone just east of the Slayer Tower twice.		Ghostspeak amulet	I'm here about the farmers east of here.	quests/quest_animalmagnetism/scripts/anma_farm.rs2:181 opnpc1
+1	7	76	giveAmuletToHusband	NpcStep	npc:anma_ghost_farmer	3618,3526,0	Give the Crone-made amulet to Malcolm.		Ghostspeak amulet; Crone-made amulet	Okay, you need it more than I do, I suppose.	quests/quest_animalmagnetism/scripts/anma_farm.rs2:5 opnpc1
+1	8	80	talkToAlicesHusband3	NpcStep	npc:anma_ghost_farmer_amulet	3618,3526,0	Talk to Malcolm again to watch a cutscene.		Ghostspeak amulet		quests/quest_animalmagnetism/scripts/anma_farm.rs2:5 opnpc1
+1	9	100	buyUndeadChickens	NpcStep	npc:anma_ghost_farmer_amulet	3618,3526,0	Buy two undead chickens from Malcolm. You can acquire ecto-tokens using the Ectofuntus to the east.		Ghostspeak amulet; Ecto-token	Could I buy those chickens now, then? | Could I buy 2 chick…	quests/quest_animalmagnetism/scripts/anma_farm.rs2:5 opnpc1
+1	10	100	giveChickensToAva	NpcStep	npc:anma_assistant	3093,3357,0	Give the two Undead chickens to Ava.		Undead chicken		quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
+1	11	120	talkToWitch	NpcStep	npc:anma_witch	3099,3370,0	Talk to the witch in the manor twice.		Iron Bar		quests/quest_animalmagnetism/scripts/anma_witch.rs2:7 opnpc1; +1
+1	12	140	goToIronMine	DetailedQuestStep		2978,3240,0	Go to the iron mine in Rimmington northeast of the house portal.		Hammer; Selected Iron		
+1	13	140	useHammerOnMagnet	ItemStep	obj:anma_iron_bar		While looking north, use the hammer on the Selected iron.		=		quests/quest_animalmagnetism/scripts/anma_witch.rs2:65 opheldu
+1	14	140	giveMagnetToAva	NpcStep	npc:anma_assistant	3093,3357,0	Give the Bar magnet to Ava.		Bar magnet		quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
+1	15	150	attemptToCutTree	NpcStep	npc:nasty_tree_choppable		Try to chop an undead tree outside Draynor manor.		Mithril Axe		quests/quest_animalmagnetism/scripts/anma_trees.rs2:4 opnpc1; +1
+1	16	160	talkToTurael	NpcStep	npc:wgs_heroes_tureal	2931,3536,0	Talk to Turael in Burthorpe twice, giving him the Mithril axe and Holy symbol.		Mithril Axe; Holy Symbol	I'm here about a quest. | Hello, I'm here about those trees…	
+1	17	180	cutTree	NpcStep	npc:nasty_tree_choppable		Try to chop an undead tree outside Draynor manor with the Blessed axe until you receive undead twigs.		Blessed axe		quests/quest_animalmagnetism/scripts/anma_trees.rs2:4 opnpc1; +1
+1	18	180	giveTwigsToAva	NpcStep	npc:anma_assistant	3093,3357,0	Give the Undead twigs to Ava.		Undead twigs		quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
+1	19	190	getNotesFromAva	NpcStep	npc:anma_assistant	3093,3357,0	Talk to Ava to receive the research notes.				quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
+1	20	200	translateNotes	PuzzleStep			Translate research notes by clicking on all the highlighted switches.		Research notes		
+1	21	210	giveNotesToAva	NpcStep	npc:anma_assistant	3093,3357,0	Give Ava the translated research notes.		Translated notes		quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4
+1	22	220	buildPattern	ItemStep	obj:anma_pattern obj:hard_leather obj:anma_p_buttons		Combine Hard leather and Polished buttons with the pattern.		A pattern; Hard Leather; Polished Buttons		quests/quest_animalmagnetism/scripts/anma_notes.rs2:130 opheldu; +1
+1	23	230	giveContainerToAva	NpcStep	npc:anma_assistant	3093,3357,0	Give Ava the container.		A container		quests/quest_animalmagnetism/scripts/anma.rs2:79 opnpc1; +4

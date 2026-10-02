@@ -259,6 +259,47 @@ ep_use_on_loc(
     player->last_useitem = -1;
 }
 
+/* Pick a ground obj up from the floor within `radius` of the player: the
+ * silver feather is dropped where the kebbit stood (silver_room.rs2 Threaten
+ * and the opening's re-find), not handed over. Returns 1 when one was found. */
+static int
+ep_take_ground_near(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int obj_id,
+    int radius)
+{
+    int dx;
+    int dz;
+
+    assert(srv);
+    assert(player);
+    for( dx = -radius; dx <= radius; dx++ )
+    {
+        for( dz = -radius; dz <= radius; dz++ )
+        {
+            int x = player->x + dx;
+            int z = player->z + dz;
+            int level = player->level;
+            int ground = ToriRSServer_WorldGroundFind(srv, x, z, level, obj_id);
+
+            if( ground < 0 )
+                continue;
+            ep_release(srv, player);
+            ToriRSServer_WorldTeleport(srv, level, x, z);
+            selftest_tick(srv);
+            srv->pending_active_obj = ToriRSServer_WorldObjHandle(srv, ground);
+            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPOBJ3, obj_id, -1, -1);
+            srv->pending_active_obj = 0;
+            ep_drain(srv, player, 0);
+            ep_release(srv, player);
+            selftest_tick(srv);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void
 selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 {
@@ -328,7 +369,6 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     int loc_trail1;
     int loc_trail2;
     int loc_open;
-    int loc_silv_done;
     int loc_door;
     int loc_vine;
     int loc_slot;
@@ -435,7 +475,6 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     loc_trail1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_hunting_trail_spawn1");
     loc_trail2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_hunting_trail_spawn2");
     loc_open = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_kebbit_cavemid");
-    loc_silv_done = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_dungeon_pedestal_puzzle2_complete");
     loc_door = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_gate_mirror");
     loc_vine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "eaglepeak_vines_patch");
     stat_hunter = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "hunter");
@@ -539,6 +578,9 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     asyff_slot = ep_ensure_npc(srv, npc_asyff, 3281, 3398, 0, &spawned_asyff);
     SELFTEST_CHECK(asyff_slot >= 0, "Asyff should spawn");
     ep_talk(srv, player, npc_asyff, asyff_slot);
+    /* asyff.rs2: the bird-costume request is the third row of the peruse
+     * menu (leave / see / bird costumes) while Nickolaus has asked for it. */
+    ep_choose(srv, player, 3);
     ep_drain(srv, player, 0);
     ep_release(srv, player);
     SELFTEST_CHECK(ep_state(player, vb_nick) == 4, "Asyff request should set nick chat 4");
@@ -662,13 +704,16 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     ep_drain(srv, player, 0);
     ep_release(srv, player);
     SELFTEST_CHECK(ep_state(player, vb_track) == 5, "Threaten should set tracking 5");
-    loc_slot = ep_find_loc(player->x + 3, player->z, player->level, loc_silv_done, 4);
-    if( loc_slot >= 0 )
-        ep_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_silv_done, loc_slot);
-    if( selftest_count(player, obj_silvf) < 1 )
+    SELFTEST_CHECK(selftest_count(player, obj_silvf) == 0,
+                   "Threaten drops the silver feather, it is not handed over");
+    /* The fleeing kebbit drops the feather where it stood; pick it up. */
+    if( !ep_take_ground_near(srv, player, obj_silvf, 4) )
     {
+        /* QH pickupSilverFeather: a despawned feather is re-found at the opening. */
         loc_slot = ep_find_loc(player->x, player->z, player->level, loc_open, 4);
         ep_oploc(srv, player, SS_TRIGGER_OPLOC1, loc_open, loc_slot);
+        ep_release(srv, player);
+        ep_take_ground_near(srv, player, obj_silvf, 4);
     }
     SELFTEST_CHECK(selftest_count(player, obj_silvf) == 1, "Threaten yields the silver feather");
     ep_pass("silver-threaten", "OPNPC3 kebbit", "tracking=5 silver feather");
@@ -693,8 +738,11 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
                    "door needs gold bit + bronze bit + tracking 6");
     ep_pass("feather-door", "OPLOCU gate", "gold+bronze+silver seated");
 
-    ep_snap(srv, player, 3, 1993, 4983);
-    guard_slot = ep_ensure_npc(srv, npc_guard, 1993, 4979, 3, &spawned_guard);
+    /* The guard is met on the passage east of the stone door
+     * (^eaglepeak_past_door 2004,4949); from the nest side (z >= 4956) the
+     * same op is the sneak back out (sneak.rs2). */
+    ep_snap(srv, player, 3, 2004, 4949);
+    guard_slot = ep_ensure_npc(srv, npc_guard, 2007, 4952, 3, &spawned_guard);
     SELFTEST_CHECK(guard_slot >= 0, "guard eagle should spawn");
     hp_before = player->hitpoints;
     ep_talk(srv, player, npc_guard, guard_slot);
