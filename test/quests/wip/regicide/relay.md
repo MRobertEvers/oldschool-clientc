@@ -106,3 +106,6 @@
   2. **Iban's temple** (leg 2 `goto-enterWell` ~257 and leg 6 `goto-enterWell-again` ~1183): the door works now (seam1 above): cross the four collapsed bridges from 2173,4725, click upass_templedoor_closed_right from the east, land 2014,4712 L1, walk to the well.
   3. **Leg 6's grid** (`goto-pullLeverAfterGrid-again` ~1102): the same real crossing leg 3 does (safe bands from %varp6010_upass_grid_pattern, rockslides 4/5 by click_loc, the lever).
 - After a fix in one walk, grep the file for the same coordinates and fix every copy (sampler finding a).
+
+## orchestrator note (matthew-mbp-m4-b48 round 4)
+- Round 3's runners re-ran legs 2 and 6 as they were and marked them done (the old rows still passed), so nothing changed. The six teleport rows are now `t.blocked("ROUND 3 (orchestrator): ...")` markers in the file itself: the run stops at the first one until it is replaced by the real route. Replace every marker; leave none.

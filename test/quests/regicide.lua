@@ -235,11 +235,11 @@ return {
             t.ticks(8)
             where("crossLedge-tile")
 
-            t.exec("goto-goThroughPipe", t.player.goto_tile, 2420, 9605, 0)
+            t.blocked("ROUND 3 (orchestrator): the maze -- walk from the ledge landing to the pipe for real and check a tile only that route reaches; this replaced goto 2420,9605 (sampler e4bc0342e). See test/quests/wip/regicide/relay.md round 3")
             t.exec("goThroughPipe", t.player.click_loc, "upass_pipe6", 1)
             t.ticks(8)
             where("goThroughPipe-tile", 2390, 9605, 0)
-            t.check("navigateMaze", true, "the maze's sub steps ran: cell lock, ledge, mud and pipe rows above")
+            -- (the always-true navigateMaze summary row was removed: sampler e4bc0342e finding b)
 
             -- leaveUnicornArea
             t.exec("goto-leaveUnicornArea", t.player.goto_tile, 2373, 9611, 0)
@@ -254,7 +254,7 @@ return {
             where("openIbansDoor-tile")
 
             -- enterWell
-            t.exec("goto-enterWell", t.player.goto_tile, 2010, 4709, 1)
+            t.blocked("ROUND 3 (orchestrator): Iban's temple -- from 2173,4725 cross the four collapsed bridges and click upass_templedoor_closed_right from the east (lands 2014,4712 L1, seam1 2dd52a46a5), then walk to the well; this replaced goto 2010,4709. See relay.md seam1 + round 3")
             t.exec("enterWell", t.player.click_loc, "regicide_voyage_temple_well1", 1) -- regicide_route.rs2:11
             t.ticks(6)
             where("enterWell-tile", 2343, 9622, 0)
@@ -1099,7 +1099,7 @@ return {
                 t.ticks(2)
             end
             t.check("crossThePit-again-crossed", swung, "after the swing :: " .. last_lines(4))
-            t.exec("goto-pullLeverAfterGrid-again", t.player.goto_tile, 2466, 9673, 0)
+            t.blocked("ROUND 3 (orchestrator): the second walk's grid -- cross it as leg 3 does (safe bands from %varp6010_upass_grid_pattern, rockslides 4/5 by click_loc) instead of goto 2466,9673")
             t.exec("pullLeverAfterGrid-again", t.player.click_loc, "portcullis_lever_up", 1)
             t.ticks(8)
             where("pullLeverAfterGrid-again-tile")
@@ -1168,7 +1168,7 @@ return {
             t.exec("crossLedge-again", t.player.click_loc, "upass_ledge", 1)
             t.ticks(8)
             where("crossLedge-again-tile")
-            t.exec("goto-goThroughPipe-again", t.player.goto_tile, 2420, 9605, 0)
+            t.blocked("ROUND 3 (orchestrator): the second walk's maze -- as in leg 2, no goto 2420,9605")
             t.exec("goThroughPipe-again", t.player.click_loc, "upass_pipe6", 1)
             t.ticks(8)
             where("goThroughPipe-again-tile", 2390, 9605, 0)
@@ -1180,7 +1180,7 @@ return {
             t.exec("openIbansDoor-again", t.player.click_loc, "cavetempledoor2r", 1)
             t.ticks(6)
             where("openIbansDoor-again-tile")
-            t.exec("goto-enterWell-again", t.player.goto_tile, 2010, 4709, 1)
+            t.blocked("ROUND 3 (orchestrator): the second walk's temple -- bridges and the door as in leg 2, no goto 2010,4709")
             t.exec("enterWell-again", t.player.click_loc, "regicide_voyage_temple_well1", 1)
             t.ticks(6)
             where("enterWell-again-tile", 2343, 9622, 0)
