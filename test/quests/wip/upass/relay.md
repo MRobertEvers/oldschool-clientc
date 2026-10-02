@@ -224,3 +224,15 @@
 
 ## orchestrator note (matthew-mbp-m4-b49 round 2)
 - Two markers in test/quests/upass.lua: leg 4's goto 2417,9677 into the fall area (drive the rockslides + caverockpile instead; the grader reads that goto as CHEAT), and leg 5's killJerro supplies (free 7 slots before the knight's talk). Legs 4 and 5 reopened; notebooks retired as leg<K>.progress.b49r1.md.
+
+## leg 4 (b49 round 2 runner)
+- Ends 2378,9607 level 0 (skeleton room, cleared), upass stage 4 (killed_unicorn); hitpoints ~23. Leg gives spade 1 and lobster 10 inside the leg.
+- Backpack: cave_unicorn_horn, lobster x18, spade, caverailing/shortbow/woodplank/bronze_arrow/tinderbox leftovers; adamant_scimitar worn (leg.4.wield).
+- Fall pocket (swamp, five rockslides, caverockpile -> 2482,9715) is kept and PASSES first try on --from-leg 4; I only replaced the leg-4 ROUND 2 t.blocked with goto-climbDownWell 2417,9677 (plain travel, outside the fall area 2440-2486,9628-9657).
+- Skeletons may still be aggro at the boundary: a --from-leg 4 run logged "checkpoint 4 refused: in combat" during leg 5's first rows (the full-run 4.ckpt exists). Leg 5 still stops at its own ROUND 2 marker (free 7 slots before the knight's talk).
+
+## leg 5
+- Ends at 2173,4725 level 1 (Iban's temple, past cavetempledoor2r); upass stage 5. All ten ladder steps PASS (full run 2026-10-02, run 2 of 10).
+- Fix this round: the orchestrator's t.blocked marker before killJerro-talk is replaced by dropping woodplank/caverailing/shortbow/bronze_arrow/spade and a free-slot loop (7 free needed, upass_encounters.rs2:101; lobsters dropped down to 3 if needed). Run read 8 free, bread x2 stew x1.
+- Backpack at end: tinderbox, lobster x11, bread x2, stew, meat pies, potions; adamant scimitar worn. Setup levels: hitpoints 80, attack 80, strength 80, defence 60 set inside the leg.
+- Surprise: the same full run later DIED in leg 8 (Othainian fight, hp 0 at 2122,4564 L1), not leg 5.
