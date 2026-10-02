@@ -1,1 +1,0 @@
-{"test_id":"regicide","leg":1,"outcome":"done","runs":3,"last_step":"shootBridgeRope","last_failure":"","blocker":"","doc_gaps":["goBackUpToIbansCavern declared GUIDE-GAP (upass_tunnels.rs2:21): the dwarf cavern is reachable only past the maze that leg 2 drives; leg 2 could drive the down and up tunnels after Iban's door"],"compacted":false}
