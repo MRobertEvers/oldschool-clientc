@@ -187,6 +187,13 @@ return {
         -- door/ladder handlers with zero code change"). ----
         t.exec("goto-enterCave", t.player.goto_tile, 2036, 4636, 0)
         t.exec("getcrystal.enterCave", t.player.click_loc, "mourner_hideout_door4", 1)
+        t.ticks(3)
+        t.player.walk_to(2031, 4636, 12)
+        t.ticks(2)
+        local _, cave_tile = t.world.tile()
+        local cave_x, cave_z = cave_tile.x, cave_tile.z
+        t.check("getcrystal.crossDoor", cave_x ~= nil and cave_x <= 2033,
+            "walked through mourner_hideout_door4 to the cave side: tile " .. tostring(cave_x) .. "," .. tostring(cave_z))
 
         t.exec("goto-searchCorpse", t.player.goto_tile, 1926, 4642, 0)
         t.exec("getcrystal.searchCorpse", t.player.click_loc, "mourning_dead_guard4", 1)
