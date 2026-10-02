@@ -1,0 +1,43 @@
+{
+ "seams": [
+  {
+   "key": "doh_gotomines_graded_gap",
+   "kind": "driver",
+   "quests": [
+    "darknessofhallowvale"
+   ],
+   "summary": "Darkness of Hallowvale guide step goToMines (3.29, NpcStep under returnToMeiyerditch: a female Vyrewatch, sang_myq3_female_walk_vyrewatch_1 at 3615,3263,0, 'Send me to the mines') is graded CONTENT_GAP by tools/quest_gate/helper_coverage.py citing doh_castle.rs2:64 -- but line 64 there is Safalaan's '%varb2573_myq3_main_quest = ^doh_sketch_north' after a choice, not the mines; the parity report says the mines conversation is real content (doh_urgent.rs2:138-272, 'Send me to the mines.', flying spawns bound, 15 ore). Decide which is wrong: if helper_coverage attributes the step to the wrong stage write, fix the grader (PROTOCOL WORK: v3 first via test/quests/orchestrator/vm/v3_protocol_push.sh, then cherry-pick onto vm-b1); if the Vyrewatch step really narrates a stage with no player action, fix the content (doh_urgent.rs2) with a source. Prove with helper_coverage.py darknessofhallowvale on the round-2 test (test/quests/darknessofhallowvale.lua, uncommitted in the tree -- read-only for you, copy it to a scratch path to run).",
+   "evidence": "build/author_state/vm-b1/darknessofhallowvale.review.json (gate RED: helper_coverage MIXED, CONTENT_GAP=1 goToMines at doh_castle.rs2:64, UNMATCHED=1 kickBoard). ladder.py darknessofhallowvale: '3.29 s0 goToMines NpcStep<returnToMeiyerditch npc:sang_myq3_female_walk_vyrewatch_1 (3615,3263,0)'. build/parity_state/vm-b1-parity/darknessofhallowvale.parity.json legs_fixed (doh_urgent.rs2:138-272).",
+   "files": [
+    "tools/quest_gate/helper_coverage.py",
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2"
+   ]
+  },
+  {
+   "key": "doh_kickboard_travel_grade",
+   "kind": "driver",
+   "quests": [
+    "darknessofhallowvale"
+   ],
+   "summary": "Darkness of Hallowvale guide step kickBoard (1.9, ObjectStep loc:meiyerditch_wall_floorboards_multi_loc at 3589,3173,1) is graded UNMATCHED: helper_coverage's travel_op_conflict treats the step as travel because the guide text starts 'Climb ...', and the content's kick (doh_meiyerditch.rs2 [oploc1,meiyerditch_wall_floorboards_multi_loc]: 'Kick in the loose floorboards?' -> varbit 2589 = 1, stage 40 -> 50) does not move the player -- the hole is then an ordinary Climb-down. Decide whether the grader should accept a kick row followed by the hole's Climb-down row as the step (PROTOCOL WORK: v3 first, then cherry-pick), or whether the test should name the following Climb-down row after the step; document the answer in docs/quest_authoring (coverage-and-gate.md already notes the symptom) and prove the round-2 test grades kickBoard DRIVEN.",
+   "evidence": "build/author_state/vm-b1/darknessofhallowvale.review.json findings[1] (kickBoard unmatched: search press is not the climb/travel op); docs/quest_authoring/coverage-and-gate.md 'Gate RED on the last leg's leg.N.end row, and a Search press graded UNMATCHED'.",
+   "files": [
+    "tools/quest_gate/helper_coverage.py",
+    "docs/quest_authoring/coverage-and-gate.md"
+   ]
+  },
+  {
+   "key": "doh_drakan_shortcut_maplink",
+   "kind": "content",
+   "quests": [
+    "darknessofhallowvale"
+   ],
+   "summary": "Darkness of Hallowvale guide step climbUpDrakanWalls (4.31, loc darkm_outer_wall_3h_meyerditch_wall_shortcut_bottom at 3595,3310,1): the shortcut's maplink.dbrow row is keyed on the shortcut's own tile, so a normal click lands at a dead end on 3595,3309,2; the round-2 test reached 3595,3312,0 only through t.drive.op, a logged bypass. Re-key the maplink (or bind the shortcut's own op) so a real click on the shortcut from the guide's tile lands where the wiki and the guide put the player, with a source, and prove a click_loc row does it.",
+   "evidence": "build/author_state/vm-b1/sample.json and the round-2 sampler's doc lines (docs/quest_authoring/gaps-world.md 'Meiyerditch: wall ladders answer on op 2; the Drakan wall shortcut only works from its own tile'); test/quests/darknessofhallowvale.lua (t.drive.op at the shortcut).",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/ladders_stairs/configs/maplink.dbrow",
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_castle.rs2"
+   ]
+  }
+ ]
+}
