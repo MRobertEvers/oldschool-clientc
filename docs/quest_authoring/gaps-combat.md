@@ -316,6 +316,23 @@ adds his line only when `%troll_freed_eadgar` is set, troll_journal.rs2:52), so 
 stages that flag itself; its `%troll_quest` belongs to `::complete quest_trollstronghold` (the
 committed `eadgar.lua` predates the arm and still `::setvar`s it).
 
+## `::complete` writes the prerequisite's `^*_complete` stage, and a later quest gated one stage higher refuses (Animal Magnetism, matthew-mbp-m4-b50)
+
+*Origin: the b50 reviewer of animalmagnetism (content_bug).*
+
+An arm writes the stage that the quest's own completion script writes: its `^*_complete`
+constant (QUEST_SERVER_CHEATS.md, `::complete <quest row>`). It writes no later optional stage.
+`::complete quest_priestinperil` sets `%varp302_priestperil = ^priestperil_complete` (60) and
+mausoleum bit 20 (`quests/scripts/quest_cheat.rs2:993-1003`). Stage 61,
+`^priestperil_access_holy_barrier`, comes only from Drezel's optional Morytania warning
+(`mausoleum_drezel.rs2:147`). Animal Magnetism has `^anma_pip_gate = 61` (`anma.constant:37`), so
+Ava refuses (`anma.rs2:30`) a player who finished Priest in Peril, with or without the cheat.
+
+A prerequisite gate above the prerequisite's `^*_complete` is a content bug in the downstream
+quest. Look up both numbers (`grep -n _complete <prereq>.constant` and the gate constant), then
+report it with `t.blocked` as a `content_bug`. Never `::setvar` the prerequisite up to the gate:
+owner rule (e) forbids writing a prerequisite's varp.
+
 ## The scaffold's `::complete <folder>` and the Usage line; Tree Gnome Village and Underground Pass arms (sonnet-b44; arms parity3g)
 
 *Origin: author batch sonnet-b44 (losttribe, mm, regicide).*

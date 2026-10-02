@@ -240,6 +240,12 @@ from 2638,3445), and a floor-decoration stepping stone with chasm on every side 
 bank across one gap square (tearsofguthix's swamp_cave_steppingstone_a/b from 3204,9572 / 3221,9556)
 -- neither takes the opt-in or a marker.
 
+Some locs really are served only from their own square. Eagles' Peak's tunnel exits are an example
+(matthew-mbp-m4-b50): `eaglepeak_puzzle1_exitmid` (`gold_room.rs2:343`, `enterMainCavernFromGold`)
+and `eaglepeak_human_exitmid` (`eaglepeak.rs2:178`, `leavePeak`) are walkable centre squares, and no
+walk can end on a tile beside them. A walk to either answers "I can't reach that!". Write the
+marker and the opt-in for each.
+
 ### Steps with no target: name the row after the step variable
 
 A step with NO npc/loc target -- an `EmoteStep`, a `PortTaskStep`/`SailStep` (Prying Times), a

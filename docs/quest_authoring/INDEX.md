@@ -356,6 +356,9 @@ topic file with one line added here.
 - `walk_to ... stalled at 2374,9638 -- locs with an op beside the stop: upass_ledge`; "the ledge pocket is sealed" / "walled on z 9615" after the Underground Pass ledge -> seam-facts: Seam pass matthew-mbp-m4-b48-seam2 (a); gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
 - after `upass_pipe6` you stand 26 tiles further west than expected (2387,9605), or one tile on; `upass_unicorn_doorl` sends you to 2371,9666 -> gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
 - a `goto_tile` to a cell door lands inside the cell (`goto 2393,9657`, Underground Pass cells; `pickCellLock`) -> gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
+- matthew-mbp-m4-b50: FULL while a `goto_tile` inside Taverley Dungeon jumps the dusty-key gate (a guide `items:` line naming a key); a `<step>.kept` row PASS over "This feeder already has seed" after a QH recovery step pressed early (Eagles' Peak `fillFeeder7`) -> sampler-findings: Sample matthew-mbp-m4-b50
+- Ava refuses "You need to complete Priest in Peril first." after `::complete quest_priestinperil` (writes 60; Animal Magnetism gates on 61) -> gaps-combat: `::complete` writes the prerequisite's `^*_complete` stage
+- no source for `willow_branch` (Enlightened Journey `talkToAugusteWithBranches`); a `::give` of a hand-in item whose source you did not grep -> content-gaps: Enlightened Journey: no willow branch source
 
 ## Citations: resolving a number or a name
 
