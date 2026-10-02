@@ -8,7 +8,7 @@ quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	green	matthew-mbp-m4-b50			
-quest_belowicemountain	belowicemountain	belowicemountain		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	parity b52 at 8b291135cf (wiki): every leg real (recruits, Atlas, Flex beside Checkal, sandwich, RPS, owned guardian or 4 pillars, bag, Ramarno, endstate 120); legs left: 3 spec-pending cutscenes (chat only), public hall. No test yet -- author per the guide from docs/quests/ladders/belowicemountain.notes.md + build/parity_state/matthew-mbp-m4-b52-parity/scripts/bim_*.lua	2026-10-02T15:30:10Z	todo|
+quest_belowicemountain	belowicemountain	belowicemountain		4	green	matthew-mbp-m4-b52			
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
@@ -16,7 +16,7 @@ quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25
 quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo				
 quest_cabinfever	cabinfever	cabinfever		4	todo				
-quest_childrenofthesun	childrenofthesun	childrenofthesun		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	parity b52 at 8b291135cf (wiki): transcript dialogue, spawns, real tail (spot/lose), marking, escort to roof, roof scene 16-24; legs left: 3 spec-pending cutscenes, Regulus flight (Twilight). No test yet -- author from docs/quests/ladders/childrenofthesun.notes.md + scripts/cots.lua (51/51)	2026-10-02T15:30:10Z	todo|
+quest_childrenofthesun	childrenofthesun	childrenofthesun		4	green	matthew-mbp-m4-b52			
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
@@ -33,7 +33,7 @@ quest_deathontheisle	deathontheisle	deathontheisle		4	todo
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo				
 quest_demon	demon	demonslayer		3	green	sonnet-b33			
-quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	parity b52 at 8b291135cf (wiki): Envoy book searched on a library shelf (::dodshelf), Agility rolls, Artur + Sand Snake placed, rubble climb; legs left: shared cave not instanced, chosen Agility band. No test yet -- author from docs/quests/ladders/depthsofdespair.notes.md + scripts/dod.lua	2026-10-02T15:30:10Z	todo|
+quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	green	matthew-mbp-m4-b52			
 quest_desertrescue	desertrescue	thetouristtrap		2	green	matthew-mbp-m4-b51			
 quest_deserttreasure	deserttreasure	deserttreasure		3	green	sonnet-b46			
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo				
@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	parity b52 at 8b291135cf (wiki): transcript healed-Aimeri menu ("Who are you?" starts), walked entrance, page tertiaries Forthos-only, multi-page/multi-tome hand-ins; legs left: first-meeting dialogue, Aimeri services, lamp Rub, Sarachnis page, Logosia page shop/toggle. No test yet -- author from docs/quests/ladders/insearchofknowledge.notes.md + scripts/isok.lua (48/48)	2026-10-02T15:30:10Z	todo|
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	green	matthew-mbp-m4-b52			
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
@@ -117,7 +117,7 @@ quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b47
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo				
-quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	parity b52 at 8b291135cf (wiki): trail, worn goggles, blockage + owned Sourhog fight, acid, foot tool matrix, exit-before-foot refusal; legs left: Pig Thing cutscene (spec pending; still a narrated blackout), slayer helm/goggles shop, Sourhog weaknesses. No test yet -- author from docs/quests/ladders/porcineofinterest.notes.md + scripts/poi.lua (94/95)	2026-10-02T15:30:10Z	todo|
+quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	green	matthew-mbp-m4-b52			
 quest_priest	priest	therestlessghost		1	green	sonnet-b2			
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
@@ -177,14 +177,14 @@ quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
-quest_upass	upass	undergroundpass		3	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	SETTLED from LostCity (matthew-mbp-m4-b52): the fall pocket exits by five rockslides + caverockpile -> 2482,9715 (LostCity upass_obstacles.rs2:33-55), beside rockslide 1; the guide falls at the START (QH UndergroundPass.java:591-594) and re-climbs rockslides 1-3. Move the fall into leg 1 after climbOverRockslide3, delete leg 4's swamp detour and its goto to the well; plan in test/quests/wip/upass/relay.md 'orchestrator note (matthew-mbp-m4-b52)'. Last green file: test/quests/wip/upass/b49r3_end.lua (235 rows).	2026-10-02T15:48:28Z	todo|matthew-mbp-m4-b47
+quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b52	REJECTED (matthew-mbp-m4-b52): fresh run.py upass --no-build ledger is FAIL (241 rows, pass=173 fail=68). First non-PASS row 137 killJerro: take timeout, paladinbadge1 x0, 'You don't have enough inventory space' (free slots were 7 before the knight talk, but the pickup still failed). Later rows fail through quest.varp_complete (varp161 = 4, expected 10), quest.scroll_title, quest.points delta 0. Legs 5-7 wrote non-PASS rows so checkpoints 5-7 were not written. test/quests/upass.lua is kept uncommitted in the tree.		
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo				
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
-quest_xmarksthespot	xmarksthespot	xmarksthespot		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	parity b52 at 8b291135cf (wiki): transcript Veos trees, clue pages/map interface, casket whisper, lamp Rub; legs left: per-clue map annotation, Kourend-visited variant, scroll box reward, hot/cold thresholds. No test yet -- author from docs/quests/ladders/xmarksthespot.notes.md + scripts/xm.lua (44/44)	2026-10-02T15:30:10Z	todo|
+quest_xmarksthespot	xmarksthespot	xmarksthespot		4	green	matthew-mbp-m4-b52			
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
 quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	sonnet-b30	green after 200d127cb (seam25 closer): Sithik's ladder writes sithik_ogre, Slash Bash drops the artefact; test extended to the completion scroll, 123/123, helper_coverage FULL		
 quest_zombiequeen	zombiequeen	shilovillage		3	green	sonnet-b42			
