@@ -186,6 +186,31 @@ QUEUE.tsv has two claim columns:
 A claimed row has status `claimed` and owner `<batch>@<host>`. Writing any other status
 with `queue.py set` ends the claim.
 
+## Never stop a running pass (owner, 2026-10-02)
+
+**An orchestrator never stops a workflow while any of its agents is working.** Stopping one
+throws away every live agent's context and kills its runs; its notebook survives, but the
+work since the last note is gone. On 2026-10-02 the vm orchestrator stopped `vm-b1-parity`
+twice in fifteen minutes -- once for a protocol change, once for a card it had not finished
+checking -- and two parity workers lost their audits both times. The owner's rule since:
+never lose work like that.
+
+- **A protocol or card change mid-pass waits.** Fix the scripts on the branch for the NEXT
+  launch. The running pass finishes under the cards it started with.
+- **When a later phase would do something wrong** (a closer that would push to `v3`, say),
+  do not stop the pass early. Launch content passes with `stop_after_parity: true` whenever
+  a card change is in flight: the workers finish and persist, the pass returns before the
+  closer, and a relaunch without the flag closes with the fixed card and reuses every
+  report. If the pass is already running without the flag, wait until the journal shows
+  every worker finished and the closer only just started, then stop -- the closer's own
+  notebook is the only thing at risk, and it is empty.
+- **Before ANY relaunch, read the whole card** you are about to run, every phase, and grep it
+  for what the change forbids (`push origin v3`, `HEAD:v3`, `content-lock`, ...). A relaunch
+  you then have to stop is the same loss twice.
+- A pass is stopped only when the owner says so, or when it is provably doing damage that
+  waiting would make worse (pushing to the wrong branch right now). Say what was stopped,
+  which agents were live, and what their notebooks kept, in the same turn.
+
 ## Recovery
 
 - **A stale claim may be released by anyone.** A claim is stale when it is older than 24
