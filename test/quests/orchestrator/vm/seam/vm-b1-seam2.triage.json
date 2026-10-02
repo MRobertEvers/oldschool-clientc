@@ -1,0 +1,56 @@
+{
+ "seams": [
+  {
+   "key": "coldwar_course_water",
+   "kind": "engine",
+   "quests": [
+    "coldwar"
+   ],
+   "summary": "Cold War's Penguin Agility Course water leg cannot be driven: (a) ENGINE: src/torirsserver/torirs_server_scene.c terrain_is_ocean() counts overlay 537 (the course's wading water, 2628-2635,4053-4065,0) as ocean and ocean_blocks_walk blocks it, so a player cannot walk one tile there and stepstone01 refuses 'I can't reach that!'; (b) CONTENT: nothing takes the player from the guide's start tile 2636,4054,1 down into the level-0 water (Quest Helper agilityEnterWater -> inAgilityWater); (c) CONTENT: the crusher npcs peng_agility_crushcourse_crushblock01..04_npc have no op, and the wiki says they are passed by timing a walk. Make the water walkable without opening real ocean anywhere else (an overlay exception or a per-area walk rule, proven not to change a sailing or coastal test), give the course its documented entry into the water, and drive the guide's agilityEnterWater .. agilityExitWater steps through the real client.",
+   "evidence": "test/quests/wip/coldwar/leg4.json (blocked at agilityExitWater: course water leg unwalkable), build/seam_state/vm-b1-seam1/fix.driver_other_floor_loc.json open_issues (overlay 537, ocean_blocks_walk, crushers without ops, stone 7). Source: wiki Penguin Agility Course and Cold War quick guide; docs/quests/cold_war.md; ladder.py coldwar --leg 4.",
+   "files": [
+    "src/torirsserver/torirs_server_scene.c",
+    "OSRS-Content/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2",
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/"
+   ]
+  },
+  {
+   "key": "coldwar_narrated_stages",
+   "kind": "content",
+   "quests": [
+    "coldwar"
+   ],
+   "summary": "Two Cold War stages are advanced by a narrating mes() with no player action, which helper_coverage grades CONTENT_GAP: talkToThing (coldwar_larry.rs2:647) and killIcelords (coldwar_outpost.rs2:253). Replace each with the real interaction the wiki and guide describe (the Thing's dialogue; the icelord kills fought for real), sourced, and prove with a driver row.",
+   "evidence": "build/author_state/vm-b1/coldwar.review.json findings[0..1] (helper_coverage MIXED: CONTENT_GAP talkToThing coldwar_larry.rs2:647 mes, killIcelords coldwar_outpost.rs2:253 mes). Source: docs/quests/cold_war.md.",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_larry.rs2",
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2"
+   ]
+  },
+  {
+   "key": "doh_burgh_inn_climb_over",
+   "kind": "content",
+   "quests": [
+    "darknessofhallowvale"
+   ],
+   "summary": "Darkness of Hallowvale guide steps 1.1/1.2: the Burgh de Rott inn's broken wall burgh_inn_climb_over (3491,3230,0; maps/m54_50.jl2:1516; configs/all.loc:142551) has no [oploc1] handler anywhere, so its Climb-over answers 'Nothing interesting happens.' and the pub trapdoor at 3490,3232 is unreachable. Add the climb (agility-style crossing as the wiki/guide describe) and prove the relay's leg 1 drives past it.",
+   "evidence": "build/author_state/vm-b1/darknessofhallowvale.review.json (content_bug, re-run green to its t.blocked; menu 'Climb-over Broken wall' in shot 003; no handler by grep). test/quests/darknessofhallowvale.lua is committed on vm-b1 at 8c443b94f.",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2"
+   ]
+  },
+  {
+   "key": "ladder_route_order_legs",
+   "kind": "design",
+   "quests": [
+    "thefremennikisles"
+   ],
+   "summary": "tools/quest_gate/ladder.py cuts relay legs in the guide's step order, and The Fremennik Isles' guide order is not the walking order (stage 90 needs the steps the ladder files under legs 2 and 3 first), so leg 1 is not a drivable stretch and the author gave up with 0 runs. Give ladder.py a way to cut legs by stage ranges in route order (e.g. --legs-by-stage 0-60,90-150,160-275,280-290,300- or a per-quest leg-cut file it reads), make `ladder.py <id> --leg K` and the leg card honour it, and write the cut for thefremennikisles. THIS IS PROTOCOL WORK (docs/QUEST_ORCHESTRATOR.md 'Changing the protocol or shared tooling'): commit the ladder.py / relay.md change to v3 first from a v3 worktree (test/quests/orchestrator/vm/v3_protocol_push.sh does it safely), then cherry-pick it onto vm-b1.",
+   "evidence": "build/author_state/vm-b1/thefremennikisles.review.json (rejected: ladder legs in guide order, not route order; re-cut by route 0->60, 90->150, 160->275, 280->290, 300+); test/quests/wip/thefremennikisles/leg1.progress.md; docs/quest_authoring/relay.md 'The legs follow the guide's order, and the route does not'.",
+   "files": [
+    "tools/quest_gate/ladder.py",
+    "docs/quest_authoring/relay.md"
+   ]
+  }
+ ]
+}
