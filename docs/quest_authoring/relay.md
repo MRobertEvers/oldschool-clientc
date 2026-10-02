@@ -378,3 +378,12 @@ A checkpoint run is for authoring. It is never a verdict:
   `leg.3.handin`: varp 2/2, qp 0 -> 1, 300 Cooking XP, the completion scroll. A resumed fight rolls
   as it would have, because the player's random stream is in the checkpoint. The npcs' streams are
   world state and start fresh.
+
+### Reopening a leg that still passes (2026-10-01, matthew-mbp-m4-b48)
+
+Removing a leg's `wip/<id>/leg<K>.json` reruns the leg, but a runner whose leg already
+passes declares it done and changes nothing, even when the relay notes say what to rewrite:
+Regicide's round 3 re-ran its legs 2 and 6 green with every teleport the sampler had
+reverted still in place. To reopen a leg for a rewrite, also replace each row to rewrite
+with a `t.blocked("<what to drive here instead>")` marker in the test file itself, so the
+leg cannot pass until the runner replaces every marker with the real route.
