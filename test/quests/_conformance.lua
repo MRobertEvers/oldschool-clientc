@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 95
+-- @seam-count 96
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 95
+local SEAM_COUNT = 96
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -8444,6 +8444,51 @@ return {
             end
             if potatoes ~= 2 or empties ~= 0 then
                 return "refused", text .. " -- Fill did not take exactly 10 potatoes and the empty sack"
+            end
+            return "ok", text
+        end)
+
+        -- A SECOND COPY DROPPED ON ITS TWIN'S TILE IS A DROP
+        -- (matthew-mbp-m4-b52-seam1 drop_verb_grades_on_ground_count).
+        -- player.drop graded on the ground count RISING, and the client keeps
+        -- one ground row per (tile, obj id) whose count an OBJ_ADD overwrites
+        -- (App_WorldObjStackAdd, src/app/app_world_rebuild.c:172), so the
+        -- second of two non-stackable logs dropped where the player stands
+        -- read `timeout ... backpack 1 -> 0, ground 1` though it left the
+        -- backpack (legends b51 makeBowl.drop-spare-bar-2;
+        -- build/quest_gate/dropseam_before row 3).  Graded: both drops answer
+        -- ok, the backpack goes 2 -> 1 -> 0, and the tile still shows logs.
+        seam("seam.drop_second_copy_on_one_tile", function()
+            local drop = verb("player", "drop")
+            local count = verb("inv", "count")
+            if not drop then return missing("player", "drop") end
+            if not count then return missing("inv", "count") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give logs 2")
+            settle(2)
+            local _, before = count("logs")
+            local first_result, first_detail = drop("logs")
+            local _, after_first = count("logs")
+            settle(1)
+            local second_result, second_detail = drop("logs")
+            local _, after_second = count("logs")
+            local text = "logs " .. describe(before) .. "; drop 1 -> " .. describe(first_result) .. " "
+                .. describe(first_detail) .. " (backpack " .. describe(after_first) .. "); drop 2 -> "
+                .. describe(second_result) .. " " .. describe(second_detail) .. " (backpack "
+                .. describe(after_second) .. ")"
+            if before ~= 2 then
+                return "no_subject", text .. " -- ::give logs 2 did not put two logs in the backpack"
+            end
+            if after_first ~= 1 or after_second ~= 0 then
+                return "no_subject", text .. " -- the world did not drop one log per press"
+            end
+            if first_result ~= "ok" or second_result ~= "ok" then
+                return "refused", text .. " -- a real drop was graded as a failure"
+            end
+            if type(second_detail) ~= "string"
+                or string.find(second_detail, "backpack 1 -> 0", 1, true) == nil
+                or string.find(second_detail, "-> 0 (", 1, true) ~= nil then
+                return "hollow", text .. " -- the second drop's ok did not name backpack 1 -> 0 with logs on the tile"
             end
             return "ok", text
         end)

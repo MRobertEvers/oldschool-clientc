@@ -4185,9 +4185,54 @@ function QD.player.equip(item)
         .. " after " .. presses .. " press(es) -- '" .. QD.player._last_line() .. "'"
 end
 
+-- How much of obj `obj_id` the client shows on the player's OWN tile:
+-- (total, rows).  Every pool row of the obj on that tile is summed.  That is
+-- NOT a count of the copies the server holds there: the client keeps ONE
+-- pool row per (tile, obj id) and an OBJ_ADD for an id already on the tile
+-- overwrites that row's count rather than adding a row
+-- (App_WorldObjStackAdd, src/app/app_world_rebuild.c:172-180), so two
+-- non-stackable logs dropped on one tile read 1 (1 row) for as long as both
+-- lie there (build/quest_gate/dropseam_probe rows 2 and 4: `1/1` every tick
+-- for six ticks after the second drop).  x/z only, like QD.world.obj_near:
+-- the row's level is the grid level the obj was added on, which a bridge
+-- tile need not share with the player's.  (0, 0) when the player's tile
+-- cannot be read.
+function QD.player._ground_on_tile(obj_id)
+    local tile_result, tile = api_drive.player_tile()
+    if tile_result ~= "ok" or type(tile) ~= "table" then
+        return 0, 0
+    end
+    local result, rows = api_drive.objs(1)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return 0, 0
+    end
+    local total, stacks = 0, 0
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.obj_id == obj_id and row.x == tile.x and row.z == tile.z then
+            total = total + (row.count or 0)
+            stacks = stacks + 1
+        end
+    end
+    return total, stacks
+end
+
 -- DROPPED means the backpack lost it AND a stack of it is on the ground where
 -- the player stands.  The second half is what separates a drop from an equip,
 -- a destroy, or a delayed effect of whatever the previous verb sent.
+--
+-- Graded on the BACKPACK FALLING, with the ground holding >= 1 of the item on
+-- the player's own tile as the supporting half -- never on a ground count
+-- rising.  Until seam pass matthew-mbp-m4-b52-seam1 the second half was "the
+-- nearest ground stack's count rose" (QD.world.obj_near(item, 1).count), and a
+-- second identical NON-STACKABLE item dropped on a tile that already holds one
+-- does not raise anything the client shows (_ground_on_tile's banner: one
+-- pool row per tile and id, its count overwritten), so a real drop read
+-- `timeout ... backpack 1 -> 0, ground 1` (legends b51
+-- makeBowl.drop-spare-bar-2; build/quest_gate/dropseam_before row 3).  A
+-- ground count cannot grade that drop at all, so the backpack does.  The
+-- detail still names the tile's total before -> after, so a drop whose total
+-- did not rise is visible in the row.
 function QD.player.drop(item)
     local obj_result, obj_id = api_drive.symbol("obj", item)
     if obj_result ~= "ok" then
@@ -4201,35 +4246,37 @@ function QD.player.drop(item)
     if before_result ~= "ok" then
         return before_result, "inv_count"
     end
-    local ground_before = 0
-    local ground_result, ground = QD.world.obj_near(item, 1)
-    if ground_result == "ok" and type(ground) == "table" then
-        ground_before = ground.count or 0
-    end
+    local ground_before = QD.player._ground_on_tile(obj_id)
     local dispatch_result, detail = QD.player._inv_dispatch(item, 5, "drop")
     if dispatch_result ~= "ok" then
         return dispatch_result, detail
     end
+    local after = before
+    local ground_after, stacks_after = 0, 0
     local landed = QD.await({
         level = function()
             local count_result, total = api_drive.inv_count(container_id, obj_id)
             if count_result ~= "ok" or total >= before then
                 return false
             end
-            local here_result, here = QD.world.obj_near(item, 1)
-            return here_result == "ok" and type(here) == "table"
-                and (here.count or 0) > ground_before
+            after = total
+            ground_after, stacks_after = QD.player._ground_on_tile(obj_id)
+            return ground_after >= 1
         end,
         note = "drop " .. item,
     }, 10)
     if landed == "ok" then
-        return "ok", "drop " .. item .. ": backpack " .. tostring(before)
-            .. " -> less, ground " .. tostring(ground_before) .. " -> more"
+        return "ok", "drop " .. item .. ": backpack " .. tostring(before) .. " -> " .. tostring(after)
+            .. ", ground on the player's tile " .. tostring(ground_before) .. " -> "
+            .. tostring(ground_after) .. " (" .. tostring(stacks_after) .. " row(s))"
     end
-    local after_result, after = api_drive.inv_count(container_id, obj_id)
+    local after_result, after_now = api_drive.inv_count(container_id, obj_id)
+    ground_after, stacks_after = QD.player._ground_on_tile(obj_id)
     return landed, "drop " .. item .. ": backpack " .. tostring(before) .. " -> "
-        .. tostring(after_result == "ok" and after or after_result)
-        .. ", ground " .. tostring(ground_before) .. " -- '" .. QD.player._last_line() .. "'"
+        .. tostring(after_result == "ok" and after_now or after_result)
+        .. ", ground on the player's tile " .. tostring(ground_before) .. " -> "
+        .. tostring(ground_after) .. " (" .. tostring(stacks_after) .. " row(s)) -- '"
+        .. QD.player._last_line() .. "'"
 end
 
 -- Did the `select` press actually land the HELD-ITEM row?
