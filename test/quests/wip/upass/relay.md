@@ -236,3 +236,6 @@
 - Fix this round: the orchestrator's t.blocked marker before killJerro-talk is replaced by dropping woodplank/caverailing/shortbow/bronze_arrow/spade and a free-slot loop (7 free needed, upass_encounters.rs2:101; lobsters dropped down to 3 if needed). Run read 8 free, bread x2 stew x1.
 - Backpack at end: tinderbox, lobster x11, bread x2, stew, meat pies, potions; adamant scimitar worn. Setup levels: hitpoints 80, attack 80, strength 80, defence 60 set inside the leg.
 - Surprise: the same full run later DIED in leg 8 (Othainian fight, hp 0 at 2122,4564 L1), not leg 5.
+
+## orchestrator note (matthew-mbp-m4-b49 round 3)
+- Round 2 reached the completion for its author, but the reviewer's rerun died to Othainian (tick 3634): leg 7 is reopened with one marker before the three demon fights -- carry sharks for three level-91 demons, eat earlier, pray if needed. Legs 1-6 and 8 stand.
