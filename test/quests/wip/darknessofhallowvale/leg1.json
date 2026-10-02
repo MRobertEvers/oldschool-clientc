@@ -1,1 +1,0 @@
-{"test_id":"darknessofhallowvale","leg":1,"outcome":"done","runs":16,"last_step":"talkToCitizen","last_failure":"","blocker":"","doc_gaps":["new_quest.py needs --qh-root pointing at helpers/quests"],"compacted":false}
