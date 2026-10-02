@@ -278,3 +278,19 @@ Owner: Underground Pass is a LostCity quest; fix it against the LostCity impleme
   goto-collectOrb3 (walk to 2387,9677; 'Oh dear, you are dead!'), hitpoints 40 at leg.3.start after one lobster. Leg 2
   ends on hitpoints 6 with no food. Find what killed the player on that walk (traps? aggressive npcs?) and carry/eat
   enough; keep every other leg-3 row. Notebook retired as leg3.progress.b49.md.
+
+## leg 1 (b52 re-run, PROVEN 44/0 on --only-leg 1; note --from-leg 1 runs on through later legs)
+- Ends at 2454,9716,0 beside Koftik; stage varp161_upass=1; backpack shortbow, 5 bronze arrows, tinderbox, rope, damp_cloth. Checkpoint 1 written.
+- The swamp fall (enterSwampBubbles -> 2485,9649, five pocket rockslides, caverockpile -> 2482,9715) is now in leg 1; rockslides 1-3 are re-climbed judged by far-side tile. No lobster left at the end; hitpoints low is fine.
+
+## leg 3 (b52 runner)
+- Ends at 2383,9668 level 0 (beside the logtrap rock); upass stage 2; all of passTrap5, plankRock1-3, collectOrb1-4 PASS (full run 4 and --from-leg 3).
+- Backpack: caveorb1-4, woodplank x1, bronze_arrow x4, tinderbox, lobster x3 (the leg eats/drops surplus: leg.3.pack); shortbow worn. Levels: setup agility 50 (added to setup: the leg-2 rope swing rolled agility 100,410 and a level-1 account fell into the swamp deterministically after leg 1 moved the rng), inside leg 3 hitpoints 70 defence 50.
+- Why the closer died: hop-walks through the blessed spiders (2395-2404,9680-9684) at hp 40 ate only at <=6. Now lobster 14, hp 70, defence 50, eat <=30 in hops and in the orb walks.
+- OPEN, not mine: leg 5 killJerro "take timeout: You don't have enough inventory space" (killJerro-room reads 7 free, the knight's talk then gives bread x2 + stew; 7 is one too few). Leg 5 needs ~10 free; leg 4 ends with lobster x21.
+
+## leg 4 (b52 runner, --from-leg 4 run 1: all 30 leg-4 rows PASS, leg.4.end PASS)
+- Leg 4 text already carried the b52 restructure (no swamp detour; goto-climbDownWell leaves from the furnace 2455,9682). No edit needed.
+- Ends at 2385,9610 level 0 (skeleton room, cleared); upass stage 4 (killed_unicorn); hitpoints ~58. Worn adamant_scimitar.
+- Backpack: cave_unicorn_horn, lobster x21, spade, woodplank, 4 bronze_arrow, tinderbox, caverailing, shortbow. Leg gives spade 1 + lobster 10 inside the leg; levels attack/strength 40, defence 45 set in the tail.
+- OPEN, leg 5 (not mine): killJerro "take timeout: You don't have enough inventory space" after the knight's talk (7 free is one too few; lobster x21 arrives from leg 4).
