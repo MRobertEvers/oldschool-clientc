@@ -34,14 +34,15 @@ Usage
                                               row by row during a git merge
 
 Every write to the ledger or the lock is a transaction on origin/v3 itself,
-never on the checked-out branch: the tool fetches, adds a throwaway
-worktree at origin/v3 (build/claim_v3_worktree), changes the one file there,
-commits it (that path only) and pushes HEAD:v3. A rejected push (another
-machine pushed first) merges origin/v3 into the worktree -- a conflict in
-OUR file is resolved by taking origin's copy whole and re-applying the
-change, so a row another machine claimed in between is DROPPED (and
-named), never double-claimed -- and pushes again, at most four rounds. The
-worktree is removed afterwards. Never forces. When the checkout itself is
+never on the checked-out branch, and nothing is checked out to make it: the
+tool fetches, reads the one file from origin's tip, applies the change to a
+copy under build/claim_ledger_tmp, and builds the commit with git plumbing
+(hash-object, a private index, write-tree, commit-tree) on top of that tip,
+then pushes it to v3. A rejected push (another machine pushed first)
+re-reads origin's new copy and re-applies the change, so a row another
+machine claimed in between is DROPPED (and named), never double-claimed --
+at most four rounds. Never forces. (The first version added a full v3
+worktree, 11,189 files, and ran a cloud machine out of disk.) When the checkout itself is
 on v3 and level, it is fast-forwarded so the caller sees the claim.
 
 Exit codes: 0 done (the final list is printed); 2 refused (unknown id, push
@@ -128,68 +129,32 @@ def current_branch(repo=None) -> str:
     return git("branch", "--show-current", repo=repo).stdout.strip()
 
 
-# ------------------------------------------------------------------ the v3 worktree
+# ------------------------------------------------------------------ the ledger commit
 
-class V3Worktree:
-    """A throwaway checkout of origin/v3 under build/, so a ledger write never
-    depends on what branch the real checkout is on."""
-
-    def __init__(self):
-        self.path = REPO / WORKTREE_REL
-
-    def __enter__(self):
-        git("fetch", REMOTE)
-        if self.path.exists():
-            git("worktree", "remove", "--force", str(self.path), check=False)
-            shutil.rmtree(self.path, ignore_errors=True)
-        git("worktree", "prune", check=False)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        git("worktree", "add", "--detach", str(self.path), upstream())
-        return self
-
-    def __exit__(self, *exc):
-        git("worktree", "remove", "--force", str(self.path), check=False)
-        shutil.rmtree(self.path, ignore_errors=True)
-        git("worktree", "prune", check=False)
-        return False
+LEDGER_TMP_REL = "build/claim_ledger_tmp"
 
 
-def wt_file_changed(wt: Path, rel_path: str) -> bool:
-    return git("diff", "--quiet", "HEAD", "--", rel_path, repo=wt, check=False).returncode != 0 or \
-        git("ls-files", "--error-unmatch", rel_path, repo=wt, check=False).returncode != 0
+def git_env(args, env_extra=None, input_text=None, check=True):
+    env = dict(os.environ)
+    env.update(env_extra or {})
+    proc = subprocess.run(["git", "-C", str(REPO)] + list(args), capture_output=True, text=True,
+                          env=env, input=input_text)
+    if check and proc.returncode != 0:
+        raise Refused("git %s failed (%d): %s" % (" ".join(args), proc.returncode,
+                                                 (proc.stderr or proc.stdout).strip()))
+    return proc
 
 
-def wt_commit_path(wt: Path, rel_path: str, message: str) -> None:
-    git("add", "--", rel_path, repo=wt)
-    git("commit", "-m", message, "--", rel_path, repo=wt)
-
-
-def wt_merge_upstream_taking_theirs(wt: Path, rel_path: str) -> None:
-    """Fetch + merge origin/v3 into the worktree. A conflict confined to
-    rel_path is resolved by origin's copy (the caller re-applies its own
-    change after); anything else refuses."""
-    git("fetch", REMOTE)
-    proc = git("merge", "--no-edit", upstream(), repo=wt, check=False)
-    if proc.returncode == 0:
-        return
-    conflicted = [p for p in git("diff", "--name-only", "--diff-filter=U", repo=wt).stdout.split() if p]
-    if conflicted and set(conflicted) == {rel_path}:
-        theirs = git("show", "%s:%s" % (upstream(), rel_path), repo=wt, check=False)
-        with open(wt / rel_path, "w", encoding="utf-8", newline="") as handle:
-            handle.write(theirs.stdout if theirs.returncode == 0 else "")
-        git("add", "--", rel_path, repo=wt)
-        git("commit", "--no-edit", repo=wt)
-        return
-    git("merge", "--abort", repo=wt, check=False)
-    raise Refused("merging %s into the v3 worktree did not go through (%s): nothing was pushed"
-                  % (upstream(), ", ".join(conflicted) or (proc.stderr or proc.stdout).strip()))
+def ledger_branch() -> str:
+    """$QUEST_LEDGER_BRANCH lets a self-test aim the ledger at a throwaway branch."""
+    return os.environ.get("QUEST_LEDGER_BRANCH") or BRANCH
 
 
 def sync_checkout_to_v3() -> None:
     """After a push to v3: a checkout that sits on v3 and was level is
     fast-forwarded so the caller sees the ledger it just wrote. A batch
     branch is left alone (it merges v3 at `done`)."""
-    if current_branch() != BRANCH:
+    if current_branch() != BRANCH or ledger_branch() != BRANCH:
         return
     if git("merge", "--ff-only", upstream(), check=False).returncode != 0:
         print("note: the checkout's v3 is not fast-forwardable to %s; it was left as is" % upstream(),
@@ -197,32 +162,54 @@ def sync_checkout_to_v3() -> None:
 
 
 def transact(rel_path: str, apply, message: str):
-    """Run apply(wt) (which edits rel_path inside the v3 worktree and returns
-    a result), commit and push to v3; on a rejected push merge origin and
-    re-run apply(). Returns the result of the last apply()."""
-    with V3Worktree() as tree:
-        wt = tree.path
-        result = apply(wt)
-        if not wt_file_changed(wt, rel_path):
-            return result
-        wt_commit_path(wt, rel_path, message)
+    """Run apply(root) on a copy of origin/<ledger branch>'s rel_path laid out
+    under root (build/claim_ledger_tmp), and commit the changed file on top of
+    origin's tip WITHOUT checking anything out: the blob, a tree built in a
+    private index, commit-tree, push <commit>:<branch>. Nothing in the real
+    checkout or its index is touched, whatever branch it is on, and no
+    worktree is written to disk. A rejected push (another machine pushed
+    first) fetches again and re-runs apply() on origin's new copy -- so a row
+    another machine claimed in between is dropped and named, never
+    double-claimed. At most PUSH_ROUNDS rounds; never forces."""
+    branch = ledger_branch()
+    remote_ref = "%s/%s" % (REMOTE, branch)
+    root = REPO / LEDGER_TMP_REL
+    try:
         for round_no in range(1, PUSH_ROUNDS + 1):
-            push = git("push", REMOTE, "HEAD:%s" % BRANCH, repo=wt, check=False)
+            git("fetch", REMOTE, branch)
+            base = git("rev-parse", "FETCH_HEAD").stdout.strip()
+            shutil.rmtree(root, ignore_errors=True)
+            (root / rel_path).parent.mkdir(parents=True, exist_ok=True)
+            shown = git("show", "%s:%s" % (base, rel_path), check=False)
+            before = shown.stdout if shown.returncode == 0 else ""
+            with open(root / rel_path, "w", encoding="utf-8", newline="") as handle:
+                handle.write(before)
+            result = apply(root)
+            with open(root / rel_path, "r", encoding="utf-8", newline="") as handle:
+                after = handle.read()
+            if after == before:
+                return result
+            blob = git_env(["hash-object", "-w", "--stdin"], input_text=after).stdout.strip()
+            index_env = {"GIT_INDEX_FILE": str(root / "index")}
+            git_env(["read-tree", base], index_env)
+            git_env(["update-index", "--add", "--cacheinfo", "100644,%s,%s" % (blob, rel_path)], index_env)
+            tree = git_env(["write-tree"], index_env).stdout.strip()
+            commit = git_env(["commit-tree", tree, "-p", base, "-m",
+                              message if round_no == 1 else message + " (after another machine's push)"]).stdout.strip()
+            push = git("push", REMOTE, "%s:refs/heads/%s" % (commit, branch), check=False)
             if push.returncode == 0:
-                print("pushed: %s" % git("log", "-1", "--format=%h %s", repo=wt).stdout.strip())
+                print("pushed: %s %s" % (commit[:9], git("log", "-1", "--format=%s", commit).stdout.strip()))
                 git("fetch", REMOTE, check=False)
                 sync_checkout_to_v3()
                 return result
             text = push.stderr + push.stdout
             if not any(word in text for word in ("rejected", "non-fast-forward", "fetch first")):
                 raise Refused("push failed: %s" % text.strip())
-            print("push rejected (round %d): another machine pushed first -- merging %s and "
-                  "re-checking" % (round_no, upstream()), file=sys.stderr)
-            wt_merge_upstream_taking_theirs(wt, rel_path)
-            result = apply(wt)
-            if wt_file_changed(wt, rel_path):
-                wt_commit_path(wt, rel_path, message + " (after merging %s)" % upstream())
+            print("push rejected (round %d): another machine pushed first -- re-reading %s and "
+                  "re-checking" % (round_no, remote_ref), file=sys.stderr)
         raise Refused("push still rejected after %d rounds; nothing was pushed" % PUSH_ROUNDS)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 # ------------------------------------------------------------------ claims
