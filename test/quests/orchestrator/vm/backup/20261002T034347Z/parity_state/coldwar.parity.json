@@ -1,0 +1,58 @@
+{
+ "test_id": "coldwar",
+ "quest_dir": "quest_coldwar",
+ "source": "wiki",
+ "legs_fixed": [
+  "start + materials + 'Off to the iceberg' fade teleport (was: no first trip, hard blocker) OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_larry.rs2:114-200, coldwar_shared.rs2:56",
+  "bird hide: plank-on-patch frame, spade/Dig cover, hide multiloc 0-3, state 10 written by the spade (was: oploc handlers with a mes) OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_birdhide.rs2:8-66, spade chain OSRS-Content/osrs239-content/server/scripts/general_use/scripts/spade.rs2:42",
+  "observation: greeting rolled from the 8 penguin emotes (was 4 invented ones), repeatable 'Use' on the hide, 15 then 20 conversation OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_larry.rs2:462-520, coldwar_shared.rs2:122-150",
+  "Rellekka Larry: planning talk + clockwork book (state 20/15 -> 25), lost-book reissue, row boat / Larry Travel op4 both ways OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_larry.rs2:604-680",
+  "suit service: Tuxedo-time op3 with hand/cape checks, suit item into the cape slot, p_transmogrify peng_suit_npc, per-tick zone timer, login restore, manual removal 'stuck' vs HQ eject to Larry OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_shared.rs2:265-360, coldwar_larry.rs2:8-47, OSRS-Content/osrs239-content/server/scripts/player/scripts/equip.rs2:156, OSRS-Content/osrs239-content/server/scripts/player/login.rs2:71",
+  "native eight-emote greeting: interface 223 mounted on the emote tab, 8 IF1 buttons, immediate failure, 3-step code with the player's own varbits (was 3 chat menus) OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_shared.rs2:94-262",
+  "zoo: enclosure gate, penguin greeting convo, Ardougne report (full pack safe), Between a Rock / Enlightened Journey branches, phrase via worn Ring of Charos or raw cod, lost-report replacement OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_zoo.rs2:8-190",
+  "Lumbridge: Larry multinpc varbit, sheep greeting/rebuff/phrase/outpost + Lumbridge report + password, Fred bully/warn, cowbell Steal-cowbell op2 with the real success roll (was bound to Milk) and Zanaris cow OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_lumbridge.rs2:5-200",
+  "iceberg KGP greeting + password, Noodle trade (2 free slots, ID + fake report, replacements), KGP ID check, avalanche entry (human = red alert) OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2:22-200",
+  "debrief hands over and consumes all three reports (was: no check) OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2:202",
+  "crush-course door -> course start (was: narrated, no movement), instructor 100->105, Army Commander, way back OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2:273-320",
+  "Ping and Pong: bard talk, instrument hand-in, song dialogue, booth guard clearance, bongos recipe open in the post-quest and refused in the suit, cowbell/bongos Play OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2:320-475",
+  "control panel removes the real blast door, war room door -> capture scene, suit confiscated, pen teleport, pen drag-back timer OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2:477-535",
+  "Icelords: real combat, 40 Attack XP per kill in the pen, 1-3 kill door rule, pen door, chasm, post-quest crack OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2:537-590",
+  "idempotent completion + Larry finish dialogue, Larry leaves Lumbridge OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_shared.rs2:366, coldwar_larry.rs2:583",
+  "journal: one block per state, greeting spelled, unknown state no longer reads complete OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_journal.rs2",
+  "debugproc ::coldwar / ::cwrun rewritten onto the new state machine, bmp reset extended OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_debug.rs2, coldwar_bmp.rs2"
+ ],
+ "legs_left": [
+  "cutscene (spec pending: 7 scenes, docs/quests/cutscenes/) -- TRIAGE.tsv coldwar #1-#7; what each scene says is in dialogue, no camera ported",
+  "penguin agility course obstacle chain end to end: stones 1-6, icicles and ice are driven; the level-0 steps/crushers (driver other_floor) and stone 7 could not be pressed by the driver, instructor reached through the fence gate from the north",
+  "POH clockmaking of the suit (existing poh_workshop_functions.rs2) not driven: the suit was ::give'n in the scratch legs",
+  "Larry refusing followers on the teleport (2016 change): no OSRS pet/follower state exists in the pack",
+  "clockwork suit Wind/Release toy behaviour (peng_suit_wound) is not quest content and is not implemented"
+ ],
+ "files_changed": [
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/configs/coldwar.constant",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_shared.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_larry.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_zoo.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_lumbridge.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_birdhide.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_outpost.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_journal.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_debug.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_bmp.rs2 (legacy banner + reset of the new side state only)",
+  "OSRS-Content/osrs239-content/server/scripts/player/scripts/equip.rs2 (shared: unequip hook for the suit)",
+  "OSRS-Content/osrs239-content/server/scripts/player/login.rs2 (shared: ~coldwar_login)",
+  "OSRS-Content/osrs239-content/server/scripts/general_use/scripts/spade.rs2 (shared: ~coldwar_try_dig in the dig chain)",
+  "docs/quests/ladders/coldwar.ladder.tsv",
+  "docs/quests/ladders/coldwar.notes.md"
+ ],
+ "proof": "make -C src torirsserver-scripts exit 0. Real-client scratch runs (run.py --script, --name parity_coldwar, ledgers in build/parity_state/vm-parity1/coldwar.leg*.ledger.tsv), all PASS on the final content: legA 39/39 (A3.plankOnPatch 'backpack: lost plank_oak 10->0, nails 10->0', A3.hide1 hide=1, A4.hide2 hide=2, A4.stage10 varb3293_peng_quest = 10, A5.code 1-5-2, A6.stage20, A7.relleka tile 2707,3732, A8.stage25 + book 1); legB 58/58 (B1.iceberg tile 2658,3987 level 1, B1.hideBlown hide=3, B3.transmog transmog=1 + B3.suitMoved suit x0, B6.failed doing_greeting=0 after one wrong emote, B7.e1-e3 via peng_emote_<name> components, B7.report peng_report_1 x1, B7.stage45, B8.human, B9.larryLumbridge multi_larry=1); legC 73/73 (C3.stage50, C6.stage55 + raw_cod x0, C7.stage60, C8.stage65, C9.cowbell); legD 76/76 (D1.cowbell cowbells 1, D2.stage70 + report2 x1, D3.iceberg tile 2658,3987,1, D4.stage75, D5.stage85 + peng_id x1 + peng_report_3 x1 + swamp_tar x0 + feather x0, D6.stage90, D7.inside tile 2658,10373, D8.stage95 + r1/r2/r3 x0, D9.course tile 2643,4034 level 1, D9.stage100); legE 51/51 (E0.stuck 'You appear to be stuck and need Larry's help', E1.stage105 instructor, E3.corridor tile 2633,10403, E4.human + E4.besideLarry tile 2670,3988,1, E5.stage110, E5.earlyBongos 'Nothing interesting happens', E6.stage115, E7.still115 booth guard, E8.suitedBongos 'flippers are too clumsy', E8.bongos peng_bongos x1, plank/leather x0); legF 38/38 (F1.stage120 + multi_kgp=2 + bongos/cowbell x0, F2.shutBefore 'walk north before the panel -> timeout ... stalled at 2658,10408 ... peng_ba[se_blast_door]' then F2.openAfter 'ok' tile 2658,10413, F3.stage125 + transmog=0 + suit x0 + F3.inPen tile 2645,10425, F4.refused, F5.stage130 after real Icelord kills); legF2 24/24 (G1.stage130, G2.afterDoor tile 2638,10424, G3.surface tile 2670,3988 level 1, quest.varp_complete client=135 server=135, quest.scroll_title 'You have completed Cold War!', quest.points qp 0 -> 1 delta=1, quest.journal complete=true, G4.agilityXp +5000, G4.craftingXp +2000, G4.constructionXp +1500, G4.larryGone multi_larry=0); legG 19/19 (spade Dig near the hide -> hide=2 + stage 10, report/book Read mesboxes, Larry Travel to the dock tile 2707,3732 and back to 2658,3987,1); legH 17/17 (worn Ring of Charos -> stage55, leaving the area drops the suit: transmog=0, suit x1); legI 14/14 (post-quest bongos, post-quest Larry Tuxedo-time, crack -> pen tile 2645,10425); legJ 5/5 (::cwrun reaches 135, ::coldwar resets to 0). Regressions: run.py cooks_assistant -> gate.py green, run.py druid -> gate.py green. Ladder written (docs/quests/ladders/coldwar.ladder.tsv, 51 steps) + notes.md (2316 bytes). The cutscene sweep cannot read LostCity here; verdict is WIKI_MISSING by construction (post-LostCity quest), 7 scenes in TRIAGE.tsv.",
+ "open_issues": [
+  "Shared-file edits (smallest possible, all mine): player/scripts/equip.rs2 [proc,unequip] 5-line suit hook; player/login.rs2 one ~coldwar_login line after ~emote_login; general_use/scripts/spade.rs2 one ~coldwar_try_dig arm. Nothing else outside quest_coldwar was edited (fred_the_farmer.rs2, leather.rs2, dairy_cow.rs2, poh files, My Arm's [oploc1,peng_boat_rell] untouched).",
+  "coldwar_bmp.rs2 and selftest/quests/quest_coldwar/scenes/*.bmp are stills of the PRE-parity dialogue (banner added); they are not evidence of any leg and may be deleted by the closer.",
+  "test/quests/coldwar.lua does not exist; the scratch drivers (scratchpad legA..legJ.lua, generated by mk.py/leg*.py) are not committed. The ledgers are in build/parity_state/vm-parity1/. An author batch should turn them into the real test (the stage-skipping ::setvar setups used between legs would need to become real drives; the POH suit and the course steps/stone 7 are the two places a driver seam showed).",
+  "Mission report and clockwork book texts are original paraphrase: the wiki's transclusions of Transcript:Mission report / Clockwork book could not be fetched.",
+  "Invented/unverified details (no wiki evidence): the enclosure gate refuses a person; the red-alert eject also fires on Noodle and the avalanche; Larry stays in Lumbridge from state 45 to completion; the pen door opens after 1-3 kills by a 1/3, 1/2, sure ladder (wiki only says 1-3); the blast door stays open 50 ticks; the pen drag-back timer polls every 2 ticks.",
+  "The pack was rebuilt many times by concurrent workers during the runs; every ledger above was taken on a pack built after my last content edit (fingerprint checked by run.py).",
+  "A person-sized penguin course gate (peng_agility_fencing_door) is reached only from its north side; from the east the walk ends 4 tiles short (driver and presumably players): pre-existing geometry in skill_agility/scripts/penguin_course.rs2, not changed."
+ ]
+}

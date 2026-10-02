@@ -1,0 +1,56 @@
+{
+ "test_id": "darknessofhallowvale",
+ "quest_dir": "quest_darknessofhallowvale",
+ "source": "wiki",
+ "legs_fixed": [
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:12 start requirements: Construction/Thieving/Agility/Magic boostable (stat), Mining/Crafting/Strength base",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2:142 boat and chute repair: hammer + plank + 4 nails each (any nail grade), only after Veliaf asks, stage 20 then 30, Push, board; boat at doh_burgh.rs2:186 (one handler for both boats, child-first dispatch)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:16 landing: deck -> jump the rock (aploc, gap is blocked water) -> Climb-up (maplink); floorboards kick :47; wall rubble Climb-over :69",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:123,144 citizens and Old Man Ral (riddle option, no early knife), :251 jump/crawl/rope/push-wall/floor/table/tunnel/pots/door/ladder-top/knife-wall/decorated-wall/rug course as real locs with Agility 25 base (:375 floor crossing, :441 door+key, :466 ladder top, :513 knife wall, :558 rug)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:572 Vertida: message handed only with a free slot, replaced if lost; hideout trapdoor and ladder at :667 (A Taste of Hope's ladder trigger delegates)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2:12 Drezel (shell trigger in mausoleum_drezel.rs2) gives law/fire/3 air atomically instead of teleporting; :69 bush; :90 King Roald (king_roald.rs2 delegates) and Aeonisig teleport",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2:138-272 Vyrewatch 'Send me to the mines.' (flying spawns bound), miner pick, real Daeyalt mining, 15 ore into the cart, guard lets you out; configs/darknessofhallowvale.npc huntmode=none for the Vyrewatch",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_castle.rs2:47 Safalaan supplies (charcoal + 3 papyrus atomically), :121 sketches only at the three logo tiles in order consuming one papyrus, :185 Vanstrom's five blows (npc varn counter, Protect from Melee, cannot be hurt) and :211 knock-out, Sarius at :230",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:15 fireplace (knife; silver sickle refused), :75 portrait knife+Inspect key, :128 statue key consumed, :172 lab door, :198 rune case runes once, Telekinetic Grab is the ordinary spell on the world-spawned book, tapestry; Safalaan handover keeps the message and takes one of each sketch (doh_castle.rs2:68)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_shared.rs2:103 atomic completion (message slot becomes the Tome), :128 Tome read: skill menu, level 30 gate, 3 chapters (3)->(2)->(1)->gone, replacement via sinsofthefather.rs2 hook; ::complete now gives the Tome (quest_cheat.rs2)",
+  "OSRS-Content/osrs239-content/server/scripts/doors, doh_lab.rs2:172 and the shortcut doors (myq3_door_shortcut_reward) locked until 320"
+ ],
+ "legs_left": [
+  "cutscene (spec pending: 2 scenes, docs/quests/cutscenes/): west-sketch three vampyres, Vanstrom ambush / Sarius wake-up; the werewolf bush has no camera work (not triaged)",
+  "Vyrewatch harassment random encounters (blood tithe 6 damage, invulnerable fight, Thieving distraction, mine punishment fields myq3_vamp_hassle/conv_step/chat_value/ignore_count)",
+  "stage 52 and 195 are never written (the guide draws one arrow across them)",
+  "Vertida's escort at 180 is a dialogue plus the walk of the western wall; no animated leading",
+  "Temple Trekking Burgh de Rott Ramble gate and the hideout chest Tome replacement after A Taste of Hope not touched",
+  "doh_bmp.rs2 named-BMP harness still parks on narrated mesboxes (screenshot setup only, not game content)"
+ ],
+ "files_changed": [
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/configs/darknessofhallowvale.constant",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/configs/darknessofhallowvale.npc (new)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/configs/darknessofhallowvale.varn (new)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_castle.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_lab.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_shared.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_debug.rs2 (new, ::dohgrid collision probe)",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_priestperil/scripts/mausoleum_drezel.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/areas/varrock/scripts/king_roald.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_sinsofthefather/scripts/sinsofthefather.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/quest_tasteofhope/scripts/tasteofhope.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/quests/scripts/quest_cheat.rs2",
+  "OSRS-Content/osrs239-content/server/scripts/ladders_stairs/scripts/climb_shared.rs2",
+  "OSRS-Content/osrs239-content/pack/varn.alloc",
+  "docs/quests/ladders/darknessofhallowvale.ladder.tsv",
+  "docs/quests/ladders/darknessofhallowvale.notes.md"
+ ],
+ "proof": "make -C src torirsserver-scripts compiles. Scratch drivers build/parity_state/vm-b1-parity/doh.leg1..9.lua through the real client (ledgers doh.legN.ledger.tsv beside them), final content: leg1 start/repair/push/board 19/19 PASS; leg2 landing,rock,wall,kick,rubble,city walk,citizen,Ral door,Ral 27/27 (stage 60 then 65); leg3 course obstacles 92/92 (jump2/3/12/17/20/27/29/30/41, push4/6/24 + floors, crawl5/11, table->tunnel 3598,3215->3598,3219, pots key, door 3607->3609,3221, shelf, rope 3616->3621, ladder top, ladder repair); leg4 knife-on-wall (stage 70), push wall, press, rug, trapdoor, Vertida (90), lost-message replacement, Veliaf (110), Drezel (120), bush (130), Drezel runes law1 fire1 air3 (135), Roald (170), Aeonisig teleport, Veliaf (180), Vertida (190) 57/57; leg5 Vyrewatch to mine, miner pick, 15 ore mined, cart 15, guard exit to 3638,3251 34/34; leg6 wall ladders, rock search, Safalaan supplies charcoal=1 papyrus=3 (200), north sketch (210) papyrus 3->2, west (220), Vanstrom strikes then knock-out (230), Sarius (240), south sketch (250) sketches 1/1/1 55/55; leg7 sickle refused, knife on fireplace (message, 260), portrait key, Safalaan takes 3 sketches keeps message (270), tapestry, statue key consumed (280), door, stairs to 3637,9695 (290), rune case law1 fire3 air3 water1 mind1 (300), telegrab book, Safalaan sealed message (310), lost-message replacement, Veliaf completes: quest.varp_complete/scroll/points(2)/journal PASS, tome=1, XP +7000 agility +6000 thieving +2000 construction 58/58; leg8 shortcut doors locked at 310 and open at 320, Tome (3)->(2)->(1)->gone, +2000 XP each, level-30 gate leaves tome unspent, tome_xp=3 27/27; leg9 unqualified start refused, Ral papyrus x2 then 'all you need', full backpack refuses supplies, journal 21/21. Regressions: run.py cooks_assistant 48/48 and druid 30/30 PASS, gate.py cooks_assistant druid green.",
+ "open_issues": [
+  "Shared-file edits (smallest possible): mausoleum_drezel.rs2 (Drezel shell delegates; the IAOM leaf binding on priestperiltrappedmonk_vis was dead), king_roald.rs2, sinsofthefather.rs2 (Tome offer in sf_veliaf_talk), tasteofhope.rs2 (hideout ladder delegates to doh_hideout_ladder), quest_cheat.rs2 (::complete gives the Tome), climb_shared.rs2 (removed the generated climb for the rug trapdoor, same as the importer does when a quest owns the trigger), pack/varn.alloc (ss_allocate).",
+  "The IAOM Drezel dialogue (myreque2_trek.rs2 [opnpc1,priestperiltrappedmonk_vis]) is bound on a leaf the world never spawns; In Aid of the Myreque's own Drezel talk is probably dead for the same reason (not touched).",
+  "Generated combat block gives every attackable npc huntmode=aggressive: the Meiyerditch Vyrewatch (lvl 105) killed a level-10 character in the city; set to none in darknessofhallowvale.npc.",
+  "run.py rebuilds the pack when fingerprint is missing and concurrent worker edits (fremennik) broke the shared compile twice; a symlink mirror check (/tmp/claude-0/dohc/check.sh) was used before each shared build.",
+  "doh_bmp.rs2 not touched; quest_inventory.tsv still names dohrun as the run proc (removed: the soft-run debugproc was the only path, ::darknessofhallowvale now only resets).",
+  "Shelf at 3626,3221 plane 2 was not hittable in the driver (generic ladders_stairs loc), not driven."
+ ]
+}
