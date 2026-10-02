@@ -134,21 +134,18 @@ return {
         -- step, so it is clicked for real, not goto_tile'd past (doc
         -- section 2 / rule (b)); the ladders after it are plain floor
         -- changes goto_tile is documented to cross by itself.
-        -- 3016,3514,0 (Quest Helper's own WorldPoint for enterFortress) is
-        -- the bkfortressdoor1 threshold ITSELF, still outside the fortress
-        -- (measured run 1: the goto landed the player in the open, with no
-        -- wall between him and bksecretdoor, so the push hunted down to
-        -- "1 pixel(s) tried" and settled on some unrelated chat_message,
-        -- never the door's own line) -- bkfortressdoor1 is TRAVEL (no
-        -- disguise equipped here), so the goto is aimed one tile further
-        -- in, mainEntrance3's own zone, already inside and south of
-        -- bksecretdoor's tile.
+        -- 3016,3514,0 is the bkfortressdoor1 threshold. The player starts
+        -- on the OUTSIDE (south) side at 3016,3512 and the click walks the
+        -- door; the evidence for enterFortress is the player's own tile
+        -- read afterwards (north of the door, z >= 3514), not any box the
+        -- screen happens to show.
         t.exec("goto-fortress-door", t.player.goto_tile, 3016, 3512, 0)
-        t.exec("enterFortress", t.player.click_loc, "bkfortressdoor1", 1)
+        local ef_click, ef_click_detail = t.player.click_loc("bkfortressdoor1", 1)
         t.ticks(4)
         local ef_r, ef_at = t.world.tile()
-        t.check("enterFortress.inside", ef_r == "ok" and ef_at ~= nil and ef_at.z >= 3514,
-            "world.tile -> " .. tostring(ef_r) .. " " .. tostring(ef_at and (ef_at.x .. "," .. ef_at.z .. "," .. ef_at.level)))
+        t.check("enterFortress", ef_click == "ok" and ef_r == "ok" and ef_at ~= nil and ef_at.z >= 3514,
+            "click_loc(bkfortressdoor1) -> " .. tostring(ef_click) .. " " .. tostring(ef_click_detail)
+                .. "; world.tile -> " .. tostring(ef_r) .. " " .. tostring(ef_at and (ef_at.x .. "," .. ef_at.z .. "," .. ef_at.level)))
         t.exec("fortress.push_wall", t.player.click_loc, "bksecretdoor", 1)
         t.exec("fortress.push_wall_message", t.msg.expect, "You push against the wall")
         t.ticks(2) -- the door's p_teleport lands a tick behind the click (section 2 teleport-door note)
@@ -233,6 +230,36 @@ return {
         -- (BlackKnightFortress.java:263), on the path to the cabbage hole
         -- room -- before useCabbageOnHole. Same trigger, different
         -- placement, so it gets its own real click.
+        -- pushWall3: back from the listening room via the ladders (plain
+        -- travel, the guide's climbUpLadder6..climbDownLadder1) to the
+        -- secret room (3016,3518,0), then push bksecretdoor from THIS side
+        -- (BlackKnightFortress.java pushWall3), then bkfortressdoor2: from
+        -- outside it is the guard's warning and option 2 "I don't care. I'm
+        -- going in anyway." (quest_blackknight.rs2:199-215), then the
+        -- dk_meeting_ladder up on foot.
+        t.exec("goto-secret-room", t.player.goto_tile, 3016, 3518, 0)
+        t.exec("fortress.push_wall3", t.player.click_loc, "bksecretdoor", 1)
+        t.exec("fortress.push_wall3_message", t.msg.expect, "You push against the wall")
+        t.ticks(2)
+        local w3_r, w3_at = t.world.tile()
+        t.check("pushWall3.out", w3_r == "ok" and w3_at ~= nil and w3_at.z <= 3516,
+            "world.tile after pushing from inside -> " .. tostring(w3_r) .. " " .. tostring(w3_at and (w3_at.x .. "," .. w3_at.z .. "," .. w3_at.level)))
+        t.exec("goUpLadderToCabbageZone.door", t.player.click_loc, "bkfortressdoor2", 1)
+        t.exec("goUpLadderToCabbageZone.dialogue", t.chat.play, {
+            "npc:I wouldn't go in there",
+            "options",
+            "choose:I don't care. I'm going in anyway.",
+            "player:I don't care",
+        })
+        t.ticks(4)
+        local d2_r, d2_at = t.world.tile()
+        t.check("goUpLadderToCabbageZone.inside", d2_r == "ok" and d2_at ~= nil and d2_at.x >= 3020,
+            "world.tile after bkfortressdoor2 -> " .. tostring(d2_r) .. " " .. tostring(d2_at and (d2_at.x .. "," .. d2_at.z .. "," .. d2_at.level)))
+        t.exec("goUpLadderToCabbageZone.ladder", t.player.click_loc, "dk_meeting_ladder", 1)
+        t.ticks(3)
+        local cz_r, cz_at = t.world.tile()
+        t.check("goUpLadderToCabbageZone.arrived", cz_r == "ok" and cz_at ~= nil and cz_at.level == 1,
+            "world.tile after the ladder -> " .. tostring(cz_r) .. " " .. tostring(cz_at and (cz_at.x .. "," .. cz_at.z .. "," .. cz_at.level)))
         t.exec("goto-cabbage-path", t.player.goto_tile, 3030, 3512, 1)
         t.exec("fortress.push_wall2", t.player.click_loc, "bksecretdoor", 1)
         t.exec("fortress.push_wall2_message", t.msg.expect, "You push against the wall")
