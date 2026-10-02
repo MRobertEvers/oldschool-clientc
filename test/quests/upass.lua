@@ -5,7 +5,7 @@
 return {
     id = "upass",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 240000, -- the whole relay is ~5000 server ticks; the default 60000 frames stops at ~2000
+    max_frames = 400000, -- the whole relay is ~13000 server ticks (full run reached tick 7997 at 240000 with 22 rows to go)
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         -- Quest Helper: Underground Pass needs 25 Ranged (king_lathas.rs2 gates the start on stat_base(ranged) >= 25)
@@ -1375,6 +1375,8 @@ return {
             t.ticks(3)
             t.check("goUpToLathasToFinish-level", here().level == 1, "now " .. here().x .. "," .. here().z .. " L" .. here().level)
             t.exec("goto-talkToKingLathasAfterTemple", t.player.goto_tile, 2578, 3292, 1)
+            local reward_snapshot_result, reward_snapshot = t.skill.snapshot()
+            t.check("reward.snapshot", reward_snapshot_result == "ok", "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
             t.exec("talkToKingLathasAfterTemple", t.player.talk_to, "kinglathas", 1)
             t.exec("talkToKingLathasAfterTemple-dialog", t.chat.play, {
                 "npc:The traveller returns",
@@ -1384,6 +1386,8 @@ return {
                 "npc:Your loyalty",
             })
             t.ticks(3)
+            t.expect("reward.agility_xp", t.skill.expect_gain("agility", 3000, reward_snapshot))
+            t.expect("reward.attack_xp", t.skill.expect_gain("attack", 3000, reward_snapshot))
             t.quest.expect_complete()
             t.finish(0)
             return
