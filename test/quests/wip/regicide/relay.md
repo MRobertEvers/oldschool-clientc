@@ -139,3 +139,9 @@
 - Maze is the seam2 route (five rock bridges, retry loop), pipe lands 2387,9605, doorl -> 2371,9666, then temple bridges + door as seam1; --from-leg 2 276 PASS, first non-pass is leg 6's t.blocked marker.
 - NEW: goto-pickCellLock and goto-openIbansDoor are gone. Cell: walk 2410,9656 -> 2393,9655. From 2371,9666 to Iban's door 2369,9718 one walk_to stalls in local minima (partial pathing); leg 2 walks 18 hops (local tile + 2368,9664: 3,14 5,25 10,30 10,33 20,36 20,40 40,40 40,42 55,43 56,52 56,57 45,57 31,57 25,58 22,57 20,55 10,55 1,54), each up to 4 tries; ~860 ticks. Leg 6's second walk can copy the loop (mz_here() is leg 2's local).
 - Hops may end one tile short (skeletons); the loop accepts it.
+
+## orchestrator note (matthew-mbp-m4-b48 round 6)
+- Legs 1-5 run honestly now (leg 2 walks the maze bridges and the temple door). ONLY LEG 6 is open.
+- Round 5's leg-6 runner wrote "done" without running: it read the old leg-6 notebook from the original relay, which ends in "DONE". That notebook is retired as leg6.progress.round1-4.md; start leg6.progress.md fresh.
+- Leg 6 still holds three `t.blocked("ROUND 3 (orchestrator): ...")` markers (~1176 grid, ~1245 maze, ~1257 temple). Replace each with the same real crossing the earlier legs now drive: the grid as leg 3 does, the maze bridges and the temple door as leg 2 does (copy those rows, renamed -again). Done means `grep -c "ROUND 3 (orchestrator)" test/quests/regicide.lua` prints 0 and the full run reaches expect_complete.
+- The working file at the end of round 5 is snapshotted as wip/regicide/round5_working.lua.
