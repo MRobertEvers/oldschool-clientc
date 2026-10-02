@@ -786,6 +786,7 @@ guide requires (Rimmington, a Workshop, a Crafting table 3) at the Rimmington po
 `click_loc("poh_clockmaking_3", 1)` + `choose:Clockwork` makes the mechanism and a second click +
 `choose:Clockwork toys` + `choose:Clockwork penguin` makes `peng_suit_unwound`.
 
+<<<<<<< ours
 ## A cave or tunnel click answers a chat line and the tile is unchanged: a name binding shadows the maplink (FIXED matthew-mbp-m4-b49-seam1)
 
 Symptom: `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (Troll Romance:
@@ -812,3 +813,28 @@ LostCity's m38_150 places the same slides and pile. A slip ("...but you slip bac
 answers `I can't reach that!` from 2482,9715; click it from Koftik's ledge 2453,9716. The full route
 with hops: `test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
 as the maze bridges: list the locs with an op in a pocket before calling it a map bug.
+=======
+## Miscellania and Etceteria: which door to click, Donal's pub door, the bank with no booth (vm-b1)
+
+*Origin: Royal Trouble review and sample, batch vm-b1 (`test/quests/royaltrouble.lua`).*
+
+Miscellania's castle is a ring of towers, and every stair sits behind a `castledoor`. A bare
+`click_loc("castledoor", 1)` picks the nearest copy, which is often the wrong one, so pass `at`:
+
+- South tower: `castledoor` at 2506,3851 (level 0 and level 1), stairs `spiralstairs_wooden` /
+  `spiralstairsmiddle_wooden` at 2505,3848.
+- Throne room: `misc_ulby_throneroomdoor` at 2506,3857 level 1.
+- North tower: `castledoor` at 2506,3869 (level 0 and level 1), stairs at 2505,3871; Princess
+  Astrid's room door is `castledoor` at 2504,3867 level 1.
+- Etceteria: `spiralstairs` at 2613,3867, Queen Sigrid's door `castledoor` at 2615,3870 level 1.
+
+Donal's pub in the dungeon village is not walled off. Its door is `royal_village_door` at
+2525,10256 on the west wall (op1 Open, the generic door in `doors/configs/doors.loc`). The Royal
+Trouble test reached Donal with `goto_tile 2527,10257`. That is legal plain travel, because the
+guide names no door, but a later author should open the door with
+`click_loc("royal_village_door", 1, { at = { 2525, 10256, 0 } })` rather than copy the jump.
+
+Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth in the cache. The
+town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
+the same `~openbank`).
+>>>>>>> theirs
