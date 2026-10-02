@@ -494,3 +494,31 @@ iron, coal, silver, gold and mithril ore and bronze, iron, silver, gold, steel a
 (lines 134-146). No guide step mines or smelts them, so a setup `::give` of them stages a brought
 item and is not trap 16. The deliveries themselves are the quest's work: every hand-in to the
 Consortium must be a driven `talk_to`/`use_on` row that moves the points varp.
+
+### A `-- GUIDE-GAP:` over a `::give` of a quest drop reads FULL, and it is still a cheat (In Search of Knowledge, matthew-mbp-m4-b52)
+
+*Origin: the matthew-mbp-m4-b52 reviewer noted "12 tattered pages: one is a real drop, the other
+11 are ::give with a GUIDE-GAP comment; the fast-forwards doc names no page cheat". The sampler
+sent the quest back.*
+
+`insearchofknowledge.lua` killed until one tattered page dropped. Then it ran
+`::give hosdun_sun_page 4`, `::give hosdun_moon_page 4` and `::give hosdun_temple_page 4` under
+`-- GUIDE-GAP: getPages ... no cheat names them`. `helper_coverage` read FULL and the reviewer
+accepted it. All twelve pages the tomes took could have been given ones: the temple insert went
+`5->1`, so the real drop was left over in the backpack. A drop that the inserts do not need
+proves nothing.
+
+The marker cited `leftover_forthos_combat_page_drops`. That proc is only a mesbox saying the drops
+are deferred. The drops have since been ported: `isok_page_drop`
+(`insearchofknowledge_locs.rs2:166`) runs from `red_dragon.rs2:10` and `npc_combat.rs2:145`. It
+rolls 1/10 on a red dragon, 1/20 on an Undead Druid, 1/25 on a baby red dragon and 1/30 on a
+temple spider, inside map square 28_155 only, and each hit is one of the three pages at random.
+A GUIDE-GAP is for work the port cannot do. Before you write one, read the line it cites and grep
+the item's `obj_add`. A leftover mesbox does not prove that the mechanic is missing.
+
+No grind fast-forward covers a drop. The only sanctioned ones are the debugprocs in traps-23-33
+("Sanctioned grind debugprocs"), and a `::give` of the item a drop hands over is trap 16. Drive
+the drops: about fifteen pages give four of each kind, so expect roughly 150 red dragon kills, and
+check the frame budget first (gaps-combat: "A run has about 2,000 server ticks"). If the budget
+cannot hold that, ask a seam pass for a `[debugproc]` that runs `isok_page_drop`'s own roll on a
+real kill, with a read-back row after each call.

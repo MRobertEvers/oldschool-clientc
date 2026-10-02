@@ -243,3 +243,19 @@ Warrior door cut (`ikov_dungeon.rs2:183-185,217`, the ops and speeds verbatim) a
 `::camreset` lets go. The conformance rows use it: `seam.cutscene_await_records_keyframes`,
 `seam.cutscene_await_no_cutscene`, `seam.cutscene_expect_missing_keyframe`, `seam.world_camera_read`
 (scratch: `build/seam_state/seam32/s32_cutscene_verb.lua`).
+
+## A cutscene the port narrates as a blackout is not graded (A Porcine of Interest's Pig Thing)
+
+*Origin: the matthew-mbp-m4-b52 porcineofinterest reviewer: "Pig Thing cutscene still narrated
+blackout (spec pending)".*
+
+`cutscene_row_required` covers only the camera ops in your quest's own `.rs2`. A scene the port
+deferred has no camera op, so the gate says nothing about it. A Porcine of Interest's Pig Thing
+(acid spit, the gnome-goggle line, the cameras of Spria's rescue) is a named leftover
+(`porcineofinterest.rs2:18`, `porcineofinterest_locs.rs2:119`): investigating the skeleton fades
+out and wakes you at Spria. `docs/quests/CUTSCENES.tsv` marks the row `ported=no`.
+
+Drive the click that triggers it (`investigateSkeleton`) and the dialogue after the wake-up as
+ordinary rows. Do not write a `cutscene:` row for a scene that has no camera op. Name it in the
+review as spec-pending. Porting it is work for the cutscene session, not for the author, and once
+the port adds a `cam_*` op the gate rule applies to the quest.

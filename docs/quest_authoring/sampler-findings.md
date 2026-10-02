@@ -304,3 +304,24 @@ driven step. Follow `ladder.py`'s state order (`createDisguises.addStep` read bo
 content accepts feeder1 on that path (`gold_room.rs2` `eaglepeak_gold_feeder_ready` 1: gate3 up,
 gates 4 and 1 down). Press a recovery step only in the state its condition names.
 
+
+## Sample matthew-mbp-m4-b52 (2026-10-02)
+
+*Origin: the sampler checked xmarksthespot (a19c9e7e5), childrenofthesun (0a5e7189d) and
+insearchofknowledge (388dc78a1) and opened all 96, 173 and 50 shots. It sent
+insearchofknowledge back, because eleven of its tattered pages were `::give`n (coverage-and-gate:
+"A `-- GUIDE-GAP:` over a `::give` of a quest drop").*
+
+(a) AN NPC LINE TITLED "Someone" WITH NO CHATHEAD comes from a var write that hides the speaker
+before its next `~chatnpc`. X Marks the Spot sets `%varb12151_veos_lumbridge_vis = 3` and then
+gives Veos three more lines (`xmarksthespot.rs2:114-117`; shots 022-025). Children of the Sun
+writes `^cots_finish` and then gives Tobyn four more lines (`childrenofthesun.rs2:483-485`; shots
+105, 107, 108 and 110). `t.chat.play` still PASSes, because it matches the text and not the
+title, so only a shot shows the problem. The content fix is to write the var after the speaker's
+last line. This did not send either quest back.
+
+(b) "JUST INSIDE THE PIG PEN" SITS BEHIND A GATE. X Marks the Spot's `goto-digMartin` lands on
+3078,3259, inside the Draynor pig pen, and passes `farming_fencegate_l`/`_r` at 3077-3078,3258.
+The shots' hover text reads "Open Gate". The guide names the pen but not the gate, so this did not
+send the quest back. An author can avoid the question by walking to 3078,3257 and pressing the
+gate.

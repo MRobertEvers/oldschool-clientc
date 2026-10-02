@@ -162,6 +162,18 @@ reaction is `ok` naming it, "You haven't unlocked that emote yet." is `refused`,
 ticks is `timeout`, because the driver cannot read an animation: play an emote for its content
 reaction and then assert the content's own varp (Throne of Miscellania's `misc_affection`).
 
+##### `t.exec(..., t.player.emote, ...)` FAILs `timeout` when the emote's reaction prints no line (Below Ice Mountain's Flex)
+
+*Origin: matthew-mbp-m4-b52 belowicemountain reviewer.*
+
+The verb settles on a new game-message line, and some content answers an emote with a dialogue
+and a var write but no game message. Below Ice Mountain's Flex for Checkal opens his dialogue and
+sets `varb12065_bim_checkal` to 40, so `t.player.emote` answers `timeout`. Wrapped in `t.exec`,
+that `timeout` is a FAIL row although the step worked. Call the verb directly, read the dialogue
+next (`t.chat.drain` or `t.chat.play`), then grade the var in one `t.check` that carries the verb's
+answer in its detail (`belowicemountain.lua:74-79`:
+`t.check("flexCheckal", v == 40, "emote=" .. tostring(er) .. " " .. tostring(ed) .. "; checkal=" .. tostring(v))`).
+
 ### `t.player.use_on(item, target, opts)`
 
 `t.player.use_on(item, target, opts)` -> `ok` `unsupported` `refused` `covered`. `opts` is
