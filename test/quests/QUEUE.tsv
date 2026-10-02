@@ -7,7 +7,7 @@ quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
-quest_bearyoursoul	bearyoursoul	bearyoursoul		4	green	matthew-mbp-m4-b50			
+quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo	matthew-mbp-m4-b50	REVERTED by sampler (matthew-mbp-m4-b50): goto_tile 2884,9796 -> 2874,9846 jumps the dusty-key gate (deepdungeondoor 2924,9803) the guide names ('Dusty key, or another way into deep Taverley Dungeon'); give dusty_key in setup and use it on the gate, then walk to hellhound_cave_entrance_a_01. Prior test at a5f4d7fa2:test/quests/bearyoursoul.lua		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo				
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
@@ -46,7 +46,7 @@ quest_druid	druid	druidicritual		1	green	sonnet-b15
 quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35			
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15			
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25			
-quest_eaglepeak	eaglepeak	eaglespeak		4	green	matthew-mbp-m4-b50			
+quest_eaglepeak	eaglepeak	eaglespeak		4	todo	matthew-mbp-m4-b50	REVERTED by sampler (matthew-mbp-m4-b50): gold room left the guide ladder -- fed feeder1a (fillFeeder7, QH's 'if you've blocked lever 1' recovery) before pushLever1Up, so main-path fillFeeder5 (feeder1) was refused and passed as fillFeeder5.kept; follow QH order pushLever1Up, fillFeeder4, pullLever3Down, fillFeeder5 (gold_room.rs2 feeder_ready which=1 accepts it). Prior test at 6d75971d2:test/quests/eaglepeak.lua		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16			
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
 quest_elena	elena	plaguecity		3	green	sonnet-b34			
