@@ -259,3 +259,5 @@ Drive the click that triggers it (`investigateSkeleton`) and the dialogue after 
 ordinary rows. Do not write a `cutscene:` row for a scene that has no camera op. Name it in the
 review as spec-pending. Porting it is work for the cutscene session, not for the author, and once
 the port adds a `cam_*` op the gate rule applies to the quest.
+The same holds for every `ported=no` row in `CUTSCENES.tsv`: Contact! (3 scenes), Ribbiting Tale (1)
+and What Lies Below (2) were spec-pending in matthew-mbp-m4-b53, so they had no `cutscene:` rows.
