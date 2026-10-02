@@ -2190,6 +2190,20 @@ class Grader:
         verb = first.group(1).lower() if first else ""
         return STEP_VERB_ALIAS.get(verb, verb)
 
+    def clause_verbs(self, step):
+        """The verbs that open the LATER clauses of a step's text ("Climb up
+        the walls and search the marked floor" -> {'search'}): each clause
+        after the first, split at `and`/`then`/`,`/`;`/`.`, by its first
+        word. The leading verb is step_verb's, not one of these."""
+        clauses = re.split(r"\band\b|\bthen\b|[,;.]", step.text or "", flags=re.I)
+        found = set()
+        for clause in clauses[1:]:
+            first = re.match(r"\s*([A-Za-z]+)", clause)
+            if first:
+                verb = first.group(1).lower()
+                found.add(STEP_VERB_ALIAS.get(verb, verb))
+        return found
+
     def op_conflict(self, step, line, kind, symbol, text):
         """Why the action on `line` is not this step's own op on its target, or
         None. Only a step whose leading verb IS one of the target's menu ops
@@ -2234,6 +2248,12 @@ class Grader:
             return None
         pressed_name = ops_of(kind, text).get(pressed) or menu.get(pressed)
         if pressed_name is None or op_word(pressed_name) in TRAVEL_OPS:
+            return None
+        if op_word(pressed_name) in self.clause_verbs(step):
+            # "Climb up the walls and search the marked floor" (Darkness of
+            # Hallowvale's kickBoard): the leading "Climb" is the walk there,
+            # the later clause names the press. A Search the guide asks for
+            # is the step's own op, not a gating op (seam vm-b1-seam4).
             return None
         row_name = self.test.row_name_at(line)
         row = next((r for r in self.pass_rows if r["step"] == row_name), None) if row_name else None
