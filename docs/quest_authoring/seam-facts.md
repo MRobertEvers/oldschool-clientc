@@ -906,3 +906,22 @@ multivarbit `upass_koftik_end`) in the OSRS cache; OSRS `caveguide5` is the temp
 found no Koftik and the pocket had no way out. FIXED: it finds `caveguide6`, whose Talk-to (the one
 binding, quest_regicide `koftik.rs2`) opens `@koftik_whereami` while `%upass` is `defeated_iban`.
 When a LostCity npc symbol finds nothing, compare the OSRS spawn file's npc at that tile.
+
+## Seam pass matthew-mbp-m4-b48-seam1 (2026-10-01)
+
+(a) Iban's temple doors had no Regicide branch. Regicide's two walks to the Well of Voyage
+(`enterTemple` in leg 2 and again in `goThroughUndergroundPassAgain`) go through the doors of
+Iban's temple after Underground Pass is complete, and `upass_tomb.rs2` `[label,open_iban_door]`
+carried only a "Regicide shortcut deferred" comment: with `%varp161_upass` complete the click
+answered "The temple is in ruins... / ...You cannot enter." and the author jumped the door with
+`goto_tile 2010,4709,1` (sampler-findings, Sample matthew-mbp-m4-b48 (c)). FIXED (OSRS-Content
+2dd52a46a5) as LostCity_Server has it: entering from the east at `%varp328_regicide_quest >=
+^regicide_spoken_lathas` (2), before the Zamorak-robe check, opens the doors and teleports you
+into the ruined temple's copy of the room (`quest_upass.rs2:576-585`); leaving by that copy's
+doors puts you back outside Iban's temple (`:629-631`). The doors are placed twice:
+`upass_templedoor_closed_right`/`_left` at 2143,4648/4647 level 1 (Iban's temple, `m33_72`) and at
+2015,4712/4711 level 1 (the ruined temple, `m31_73`, with `regicide_voyage_temple_well1` at
+2008,4711). The right leaf lands on 2014,4712 level 1 (the left on 2014,4711); the ruined copy's
+right leaf lands back on 2145,4648 level 1. A player below Regicide stage 2 gets the old answers.
+Conformance row `seam.iban_temple_door_regicide_shortcut`. The route from Iban's door to the
+temple doors crosses four collapsed bridges: gaps-world, "Underground Pass: Iban's temple door".

@@ -218,3 +218,5 @@ missing from `helper_coverage`'s ladder) is the way to the well room. After Unde
 `upass_tomb.rs2:141-152` answers "The temple is in ruins..." and notes that the Regicide shortcut
 is deferred. The test then used `goto_tile` to reach 2010,4709. End the leg in
 `t.blocked("content_bug: ...")` naming that file and line.
+FIXED (b48-seam1, OSRS-Content 2dd52a46a5): the doors take a Regicide player through; click them
+(gaps-world, "Underground Pass: Iban's temple door").

@@ -626,6 +626,32 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   test's bind `display`: the scroll reads "Underground Pass", not "Underground Pass quest". The
   hand-off with every row's verb is in `build/author_state/sonnet-b46/upass.relay.md`.
 
+## Underground Pass: Iban's temple door after the quest -- "The temple is in ruins..." (Regicide; FIXED b48-seam1)
+
+*Origin: sampler matthew-mbp-m4-b48 (regicide's `enterTemple`) and seam pass
+matthew-mbp-m4-b48-seam1.*
+
+- At Regicide stage 2 (`^regicide_spoken_lathas`) or later, Iban's temple doors open for you with
+  no robes and no "The temple is in ruins..." refusal, even with Underground Pass complete, and put
+  you in the ruined temple beside the Well of Voyage (seam-facts, Seam pass
+  matthew-mbp-m4-b48-seam1 (a)). Enter from the EAST:
+  `t.player.click_loc("upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })` lands on
+  2014,4712 level 1; `regicide_voyage_temple_well1` is at 2008,4711. Both Regicide walks use it.
+- The doors are 77 tiles from Iban's door landing (2173,4725 level 1), outside the scene, so a
+  `click_loc` from there answers `not_found`. Walk the guide's `enterTemple` line points
+  (Regicide.java:530-551). They cross FOUR collapsed bridges (`upass_obstacles.rs2:425`), each a
+  `click_loc` with an agility roll (a fall drops you to level 0 of the pass): walk 2172,4723 ->
+  2172,4686; `bridgecollapsed2` at 2164,4686; walk 2161,4686 -> 2161,4699 -> 2157,4699 ->
+  2154,4697; `bridgecollapsed1` at 2154,4690; walk 2154,4686 -> 2152,4685 -> 2153,4682 ->
+  2153,4678 -> 2154,4676 -> 2160,4676 -> 2160,4670 -> 2165,4670 -> 2165,4667 -> 2162,4667;
+  `bridgecollapsed1` at 2162,4663; walk 2161,4659; `bridgecollapsed2` at 2161,4654; walk
+  2147,4648; then the door. A plain `walk_to` across a gap stalls (x 2167 on z 4686). Agility 56
+  crossed all eight bridges of both walks in one run; budget a retry for a fall.
+- Proof: a copy of the reverted round-2 Regicide file (9b7c0756c) with both `goto 2010,4709,1`
+  rows replaced by this route and the door, 76/76
+  (`build/seam_state/matthew-mbp-m4-b48-seam1/scratch/regicide_r2_door.lua`); the hand-off is
+  `test/quests/wip/regicide/relay.md`, "seam1 (temple door)".
+
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 
 *Origin: author batch sonnet-b44 (regicide's Underground Pass section).*
