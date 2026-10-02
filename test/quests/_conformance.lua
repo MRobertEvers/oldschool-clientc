@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 92
+-- @seam-count 95
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 92
+local SEAM_COUNT = 95
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -2447,6 +2447,36 @@ return {
                     .. describe(tile.level) .. " -- " .. wanted .. " -> " .. describe(detail)
             end
             return "ok", wanted .. " -> " .. describe(detail)
+        end)
+
+        -- SEAM goto_departure_stamp (b50-seam1).  A goto row used to name only
+        -- its landing, so helper_coverage.py's hop_start took the hop's start
+        -- from whatever row last read a tile, and any press or walk between
+        -- hid where the teleport left from (993 of 1,735 green hops could not
+        -- be judged; docs/quest_authoring/coverage-and-gate.md "The departure
+        -- tile").  The verb now reads the tile once before its first ::goto
+        -- and opens its ok detail with "at <landing> from <departure>".
+        -- Graded: the departure it names is the tile world.tile answered just
+        -- before the call.
+        seam("seam.goto_departure_stamp", function()
+            local fn = verb("player", "goto_tile")
+            local tile_of = verb("world", "tile")
+            if not fn then return missing("player", "goto_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local read, before = tile_of()
+            if read ~= "ok" or not is_table(before) then
+                return read, "no departure tile to compare: " .. describe(before)
+            end
+            local result, detail = fn(GOTO_TILE_X, GOTO_TILE_Z, GOTO_TILE_LEVEL)
+            local text = describe(detail)
+            if result ~= "ok" then
+                return result, "goto_tile -> " .. text
+            end
+            local from = before.x .. "," .. before.z .. "," .. before.level
+            if not string.find(text, "from " .. from, 1, true) then
+                return "hollow", "goto_tile's detail does not name the departure " .. from .. ": " .. text
+            end
+            return "ok", text
         end)
 
         -- SEAM goto_tile_fixed_budget (2026-09-21).  The public row above
@@ -8376,6 +8406,157 @@ return {
             end
             if after_first ~= 4 or after_second ~= 3 then
                 return "refused", text .. " -- a load did not take exactly one karambwanji (want 4 then 3)"
+            end
+            return "ok", text
+        end)
+
+        -- FILL ON AN EMPTY SACK MAKES POTATOES(10) (matthew-mbp-m4-b50-seam1
+        -- enlightenedjourney_gather_sources).  The sacks' ifop1 Fill was unbound,
+        -- so `sack_potato_10` -- Enlightened Journey's sack of potatoes -- had no
+        -- source in the pack.  Wiki Empty sack (oldid 15183845): Fill puts 10
+        -- vegetables in at once.  skill_farming/scripts/farming_sacks.rs2.
+        -- Graded on 12 potatoes -> one Potatoes(10) and 2 potatoes left.
+        seam("seam.vegetable_sack_fill", function()
+            local inv_op = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            if not inv_op then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give sack_empty 1")
+            setup_cheat("::give potato 12")
+            settle(2)
+            -- The press swaps the sack for another obj, so inv_op's own wait
+            -- answers timeout; the new obj's count is the evidence.
+            local op_result, op_detail = inv_op("sack_empty", 1)
+            local landed = await("sack_potato_10", 1, 10)
+            local _, sacks = count("sack_potato_10")
+            local _, potatoes = count("potato")
+            local _, empties = count("sack_empty")
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = "Fill on sack_empty -> " .. describe(op_result) .. " " .. describe(op_detail)
+                .. "; sack_potato_10 await -> " .. describe(landed) .. " (read " .. describe(sacks)
+                .. "), potato 12 -> " .. describe(potatoes) .. ", sack_empty 1 -> " .. describe(empties)
+            if landed ~= "ok" or sacks ~= 1 then
+                return "refused", text .. " -- Fill did not make Potatoes(10)"
+            end
+            if potatoes ~= 2 or empties ~= 0 then
+                return "refused", text .. " -- Fill did not take exactly 10 potatoes and the empty sack"
+            end
+            return "ok", text
+        end)
+
+        -- A GROWN WILLOW GIVES BRANCHES TO SECATEURS (matthew-mbp-m4-b50-seam1
+        -- enlightenedjourney_gather_sources).  farming_trees held only oak, so
+        -- nothing in the pack gave out willow_branch.  Wiki Willow branch
+        -- (oldid 15184331): branches grow once the tree's health is checked,
+        -- one per 5 minutes, at most 6, cut with secateurs.  Patch values
+        -- (RuneLite PatchImplementation TREE): 15 seedling .. 21 check-health,
+        -- 22 chop, 192..197 chop with 1..6 branches.  The six 40-minute stages
+        -- are the oak's growth ladder with the willow row's numbers (driven end
+        -- to end in build/quest_gate/s1_ej_willow, ~3,000 ticks -- more than
+        -- this harness's frame budget), so the row plants Auguste's sapling for
+        -- real (that records the seed) and then STAGES the grown tree: state 21
+        -- and the patch's check flag, which is what the sixth stage writes.
+        -- Graded: no branch before any time passes, then one 30-minute
+        -- t.clock.skip and the secateurs cut all 6 (counted from the deadline),
+        -- leaving the bare chop state 22.  Last of the seam rows: it moves the
+        -- world clock 30 minutes ahead.
+        seam("seam.willow_tree_grows_branches", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local click_loc = verb("player", "click_loc")
+            local use_on = verb("player", "use_on")
+            local skip = verb("clock", "skip")
+            local await_server = verb("var", "await_server")
+            local server = verb("var", "server")
+            local await = verb("inv", "await")
+            local count = verb("inv", "count")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not use_on then return missing("player", "use_on") end
+            if not skip then return missing("clock", "skip") end
+            if not await_server then return missing("var", "await_server") end
+            if not server then return missing("var", "server") end
+            if not await then return missing("inv", "await") end
+            if not count then return missing("inv", "count") end
+            local state_var = "varb701_varbit_701"
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel farming 30")
+            setup_cheat("::give rake 1")
+            setup_cheat("::give spade 1")
+            setup_cheat("::give secateurs 1")
+            setup_cheat("::give zep_plantpot_willow_sapling 1")
+            settle(2)
+            local function teardown()
+                setup_cheat("::clearinv")
+                setup_cheat("::setlevel farming 1")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+            end
+            local goto_result, goto_detail = goto_tile(3002, 3376, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto the Falador park patch 3002,3376,0 -> " .. describe(goto_result)
+                    .. " " .. describe(goto_detail)
+            end
+            local trail = {}
+            local _, raw = server(state_var)
+            trail[#trail + 1] = "patch " .. describe(raw)
+            if raw ~= 3 then
+                click_loc("farming_tree_patch_2", 1)
+                trail[#trail + 1] = "rake -> " .. describe(await_server(state_var, 3, 80))
+            end
+            local patch = by_symbol("loc", "farming_tree_patch_2")
+            local plant_result = use_on("zep_plantpot_willow_sapling", patch)
+            local planted = await_server(state_var, 15, 10)
+            trail[#trail + 1] = "plant -> " .. describe(plant_result) .. ", state 15 " .. describe(planted)
+            local checked = "not_run"
+            if planted == "ok" then
+                -- What the sixth growth stage writes (farming_tree_set): the
+                -- grown state, its client mirror varb4771 (the transmit var
+                -- the patch's multiloc reads while you stand in square
+                -- 0_46_52) and the patch's check-health flag.
+                setup_cheat("::setvar " .. state_var .. " 21")
+                setup_cheat("::setvar varb4771_farming_transmit_a 21")
+                setup_cheat("::setvar varp5820_farming_falador_tree_check 1")
+                -- The grown willow's model is first asked for now; let it land
+                -- before the click hunts its triangles.
+                settle(10)
+                local check_result, check_detail = click_loc("farming_tree_patch_2", 1)
+                checked = await_server(state_var, 22, 10)
+                trail[#trail + 1] = "check-health click -> " .. describe(check_result) .. " " .. describe(check_detail)
+            end
+            trail[#trail + 1] = "staged 21, check-health -> state 22 " .. describe(checked)
+            local early = nil
+            local cut = "not_run"
+            if checked == "ok" then
+                use_on("secateurs", patch)
+                settle(3)
+                local _, early_count = count("willow_branch")
+                early = early_count
+                skip(30)
+                use_on("secateurs", patch)
+                cut = await("willow_branch", 6, 40)
+            end
+            trail[#trail + 1] = "secateurs at once -> willow_branch " .. describe(early)
+            local _, branches = count("willow_branch")
+            local _, after = server(state_var)
+            trail[#trail + 1] = "30 minutes, secateurs -> willow_branch " .. describe(branches) .. " ("
+                .. describe(cut) .. "), patch " .. describe(after)
+            teardown()
+            local text = table.concat(trail, "; ")
+            if planted ~= "ok" or checked ~= "ok" then
+                return "no_subject", text .. " -- the willow did not reach its checked chop state"
+            end
+            if early ~= 0 then
+                return "refused", text .. " -- a branch was cut before any time passed"
+            end
+            if cut ~= "ok" or branches ~= 6 or after ~= 22 then
+                return "refused", text .. " -- 30 minutes did not grow 6 branches that the secateurs cut back to state 22"
             end
             return "ok", text
         end)

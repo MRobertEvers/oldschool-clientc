@@ -1,0 +1,29 @@
+# ladder gettingahead quest_dir=quest_gettingahead guide=src/main/java/com/questhelper/helpers/quests/gettingahead/GettingAhead.java steps=26 legs=1:1-26@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToGordon1	NpcStep	npc:ga_gordon	1248,3686,0	Talk to Gordon south of the Farming Guild.			Need a hand with anything? | Yes.	quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1
+1	2	2	talkToMary	NpcStep	npc:ga_mary_1op	1237,3678,0	Talk to Mary inside the main building, west of Gordon.				quests/quest_gettingahead/scripts/gettingahead.rs2:295 opnpc1; +1
+1	3	4	goUpstairsHouse	ObjectStep<goUseFlourOnGate	loc:kebos_spiralstairs_bottom	1240,3686,0	Climb up the nearby house's staircase.				quests/quest_gettingahead/scripts/gettingahead.rs2:347 oploc1
+1	4	4	usePotOfFlour	ObjectStep<goUseFlourOnGate	loc:ga_fencegate_l?	1257,3686,0			Pot of Flour		
+1	5	4	takePot	ItemStep<goUseFlourOnGate	obj:pot_flour		Take the nearby pot of flour, or fill a pot with the barrel of flour in the south west room.		=		skill_cooking/scripts/dough.rs2:8 opheldu
+1	6	6	killBeast	NpcStep	npc:ga_beast	1191,10021,0	Kill the headless beast. You can safespot it from the south west corner of the pond in the cave.				quests/quest_gettingahead/scripts/gettingahead.rs2:470 ai_queue1; +3
+1	7	6	goToMine	ObjectStep	loc:ga_cave npc:ga_beast	1212,3647,0	Enter the Kebos Lowlands mine just west of the bridge and kill the Headless Beast (level 82).	killBeast		Yes.	quests/quest_gettingahead/scripts/gettingahead.rs2:440 oploc1; +4
+1	8	14	takePickaxe	ObjectStep<returnToGordon	loc:ga_rocks_pickaxe	1222,3653,0	Take the pickaxe in the mine.				quests/quest_gettingahead/scripts/gettingahead.rs2:537 oploc1
+1	9	14	leaveCave	ObjectStep<returnToGordon	loc:ga_cave_out	1190,10029,0	Leave the cave.				quests/quest_gettingahead/scripts/gettingahead.rs2:457 oploc1
+1	10	14	talkToGordon2	NpcStep<returnToGordon	npc:ga_gordon	1248,3686,0		leaveCave			quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1
+1	11	14	mineClay	ObjectStep<returnToGordon	loc:clayrock1	1217,3657,0	Mine some clay.		Any pickaxe		skill_mining/scripts/mining.rs2:19 oploc1; +2
+1	12	16	talkToMary2	NpcStep	npc:ga_mary_1op	1237,3678,0	Talk to Mary inside the house.				quests/quest_gettingahead/scripts/gettingahead.rs2:295 opnpc1; +1
+1	13	20	talkToGordonGen	NpcStep	npc:ga_gordon	1248,3686,0	Talk with Gordon.		Clay Head		quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1
+1	14	14	useKnifeOnClay	DetailedQuestStep<makeClayHead					Knife; Soft Clay	Yes.	
+1	15	14	takeKnife	DetailedQuestStep<makeClayHead		1241,3679,0	Take the knife near Mary.		Knife		
+1	16	14	wetClay	DetailedQuestStep<makeClayHead			Use the bucket of water on the clay.		Bucket of water; Clay		
+1	17	14	fillBucket	ObjectStep<makeClayHead	loc:fai_varrock_cooking_kitchen_sink	1240,3677,0	Fill the bucket on the sink.		Bucket		general_use/scripts/water_sources.rs2:36 oplocu
+1	18	24	talkToGordonGen2	NpcStep	npc:ga_gordon	1248,3686,0	Talk with Gordon.		Fur Head		quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1
+1	19	4	useFurOnHead	DetailedQuestStep<addFurToHead			Use the bear fur on the clay head then talk to Gordon.		Bear Fur; Clay Head; Thread; Needle	Yes.	
+1	20	4	getThread	DetailedQuestStep<addFurToHead		1244,3684,1	Take the thread.		Thread		
+1	21	28	talkToGordonGen3	NpcStep	npc:ga_gordon	1248,3686,0	Talk with Gordon.		Bloody Head		quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1
+1	22	26	takeDye	ObjectStep<dyeHead	loc:ga_shelves	1240,3688,0	Get some red dye from the shelves in the farm house.			Take some red dye.	quests/quest_gettingahead/scripts/gettingahead.rs2:374 oploc1
+1	23	26	useDyeOnHead	DetailedQuestStep<dyeHead				talkToGordonGen3	Red Dye; Fur Head	Yes.	
+1	24	14	buildBearHead	ObjectStep<putUpHead	loc:ga_mounted_head?	1240,3683,0			Bloody Head; Nails; Planks; Any saw; Hammer	Yes.	
+1	25	14	takeNails	ObjectStep<putUpHead	loc:ga_workbench	1239,3699,0	Take some nails from the farm's workbench.			Take the nails.	quests/quest_gettingahead/scripts/gettingahead.rs2:393 oploc1
+1	26	32	talkToGordonFinal	NpcStep	npc:ga_gordon	1248,3686,0	Return to Gordon to finish the quest.				quests/quest_gettingahead/scripts/gettingahead.rs2:173 opnpc1; +1

@@ -241,9 +241,36 @@ NPC_SPAWN_EXCLUSIONS = {
 NPC_SPAWN_RELOCATIONS = {
     ("claus_carnillean", 2566, 9670, 0): (2540, 9697, 0),
 }
+
+
+# Dump rows whose id this cache reallocated, keyed `(dump id, x, z, plane)` ->
+# the cache symbol that stands there now. Keyed on the exact row like
+# OBJ_SPAWN_ID_CORRECTIONS, so no other spawn of the old id is admitted, and the
+# corrected symbol must still carry the dump's display name (rule 2 runs on it).
+#
+# Turael, Burthorpe's slayer master: the dump has `401 Turael` at 2931,3536;
+# in this cache 401 is `tog_light_creature`, so the row was dropped as name
+# drift and Burthorpe had no Turael -- Animal Magnetism's blessed axe (Quest
+# Helper AnimalMagnetism.java:228 talkToTurael, WorldPoint(2931, 3536, 0);
+# steps 160/170) was unreachable, and so was every slayer assignment from him.
+# The cache's Turael is `slayer_master_1_tureal` (13618, name=Turael), the
+# symbol skill_slayer/scripts/slayer_masters.rs2 and anma.rs2 bind.
+NPC_SPAWN_ID_CORRECTIONS = {
+    (401, 2931, 3536, 0): "slayer_master_1_tureal",
+}
+#
+# Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
+# pot (the one the flour barrel fills) on 1239,3682,1, and maps/m19_57.jl2 line
+# 397 (`1 23 34: 3025 11 2`) stands `fai_varrock_sack_pile` -- a blocking
+# centrepiece -- on that very tile, so Take answers "I can't reach that!". The
+# next tile north-west of the pile, 1239,3681,1 (local 23,33), carries no loc.
+# Quest Helper GettingAhead.java `takePot` sends the player to this pot upstairs
+# (zone 1238..1244, 3677..3687, plane 1); the wiki's Gordon and Mary's farm
+# (oldid 15229525) names the upstairs flour source.
 OBJ_SPAWN_RELOCATIONS = {
     ("knife", 2564, 9669, 0): (2538, 9696, 0),
     ("bread", 2564, 9670, 0): (2538, 9697, 0),
+    ("pot_empty", 1239, 3682, 1): (1239, 3681, 1),
 }
 
 
@@ -262,8 +289,32 @@ OBJ_SPAWN_RELOCATIONS = {
 # recovery path hands out `druid_pouch_empty`, and the grotto respawn has to
 # agree with it. Audited against
 # https://oldschool.runescape.wiki/w/Druid_pouch and quest_druidspirit.rs2.
+#
+# Death Plateau, the five mechanism balls in the Burthorpe barracks: the dump
+# lays five `death_cannonball_green` (3113) on 2893,3561..3565. LostCity's
+# maps/m45_55.jm2 OBJ section (`0 13 41..45`) lays one of each colour --
+# 3111 yellow, 3113 green, 3112 purple, 3110 blue, 3109 red, in that order
+# (LostCity pack/obj.pack) -- and quest_death's mechanism needs all five
+# colours (OSRS-Content b6aef218bc hand-edited m45_55.spawn to this; folded
+# in here so a regeneration keeps it).
 OBJ_SPAWN_ID_CORRECTIONS = {
     (2958, 3443, 9741, 1): "druid_pouch_empty",
+    (3113, 2893, 3561, 0): "death_cannonball_yellow",
+    (3113, 2893, 3563, 0): "death_cannonball_purple",
+    (3113, 2893, 3564, 0): "death_cannonball_blue",
+    (3113, 2893, 3565, 0): "death_cannonball_red",
+    # Biohazard, the pigeon cages behind Jerico's house: the dump lays three
+    # EMPTY cages (425 pigeoncage) at 2618,3323..3325; LostCity maps/m40_51.jm2
+    # OBJ `0 58 59..61: 424` lays three cages WITH pigeons (424 pigeons), which
+    # the quest has you take (OSRS-Content 4420b02611 hand-edited this).
+    (425, 2618, 3323, 0): "pigeons",
+    (425, 2618, 3324, 0): "pigeons",
+    (425, 2618, 3325, 0): "pigeons",
+    # Murder Mystery, the dagger by the Sinclair mansion: the dump lays the
+    # dusted copy (1814 murderweapondust); LostCity maps/m42_55.jm2 OBJ
+    # `0 58 58: 1813` lays the undusted `murderweapon`, which the player dusts
+    # for prints (OSRS-Content 0ee0ee5e9d hand-edited this).
+    (1814, 2746, 3578, 0): "murderweapon",
 }
 
 
@@ -282,8 +333,18 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 # per player (`obj_add_private(0_38_77_41_13, rd_metal_spade, ...)` in
 # quest_recruitmentdrive/scripts/recruitmentdrive_cheevers.rs2), so the tile
 # needs no public row at all.
+#
+# Getting Ahead: the dump lays red AND yellow dye on one tile, 1240,3688 -- the
+# tile of `ga_shelves`. In the game the dyes are not ground items: the player
+# Searches the shelves and picks one ("Take some red dye." -- Quest Helper
+# GettingAhead.java `takeDye`, an ObjectStep on GA_SHELVES at 1240,3688;
+# https://oldschool.runescape.wiki/w/Shelves_(Getting_Ahead)?oldid=15202355).
+# quest_gettingahead's [oploc,ga_shelves] is that search, so a public pile of
+# both dyes beside it would only be a second, wrong source.
 OBJ_SPAWN_EXCLUSIONS = {
     ("rd_metal_spade_no_handle", 2473, 4941, 0),
+    ("reddye", 1240, 3688, 0),
+    ("yellowdye", 1240, 3688, 0),
 }
 
 
@@ -305,6 +366,14 @@ OBJ_SPAWN_ADDITIONS = (
     ("arcenia_root", 3328 + 22, 9792 + 31, 0, 1),
     ("arcenia_root", 3328 + 36, 9792 + 36, 0, 1),
     ("arcenia_root", 3328 + 40, 9792 + 42, 0, 1),
+    # Getting Ahead: the knife the clay head is carved with and the bucket the
+    # sink fills to soften the clay are both taken in the farmhouse, and the dump
+    # carries neither. Quest Helper GettingAhead.java: `takeKnife` "Take the knife
+    # near Mary." at WorldPoint(1241, 3679, 0); `takeBucket` "Take the bucket in
+    # the house." at WorldPoint(1244, 3682, 0). docs/quests/getting_ahead.md
+    # (section 5, local supply sources) records the missing knife.
+    ("knife", 1241, 3679, 0, 1),
+    ("bucket_empty", 1244, 3682, 0, 1),
 )
 
 
@@ -347,6 +416,43 @@ def load_squares(maps_dir):
 Spawn = collections.namedtuple("Spawn", "kind name x z level count")
 
 
+def rule_symbols():
+    """Every cache symbol an override table names, as (table, symbol, kind)."""
+    for (name, _claimed) in NPC_NAME_ALIASES:
+        yield "NPC_NAME_ALIASES", name, "npc"
+    for (name, _x, _z, _level) in NPC_SPAWN_EXCLUSIONS:
+        yield "NPC_SPAWN_EXCLUSIONS", name, "npc"
+    for (name, _x, _z, _level) in NPC_SPAWN_RELOCATIONS:
+        yield "NPC_SPAWN_RELOCATIONS", name, "npc"
+    for name in NPC_SPAWN_ID_CORRECTIONS.values():
+        yield "NPC_SPAWN_ID_CORRECTIONS", name, "npc"
+    for (name, _x, _z, _level) in OBJ_SPAWN_RELOCATIONS:
+        yield "OBJ_SPAWN_RELOCATIONS", name, "obj"
+    for name in OBJ_SPAWN_ID_CORRECTIONS.values():
+        yield "OBJ_SPAWN_ID_CORRECTIONS", name, "obj"
+    for (name, _x, _z, _level) in OBJ_SPAWN_EXCLUSIONS:
+        yield "OBJ_SPAWN_EXCLUSIONS", name, "obj"
+    for (name, _x, _z, _level, _count) in OBJ_SPAWN_ADDITIONS:
+        yield "OBJ_SPAWN_ADDITIONS", name, "obj"
+
+
+def fail_on_rules(problems, why):
+    """A rule that cannot apply is never skipped: a renamed symbol (the
+    2026-10 var rename showed how wide a rename can be) or a dump row that
+    moved would turn an audited fix into a silent no-op, and the regenerated
+    roster would quietly undo it -- Turael vanished from Burthorpe exactly
+    that way, through an id the name check could not follow. Stop before
+    anything is written, and name every rule."""
+    if not problems:
+        return
+    print("gen_spawns: %d override rule(s) %s -- nothing written:" % (len(problems), why), file=sys.stderr)
+    for line in problems:
+        print("  " + line, file=sys.stderr)
+    print("Re-audit each against the cache (configs/all.npc|obj.compack) and the dump; a renamed symbol takes "
+          "its new name, a gone dump row takes the rule out.", file=sys.stderr)
+    sys.exit(2)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--content", required=True, help="unpacked content tree")
@@ -365,6 +471,12 @@ def main():
     obj_ids = load_compack(os.path.join(configs, "all.obj.compack"))
     npc_blocks = load_blocks(os.path.join(configs, "all.npc"))
     squares = load_squares(os.path.join(content, "maps"))
+
+    known = {"npc": set(npc_ids.values()), "obj": set(obj_ids.values())}
+    fail_on_rules(["%s names %s %r, which this cache does not have" % (table, kind, name)
+                   for table, name, kind in rule_symbols() if name not in known[kind]],
+                  "name a symbol this cache does not have")
+    hits = collections.Counter()
 
     reject = collections.Counter()
     corrected = collections.Counter()
@@ -385,6 +497,11 @@ def main():
     for row in npc_rows:
         ident = row["id"]
         name = npc_ids.get(ident)
+        npc_correction = NPC_SPAWN_ID_CORRECTIONS.get((ident, row["x"], row["y"], row["level"]))
+        if npc_correction is not None:
+            hits[("NPC_SPAWN_ID_CORRECTIONS", (ident, row["x"], row["y"], row["level"]))] += 1
+            corrected["npc %d -> %s (%d,%d,%d)" % (ident, npc_correction, row["x"], row["y"], row["level"])] += 1
+            name = npc_correction
         if name is None:
             reject["npc: id past the end of this cache's npc table"] += 1
             continue
@@ -396,7 +513,14 @@ def main():
         else:
             claimed = normalise(row["name"])
             alias_targets = NPC_NAME_ALIASES.get((name, claimed), set())
+        if candidates and claimed not in candidates and (candidates & alias_targets):
+            hits[("NPC_NAME_ALIASES", (name, claimed))] += 1
         if candidates and claimed not in candidates and not (candidates & alias_targets):
+            if npc_correction is not None:
+                fail_on_rules(["NPC_SPAWN_ID_CORRECTIONS %r: %s presents as %s, not the dump's %r"
+                               % ((ident, row["x"], row["y"], row["level"]), name,
+                                  "/".join(sorted(candidates)), row["name"])],
+                              "correct a row to an npc that does not carry the dump's name")
             reject["npc: name drift"] += 1
             drift.setdefault(ident, [name, sorted(candidates), row["name"], 0])
             drift[ident][3] += 1
@@ -404,6 +528,7 @@ def main():
         level = row["level"]
         target = NPC_SPAWN_RELOCATIONS.get((name, row["x"], row["y"], level))
         if target is not None:
+            hits[("NPC_SPAWN_RELOCATIONS", (name, row["x"], row["y"], level))] += 1
             relocated["npc %s (%d,%d,%d) -> (%d,%d,%d)" % (
                 (name, row["x"], row["y"], level) + target)] += 1
             row = dict(row, x=target[0], y=target[1])
@@ -424,6 +549,7 @@ def main():
             kept[square]
             continue
         if (name, row["x"], row["y"], level) in NPC_SPAWN_EXCLUSIONS:
+            hits[("NPC_SPAWN_EXCLUSIONS", (name, row["x"], row["y"], level))] += 1
             reject["npc: scripted owner-private encounter actor"] += 1
             # Preserve an empty generated file when every row on a shipped map
             # square is intentionally excluded. Contract checks use the file
@@ -446,13 +572,14 @@ def main():
         correction = OBJ_SPAWN_ID_CORRECTIONS.get(
             (ident, row["x"], row["y"], row["plane"]))
         if correction is not None:
-            assert correction in obj_ids.values(), correction
+            hits[("OBJ_SPAWN_ID_CORRECTIONS", (ident, row["x"], row["y"], row["plane"]))] += 1
             corrected["%s -> %s @ (%d,%d,%d)" % (
                 name, correction, row["x"], row["y"], row["plane"])] += 1
             name = correction
         level = row["plane"]
         target = OBJ_SPAWN_RELOCATIONS.get((name, row["x"], row["y"], level))
         if target is not None:
+            hits[("OBJ_SPAWN_RELOCATIONS", (name, row["x"], row["y"], level))] += 1
             relocated["obj %s (%d,%d,%d) -> (%d,%d,%d)" % (
                 (name, row["x"], row["y"], level) + target)] += 1
             row = dict(row, x=target[0], y=target[1])
@@ -463,6 +590,7 @@ def main():
         count = max(1, int(row.get("count", 1)))
         square = (row["x"] // 64, row["y"] // 64)
         if (name, row["x"], row["y"], level) in OBJ_SPAWN_EXCLUSIONS:
+            hits[("OBJ_SPAWN_EXCLUSIONS", (name, row["x"], row["y"], level))] += 1
             reject["obj: audited map-dump artefact (OBJ_SPAWN_EXCLUSIONS)"] += 1
             continue
         if square not in squares:
@@ -475,6 +603,16 @@ def main():
             continue
         seen.add(key)
         kept[square].append(Spawn("obj", name, row["x"], row["y"], level, count))
+
+    tables = {
+        "NPC_NAME_ALIASES": NPC_NAME_ALIASES, "NPC_SPAWN_EXCLUSIONS": NPC_SPAWN_EXCLUSIONS,
+        "NPC_SPAWN_RELOCATIONS": NPC_SPAWN_RELOCATIONS, "NPC_SPAWN_ID_CORRECTIONS": NPC_SPAWN_ID_CORRECTIONS,
+        "OBJ_SPAWN_ID_CORRECTIONS": OBJ_SPAWN_ID_CORRECTIONS, "OBJ_SPAWN_RELOCATIONS": OBJ_SPAWN_RELOCATIONS,
+        "OBJ_SPAWN_EXCLUSIONS": OBJ_SPAWN_EXCLUSIONS,
+    }
+    fail_on_rules(["%s %r" % (table, key) for table, rules in tables.items() for key in rules
+                   if not hits[(table, key)]],
+                  "matched no dump row (renamed symbol, moved tile, or a row the dump no longer has)")
 
     for name, x, z, level, count in OBJ_SPAWN_ADDITIONS:
         assert name in obj_ids.values(), name
@@ -536,7 +674,7 @@ def main():
     print("kept without a name check (record and every variant unnamed): %d npc" % unnamed, file=out)
     print("obj spawns carry no name in the dump, so NONE of them got a name check.", file=out)
     print("", file=out)
-    print("audited obj id corrections (OBJ_SPAWN_ID_CORRECTIONS):", file=out)
+    print("audited id corrections (NPC_SPAWN_ID_CORRECTIONS, OBJ_SPAWN_ID_CORRECTIONS):", file=out)
     for note, count in sorted(corrected.items()):
         print("  %-64s %d" % (note, count), file=out)
     if not corrected:

@@ -670,6 +670,21 @@ Four things change per revision and nothing else does:
 4. **The dump.** Everything above is machinery for surviving the gap between the
    dump's revision and yours; it does not close the gap.
 
+**The override tables are checked, not trusted (2026-10-02).** Every audited rule
+(`NPC_NAME_ALIASES`, `NPC_SPAWN_EXCLUSIONS`, `NPC_SPAWN_RELOCATIONS`,
+`NPC_SPAWN_ID_CORRECTIONS`, `OBJ_SPAWN_ID_CORRECTIONS`, `OBJ_SPAWN_RELOCATIONS`,
+`OBJ_SPAWN_EXCLUSIONS`, `OBJ_SPAWN_ADDITIONS`) names a cache symbol, and a symbol
+rename, a renumbering or a moved dump row would make that rule a silent no-op and
+the regeneration would quietly undo the fix it carries. So the tool stops with exit
+2 and writes nothing when a rule names a symbol the tree does not have, when a keyed
+rule matches no dump row, or when an id correction lands on an npc that does not
+carry the dump's display name. Each message names the table and the key. Fix the
+rule (a renamed symbol takes its new name; a row the dump no longer has takes the
+rule out); never loosen the check. A full regeneration against the committed roster
+differs only on `m45_159` (Forgettable Tale's beer glass at 2917,10191,1 is a hand
+edit with no sourced location), so do not regenerate over it until that row has a
+source.
+
 ### A different era, not just a different revision
 
 rs-map-viewer already answers this and its answer is the pattern to copy —

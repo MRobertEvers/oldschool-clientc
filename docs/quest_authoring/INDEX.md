@@ -62,6 +62,7 @@ topic file with one line added here.
 - `the world is not picking`, `(gate at x,y: why)`, `yaw N framed nothing in 5 poses` -> traps-13-22: `the world is not picking`
 - `I can't reach that!` -> start-and-travel: Doors; verbs-pointer: `t.player.click_loc`
 - `reach_failed:`, `stood on with ::goto`, `stand_on_square` -> traps-23-33: `stand_on_square` needs; gaps-world: `coordz(...)`
+- `I can't reach that!` on a tunnel exit you walked up to (Eagles' Peak `eaglepeak_puzzle1_exitmid`, `eaglepeak_human_exitmid`) -> traps-23-33: `stand_on_square` needs a GUIDE-GAP marker
 - `target shares the player's tile and the step off it did not land` -> start-and-travel: `goto_tile` before
 - `stepped off the target tile`, `pressed again from side N` -> gaps-dialogue: `covered`: step-off; gaps-world: `talk_to` steps off
 - a row went PASS -> FAIL: bare `map_flag` `ok` regraded `refused` -> gaps-world: `click_loc` `ok` on a bare
