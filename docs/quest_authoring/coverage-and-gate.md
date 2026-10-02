@@ -235,6 +235,27 @@ and no green step changes class.
 
 #### The departure tile (gap (b), not closed)
 
+**Proved, HELD BACK (matthew-mbp-m4-b50-seam1).** The driver change below works: `goto_tile` reads
+`QD.world.tile()` once before its first `::goto` and opens its ok detail with `at <landing> from
+<departure>` (`from ?` when the read fails). Live, d3505f4ee's `regicide.lua` wrote row 75 `at
+2461,9699,0 from 2314,9624,0` itself and was charged CHEAT; the green regicide stayed FULL 64/64.
+It was not landed because a full suite run with it turns TEN committed greens RED (every ledger
+100% PASS; `helper_coverage` TEST_GAP on a hop no rule could see before): blackknight row 27
+`goto-hole` (cabbage-hole room -> east room), desertrescue row 145 (deep mine -> mine 1 past the
+winch and exit), eadgar row 14 (mountain path -> troll area past `troll_climbingrocks`), hero row 27
+(garden -> secret room past `pete_sidedoor`), mourningsendparti row 125 (HQ -> basement past the
+trapdoor), mourningsendpartii row 18 (basement -> caves past `mourner_hideout_door4`),
+recruitmentdrive row 33 (west side -> Sir Kuam's room past `rd_bridge_right`), rumdeal row 95 (north
+island past `deal_gate_closed`), totem row 29 (entrance -> stairway past `combodoor`), troll row 17
+(troll area -> arena past its entrance). Most read as real gotos past an obstacle the guide names,
+so landing it means re-authoring those ten; that is the owner's call, not a seam closer's. The
+proved diff is kept in the owner's checkout as
+`build/seam_state/matthew-mbp-m4-b50-seam1/goto_departure_stamp.held.patch` (one `QD.world.tile()`
+read at the top of `QD.player.goto_tile`, two detail formats); the suite's verdicts are
+`close_gate_after.txt` beside it.
+
+The gap as the grader pass wrote it:
+
 No ledger row records where a goto left from. `player.goto_tile` writes `at <landing>`
 (script/plugins/quest_driver/pointer.lua). The server's `::goto` reply names only the destination
 (`Teleported to x,z,l.`). client.log has no per-row tile. Across the committed greens, 993 of 1,735

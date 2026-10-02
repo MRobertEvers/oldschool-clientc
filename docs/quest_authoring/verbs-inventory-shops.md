@@ -16,6 +16,13 @@ transmitted container under its inv id with no record of the grid it was pushed 
 is this" is a question only the caller can answer. Closes a shop that is already up first, for the
 same reason `journal_open` does.
 
+#### `shop.open` times out on a shopkeeper whose Trade speaks first (Bob's axes; matthew-mbp-m4-b50-seam1)
+
+Bob's Trade (`bob.rs2 [opnpc3,bob]`) speaks two pages before the shop opens, so `shop.open("bob", 3,
+"axeshop")` times out. Use `t.player.talk_to("bob", 3)`, `t.chat.play{"player:Have you anything to
+sell?", "npc:Yes! I buy and sell axes!"}`, then `t.shop.attach("axeshop")`. A shop whose stock is 1
+(Wydin's redberries) restocks in about 100 ticks: buy, close, `t.ticks(110)`, open again.
+
 ### `t.shop.buy(item, count=1)`
 
 `t.shop.buy(item, count=1)` -> `ok` `refused` `not_found` `no_row`. Buys exactly `count`, composing
@@ -84,6 +91,12 @@ The verb presses up to seven times against a re-pressed backpack tab and says so
 op whose whole answer is a NON-chat interface (a schematic, a lamp picker, a still) settles `ok` and
 names it: `-> 0 left [modal dwarf_rock_schematics]` -- the interface was not up when the settle
 began (seam12); dialogue pages still settle through the chat arms.
+
+#### `inv_op` answers `timeout` on an op that swaps the item for another obj (sack Fill; matthew-mbp-m4-b50-seam1)
+
+Fill on `sack_empty` turns the sack into `sack_potato_10`, and the verb's settle watches the old obj,
+so it answers `timeout` though the op ran. Read the new obj back instead:
+`t.inv.await("sack_potato_10", 1, 10)` (conformance `seam.vegetable_sack_fill`).
 
 #### A Wield/Wear through `inv_op` answers `ok ... [WORN <item>: ...]` (seam34)
 

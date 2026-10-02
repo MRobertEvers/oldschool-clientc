@@ -64,6 +64,9 @@ book's title and left page).
 `refused` (not a type-6 model component) -- what the cache baked and the server's
 `if_setangle`/`if_setrotatespeed` last applied;
 `t.ui.await_model_pose(sym, {field=value}, ticks, sub)` -> `(ok|timeout, detail, pose)`.
+An `if_setmodel` widget whose model has not composited yet -- or whose id the cache does not hold --
+draws nothing and reads `pose.model == -1` (matthew-mbp-m4-b50-seam1, as the reference client's
+`getModel` null); before, it kept drawing and reporting the previous model.
 
 #### `t.ui.is_modal() == true` never holds: the first return is the string `ok` (sonnet-b41)
 
