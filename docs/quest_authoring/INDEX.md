@@ -122,6 +122,7 @@ topic file with one line added here.
 - a `~mesbox` in Mort Myre gone a tick later, `no dialogue is open` -> seam-facts: Seam pass 30 (g)
 
 ## Items, held ops and shops
+- "The Paladin tries to give you some supplies but you don't have enough room"; `killJerro-supplies` bread x0 stew x0 blamed on RNG -> gaps-world: Underground Pass: "The Paladin tries to give you some supplies"
 
 - `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 (FIXED seam32; `t.inv.slot` still names it `''`) -> verbs-pointer: `click_obj` answers `timeout`; seam-facts: Seam pass 32 (c)
 - a bucket on a sink/pump answers "Nothing interesting happens." -> gaps-world: A sink or water pump (FIXED seam29)
@@ -234,6 +235,7 @@ topic file with one line added here.
 ## Gate, lint, coverage and the ledger
 
 - `leaves the <step> side ... without crossing the ladder/stair/trapdoor`; a sub-step graded CHEAT or ALTERNATIVE -> coverage-and-gate: A promoted sub-step
+- `leaveFallArea` CHEAT naming a later leg's `goto_tile 2417,9677` (Underground Pass) -> gaps-world: Underground Pass: the fall pocket is left over five rockslides (last paragraph)
 - `t.check(name, true, ...)` after a `t.ui.invoke` or a pickup -> sampler-findings: Sample sonnet-b36
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`
 - `[bad ledger argument]`; a boolean in `t.step` -> gaps-dialogue: `t.step`'s second argument
@@ -294,6 +296,7 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
+- no raw karambwanji left after `fillVessel`; `makeKarambwanjiPaste` or a second load finds none (Tai Bwo Wannai Trio, `inv_delslot` on a stack) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel
 
 - a sled ride that walks; `P_TEMPRUN is not implemented`; an anim that plays over a protected stance; a monkey body with a human chathead; `TORIRSSERVER_ANIM_TRACE` -> seam-facts: Seam pass 35 (g)
 - `::run 0` leaves the run orb on (it sets run ENERGY) -> QUEST_SERVER_CHEATS.md `run` row; seam-facts: Seam pass 35 (g)
@@ -369,4 +372,5 @@ topic file with one line added here.
 - `the dialogue closed after N page(s)` right after a cutscene; a page a cutscene ends in -> verbs-cutscene: A cutscene between two dialogue pages
 - `cutscene_row_required`; `cutscene:` rows; `no_cutscene`/`unfinished`; `expected keyframe #N ... not found`; `checkpoint k NOT written: the camera is server-driven`; a quest whose content scripts `cam_moveto`/`cam_lookat` (`cutscene_sweep.py`, DROPPED/PARTIAL fail `check-quest-cutscenes`) -> verbs-cutscene (`t.cutscene.await`, `t.world.camera`); a fade with no camera op -> verbs-ui-and-npc: Fade overlays
 - `cutscene_row_required` names a site on a route the guide never takes; `cutscene_exempt_refused:`; `t.cutscene.exempt`; `gate.py --cutscene-as` -> verbs-cutscene: `cutscene_row_required` names a site on a route you did not take (seam34)
+- `cutscene_exempt_refused: ... is ON the guide's route` for a site behind a `random(...)` roll (Troll Romance's sled crash `trollromance_sled.rs2:273/274`) -> verbs-cutscene: A camera site behind a random roll on the guide's route
 - `check-quest-cutscenes` red on mm PARTIAL / troll_love DROPPED; `lostcity_tree`; `cutscene_sweep.py --sites` -> verbs-cutscene: the sweep paragraph (seam34); seam-facts: Seam pass 34 (e)
