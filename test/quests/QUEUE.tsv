@@ -142,7 +142,7 @@ quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	tod
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
-quest_royaltrouble	royaltrouble	royaltrouble		4	green	vm-b1			
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo	vm-b1	RETRY after e2892144b (v3 helper_coverage, door/trap judging): plankRock3 grades CHEAT -- leg 7's goto-plankRock1 (ledger row 199) lands 2544,10287,0 -> 2549,10288,0 past the trap plankRock3 names (royal_invisible_puddletrap); drive the plank/trap crossing the guide shows instead of the goto. The other 80 steps grade DRIVEN; keep them.		
 quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27			
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
