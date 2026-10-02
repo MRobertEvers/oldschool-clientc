@@ -92,7 +92,8 @@ return {
         stage(4, "quest.stage.teleported")
 
         -- 1.6 enterPassword / 1.7 solvePassword (KURT: K=10 right, U=6 left, R=9 left, T=7 left)
-        t.exec("goto-enterPassword", t.player.goto_tile, 2633, 3323, 0)
+        t.exec("enterPassword.entranceDoor", t.player.click_loc, "poshdoor", 1, { at = { 2636, 3323 } })
+        t.ticks(3)
         t.exec("enterPassword", t.player.click_loc, "combodoor", 1)
         t.exec("enterPassword.await", t.ui.await_open, "tribal_door")
         for i = 1, 4 do
@@ -120,7 +121,7 @@ return {
         t.exec("solvePassword.walk", t.player.click_loc, "combodoor", 1)
         t.ticks(4)
         local _, kt = t.world.tile()
-        t.check("solvePassword.inside", kt and kt.x >= 2634 and kt.level == 0, "tile " .. tostring(kt and (kt.x .. "," .. kt.z)))
+        t.check("solvePassword.inside", kt and kt.x <= 2633 and kt.level == 0, "tile " .. tostring(kt and (kt.x .. "," .. kt.z)))
 
         -- 1.8 climbStairs: the trap first, then investigate (op 2), then climb
         t.exec("goto-climbStairs", t.player.goto_tile, 2631, 3325, 0)
