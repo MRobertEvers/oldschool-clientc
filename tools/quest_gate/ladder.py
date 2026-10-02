@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The quest ladder: a quest's Quest Helper guide as a small table, cut into legs.
 
-    python3 tools/quest_gate/ladder.py <test_id> [--legs N] [--leg K] [--json] [--write]
+    python3 tools/quest_gate/ladder.py <test_id> [--legs N] [--leg K] [--json] [--write] [--guide-order]
 
 WHY. A long quest ran its author out of context: it read the 15 KB guide
 Java, then the 10-15 KB .rs2 files it names, over and over. This prints
@@ -24,6 +24,21 @@ LEGS. The ordered steps are cut into legs of about --legs steps (default
 ideal cut moves to the nearest quest-stage boundary (two different
 `steps.put` keys) within three steps of it, else stays where it is.
 
+ROUTE CUT. When docs/quests/ladders/<test_id>.legs exists, the legs are
+not cut by count: each non-comment line of that file is one leg, a stage
+range in walking order (`0-60`, `90-150`, `300-` = 300 and up; `#` starts a
+comment). Every step goes to the leg whose range holds its stage (a step
+with no stage keeps the stage of the guide step before it), the steps are
+listed in leg order and, inside a leg, by stage (guide order breaks ties),
+and `n` is renumbered in that route order (`guide_n` in --json, `g<k>` in
+the text keeps the guide's number). Ranges must ascend without overlap,
+every step's stage must fall in one, and no range may be empty; anything
+else exits 2 naming the line. Use it when the guide's order is not the
+route (The Fremennik Isles files stage 90 before the steps that reach it);
+a quest without the file is cut exactly as before. --guide-order ignores
+the file; --legs N with a route cut exits 2. fail.py --leg K follows the
+same cut, through build() and cut().
+
 --leg K prints only leg K after a three-line header (the quest, the stage
 the leg starts at, the last step of the previous leg): what a relay author
 is handed. --write writes docs/quests/ladders/<test_id>.ladder.tsv.
@@ -42,6 +57,7 @@ _sys.path.append(_HERE)
 import argparse
 import json
 import os
+import re
 import sys
 
 import helper_coverage as hc  # noqa: E402
@@ -95,7 +111,9 @@ def quest_triggers(quest_dir, targets, cap=1):
     return shown
 
 
-def build(test_id):
+def build(test_id, route=True):
+    """(QUEUE row, guide path, steps). The steps are in the guide's order, or
+    in route order when the quest has a .legs file and route is true."""
     row = hc.queue_row(test_id)
     if row is None:
         die("test_id %r is not in %s" % (test_id, hc.QUEUE_PATH))
@@ -151,12 +169,90 @@ def build(test_id):
             "triggers": quest_triggers(row["quest_dir"], step.targets),
             "guide_line": step.line,
         })
+    if route:
+        steps = route_order(test_id, steps)
     return row, os.path.relpath(path, hc.QUEST_HELPER_ROOT), steps
 
 
+def legs_path(test_id):
+    return os.path.join(LADDER_DIR, test_id + ".legs")
+
+
+def read_route_legs(test_id):
+    """(path, [(lo, hi or None, line number)]) from docs/quests/ladders/<test_id>.legs,
+    or (None, None) when the quest has no route cut file."""
+    path = legs_path(test_id)
+    if not os.path.isfile(path):
+        return None, None
+    rel = os.path.relpath(path, hc.REPO_ROOT)
+    ranges = []
+    with open(path, encoding="utf-8") as handle:
+        for number, raw in enumerate(handle, 1):
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            match = re.match(r"^(\d+)\s*-\s*(\d*)$", line)
+            if not match:
+                die("%s:%d: %r is not a stage range (`lo-hi`, or `lo-` for lo and up)" % (rel, number, line))
+            lo = int(match.group(1))
+            hi = int(match.group(2)) if match.group(2) else None
+            if hi is not None and hi < lo:
+                die("%s:%d: range %d-%d runs backwards" % (rel, number, lo, hi))
+            if ranges:
+                previous_hi = ranges[-1][1]
+                if previous_hi is None or lo <= previous_hi:
+                    die("%s:%d: range %s does not start after the line before it ends (%d-%s): "
+                        "ranges ascend in walking order without overlap" % (
+                            rel, number, line, ranges[-1][0], "" if previous_hi is None else previous_hi))
+            ranges.append((lo, hi, number))
+    if not ranges:
+        die("%s holds no stage range: delete it or write one range per leg" % rel)
+    return path, ranges
+
+
+def route_order(test_id, steps):
+    """The steps re-ordered by the quest's .legs file, each stamped with
+    `route_leg` and `guide_n` and renumbered; the steps unchanged when the
+    quest has no such file."""
+    path, ranges = read_route_legs(test_id)
+    if path is None:
+        return steps
+    rel = os.path.relpath(path, hc.REPO_ROOT)
+    keyed = []
+    effective = ranges[0][0]
+    for step in steps:
+        if step["stage"] is not None:
+            effective = step["stage"]
+        leg = None
+        for index, (lo, hi, _) in enumerate(ranges):
+            if effective >= lo and (hi is None or effective <= hi):
+                leg = index + 1
+                break
+        if leg is None:
+            die("%s: guide step %d %s (stage %s) falls in none of its ranges" % (
+                rel, step["n"], step["step"], stage_str(step["stage"])))
+        keyed.append((leg, effective, step["n"], step))
+    keyed.sort(key=lambda entry: entry[:3])
+    used = set(entry[0] for entry in keyed)
+    for index, (lo, hi, number) in enumerate(ranges):
+        if index + 1 not in used:
+            die("%s:%d: range %d-%s holds no guide step" % (rel, number, lo, "" if hi is None else hi))
+    ordered = []
+    for route_n, (leg, _, guide_n, step) in enumerate(keyed, 1):
+        step = dict(step, n=route_n, guide_n=guide_n, route_leg=leg)
+        ordered.append(step)
+    return ordered
+
+
 def cut(steps, size, forced):
-    """[(first index, last index)] inclusive, 0-based."""
+    """[(first index, last index)] inclusive, 0-based. Steps that route_order
+    stamped carry their own legs (the .legs file); size and forced are then
+    not used."""
     count = len(steps)
+    if count and "route_leg" in steps[0]:
+        bounds = [0] + [i for i in range(1, count) if steps[i]["route_leg"] != steps[i - 1]["route_leg"]]
+        bounds.append(count)
+        return [(bounds[i], bounds[i + 1] - 1) for i in range(len(bounds) - 1)]
     if count <= ONE_LEG_MAX and not forced:
         return [(0, count - 1)]
     legs = max(1, int(round(count / float(size))))
@@ -200,9 +296,10 @@ def text_rows(steps, leg_of):
     lines = []
     for step in steps:
         cells = row_cells(step, leg_of[step["n"]])
-        lines.append("%s.%-3s s%-5s %s  %s  %s  %s" % (
+        lines.append("%s.%-3s s%-5s %s  %s  %s  %s%s" % (
             cells[0], cells[1], cells[2], cells[3], cells[4], cells[5] or "-",
-            "(" + cells[6] + ")" if cells[6] else ""))
+            "(" + cells[6] + ")" if cells[6] else "",
+            "  g%d" % step["guide_n"] if "guide_n" in step else ""))
         lines.append("      \"%s\"" % cells[7])
         for label, index in (("subs", 8), ("items", 9), ("dialog", 10), ("trig", 11)):
             if cells[index]:
@@ -219,11 +316,21 @@ def main():
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--write", action="store_true",
                         help="write docs/quests/ladders/<test_id>.ladder.tsv")
+    parser.add_argument("--guide-order", action="store_true",
+                        help="ignore docs/quests/ladders/<test_id>.legs: cut in the guide's order")
     args = parser.parse_args()
     if args.legs is not None and args.legs < 1:
         die("--legs must be at least 1, got %d" % args.legs)
 
-    row, guide, steps = build(args.test_id)
+    row, guide, steps = build(args.test_id, route=not args.guide_order)
+    routed = bool(steps) and "route_leg" in steps[0]
+    if routed and args.legs is not None:
+        die("--legs %d: %s is cut by route in %s; edit that file, or add --guide-order" % (
+            args.legs, args.test_id, os.path.relpath(legs_path(args.test_id), hc.REPO_ROOT)))
+    cut_note = ("route order, %s (%s)" % (
+        os.path.relpath(legs_path(args.test_id), hc.REPO_ROOT),
+        " ".join("%d-%s" % (lo, "" if hi is None else hi) for lo, hi, _ in read_route_legs(args.test_id)[1]))
+        if routed else "guide order")
     legs = cut(steps, args.legs or DEFAULT_LEG, args.legs is not None)
     leg_of = {}
     for number, (first, last) in enumerate(legs, 1):
@@ -244,15 +351,18 @@ def main():
         os.makedirs(LADDER_DIR, exist_ok=True)
         out_path = os.path.join(LADDER_DIR, args.test_id + ".ladder.tsv")
         with open(out_path, "w", encoding="utf-8") as handle:
-            handle.write("# ladder %s quest_dir=%s guide=%s steps=%d legs=%s\n" % (
+            handle.write("# ladder %s quest_dir=%s guide=%s steps=%d legs=%s%s\n" % (
                 args.test_id, row["quest_dir"], guide, len(steps),
                 " ".join("%d:%d-%d@s%s" % (i["leg"], i["steps"][0], i["steps"][1], stage_str(i["start_stage"]))
-                         for i in leg_info)))
+                         for i in leg_info),
+                (" cut=route:%s.legs (n is the route order; guide_n the guide's)" % args.test_id) if routed else ""))
             handle.write("#" + LEGEND.strip() + "\n")
-            handle.write("\t".join(COLUMNS) + "\n")
+            handle.write("\t".join(COLUMNS + (["guide_n"] if routed else [])) + "\n")
             previous_items = None
             for step in steps:
                 cells = row_cells(step, leg_of[step["n"]])
+                if routed:
+                    cells.append(str(step["guide_n"]))
                 # A kit carried across many steps is written once: "=" is the row above's items.
                 if cells[9] and cells[9] == previous_items:
                     cells[9] = "="
@@ -274,11 +384,14 @@ def main():
         print("quest: %s (%s, guide %s) -- leg %d of %d, steps %d-%d of %d" % (
             args.test_id, row["quest_dir"], guide, args.leg, len(legs), info["steps"][0], info["steps"][1],
             len(steps)))
-        print("starts at stage: %s (%s)" % (stage_str(info["start_stage"]), info["first"]))
+        print("starts at stage: %s (%s)%s" % (stage_str(info["start_stage"]), info["first"],
+                                            "; cut in " + cut_note if routed else ""))
         print("previous leg ended with: %s" % previous)
     else:
         print("quest: %s (%s, guide %s) -- %d steps, %d leg%s" % (
             args.test_id, row["quest_dir"], guide, len(steps), len(legs), "" if len(legs) == 1 else "s"))
+        if routed:
+            print("  cut in %s" % cut_note)
         for info in leg_info:
             print("  leg %d: steps %d-%d, stage %s..%s, %s .. %s" % (
                 info["leg"], info["steps"][0], info["steps"][1], stage_str(info["start_stage"]),
