@@ -126,7 +126,11 @@ return {
         ------------------------------------------------------------------
         -- fightDad
         ------------------------------------------------------------------
-        t.exec("goto-fightDad", t.player.goto_tile, 2908, 3614, 0)
+        t.player.walk_to(2908, 3614, 40)
+        local arena_walk_result, arena_walk_tile = t.world.tile()
+        t.check("walkIntoArena", arena_walk_result == "ok" and arena_walk_tile ~= nil
+                and arena_walk_tile.x >= 2900,
+            "walked through the opened arena entrance to " .. tostring(arena_walk_tile and (arena_walk_tile.x .. "," .. arena_walk_tile.z)))
         t.exec("fightDad-talk", t.player.talk_to, "troll_champion", 1)
         t.exec("fightDad-dialog", t.chat.play, {
             "npc:What tiny human do in troll arena",

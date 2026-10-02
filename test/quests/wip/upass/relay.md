@@ -171,3 +171,76 @@
 ## leg 8 (final; full run green, gate green, lint clean)
 - Ends at Lathas's chamber 2578,3292 L1, upass complete (varp 10), qp 3 -> 8; bind display "Underground Pass".
 - helper_coverage: 76 DRIVEN, 1 TRAVEL, 1 declared CONTENT_GAP leaveFallArea (GUIDE-GAP in leg 4, cites upass_obstacles.rs2:77 and m38_150.jl2:2990/2995): after the swamp fall the pocket 2485,9649 -> rockslide 2479,9629 -> 2480,9628 is sealed by collision; the pile 2470,9620 is unreachable from every side.
+
+## seam2 (maze)
+- Leg 4's navigateMaze is the real route; nothing in the map or the content is wrong (seam pass matthew-mbp-m4-b48-seam2). The five bridges `walkway_upass_narrow_mid_top` 2380,9634 2387,9631 2392,9627 2399,9632 2406,9637 are clicked from x-1 (dead ends: 2396,9636, 2406,9632); between them walk 2373,9634 -> 2379,9634 | 2384,9634 -> 2384,9631 -> 2386,9631 | 2389,9631 -> 2389,9627 -> 2391,9627 | 2395,9627 -> 2395,9632 -> 2398,9632 | 2403,9632 -> 2403,9637 -> 2405,9637, then 2421,9637 -> 2422,9634 -> 2422,9610 -> 2421,9606 -> 2419,9605 for the pipe at 2417,9605. Same seven bridges in LostCity's m37_150; handler upass_obstacles.rs2:360 = LostCity :291.
+- Pipe landing depends on the upass var (upass_obstacles.rs2:410-414): before ^upass_killed_unicorn it lands one tile on, in the live-unicorn room (x 2393-2417); after it, 26 tiles further, at 2387,9605 in the dead-unicorn copy (x 2368-2392). `upass_unicorn_doorl` 2375,9611 (angle south) leaves to 2371,9666; the 37_151 doors at 2370-2371,9665 come back to 2376,9610 (unicorn dead) or 2401,9610.
+- Proof run seam2_maze_walk (build/seam_state/matthew-mbp-m4-b48-seam2/scratch/maze_walk.lua, upass complete): 20/20 -- well, cell on foot, mud, ledge, `repro.walk_to_pipe_stalls` (the plain walk stops at 2374,9638), five bridges first try, pipe -> 2387,9605, door -> 2371,9666.
+
+## seam upass_fall_pocket_exit (matthew-mbp-m4-b49-seam1): leaveFallArea is DRIVABLE, no content change
+- The fall pocket is not sealed. Its exit is five rockslide2_obstacle_upass climbs and then the caverockpile -- obstacles to
+  click, the same as seam2's maze bridges. The b47 GUIDE-GAP marker (leg 4, "sealed by collision") is wrong. Delete it and
+  drive the step. Details and sources: docs/quests/ladders/upass.notes.md, "The fall pocket".
+- Proven rows (scratch build/seam_state/matthew-mbp-m4-b49-seam1/scratch/fall_pocket.lua, 11/11 PASS):
+  goto 2453,9716 -> click_loc("upass_swampbubbles1", 1, {at={2465,9713}}) -> lands 2485,9649 ("You land battered and
+  bruised at the base.") -> for each slide, walk the guide's line points to the near side and click_loc
+  ("rockslide2_obstacle_upass", 1, {at=...}) until you stand on the far side (a slip says "...but you slip back down." and
+  costs 3 hp; one slide took 7 tries):
+    slide 2479,9629 from 2480,9629 -> 2478,9629   hops 2485,9645 2483,9642 2483,9635 2481,9629
+    slide 2467,9646 from 2468,9646 -> 2466,9646   hops 2476,9636 2474,9637 2470,9635 2467,9637 2467,9639 2471,9642 2471,9646
+    slide 2456,9633 from 2457,9633 -> 2455,9633   hops 2465,9646 2460,9640 2460,9633
+    slide 2455,9647 from 2456,9647 -> 2454,9647   hops 2452,9637 2452,9640 2459,9645 2459,9647
+    slide 2448,9650 from 2449,9650 -> 2447,9650
+  then leaveFallArea = click_loc("caverockpile", 1, {at={2443,9651}}) -> 2482,9715 ("You surface by the swamp, covered in
+  muck."), which is east of rockslide 1. Carry food and hitpoints: the fall plus about ten slips took 40 hp down to 6.
+- The block was also tried inside the real file. The proof copy is scratch/upass_proof.lua: the b47 file
+  (orchestrator backup 20261002T055851Z/upass.lua) with the leg-4 GUIDE-GAP line replaced by
+  scratch/leave_fall_area_block.lua (goto 2453,9716, swamp, five slides, pile, then the existing goto-climbDownWell).
+  Run whole with --name upass, rows 1-109 PASS, including enterSwampBubbles-landed, leaveFallArea-rockslide1..5,
+  leaveFallArea and leaveFallArea-surfaced. helper_coverage --lua grades leaveFallArea DRIVEN.
+- WHERE IT STOPS NEXT: navigateMaze (row 110). The extra rolls shift the account-seeded RNG.
+  (1) The b47 cross_bridge has no retry, and bridge 2380,9634 now rolls a fall.
+  (2) With seam2's retry loop (scratch/upass_proof2.lua), bridges 1-4 cross (bridge 1 on try 2), but bridge 2406,9637 drops
+  you to 2406,9635, and walk_to back to 2405,9637 times out, directly or by 2403,9632/2403,9636. The way out of that pit
+  is not yet found; seam2 lists 2406,9632 as a dead end. Find it before you rely on the maze under a new RNG sequence.
+  Another option: put the fall where the guide has it (leg 1, after climbOverRockslide3, the swamp is right there),
+  re-climb rockslides 1-3 from 2482,9715, and re-run the whole file.
+- Stop ::giving the woodplank (leg 3, line ~290): the guide's collectPlank picks it up in the pass. It is a ground spawn,
+  m38_151.spawn:35, woodplank at 2435,9726. From Koftik's ledge the north room only reaches 2446,9724 on foot
+  (scratch collect_plank.lua), so take it after the bridge, as the guide's crossThePit substep does, with
+  click_obj("woodplank", 3) plus t.inv.await.
+
+## leg 3 (b49 runner, steps green; run stops at leg 4's orchestrator t.blocked)
+- Ends at 2383,9668 level 0 (beside the logtrap rock); upass stage 2; run 93 rows, 92 PASS (leg.3.end PASS), then leg 4's ROUND marker blocks.
+- Backpack: caveorb1-4, woodplank x1, bronze_arrow x4, tinderbox, lobsters; shortbow worn. Leg sets hitpoints 40, defence 30 inside the leg.
+- ::give woodplank KEPT (brought-along, guide items: Plank): tried the orchestrator's collectPlank in leg 3 -- from 2431,9676 east through all four traps, walk_to 2436,9726 stalls at 2444,9677 (the north room is reachable only from Koftik's ledge before the bridge). To drop the give, leg 2's crossThePit must take it (collectPlank is its substep).
+- Fell back to the previous leg-3 text otherwise; do not edit leg 3 again (checkpoint hash).
+
+## leg 4 (b49 re-run: fall pocket added, maze retry)
+- Ends 2381,9604 level 0 (skeleton room), upass stage 4; checkpoint 4 written (run 3 of 3, full run). Worn adamant_scimitar; backpack horn, spade, lobster x18, caverailing/shortbow etc as before. Leg gives lobster 10 (was 4).
+- Added leaveFallArea: goto 2453,9716, swamp bubbles, five rockslides, caverockpile -> 2482,9715 (rows enterSwampBubbles-landed, leaveFallArea-rockslide1..5, leaveFallArea, leaveFallArea-surfaced), then the old goto-climbDownWell. GUIDE-GAP marker gone.
+- navigateMaze now retries each bridge (8 tries, walks the seam2 leg hops). The pit under bridge 5 (2406,9637) lands in a pocket 2406-2410,9632-9635 that walk_to cannot leave; a failed roll there is put back at 2405,9637 with goto_tile (plain travel, crosses nothing).
+- Full run 233/234: the one FAIL is killJerro-supplies (leg 6/7, bread x0 stew x0 after the knight talk), moved by the RNG shift -- not leg 4.
+
+## orchestrator note (matthew-mbp-m4-b49 round 2)
+- Two markers in test/quests/upass.lua: leg 4's goto 2417,9677 into the fall area (drive the rockslides + caverockpile instead; the grader reads that goto as CHEAT), and leg 5's killJerro supplies (free 7 slots before the knight's talk). Legs 4 and 5 reopened; notebooks retired as leg<K>.progress.b49r1.md.
+
+## leg 4 (b49 round 2 runner)
+- Ends 2378,9607 level 0 (skeleton room, cleared), upass stage 4 (killed_unicorn); hitpoints ~23. Leg gives spade 1 and lobster 10 inside the leg.
+- Backpack: cave_unicorn_horn, lobster x18, spade, caverailing/shortbow/woodplank/bronze_arrow/tinderbox leftovers; adamant_scimitar worn (leg.4.wield).
+- Fall pocket (swamp, five rockslides, caverockpile -> 2482,9715) is kept and PASSES first try on --from-leg 4; I only replaced the leg-4 ROUND 2 t.blocked with goto-climbDownWell 2417,9677 (plain travel, outside the fall area 2440-2486,9628-9657).
+- Skeletons may still be aggro at the boundary: a --from-leg 4 run logged "checkpoint 4 refused: in combat" during leg 5's first rows (the full-run 4.ckpt exists). Leg 5 still stops at its own ROUND 2 marker (free 7 slots before the knight's talk).
+
+## leg 5
+- Ends at 2173,4725 level 1 (Iban's temple, past cavetempledoor2r); upass stage 5. All ten ladder steps PASS (full run 2026-10-02, run 2 of 10).
+- Fix this round: the orchestrator's t.blocked marker before killJerro-talk is replaced by dropping woodplank/caverailing/shortbow/bronze_arrow/spade and a free-slot loop (7 free needed, upass_encounters.rs2:101; lobsters dropped down to 3 if needed). Run read 8 free, bread x2 stew x1.
+- Backpack at end: tinderbox, lobster x11, bread x2, stew, meat pies, potions; adamant scimitar worn. Setup levels: hitpoints 80, attack 80, strength 80, defence 60 set inside the leg.
+- Surprise: the same full run later DIED in leg 8 (Othainian fight, hp 0 at 2122,4564 L1), not leg 5.
+
+## orchestrator note (matthew-mbp-m4-b49 round 3)
+- Round 2 reached the completion for its author, but the reviewer's rerun died to Othainian (tick 3634): leg 7 is reopened with one marker before the three demon fights -- carry sharks for three level-91 demons, eat earlier, pray if needed. Legs 1-6 and 8 stand.
+
+## leg 7 (round 3, b49: food fix, full run 235/0, gate/lint checked)
+- Ends 2355,9802 level 0 (beside Iban's tomb); upass stage 7; shadow_on_doll 1, brew_tomb 1. Hitpoints ~86.
+- Round 3 fix: before the demons the leg drops weak food (half pies, pie, pizza, bread, stew, lobsters) until 16 slots are free, ::give shark (supply) up to 16, eats sharks below 60 (kill_demon eats via opts.eat item shark). Earlier rerun died to Othainian because a full pack took only 1 shark.
+- Backpack: leftover sharks, ibandoll, old_journal, tinderbox, spade, bucket_empty, potions; adamant_scimitar worn. Levels set inside leg 7: agility 70, hitpoints 99, defence 80.

@@ -168,7 +168,19 @@ return {
         -- troll_stronghold_entrance] trigger; graded on the read-back tile
         -- landing underground (z >= 10000), same "record what you read
         -- back" pattern as climbStile above.
-        t.exec("goto-secretdoor", t.player.goto_tile, 2827, 3646, 0)
+        t.ticks(5) -- let the exact-move crossing finish
+        local rocks_after_result, rocks_after_tile = t.world.tile()
+        t.check("crossedRocks", rocks_after_result == "ok" and rocks_after_tile ~= nil and rocks_after_tile.z > 3611,
+            "world.tile() after troll_climbingrocks -> " .. tostring(rocks_after_result) .. " z=" .. tostring(rocks_after_tile and rocks_after_tile.z))
+        t.player.walk_to(2834, 3626, 120) -- the path west to the second rock pair (2833-2834,3628)
+        t.exec("climbRocks2", t.player.click_loc, "troll_climbingrocks", 1, { at = { 2834, 3628 } })
+        t.ticks(6)
+        local r2_result, r2_tile = t.world.tile()
+        t.check("crossedRocks2", r2_result == "ok" and r2_tile ~= nil and r2_tile.z >= 3629, "tile " .. tostring(r2_tile and r2_tile.x) .. "," .. tostring(r2_tile and r2_tile.z))
+        t.player.walk_to(2827, 3646, 60)
+        local walk_result, walk_tile = t.world.tile()
+        t.check("walk-secretdoor", walk_result == "ok" and walk_tile ~= nil and math.abs(walk_tile.x - 2827) <= 2 and math.abs(walk_tile.z - 3646) <= 2,
+            "walked from the rocks to the secret entrance; tile " .. tostring(walk_tile and walk_tile.x) .. "," .. tostring(walk_tile and walk_tile.z))
         local secretdoor_target = t.player.by_symbol("loc", "troll_stronghold_entrance")
         local secretdoor_op, secretdoor_detail = t.drive.op(secretdoor_target, 1)
         t.ticks(3)

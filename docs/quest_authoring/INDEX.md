@@ -49,6 +49,7 @@ topic file with one line added here.
 - a ship trip lands in the sea (2831,3334,0); `useGangPlank` has no menu row; the Entrana monks' ferry -> seam-facts: Seam pass 34 (g) (FIXED); docs/quests/ladders/deviousminds.notes.md
 - Rum Deal: Pete says "take a boat over" but nothing takes you to Braindeath Island; the goto from the Port Phasmatys dock is the only way -> gaps-world: Rum Deal: Pete says "take a boat over"
 - Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
+- an npc's tile one behind when read right at the script's `mes()` line; an npc's `slot` changed after a teleport out of view and back -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (b), (c)
 
 ## Pressing and clicking
 
@@ -151,7 +152,8 @@ topic file with one line added here.
 - a held op silently refused during a `p_delay`; `(press N)` -> verbs-inventory-shops: `t.player.equip`; seam-facts: Seam pass 26, (d)
 - `not_found` on a worn item -> verbs-inventory-shops: `t.player.use_item_on_item`; `t.player.unequip`
 - a cheat's worn item lands in the hat slot -> seam-facts: Seam pass 27, (h)
-- `drop` FAILs on a second copy; drops nothing with a shop open -> seam-facts: Seam pass 27, (n); traps-01-12: Grind debugprocs
+- `drop` FAILs on a second copy (`backpack 1 -> 0, ground 1`; FIXED b52-seam1: graded on the backpack); drops nothing with a shop open -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (a); traps-01-12: Grind debugprocs
+- the second of two identical drops on one tile is gone after you pick the first (`menu has no row for it`) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (a) (OPEN)
 - `this shop was not opened through shop.open` -> verbs-inventory-shops: `t.shop.buy`
 - `stocks 0 <item>`, `You don't have enough coins.` -> verbs-inventory-shops: Read the shop's row
 - buy it or `::give` it? -> gaps-combat: Shops: only for an item
@@ -212,6 +214,7 @@ topic file with one line added here.
 - a `::spawn` drop hunt sees too few drops (Imp Catcher beads) -> sampler-findings: Sample sonnet-b34, (b)
 - battle mage `hp no bar -> no bar`; an `[opnpc2]` ending in `p_opnpc(2)` -> traps-23-33: A binding that re-enters itself
 - a LostCity `npc_getmode = opplayer2` test never true mid-fight -> seam-facts: Seam pass 30 (c)
+- a drained stat reads base again after your next hit (Sourhog spit `attack 60 -> 60`); an owner-raised boss never comes to attack you -> gaps-combat: A drain row reads the stat back at base
 - Troll Romance: `player.died` against Arrg; what kit wins -> verbs-combat: the Arrg paragraph at the end
 
 ## Completion and rewards
@@ -309,8 +312,10 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
-- Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c)
+- Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c); the client one tile short of the server (FIXED b52-seam1 (b))
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
+- Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)
+- Porcine of Interest: Sourhog spit numbers (20-30, 90% drain, goggles cancel) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)
 - the scroll lists XP but `t.skill.expect_gain` reads +0 at completion (Tai Bwo Wannai Trio: claimed from Tinsay/Tiadeche/Tamayu afterwards) -> seam-facts: Seam pass matthew-mbp-m4-b49-seam2 (b)
 - one karambwan vessel load emptied the raw karambwanji stack (FIXED b49-seam2: one per load) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji
 
@@ -391,6 +396,7 @@ topic file with one line added here.
 - "section 1/2", "S2" -> start-and-travel; "section 3" -> verbs-*; "4" -> verbs-root-and-quest; "6" -> running; "7" -> coverage-and-gate
 - "section 8" -> gaps-dialogue, gaps-world, gaps-combat, running, seam-facts, sampler-findings, content-gaps; its "first bullet" -> gaps-dialogue: Completion
 - "payout-reopen", "luthas-payout/customs-pay", "mesbox/p_delay recipe" -> gaps-dialogue: A payout branch
+- "matthew-mbp-m4-b52-seam1 (a)-(d)", "[seam:matthew-mbp-m4-b52-seam1]" -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1
 - "vm-b1-seam1 (a)-(d)", "[seam:vm-b1-seam1]" -> seam-facts: Seam pass vm-b1-seam1
 - "vm-b1-seam2 (a)-(d)", "[seam:vm-b1-seam2]" -> seam-facts: Seam pass vm-b1-seam2
 - "vm-b1-seam3 (a)-(d)", "[seam:vm-b1-seam3]" -> seam-facts: Seam pass vm-b1-seam3

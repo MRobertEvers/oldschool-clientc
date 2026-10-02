@@ -13,12 +13,16 @@ return {
         "::give swamp_tar 1",
         "::give bucket_wax 1",
         "::setlevel agility 28",
-        "::setlevel attack 75",
-        "::setlevel strength 75",
-        "::setlevel defence 75",
+        "::setlevel attack 85",
+        "::setlevel strength 85",
+        "::setlevel defence 85",
         "::setlevel hitpoints 90",
-        "::give rune_scimitar 1",
-        "::give shark 14",
+        "::give dragon_scimitar 1",
+        "::give rune_full_helm 1",
+        "::give rune_chainbody 1",
+        "::give rune_platelegs 1",
+        "::give rune_kiteshield 1",
+        "::give shark 16",
     },
 
     run = function(t)
@@ -43,6 +47,11 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        -- seam troll_love_arrg_and_sleds: Arrg is the OSRS wiki block (max 38 melee / 30 ranged);
+        -- the armour is worn from the start (the guide's "Combat gear").
+        for _, item in ipairs({ "rune_full_helm", "rune_chainbody", "rune_platelegs", "rune_kiteshield" }) do
+            t.exec("wear-" .. item, t.player.equip, item)
+        end
 
         ---------------------------------------------------------------- 0: Ug
         t.exec("goto-enterStronghold", t.player.goto_tile, 2839, 3691, 0)
@@ -170,17 +179,30 @@ return {
         t.exec("goto-enterTrollCave", t.player.goto_tile, 2822, 3744, 0)
         t.exec("enterTrollCave", t.player.click_loc, "trollromance_caveentrance", 1)
         t.ticks(4)
-        do local _, p = t.world.tile(); t.check("enterTrollCave.tile", "ok", "inside the cave at " .. p.x .. "," .. p.z .. "," .. p.level) end
+        do local _, p = t.world.tile(); t.check("enterTrollCave.tile", p.x == 2803 and p.z == 10187, "inside the cave at " .. p.x .. "," .. p.z .. "," .. p.level) end
         t.exec("goto-leaveTrollCave", t.player.goto_tile, 2772, 10232, 0)
         t.exec("leaveTrollCave", t.player.click_loc, "trollromance_snow_cavewall_crevis", 1)
         t.ticks(4)
-        do local _, p = t.world.tile(); t.check("leaveTrollCave.tile", "ok", "out of the cave at " .. p.x .. "," .. p.z .. "," .. p.level) end
+        do local _, p = t.world.tile(); t.check("leaveTrollCave.tile", p.x == 2778 and p.z == 3869, "out of the cave at " .. p.x .. "," .. p.z .. "," .. p.level) end
 
         t.exec("equipSled", t.player.inv_op, "trollromance_toboggon_waxed", 2)
         t.ticks(3)
+        -- the 1-in-250 rock crash (trollromance_sled.rs2:272-300): the harness hook ::trollromance_crash runs it from the first ride's tile
+        do local r = t.cheat("::trollromance_crash"); t.check("sledCrash.hook", r, "::trollromance_crash answered " .. tostring(r)) end
+        t.exec("sledCrash.cutscene", t.cutscene.await, "sledCrash", { timeout = 60, expect = {
+            { op = "moveto", coord = "0_43_59_26_39" },
+            { op = "lookat", coord = "0_43_59_22_44" },
+            { op = "reset" },
+        } })
+        t.ticks(10)
+        t.exec("sledCrash.chat", t.chat.play, { "player:And I thought snow was soft", "player:Although it was a little softer", "end" })
+        t.exec("sledCrash.pickup", t.player.click_obj, "trollromance_toboggon_waxed", 3)
+        t.exec("sledCrash.have", t.inv.await, "trollromance_toboggon_waxed", 1, 8)
+        t.exec("equipSledAfterCrash", t.player.inv_op, "trollromance_toboggon_waxed", 2)
+        t.ticks(3)
         t.exec("goto-sledSouth", t.player.goto_tile, 2772, 3833, 0)
         t.exec("sledSouth", t.player.click_loc, "trollromance_piste_walk_barrier_down", 1)
-        do local _, m = t.msg.last(3); t.check("sledSouth.msgs", "ok", "last chat lines: " .. tostring(m)) end
+        do local _, m = t.msg.last(3); t.check("sledSouth.msgs", type(m) == "table" and #m > 0, "chat lines read: " .. tostring(type(m) == "table" and #m or m) .. " line(s), last: " .. tostring(type(m) == "table" and m[#m] or m)) end
         t.exec("sledSouth.cutscene", t.cutscene.await, "slide1", { timeout = 60, expect = {
             { op = "moveto", coord = "0_43_59_18_46" },
             { op = "lookat", coord = "0_43_59_21_33" },
@@ -207,11 +229,10 @@ return {
         } })
         t.ticks(15)
         do local _, p = t.world.tile(); t.check("sledSouthAgain.landed", "ok", "landed at " .. p.x .. "," .. p.z .. "," .. p.level) end
-        t.ticks(5)
-        t.exec("sled.stowed", t.inv.await, "trollromance_toboggon_waxed", 1, 10)
 
         ---------------------------------------------------------------- 30: back to Ug
         t.exec("goto-enterStrongholdAgain", t.player.goto_tile, 2839, 3691, 0)
+        t.exec("sled.stowed", t.inv.await, "trollromance_toboggon_waxed", 1, 10)
         t.exec("enterStrongholdAgain", t.player.click_loc, "troll_stronghold_door", 1)
         t.ticks(4)
         t.exec("goto-goDownToUgAgain", t.player.goto_tile, 2844, 10109, 2)
@@ -238,7 +259,7 @@ return {
         t.expect("quest.stage.dispose_of_arrg", t.quest.expect_stage("dispose_of_arrg"))
 
         ---------------------------------------------------------------- 35: Arrg
-        t.exec("equipScimitar", t.player.equip, "rune_scimitar")
+        t.exec("equipScimitar", t.player.equip, "dragon_scimitar")
         t.ticks(2)
         t.exec("goto-challengeArrg", t.player.goto_tile, 2829, 10094, 1)
         t.exec("challengeArrg", t.player.talk_to, "trollromance_arrg", 1)
@@ -253,7 +274,7 @@ return {
         })
         t.ticks(4)
         t.exec("killArrg", t.player.attack, "trollromance_arrg_attackable", 2, 20)
-        t.exec("killArrg.dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 45 } })
+        t.exec("killArrg.dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 50 } })
         t.ticks(10)
         t.expect("quest.stage.defeated_arrg", t.quest.expect_stage("defeated_arrg"))
 

@@ -156,6 +156,42 @@ bridge_hmap_free(struct HMap* map)
     free(hmap_free(map));
 }
 
+/*
+ * Make room for one more entry: double the map once it is 75% full. Called
+ * before every HMAP_INSERT, never after -- the resize moves every entry, so a
+ * pointer taken from the old buffer would dangle.
+ *
+ * The caps above are where a map starts, not a ceiling. Without this an
+ * insert into a full map answers NULL and the entry write is a null store:
+ * the 256th distinct interface model (Enlightened Journey's balloon grid
+ * shown through ::ejmodels, 2026-10-02) segfaulted the OPT client in
+ * UITreeSceneBridge_EnsureModel, whose disabled assert said nothing.
+ */
+static void
+bridge_hmap_reserve_one(struct HMap* map)
+{
+    size_t capacity;
+    size_t new_capacity;
+    size_t new_buffer_size;
+    void* new_buffer;
+    void* old_buffer = NULL;
+    int status;
+
+    assert(map);
+    capacity = map->capacity;
+    if( (map->size + 1) * 4 <= capacity * 3 )
+        return;
+
+    new_capacity = capacity * 2;
+    new_buffer_size = bridge_hmap_buffer_bytes(map->entry_size, new_capacity);
+    new_buffer = malloc(new_buffer_size);
+    assert(new_buffer);
+    status = hmap_resize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
+    assert(status == HMAP_OK);
+    (void)status;
+    free(old_buffer);
+}
+
 static void
 bridge_assets_changed(struct UITreeSceneBridge* bridge)
 {
@@ -273,6 +309,7 @@ bridge_map_put(
         bridge_assets_changed(bridge);
         return;
     }
+    bridge_hmap_reserve_one(map);
     entry = (struct MapEntry_BridgeId*)hmap_search(map, &cache_id, HMAP_INSERT);
     assert(entry);
     entry->cache_id = cache_id;
@@ -1597,6 +1634,7 @@ bridge_ensure_obj_icon(
     scene_id = bridge->next_scene_id++;
     ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, frames, 1);
 
+    bridge_hmap_reserve_one(map);
     entry = (struct MapEntry_ObjIcon*)hmap_search(map, key, HMAP_INSERT);
     assert(entry);
     entry->obj_id = obj_id;

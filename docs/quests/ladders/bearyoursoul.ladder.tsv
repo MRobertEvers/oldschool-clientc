@@ -1,0 +1,9 @@
+# ladder bearyoursoul quest_dir=quest_bearyoursoul guide=src/main/java/com/questhelper/helpers/quests/bearyoursoul/BearYourSoul.java steps=6 legs=1:1-6@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	findSoulJourneyAndRead	DetailedQuestStep		1632,3808,0	Go to the Arceuus library and find The Soul journey book in one of the bookcases, then read it. You can ask Biblia for help locating it, or make use of the Run…				
+1	2	1	talkToAretha	NpcStep	npc:arceuus_soulguardian	1814,3851,0	Talk to Aretha at the Soul Altar.			I've been reading your book... | Yes please.	quests/quest_bearyoursoul/scripts/bearyoursoul.rs2:149 opnpc1
+1	3	2	arceuusChurchDig	DigStep		1699,3794,0	Go to the Arceuus church and dig for the Damaged soul bearer.				
+1	4	2	goToTaverleyDungeon	ObjectStep	loc:ladder_outside_to_underground	2884,3397,0	Go to Taverley Dungeon, or teleport to the Key Master directly.		Damaged soul bearer; Dusty key, or another way to get into the deep Taverley Dungeon		ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+1	5	2	enterCaveToKeyMaster	ObjectStep	loc:hellhound_cave_entrance_a_01	2874,9846,0	Enter the cave to the Key Master.		=		minigames/minigame_cerberus/scripts/cerberus.rs2:5 oploc1
+1	6	2	speakKeyMaster	NpcStep	npc:keeper_of_keys	1310,1251,0	Talk to Key Master in the Cerberus' Lair.		Damaged soul bearer		minigames/minigame_cerberus/scripts/cerberus.rs2:97 opnpc1

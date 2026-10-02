@@ -194,11 +194,24 @@ return {
             "player:in the hopper",
             "npc:stagnant water",
         })
-        t.expect("braindeath.get_water", t.quest.expect_stage("get_water"))
+        t.expect("quest.stage.get_water", t.quest.expect_stage("get_water"))
         t.exec("gate.goto", t.player.goto_tile, 2120, 5098, 0)
         t.exec("gate.open", t.player.click_loc, "deal_gate_closed", 1)
+        -- seam rumdeal_gate_keeps_its_wall: the gate now opens through the
+        -- shared door code; walk north through 2120,5098 to the lake.
+        local w1r, w1d = t.player.walk_to(2120, 5125, 30)
+        local w1t, w1 = t.world.tile()
+        t.check("openGate.walk_north", w1t == "ok" and w1.z >= 5120,
+            "walk_to 2120,5125 -> " .. tostring(w1r) .. " (" .. tostring(w1d) .. ") at " .. tostring(w1.x) .. "," .. tostring(w1.z))
+        local w2r, w2d = t.player.walk_to(2128, 5142, 40)
+        local w2t, w2 = t.world.tile()
+        t.check("walk-north_island", w2t == "ok" and w2.z >= 5138,
+            "walk_to 2128,5142 -> " .. tostring(w2r) .. " (" .. tostring(w2d) .. ") at " .. tostring(w2.x) .. "," .. tostring(w2.z))
+        local w3r, w3d = t.player.walk_to(2132, 5158, 40)
+        local w3t, w3 = t.world.tile()
+        t.check("walk-useBucketOnWater", w3t == "ok" and w3.z >= 5150,
+            "walk_to 2132,5158 -> " .. tostring(w3r) .. " (" .. tostring(w3d) .. ") at " .. tostring(w3.x) .. "," .. tostring(w3.z))
         local stagnant = t.player.by_symbol("loc", "deal_stagnant")
-        t.exec("lake.goto", t.player.goto_tile, 2135, 5161, 0)
         t.exec("lake.fill", t.player.use_on, "bucket_empty", stagnant)
         t.expect("inv.stagnant", t.inv.expect_has("deal_stagnant_bucket", 1))
         t.exec("hopper.goto2", t.player.goto_tile, 2142, 5102, 2)
@@ -314,7 +327,12 @@ return {
         })
         t.expect("braindeath.get_swill", t.quest.expect_stage("get_swill"))
         local tap = t.player.by_symbol("loc", "deal_brewvat_tap")
-        t.exec("tap.goto", t.player.goto_tile, 2142, 5093, 1)
+        -- walk from Braindeath to the tap on the same floor (a ::goto out of
+        -- the north-island region reads as skipping the gate step).
+        local tapr, tapd = t.player.walk_to(2142, 5094, 30)
+        local tapt, tapp = t.world.tile()
+        t.check("tap.walk", tapt == "ok" and tapp.z <= 5096,
+            "walk_to 2142,5094 -> " .. tostring(tapr) .. " (" .. tostring(tapd) .. ") at " .. tostring(tapp.x) .. "," .. tostring(tapp.z))
         t.exec("tap.fill", t.player.use_on, "bucket_empty", tap)
         t.expect("inv.swill", t.inv.expect_has("deal_bucket_swill", 1))
         t.exec("donnie.goto", t.player.goto_tile, 2150, 5078, 0)

@@ -150,6 +150,8 @@ return {
 
         t.drive.camera(0, 128, 600) -- boot follow pose back for the later rooms
         t.exec("leaveSirSpishyusRoom", t.player.click_loc, "rd_room1_exitdoor", 1)
+        t.await({level = function() local result, tile = t.world.tile(); return result == "ok" and tile.x < 2465 end,
+            note = "exit door portal carried the player into Sir Kuam's room"}, 40)
         t.ticks(2)
 
         -- ==================================================================

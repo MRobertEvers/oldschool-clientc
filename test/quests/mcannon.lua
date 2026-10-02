@@ -124,7 +124,8 @@ return {
         for _, step in ipairs(order) do
             local r, w = t.ui.widget("mcannon_interface:" .. step[2])
             t.expect(step[1] .. ".widget", r, w)
-            t.ui.invoke(w, 1)
+            -- every toolkit button is IF1 (mcannon_interface.if if3=no): op 0, the plain IF_BUTTON a click sends (trap 33)
+            t.ui.invoke(w, 0)
             t.ticks(2)
             t.check(step[1], true, "invoked " .. step[2] .. " widget " .. tostring(w))
         end

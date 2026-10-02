@@ -1,0 +1,14 @@
+# ladder enlightenedjourney quest_dir=quest_enlightenedjourney guide=src/main/java/com/questhelper/helpers/quests/enlightenedjourney/EnlightenedJourney.java steps=11 legs=1:1-11@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	travelToEntrana	NpcStep	npc:shipmonk1_c	3047,3236,0	Bank all weapons and armour you have, and go to Port Sarim to get a boat to Entrana.				areas/port_sarim/scripts/monk_of_entrana.rs2:17 opnpc1; +1
+1	2	0	talkToAuguste	NpcStep	npc:zep_piccard	2809,3354,0	Talk to Auguste on Entrana 3 times.		Papyrus; Ball of wool	Yes! Sign me up. | Umm, yes. What's your point? | Yes.	quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1
+1	3	20	usePapyrusOnWool	DetailedQuestStep			Use papyrus on a ball of wool.		=		
+1	4	20	useCandleOnBalloon	DetailedQuestStep			Use a candle on the balloon.		Unlit candle; Balloon structure		
+1	5	20	talkToAugusteAgain	NpcStep	npc:zep_piccard	2809,3354,0	Talk to Auguste again.		Origami balloon	Yes, I have them here.	quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1
+1	6	40	talkToAugusteWithPapyrus	NpcStep	npc:zep_piccard	2809,3354,0	Talk to Auguste with 2 papyrus and a sack of potatoes.		Papyrus; Sack of potatoes (10)	Yes, I have them here.	quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1
+1	7	60	talkToAugusteAfterMob	NpcStep	npc:zep_piccard	2809,3354,0	Talk to Auguste after the flash mob.				quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1
+1	8	70	fillSacks	ObjectStep	loc:sandpit	2817,3342,0	Fill your empty sacks on the sand pit south of Auguste.		Empty sack		skill_crafting/scripts/glass/glass.rs2:19 oplocu
+1	9	80	talkToAugusteWithBranches	ObjectStep	loc:zep_multi_basket_entrana	2807,3356,0	Get 12 willow branches and use them on the platform next to Auguste to make the basket.		Willow branches		quests/quest_enlightenedjourney/scripts/ej_crafting.rs2:70 oplocu
+1	10	90	talkToAugusteWithLogsAndTinderbox	NpcStep	npc:zep_piccard	2809,3354,0	Talk to Auguste to fly.		Logs; Tinderbox	Okay.	quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1
+1	11	100	talkToAugusteToFinish	NpcStep	npc:zep_piccard	2937,3421,0	Talk to Auguste in Taverley to finish the quest.				quests/quest_enlightenedjourney/scripts/ej_network.rs2:53 opnpc4; +1

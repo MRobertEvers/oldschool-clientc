@@ -409,7 +409,7 @@ mes-only ops that must be followed quickly.
 
 (n) An `~objbox` page is matched with `t.chat.expect_text(<text>)` then `chat.play {'*'}` (no
 `objbox:` entry); `t.player.drop` of a second copy of the same item nearby answers FAIL (the ground
-count does not rise).
+count does not rise) -- FIXED seam pass matthew-mbp-m4-b52-seam1 (a): drop grades on the backpack.
 
 (o) Spawn artefacts in a quest room are removed through `tools/gen_spawns.py` `OBJ_SPAWN_EXCLUSIONS`
 (symbol,x,z,plane) with a cited source, never by hand-editing a generated `.spawn`.
@@ -1252,8 +1252,63 @@ the green `test/quests/hero.lua` `inSecretRoom`..`getCandlestick`; 125/0 to the 
 OUT to the garden (ledger `2780,3197,0 -> 2781,3196,0`). Goto the garden side, 2781,3196, and the
 key lets you in (`2781,3196,0 -> 2781,3197,0`).
 
-(c) OPEN (engine question, not fixed): one `::hero_partner_lure` does not always bring Grip into the
-cabinet room. From a wander tile (2774,3189) the 6-tick hold ended with him at 2777,3194 or
-2777,3195; a second search reached 2777,3197, never 3198 in either run. The port's
-`npc_setmode(null)` may stop a walk that LostCity lets finish; unmeasured. Search again (up to three
-times), as a real partner re-searches the open cabinet, and check Grip's tile before attacking.
+(c) MEASURED AND FIXED in seam pass matthew-mbp-m4-b52-seam1 (b): `npc_setmode(null)` never cut the
+walk; it wiped the step Grip had just taken, so the client drew him one tile short (3197 for 3198).
+What is left is LostCity behaviour: from a far wander tile the 6-tick hold is too short and the
+wander roll replaces the rest of the walk. Original note: one `::hero_partner_lure` does not always
+bring Grip into the cabinet room. From a wander tile (2774,3189) the 6-tick hold ended with him at
+2777,3194 or 2777,3195; a second search reached 2777,3197, never 3198 in either run. Search again
+(up to three times), as a real partner re-searches the open cabinet, and check Grip's tile before
+attacking.
+
+## Seam pass matthew-mbp-m4-b52-seam1 (2026-10-02, batch matthew-mbp-m4-b52)
+
+(a) `t.player.drop` grades on the BACKPACK falling, with at least one of the item on the player's own
+tile as the supporting half. It no longer grades on a ground count rising. The client keeps ONE ground
+row per (tile, obj id), and an OBJ_ADD for an id already on the tile overwrites that row's count
+(`App_WorldObjStackAdd`, src/app/app_world_rebuild.c:172-180). So a second identical non-stackable
+copy dropped on its twin's tile never raised anything the client shows, and a real drop read
+`timeout ... backpack 1 -> 0, ground 1` (legends b51 `makeBowl.drop-spare-bar-2`). The detail is
+now `drop <item>: backpack B -> A, ground on the player's tile G0 -> G1 (N row(s))`, and G1 can equal
+G0 on a second copy. Conformance `seam.drop_second_copy_on_one_tile`. OPEN (client engine): the same
+merge means that after two logs land on one tile and you pick one up, the client shows NO log there
+and a second pick finds no menu row (`dropseam_pickone` rows 4-5). The server still holds the
+second log. Do not plan a test on picking up the second of two identical drops from one tile.
+
+(b) `npc_setmode(none|null)` no longer clears `step_dir` (torirs_server_scripts.c SS_OP_NPC_SETMODE).
+LostCity never touches the step there either: `null` is `resetDefaults()` (NpcOps.ts:216-218,
+Npc.ts:424-436), and that never clears the waypoint `npc_walk` queued (NpcOps.ts:466-469). Phase 4
+moves npcs before phase 5 resumes a `p_delay`ed script. So the old clear erased the step an npc had
+just taken: NPC_INFO never sent it, and every client drew the npc one tile short for as long as it
+stood there (Heroes' Quest's lure: server 2777,3198, client 2777,3197). Selftest stanza
+"npc_setmode(null) mid-walk keeps the walk and its step". `step_dir` and `run_dir` record the step
+already taken, never a stop switch. A related read trap: an npc tile read right at a script's
+`mes()` line can be one tile behind, because the message lands before that tick's NPC_INFO. Wait
+`t.ticks(1)` before asserting an npc's tile after a scripted walk.
+
+(c) Below Ice Mountain's `bim_golem_cleanup` and pillar rockfall now pick the Ancient Guardian by
+OWNER (`npc_findall` + `npc_owner = uid`, the gauntlet_progress.rs2:97 test), never the copy nearest
+the spawn tile; before this fix, an unowned `::spawn bim_golem_boss` in the public hall was deleted by
+the player's cleanup. Engine fact: `npc_find`/`npc_findall`/`npc_findnext` already skip an npc
+owned by ANOTHER live player (`ToriRSServer_WorldNpcVisibleTo`), but an unowned copy of the same
+type is visible to everyone, so content still tests `npc_owner = uid` for owner-private actors. A
+driver fact: the client npc row's `slot` (`t.npc.tiles`, `await_present`) is not stable across a
+teleport out of view and back (one guardian read slot 55, then 81/112/142), so identify a copy by
+its tile, not its slot. OPEN (content): the hall's four structural pillars never rise for the client
+after the entrance spawn (`loc_near bim_boss_rock` fails; `screen_position: no loc 41458`), so the
+guide's mine-the-pillars alternative cannot be driven. belowicemountain.lua fights the guardian and
+is unaffected.
+
+(d) Porcine of Interest's Sourhog spit lands through the shared `[queue,combat_damage_player]`, and
+it now uses the wiki's numbers: 20-30 damage and Attack and Defence drained by 90% of current
+(OSRS wiki Sourhog oldid 15275486). It also queues `playerhit_n_retaliate`. Worn reinforced goggles
+still cancel it. The one-in-four spit rate is an approximation. Two OPEN engine facts were found
+proving it, and both bite any scratch row:
+- ANY xp gain snaps a drained stat back to its base level (torirs_server_combat.c:1174
+  `stat_boosted < stat_level`), which LostCity's `addXp` does not do (Player.ts:1840-1851). An Attack-xp
+  hit cancels the Sourhog drain. Keep xp off the stat a drain row asserts (aggressive style pays
+  Strength only).
+- A boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`) does not walk
+  to an idle owner. Engage it with `t.player.attack` before waiting on its attacks.
+Also: a 1-tick `t.msg.await` loop interleaved with skill reads can miss a line that lands between
+calls. Poll the effect each tick, then `t.msg.expect` the line from the ring.

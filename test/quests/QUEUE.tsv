@@ -1,5 +1,5 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
-quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo				
+quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
@@ -7,18 +7,18 @@ quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
-quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo				
-quest_belowicemountain	belowicemountain	belowicemountain		4	todo				
+quest_bearyoursoul	bearyoursoul	bearyoursoul		4	green	matthew-mbp-m4-b50			
+quest_belowicemountain	belowicemountain	belowicemountain		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25			
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25			
-quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16			
+quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo				
 quest_cabinfever	cabinfever	cabinfever		4	todo				
-quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo				
+quest_childrenofthesun	childrenofthesun	childrenofthesun		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
-quest_clientofkourend	clientofkourend	clientofkourend		4	todo				
+quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
 quest_contact	contact	contact		4	todo				
@@ -33,8 +33,8 @@ quest_deathontheisle	deathontheisle	deathontheisle		4	todo
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo				
 quest_demon	demon	demonslayer		3	green	sonnet-b33			
-quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo				
-quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28			
+quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
+quest_desertrescue	desertrescue	thetouristtrap		2	green	matthew-mbp-m4-b51			
 quest_deserttreasure	deserttreasure	deserttreasure		3	green	sonnet-b46			
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo				
 quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43			
@@ -45,13 +45,13 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15			
 quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35			
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15			
-quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25			
-quest_eaglepeak	eaglepeak	eaglespeak		4	todo				
+quest_eadgar	eadgar	eadgarsruse		1	green	matthew-mbp-m4-b51			
+quest_eaglepeak	eaglepeak	eaglespeak		4	green	matthew-mbp-m4-b50			
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16			
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
 quest_elena	elena	plaguecity		3	green	sonnet-b34			
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo				
-quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo				
+quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	green	matthew-mbp-m4-b50			
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15			
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo				
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27			
@@ -63,7 +63,7 @@ quest_forsakentower	forsakentower	theforsakentower		4	todo
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo				
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo				
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42			
-quest_gettingahead	gettingahead	gettingahead		4	todo				
+quest_gettingahead	gettingahead	gettingahead		4	green	matthew-mbp-m4-b50			
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28			
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	green	matthew-mbp-m4-b47			
 quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34			
@@ -76,7 +76,7 @@ quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	sonnet-b45			
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34			
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo				
-quest_hero	hero	heroesquest		1	green	sonnet-b17			
+quest_hero	hero	heroesquest		1	green	matthew-mbp-m4-b51			
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15			
 quest_horror	horror	horrorfromthedeep		3	green	sonnet-b45			
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16			
@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo				
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo				
 quest_kingsransom	kingsransom	kingsransom		4	todo				
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo				
-quest_legends	legends	legendsquest		3	green	sonnet-b45			
+quest_legends	legends	legendsquest		3	green	matthew-mbp-m4-b51			
 quest_losttribe	losttribe	thelosttribe		3	green	matthew-mbp-m4-b47			
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo				
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
@@ -107,8 +107,8 @@ quest_mm	mm	monkeymadnessi		3	green	sonnet-b46
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo				
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16			
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b25			
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24			
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	matthew-mbp-m4-b51			
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-mbp-m4-b51			
 quest_murder	murder	murdermystery		1	green	sonnet-b15			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
@@ -117,14 +117,14 @@ quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b47
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo				
-quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo				
+quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_priest	priest	therestlessghost		1	green	sonnet-b2			
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo				
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
-quest_ratcatchers	ratcatchers	ratcatchers		3	content_bug	matthew-mbp-m4-b47	content_bug: ratcatchers.rs2:784-800 binds flute notes as [if_button1,ratcatcher_flute:rc_flute_*] but the IF1 interface press arrives as op 0, which runs only [if_button,...] (torirs_server_scripts.c:2985-2992); tune/stage 105-125 unreachable		
+quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo				
 quest_recipefordisaster_dwarf	rfd_dwarf	recipefordisaster	RFDDwarf.java	5	todo				
@@ -135,15 +135,15 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo				
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo				
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo				
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	sonnet-b31	green after 75a234743 (seam26 closer): Miss Cheevers' room gathered from its locs + Initiate sallet reward (OSRS-Content 2ea9f6b7eb); the parked sonnet-b31 file extended through the gathered room and committed, 152/152, helper_coverage FULL 51 steps (5-of-7 random rooms still a PARITY leg)		
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
-quest_regicide	regicide	regicide		3	claimed	matthew-mbp-m4-b48@matthew-mbp-m4	REVERTED by sampler (matthew-mbp-m4-b47, 9c28a4e0c): legs 1-2 teleported past crossTheGrid and rockslides 4/5 (goto 2466,9699 -> 2466,9673 in both walks) and passTrap5/passTrap2-again/passTrap4-again read PASS on a stale 'and succeed' line while the server said fail. RELAY STATE: legs 3-6 stand (json in test/quests/wip/regicide/); legs 1-2 MUST be re-driven -- their json was removed: start from test/quests/wip/regicide/parked.lua (the full reverted file, also `git show 2c35057c6:test/quests/regicide.lua`), replace the grid/rockslide gotos with real click_loc rows and make each trap row await the server's success line of ITS attempt (retry on fail), keep every other row; prerequisite upass state via ::setvar is allowed only if ::complete quest_undergroundpass still has no arm (check quest_cheat.rs2 first)	2026-10-02T00:59:24Z	todo|matthew-mbp-m4-b47
+quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo				
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
 quest_royaltrouble	royaltrouble	royaltrouble		4	green	vm-b1			
-quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27			
+quest_rumdeal	rumdeal	rumdeal		2	green	matthew-mbp-m4-b51			
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
 quest_scrambled	scrambled	scrambled		4	todo				
@@ -162,7 +162,7 @@ quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, b
 quest_swansong	swansong	swansong		4	todo				
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo				
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo				
-quest_tbwt	tbwt	taibwowannaitrio		3	todo	matthew-mbp-m4-b47	REJECTED (matthew-mbp-m4-b47): content_bug blocker (Zembo has no spawn/shop; verified by grep) is genuine, but lint_quest.py fails with 2 findings (stale CHECK markers in header lines 3 and 6), so the file is not green up to t.blocked. RELAY STATE: parked at test/quests/wip/tbwt/parked.lua		
+quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo				
@@ -170,21 +170,21 @@ quest_thefeud	thefeud	thefeud		2	green	sonnet-b32
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	green	vm-b1			
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
 quest_theslugmenace	theslugmenace	theslugmenace		3	green	matthew-mbp-m4-b47			
-quest_totem	totem	tribaltotem		3	green	sonnet-b36			
+quest_totem	totem	tribaltotem		3	green	matthew-mbp-m4-b51			
 quest_toweroflife	toweroflife	toweroflife		4	todo				
 quest_tree	tree	treegnomevillage		2	green	sonnet-b28			
-quest_troll	troll	trollstronghold		3	green	sonnet-b36			
-quest_troll_love	troll_love	trollromance		3	todo	matthew-mbp-m4-b47	REJECTED (matthew-mbp-m4-b47): re-run fails: player.died in Arrg fight (hp 0/90), sledSouth/sledSouthAgain cutscene rows FAIL, no quest.varp_complete or completion scroll row, duplicate shots. RELAY STATE: parked at test/quests/wip/troll_love/parked.lua		
+quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51			
+quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
-quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b47	REJECTED (matthew-mbp-m4-b47): run/gate/lint green, but helper_coverage.py says CONTENT_GAP (leaveFallArea, step 6.52, GUIDE-GAP at upass_obstacles.rs2:77): the file walks on instead of stopping at t.blocked content_bug, and leg 3 ::gives a woodplank the guide has the player collect in game (collectPlank). File kept uncommitted at test/quests/upass.lua.		
+quest_upass	upass	undergroundpass		3	claimed	matthew-mbp-m4-b52@matthew-mbp-m4	released by matthew-mbp-m4-b49: released by matthew-mbp-m4-b49 after 3 rounds: runs green to the scroll (235 rows, test/quests/wip/upass/b49r3_end.lua) but leg 4 leaves the swamp fall pocket by goto 2417,9677 (helper_coverage CHEAT on climbOverRockslide1). CONFLICT to settle first: seam matthew-mbp-m4-b49-seam1 says the pocket exits by five rockslide2_obstacle_upass + caverockpile 2443,9651 -> 2482,9715; the round-3 author says the pocket is sealed by collision (m38_150.jl2:2995). Next taker: run seam1's proof script (build/seam_state/matthew-mbp-m4-b49-seam1/) first, then drive that route in leg 4. -- REJECTED (matthew-mbp-m4-b47): run/gate/lint green, but helper_coverage.py says CONTENT_GAP (leaveFallArea, step 6.52, GUIDE-GAP at upass_obstacles.rs2:77): the file walks on instead of stopping at t.blocked content_bug, and leg 3 ::gives a woodplank the guide has the player collect in game (collectPlank). File kept uncommitted at test/quests/upass.lua.	2026-10-02T15:48:28Z	todo|matthew-mbp-m4-b47
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo				
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
-quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo				
+quest_xmarksthespot	xmarksthespot	xmarksthespot		4	claimed	matthew-mbp-m4-b52@matthew-mbp-m4		2026-10-02T15:30:10Z	todo|
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
 quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	sonnet-b30	green after 200d127cb (seam25 closer): Sithik's ladder writes sithik_ogre, Slash Bash drops the artefact; test extended to the completion scroll, 123/123, helper_coverage FULL		
 quest_zombiequeen	zombiequeen	shilovillage		3	green	sonnet-b42			

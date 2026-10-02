@@ -140,17 +140,23 @@ CARRIED to reload.
 
 ### `t.player.drop(item)` -- also `t.player.emote`
 
-`t.player.drop(item)` -> `ok` `timeout` (backpack falls AND a stack lands on the ground).
+`t.player.drop(item)` -> `ok` `timeout`. It is graded on the BACKPACK falling, with at least one of
+the item on the player's own tile; a ground count rising is not required. The detail is
+`drop <item>: backpack B -> A, ground on the player's tile G0 -> G1 (N row(s))`. A second identical
+non-stackable copy dropped on its twin's tile is `ok`, and its G1 equals G0. The client keeps one
+ground row per (tile, obj id) and overwrites its count, so the total cannot rise (seam-facts: Seam
+pass matthew-mbp-m4-b52-seam1 (a)). Do not plan to pick the second of two identical drops back up
+from one tile: the client shows none after the first pick (same entry, OPEN).
 
-#### A rake fills the backpack with weeds; dropping a second weeds copy FAILs (sonnet-b42)
+#### A rake fills the backpack with weeds; dropping a second weeds copy FAILs (FIXED b52-seam1)
 
 Every farming patch you rake gives weeds, several per patch. A long farming quest (Garden of
 Tranquillity rakes nine patches and three allotments) fills the backpack, and a later pick or
-harvest fails with the inventory full. Drop the weeds after each rake. `t.player.drop` is `ok`
-only when a ground stack lands, and a second weeds stack nearby does not raise the ground count
-(seam-facts: Seam pass 26 (n)), so wrapped in `t.exec` the second drop is a FAIL row. Call it
-directly in a loop that reads `t.inv.count("weeds")` (`gardenoftranquility.lua:100-105`), and let
-the next row assert what the drop was for.
+harvest fails with the inventory full. Drop the weeds after each rake. Until seam pass
+matthew-mbp-m4-b52-seam1, `t.player.drop` was `ok` only when the ground count rose, so a second
+weeds drop wrapped in `t.exec` was a FAIL row and tests called it directly in a loop that reads
+`t.inv.count("weeds")` (`gardenoftranquility.lua:100-105`; also legends.lua makeBowl and
+enlightenedjourney.lua). Those loops still work; new drops can be `t.exec` rows.
 
 #### `t.player.emote(name)`
 

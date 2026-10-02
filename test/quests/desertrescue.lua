@@ -610,7 +610,12 @@ return {
 
         -- ================= Back to the surface; the winch; the wooden cart =================
         t.exec("leaveDeepMine", t.player.click_loc, "thminecavel", 1)
-        t.ticks(3)
+        local leftDeepMine = t.await({ level = function()
+            local tres, tile = t.world.tile()
+            return tres == "ok" and tile.x <= 3279 and tile.z >= 9410 and tile.z <= 9420
+        end, note = "leaveDeepMine: await the arrival in mine 1 before travelling on" }, 15)
+        t.check("leaveDeepMine-arrived", leftDeepMine == "ok", "await mine 1 arrival -> " .. tostring(leftDeepMine))
+        t.ticks(2)
         t.exec("goto-leaveMineForAna", t.player.goto_tile, 3278, 9426, 0)
         t.exec("leaveMineForAna", t.player.click_loc, "thttmineexitl", 1)
         -- Same [label,desertrescue_open_mine_door] p_delay(2) tail as the

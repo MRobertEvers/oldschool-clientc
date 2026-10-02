@@ -2685,6 +2685,30 @@ function QD.player.goto_tile(x, z, level, ticks, attempts)
     local landed = false
     local tried = 0
     local where = "?"
+    -- SEAM goto_departure_stamp (b50) -- THE HOP NAMES WHERE IT LEFT FROM.
+    --
+    -- A goto row used to record only its landing, and the grader
+    -- (tools/quest_gate/helper_coverage.py hop_start) had to take the hop's
+    -- start from the last row that happened to read a tile.  Any press or
+    -- walk between that reading and the goto moves the player somewhere no
+    -- row says, so the hop could not be judged: 993 of 1,735 goto hops in
+    -- the committed greens (docs/quest_authoring/coverage-and-gate.md, "The
+    -- departure tile").  Regicide d3505f4ee row 75 is the worked case: a
+    -- teleport from the voyage cave past the rockslides and the bridge reads
+    -- CHEAT only when the row itself says `from 2314,9624,0`.
+    --
+    -- Read ONCE, before the first ::goto, so a retry still names the tile
+    -- the hop really left from and not the tile an earlier attempt (or the
+    -- content teleport that overwrote it) put the player on.  It is the
+    -- client's reading at the moment the cheat is fired.  A failed read is
+    -- written `from ?`, which the grader does not take for a tile; it then
+    -- falls back to the reading before the row, as it did before this seam.
+    local departure = "?"
+    local depart_result, depart_tile = QD.world.tile()
+    if depart_result == "ok" and depart_tile then
+        departure = string.format("%d,%d,%d",
+            depart_tile.x, depart_tile.z, depart_tile.level)
+    end
     -- One line per attempt that did not hold: where the player was when it
     -- gave up and what the server had just said.  The last line is read PER
     -- ATTEMPT, not once at the end -- Sea Slug's music track belongs to
@@ -2775,15 +2799,16 @@ function QD.player.goto_tile(x, z, level, ticks, attempts)
             "player.goto_tile %d,%d,%d: still at %s after %d attempt(s) of %d tick(s) via %s -- %s",
             x, z, level, where, tried, ticks, tostring(how), table.concat(account, "; "))
     end
-    -- A first-attempt landing reads exactly as it always did.  A retry SAYS
-    -- SO, and says what the attempts before it saw: a row that needed two
-    -- goes is a row standing next to something that teleports, and the next
-    -- author to read it needs that more than the green word.
+    -- `at <landing> from <departure>` OPENS the detail in both forms: the
+    -- grader matches it at the start of the row's detail.  A retry SAYS SO
+    -- after it, and says what the attempts before it saw: a row that needed
+    -- two goes is a row standing next to something that teleports, and the
+    -- next author to read it needs that more than the green word.
     if tried > 1 then
-        return "ok", string.format("at %s on attempt %d of %d via %s -- %s",
-            where, tried, attempts, how, table.concat(account, "; "))
+        return "ok", string.format("at %s from %s on attempt %d of %d via %s -- %s",
+            where, departure, tried, attempts, how, table.concat(account, "; "))
     end
-    return "ok", "at " .. where
+    return "ok", "at " .. where .. " from " .. departure
 end
 
 -- Whatever dialogue page is on screen RIGHT NOW: (kind, text).  Synchronous

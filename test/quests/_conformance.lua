@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 86
+-- @seam-count 95
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 86
+local SEAM_COUNT = 95
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -2447,6 +2447,36 @@ return {
                     .. describe(tile.level) .. " -- " .. wanted .. " -> " .. describe(detail)
             end
             return "ok", wanted .. " -> " .. describe(detail)
+        end)
+
+        -- SEAM goto_departure_stamp (b50-seam1).  A goto row used to name only
+        -- its landing, so helper_coverage.py's hop_start took the hop's start
+        -- from whatever row last read a tile, and any press or walk between
+        -- hid where the teleport left from (993 of 1,735 green hops could not
+        -- be judged; docs/quest_authoring/coverage-and-gate.md "The departure
+        -- tile").  The verb now reads the tile once before its first ::goto
+        -- and opens its ok detail with "at <landing> from <departure>".
+        -- Graded: the departure it names is the tile world.tile answered just
+        -- before the call.
+        seam("seam.goto_departure_stamp", function()
+            local fn = verb("player", "goto_tile")
+            local tile_of = verb("world", "tile")
+            if not fn then return missing("player", "goto_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local read, before = tile_of()
+            if read ~= "ok" or not is_table(before) then
+                return read, "no departure tile to compare: " .. describe(before)
+            end
+            local result, detail = fn(GOTO_TILE_X, GOTO_TILE_Z, GOTO_TILE_LEVEL)
+            local text = describe(detail)
+            if result ~= "ok" then
+                return result, "goto_tile -> " .. text
+            end
+            local from = before.x .. "," .. before.z .. "," .. before.level
+            if not string.find(text, "from " .. from, 1, true) then
+                return "hollow", "goto_tile's detail does not name the departure " .. from .. ": " .. text
+            end
+            return "ok", text
         end)
 
         -- SEAM goto_tile_fixed_budget (2026-09-21).  The public row above
@@ -7977,6 +8007,563 @@ return {
             end
             if type(surface) ~= "table" or surface.x ~= 3165 or surface.z ~= 3251 or surface.level ~= 0 then
                 return "refused", text .. " -- [oploc1,osf_ham_ladder] did not return to the surface"
+            end
+            return "ok", text
+        end)
+
+        -- IBAN'S TEMPLE DOORS TAKE A REGICIDE PLAYER TO THE RUINED TEMPLE
+        -- (matthew-mbp-m4-b48-seam1 regicide_temple_shortcut).  Regicide's
+        -- route to the Well of Voyage goes through the doors of Iban's temple
+        -- after Underground Pass is done; [label,open_iban_door] had only a
+        -- "deferred" comment there, so a player with upass complete got "The
+        -- temple is in ruins... You cannot enter." and the walk could only
+        -- jump the door with a goto.  The branch is LostCity_Server
+        -- quest_upass.rs2:576-585 (enter, before the Zamorak-robe check) and
+        -- :629-631 (leave).  Graded on the tile after clicking the right leaf
+        -- at 2143,4648,1 from the east (want 2014,4712,1, the ruined temple
+        -- beside regicide_voyage_temple_well1), on the ruined copy at
+        -- 2015,4712 putting the player back at 2145,4648,1, and on a player
+        -- WITHOUT Regicide progress still being refused (stays east).
+        seam("seam.iban_temple_door_regicide_shortcut", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local server = verb("var", "server")
+            local tile = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not server then return missing("var", "server") end
+            if not tile then return missing("world", "tile") end
+            setup_cheat("::setvar varp161_upass ^upass_complete")
+            setup_cheat("::setvar varp328_regicide_quest ^regicide_spoken_lathas")
+            settle(2)
+            local _, regicide_value = server("varp328_regicide_quest")
+            local goto_result, goto_detail = goto_tile(2145, 4648, 1)
+            local enter_result, enter_detail = "not_run", nil
+            local leave_result, leave_detail = "not_run", nil
+            local inside, outside = nil, nil
+            if goto_result == "ok" then
+                enter_result, enter_detail = click_loc("upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
+                settle(4)
+                local _, here = tile()
+                inside = here
+                if type(here) == "table" and here.x == 2014 and here.z == 4712 then
+                    leave_result, leave_detail = click_loc("upass_templedoor_closed_right", 1, { at = { 2015, 4712 } })
+                    settle(6)
+                    local _, back = tile()
+                    outside = back
+                end
+            end
+            -- The control: no Regicide progress, so the branch must not run.
+            local control_result, control_detail = "not_run", nil
+            local control_at = nil
+            setup_cheat("::setvar varp328_regicide_quest 0")
+            settle(6)
+            local control_goto = goto_tile(2145, 4648, 1)
+            if control_goto == "ok" then
+                control_result, control_detail = click_loc("upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
+                settle(4)
+                local _, here = tile()
+                control_at = here
+            end
+            setup_cheat("::setvar varp161_upass 0")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            local function at(where)
+                if type(where) ~= "table" then return describe(where) end
+                return describe(where.x) .. "," .. describe(where.z) .. "," .. describe(where.level)
+            end
+            local text = "regicide=" .. describe(regicide_value) .. "; goto 2145,4648,1 -> " .. describe(goto_result)
+                .. " " .. describe(goto_detail) .. "; enter -> " .. describe(enter_result) .. " "
+                .. describe(enter_detail) .. "; at " .. at(inside) .. " (want 2014,4712,1); leave -> "
+                .. describe(leave_result) .. " " .. describe(leave_detail) .. "; at " .. at(outside)
+                .. " (want 2145,4648,1); control (regicide 0) -> " .. describe(control_result) .. " "
+                .. describe(control_detail) .. "; at " .. at(control_at) .. " (want x >= 2144)"
+            if regicide_value ~= 2 then
+                return "no_subject", text .. " -- the Regicide stage did not take"
+            end
+            if goto_result ~= "ok" then
+                return "no_subject", text
+            end
+            if type(inside) ~= "table" or inside.x ~= 2014 or inside.z ~= 4712 or inside.level ~= 1 then
+                return "refused", text .. " -- [label,open_iban_door] did not take the Regicide player in"
+            end
+            if type(outside) ~= "table" or outside.x ~= 2145 or outside.z ~= 4648 or outside.level ~= 1 then
+                return "refused", text .. " -- the ruined temple's doors did not put the player back outside"
+            end
+            if type(control_at) ~= "table" or control_at.x < 2144 or control_at.level ~= 1 then
+                return "refused", text .. " -- a player without Regicide progress went through"
+            end
+            return "ok", text
+        end)
+
+        -- AN IF1 BUTTON PRESS RUNS THE UNNUMBERED [if_button,...] TRIGGER
+        -- (matthew-mbp-m4-b49-seam1 if_button_op_dispatch_for_if1).  A real
+        -- click on an IF1 component (`if3=no`) sends the op-less IF_BUTTON and
+        -- the server runs only [if_button,<com>] for it, as LostCity's
+        -- IfButtonHandler.ts:31 does.  Ratcatchers bound its snake charm's
+        -- notes as the IF3 op form [if_button1,ratcatcher_flute:*], so no
+        -- press played the tune (seam1_flute_before: music_len stayed 0); the
+        -- content now binds [if_button,...].  Graded on the first note of the
+        -- tune (D) pressed with op 0 raising varb1421_ratcatch_music_len to 1.
+        seam("seam.if1_button_unnumbered_trigger", function()
+            local goto_tile = verb("player", "goto_tile")
+            local inv_op = verb("player", "inv_op")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            local await_server = verb("var", "await_server")
+            local server = verb("var", "server")
+            local key = verb("key")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            if not await_server then return missing("var", "await_server") end
+            if not server then return missing("var", "server") end
+            if not key then return missing("key") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give snake_flute 1")
+            setup_cheat("::give ratcatchers_music 1")
+            setup_cheat("::setvar varb1404_ratcatch_var 100")
+            settle(2)
+            local function teardown()
+                key("escape")
+                setup_cheat("::setvar varb1421_ratcatch_music_len 0")
+                setup_cheat("::setvar varb1404_ratcatch_var 0")
+                setup_cheat("::clearinv")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+            end
+            local goto_result, goto_detail = goto_tile(3018, 3234, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto Port Sarim 3018,3234,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local op_result, op_detail = inv_op("snake_flute", 1)
+            local open_result, open_detail = await_open("ratcatcher_flute", 10)
+            local widget_result, note = widget("ratcatcher_flute:rc_flute_d")
+            local press_result = "not_run"
+            local landed = "not_run"
+            if open_result == "ok" and widget_result == "ok" then
+                press_result = invoke(note, 0)
+                landed = await_server("varb1421_ratcatch_music_len", 1, 6)
+            end
+            local _, length = server("varb1421_ratcatch_music_len")
+            teardown()
+            local text = "snake_flute op1 -> " .. describe(op_result) .. " " .. describe(op_detail)
+                .. "; flute open -> " .. describe(open_result) .. " " .. describe(open_detail)
+                .. "; rc_flute_d widget -> " .. describe(widget_result) .. " " .. describe(note)
+                .. "; invoke(op 0) -> " .. describe(press_result) .. "; music_len await 1 -> "
+                .. describe(landed) .. " (read " .. describe(length) .. ")"
+            if open_result ~= "ok" or widget_result ~= "ok" then
+                return "no_subject", text .. " -- the snake charm did not open"
+            end
+            if landed ~= "ok" or length ~= 1 then
+                return "refused", text .. " -- the op-0 press did not run [if_button,ratcatcher_flute:rc_flute_d]"
+            end
+            return "ok", text
+        end)
+
+        -- THE TROLLWEISS CAVE MOUTH AND CREVICE ARE MAPLINKS AGAIN
+        -- (matthew-mbp-m4-b49-seam1 troll_love_arrg_and_sleds).
+        -- curseofarrav.rs2 binds [oploc1,trollromance_caveentrance] and
+        -- [oploc1,trollromance_snow_cavewall_crevis] by name for its own
+        -- soft-skip; that name binding shadows [oploc1,_maplink_transition]
+        -- (maplink.rs2:77), and outside Curse of Arrav it only said "A snowy
+        -- cave.", so Troll Romance could not enter or leave the cave and the
+        -- sled was never worn (tlseam_caves_before 12/6).  It now falls
+        -- through to ~maplink_transition (maplink.dbrow 0_44_58_6_31..33 ->
+        -- 0_43_159_51_11, 0_43_159_20_56 -> 0_43_60_26_29).  Graded on the
+        -- tile after each click: in at 2803,10187,0 and out at 2778,3869,0.
+        seam("seam.trollweiss_cave_maplink_not_shadowed", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local tile = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not tile then return missing("world", "tile") end
+            local goto_result, goto_detail = goto_tile(2822, 3744, 0)
+            if goto_result ~= "ok" then
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return "no_subject", "goto 2822,3744,0 -> " .. describe(goto_result) .. " " .. describe(goto_detail)
+            end
+            local enter_result, enter_detail = click_loc("trollromance_caveentrance", 1)
+            settle(4)
+            local _, inside = tile()
+            local leave_result, leave_detail = "not_run", nil
+            local outside = nil
+            if type(inside) == "table" and inside.x == 2803 and inside.z == 10187 then
+                local back_result = goto_tile(2772, 10232, 0)
+                if back_result == "ok" then
+                    leave_result, leave_detail = click_loc("trollromance_snow_cavewall_crevis", 1)
+                    settle(4)
+                    local _, here = tile()
+                    outside = here
+                end
+            end
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            local function at(where)
+                if type(where) ~= "table" then return describe(where) end
+                return describe(where.x) .. "," .. describe(where.z) .. "," .. describe(where.level)
+            end
+            local text = "cave mouth -> " .. describe(enter_result) .. " " .. describe(enter_detail) .. "; at "
+                .. at(inside) .. " (want 2803,10187,0); crevice -> " .. describe(leave_result) .. " "
+                .. describe(leave_detail) .. "; at " .. at(outside) .. " (want 2778,3869,0)"
+            if type(inside) ~= "table" or inside.x ~= 2803 or inside.z ~= 10187 or inside.level ~= 0 then
+                return "refused", text .. " -- the cave mouth did not take the maplink"
+            end
+            if type(outside) ~= "table" or outside.x ~= 2778 or outside.z ~= 3869 or outside.level ~= 0 then
+                return "refused", text .. " -- the crevice did not take the maplink"
+            end
+            return "ok", text
+        end)
+
+        -- ZEMBO SELLS KARAMJAN RUM AT MUSA POINT (matthew-mbp-m4-b49-seam1
+        -- tbwt_zembo_spawn_and_shop).  No square or script placed Zembo, so
+        -- Tai Bwo Wannai Trio's getRum answered `no_row zembo` (tbwt ledger
+        -- row 41).  quest_tbwt/ now carries his spawn (LostCity m45_49.jm2
+        -- `0 45 7: zambo` = 2925,3143,0), his boozeshop stock (karamja.inv)
+        -- and zambo.rs2's Talk-to/Trade.  Graded on op3 Trade opening the
+        -- boozeshop and one karamja_rum landing in the backpack, paid for.
+        seam("seam.zembo_boozeshop_sells_rum", function()
+            local goto_tile = verb("player", "goto_tile")
+            local open = verb("shop", "open")
+            local buy = verb("shop", "buy")
+            local close = verb("shop", "close")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not open then return missing("shop", "open") end
+            if not buy then return missing("shop", "buy") end
+            if not close then return missing("shop", "close") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give coins 100")
+            settle(2)
+            local goto_result, goto_detail = goto_tile(2924, 3143, 0)
+            if goto_result ~= "ok" then
+                setup_cheat("::clearinv")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return "no_subject", "goto Musa Point 2924,3143,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local open_result, open_detail = open("zembo", 3, "boozeshop")
+            local buy_result, buy_detail = "not_run", nil
+            local landed = "not_run"
+            local _, coins_before = count("coins")
+            if open_result == "ok" then
+                buy_result, buy_detail = buy("karamja_rum", 1)
+                landed = await("karamja_rum", 1, 10)
+            end
+            local _, coins_after = count("coins")
+            close()
+            setup_cheat("::clearinv")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            local reading = "shop.open(zembo, 3, boozeshop) -> " .. describe(open_result) .. " "
+                .. describe(open_detail) .. "; buy -> " .. describe(buy_result) .. " " .. describe(buy_detail)
+                .. "; karamja_rum await " .. describe(landed) .. ", coins " .. describe(coins_before)
+                .. " -> " .. describe(coins_after)
+            if open_result ~= "ok" then
+                return open_result, reading
+            end
+            if buy_result ~= "ok" then
+                return buy_result, reading
+            end
+            if landed ~= "ok" or type(coins_before) ~= "number" or type(coins_after) ~= "number"
+                or coins_after >= coins_before then
+                return "hollow", reading
+            end
+            return "ok", reading
+        end)
+
+        -- DWARF CANNON'S TOOLKIT AND GRIM TALES' PIANO TAKE THE IF1 PRESS
+        -- (matthew-mbp-m4-b49-seam2 if1_buttons_bound_as_if3).  Both
+        -- interfaces are IF1 (`if3=no`), so a click sends the op-less
+        -- IF_BUTTON and the server runs only [if_button,<com>] (LostCity
+        -- IfButtonHandler.ts:31); the content bound them [if_button1,...], so
+        -- mcannon was green only on an op-1 press no click makes and no piano
+        -- key ever played (seam2_mcannon_before / seam2_piano_before).  Graded
+        -- on the op-0 press landing: the hook selected
+        -- (varb2237_mcannonmulti_tool3 = 1) and the piano's first key
+        -- advancing varb3697_grim_pianotrack to 1.
+        seam("seam.if1_toolkit_and_piano_op0", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local use_on = verb("player", "use_on")
+            local click_loc = verb("player", "click_loc")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            local await_server = verb("var", "await_server")
+            local server = verb("var", "server")
+            local key = verb("key")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not use_on then return missing("player", "use_on") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            if not await_server then return missing("var", "await_server") end
+            if not server then return missing("var", "server") end
+            if not key then return missing("key") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give mcannontoolkit 1")
+            setup_cheat("::setvar varp0_mcannon 6")
+            setup_cheat("::setvar varb3694_grim_dwarfquest 20")
+            settle(2)
+            local function teardown()
+                key("escape")
+                setup_cheat("::setvar varb2237_mcannonmulti_tool3 0")
+                setup_cheat("::setvar varp0_mcannon 0")
+                setup_cheat("::setvar varb3697_grim_pianotrack 0")
+                setup_cheat("::setvar varb3694_grim_dwarfquest 0")
+                setup_cheat("::clearinv")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+            end
+            local goto_result, goto_detail = goto_tile(2564, 3461, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto the cannon 2564,3461,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local cannon = by_symbol("loc", "mcannon_cannon_multiloc")
+            local use_result, use_detail = use_on("mcannontoolkit", cannon)
+            local open_result = await_open("mcannon_interface", 10)
+            local hook_result, hook = widget("mcannon_interface:mcannon_tool3")
+            local hook_landed = "not_run"
+            if open_result == "ok" and hook_result == "ok" then
+                invoke(hook, 0)
+                hook_landed = await_server("varb2237_mcannonmulti_tool3", 1, 6)
+            end
+            local _, tool3 = server("varb2237_mcannonmulti_tool3")
+            key("escape")
+            settle(2)
+            local piano_goto = goto_tile(2903, 9874, 0)
+            local play_result, play_detail = "not_run", nil
+            local piano_open, key_result, piano_key = "not_run", "not_run", nil
+            local key_landed = "not_run"
+            if piano_goto == "ok" then
+                play_result, play_detail = click_loc("grim_grandpiano", 1)
+                piano_open = await_open("grim_piano", 10)
+                key_result, piano_key = widget("grim_piano:ue")
+                if piano_open == "ok" and key_result == "ok" then
+                    invoke(piano_key, 0)
+                    key_landed = await_server("varb3697_grim_pianotrack", 1, 6)
+                end
+            end
+            local _, track = server("varb3697_grim_pianotrack")
+            teardown()
+            local text = "toolkit on cannon -> " .. describe(use_result) .. " " .. describe(use_detail)
+                .. "; mcannon_interface open -> " .. describe(open_result) .. "; mcannon_tool3 invoke(op 0) -> tool3 await "
+                .. describe(hook_landed) .. " (read " .. describe(tool3) .. "); piano goto -> " .. describe(piano_goto)
+                .. "; grim_grandpiano op1 -> " .. describe(play_result) .. " " .. describe(play_detail)
+                .. "; grim_piano open -> " .. describe(piano_open) .. "; ue invoke(op 0) -> pianotrack await "
+                .. describe(key_landed) .. " (read " .. describe(track) .. ")"
+            if open_result ~= "ok" or hook_result ~= "ok" or piano_open ~= "ok" or key_result ~= "ok" then
+                return "no_subject", text .. " -- an interface did not open"
+            end
+            if hook_landed ~= "ok" or tool3 ~= 1 then
+                return "refused", text .. " -- the op-0 press did not run [if_button,mcannon_interface:mcannon_tool3]"
+            end
+            if key_landed ~= "ok" or track ~= 1 then
+                return "refused", text .. " -- the op-0 press did not run [if_button,grim_piano:ue]"
+            end
+            return "ok", text
+        end)
+
+        -- TAI BWO WANNAI TRIO'S VESSEL TAKES ONE KARAMBWANJI
+        -- (matthew-mbp-m4-b49-seam2 tbwt_completion_rewards).  This cache's
+        -- raw karambwanji is stackable and the load deleted the whole slot,
+        -- so one vessel ate the stack; OSRS wiki "Raw karambwanji" (oldid
+        -- 15184350) loads one.  Graded on both use orders: 5 -> 4 -> 3.
+        seam("seam.tbwt_vessel_loads_one_karambwanji", function()
+            local use_item_on_item = verb("player", "use_item_on_item")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            if not use_item_on_item then return missing("player", "use_item_on_item") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give tbwt_raw_karambwanji 5")
+            setup_cheat("::give tbwt_karambwan_vessel 2")
+            settle(2)
+            local first_result, first_detail = use_item_on_item("tbwt_raw_karambwanji", "tbwt_karambwan_vessel")
+            local first_landed = await("tbwt_karambwan_vessel_loaded_with_karambwanji", 1, 10)
+            local _, after_first = count("tbwt_raw_karambwanji")
+            local second_result = use_item_on_item("tbwt_karambwan_vessel", "tbwt_raw_karambwanji")
+            local second_landed = await("tbwt_karambwan_vessel_loaded_with_karambwanji", 2, 10)
+            local _, after_second = count("tbwt_raw_karambwanji")
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = "karambwanji on vessel -> " .. describe(first_result) .. " " .. describe(first_detail)
+                .. "; loaded await 1 -> " .. describe(first_landed) .. ", karambwanji 5 -> " .. describe(after_first)
+                .. "; vessel on karambwanji -> " .. describe(second_result) .. "; loaded await 2 -> "
+                .. describe(second_landed) .. ", karambwanji -> " .. describe(after_second)
+            if first_landed ~= "ok" or second_landed ~= "ok" then
+                return "no_subject", text .. " -- a vessel did not load"
+            end
+            if after_first ~= 4 or after_second ~= 3 then
+                return "refused", text .. " -- a load did not take exactly one karambwanji (want 4 then 3)"
+            end
+            return "ok", text
+        end)
+
+        -- FILL ON AN EMPTY SACK MAKES POTATOES(10) (matthew-mbp-m4-b50-seam1
+        -- enlightenedjourney_gather_sources).  The sacks' ifop1 Fill was unbound,
+        -- so `sack_potato_10` -- Enlightened Journey's sack of potatoes -- had no
+        -- source in the pack.  Wiki Empty sack (oldid 15183845): Fill puts 10
+        -- vegetables in at once.  skill_farming/scripts/farming_sacks.rs2.
+        -- Graded on 12 potatoes -> one Potatoes(10) and 2 potatoes left.
+        seam("seam.vegetable_sack_fill", function()
+            local inv_op = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            if not inv_op then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give sack_empty 1")
+            setup_cheat("::give potato 12")
+            settle(2)
+            -- The press swaps the sack for another obj, so inv_op's own wait
+            -- answers timeout; the new obj's count is the evidence.
+            local op_result, op_detail = inv_op("sack_empty", 1)
+            local landed = await("sack_potato_10", 1, 10)
+            local _, sacks = count("sack_potato_10")
+            local _, potatoes = count("potato")
+            local _, empties = count("sack_empty")
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = "Fill on sack_empty -> " .. describe(op_result) .. " " .. describe(op_detail)
+                .. "; sack_potato_10 await -> " .. describe(landed) .. " (read " .. describe(sacks)
+                .. "), potato 12 -> " .. describe(potatoes) .. ", sack_empty 1 -> " .. describe(empties)
+            if landed ~= "ok" or sacks ~= 1 then
+                return "refused", text .. " -- Fill did not make Potatoes(10)"
+            end
+            if potatoes ~= 2 or empties ~= 0 then
+                return "refused", text .. " -- Fill did not take exactly 10 potatoes and the empty sack"
+            end
+            return "ok", text
+        end)
+
+        -- A GROWN WILLOW GIVES BRANCHES TO SECATEURS (matthew-mbp-m4-b50-seam1
+        -- enlightenedjourney_gather_sources).  farming_trees held only oak, so
+        -- nothing in the pack gave out willow_branch.  Wiki Willow branch
+        -- (oldid 15184331): branches grow once the tree's health is checked,
+        -- one per 5 minutes, at most 6, cut with secateurs.  Patch values
+        -- (RuneLite PatchImplementation TREE): 15 seedling .. 21 check-health,
+        -- 22 chop, 192..197 chop with 1..6 branches.  The six 40-minute stages
+        -- are the oak's growth ladder with the willow row's numbers (driven end
+        -- to end in build/quest_gate/s1_ej_willow, ~3,000 ticks -- more than
+        -- this harness's frame budget), so the row plants Auguste's sapling for
+        -- real (that records the seed) and then STAGES the grown tree: state 21
+        -- and the patch's check flag, which is what the sixth stage writes.
+        -- Graded: no branch before any time passes, then one 30-minute
+        -- t.clock.skip and the secateurs cut all 6 (counted from the deadline),
+        -- leaving the bare chop state 22.  Last of the seam rows: it moves the
+        -- world clock 30 minutes ahead.
+        seam("seam.willow_tree_grows_branches", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local click_loc = verb("player", "click_loc")
+            local use_on = verb("player", "use_on")
+            local skip = verb("clock", "skip")
+            local await_server = verb("var", "await_server")
+            local server = verb("var", "server")
+            local await = verb("inv", "await")
+            local count = verb("inv", "count")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not use_on then return missing("player", "use_on") end
+            if not skip then return missing("clock", "skip") end
+            if not await_server then return missing("var", "await_server") end
+            if not server then return missing("var", "server") end
+            if not await then return missing("inv", "await") end
+            if not count then return missing("inv", "count") end
+            local state_var = "varb701_varbit_701"
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel farming 30")
+            setup_cheat("::give rake 1")
+            setup_cheat("::give spade 1")
+            setup_cheat("::give secateurs 1")
+            setup_cheat("::give zep_plantpot_willow_sapling 1")
+            settle(2)
+            local function teardown()
+                setup_cheat("::clearinv")
+                setup_cheat("::setlevel farming 1")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+            end
+            local goto_result, goto_detail = goto_tile(3002, 3376, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto the Falador park patch 3002,3376,0 -> " .. describe(goto_result)
+                    .. " " .. describe(goto_detail)
+            end
+            local trail = {}
+            local _, raw = server(state_var)
+            trail[#trail + 1] = "patch " .. describe(raw)
+            if raw ~= 3 then
+                click_loc("farming_tree_patch_2", 1)
+                trail[#trail + 1] = "rake -> " .. describe(await_server(state_var, 3, 80))
+            end
+            local patch = by_symbol("loc", "farming_tree_patch_2")
+            local plant_result = use_on("zep_plantpot_willow_sapling", patch)
+            local planted = await_server(state_var, 15, 10)
+            trail[#trail + 1] = "plant -> " .. describe(plant_result) .. ", state 15 " .. describe(planted)
+            local checked = "not_run"
+            if planted == "ok" then
+                -- What the sixth growth stage writes (farming_tree_set): the
+                -- grown state, its client mirror varb4771 (the transmit var
+                -- the patch's multiloc reads while you stand in square
+                -- 0_46_52) and the patch's check-health flag.
+                setup_cheat("::setvar " .. state_var .. " 21")
+                setup_cheat("::setvar varb4771_farming_transmit_a 21")
+                setup_cheat("::setvar varp5820_farming_falador_tree_check 1")
+                -- The grown willow's model is first asked for now; let it land
+                -- before the click hunts its triangles.
+                settle(10)
+                local check_result, check_detail = click_loc("farming_tree_patch_2", 1)
+                checked = await_server(state_var, 22, 10)
+                trail[#trail + 1] = "check-health click -> " .. describe(check_result) .. " " .. describe(check_detail)
+            end
+            trail[#trail + 1] = "staged 21, check-health -> state 22 " .. describe(checked)
+            local early = nil
+            local cut = "not_run"
+            if checked == "ok" then
+                use_on("secateurs", patch)
+                settle(3)
+                local _, early_count = count("willow_branch")
+                early = early_count
+                skip(30)
+                use_on("secateurs", patch)
+                cut = await("willow_branch", 6, 40)
+            end
+            trail[#trail + 1] = "secateurs at once -> willow_branch " .. describe(early)
+            local _, branches = count("willow_branch")
+            local _, after = server(state_var)
+            trail[#trail + 1] = "30 minutes, secateurs -> willow_branch " .. describe(branches) .. " ("
+                .. describe(cut) .. "), patch " .. describe(after)
+            teardown()
+            local text = table.concat(trail, "; ")
+            if planted ~= "ok" or checked ~= "ok" then
+                return "no_subject", text .. " -- the willow did not reach its checked chop state"
+            end
+            if early ~= 0 then
+                return "refused", text .. " -- a branch was cut before any time passed"
+            end
+            if cut ~= "ok" or branches ~= 6 or after ~= 22 then
+                return "refused", text .. " -- 30 minutes did not grow 6 branches that the secateurs cut back to state 22"
             end
             return "ok", text
         end)
