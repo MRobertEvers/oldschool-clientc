@@ -1049,7 +1049,8 @@ Ported from LostCity_Server (m45_49.jm2 `0 45 7: zambo` = 2925,3143; `zambo.rs2`
 (gaps-world, "the fall pocket"). The b47 file with its leg-4 GUIDE-GAP replaced by the driven block
 ran rows 1-109 PASS and `helper_coverage` grades `leaveFallArea` DRIVEN; it stops next at
 `navigateMaze`, where the extra slide rolls shift the account-seeded RNG and a fall off bridge
-2406,9637 lands in a pit (2406,9635) with no known walk back. The woodplank is a ground spawn
+2406,9637 lands in a pit (2406,9635) with no known walk back (FIXED b52-seam3 (a): the way back is
+bridge 2406,9632 crossed westward). The woodplank is a ground spawn
 (m38_151.spawn:35, 2435,9726), reached after the bridge, not by `::give`.
 
 (d) Troll Romance: Arrg's damage is the OSRS wiki's and the b47 death was test-side (verbs-combat,
@@ -1312,3 +1313,36 @@ proving it, and both bite any scratch row:
   to an idle owner. Engage it with `t.player.attack` before waiting on its attacks.
 Also: a 1-tick `t.msg.await` loop interleaved with skill reads can miss a line that lands between
 calls. Poll the effect each tick, then `t.msg.expect` the line from the ring.
+
+## Seam pass matthew-mbp-m4-b52-seam3 (2026-10-02, batch matthew-mbp-m4-b52)
+
+(a) Every fall off an Underground Pass maze bridge has a walk back. Nothing is sealed and no map
+change was needed. LostCity `maps/m37_150.jm2` and our `m37_150.jl2` place the same SEVEN
+`walkway_upass_narrow_mid_top`: 2380,9634 2387,9631 2392,9627 2396,9636 2399,9632 2406,9632
+2406,9637. The route crosses five of them (all but 2396,9636 and 2406,9632). `0_37_150_38_32` is
+2406,9632, not the route's last bridge. A failed `stat_random(agility,160,300)` lands you TWO tiles
+off the bridge (LostCity `upass_obstacles.rs2:308-321`): `p_exactmove` already teleports to its end
+tile (LostCity engine `Player.ts:2109-2110`), then `p_teleport` steps one more. The fall goes south,
+or north for 2399,9632 and 2406,9632. Live landings: 2380,9632 2387,9629 2399,9634 2406,9635
+(2406,9634 from 2406,9632).
+- Bridges 1-3 land back in the maze start area. Walk 2373,9634 -> 2379,9634 and cross 1, 2, 3 again.
+- Bridge 4 (2399,9632) lands between bridges 2 and 3. Cross 3, then 4.
+- Bridge 5 (2406,9637) lands in the pit 2406..2410,9632..9635. It is walled in on foot, but it is
+  the east side of bridge 2406,9632. Walk to 2407,9632 and cross 2406,9632 west to 2405,9632 (a fall
+  there lands back in the pit). Then go 2403,9632 -> 2403,9637 -> 2405,9637 and cross bridge 5 again.
+`test/quests/wip/upass/seam3_maze.lua` drives this as a `walk-navigateMaze-<n>` row per hop and a
+`navigateMaze-<n>-bridgeK` / `-pitExit-2406-9632` row per press, judged by tile (crossed or fell).
+It has no `goto_tile`. Proof: scratch agility-1 runs 40/40 and 375/375 exercised every recovery;
+the full file ran 289/289 to the scroll (relay.md, seam3 section in `test/quests/wip/upass/`).
+
+(b) To ask "is this pocket sealed?" before any run, build a collision model from the `.jm2`/`.jl2`
+the way LostCity's `GameMap.ts:219-281` does: land flag 1, LINK_BELOW 2 lifting level-1 walkways onto
+level 0, and shape 22 blocking only when active. Then BFS it. The model for (a) is
+`build/seam_state/matthew-mbp-m4-b52-seam3/scratch/maze_graph.py` (`python3 maze_graph.py
+lostcity|ours`), with `maze_bfs.py` beside it.
+
+(c) A relay leg that `::give`s food at its start should cap the give at the free slots minus the
+leg's pickups. An RNG shift upstream changes how much food an earlier leg eats. Underground Pass
+leg 7 then ended on 19 items, leg 8's `::give lobster 15` filled the pack, and Klank's gauntlets were
+lost to "Your inventory is full." Count free slots with `t.inv.slot` (an empty slot reads name `""`)
+and give `min(15, free - 3)`.
