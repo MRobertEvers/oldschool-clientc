@@ -1,0 +1,1 @@
+{"test_id":"regicide","leg":6,"outcome":"done","runs":7,"last_step":"goTalkToLathasToFinish","last_failure":"","blocker":"","doc_gaps":["goBackUpToIbansCavern (leg 1 GUIDE-GAP upass_tunnels.rs2:21) stays: the dwarf cavern tunnel at 2150,4545 level 1 is not walkable from the pass, so helper_coverage reads CONTENT_GAP=1 not FULL"],"compacted":false}

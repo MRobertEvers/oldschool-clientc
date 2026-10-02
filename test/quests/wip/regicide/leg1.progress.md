@@ -1,0 +1,1 @@
+run 1: leg1 base from b48_redriven; grid pattern 0 and walk_to tunnel refused. run 2: setup rope 2 + grid pattern; tunnel replaced by GUIDE-GAP citing upass_tunnels.rs2:21; 42 PASS, checkpoint 1 written. Done.

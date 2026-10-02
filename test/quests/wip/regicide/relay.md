@@ -1,10 +1,9 @@
-## leg 1 (re-driven 2026-10-01, b48; supersedes the earlier block)
-- Ends at 2150,4546 level 1 (Iban's cavern, after cavewalltunnel_upass_up); regicide_quest = 2 (spoken_lathas). Checkpoint 1 written; iterate with run.py regicide --from-leg 2 --no-build.
-- Pack: shortbow worn, litarrow spent, bronze_arrow x19, rope x1 (setup now gives 2: each pit swing eats one), spade, tinderbox, lobster x6. Setup levels: agility 56, hitpoints 40, defence 30; setup also writes varp6010_upass_grid_pattern 232 so the grid has real safe bands.
-- NEW: the first walk now drives by clicks the pit rope swing, rockslides 4 and 5, the grid (safe bands), the lever and spear traps 1-5 (rows suffixed -outbound / climbOverRockslide4,5 / crossTheGrid). The hop to the tunnel (goto 2337,9793) now skips only well, cell lock, mud, ledge, pipe, unicorn door, Iban's door, which leg 2 drives.
-- ::complete has no arm for the Underground Pass (quest_cheat.rs2): setup writes the upass var and upass_lathas_met. Stage-0 Lathas dialogue starts "I received your message". Lighting the arrow is tinderbox on unlitarrow.
-- Leg 3 still goto-hops 2461,9699 -> 2467,9673 over pit and grid on the return walk and needs one rope (left in the pack); its author should drive them as leg 1 does (code: leg 1 of test/quests/regicide.lua).
-- The ladder now cuts leg 1 at leaveWellCave (11 steps); the file cut is unchanged: leaveWellCave is still the first row of file leg 2.
+## leg 1 (round 7, 2026-10-01, b48; supersedes the earlier block)
+- Ends at 2429,9676 level 0 (west of spear trap 5, first half of the pass); regicide_quest = 2 (spoken_lathas). Checkpoint 1 written; iterate with run.py regicide --from-leg 2 --no-build.
+- Pack: shortbow worn, bronze_arrow x19, rope x1 (setup gives 2, the pit swing eats one), spade, tinderbox, lobster x6 (+ leg 4's magic bow, rune arrows, sharks). Setup levels: agility 56, hitpoints 70, defence 40, ranged 70; setup writes varp6010_upass_grid_pattern 232.
+- Leg 1 drives by clicks: Lathas, cave mouth, rockslides 1-5, bridge shot, pit rope swing, grid (safe bands), lever, spear traps 1-5 (rows suffixed -outbound where a later leg repeats them).
+- goBackUpToIbansCavern is a GUIDE-GAP (upass_tunnels.rs2:21): the dwarf cavern at 2336,9793 is entered only by the down tunnel from Iban's cavern (rs2:9); walk_to there from the last trap is refused. Leg 2 may drive down+up after Iban's door if it wants the step DRIVEN.
+- Leg 2 must now walk from 2429,9676 to the plank room (2434,9725) and the well (2417,9673) itself; its t.blocked markers for that are still in the file.
 
 ## leg 2
 - Ends at 2312,3216 level 0 (Tirannwn arrival, quiet); regicide_quest = 3 (spoken_scouts). Checkpoint 2 written. Pack adds woodplank x1 (collectPlank); rest as leg 1 (shortbow worn, rope, spade, tinderbox, arrows, lobster x6).
@@ -156,3 +155,39 @@
 - test/quests/regicide.lua is the round-6 green file (d3505f4ee) with every shortcut the sampler named turned into a `t.blocked("ROUND 7 (orchestrator, sampler 9260f12d8): ...")` marker that says what to drive instead. All legs are reopened (their old notebooks retired as leg<K>.progress.round1-6.md); a leg without a marker (leg 3) only reruns.
 - Done means `grep -c "ROUND 7 (orchestrator" test/quests/regicide.lua` prints 0, no `t.check(<name>, true` summary row remains, and the full run reaches expect_complete. Read docs/quest_authoring/sampler-findings.md "Sample matthew-mbp-m4-b48, second check" before you start.
 - Routes already proven in this batch: the maze bridges and the temple door (seam2 / seam1 blocks above; wip/regicide/seam2_leg2_proven.lua), the grid as leg 3 drives it.
+
+## leg 2 (round 7 fresh runner)
+- Ends at 2312,3216 level 0 (Tirannwn arrival, quiet); regicide_quest = 3 (spoken_scouts). Checkpoint 2 written. Pack adds woodplank x1; rest as leg 1 (shortbow worn, rope x1, spade, tinderbox, arrows, lobster).
+- Route is driven by real walks/clicks now (no goto past the pass): pipe4 north to plank room, pit swing, rockslides 4-5, grid, lever, 5 traps west, well, cell lock, mud, ledge, 5 maze bridges, pipe, unicorn door, Iban's door, 4 temple bridges, temple door, well, Idris scene.
+- The temple bridge rolls fail ~7% each at agility 56 and a fall strands the player with no walk back, so leg 2 does ::setlevel agility 99 just before them: agility is 99 from then on.
+- Idris scene plays on the exit click (stage already 3).
+
+## leg 3 (round 7, fresh runner; supersedes the earlier leg 3 blocks)
+- Ends at 2204,3252 level 0 (Lord Iorwerth's camp, quiet); regicide_quest = 4 (spoken_iorwerth). Checkpoint 3 written; iterate with run.py regicide --from-leg 4 --no-build.
+- Pack: shortbow worn, bronze_arrow x19, spade, tinderbox, woodplank x1, lobster x3 (+ leg 4's magic bow, rune arrows, sharks). No new setup gives.
+- No gotos and no pass re-entry: crossThePit/lever/passTrap rows are leg 1 (-outbound) and leg 2 (-return). Leg 3 walks arrival -> ring 2267 -> 2239,3181 -> forest refusal at 2240,3149 -> spring 2238->2234 (loc is the single tile 2235,3181) -> ring 2209,3201 -> 2201,3236 (waypoints 2205,3215 / 2203,3225 / 2201,3232) -> log -> Iorwerth.
+- goFromTyrasToTrap is a GUIDE-GAP in leg 3: the tripwire pocket 2220,3152-3155 is not walkable from the spring side (walk stops at 2221,3181); leg 4 presses it (crossTripwire).
+- Still in the file: leg 4's two ROUND 7 t.blocked markers (climbThroughForest, tripwire walk). The walk verb needs repeats and waypoints; travel() helper copies are in legs 3 and 4.
+
+## leg 4 (round 7, fresh runner)
+- Ends at 2220,3155 level 0 (just north of the tripwire, quiet); regicide_quest = 9 (defeated_guard). Checkpoint 4 written; iterate with run.py regicide --from-leg 5 --no-build.
+- Pack: magic_shortbow + rune_arrow wielded, ~2 sharks left (guard fight eats many; leg 5 should give more), lobsters, spade, tinderbox, woodplank. Setup levels: agility 56 (99 after leg 2), ranged 70, hitpoints 70, defence 40.
+- No gotos past obstacles: walk to 2240,3149 from the tracker, then o3/o2/o1 (2238/2235/2232,3148) clicks; guard summoned at 2231,3149; then walked 2231 -> 2220,3152 (walkable from the guard side) and crossTripwire.
+- enterTyrasCamp (2190,3144) is NOT in leg 4: the row lives in leg 5 (camp passage, stage 9 -> 10). The player must walk from the tripwire to the middle passage 2217,3158 itself (no goto).
+- Leg 4 still uses plain goto_tile to log/ring start tiles (2196,3237, 2209,3205, 2203,3253) as travel, not past an obstacle.
+- Full run 202/0 PASS up to leg 5's marker; --from-leg 4 74/0.
+
+## leg 5 (round 7, fresh runner)
+- Ends at 2934,3209 level 0 (Rimmington, beside the Chemist, quiet); regicide_quest = 11 (spoken_iorwerth2). Checkpoint 5 written; iterate with run.py regicide --from-leg 6 --no-build.
+- Pack: barrel_tar x2, quicklime_dust x1, sulphar_dust x1, regicide_alchemy (book), coal, gloves worn, magic_shortbow + rune_arrow, lobster/sharks left, spade, tinderbox. Setup gave nothing new; leg 5 ::gives its bomb items itself (limestone, gloves, pestle, pot, coal).
+- Real walks: tripwire pocket -> middle forests north (o3/o2/o3) -> camp passage (stage 9->10) -> barrels -> BACK the same way reversed (camp passage, middle forests south, tripwire from 2220,3155, o1/o2/o3 east at 2232/2235/2238,3148) -> tracker -> sulphur 2261,3130. All crossings bidirectional by loc geometry.
+- Iorwerth's five questions (quicklime/sulphur/naphtha, then More options: barrel, fuse) are one conversation; each asserts its varb8455-8459 flag.
+- Tripwire and travel poison: eat_if_low (lobster) after hazards; setup food is enough.
+- Leg 5 still contains plain gotos for far plain travel (fill2Barrels shore, log start, Iorwerth camp, Keldagrim furnace, Rimmington).
+
+## leg 6 (round 7, last runner)
+- Ends at Ardougne castle floor 2 beside King Lathas, quest complete (varp328_regicide_quest done); expect_complete + rewards asserted literally (agility 13750 xp, 15000 coins).
+- Full run 471/0 PASS (7405 ticks, max_frames 240000), gate green, lint clean, helper_coverage CONTENT_GAP=1 (only goBackUpToIbansCavern, leg 1's GUIDE-GAP).
+- Probed twice (2026-10-01): from bridge D (2161,4640 level 1) every walk south is blocked, so the tunnel pair 2150,4545 / dwarf cavern is not reachable on foot from the pass; the marker stays.
+- Second pass is all on foot: plank room skipped (the woodplank from leg 2 is still in the pack), well from the last trap by walking west, Tirannwn via ring, tracker forests west, tripwire north (loc 2220,3153), middle forests, camp road, rabbit, bomb, then back east/south the same way, spring flats, ring, log.
+- Spear traps: the player must end WEST of the trap loc (trap5 loc 2430), not just near it. Setup levels unchanged.
