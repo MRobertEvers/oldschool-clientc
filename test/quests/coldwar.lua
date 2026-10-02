@@ -26,6 +26,16 @@ return {
         "::give raw_cod 1",
         "::give swamp_tar 1",
         "::give feather 5",
+        -- Quest Helper leg 5 requirements (makeBongos): a mahogany plank and leather (Crafting 30 already set)
+        "::give plank_mahogany 1",
+        "::give leather 1",
+        -- killIcelords: the Ice Lords are level 51 and fought for real: armed and fed
+        "::setlevel attack 60",
+        "::setlevel strength 60",
+        "::setlevel defence 60",
+        "::setlevel hitpoints 70",
+        "::give rune_scimitar 1",
+        "::give lobster 12",
     },
     bind = {
         varp = "varb3293_peng_quest",
@@ -35,7 +45,7 @@ return {
             zoo_report = 40, lumbridge_visit = 45, zoo_return = 50,
             thing_return = 55, fred = 60, outpost_info = 65, iceberg_kgp = 70, noodle1 = 75, noodle2 = 80,
             kgp_again = 85, debrief = 90, agility_ready = 95, agility_done = 100, army_report = 105,
-            pingpong_go = 110,
+            pingpong_go = 110, instruments = 115, control_room = 120, icelords = 125, escape = 130,
             complete = 135,
         },
         row = "quest_coldwar",
@@ -168,7 +178,7 @@ return {
             -- LEG 1 END
             local _, etile = t.world.tile()
             local _, stage = t.quest.stage()
-            t.check("leg.1.end", true, "player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(t.world.level())
+            t.check("leg.1.end", true, "player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
                 .. ", varb3293_peng_quest=" .. tostring(stage) .. ", clockwork book in backpack: "
                 .. tostring(select(2, t.inv.count("peng_book"))))
         end },
@@ -298,7 +308,7 @@ return {
                 "peng_transmog=" .. tostring(select(2, t.var.server("varb3306_peng_transmog"))))
 
             t.exec("goto-talkToThing", t.player.goto_tile, 3201, 3268, 0)
-            t.exec("talkToThing", t.player.talk_to, "sheep_shearer_the_thing", 1)
+            t.exec("talkToThing", t.player.talk_to, "sheep_shearer_the_thing", 3)
             t.exec("talkToThing-dialog", t.chat.drain, { stop_at = "none", max_pages = 6 })
             t.ticks(2)
             greet("emoteAtPenguinInLumbridge")
@@ -347,6 +357,9 @@ return {
             t.check("leg.3.start", true, "stage " .. tostring(select(2, t.quest.stage())) .. " suit=" .. tostring(transmog())
                 .. " raw_cod=" .. tostring(select(2, t.inv.count("raw_cod"))) .. " swamp_tar=" .. tostring(select(2, t.inv.count("swamp_tar")))
                 .. " feather=" .. tostring(select(2, t.inv.count("feather"))))
+            -- Larry stands 16 tiles east of the farm tile the player ends leg 2 on, off the viewport: walk to him (plain travel)
+            t.check("returnToZooPenguin-larryWalk", t.player.walk_to(3209, 3264, 20) == "ok", "walking to Larry at 3212,3263")
+            t.ticks(3)
             suit_off("returnToZooPenguin-larrySuitOff", "peng_larry_zoo")
             t.exec("returnToZooPenguin-larry", t.player.talk_to, "peng_larry_zoo", 1)
             t.exec("returnToZooPenguin-larry-dialog", t.chat.play, {
@@ -415,7 +428,7 @@ return {
                 suit_up("returnToThing-tuxedo", "peng_larry_zoo")
                 t.exec("goto-returnToThing-again", t.player.goto_tile, 3201, 3268, 0)
             end
-            t.exec("returnToThing", t.player.talk_to, "sheep_shearer_the_thing", 1)
+            t.exec("returnToThing", t.player.talk_to, "sheep_shearer_the_thing", 3)
             t.exec("returnToThing-dialog", t.chat.drain, { stop_at = "none", max_pages = 14 })
             t.ticks(3)
             t.expect("quest.stage.fred", t.quest.expect_stage("fred"))
@@ -456,7 +469,7 @@ return {
             t.exec("goto-askThingAboutOutpost-larry", t.player.goto_tile, 3211, 3263, 0)
             suit_up("askThingAboutOutpost-tuxedo", "peng_larry_zoo")
             t.exec("goto-askThingAboutOutpost", t.player.goto_tile, 3201, 3268, 0)
-            t.exec("askThingAboutOutpost", t.player.talk_to, "sheep_shearer_the_thing", 1)
+            t.exec("askThingAboutOutpost", t.player.talk_to, "sheep_shearer_the_thing", 3)
             t.exec("askThingAboutOutpost-dialog", t.chat.play, {
                 "npc:Is the Farmer an agent",
                 "options",
@@ -572,9 +585,207 @@ return {
             local _, ctile = t.world.tile()
             t.check("enterAgilityCourse.outside", ctile.z < 4100 and select(2, t.world.level()) == 1,
                 "on the penguin course at " .. ctile.x .. "," .. ctile.z .. " level " .. tostring(select(2, t.world.level())))
+            local function transmog() return select(2, t.var.server("varb3306_peng_transmog")) end
+            local function agility_state() return select(2, t.var.server("varb3305_peng_agility_state")) end
+            local function at() local _, p = t.world.tile(); return p.x .. "," .. p.z .. "," .. tostring(select(2, t.world.level())) end
+
+            -- agilityEnterWater / agilityExitWater: the ledge climbs down into the wading water (seam2)
+            t.player.walk_to(2636, 4054, 12)
+            t.ticks(3)
+            t.check("agilityEnterWater", true, "walked onto the ledge 2636,4054; now at " .. at() .. " (level 0 = in the water)")
+            t.player.walk_to(2630, 4055, 20)
+            t.ticks(3)
+            t.check("agilityWade", true, "waded past the crushers to " .. at())
+            t.exec("agilityExitWater", t.player.click_loc, "peng_agility_crushcourse_stepstone01", 1)
+            t.ticks(4)
+            if select(2, t.world.level()) ~= 1 then
+                t.exec("agilityExitWater-retry", t.player.click_loc, "peng_agility_crushcourse_stepstone01", 1)
+                t.ticks(4)
+            end
+            t.check("agilityExitWater.out", select(2, t.world.level()) == 1, "out of the water, now at " .. at())
+
+            -- agilityJumpStones: seven stones (stone 7 is an aploc)
+            for i = 1, 7 do
+                t.exec("agilityJumpStones-" .. i, t.player.click_loc, "peng_jump_stone_clickzone_0" .. i, 1)
+                t.ticks(3)
+            end
+            t.check("agilityJumpStones.done", agility_state() == 1, "varb3305_peng_agility_state=" .. tostring(agility_state()) .. " at " .. at())
+
+            -- agilityTreadSoftly: four icicle pillars, west to east (the first press can flake: retry)
+            -- pillar tiles from m41_63.jl2 (21134 at level 1): x 2644, 2652, 2658, 2662
+            local pillars = { { x = 2644, z = 4083 }, { x = 2652, z = 4079 }, { x = 2658, z = 4082 }, { x = 2662, z = 4082 } }
+            for i = 1, 4 do
+                local nm = "agilityTreadSoftly-" .. i
+                -- the first press can flake (pickset held=false, gaps-world): press again, record the press that landed
+                local res, det = t.player.click_loc("peng_iciclepillar_clickzone", 1, { at = pillars[i] })
+                if res ~= "ok" then
+                    t.ticks(2)
+                    res, det = t.player.click_loc("peng_iciclepillar_clickzone", 1, { at = pillars[i] })
+                end
+                t.ticks(4)
+                t.check(nm, res == "ok", "pillar " .. pillars[i].x .. "," .. pillars[i].z .. ": " .. tostring(res) .. " " .. tostring(det)
+                    .. "; now at " .. at())
+            end
+            t.check("agilityTreadSoftly.done", agility_state() == 2, "varb3305_peng_agility_state=" .. tostring(agility_state()) .. " at " .. at())
+
+            -- agilityCrossIce
+            t.exec("agilityCrossIce", t.player.click_loc, "peng_agility_slippery_glitters01", 1)
+            t.ticks(8)
+            t.check("agilityCrossIce.done", agility_state() == 3, "varb3305_peng_agility_state=" .. tostring(agility_state()) .. " at " .. at())
+
+            -- agilityDone
+            t.exec("agilityDone", t.player.talk_to, "peng_agility_instructor", 1)
+            t.exec("agilityDone-dialog", t.chat.drain, { stop_at = "none", max_pages = 10 })
+            t.ticks(3)
+            t.expect("quest.stage.army_report", t.quest.expect_stage("army_report"))
+
+            -- back through the fence gate and the door into the corridor, where taking the suit off
+            -- throws the player out beside Larry (coldwar_shared.rs2 coldwar_suit_unequip_click)
+            t.exec("agilityGate", t.player.click_loc, "peng_agility_fencing_door", 1)
+            t.ticks(4)
+            t.exec("agilityBackDoor", t.player.click_loc, "peng_cliffwall_door_mid", 1)
+            t.ticks(5)
+            local _, btile = t.world.tile()
+            t.check("agilityBackDoor.inside", btile.z > 10000, "back in the outpost corridor at " .. at())
+
+            t.exec("removeSuit", t.player.unequip, "peng_suit_unwound")
+            t.ticks(5)
+            t.check("removeSuit.thrown", transmog() == 0 and select(2, t.world.tile()).z < 4100,
+                "suit off (transmog=" .. tostring(transmog()) .. "), standing at " .. at())
+
+            -- tellLarryAboutArmy
+            t.exec("tellLarryAboutArmy", t.player.talk_to, "peng_larry_ice", 1)
+            t.exec("tellLarryAboutArmy-dialog", t.chat.drain, { stop_at = "none", max_pages = 20 })
+            t.ticks(3)
+            t.expect("quest.stage.pingpong_go", t.quest.expect_stage("pingpong_go"))
+
+            -- enterAvalanche2: back in the suit (Larry op 3), through the avalanche as a penguin
+            t.exec("enterAvalanche2-tuxedo", t.player.talk_to, "peng_larry_ice", 3)
+            t.exec("enterAvalanche2-tuxedo-dialog", t.chat.drain, { stop_at = "none", max_pages = 6 })
+            t.ticks(4)
+            t.check("enterAvalanche2.suit", transmog() == 1, "peng_transmog=" .. tostring(transmog()))
+            t.exec("enterAvalanche2", t.player.click_loc, "peng_aval_l", 1)
+            t.ticks(6)
+            local _, itile = t.world.tile()
+            t.check("enterAvalanche2.inside", itile.z > 10000, "inside the outpost at " .. at())
+
+            -- pingPong1: the room to the east
+            t.exec("goto-pingPong1", t.player.goto_tile, 2664, 10396, 0)
+            t.ticks(3)
+            t.exec("pingPong1", t.player.talk_to, "peng_ping", 1)
+            t.exec("pingPong1-dialog", t.chat.drain, { stop_at = "none", max_pages = 40 })
+            t.ticks(4)
+            local _, stage = t.quest.stage()
+            t.check("leg.4.end", true, "player at " .. at() .. ", varb3293_peng_quest=" .. tostring(stage)
+                .. ", suit worn (transmog)=" .. tostring(transmog()) .. ", peng_id x" .. tostring(select(2, t.inv.count("peng_id")))
+                .. ", peng_cowbell x" .. tostring(select(2, t.inv.count("peng_cowbell"))) .. "; next: instruments (bongos, cowbell) for Ping and Pong")
             -- LEG 4 END
-            t.blocked("agilityExitWater: the course's water leg (2628-2635,4053-4065,0, ObjectID peng_agility_crushcourse_stepstone01 at 2630,4057,0) is unwalkable (engine ocean rule on overlay 537) and nothing takes the player into it; a later seam pass fixes it")
-            return
+        end },
+        { name = "bongos_and_war_room", run = function(t)
+            -- LEG 5 BEGIN: makeBongos
+            local function transmog() return select(2, t.var.server("varb3306_peng_transmog")) end
+            local function at() local _, p = t.world.tile(); return p.x .. "," .. p.z .. "," .. tostring(select(2, t.world.level())) end
+            local function stage() return select(2, t.quest.stage()) end
+            local function count(name) return select(2, t.inv.count(name)) end
+            t.ticks(2)
+
+            -- removePenguinSuitForBongos: the suit comes off inside the outpost, which throws the player to Larry
+            t.exec("removePenguinSuitForBongos", t.player.unequip, "peng_suit_unwound")
+            t.ticks(5)
+            t.check("removePenguinSuitForBongos.off", transmog() == 0 and select(2, t.world.tile()).z < 4100,
+                "suit off (transmog=" .. tostring(transmog()) .. "), standing at " .. at())
+
+            -- makeBongos: mahogany plank on leather (Crafting 30, 25 XP)
+            t.exec("makeBongos", t.player.use_item_on_item, "plank_mahogany", "leather")
+            t.check("makeBongos.bongos", t.inv.await("peng_bongos", 1, 10) == "ok",
+                "peng_bongos x" .. count("peng_bongos") .. ", plank x" .. count("plank_mahogany") .. ", leather x" .. count("leather"))
+
+            -- enterAvalanche3: back in the suit (Larry op 3), through the avalanche
+            t.exec("enterAvalanche3-tuxedo", t.player.talk_to, "peng_larry_ice", 3)
+            t.exec("enterAvalanche3-tuxedo-dialog", t.chat.drain, { stop_at = "none", max_pages = 6 })
+            t.ticks(4)
+            t.check("enterAvalanche3.suit", transmog() == 1, "peng_transmog=" .. tostring(transmog()))
+            t.exec("enterAvalanche3", t.player.click_loc, "peng_aval_l", 1)
+            t.ticks(6)
+            local _, itile = t.world.tile()
+            t.check("enterAvalanche3.inside", itile.z > 10000, "inside the outpost at " .. at())
+
+            -- pingPong2 / pingPong3: hand over the bongos and the cowbell
+            t.exec("goto-pingPong2", t.player.goto_tile, 2664, 10396, 0)
+            t.ticks(3)
+            t.exec("pingPong2", t.player.talk_to, "peng_ping", 1)
+            t.exec("pingPong3", t.chat.play, {
+                "npc:Man, did you bring the instruments",
+                "options",
+                "choose:Yes.",
+                "player:Yes.",
+                "npc:Dude, good job on the instruments",
+            })
+            t.exec("pingPong3-dialog", t.chat.drain, { stop_at = "none", max_pages = 40 })
+            t.ticks(4)
+            t.expect("quest.stage.control_room", t.quest.expect_stage("control_room"))
+            t.check("pingPong3.instruments", count("peng_bongos") == 0 and count("peng_cowbell") == 0,
+                "bongos x" .. count("peng_bongos") .. ", cowbell x" .. count("peng_cowbell") .. " handed over")
+
+            -- openControlDoor: the control panel in the booth, the guard is gone
+            t.exec("goto-openControlDoor", t.player.goto_tile, 2655, 10406, 0)
+            t.ticks(2)
+            t.exec("openControlDoor", t.player.click_loc, "peng_base_booth_front", 1)
+            t.ticks(3)
+            t.check("openControlDoor.msg", t.msg.expect("massive blast doors grind open") == "ok",
+                "blast doors opened at " .. at())
+
+            -- enterWarRoom: through the blast door to the war room door; the capture follows
+            t.exec("enterWarRoom", t.player.click_loc, "peng_base_door", 1, { at = { 2671, 10418 } })
+            t.exec("enterWarRoom-dialog", t.chat.drain, { stop_at = "none", max_pages = 30 })
+            t.ticks(4)
+            t.expect("quest.stage.icelords", t.quest.expect_stage("icelords"))
+            t.check("enterWarRoom.captured", transmog() == 0, "captured, suit confiscated (transmog=" .. tostring(transmog()) .. ") at " .. at())
+
+            -- killIcelords: real combat in the pen, the scimitar wielded, lobsters eaten
+            t.exec("killIcelords-wield", t.player.equip, "rune_scimitar")
+            t.ticks(2)
+            local atk_before = select(2, t.skill.read("attack")).experience
+            local kills = 0
+            while stage() == 125 and kills < 6 do
+                kills = kills + 1
+                local r, d = t.player.attack("peng_icelord_warrior01", 2, 20)
+                if r ~= "ok" and r ~= "timeout" then
+                    r, d = t.player.attack("peng_icelord_warrior02", 2, 20)
+                end
+                t.check("killIcelords.attack" .. kills, r == "ok" or r == "timeout", tostring(r) .. " " .. tostring(d))
+                t.exec("killIcelords.dead" .. kills, t.npc.await_dead_engaged, 200, 20, { eat = { item = "lobster", below = 40 } })
+                t.ticks(8)
+            end
+            t.check("killIcelords.opened", stage() == 130, "after " .. kills .. " kill(s) varb3293_peng_quest=" .. tostring(stage()))
+            local atk_gain = select(2, t.skill.read("attack")).experience - atk_before
+            t.check("killIcelords.xp", atk_gain >= 40 * kills,
+                "Attack XP +" .. atk_gain .. " over " .. kills .. " kill(s) (the pen awards 40 per kill, plus combat xp)")
+
+            -- exitIcelordPen: the door west of the pen
+            t.exec("exitIcelordPen", t.player.click_loc, "peng_icelord_pen_door", 1)
+            t.ticks(4)
+            t.check("exitIcelordPen.out", true, "through the pen door, standing at " .. at())
+
+            -- useChasm: spat out beside Larry
+            t.exec("useChasm", t.player.click_loc, "peng_base_chasm", 1)
+            t.ticks(5)
+            local _, ctile = t.world.tile()
+            t.check("useChasm.surface", ctile.z < 4100, "on the iceberg at " .. at())
+
+            -- tellLarryPlans: the hand-in, reward XP asserted at the literal documented amounts
+            t.exec("tellLarryPlans", t.player.talk_to, "peng_larry_ice", 1)
+            local _, before = t.skill.snapshot()
+            t.exec("tellLarryPlans-dialog", t.chat.drain, { stop_at = "none", max_pages = 30 })
+            t.ticks(4)
+            local rr, rx = t.scroll.reward_xp("agility")
+            t.check("quest.reward.agility", rr == "ok" and rx == 5000, "scroll Agility XP " .. tostring(rx) .. " (documented 5000)")
+            t.expect("quest.xp.agility", t.skill.expect_gain("agility", 5000, before))
+            t.expect("quest.xp.crafting", t.skill.expect_gain("crafting", 2000, before))
+            t.expect("quest.xp.construction", t.skill.expect_gain("construction", 1500, before))
+            t.quest.expect_complete()
+            t.expect("leg.5.quiet", "ok", "player at " .. at() .. ", quest complete, no dialogue open")
+            -- LEG 5 END
         end },
     },
 }
