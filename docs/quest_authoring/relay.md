@@ -387,3 +387,6 @@ Regicide's round 3 re-ran its legs 2 and 6 green with every teleport the sampler
 reverted still in place. To reopen a leg for a rewrite, also replace each row to rewrite
 with a `t.blocked("<what to drive here instead>")` marker in the test file itself, so the
 leg cannot pass until the runner replaces every marker with the real route.
+Also retire the leg's old notebook (`git mv wip/<id>/leg<K>.progress.md
+wip/<id>/leg<K>.progress.<rounds>.md`): a runner that finds a notebook ending in "DONE"
+writes `outcome: done` without running anything, as Regicide's leg 6 did in round 5.
