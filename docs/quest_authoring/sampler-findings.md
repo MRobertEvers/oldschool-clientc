@@ -195,3 +195,26 @@ the press, as `climb()` in the same file already does.
 Lumbridge Swamp Caves back to the cellar. It no longer `::give`s a lit lantern back, but the content
 has no relight (content-gaps, The Lost Tribe), so the tunnels are walked with the lantern out. The
 detour is in no guide step and skips none, so the quest stayed. Leave it out of new tests.
+
+## Sample matthew-mbp-m4-b48 (2026-10-01)
+
+*Origin: the sampler checked regicide and sent it back again.*
+
+(a) A FIX MADE IN ONE LEG IS NOT MADE IN ITS COPY. Round 2 was opened to replace the `goto_tile`
+over the Underground Pass grid (Sample matthew-mbp-m4-b47 (a)). Leg 3 got the real crossing, but
+leg 6's second walk still ran `goto-pullLeverAfterGrid-again` from the pit landing to the lever.
+Shot 382 reads "Teleported to 2466,9673,0". A relay leg that walks a route again is a copy of the
+first walk. After fixing a hop, `grep` the file for the same coordinates and fix every copy.
+
+(b) A ROW THAT SUMS UP A ROUTE IS NOT EVIDENCE THAT IT WAS WALKED. `navigateMaze` and
+`goThroughUndergroundPassAgain` were `t.check(name, true, "<list of what ran>")`. Between those
+rows, a `goto_tile` jumped from the ledge's far side (2374,9638) to the pipe (2420,9605), across
+the maze's narrow rock bridges (gaps-world, Underground Pass). Grade a summary row on a tile or a
+server line that only the real route produces, or leave it out.
+
+(c) A DOOR THE CONTENT REFUSES IS A CONTENT_BUG, NOT A REASON TO TELEPORT. After `openIbansDoor`
+the player lands at 2173,4725 on level 1. The guide's `enterTemple` (a ConditionalStep branch,
+missing from `helper_coverage`'s ladder) is the way to the well room. After Underground Pass,
+`upass_tomb.rs2:141-152` answers "The temple is in ruins..." and notes that the Regicide shortcut
+is deferred. The test then used `goto_tile` to reach 2010,4709. End the leg in
+`t.blocked("content_bug: ...")` naming that file and line.
