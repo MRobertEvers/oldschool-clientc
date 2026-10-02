@@ -109,3 +109,7 @@
 
 ## orchestrator note (matthew-mbp-m4-b48 round 4)
 - Round 3's runners re-ran legs 2 and 6 as they were and marked them done (the old rows still passed), so nothing changed. The six teleport rows are now `t.blocked("ROUND 3 (orchestrator): ...")` markers in the file itself: the run stops at the first one until it is replaced by the real route. Replace every marker; leave none.
+
+## leg 2 (round 4, BLOCKED at leaveUnicornArea/goThroughPipe)
+- Rows climbDownWell, pickCellLock, digMud, crossLedge now run on foot (walk_to 2376,9644 between mud tunnel and ledge); ledge lands 2374,9638, a pocket down to 2376,9616 walled on z 9615 (m37_150.jl2 locs 1459). doorl 2375,9611 and the pipe corridor (2376,9610; west pipe east to 2419,9605; east pipe 2418 back west to 2391) are only reachable by goto. No walked route found from the well landing/cell/mud/ledge to them; teleport doors: upass_unicorn_doorr/l telejump to 2376,9610 (unicorn killed) or 2401,9610 (upass_tunnels.rs2:21-29).
+- Idea for the next look: a doorl copy near 2400,9612 and a pen at 2404,9620 exist east of the corridor; find the walkable link from the ledge/cell side there (maybe the mud's doorr must be clicked within 3 ticks of the dig, loc_change(...,3)).
