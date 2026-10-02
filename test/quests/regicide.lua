@@ -5,7 +5,7 @@
 return {
     id = "regicide",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 120000,
+    max_frames = 200000,
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots
         "::complete quest_biohazard", -- Quest Helper prerequisite chain: Underground Pass needs it
@@ -210,7 +210,10 @@ return {
             where("climbDownWell-tile", 2423, 9660, 0)
 
             -- navigateMaze: the cell lock and the pipe are its sub steps
-            t.exec("goto-pickCellLock", t.player.goto_tile, 2393, 9657, 0)
+            -- the corridor tile of the guide (2393,9655), walked from the well landing; a goto to 2393,9657 lands INSIDE the cell
+            t.player.walk_to(2410, 9656, 60)
+            t.player.walk_to(2393, 9655, 60)
+            where("walkToCell-tile", 2393, 9655, 0)
             local picked = false
             for attempt = 1, 16 do -- two railings stand on x 2393 (z 9656 then z 9655); each pick can fail
                 local _, before = t.world.tile()
@@ -235,15 +238,97 @@ return {
             t.ticks(8)
             where("crossLedge-tile", 2374, 9638, 0)
 
-            t.blocked("seam: leaveUnicornArea/goThroughPipe -- the ledge landing pocket (2374,9638 down to 2376,9616) is sealed from upass_unicorn_doorl (2375,9611) and the pipe corridor by the cave wall line on z 9615 (maps/m37_150.jl2 locs 1459 shape 0/1, local z 15, x 2..9); the cell (2393,9654), the mud tunnel (2392,9646) and the ledge pocket are each walk-sealed (walk_to makes 0 ticks of progress from the well landing 2423,9660 and from the cell), so no walked route joins them to the doorl or the pipe east mouth (2420,9605). The only open question is how a player leaves the ledge pocket; the guide gives no step for it. Old goto rows were teleports over this.")
+            -- navigateMaze (seam2): the maze is five rock bridges over pits (walkway_upass_narrow_mid_top, op1 Cross,
+            -- upass_obstacles.rs2:360 = LostCity upass_obstacles.rs2:291); a walk stops at each one (they block by the
+            -- game), so each is clicked from its west side. A failed agility roll drops you under it (z-1, or z+1 at
+            -- 2399,9632 and 2406,9632) for 5 damage; walk back round to the near side and click again.
+            local function mz_here() local _, w = t.world.tile() return w end
+            local function cross_rock_bridge(name, bx, bz, hops)
+                local note = ""
+                for attempt = 1, 6 do
+                    for _, hop in ipairs(hops) do t.player.walk_to(hop[1], hop[2], 60) end
+                    t.player.walk_to(bx - 1, bz, 60)
+                    local before = mz_here()
+                    local click_result = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { bx, bz } })
+                    t.ticks(10)
+                    local after = mz_here()
+                    note = note .. "[" .. attempt .. " " .. tostring(click_result) .. " " .. before.x .. "," .. before.z .. "->" .. after.x .. "," .. after.z .. "] "
+                    if after.x == bx + 1 and after.z == bz then break end
+                    local _, hp = t.skill.read("hitpoints")
+                    if type(hp) == "table" and hp.level and hp.level < 15 then t.player.inv_op("lobster", 1) t.ticks(2) end
+                end
+                local w = mz_here()
+                t.check(name, w.x == bx + 1 and w.z == bz, "now " .. w.x .. "," .. w.z .. " :: " .. note)
+            end
+            cross_rock_bridge("navigateMaze-bridge2380", 2380, 9634, { { 2373, 9634 } })
+            cross_rock_bridge("navigateMaze-bridge2387", 2387, 9631, { { 2384, 9634 }, { 2384, 9631 } })
+            cross_rock_bridge("navigateMaze-bridge2392", 2392, 9627, { { 2389, 9631 }, { 2389, 9627 } })
+            cross_rock_bridge("navigateMaze-bridge2399", 2399, 9632, { { 2395, 9627 }, { 2395, 9632 } })
+            cross_rock_bridge("navigateMaze-bridge2406", 2406, 9637, { { 2403, 9632 }, { 2403, 9637 } })
+            for _, hop in ipairs({ { 2421, 9637 }, { 2422, 9634 }, { 2422, 9610 }, { 2421, 9606 }, { 2419, 9605 } }) do
+                t.player.walk_to(hop[1], hop[2], 40)
+            end
+            where("navigateMaze-pipeMouth", 2419, 9605, 0)
+
+            -- goThroughPipe: upass_pipe6 at 2417,9605 crawls west; Underground Pass is complete, so the crawl lands 26
+            -- tiles further west in the room where the unicorn died (upass_obstacles.rs2:410-414) -> 2387,9605
+            local piped = false
+            for _ = 1, 4 do
+                t.player.click_loc("upass_pipe6", 1, { at = { 2417, 9605 } })
+                t.ticks(16)
+                if mz_here().x < 2395 then piped = true break end
+            end
+            local pw = mz_here()
+            t.check("goThroughPipe", piped and math.abs(pw.x - 2387) <= 3 and pw.z == 9605, "after the pipe at " .. pw.x .. "," .. pw.z .. " level " .. pw.level)
+
+            -- leaveUnicornArea: walk to the south face of upass_unicorn_doorl 2375,9611 (angle south) -> 2371,9666
+            -- (upass_unicorn_tunnels.rs2:27-29)
+            for _, hop in ipairs({ { 2378, 9605 }, { 2378, 9607 }, { 2375, 9607 }, { 2375, 9610 } }) do
+                t.player.walk_to(hop[1], hop[2], 30)
+            end
+            where("goto-leaveUnicornArea-walk", 2375, 9610, 0)
+            t.exec("leaveUnicornArea", t.player.click_loc, "upass_unicorn_doorl", 1, { at = { 2375, 9611 } })
+            t.ticks(6)
+            where("leaveUnicornArea-tile", 2371, 9666, 0)
             -- openIbansDoor: with the badges and the horn the door opens onto Iban's temple
-            t.exec("goto-openIbansDoor", t.player.goto_tile, 2369, 9718, 0)
+            -- 2371,9666 -> 2369,9718 is a 185-step walk round the tunnel (m37_151.jm2 collision): up the west column, east
+            -- through the cavern, north up the east side, west along z 9721 to Iban's door; hops are local tiles + 2368,9664
+            local trail = {}
+            for _, hop in ipairs({ {3,14}, {5,25}, {10,30}, {10,33}, {20,36}, {20,40}, {40,40}, {40,42}, {55,43}, {56,52}, {56,57},
+                    {45,57}, {31,57}, {25,58}, {22,57}, {20,55}, {10,55}, {1,54} }) do
+                local hx, hz = hop[1] + 2368, hop[2] + 9664
+                for attempt = 1, 4 do
+                    local wr = t.player.walk_to(hx, hz, 50)
+                    local w = mz_here()
+                    if wr == "ok" and w.x == hx and w.z == hz then break end
+                    if attempt == 4 then trail[#trail + 1] = "STALL " .. hx .. "," .. hz .. " at " .. w.x .. "," .. w.z end
+                end
+            end
+            t.note("walk " .. table.concat(trail, " ## "))
+            where("walkToIbansDoor", 2369, 9718, 0)
             t.exec("openIbansDoor", t.player.click_loc, "cavetempledoor2r", 1)
             t.ticks(6)
             where("openIbansDoor-tile")
 
             -- enterWell
-            t.blocked("ROUND 3 (orchestrator): Iban's temple -- from 2173,4725 cross the four collapsed bridges and click upass_templedoor_closed_right from the east (lands 2014,4712 L1, seam1 2dd52a46a5), then walk to the well; this replaced goto 2010,4709. See relay.md seam1 + round 3")
+            -- enterTemple (seam1): Quest Helper's line points (Regicide.java:530-551) from Iban's door landing, crossing the
+            -- four collapsed bridges on the line (upass_obstacles.rs2:425; an agility roll, a fall drops to level 0), then
+            -- Iban's temple doors send a Regicide player to the ruined temple (upass_tomb.rs2 open_iban_door)
+            local function tpath(pts) for _, wp in ipairs(pts) do t.player.walk_to(wp[1], wp[2]) end end
+            local function tbridge(name, sym, x, z) t.exec(name, t.player.click_loc, sym, 1, { at = { x, z } }); t.ticks(6) end
+            tpath({ {2172,4723}, {2172,4686} })
+            tbridge("crossBridgeA", "bridgecollapsed2", 2164, 4686)
+            tpath({ {2161,4686}, {2161,4699}, {2157,4699}, {2154,4697} })
+            tbridge("crossBridgeB", "bridgecollapsed1", 2154, 4690)
+            tpath({ {2154,4686}, {2152,4685}, {2153,4682}, {2153,4678}, {2154,4676}, {2160,4676}, {2160,4670}, {2165,4670}, {2165,4667}, {2162,4667} })
+            tbridge("crossBridgeC", "bridgecollapsed1", 2162, 4663)
+            tpath({ {2161,4659} })
+            tbridge("crossBridgeD", "bridgecollapsed2", 2161, 4654)
+            t.player.walk_to(2147, 4648, 20)
+            where("walkToTemple", 2147, 4648, 1)
+            t.exec("enterTemple", t.player.click_loc, "upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
+            t.ticks(4)
+            where("enterTemple-tile", 2014, 4712, 1)
             t.exec("enterWell", t.player.click_loc, "regicide_voyage_temple_well1", 1) -- regicide_route.rs2:11
             t.ticks(6)
             where("enterWell-tile", 2343, 9622, 0)
@@ -268,7 +353,7 @@ return {
             t.expect("quest.stage.spoken_scouts", t.quest.expect_stage("spoken_scouts"))
             local _, stage = t.quest.stage()
             local _, at = t.world.tile()
-            t.check("leg.2.state", true, "player at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; regicide_quest=" .. tostring(stage) .. " read from the server; planks " .. tostring(planks))
+            t.check("leg.2.end", true, "player at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; regicide_quest=" .. tostring(stage) .. " read from the server; planks " .. tostring(planks))
             -- LEG 2 END
         end },
         { name = "pass_east_and_tirannwn_traps", run = function(t)
@@ -1088,7 +1173,36 @@ return {
                 t.ticks(2)
             end
             t.check("crossThePit-again-crossed", swung, "after the swing :: " .. last_lines(4))
-            t.blocked("ROUND 3 (orchestrator): the second walk's grid -- cross it as leg 3 does (safe bands from %varp6010_upass_grid_pattern, rockslides 4/5 by click_loc) instead of goto 2466,9673")
+            climb("climbOverRockslide4-again", 2491, 9691)
+            climb("climbOverRockslide5-again", 2482, 9679)
+            -- crossTheGrid (again): the safe bands come from %varp6010_upass_grid_pattern (upass_grid.rs2:72-96)
+            do
+                local _, pattern = t.var.server("varp6010_upass_grid_pattern")
+                pattern = tonumber(pattern) or 0
+                if pattern == 0 then
+                    t.cheat("::setvar varp6010_upass_grid_pattern 232") -- the pass var Lathas seeds at the pass's start (king_lathas.rs2:172); a relogged checkpoint loses it
+                    t.ticks(2)
+                    _, pattern = t.var.server("varp6010_upass_grid_pattern")
+                    pattern = tonumber(pattern) or 0
+                end
+                local d1, d2, d3 = math.floor(pattern / 100) % 10, math.floor(pattern / 10) % 10, pattern % 10
+                local function band_z(d) return 9673 + 2 * (d - 1) end
+                t.check("crossTheGrid-again-pattern", d1 >= 1 and d1 <= 5 and d2 >= 1 and d3 >= 1, "upass_grid_pattern=" .. tostring(pattern) .. " -> safe bands z " .. band_z(d1) .. " / " .. band_z(d2) .. " / " .. band_z(d3))
+                local grid_path = { { 2478, band_z(d1) }, { 2473, band_z(d1) }, { 2473, band_z(d2) }, { 2469, band_z(d2) }, { 2469, band_z(d3) }, { 2467, band_z(d3) }, { 2466, band_z(d3) } }
+                local grid_trail = {}
+                for _, wp in ipairs(grid_path) do
+                    t.player.walk_to(wp[1], wp[2], 14)
+                    t.ticks(2)
+                    local _, here = t.world.tile()
+                    grid_trail[#grid_trail + 1] = here.x .. "," .. here.z
+                end
+                local _, gridat = t.world.tile()
+                t.check("crossTheGrid-again", gridat.x <= 2467 and not string.find(last_lines(6), "trap", 1, true), "walked the safe bands " .. table.concat(grid_trail, " > ") .. " -> " .. gridat.x .. "," .. gridat.z .. " :: " .. last_lines(4))
+                t.player.walk_to(2466, 9673, 10)
+                t.ticks(2)
+                local _, leverat = t.world.tile()
+                t.check("walk-pullLeverAfterGrid-again", leverat.x == 2466 and leverat.z <= 9674, "walked south along x 2466 to " .. leverat.x .. "," .. leverat.z)
+            end
             t.exec("pullLeverAfterGrid-again", t.player.click_loc, "portcullis_lever_up", 1)
             t.ticks(8)
             where("pullLeverAfterGrid-again-tile")
@@ -1137,7 +1251,9 @@ return {
             t.exec("climbDownWell-again", t.player.click_loc, "cave_well", 1)
             t.ticks(6)
             where("climbDownWell-again-tile", 2423, 9660, 0)
-            t.exec("goto-pickCellLock-again", t.player.goto_tile, 2393, 9657, 0)
+            t.player.walk_to(2410, 9656, 60)
+            t.player.walk_to(2393, 9655, 60)
+            where("walkToCell-again-tile", 2393, 9655, 0)
             local picked = false
             for attempt = 1, 16 do -- two railings stand on x 2393 (z 9656 then z 9655); each pick can fail
                 local _, before = t.world.tile()
@@ -1153,23 +1269,85 @@ return {
             t.exec("digMud-again", t.player.use_on, "spade", mud)
             t.ticks(8)
             where("digMud-again-tile", 2392, 9646, 0)
-            t.exec("goto-crossLedge-again", t.player.goto_tile, 2376, 9644, 0)
+            t.player.walk_to(2376, 9644, 40)
             t.exec("crossLedge-again", t.player.click_loc, "upass_ledge", 1)
             t.ticks(8)
             where("crossLedge-again-tile")
-            t.blocked("ROUND 3 (orchestrator): the second walk's maze -- as in leg 2, no goto 2420,9605")
-            t.exec("goThroughPipe-again", t.player.click_loc, "upass_pipe6", 1)
-            t.ticks(8)
-            where("goThroughPipe-again-tile", 2390, 9605, 0)
-            t.exec("goto-leaveUnicornArea-again", t.player.goto_tile, 2373, 9611, 0)
-            t.exec("leaveUnicornArea-again", t.player.click_loc, "upass_unicorn_doorl", 1)
+            do
+            local function mz_here() local _, w = t.world.tile() return w end
+            local function cross_rock_bridge(name, bx, bz, hops)
+                local note = ""
+                for attempt = 1, 6 do
+                    for _, hop in ipairs(hops) do t.player.walk_to(hop[1], hop[2], 60) end
+                    t.player.walk_to(bx - 1, bz, 60)
+                    local before = mz_here()
+                    local click_result = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { bx, bz } })
+                    t.ticks(10)
+                    local after = mz_here()
+                    note = note .. "[" .. attempt .. " " .. tostring(click_result) .. " " .. before.x .. "," .. before.z .. "->" .. after.x .. "," .. after.z .. "] "
+                    if after.x == bx + 1 and after.z == bz then break end
+                    local _, hp = t.skill.read("hitpoints")
+                    if type(hp) == "table" and hp.level and hp.level < 15 then t.player.inv_op("lobster", 1) t.ticks(2) end
+                end
+                local w = mz_here()
+                t.check(name, w.x == bx + 1 and w.z == bz, "now " .. w.x .. "," .. w.z .. " :: " .. note)
+            end
+            cross_rock_bridge("navigateMaze-again-bridge2380", 2380, 9634, { { 2373, 9634 } })
+            cross_rock_bridge("navigateMaze-again-bridge2387", 2387, 9631, { { 2384, 9634 }, { 2384, 9631 } })
+            cross_rock_bridge("navigateMaze-again-bridge2392", 2392, 9627, { { 2389, 9631 }, { 2389, 9627 } })
+            cross_rock_bridge("navigateMaze-again-bridge2399", 2399, 9632, { { 2395, 9627 }, { 2395, 9632 } })
+            cross_rock_bridge("navigateMaze-again-bridge2406", 2406, 9637, { { 2403, 9632 }, { 2403, 9637 } })
+            for _, hop in ipairs({ { 2421, 9637 }, { 2422, 9634 }, { 2422, 9610 }, { 2421, 9606 }, { 2419, 9605 } }) do
+                t.player.walk_to(hop[1], hop[2], 40)
+            end
+            where("navigateMaze-again-pipeMouth", 2419, 9605, 0)
+            local piped = false
+            for _ = 1, 4 do
+                t.player.click_loc("upass_pipe6", 1, { at = { 2417, 9605 } })
+                t.ticks(16)
+                if mz_here().x < 2395 then piped = true break end
+            end
+            local pw = mz_here()
+            t.check("goThroughPipe-again", piped and math.abs(pw.x - 2387) <= 3 and pw.z == 9605, "after the pipe at " .. pw.x .. "," .. pw.z .. " level " .. pw.level)
+            for _, hop in ipairs({ { 2378, 9605 }, { 2378, 9607 }, { 2375, 9607 }, { 2375, 9610 } }) do
+                t.player.walk_to(hop[1], hop[2], 30)
+            end
+            where("goto-leaveUnicornArea-again-walk", 2375, 9610, 0)
+            t.exec("leaveUnicornArea-again", t.player.click_loc, "upass_unicorn_doorl", 1, { at = { 2375, 9611 } })
             t.ticks(6)
-            where("leaveUnicornArea-again-tile")
-            t.exec("goto-openIbansDoor-again", t.player.goto_tile, 2369, 9718, 0)
+            where("leaveUnicornArea-again-tile", 2371, 9666, 0)
+            local door_trail = {}
+            for _, hop in ipairs({ {3,14}, {5,25}, {10,30}, {10,33}, {20,36}, {20,40}, {40,40}, {40,42}, {55,43}, {56,52}, {56,57},
+                    {45,57}, {31,57}, {25,58}, {22,57}, {20,55}, {10,55}, {1,54} }) do
+                local hx, hz = hop[1] + 2368, hop[2] + 9664
+                for attempt = 1, 4 do
+                    local wr = t.player.walk_to(hx, hz, 50)
+                    local w = mz_here()
+                    if wr == "ok" and w.x == hx and w.z == hz then break end
+                    if attempt == 4 then door_trail[#door_trail + 1] = "STALL " .. hx .. "," .. hz .. " at " .. w.x .. "," .. w.z end
+                end
+            end
+            t.note("walk " .. table.concat(door_trail, " ## "))
+            where("walkToIbansDoor-again", 2369, 9718, 0)
             t.exec("openIbansDoor-again", t.player.click_loc, "cavetempledoor2r", 1)
             t.ticks(6)
             where("openIbansDoor-again-tile")
-            t.blocked("ROUND 3 (orchestrator): the second walk's temple -- bridges and the door as in leg 2, no goto 2010,4709")
+            local function tpath(pts) for _, wp in ipairs(pts) do t.player.walk_to(wp[1], wp[2]) end end
+            local function tbridge(name, sym, x, z) t.exec(name, t.player.click_loc, sym, 1, { at = { x, z } }); t.ticks(6) end
+            tpath({ {2172,4723}, {2172,4686} })
+            tbridge("crossBridgeA-again", "bridgecollapsed2", 2164, 4686)
+            tpath({ {2161,4686}, {2161,4699}, {2157,4699}, {2154,4697} })
+            tbridge("crossBridgeB-again", "bridgecollapsed1", 2154, 4690)
+            tpath({ {2154,4686}, {2152,4685}, {2153,4682}, {2153,4678}, {2154,4676}, {2160,4676}, {2160,4670}, {2165,4670}, {2165,4667}, {2162,4667} })
+            tbridge("crossBridgeC-again", "bridgecollapsed1", 2162, 4663)
+            tpath({ {2161,4659} })
+            tbridge("crossBridgeD-again", "bridgecollapsed2", 2161, 4654)
+            t.player.walk_to(2147, 4648, 20)
+            where("walkToTemple-again", 2147, 4648, 1)
+            t.exec("enterTemple-again", t.player.click_loc, "upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
+            t.ticks(4)
+            where("enterTemple-again-tile", 2014, 4712, 1)
+            end
             t.exec("enterWell-again", t.player.click_loc, "regicide_voyage_temple_well1", 1)
             t.ticks(6)
             where("enterWell-again-tile", 2343, 9622, 0)
