@@ -1,9 +1,10 @@
-## leg 1
+## leg 1 (re-driven 2026-10-01, b48; supersedes the earlier block)
 - Ends at 2150,4546 level 1 (Iban's cavern, after cavewalltunnel_upass_up); regicide_quest = 2 (spoken_lathas). Checkpoint 1 written; iterate with run.py regicide --from-leg 2 --no-build.
-- Pack: shortbow worn, litarrow spent, bronze_arrow x19, rope, spade, tinderbox, lobster x6. Setup gives levels: agility 56, hitpoints 40, defence 30. File uses the legs table + bind; leg names are file-local.
-- ::complete has NO arm for the Underground Pass (quest_cheat.rs2): setup writes ::setvar upass ^upass_complete and ::setvar upass_lathas_met 1 (entrance needs both).
-- Stage-0 Lathas dialogue starts "I received your message" (regicide_lathas_talk). Lighting the arrow is tinderbox on unlitarrow (a cooking fire does not light it in content).
-- Unlisted pass obstacles between the bridge (2442,9716) and the tunnel at 2337,9793 (pit, grid, spear traps, ledge) are crossed by one goto_tile hop ("goto-goBackUpToIbansCavern"); only rockslides 1-3, the gear, the arrow and the bridge shot are real clicks. A later seam pass may want those driven.
+- Pack: shortbow worn, litarrow spent, bronze_arrow x19, rope x1 (setup now gives 2: each pit swing eats one), spade, tinderbox, lobster x6. Setup levels: agility 56, hitpoints 40, defence 30; setup also writes varp6010_upass_grid_pattern 232 so the grid has real safe bands.
+- NEW: the first walk now drives by clicks the pit rope swing, rockslides 4 and 5, the grid (safe bands), the lever and spear traps 1-5 (rows suffixed -outbound / climbOverRockslide4,5 / crossTheGrid). The hop to the tunnel (goto 2337,9793) now skips only well, cell lock, mud, ledge, pipe, unicorn door, Iban's door, which leg 2 drives.
+- ::complete has no arm for the Underground Pass (quest_cheat.rs2): setup writes the upass var and upass_lathas_met. Stage-0 Lathas dialogue starts "I received your message". Lighting the arrow is tinderbox on unlitarrow.
+- Leg 3 still goto-hops 2461,9699 -> 2467,9673 over pit and grid on the return walk and needs one rope (left in the pack); its author should drive them as leg 1 does (code: leg 1 of test/quests/regicide.lua).
+- The ladder now cuts leg 1 at leaveWellCave (11 steps); the file cut is unchanged: leaveWellCave is still the first row of file leg 2.
 
 ## leg 2
 - Ends at 2312,3216 level 0 (Tirannwn arrival, quiet); regicide_quest = 3 (spoken_scouts). Checkpoint 2 written. Pack adds woodplank x1 (collectPlank); rest as leg 1 (shortbow worn, rope, spade, tinderbox, arrows, lobster x6).
@@ -73,3 +74,14 @@
 - Leg 6 gives cloth, cooked rabbit and 8 coal itself (pack is 28 slots; coal is not stackable). Still: tar valve up, pressure up once, coal when the heat bits 13-18 are set, Escape closes it.
 - The second pass walks every obstacle again (rows named -again). From the woodspring (2234,3181) walking to the middle passage is blocked: goto 2217,3160. Fixed in legs 2/3: cave_railings2 are two locs (z 9656 then 9655, click each with at=), which makes upass_mud reachable without stand_on_square.
 - Bomb needs the rabbit flag AFTER any cross_over3 landing in the camp mapsquare; the Arianwyn scene fires on walking into 2584..2591,3296..3303 with the message at stage 13.
+
+## leg 2 (re-checked 2026-10-01, b48; supersedes the earlier leg 2 block)
+- Ends at 2312,3216 level 0 (Tirannwn arrival, quiet); regicide_quest = 3 (spoken_scouts). Checkpoint 2 written. Pack: shortbow worn, woodplank x1, rope x1, spade, tinderbox, bronze_arrow x19, lobster x6. Setup levels unchanged.
+- Leg 2 starts in Iban's cavern (2150,4546 L1) and hops by plain ::goto to the plank room (2434,9725); every click step after (well, cell lock, mud, ledge, pipe, unicorn door, Iban's door, temple well, exit) is a real row with its landing tile asserted within 2 tiles.
+- Cell lock is random (retried); mud needs stand_on_square; the Idris scene fires ~8 ticks after the exit click.
+
+## orchestrator note (matthew-mbp-m4-b48 round 2, 2026-10-01)
+- test/quests/regicide.lua is now the six-leg file from 2c35057c6 (404/0 FULL before the sampler's revert). Round 1 of this batch re-drove the wrong file: a stale three-leg copy that still ended at the old leg-3 log content_bug. That bug is gone: regicide_traps.rs2:73 is a real three-step log walk since OSRS-Content a3158be819.
+- The sampler (9c28a4e0c) reverted it for TWO places only: leg 3 `goto-pullLeverAfterGrid` (goto 2466,9673, line ~323) jumps over crossTheGrid and rockslides 4/5 on the way out, and leg 6 `goto-pullLeverAfterGrid-again` (line ~1051) does the same on the second walk; and passTrap5 / passTrap2-again / passTrap4-again read PASS on a stale 'and succeed' line while the server said fail.
+- Legs 1, 2, 4 and 5 stand (their json is done). LEGS 3 AND 6 ARE REOPENED: replace each goto with the real crossing. Round 1 already wrote it honestly -- copy the approach from wip/regicide/b48_redriven.lua lines ~160-245: the safe-band grid walk read from %varp6010_upass_grid_pattern (upass_grid.rs2:72-96), rockslides 4/5 by click_loc, the lever, and every trap row awaiting the server's success line of THAT attempt (retry on fail).
+- Setup line 14 `::setvar varp161_upass ^upass_complete`: ::complete quest_undergroundpass exists now (quest_cheat.rs2:611) -- use it instead.
