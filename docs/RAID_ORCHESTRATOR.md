@@ -1,10 +1,13 @@
 # Raid orchestrator: Theatre of Blood, Chambers of Xeric, Tombs of Amascut
 
-Written for an orchestrator (Claude) that will take the three raids from "implemented
-and selftested from tables" to "played for real, tick-measured, and defensible". It is
-the raid counterpart of [`QUEST_ORCHESTRATOR.md`](QUEST_ORCHESTRATOR.md): the same
-batch/branch/claim loop, the same closers and samplers, with the quest guide replaced
-by a measured encounter spec and the guide grader replaced by a tick ledger.
+Written for the **raid orchestrator**: a separate orchestrator (Claude), on its own
+machine or checkout, that takes the three raids from "implemented and selftested from
+tables" to "played for real, tick-measured, and defensible". The quest orchestrators
+do not do raid work and the raid orchestrator does not do quest work; the two share
+one claim file so they can never take the same row (section 5). This document is the
+raid counterpart of [`QUEST_ORCHESTRATOR.md`](QUEST_ORCHESTRATOR.md): the same
+batch/branch/claim mechanics, the same closer and sampler roles, with the quest guide
+replaced by a measured encounter spec and the guide grader replaced by a tick ledger.
 
 Read, in this order, before the first launch:
 
@@ -196,7 +199,11 @@ every content stat drain (Sourhog, Verzik, Olm) is cancelled by one hit.
   `toa_150`) that chains the rooms. `quest_dir` is the minigame directory; `helper_dir`
   / `helper_file` point at the encounter spec table instead of a Quest Helper class.
 - **Claims** work unchanged: `claim.py batch <host>-b<N> tob_maiden tob_bloat ...` on
-  `v3`, work on the branch, `claim.py done`, content PR then parent PR.
+  `v3`, work on the branch, `claim.py done`, content PR then parent PR. **Tier 6 is the
+  raid orchestrator's alone**: a quest orchestrator never claims a tier 6 row, and the
+  raid orchestrator never claims tiers 1-5 (including `nightatthetheatre`, which stays
+  a quest row; its last step waits on `tob_entry` being green). The shared file is what
+  keeps the two exclusive across machines.
 - **Gate lane.** `gate.py` gets a raid lane (protocol work, on `v3`): instead of
   `helper_coverage.py` it runs `raid_coverage.py`, which reads the encounter spec table
   and requires, for every mechanic row, a ledger row whose measurement matches the spec
@@ -204,7 +211,8 @@ every content stat drain (Sourhog, Verzik, Olm) is cancelled by one hit.
   completion-scroll rule do not apply; a raid row's "scroll" is the reward chest row
   (`tob_chest.rs2`, `cox_rewards.rs2`, `toa_rewards.rs2`) with the points asserted.
 - **Cards.** Copy the three workflow cards as `spec_pass`, `raid_seam`, `raid_author`
-  under `test/quests/orchestrator/<host>/workflows/`, change only the prompts' nouns
+  under `test/quests/orchestrator/<host>/workflows/` (your own host directory, never a
+  quest orchestrator's), change only the prompts' nouns
   (encounter for quest, spec table for guide, tick ledger for helper_coverage), and keep
   the Sonnet-authors / Opus-fixers-closers-samplers split.
 
