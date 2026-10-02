@@ -223,30 +223,19 @@ return {
             where("pickCellLock", nil)
 
             -- digMud: spade on the loose mud (upass_unicorn_tunnels.rs2:9) -> 2392,9646
-                        t.ticks(1)
+            t.ticks(1)
             local mud = t.player.by_symbol("loc", "upass_mud")
             t.exec("digMud", t.player.use_on, "spade", mud) -- upass_unicorn_tunnels.rs2:9
             t.ticks(8)
             where("digMud-tile", 2392, 9646, 0)
 
-            -- crossLedge: from the east side of the ledge (upass_obstacles.rs2:313) -> 2374,9638
-            t.exec("goto-crossLedge", t.player.goto_tile, 2376, 9644, 0)
+            -- crossLedge: walk the mud tunnel to the ledge's east end (upass_obstacles.rs2:313) -> 2374,9638
+            t.player.walk_to(2376, 9644, 40)
             t.exec("crossLedge", t.player.click_loc, "upass_ledge", 1)
             t.ticks(8)
-            where("crossLedge-tile")
+            where("crossLedge-tile", 2374, 9638, 0)
 
-            t.blocked("ROUND 3 (orchestrator): the maze -- walk from the ledge landing to the pipe for real and check a tile only that route reaches; this replaced goto 2420,9605 (sampler e4bc0342e). See test/quests/wip/regicide/relay.md round 3")
-            t.exec("goThroughPipe", t.player.click_loc, "upass_pipe6", 1)
-            t.ticks(8)
-            where("goThroughPipe-tile", 2390, 9605, 0)
-            -- (the always-true navigateMaze summary row was removed: sampler e4bc0342e finding b)
-
-            -- leaveUnicornArea
-            t.exec("goto-leaveUnicornArea", t.player.goto_tile, 2373, 9611, 0)
-            t.exec("leaveUnicornArea", t.player.click_loc, "upass_unicorn_doorl", 1)
-            t.ticks(6)
-            where("leaveUnicornArea-tile")
-
+            t.blocked("seam: leaveUnicornArea/goThroughPipe -- the ledge landing pocket (2374,9638 down to 2376,9616) is sealed from upass_unicorn_doorl (2375,9611) and the pipe corridor by the cave wall line on z 9615 (maps/m37_150.jl2 locs 1459 shape 0/1, local z 15, x 2..9); the cell (2393,9654), the mud tunnel (2392,9646) and the ledge pocket are each walk-sealed (walk_to makes 0 ticks of progress from the well landing 2423,9660 and from the cell), so no walked route joins them to the doorl or the pipe east mouth (2420,9605). The only open question is how a player leaves the ledge pocket; the guide gives no step for it. Old goto rows were teleports over this.")
             -- openIbansDoor: with the badges and the horn the door opens onto Iban's temple
             t.exec("goto-openIbansDoor", t.player.goto_tile, 2369, 9718, 0)
             t.exec("openIbansDoor", t.player.click_loc, "cavetempledoor2r", 1)
