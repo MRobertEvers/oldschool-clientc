@@ -1,0 +1,1 @@
+{"test_id":"eaglepeak","leg":3,"outcome":"done","runs":6,"last_step":"enterMainCavernFromSilver","last_failure":"","blocker":"","doc_gaps":["walk_to north from the bronze mouth never moves; helper_coverage flags goto 1987,4971 as CHEAT for enterGoldRoom"],"compacted":false}

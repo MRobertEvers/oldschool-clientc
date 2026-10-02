@@ -1,0 +1,1 @@
+{"test_id":"eaglepeak","leg":6,"outcome":"done","runs":7,"last_step":"speakToCharlieAgain","last_failure":"","blocker":"","doc_gaps":["helper_coverage reads CONTENT_GAP: exit locs eaglepeak_puzzle1_exitmid (gold_room.rs2:343) and eaglepeak_human_exitmid (eaglepeak.rs2:178) have no approach tile, so stand_on_square needs a GUIDE-GAP marker"],"compacted":false}
