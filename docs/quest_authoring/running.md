@@ -237,7 +237,6 @@ All 88 discovered quests with skip on: 611 s wall at three at a time (the sum of
 green; the fixer's skip-off suite was 1,318 s wall at four at a time (client sum 5,149 s).
 Sailing saves least: a hull in the scene draws every frame.
 
-<<<<<<< ours
 A content fix in a file outside your seam can be proved without touching the shared tree
 (matthew-mbp-m4-b49-seam1, Troll Romance's caves): copy `server/scripts` (without `png`, `bmp` and
 `build*`) under a mirror root that symlinks every other content entry, edit the copy, run
@@ -246,7 +245,7 @@ content root (the shared root makes the lane dirs compile as base and fail), the
 `TORIRSSERVER_SCRIPTS=<that build> python3 tools/quest_gate/run.py ...`; `client.log` names the pack
 it loaded. Build a control pack without the edit too: before 12/6, after 18/18, control 12/6 is what
 makes the one line the whole difference. Report the line as `needs:` for the closer.
-=======
+
 ### `new_quest.py`: `helper dir not found` on Linux, and the scaffold is one `run`, not legs (vm-b1)
 
 `new_quest.py <test_id>` takes the queue row's `helper_dir` and looks for it under `--qh-root`.
@@ -263,4 +262,3 @@ The scaffold it writes is a single `run = function(t)`, not the `legs = { ... }`
 `relay.md` and `run.py --from-leg` need. For a quest over 30 steps, split it into legs by hand
 before the first run: one `{ name =, run = function(t) ... end }` per leg of the ladder, with the
 setup list kept at the top.
->>>>>>> theirs

@@ -786,7 +786,6 @@ guide requires (Rimmington, a Workshop, a Crafting table 3) at the Rimmington po
 `click_loc("poh_clockmaking_3", 1)` + `choose:Clockwork` makes the mechanism and a second click +
 `choose:Clockwork toys` + `choose:Clockwork penguin` makes `peng_suit_unwound`.
 
-<<<<<<< ours
 ## A cave or tunnel click answers a chat line and the tile is unchanged: a name binding shadows the maplink (FIXED matthew-mbp-m4-b49-seam1)
 
 Symptom: `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (Troll Romance:
@@ -813,7 +812,7 @@ LostCity's m38_150 places the same slides and pile. A slip ("...but you slip bac
 answers `I can't reach that!` from 2482,9715; click it from Koftik's ledge 2453,9716. The full route
 with hops: `test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
 as the maze bridges: list the locs with an op in a pocket before calling it a map bug.
-=======
+
 ## Miscellania and Etceteria: which door to click, Donal's pub door, the bank with no booth (vm-b1)
 
 *Origin: Royal Trouble review and sample, batch vm-b1 (`test/quests/royaltrouble.lua`).*
@@ -837,4 +836,3 @@ guide names no door, but a later author should open the door with
 Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth in the cache. The
 town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
 the same `~openbank`).
->>>>>>> theirs
