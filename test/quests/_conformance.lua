@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 94
+-- @seam-count 95
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 94
+local SEAM_COUNT = 95
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -2447,6 +2447,36 @@ return {
                     .. describe(tile.level) .. " -- " .. wanted .. " -> " .. describe(detail)
             end
             return "ok", wanted .. " -> " .. describe(detail)
+        end)
+
+        -- SEAM goto_departure_stamp (b50-seam1).  A goto row used to name only
+        -- its landing, so helper_coverage.py's hop_start took the hop's start
+        -- from whatever row last read a tile, and any press or walk between
+        -- hid where the teleport left from (993 of 1,735 green hops could not
+        -- be judged; docs/quest_authoring/coverage-and-gate.md "The departure
+        -- tile").  The verb now reads the tile once before its first ::goto
+        -- and opens its ok detail with "at <landing> from <departure>".
+        -- Graded: the departure it names is the tile world.tile answered just
+        -- before the call.
+        seam("seam.goto_departure_stamp", function()
+            local fn = verb("player", "goto_tile")
+            local tile_of = verb("world", "tile")
+            if not fn then return missing("player", "goto_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local read, before = tile_of()
+            if read ~= "ok" or not is_table(before) then
+                return read, "no departure tile to compare: " .. describe(before)
+            end
+            local result, detail = fn(GOTO_TILE_X, GOTO_TILE_Z, GOTO_TILE_LEVEL)
+            local text = describe(detail)
+            if result ~= "ok" then
+                return result, "goto_tile -> " .. text
+            end
+            local from = before.x .. "," .. before.z .. "," .. before.level
+            if not string.find(text, "from " .. from, 1, true) then
+                return "hollow", "goto_tile's detail does not name the departure " .. from .. ": " .. text
+            end
+            return "ok", text
         end)
 
         -- SEAM goto_tile_fixed_budget (2026-09-21).  The public row above
