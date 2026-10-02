@@ -150,3 +150,9 @@
 - Ends in Ardougne Castle after goTalkToLathasToFinish, quest complete (expect_complete 4 rows PASS, qp +3). Full run 429/0, gate green, lint clean, helper_coverage FULL 64/64, no GUIDE-GAP.
 - The three ROUND 3 markers are replaced: second walk drives rockslides 4/5, the grid (safe bands; setvar of varp6010_upass_grid_pattern only if the server var reads 0), cell lock from 2393,9655, five rock bridges, pipe, unicorn door, the 18-hop walk to Iban's door and the four temple bridges + door, all suffixed -again.
 - max_frames raised to 200000 (the full run is ~5000 ticks; 120000 stopped at tick 3998 inside leg 6's door walk).
+
+## orchestrator note (matthew-mbp-m4-b48 round 7)
+- Round 6 ran 429/0 FULL and was reverted by the sampler (9260f12d8) on a full audit: the guide's route is stitched by teleports in legs 1, 2, 4, 5 and 6, Iorwerth is asked one question of five, and two summary rows always pass.
+- test/quests/regicide.lua is the round-6 green file (d3505f4ee) with every shortcut the sampler named turned into a `t.blocked("ROUND 7 (orchestrator, sampler 9260f12d8): ...")` marker that says what to drive instead. All legs are reopened (their old notebooks retired as leg<K>.progress.round1-6.md); a leg without a marker (leg 3) only reruns.
+- Done means `grep -c "ROUND 7 (orchestrator" test/quests/regicide.lua` prints 0, no `t.check(<name>, true` summary row remains, and the full run reaches expect_complete. Read docs/quest_authoring/sampler-findings.md "Sample matthew-mbp-m4-b48, second check" before you start.
+- Routes already proven in this batch: the maze bridges and the temple door (seam2 / seam1 blocks above; wip/regicide/seam2_leg2_proven.lua), the grid as leg 3 drives it.
