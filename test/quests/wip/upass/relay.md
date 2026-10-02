@@ -239,3 +239,8 @@
 
 ## orchestrator note (matthew-mbp-m4-b49 round 3)
 - Round 2 reached the completion for its author, but the reviewer's rerun died to Othainian (tick 3634): leg 7 is reopened with one marker before the three demon fights -- carry sharks for three level-91 demons, eat earlier, pray if needed. Legs 1-6 and 8 stand.
+
+## leg 7 (round 3, b49: food fix, full run 235/0, gate/lint checked)
+- Ends 2355,9802 level 0 (beside Iban's tomb); upass stage 7; shadow_on_doll 1, brew_tomb 1. Hitpoints ~86.
+- Round 3 fix: before the demons the leg drops weak food (half pies, pie, pizza, bread, stew, lobsters) until 16 slots are free, ::give shark (supply) up to 16, eats sharks below 60 (kill_demon eats via opts.eat item shark). Earlier rerun died to Othainian because a full pack took only 1 shark.
+- Backpack: leftover sharks, ibandoll, old_journal, tinderbox, spade, bucket_empty, potions; adamant_scimitar worn. Levels set inside leg 7: agility 70, hitpoints 99, defence 80.
