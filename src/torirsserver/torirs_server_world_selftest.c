@@ -40754,6 +40754,155 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: npc_setmode(null) mid-walk keeps the walk and its step\n");
+    {
+        /*
+         * Heroes' Quest's lure, [label,summon_grip] case 1, in miniature:
+         * `npc_setmode(none); npc_walk(c); p_delay(n); npc_setmode(null)`.
+         *
+         * The reference lets the walk finish: NPC_SETMODE `null` is
+         * `resetDefaults()` (NpcOps.ts:216-218), which is `clearInteraction()`
+         * plus the record's default mode (Npc.ts:424-436) and never
+         * `clearWaypoints()`, so the waypoint `npc_walk` queued
+         * (`queueWaypoint`, NpcOps.ts:466-469) is still there to walk. Nor does
+         * it touch `walkDir`, the step the npc already took this tick.
+         *
+         * Ours set `step_dir = -1` there. Phase 4 moves npcs before phase 5
+         * resumes the delayed script, so on the tick `null` ran the npc HAD
+         * stepped and the record of it was wiped: NPC_INFO never sent the step
+         * and `last_movement` never saw it. The server's Grip stood on the
+         * cabinet tile and every client drew him one tile short of it
+         * (seam b52-seam1). `last_movement` is the observable here because
+         * `step_dir` itself is cleared before a stepping test can read it --
+         * the same trap the movespeed stanza below names.
+         *
+         * Eastward over the three tiles the stanza above walked; the fourth is
+         * blocked map. The wander ROLL is parked (`next_roam_tick`, which parks
+         * the roll only and has no reference counterpart) so that the route is
+         * the only thing moving the npc once `null` makes it a wanderer again:
+         * the reference's 1-in-8 roll may replace the destination, and that is
+         * not what this stanza is about.
+         *
+         * The script is hand-built, but the VM refuses to run anything until a
+         * pack is loaded, so this loads one (and frees it at the end).
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+        int subject = -1;
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        else
+        {
+            subject = npc_spawn(srv, 3028, 3262, 3266, 0);
+            SELFTEST_CHECK(subject >= 0, "the fixture npc should spawn");
+        }
+        if( subject >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[subject];
+            int level_before[TORIRSSERVER_STAT_COUNT];
+            int boosted_before[TORIRSSERVER_STAT_COUNT];
+            int start_x = npc->x;
+            int start_z = npc->z;
+            int dest_x = start_x + 3;
+            int default_mode = ToriRSServer_WorldNpcDefaultMode(npc);
+            int resumed_tick_moved = -1;
+            int resumed_tick_recorded = -1;
+            int resumed = 0;
+            /* Static: a script parked by `p_delay` keeps pointing at these
+             * across the ticks below. */
+            static uint16_t lure_ops[] = {
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_NPC_SETMODE,
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_NPC_WALK,
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_P_DELAY,
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_NPC_SETMODE,
+                SS_OP_RETURN,
+            };
+            static int32_t lure_operands[9];
+            static char* lure_strings[9];
+            static struct SSVM_Script lure_script;
+
+            lure_operands[0] = TORIRSSERVER_NPCMODE_NONE;
+            lure_operands[2] = ToriRSServer_CoordPack(0, dest_x, start_z);
+            lure_operands[4] = 1;
+            lure_operands[6] = TORIRSSERVER_NPCMODE_NULL;
+            memset(&lure_script, 0, sizeof(lure_script));
+            lure_script.id = -1;
+            lure_script.name = (char*)"[selftest,npc_walk_then_setmode_null]";
+            lure_script.source_path = (char*)"<selftest>";
+            lure_script.lookup_key = -1;
+            lure_script.op_count = 9;
+            lure_script.opcodes = lure_ops;
+            lure_script.int_operands = lure_operands;
+            lure_script.string_operands = lure_strings;
+
+            SELFTEST_CHECK(default_mode == TORIRSSERVER_NPCMODE_WANDER,
+                           "the fixture should be a wanderer, so `null` hands it back to the "
+                           "wander mover, got default mode %d", default_mode);
+            memcpy(level_before, player->stat_level, sizeof(level_before));
+            memcpy(boosted_before, player->stat_boosted, sizeof(boosted_before));
+            /* Out of a level-2 goblin's aggression range (double-level rule),
+             * for the reason the stanza above gives. */
+            player->stat_level[TORIRSSERVER_STAT_STRENGTH] = 99;
+            player->stat_boosted[TORIRSSERVER_STAT_STRENGTH] = 99;
+            selftest_park_player(srv, start_x, start_z + 1);
+            npc->next_roam_tick = srv->tick + 1000;
+
+            ToriRSServer_WorldSetActive(srv, player);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(srv, &lure_script, subject),
+                           "the lure script should start on the npc");
+            SELFTEST_CHECK(npc->mode == TORIRSSERVER_NPCMODE_NONE && npc->waypoint_index >= 0,
+                           "and park in its p_delay with mode none and the walk queued, "
+                           "mode %d wp %d", npc->mode, npc->waypoint_index);
+
+            for( int i = 0; i < 8 && !resumed; i++ )
+            {
+                int x_before = npc->x;
+                int recorded_before = npc->last_movement;
+
+                selftest_tick(srv);
+                if( npc->mode != TORIRSSERVER_NPCMODE_NONE )
+                {
+                    resumed = 1;
+                    resumed_tick_moved = npc->x != x_before;
+                    resumed_tick_recorded = npc->last_movement != recorded_before;
+                }
+            }
+            SELFTEST_CHECK(resumed && npc->mode == default_mode,
+                           "the script should resume and `null` restore the default mode %d, "
+                           "got %d", default_mode, npc->mode);
+            SELFTEST_CHECK(resumed_tick_moved == 1,
+                           "the npc should have stepped in phase 4 of the tick `null` ran on "
+                           "(else this stanza measures nothing), at %d,%d",
+                           npc->x, npc->z);
+            SELFTEST_CHECK(resumed_tick_recorded == 1,
+                           "and that step must still be RECORDED: `null` must not wipe "
+                           "step_dir, or NPC_INFO never sends it and last_movement (%d) "
+                           "never sees it -- every client draws the npc a tile short",
+                           npc->last_movement);
+            SELFTEST_CHECK(npc->waypoint_index >= 0 || npc->x == dest_x,
+                           "`null` keeps the walk npc_walk queued (resetDefaults never "
+                           "clears waypoints), wp %d at %d,%d",
+                           npc->waypoint_index, npc->x, npc->z);
+            for( int i = 0; i < 6 && npc->x != dest_x; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(npc->x == dest_x && npc->z == start_z,
+                           "and the npc walks it to the end, at %d,%d want %d,%d",
+                           npc->x, npc->z, dest_x, start_z);
+
+            memcpy(player->stat_level, level_before, sizeof(level_before));
+            memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
+            /* Lift the stamp as well as the flag, so the next stanza to stand
+             * here does not measure this npc's ghost. */
+            npc_set_occupancy(npc, 0);
+            npc->active = 0;
+            ToriRSServer_ZoneNpcRefile(srv, subject);
+        }
+        if( loaded )
+            ToriRSServer_ScriptsFree(srv);
+    }
+
     fprintf(stderr, "ToriRSServer selftest: npc_setmovespeed takes a second tile\n");
     {
         /*

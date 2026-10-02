@@ -1,0 +1,17 @@
+# ladder depthsofdespair quest_dir=quest_depthsofdespair guide=src/main/java/com/questhelper/helpers/quests/thedepthsofdespair/TheDepthsOfDespair.java steps=14 legs=1:1-14@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToLordKandur	NpcStep	npc:hosidiusquest_lord_vis	1782,3572,0	Talk to Lord Kandur Hosidius in the house west of the vinery.			Anything I can help you with? | Yes.	quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:10 opnpc1; +1
+1	2	1	talkToChefOlivia	NpcStep	npc:hosidiusquest_chef	1776,3567,0	Speak to Chef Olivia in Lord Kandur's kitchen.				quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:74 opnpc1
+1	3	2	talkToGalana	NpcStep	npc:hosidiusquest_librarian	1649,3824,0	Speak to Galana in the Arceuus Library.				quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:109 opnpc1
+1	4	3	findTheVarlamoreEnvoy	ItemStep	obj:hosidiusquest_book		Find the Varlamore Envoy. Ask Galana for the approximate location if you can't find it.		Varlamore Envoy		quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:127 opheld1
+1	5	3	readTheVarlamoreEnvoy	DetailedQuestStep			Read the Varlamore Envoy.		=		
+1	6	4	enterCrabclawCaves	ObjectStep	loc:hosidiusquest_cave_entrance	1645,3450,0	Enter the Crabclaw Caves.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:4 oploc1
+1	7	6	goThroughCrevice	ObjectStep	loc:hosidiusquest_crackin	1711,9823,0	Enter the crevice. Kill a sandcrab for the easy diary while you're here.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:19 oploc1
+1	8	6	stepOverSteppingStones	ObjectStep	loc:hosidiusquest_stone	1706,9800,0	Cross the stepping stones.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:27 oploc1
+1	9	6	climbPastRocks	ObjectStep	loc:hosidiusquest_rock	1688,9801,0	Climb the rocks.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:44 oploc1
+1	10	6	enterTunnelEntrance	ObjectStep	loc:hosidiusquest_rope_top	1672,9800,0	Climb down the tunnel at the end.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:81 oploc1
+1	11	7	talkToArturHosidius	NpcStep	npc:hosidiusquest_son_caves		Speak to Artur Hosidius.				quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:146 opnpc1
+1	12	8	killSandSnake	NpcStep	npc:hosidiusquest_snake		Kill the Sand Snake.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:150 opnpc2; +1
+1	13	9	searchChest	ObjectStep	loc:hosidiusquest_chest		Search the chest.				quests/quest_depthsofdespair/scripts/depthsofdespair_locs.rs2:97 oploc1
+1	14	10	talkToLordKandurAgain	NpcStep	npc:hosidiusquest_lord_vis	1782,3572,0	Return to Lord Kandur Hosidius and talk to him.				quests/quest_depthsofdespair/scripts/depthsofdespair.rs2:10 opnpc1; +1

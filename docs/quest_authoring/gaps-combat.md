@@ -427,3 +427,22 @@ that pays the asserted stat no xp (aggressive pays Strength only) and poll the s
 Second, a quest boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`)
 does not walk to an idle owner. Engage it with `t.player.attack` before you wait on its attacks.
 Both are OPEN engine seams (seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)).
+
+## A drop hunt lands too few drops for its kills, or the kill loop reads "I'm already under attack." (In Search of Knowledge, matthew-mbp-m4-b52)
+
+Symptom: a kill-for-drops loop runs out of frames well short of the drops the quest needs. In Search
+of Knowledge needs twelve tattered pages, and red dragons drop one in 10 (`[proc,isok_page_drop]`,
+`insearchofknowledge_locs.rs2:166-176`; hosdun spiders 1 in 30, baby red dragons 1 in 25, druids
+1 in 20). Sixty kills used 415,000 frames and landed six pages. Two things slowed the loop down:
+
+- Attacks refused with "I'm already under attack." The Forthos dungeon is single-way, and every
+  aggressive type in it claims the player between kills, including the type you are hunting. Put
+  `::passive` in the setup for every type there (`red_dragon` to `red_dragon4`, `babyreddragon`,
+  `hosdun_druid`, `hosdun_spider`). A passive npc still dies and still drops (`::passive <npc_symbol>`
+  above).
+- Misses. A rune scimitar against a red dragon's defence took 80 kills (8 pages) to reach the
+  480,000-frame ceiling. A high-accuracy weapon (`osmumtens_fang`) gets twelve pages inside it. Stage
+  it with the combat levels, an anti-dragon shield (`dragonfire_shield`) and food as bring-alongs.
+
+Before raising `max_frames`, count the kills: pages needed times the drop rate. A `::give` of the
+drops is not the fix (coverage-and-gate: "A `-- GUIDE-GAP:` over a `::give` of a quest drop").

@@ -1,0 +1,21 @@
+# ladder belowicemountain quest_dir=quest_belowicemountain guide=src/main/java/com/questhelper/helpers/quests/belowicemountain/BelowIceMountain.java steps=18 legs=1:1-18@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToWillowToStart	NpcStep	npc:bim_willow	3003,3435,0	Talk to Willow outside Falador, south of the Ice Mountain dwarves.			Yes.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:397 opnpc1; +3
+1	2	10	recruitCheckal	NpcStep	npc:bim_checkal	3087,3415,0	Attempt to recruit Checkal to your team in Barbarian Village.				quests/quest_belowicemountain/scripts/belowicemountain.rs2:432 opnpc1; +3
+1	3	10	talkToAtlas	NpcStep	npc:bim_atlas	3076,3440,0	Speak to Atlas in the Barbarian Village Inn to learn how to Flex. Pick up a cooked meat if you need one.		Cooked Meat	Yes.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:514 opnpc1
+1	4	10	flexCheckal	NpcEmoteStep	npc:bim_checkal	3087,3415,0	Talk to Checkal and flex your muscles to prove your worth.				quests/quest_belowicemountain/scripts/belowicemountain.rs2:432 opnpc1; +3
+1	5	15	talkToMarley	NpcStep	npc:bim_marley	3088,3470,0	Speak to Marley in the Edgeville Ruins. Pick up the cooked meat from the Barbarian longhall if you don't have it already.				quests/quest_belowicemountain/scripts/belowicemountain.rs2:620 opnpc1; +3
+1	6	15	talkToCook	NpcStep	npc:fai_varrock_bluemoon_chef	3230,3401,0	Ask the Cook at the Blue Moon Inn for a steak sandwich.			I was wondering if you'd be able to make me a Steak sandwic…	quests/quest_belowicemountain/scripts/belowicemountain.rs2:708 opnpc1
+1	7	15	getIngredients	DetailedQuestStep			Collect meat, bread and a knife to make a steak sandwich.		Cooked Meat; Bread; Knife		
+1	8	15	makeSandwich	DetailedQuestStep			Use the knife on the bread to make a steak sandwich. Be careful not to eat it!		Knife; Bread		
+1	9	15	talkToMarleyAfterFeeding	NpcStep	npc:bim_marley	3088,3470,0	Talk to Marley to send him off to the excavation site.				quests/quest_belowicemountain/scripts/belowicemountain.rs2:620 opnpc1; +3
+1	10	15	feedMarley	NpcStep	npc:bim_marley	3088,3470,0	Return to Marley and give him the steak sandwich. Be careful not to eat it!	talkToMarleyAfterFeeding	Steak Sandwich		quests/quest_belowicemountain/scripts/belowicemountain.rs2:620 opnpc1; +3
+1	11	15	talkToBurntof	NpcStep	npc:bim_burntof	2956,3367,0	Talk to Burntof in the Falador Inn.				quests/quest_belowicemountain/scripts/belowicemountain.rs2:832 opnpc1; +1
+1	12	15	buyBeer	NpcStep	npc:risingsun_barmaid2	2954,3368,0	Buy an Asgarnian Ale for Burntof.		Coins	What ales are you serving? | One Asgarnian Ale, please.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:967 opnpc1
+1	13	15	giveBeer	NpcStep	npc:bim_burntof	2956,3367,0	Give Burntof the Asgarnian Ale.		beer		quests/quest_belowicemountain/scripts/belowicemountain.rs2:832 opnpc1; +1
+1	14	15	playRPS	NpcStep	npc:bim_burntof	2956,3367,0	Beat Burntof in a match of Rock-Paper-Scissors. Your choices of Rock, Paper and Scissors do not matter.			Rock.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:832 opnpc1; +1
+1	15	20	goToDungeon	NpcStep	npc:bim_willow	2996,3494,0	Talk with Willow at the dungeon entrance on the west side of Ice Mountain.			Yes.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:397 opnpc1; +3
+1	16	30	reenterDungeon	ObjectStep	loc:bim_entrance	3000,3494,0	Re-enter the dungeon to finish the quest.			Yes.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:981 oploc1
+1	17	35	defeatGuardian	NpcStep	npc:bim_golem_boss loc:bim_entrance		Defeat the Lvl-25 Ancient Guardian. Alternatively, with Level 10 Mining, mine the 4 pillars in the corners.	reenterDungeon			quests/quest_belowicemountain/scripts/belowicemountain.rs2:981 oploc1; +4
+1	18	40	watchCutscene	ObjectStep	loc:bim_entrance	3000,3494,0	Watch the cutscene to finish the quest.			Yes.	quests/quest_belowicemountain/scripts/belowicemountain.rs2:981 oploc1

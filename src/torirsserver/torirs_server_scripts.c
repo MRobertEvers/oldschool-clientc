@@ -6247,8 +6247,26 @@ ToriRSServer_ScriptCommand(
          */
         npc->combat_target_npc = -1;
         npc->combat_target_npc_gen = 0;
-        if( mode == TORIRSSERVER_NPCMODE_NONE || mode == TORIRSSERVER_NPCMODE_NULL )
-            npc->step_dir = -1;
+        /*
+         * `step_dir` is NOT touched, for any mode. It is not a plan to move; it
+         * is the record of a step the npc has ALREADY TAKEN this tick, which
+         * NPC_INFO sends in phase 10 and `phase_cleanup` turns into
+         * `last_movement`. The reference's NPC_SETMODE never touches
+         * `walkDir` either: `none` is `clearInteraction()` and `null` is
+         * `resetDefaults()` (NpcOps.ts:209-218, Npc.ts:419-436), and neither
+         * clears the waypoints `npc_walk` queued (NpcOps.ts:466-469) -- the
+         * walk carries on.
+         *
+         * This used to set `step_dir = -1` for `none` and `null`. Phase 4 moves
+         * npcs before phase 5 resumes a player's delayed script, so Heroes'
+         * Quest's lure (`npc_setmode(none); npc_walk(..); p_delay(6);
+         * npc_setmode(null)`, [label,summon_grip]) erased a step Grip had
+         * just taken: the server had him on the cabinet tile 2777,3198, the
+         * client was never told the last step and drew him at 2777,3197 for
+         * as long as he stood there (seam b52-seam1: re-adding him from out of
+         * view put him on 3198). Every `none`/`null` that lands on a tick its
+         * npc stepped cost every observer one tile, for good.
+         */
         /*
          * A targeted mode also NAMES ITS TARGET. `NpcOps.NPC_SETMODE` ends with
          * `setInteraction(Interaction.SCRIPT, state._activePlayer, mode)` for

@@ -5,11 +5,14 @@
 return {
     id = "upass",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 240000, -- the whole relay is ~5000 server ticks; the default 60000 frames stops at ~2000
+    max_frames = 400000, -- the whole relay is ~13000 server ticks (full run reached tick 7997 at 240000 with 22 rows to go)
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         -- Quest Helper: Underground Pass needs 25 Ranged (king_lathas.rs2 gates the start on stat_base(ranged) >= 25)
         "::setlevel ranged 25",
+        -- the rope swing (upass_obstacles.rs2:132 stat_random(agility,100,410)) and the rockslides roll agility; a level-1 account falls back into the
+        -- swamp (deterministic in the b52 full run, leg 2 crossThePit landed 2485,9649). A questing account brings some agility.
+        "::setlevel agility 50",
         -- Quest Helper: Biohazard is a prerequisite (upass_entrance.rs2:9 refuses the cave until it is complete)
         "::complete quest_biohazard",
         -- Quest Helper items for the bridge leg: a bow (not crossbow), metal arrows, a tinderbox and a rope
@@ -124,6 +127,91 @@ return {
             t.exec("goto-climbOverRockslide2", t.player.goto_tile, 2473, 9706, 0)
             climb("climbOverRockslide2", 2471, 9706)
             climb("climbOverRockslide3", 2458, 9712)
+
+            -- THE SWAMP FALL, where the guide and LostCity put it (b52, owner: fix against LostCity).
+            -- Quest Helper UndergroundPass.java:591-594 crossTheBridge: inFallArea -> leaveFallArea, then
+            -- isBeforeRockslide1 -> climbOverRockslide1..3. LostCity upass_obstacles.rs2:33-48 drops the player from
+            -- upass_swampbubbles1 to 2485,9649 (15% of hitpoints); the five pocket rockslides (m38_150.jm2) lead west to
+            -- caverockpile (:50-55), which surfaces at 2482,9715 -- beside rockslide 1 -- so the way on is climbing
+            -- rockslides 1-3 again, on foot. (Before b52 the fall sat in leg 4 and a goto went back to the well.)
+            t.cheat("::give lobster 10") -- food for the fall (15% hp) and the slips (3 each), as leg 4 carried before
+            t.ticks(2)
+            local function last_lines(n)
+                local _, lines = t.msg.last(n)
+                local out = {}
+                for _, line in ipairs(lines or {}) do out[#out + 1] = tostring(type(line) == "table" and line.text or line) end
+                return table.concat(out, " | ")
+            end
+            local function hp_now()
+                local r, row = t.skill.read("hitpoints")
+                return r == "ok" and row.level or 0
+            end
+            -- leaveFallArea (guide 6.52; QH crossTheBridge: inFallArea 2440,9628-2486,9657 -> leaveFallArea). The pocket is
+            -- entered by the swamp (upass_swampbubbles1, upass_obstacles.rs2:59 -> 2485,9649) or a failed rope swing (:132,
+            -- same tile). It is NOT sealed: the way out is five rockslide2_obstacle_upass climbs (op1 Climb-over,
+            -- @rockslide_obstacle :29) on the guide's line points, then the caverockpile at 2443,9651 (:77 -> 2482,9715).
+            -- LostCity m38_150.jm2 places the same five slides and pile. Seam upass_fall_pocket_exit (matthew-mbp-m4-b49-seam1).
+            local function fall_here()
+                local _, w = t.world.tile()
+                return w
+            end
+            t.exec("goto-enterSwampBubbles", t.player.goto_tile, 2453, 9716, 0) -- Koftik's ledge, a few tiles past rockslide 3
+            t.exec("enterSwampBubbles", t.player.click_loc, "upass_swampbubbles1", 1, { at = { 2465, 9713 } })
+            t.await({ level = function() return fall_here().z < 9660 end, note = "landed in the fall pocket" }, 20)
+            t.ticks(2)
+            local landed = fall_here()
+            t.check("enterSwampBubbles-landed", landed.x == 2485 and landed.z == 9649, "after the swamp at " .. landed.x .. "," .. landed.z .. " level " .. landed.level .. " :: " .. last_lines(3))
+            local fall_slides = {
+                { 2479, 9629, 2480, 9629, 2478, 9629, { { 2485, 9645 }, { 2483, 9642 }, { 2483, 9635 }, { 2481, 9629 }, { 2480, 9629 } } },
+                { 2467, 9646, 2468, 9646, 2466, 9646, { { 2476, 9636 }, { 2474, 9637 }, { 2470, 9635 }, { 2467, 9637 }, { 2467, 9639 }, { 2471, 9642 }, { 2471, 9646 }, { 2468, 9646 } } },
+                { 2456, 9633, 2457, 9633, 2455, 9633, { { 2465, 9646 }, { 2460, 9640 }, { 2460, 9633 }, { 2457, 9633 } } },
+                { 2455, 9647, 2456, 9647, 2454, 9647, { { 2452, 9637 }, { 2452, 9640 }, { 2459, 9645 }, { 2459, 9647 }, { 2456, 9647 } } },
+                { 2448, 9650, 2449, 9650, 2447, 9650, { { 2449, 9650 } } },
+            }
+            for i, s in ipairs(fall_slides) do
+                for _, hop in ipairs(s[7]) do t.player.walk_to(hop[1], hop[2], 30) end
+                local note, over = "", false
+                for attempt = 1, 10 do
+                    local w = fall_here()
+                    if not (w.x == s[3] and w.z == s[4]) then t.player.walk_to(s[3], s[4], 30) end
+                    if hp_now() <= 12 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
+                    local r = t.player.click_loc("rockslide2_obstacle_upass", 1, { at = { s[1], s[2] } })
+                    t.ticks(6)
+                    local after = fall_here()
+                    note = note .. "[" .. attempt .. " " .. tostring(r) .. " -> " .. after.x .. "," .. after.z .. "] "
+                    if after.x == s[5] and after.z == s[6] then over = true break end
+                end
+                t.check("leaveFallArea-rockslide" .. i, over, "slide " .. s[1] .. "_" .. s[2] .. " now " .. fall_here().x .. "," .. fall_here().z .. "; hp " .. hp_now() .. " :: " .. note .. last_lines(2))
+            end
+            t.exec("leaveFallArea", t.player.click_loc, "caverockpile", 1, { at = { 2443, 9651 } }) -- upass_obstacles.rs2:77
+            t.await({ level = function() return fall_here().z > 9700 end, note = "surfaced by the swamp" }, 15)
+            t.ticks(2)
+            local out = fall_here()
+            t.check("leaveFallArea-surfaced", out.x == 2482 and out.z == 9715, "after the pile at " .. out.x .. "," .. out.z .. " level " .. out.level .. " :: " .. last_lines(3))
+            -- surfaced at 2482,9715, before rockslide 1: climb the three again, as the guide's crossTheBridge sends you.
+            -- Judged on the TILE, not on chat: after the pocket's five climbs the chat ring is full of "...step down
+            -- the other side" lines, so climb()'s line count reads a slip as a crossing (b52 closer run: "crossed"
+            -- rockslide 1 while still at 2480,9714). The far tiles are the ones the first climbs landed on
+            -- (LostCity [label,rockslide_obstacle] moves the player one tile past the slide).
+            local function climb_to(name, slide_x, slide_z, far_x, far_z)
+                local detail = ""
+                for attempt = 1, 10 do
+                    local _, w = t.world.tile()
+                    if w.x == far_x and w.z == far_z then break end
+                    if hp_now() <= 12 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
+                    local result = t.player.click_loc("rockslide2_obstacle_upass", 1, { at = { slide_x, slide_z } })
+                    t.ticks(8)
+                    local _, after = t.world.tile()
+                    detail = detail .. "[" .. attempt .. " " .. tostring(result) .. " -> " .. after.x .. "," .. after.z .. "] "
+                end
+                local _, final = t.world.tile()
+                t.check(name, final.x == far_x and final.z == far_z,
+                    "slide " .. slide_x .. "," .. slide_z .. ": now " .. final.x .. "," .. final.z .. " (far side " .. far_x .. "," .. far_z .. "); hp " .. hp_now() .. " :: " .. detail .. last_lines(2))
+            end
+            climb_to("climbOverRockslide1-again", 2480, 9713, 2480, 9712)
+            t.exec("goto-climbOverRockslide2-again", t.player.goto_tile, 2473, 9706, 0)
+            climb_to("climbOverRockslide2-again", 2471, 9706, 2470, 9706)
+            climb_to("climbOverRockslide3-again", 2458, 9712, 2458, 9713)
 
             t.exec("goto-talkToKoftikAtBridge", t.player.goto_tile, 2452, 9715, 0)
             t.exec("talkToKoftikAtBridge", t.player.talk_to, "caveguide2", 1) -- koftik.rs2 [opnpc1,caveguide2]
@@ -287,11 +375,11 @@ return {
                 return table.concat(out, " | ")
             end
             -- food for the trap damage (leg 2 left the player at about 2 hp)
-            t.cheat("::give lobster 6")
+            t.cheat("::give lobster 14") -- b52: the closer died walking to orb 3 (hp 7 at the last hop, blessed spiders 2395-2404,9680-9684 hit the whole way)
             -- the western cave is full of blessed spiders and ogres (m37_151.spawn); the guide's player is a fighter, a 10-hp
             -- account dies to them (run 3-4). Levels a questing account brings:
-            t.cheat("::setlevel hitpoints 40")
-            t.cheat("::setlevel defence 30")
+            t.cheat("::setlevel hitpoints 70")
+            t.cheat("::setlevel defence 50")
             t.ticks(2)
             local hp_result, hp_row = t.skill.read("hitpoints")
             t.check("leg.3.start", true, "at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; hitpoints " .. tostring(hp_result == "ok" and hp_row.level or hp_result) .. "; woodplank x" .. tostring(select(2, t.inv.count("woodplank"))))
@@ -343,7 +431,14 @@ return {
                 return select(2, t.inv.count("caveorb1")) + select(2, t.inv.count("caveorb2")) + select(2, t.inv.count("caveorb3")) + select(2, t.inv.count("caveorb4"))
             end
             local function take_orb(name, stand_x, stand_z, orb_x, orb_z)
-                local walk_result, walk_detail = t.player.walk_to(stand_x, stand_z, 60)
+                local walk_result, walk_detail
+                for walk_attempt = 1, 4 do
+                    walk_result, walk_detail = t.player.walk_to(stand_x, stand_z, 20)
+                    local _, walked = t.world.tile()
+                    local hpr, hprow = t.skill.read("hitpoints")
+                    if hpr == "ok" and hprow.level <= 30 then t.player.inv_op("lobster", 1) t.ticks(2) end
+                    if math.abs(walked.x - stand_x) <= 2 and math.abs(walked.z - stand_z) <= 2 then break end
+                end
                 t.ticks(2)
                 local _, pre = t.world.tile()
                 t.check("goto-" .. name, math.abs(pre.x - stand_x) <= 2 and math.abs(pre.z - stand_z) <= 2, "walk_to " .. tostring(walk_result) .. " " .. tostring(walk_detail) .. "; standing " .. pre.x .. "," .. pre.z)
@@ -371,7 +466,7 @@ return {
                     local _, hop_at = t.world.tile()
                     local hpr, hprow = t.skill.read("hitpoints")
                     hop_detail = hop_detail .. "[" .. attempt .. ": " .. tostring(hop_result) .. " at " .. hop_at.x .. "," .. hop_at.z .. " hp " .. tostring(hpr == "ok" and hprow.level or hpr) .. "] "
-                    if hpr == "ok" and hprow.level <= 6 then t.player.inv_op("lobster", 1) t.ticks(2) end
+                    if hpr == "ok" and hprow.level <= 30 then t.player.inv_op("lobster", 1) t.ticks(2) end
                     if math.abs(hop_at.x - hop[1]) <= 1 and math.abs(hop_at.z - hop[2]) <= 1 then break end
                 end
                 t.check("hop-" .. hop[1] .. "-" .. hop[2], true, hop_detail .. last_lines(2))
@@ -413,6 +508,24 @@ return {
             end
             t.check("collectOrb4", got4, detail4)
             t.ticks(4)
+            -- leg 5 needs 7 free slots (upass_encounters.rs2:101) and leg 4 gives its own lobsters: eat what heals, drop the surplus down to 3
+            local surplus_detail = ""
+            for _ = 1, 14 do
+                local _, lobsters = t.inv.count("lobster")
+                if lobsters <= 3 then break end
+                local hpr, hprow = t.skill.read("hitpoints")
+                if hpr == "ok" and hprow.level <= 58 then
+                    t.player.inv_op("lobster", 1)
+                    surplus_detail = surplus_detail .. "ate "
+                else
+                    t.player.drop("lobster")
+                    surplus_detail = surplus_detail .. "dropped "
+                end
+                t.ticks(3)
+            end
+            local _, lobsters_left = t.inv.count("lobster")
+            local hp_end_result, hp_end_row = t.skill.read("hitpoints")
+            t.check("leg.3.pack", lobsters_left <= 3, "lobster x" .. tostring(lobsters_left) .. " after: " .. surplus_detail .. "; hitpoints " .. tostring(hp_end_result == "ok" and hp_end_row.level or hp_end_result))
             local _, fin = t.world.tile()
             t.check("leg.3.end", got4, "at " .. fin.x .. "," .. fin.z .. " level " .. fin.level .. "; upass stage " .. tostring(select(2, t.quest.stage())) .. "; orbs carried " .. orb_count() .. " (caveorb1-4), woodplank x" .. tostring(select(2, t.inv.count("woodplank"))) .. ", shortbow worn")
             -- LEG 3 END
@@ -431,12 +544,45 @@ return {
             end
             -- Quest Helper lists a Spade as brought along for the mud (digMud); food for the cave damage
             t.cheat("::give spade 1")
-            t.cheat("::give lobster 10") -- food for the fall pocket slips and the cave damage
+            t.cheat("::give lobster 10") -- food for the cave damage
             t.ticks(2)
             local _, start = t.world.tile()
             t.check("leg.4.start", true, "at " .. start.x .. "," .. start.z .. " level " .. start.level .. "; hitpoints " .. hp_now() .. "; upass stage " .. tostring(select(2, t.quest.stage())))
             -- orbsToFurnace: plain travel back east over the planks the guide already crossed, then the orbs go into the furnace
-            t.exec("goto-orbsToFurnace", t.player.goto_tile, 2453, 9683, 0)
+            -- The spear traps stand between the orbs, the furnace and the well, and the guide crosses them both ways:
+            -- "Return to the furnace to the east" (QH UndergroundPass.java:411), then from beforeTrap1 the
+            -- theUndergroundPass ConditionalStep sends you through passTrap1..5 again before climbDownWell (:619-623).
+            -- LostCity upass_obstacles.rs2:150-173 [oploc1,upass_speartrap]: a disarm that succeeds forcemoves the
+            -- player 2 tiles past the trap AWAY from the side they stand on; a failure costs 10% hp + 1 (b52: a goto
+            -- across the line read CHEAT for passTrap1).
+            local function cross_trap(name, trap_x, trap_z, eastward)
+                local detail, passed = "", false
+                for attempt = 1, 6 do
+                    if hp_now() <= 20 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
+                    local _, here = t.world.tile()
+                    local result = t.player.click_loc("upass_speartrap", 1, { at = { trap_x, trap_z } })
+                    t.ticks(2)
+                    if t.chat.kind() ~= "none" then
+                        t.chat.play({ "mesbox:It's a trap", "choose:Yes, I'll give it a go." })
+                    end
+                    t.ticks(6)
+                    local _, there = t.world.tile()
+                    detail = "attempt " .. attempt .. ": click " .. tostring(result) .. ", x " .. here.x .. " -> " .. there.x .. "," .. there.z .. ", hp " .. hp_now() .. " :: " .. last_lines(2)
+                    if (eastward and there.x > trap_x) or ((not eastward) and there.x < trap_x) then passed = true break end
+                end
+                t.check(name, passed, detail)
+            end
+            local traps = { { "1", 2443, 9677 }, { "2", 2440, 9677 }, { "3", 2435, 9675 }, { "4", 2432, 9675 }, { "5", 2430, 9675 } } -- trap 5 stands at 2430,9675 (leg 3 presses it there; QH prints 2430,9676)
+            -- back east from the orbs (west of the well) to the trap line, on foot
+            local back = t.player.walk_to(2428, 9676, 60)
+            local _, at_line = t.world.tile()
+            t.check("walk-toTrapLine-east", back == "ok" and at_line.x <= 2429, "walk_to 2428,9676 -> " .. tostring(back) .. " at " .. at_line.x .. "," .. at_line.z)
+            for i = 5, 1, -1 do
+                cross_trap("passTrap" .. traps[i][1] .. "-east", traps[i][2], traps[i][3], true)
+            end
+            local to_furnace = t.player.walk_to(2453, 9682, 30) -- the tile beside furnace_upass (2454,9682 is under it)
+            local _, at_furnace = t.world.tile()
+            t.check("walk-orbsToFurnace", to_furnace == "ok", "walk_to 2453,9682 -> " .. tostring(to_furnace) .. " at " .. at_furnace.x .. "," .. at_furnace.z)
             local furnace = t.player.by_symbol("loc", "furnace_upass")
             for i = 1, 4 do
                 local name = i == 1 and "orbsToFurnace" or ("orbsToFurnace-" .. i)
@@ -445,50 +591,14 @@ return {
             end
             t.check("orbsToFurnace-all", select(2, t.inv.count("caveorb1")) + select(2, t.inv.count("caveorb2")) + select(2, t.inv.count("caveorb3")) + select(2, t.inv.count("caveorb4")) == 0,
                 "orbs left in the backpack after four furnace uses; :: " .. last_lines(3))
-            -- leaveFallArea (guide 6.52; QH crossTheBridge: inFallArea 2440,9628-2486,9657 -> leaveFallArea). The pocket is
-            -- entered by the swamp (upass_swampbubbles1, upass_obstacles.rs2:59 -> 2485,9649) or a failed rope swing (:132,
-            -- same tile). It is NOT sealed: the way out is five rockslide2_obstacle_upass climbs (op1 Climb-over,
-            -- @rockslide_obstacle :29) on the guide's line points, then the caverockpile at 2443,9651 (:77 -> 2482,9715).
-            -- LostCity m38_150.jm2 places the same five slides and pile. Seam upass_fall_pocket_exit (matthew-mbp-m4-b49-seam1).
-            local function fall_here()
-                local _, w = t.world.tile()
-                return w
-            end
-            t.exec("goto-enterSwampBubbles", t.player.goto_tile, 2453, 9716, 0) -- Koftik's ledge, west of the swamp
-            t.exec("enterSwampBubbles", t.player.click_loc, "upass_swampbubbles1", 1, { at = { 2465, 9713 } })
-            t.await({ level = function() return fall_here().z < 9660 end, note = "landed in the fall pocket" }, 20)
-            t.ticks(2)
-            local landed = fall_here()
-            t.check("enterSwampBubbles-landed", landed.x == 2485 and landed.z == 9649, "after the swamp at " .. landed.x .. "," .. landed.z .. " level " .. landed.level .. " :: " .. last_lines(3))
-            local fall_slides = {
-                { 2479, 9629, 2480, 9629, 2478, 9629, { { 2485, 9645 }, { 2483, 9642 }, { 2483, 9635 }, { 2481, 9629 }, { 2480, 9629 } } },
-                { 2467, 9646, 2468, 9646, 2466, 9646, { { 2476, 9636 }, { 2474, 9637 }, { 2470, 9635 }, { 2467, 9637 }, { 2467, 9639 }, { 2471, 9642 }, { 2471, 9646 }, { 2468, 9646 } } },
-                { 2456, 9633, 2457, 9633, 2455, 9633, { { 2465, 9646 }, { 2460, 9640 }, { 2460, 9633 }, { 2457, 9633 } } },
-                { 2455, 9647, 2456, 9647, 2454, 9647, { { 2452, 9637 }, { 2452, 9640 }, { 2459, 9645 }, { 2459, 9647 }, { 2456, 9647 } } },
-                { 2448, 9650, 2449, 9650, 2447, 9650, { { 2449, 9650 } } },
-            }
-            for i, s in ipairs(fall_slides) do
-                for _, hop in ipairs(s[7]) do t.player.walk_to(hop[1], hop[2], 30) end
-                local note, over = "", false
-                for attempt = 1, 10 do
-                    local w = fall_here()
-                    if not (w.x == s[3] and w.z == s[4]) then t.player.walk_to(s[3], s[4], 30) end
-                    if hp_now() <= 12 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
-                    local r = t.player.click_loc("rockslide2_obstacle_upass", 1, { at = { s[1], s[2] } })
-                    t.ticks(6)
-                    local after = fall_here()
-                    note = note .. "[" .. attempt .. " " .. tostring(r) .. " -> " .. after.x .. "," .. after.z .. "] "
-                    if after.x == s[5] and after.z == s[6] then over = true break end
-                end
-                t.check("leaveFallArea-rockslide" .. i, over, "slide " .. s[1] .. "_" .. s[2] .. " now " .. fall_here().x .. "," .. fall_here().z .. "; hp " .. hp_now() .. " :: " .. note .. last_lines(2))
-            end
-            t.exec("leaveFallArea", t.player.click_loc, "caverockpile", 1, { at = { 2443, 9651 } }) -- upass_obstacles.rs2:77
-            t.await({ level = function() return fall_here().z > 9700 end, note = "surfaced by the swamp" }, 15)
-            t.ticks(2)
-            local out = fall_here()
-            t.check("leaveFallArea-surfaced", out.x == 2482 and out.z == 9715, "after the pile at " .. out.x .. "," .. out.z .. " level " .. out.level .. " :: " .. last_lines(3))
             -- climbDownWell
-            t.exec("goto-climbDownWell", t.player.goto_tile, 2417, 9677, 0) -- plain travel back west from the swamp, outside the fall area
+            -- west again past all five traps (the guide's passTrap1..5 from beforeTrap1), then on foot to the well
+            for i = 1, 5 do
+                cross_trap("passTrap" .. traps[i][1] .. "-west", traps[i][2], traps[i][3], false)
+            end
+            local to_well = t.player.walk_to(2418, 9677, 30)
+            local _, at_well = t.world.tile()
+            t.check("walk-climbDownWell", to_well == "ok", "walk_to 2418,9677 -> " .. tostring(to_well) .. " at " .. at_well.x .. "," .. at_well.z)
             t.exec("climbDownWell", t.player.click_loc, "cave_well", 1) -- upass_well.rs2:10
             t.ticks(8)
             local _, down = t.world.tile()
@@ -558,43 +668,111 @@ return {
             -- navigateMaze: after the ledge the cave is rock bridges over pits (upass_obstacles.rs2:360); each bridge is crossed by
             -- clicking its walkway_upass_narrow_mid_top, the walkways between them are plain travel. The Thieving-50 shortcut
             -- (cave_railings5, upass_unicorn.rs2:28) is not open to this account, so the long way round is driven.
+            --
+            -- THE FALLS, from LostCity (owner: Underground Pass is fixed against LostCity). There are SEVEN
+            -- walkway_upass_narrow_mid_top bridges (LostCity maps/m37_150.jm2:8620,8705,8820,8878,8934,9066,9067; ours
+            -- maps/m37_150.jl2:4266-4272, the same seven): 2380,9634 2387,9631 2392,9627 2396,9636 2399,9632 2406,9632 2406,9637.
+            -- The route crosses five of them west to east. [oploc1,walkway_upass_narrow_mid_top] (LostCity
+            -- upass_obstacles.rs2:295-325, ours :360-388) forcemoves to the bridge tile, and a failed stat_random(agility,160,300)
+            -- drops the player SOUTH of it -- NORTH for 0_37_150_31_32 (2399,9632) and 0_37_150_38_32 (2406,9632) -- for 5
+            -- damage, TWO tiles: p_exactmove already puts the player on its end tile (LostCity engine Player.ts:2109-2110
+            -- exactMove -> teleport), then p_teleport(movecoord(coord, 0, 0, $dz)) steps one more. Where that lands, by LostCity's collision (engine GameMap.ts:219-281: land flag 1, LINK_BELOW 2
+            -- lifts the level-1 walkway onto level 0) and ours alike (build/seam_state/matthew-mbp-m4-b52-seam3/scratch/maze_graph.py):
+            --   bridges 1-3 fall into the pit south of the maze, which is the START's area (2373,9634 .. 2392,9625):
+            --     walk back to bridge 1 and cross 1, 2, 3 again in order;
+            --   bridge 4 (2399,9632) falls north into the area between bridges 2 and 3: cross 3 and 4 again;
+            --   bridge 5 (2406,9637) falls to 2406,9635, the pit 2406..2410,9632..9635. It is walled in on foot, but it is the
+            --     EAST side of bridge 2406,9632 (jm2:2468-2469 open pit floor 2406,9634-35, jm2:4706-4741 the walkway
+            --     2407..2410,9632..9634): walk to 2407,9632 and cross 2406,9632 west (coordx(coord) > coordx(loc_coord), so
+            --     $end = 2405,9632; its own fall is NORTH, back into the pit), then 2403,9632 -> 2403,9637 -> 2405,9637 and
+            --     cross bridge 5 again.
+            -- Every hop is a walk- row and every press a row; nothing is teleported.
             local maze_note = ""
-            local bridges = { { 2380, 9634 }, { 2387, 9631 }, { 2392, 9627 }, { 2399, 9632 }, { 2406, 9637 } }
-            -- walk legs to each bridge's west side (plain travel; seam b48-seam2 maze_walk route)
-            local bridge_legs = {
-                { { 2373, 9634 }, { 2379, 9634 } },
-                { { 2384, 9634 }, { 2384, 9631 }, { 2386, 9631 } },
-                { { 2389, 9631 }, { 2389, 9627 }, { 2391, 9627 } },
-                { { 2395, 9627 }, { 2395, 9632 }, { 2398, 9632 } },
-                { { 2403, 9632 }, { 2403, 9637 }, { 2405, 9637 } },
+            local maze_bridges = {
+                { at = { 2380, 9634 }, far = { 2381, 9634 }, fall = { 2380, 9632 }, back_to = 1,
+                    hops = { { 2373, 9634 }, { 2379, 9634 } } },
+                { at = { 2387, 9631 }, far = { 2388, 9631 }, fall = { 2387, 9629 }, back_to = 1,
+                    hops = { { 2384, 9634 }, { 2384, 9631 }, { 2386, 9631 } } },
+                { at = { 2392, 9627 }, far = { 2393, 9627 }, fall = { 2392, 9625 }, back_to = 1,
+                    hops = { { 2389, 9631 }, { 2389, 9627 }, { 2391, 9627 } } },
+                { at = { 2399, 9632 }, far = { 2400, 9632 }, fall = { 2399, 9634 }, back_to = 3,
+                    hops = { { 2395, 9627 }, { 2395, 9632 }, { 2398, 9632 } } },
+                { at = { 2406, 9637 }, far = { 2407, 9637 }, fall = { 2406, 9635 }, back_to = "pit",
+                    hops = { { 2403, 9632 }, { 2403, 9637 }, { 2405, 9637 } } },
             }
-            for index, bridge in ipairs(bridges) do
-                -- a failed roll drops you under the bridge: eat, walk the leg again and click again
-                for attempt = 1, 8 do
-                    eat_if_low(12)
-                    for _, hop in ipairs(bridge_legs[index]) do t.player.walk_to(hop[1], hop[2], 30) end
-                    t.ticks(1)
-                    -- the pit under the last bridge (2406..2410,9632..9635) is walled in on foot (probe: every walk_to ends inside it);
-                    -- a failed roll there is put back on the near side with plain travel, which crosses nothing
-                    local near = bridge_legs[index][#bridge_legs[index]]
-                    if here().x ~= near[1] or here().z ~= near[2] then
-                        if attempt > 1 and index == #bridges then
-                            t.player.goto_tile(near[1], near[2], 0)
-                            t.ticks(2)
+            local maze_walks = 0
+            local function maze_walk(label, x, z)
+                maze_walks = maze_walks + 1
+                local walk_result, walk_detail = t.player.walk_to(x, z, 40)
+                t.ticks(1)
+                local at = here()
+                t.check("walk-navigateMaze-" .. maze_walks .. "-" .. label, walk_result == "ok" and at.x == x and at.z == z,
+                    "walk_to " .. x .. "," .. z .. " -> " .. tostring(walk_result) .. (walk_detail and (" " .. walk_detail) or "") .. "; at " .. at.x .. "," .. at.z .. " hp " .. hp_now())
+                return walk_result == "ok" and at.x == x and at.z == z
+            end
+            -- one press of a bridge: (outcome, tile) where outcome is "crossed", "fell" or "stuck"
+            local maze_presses = 0
+            local function maze_press(label, at, far, fall)
+                maze_presses = maze_presses + 1
+                local before = here()
+                local click_result, click_detail = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = at })
+                t.ticks(12)
+                local after = here()
+                local outcome = "stuck"
+                if after.x == far[1] and after.z == far[2] then
+                    outcome = "crossed"
+                elseif after.x == fall[1] and after.z == fall[2] then
+                    outcome = "fell"
+                end
+                local text = "click_loc walkway_upass_narrow_mid_top " .. at[1] .. "," .. at[2] .. " -> " .. tostring(click_result)
+                    .. "; " .. before.x .. "," .. before.z .. " -> " .. after.x .. "," .. after.z .. " (" .. outcome
+                    .. (outcome == "fell" and ", the tile upass_obstacles.rs2:310-321 drops you to" or "") .. ") hp " .. hp_now() .. " :: " .. last_lines(2)
+                t.check("navigateMaze-" .. maze_presses .. "-" .. label, outcome ~= "stuck", text)
+                maze_note = maze_note .. label .. " " .. outcome .. "; "
+                return outcome
+            end
+            local index = 1
+            local falls = 0
+            while index <= #maze_bridges and maze_presses < 40 do
+                local bridge = maze_bridges[index]
+                eat_if_low(12)
+                local walked = true
+                for hop_index, hop in ipairs(bridge.hops) do
+                    if not maze_walk("bridge" .. index .. "-hop" .. hop_index, hop[1], hop[2]) then walked = false break end
+                end
+                if not walked then break end
+                local outcome = maze_press("bridge" .. index, bridge.at, bridge.far, bridge.fall)
+                if outcome == "crossed" then
+                    index = index + 1
+                elseif outcome == "fell" then
+                    falls = falls + 1
+                    if bridge.back_to == "pit" then
+                        -- out of the pit over bridge 2406,9632, westward
+                        local out = false
+                        while not out and maze_presses < 40 do
+                            eat_if_low(12)
+                            if not maze_walk("pit-to-2407-9632", 2407, 9632) then break end
+                            local pit_outcome = maze_press("pitExit-2406-9632", { 2406, 9632 }, { 2405, 9632 }, { 2406, 9634 })
+                            if pit_outcome == "crossed" then out = true elseif pit_outcome == "stuck" then break end
                         end
+                        if not out then break end
+                        index = 5
+                    else
+                        index = bridge.back_to
                     end
-                    local click_result = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { bridge[1], bridge[2] } })
-                    t.ticks(12)
-                    maze_note = maze_note .. "bridge " .. bridge[1] .. "," .. bridge[2] .. " #" .. attempt .. " click " .. tostring(click_result) .. " now " .. here().x .. "," .. here().z .. "; "
-                    if here().x == bridge[1] + 1 and here().z == bridge[2] then break end
+                else
+                    break
                 end
             end
-            for _, hop in ipairs({ { 2414, 9637 }, { 2420, 9628 }, { 2422, 9618 }, { 2422, 9612 }, { 2420, 9606 } }) do
-                eat_if_low(12)
-                t.player.walk_to(hop[1], hop[2], 20)
-                t.ticks(1)
+            local maze_crossed = index > #maze_bridges
+            if maze_crossed then
+                local pipe_hops = { { 2414, 9637 }, { 2420, 9628 }, { 2422, 9618 }, { 2422, 9612 }, { 2420, 9606 } }
+                for hop_index, hop in ipairs(pipe_hops) do
+                    eat_if_low(12)
+                    if not maze_walk("toPipe-hop" .. hop_index, hop[1], hop[2]) then break end
+                end
             end
-            t.check("navigateMaze", here().x >= 2418 and here().z <= 9610, "pick the cell lock, dig the mud, cross the ledge, then four rock bridges (2380,9634 2387,9631 2392,9627 2399,9632), the x2403 walkway and the bridge 2406,9637; now at " .. here().x .. "," .. here().z .. " hp " .. hp_now() .. " :: " .. maze_note)
+            t.check("navigateMaze", maze_crossed and here().x >= 2418 and here().z <= 9610, "pick the cell lock, dig the mud, cross the ledge, then the rock bridges 2380,9634 2387,9631 2392,9627 2399,9632 2406,9637 in order (" .. falls .. " fall(s), each walked back from where LostCity lands it); now at " .. here().x .. "," .. here().z .. " hp " .. hp_now() .. " :: " .. maze_note)
             -- goThroughPipe: the east end of upass_pipe6 at 2417,9605 (the guide's 2418,9605); before the unicorn is dead it crawls west
             local pipe_x_before = here().x
             local pipe_result = ""
@@ -702,7 +880,11 @@ return {
             t.cheat("::setlevel strength 80")
             t.cheat("::setlevel defence 60")
             t.ticks(3)
-            -- the Paladin's gift needs 7 free slots (upass_encounters.rs2:101): the bridge/well items already spent go on the floor first
+            -- Room for the Paladin's gift AND the three badges: LostCity sir_jerro.rs2 [opnpc1,upass_paladin1] inv_adds seven
+            -- separate items (2 meat_pie, stew, 2dose1attack, 2 bread, 2doseprayerrestore), and each knight's [ai_queue3]
+            -- obj_adds its badge on its own tile (sir_jerro.rs2:7-8) for the player to pick up -- so 7 + 3 = 10 free slots.
+            -- (b52: with only 7 free the first badge read "You don't have enough inventory space.")
+            -- The bridge/well items already spent go on the floor first.
             for _, spent in ipairs({ "woodplank", "caverailing", "shortbow", "bronze_arrow", "spade" }) do
                 if select(2, t.inv.count(spent)) > 0 then
                     t.player.drop(spent)
@@ -718,12 +900,12 @@ return {
                 return free
             end
             local lobsters_dropped = 0
-            while free_slots() < 7 and select(2, t.inv.count("lobster")) > 3 do
+            while free_slots() < 10 and select(2, t.inv.count("lobster")) > 3 do
                 t.player.drop("lobster")
                 t.ticks(2)
                 lobsters_dropped = lobsters_dropped + 1
             end
-            t.check("killJerro-room", free_slots() >= 7, "free backpack slots before the knight's talk: " .. free_slots() .. " (7 needed); lobsters dropped " .. lobsters_dropped .. ", lobster x" .. tostring(select(2, t.inv.count("lobster"))))
+            t.check("killJerro-room", free_slots() >= 10, "free backpack slots before the knight's talk: " .. free_slots() .. " (10 needed: 7 supplies + 3 badges); lobsters dropped " .. lobsters_dropped .. ", lobster x" .. tostring(select(2, t.inv.count("lobster"))))
             t.exec("killJerro-talk", t.player.talk_to, "upass_paladin1", 1)
             local drained, drain_kind = t.chat.drain{ max_pages = 20 }
             t.ticks(3)
@@ -1105,7 +1287,15 @@ return {
             local _, start = t.world.tile()
             t.check("leg.8.start", true, "at " .. start.x .. "," .. start.z .. " level " .. start.level .. "; hitpoints " .. hp_now() .. "; upass stage " .. tostring(select(2, t.quest.stage())))
             -- brought along: food for the Kalrag and Iban fights (Quest Helper: Food), and the gauntlets come from Klank below
-            t.cheat("::give lobster 15")
+            -- Leave three slots free: Klank's gauntlets (klank.rs2:35) and the leg's later pickups need room. A full
+            -- backpack lost the gauntlets ("Your inventory is full.") when leg 7 ended on 19 items (seam3 full run).
+            local leg8_free = 0
+            for slot = 0, 27 do
+                local _, row = t.inv.slot(slot)
+                if row and row.name == "" then leg8_free = leg8_free + 1 end
+            end
+            local leg8_lobsters = math.min(15, math.max(0, leg8_free - 3))
+            if leg8_lobsters > 0 then t.cheat("::give lobster " .. leg8_lobsters) end
             t.ticks(2)
             eat_if_low(90)
             -- Klank hands Klank's gauntlets over once the doll is found (klank.rs2:35 found_doll); he stands at 2323,9804 (m36_153.spawn)
@@ -1261,6 +1451,8 @@ return {
             t.ticks(3)
             t.check("goUpToLathasToFinish-level", here().level == 1, "now " .. here().x .. "," .. here().z .. " L" .. here().level)
             t.exec("goto-talkToKingLathasAfterTemple", t.player.goto_tile, 2578, 3292, 1)
+            local reward_snapshot_result, reward_snapshot = t.skill.snapshot()
+            t.check("reward.snapshot", reward_snapshot_result == "ok", "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
             t.exec("talkToKingLathasAfterTemple", t.player.talk_to, "kinglathas", 1)
             t.exec("talkToKingLathasAfterTemple-dialog", t.chat.play, {
                 "npc:The traveller returns",
@@ -1270,6 +1462,8 @@ return {
                 "npc:Your loyalty",
             })
             t.ticks(3)
+            t.expect("reward.agility_xp", t.skill.expect_gain("agility", 3000, reward_snapshot))
+            t.expect("reward.attack_xp", t.skill.expect_gain("attack", 3000, reward_snapshot))
             t.quest.expect_complete()
             t.finish(0)
             return

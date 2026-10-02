@@ -1,1 +1,0 @@
-b49r2 run 1 (--from-leg 4): all 39 leg-4 rows PASS incl. fall pocket; only change: replaced the ROUND 2 t.blocked with goto-climbDownWell (2417,9677, outside fall area). Next stop is leg 5's own marker. Checkpoint 4 refused once in this run (skeleton combat at leg 5 start) but 4.ckpt from the full run exists.
