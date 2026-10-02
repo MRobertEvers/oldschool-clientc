@@ -63,7 +63,7 @@ server ticks. The full run plays every leg from tick 0, and a long quest passes 
 through. Monkey Madness I passed it before leg 6 and used 2,654 ticks in all. The run then ends
 with `run.unfinished` and `the client exited 0 at the frame budget` (running.md). Once the legs you
 have written add up to more than about 1,500 ticks, put `max_frames = <n>,` beside `fixture` (n is
-about 30 per tick, ceiling 240000). The ticks column of the last full run's ledger gives the sum.
+about 30 per tick, ceiling 480000). The ticks column of the last full run's ledger gives the sum.
 
 ## Working one leg
 
