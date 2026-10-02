@@ -993,6 +993,34 @@ a Quest Helper `NpcStep` WorldPoint for a large npc is the tile under its centre
 the parity driver from leg 8 to quest complete 43/0 (12 lobsters at 70 combat: bring antipoison,
 food or Protect from Melee). Open: a spell bypasses the Slayer gate (tree-wide, `~pvm_default_spell`).
 
+## Seam pass vm-b1-seam2 (2026-10-02, batch vm-b1)
+
+(a) Cold War's course water is walked and entered (gaps-world, "Penguin Agility Course"): the engine
+splits the sea family into `TERRAIN_OCEAN_SEA` (blocks walking even without BLOCK) and
+`TERRAIN_OCEAN_WADE` (overlay 537, the course only, walked by the cache's BLOCK); content (OSRS-Content a0bdfa073c)
+climbs into the water from the ledge, out by the Ice steps, onto the first stone, and widens
+`~coldwar_on_iceberg` to the level-0 water (before, entering it took the suit off and the
+instructor said "Move along, civilian."). Selftests: sailing 575/0 on both sides; the full
+selftest has the same 11 FAILs as its HEAD baseline. Proof: `build/seam_state/vm-b1-seam2/cw_water/`
+(scratch 18/0 on the shared binary; a copy of coldwar.lua through the course to stage 105, 190/1
+with the one FAIL an icicle press flake retried PASS).
+
+(b) helper_coverage's `narrating_writes` flags any stage write whose branch has a `mes()`, then pins
+it on whichever guide step shares two words with the branch: Larry's book hand-over and the KGP
+debrief made `talkToThing` and `killIcelords` grade CONTENT_GAP although both were real (the Thing's
+dialogue; three Icelords killed). Check the flagged file:line against the step before trusting it.
+In an OSRS transcript `{{tact|receives=...}}` / `{{tact|gives=...}}` is a silent item transfer, no
+game message: the invented "Larry gives you a clockwork book." (two branches) and "You hand over the
+three mission reports." are removed (OSRS-Content a0bdfa073c). Open: the Thing's Talk-to is op3 in `all.npc` (op1 is
+Shear) but content binds `[opnpc1,sheep_shearer_the_thing]`, so a test talks by pressing Shear.
+
+(c) Darkness of Hallowvale's Burgh inn Broken wall climbs (gaps-world, "Burgh de Rott inn"); the next
+blocker is the pub trapdoor's `~climb_ladder(-1)` from plane 0 into an underground basement ("You
+can't go any further."), the same shape as Seam pass 37 (b).
+
+(d) Not done this pass: ladder legs cut by route order (The Fremennik Isles; `ladder.py` and
+relay.md unchanged) -- no fixer reported; the triage row stands for the next pass.
+
 ## Seam pass matthew-mbp-m4-b49-seam1 (2026-10-02, batch matthew-mbp-m4-b49)
 
 (a) An IF1 button runs only `[if_button,<if>:<com>]`. A real click on an `if3=no` component sends
