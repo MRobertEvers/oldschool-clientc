@@ -76,7 +76,7 @@ quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	sonnet-b45			
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34			
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo				
-quest_hero	hero	heroesquest		1	content_bug	matthew-mbp-m4-b51	content_bug: killGrip (HeroesQuest.java:411) needs a Black Arm partner to open gripcbshut (brimhaven_scarface_mansion.rs2:11-30) with a pirate_guard within 4 tiles; no solo lure exists, goto out of the sealed room is a cheat		
+quest_hero	hero	heroesquest		1	todo	matthew-mbp-m4-b51	RETRY after 39c813ae5: ::hero_partner_lure (summon_grip case 1) and ::hero_partner_candlestick (the partner's trade) now exist; follow test/quests/wip/hero/relay.md -- goto-sidedoor to 2781,3196 (garden side), add magic_shortbow/rune_arrow/ranged 99 to setup, replace the t.blocked after useKeyOnSideDoor with the relay's rows (lure, ranged kill through snipable_wall from 2780,3198, PARTNER-marked getCandlestick), then the Straven hand-in and the rest of the quest		
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15			
 quest_horror	horror	horrorfromthedeep		3	green	sonnet-b45			
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16			
