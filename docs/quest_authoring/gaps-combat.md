@@ -107,12 +107,19 @@ Grade the attack row on the press being accepted (`ok`-or-`timeout`, with the ve
 it names the row text pressed and the hp it read), and put the outcome in `npc.await_dead`'s row.
 Raising `ticks` is not the fix and neither is more accuracy.
 
-## `use_item_on_item` order: `[opheldu,item_a]`; `last_item` vs `last_useitem`; `sscompile` argument counts (seam20)
+## `use_item_on_item` order: `[opheldu,item_b]` first; `last_item` vs `last_useitem`; `sscompile` argument counts (seam20)
 
 *Origin: section 8 ("Gaps reported by authors").*
 
-`use_item_on_item(item_a, item_b)` arms `item_a` and clicks `item_b`, so the trigger that fires is
-`[opheldu,item_a]` -- and content declares only ONE direction of most pairs. Current Affairs'
+`use_item_on_item(item_a, item_b)` arms `item_a` and clicks `item_b`. The server tries the CLICKED
+item's trigger `[opheldu,item_b]` first, then the dragged one's `[opheldu,item_a]`, then the two
+categories (`ToriRSServer_ScriptsRunOpheldu`, rungs 1-4, LostCity's order). (Corrected in seam pass
+matthew-mbp-m4-b49-seam1: this heading said `[opheldu,item_a]` fires, which the Current Affairs
+example below already contradicted.) A rung-1 script that answers instead of declining swallows the
+pair: Tai Bwo Wannai Trio's `("banana", "knife")` hits `[opheldu,knife]` (fletching's
+`cut_logs.rs2`) and says `Nothing interesting happens.`, while `("knife", "banana")` reaches
+`[opheldu,banana]` and slices (`quest_tbwt.rs2:233`); `("tbwt_sliced_banana", "karamja_rum")` makes
+the banana rum. Content declares only ONE direction of most pairs. Current Affairs'
 `use_item_on_item("current_affairs_form", "charcoal")` answered `Nothing interesting happens.` for a
 whole run because no `[opheldu,charcoal]` exists;
 `use_item_on_item("charcoal", "current_affairs_form")` is the same physical act and lands.

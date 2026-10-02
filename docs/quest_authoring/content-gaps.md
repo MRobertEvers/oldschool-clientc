@@ -106,3 +106,15 @@ black candle, the sapphire lantern and Olaf's planks, but none for a candle lant
 the unlit lantern answers "Nothing interesting happens." The tunnels never test for a light either,
 so a test that falls in walks on with the lantern out. Stay on the marked path; report a relight
 only if a quest needs one.
+
+## `no_row <npc>` for a world npc the guide names: no spawn row at all (Zembo, matthew-mbp-m4-b49-seam1)
+
+Symptom: `t.npc.nearest("zembo", 15)` answers `no_row zembo (id 13655, searched N npc(s) within 15)`
+at the guide's WorldPoint, and grep finds the symbol in no `.spawn` file. The generated squares
+(`areas/world/configs/m*.spawn`, `gen_spawns.py`, do-not-hand-edit) dropped him. The fix is content
+ported from its source, kept in a quest-local `.spawn` the generator cannot clear (the
+`quest_prince.spawn` precedent): Tai Bwo Wannai Trio's Zembo is `quest_tbwt/configs/tbwt_zembo.spawn`
+(2925,3143, LostCity m45_49.jm2), `tbwt_zembo.inv` `[boozeshop]` and `tbwt_zembo.rs2` (LostCity
+`zambo.rs2`). Drive him with `talk_to` + `choose:Yes please.` + `t.shop.attach("boozeshop")`, or
+`t.shop.open("zembo", 3, "boozeshop")`; rum is 30 coins (conformance row
+`seam.zembo_boozeshop_sells_rum`).
