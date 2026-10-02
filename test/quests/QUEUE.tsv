@@ -142,7 +142,7 @@ quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	tod
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
-quest_royaltrouble	royaltrouble	royaltrouble		4	green	vm-b1			
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo	vm-b1	REVERTED by sampler (vm-b1): plankRock1 is never driven -- leg 6's goto-plankRock2 (ledger row 194, shot 386) ::goto's 2553,10295 -> 2546,10287, onto the first rock island (guide jumpIsland1) past the slippery rock 2548,10288 the guide's plankRock1 names, and the round-3 fix deleted the only plankRock1 press (and plankRock2-again) instead of reordering; coverage reads FULL only because plankRock1 matches an unrelated line naming the trap symbol. Stand at 2549,10288 from searchFire1 (path2p2, plain travel), use the plank on 2548 (lands 2547), then plank 2545, 2542, 2539 in order -- no goto onto or past any rock.		
 quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27			
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
