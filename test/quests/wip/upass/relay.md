@@ -299,3 +299,28 @@ Owner: Underground Pass is a LostCity quest; fix it against the LostCity impleme
   separate supply items and each knight's [ai_queue3] obj_adds its badge (:7-8), so the leg needs 7 + 3 = 10 free slots.
   Leg 5 now frees 10. From the leg-4 checkpoint, legs 5-8 ran 112/0 to quest.varp_complete 10 and the scroll
   (build/quest_gate/upass.leg5). Round 2 = a full run + review + sample of the committed file.
+
+## seam upass_maze_bridge_fall_way_back (matthew-mbp-m4-b52-seam3): navigateMaze walks a fall back, no goto
+- Owner rule: settled from LostCity. There are SEVEN `walkway_upass_narrow_mid_top` bridges (LostCity maps/m37_150.jm2:8620,
+  8705,8820,8878,8934,9066,9067 = ours maps/m37_150.jl2:4266-4272): 2380,9634 2387,9631 2392,9627 2396,9636 2399,9632 2406,9632
+  2406,9637. The route crosses 2380,9634 2387,9631 2392,9627 2399,9632 2406,9637. 0_37_150_38_32 is 2406,9632, NOT the route's bridge 5.
+- A fall (LostCity upass_obstacles.rs2:308-321, ours :370-385) lands TWO tiles off the bridge, south (north for 2399,9632 and
+  2406,9632): p_exactmove already teleports to its end (LostCity engine Player.ts:2109-2110), then p_teleport steps one more.
+- Where it lands (LostCity GameMap.ts collision, model build/seam_state/matthew-mbp-m4-b52-seam3/scratch/maze_graph.py; ours has
+  the same connectivity, so no map change): bridges 1-3 -> the pit south of the maze = the START area: walk to 2373,9634 ->
+  2379,9634 and cross 1,2,3 again. Bridge 4 -> 2399,9634, between bridges 2 and 3: cross 3, 4 again. Bridge 5 -> 2406,9635, the
+  pit 2406..2410,9632..9635: walled in on foot, but it is the east side of bridge 2406,9632. Walk to 2407,9632, cross 2406,9632
+  WEST to 2405,9632 (a fall there lands 2406,9634, back in the pit; retry), then 2403,9632 -> 2403,9637 -> 2405,9637, bridge 5 again.
+- navigateMaze now does exactly that: a `walk-navigateMaze-<n>-...` row per hop, a `navigateMaze-<n>-bridgeK` / `-pitExit-2406-9632`
+  row per press (crossed / fell, judged by tile), no goto_tile.
+- Proof: scratch maze_falls.lua (agility 1) 40/40 and maze_tail.lua x16 375/375 (every recovery: bridge 1/2/3 -> bridge 1, bridge 4
+  -> bridge 3, bridge 5 -> pit exit incl. north falls); --only-leg 4 75/0 with natural falls on bridges 1 and 2.
+- Leg 8 fix (same seam): the maze's changed roll count shifted the RNG and leg 7 ended on 19 items, so leg 8's `::give lobster 15`
+  filled the pack and Klank's gauntlets were lost ("Your inventory is full.", klanks_gauntlets-given FAIL). Leg 8 now gives
+  min(15, free slots - 3) lobsters.
+- Full run (seam3, 14:45): 289/289 PASS, gate green, helper_coverage FULL (77 DRIVEN, 1 TRAVEL), navigateMaze DRIVEN; rows
+  128-160 bridge 1 fell, bridge 2 fell, walked back to 2379,9634 and crossed 1-5 in order; quest.scroll + 3000 Agility/Attack.
+- Closer (seam3): the file above is saved as `test/quests/wip/upass/seam3_maze.lua` (the closer never commits
+  test/quests/upass.lua). The closer's suite run of it: 289/289, gate green, helper_coverage FULL (77 DRIVEN, 1 TRAVEL);
+  navigateMaze rows 126-160 (bridge 1 fell to 2380,9632, bridge 2 fell to 2387,9629, both walked back, then 1-5 crossed);
+  klanks_gauntlets-given row 242; reward rows 281-285; quest.scroll 401. Adopt it as upass.lua on the retry.
