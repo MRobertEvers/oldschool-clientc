@@ -221,3 +221,6 @@
 - Added leaveFallArea: goto 2453,9716, swamp bubbles, five rockslides, caverockpile -> 2482,9715 (rows enterSwampBubbles-landed, leaveFallArea-rockslide1..5, leaveFallArea, leaveFallArea-surfaced), then the old goto-climbDownWell. GUIDE-GAP marker gone.
 - navigateMaze now retries each bridge (8 tries, walks the seam2 leg hops). The pit under bridge 5 (2406,9637) lands in a pocket 2406-2410,9632-9635 that walk_to cannot leave; a failed roll there is put back at 2405,9637 with goto_tile (plain travel, crosses nothing).
 - Full run 233/234: the one FAIL is killJerro-supplies (leg 6/7, bread x0 stew x0 after the knight talk), moved by the RNG shift -- not leg 4.
+
+## orchestrator note (matthew-mbp-m4-b49 round 2)
+- Two markers in test/quests/upass.lua: leg 4's goto 2417,9677 into the fall area (drive the rockslides + caverockpile instead; the grader reads that goto as CHEAT), and leg 5's killJerro supplies (free 7 slots before the knight's talk). Legs 4 and 5 reopened; notebooks retired as leg<K>.progress.b49r1.md.

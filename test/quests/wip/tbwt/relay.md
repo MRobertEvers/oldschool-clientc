@@ -132,3 +132,6 @@
   each try re-nets" is now false: leftover karambwanji stay in the pack, so the re-net each try is optional.
 - getMonkeyCorpse is luck: in copy run 1 the monkey wandered off after 14 wind strikes and the whole tail
   cascaded (167/211). Copy run 2 needed 15 casts. Raise the cap (`while casts < 30`) -- 14 is not enough.
+
+## orchestrator note (matthew-mbp-m4-b49 round 2)
+- test/quests/tbwt.lua is seam 2's proven copy (wip/tbwt/seam2_proven.lua, 211/0 end to end): it adds the three claim legs (the XP is claimed from each brother after completion, not at completion) and literal XP rows. The scroll now matches the wiki (no coins line) -- check whether the completion still pays 2000 coins (talkToTimfrakuEnd.coins at ~739) against quest_tbwt.rs2 and the wiki, and keep or drop that row accordingly. Remove the two stale CHECK markers from the header.
