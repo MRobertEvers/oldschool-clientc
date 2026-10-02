@@ -1,1 +1,0 @@
-{"test_id":"coldwar","leg":4,"outcome":"blocked","runs":3,"last_step":"enterAgilityCourse","last_failure":"","blocker":"agilityExitWater: course water leg (2628-2635,4053-4065,0) unwalkable (engine ocean rule on overlay 537), nothing takes the player into it","doc_gaps":[],"compacted":false}

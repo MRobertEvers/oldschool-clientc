@@ -1,1 +1,0 @@
-run1: enterAgilityCourse reach_failed (walk from debrief room never moves); run2 goto 2634,10404 still can't reach (north side); run3 goto 2633,10403 -> pass through stage 100, then t.blocked agilityExitWater. Done.

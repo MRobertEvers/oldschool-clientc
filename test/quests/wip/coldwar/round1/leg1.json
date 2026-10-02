@@ -1,1 +1,0 @@
-{"test_id":"coldwar","leg":1,"outcome":"done","runs":2,"last_step":"talkToLarryInRelleka","last_failure":"","blocker":"","doc_gaps":["new_quest.py needs --qh-root /home/user/quest-helper/src/main/java/com/questhelper/helpers/quests to find the helper dir; its scaffold is not in legs form"],"compacted":false}
