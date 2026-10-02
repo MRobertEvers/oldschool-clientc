@@ -992,3 +992,41 @@ a Quest Helper `NpcStep` WorldPoint for a large npc is the tile under its centre
 2613,10278). Melee from 2613..2617,10277; the heavy box lands on 2615,10277. Proof: snake 28/0,
 the parity driver from leg 8 to quest complete 43/0 (12 lobsters at 70 combat: bring antipoison,
 food or Protect from Melee). Open: a spell bypasses the Slayer gate (tree-wide, `~pvm_default_spell`).
+
+## Seam pass matthew-mbp-m4-b49-seam1 (2026-10-02, batch matthew-mbp-m4-b49)
+
+(a) An IF1 button runs only `[if_button,<if>:<com>]`. A real click on an `if3=no` component sends
+the op-less IF_BUTTON and `handle_if_button` runs `ToriRSServer_ScriptsRunIfButton(uid, 0)`, one
+rung, as LostCity's `IfButtonHandler.ts:31` does; the numbered `[if_button<N>,...]` is the IF3 op
+form. Ratcatchers' snake charm bound its ten buttons `[if_button1,ratcatcher_flute:*]`, so no press
+played the tune; the content now binds `[if_button,...]` (`ratcatchers.rs2`), the dispatcher is
+unchanged. Proof: scratch `flute_if1` 0 -> 27/0 (stage 105, "procession of rats"); the committed
+test with its `t.blocked` replaced by the tune ran to the completion scroll, 211/0; conformance row
+`seam.if1_button_unnumbered_trigger`. Still bound the dead way: `mcannon_broken_cannon.rs2:103-159`
+(7, green only because content arms op 1 and the test presses op 1) and `grim_witchhouse.rs2:47-89`
+(Grim Tales' piano, 15, unarmed). Detail: traps-23-33, Trap 33.
+
+(b) Zembo had no spawn, script or stock, so Tai Bwo Wannai Trio's getRum answered `no_row zembo`.
+Ported from LostCity_Server (m45_49.jm2 `0 45 7: zambo` = 2925,3143; `zambo.rs2`; `karamja.npc`
+`[zambo]` wanderrange 3 and shop params 700/1000/20; `karamja.inv` `[boozeshop]`) into
+`quest_tbwt/` (`tbwt_zembo.spawn`, `.inv`, `.rs2`; the barcrawl arm deferred like
+`deadmans_bartender.rs2`). Proof: scratch `seam1_zembo_b` 17/17, the parked file with the buy rows
+47/0 to the end of leg 1; conformance row `seam.zembo_boozeshop_sells_rum`. Measured on the way:
+`use_item_on_item(a, b)` fires `[opheldu,b]` first (gaps-combat, corrected).
+
+(c) Underground Pass's fall pocket is not sealed: five rockslides and a rock pile, no content change
+(gaps-world, "the fall pocket"). The b47 file with its leg-4 GUIDE-GAP replaced by the driven block
+ran rows 1-109 PASS and `helper_coverage` grades `leaveFallArea` DRIVEN; it stops next at
+`navigateMaze`, where the extra slide rolls shift the account-seeded RNG and a fall off bridge
+2406,9637 lands in a pit (2406,9635) with no known walk back. The woodplank is a ground spawn
+(m38_151.spawn:35, 2435,9726), reached after the bridge, not by `::give`.
+
+(d) Troll Romance: Arrg's damage is the OSRS wiki's and the b47 death was test-side (verbs-combat,
+Arrg). The sled rides play and `t.cutscene.await` sees 5/5 keyframes each; they never started
+because Curse of Arrav's name binding on the Trollweiss cave mouth and crevice shadowed the maplink
+(gaps-world, "a name binding shadows the maplink"). FIXED by the closer in `curseofarrav.rs2` (the
+fixer proved it on a private pack, before 12/6, after 18/18, control 12/6; running.md). The parked
+file with the armour kit ran 97/97 to the scroll on the shared pack (`closer_tl_shared`).
+
+Not run this pass: the design seam "a travel goto across a guide-named obstacle is CHEAT" (Regicide
+9c28a4e0c) had no fixer; `helper_coverage.py` is unchanged.

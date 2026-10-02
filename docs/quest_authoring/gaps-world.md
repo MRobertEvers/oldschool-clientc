@@ -785,3 +785,30 @@ guide requires (Rimmington, a Workshop, a Crafting table 3) at the Rimmington po
 `enterPoh` is the portal's op 2 `Home` (op 1 Enter opens a four-option menu); then
 `click_loc("poh_clockmaking_3", 1)` + `choose:Clockwork` makes the mechanism and a second click +
 `choose:Clockwork toys` + `choose:Clockwork penguin` makes `peng_suit_unwound`.
+
+## A cave or tunnel click answers a chat line and the tile is unchanged: a name binding shadows the maplink (FIXED matthew-mbp-m4-b49-seam1)
+
+Symptom: `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (Troll Romance:
+`A snowy cave.`) and `t.world.tile()` is where you stood. Every maplink loc is bound by category,
+`[oploc1,_maplink_transition]` (`ladders_stairs/scripts/maplink.rs2:77`), and a quest that binds the
+same loc BY NAME shadows that for every player. Curse of Arrav bound
+`[oploc1,trollromance_caveentrance]` and `[oploc1,trollromance_snow_cavewall_crevis]` for its own
+soft-skip and printed `A snowy cave.` otherwise, so Troll Romance could not enter or leave the
+Trollweiss cave, the sled was never worn (`Ride` answered `You cannot use that here!` from the cave
+tile 2772,10232) and both sled `.cutscene` rows failed. FIXED in `curseofarrav.rs2`: the fallthrough
+is `~maplink_transition;`, so the cave lands at 2803,10187 and the crevice at 2778,3869 (conformance
+row `seam.trollweiss_cave_maplink_not_shadowed`). Before blaming `maplink.dbrow`, grep the loc symbol
+across `server/scripts/` for a name-specific `[oploc<N>,<loc>]`.
+
+## Underground Pass: the fall pocket is left over five rockslides and a rock pile (matthew-mbp-m4-b49-seam1)
+
+Symptom: after the swamp (`upass_swampbubbles1`) or a failed rope swing you stand at 2485,9649, and
+`walk_to` toward the exit never moves -- it reads as "sealed by collision". It is not: the guide's
+`leaveFallArea` line crosses five `rockslide2_obstacle_upass` (op 1 Climb-over,
+`upass_obstacles.rs2:29`) at 2479,9629 / 2467,9646 / 2456,9633 / 2455,9647 / 2448,9650, each clicked
+from its east side, then `caverockpile` 2443,9651 (op 1 Climb, `:77`) surfaces you at 2482,9715.
+LostCity's m38_150 places the same slides and pile. A slip ("...but you slip back down.") costs
+3 hp; at Agility 1 about ten slips took 40 hp to 6, so carry food. `upass_swampbubbles1` 2465,9713
+answers `I can't reach that!` from 2482,9715; click it from Koftik's ledge 2453,9716. The full route
+with hops: `test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
+as the maze bridges: list the locs with an op in a pocket before calling it a map bug.

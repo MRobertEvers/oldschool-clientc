@@ -332,14 +332,31 @@ still. An IF1 cache interface with no onop and no varptriggers (`rd_combolock`,
 server owns its state, shown back through `if_settext`: drive it with `t.ui.invoke` and read the
 component text (Sir Ren's lock, seam20).
 
-**An IF1 button bound as `[if_button1,...]` never fires (matthew-mbp-m4-b47).** The server runs
-`[if_button<N>,<if>:<com>]` first only for a press that carries an op 1..10, then falls through to
-`[if_button,<if>:<com>]` (`torirs_server_scripts.c`, the `op_num >= 1 && op_num <= 10` branch). An
-IF1 press is `op=0`, so it reaches only `[if_button,...]`. Ratcatchers binds its flute's notes as
-`[if_button1,ratcatcher_flute:rc_flute_*]` (`ratcatchers.rs2:784-800`). No press from the test can
-play them: `op=0` skips the numbered trigger, and `op=1` takes the IF3 path the IF1 button never
-answers. That is a content bug (the trigger should be `[if_button,...]`), not a driving miss:
-`t.blocked` on it as a `content_bug`, as the Ratcatchers row does.
+**An IF1 button bound as `[if_button1,...]` never fires for a real click (matthew-mbp-m4-b47;
+FIXED for Ratcatchers in seam pass matthew-mbp-m4-b49-seam1).** A real click on an IF1 component
+(`if3=no` in its `.if`, any `buttontype`) sends the op-less IF_BUTTON (`app_send_if_button`,
+`src/app/app_net.c`), and the server runs `[if_button,<if>:<com>]` for it and nothing else
+(`handle_if_button` -> `ToriRSServer_ScriptsRunIfButton(uid, 0)`). That is LostCity's shape:
+`IfButtonHandler.ts:31` asks `getByTriggerSpecific(IF_BUTTON, com)`, one rung. The numbered
+`[if_button<N>,...]` is the IF3 op form, tried first only for an IF_BUTTON1..10 press, which then
+falls through to `[if_button,...]`. So an IF1 binding belongs in `[if_button,...]`, and the fix is
+content, never the dispatcher. The flute (`ratcatchers.rs2`, all ten `rc_flute_*` buttons) now
+binds `[if_button,...]`: the parked file's notes pressed with `t.ui.invoke(w, 0)` play the tune to
+stage 105, and a copy of the committed test with its `t.blocked` replaced runs on to the completion
+scroll (211/0).
+
+`t.ui.invoke(w, 1)` on an IF1 button is NOT the real click, and what it sends depends on the
+server's arming (TORIRSSERVER_VERBOSE=1 shows the packet). On an unarmed IF1 button it degrades to
+the plain IF_BUTTON (`<- IF_BUTTON 282:12` for the flute, seam1_flute_op1). On one content armed
+with `if_setevents(..., ^if_event_op1)` it sends IF_BUTTON1 and runs `[if_button1,...]`
+(`<- IF_BUTTON1 409:3` in `mcannon`). A player's menu row on an IF1 button carries no op slot
+(`action_index -1`, `app_minimenu.c`), so it skips the numbered send and goes out as the plain
+IF_BUTTON (`RS_IF1_ApplyButtonClick`). Dwarf Cannon's toolkit (`mcannon.lua`, six
+`t.ui.invoke(w, 1)` rows, `mcannon_broken_cannon.rs2:87-93` arming op 1) is green on a press that,
+going by that code path, no click makes. Press an IF1 button with `op=0`. If that does nothing and
+the `.rs2` binds `[if_button1,...]` on an `if3=no` component, it is a `content_bug` naming that
+line. Still bound that way when this was written: `mcannon_broken_cannon.rs2:103-159` (7) and
+`grim_witchhouse.rs2:47-89` (Grim Tales' piano, 15, unarmed, so no press reaches it at all).
 
 `%if1..%if6` are `scope=temp` screen scratch since seam24 (every open screen refills them; Death's
 Coffer's balance is `%death_coffer_balance`, and `~death_coffer_login_migrate` moves a pre-seam23

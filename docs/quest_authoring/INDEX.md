@@ -41,6 +41,7 @@ topic file with one line added here.
 - `the cast never ran` right after a `p_delay` step (a chop, a door); `refused: player is delayed`; `(press N: ...)` in a cast detail; `zanarismagicdoor` -> gaps-world: Leaving the Entrana dungeon
 - `walk_to ... stalled at ... -- locs with an op beside the stop: <loc>`; a walk that stops before a rock bridge, stepping stone or log -> verbs-pointer: A walk stops at an obstacle (seam34); seam-facts: Seam pass 34 (b)
 - a ship trip lands in the sea (2831,3334,0); `useGangPlank` has no menu row; the Entrana monks' ferry -> seam-facts: Seam pass 34 (g) (FIXED); docs/quests/ladders/deviousminds.notes.md
+- Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
 
 ## Pressing and clicking
 
@@ -83,6 +84,8 @@ topic file with one line added here.
 - a tile read after a `mes()`-first trigger is the OLD tile -> gaps-dialogue: A first effect that
 - a top-down shot, `QUEST shot-aim` -> verbs-root-and-quest: The shot camera
 - a seam row turned red when rows were added above it -> gaps-world: A seam row that
+- `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (`A snowy cave.`) and the tile is unchanged; `Ride` says `You cannot use that here!` after it -> gaps-world: A cave or tunnel click answers a chat line ... a name binding shadows the maplink
+- `t.ui.invoke(w, 0)` on an IF1 button does nothing and the `.rs2` binds `[if_button1,...]`; `t.ui.invoke(w, 1)` answers on one button but a real click would not -> traps-23-33: Trap 33 (the IF1 dispatch, FIXED for Ratcatchers); seam-facts: Seam pass matthew-mbp-m4-b49-seam1 (a)
 
 ## Dialogue and chat
 
@@ -146,6 +149,8 @@ topic file with one line added here.
 - a floor obj on a deck, `ground 0` -> seam-facts: Seam pass 18, (b)
 - a private ground drop is not there yet -> gaps-combat: Three world facts
 - an xpreward lamp; a make-X menu -> seam-facts: Seam pass 25, (e); verbs-ui-and-npc: Skill-multi menus
+- `use_item_on_item(a, b)` says `Nothing interesting happens.` but the reverse order works; which of `[opheldu,a]`/`[opheldu,b]` fires -> gaps-combat: `use_item_on_item` order (`[opheldu,b]`, the clicked item, first; corrected matthew-mbp-m4-b49-seam1)
+- `no_row zembo` at Musa Point; Karamjan rum for Tai Bwo Wannai Trio -> content-gaps: `no_row <npc>` for a world npc the guide names
 
 ## Vars, stages and the journal
 
@@ -197,6 +202,7 @@ topic file with one line added here.
 - a `::spawn` drop hunt sees too few drops (Imp Catcher beads) -> sampler-findings: Sample sonnet-b34, (b)
 - battle mage `hp no bar -> no bar`; an `[opnpc2]` ending in `p_opnpc(2)` -> traps-23-33: A binding that re-enters itself
 - a LostCity `npc_getmode = opplayer2` test never true mid-fight -> seam-facts: Seam pass 30 (c)
+- Troll Romance: `player.died` against Arrg; what kit wins -> verbs-combat: the Arrg paragraph at the end
 
 ## Completion and rewards
 
@@ -278,6 +284,7 @@ topic file with one line added here.
 - `--no-publish`, `TORIRS_SCRIPT_DIR`; relog and MAP_BUILD_COMPLETE -> seam-facts: Seam pass 17; Seam pass 18, (d)
 - a stalled script (`TORIRSSERVER_VERBOSE=1`) -> running: `boss_fight=yes`
 - a stale `docs/quests/` walkthrough -> running: Resuming; gaps-world: Read `docs/quests/<quest>.md`
+- proving a content line in a file outside your seam without touching the shared tree; `TORIRSSERVER_SCRIPTS=<private pack>` -> running.md: the private-pack paragraph at the end (matthew-mbp-m4-b49-seam1)
 
 ## Sea and session
 

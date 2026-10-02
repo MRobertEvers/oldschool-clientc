@@ -211,7 +211,7 @@ banners: the topic file named in each group heading.
 ### Held items and shops -- `verbs-inventory-shops.md`
 
 - `t.player.use_on(item, target, opts)` -> `ok unsupported refused covered`; `target` is a `{kind,id}` TABLE.
-- `t.player.use_item_on_item(a, b)` -> fires `[opheldu,a]`; grep both orders.
+- `t.player.use_item_on_item(a, b)` -> tries `[opheldu,b]` (the clicked item) first, then `[opheldu,a]`; grep both orders.
 - `t.player.inv_op(item, op)` -> `ok`/error; a numbered held op (`refused` = never sent, `timeout` = sent, no answer).
 - `t.player.equip(item)` / `unequip(item)` / `drop(item)` / `emote(name)`.
 - `t.shop.open(npc, op=3, shop_inv)`, `t.shop.attach(shop_inv)`, `t.shop.buy(item, n)`, `t.shop.close()`.
