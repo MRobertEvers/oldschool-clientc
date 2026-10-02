@@ -821,7 +821,8 @@ return {
                 t.check("leg.7.start", chapters() == 1 and select(2, t.inv.count("woodplank")) == 1, "varb2148 chapters = " .. tostring(chapters()) .. ", plank x" .. tostring(select(2, t.inv.count("woodplank"))) .. " at " .. tile_str())
 
                 -- the rock at 2548,10288 first (east of the one leg 6 crossed), then back west over 2545 again, 2542 and 2539
-                -- leg 6 ended at 2544 beside the rock at 2542: lay the plank on it from here, no goto past it
+                plank("plankRock1", 2549, 10288)
+                plank("plankRock2-again", 2546, 10287)
                 plank("plankRock3", 2543, 10287)
                 plank("plankRock4", 2540, 10286)
 
