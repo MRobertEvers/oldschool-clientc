@@ -1,0 +1,61 @@
+# ladder darknessofhallowvale quest_dir=quest_darknessofhallowvale guide=src/main/java/com/questhelper/helpers/quests/darknessofhallowvale/DarknessOfHallowvale.java steps=58 legs=1:1-11@s0 2:12-19@s60 3:20-30@s0 4:31-41@s30 5:42-47@s220 6:48-58@s260
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	climbOverBrokenWall	ObjectStep<startQuest	loc:burgh_inn_climb_over	3491,3230,0					
+1	2	0	enterBurghPubBasement	ObjectStep<startQuest	loc:burgh_inn_trapdoor_multiloc?	3490,3232,0					
+1	3	0	talkToVeliaf	NpcStep<startQuest	npc:myq5_veliaf_child	3494,9628,0				Is there something I can do to help out? | Yes.	quests/quest_sinsofthefather/scripts/sinsofthefather.rs2:136 opnpc1; +8
+1	4	10	leavePubBasement	ObjectStep	loc:burgh_inn_basement_ladderup	3490,9632,0	Leave the Myreque base.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2
+1	5	10	usePlankOnBoat	ObjectStep	loc:sang_boat_broken_multiloc	3524,3178,0	Fix the boat in south Burgh de Rott.		Hammer; Plank; Nails	Yes.	quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2:142 oploc1
+1	6	20	usePlankOnChute	ObjectStep	loc:sang_boathouse_chute_broken_multiloc	3523,3175,0	Fix the boat chute.		=	Yes.	quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2:169 oploc1
+1	7	30	pushBoat	ObjectStep	loc:sang_boat_broken_multiloc	3524,3178,0	Push the boat.				quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2:142 oploc1
+1	8	30	boardBoat	ObjectStep<returnToMeiyerditch	loc:sang_boat_water_multiloc?	3523,3170,0	Board the boat.				
+1	9	30	kickBoard	ObjectStep	loc:meiyerditch_wall_floorboards_multi_loc	3589,3173,1	Climb up the walls and search the marked floor.			Yes.	quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:47 oploc1
+1	10	30	climbDownBoard	ObjectStep	loc:meiyerditch_wall_floorboards_multi_loc	3589,3173,1	Climb down the floorboard.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:47 oploc1
+1	11	30	talkToCitizen	NpcStep	npc:myq3_citizen_male_old_1	3601,3189,0	Talk to a Meiyerditch citizen.			(whisper) Do you know about the Myreque? | (whisper) I real…	quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:77 opnpc1
+2	12	60	talkToRal	NpcStep	npc:sanguinesti_old_man_ral	3604,3208,0	Talk to Old Man Ral in south western Meiyerditch.			Someone said you could help me. | Old Man Ral, the sage of …	quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:144 opnpc1
+2	13	65	travelToPots	ObjectStep<goTravelToMyrequeBase	loc:myq3_ghetto_pots_search	3608,3222,0	Follow the path to the Meiyerditch Myreque base. When you reach some pots, search them for a key to open the door.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:423 oploc1
+2	14	65	travelToMyrequeBase	ObjectStep<goTravelToMyrequeBase	loc:area_sanguine_myreque_secret_wall_closed	3640,3253,0	Use a knife on the wall you eventually reach.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:531 oploc1; +1
+2	15	65	travelToFixLadder	ObjectStep<goTravelToMyrequeBase	loc:myq3_agil_33_ladder_floor_multi	3629,3240,1	Repair the ladder downstairs.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:484 oploc1; +1
+2	16	65	travelToLadderPart	ObjectStep<goTravelToMyrequeBase	loc:myq3_agil_32_ladder_wall_multi	3625,3240,2	Continue until you reach a wall with a ladder piece, and take it.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:466 oploc1
+2	17	70	pressDecoratedWall	ObjectStep	loc:sang_myreque_hideout_symbol_multi	3638,3251,0	Press the decorated wall.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:539 oploc1
+2	18	70	enterRug	ObjectStep<returnToMeiyerditch	loc:sang_myreque_hideout_trapdoor_multiloc?	3639,3249,0	Open the rug and enter the trapdoor.				
+2	19	70	talkToVertida	NpcStep<returnToMeiyerditch	npc:myq4_vertida_visible	3627,9644,0	Talk to Vertida in the north room.				quests/quest_tasteofhope/scripts/tasteofhope.rs2:306 opnpc1; +2
+3	20	0	talkToVeliafAfterContact	ConditionalStep			Bring the message to Veliaf in the Myreque base under Burgh de Rott.	talkToVeliafAfterLetter		What should I do now?	
+3	21	110	goDownToDrezel	ObjectStep<talkToDrezelAfterVeliaf	loc:pipeastsidetrapdoor	3422,3485,0					doors/scripts/doors.rs2:89 oploc1; +1
+3	22	110	talkToDrezel	NpcStep<talkToDrezelAfterVeliaf	npc:priestperiltrappedmonk_vis	3439,9896,0					quests/quest_priestperil/scripts/trapped_drezel.rs2:9 opnpc1; +4
+3	23	120	leaveDrezelToBushes	ObjectStep	loc:ladder_from_cellar	3405,9907,0	Go up the west ladder.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +1
+3	24	120	searchBushes	ObjectStep	loc:myq_pt3_cutscene_werewolf_bush loc:ladder_from_cellar	3390,3480,0	Search the bushes west of Paterdomus.	leaveDrezelToBushes			quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2:69 oploc1
+3	25	110	returnFromBushesToDrezel	ObjectStep<talkToDrezelAfterBushes	loc:trapdoor	3405,3507,0					general_use/scripts/trapdoors.rs2:6 oploc1; +1
+3	26	135	talkToRoald	NpcStep	npc:king_roald npc:king_roald_cutscene	3222,3473,0	Talk to King Roald in Varrock Castle.			I must speak with you on a matter of grave importance. | Ta…	areas/varrock/scripts/king_roald.rs2:5 opnpc1; +1
+3	27	0	talkToVeliafAfterDrezel	ConditionalStep			Return to Veliaf in the Myreque base under Burgh de Rott.				
+3	28	0	mineDaeyaltThenLeave	NpcStep<returnToMeiyerditch	npc:sang_myq3_mine_guard_juvinate_male	2389,4624,2	Mine Daeyalt ore from the walls and put them into the mine carts. If you have no pickaxe, talk to a miner to obtain a bronze one. Once you've mined 15, talk to…		Any pickaxe	Do you have a spare pick?	quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2:272 opnpc1
+3	29	0	goToMines	NpcStep<returnToMeiyerditch	npc:sang_myq3_female_walk_vyrewatch_1	3615,3263,0	Talk to a Vyrewatch to be sent to the mines.			Send me to the mines. | Send me to the mines! (Do a bit of …	quests/quest_darknessofhallowvale/scripts/doh_urgent.rs2:153 opnpc1
+3	30	0	returnToMeiyBase	ObjectStep<returnToMeiyerditch	loc:sang_myreque_hideout_symbol_multi	3638,3251,0	Press the decorated wall to unlock the base's entrance.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:539 oploc1
+4	31	30	climbUpDrakanWalls	ObjectStep<goToSafalaan	loc:darkm_outer_wall_3h_meyerditch_wall_shortcut_bottom	3595,3310,1	Climb up the wall to the north.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+4	32	30	climbDownFromThirdWall	ObjectStep<goToSafalaan	loc:myq3_ladder_down_2	3588,3259,2	Climb down the ladder to the north.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+4	33	30	climbLadderSecondWall	ObjectStep<goToSafalaan	loc:myq3_ladder_up_2	3588,3251,1	Climb up the ladder to the north.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +1
+4	34	30	goThroughBarricade	ObjectStep<goToSafalaan	loc:myq3_ladder_up	3593,3230,0	Go through the barricade and up the ladder to the north.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +1
+4	35	30	searchRockySurface	ObjectStep<goToSafalaan	loc:myq3_secret_rock_barricade_unlock	3592,3211,0	Search the rocky surface nearby.				quests/quest_darknessofhallowvale/scripts/doh_meiyerditch.rs2:631 oploc1
+4	36	30	goDownFromRandomRoom	ObjectStep<goToSafalaan	loc:area_sanguine_ghetto_ladder_down	3595,3204,1	Climb down the ladder.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+4	37	30	climbDownWallLadder	ObjectStep<goToSafalaan	loc:myq3_ladder_down	3588,3210,1	Climb down the ladder to the north.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+4	38	30	climbUpFloor	ObjectStep<goToSafalaan	loc:mieyerditch_wall_underboards_multi_loc?	3589,3173,0	Climb up to the floor in the wall to the south west.				
+4	39	30	talkToSafalaan	NpcStep<goToSafalaan	npc:myreque_pt3_safalaan	3585,3331,0	Talk to Safalaan on the walls.				quests/quest_darknessofhallowvale/scripts/doh_castle.rs2:111 opnpc1; +1
+4	40	30	drawNorthWall	DetailedQuestStep<goSketchNorth		3556,3379,0					
+4	41	30	drawWestWall	DetailedQuestStep<goSketchWest		3522,3357,0					
+5	42	220	tankVanstrom	NpcStep<goSketchSouth	npc:myq3_vanstrom_klause_vampyre_attack	3572,3331,0	Tank Vanstrom for 5 hits or use Protect from Melee.				quests/quest_darknessofhallowvale/scripts/doh_castle.rs2:185 ai_opplayer2; +2
+5	43	30	drawSouthWall	DetailedQuestStep<goSketchSouth		3572,3331,0					
+5	44	30	talkToSarius	NpcStep<goTalkToSarius	npc:myq3_sarius_guile	3572,3331,0					quests/quest_darknessofhallowvale/scripts/doh_castle.rs2:223 opnpc1; +1
+5	45	30	finishSouthSketch	DetailedQuestStep<goFinishSouthSketch		3572,3331,0					
+5	46	0	useKnifeOnFireplace	ObjectStep<goOpenFireplace	loc:myq3_fireplace_loose_tile	3627,3253,0					quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:12 oploc1; +1
+5	47	270	leaveMeiyerBase	ObjectStep<goUnlockLab[inMyrequeBase]	loc:area_sanguine_myreque_hideout_ladder_up	3626,9617,0	Go up to the surface.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2
+6	48	260	inspectPortrait	ObjectStep<returnToSafalaanInBaseNoSketches	loc:myq3_statue_painting_multi	3627,3248,0	Inspect the portrait south of the fireplace.				quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:75 oploc1; +1
+6	49	260	useKnifeOnPortrait	ObjectStep<returnToSafalaanInBaseNoSketches	loc:myq3_statue_painting_multi	3627,3248,0	Use a knife on the portrait south of the fireplace.	inspectPortrait			quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:75 oploc1; +1
+6	50	260	readMessage	DetailedQuestStep			Read the message.		Message		
+6	51	0	talkToSafalaanInBase	NpcStep<returnToSafalaanInBaseNoSketches	npc:myreque_pt3_safalaan	3627,9644,0	Talk to Safalaan in the north room.				quests/quest_darknessofhallowvale/scripts/doh_castle.rs2:111 opnpc1; +1
+6	52	270	useKnifeOnTapestry	ObjectStep	loc:myq3_lab_tapestry_multi	3638,3304,0	Slash the tapestry in the building in north east Meiyerditch.		Knife		quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:113 oploc1; +1
+6	53	270	useKeyOnStatue	ObjectStep	loc:myq3_lab_vamp_statue_multi	3641,3304,0	Use the ornate key on the nearby statue.		Large ornate key		quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:120 oploc1; +1
+6	54	290	goDownToLab	ObjectStep	loc:myq3_lab_stairs_down	3643,3305,0	Go down the staircase to the lab.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+6	55	290	getRunes	ObjectStep<getHaemBook[inLab]	loc:myq3_broken_rune_case	3629,9695,0	Search the broken rune case.				quests/quest_darknessofhallowvale/scripts/doh_lab.rs2:198 oploc1
+6	56	290	telegrabBook	DetailedQuestStep		3624,9690,0	Telegrab the Haemalchemy book.		Haemalchemy volume 1; Law rune; Air rune		
+6	57	70	leaveLab	ObjectStep<bringSafalaanBook	loc:myq3_lab_stairs_up	3637,9697,0	Leave the lab.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+6	58	0	bringMessageToVeliafToFinish	ConditionalStep			Bring the letter to Veliaf in the Myreque base under Burgh de Rott to complete the quest.				

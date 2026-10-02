@@ -1,0 +1,84 @@
+# ladder royaltrouble quest_dir=quest_royaltrouble guide=src/main/java/com/questhelper/helpers/quests/royaltrouble/RoyalTrouble.java steps=81 legs=1:1-10@s0 2:11-20@s20 3:21-30@s20 4:31-40@s20 5:41-51@s20 6:52-61@s20 7:62-71@s20 8:72-81@s20
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	travelToMisc	NpcStep	npc:viking_sailor	2629,3693,0	Travel to Miscellania. You can take a boat from Rellekka. You can also use Fairy Rings to teleport there with the code CIP If you've unlocked them.			Yes.	quests/quest_viking/scripts/viking_sailor.rs2:1 opnpc1
+1	2	0	goUpToGhrim	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Talk to Advisor Ghrim in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+1	3	0	talkToGhrim	NpcStep	npc:misc_advisor_ghrim_2ops loc:spiralstairs_wooden	2499,3857,1	Talk to Advisor Ghrim in Miscellania castle.	goUpToGhrim		Has anything been happening in the kingdom recently? | Very…	ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	4	10	goUpToPartner	ObjectStep	loc:spiralstairs_wooden	2506,3872,0	Talk to Princess Astrid in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+1	5	10	talkToPartner	NpcStep	npc:misc_princess_astrid loc:spiralstairs_wooden	2502,3867,1	Talk to Princess Astrid in Miscellania castle.	goUpToPartner			ladders_stairs/scripts/ladders.rs2:175 oploc1; +3
+1	6	20	goUpToVargas	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Talk to Vargas in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+1	7	20	talkToVargas	NpcStep	npc:misc_king_vargas loc:spiralstairs_wooden	2501,3860,1	Talk to King Vargas.	goUpToVargas		Right away, your Majesty.	ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	8	20	goDownFromVargas	ObjectStep	loc:spiralstairsmiddle_wooden	2506,3849,1	Talk to Gardener Gunnhild outside the castle.				ladders_stairs/scripts/ladders.rs2:190 oploc1; +2
+1	9	20	talkToGunnhild	NpcStep	npc:misc_gardener loc:spiralstairsmiddle_wooden	2527,3855,0	Talk to Gardener Gunnhild outside the castle.	goDownFromVargas			areas/area_miscellania/scripts/gardener_gunnhild.rs2:9 opnpc1; +3
+1	10	20	goDownFromVargas2	ObjectStep	loc:spiralstairsmiddle_wooden	2506,3849,1	Talk to Queen Sigrid in Etceteria Castle.				ladders_stairs/scripts/ladders.rs2:190 oploc1; +2
+2	11	20	goUpToSigrid	ObjectStep	loc:spiralstairs	2614,3868,0	Talk to Queen Sigrid in Etceteria Castle.				minigames/minigame_warriorsguild/scripts/warriorsguild_doors.rs2:88 oploc1; +2
+2	12	20	talkToSigrid	NpcStep	npc:misc_queen_sigrid loc:spiralstairsmiddle_wooden loc:spiralstairs	2612,3875,1	Talk to Queen Sigrid in Etceteria Castle.	goDownFromVargas2 goUpToSigrid		Of course, it's my duty.	ladders_stairs/scripts/ladders.rs2:190 oploc1; +6
+2	13	20	goDownFromSigridToMatilda	ObjectStep	loc:spiralstairstop	2614,3867,1	Talk to Matilda in the south of Etceteria Castle.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+2	14	20	talkToMatilda	NpcStep	npc:misc_etc_woman_2 loc:spiralstairstop	2606,3869,0	Talk to Matilda in the south of Etceteria Castle.	goDownFromSigridToMatilda			areas/area_miscellania/scripts/misc_people.rs2:64 opnpc1; +4
+2	15	20	getCoalOrPickaxe	ObjectStep	loc:dwarf_keldagrim_bankbooth	2612,3900,0	Now is a good point to get your combat gear, antipoisons, and either 5 coal or a pickaxe out.		Coal; A pickaxe; Combat gear; Any antipoison		interface_bank/scripts/bank_booths.rs2:100 oploc2
+2	16	20	goBackUpToVargasFromSigrid	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Return to King Vargas in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+2	17	20	goDownFromSigridToVargas	ObjectStep	loc:spiralstairstop	2614,3867,1	Go downstairs from Queen Sigrid.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+2	18	20	talkToVargasAfterSigrid	NpcStep	npc:misc_king_vargas loc:spiralstairs_wooden loc:spiralstairstop	2501,3860,1	Return to King Vargas in Miscellania castle.	goBackUpToVargasFromSigrid goDownFromSigridToVargas			ladders_stairs/scripts/ladders.rs2:175 oploc1; +5
+2	19	20	goUpToGhrim2	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Talk to Advisor Ghrim in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+2	20	20	talkToGhrim2	NpcStep	npc:misc_advisor_ghrim_2ops loc:spiralstairs_wooden	2499,3857,1	Talk to Advisor Ghrim in Miscellania castle.	goUpToGhrim2		King Vargas asked me to talk to you.	ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+3	21	20	goDownToSailor	ObjectStep	loc:spiralstairsmiddle_wooden	2506,3849,1	Talk to the Sailor on the Miscellania docks.				ladders_stairs/scripts/ladders.rs2:190 oploc1; +2
+3	22	20	talkToSailor	NpcStep	npc:misc_sailor loc:spiralstairsmiddle_wooden	2578,3845,0	Talk to the Sailor on the Miscellania docks.	goDownToSailor		I'm looking for a sailor...	quests/quest_royaltrouble/scripts/royal_investigation.rs2:125 opnpc1
+3	23	20	goUpToVargasAfterSailor	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Return to King Vargas in Miscellania castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+3	24	20	talkToVargasAfterSailor	NpcStep	npc:misc_king_vargas loc:spiralstairs_wooden	2501,3860,1	Return to King Vargas in Miscellania castle to get a scroll.	goUpToVargasAfterSailor			ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+3	25	20	goDownStairsToDungeon	ObjectStep	loc:spiralstairsmiddle_wooden	2506,3849,1	Go down the ladder south of Miscellania castle.		Scroll		ladders_stairs/scripts/ladders.rs2:190 oploc1; +2
+3	26	20	goDownToDungeonNoScroll	ObjectStep	loc:royal_ladder_down	2509,3846,0	Go down the ladder south of Miscellania castle.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:21 oploc1
+3	27	20	goDownLadderToDungeon	ObjectStep	loc:royal_ladder_down loc:spiralstairsmiddle_wooden	2509,3846,0	Go down the ladder south of Miscellania castle.	goDownStairsToDungeon goDownToDungeonNoScroll	Scroll		quests/quest_royaltrouble/scripts/royal_dungeon.rs2:21 oploc1
+3	28	20	talkToDonal	NpcStep	npc:royal_dwarf_drunk	2528,10257,0	Talk to Donal in the pub in the dungeon.			Of course. Dealing with monsters is what I do best!	quests/quest_royaltrouble/scripts/royal_dungeon.rs2:66 opnpc1
+3	29	20	usePropOnCrevice	ObjectStep	loc:royal_cavewall_crack	2505,10281,0	Use the mining prop on the crevice in the north west corner of the dungeon.		Mining prop		quests/quest_royaltrouble/scripts/royal_dungeon.rs2:221 oploc1; +1
+3	30	20	enterCrevice	ObjectStep	loc:royal_cavewall_crack	2505,10281,0	Enter the crevice in the north west corner of the dungeon.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:221 oploc1; +1
+4	31	20	takePulley	ObjectStep	loc:royal_crate_planks_pulleys?	2504,10285,0	Take a Pulley Beam.				
+4	32	20	usePulleyOnScaffold	ObjectStep	loc:royal_side_scaffold_multiloc?	2508,10286,0	Use the Pulley Beam on the Broken Scaffold		Pulley beam		
+4	33	20	takePulley2	ObjectStep	loc:royal_crate_planks_pulleys?	2504,10285,0	Take a Pulley Beam.				
+4	34	20	takeBeam	ObjectStep	loc:royal_crate_planks	2504,10284,0	Take a Beam.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:251 oploc1
+4	35	20	useBeamOnPulley	DetailedQuestStep			Use a beam on a pulley beam.		Beam; Pulley beam		
+4	36	20	takeBeam2	ObjectStep	loc:royal_crate_planks	2504,10284,0	Take another Beam.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:251 oploc1
+4	37	20	useBeamOnLongPulley	DetailedQuestStep			Use a beam on the long pulley beam.		Beam; Long pulley beam		
+4	38	20	useLongerPulleyOnScaffold	ObjectStep	loc:royal_side_scaffold_multiloc?	2508,10286,0	Use the Longer pulley beam on the Scaffold		Longer pulley beam		
+4	39	20	takePulley3	ObjectStep	loc:royal_crate_planks_pulleys?	2504,10285,0	Take a Pulley Beam.				
+4	40	20	usePulleyOnScaffold2	ObjectStep	loc:royal_side_scaffold_multiloc?	2508,10286,0	Use the pulley beam on the Scaffold		Pulley beam		
+5	41	20	takeRope	ObjectStep	loc:royal_crate_rope	2506,10289,0	Take a rope from the crate.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:272 oploc1
+5	42	20	useRopeOnScaffold	ObjectStep	loc:royal_side_scaffold_multiloc?	2508,10286,0	Use the rope on the broken scaffold		Rope		
+5	43	20	takeBeam3	ObjectStep	loc:royal_crate_planks	2504,10284,0	Take another Beam.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:251 oploc1
+5	44	20	useBeamOnPlatform	ObjectStep	loc:royal_lift_platform_multiloc?	2508,10288,0	Use a beam on the platform.		Beam		
+5	45	20	pickUpEngine	ItemStep	obj:royal_coal_engine		Pick up an Engine		Engine		quests/quest_royaltrouble/scripts/royal_dungeon.rs2:331 opheldu
+5	46	20	useEngineOnPlatform	ObjectStep	loc:royal_engine_platform_multiloc?	2508,10287,0	Use the Engine on the engine platform		=		
+5	47	20	putCoalIntoEngine	DetailedQuestStep			Read the nearby lift manual, then put 5 coal into the engine.	putCoalIntoEngine2 putCoalIntoEngine3 putCoalIntoEngine4 putCoalIntoEngine5	Engine; Coal		
+5	48	20	putCoalIntoEnginePlaced	ObjectStep<repairLift[hasUsedEngine+engine]	loc:royal_engine_platform_multiloc?	2508,10287,0	Read the nearby lift manual, then put 5 coal into the engine.		Coal		
+5	49	20	putCoalIntoEnginePlaced2	ObjectStep<repairLift[hasUsedEngine+has1CoalInEngine]	loc:royal_engine_platform_multiloc?	2508,10287,0	Put 4 more coal into the engine.		=		
+5	50	20	putCoalIntoEnginePlaced3	ObjectStep<repairLift[hasUsedEngine+has2CoalInEngine]	loc:royal_engine_platform_multiloc?	2508,10287,0	Put 3 more coal into the engine.		=		
+5	51	20	putCoalIntoEnginePlaced4	ObjectStep<repairLift[hasUsedEngine+has3CoalInEngine]	loc:royal_engine_platform_multiloc?	2508,10287,0	Put 2 more coal into the engine.		=		
+6	52	20	putCoalIntoEnginePlaced5	ObjectStep<repairLift[hasUsedEngine+has4CoalInEngine]	loc:royal_engine_platform_multiloc?	2508,10287,0	Put 1 more coal into the engine.		=		
+6	53	20	takeRope2	ObjectStep	loc:royal_crate_rope	2506,10289,0	Take a rope from the crate in the lift room.		Rope		quests/quest_royaltrouble/scripts/royal_dungeon.rs2:272 oploc1
+6	54	20	useLift	ObjectStep	loc:royal_lift_platform_multiloc?	2508,10288,0	Take the lift up.				
+6	55	20	takePlank	ItemStep	obj:woodplank		Pick up the plank.		Plank		
+6	56	20	goBackToPlank	ObjectStep<dungeonExplore[inPath1+rope+attachedRope]	loc:royal_small_cave_exit	2514,10290,0	Go back through the tunnel to get a plank.		=		ladders_stairs/scripts/maplink.rs2:77 oploc1; +2
+6	57	20	enterTunnelFromPlankRoom	ObjectStep	loc:royal_small_cave	2511,10287,1	Enter the tunnel.				quests/quest_royaltrouble/scripts/royal_dungeon.rs2:467 oploc1
+6	58	20	attachRope	ObjectStep	loc:royal_ropeswing_multiloc?	2540,10299,0	Use a rope on the rock over the water blocking the path.		Rope		
+6	59	20	swingOverRope	ObjectStep	loc:royal_ropeswing_multiloc?	2540,10299,0	Swing over the water on the ropeswing.				
+6	60	20	searchFire1	ObjectStep	loc:royal_fire_remains1	2555,10295,0	Search the fire remains.				quests/quest_royaltrouble/scripts/royal_diary.rs2:14 oploc1
+6	61	20	plankRock2	ObjectStep	loc:royal_invisible_puddletrap	2545,10287,0	Use a plank on the rocks to cross them.		Plank		quests/quest_royaltrouble/scripts/royal_cave.rs2:28 oploc1; +1
+7	62	20	plankRock3	ObjectStep	loc:royal_invisible_puddletrap	2542,10287,0	Use a plank on the rocks to cross them.		=		quests/quest_royaltrouble/scripts/royal_cave.rs2:28 oploc1; +1
+7	63	20	plankRock4	ObjectStep	loc:royal_invisible_puddletrap	2539,10286,0	Use a plank on the rocks to cross them.		=		quests/quest_royaltrouble/scripts/royal_cave.rs2:28 oploc1; +1
+7	64	20	plankRock1	ObjectStep	loc:royal_invisible_puddletrap	2548,10288,0	Use a plank on the rocks to cross them.	plankRock2 plankRock3 plankRock4	=		quests/quest_royaltrouble/scripts/royal_cave.rs2:28 oploc1; +1
+7	65	20	searchFire2	ObjectStep	loc:royal_fire_remains2	2534,10281,0	Search the 2nd fire remains further along the path.				quests/quest_royaltrouble/scripts/royal_diary.rs2:17 oploc1
+7	66	20	searchFire3	ObjectStep	loc:royal_fire_remains3	2555,10279,0	Search the 3rd fire remains further along the path.				quests/quest_royaltrouble/scripts/royal_diary.rs2:20 oploc1
+7	67	20	searchFire4	ObjectStep	loc:royal_fire_remains4	2548,10261,0	Search the 4th fire remains further along the path.				quests/quest_royaltrouble/scripts/royal_diary.rs2:23 oploc1
+7	68	20	searchFire5	ObjectStep	loc:royal_fire_remains5	2573,10246,0	Search the 5th fire remains further along the path.				quests/quest_royaltrouble/scripts/royal_diary.rs2:26 oploc1
+7	69	20	readDiary	DetailedQuestStep			Read the Diary		Burnt diary		
+7	70	20	enterSnakesRoom	ObjectStep	loc:royal_cavewall_crack_fremenniks_in	2585,10260,0	Enter the crevice at the end of the path.				quests/quest_royaltrouble/scripts/royal_cave.rs2:151 oploc1
+7	71	20	talkToArmod	NpcStep	npc:royal_fremennik_teen3	2572,10277,0	Talk to Armod.				quests/quest_royaltrouble/scripts/royal_kids_boss.rs2:17 opnpc1
+8	72	20	enterBossRoom	ObjectStep	loc:royal_cavewall_crack_seasnake_in	2617,10272,0	Prepare to fight the Giant Sea Snake. It will only use ranged attacks if you stand at a distance. It can poison you.				quests/quest_royaltrouble/scripts/royal_cave.rs2:174 oploc1
+8	73	20	killBoss	NpcStep	npc:royal_sea_snake_mother_smaller	2615,10280,0	Kill the Giant Sea Snake.				quests/quest_royaltrouble/scripts/royal_kids_boss.rs2:87 opnpc2; +1
+8	74	20	pickUpBox	ItemStep	obj:royal_box		Pick up the heavy box		Heavy box		quests/quest_royaltrouble/scripts/royal_kids_boss.rs2:104 opheld1
+8	75	20	leaveBossRoom	ObjectStep	loc:royal_cavewall_crack_seasnake_out	2617,10273,0	Leave the room.				quests/quest_royaltrouble/scripts/royal_cave.rs2:183 oploc1
+8	76	20	goUpRope	ObjectStep	loc:royal_light_exit_multiloc?	2618,10265,0	Go up the rope that's appeared.				
+8	77	20	goUpToSigridToFinish	ObjectStep	loc:spiralstairs	2614,3868,0	Talk to Queen Sigrid in Etceteria Castle.		Heavy box		minigames/minigame_warriorsguild/scripts/warriorsguild_doors.rs2:88 oploc1; +2
+8	78	20	talkToSigridToFinish	NpcStep	npc:misc_queen_sigrid loc:spiralstairs	2612,3875,1	Talk to Queen Sigrid in Etceteria Castle.	goUpToSigridToFinish	=		minigames/minigame_warriorsguild/scripts/warriorsguild_doors.rs2:88 oploc1; +3
+8	79	20	goDownFromSigridToFinish	ObjectStep	loc:spiralstairstop	2614,3867,1	Return to King Vargas to finish the quest.		Letter		ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+8	80	20	goUpToVargasToFinish	ObjectStep	loc:spiralstairs_wooden	2506,3849,0	Return to King Vargas to finish the quest.		=		ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+8	81	20	talkToVargasToFinish	NpcStep	npc:misc_king_vargas loc:spiralstairstop loc:spiralstairs_wooden	2501,3860,1	Return to King Vargas to finish the quest.	goDownFromSigridToFinish goUpToVargasToFinish	=		ladders_stairs/scripts/ladders.rs2:178 oploc1; +5

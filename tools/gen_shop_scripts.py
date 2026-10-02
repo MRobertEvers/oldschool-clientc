@@ -84,6 +84,9 @@ QUEST_GATED_OWNER_OVERRIDES: dict[str, list[str]] = {
     "razmire_general_store": [],
     "tamayus_spear_stall__1": [],
     "tiadeches_karambwan_stall": [],
+    # The Fremennik Isles: Vanligga sells contraband yak produce only to a
+    # player who refunded her window tax (fris_tax.rs2 opens the label).
+    "contraband_yak_produce": [],
 }
 
 
