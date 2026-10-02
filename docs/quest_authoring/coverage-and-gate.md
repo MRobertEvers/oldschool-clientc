@@ -233,9 +233,9 @@ Not judged:
 In the committed greens, 4 guides have such a route (grandtree, losttribe, regicide, tearsofguthix),
 and no green step changes class.
 
-#### The departure tile (gap (b), not closed)
+#### The departure tile (gap (b), closed)
 
-**Proved, HELD BACK (matthew-mbp-m4-b50-seam1).** The driver change below works: `goto_tile` reads
+**LANDED (matthew-mbp-m4-b50 4ff821094; reaches v3 with that batch's PR).** Seam1 proved it and held it back; the orchestrator landed it, because the ten hops it exposes are cheats, not false positives. The driver change: `goto_tile` reads
 `QD.world.tile()` once before its first `::goto` and opens its ok detail with `at <landing> from
 <departure>` (`from ?` when the read fails). Live, d3505f4ee's `regicide.lua` wrote row 75 `at
 2461,9699,0 from 2314,9624,0` itself and was charged CHEAT; the green regicide stayed FULL 64/64.
@@ -248,11 +248,11 @@ trapdoor), mourningsendpartii row 18 (basement -> caves past `mourner_hideout_do
 recruitmentdrive row 33 (west side -> Sir Kuam's room past `rd_bridge_right`), rumdeal row 95 (north
 island past `deal_gate_closed`), totem row 29 (entrance -> stairway past `combodoor`), troll row 17
 (troll area -> arena past its entrance). Most read as real gotos past an obstacle the guide names,
-so landing it means re-authoring those ten; that is the owner's call, not a seam closer's. The
-proved diff is kept in the owner's checkout as
-`build/seam_state/matthew-mbp-m4-b50-seam1/goto_departure_stamp.held.patch` (one `QD.world.tile()`
-read at the top of `QD.player.goto_tile`, two detail formats); the suite's verdicts are
-`close_gate_after.txt` beside it.
+so all ten went back to `todo` in QUEUE.tsv with their hop named: re-author only that hop (drive the
+obstacle), the rest of each file stands. A green re-run after this lands can read CHEAT on a hop
+the grader could not judge before; that is the stamp working. Conformance row
+`seam.goto_departure_stamp`. The suite's verdicts are
+`build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt` (matthew-mbp-m4).
 
 The gap as the grader pass wrote it:
 
