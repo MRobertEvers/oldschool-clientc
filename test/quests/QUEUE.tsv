@@ -20,14 +20,14 @@ quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo				
 quest_cog	cog	clocktower		1	green	sonnet-b18			
-quest_coldwar	coldwar	coldwar		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
+quest_coldwar	coldwar	coldwar		4	todo	vm-b1@vm	PARITY partial after [parity:vm-b1-parity] 776f3afdf (content ec0ea5f7ce): no test/quests/coldwar.lua yet -- author from docs/quests/ladders/coldwar.ladder.tsv; legs_left: cutscene; penguin agility course obstacle chain end to end: stones 1-6, icicles and ice are driven; the level-0 steps/crushers; POH clockmaking of the suit; Larry refusing followers on the teleport; clockwork suit Wind/Release toy behaviour		
 quest_contact	contact	contact		4	todo				
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26			
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo				
-quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
+quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo	vm-b1@vm	PARITY partial after [parity:vm-b1-parity] 776f3afdf (content ec0ea5f7ce): no test/quests/darknessofhallowvale.lua yet -- author from docs/quests/ladders/darknessofhallowvale.ladder.tsv; legs_left: cutscene; Vyrewatch harassment random encounters; stage 52 and 195 are never written; Vertida's escort at 180 is a dialogue plus the walk of the western wall; no animated leading; Temple Trekking Burgh de Rott Ramble gate and the hideout chest Tome replacement after A Taste of Hope not touched; doh_bmp.rs2 named-BMP harness still parks on narrated mesboxes		
 quest_death	death	deathplateau		3	green	sonnet-b35			
 quest_deathontheisle	deathontheisle	deathontheisle		4	todo				
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
@@ -142,7 +142,7 @@ quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	tod
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
-quest_royaltrouble	royaltrouble	royaltrouble		4	claimed	vm-b1@vm	RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)	2026-10-02T01:17:03Z	todo|
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo	vm-b1@vm	PARITY partial after [parity:vm-b1-parity] 776f3afdf (content ec0ea5f7ce): no test/quests/royaltrouble.lua yet -- author from docs/quests/ladders/royaltrouble.ladder.tsv; legs_left: cutscene; Giant Sea Snake instance: one shared snake, shore position instead of the guide's 2615,10280; post-quest lines of Vargas/Brand/Astrid/Sigrid; village shopkeepers' 'What's it like living down here?' options; Ghrim 'How do I manage the kingdom?' option; friend-vs-romance wording		
 quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27			
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
@@ -167,7 +167,7 @@ quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo				
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32			
-quest_thefremennikisles	thefremennikisles	thefremennikisles		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
+quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo	vm-b1@vm	PARITY partial after [parity:vm-b1-parity] 776f3afdf (content ec0ea5f7ce): no test/quests/thefremennikisles.lua yet -- author from docs/quests/ladders/thefremennikisles.ladder.tsv; legs_left: cutscene; Magnus Gram's 'I need to talk to you about tax' option in the Jatizso bank dialogue; Neitiznot shield does not cap the ordinary female/thrower trolls' rocks; honour guards and Bork stand in the cave but do not fight the trolls; prayers are not blocked and damage is not lumped while repairing a bridge; the 'put your follower away' check before the jester act; full 17-leg run in one process is impossible		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
 quest_theslugmenace	theslugmenace	theslugmenace		3	green	matthew-mbp-m4-b47			
 quest_totem	totem	tribaltotem		3	green	sonnet-b36			
