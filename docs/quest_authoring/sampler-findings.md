@@ -250,3 +250,25 @@ the grid and the spear traps). It then drove those obstacles in a later leg, ent
 voyage cave by `goto_tile` and leaving the same way. Every guide step had a row, so FULL could not
 see this. Walk each route once, in guide order. Use `goto_tile` only between two tiles that a walk
 connects with no guide loc in the way.
+
+## Sample matthew-mbp-m4-b48, fourth check (2026-10-02)
+
+*Origin: the sampler checked regicide's round-9 green (d06b64289, 473/0, 626 shots) and accepted
+it.*
+
+The run drove all 63 ladder steps by click, walk or dialogue, including the five Iorwerth questions,
+both full walks of the Underground Pass, and a real bridge fall with `goBackUpToIbansCavern`. Every
+`goto_tile` joins two tiles that a walk in the same file connects, or leaves Tirannwn the way a
+player would teleport out (to the furnace, the chemist and Arianwyn). All 626 shots match their
+names. The scroll reads 3 quest points, 13,750 Agility XP and 15,000 coins, and the reward rows
+assert those literal numbers.
+
+(a) A CROSSING ROW CAN PASS FROM THE SIDE IT STARTED ON. The Sticks in leg 3 were crossed east, not
+west, and the 6-tile `-tile` check passed (start-and-travel: "A trap you can walk over gets crossed
+the wrong way"). This did not send the quest back. The trap is not a gate, the press and the roll
+were real, and leg 4 crossed it from its west `src` east toward the tracker, the way that walk goes.
+
+(b) A MID-LEG FOOD REFILL IS NOT A STEP. `t.cheat("::give lobster 6")` fired twice, in legs 4 and 6,
+when the traps had eaten the setup's food. It does none of the quest's work, so it stayed. A
+reviewer reading `Gave 6 x Lobster` in a shot should check that the item is food the guide
+recommends, not a quest item.

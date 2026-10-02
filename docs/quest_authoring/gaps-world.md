@@ -689,6 +689,16 @@ matthew-mbp-m4-b48-seam1.*
   the contract). Keep agility at the guide's 56, where each crossing fails about 7% of the time.
   When a roll sends you down, click the tunnel up and walk back to the bridges. A GUIDE-GAP is honest
   only when it cites `upass_obstacles.rs2:431-436` and says the run's rolls never failed.
+- The tunnel up has two copies, and they land in two pockets (`upass_tunnels.rs2:21-25`). The copy
+  at 2336,9793 lands at 2150,4546; the other copy lands at 2113,4729. Regicide's green run
+  (d06b64289, ledger rows 90-93) fell off bridge B to 2333,9866, clicked the nearest tunnel and came
+  up at 2113,4729. Read the landing tile and pick the walk back to the bridges' approach (2172,4686):
+  east along z 4730 from the west pocket, or north up x 2173 from the south one (`regicide.lua`
+  leg 2, `west_hops` / `south_hops`).
+- You never walk to the tunnel, because the fall puts you beside it. A wip leg JSON or relay note
+  that calls the step a GUIDE-GAP because "the dwarf cavern tunnel is not walkable from the pass" is
+  stale. The b48 reviewer copied that claim from `test/quests/wip/regicide/leg6.json`; the green file
+  drives the step.
 
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 
