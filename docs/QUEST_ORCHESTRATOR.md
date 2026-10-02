@@ -18,12 +18,25 @@ are tracked files, so a `git fetch` shows every machine's holds. The tool is
   live from the checkout, so a seam agent's half-written function crashes an author mid-quest.
   The order is: batch, its sampler push, its sheet, then the seam pass, then the next batch.
 - **Author batches may run on several machines at once**, each on rows it has claimed.
+- **Every machine runs the whole loop.** No machine is "authors only" or "content only":
+  whichever orchestrator finds the next work takes it. When every parity-passed row is
+  claimed by another machine, the next step is a parity pass on the next tier's rows, not
+  a wait (owner, 2026-10-01).
 - **A content pass (parity or seam) holds the content lock**, so only one runs at a time
   across all machines. Both kinds edit OSRS-Content. The script compiler allocates ids into
   `pack/varp.alloc`, `dbrow.alloc`, `varn.alloc` and the other `pack/*.alloc` files, and two
-  machines allocating at once hand out the same id twice. An author batch on machine B may
-  run while machine A holds the lock. B's checkout does not see A's uncommitted edits, and
-  B's sampler merges A's pushed result.
+  machines allocating at once hand out the same id twice. That is the only reason for the
+  lock: it serialises the two machines' content passes, it does not reserve them for one
+  machine. The pass takes the lock itself (its State step runs `claim.py content-lock`) and
+  exits 3 when another machine holds it; take it when it is free. An author batch on
+  machine B may run while machine A holds the lock. B's checkout does not see A's
+  uncommitted edits, and B's sampler merges A's pushed result.
+- **A parity pass claims its rows too**: the orchestrator runs `claim.py batch <pass> <ids...>`
+  (the same command an author batch uses, with the pass name as the batch) before launching
+  the pass, so the other machine's author batch drops a quest whose content is mid-port
+  instead of authoring against half of it.
+  The parity closer releases them with `claim.py release <pass>`; a row it reopens with a
+  `parityN done` note is `todo` again for whichever machine claims it next.
 
 ## Who runs what
 
