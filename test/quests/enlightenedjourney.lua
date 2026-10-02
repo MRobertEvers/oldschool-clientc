@@ -1,11 +1,10 @@
--- SEAM PROOF COPY (matthew-mbp-m4-b50-seam1, enlightenedjourney_gather_sources): round1_rejected.lua
--- with every mid-run ::give replaced by the gather legs the scratches proved.
 -- Enlightened Journey: Auguste's hot air balloon. Driven with real clicks from the Port Sarim
 -- monk to the Taverley landing (docs/quests/ladders/enlightenedjourney.notes.md).
 -- Setup stages the brought-along kit only: qp/stat requirements, the papyrus, ball of wool, candle
--- and tinderbox the guide lists. Materials the guide has you gather (sacks, dye, silk, bowl, willow
--- branches, logs, potatoes) are staged with ::give: the sources are far-flung farming/shop
--- legs (willow branches are handed out by nothing in the pack, notes file).
+-- and tinderbox the guide lists. Everything the guide has you gather is driven: sacks from Sarah,
+-- redberries from Wydin, dyes from Aggie, silk from the silk trader, potatoes by Fill on a sack,
+-- willow branches from a grown sapling plus secateurs, logs with Bob's axe
+-- (routes in test/quests/wip/enlightenedjourney/relay.md).
 -- Cutscenes (first/second launch, basket weaving) are spec-pending (CUTSCENES.tsv).
 
 return {
