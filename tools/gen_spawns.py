@@ -111,6 +111,34 @@ NPC_NAME_ALIASES = {
     # expert"; the cache renamed the record and kept id 3639. Without this the
     # quest has no expert to hand the tablet to (spawn_report: name drift 3639).
     ("archaeological_expert", normalise("Archaeological expert")): {normalise("Terry Balando")},
+    # Same id, renamed record (seam matthew-mbp-m4-b51-seam1, name drift audit).
+    # Each dump row's id IS this cache's record; the game renamed it after the
+    # dump was taken, so the rows were dropped as drift and the npcs vanished.
+    #
+    # Warrior woman -> Warrior, id 3260: the wiki page "Warrior woman" redirects
+    # to "Warrior (Thieving)" (oldid 15323393, id1 = 3260), whose LocLines are
+    # the dump's East Ardougne / Ardougne Castle / Fishing Guild / Varrock Palace
+    # tiles. skill_thieving/scripts/pickpocket.rs2 binds [opnpc3,warrior_woman];
+    # without these rows the level-25 pickpocket had no target.
+    ("warrior_woman", normalise("Warrior woman")): {normalise("Warrior")},
+    # Jungle savage -> Tormented Warrior, id 3959: "Jungle savage" redirects to
+    # "Tormented Warrior" (oldid 15356071, id 3959, Kharazi Jungle; its LocLine
+    # lists the dump's 2862,2904 / 2821,2927 / 2802,2903 ... tiles).
+    ("jungle_savage", normalise("Jungle savage")): {normalise("Tormented Warrior")},
+    # Desert snake -> Snake, id 3544: "Desert snake" redirects to "Snake
+    # (desert)" (oldid 15355586, id 3544,12084) whose five LocLines -- Pollnivneach,
+    # north of Nardah, the Smoke Dungeon entrance, the Genie's crevice, Uzer --
+    # are exactly the dump's 33 rows (Uzer's are 12084, not in the dump).
+    ("feud_desert_snake", normalise("Desert snake")): {normalise("Snake")},
+    # Ethereal Lady 778 / Ethereal Man 777 -> Ethereal Being: both pages
+    # (oldids 15353426, 15353427) say they "were removed and replaced by an
+    # Ethereal Being" on 26 June 2024; "Ethereal Being" (oldid 14995837) carries
+    # id1 = 777, id2 = 778 at 1761,5088,2, the Lunar Diplomacy Dream World.
+    ("lunar_moon_dream_lady", normalise("Ethereal Lady")): {normalise("Ethereal Being")},
+    ("lunar_moon_dream_man", normalise("Ethereal Man")): {normalise("Ethereal Being")},
+    # Chief Farmer -> Dale, id 6957: "Chief Farmer" redirects to "Dale" (oldid
+    # 14864551, id 6957, Hosidius, map 1751,3536 r=4; the dump row is 1749,3534).
+    ("hosidius_chief_farmer", normalise("Chief Farmer")): {normalise("Dale")},
 }
 
 # These three records are scenery/cage occupants in the external map dump, not
@@ -255,8 +283,32 @@ NPC_SPAWN_RELOCATIONS = {
 # steps 160/170) was unreachable, and so was every slayer assignment from him.
 # The cache's Turael is `slayer_master_1_tureal` (13618, name=Turael), the
 # symbol skill_slayer/scripts/slayer_masters.rs2 and anma.rs2 bind.
+#
+# The rest of the name drift audit (seam matthew-mbp-m4-b51-seam1): every row
+# below was dropped because While Guthix Sleeps (402/405/2457/2458/2473), Jack
+# Frost (6481) and Mac (1053) took the old id, and the npc it named had no other
+# spawn anywhere in the tree (world squares, quest .spawn files, npc_add). The
+# symbol is the one the wiki infobox's current id names -- each is the named
+# variant, like Turael's, and the one content binds (slayer_masters.rs2
+# [opnpc1,slayer_master_2_mazchna] / [opnpc1,slayer_master_5_duradel],
+# slayer_equipment_shop.rs2 [opnpc4,...], warriorsguild_doors.rs2
+# warguild_ghommal_npc). Every dump tile lies inside the wiki's map marker.
+#   Mazchna   oldid 15356066  id 13620  Canifis, Map x=3511 y=3509 r=3
+#   Duradel   oldid 15351702  id 13622  Shilo Village, Map x=2869 y=2982 plane=1
+#   Harrallak Menarous oldid 14974775 id 13615 Warriors' Guild, x=2866 y=3547 r=5
+#   Ghommal   oldid 15357780  id 13613  in front of the Warriors' Guild, x=2879 y=3547 r=4
+#   Sloane    oldid 15318784  id 13616  Warriors' Guild, 2855,3553 plane=1 rect 5x8
+#   Mac       oldid 15318674  id 1053   Mac's island, polygon 2787..2796, 3536..3543
+#   Patchy    oldid 15295198  id 5870   Mos Le'Harmless, Map x=3677 y=2978 r=5
 NPC_SPAWN_ID_CORRECTIONS = {
     (401, 2931, 3536, 0): "slayer_master_1_tureal",
+    (402, 3511, 3509, 0): "slayer_master_2_mazchna",
+    (405, 2869, 2982, 1): "slayer_master_5_duradel",
+    (2458, 2866, 3546, 0): "warguild_harrallak_npc",
+    (2457, 2877, 3546, 0): "warguild_ghommal_npc",
+    (2473, 2855, 3552, 1): "warguild_sloane_npc",
+    (6481, 2791, 3539, 0): "mac",
+    (1053, 3677, 2978, 0): "patchy_the_pirate",
 }
 #
 # Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
