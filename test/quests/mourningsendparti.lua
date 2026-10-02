@@ -1141,7 +1141,20 @@ return {
         -- enumerated). ----
         t.exec("goto-enterBaseAfterSheep", t.player.goto_tile, 2551, 3320, 0)
         t.exec("enterBaseAfterSheep", t.player.click_loc, "mournerstewdoor", 1)
-        t.exec("goto-talkToEssylltAfterSheep", t.player.goto_tile, 2043, 4631, 0)
+        t.exec("goto-enterBasementAfterSheep", t.player.goto_tile, 2542, 3327, 0)
+        t.exec("enterBasementAfterSheep", t.player.click_loc, "mourning_hideout_trap_door", 1)
+        local sheep_basement_result, sheep_basement_detail = t.await({
+            level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile and tile.x and tile.z
+                    and math.abs(tile.x - 2044) <= 8 and math.abs(tile.z - 4628) <= 8
+            end,
+            note = "trapdoor.landed_basement_after_sheep",
+        }, 10)
+        t.step("enterBasementAfterSheep.landed", sheep_basement_result == "ok" and "PASS" or "FAIL",
+            "await(world.tile() within 8 of 2044,4628) after the trap door -> "
+                .. tostring(sheep_basement_result) .. " " .. tostring(sheep_basement_detail))
+        t.ticks(3)
         t.exec("talkToEssylltAfterSheep", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         -- mend1_essyllt_after_sheep (mend1_disguise.rs2:543-566): "New
         -- orders", verbatim, falling straight into mend1_essyllt_poison_
