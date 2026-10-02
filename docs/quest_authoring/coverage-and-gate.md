@@ -133,7 +133,255 @@ FULL grades only the steps the ladder holds. Regicide read FULL (64 of 64) while
 `crossTheGrid` and its sub-steps `climbOverRockslide4` and `climbOverRockslide5` (the grid between
 the pit and the lever) never appeared in the ladder, and the test crossed them with one `goto_tile`
 (sampler-findings: Sample matthew-mbp-m4-b47). Read the guide's whole `ConditionalStep` tree for
-the stretch you drive, and drive every obstacle in it, listed or not.
+the stretch you drive, and drive every obstacle in it, listed or not. Since seam
+matthew-mbp-m4-b49-seam2 such a hop reads CHEAT anyway: see "lands at ... without pressing the
+rockslide" below.
+
+### "lands at ... without pressing the rockslide ... names" / "PASSed, but the newest server line of its attempt is" (b49-seam2)
+
+*Origin: Regicide was sent back three times (reverts 9c28a4e0c, 9260f12d8, 7fc9688a4) for `goto_tile`
+hops across the Underground Pass and the Tirannwn forest, each read FULL 64/64. The ladder grades
+`climbOverRockslide1`..`5` and `passTrap1`..`5` as one step each (siblings that differ in one name word
+are "one step, done any way"), so one press of rockslide 1 drove all five, and `crossTheGrid` was in no
+ladder at all.*
+
+**A goto across a route obstacle is CHEAT, whatever else drove the step.** Every `ConditionalStep` in
+the guide is read, not only the branch-only states (seam36). An ObjectStep on an obstacle loc (a
+door or gate, a rockslide, spear trap, rock swing, log, pitfall, tripwire, dense forest, ledge, ...; a
+plain ladder or stair stays travel) that an `addStep(<zone>, step)` shows in zone A is skipped when a
+goto row:
+
+- left from a reading inside A (the run's own positions: a goto's `at x,z,l`, `standing at x,z level
+  l`, `from a,b to x,z`, `tile=`, `teleport: a -> b`, a bare `x,z`; never the server lines quoted after
+  ` :: `, and never `pressed the copy at`),
+- landed outside A in another state of that route (a zone of the same `ConditionalStep`, or of any
+  `ConditionalStep` that shows it, such as the pass section around a sub-route),
+- on the same level of the same map frame (a climb or a dungeon exit is judged by the climb rules
+  above),
+- with no press of that step's own copy between them. A press names its copy as `pressed the copy at
+  x,z,l`; a copy more than 4 tiles from the step's WorldPoint, like rockslide 1 for rockslide 4, does
+  not count.
+
+The step reads CHEAT even when another row pressed the same loc elsewhere. A step no ladder lists is
+added to the report as its own CHEAT row. Example:
+`climbOverRockslide4: ledger row 71 'goto-pullLeverAfterGrid' lands at 2466,9673,0 (isAfterTheGrid)
+from 2466,9699,0 (isAfterThePit, row 69 'crossThePit-tile') without pressing the rockslide
+climbOverRockslide4 names (rockslide2_obstacle_upass)`.
+
+Where one zone is a state of several routes heading different ways (Regicide's `inWestForestPath`
+shows the ring of leaves on the way to Iorwerth and the dense forest on the way to Tyras), the hop is
+charged to the step whose WorldPoint it heads toward. It is charged to every candidate only when it
+heads toward none of them.
+
+**A crossing row passes on THIS attempt's line.** A PASS row named after an obstacle step whose last
+` :: ` chat block opens with a failure (`...and fail, activating the trap!`; the block lists the
+newest line first, and a multi-attempt detail's last block is its last attempt) is CHEAT: `ledger row
+93 'passTrap5-tile' PASSed, but the newest server line of its attempt is '...and fail, activating the
+trap!'`. Regicide's own `last_lines(4)` check found trap 4's "...and succeed" still in view. Count
+the success lines before and after the press, or check the tile the attempt moved you to.
+
+Drive it as the game does. Walk the route with `walk_to` hops and `click_loc` each obstacle, and
+re-read the tile after each crossing (`standing at x,z level l`). Use `goto_tile` only between two
+tiles in one state of the route, or out of it the way a player teleports out.
+
+Not judged:
+
+- a hop with any loc press, walk, `use_on` or cast between the last reading and the goto, because the
+  start is unknown (re-read the tile after a crossing and the hop is judged from there). A goto row
+  whose detail reads `at <landing> from <departure>` starts at its departure tile, and nothing between
+  is consulted. The driver does not write that form yet (see "The departure tile" below);
+- a hop back into the zone the run walked into A from (Regicide leg 6's two-tile step back east
+  to `passTrap5`'s stand tile);
+- a hop that starts outside every obstacle zone, unless it lands in another island of a route whose
+  entry route it skips (next section).
+
+#### "which no zone of ... joins to it ... the guide's way into ... is ..." (b50-grader)
+
+*Origin: Regicide d3505f4ee row 75, `goto-crossThePit` from the voyage cave (2314,9624,
+`isInWellEntrance`) to the pit (2461,9699). The round-6 sampler called it a teleport back into the
+pass. The rule above missed it because the voyage cave's step, `leaveWellCave`, is not an obstacle.
+2c35057c6 row 67 makes the same hop.*
+
+**A goto from one island of a route to another, past the route's way in, is CHEAT.** Take a
+`ConditionalStep` X whose constructor default D is itself a `ConditionalStep` with obstacle steps in
+zones of its own (`travelThroughPassSection3 = new ConditionalStep(this, crossTheBridge)`). The guide
+sends a player who is in none of X's zones through D, so D is the way into X's states. The grader
+joins X's zones, and the zones of every ConditionalStep under X (D's included), into islands: zones
+that overlap or sit within 2 tiles of each other are one island. A goto is CHEAT when:
+
+- it lands in a state zone of X, on the island that D's zones touch, outside D's own zones;
+- it starts in a zone of X on another island (the voyage cave does not touch the pass's zones);
+- it stays on one level of one map frame, with nothing between to make the start unknown;
+- no row between presses one of D's obstacle steps.
+
+The charge goes to D's obstacle steps whose zones touch the landing state's zone, or to all of them
+when none touch it. Example: `climbOverRockslide2: ledger row 75 'goto-crossThePit' lands at
+2461,9699,0 (isInUndergroundSection2) from 2314,9624,0 (isInWellEntrance, row 74
+'reenterVoyageCave-tile'), which no zone of travelThroughPassSection3 joins to it, without pressing the
+rockslide climbOverRockslide2 names (rockslide2_obstacle_upass): the guide's way into
+isInUndergroundSection2 is crossTheBridge (travelThroughPassSection3's default, guide line 741)`. The
+bridge (`shootBridgeRope`) and rockslide 3 are charged for the same row.
+
+Not judged:
+
+- A default that is a single step. Quest Helper puts a route's last step in the default as often as its
+  first: `pathToIorwerth`'s `talkToIorwerth`, `theUndergroundPass`'s `climbDownWell`,
+  `goToTyrasCampEntrance`'s `enterTyrasCamp`. A single DOOR default is judged by the next section.
+- A start in no zone of X. Open ground may reach the landing some way the guide does not name (except
+  through the door of the next section).
+- A start on D's island. The rule above judges those hops.
+
+In the committed greens, 4 guides have such a route (grandtree, losttribe, regicide, tearsofguthix),
+and no green step changes class.
+
+#### The departure tile (gap (b), closed)
+
+**LANDED (matthew-mbp-m4-b50 4ff821094; reaches v3 with that batch's PR).** Seam1 proved it and held it back; the orchestrator landed it, because the ten hops it exposes are cheats, not false positives. The driver change: `goto_tile` reads
+`QD.world.tile()` once before its first `::goto` and opens its ok detail with `at <landing> from
+<departure>` (`from ?` when the read fails). Live, d3505f4ee's `regicide.lua` wrote row 75 `at
+2461,9699,0 from 2314,9624,0` itself and was charged CHEAT; the green regicide stayed FULL 64/64.
+It was not landed because a full suite run with it turns TEN committed greens RED (every ledger
+100% PASS; `helper_coverage` TEST_GAP on a hop no rule could see before): blackknight row 27
+`goto-hole` (cabbage-hole room -> east room), desertrescue row 145 (deep mine -> mine 1 past the
+winch and exit), eadgar row 14 (mountain path -> troll area past `troll_climbingrocks`), hero row 27
+(garden -> secret room past `pete_sidedoor`), mourningsendparti row 125 (HQ -> basement past the
+trapdoor), mourningsendpartii row 18 (basement -> caves past `mourner_hideout_door4`),
+recruitmentdrive row 33 (west side -> Sir Kuam's room past `rd_bridge_right`), rumdeal row 95 (north
+island past `deal_gate_closed`), totem row 29 (entrance -> stairway past `combodoor`), troll row 17
+(troll area -> arena past its entrance). Most read as real gotos past an obstacle the guide names,
+so all ten went back to `todo` in QUEUE.tsv with their hop named: re-author only that hop (drive the
+obstacle), the rest of each file stands. A green re-run after this lands can read CHEAT on a hop
+the grader could not judge before; that is the stamp working. Conformance row
+`seam.goto_departure_stamp`. The suite's verdicts are
+`build/seam_state/matthew-mbp-m4-b50-seam1/close_gate_after.txt` (matthew-mbp-m4).
+
+The gap as the grader pass wrote it:
+
+No ledger row records where a goto left from. `player.goto_tile` writes `at <landing>`
+(script/plugins/quest_driver/pointer.lua). The server's `::goto` reply names only the destination
+(`Teleported to x,z,l.`). client.log has no per-row tile. Across the committed greens, 993 of 1,735
+goto hops have a press or walk between the last reading and the goto, and 406 change level or frame,
+so the route rules judge only about a fifth of the gotos. The smallest driver change: `goto_tile`
+reads `QD.world.tile()` once before its first `::goto`. Its ok detail then becomes
+`at <landing> from <departure>`, and a retry's detail becomes `at <landing> from <departure> on
+attempt ...`. The grader already reads that form (`hop_start`). Synthetic proof: d3505f4ee's ledger
+with row 74's reading replaced by a press reads row 75 not judged, and with row 75 stamped `at
+2461,9699,0 from 2314,9624,0` reads it CHEAT again.
+
+Proof (`--ledger` grades another run's ledger):
+
+```sh
+git show 2c35057c6:test/quests/regicide.lua > /tmp/r.lua
+git -C OSRS-Content show 5f4908df1:osrs239-content/server/scripts/selftest/quests/quest_regicide/play/ledger.tsv > /tmp/r.tsv
+python3 tools/quest_gate/helper_coverage.py regicide --lua /tmp/r.lua --ledger /tmp/r.tsv
+```
+
+Results:
+
+| Run | Before | After |
+| --- | --- | --- |
+| 2c35057c6 | FULL 64/64 | TEST_GAP (CHEAT=8; 9 with b50-grader's row 67) |
+| d3505f4ee | FULL 64/64 | TEST_GAP (CHEAT=6; 8 with b50-grader's row 75) |
+| 5deefa070 | CONTENT_GAP | MIXED |
+| Green regicide (473 rows) | FULL | FULL |
+| Committed greens, last runs (`build/quest_gate`) | 99 FULL | 99 FULL, no step changed class |
+| Committed greens, published ledgers | 93 FULL + 6 older evidence | the same, no step changed class |
+
+The reverted runs read TEST_GAP from the hops their samplers named: pit to lever, plank room to well,
+temple to Iban's room, trap to trap, Tyras's camp to the sulphur, past the forests, ring to log, and
+the three stale trap rows. 5deefa070's ring-to-log re-teleport reads CHEAT; its mid-run `::setlevel
+agility 99` is not a goto and is not this rule's.
+
+### "outside the building ... the guide's way in is ..." / "leaves ... that is the room's only way out" (b51 seam1)
+
+*Origin: the matthew-mbp-m4-b51 sampler sent back two greens the grader read FULL. Black Knights'
+Fortress 4b849c46b row 16 `goto-fortress-entrance` went from the White Knights' Castle (2960,3335,2)
+straight to 3016,3516,0 inside the fortress, past `bkfortressdoor1`, whose `[oploc1]` is the disguise
+check (quest_blackknight.rs2:10). Heroes' Quest 9bdd40c4d row 30 `goto-grip` went from inside the
+sealed secret room (2781,3197) to 2774,3192 and meleed Grip, where the guide's `killGrip` says "kill
+him with magic/ranged" from your own room (HeroesQuest.java:411). Seam
+`goto_into_a_guarded_interior_from_outside_any_zone`.*
+
+**A goto into the room a door default opens on is CHEAT** (`door_entries`). Take a `ConditionalStep` X
+whose constructor default D is ONE ObjectStep on a route obstacle (door, gate, barrier...; a plain
+ladder or stair is travel) with a WorldPoint. QH shows D whenever the player is in none of X's zones,
+so D is the way in. The rooms D opens on are X's zone boxes within 2 tiles of D's point on its level;
+a zone the guide shows D itself in is the door's outside and is left out (Eadgar's Ruse:
+`returnParrotToEadgar.addStep(inTrollheimArea, enterEadgarCaveWithTrainedParrot)` is the mountain
+before the cave). The building's footprint is the x,z hull of those rooms' island of X's zones plus
+the floors above and below it. A goto is CHEAT for D when:
+
+- it lands in one of the rooms D opens on;
+- it starts outside the footprint on the same map frame, on any level (Falador's second floor counts);
+- nothing between makes the start unknown (a departure stamp, or a reading with no press or walk after
+  it), and no row between presses D's copy.
+
+Example: `enterFortress: ledger row 16 'goto-fortress-entrance' lands at 3016,3516,0 (inMainEntrance)
+from 2960,3335,2 (inFaladorF2, ...), outside the building infiltrateTheFortress's zones make, without
+pressing the door enterFortress names (bkfortressdoor1): the guide's way in is enterFortress
+(infiltrateTheFortress's default, guide line 299), whose door at 3016,3514,0 opens on
+inMainEntrance`. Drive it as the game does: goto to the outside of the door, wear the disguise,
+`click_loc` the door under a row named `enterFortress`.
+
+Not judged:
+
+- A landing deeper in the building than the room the door opens on. A building can have doors the guide
+  does not name: Ernest the Chicken's `pickupSpade` says to leave Draynor Manor's east room "through the
+  door in the same room", so the goto from the fountain into that room is not a hop past `enterManor`.
+- A start in a dungeon frame (z + 6400). A ladder out of it may come up inside: In Search of the
+  Myreque's hideout ladder comes up on the entrance island past `climbTree`.
+- A start inside the footprint. A hop between the building's floors skips a ladder, not the front door;
+  the climb rules judge it.
+- A door several ConditionalSteps share as their default is charged to each of them. Mourning's End
+  Part I's `mournerstewdoor` is the default of four, so one hop reads four CHEAT rows.
+
+**A goto out of a guarded room, after which the room's step is driven elsewhere, is CHEAT**
+(`room_exits`). A guarded room is a state zone Z of X that holds, within one tile, the WorldPoint of
+an obstacle step O that X shows in ANOTHER zone A (Heroes' Quest: `useKeyOnDoor`, `pete_sidedoor` at
+2781,3197, is shown `inGarden` and opens on `secretRoom`). S is the step X shows in Z (`killGrip`). The
+step S is CHEAT when a goto meets all of these:
+
+- it starts in Z;
+- it lands within 24 tiles on the same level, outside Z, outside A and outside every zone of X;
+- nothing between makes the start unknown, and no row between presses O;
+- a PASS row before the next goto is named after S or quotes S's target (`killGrip`, `attackGrip`).
+
+Example: `killGrip: ledger row 30 'goto-grip' leaves inSecretRoom (from 2781,3197,0, ...) for
+2774,3192,0, in no zone of getThievesArmband, without pressing the door useKeyOnDoor names
+(pete_sidedoor) that is the room's only way out, and row 32 'killGrip' drives killGrip there`. Drive
+it as the guide does: stay in the room and use `t.player.cast` or a ranged weapon on Grip once he is
+lured next door.
+
+Not judged: a hop further than 24 tiles or to another level (a player may teleport out of a room), a
+hop back to the door's side, a hop with an unknown start, and a room whose step is not driven after
+the hop.
+
+**Known gap: a sealed room the guide does not door-guard.** `room_exits` knows a room is closed only
+because an obstacle step's door opens on it. A room enclosed by walls the guide never names (no
+obstacle step points into it), or a goto through a wall between two zones that the guide joins with no
+step, cannot be judged without the map's walls. `walkable_probe` (src/torirsserver/test/) reads
+standability, not wall edges, and no Python reader of the `.jl2` walls or the server's
+`collision_map_bfs_path` exists for the grader. Until one does, the samplers judge these hops from the
+map square (Heroes' Quest's room is walled in `maps/m43_49.jl2`, `snipable_wall` at 2780,3198).
+
+Results (`--lua`/`--ledger` on the reverted runs; every committed green on both its last-run ledger and
+its published ledger, 208 grades, `PYTHONHASHSEED=0`):
+
+| Run | Before | After |
+| --- | --- | --- |
+| blackknight 4b849c46b + OSRS-Content 0baada3fd2 | FULL 32 | TEST_GAP: `enterFortress` CHEAT (row 16), nothing else changes |
+| hero 9bdd40c4d + OSRS-Content 45e8690c34 | FULL 43 | TEST_GAP: `killGrip` CHEAT (rows 30/32), nothing else changes |
+| regicide 2c35057c6 | TEST_GAP CHEAT 9 | the same |
+| `helper_coverage_two_op_test.py` | 3/3 | 3/3 |
+| Committed greens (104 x 2 ledgers) | 202 FULL + 6 already not FULL (eaglepeak x2, misc, itwatchtower, shadowstorm: older published evidence; ratcatchers: a concurrent run's ledger) | 200 FULL; the 6 unchanged step by step; mourningsendparti x2 is the only change |
+
+The one green that changes is a real cheat: mourningsendparti row 172 `goto-cookToxin` goes from
+Rimmington (2927,3211,0) into the Mourner HQ (2547,3323,0) to use its range. The HQ door
+`mournerstewdoor` is quest-gated: area_ardougne_west/scripts/doors.rs2:19 checks the full mourner
+disguise (mend1_disguise.rs2:335). Re-author that hop: go to the door, wear the gear, and press it.
+Evidence: `build/seam_state/matthew-mbp-m4-b51-seam1/fix_guarded/` (`sweep_diff.txt`,
+`synthetic/`: a landing outside the door, a door press before an unstamped goto, a hop to the
+garden and an 81-tile hop each stay uncharged).
 
 ### A `BLOCKED` row reports `blocked`
 

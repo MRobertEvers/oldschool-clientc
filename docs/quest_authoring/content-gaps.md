@@ -106,3 +106,72 @@ black candle, the sapphire lantern and Olaf's planks, but none for a candle lant
 the unlit lantern answers "Nothing interesting happens." The tunnels never test for a light either,
 so a test that falls in walks on with the lantern out. Stay on the marked path; report a relight
 only if a quest needs one.
+
+## `no_row <npc>` for a world npc the guide names: no spawn row at all (Zembo, matthew-mbp-m4-b49-seam1)
+
+Symptom: `t.npc.nearest("zembo", 15)` answers `no_row zembo (id 13655, searched N npc(s) within 15)`
+at the guide's WorldPoint, and grep finds the symbol in no `.spawn` file. The generated squares
+(`areas/world/configs/m*.spawn`, `gen_spawns.py`, do-not-hand-edit) dropped him. The fix is content
+ported from its source, kept in a quest-local `.spawn` the generator cannot clear (the
+`quest_prince.spawn` precedent): Tai Bwo Wannai Trio's Zembo is `quest_tbwt/configs/tbwt_zembo.spawn`
+(2925,3143, LostCity m45_49.jm2), `tbwt_zembo.inv` `[boozeshop]` and `tbwt_zembo.rs2` (LostCity
+`zambo.rs2`). Drive him with `talk_to` + `choose:Yes please.` + `t.shop.attach("boozeshop")`, or
+`t.shop.open("zembo", 3, "boozeshop")`; rum is 30 coins (conformance row
+`seam.zembo_boozeshop_sells_rum`).
+
+## Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji (FIXED b49-seam2)
+
+Symptom before the fix: after `fillVessel` the backpack had no raw karambwanji left, so a second
+load or `makeKarambwanjiPaste` found none. `[proc,tbwt_load_karambwan_vessel]` cleared the
+karambwanji's slot with `inv_delslot`, and this cache's `tbwt_raw_karambwanji` is `stackable=1`, so
+one load ate the stack. LostCity's code is the same, but its karambwanji is not stackable
+(`fishing.obj`), so there the slot was one fish. The OSRS wiki ("Raw karambwanji", oldid 15184350)
+loads one. The proc now does `inv_del(inv, tbwt_raw_karambwanji, 1)`: 5 -> 4 -> 3 in both use
+orders (conformance row `seam.tbwt_vessel_loads_one_karambwanji`). Leftover karambwanji stay in the
+pack, so a test no longer has to net again before each load.
+
+## Enlightened Journey: no willow branch source in the pack; check a hand-in's source before you `::give` it (matthew-mbp-m4-b50; FIXED matthew-mbp-m4-b50-seam1)
+
+**FIXED (matthew-mbp-m4-b50-seam1).** Every hand-in now has an in-game source, and the round-1 file
+with each mid-run `::give` replaced by a driven gather ran 221/221 to `quest.varp_complete`
+(`build/quest_gate/s1_ej_copy`). New content in `skill_farming`: willow saplings and Auguste's
+sapling (`zep_plantpot_willow_sapling`) grow in tree patches (`farming_trees` rows
+`farming_tree_willow*`; wiki "Willow tree (Farming)" oldid 15287151), and secateurs used on a grown,
+health-checked willow cut its branches, one per 5 minutes up to 6 (`farming_tree.rs2`; wiki "Willow
+branch" oldid 15184331; conformance `seam.willow_tree_grows_branches`). Fill on an empty sack makes
+Potatoes(10) (`farming_sacks.rs2`; wiki "Empty sack" oldid 15183845; conformance
+`seam.vegetable_sack_fill`). Empty sacks are Sarah's (`farming_shopkeeper_1`), redberries Wydin's,
+the dyes Aggie's, silk the Al Kharid silk trader's, the bowl a spawn up the ladder in Auguste's
+house. Every route, tile and op: `test/quests/wip/enlightenedjourney/relay.md`. Not built: the
+sack's Remove-one/Empty ops, paying a gardener to protect the tree, stump regrowth.
+
+The finding as the b50 reviewer wrote it:
+
+*Origin: the b50 reviewer rejected enlightenedjourney for `::give`s of items the guide has you get.*
+
+Nothing in the content pack hands out `willow_branch`. A grep finds it only in the quest's own
+`ej_crafting.rs2` and `enlightenedjourney.constant` and in `skill_crafting` weaving. No farming
+harvest gives branches. So QH's "Get 12 willow branches" (`talkToAugusteWithBranches`) has no
+source to drive. A `::give willow_branch 12` grades as a cheat. The file must stop at `t.blocked`
+with a `content_bug` that names the missing source. The ladder notes say the same thing
+(`docs/quests/ladders/enlightenedjourney.notes.md:15`).
+
+The quest's other hand-ins, the potato sacks, red and yellow dye, silk and the bowl, were
+`::give`n too. Each is the same finding: the guide has you obtain them. Silk has a source in the
+world (`areas/alkharid/scripts/silk_trader.rs2`). The b50 reviewer did not trace the dye, sack,
+potato or bowl sources. Grep the content for the `inv_add` before you write that leg. Do not
+assume an item has no source.
+
+
+## A quest loc absent from `maps/*.jl2` may be absent from the real cache too (Eagles' Peak Pedestal, matthew-mbp-m4-b50-seam1)
+
+*Origin: the b50 parity closer proposed a map row for the net-trap Pedestal (loc 19980) in
+`m30_76.jl2` and deleting the runtime stand-up.*
+
+The real game's own rev 239 cache places no Pedestal either: `cachepack unpack --cache
+cache.osrs239 --rev osrs239 --assets=maps` gives an `m30_76.jl2` byte-identical to OSRS-Content's,
+and no map square places locs 19980-19984. So the game stands it up server-side, and the port's
+`eaglepeak_bronze_ensure_pedestal` (a `loc_add` guarded by `loc_find` on all three forms) is the
+faithful mechanism; `bronze_room.rs2` now says so. Check the pristine cache before proposing a map
+row. Quest runs and JS5 read the pristine `cache.osrs239` (run.py `write_manifest`), never the
+`make torirsserver-cache` bake (`cache.osrs239.baked`), so a map row would be inert in a run anyway.

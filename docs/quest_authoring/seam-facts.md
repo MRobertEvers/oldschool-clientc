@@ -144,7 +144,8 @@ fresh_lumbridge giant spider stuck behind the castle fence made `_cheats` passiv
 (h) `%if1..%if6` (varps 261-266) are the cache's per-screen interface scratch: never store state
 there. The Slayer task is `%slayer_count`/`%slayer_target` (var394/395) plus server-only
 `%slayer_task_id`/`%slayer_stored_*`; a test that needs a task asks Vannaka (`slayer_master_3`,
-3146,9914, combat 40; Turael is not spawned).
+3146,9914, combat 40; "Turael is not spawned" is FIXED: b50 put him back, and Mazchna and Duradel
+stand since seam pass matthew-mbp-m4-b51-seam1 (c)).
 
 (i) The Lumbridge Swamp Dark hole refuses without a rope while `swamp_caves_roped_entrance` is 0
 (wiki Dark hole): tearsofguthix, wanted and anothersliceofham give a rope; that bit is on the
@@ -907,6 +908,47 @@ found no Koftik and the pocket had no way out. FIXED: it finds `caveguide6`, who
 binding, quest_regicide `koftik.rs2`) opens `@koftik_whereami` while `%upass` is `defeated_iban`.
 When a LostCity npc symbol finds nothing, compare the OSRS spawn file's npc at that tile.
 
+## Seam pass matthew-mbp-m4-b48-seam1 (2026-10-01)
+
+(a) Iban's temple doors had no Regicide branch. Regicide's two walks to the Well of Voyage
+(`enterTemple` in leg 2 and again in `goThroughUndergroundPassAgain`) go through the doors of
+Iban's temple after Underground Pass is complete, and `upass_tomb.rs2` `[label,open_iban_door]`
+carried only a "Regicide shortcut deferred" comment: with `%varp161_upass` complete the click
+answered "The temple is in ruins... / ...You cannot enter." and the author jumped the door with
+`goto_tile 2010,4709,1` (sampler-findings, Sample matthew-mbp-m4-b48 (c)). FIXED (OSRS-Content
+2dd52a46a5) as LostCity_Server has it: entering from the east at `%varp328_regicide_quest >=
+^regicide_spoken_lathas` (2), before the Zamorak-robe check, opens the doors and teleports you
+into the ruined temple's copy of the room (`quest_upass.rs2:576-585`); leaving by that copy's
+doors puts you back outside Iban's temple (`:629-631`). The doors are placed twice:
+`upass_templedoor_closed_right`/`_left` at 2143,4648/4647 level 1 (Iban's temple, `m33_72`) and at
+2015,4712/4711 level 1 (the ruined temple, `m31_73`, with `regicide_voyage_temple_well1` at
+2008,4711). The right leaf lands on 2014,4712 level 1 (the left on 2014,4711); the ruined copy's
+right leaf lands back on 2145,4648 level 1. A player below Regicide stage 2 gets the old answers.
+Conformance row `seam.iban_temple_door_regicide_shortcut`. The route from Iban's door to the
+temple doors crosses four collapsed bridges: gaps-world, "Underground Pass: Iban's temple door".
+
+## Seam pass matthew-mbp-m4-b48-seam2 (2026-10-01)
+
+(a) "The ledge pocket is sealed" was a rock bridge never clicked, not a map bug. Regicide's round 4
+walked off the Underground Pass ledge (landing 2374,9638) and found every `walk_to` toward the pipe
+(`upass_pipe6`, 2417,9605) or `upass_unicorn_doorl` (2375,9611) stalled at 2374,9638, and blamed a
+wall line on z 9615 in `m37_150.jl2`. No map, loc, collision or script was wrong: the pocket is left
+by the maze's five rock bridges `walkway_upass_narrow_mid_top` (op1 Cross, `blockwalk=1`, level-1
+ground decor over the pits; `[oploc1,...]` `upass_obstacles.rs2:360` = LostCity_Server
+`upass_obstacles.rs2:291`), at 2380,9634 / 2387,9631 / 2392,9627 / 2399,9632 / 2406,9637, each
+clicked from x-1 and landing on x+1 ("...and make it."). The copies at 2396,9636 and 2406,9632 are
+dead ends. A fall ("...and fall off it.") drops you one tile south (north under 2399,9632 and
+2406,9632, the two `0_37_150_31_32`/`_38_32` copies) and every fall tile walks back. The same seven
+copies stand at the same tiles in LostCity's `m37_150`, and every quest loc of the square (doors,
+pipes, ledge, mud, railings) matches LostCity. The hop list is in gaps-world, "Underground Pass:
+`walk_to` stalls under attack and stops at rock bridges". The Thieving-50 cage `cave_railings5`
+2380,9619 is the guide's optional shortcut ("Navigate the maze, or use the shortcut to the south
+with 50 Thieving", Regicide.java:517). Proof: `build/seam_state/matthew-mbp-m4-b48-seam2/scratch/maze_walk.lua`
+20/20 with no goto after the well (row `repro.walk_to_pipe_stalls` reproduces the stall, then the
+five bridges, the pipe and the door), and Regicide leg 2 with its maze marker replaced 26/0 to the
+temple marker, 42/42 with seam1's temple route. Hand-off: `test/quests/wip/regicide/relay.md`,
+"seam2 (maze)".
+
 ## Seam pass vm-b1-seam1 (2026-10-02, batch vm-b1)
 
 (a) `other_floor` is an honest answer, not a driver seam: the game's own client cannot press a loc
@@ -981,6 +1023,122 @@ can't go any further."), the same shape as Seam pass 37 (b). FIXED vm-b1-seam3 (
 relay.md unchanged) -- no fixer reported; the triage row stands for the next pass. FIXED
 vm-b1-seam3 (a).
 
+## Seam pass matthew-mbp-m4-b49-seam1 (2026-10-02, batch matthew-mbp-m4-b49)
+
+(a) An IF1 button runs only `[if_button,<if>:<com>]`. A real click on an `if3=no` component sends
+the op-less IF_BUTTON and `handle_if_button` runs `ToriRSServer_ScriptsRunIfButton(uid, 0)`, one
+rung, as LostCity's `IfButtonHandler.ts:31` does; the numbered `[if_button<N>,...]` is the IF3 op
+form. Ratcatchers' snake charm bound its ten buttons `[if_button1,ratcatcher_flute:*]`, so no press
+played the tune; the content now binds `[if_button,...]` (`ratcatchers.rs2`), the dispatcher is
+unchanged. Proof: scratch `flute_if1` 0 -> 27/0 (stage 105, "procession of rats"); the committed
+test with its `t.blocked` replaced by the tune ran to the completion scroll, 211/0; conformance row
+`seam.if1_button_unnumbered_trigger`. Still bound the dead way: `mcannon_broken_cannon.rs2:103-159`
+(7, green only because content arms op 1 and the test presses op 1) and `grim_witchhouse.rs2:47-89`
+(Grim Tales' piano, 15, unarmed); both FIXED in seam pass matthew-mbp-m4-b49-seam2 (a). Detail:
+traps-23-33, Trap 33.
+
+(b) Zembo had no spawn, script or stock, so Tai Bwo Wannai Trio's getRum answered `no_row zembo`.
+Ported from LostCity_Server (m45_49.jm2 `0 45 7: zambo` = 2925,3143; `zambo.rs2`; `karamja.npc`
+`[zambo]` wanderrange 3 and shop params 700/1000/20; `karamja.inv` `[boozeshop]`) into
+`quest_tbwt/` (`tbwt_zembo.spawn`, `.inv`, `.rs2`; the barcrawl arm deferred like
+`deadmans_bartender.rs2`). Proof: scratch `seam1_zembo_b` 17/17, the parked file with the buy rows
+47/0 to the end of leg 1; conformance row `seam.zembo_boozeshop_sells_rum`. Measured on the way:
+`use_item_on_item(a, b)` fires `[opheldu,b]` first (gaps-combat, corrected).
+
+(c) Underground Pass's fall pocket is not sealed: five rockslides and a rock pile, no content change
+(gaps-world, "the fall pocket"). The b47 file with its leg-4 GUIDE-GAP replaced by the driven block
+ran rows 1-109 PASS and `helper_coverage` grades `leaveFallArea` DRIVEN; it stops next at
+`navigateMaze`, where the extra slide rolls shift the account-seeded RNG and a fall off bridge
+2406,9637 lands in a pit (2406,9635) with no known walk back. The woodplank is a ground spawn
+(m38_151.spawn:35, 2435,9726), reached after the bridge, not by `::give`.
+
+(d) Troll Romance: Arrg's damage is the OSRS wiki's and the b47 death was test-side (verbs-combat,
+Arrg). The sled rides play and `t.cutscene.await` sees 5/5 keyframes each; they never started
+because Curse of Arrav's name binding on the Trollweiss cave mouth and crevice shadowed the maplink
+(gaps-world, "a name binding shadows the maplink"). FIXED by the closer in `curseofarrav.rs2` (the
+fixer proved it on a private pack, before 12/6, after 18/18, control 12/6; running.md). The parked
+file with the armour kit ran 97/97 to the scroll on the shared pack (`closer_tl_shared`).
+
+Not run this pass: the design seam "a travel goto across a guide-named obstacle is CHEAT" (Regicide
+9c28a4e0c) had no fixer; `helper_coverage.py` is unchanged. FIXED in seam pass
+matthew-mbp-m4-b49-seam2 (c).
+
+## Seam pass matthew-mbp-m4-b49-seam2 (2026-10-02, batch matthew-mbp-m4-b49)
+
+(a) Dwarf Cannon's toolkit and Grim Tales' piano take the IF1 press. Both interfaces are `if3=no`,
+so a click sends the op-less IF_BUTTON and only `[if_button,...]` runs (LostCity_Server
+`IfButtonHandler.ts:31`); the content bound them `[if_button1,...]`. Rebound: 7 in
+`mcannon_broken_cannon.rs2`, 15 in `grim_witchhouse.rs2`; `mcannon.lua`'s toolkit loop presses
+op 0. Before: an op-0 press set nothing (`seam2_mcannon_before`, `seam2_piano_before`: "no trigger
+for [if_button0,grim_piano:ue] or [if_button,grim_piano:ue]"). After: scratch 17/0 and 22/0, and
+mcannon 114/0 to the scroll. Conformance row `seam.if1_toolkit_and_piano_op0`. Trap 33.
+
+(b) Tai Bwo Wannai Trio's XP is CLAIMED FROM THE BROTHERS, not awarded at completion. The b49
+review read "the quest gives none of its documented XP"; the OSRS wiki ("Tai Bwo Wannai Trio",
+oldid 15265886, Rewards: "claimed upon speaking to Tinsay / Tiadeche / Tamayu after quest
+completion"), Quest Helper (`TaiBwoWannaiTrio.java` talkToTimfrakuEnd) and LostCity's
+`tbwt_{tinsay,tiadeche,tamayu}_final.rs2` all pay it when you talk to each brother in the village
+afterwards, and the port already does. So at the scroll every skill delta is +0; assert
+`t.skill.expect_gain` after each claim (Tinsay 5000 Cooking, Tiadeche 5000 Fishing, Tamayu 2500
+Attack + 2500 Strength and the kp rune spear; the npcs are the `*_multinpc_house` symbols). The
+scroll itself now reads the wiki's `File:Tai_Bwo_Wannai_Trio_reward_scroll.png`: `2 Quest Points |
+5000 Fishing XP | 5000 Cooking XP | 2500 Attack XP | 2500 Strength XP`, karambwan model, no coins
+line (the 2,000 coins are Timfraku's own `inv_add`). That string is pinned by
+`tools/check_quest_combat_contract.py`, so it changed in one commit with the pin: a content seam
+whose string a contract check pins cannot land from a content-only worker -- name the pin in the
+triage's files. Proof: scratch `close2_tbwt_scroll` 36/0 on the shared pack; a copy of the working
+`tbwt.lua` with the claim legs 211/0 (relay in `wip/tbwt`). The vessel now loads ONE karambwanji
+(content-gaps, Tai Bwo Wannai Trio).
+
+(c) A travel `goto_tile` across a route obstacle the guide names reads CHEAT in `helper_coverage`,
+even when another row pressed the same loc elsewhere, and a crossing row that passed on an earlier
+attempt's server line reads CHEAT too (coverage-and-gate, "lands at ... without pressing the
+rockslide"). The three reverted Regicide runs go FULL/FULL/CONTENT_GAP -> TEST_GAP/TEST_GAP/MIXED on
+the hops their samplers named; the green regicide and all 99 committed greens are unchanged step by
+step. `--ledger` grades another run's ledger.
+
+## Seam pass matthew-mbp-m4-b50-seam1 (2026-10-02, batch matthew-mbp-m4-b50)
+
+(a) A goto row that names where it left from (`at <landing> from <departure>`) is proved but HELD
+BACK: with it, ten committed greens read TEST_GAP on goto hops past guide obstacles
+(coverage-and-gate, "The departure tile"). The driver still writes `at <landing>`.
+
+(b) Enlightened Journey's hand-ins all have sources now: willow trees and branches in tree patches,
+and Fill on vegetable sacks (content-gaps, "Enlightened Journey: no willow branch source"; relay in
+`wip/enlightenedjourney`).
+
+(c) Bear Your Soul's way into the deep Taverley Dungeon was already in the content: the dusty key,
+the 70 Agility pipe or the 80 Agility spikes (gaps-world, "Taverley Dungeon deep area"). No content
+change; relay in `wip/bearyoursoul`.
+
+(d) A ground spawn a quest needs goes into `tools/gen_spawns.py`, not the generated `.spawn` file:
+`OBJ_SPAWN_ADDITIONS` / `OBJ_SPAWN_EXCLUSIONS` / `OBJ_SPAWN_RELOCATIONS`, each with its source.
+`m19_57.spawn` is generated from dennisdev/rs-map-viewer (recipe `docs/ITEM_AND_NPCS.md` s7);
+Getting Ahead's knife, bucket, dye exclusion and moved upstairs pot are now in those tables, and
+the regenerated file is `cmp`-identical to the committed one. Regenerate into a SCRATCH `--out` and
+copy only the square you changed: the script unlinks every `.spawn` first, and four other squares
+(`m40_51` pigeons, `m42_55` murder weapon, `m45_159` beer glass, `m45_55` cannonballs) are still
+hand edits a full regeneration would drop. A spawn counterfactual runs without touching the shared
+tree: a symlink-farm content root with one `.spawn` swapped (old mtime) and
+`TORIRSSERVER_CONTENT=<farm>` on `run.py --script`.
+
+(e) "`::ejmodels` crashes above model 19729" was the client's interface-model map, not the id. The
+`uitree_scene_bridge` cache-id -> scene-id maps had a fixed 256 capacity and never grew, so the 256th
+distinct interface model (or npc chathead, or obj model) in one session was a null store in
+`UITreeSceneBridge_EnsureModel` (the OPT build drops the assert). They now double at 75% load. An
+`if_setmodel` widget whose model is not composited (or not in the cache) draws nothing
+(verbs-ui-and-npc: `t.ui.model_pose`). The repro (`::ejmodelsat`, a scratch debugproc) is not in the
+pack, so there is no conformance row.
+
+(f) Eagles' Peak's bronze-room Pedestal is not in the real cache's map either; the runtime stand-up
+stays (content-gaps, "A quest loc absent from `maps/*.jl2`").
+
+(g) `if_setevents` on an IF1 component (`if3=no`, `buttontype` != 0) does nothing in this engine:
+the client makes the button clickable from its buttontype (`src/ui/uitree_input.c:72`) and the
+server answers the op-less IF_BUTTON with `[if_button,...]` (`torirs_server_world.c`, op 0). Dwarf
+Cannon's seven dead `if_setevents(..., ^if_event_op1)` lines are deleted (mcannon 114/0, identical
+row for row). Content should not arm IF1 buttons. Trap 33.
+
 ## Seam pass vm-b1-seam4 (2026-10-02, batch vm-b1)
 
 (a) `helper_coverage` grades a `goto`/`walk`/`travel`-prefixed row named after a guide step as that
@@ -1032,3 +1190,70 @@ is only placed while `varb3298_peng_multi_larry` is 1: a scratch that stages sta
 (d) A regression run in a seam pass takes `--no-publish`: two fixers ran `run.py cooks_assistant`
 and `druid` without it and republished `selftest/quests/quest_{cook,druid}/play` in OSRS-Content
 (restored by hand). Seam pass 17 has the rule; running.md now says it at the run command.
+
+## Seam pass matthew-mbp-m4-b51-seam1 (2026-10-02, batch matthew-mbp-m4-b51)
+
+(a) Two goto hops the grader read FULL now read CHEAT (coverage-and-gate, "outside the building ...
+the guide's way in is ..."). `door_entries`: a goto from outside a building into the room a
+ConditionalStep's single-door default opens on, with no press of that door (Black Knights'
+Fortress's Falador-to-entrance hop past `bkfortressdoor1`, charged to `enterFortress`).
+`room_exits`: a goto out of a room an obstacle step's door opens on, to a nearby tile in no zone,
+after which the room's own step is driven there (Heroes' Quest's hop out of the secret room to
+melee Grip, charged to `killGrip`). Of the committed greens only mourningsendparti changes: row 172
+`goto-cookToxin` teleports from Rimmington into the Mourner HQ past the disguise-gated
+`mournerstewdoor`, a real cheat, reopened. A room sealed by walls no guide step names is still not
+judged: the grader has no reader of the map's walls (known gap, same section).
+
+(b) Rum Deal's pier gate (`deal_gate_closed`, 2120,5098,0) opened in place at its closed angle, so
+the wall stayed and the walk north stalled at 2120,5098 after "You open the gate.". From
+`^deal_get_water` on, the press now goes through the shared `~door_open_active` (doors.loc pairs it
+with `deal_gate_open`): the gate swings off the wall line like every door and the north island is
+walkable (Quest Helper RumDeal.java:358 `openGate`, then `northIsland` z >= 5099; OSRS wiki Rum Deal
+oldid 15315444). Below that stage it still answers with its lock line. Route and proof:
+the green `test/quests/rumdeal.lua` rows `openGate.walk_north`..`lake.fill` (walk in hops; a 33-tile
+`walk_to` to the lake is refused).
+
+(c) Npcs whose dump id the cache gave to newer content were dropped by `tools/gen_spawns.py` as
+name drift and are back: `NPC_SPAWN_ID_CORRECTIONS` adds Mazchna (3511,3509), Duradel
+(2869,2982,1), Harrallak, Ghommal and Sloane (Warriors' Guild), Mac and Patchy, each to the named
+symbol content binds (`slayer_master_2_mazchna`, `warguild_ghommal_npc`, ...); `NPC_NAME_ALIASES`
+keeps six same-id renames (`warrior_woman` "Warrior", `jungle_savage` "Tormented Warrior",
+`feud_desert_snake` "Snake", the two Ethereal Beings, `hosidius_chief_farmer` "Dale"). Each row
+cites the OSRS wiki oldid whose infobox holds the id and whose map marker holds the tile. Drift
+fell 219 -> 145 rows; 20 squares gained spawns (never `m45_159`). A scratch `npc.by_name` probe
+went 12/12 `no_row` -> 55/55 PASS, and Mazchna and Duradel open their slayer pages. Before you call
+a drifted name absent, check every `.spawn` under `server/scripts` (quest-local files too:
+Traiborn, Hassan, Aris and Zembo stand in `quest_demon.spawn`, `quest_prince.spawn`,
+`tbwt_zembo.spawn`) and every `npc_add`, under the cache's name as well as the dump's. Npcs left
+out on purpose (quest-spawned by `npc_add`, Kourend favour-era, Sailing fauna, the reworked
+Sophanem) are listed in `docs/ITEM_AND_NPCS.md` section 3.
+
+## Seam pass matthew-mbp-m4-b51-seam2 (2026-10-02, batch matthew-mbp-m4-b51)
+
+(a) Heroes' Quest's `killGrip` and `getCandlestick` are the partner's half of a real two-player leg
+(Quest Helper HeroesQuest.java:411 "Wait for your partner to lure Grip into the room next to yours,
+and kill him with magic/ranged"; :412 "Get your candlestick from your partner."). A solo Phoenix
+player cannot do either half: Grip's drinks cabinet (2775,3196), his keyring (dropped on his own
+tile) and the treasure room are all inside the mansion behind `garvdoor`, which only a Black Arm
+player at `^hero_blackarm_mansion_unlocked` passes (`garv.rs2` `[label,attempt_open_brimhaven_mansion_door]`),
+and LostCity's `[oplocu,pete_treasuredoor]` refuses below `^hero_blackarm_id_papers_given`. Two
+test affordances now stand in for the partner, beside `::hero_partner` and under the same
+2026-09-23 owner ruling (`docs/QUEST_SERVER_CHEATS.md` section D): `::hero_partner_lure` does
+exactly `brimhaven_scarface_mansion.rs2` `[label,summon_grip]` case 1 on Grip (walk to 2777,3198,
+"Stay out of my drinks cabinet!", 6-tick hold) and nothing else; `::hero_partner_candlestick`
+trades one `petecandlestick`, only at `^hero_phoenix_killed_grip` (your own kill credit, written by
+`[ai_queue3,grip]`) and never a second. The player still kills Grip for real through the slit
+(gaps-combat: Shooting through an arrow slit). Declare the trade `-- PARTNER: getCandlestick
+::hero_partner_candlestick <reason>` (helper_coverage verifies it against the cheats table). Rows:
+the green `test/quests/hero.lua` `inSecretRoom`..`getCandlestick`; 125/0 to the scroll, FULL 43.
+
+(b) A goto to 2780,3197 for Heroes' Quest's side door lands INSIDE the secret room (QH `secretRoom`
+2780..2782 x 3197..3198, HeroesQuest.java:258), past the door; `useKeyOnSideDoor` then walks you
+OUT to the garden (ledger `2780,3197,0 -> 2781,3196,0`). Goto the garden side, 2781,3196, and the
+key lets you in (`2781,3196,0 -> 2781,3197,0`).
+
+(c) OPEN (engine question, not fixed): one `::hero_partner_lure` does not always bring Grip into the
+cabinet room. From a wander tile (2774,3189) the 6-tick hold ended with him at 2777,3194 or
+2777,3195; a second search reached 2777,3197, never 3198 in either run. The port's
+`npc_setmode(null)` may stop a walk that LostCity lets finish; unmeasured. Search again (up to three
+times), as a real partner re-searches the open cabinet, and check Grip's tile before attacking.

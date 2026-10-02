@@ -75,7 +75,8 @@ the intended way out, and this is the case it is FOR -- `quest.journal` is not i
 drive the completion through the rows that DO land, each written by hand with `t.check`:
 `quest.varp_complete` (a `t.quest.stage()` read against `constants.complete`), `quest.scroll_title`,
 `quest.points`, plus the reward rows. Say in the details which channel answered and why
-`quest.journal` is absent. Never ship a row you have measured to time out.
+`quest.journal` is absent. Never ship a row you have measured to time out. The same timeout was
+seen again on Tai Bwo Wannai Trio (matthew-mbp-m4-b49), where `tbwt.lua` hand-rolls the four rows.
 
 ### `sscompile` contention; outcome rows for real sentences; `pack/varp.alloc` lints clean (2026-09-26)
 
@@ -107,12 +108,19 @@ Grade the attack row on the press being accepted (`ok`-or-`timeout`, with the ve
 it names the row text pressed and the hp it read), and put the outcome in `npc.await_dead`'s row.
 Raising `ticks` is not the fix and neither is more accuracy.
 
-## `use_item_on_item` order: `[opheldu,item_a]`; `last_item` vs `last_useitem`; `sscompile` argument counts (seam20)
+## `use_item_on_item` order: `[opheldu,item_b]` first; `last_item` vs `last_useitem`; `sscompile` argument counts (seam20)
 
 *Origin: section 8 ("Gaps reported by authors").*
 
-`use_item_on_item(item_a, item_b)` arms `item_a` and clicks `item_b`, so the trigger that fires is
-`[opheldu,item_a]` -- and content declares only ONE direction of most pairs. Current Affairs'
+`use_item_on_item(item_a, item_b)` arms `item_a` and clicks `item_b`. The server tries the CLICKED
+item's trigger `[opheldu,item_b]` first, then the dragged one's `[opheldu,item_a]`, then the two
+categories (`ToriRSServer_ScriptsRunOpheldu`, rungs 1-4, LostCity's order). (Corrected in seam pass
+matthew-mbp-m4-b49-seam1: this heading said `[opheldu,item_a]` fires, which the Current Affairs
+example below already contradicted.) A rung-1 script that answers instead of declining swallows the
+pair: Tai Bwo Wannai Trio's `("banana", "knife")` hits `[opheldu,knife]` (fletching's
+`cut_logs.rs2`) and says `Nothing interesting happens.`, while `("knife", "banana")` reaches
+`[opheldu,banana]` and slices (`quest_tbwt.rs2:233`); `("tbwt_sliced_banana", "karamja_rum")` makes
+the banana rum. Content declares only ONE direction of most pairs. Current Affairs'
 `use_item_on_item("current_affairs_form", "charcoal")` answered `Nothing interesting happens.` for a
 whole run because no `[opheldu,charcoal]` exists;
 `use_item_on_item("charcoal", "current_affairs_form")` is the same physical act and lands.
@@ -308,6 +316,23 @@ adds his line only when `%troll_freed_eadgar` is set, troll_journal.rs2:52), so 
 stages that flag itself; its `%troll_quest` belongs to `::complete quest_trollstronghold` (the
 committed `eadgar.lua` predates the arm and still `::setvar`s it).
 
+## `::complete` writes the prerequisite's `^*_complete` stage, and a later quest gated one stage higher refuses (Animal Magnetism, matthew-mbp-m4-b50)
+
+*Origin: the b50 reviewer of animalmagnetism (content_bug).*
+
+An arm writes the stage that the quest's own completion script writes: its `^*_complete`
+constant (QUEST_SERVER_CHEATS.md, `::complete <quest row>`). It writes no later optional stage.
+`::complete quest_priestinperil` sets `%varp302_priestperil = ^priestperil_complete` (60) and
+mausoleum bit 20 (`quests/scripts/quest_cheat.rs2:993-1003`). Stage 61,
+`^priestperil_access_holy_barrier`, comes only from Drezel's optional Morytania warning
+(`mausoleum_drezel.rs2:147`). Animal Magnetism has `^anma_pip_gate = 61` (`anma.constant:37`), so
+Ava refuses (`anma.rs2:30`) a player who finished Priest in Peril, with or without the cheat.
+
+A prerequisite gate above the prerequisite's `^*_complete` is a content bug in the downstream
+quest. Look up both numbers (`grep -n _complete <prereq>.constant` and the gate constant), then
+report it with `t.blocked` as a `content_bug`. Never `::setvar` the prerequisite up to the gate:
+owner rule (e) forbids writing a prerequisite's varp.
+
 ## The scaffold's `::complete <folder>` and the Usage line; Tree Gnome Village and Underground Pass arms (sonnet-b44; arms parity3g)
 
 *Origin: author batch sonnet-b44 (losttribe, mm, regicide).*
@@ -379,3 +404,16 @@ report: subtract `(size-1)/2` on each axis. Royal Trouble's Giant Sea Snake (5x5
 else on the shingle it shoots you (poison). It needs Slayer 40: below that, Attack writes "You need
 a Slayer level of 40 to attack this creature." and no swing (`hp no bar -> no bar`). Stats are the
 wiki's (100 hp, def 160): seam-facts, Seam pass vm-b1-seam1 (d).
+
+## Shooting through an arrow slit; `I can't reach that!` on a target behind walls (Heroes' Quest, b51-seam2)
+
+A wall whose loc has `blockrange=0` (Heroes' Quest's `snipable_wall`, 2780,3198 in `maps/m43_49.jl2`)
+lets a ranged or magic attack through from the tile beside it, and only from there: stand ON the
+slit tile with a plain `walk_to` inside the room (never a goto), wear the bow and arrows, then
+`t.player.attack(npc, 2, ticks)` and `t.npc.await_dead_engaged`. The same press on a target with no
+line through the slit (Grip at his spawn, 2774,3192, before the partner's lure) answers `refused ...
+the SERVER refused the swing: 'I can't reach that!'` with `hp no bar -> no bar`: the target is out of
+reach, not unhittable. Bring the target into line first (for Grip, `::hero_partner_lure`,
+seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a)), then attack. Proof:
+`build/quest_gate/seam2_hero_full_a` rows 35 (refused before the lure) and 38-41 (hit 22/30, dead
+in 8 ticks, player still on 2780,3198).

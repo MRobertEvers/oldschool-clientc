@@ -190,8 +190,117 @@ still in view. `passTrap5-tile` passed on it while shot 117 shows "...and fail, 
 trap!", and the next `goto_tile` hopped past the trap. `passTrap2-again` and `passTrap4-again` did
 the same. Grade a retry on the tile it moved you to, or count the success lines before and after
 the press, as `climb()` in the same file already does.
+FIXED (b49-seam2): `helper_coverage` reads (a)'s hop and (b)'s stale trap rows as CHEAT
+(coverage-and-gate, "lands at ... without pressing the rockslide").
 
 (c) The Lost Tribe still steps onto the maze's floor trap on purpose and then `goto_tile`s from the
 Lumbridge Swamp Caves back to the cellar. It no longer `::give`s a lit lantern back, but the content
 has no relight (content-gaps, The Lost Tribe), so the tunnels are walked with the lantern out. The
 detour is in no guide step and skips none, so the quest stayed. Leave it out of new tests.
+
+## Sample matthew-mbp-m4-b48 (2026-10-01)
+
+*Origin: the sampler checked regicide and sent it back again.*
+
+(a) A FIX MADE IN ONE LEG IS NOT MADE IN ITS COPY. Round 2 was opened to replace the `goto_tile`
+over the Underground Pass grid (Sample matthew-mbp-m4-b47 (a)). Leg 3 got the real crossing, but
+leg 6's second walk still ran `goto-pullLeverAfterGrid-again` from the pit landing to the lever.
+Shot 382 reads "Teleported to 2466,9673,0". A relay leg that walks a route again is a copy of the
+first walk. After fixing a hop, `grep` the file for the same coordinates and fix every copy.
+FIXED (b49-seam2): `helper_coverage` reads the copy's hop as CHEAT on its own (coverage-and-gate,
+"lands at ... without pressing the rockslide").
+
+(b) A ROW THAT SUMS UP A ROUTE IS NOT EVIDENCE THAT IT WAS WALKED. `navigateMaze` and
+`goThroughUndergroundPassAgain` were `t.check(name, true, "<list of what ran>")`. Between those
+rows, a `goto_tile` jumped from the ledge's far side (2374,9638) to the pipe (2420,9605), across
+the maze's narrow rock bridges (gaps-world, Underground Pass). Grade a summary row on a tile or a
+server line that only the real route produces, or leave it out.
+
+(c) A DOOR THE CONTENT REFUSES IS A CONTENT_BUG, NOT A REASON TO TELEPORT. After `openIbansDoor`
+the player lands at 2173,4725 on level 1. The guide's `enterTemple` (a ConditionalStep branch,
+missing from `helper_coverage`'s ladder) is the way to the well room. After Underground Pass,
+`upass_tomb.rs2:141-152` answers "The temple is in ruins..." and notes that the Regicide shortcut
+is deferred. The test then used `goto_tile` to reach 2010,4709. End the leg in
+`t.blocked("content_bug: ...")` naming that file and line.
+FIXED (b48-seam1, OSRS-Content 2dd52a46a5): the doors take a Regicide player through; click them
+(gaps-world, "Underground Pass: Iban's temple door").
+
+## Sample matthew-mbp-m4-b48, second check (2026-10-01)
+
+*Origin: the sampler checked regicide's round-6 green (d3505f4ee) and sent it back a third time.*
+
+(a) ONE ANSWER FROM A MENU OF FIVE IS NOT THE STEP. The guide's `goLearnAboutBomb`
+(Regicide.java:817-844) asks Iorwerth about quicklime, naphtha, sulphur, a barrel and a fuse, and
+`knowHowToMakeBomb` needs all five `*_chat` varbits. `helper_coverage`'s ladder listed only
+`askAboutFuse`, so the run read FULL after the one question. Shot 322 shows the menu offering the
+other four. When the guide declares sibling `NpcStep`s on one npc, drive each of them by name, and
+check the content sets every varbit (`lord_iorwerth.rs2:143-192`).
+
+(b) A DETOUR THAT TELEPORTS INTO A SEALED AREA TO PRESS A BRANCH STEP IS A CHEAT. At stage 3 the
+test used `goto_tile` to reach the pocket north of the tripwire and pressed `goFromTyrasToTrap` there.
+It then jumped from 2220,3152 to 2240,3149, past the three dense forests west of the tracker. The
+next row's press of that forest read "You can see no way to get past this." (shot 148), because
+`regicide_route.rs2` refuses it below `spoken_tracker2`. If a press would only answer in an area the
+quest has not opened yet, do not teleport into that area to make it. Drive the step when the route
+reaches it, or leave it ALTERNATIVE.
+
+(c) A STEP PRESSED IN A DETOUR IS NOT WALKED WHEN THE ROUTE NEEDS IT. Leg 5 went by `goto_tile`
+from inside Tyras's camp (2190,3146) to the sulphur (2261,3132). Leg 6 went by `goto_tile` from
+2238,3181 into the tripwire pocket and from that pocket to the ring of leaves. Those jumps skip the
+camp passage, the middle forests, the tripwire and `climbThroughForest`, which the guide's
+`goToIorwerthAfterCamp`, `goGiveRabbitToGuard` and `goTalkToIorwerthAfterRegicide` route through.
+The same file's first Underground Pass walk went from the plank room to the well (past the pit,
+the grid and the spear traps). It then drove those obstacles in a later leg, entering from the
+voyage cave by `goto_tile` and leaving the same way. Every guide step had a row, so FULL could not
+see this. Walk each route once, in guide order. Use `goto_tile` only between two tiles that a walk
+connects with no guide loc in the way.
+FIXED (b49-seam2): `helper_coverage` now reads (b)'s and (c)'s hops as CHEAT (coverage-and-gate,
+"lands at ... without pressing the rockslide"; the round-6 file d3505f4ee reads TEST_GAP).
+
+## Sample matthew-mbp-m4-b48, fourth check (2026-10-02)
+
+*Origin: the sampler checked regicide's round-9 green (d06b64289, 473/0, 626 shots) and accepted
+it.*
+
+The run drove all 63 ladder steps by click, walk or dialogue, including the five Iorwerth questions,
+both full walks of the Underground Pass, and a real bridge fall with `goBackUpToIbansCavern`. Every
+`goto_tile` joins two tiles that a walk in the same file connects, or leaves Tirannwn the way a
+player would teleport out (to the furnace, the chemist and Arianwyn). All 626 shots match their
+names. The scroll reads 3 quest points, 13,750 Agility XP and 15,000 coins, and the reward rows
+assert those literal numbers.
+
+(a) A CROSSING ROW CAN PASS FROM THE SIDE IT STARTED ON. The Sticks in leg 3 were crossed east, not
+west, and the 6-tile `-tile` check passed (start-and-travel: "A trap you can walk over gets crossed
+the wrong way"). This did not send the quest back. The trap is not a gate, the press and the roll
+were real, and leg 4 crossed it from its west `src` east toward the tracker, the way that walk goes.
+
+(b) A MID-LEG FOOD REFILL IS NOT A STEP. `t.cheat("::give lobster 6")` fired twice, in legs 4 and 6,
+when the traps had eaten the setup's food. It does none of the quest's work, so it stayed. A
+reviewer reading `Gave 6 x Lobster` in a shot should check that the item is food the guide
+recommends, not a quest item.
+
+## Sample matthew-mbp-m4-b50 (2026-10-02)
+
+*Origin: the sampler checked bearyoursoul (a5f4d7fa2) and eaglepeak (6d75971d2) and sent both
+back. All 34 and all 222 shots matched their names.*
+
+(a) A `goto_tile` INSIDE A DUNGEON CAN JUMP A GATE THAT THE GUIDE NAMES ONLY AS AN ITEM. Bear Your
+Soul went down the Taverley ladder (2884,9796) and then `goto_tile`d to the Cerberus cave mouth at
+2874,9846. That hop skips the dusty-key gate, `deepdungeondoor` at 2924,9803
+(`areas/taverly/dungeon/scripts/jail_doors.rs2`). QH lists the gate only as the required item
+"Dusty key, or another way to get into the deep Taverley Dungeon", and helper_coverage read FULL.
+The fix is cheap: put `dusty_key` in the setup (it is a required item, not one a guide step has you
+get), use it on the gate, and walk to `hellhound_cave_entrance_a_01`. Before each `goto_tile`, read
+the step's `items:` line in `ladder.py`. A key or "another way into" there names an obstacle.
+The proved route (key, pipe or spikes) is gaps-world "Taverley Dungeon deep area"
+(matthew-mbp-m4-b50-seam1).
+
+(b) A RECOVERY STEP TAKEN EARLY TURNS A MAIN-PATH STEP INTO A REFUSED PRESS. In the gold room,
+Eagles' Peak fed `eaglepeak_bird_feeder1a` (QH `fillFeeder7`, commented "If you've blocked lever
+1") while lever 1 was still down. QH shows `pushLever1Up` in that state. Feeding feeder1a moved
+mechbird 1, so the main path's `fillFeeder5` (feeder1, the same bird) answered "This feeder already
+has seed" and the file passed it as `fillFeeder5.kept`. A row that asserts a refusal is not a
+driven step. Follow `ladder.py`'s state order (`createDisguises.addStep` read bottom-up). The
+content accepts feeder1 on that path (`gold_room.rs2` `eaglepeak_gold_feeder_ready` 1: gate3 up,
+gates 4 and 1 down). Press a recovery step only in the state its condition names.
+

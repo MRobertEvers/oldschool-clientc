@@ -304,3 +304,11 @@ track rows (`[proc,hmq_on_dayth_track]`) adds up to 9 every tick at low boss hit
 Ranged, a magic shortbow and 20-27 sharks and no prayer, seam35 won the fight in 2 of 7 runs (the
 character died in the other five, three of them in the full quest). Bring Protect from
 Missiles (the `.rs2` cuts his pickaxe hit by a third) or more food, and fight from off the track.
+
+Arrg (Troll Romance, `trollromance_arrg_attackable`) is the OSRS wiki stat block (oldid=15215810:
+140 hp, Attack 70, Strength 140, Defence 40, Ranged 70, +60/+100, a 4-tick attack, max hit 38 melee
+and 30 ranged); LostCity's 2004 Arrg is weaker and the port took the OSRS form on purpose. With
+75/75/75, no armour and 14 sharks the character died (matthew-mbp-m4-b47). With 85/85/85, a dragon
+scimitar, a rune full helm, chainbody, platelegs and kiteshield worn from the start (the rune
+platebody needs Dragon Slayer) and 16 sharks eaten below 50, Arrg died in 108-123 ticks after 6-9
+sharks (matthew-mbp-m4-b49-seam1: `tlseam_arrg_kit`, `tlseam_copy_after`, `closer_tl_shared`).

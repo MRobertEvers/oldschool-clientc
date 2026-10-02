@@ -538,6 +538,11 @@ Unknown command` and the await times out at 4. `build/quest_gate/s33clock_new` a
   and the clock is real again. Skip AFTER the relog, never before it.
 - Prefer it to a quest's own "set the result" debugproc (`::forget_growkelda`,
   `::forget_ferment`). Those write the outcome; the skip lets the quest compute it.
+- A tree in a tree patch is ordinary farming: one skip per stage, and each stage lands on the
+  growth softtimer, about 500 ticks after the skip. A willow is 6 x `t.clock.skip(40)`, each followed
+  by `t.var.await_server("varb701_varbit_701", 15 + stage, 560)` (Falador park patch). Its branches
+  are counted from the deadline instead, so one `t.clock.skip(30)` after check-health grows all 6
+  (matthew-mbp-m4-b50-seam1; `test/quests/wip/enlightenedjourney/relay.md`).
 
 ## A loc that changes symbol each use: Shilo Village's bone door (`thzq_tombrooml1/2/3`)
 
@@ -565,6 +570,24 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
   `click_loc` the `walkway_upass_narrow_mid_top` copy at 2380,9634 / 2387,9631 / 2392,9627 /
   2399,9632 / 2406,9637, then walk on to the pipe (`upass_pipe6`, 2417,9605).
+- The hops between the bridges (proved in seam pass matthew-mbp-m4-b48-seam2, seam-facts (a)):
+  ledge landing 2374,9638 -> 2373,9634 -> 2379,9634, bridge 2380,9634; 2384,9634 -> 2384,9631 ->
+  2386,9631, bridge 2387,9631; 2389,9631 -> 2389,9627 -> 2391,9627, bridge 2392,9627; 2395,9627 ->
+  2395,9632 -> 2398,9632, bridge 2399,9632; 2403,9632 -> 2403,9637 -> 2405,9637, bridge 2406,9637;
+  then 2421,9637 -> 2422,9634 -> 2422,9610 -> 2421,9606 -> 2419,9605, the pipe's east mouth. Click
+  each bridge with `{ at = { bx, bz } }` and `t.ticks(10)`; success is standing on bx+1. A `covered`
+  click happens (2392 once in a run): retry the hop and the click.
+- Where the pipe drops you depends on `%varp161_upass` (`upass_obstacles.rs2:410-414`). Before
+  `^upass_killed_unicorn` the crawl lands one tile on, in the live-unicorn room (x 2393-2417); from
+  that stage on (Regicide's walks, Underground Pass complete) it lands 26 tiles further west, at
+  2387,9605 in the dead-unicorn copy (x 2368-2392), where skeletons attack. From there walk
+  2378,9605 -> 2378,9607 -> 2375,9607 -> 2375,9610 and click `upass_unicorn_doorl`
+  `{ at = { 2375, 9611 } }` (angle south): it teleports you to 2371,9666
+  (`upass_unicorn_tunnels.rs2:27-29`).
+- A `goto` to a cell-door tile can land INSIDE the cell. `goto_tile 2393,9657` puts you in the north
+  cell row (z 9657-9660), closed by `cave_railings2` on z 9656. The guide's `pickCellLock` tile is
+  the corridor 2393,9655, reached on foot from the well landing (`walk_to` 2410,9656, then
+  2393,9655). Check the guide's ObjectStep tile against the railing walls before a goto.
 
 ## Underground Pass: `walk_to` cannot reach the witch's cat, house or demons (collapsed bridges, sonnet-b43)
 
@@ -625,6 +648,62 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   FAIL through `quest.varp_complete` (`build/seam_state/seam37/upass_run2/`). The 2 FAILs were the
   test's bind `display`: the scroll reads "Underground Pass", not "Underground Pass quest". The
   hand-off with every row's verb is in `build/author_state/sonnet-b46/upass.relay.md`.
+
+## Underground Pass: Iban's temple door after the quest -- "The temple is in ruins..." (Regicide; FIXED b48-seam1)
+
+*Origin: sampler matthew-mbp-m4-b48 (regicide's `enterTemple`) and seam pass
+matthew-mbp-m4-b48-seam1.*
+
+- At Regicide stage 2 (`^regicide_spoken_lathas`) or later, Iban's temple doors open for you with
+  no robes and no "The temple is in ruins..." refusal, even with Underground Pass complete, and put
+  you in the ruined temple beside the Well of Voyage (seam-facts, Seam pass
+  matthew-mbp-m4-b48-seam1 (a)). Enter from the EAST:
+  `t.player.click_loc("upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })` lands on
+  2014,4712 level 1; `regicide_voyage_temple_well1` is at 2008,4711. Both Regicide walks use it.
+- The doors are 77 tiles from Iban's door landing (2173,4725 level 1), outside the scene, so a
+  `click_loc` from there answers `not_found`. Walk the guide's `enterTemple` line points
+  (Regicide.java:530-551). They cross FOUR collapsed bridges (`upass_obstacles.rs2:425`), each a
+  `click_loc` with an agility roll (a fall drops you to level 0 of the pass): walk 2172,4723 ->
+  2172,4686; `bridgecollapsed2` at 2164,4686; walk 2161,4686 -> 2161,4699 -> 2157,4699 ->
+  2154,4697; `bridgecollapsed1` at 2154,4690; walk 2154,4686 -> 2152,4685 -> 2153,4682 ->
+  2153,4678 -> 2154,4676 -> 2160,4676 -> 2160,4670 -> 2165,4670 -> 2165,4667 -> 2162,4667;
+  `bridgecollapsed1` at 2162,4663; walk 2161,4659; `bridgecollapsed2` at 2161,4654; walk
+  2147,4648; then the door. A plain `walk_to` across a gap stalls (x 2167 on z 4686). Agility 56
+  crossed all eight bridges of both walks in one run; budget a retry for a fall.
+- Proof: a copy of the reverted round-2 Regicide file (9b7c0756c) with both `goto 2010,4709,1`
+  rows replaced by this route and the door, 76/76
+  (`build/seam_state/matthew-mbp-m4-b48-seam1/scratch/regicide_r2_door.lua`); the hand-off is
+  `test/quests/wip/regicide/relay.md`, "seam1 (temple door)".
+
+## Underground Pass: `goBackUpToIbansCavern` reads CONTENT_GAP -- the dwarf cavern is where a bridge fall lands
+
+*Origin: sampler matthew-mbp-m4-b48, third check of regicide (green 5deefa070, reverted).*
+
+- The guide's `goBackUpToIbansCavern` (Regicide.java:528, the `isInDwarfCavern` branch at :742;
+  Underground Pass has the same step) is the way back after a FALL from one of Iban's collapsed
+  bridges. On a failed `stat_random(agility, 160, 300)`, `upass_obstacles.rs2:431-436` sends you to
+  2335,9821 or 2333,9866 on level 0. Both tiles are inside the guide's `inDwarfCavern` zone
+  (2304,9789 - 2365,9921, Regicide.java:344). The way up is `cavewalltunnel_upass_up` at 2336,9793
+  (`upass_tunnels.rs2:21`), which lands at 2150,4546 on level 1. In Underground Pass's ladder, the
+  next step after it starts at the bridges' south-east corner (`upass.ladder.tsv:61-62`).
+- The cavern is NOT reached only through the down tunnel (`upass_tunnels.rs2:9`). A `-- GUIDE-GAP:`
+  that says so is false, and helper_coverage's CONTENT_GAP on it proves nothing.
+- Never raise a stat mid-run to close a branch. The reverted file ran
+  `t.cheat("::setlevel agility 99")` before the bridges. At 99, `stat_random(agility, 160, 300)`
+  cannot fail, so the branch never opens. Setup cheats stage prerequisites only (QUEST_AUTHORING,
+  the contract). Keep agility at the guide's 56, where each crossing fails about 7% of the time.
+  When a roll sends you down, click the tunnel up and walk back to the bridges. A GUIDE-GAP is honest
+  only when it cites `upass_obstacles.rs2:431-436` and says the run's rolls never failed.
+- The tunnel up has two copies, and they land in two pockets (`upass_tunnels.rs2:21-25`). The copy
+  at 2336,9793 lands at 2150,4546; the other copy lands at 2113,4729. Regicide's green run
+  (d06b64289, ledger rows 90-93) fell off bridge B to 2333,9866, clicked the nearest tunnel and came
+  up at 2113,4729. Read the landing tile and pick the walk back to the bridges' approach (2172,4686):
+  east along z 4730 from the west pocket, or north up x 2173 from the south one (`regicide.lua`
+  leg 2, `west_hops` / `south_hops`).
+- You never walk to the tunnel, because the fall puts you beside it. A wip leg JSON or relay note
+  that calls the step a GUIDE-GAP because "the dwarf cavern tunnel is not walkable from the pass" is
+  stale. The b48 reviewer copied that claim from Regicide's wip leg 6 JSON (removed once the quest
+  went green, in git at 1735662fd); the green file drives the step.
 
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 
@@ -745,6 +824,51 @@ guide requires (Rimmington, a Workshop, a Crafting table 3) at the Rimmington po
 `click_loc("poh_clockmaking_3", 1)` + `choose:Clockwork` makes the mechanism and a second click +
 `choose:Clockwork toys` + `choose:Clockwork penguin` makes `peng_suit_unwound`.
 
+## A cave or tunnel click answers a chat line and the tile is unchanged: a name binding shadows the maplink (FIXED matthew-mbp-m4-b49-seam1)
+
+Symptom: `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (Troll Romance:
+`A snowy cave.`) and `t.world.tile()` is where you stood. Every maplink loc is bound by category,
+`[oploc1,_maplink_transition]` (`ladders_stairs/scripts/maplink.rs2:77`), and a quest that binds the
+same loc BY NAME shadows that for every player. Curse of Arrav bound
+`[oploc1,trollromance_caveentrance]` and `[oploc1,trollromance_snow_cavewall_crevis]` for its own
+soft-skip and printed `A snowy cave.` otherwise, so Troll Romance could not enter or leave the
+Trollweiss cave, the sled was never worn (`Ride` answered `You cannot use that here!` from the cave
+tile 2772,10232) and both sled `.cutscene` rows failed. FIXED in `curseofarrav.rs2`: the fallthrough
+is `~maplink_transition;`, so the cave lands at 2803,10187 and the crevice at 2778,3869 (conformance
+row `seam.trollweiss_cave_maplink_not_shadowed`). Before blaming `maplink.dbrow`, grep the loc symbol
+across `server/scripts/` for a name-specific `[oploc<N>,<loc>]`.
+
+## Underground Pass: the fall pocket is left over five rockslides and a rock pile (matthew-mbp-m4-b49-seam1)
+
+Symptom: after the swamp (`upass_swampbubbles1`) or a failed rope swing you stand at 2485,9649, and
+`walk_to` toward the exit never moves -- it reads as "sealed by collision". It is not: the guide's
+`leaveFallArea` line crosses five `rockslide2_obstacle_upass` (op 1 Climb-over,
+`upass_obstacles.rs2:29`) at 2479,9629 / 2467,9646 / 2456,9633 / 2455,9647 / 2448,9650, each clicked
+from its east side, then `caverockpile` 2443,9651 (op 1 Climb, `:77`) surfaces you at 2482,9715.
+LostCity's m38_150 places the same slides and pile. A slip ("...but you slip back down.") costs
+3 hp; at Agility 1 about ten slips took 40 hp to 6, so carry food. `upass_swampbubbles1` 2465,9713
+answers `I can't reach that!` from 2482,9715; click it from Koftik's ledge 2453,9716. The full route
+with hops: `test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
+as the maze bridges: list the locs with an op in a pocket before calling it a map bug.
+
+Without those rows, `helper_coverage` grades `leaveFallArea` CHEAT, and the reason names a goto from
+a LATER leg (leg 4's `goto_tile 2417,9677`), not one near the swamp. That goto lands west of the
+pile on the far side of the zone the step crosses, so it counts as teleporting past `caverockpile`
+even though the run never fell. Drive the pocket (swamp, five slides, pile) once, before that goto.
+A `-- GUIDE-GAP` is not the fix, because the pocket is drivable.
+
+## Underground Pass: "The Paladin tries to give you some supplies but you don't have enough room" (`killJerro-supplies` bread x0, matthew-mbp-m4-b49)
+
+Symptom: `killJerro-supplies` FAILs with `bread x0 stew x0` after the knight's talk, and the talk
+itself PASSes. The author's relay blamed "the RNG shift" from rows added in an earlier leg. The
+shot `178-mesbox` shows the real answer: `[proc,upass_paladin_supplies]` gives nothing unless
+`inv_freespace(inv) >= 7` (`upass_encounters.rs2:101-104`; 2 meat pies, 2 bread, 1 stew, an attack
+potion and a prayer potion). The pack was full of lobsters. `%varb9127_upass_paladin_food` is set
+only on the give (`:110`), so the same talk works once there is room. A leg that eats less food
+earlier (fewer slips, a shorter fight) arrives with fewer free slots. So before `killJerro-talk`,
+count the empty slots (`t.inv.slot(i)` over the 28 slots) and eat or drop down to 7 free. Do not assume
+the earlier legs' food use is fixed. Read the run's mesbox shot before you put a FAIL down to RNG.
+
 ## Miscellania and Etceteria: which door to click, Donal's pub door, the bank with no booth (vm-b1)
 
 *Origin: Royal Trouble review and sample, batch vm-b1 (`test/quests/royaltrouble.lua`).*
@@ -768,6 +892,60 @@ guide names no door, but a later author should open the door with
 Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth in the cache. The
 town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
 the same `~openbank`).
+
+## Taverley Dungeon deep area: `walk_to 2874,9846` stalls at 2882,9843 (Bear Your Soul, matthew-mbp-m4-b50-seam1)
+
+*Origin: the b50 sampler reverted bearyoursoul (2132ad7af): a `goto_tile` from the ladder bottom
+(2884,9796) to the Cerberus cave mouth (2874,9846) jumped the dusty-key gate.*
+
+The ladder area does not reach the cave mouth on foot: a walk stops at 2882,9843. The content
+already has the real ways in (`areas/taverly/dungeon/scripts/jail_doors.rs2`,
+`velrak_the_explorer.rs2`, at LostCity parity), so no content changed:
+
+- **The dusty key** on `deepdungeondoor` (2924,9803) from its EAST side (`check_axis loc_west`:
+  x == 2924 is outside). op1 alone reads "This gate is locked."; the key reads "You unlock the gate."
+  and lands you at 2923,9803. The key is a Quest Helper item requirement
+  (`BearYourSoul.java:80-82,126-130`), so `::give dusty_key 1` in setup is legitimate; in game Velrak
+  hands it over from his cell (scratch `s1_bys_velrak`).
+- **The 70 Agility pipe** `taverly_dungeon_pipe_sc` (2887,9799 -> 2892,9799); at 69 it answers
+  "You need an Agility level of 70 to do this."
+- **The 80 Agility floor spikes** (2879,9813 -> 2877,9813).
+
+The key route needs the cauldron-room prison door `cauldrondoor` (2889,9831) pressed THREE times: the
+first two animate the suits of armour, the third walks you in, a fourth walks you back out. Then the
+metal gates at 2898,9831 and walk hops to the gate. From a goto-landed tile `walk_to` across the deep
+area can refuse or not move; keep the proved hop list in `test/quests/wip/bearyoursoul/relay.md`.
+The walk is dangerous: at hitpoints and defence 70, hp fell 70 -> 30 by the cave (suits, demons,
+hellhounds); the proof copy ran green 48/48 at hitpoints 80, defence 75 (`build/quest_gate/s1_bys_copy`).
+
+## Troll Stronghold approach: the walk from the first `troll_climbingrocks` stops short of the secret entrance (Eadgar's Ruse, matthew-mbp-m4-b51)
+
+*Origin: eadgar f540921a6 replaced the b50-stamped `goto-secretdoor` (mountain path -> troll area past
+`troll_climbingrocks`) with the real crossings.*
+
+The Death Plateau path has TWO pairs of `troll_climbingrocks`, and the guide's `climbOverRocks`
+(`EadgarsRuse.java:376`) names only the first, at 2856,3612. After the first pair (pressed from
+2856,3611; you land at z 3613), a `walk_to 2827,3646` toward `troll_stronghold_entrance` does not
+arrive: it stops at the nearest tile it can reach and the run goes on from there. Walk west to
+2834,3626, press the second pair with `t.player.click_loc("troll_climbingrocks", 1, { at = { 2834,
+3628 } })` (the pair is 2833-2834,3628; `at` picks that copy), check the tile (z >= 3629), then walk
+to the entrance. Check every `walk_to` result and the tile it reached; a stalled walk does not fail
+the row by itself. If you place a press from `t.world.loc_near`, read `tile_x`/`tile_z` from its
+table. It has no `x`/`z` fields (verbs-pointer).
+
+## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample)
+
+*Origin: the matthew-mbp-m4-b51 round-2 sampler read rumdeal be4d36b9e row 6 `braindeath.goto1`, a
+goto from Port Phasmatys (3680,3536,0) to Captain Braindeath (2144,5109,1).*
+
+In the real game Pirate Pete knocks you out and rows you to the island (docs/quests/rum_deal.md
+section 3, "Knocked out and rowed to Braindeath Island"); Quest Helper's `startOff` shows
+`talkToPete` until you are `onIsland` (RumDeal.java:91-92). The port's `[opnpc1,deal_pete]`
+(quests/quest_rumdeal/scripts/deal_pete.rs2) only says "take a boat over" at the accept and "Take the
+boat and go find him" after it, and no script, maplink or boat moves the player to the island
+(`::tele braindeath_island` in tele_destinations.rs2 is the debug table). So the goto from the dock to
+Braindeath is the only way there and is not a hop past a press. Talk to Pete first (the accept is the
+quest's own step), then goto. A content seam that adds Pete's transport would make this a press.
 
 ## Meiyerditch: wall ladders answer on op 2; the Drakan wall shortcut only works from its own tile (vm-b1; the shortcut FIXED vm-b1-seam4)
 
