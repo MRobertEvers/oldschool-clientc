@@ -404,3 +404,16 @@ report: subtract `(size-1)/2` on each axis. Royal Trouble's Giant Sea Snake (5x5
 else on the shingle it shoots you (poison). It needs Slayer 40: below that, Attack writes "You need
 a Slayer level of 40 to attack this creature." and no swing (`hp no bar -> no bar`). Stats are the
 wiki's (100 hp, def 160): seam-facts, Seam pass vm-b1-seam1 (d).
+
+## Shooting through an arrow slit; `I can't reach that!` on a target behind walls (Heroes' Quest, b51-seam2)
+
+A wall whose loc has `blockrange=0` (Heroes' Quest's `snipable_wall`, 2780,3198 in `maps/m43_49.jl2`)
+lets a ranged or magic attack through from the tile beside it, and only from there: stand ON the
+slit tile with a plain `walk_to` inside the room (never a goto), wear the bow and arrows, then
+`t.player.attack(npc, 2, ticks)` and `t.npc.await_dead_engaged`. The same press on a target with no
+line through the slit (Grip at his spawn, 2774,3192, before the partner's lure) answers `refused ...
+the SERVER refused the swing: 'I can't reach that!'` with `hp no bar -> no bar`: the target is out of
+reach, not unhittable. Bring the target into line first (for Grip, `::hero_partner_lure`,
+seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a)), then attack. Proof:
+`build/quest_gate/seam2_hero_full_a` rows 35 (refused before the lure) and 38-41 (hit 22/30, dead
+in 8 ticks, player still on 2780,3198).

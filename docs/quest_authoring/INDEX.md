@@ -187,6 +187,7 @@ topic file with one line added here.
 - `hp no bar -> no bar`, splats only on the player -> traps-23-33: Trap 31
 - `I'm already under attack.` -> verbs-combat: `refused`, meaning two; gaps-combat: `::passive`; seam-facts: Seam pass 22, (g)
 - attack `refused` `I can't reach that!` -> verbs-combat: Attack fights ONE copy
+- attack `refused` `I can't reach that!` on a target you mean to shoot through a wall slit (Grip from the Heroes' Quest secret room) -> gaps-combat: Shooting through an arrow slit
 - attack `timeout` on a won fight -> gaps-combat: `t.player.attack`'s settle
 - attack `no_row` for a just-added npc -> gaps-combat: Three world facts
 - `player.died` ended the run -> verbs-combat: `t.player.alive()`
@@ -304,6 +305,8 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
+- Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c)
+- Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - the scroll lists XP but `t.skill.expect_gain` reads +0 at completion (Tai Bwo Wannai Trio: claimed from Tinsay/Tiadeche/Tamayu afterwards) -> seam-facts: Seam pass matthew-mbp-m4-b49-seam2 (b)
 - one karambwan vessel load emptied the raw karambwanji stack (FIXED b49-seam2: one per load) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji
 

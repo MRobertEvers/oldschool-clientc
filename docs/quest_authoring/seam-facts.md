@@ -1174,3 +1174,33 @@ Traiborn, Hassan, Aris and Zembo stand in `quest_demon.spawn`, `quest_prince.spa
 `tbwt_zembo.spawn`) and every `npc_add`, under the cache's name as well as the dump's. Npcs left
 out on purpose (quest-spawned by `npc_add`, Kourend favour-era, Sailing fauna, the reworked
 Sophanem) are listed in `docs/ITEM_AND_NPCS.md` section 3.
+
+## Seam pass matthew-mbp-m4-b51-seam2 (2026-10-02, batch matthew-mbp-m4-b51)
+
+(a) Heroes' Quest's `killGrip` and `getCandlestick` are the partner's half of a real two-player leg
+(Quest Helper HeroesQuest.java:411 "Wait for your partner to lure Grip into the room next to yours,
+and kill him with magic/ranged"; :412 "Get your candlestick from your partner."). A solo Phoenix
+player cannot do either half: Grip's drinks cabinet (2775,3196), his keyring (dropped on his own
+tile) and the treasure room are all inside the mansion behind `garvdoor`, which only a Black Arm
+player at `^hero_blackarm_mansion_unlocked` passes (`garv.rs2` `[label,attempt_open_brimhaven_mansion_door]`),
+and LostCity's `[oplocu,pete_treasuredoor]` refuses below `^hero_blackarm_id_papers_given`. Two
+test affordances now stand in for the partner, beside `::hero_partner` and under the same
+2026-09-23 owner ruling (`docs/QUEST_SERVER_CHEATS.md` section D): `::hero_partner_lure` does
+exactly `brimhaven_scarface_mansion.rs2` `[label,summon_grip]` case 1 on Grip (walk to 2777,3198,
+"Stay out of my drinks cabinet!", 6-tick hold) and nothing else; `::hero_partner_candlestick`
+trades one `petecandlestick`, only at `^hero_phoenix_killed_grip` (your own kill credit, written by
+`[ai_queue3,grip]`) and never a second. The player still kills Grip for real through the slit
+(gaps-combat: Shooting through an arrow slit). Declare the trade `-- PARTNER: getCandlestick
+::hero_partner_candlestick <reason>` (helper_coverage verifies it against the cheats table). Rows:
+`test/quests/wip/hero/relay.md`; proof copy `seam2_hero_full_a` 125/0 to the scroll, FULL 43.
+
+(b) A goto to 2780,3197 for Heroes' Quest's side door lands INSIDE the secret room (QH `secretRoom`
+2780..2782 x 3197..3198, HeroesQuest.java:258), past the door; `useKeyOnSideDoor` then walks you
+OUT to the garden (ledger `2780,3197,0 -> 2781,3196,0`). Goto the garden side, 2781,3196, and the
+key lets you in (`2781,3196,0 -> 2781,3197,0`).
+
+(c) OPEN (engine question, not fixed): one `::hero_partner_lure` does not always bring Grip into the
+cabinet room. From a wander tile (2774,3189) the 6-tick hold ended with him at 2777,3194 or
+2777,3195; a second search reached 2777,3197, never 3198 in either run. The port's
+`npc_setmode(null)` may stop a walk that LostCity lets finish; unmeasured. Search again (up to three
+times), as a real partner re-searches the open cabinet, and check Grip's tile before attacking.
