@@ -495,7 +495,7 @@ iron, coal, silver, gold and mithril ore and bronze, iron, silver, gold, steel a
 item and is not trap 16. The deliveries themselves are the quest's work: every hand-in to the
 Consortium must be a driven `talk_to`/`use_on` row that moves the points varp.
 
-### Gate RED on the last leg's `leg.N.end` row, and a Search press graded UNMATCHED (vm-b1)
+### Gate RED on the last leg's `leg.N.end` row, and a Search press graded UNMATCHED (vm-b1; the Search half fixed in vm-b1-seam4)
 
 *Origin: the vm-b1 Darkness of Hallowvale review (`test/quests/wip/darknessofhallowvale/relay.md`).*
 
@@ -507,11 +507,15 @@ driver's shotless row of that name a finding. Name your closing row of the last 
 (`leg.6.finish`, Cold War's `leg.5.quiet`). Earlier legs may keep `leg.N.end`, because the driver
 writes the end row only for the last leg.
 
-`kickBoard` UNMATCHED, "presses op1 'Search' ... a gating op". `travel_op_conflict` reads the first
-word of the guide text as the step's verb. Quest Helper's `kickBoard` says "Climb up the walls and
-search the marked floor", and its floorboards loc (`meiyerditch_wall_floorboards_multi_loc`) also has
-Climb-down in its kicked state. The step is therefore held to a travel op, and the Search press,
-which is the step's real work (`doh_meiyerditch.rs2:47`, it moves nobody), does not count. Either
-write the row so its detail shows the player moving across the loc (the following Climb-down,
-`climbDownBoard`, does this), or declare `-- GUIDE-GAP: kickBoard <reason citing
-doh_meiyerditch.rs2:47>`.
+`kickBoard` UNMATCHED, "presses op1 'Search' ... a gating op" -- FIXED in seam pass vm-b1-seam4
+(`doh_kickboard_travel_grade`). `travel_op_conflict` reads the first word of the guide text as the
+step's verb. Quest Helper's `kickBoard` says "Climb up the walls and search the marked floor", and
+its floorboards loc (`meiyerditch_wall_floorboards_multi_loc`) also has Climb-down in its kicked
+state, so the step was held to a travel op, and the Search press, which is the step's real work
+(`doh_meiyerditch.rs2:47`; it moves nobody: a scratch run reads `tile 3590,3173,1 -> 3590,3173,1`
+across the kick), did not count. The grader now also reads the verbs that open the guide text's LATER
+clauses (`Grader.clause_verbs`: split at `and`/`then`/`,`/`;`/`.`): a press whose op word is one of
+them is the op the guide names, not a gating op. The leading "Climb up the walls" is the walk there.
+A gating op the text does not name (Lost Tribe's Pick-Lock for `enterHamLair`) is still
+refused. Write the row on the op the guide names (`kickBoard` = the Search press, then its Yes) and
+give the following Climb-down its own guide step's row (`climbDownBoard`); no GUIDE-GAP is needed.
