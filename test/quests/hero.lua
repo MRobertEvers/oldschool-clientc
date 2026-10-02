@@ -240,7 +240,7 @@ return {
         -- relying on use_on's own approach-tile hunt from wherever the
         -- panel walk-through left us (measured: every hunted side from
         -- there answered "I can't reach that!").
-        t.exec("goto-sidedoor", t.player.goto_tile, 2780, 3197, 0)
+        t.exec("goto-sidedoor", t.player.goto_tile, 2782, 3196, 0)
 
         -- trap 298: use_on's backpack-tab press is not settled before its
         -- own arming, so an arm issued right after another action can
