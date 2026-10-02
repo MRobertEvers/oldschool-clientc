@@ -416,6 +416,43 @@ def load_squares(maps_dir):
 Spawn = collections.namedtuple("Spawn", "kind name x z level count")
 
 
+def rule_symbols():
+    """Every cache symbol an override table names, as (table, symbol, kind)."""
+    for (name, _claimed) in NPC_NAME_ALIASES:
+        yield "NPC_NAME_ALIASES", name, "npc"
+    for (name, _x, _z, _level) in NPC_SPAWN_EXCLUSIONS:
+        yield "NPC_SPAWN_EXCLUSIONS", name, "npc"
+    for (name, _x, _z, _level) in NPC_SPAWN_RELOCATIONS:
+        yield "NPC_SPAWN_RELOCATIONS", name, "npc"
+    for name in NPC_SPAWN_ID_CORRECTIONS.values():
+        yield "NPC_SPAWN_ID_CORRECTIONS", name, "npc"
+    for (name, _x, _z, _level) in OBJ_SPAWN_RELOCATIONS:
+        yield "OBJ_SPAWN_RELOCATIONS", name, "obj"
+    for name in OBJ_SPAWN_ID_CORRECTIONS.values():
+        yield "OBJ_SPAWN_ID_CORRECTIONS", name, "obj"
+    for (name, _x, _z, _level) in OBJ_SPAWN_EXCLUSIONS:
+        yield "OBJ_SPAWN_EXCLUSIONS", name, "obj"
+    for (name, _x, _z, _level, _count) in OBJ_SPAWN_ADDITIONS:
+        yield "OBJ_SPAWN_ADDITIONS", name, "obj"
+
+
+def fail_on_rules(problems, why):
+    """A rule that cannot apply is never skipped: a renamed symbol (the
+    2026-10 var rename showed how wide a rename can be) or a dump row that
+    moved would turn an audited fix into a silent no-op, and the regenerated
+    roster would quietly undo it -- Turael vanished from Burthorpe exactly
+    that way, through an id the name check could not follow. Stop before
+    anything is written, and name every rule."""
+    if not problems:
+        return
+    print("gen_spawns: %d override rule(s) %s -- nothing written:" % (len(problems), why), file=sys.stderr)
+    for line in problems:
+        print("  " + line, file=sys.stderr)
+    print("Re-audit each against the cache (configs/all.npc|obj.compack) and the dump; a renamed symbol takes "
+          "its new name, a gone dump row takes the rule out.", file=sys.stderr)
+    sys.exit(2)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--content", required=True, help="unpacked content tree")
@@ -434,6 +471,12 @@ def main():
     obj_ids = load_compack(os.path.join(configs, "all.obj.compack"))
     npc_blocks = load_blocks(os.path.join(configs, "all.npc"))
     squares = load_squares(os.path.join(content, "maps"))
+
+    known = {"npc": set(npc_ids.values()), "obj": set(obj_ids.values())}
+    fail_on_rules(["%s names %s %r, which this cache does not have" % (table, kind, name)
+                   for table, name, kind in rule_symbols() if name not in known[kind]],
+                  "name a symbol this cache does not have")
+    hits = collections.Counter()
 
     reject = collections.Counter()
     corrected = collections.Counter()
@@ -456,6 +499,7 @@ def main():
         name = npc_ids.get(ident)
         npc_correction = NPC_SPAWN_ID_CORRECTIONS.get((ident, row["x"], row["y"], row["level"]))
         if npc_correction is not None:
+            hits[("NPC_SPAWN_ID_CORRECTIONS", (ident, row["x"], row["y"], row["level"]))] += 1
             corrected["npc %d -> %s (%d,%d,%d)" % (ident, npc_correction, row["x"], row["y"], row["level"])] += 1
             name = npc_correction
         if name is None:
@@ -469,7 +513,14 @@ def main():
         else:
             claimed = normalise(row["name"])
             alias_targets = NPC_NAME_ALIASES.get((name, claimed), set())
+        if candidates and claimed not in candidates and (candidates & alias_targets):
+            hits[("NPC_NAME_ALIASES", (name, claimed))] += 1
         if candidates and claimed not in candidates and not (candidates & alias_targets):
+            if npc_correction is not None:
+                fail_on_rules(["NPC_SPAWN_ID_CORRECTIONS %r: %s presents as %s, not the dump's %r"
+                               % ((ident, row["x"], row["y"], row["level"]), name,
+                                  "/".join(sorted(candidates)), row["name"])],
+                              "correct a row to an npc that does not carry the dump's name")
             reject["npc: name drift"] += 1
             drift.setdefault(ident, [name, sorted(candidates), row["name"], 0])
             drift[ident][3] += 1
@@ -477,6 +528,7 @@ def main():
         level = row["level"]
         target = NPC_SPAWN_RELOCATIONS.get((name, row["x"], row["y"], level))
         if target is not None:
+            hits[("NPC_SPAWN_RELOCATIONS", (name, row["x"], row["y"], level))] += 1
             relocated["npc %s (%d,%d,%d) -> (%d,%d,%d)" % (
                 (name, row["x"], row["y"], level) + target)] += 1
             row = dict(row, x=target[0], y=target[1])
@@ -497,6 +549,7 @@ def main():
             kept[square]
             continue
         if (name, row["x"], row["y"], level) in NPC_SPAWN_EXCLUSIONS:
+            hits[("NPC_SPAWN_EXCLUSIONS", (name, row["x"], row["y"], level))] += 1
             reject["npc: scripted owner-private encounter actor"] += 1
             # Preserve an empty generated file when every row on a shipped map
             # square is intentionally excluded. Contract checks use the file
@@ -519,13 +572,14 @@ def main():
         correction = OBJ_SPAWN_ID_CORRECTIONS.get(
             (ident, row["x"], row["y"], row["plane"]))
         if correction is not None:
-            assert correction in obj_ids.values(), correction
+            hits[("OBJ_SPAWN_ID_CORRECTIONS", (ident, row["x"], row["y"], row["plane"]))] += 1
             corrected["%s -> %s @ (%d,%d,%d)" % (
                 name, correction, row["x"], row["y"], row["plane"])] += 1
             name = correction
         level = row["plane"]
         target = OBJ_SPAWN_RELOCATIONS.get((name, row["x"], row["y"], level))
         if target is not None:
+            hits[("OBJ_SPAWN_RELOCATIONS", (name, row["x"], row["y"], level))] += 1
             relocated["obj %s (%d,%d,%d) -> (%d,%d,%d)" % (
                 (name, row["x"], row["y"], level) + target)] += 1
             row = dict(row, x=target[0], y=target[1])
@@ -536,6 +590,7 @@ def main():
         count = max(1, int(row.get("count", 1)))
         square = (row["x"] // 64, row["y"] // 64)
         if (name, row["x"], row["y"], level) in OBJ_SPAWN_EXCLUSIONS:
+            hits[("OBJ_SPAWN_EXCLUSIONS", (name, row["x"], row["y"], level))] += 1
             reject["obj: audited map-dump artefact (OBJ_SPAWN_EXCLUSIONS)"] += 1
             continue
         if square not in squares:
@@ -548,6 +603,16 @@ def main():
             continue
         seen.add(key)
         kept[square].append(Spawn("obj", name, row["x"], row["y"], level, count))
+
+    tables = {
+        "NPC_NAME_ALIASES": NPC_NAME_ALIASES, "NPC_SPAWN_EXCLUSIONS": NPC_SPAWN_EXCLUSIONS,
+        "NPC_SPAWN_RELOCATIONS": NPC_SPAWN_RELOCATIONS, "NPC_SPAWN_ID_CORRECTIONS": NPC_SPAWN_ID_CORRECTIONS,
+        "OBJ_SPAWN_ID_CORRECTIONS": OBJ_SPAWN_ID_CORRECTIONS, "OBJ_SPAWN_RELOCATIONS": OBJ_SPAWN_RELOCATIONS,
+        "OBJ_SPAWN_EXCLUSIONS": OBJ_SPAWN_EXCLUSIONS,
+    }
+    fail_on_rules(["%s %r" % (table, key) for table, rules in tables.items() for key in rules
+                   if not hits[(table, key)]],
+                  "matched no dump row (renamed symbol, moved tile, or a row the dump no longer has)")
 
     for name, x, z, level, count in OBJ_SPAWN_ADDITIONS:
         assert name in obj_ids.values(), name
