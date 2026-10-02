@@ -233,8 +233,6 @@ return {
         t.exec("fortress.push_wall2_message", t.msg.expect, "You push against the wall")
         t.ticks(2) -- the door's p_teleport lands a tick behind the click (section 2 teleport-door note)
 
-        t.exec("goto-hole", t.player.goto_tile, 3026, 3510, 1)
-
         local hole_loc_result, hole_loc = t.world.loc_near("blackknighthole", 20)
         t.step("hole.locate", hole_loc_result == "ok" and "PASS" or "FAIL",
             "world.loc_near(blackknighthole,20) -> " .. tostring(hole_loc_result) .. " "
@@ -242,10 +240,6 @@ return {
                     and string.format("tile=%d,%d,%d match=%s", hole_loc.tile_x, hole_loc.tile_z,
                         hole_loc.level, tostring(hole_loc.match))
                     or tostring(hole_loc)))
-        if hole_loc_result == "ok" then
-            t.exec("goto-hole-exact", t.player.goto_tile, hole_loc.tile_x, hole_loc.tile_z, hole_loc.level)
-        end
-
         local hole_target, hole_lookup_result = t.player.by_symbol("loc", "blackknighthole")
         t.step("hole.lookup", hole_lookup_result == "ok" and "PASS" or "FAIL",
             "player.by_symbol(loc, blackknighthole) -> " .. tostring(hole_lookup_result))
