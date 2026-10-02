@@ -20,14 +20,14 @@ quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo				
 quest_cog	cog	clocktower		1	green	sonnet-b18			
-quest_coldwar	coldwar	coldwar		4	todo	vm-b1	"RETRY after a79085c89 (and e3e73bb9d): the Thing's Talk-to is now op 3 (op 1 is Shear: 'You need a pair of shears...'): change the three t.player.talk_to(""sheep_shearer_the_thing"", 1) rows (talkToThing, returnToThing, askThingAboutOutpost) to op 3 -- the committed file is red until then, a copy with that change is 166/0/1; then the Penguin Agility Course water leg is walkable (walk onto 2636,4054,1, wade to 2630,4055, click_loc stepstone01 -> 2630,4057,1 +55 xp; suit stays on): rewrite leg 4's t.blocked at agilityExitWater into the course rows (gaps-world Penguin Agility Course), author leg 5 from tellLarryAboutArmy; retry the first icicle press"		
+quest_coldwar	coldwar	coldwar		4	green	vm-b1			
 quest_contact	contact	contact		4	todo				
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26			
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo				
-quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo	vm-b1	RETRY after a79085c89: the Burgh de Rott pub trapdoor now climbs into the Myreque hideout (op1 Open, op1 Climb-down on burgh_inn_trapdoor_multiloc 3490,3232 -> z+6400 beside Veliaf; ladder burgh_inn_basement_ladderup back to 3490,3231); rewrite leg 1's stale t.blocked (the Broken wall, fixed in seam2) into enterBurghPubBasement/talkToVeliaf/leavePubBasement/usePlankOnBoat/usePlankOnChute/boardBoat (a copy reached stage 40 arrived_wall) and author on from kickBoard (gaps-world Burgh de Rott inn)		
+quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo	vm-b1	REJECTED (vm-b1): run green (393 rows pass, exit 0) and lint clean, but gate.py is RED with 3 findings: (1) helper_coverage MIXED; (2) guide step kickBoard UNMATCHED -- its row presses op1 'search' (a gating op) not a travel op, so add a row that crosses the floorboards or declare the gap; (3) guide step goToMines is an undeclared CONTENT_GAP (doh_castle.rs2:64 mes() branch narrates the stage write) -- add '-- GUIDE-GAP: goToMines <reason citing doh_castle.rs2:64>'. File kept uncommitted at test/quests/darknessofhallowvale.lua; the ::give of hammer/planks/nails/knife are guide item requirements and not counted.		
 quest_death	death	deathplateau		3	green	sonnet-b35			
 quest_deathontheisle	deathontheisle	deathontheisle		4	todo				
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
@@ -167,7 +167,7 @@ quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo				
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32			
-quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo	vm-b1	RETRY after a79085c89: ladder.py now cuts The Fremennik Isles by route (docs/quests/ladders/thefremennikisles.legs: 0-60, 90-150, 160-210, 230-275, 280-290, 300-; 6 legs); leg 1 (talkToMord .. tellSlugReport1) starts from ::fremennikisles at stage 0 -- ladder.py thefremennikisles --leg 1; no test file yet, author from leg 1 (Jatizso route in thefremennikisles.notes.md). RELAY STATE: test/quests/wip/thefremennikisles/ (old guide-order leg plan is stale)		
+quest_thefremennikisles	thefremennikisles	thefremennikisles		4	green	vm-b1			
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
 quest_theslugmenace	theslugmenace	theslugmenace		3	green	matthew-mbp-m4-b47			
 quest_totem	totem	tribaltotem		3	green	sonnet-b36			
