@@ -22,7 +22,12 @@ import re
 # same ratio), lint_quest.py rejects one above the ceiling. Kept here so the
 # runner and the lint can never disagree about the number.
 DEFAULT_MAX_FRAMES = 60000
-MAX_FRAMES_CEILING = 4 * DEFAULT_MAX_FRAMES
+# 8x (480000 frames, ~16000 server ticks): Regicide walked honestly -- both Underground Pass
+# walks, the maze bridges, the forests -- needs ~8000+ ticks and hit the old 4x ceiling at
+# tick 7981 on its last leg (matthew-mbp-m4-b48 round 8). The wall-clock timeout still scales
+# with max_frames, and render skip keeps a frame cheap, so a long budget costs nothing unless
+# it is used.
+MAX_FRAMES_CEILING = 8 * DEFAULT_MAX_FRAMES
 MAX_FRAMES_RE = re.compile(r"(?m)^[ \t]*max_frames\s*=\s*(\d+)\s*,")
 
 
