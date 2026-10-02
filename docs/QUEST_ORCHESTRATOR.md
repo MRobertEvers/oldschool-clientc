@@ -337,3 +337,9 @@ never lose work like that.
   `lint_quest.py` refuses a bare name.
 - **Never use `resumeFromRunId`.** Relaunch with the same args; the state directory is the
   resume.
+
+## Raids
+
+Theatre of Blood, Chambers of Xeric and Tombs of Amascut run this same loop with a measured
+encounter spec in place of the quest guide and a tick ledger in place of `helper_coverage`:
+[`RAID_ORCHESTRATOR.md`](RAID_ORCHESTRATOR.md).
