@@ -1139,6 +1139,24 @@ server answers the op-less IF_BUTTON with `[if_button,...]` (`torirs_server_worl
 Cannon's seven dead `if_setevents(..., ^if_event_op1)` lines are deleted (mcannon 114/0, identical
 row for row). Content should not arm IF1 buttons. Trap 33.
 
+## Seam pass vm-b1-seam4 (2026-10-02, batch vm-b1)
+
+(a) `helper_coverage` grades a `goto`/`walk`/`travel`-prefixed row named after a guide step as that
+step's action, unless its source line is itself a teleport (`goToMines`; v3 c458a4d92;
+coverage-and-gate, "CONTENT_GAP at an unrelated line on a `goToX` step"). `--all-green` on 100 tests
+changed no verdict. Five step counts moved and all stayed FULL: arthur climbDownFaye1/2 and
+thefremennikisles travelToNeitiznotAfterDecree went DRIVEN->TRAVEL; fenkenstrain goToHeadGrave,
+losttribe goToDukeWithSilverware and viking resetSwensen went to DRIVEN.
+
+(b) `travel_op_conflict` accepts a press on an op that the guide text names in a later clause
+(`Grader.clause_verbs`: "Climb up the walls and search the marked floor" -> search). Darkness of
+Hallowvale's `kickBoard` Search press grades DRIVEN (v3 54bd5140f; coverage-and-gate, "Gate RED on
+the last leg's"). `--all-green` on v3: no step class changed.
+
+(c) The Meiyerditch to Castle Drakan wall shortcut lands on 3595,3312,0 from a real `click_loc` (a
+name-bound oploc1 in `doh_castle.rs2`; gaps-world, "Meiyerditch"). A Darkness of Hallowvale copy
+with `click_loc` in place of `t.drive.op` ran 394/0 to quest complete.
+
 ## Seam pass vm-b1-seam3 (2026-10-02, batch vm-b1)
 
 (a) Relay legs can be cut by route: `docs/quests/ladders/<test_id>.legs` holds one stage range per

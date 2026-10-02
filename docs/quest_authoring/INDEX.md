@@ -32,6 +32,7 @@ topic file with one line added here.
 - "You can't go any further." on a trapdoor into an underground (z+6400) area; a quest taking over a climb_shared.rs2 binding -> seam-facts: Seam pass vm-b1-seam3 (b)
 - a POH is bare grass, `loc_near` finds no hotspot, save `[poh_rooms]` shows 84xx ids -> gaps-world: A player-owned house is bare grass; seam-facts: Seam pass vm-b1-seam1 (b)
 - Agility Instructor: "You haven't finished the course yet, soldier." (Cold War stage 100) -> seam-facts: Seam pass vm-b1-seam1 (c)
+- Drakan wall shortcut (Meiyerditch, 3595,3310,1) lands on 3595,3309,2; `t.drive.op` needed to reach Castle Drakan's walls (FIXED vm-b1-seam4: `click_loc(sym, 1)` lands 3595,3312,0) -> gaps-world: Meiyerditch
 - `loc_near` level 2 on a bridge deck; goto to the wrong plane -> gaps-world: `t.world.loc_near` reports
 - a shared object id's `WorldPoint` (`FAI_FALADOR_FURNACE`) is `not_found` -> gaps-world: Quest Helper's `WorldPoint`
 - where a multi-floor room is (`Zone`/`WorldPoint`) -> gaps-dialogue: Rewards and steps
@@ -392,8 +393,11 @@ topic file with one line added here.
 - "vm-b1-seam1 (a)-(d)", "[seam:vm-b1-seam1]" -> seam-facts: Seam pass vm-b1-seam1
 - "vm-b1-seam2 (a)-(d)", "[seam:vm-b1-seam2]" -> seam-facts: Seam pass vm-b1-seam2
 - "vm-b1-seam3 (a)-(d)", "[seam:vm-b1-seam3]" -> seam-facts: Seam pass vm-b1-seam3
+- "vm-b1-seam4 (a)-(c)", "[seam:vm-b1-seam4]" -> seam-facts: Seam pass vm-b1-seam4
 - `ladder.py` prints "cut in route order" / exits 2 on a `.legs` line ("not a stage range", "falls in none of its ranges"); a leg needs a stage a later leg reaches -> relay: The legs follow the guide's order, and the route does not
 - helper_coverage CONTENT_GAP on a step that is really driven, pinned on a `mes()` in another branch; `{{tact|receives=}}` -> seam-facts: Seam pass vm-b1-seam2 (b)
+- helper_coverage CONTENT_GAP at an unrelated file on a `goToX`/`travelToX` step whose own rows PASS (FIXED vm-b1-seam4) -> coverage-and-gate: CONTENT_GAP at an unrelated line
+- helper_coverage UNMATCHED "presses op1 'Search' ... a gating op" on a step whose text opens with Climb (FIXED vm-b1-seam4, `clause_verbs`) -> coverage-and-gate: Gate RED on the last leg's
 - "the varp seam", "never-arriving-varp", "journal cross-check" -> gaps-world: A stage poll
 - "section 8's player.attack note" -> gaps-combat: `t.player.attack`'s settle; "Ernest the Chicken's maze" -> gaps-world: The `goto_tile` bypass
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits
