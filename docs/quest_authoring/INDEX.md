@@ -85,7 +85,7 @@ topic file with one line added here.
 - a top-down shot, `QUEST shot-aim` -> verbs-root-and-quest: The shot camera
 - a seam row turned red when rows were added above it -> gaps-world: A seam row that
 - `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (`A snowy cave.`) and the tile is unchanged; `Ride` says `You cannot use that here!` after it -> gaps-world: A cave or tunnel click answers a chat line ... a name binding shadows the maplink
-- `t.ui.invoke(w, 0)` on an IF1 button does nothing and the `.rs2` binds `[if_button1,...]`; `t.ui.invoke(w, 1)` answers on one button but a real click would not -> traps-23-33: Trap 33 (the IF1 dispatch, FIXED for Ratcatchers); seam-facts: Seam pass matthew-mbp-m4-b49-seam1 (a)
+- `t.ui.invoke(w, 0)` on an IF1 button does nothing and the `.rs2` binds `[if_button1,...]`; `t.ui.invoke(w, 1)` answers on one button but a real click would not -> traps-23-33: Trap 33 (the IF1 dispatch, FIXED for Ratcatchers, then Dwarf Cannon and Grim Tales' piano in b49-seam2); seam-facts: Seam pass matthew-mbp-m4-b49-seam1 (a)
 
 ## Dialogue and chat
 
@@ -234,6 +234,7 @@ topic file with one line added here.
 ## Gate, lint, coverage and the ledger
 
 - `leaves the <step> side ... without crossing the ladder/stair/trapdoor`; a sub-step graded CHEAT or ALTERNATIVE -> coverage-and-gate: A promoted sub-step
+- `lands at ... without pressing the <obstacle> <step> names` / `PASSed, but the newest server line of its attempt is`; `helper_coverage --ledger` -> coverage-and-gate: "lands at ... without pressing the rockslide" (b49-seam2)
 - `t.check(name, true, ...)` after a `t.ui.invoke` or a pickup -> sampler-findings: Sample sonnet-b36
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`
 - `[bad ledger argument]`; a boolean in `t.step` -> gaps-dialogue: `t.step`'s second argument
@@ -294,6 +295,8 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
+- the scroll lists XP but `t.skill.expect_gain` reads +0 at completion (Tai Bwo Wannai Trio: claimed from Tinsay/Tiadeche/Tamayu afterwards) -> seam-facts: Seam pass matthew-mbp-m4-b49-seam2 (b)
+- one karambwan vessel load emptied the raw karambwanji stack (FIXED b49-seam2: one per load) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji
 
 - a sled ride that walks; `P_TEMPRUN is not implemented`; an anim that plays over a protected stance; a monkey body with a human chathead; `TORIRSSERVER_ANIM_TRACE` -> seam-facts: Seam pass 35 (g)
 - `::run 0` leaves the run orb on (it sets run ENERGY) -> QUEST_SERVER_CHEATS.md `run` row; seam-facts: Seam pass 35 (g)

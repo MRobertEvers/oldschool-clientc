@@ -118,3 +118,14 @@ ported from its source, kept in a quest-local `.spawn` the generator cannot clea
 `zambo.rs2`). Drive him with `talk_to` + `choose:Yes please.` + `t.shop.attach("boozeshop")`, or
 `t.shop.open("zembo", 3, "boozeshop")`; rum is 30 coins (conformance row
 `seam.zembo_boozeshop_sells_rum`).
+
+## Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji (FIXED b49-seam2)
+
+Symptom before the fix: after `fillVessel` the backpack had no raw karambwanji left, so a second
+load or `makeKarambwanjiPaste` found none. `[proc,tbwt_load_karambwan_vessel]` cleared the
+karambwanji's slot with `inv_delslot`, and this cache's `tbwt_raw_karambwanji` is `stackable=1`, so
+one load ate the stack. LostCity's code is the same, but its karambwanji is not stackable
+(`fishing.obj`), so there the slot was one fish. The OSRS wiki ("Raw karambwanji", oldid 15184350)
+loads one. The proc now does `inv_del(inv, tbwt_raw_karambwanji, 1)`: 5 -> 4 -> 3 in both use
+orders (conformance row `seam.tbwt_vessel_loads_one_karambwanji`). Leftover karambwanji stay in the
+pack, so a test no longer has to net again before each load.
