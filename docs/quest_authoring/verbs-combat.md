@@ -63,6 +63,16 @@ Use it for every hunt: a loop that re-resolves its symbol each attempt abandons 
 it already engaged, and an abandoned npc in retaliation keeps hitting. Through `t.exec`, spell the
 ticks (`t.exec("shade.dead", t.npc.await_dead_engaged, 40)`).
 
+#### A boss whose death spawns its next form: the wait fights on into it (matthew-mbp-m4-b47)
+
+In The Fremennik Trials, Koschei's third form dies and the fourth appears at once
+(`viking_thorvald.rs2:229`). `await_dead_engaged` did not return on the third form's death: it went
+on fighting the fourth, so a row named for the third kill would grade the wrong fight. `viking.lua`
+leg 6 waits on the quest's own phase var instead: it loops `await_dead_engaged` and reads
+`varp6759_viking_koschei_phase` after each call until the phase says the form is beaten. For any
+boss that chains forms, grade each form on its phase var or stage, not on the wait's `ok`. The fourth
+form attacks at once, so the leg cannot end in the arena (relay: Still "in combat" after the fight).
+
 #### Eating (seam27)
 
 EATING (seam27): `t.npc.await_dead(npc, ticks, radius, attempts, opts)` and

@@ -96,3 +96,13 @@ GuildmasterDialogue.java / DSMagicDoorPlugin.java and the OSRS wiki brief
   claim. `::passive` on the four wanderer types (`sword_skeleton_3`, `sword_skeleton_3b`,
   `shadow_dog_wild`, `small_bat`) let the swing land (gaps-combat: `::passive <npc_symbol>`). Never
   make Damis passive: he must still fight back and die for real.
+
+## The Lost Tribe: the maze trap puts the candle lantern out and nothing relights it (matthew-mbp-m4-b47)
+
+The Lost Tribe's floor trap drops the player into the Lumbridge Swamp Caves and turns
+`candle_lantern_lit` into `candle_lantern_unlit` (`losttribe_tunnels.rs2`). `[opheldu,tinderbox]`
+(`skill_firemaking/scripts/firemaking.rs2:25-55`) has cases for lit arrows, logs, jogre bones, the
+black candle, the sapphire lantern and Olaf's planks, but none for a candle lantern. A tinderbox on
+the unlit lantern answers "Nothing interesting happens." The tunnels never test for a light either,
+so a test that falls in walks on with the lantern out. Stay on the marked path; report a relight
+only if a quest needs one.

@@ -332,6 +332,15 @@ still. An IF1 cache interface with no onop and no varptriggers (`rd_combolock`,
 server owns its state, shown back through `if_settext`: drive it with `t.ui.invoke` and read the
 component text (Sir Ren's lock, seam20).
 
+**An IF1 button bound as `[if_button1,...]` never fires (matthew-mbp-m4-b47).** The server runs
+`[if_button<N>,<if>:<com>]` first only for a press that carries an op 1..10, then falls through to
+`[if_button,<if>:<com>]` (`torirs_server_scripts.c`, the `op_num >= 1 && op_num <= 10` branch). An
+IF1 press is `op=0`, so it reaches only `[if_button,...]`. Ratcatchers binds its flute's notes as
+`[if_button1,ratcatcher_flute:rc_flute_*]` (`ratcatchers.rs2:784-800`). No press from the test can
+play them: `op=0` skips the numbered trigger, and `op=1` takes the IF3 path the IF1 button never
+answers. That is a content bug (the trigger should be `[if_button,...]`), not a driving miss:
+`t.blocked` on it as a `content_bug`, as the Ratcatchers row does.
+
 `%if1..%if6` are `scope=temp` screen scratch since seam24 (every open screen refills them; Death's
 Coffer's balance is `%death_coffer_balance`, and `~death_coffer_login_migrate` moves a pre-seam23
 save's `%if1` balance once) -- never read one as a quest's state.

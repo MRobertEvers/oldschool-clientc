@@ -308,7 +308,7 @@ adds his line only when `%troll_freed_eadgar` is set, troll_journal.rs2:52), so 
 stages that flag itself; its `%troll_quest` belongs to `::complete quest_trollstronghold` (the
 committed `eadgar.lua` predates the arm and still `::setvar`s it).
 
-## The scaffold's `::complete <folder>` and the Usage line; Tree Gnome Village and Underground Pass have no arm (sonnet-b44)
+## The scaffold's `::complete <folder>` and the Usage line; Tree Gnome Village and Underground Pass arms (sonnet-b44; arms parity3g)
 
 *Origin: author batch sonnet-b44 (losttribe, mm, regicide).*
 
@@ -317,14 +317,21 @@ committed `eadgar.lua` predates the arm and still `::setvar`s it).
   folder is not always the row. The Lost Tribe scaffold emitted `::complete quest_gobdip`, but Goblin
   Diplomacy's row is `quest_goblindiplomacy`. A folder name that is not a row prints
   `Usage: ::complete quest_cooksassistant - name a quest row.` and writes nothing. Monkey Madness's
-  `::complete quest_tree` did the same (Tree Gnome Village's row is `quest_treegnomevillage`). Look
-  the row up with `grep -n '^\[quest_' OSRS-Content/osrs239-content/configs/all.dbrow` and fix the
+  `::complete quest_tree` did the same (Tree Gnome Village's row is `quest_treegnomevillage`), and so
+  does `::complete quest_death`: Death Plateau's folder is `quest_death`, its row
+  `quest_deathplateau` (troll_love, matthew-mbp-m4-b47). Look the row up with `grep -n '^\[quest_' OSRS-Content/osrs239-content/configs/all.dbrow` and fix the
   scaffold's line before the first run.
-- `quest_treegnomevillage` and `quest_undergroundpass` have no arm (QUEST_SERVER_CHEATS.md lists
-  them). The b44 authors wrote `::setvar varp111_treequest 9` (Monkey Madness) and `::setvar varp161_upass
-  ^upass_complete` plus `::setvar varb9125_upass_lathas_met 1` (Regicide) instead. That is the route the rule
-  above forbids. A prerequisite with no arm is a `quest_cheat.rs2` seam: report it and `t.blocked`
-  on it.
+- `quest_treegnomevillage` and `quest_undergroundpass` had no arm, and the b44 authors wrote
+  `::setvar varp111_treequest 9` (Monkey Madness) and `::setvar varp161_upass ^upass_complete` plus
+  `::setvar varb9125_upass_lathas_met 1` (Regicide) instead. That is the route the rule above forbids.
+  Both arms exist since parity3g (2026-10-01, QUEST_SERVER_CHEATS.md "Arms added by parity3g"):
+  write `::complete quest_undergroundpass` and `::complete quest_treegnomevillage`. The Underground
+  Pass arm writes `%varp161_upass` only. Regicide's walk through the pass also reads the orb, badge
+  and unicorn varbits (`upass_caveorb_1..4`, `upass_paladinbadge_1..3`, `upass_cave_unicorn`) and
+  `upass_lathas_met`, which a finished Underground Pass has set. Those are state the completion
+  implies, so they belong in the arm: report it as a `quest_cheat.rs2` seam and do not `::setvar`
+  them (the matthew-mbp-m4-b47 sampler sent Regicide back partly for this). Any other prerequisite
+  with no arm is the same kind of seam: report it and `t.blocked` on it.
 
 ## Feldip hunting ground: the damage comes from the wolves; the lent ogre bow is the reward
 

@@ -122,6 +122,19 @@ harnesses only. `gate.py` runs this check only when the ledger has no BLOCKED ro
 the `-- GUIDE-GAP:` markers are optional and a MIXED verdict past the `t.blocked()` is informational
 (the classifier credits a step whose symbol merely appears in the file).
 
+### The ladder lists a route back to front; FULL does not see every sub-step (matthew-mbp-m4-b47)
+
+The ladder follows the order of the guide's `addStep` calls, and a `ConditionalStep` lists its
+LATEST state first. Regicide's Underground Pass prints `leaveWellCave, enterWell, openIbansDoor,
+leaveUnicornArea, ...` down to `collectPlank`, which is the walk in reverse. Take the route from the
+zones and the step texts, not from the ladder's order.
+
+FULL grades only the steps the ladder holds. Regicide read FULL (64 of 64) while
+`crossTheGrid` and its sub-steps `climbOverRockslide4` and `climbOverRockslide5` (the grid between
+the pit and the lever) never appeared in the ladder, and the test crossed them with one `goto_tile`
+(sampler-findings: Sample matthew-mbp-m4-b47). Read the guide's whole `ConditionalStep` tree for
+the stretch you drive, and drive every obstacle in it, listed or not.
+
 ### A `BLOCKED` row reports `blocked`
 
 A `BLOCKED` row with `fail==0` reports `blocked`, not `green`, and still exits non-zero unless the

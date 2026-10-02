@@ -206,6 +206,13 @@ and naming every tile tried; the retry ::goto's onto the loc's own square only w
 `t.player.use_on(item, target, { stand_on_square = true })`, and that opt-in needs a `-- GUIDE-GAP:`
 marker within 8 lines above it (trap 32).
 
+#### Field crops pick on op 2; op 1 answers `menu has no row for it` (matthew-mbp-m4-b47)
+
+Wheat, potato, onion, cabbage, sweetcorn and flax in the fields pick on op 2 (`[oploc2,...]` in
+`general_use/scripts/pickables.rs2`). The loc has no op 1, so `click_loc(<crop>, 1)` fails with
+`menu has no row for it`, which reads like a missing loc. Write `t.player.click_loc(<crop>, 2)`.
+Grapevines, Draynor's magic cabbage and the brewing flowers are the exceptions that pick on op 1.
+
 #### A press whose walk outlasts the 20-tick settle is followed (seam35)
 
 A `click_loc` whose route is long and walked (Haunted Mine's valve to the lift: 4 tiles apart, a

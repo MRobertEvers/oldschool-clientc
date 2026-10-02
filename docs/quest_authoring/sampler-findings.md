@@ -146,7 +146,8 @@ pass 37 (b).)
 trap on purpose. The trap put its candle lantern out, and the test then ran `::give
 candle_lantern_lit 1` instead of relighting the lantern. Stay on the marked path, which is what the
 guide's `walkToMistag` says. If you trigger the trap to show it works, relight the lantern with a
-tinderbox in that same leg.
+tinderbox in that same leg. (The content cannot relight it yet: content-gaps, The Lost Tribe. So stay
+on the marked path.)
 
 ## Sample sonnet-b45 (2026-10-01)
 
@@ -168,3 +169,29 @@ jump CHEAT (coverage-and-gate, "A branch-only step"; seam-facts, Seam pass 36 (b
 0xca17fc810`. The gate's empty-detail check passes it. The rows were true (shots 045 and 072 show
 the lines), so the quest stayed. Pass the matched line instead: `t.msg.expect` returns `(r, d)`, so
 `local r, d = t.msg.expect(...)` and then `t.check(name, r, d)`.
+
+## Sample matthew-mbp-m4-b47 (2026-10-01)
+
+*Origin: the sampler checked theslugmenace, regicide and losttribe, and sent regicide back.*
+
+(a) AN OBSTACLE THE LADDER DOES NOT LIST IS STILL AN OBSTACLE. Regicide's walks through the
+Underground Pass ran `goto_tile` from the pit landing (2466,9699) straight to the grid lever at
+2466,9673. Shot 085 reads "Teleported to 2466,9673,0". The jump skips `climbOverRockslide4`,
+`climbOverRockslide5` and `crossTheGrid`, which the guide shows between the pit and the lever. None
+of the three is in `helper_coverage`'s ladder, so it read FULL (coverage-and-gate, "The ladder lists
+a route back to front"). The reviewer noted "unlisted pass obstacles between bridge and the tunnel
+crossed by one goto_tile hop" as a doc gap. It is a teleport past the route. Walk it, or `walk_to`
+in short hops and cross each obstacle with `click_loc` (verbs-pointer, "A walk stops at an
+obstacle").
+
+(b) A SUCCESS LINE FROM THE LAST TRY IS NOT THIS TRY'S. The spear-trap loop passed when the last
+four chat lines held "...and succeed". After trap 4 succeeded and trap 5 failed, that line was
+still in view. `passTrap5-tile` passed on it while shot 117 shows "...and fail, activating the
+trap!", and the next `goto_tile` hopped past the trap. `passTrap2-again` and `passTrap4-again` did
+the same. Grade a retry on the tile it moved you to, or count the success lines before and after
+the press, as `climb()` in the same file already does.
+
+(c) The Lost Tribe still steps onto the maze's floor trap on purpose and then `goto_tile`s from the
+Lumbridge Swamp Caves back to the cellar. It no longer `::give`s a lit lantern back, but the content
+has no relight (content-gaps, The Lost Tribe), so the tunnels are walked with the lantern out. The
+detour is in no guide step and skips none, so the quest stayed. Leave it out of new tests.
