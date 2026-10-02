@@ -390,3 +390,18 @@ leg cannot pass until the runner replaces every marker with the real route.
 Also retire the leg's old notebook (`git mv wip/<id>/leg<K>.progress.md
 wip/<id>/leg<K>.progress.<rounds>.md`): a runner that finds a notebook ending in "DONE"
 writes `outcome: done` without running anything, as Regicide's leg 6 did in round 5.
+
+### The legs follow the guide's order, and the route does not (vm-b1, The Fremennik Isles)
+
+`ladder.py` cuts legs in the order of the guide's steps, and that follows the `steps.put` keys and
+the `addStep` calls, not the order you walk. Usually the two agree. When they do not, a leg asks
+for a state that an earlier leg cannot reach yet. The Fremennik Isles files stage 90 before the
+steps that stage 90 depends on, so leg 1 could not be finished without first doing legs 2 and 3,
+and the author gave up there.
+
+Before authoring leg 1, read each leg's stage range in the overview and check that it can be
+reached from the end of the leg before it. If it cannot, cut the legs by route yourself, as stage
+ranges in walking order (for Fremennik Isles: 0->60, 90->150, 160->275, 280->290, 300+). Write that
+plan into `test/quests/wip/<id>/relay.md` and name your test's legs after it. The coverage grade
+finds rows by step name, not by leg, so a re-cut costs nothing there. See also coverage-and-gate:
+"The ladder lists a route back to front".
