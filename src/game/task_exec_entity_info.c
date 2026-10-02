@@ -1661,8 +1661,26 @@ Task_ExecNpcInfo_Run(
                  * longer waits out the load. */
                 int const world_idx = npc_target(self, NULL);
                 if( world_idx >= 0 )
+                {
+                    struct WorldEntity_NPC const* npc =
+                        World_EntityPoolGet(&app->world->entities.npc, world_idx);
                     World_NpcSetPrimaryAnimation(
                         app->world, world_idx, self->pending_seq, self->pending_delay);
+                    /* DRIVE_STAMP: npc_seq -- a=server slot b=seq c=tick. On
+                     * the op's ARRIVAL, not on the track changing: a seq
+                     * re-sent while it is already playing does not restart
+                     * (world_apply_primary_animation), so an npc repeating
+                     * one attack seq would otherwise raise one edge for the
+                     * whole fight (WorldEntity_NPC.seq_sent_id). */
+                    if( npc && npc->server_slot >= 0 )
+                        App_DriveEvent(
+                            app,
+                            DRIVE_EVENT_NPC_SEQ,
+                            npc->server_slot,
+                            self->pending_seq,
+                            (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES),
+                            0);
+                }
                 if( self->pending_seq >= 0 )
                 {
                     /* NULL means "already registered" -- the loader's

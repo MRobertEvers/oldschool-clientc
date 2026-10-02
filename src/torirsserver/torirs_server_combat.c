@@ -426,6 +426,9 @@ ToriRSServer_AnimPlayNpc(
     npc->anim_id = seq_id;
     npc->anim_delay = delay;
     npc->masks |= TORIRSSERVER_NMASK_ANIM;
+    /* After the priority gate: the tick log records the animation the client
+     * is sent, which is the one a recorder (Blert's NPC_ATTACK) sees. */
+    ToriRSServer_TicklogNpcAnim(npc, seq_id, delay);
     /* Whoever played the death seq, it has now been played this life — see the
      * field. A script that shows a death and the engine's own death step must
      * agree on that, or the client is sent it twice and shows it once. */
@@ -1154,11 +1157,21 @@ ToriRSServer_CombatAddXp(
     }
     if( stat != TORIRSSERVER_STAT_HITPOINTS && stat != TORIRSSERVER_STAT_SUMMONING )
     {
-        /* Boosted follows base upward so a level-up is usable at once, and back
-         * down only when the base actually fell beneath it — a boost above a
+        /* LostCity's `Player.addXp` (engine/entity/Player.ts:1821-1851), rule
+         * for rule:
+         *   - a stat with no boost or drain on it (boosted == the old base)
+         *     follows the base, so a level-up is usable at once;
+         *   - a DRAINED stat stays drained: xp alone never touches it, and a
+         *     level-up lifts it by the levels gained and no more
+         *     (`levels += baseLevels - before`);
+         *   - a boosted stat is left where the potion put it.
+         * This used to snap anything below the base up to the base on every
+         * xp drop, so a content drain -- Verzik's, Olm's, a Sourhog's -- was
+         * cancelled by the player's next hit (docs/RAID_ORCHESTRATOR.md
+         * section 4). Back down only when the base actually fell beneath it
+         * (a negative grant, which LostCity refuses outright): a boost above a
          * base the player no longer has is power the experience no longer pays
-         * for, but clamping unconditionally would cancel a potion on every xp
-         * drop. Hitpoints is exempt because its boosted slot is current
+         * for. Hitpoints is exempt because its boosted slot is current
          * hitpoints, which `sync_hitpoints` owns.
          *
          * Summoning is exempt for the same reason hitpoints is: its boosted slot
@@ -1171,8 +1184,10 @@ ToriRSServer_CombatAddXp(
          * (the obelisk's op2, `::summoning_points`); a level-up raises the
          * ceiling and leaves the current pool where it stands, which is what
          * the live game does. */
-        if( player->stat_boosted[stat] < player->stat_level[stat] )
+        if( player->stat_boosted[stat] == before )
             player->stat_boosted[stat] = player->stat_level[stat];
+        else if( player->stat_level[stat] > before && player->stat_boosted[stat] < before )
+            player->stat_boosted[stat] += player->stat_level[stat] - before;
         else if( player->stat_level[stat] < before &&
                  player->stat_boosted[stat] > player->stat_level[stat] )
             player->stat_boosted[stat] = player->stat_level[stat];
@@ -1369,6 +1384,7 @@ ToriRSServer_CombatHitNpc(
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv));
+    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block());
 
     /* Warn every ironman fighting this npc, not just the one who swung: the
      * player who is about to lose the drop is the one who got there FIRST, and
@@ -1497,6 +1513,7 @@ ToriRSServer_CombatHitNpc(
          */
         npc->death_stage = TORIRSSERVER_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
+        ToriRSServer_TicklogNpcDeath(srv, slot);
         /*
          * Drop whatever was already armed on the npc's own queue — a healer's
          * `npc_queue(4, heal, ...)` chief among them.
@@ -1776,6 +1793,11 @@ ToriRSServer_CombatHitPlayerFrom(
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
                         dealer_slot);
+    /* The splat as shown: after `::god`, absorption and the clamp to the
+     * hitpoints left, which is the number a recorder reads off the client. */
+    ToriRSServer_TicklogHitPlayer(
+        srv, player, amount,
+        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()), dealer_slot);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;

@@ -2159,6 +2159,97 @@ function QD.player._tile_distance(ax, az, bx, bz)
     return dz
 end
 
+-- t.player.step_tick(x, z, ticks) -> ok, "step x,z issued at tick T, resolved
+-- at tick T+n (+n)" | refused | timeout | unsupported
+--
+-- One tile, issued NOW, with the server tick it resolved on in the detail:
+-- the raid seam's answer to the T-1 rule (ENCOUNTER_TIMING.md section 1). An
+-- npc acting on tick T scans the world as it stood at the end of T-1, because
+-- phase_npcs runs before phase_players in ToriRSServer_WorldTick; so a
+-- technique row ("the step landed one tick before the scan") needs the tick
+-- the step LANDED on, measured by the server, not inferred from a frame.
+--
+-- How: the click is api_drive.move_to (DrivePointer_MoveTo -> app_try_move ->
+-- MOVE_GAMECLICK), sent once -- never re-issued, since a second click would
+-- be a second step on another tick. The server routes it in handle_move and
+-- the step resolves in advance_player inside phase_players; the tick log's
+-- PLAYER_TILE row (written after phase_players every tick) is where the new
+-- tile first appears, and its tick is the resolve tick. T is srv->tick when
+-- the click was issued, i.e. the last tick the server finished: the packet is
+-- read by the NEXT tick's phase_clients_in, so a step that resolves at T+1
+-- landed on the first tick it could. The tick log is started if it is off.
+--
+-- An adjacent tile only (chebyshev 1); anything else is `refused` -- a walk
+-- is walk_to's job and has no single resolve tick.
+function QD.player.step_tick(x, z, ticks)
+    if api_drive.server_tick == nil or api_drive.ticklog == nil then
+        return "unsupported", "step_tick: this binary has no api_drive.server_tick/ticklog (rebuild)"
+    end
+    local here_result, here = QD.world.tile()
+    if here_result ~= "ok" or here == nil then
+        return here_result, "step_tick: no player tile"
+    end
+    local distance = QD.player._tile_distance(here.x, here.z, x, z)
+    if distance ~= 1 then
+        return "refused", string.format(
+            "refused: step_tick takes an adjacent tile; use walk_to (%d,%d -> %d,%d is %d tile(s))",
+            here.x, here.z, x, z, distance)
+    end
+    local start_result, state = api_drive.ticklog_start()
+    if start_result ~= "ok" then
+        return start_result, "step_tick: ticklog_start answered " .. tostring(start_result)
+    end
+    local after = state.serial
+    local _, issued = api_drive.server_tick()
+    local move_result = api_drive.move_to(x, z)
+    if move_result ~= "ok" then
+        return move_result, string.format("step_tick: move_to %d,%d answered %s at tick %d",
+            x, z, tostring(move_result), issued)
+    end
+    local pid, resolved = nil, nil
+    local result = QD.await({
+        event = "server_tick",
+        match = function()
+            local page_result, page = api_drive.ticklog(after, 8192, "player_tile")
+            if page_result ~= "ok" then
+                return false
+            end
+            for _, raw in ipairs(page) do
+                if raw.kind == "player_tile" then
+                    -- Our pid is the one whose row stands on our tile (before
+                    -- or after the step): the embedded world may hold more
+                    -- than one player.
+                    if pid == nil and ((raw.b == here.x and raw.c == here.z)
+                        or (raw.b == x and raw.c == z)) then
+                        pid = raw.a
+                    end
+                    if raw.a == pid and raw.b == x and raw.c == z then
+                        resolved = raw.tick
+                        return true
+                    end
+                end
+            end
+            after = page.next_serial
+            return false
+        end,
+        note = "step_tick",
+    }, ticks or 6)
+    if result ~= "ok" or resolved == nil then
+        local now_result, now = QD.world.tile()
+        local _, now_tick = api_drive.server_tick()
+        -- The usual cause is a tile the player cannot stand on (a tree, a
+        -- fence, a wall edge between the two): the server routes the click
+        -- and finds no step, so no PLAYER_TILE row ever names the tile.
+        return "timeout", string.format(
+            "step %d,%d issued at tick %d, not resolved by tick %d (player at %s; no "
+                .. "player_tile row reached it -- a blocked tile or a wall between)",
+            x, z, issued, now_tick,
+            (now_result == "ok" and now) and (now.x .. "," .. now.z) or "?")
+    end
+    return "ok", string.format("step %d,%d issued at tick %d, resolved at tick %d (+%d)",
+        x, z, issued, resolved, resolved - issued)
+end
+
 -- How far from a ground stack player.click_obj stands before it presses.
 QD.player._click_obj_standoff = 3
 

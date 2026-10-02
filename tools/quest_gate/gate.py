@@ -1323,7 +1323,8 @@ def main():
             # An empty suite is a discovery FAILURE, not an empty pass: it is
             # indistinguishable, from here, from test/quests/ having been
             # wiped or misconfigured, and CI must not read that as green.
-            print("gate: no quest files under test/quests/ -- nothing to check", file=sys.stderr)
+            print("gate: no quest files under %s/ -- nothing to check"
+                  % os.path.relpath(quest_list.quests_dir(REPO_ROOT), REPO_ROOT), file=sys.stderr)
             return 1
 
     total_findings = 0

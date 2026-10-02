@@ -345,3 +345,115 @@ function QD.render._pick_catch_up_probe()
         pos.x, pos.y, tostring(facts.stamped), facts.drawn_idle, facts.skipped_idle,
         facts.caught_up, tostring(facts.valid), tostring(facts.same_tick)), facts
 end
+
+-- world.spotanims / world.projectiles / world.hazard_at ----------------------
+--
+-- SEAM client_npc_state_and_tile_hazards (raid seam1, docs/RAID_ORCHESTRATOR.md
+-- section 4 row `world.hazard_at`): "step off the pool" needs the pool.  A
+-- raid hazard is a LOC (Verzik's pillars), a GROUND OBJ, a MAP GRAPHIC
+-- (`spotanim_map`: Xarpus acid, Maiden blood, Olm crystals) or the tile a
+-- PROJECTILE is aimed at (Verzik's bombs, Zebak's waves).  The client used
+-- to drop a map graphic's and a projectile's spotanim id on the floor; it
+-- keeps them now (WorldEntity_Spotanim/Projectile.spotanim_id) and
+-- api_drive.spotanims/projectiles read them (torirs_plugin_drive_ui.c).
+--
+-- Rows (nearest first; a projectile by its DESTINATION):
+--   spotanims:   { spotanim_id, x, z, level, active, cycles_left, element_id }
+--   projectiles: { spotanim_id, src_x, src_z, dst_x, dst_z, level, target,
+--                  target_npc_slot, launched, cycles_left, element_id }
+-- `cycles_left` is CLIENT cycles (20 ms; 30 to a server tick): a graphic's
+-- life is its seq's frame lengths, a projectile's its flight.  A homing
+-- projectile's dst is its target's live tile.  Ids are numbers: the driver
+-- has no spotanim symbol kind yet, so a test names the id the content's
+-- spotanim_map / projanim line resolves to.
+--
+-- A binary built before the readers answers `unsupported`, never nil.
+
+function QD.world.spotanims(radius)
+    if api_drive.spotanims == nil then
+        return "unsupported", "world.spotanims: this binary has no api_drive.spotanims"
+    end
+    return api_drive.spotanims(radius or 0)
+end
+
+function QD.world.projectiles(radius)
+    if api_drive.projectiles == nil then
+        return "unsupported", "world.projectiles: this binary has no api_drive.projectiles"
+    end
+    return api_drive.projectiles(radius or 0)
+end
+
+-- t.world.hazard_at(x, z[, level]) -> ("ok", hazards) | unsupported.
+--
+-- Everything on one tile: { locs = {...}, objs = {...}, spotanims = {...},
+-- projectiles = {...}, count = n, text = "..." } -- each list holds the
+-- pool rows above (locs and objs are api_drive.locs/objs rows) whose tile
+-- is x,z (and level, when given; a projectile counts when its DESTINATION
+-- is the tile).  An empty tile is ("ok", {count = 0}): "nothing here" is an
+-- answer.  `text` is the one-line reading for a ledger detail.  The scan is
+-- of rows within 1 tile of the asked tile, around the player: a tile more
+-- than the scene away is simply empty.
+function QD.world.hazard_at(x, z, level)
+    assert(type(x) == "number", "world.hazard_at: x must be a number")
+    assert(type(z) == "number", "world.hazard_at: z must be a number")
+    if api_drive.spotanims == nil or api_drive.projectiles == nil then
+        return "unsupported", "world.hazard_at: this binary has no api_drive.spotanims/projectiles"
+    end
+    local function on_tile(rx, rz, rlevel)
+        return rx == x and rz == z and (level == nil or rlevel == level)
+    end
+    local out = { locs = {}, objs = {}, spotanims = {}, projectiles = {}, count = 0 }
+    local parts = {}
+    -- The pool readers rank around the PLAYER and cut by radius around the
+    -- player, so the radius that reaches x,z is the tile's own distance.
+    local here_result, here = api_drive.player_tile()
+    local reach = 0
+    if here_result == "ok" and type(here) == "table" then
+        reach = math.max(math.abs(here.x - x), math.abs(here.z - z)) + 1
+    end
+    local loc_result, locs = QD.drive._pool_read("locs", reach, QD.drive._scan_cost_near)
+    if loc_result == "ok" then
+        for i = 1, #locs do
+            if on_tile(locs[i].x, locs[i].z, locs[i].level) then
+                out.locs[#out.locs + 1] = locs[i]
+                parts[#parts + 1] = "loc " .. tostring(locs[i].loc_id)
+            end
+        end
+        QD.drive._scan_spend(#locs, QD.drive._scan_cost_near)
+    end
+    local obj_result, objs = api_drive.objs(reach)
+    if obj_result == "ok" then
+        for i = 1, #objs do
+            if on_tile(objs[i].x, objs[i].z, objs[i].level) then
+                out.objs[#out.objs + 1] = objs[i]
+                parts[#parts + 1] = "obj " .. tostring(objs[i].obj_id) .. " x" .. tostring(objs[i].count)
+            end
+        end
+    end
+    local spot_result, spots = api_drive.spotanims(reach)
+    if spot_result == "ok" then
+        for i = 1, #spots do
+            if on_tile(spots[i].x, spots[i].z, spots[i].level) then
+                out.spotanims[#out.spotanims + 1] = spots[i]
+                parts[#parts + 1] = string.format("spotanim %d (%s, %d cycle(s) left)",
+                    spots[i].spotanim_id, spots[i].active and "active" or "delayed",
+                    spots[i].cycles_left)
+            end
+        end
+    end
+    local proj_result, projs = api_drive.projectiles(reach)
+    if proj_result == "ok" then
+        for i = 1, #projs do
+            if on_tile(projs[i].dst_x, projs[i].dst_z, projs[i].level) then
+                out.projectiles[#out.projectiles + 1] = projs[i]
+                parts[#parts + 1] = string.format("projectile %d from %d,%d (%d cycle(s) to impact)",
+                    projs[i].spotanim_id, projs[i].src_x, projs[i].src_z, projs[i].cycles_left)
+            end
+        end
+    end
+    out.count = #out.locs + #out.objs + #out.spotanims + #out.projectiles
+    out.text = string.format("tile %d,%d%s: %s", x, z,
+        level ~= nil and ("," .. tostring(level)) or "",
+        out.count == 0 and "nothing" or table.concat(parts, "; "))
+    return "ok", out
+end

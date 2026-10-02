@@ -1240,12 +1240,17 @@ PluginDriveCore_RegisterLua(struct lua_State* L, void* script)
 
 /* ------------------------------------------------------------ registration */
 
+/* torirs_plugin_drive_ticklog.c (raid seam 1: api.drive.server_tick and the
+ * tick log). Declared here, at its one call, because torirs_plugin_drive.h
+ * belongs to another owner. */
+void PluginDriveTicklog_RegisterLua(struct lua_State* L, void* script);
+
 static void
 drive_install_modules(struct lua_State* L, void* script)
 {
     assert(L);
     assert(script);
-    /* One flat `api.drive`, assembled from six files. Order is registration
+    /* One flat `api.drive`, assembled from seven files. Order is registration
      * order only; the names are disjoint and the inventory test proves it. */
     lua_newtable(L);
     PluginDriveCore_RegisterLua(L, script);
@@ -1254,6 +1259,7 @@ drive_install_modules(struct lua_State* L, void* script)
     PluginDriveRead_RegisterLua(L, script);
     PluginDrivePointer_RegisterLua(L, script);
     PluginDriveUi_RegisterLua(L, script);
+    PluginDriveTicklog_RegisterLua(L, script);
     lua_setfield(L, -2, "drive");
 }
 

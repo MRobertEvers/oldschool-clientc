@@ -1024,6 +1024,13 @@ except the plain readers marked as returning a value.
 ---@field locs fun(radius: integer): string, table Each row carries loc_id (the id the MAP or a zone packet placed) AND resolved_loc_id (the multiloc child it currently draws as). And `shape`, the RSCACHE_LOC_SHAPE_* the map placed it with (0-3/9 walls, 10-11 centrepiece).
 ---@field loc_variants fun(loc_id: integer): string, table|nil { resolved, slots } -- the multiloc child this def draws as now, and its flattened family. `timeout` while the def is being fetched: poll again next frame.
 ---@field objs fun(radius: integer): string, table
+---@field spotanims fun(radius: integer): string, table Map graphics (MAP_ANIM), nearest first: { spotanim_id, x, z, level, active, cycles_left, element_id }; cycles_left is CLIENT cycles. Raid seam 1, world.spotanims / world.hazard_at.
+---@field projectiles fun(radius: integer): string, table Projectiles in flight, nearest DESTINATION first: { spotanim_id, src_x, src_z, dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left, element_id }. Raid seam 1, world.projectiles.
+---@field server_tick fun(): string, integer|nil The embedded server's own tick (srv->tick), not the client cycle tick(); unsupported on a socket-server run. Raid seam 1, t.tick.
+---@field ticklog_start fun(): string, table|nil Turn the server tick log on (idempotent): { start_tick, tick, serial, path }; rows also go to <session>/ticklog.tsv. Raid seam 1.
+---@field ticklog fun(after_serial: integer?, max: integer?, kind: string?, slot: integer?): string, table|nil Tick-log rows after a serial, kind and npc world slot filtered in C: { {serial, tick, kind, a..f, label}..., next_serial, serial, tick }; refused while the log is off.
+---@field ticklog_mark fun(label: string): string, table|nil A mark row at the current server tick: { serial, tick }; refused while the log is off.
+---@field server_npc_slot fun(client_slot: integer): string, integer|nil The world npc slot the tick log keys by, for a client NPC_INFO slot; not_found once the client no longer names it.
 ---@field player_tile fun(): string, table { x, z, level }.
 ---@field key fun(name: string, down: boolean): string, string
 ---@field text fun(text: string): string, string 1..63 printable ASCII.

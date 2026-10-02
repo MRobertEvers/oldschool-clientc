@@ -170,6 +170,11 @@ DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 # directory (2026-09-23, selftest/quests/README.md).
 PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
                            "selftest", "quests")
+# tools/raid_gate/run.py moves it (TORIRS_QUEST_PUBLISH_DIR, quest_list.py):
+# a raid room's evidence is kept under selftest/minigames/<raid>/<room>/play/.
+PUBLISH_DIR_OVERRIDDEN = quest_list.publish_dir_override(REPO_ROOT) is not None
+if PUBLISH_DIR_OVERRIDDEN:
+    PUBLISH_DIR = quest_list.publish_dir_override(REPO_ROOT)
 
 QUEUE_TSV_PATH = os.path.join(REPO_ROOT, "test", "quests", "QUEUE.tsv")
 
@@ -180,6 +185,10 @@ def quest_dir_for(test_id):
     QUEUE.tsv and is not in it) -- the same fallback
     docs/quests/selftest layout uses."""
     assert test_id
+    if PUBLISH_DIR_OVERRIDDEN:
+        # Not a quest (a raid room): QUEUE.tsv is the quest loop's and has no
+        # row for it, by the owner's rule never will.
+        return quest_list.suite_publish_subdir(test_id)
     rows = quest_queue_tsv.load_rows(QUEUE_TSV_PATH)
     row = quest_queue_tsv.find_row(rows, test_id)
     if row and row.get("quest_dir"):
@@ -291,7 +300,7 @@ def write_session_fixture(fixture_name, saves_dir, user):
     as a broken verb if skipped: without it the server makes a fresh
     character and the run boots into the Character Creator modal, which
     blocks tab selection."""
-    fixture_path = os.path.join(REPO_ROOT, "test", "quests", "fixtures", fixture_name)
+    fixture_path = os.path.join(quest_list.fixtures_dir(REPO_ROOT), fixture_name)
     assert os.path.isfile(fixture_path), fixture_path
     with open(fixture_path, "r", encoding="utf-8") as handle:
         text = handle.read()
@@ -2408,8 +2417,9 @@ def main():
             # indistinguishable, from here, from test/quests/ having been
             # wiped or misconfigured (gate.py makes the same call, same
             # reasoning, for the same input).
-            print("run.py: no quest files under test/quests/ -- nothing to run "
-                  "(this is a discovery fact, not a pass)", file=sys.stderr)
+            print("run.py: no quest files under %s/ -- nothing to run "
+                  "(this is a discovery fact, not a pass)"
+                  % os.path.relpath(quest_list.quests_dir(REPO_ROOT), REPO_ROOT), file=sys.stderr)
             return 1
     else:
         quest_file = quest_list.quest_path(REPO_ROOT, name)

@@ -1731,3 +1731,152 @@ function QD.ui._worn_count(item)
     end
     return "ok", count
 end
+
+-- npc.state / npc.await_anim ------------------------------------------------
+--
+-- SEAM client_npc_state_and_tile_hazards (raid seam1, docs/RAID_ORCHESTRATOR.md
+-- section 4 row `npc.state`): a raid tactic reacts to what the boss is DOING,
+-- and before this the pool row carried a tile, a health ratio and a hitsplat
+-- and nothing else.  The row now also carries (struct DriveNpcRow):
+--
+--   anim_id, anim_frame   the action seq being DRAWN (-1 when none)
+--   spotanim_id           the attached graphic being drawn (-1 when none)
+--   seq_id, seq_tick      the newest SEQUENCE op the server SENT and the
+--                         server tick it arrived on -- the attack edge
+--   spotanim_sent_id,     the newest SPOTANIM op and its tick (a spell's
+--   spotanim_tick         impact graphic, readable after its loop ended)
+--   facing                wire face-entity: npc slot, 32768 + pid, or -1
+--
+-- `seq_tick` and not "anim_id changed": the client does not restart a seq
+-- re-sent while it is still playing (world_apply_primary_animation), so a
+-- boss repeating one attack seq changes no drawn anim_id at all.  Every tick
+-- here is a SERVER tick on api_drive.tick()'s clock.
+--
+-- The selector: a content symbol (the nearest copy), optionally narrowed by
+-- talk_to's `{ slot = n }` / `{ at = {x, z[, level]} }`; or that table alone,
+-- which names a copy of ANY npc.  A selector that matches nothing is `no_row`
+-- naming what was searched -- never the next copy along.
+
+-- ("ok", row) | (result, detail).  `row` is the pool row (nearest first).
+function QD.npc._pick(selector, opts)
+    local want_id
+    local narrow = opts
+    if type(selector) == "string" then
+        local sym_result, npc_id = api_drive.symbol("npc", selector)
+        if sym_result ~= "ok" then
+            return "not_found", "no npc named " .. selector
+        end
+        want_id = npc_id
+    else
+        assert(type(selector) == "table",
+            "npc selector must be a symbol, { slot = n } or { at = {x, z} }")
+        assert(opts == nil, "npc selector given twice: a table selector takes no opts")
+        narrow = selector
+    end
+    local want_slot, want_x, want_z, want_level
+    if narrow ~= nil then
+        assert(type(narrow) == "table", "npc selector opts must be { slot = n } or { at = {x, z} }")
+        assert(narrow.slot == nil or narrow.at == nil, "npc selector names a copy twice")
+        want_slot = narrow.slot
+        if narrow.at ~= nil then
+            want_x = narrow.at.x or narrow.at[1]
+            want_z = narrow.at.z or narrow.at[2]
+            want_level = narrow.at.level or narrow.at[3]
+            assert(type(want_x) == "number", "npc selector at has no x")
+            assert(type(want_z) == "number", "npc selector at has no z")
+        end
+        assert(want_slot ~= nil or want_x ~= nil, "npc selector names no copy")
+    end
+    local result, rows = api_drive.npcs(0)
+    if result ~= "ok" then
+        return result, "the npc pool did not answer"
+    end
+    for i = 1, #rows do
+        local row = rows[i]
+        local hit = want_id == nil or row.npc_id == want_id or row.base_npc_id == want_id
+        if hit and want_slot ~= nil then
+            hit = row.slot == want_slot
+        end
+        if hit and want_x ~= nil then
+            hit = row.x == want_x and row.z == want_z and (want_level == nil or row.level == want_level)
+        end
+        if hit then
+            return "ok", row
+        end
+    end
+    local what = type(selector) == "string" and selector or "any npc"
+    if want_slot ~= nil then
+        what = what .. " slot " .. tostring(want_slot)
+    elseif want_x ~= nil then
+        what = what .. " at " .. tostring(want_x) .. "," .. tostring(want_z)
+    end
+    return "no_row", string.format("no live copy of %s (searched %d npc(s))", what, #rows)
+end
+
+-- One line for a ledger detail: every state field, named.
+function QD.npc.state_text(row)
+    return string.format(
+        "%s slot %d at %d,%d: anim %d frame %d, spotanim %d, last seq %d on tick %d,"
+            .. " last spotanim %d on tick %d, facing %d, hp %d/%d (now tick %d)",
+        tostring(row.name), row.slot, row.x, row.z, row.anim_id, row.anim_frame, row.spotanim_id,
+        row.seq_id, row.seq_tick, row.spotanim_sent_id, row.spotanim_tick, row.facing,
+        row.health_ratio, row.health_scale, api_drive.tick())
+end
+
+-- t.npc.state(selector[, opts]) -> ("ok", row) | not_found | no_row |
+-- unsupported (a binary built before the state fields: the row has no
+-- anim_id).  Record it with t.check and QD.npc.state_text(row).
+function QD.npc.state(selector, opts)
+    local result, row = QD.npc._pick(selector, opts)
+    if result ~= "ok" then
+        return result, row
+    end
+    if row.anim_id == nil then
+        return "unsupported", "npc.state: this binary's npc rows carry no anim_id (built before"
+            .. " seam client_npc_state_and_tile_hazards)"
+    end
+    return "ok", row
+end
+
+-- t.npc.await_anim(selector, seq_id_or_nil, ticks[, opts]) -> ("ok", detail,
+-- tick, seq_id) | timeout | not_found | no_row | unsupported.
+--
+-- Waits for the NEXT SEQUENCE op the server sends that copy (a seq id
+-- number, or nil for any seq; a stop, seq -1, is not an animation and never
+-- matches) and answers the server tick it arrived on and its seq id -- how a
+-- room test anchors "the boss attacked on tick T" from the player's side.
+-- The copy is resolved ONCE, before the wait, and the wait watches its slot
+-- (the drive event npc_seq, stamped where NPC_INFO's SEQUENCE op is applied:
+-- task_exec_entity_info.c), so a second copy swinging never answers for it.
+-- `ticks` defaults to 10.
+function QD.npc.await_anim(selector, seq_id, ticks, opts)
+    assert(seq_id == nil or type(seq_id) == "number", "npc.await_anim: seq must be an id number or nil")
+    local result, row = QD.npc.state(selector, opts)
+    if result ~= "ok" then
+        return result, row
+    end
+    local slot = row.slot
+    local want = seq_id ~= nil and ("seq " .. tostring(seq_id)) or "any seq"
+    local got_tick, got_seq
+    local waited, detail = await({
+        event = "npc_seq",
+        match = function(ev)
+            if ev.a ~= slot or ev.b < 0 then
+                return false
+            end
+            if seq_id ~= nil and ev.b ~= seq_id then
+                return false
+            end
+            got_tick = ev.c
+            got_seq = ev.b
+            return true
+        end,
+        note = string.format("npc.await_anim %s slot %d (%s)", tostring(row.name), slot, want),
+    }, ticks or 10)
+    if waited ~= "ok" then
+        return waited, string.format("%s slot %d: no %s within %d tick(s) (last seq %d on tick %d): %s",
+            tostring(row.name), slot, want, ticks or 10, row.seq_id, row.seq_tick, tostring(detail))
+    end
+    return "ok", string.format("%s slot %d: seq %d on tick %d", tostring(row.name), slot, got_seq,
+        got_tick), got_tick, got_seq
+end

@@ -144,8 +144,27 @@ app_obj_stack_refresh_model(
     app_sync_textures(app);
 }
 
-/* Ground item stacks (zone OBJ_* packets). The objtype + its inventory
- * model must already be cached (the packet task awaits the loads). */
+/*
+ * Ground item stacks (zone OBJ_* packets). The objtype + its inventory
+ * model must already be cached (the packet task awaits the loads).
+ *
+ * EVERY call adds one row, even when the tile already holds a row of the same
+ * obj. That is the reference's rule: OBJ_ADD always pushes a new ClientObj
+ * onto the tile's list (Client-TS Client.ts OBJ_ADD, `objStacks[..].push`),
+ * and the server says the same thing from its side -- a non-stackable obj,
+ * or any private drop, gets its own ground slot and its own OBJ_ADD, while a
+ * public stackable landing on its twin is announced as OBJ_COUNT old -> new
+ * (torirs_server_world.c world_obj_add), never as a second OBJ_ADD. So an
+ * OBJ_ADD for an id the tile already shows IS a second item.
+ *
+ * This used to look the id up first and overwrite that row's count. Two logs
+ * dropped on one tile then read as one log on the client while the server
+ * held two; picking one up sent OBJ_DEL, the client removed its only row,
+ * and the second log was invisible and unclickable for as long as it lay
+ * there (seam pass matthew-mbp-m4-b52-seam1 (a); raid seam
+ * client_ground_obj_merge). It also lost a count: a second private coin drop
+ * overwrote the first pile's count instead of standing beside it.
+ */
 int
 App_WorldObjStackAdd(
     struct App* app,
@@ -161,7 +180,6 @@ App_WorldObjStackAdd(
     int world_z = scene_z * 128 + 64;
     int world_y;
     int element_id;
-    int existing;
     struct World* world;
 
     assert(app);
@@ -169,16 +187,6 @@ App_WorldObjStackAdd(
      * root scene or a boat — never on app->world directly. See app.h
      * `active_world`. */
     world = App_ActiveWorldview(app)->world;
-    existing = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
-    if( existing >= 0 )
-    {
-        app_obj_stack_refresh_model(app, world, existing, count);
-        World_ObjStackSetCount(world, existing, count);
-        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_CHANGE);
-        app_ground_items_mark(app, world, scene_x, scene_z, level);
-        app->need_redraw = 1;
-        return existing;
-    }
 
     /* The BASE objtype carries the name and the ground ops the minimenu reads;
      * the model comes from whichever count variant `count` selects. */
@@ -251,8 +259,8 @@ App_WorldObjStackAdd(
     }
 }
 
-int
-app_obj_stack_land(
+static int
+app_obj_stack_land_one(
     struct App* app,
     struct World* world,
     int idx)
@@ -305,6 +313,54 @@ app_obj_stack_land(
     app_ground_items_mark(
         app, world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
     app->need_redraw = 1;
+    return 1;
+}
+
+/*
+ * Land `idx`, then every other row of the same obj on the same tile that is
+ * still waiting for its model.
+ *
+ * Two identical items on one tile are two rows (App_WorldObjStackAdd), and
+ * when both arrive before the objtype is resident each queues a placeholder.
+ * The placeholder finds its stack by (tile, obj id) -- World_ObjStackFind,
+ * the OLDEST row -- so the second placeholder finds the first row, sees it
+ * already landed, and stops: the second row would stay without a scene
+ * element (nothing drawn, nothing to click) until the next world load swept
+ * it. Landing the siblings here, while the first placeholder holds the
+ * resident objtype, closes that for every row whose count selects a resident
+ * model. A sibling whose count variant is still loading is left to the sweep
+ * (app_placeholder_obj_stacks_sweep); see the open issue in the raid seam
+ * notes (app_placeholder.c should look up the first ELEMENT-LESS row).
+ */
+int
+app_obj_stack_land(
+    struct App* app,
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack const* landed;
+    int scene_x, scene_z, level, obj_id;
+
+    if( !app_obj_stack_land_one(app, world, idx) )
+        return 0;
+    pool = &world->entities.obj_stack;
+    landed = World_EntityPoolGet(pool, idx);
+    assert(landed);
+    scene_x = landed->grid_position.x;
+    scene_z = landed->grid_position.z;
+    level = landed->grid_position.level;
+    obj_id = landed->obj_id;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* sibling = World_EntityPoolGet(pool, i);
+        if( i == idx || !sibling || sibling->element_id >= 0 || sibling->obj_id != obj_id ||
+            sibling->grid_position.x != scene_x || sibling->grid_position.z != scene_z ||
+            sibling->grid_position.level != level )
+            continue;
+        app_obj_stack_land_one(app, world, i);
+    }
     return 1;
 }
 
@@ -477,6 +533,12 @@ App_WorldObjStackDel(
     struct World* world;
     assert(app);
     world = App_ActiveWorldview(app)->world;
+    /* OBJ_DEL names a tile and an id, nothing more, and removes ONE row: the
+     * first match in arrival order (Client-TS OBJ_DEL walks the tile's list
+     * from its head and unlinks the first `obj.id === type`, then breaks).
+     * World_ObjStackFind walks the pool from its head, and the pool appends
+     * at its tail, so its first match is that same oldest row. Two identical
+     * items on one tile and one pickup leave the other row standing. */
     idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx >= 0 )
     {
@@ -502,6 +564,14 @@ App_WorldObjStackSetCount(
     struct World* world;
     assert(app);
     world = App_ActiveWorldview(app)->world;
+    /* The first row of this id. The reference matches id AND the packet's old
+     * count (Client-TS OBJ_COUNT: `obj.id === type && obj.count === ocount`),
+     * which picks the right pile when one tile holds two piles of one
+     * stackable (two private drops); this signature carries no old count, so
+     * on such a tile this can retarget the wrong pile. The server sends
+     * OBJ_COUNT only when a public stackable add merges into a pile already
+     * on the tile (torirs_server_world.c world_obj_add), so a twin needs two
+     * private piles of that stackable there first. */
     idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx < 0 )
         return;

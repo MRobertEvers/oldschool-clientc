@@ -4941,6 +4941,7 @@ ToriRSServer_NpcChangeType(
     int duration)
 {
     assert(npc);
+    ToriRSServer_TicklogNpcRetype(npc, npc->type, type, duration);
     npc_changetype_rehydrate(npc, type);
     npc->change_type = type;
     npc->masks |= TORIRSSERVER_NMASK_CHANGE_TYPE;
@@ -8696,6 +8697,7 @@ ToriRSServer_ScriptCommand(
         npc->spotanim_id = values[0];
         npc->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
         npc->masks |= TORIRSSERVER_NMASK_SPOTANIM;
+        ToriRSServer_TicklogNpcSpotanim(npc, (int)values[0], (int)values[1], (int)values[2]);
         return 1;
     }
 
@@ -9824,9 +9826,13 @@ ToriRSServer_ScriptCommand(
          * `hitsplat_damage_me`. A script damaging its own player passes itself,
          * which is also right: an overload's self-hit is damage you dealt.
          */
+        /* The tick log's HIT_PLAYER row names the npc whose script swung,
+         * which only this frame knows (-1 from a player's own script). */
+        ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));
         ToriRSServer_CombatHitPlayerFrom(
             srv, values[1], values[2],
             saved_player ? (int)(saved_player - &srv->players[0]) : -1);
+        ToriRSServer_TicklogSetDealerNpc(-1);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
@@ -9867,6 +9873,8 @@ ToriRSServer_ScriptCommand(
         }
         saved_player = srv->active_player;
         ToriRSServer_WorldSetActive(srv, target_player);
+        /* The swinging npc for the tick log -- see `damage` above. */
+        ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));
         if( values[3] )
         {
             /*
@@ -9889,6 +9897,7 @@ ToriRSServer_ScriptCommand(
                 srv, values[2], values[1],
                 saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         }
+        ToriRSServer_TicklogSetDealerNpc(-1);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }

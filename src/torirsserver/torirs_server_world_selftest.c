@@ -23566,6 +23566,80 @@ ToriRSServer_WorldSelftest(void)
         player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 2;
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a drained stat survives xp (LostCity addXp)\n");
+    {
+        /*
+         * LostCity's Player.addXp (engine/entity/Player.ts:1821-1851): a stat
+         * under its base stays there when xp lands, and a level-up lifts it by
+         * the levels gained, never to the base. This server used to snap every
+         * drained stat back to its base on the next xp drop, so a content
+         * drain (Verzik, Olm, a Sourhog) was undone by the player's own next
+         * hit (docs/RAID_ORCHESTRATOR.md section 4).
+         */
+        int const stat = TORIRSSERVER_STAT_STRENGTH;
+        int const saved_level = player->stat_level[stat];
+        int const saved_boosted = player->stat_boosted[stat];
+        int const saved_xp = player->stat_xp_tenths[stat];
+        int const saved_hp = player->hitpoints;
+        int const saved_hp_level = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+        int const saved_hp_xp = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
+
+        /* 40 strength, 37,224 xp (level 40 exactly), drained by 5. */
+        player->stat_xp_tenths[stat] = 372240;
+        player->stat_level[stat] = ToriRSServer_CombatLevelForXp(37224);
+        SELFTEST_CHECK(player->stat_level[stat] == 40, "37,224 xp is level 40, got %d",
+                       player->stat_level[stat]);
+        player->stat_boosted[stat] = player->stat_level[stat] - 5;
+
+        /* 10 xp, no level-up: still drained. */
+        ToriRSServer_CombatAddXp(srv, stat, 100);
+        SELFTEST_CHECK(player->stat_level[stat] == 40, "10 xp should not level, got %d",
+                       player->stat_level[stat]);
+        SELFTEST_CHECK(player->stat_boosted[stat] == 35,
+                       "a drained stat should stay drained through xp, got %d/%d",
+                       player->stat_boosted[stat], player->stat_level[stat]);
+
+        /* Level 40 -> 42 (45,529 xp is 42): lifted by the two levels gained,
+         * to 37, not to the base. */
+        ToriRSServer_CombatAddXp(srv, stat, 455290 - player->stat_xp_tenths[stat]);
+        SELFTEST_CHECK(player->stat_level[stat] == 42, "45,529 xp is level 42, got %d",
+                       player->stat_level[stat]);
+        SELFTEST_CHECK(player->stat_boosted[stat] == 37,
+                       "a level-up lifts a drained stat by the levels gained (35 + 2), got %d",
+                       player->stat_boosted[stat]);
+
+        /* An undrained stat follows its base, as before. */
+        player->stat_boosted[stat] = player->stat_level[stat];
+        ToriRSServer_CombatAddXp(srv, stat, 503390 - player->stat_xp_tenths[stat]);
+        SELFTEST_CHECK(player->stat_level[stat] == 43 && player->stat_boosted[stat] == 43,
+                       "an undrained stat follows a level-up, got %d/%d",
+                       player->stat_boosted[stat], player->stat_level[stat]);
+
+        /* A boosted stat is left where the potion put it. */
+        player->stat_boosted[stat] = 48;
+        ToriRSServer_CombatAddXp(srv, stat, 100);
+        SELFTEST_CHECK(player->stat_boosted[stat] == 48,
+                       "a boost should survive xp, got %d", player->stat_boosted[stat]);
+
+        /* Hitpoints is untouched by the rule: its boosted slot is current
+         * hitpoints, which sync_hitpoints owns. */
+        {
+            int const hp_before = player->hitpoints;
+
+            ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_HITPOINTS, 10);
+            SELFTEST_CHECK(player->hitpoints == hp_before,
+                           "hitpoints xp should not heal, %d -> %d", hp_before, player->hitpoints);
+        }
+
+        player->stat_level[stat] = saved_level;
+        player->stat_boosted[stat] = saved_boosted;
+        player->stat_xp_tenths[stat] = saved_xp;
+        player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = saved_hp_level;
+        player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = saved_hp_xp;
+        player->hitpoints = saved_hp;
+        ToriRSServer_CombatSyncHitpoints(player);
+    }
+
     fprintf(stderr, "ToriRSServer selftest: collision and routing\n");
     {
         /*
@@ -28765,6 +28839,19 @@ ToriRSServer_WorldSelftest(void)
             memcpy(level_before, who->stat_level, sizeof(level_before));
             memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
             memcpy(xp_before, who->stat_xp_tenths, sizeof(xp_before));
+
+            /* An undrained account, which is what this stanza is about: the
+             * skill list. `::maxstats` is `stat_advance`, and since
+             * ToriRSServer_CombatAddXp follows LostCity's addXp a stat an
+             * earlier section left DRAINED (prayer points spent) stays drained
+             * by the same amount through the level-ups -- LostCity's own
+             * `::maxme` (the same `stat_advance` list) does the same. The
+             * snapshot above is restored below, drain included. */
+            for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
+            {
+                if( i != TORIRSSERVER_STAT_HITPOINTS && who->stat_boosted[i] < who->stat_level[i] )
+                    who->stat_boosted[i] = who->stat_level[i];
+            }
 
             handle_cheat(srv, cmd_maxstats, (int)sizeof(cmd_maxstats) - 1);
             for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
@@ -37848,6 +37935,11 @@ ToriRSServer_WorldSelftest(void)
             npc->max_hitpoints = 200;
             npc->hitpoints = 200;
 
+            /* The tick log rides along (raid seam 1): it changes nothing the
+             * fight does, and this fight has every row kind a boss room
+             * leans on -- swings, hits, a retype, a free, a tile per tick. */
+            int log_start = ToriRSServer_TicklogEnable(srv, NULL);
+
             ToriRSServer_CombatEngage(srv, slot);
             SELFTEST_CHECK(player->combat_target == slot &&
                                player->interaction.kind == TORIRSSERVER_INTERACT_NPC,
@@ -37899,6 +37991,74 @@ ToriRSServer_WorldSelftest(void)
                            npc->hitpoints, hp_after_change);
 
             ToriRSServer_WorldNpcFree(srv, slot);
+
+            /* What the tick log saw of that fight. */
+            {
+                static struct ToriRSServerTicklogRow log_rows[4096];
+                int log_count = ToriRSServer_TicklogRead(0, log_rows, 4096);
+                int player_tiles = 0;
+                int hits_on_slot = 0;
+                int retypes = 0;
+                int frees = 0;
+                int starts = 0;
+                int tiles_in_order = 1;
+                int last_tile_tick = log_start;
+                uint32_t mark;
+
+                for( int i = 0; i < log_count; i++ )
+                {
+                    const struct ToriRSServerTicklogRow* row = &log_rows[i];
+
+                    if( row->kind == TORIRSSERVER_TICKLOG_START )
+                        starts++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_PLAYER_TILE && row->a == player->pid )
+                    {
+                        /* One per tick, each a tick after the last. */
+                        if( row->tick != last_tile_tick + 1 )
+                            tiles_in_order = 0;
+                        last_tile_tick = row->tick;
+                        player_tiles++;
+                    }
+                    if( row->kind == TORIRSSERVER_TICKLOG_HIT_NPC && row->a == slot )
+                        hits_on_slot++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_RETYPE && row->a == slot &&
+                        row->b == from_type && row->c == to_type )
+                        retypes++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_FREE && row->a == slot )
+                        frees++;
+                }
+                fprintf(stderr,
+                        "  ticklog: %d row(s); %d player_tile over %d tick(s); %d hit_npc, "
+                        "%d npc_retype, %d npc_free on slot %d\n",
+                        log_count, player_tiles, srv->tick - log_start, hits_on_slot, retypes,
+                        frees, slot);
+                SELFTEST_CHECK(starts == 1 && log_count > 0 && log_rows[0].serial == 1,
+                               "the tick log opens with one start row, got %d of %d rows",
+                               starts, log_count);
+                SELFTEST_CHECK(player_tiles == srv->tick - log_start && tiles_in_order,
+                               "a player_tile row every tick: %d rows over %d ticks (in order "
+                               "%d)",
+                               player_tiles, srv->tick - log_start, tiles_in_order);
+                SELFTEST_CHECK(hits_on_slot > 0, "the swings that landed are hit_npc rows, got %d",
+                               hits_on_slot);
+                SELFTEST_CHECK(retypes == 1, "the transform is one npc_retype row, got %d",
+                               retypes);
+                SELFTEST_CHECK(frees == 1, "and the free is one npc_free row, got %d", frees);
+                mark = ToriRSServer_TicklogMark("selftest\tmark");
+                SELFTEST_CHECK(mark == (uint32_t)log_count + 1 &&
+                                   ToriRSServer_TicklogRead((uint32_t)log_count, log_rows, 1) ==
+                                       1 &&
+                                   log_rows[0].kind == TORIRSSERVER_TICKLOG_MARK &&
+                                   strcmp(log_rows[0].label, "selftest mark") == 0 &&
+                                   log_rows[0].tick == srv->tick,
+                               "a mark is the next serial at this tick, label kept: serial %u "
+                               "label '%s'",
+                               (unsigned)mark, log_rows[0].label);
+                ToriRSServer_TicklogDisable();
+                SELFTEST_CHECK(!ToriRSServer_TicklogEnabled(srv) &&
+                                   ToriRSServer_TicklogMark("off") == 0,
+                               "and a disabled log records nothing");
+            }
             /* Put the level back by hand, as the cow section does:
              * `ToriRSServer_CombatSetLevel` would re-derive the xp from it and
              * the sections below read both. */
