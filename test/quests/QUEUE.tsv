@@ -20,14 +20,14 @@ quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo				
 quest_cog	cog	clocktower		1	green	sonnet-b18			
-quest_coldwar	coldwar	coldwar		4	todo				
+quest_coldwar	coldwar	coldwar		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
 quest_contact	contact	contact		4	todo				
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26			
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo				
-quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo				
+quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
 quest_death	death	deathplateau		3	green	sonnet-b35			
 quest_deathontheisle	deathontheisle	deathontheisle		4	todo				
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
@@ -142,7 +142,7 @@ quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	tod
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
-quest_royaltrouble	royaltrouble	royaltrouble		4	todo		RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)		
+quest_royaltrouble	royaltrouble	royaltrouble		4	claimed	vm-b1@vm	RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)	2026-10-02T01:17:03Z	todo|
 quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27			
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
@@ -167,7 +167,7 @@ quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo				
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32			
-quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo				
+quest_thefremennikisles	thefremennikisles	thefremennikisles		4	claimed	vm-b1@vm		2026-10-02T01:17:03Z	todo|
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
 quest_theslugmenace	theslugmenace	theslugmenace		3	green	matthew-mbp-m4-b47			
 quest_totem	totem	tribaltotem		3	green	sonnet-b36			
