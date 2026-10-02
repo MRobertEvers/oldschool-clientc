@@ -2,6 +2,20 @@
   "worktree": {
     "baseRef": "head"
   },
+  "permissions": {
+    "allow": [
+      "Bash(git commit *)",
+      "Bash(git push origin HEAD:v3)",
+      "Bash(git push origin v3)",
+      "Bash(git -C OSRS-Content push *)",
+      "Bash(python3 tools/quest_gate/*)",
+      "Bash(cat tools/quest_gate/*)",
+      "Bash(head * tools/quest_gate/*)",
+      "Bash(sed -n * tools/quest_gate/*)",
+      "Bash(grep * tools/quest_gate/*)",
+      "Read(tools/quest_gate/**)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
