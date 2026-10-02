@@ -677,7 +677,7 @@ transmog").*
 - Not built yet (no quest needs it): a transmog into an npc bigger than one tile is not re-centred
   (the reference's `transformedSize`), and a transmogged player's chathead is still the player's.
 
-## Penguin Agility Course (Cold War stage 100): the water leg cannot be walked (vm-b1-seam1)
+## Penguin Agility Course (Cold War stage 100): the water leg cannot be walked (FIXED vm-b1-seam2)
 
 Symptom: `click_loc peng_agility_steps01` / `peng_agility_stepstone01` answer `other_floor` from the
 course start 2636,4054,1; from the water (`goto_tile` 2634,4054,0) a `walk_to` one tile times out in
@@ -686,12 +686,14 @@ Three causes, none in the driver:
 - ENGINE: `torirs_server_scene.c` `terrain_is_ocean()` counts overlay 537 (the course's wading
   water, 2628-2635 x 4053-4065, level 0) as ocean, and `ocean_blocks_walk` blocks every tile of it.
   Open: the wiki puts the crushers and the first stone in that water, so it must be walkable.
+  FIXED vm-b1-seam2 (below).
 - CONTENT: nothing takes the player from the guide's start tile 2636,4054,1 (Quest Helper
   `agilityEnterWater`) down into the level-0 water (zone `inAgilityWater`); no source names the
-  mechanism. Open.
+  mechanism. FIXED vm-b1-seam2 (below).
 - CONTENT: the Crusher npcs (`peng_agility_crushcourse_crushblock01..04_npc`, 856-859) have no op in
   `all.npc`, so `[opnpc1,crushblock*]` never fires and the shared penguin lap tracker never starts
-  (`lap course=17 step=0` throughout); the wiki passes a crusher by timing a walk. Open.
+  (`lap course=17 step=0` throughout); the wiki passes a crusher by timing a walk. FIXED
+  vm-b1-seam2 (below).
 
 FIXED in the same pass: stone 7 (`peng_jump_stone_clickzone_07`, 2635,4065,1) is an `[aploc1]`
 jumped from stone 6 two tiles away (it answered "I can't reach that!": stone 6's serverside wall
@@ -699,8 +701,33 @@ and the level-0 `peng_coast_6` leave no op-adjacent walked tile); the ice ends w
 to the finish line 2657,4039,1; the fence gate `peng_agility_fencing_door` (west edge of 2652,4039)
 crosses either way -- finish (east) -> start 2651,4039 is the obstacle with 65 XP, start -> finish
 2652,4039 a plain crossing. The Agility Instructor refuses state 100 -> 105 until the course is run
-(seam-facts, Seam pass vm-b1-seam1 (c)); until the water leg lands, a test crosses it with
-`goto_tile` onto the first stone (2630,4057,1) and says so, or stops at `t.blocked`.
+(seam-facts, Seam pass vm-b1-seam1 (c)). The old advice to `goto_tile` onto the first stone is
+retired: drive the water.
+
+FIXED vm-b1-seam2 (OSRS-Content a0bdfa073c; engine in the parent commit tagged [seam:vm-b1-seam2]). Overlay 537 is
+`TERRAIN_OCEAN_WADE` in `terrain_ocean_kind` and is walked by the cache's own BLOCK, like land (it
+occurs only in m41_63; the boat map is unchanged). Walking onto the ledge 2636,4054,1 is the climb
+down to 2634,4054,0 ("You climb down the steps and into the water."); the Ice steps
+(`peng_agility_steps01`, pressed from the water) climb back out to 2636,4054,1; the crushers have no
+op and are waded past; `peng_agility_crushcourse_stepstone01` climbs onto 2630,4057,1 with the
+Crusher's 55 XP and lap step 1; the suit stays on in the water. Drive it as
+`walk_to(2636,4054)` -> `walk_to(2630,4055)` -> `click_loc('peng_agility_crushcourse_stepstone01')`
+(the first press may route to 2630,4056 and answer "I can't reach that!"; the approach retry
+presses again from 2629,4057) -> `peng_jump_stone_clickzone_01..07`. The first icicle press can
+flake (`pickset held=false`): retry it. Not ported: the crushers do not move or hit (no source
+gives the timing).
+
+## Burgh de Rott inn: the Broken wall and the pub trapdoor (Darkness of Hallowvale, vm-b1-seam2)
+
+`burgh_inn_climb_over` (loc 12737) sits on the NORTH edge of 3491,3230,0 and crosses 3491,3230 <->
+3491,3231 (FIXED vm-b1-seam2, OSRS-Content a0bdfa073c; before it answered "Nothing interesting happens."). Agility 10
+northward only (a mesbox refuses below it), none southward, 0.5 XP a crossing (OSRS wiki 'Broken
+wall (Burgh de Rott)'): `t.skill.expect_gain` cannot see one crossing, read a pair as +1. Open (the
+next stop): the opened trapdoor `burgh_inn_trapdoor_open` binds `~climb_ladder(-1)`
+(`ladders_stairs/scripts/climb_shared.rs2`), which from plane 0 answers "You can't go any further."
+-- the basement is underground (z+6400), so guide step `enterBurghPubBasement` needs an explicit
+`~climb_ladder_to(<basement tile>)`, and the basement ladder up (`burgh_inn_basement_ladderup`,
+`myreque2_burgh.rs2`) is probably wrong the same way; confirm both tiles from m54_50/m54_150.
 
 ## A player-owned house is bare grass; `loc_near` finds no hotspot (FIXED vm-b1-seam1)
 
