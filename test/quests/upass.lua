@@ -10,6 +10,9 @@ return {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         -- Quest Helper: Underground Pass needs 25 Ranged (king_lathas.rs2 gates the start on stat_base(ranged) >= 25)
         "::setlevel ranged 25",
+        -- the rope swing (upass_obstacles.rs2:132 stat_random(agility,100,410)) and the rockslides roll agility; a level-1 account falls back into the
+        -- swamp (deterministic in the b52 full run, leg 2 crossThePit landed 2485,9649). A questing account brings some agility.
+        "::setlevel agility 50",
         -- Quest Helper: Biohazard is a prerequisite (upass_entrance.rs2:9 refuses the cave until it is complete)
         "::complete quest_biohazard",
         -- Quest Helper items for the bridge leg: a bow (not crossbow), metal arrows, a tinderbox and a rope
@@ -372,11 +375,11 @@ return {
                 return table.concat(out, " | ")
             end
             -- food for the trap damage (leg 2 left the player at about 2 hp)
-            t.cheat("::give lobster 6")
+            t.cheat("::give lobster 14") -- b52: the closer died walking to orb 3 (hp 7 at the last hop, blessed spiders 2395-2404,9680-9684 hit the whole way)
             -- the western cave is full of blessed spiders and ogres (m37_151.spawn); the guide's player is a fighter, a 10-hp
             -- account dies to them (run 3-4). Levels a questing account brings:
-            t.cheat("::setlevel hitpoints 40")
-            t.cheat("::setlevel defence 30")
+            t.cheat("::setlevel hitpoints 70")
+            t.cheat("::setlevel defence 50")
             t.ticks(2)
             local hp_result, hp_row = t.skill.read("hitpoints")
             t.check("leg.3.start", true, "at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; hitpoints " .. tostring(hp_result == "ok" and hp_row.level or hp_result) .. "; woodplank x" .. tostring(select(2, t.inv.count("woodplank"))))
@@ -428,7 +431,14 @@ return {
                 return select(2, t.inv.count("caveorb1")) + select(2, t.inv.count("caveorb2")) + select(2, t.inv.count("caveorb3")) + select(2, t.inv.count("caveorb4"))
             end
             local function take_orb(name, stand_x, stand_z, orb_x, orb_z)
-                local walk_result, walk_detail = t.player.walk_to(stand_x, stand_z, 60)
+                local walk_result, walk_detail
+                for walk_attempt = 1, 4 do
+                    walk_result, walk_detail = t.player.walk_to(stand_x, stand_z, 20)
+                    local _, walked = t.world.tile()
+                    local hpr, hprow = t.skill.read("hitpoints")
+                    if hpr == "ok" and hprow.level <= 30 then t.player.inv_op("lobster", 1) t.ticks(2) end
+                    if math.abs(walked.x - stand_x) <= 2 and math.abs(walked.z - stand_z) <= 2 then break end
+                end
                 t.ticks(2)
                 local _, pre = t.world.tile()
                 t.check("goto-" .. name, math.abs(pre.x - stand_x) <= 2 and math.abs(pre.z - stand_z) <= 2, "walk_to " .. tostring(walk_result) .. " " .. tostring(walk_detail) .. "; standing " .. pre.x .. "," .. pre.z)
@@ -456,7 +466,7 @@ return {
                     local _, hop_at = t.world.tile()
                     local hpr, hprow = t.skill.read("hitpoints")
                     hop_detail = hop_detail .. "[" .. attempt .. ": " .. tostring(hop_result) .. " at " .. hop_at.x .. "," .. hop_at.z .. " hp " .. tostring(hpr == "ok" and hprow.level or hpr) .. "] "
-                    if hpr == "ok" and hprow.level <= 6 then t.player.inv_op("lobster", 1) t.ticks(2) end
+                    if hpr == "ok" and hprow.level <= 30 then t.player.inv_op("lobster", 1) t.ticks(2) end
                     if math.abs(hop_at.x - hop[1]) <= 1 and math.abs(hop_at.z - hop[2]) <= 1 then break end
                 end
                 t.check("hop-" .. hop[1] .. "-" .. hop[2], true, hop_detail .. last_lines(2))
@@ -498,6 +508,24 @@ return {
             end
             t.check("collectOrb4", got4, detail4)
             t.ticks(4)
+            -- leg 5 needs 7 free slots (upass_encounters.rs2:101) and leg 4 gives its own lobsters: eat what heals, drop the surplus down to 3
+            local surplus_detail = ""
+            for _ = 1, 14 do
+                local _, lobsters = t.inv.count("lobster")
+                if lobsters <= 3 then break end
+                local hpr, hprow = t.skill.read("hitpoints")
+                if hpr == "ok" and hprow.level <= 58 then
+                    t.player.inv_op("lobster", 1)
+                    surplus_detail = surplus_detail .. "ate "
+                else
+                    t.player.drop("lobster")
+                    surplus_detail = surplus_detail .. "dropped "
+                end
+                t.ticks(3)
+            end
+            local _, lobsters_left = t.inv.count("lobster")
+            local hp_end_result, hp_end_row = t.skill.read("hitpoints")
+            t.check("leg.3.pack", lobsters_left <= 3, "lobster x" .. tostring(lobsters_left) .. " after: " .. surplus_detail .. "; hitpoints " .. tostring(hp_end_result == "ok" and hp_end_row.level or hp_end_result))
             local _, fin = t.world.tile()
             t.check("leg.3.end", got4, "at " .. fin.x .. "," .. fin.z .. " level " .. fin.level .. "; upass stage " .. tostring(select(2, t.quest.stage())) .. "; orbs carried " .. orb_count() .. " (caveorb1-4), woodplank x" .. tostring(select(2, t.inv.count("woodplank"))) .. ", shortbow worn")
             -- LEG 3 END
@@ -745,7 +773,11 @@ return {
             t.cheat("::setlevel strength 80")
             t.cheat("::setlevel defence 60")
             t.ticks(3)
-            -- the Paladin's gift needs 7 free slots (upass_encounters.rs2:101): the bridge/well items already spent go on the floor first
+            -- Room for the Paladin's gift AND the three badges: LostCity sir_jerro.rs2 [opnpc1,upass_paladin1] inv_adds seven
+            -- separate items (2 meat_pie, stew, 2dose1attack, 2 bread, 2doseprayerrestore), and each knight's [ai_queue3]
+            -- obj_adds its badge on its own tile (sir_jerro.rs2:7-8) for the player to pick up -- so 7 + 3 = 10 free slots.
+            -- (b52: with only 7 free the first badge read "You don't have enough inventory space.")
+            -- The bridge/well items already spent go on the floor first.
             for _, spent in ipairs({ "woodplank", "caverailing", "shortbow", "bronze_arrow", "spade" }) do
                 if select(2, t.inv.count(spent)) > 0 then
                     t.player.drop(spent)
@@ -761,12 +793,12 @@ return {
                 return free
             end
             local lobsters_dropped = 0
-            while free_slots() < 7 and select(2, t.inv.count("lobster")) > 3 do
+            while free_slots() < 10 and select(2, t.inv.count("lobster")) > 3 do
                 t.player.drop("lobster")
                 t.ticks(2)
                 lobsters_dropped = lobsters_dropped + 1
             end
-            t.check("killJerro-room", free_slots() >= 7, "free backpack slots before the knight's talk: " .. free_slots() .. " (7 needed); lobsters dropped " .. lobsters_dropped .. ", lobster x" .. tostring(select(2, t.inv.count("lobster"))))
+            t.check("killJerro-room", free_slots() >= 10, "free backpack slots before the knight's talk: " .. free_slots() .. " (10 needed: 7 supplies + 3 badges); lobsters dropped " .. lobsters_dropped .. ", lobster x" .. tostring(select(2, t.inv.count("lobster"))))
             t.exec("killJerro-talk", t.player.talk_to, "upass_paladin1", 1)
             local drained, drain_kind = t.chat.drain{ max_pages = 20 }
             t.ticks(3)

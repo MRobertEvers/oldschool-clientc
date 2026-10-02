@@ -294,3 +294,8 @@ Owner: Underground Pass is a LostCity quest; fix it against the LostCity impleme
 - Ends at 2385,9610 level 0 (skeleton room, cleared); upass stage 4 (killed_unicorn); hitpoints ~58. Worn adamant_scimitar.
 - Backpack: cave_unicorn_horn, lobster x21, spade, woodplank, 4 bronze_arrow, tinderbox, caverailing, shortbow. Leg gives spade 1 + lobster 10 inside the leg; levels attack/strength 40, defence 45 set in the tail.
 - OPEN, leg 5 (not mine): killJerro "take timeout: You don't have enough inventory space" after the knight's talk (7 free is one too few; lobster x21 arrives from leg 4).
+- (orchestrator, b52 round 1 -> 2) The round-1 reviewer's full rerun failed at killJerro: "You don't have enough inventory
+  space" for paladinbadge1 with 7 slots free. LostCity sir_jerro.rs2 decides it: [opnpc1,upass_paladin1] inv_adds SEVEN
+  separate supply items and each knight's [ai_queue3] obj_adds its badge (:7-8), so the leg needs 7 + 3 = 10 free slots.
+  Leg 5 now frees 10. From the leg-4 checkpoint, legs 5-8 ran 112/0 to quest.varp_complete 10 and the scroll
+  (build/quest_gate/upass.leg5). Round 2 = a full run + review + sample of the committed file.
