@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	sonnet-b36
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
-quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b49	REJECTED (matthew-mbp-m4-b49): reviewer re-run of run.py upass --no-build is FAIL: player.died at tick 3634 (slot 900 Othainian level-91, hp 1/30 stale, 20 re-engages, died; await_dead_engaged), no completion scroll row, gate RED (3 findings: player.died, no passing quest.varp_complete, no quest.scroll_title). lint clean. File kept at test/quests/upass.lua (untracked).		
+quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b49	REJECTED (matthew-mbp-m4-b49): run.py green (235 rows, exit 0) and lint clean, but gate.py RED: helper_coverage TEST_GAP (78 steps: CHEAT=1 DRIVEN=76 TRAVEL=1). Step climbOverRockslide1 is CHEAT: ledger row 103 'goto-climbDownWell' teleports from 2482,9715,0 (isBeforeRockslide1) to 2417,9677,0 without pressing rockslide2_obstacle_upass. File kept at test/quests/upass.lua.		
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
