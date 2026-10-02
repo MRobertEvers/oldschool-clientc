@@ -142,7 +142,7 @@ quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	tod
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
-quest_royaltrouble	royaltrouble	royaltrouble		4	todo	vm-b1@vm	PARITY partial after [parity:vm-b1-parity] 776f3afdf (content ec0ea5f7ce): no test/quests/royaltrouble.lua yet -- author from docs/quests/ladders/royaltrouble.ladder.tsv; legs_left: cutscene; Giant Sea Snake instance: one shared snake, shore position instead of the guide's 2615,10280; post-quest lines of Vargas/Brand/Astrid/Sigrid; village shopkeepers' 'What's it like living down here?' options; Ghrim 'How do I manage the kingdom?' option; friend-vs-romance wording		
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo	vm-b1@vm	RETRY after b34bcd037 (content adde230c17): the Giant Sea Snake is fought as the wiki has it -- Slayer 40 to attack, wiki stats (100 hp, def 160, poison), the guide's 2615,10280 is its 5x5 body's centre (SW 2613,10278; melee from 2613..2617,10277), heavy box on 2615,10277; no test/quests/royaltrouble.lua yet: author killBoss with ::setlevel slayer 40, antipoison and food (parity driver from leg 8 ran 43/0 to complete); other parity legs_left (cutscene, one shared snake, post-quest lines) unchanged		
 quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27			
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
