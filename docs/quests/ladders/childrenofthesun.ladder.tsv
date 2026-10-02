@@ -1,0 +1,16 @@
+# ladder childrenofthesun quest_dir=quest_childrenofthesun guide=src/main/java/com/questhelper/helpers/quests/childrenofthesun/ChildrenOfTheSun.java steps=13 legs=1:1-13@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToAlina	NpcStep	npc:vmq1_alina_vis	3225,3426,0	Talk to Alina east of Varrock Square.			When will this delegation arrive? | Yes.	quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:151 opnpc1; +1
+1	2	6	followGuardPuzzleWrapper	NpcStep	npc:vmq1_bag_guard		Follow the guard, keeping out of sight whilst also not letting them get too far away.				quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:389 opnpc1; +1
+1	3	8	attemptToEnterHouse	ObjectStep	loc:vmq1_bandit_door	3259,3400,0	Attempt to enter the house in the south-east of Varrock, north of the Zamorak Temple, and watch the cutscene.				quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:396 oploc1
+1	4	10	talkToTobyn	NpcStep	npc:vmq1_guard_sergeant_vis	3211,3437,0	Talk to Sergeant Tobyn in Varrock Square.				quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:428 opnpc1; +2
+1	5	12	markGuard1	MultiNpcStep		3208,3422,0	Mark the guard outside Aris's tent.				
+1	6	12	markGuard2	MultiNpcStep		3221,3430,0	Mark the guard south east of Benny's news stand, who isn't wearing a helmet and has long hair.				
+1	7	12	markGuard4	MultiNpcStep		3237,3427,0	Mark the guard leaning on the north wall of Lowe's Archery Emporium, east of the square.				
+1	8	12	markGuard3	MultiNpcStep		3246,3429,0	Mark the guard with a mace north-west of the Varrock East Bank.				
+1	9	12	realUnmarkOneOfTheGuards	DetailedQuestStep			One of the guards is incorrectly marked, unmark the one as indicated by the overlay.	unmarkWrongGuard1 unmarkWrongGuard2 unmarkWrongGuard3 unmarkWrongGuard4 unmarkWrongGuard5 unmarkWrongGuard6			
+1	10	12	reportBackToTobyn	NpcStep	npc:vmq1_guard_sergeant_vis	3211,3437,0	Report back to Sergeant Tobyn.				quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:428 opnpc1; +2
+1	11	16	goUpVarrockF1toF2	ObjectStep	loc:fai_varrock_ladder_taller	3224,3472,1	Climb up to the roof of Varrock Castle and talk to Tobyn there.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +1
+1	12	16	goUpVarrockF0ToF1	ObjectStep	loc:fai_varrock_stairs_taller_new_fix	3212,3474,0	Climb up to the roof of Varrock Castle and talk to Tobyn there.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+1	13	16	finishQuest	NpcStep	npc:vmq1_guard_sergeant_vis loc:fai_varrock_ladder_taller loc:fai_varrock_stairs_taller_new_fix	3202,3473,2	Talk to Tobyn on the Varrock Castle's roof to finish the quest.	goUpVarrockF1toF2 goUpVarrockF0ToF1			quests/quest_childrenofthesun/scripts/childrenofthesun.rs2:428 opnpc1; +2

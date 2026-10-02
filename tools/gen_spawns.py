@@ -429,6 +429,46 @@ OBJ_SPAWN_ADDITIONS = (
 )
 
 
+# Npc rows the dump lacks and a quest cannot be played without, keyed
+# `(cache symbol, x, z, plane)`. The dump's own Children of the Sun rows are all
+# name drift (ids 6782-6791 / 6923-6924 / 7083-7087 now name VMQ1 actors but the
+# dump saw Hosa, Arcis, Plough ... elsewhere) and carry the old Kourend/Hosidius
+# coordinates, so none of the quest's actors stood anywhere in Varrock. Every
+# tile is Quest Helper ChildrenOfTheSun.java (commit 5ea99d5ea9ba) unless noted:
+# Alina 3225,3426 (talkToAlina); Tobyn 3211,3437 (talkToTobyn); roof Tobyn
+# 3202,3473 plane 2 (finishQuest); the ten guards 3208,3422 / 3221,3430 /
+# 3246,3429 / 3237,3427 (impostors 1-4, markGuard1-4) and 3227,3424 / 3218,3424 /
+# 3230,3430 / 3206,3431 / 3239,3433 / 3218,3433 (genuine 5-10, unmarkWrongGuard1-6).
+# Noah (start npc, wiki Children of the Sun oldid 15241067: "east of Varrock
+# Square") stands beside Alina; Itzla and the roof-cell bandit stand beside roof
+# Tobyn; the house bandits and the static bag guard stand inside the door at
+# 3259,3400 (attemptToEnterHouse), x 3260-3262, z 3398-3402 (maps/m50_53.jl2:
+# the house walls are the x=3259|3260 line and z 3396/3404 rows).
+NPC_SPAWN_ADDITIONS = (
+    ("vmq1_alina", 3225, 3426, 0),
+    ("vmq1_noah", 3224, 3427, 0),
+    ("vmq1_guard_sergeant", 3211, 3437, 0),
+    ("vmq1_guard_sergeant_roof", 3202, 3473, 2),
+    ("vmq1_itzla", 3204, 3473, 2),
+    ("vmq1_bandit_4_cell", 3200, 3473, 2),
+    ("vmq1_guard_1", 3208, 3422, 0),
+    ("vmq1_guard_2", 3221, 3430, 0),
+    ("vmq1_guard_3", 3246, 3429, 0),
+    ("vmq1_guard_4", 3237, 3427, 0),
+    ("vmq1_guard_5", 3227, 3424, 0),
+    ("vmq1_guard_6", 3218, 3424, 0),
+    ("vmq1_guard_7", 3230, 3430, 0),
+    ("vmq1_guard_8", 3206, 3431, 0),
+    ("vmq1_guard_9", 3239, 3433, 0),
+    ("vmq1_guard_10", 3218, 3433, 0),
+    ("vmq1_bag_guard_varrock", 3260, 3400, 0),
+    ("vmq1_bandit_1_varrock", 3261, 3398, 0),
+    ("vmq1_bandit_2_varrock", 3262, 3399, 0),
+    ("vmq1_bandit_3_varrock", 3261, 3402, 0),
+    ("vmq1_bandit_4_varrock", 3262, 3401, 0),
+)
+
+
 def reachable_names(blocks, name, depth=0, seen=None):
     """Every display name this record can present as, following `multinpc`.
 
@@ -486,6 +526,8 @@ def rule_symbols():
         yield "OBJ_SPAWN_EXCLUSIONS", name, "obj"
     for (name, _x, _z, _level, _count) in OBJ_SPAWN_ADDITIONS:
         yield "OBJ_SPAWN_ADDITIONS", name, "obj"
+    for (name, _x, _z, _level) in NPC_SPAWN_ADDITIONS:
+        yield "NPC_SPAWN_ADDITIONS", name, "npc"
 
 
 def fail_on_rules(problems, why):
@@ -674,6 +716,14 @@ def main():
         assert key not in seen, key
         seen.add(key)
         kept[square].append(Spawn("obj", name, x, z, level, count))
+
+    for name, x, z, level in NPC_SPAWN_ADDITIONS:
+        square = (x // 64, z // 64)
+        assert square in squares, square
+        key = ("npc", name, x, z, level)
+        assert key not in seen, key
+        seen.add(key)
+        kept[square].append(Spawn("npc", name, x, z, level, None))
 
     # ---------------------------------------------------------------- write
 

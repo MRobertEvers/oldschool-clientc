@@ -1,0 +1,6 @@
+# ladder xmarksthespot quest_dir=quest_xmarksthespot guide=src/main/java/com/questhelper/helpers/quests/xmarksthespot/XMarksTheSpot.java steps=3 legs=1:1-3@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	startQuest	NpcStep	npc:veos_visible	3228,3242,0	Talk to Veos in The Sheared Ram pub in Lumbridge to start the quest.			I'm looking for a quest. | Sounds good, what should I do? |…	quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:26 opnpc1; +5
+1	2	7	speakVeosSarimWithoutCasket	NpcStep	npc:veos_visible npc:veos_visible_travel	3054,3245,0	Talk to Veos directly south of the Rusty Anchor Inn in Port Sarim to finish the quest.				quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:26 opnpc1; +7
+1	3	6	speakVeosSarim	NpcStep	npc:veos_visible npc:veos_visible_travel	3054,3245,0	Talk to Veos directly south of the Rusty Anchor Inn in Port Sarim to finish the quest.	speakVeosSarimWithoutCasket	Ancient casket		quests/quest_xmarksthespot/scripts/xmarksthespot.rs2:26 opnpc1; +7
