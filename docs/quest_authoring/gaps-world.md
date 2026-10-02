@@ -926,3 +926,17 @@ arrive: it stops at the nearest tile it can reach and the run goes on from there
 to the entrance. Check every `walk_to` result and the tile it reached; a stalled walk does not fail
 the row by itself. If you place a press from `t.world.loc_near`, read `tile_x`/`tile_z` from its
 table. It has no `x`/`z` fields (verbs-pointer).
+
+## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample)
+
+*Origin: the matthew-mbp-m4-b51 round-2 sampler read rumdeal be4d36b9e row 6 `braindeath.goto1`, a
+goto from Port Phasmatys (3680,3536,0) to Captain Braindeath (2144,5109,1).*
+
+In the real game Pirate Pete knocks you out and rows you to the island (docs/quests/rum_deal.md
+section 3, "Knocked out and rowed to Braindeath Island"); Quest Helper's `startOff` shows
+`talkToPete` until you are `onIsland` (RumDeal.java:91-92). The port's `[opnpc1,deal_pete]`
+(quests/quest_rumdeal/scripts/deal_pete.rs2) only says "take a boat over" at the accept and "Take the
+boat and go find him" after it, and no script, maplink or boat moves the player to the island
+(`::tele braindeath_island` in tele_destinations.rs2 is the debug table). So the goto from the dock to
+Braindeath is the only way there and is not a hop past a press. Talk to Pete first (the accept is the
+quest's own step), then goto. A content seam that adds Pete's transport would make this a press.
