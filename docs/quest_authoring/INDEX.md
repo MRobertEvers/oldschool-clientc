@@ -247,6 +247,7 @@ topic file with one line added here.
 
 - `leaves the <step> side ... without crossing the ladder/stair/trapdoor`; a sub-step graded CHEAT or ALTERNATIVE -> coverage-and-gate: A promoted sub-step
 - `leaveFallArea` CHEAT naming a later leg's `goto_tile 2417,9677` (Underground Pass) -> gaps-world: Underground Pass: the fall pocket is left over five rockslides (last paragraph)
+- a guide step only a player who FELL or failed sees (`leaveFallArea`): no marker fits and a GUIDE-GAP is rejected, so fail on purpose -> gaps-world: Underground Pass: the fall pocket (b52 paragraph)
 
 - `lands at ... without pressing the <obstacle> <step> names` / `PASSed, but the newest server line of its attempt is`; `helper_coverage --ledger` -> coverage-and-gate: "lands at ... without pressing the rockslide" (b49-seam2)
 - `outside the building ... the guide's way in is ...` / `that is the room's only way out`; a goto into a building past its door default, or out of a door-guarded room to do its step elsewhere -> coverage-and-gate: "outside the building ..." (b51 seam1); seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (a)

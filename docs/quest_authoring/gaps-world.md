@@ -862,6 +862,16 @@ pile on the far side of the zone the step crosses, so it counts as teleporting p
 even though the run never fell. Drive the pocket (swamp, five slides, pile) once, before that goto.
 A `-- GUIDE-GAP` is not the fix, because the pocket is drivable.
 
+No verified marker fits `leaveFallArea` either (sample matthew-mbp-m4-b52). It is not a BRANCH-IN,
+NOT-A-STEP or OBSOLETE step: the guide shows it to any player who stands in the fall zone
+2440,9628-2486,9657, and Quest Helper's `crossTheBridge` then sends that player back to rockslides
+1-3. A step that only a player who failed sees is still a step, so make the failure happen on
+purpose. The green file (`test/quests/upass.lua`, leg 1) does this right after rockslide 3: it
+crosses `upass_swampbubbles1` 2465,9713 from 2453,9716 (LostCity `upass_obstacles.rs2:33-48` drops
+you to 2485,9649), climbs the five slides, climbs the pile, then climbs rockslides 1-3 again. Judge
+those three climbs by the far tile, not by a count of "step down the other side" lines (the pocket
+fills the chat ring with them).
+
 ## Underground Pass: "The Paladin tries to give you some supplies but you don't have enough room" (`killJerro-supplies` bread x0, matthew-mbp-m4-b49)
 
 Symptom: `killJerro-supplies` FAILs with `bread x0 stew x0` after the knight's talk, and the talk
