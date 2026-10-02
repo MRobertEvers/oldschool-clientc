@@ -396,6 +396,10 @@ topic file with one line added here.
 - "section 8" -> gaps-dialogue, gaps-world, gaps-combat, running, seam-facts, sampler-findings, content-gaps; its "first bullet" -> gaps-dialogue: Completion
 - "payout-reopen", "luthas-payout/customs-pay", "mesbox/p_delay recipe" -> gaps-dialogue: A payout branch
 - "matthew-mbp-m4-b52-seam1 (a)-(d)", "[seam:matthew-mbp-m4-b52-seam1]" -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1
+- "matthew-mbp-m4-b52-seam3 (a)-(c)", "[seam:matthew-mbp-m4-b52-seam3]" -> seam-facts: Seam pass matthew-mbp-m4-b52-seam3
+- Underground Pass: "...and fall off it." on a maze rock bridge; stuck in the pit 2406,9635 after bridge 2406,9637 ("walled in on foot"); a bridge-retry loop that wants a `goto_tile` -> seam-facts: Seam pass matthew-mbp-m4-b52-seam3 (a); gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
+- "is this pocket sealed?" before a run; a collision model from a `.jm2`/`.jl2` -> seam-facts: Seam pass matthew-mbp-m4-b52-seam3 (b)
+- a quest item lost to "Your inventory is full." after a leg-start `::give` of food (an RNG shift upstream left more items) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam3 (c)
 - "vm-b1-seam1 (a)-(d)", "[seam:vm-b1-seam1]" -> seam-facts: Seam pass vm-b1-seam1
 - "vm-b1-seam2 (a)-(d)", "[seam:vm-b1-seam2]" -> seam-facts: Seam pass vm-b1-seam2
 - "vm-b1-seam3 (a)-(d)", "[seam:vm-b1-seam3]" -> seam-facts: Seam pass vm-b1-seam3

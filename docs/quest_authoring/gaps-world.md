@@ -577,6 +577,11 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   then 2421,9637 -> 2422,9634 -> 2422,9610 -> 2421,9606 -> 2419,9605, the pipe's east mouth. Click
   each bridge with `{ at = { bx, bz } }` and `t.ticks(10)`; success is standing on bx+1. A `covered`
   click happens (2392 once in a run): retry the hop and the click.
+- A failed roll drops you TWO tiles off the bridge, and every fall has a walk back (seam-facts: Seam
+  pass matthew-mbp-m4-b52-seam3 (a)). Bridges 1-3 land in the start area, so cross 1, 2, 3 again.
+  Bridge 4 lands between bridges 2 and 3, so cross 3, then 4. Bridge 5 lands in the pit
+  2406..2410,9632..9635: walk to 2407,9632, cross bridge 2406,9632 west, and come round to bridge 5
+  again. Never `goto_tile` out of a fall (the b52 round 2 revert).
 - Where the pipe drops you depends on `%varp161_upass` (`upass_obstacles.rs2:410-414`). Before
   `^upass_killed_unicorn` the crawl lands one tile on, in the live-unicorn room (x 2393-2417); from
   that stage on (Regicide's walks, Underground Pass complete) it lands 26 tiles further west, at
