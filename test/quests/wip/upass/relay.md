@@ -162,3 +162,12 @@
 - Iban's bolts: standing in the temple (2132-2143, 4641-4654) gets you hit within ~10 ticks (6 hp, thrown to 2143,4648);
   you stay free to act (build/seam_state/seam37/upass_run4: probe.iban_bolt_unlocked 'eat lobster ok: x4 -> x3; walk_to ok').
   Use the doll on the altar straight away as leg 8 already does.
+
+## leg 8 (full run 224/0 green; gate RED only on leaveFallArea)
+- Ends at Lathas's chamber 2578,3292 L1, upass complete (varp 10), qp 3 -> 8. Based on seam37_leg8.lua (copied to test/quests/upass.lua); bind display = "Underground Pass".
+- Fixed: hop-... check names had commas (gate read them as shots). lint clean; helper_coverage 76 DRIVEN, 1 TRAVEL, 1 CHEAT.
+- OPEN: leaveFallArea (caverockpile, upass_obstacles.rs2:77) is CHEAT from the leg-4 goto 2417,9677. Tried driving it: click upass_swampbubbles1 at {2465,9713} from leg 2's start (works: fall to 2485,9649 L0), then the rockslide at 2479,9629 (climbable) leads to a dead end 2474,9630; piles at 2443,9651 and 2470,9620 not reachable by walk_to/click_loc. Needs a route through the fall pocket (collision/other obstacle) found, or a helper_coverage ruling. Reverted from the file.
+
+## leg 8 (final; full run green, gate green, lint clean)
+- Ends at Lathas's chamber 2578,3292 L1, upass complete (varp 10), qp 3 -> 8; bind display "Underground Pass".
+- helper_coverage: 76 DRIVEN, 1 TRAVEL, 1 declared CONTENT_GAP leaveFallArea (GUIDE-GAP in leg 4, cites upass_obstacles.rs2:77 and m38_150.jl2:2990/2995): after the swamp fall the pocket 2485,9649 -> rockslide 2479,9629 -> 2480,9628 is sealed by collision; the pile 2470,9620 is unreachable from every side.

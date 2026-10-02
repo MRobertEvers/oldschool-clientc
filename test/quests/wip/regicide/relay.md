@@ -51,3 +51,25 @@
   camp passage regicide_cross_over2_tyras_camp 2187,3169 from 2188,3171 (stage 9 -> 10 entered_camp), regicide_cross_over3
   2187,3166 and regicide_cross_over1_tyras_camp 2187,3163 down to 2188,3162. All six crossings proved by scratch
   seam37_regforest_ns (15/15) from a ::setvar 9 start; the tripwire leg and the camp itself were not driven.
+
+## leg 4 (DONE, supersedes the BLOCKED note above)
+- Ends at 2220,3155 level 0 (just north of the tripwire, poisoned, hp low), regicide_quest = 9 (defeated_guard). Quiet point, no fight.
+- Backpack: ~4 sharks, magic_shortbow + rune_arrow wielded, lobsters/rope/spade/tinderbox; setup gives ranged 70, hitpoints 70, defence 40, agility 56.
+- Crossings west of tracker: o3 2238,3148, o2 2235,3148, o1 2232,3148 (guard summoned on landing 2231,3149); guard fight eats ~8 sharks (travel/tripwire poison hurts) -- consider more sharks in setup if leg 5 needs them.
+- Tripwire clicked from 2220,3152 teleport-goto; snag or pass both continue north.
+- enterTyrasCamp (2190,3144) left as a GUIDE-GAP for leg 5 (camp passage, stage 9 -> 10). Next: o2 middle passage 2217,3158 -> 2217,3172, camp passage 2187,3169.
+- Full run 194/0 PASS, --from-leg 4 74/0.
+
+## leg 5 (DONE)
+- Ends at 2934,3209 level 0 (Rimmington, beside the Chemist, quiet); regicide_quest = 11 (spoken_iorwerth2). Checkpoint 5 written; iterate with run.py regicide --from-leg 6 --no-build.
+- Pack: regicide_barrel_tar x2, regicide_quicklime_dust x1, regicide_sulphar_dust x1, regicide_alchemy (book), pestle_and_mortar, coal x1 (still needs more: leg 6 gives it), leather_gloves worn, magic_shortbow+rune_arrow worn, lobster x3, shark x1, tinderbox, spade. No setup change (leg 5 gives its limestone/gloves/pestle/pot/coal with t.cheat because the pack is full at the start); food is low, give more.
+- Route: middle passage o3 2216,3161 / o2 2216,3164 / o3 2216,3167, walk 2188,3172, camp passage 2187,3169/3166/3163 (stage 10 on the first), barrels at 2190,3144 (click_obj op 3), sulphur 2261,3130, tar 2263,3127 (op1 with an empty barrel), then back on foot via tracker, spring, ring, log to Iorwerth (stage 10 talk gives the book, stage 11).
+- goKillGuardAtSecondForest is a GUIDE-GAP (camp guard kill credits nothing at stage 9; leg 4 killed the old camp guard). Quicklime is burned at Keldagrim's furnace (dwarf_keldagrim_furnace 2869,10202; any furnace works, smelting.rs2:84), gloved.
+- Chemist ("Your quest.") needs the book in the pack at stage 11: it is done, varb8449 chemist_chat = 1. The still (2927,3212) is leg 6.
+
+## leg 6
+- Ends at King Lathas, Ardougne Castle floor 2 (about 2578,3293 level 1): the quest is COMPLETE (regicide_quest=15), scroll closed, t.finish(0). Last runner; nothing follows.
+- Full run 404/0 PASS, gate green, lint clean, helper_coverage FULL (64 driven), zero GUIDE-GAP markers (three old ones became plain notes).
+- Leg 6 gives cloth, cooked rabbit and 8 coal itself (pack is 28 slots; coal is not stackable). Still: tar valve up, pressure up once, coal when the heat bits 13-18 are set, Escape closes it.
+- The second pass walks every obstacle again (rows named -again). From the woodspring (2234,3181) walking to the middle passage is blocked: goto 2217,3160. Fixed in legs 2/3: cave_railings2 are two locs (z 9656 then 9655, click each with at=), which makes upass_mud reachable without stand_on_square.
+- Bomb needs the rabbit flag AFTER any cross_over3 landing in the camp mapsquare; the Arianwyn scene fires on walking into 2584..2591,3296..3303 with the message at stage 13.

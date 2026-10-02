@@ -1,0 +1,1 @@
+{"test_id":"upass","leg":8,"outcome":"done","runs":1,"last_step":"talkToKingLathasAfterTemple","last_failure":"","blocker":"","doc_gaps":["leaveFallArea (caverockpile) declared GUIDE-GAP: fall pocket sealed by collision (m38_150.jl2:2995, upass_obstacles.rs2:77)"],"compacted":false}

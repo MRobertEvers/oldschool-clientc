@@ -4,3 +4,7 @@ run4: part B Kalrag PASS (needed walk to 2356,9900 for presence); next part C: a
 run7: C1 PASS (ascend, cage via bridgecollapsed2 2121,4686; BFS tool scratchpad/bfs8.py level1). next: disciple kill (worn must be ONLY robes to open temple door: unequip scimitar+gauntlets), altar
 run8: C2 PASS (disciple kill + robes taken, 809 ticks). next: enterTemple (only robes worn), useDollOnWell, Koftik, Lathas
 run10: through useDollOnWell PASS (stage 9, player thrown to pocket 2482,9607 L0 closed 213 tiles). CONTENT BUG: caveguide5 only at m33_73.spawn:37 (2170,4727 L1); upass_last_out (upass_tablets.rs2:9) needs caveguide5 within 9 of 2438,9607; caveguide6 at 2443,9607 is regicide's koftik.rs2:12. Next: write talk caveguide6 + last_out press + t.blocked; then hand-off.
+run11: copied seam37_leg8.lua (222/2 proof) to upass.lua, bind display fixed; running full
+run12: full 224/0 but helper_coverage leaveFallArea CHEAT + hop shot gate; inserted enterSwampBubbles/leaveFallArea rows in leg 4 before climbDownWell
+run13-20: tried driving leaveFallArea (swamp 2465,9713 in leg 2 -> fall 2485,9649 -> rockslide 2479,9629 -> dead end 2474,9630; piles 2443,9651 and 2470,9620 unreachable by walk_to/click_loc). Reverted. hop-shot gate fixed (comma in check name). Needs full run + gate
+run21 (fresh runner): probed fall pocket (fallprobe): sealed by collision at 2480,9628; declared GUIDE-GAP leaveFallArea citing upass_obstacles.rs2:77 + m38_150.jl2; full run green, gate green, lint clean, helper_coverage CONTENT_GAP=1 (declared)
