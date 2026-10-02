@@ -697,8 +697,8 @@ matthew-mbp-m4-b48-seam1.*
   leg 2, `west_hops` / `south_hops`).
 - You never walk to the tunnel, because the fall puts you beside it. A wip leg JSON or relay note
   that calls the step a GUIDE-GAP because "the dwarf cavern tunnel is not walkable from the pass" is
-  stale. The b48 reviewer copied that claim from `test/quests/wip/regicide/leg6.json`; the green file
-  drives the step.
+  stale. The b48 reviewer copied that claim from Regicide's wip leg 6 JSON (removed once the quest
+  went green, in git at 1735662fd); the green file drives the step.
 
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 
