@@ -133,3 +133,9 @@
 - The maze is not sealed: it is five rock bridges (walkway_upass_narrow_mid_top), each clicked from x-1 -- see "## seam2 (maze)" above. Leg 2 with the maze and the temple door was proven 42/42 by seam 2: `wip/regicide/seam2_leg2_proven.lua` is that leg-2 copy -- port its rows into leg 2, replacing the markers there.
 - Leg 6's second walk repeats the same three crossings (grid as in leg 3, maze bridges, temple door): replace its markers the same way.
 - Two more rows the seam found: `goto-pickCellLock 2393,9657` (legs 2 and 6) teleports INSIDE the cell row -- stand on 2393,9655 on the corridor instead (walkable from the well landing); `goto-openIbansDoor 2369,9718` (legs 2 and 6) skips a 185-step walk from 2371,9666 -- walk it.
+
+## leg 2 (round 5, DONE, supersedes the round-4 blocked note)
+- Ends at 2312,3216 level 0 (Tirannwn arrival, quiet); regicide_quest = 3 (spoken_scouts). Pack: shortbow, woodplank x1, rope, spade, tinderbox, bronze_arrow, lobster. Setup unchanged.
+- Maze is the seam2 route (five rock bridges, retry loop), pipe lands 2387,9605, doorl -> 2371,9666, then temple bridges + door as seam1; --from-leg 2 276 PASS, first non-pass is leg 6's t.blocked marker.
+- NEW: goto-pickCellLock and goto-openIbansDoor are gone. Cell: walk 2410,9656 -> 2393,9655. From 2371,9666 to Iban's door 2369,9718 one walk_to stalls in local minima (partial pathing); leg 2 walks 18 hops (local tile + 2368,9664: 3,14 5,25 10,30 10,33 20,36 20,40 40,40 40,42 55,43 56,52 56,57 45,57 31,57 25,58 22,57 20,55 10,55 1,54), each up to 4 tries; ~860 ticks. Leg 6's second walk can copy the loop (mz_here() is leg 2's local).
+- Hops may end one tile short (skeletons); the loop accepts it.
