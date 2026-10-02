@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35			
 quest_imp	imp	impcatcher		3	green	sonnet-b35			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo	matthew-mbp-m4-b52	REJECTED (matthew-mbp-m4-b52): run 71/0, gate green, lint clean, helper_coverage FULL, red dragon page kills now real; but the guide's knife/slash web on the Forthos route is skipped by t.player.goto_tile 'goto-aimeri' (teleport 'Teleported to 1840,9929', notes admit 'web/knife cut on the route are not driven (route taken by goto)'). Walk from the ladder to Aimeri and slash/cut the web (bigweb_slashable) by click; also walk or use the dungeon exit ladder instead of goto-logosia teleport.		
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo	matthew-mbp-m4-b52	REJECTED (matthew-mbp-m4-b52): run/gate/lint green (91/91, helper_coverage FULL) but goto-exitLadder (goto_tile 1830,9972 from the page room) teleports past the bigweb_slashable webs the guide names on the Forthos route; the return must cut respawned webs by click (loop walk_to + click_loc bigweb_slashable like the inbound leg) then walk to the ladder. Goto-logosia surface->library is the only other long goto; file kept at test/quests/insearchofknowledge.lua		
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34			
 quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36			
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41		
@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
-quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b52	RETRY after eb783e914: navigateMaze now walks every rock-bridge fall back from where LostCity lands it (bridges 1-3 -> start, 4 -> bridge 3, 5 -> pit exit west over bridge 2406,9632), no goto_tile, and leg 8 caps its lobster give; adopt test/quests/wip/upass/seam3_maze.lua as upass.lua (it ran 289/289 to the scroll, gate green, FULL 77+1) -- navigateMaze rows and leg 8 start rows are rewritten		
+quest_upass	upass	undergroundpass		3	green	matthew-mbp-m4-b52			
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
