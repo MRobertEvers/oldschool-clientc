@@ -51,3 +51,17 @@ Orbs of light (parity3e):
   Stand: orb4 2416,9698 (past the 3rd plank), orb3 2385,9685, orb2 2386,9677; click_loc caveorb_vis at= those tiles.
 - upass_orbs.rs2 [oploc1,caveorb_vis] gives caveorb2-4 (LC had them as ground objs). Orb1 is the logtrap rock at
   2382,9668: its caveorb_vis fires the LC trap (blown 5 west); take it by disarming upass_logtrap_trigger.
+
+The fall pocket (seam upass_fall_pocket_exit, matthew-mbp-m4-b49-seam1 -- NOT a content bug):
+- Entered by the swamp (upass_swampbubbles1, upass_obstacles.rs2:59, clicked from Koftik's ledge 2453,9716; from the east
+  side 2482,9715 it answers "I can't reach that!") or a failed rope swing (:132); both p_teleport 0_38_150_53_49 = 2485,9649.
+- Quest Helper's inFallArea is 2440,9628-2486,9657; its leaveFallArea line points cross FIVE rockslide2_obstacle_upass
+  (op1 Climb-over, @rockslide_obstacle :29, a slip costs 3 hp) at 2479,9629 / 2467,9646 / 2456,9633 / 2455,9647 /
+  2448,9650, each climbed from its east side (2480,9629 / 2468,9646 / 2457,9633 / 2456,9647 / 2449,9650), then the
+  caverockpile at 2443,9651 (op1 Climb, :77) -> 2482,9715 "You surface by the swamp, covered in muck." (before rockslide 1).
+  LostCity m38_150.jm2 places the same five slides and pile; its upass_obstacles.rs2:1,50 is the same code.
+- A plain walk_to from the landing to the pile never moves (the slides block); that is what read as "sealed by collision".
+  The OSRS map's second caverockpile at 2470,9620 is not in LostCity and is unreachable; it is not the exit.
+- Proof: build/seam_state/matthew-mbp-m4-b49-seam1/scratch/fall_pocket.lua, 11/11 (runs/fall_pocket_run2/ledger.tsv).
+- collectPlank: the plank is a ground spawn, m38_151.spawn:35 woodplank 2435,9726; the north room north of Koftik
+  (2446,9724) does not reach it on foot before the bridge -- the guide takes it after the bridge (crossThePit substep).

@@ -15,3 +15,10 @@ Pestle and mortar grinds the karambwan products via configs/tbwt_grind.dbrow.
 Forms differing from the guide: grinding via dbrow table (not LostCity's attempt_grind), spear
  acceptance lists in quest_tbwt.rs2 proc tbwt_is_acceptable_tamayu_spear (OSRS wiki era).
 Jingles (music_jingle) are omitted: the pack has no ~music_jingle proc.
+Zembo (getRum): placed at 2925,3143 by quests/quest_tbwt/configs/tbwt_zembo.spawn (LostCity m45_49
+ `0 45 7: zambo`), wanderrange 3. Talk-to -> "Yes please." opens Karamja Wines, Spirits, and Beers.
+ (inv boozeshop; drive it with t.shop.attach("boozeshop")); op3 Trade opens it directly
+ (t.shop.open("zembo", 3, "boozeshop")). Rum costs 30 coins, stock 3. tbwt_zembo.rs2 is LostCity
+ zambo.rs2 minus the deferred barcrawl arm.
+Held-item uses: t.player.use_item_on_item(a, b) uses a ON b and fires [opheldu,b]:
+ sliceBanana = ("knife", "banana"), makeBananaRum = ("tbwt_sliced_banana", "karamja_rum").

@@ -122,6 +122,7 @@ topic file with one line added here.
 - a `~mesbox` in Mort Myre gone a tick later, `no dialogue is open` -> seam-facts: Seam pass 30 (g)
 
 ## Items, held ops and shops
+- "The Paladin tries to give you some supplies but you don't have enough room"; `killJerro-supplies` bread x0 stew x0 blamed on RNG -> gaps-world: Underground Pass: "The Paladin tries to give you some supplies"
 
 - `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 (FIXED seam32; `t.inv.slot` still names it `''`) -> verbs-pointer: `click_obj` answers `timeout`; seam-facts: Seam pass 32 (c)
 - a bucket on a sink/pump answers "Nothing interesting happens." -> gaps-world: A sink or water pump (FIXED seam29)
@@ -234,6 +235,8 @@ topic file with one line added here.
 ## Gate, lint, coverage and the ledger
 
 - `leaves the <step> side ... without crossing the ladder/stair/trapdoor`; a sub-step graded CHEAT or ALTERNATIVE -> coverage-and-gate: A promoted sub-step
+- `leaveFallArea` CHEAT naming a later leg's `goto_tile 2417,9677` (Underground Pass) -> gaps-world: Underground Pass: the fall pocket is left over five rockslides (last paragraph)
+
 - `lands at ... without pressing the <obstacle> <step> names` / `PASSed, but the newest server line of its attempt is`; `helper_coverage --ledger` -> coverage-and-gate: "lands at ... without pressing the rockslide" (b49-seam2)
 - `t.check(name, true, ...)` after a `t.ui.invoke` or a pickup -> sampler-findings: Sample sonnet-b36
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`
@@ -372,5 +375,6 @@ topic file with one line added here.
 - `the dialogue closed after N page(s)` right after a cutscene; a page a cutscene ends in -> verbs-cutscene: A cutscene between two dialogue pages
 - `cutscene_row_required`; `cutscene:` rows; `no_cutscene`/`unfinished`; `expected keyframe #N ... not found`; `checkpoint k NOT written: the camera is server-driven`; a quest whose content scripts `cam_moveto`/`cam_lookat` (`cutscene_sweep.py`, DROPPED/PARTIAL fail `check-quest-cutscenes`) -> verbs-cutscene (`t.cutscene.await`, `t.world.camera`); a fade with no camera op -> verbs-ui-and-npc: Fade overlays
 - `cutscene_row_required` names a site on a route the guide never takes; `cutscene_exempt_refused:`; `t.cutscene.exempt`; `gate.py --cutscene-as` -> verbs-cutscene: `cutscene_row_required` names a site on a route you did not take (seam34)
+- `cutscene_exempt_refused: ... is ON the guide's route` for a site behind a `random(...)` roll (Troll Romance's sled crash `trollromance_sled.rs2:273/274`) -> verbs-cutscene: A camera site behind a random roll on the guide's route
 - `check-quest-cutscenes` red on mm PARTIAL / troll_love DROPPED; `lostcity_tree`; `cutscene_sweep.py --sites` -> verbs-cutscene: the sweep paragraph (seam34); seam-facts: Seam pass 34 (e)
 - vm-b1: `helper dir not found` from `new_quest.py` (default `--qh-root` is a Mac path) or a scaffold with no `legs` -> running: `new_quest.py`: `helper dir not found`; leg 1 needs a stage a later leg reaches (ladder order is not route order) -> relay: The legs follow the guide's order; Miscellania `castledoor` picks the wrong copy, Donal's pub "walled off" (door 2525,10256), no bank booth at 2612,3900 -> gaps-world: Miscellania and Etceteria

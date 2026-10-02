@@ -279,13 +279,42 @@ return {
             t.exec("returnToSarim", t.player.goto_tile, 3018, 3234, 0)
             t.exec("clickSnakeCharm", t.player.inv_op, "snake_flute", 1)
             t.exec("clickSnakeCharm-open", t.ui.await_open, "ratcatcher_flute", 10)
-            local _, nw = t.ui.widget("ratcatcher_flute:rc_flute_d")
-            t.ui.invoke(nw, 0)
+            -- playSnakeCharm (QH RatCharming): D, G, E, F#, D raised, B, C#, A, each an IF1
+            -- press (op 0, the plain IF_BUTTON a real click sends).
+            local tune = {
+                { "rc_flute_d", 1 }, { "rc_flute_g", 2 }, { "rc_flute_e", 3 }, { "rc_flute_fsharp", 4 },
+                { "rc_flute_up_octave", nil }, { "rc_flute_d", 5 }, { "rc_flute_up_octave", nil },
+                { "rc_flute_b", 6 }, { "rc_flute_csharp", 7 }, { "rc_flute_a", 8 },
+            }
+            for i, n in ipairs(tune) do
+                local _, w = t.ui.widget("ratcatcher_flute:" .. n[1])
+                t.ui.invoke(w, 0)
+                t.ticks(2)
+                local _, len = t.var.server("varb1421_ratcatch_music_len")
+                local _, hi = t.var.server("varb1413_vc_note_current_hi")
+                local ok = (n[2] == nil) or (len == n[2]) or (n[2] == 8)
+                t.check("playSnakeCharm-" .. i .. "-" .. n[1], ok, "music_len=" .. tostring(len) .. " hi=" .. tostring(hi))
+            end
+            local ar, ad = t.var.await_server("varb1404_ratcatch_var", 105, 8)
+            t.expect("playSnakeCharm.await", ar, ad)
+            t.expect("quest.stage.tune_played", t.quest.expect_stage("tune_played"))
+            t.expect("playSnakeCharm.message", t.msg.expect("procession of rats"))
+            -- LEG 6: enterPitsForEnd, talkToFelkrashForEnd
+            t.exec("enterPitsForEnd", t.player.click_loc, "vc_manhole_open", 1)
+            t.ticks(3)
+            local _, et = t.world.tile()
+            t.check("enterPitsForEnd.tile", et.z > 6400, "tile " .. et.x .. "," .. et.z .. "," .. et.level)
+            t.exec("goto-talkToFelkrashForEnd", t.player.goto_tile, 2978, 9642, 0)
+            local snap_result, snap = t.skill.snapshot()
+            t.expect("ratcatchers.snapshot", snap_result, "snapshot before hand-in")
+            t.exec("talkToFelkrashForEnd", t.player.talk_to, "vc_felkrash_the_bard", 1)
+            t.exec("talkToFelkrashForEnd-dialog", t.chat.play, { "player:I've charmed the rats", "npc:Astonishing!" })
             t.ticks(2)
-            local _, mv = t.var.varbit("varb1421_ratcatch_music_len")
-            t.check("playNote1.noEffect", mv == 0, "pressed rc_flute_d (IF1 buttontype=4, sent as op 0): music_len stays " .. tostring(mv) .. "; server logs 'no trigger for [if_button0,ratcatcher_flute:rc_flute_d] or [if_button,...]'")
-            t.blocked("content_bug: ratcatchers.rs2:784-800 binds the flute notes as [if_button1,ratcatcher_flute:rc_flute_*] but ratcatcher_flute.if is an IF1 interface (if3=no, type=6 buttontype=4); an IF1 press reaches the server as op 0, which runs only [if_button,...] (torirs_server_scripts.c:2985-2992), so no note ever registers and the tune (stage 105) is unreachable by a click; op=1 takes the IF3 path an IF1 button never answers (trap 33)")
-            do return end
+            t.expect("ratcatchers.thieving_xp_up", t.skill.expect_gain("thieving", 4500, snap))
+            t.quest.expect_complete()
+            local _, pole = t.inv.count("vc_rat_pole")
+            t.check("ratcatchers.rat_pole", pole == 1, "vc_rat_pole count " .. tostring(pole))
+            t.finish(0)
         end },
     },
 }

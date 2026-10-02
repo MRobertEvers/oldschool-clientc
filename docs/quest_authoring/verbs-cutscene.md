@@ -136,7 +136,9 @@ framing call with no same-op same-coord call in ours -- the next content pass's 
 seam34 the check is RED on true losses: mm PARTIAL (`mm_demon.rs2:98`'s `cam_lookat` in
 `[timer,teleport_mm_sigil]` is dropped) and troll_love DROPPED (both sled rides,
 `quest_troll_love.rs2:145-293`, have no camera op in the port). Both are content-port work for the
-cutscene session, not a gate bug.
+cutscene session, not a gate bug. (troll_love's rides and crash have been ported since:
+`trollromance_sled.rs2:236-245`, `:273-274`, `:355-366`; see "A camera site behind a random roll"
+below.)
 
 ## A cutscene no guide step reaches
 
@@ -195,6 +197,37 @@ by the `[queue,exit_ah_za_rhoon]` mapzone exit (`:1077-1084`, any route) and is 
 exemptions accepted, FULL 30/30. The same file without the exempt rows is RED
 `cutscene_row_required`. A worktree mutant of `chompybird.lua` that exempts Rantz's `rantz.rs2:317/318`
 (on `talkToRantzWithToad`'s route) is refused on both sites.
+
+### A camera site behind a random roll on the guide's route: `cutscene_exempt_refused` (Troll Romance's sled crash)
+
+*Origin: author batch matthew-mbp-m4-b49 (troll_love, accepted and sampled).*
+
+Symptom: `cutscene_row_required` names `trollromance_sled.rs2:273`/`:274` after both sled rides
+passed, and a `t.cutscene.exempt` row for them is refused (`cutscene_exempt_refused: ... is ON the
+guide's route`). The sites are the 1-in-250 rock crash: `[oploc1,trollromance_piste_walk_barrier_down]`
+(the guide's `sledSouth`) -> `~trollromance_first_sled_ride` -> `if (random(250) = 0)
+~trollromance_sled_crash` (`:221-223`). The crash is reached from a guide step, so rule 3 refuses
+the exemption, and no number of reruns reaches a 1-in-250 roll.
+
+The way out is a harness debugproc that runs the SAME proc from the same tile, then
+`t.cutscene.await` on it. `[debugproc,trollromance_crash]` (`trollromance_sled.rs2:384-390`) needs
+the waxed sled worn, teleports to the roll's tile 2770,3828 and calls `~trollromance_sled_crash`.
+It writes no quest var. `troll_love.lua` drives it after `equipSled` and before the real ride:
+
+```lua
+do local r = t.cheat("::trollromance_crash"); t.check("sledCrash.hook", r, "::trollromance_crash answered " .. tostring(r)) end
+t.exec("sledCrash.cutscene", t.cutscene.await, "sledCrash", { timeout = 60, expect = {
+    { op = "moveto", coord = "0_43_59_26_39" }, { op = "lookat", coord = "0_43_59_22_44" }, { op = "reset" } } })
+t.ticks(10)  -- the crash fades in before its chat opens; without this sledCrash.chat read no dialogue
+t.exec("sledCrash.chat", t.chat.play, { "player:And I thought snow was soft", "player:Although it was a little softer", "end" })
+t.exec("sledCrash.pickup", t.player.click_obj, "trollromance_toboggon_waxed", 3)   -- the crash drops the sled
+```
+
+Then wear the sled again, go back to the barrier and drive `sledSouth` for real: the hook covers
+only the crash's camera, never the guide step. The same pattern fits any camera site behind a
+`random(...)` on the route. Add the debugproc beside the proc it calls, and say in its comment which
+roll it stands in for. A debugproc that writes a quest var, or that replaces the step the guide
+names, is a cheat past the guide's work (trap 16), not coverage.
 
 ## Test affordance: `::cutscene <level_mx_mz_lx_lz> [times] [hold]`
 

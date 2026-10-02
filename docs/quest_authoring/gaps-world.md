@@ -813,6 +813,24 @@ answers `I can't reach that!` from 2482,9715; click it from Koftik's ledge 2453,
 with hops: `test/quests/wip/upass/relay.md` and `docs/quests/ladders/upass.notes.md`. The same lesson
 as the maze bridges: list the locs with an op in a pocket before calling it a map bug.
 
+Without those rows, `helper_coverage` grades `leaveFallArea` CHEAT, and the reason names a goto from
+a LATER leg (leg 4's `goto_tile 2417,9677`), not one near the swamp. That goto lands west of the
+pile on the far side of the zone the step crosses, so it counts as teleporting past `caverockpile`
+even though the run never fell. Drive the pocket (swamp, five slides, pile) once, before that goto.
+A `-- GUIDE-GAP` is not the fix, because the pocket is drivable.
+
+## Underground Pass: "The Paladin tries to give you some supplies but you don't have enough room" (`killJerro-supplies` bread x0, matthew-mbp-m4-b49)
+
+Symptom: `killJerro-supplies` FAILs with `bread x0 stew x0` after the knight's talk, and the talk
+itself PASSes. The author's relay blamed "the RNG shift" from rows added in an earlier leg. The
+shot `178-mesbox` shows the real answer: `[proc,upass_paladin_supplies]` gives nothing unless
+`inv_freespace(inv) >= 7` (`upass_encounters.rs2:101-104`; 2 meat pies, 2 bread, 1 stew, an attack
+potion and a prayer potion). The pack was full of lobsters. `%varb9127_upass_paladin_food` is set
+only on the give (`:110`), so the same talk works once there is room. A leg that eats less food
+earlier (fewer slips, a shorter fight) arrives with fewer free slots. So before `killJerro-talk`,
+count the empty slots (`t.inv.slot(i)` over the 28 slots) and eat or drop down to 7 free. Do not assume
+the earlier legs' food use is fixed. Read the run's mesbox shot before you put a FAIL down to RNG.
+
 ## Miscellania and Etceteria: which door to click, Donal's pub door, the bank with no booth (vm-b1)
 
 *Origin: Royal Trouble review and sample, batch vm-b1 (`test/quests/royaltrouble.lua`).*

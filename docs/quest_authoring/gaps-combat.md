@@ -75,7 +75,8 @@ the intended way out, and this is the case it is FOR -- `quest.journal` is not i
 drive the completion through the rows that DO land, each written by hand with `t.check`:
 `quest.varp_complete` (a `t.quest.stage()` read against `constants.complete`), `quest.scroll_title`,
 `quest.points`, plus the reward rows. Say in the details which channel answered and why
-`quest.journal` is absent. Never ship a row you have measured to time out.
+`quest.journal` is absent. Never ship a row you have measured to time out. The same timeout was
+seen again on Tai Bwo Wannai Trio (matthew-mbp-m4-b49), where `tbwt.lua` hand-rolls the four rows.
 
 ### `sscompile` contention; outcome rows for real sentences; `pack/varp.alloc` lints clean (2026-09-26)
 
