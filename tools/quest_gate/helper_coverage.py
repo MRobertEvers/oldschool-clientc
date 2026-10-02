@@ -2002,9 +2002,26 @@ class Grader:
         # that merely starts with those letters: Spirits of the Elid's
         # `telegrabKey.cast` IS the step's action (seam27), and the bare
         # prefix used to drop it, so an ANY-OF naming it could not verify.
+        # ...unless the row is named after a guide step that merely starts
+        # with those letters and its source line is not itself a teleport:
+        # Darkness of Hallowvale's `goToMines` is a talk to a Vyrewatch, and
+        # the bare prefix (case-folded) dropped its rows, so the step fell
+        # through to a stray narration match (seam doh_gotomines_graded_gap).
+        # Fenkenstrain's `goToMonsterFloor1` row, a goto_tile, stays travel.
+        guide_names = {norm(name) for name in self.guide.steps} | {norm(name) for name in self.guide.step_alias}
+
+        def guide_step_row(name):
+            if norm(re.split(r"[.\-:/ ]", name)[0]) not in guide_names:
+                return False
+            for first, last, row_name in self.test.row_spans:
+                if row_name == name:
+                    source = " ".join(self.test.code_lines[first - 1:last])
+                    return not re.search(r"goto_tile|::goto|::tele|player\.teleport", source)
+            return True
         self.action_rows = [r for r in self.pass_rows
-                            if not re.match(r"^(goto|walk|travel|tele(?:port|[^a-z]|$)|quest\.|setup|reset)",
-                                            r["step"], re.I)
+                            if (not re.match(r"^(goto|walk|travel|tele(?:port|[^a-z]|$)|quest\.|setup|reset)",
+                                             r["step"], re.I)
+                                or guide_step_row(r["step"]))
                             and not re.search(r"goto_tile|::goto", r["detail"])]
         self.bound_varp = None
         match = re.search(r"t\.quest\.bind\s*\(\s*\{[^}]*?varp\s*=\s*\"(\w+)\"", self.test.code, re.S)
