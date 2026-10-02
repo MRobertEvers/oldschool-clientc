@@ -241,6 +241,23 @@ NPC_SPAWN_EXCLUSIONS = {
 NPC_SPAWN_RELOCATIONS = {
     ("claus_carnillean", 2566, 9670, 0): (2540, 9697, 0),
 }
+
+
+# Dump rows whose id this cache reallocated, keyed `(dump id, x, z, plane)` ->
+# the cache symbol that stands there now. Keyed on the exact row like
+# OBJ_SPAWN_ID_CORRECTIONS, so no other spawn of the old id is admitted, and the
+# corrected symbol must still carry the dump's display name (rule 2 runs on it).
+#
+# Turael, Burthorpe's slayer master: the dump has `401 Turael` at 2931,3536;
+# in this cache 401 is `tog_light_creature`, so the row was dropped as name
+# drift and Burthorpe had no Turael -- Animal Magnetism's blessed axe (Quest
+# Helper AnimalMagnetism.java:228 talkToTurael, WorldPoint(2931, 3536, 0);
+# steps 160/170) was unreachable, and so was every slayer assignment from him.
+# The cache's Turael is `slayer_master_1_tureal` (13618, name=Turael), the
+# symbol skill_slayer/scripts/slayer_masters.rs2 and anma.rs2 bind.
+NPC_SPAWN_ID_CORRECTIONS = {
+    (401, 2931, 3536, 0): "slayer_master_1_tureal",
+}
 #
 # Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
 # pot (the one the flour barrel fills) on 1239,3682,1, and maps/m19_57.jl2 line
@@ -272,8 +289,32 @@ OBJ_SPAWN_RELOCATIONS = {
 # recovery path hands out `druid_pouch_empty`, and the grotto respawn has to
 # agree with it. Audited against
 # https://oldschool.runescape.wiki/w/Druid_pouch and quest_druidspirit.rs2.
+#
+# Death Plateau, the five mechanism balls in the Burthorpe barracks: the dump
+# lays five `death_cannonball_green` (3113) on 2893,3561..3565. LostCity's
+# maps/m45_55.jm2 OBJ section (`0 13 41..45`) lays one of each colour --
+# 3111 yellow, 3113 green, 3112 purple, 3110 blue, 3109 red, in that order
+# (LostCity pack/obj.pack) -- and quest_death's mechanism needs all five
+# colours (OSRS-Content b6aef218bc hand-edited m45_55.spawn to this; folded
+# in here so a regeneration keeps it).
 OBJ_SPAWN_ID_CORRECTIONS = {
     (2958, 3443, 9741, 1): "druid_pouch_empty",
+    (3113, 2893, 3561, 0): "death_cannonball_yellow",
+    (3113, 2893, 3563, 0): "death_cannonball_purple",
+    (3113, 2893, 3564, 0): "death_cannonball_blue",
+    (3113, 2893, 3565, 0): "death_cannonball_red",
+    # Biohazard, the pigeon cages behind Jerico's house: the dump lays three
+    # EMPTY cages (425 pigeoncage) at 2618,3323..3325; LostCity maps/m40_51.jm2
+    # OBJ `0 58 59..61: 424` lays three cages WITH pigeons (424 pigeons), which
+    # the quest has you take (OSRS-Content 4420b02611 hand-edited this).
+    (425, 2618, 3323, 0): "pigeons",
+    (425, 2618, 3324, 0): "pigeons",
+    (425, 2618, 3325, 0): "pigeons",
+    # Murder Mystery, the dagger by the Sinclair mansion: the dump lays the
+    # dusted copy (1814 murderweapondust); LostCity maps/m42_55.jm2 OBJ
+    # `0 58 58: 1813` lays the undusted `murderweapon`, which the player dusts
+    # for prints (OSRS-Content 0ee0ee5e9d hand-edited this).
+    (1814, 2746, 3578, 0): "murderweapon",
 }
 
 
@@ -413,6 +454,10 @@ def main():
     for row in npc_rows:
         ident = row["id"]
         name = npc_ids.get(ident)
+        npc_correction = NPC_SPAWN_ID_CORRECTIONS.get((ident, row["x"], row["y"], row["level"]))
+        if npc_correction is not None:
+            corrected["npc %d -> %s (%d,%d,%d)" % (ident, npc_correction, row["x"], row["y"], row["level"])] += 1
+            name = npc_correction
         if name is None:
             reject["npc: id past the end of this cache's npc table"] += 1
             continue
@@ -564,7 +609,7 @@ def main():
     print("kept without a name check (record and every variant unnamed): %d npc" % unnamed, file=out)
     print("obj spawns carry no name in the dump, so NONE of them got a name check.", file=out)
     print("", file=out)
-    print("audited obj id corrections (OBJ_SPAWN_ID_CORRECTIONS):", file=out)
+    print("audited id corrections (NPC_SPAWN_ID_CORRECTIONS, OBJ_SPAWN_ID_CORRECTIONS):", file=out)
     for note, count in sorted(corrected.items()):
         print("  %-64s %d" % (note, count), file=out)
     if not corrected:
