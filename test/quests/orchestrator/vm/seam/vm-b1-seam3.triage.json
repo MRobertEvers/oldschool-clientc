@@ -1,0 +1,42 @@
+{
+ "seams": [
+  {
+   "key": "ladder_route_order_legs",
+   "kind": "driver",
+   "quests": [
+    "thefremennikisles"
+   ],
+   "summary": "TOOLING (filed as driver so the seam pass fixes it; it was skipped as 'design' in vm-b1-seam2). tools/quest_gate/ladder.py cuts relay legs in the guide's step order, and The Fremennik Isles' guide order is not the walking order (stage 90 needs steps the ladder files under legs 2 and 3), so leg 1 is not a drivable stretch and the author gave up with 0 runs. Give ladder.py a way to cut legs by stage ranges in route order -- a per-quest cut file such as docs/quests/ladders/<id>.legs (one stage range per leg, e.g. 0-60, 90-150, 160-275, 280-290, 300-) that ladder.py <id>, --leg K and --write honour, with the default unchanged for every quest without one -- write that file for thefremennikisles from its ladder and notes, and prove `ladder.py thefremennikisles --leg 1` lists a stretch a player can walk in order. ladder.py and relay.md are PROTOCOL WORK: push them to v3 first with test/quests/orchestrator/vm/v3_protocol_push.sh, then cherry-pick onto vm-b1; the per-quest cut file is quest work and stays on vm-b1.",
+   "evidence": "build/author_state/vm-b1/thefremennikisles.review.json (rejected: ladder legs in guide order, not route order; re-cut by route 0->60, 90->150, 160->275, 280->290, 300+); test/quests/wip/thefremennikisles/leg1.progress.md; docs/quest_authoring/relay.md 'The legs follow the guide's order, and the route does not'.",
+   "files": [
+    "tools/quest_gate/ladder.py",
+    "docs/quest_authoring/relay.md",
+    "docs/quests/ladders/thefremennikisles.legs"
+   ]
+  },
+  {
+   "key": "doh_pub_trapdoor_basement",
+   "kind": "content",
+   "quests": [
+    "darknessofhallowvale"
+   ],
+   "summary": "Darkness of Hallowvale: with the Burgh inn wall now climbable (vm-b1-seam2), the next guide step fails -- the pub trapdoor [oploc1,burgh_inn_trapdoor_open] calls ~climb_ladder(-1) from plane 0 into the z+6400 underground basement and answers 'You can't go any further.'. Give it an explicit ~climb_ladder_to (or the pack's equivalent) to the basement tile the wiki and the guide name, and the basement ladder back up, then prove the relay's leg 1 drives through the wall, the trapdoor and the basement.",
+   "evidence": "build/seam_state/vm-b1-seam2/close.json open_issues (darknessofhallowvale still content_bug: [oploc1,burgh_inn_trapdoor_open] ~climb_ladder(-1) 'You can't go any further.'; needs explicit ~climb_ladder_to for the underground basement); fix.doh_burgh_inn_climb_over.json. Source: docs/quests/darkness_of_hallowvale.md; ladder.py darknessofhallowvale --leg 1.",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_darknessofhallowvale/scripts/doh_burgh.rs2"
+   ]
+  },
+  {
+   "key": "coldwar_thing_talk_op",
+   "kind": "content",
+   "quests": [
+    "coldwar"
+   ],
+   "summary": "Cold War: the Thing's Talk-to is op3 in all.npc (sheep_shearer_the_thing), but the content binds [opnpc1,sheep_shearer_the_thing] (Shear), so a player's Talk-to never reaches the quest's dialogue and helper_coverage grades talkToThing UNMATCHED. Bind the Talk-to op the npc really has (and keep Shear on its own op if the wiki lists one), and prove a Talk-to row reaches the coldwar dialogue and stage.",
+   "evidence": "build/seam_state/vm-b1-seam2/close.json open_issues ('the Thing's Talk-to is op3 in all.npc, but content binds [opnpc1,sheep_shearer_the_thing] (Shear)'); fix.coldwar_narrated_stages.json. Source: docs/quests/cold_war.md.",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/scripts/coldwar_lumbridge.rs2"
+   ]
+  }
+ ]
+}
