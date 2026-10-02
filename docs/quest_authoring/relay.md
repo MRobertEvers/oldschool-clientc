@@ -13,7 +13,8 @@ to open the guide Java.
 
 Each step shows:
 
-- `leg.n` -- the leg it belongs to and its number in the guide's order.
+- `leg.n` -- the leg it belongs to and its number in the guide's order (in route order when the
+  quest has a `.legs` file, below; `g<k>` after the point then keeps the guide's number).
 - `s<stage>` -- the quest stage the guide files it under (the key of `steps.put(<stage>, ...)`).
 - `step` -- the Java field name. Name your test rows after it (`talkToOziach`,
   `goto-talkToOziach`, `talkToOziach-dialog`): the coverage grade finds rows by this name.
@@ -41,6 +42,11 @@ losing the thread. `ladder.py` cuts the steps evenly into `round(steps / 10)` le
 cut to the nearest quest-stage boundary (the stage value changes between two steps) within three
 steps of it; with no boundary that close, the cut stays where it fell. A quest of 30 steps or fewer
 is one leg. `--legs N` asks for legs of about N steps and cuts even a short quest.
+
+A quest with `docs/quests/ladders/<test_id>.legs` is cut by that file instead: one stage range per
+leg, in walking order ("The legs follow the guide's order, and the route does not", below). The
+overview then prints `cut in route order, docs/quests/ladders/<id>.legs (...)`, and `--leg K`,
+`--json`, `--write` and `fail.py --leg K` all follow it.
 
 ### The backpack overflows: setup gives plus an earlier leg's leftovers
 
@@ -395,13 +401,32 @@ writes `outcome: done` without running anything, as Regicide's leg 6 did in roun
 
 `ladder.py` cuts legs in the order of the guide's steps, and that follows the `steps.put` keys and
 the `addStep` calls, not the order you walk. Usually the two agree. When they do not, a leg asks
-for a state that an earlier leg cannot reach yet. The Fremennik Isles files stage 90 before the
-steps that stage 90 depends on, so leg 1 could not be finished without first doing legs 2 and 3,
-and the author gave up there.
+for a state that an earlier leg cannot reach yet. The Fremennik Isles files stage 90 and stages
+280-290 before the steps that reach them, so its guide-order leg 1 (`talkToMawnis` at stage 90)
+had no honest entry: the only staging is `::fremennikisles` (stage 0), Maria will not ferry to
+Neitiznot at stage 0, and `::setvar` of the quest var is forbidden. Its author gave up with 0 runs.
 
 Before authoring leg 1, read each leg's stage range in the overview and check that it can be
-reached from the end of the leg before it. If it cannot, cut the legs by route yourself, as stage
-ranges in walking order (for Fremennik Isles: 0->60, 90->150, 160->275, 280->290, 300+). Write that
-plan into `test/quests/wip/<id>/relay.md` and name your test's legs after it. The coverage grade
-finds rows by step name, not by leg, so a re-cut costs nothing there. See also coverage-and-gate:
-"The ladder lists a route back to front".
+reached from the end of the leg before it. If it cannot, cut the legs by route in a file
+`docs/quests/ladders/<test_id>.legs`: one stage range per line, in walking order, `#` comments:
+
+```
+0-60      # Mord, Jatizso ore, jester outfit, Slug, spy 1
+90-150    # Mawnis: rope, split logs, the two bridges
+160-210   # report to Gjuki, window tax, beard tax
+230-275   # spy 2, report, the decree
+280-290   # yak-hide armour and the Neitiznot shield
+300-      # the cave, the Ice Troll King, his head back
+```
+
+Every step goes to the leg whose range holds its stage (a step with no stage keeps the stage of the
+guide step before it); inside a leg the steps are listed by stage, guide order breaking ties, and
+`n` is renumbered in that order. Ranges ascend without overlap, every step's stage must fall in one
+and every range must hold a step, or `ladder.py` exits 2 naming the line. Check each boundary in the
+content: the last step of leg K must WRITE the stage leg K+1 starts at (Fremennik Isles: Slug's
+report-1 payout writes 90, `fris_jester.rs2:294`). `--guide-order` prints the old cut; `--legs N`
+with a `.legs` file exits 2. Ties inside one stage keep the guide's order, which can still differ
+from the walk (stage 275: talk to Mawnis is listed before the two ferry steps that reach him);
+the leg is the same, so walk it in the order the notes give. The coverage grade finds rows by step
+name, not by leg, so a re-cut costs nothing there. See also coverage-and-gate: "The ladder lists a
+route back to front".
