@@ -437,9 +437,19 @@ trigger on their own side. Never fold such a grant into ordinary dialogue.
 | cheat | quest | what the partner does | gate | then drive for real |
 |---|---|---|---|---|
 | `::hero_partner` | Heroes' Quest (Phoenix route) | hands over `misc_key` (Grip's key, from a Black Arm partner) | `%phoenixgang >= ^phoenixgang_joined` and `%heroquest >= ^hero_phoenix_talked_charlie`; refuses a second key | `use_on(misc_key, pete_sidedoor)` -- `[oplocu,pete_sidedoor]` |
+| `::hero_partner_lure` | Heroes' Quest (Phoenix route) | searches Grip's drinks cabinet: exactly `[label,summon_grip]` case 1 on Grip (`npc_setmode(none)`, `npc_walk` to 2777,3198, "Stay out of my drinks cabinet!", 6-tick hold, `npc_setmode(null)`); no damage, door or item | as `::hero_partner`; refuses if Grip is not within 12 tiles of the player | from the secret room (2780..2782 x 3197..3198), `t.player.attack("grip")` with ranged/magic through `snipable_wall` 2780,3198, then `npc.await_dead_engaged`; `[ai_queue3,grip]` writes `^hero_phoenix_killed_grip`. A Grip that had wandered south may not reach the cabinet room in the 6-tick hold: search again (the real cabinet stays searchable) |
+| `::hero_partner_candlestick` | Heroes' Quest (Phoenix route) | trades one `petecandlestick` (QH getCandlestick; the partner takes Grip's keyring in the mansion, loots the chest, gives one to the killer) | `%phoenixgang >= ^phoenixgang_joined` and `%heroquest == ^hero_phoenix_killed_grip` (your own kill credit); refuses if `~obj_gettotal(petecandlestick) >= 1` | Straven, "I have a candlestick now." |
 | `::blackarmgang_partner` | Shield of Arrav (Black Arm route) | hands over `phoenixkey2` (weapon-store key) and `arravcertificate_lft` (the Phoenix half) | none; each item only if not already held | `use_on(phoenixkey2, phoenixdoor2)`, then combine the certificate halves |
 
+Why the solo Phoenix player needs both Heroes' Quest affordances: the cabinet (2775,3196), Grip's keyring
+(dropped on his own tile) and the treasure room are all inside the mansion behind `garvdoor`, which only a
+Black Arm player at `^hero_blackarm_mansion_unlocked` passes (`garv.rs2`); LostCity's
+`[oplocu,pete_treasuredoor]` accepts only `%heroquest >= ^hero_blackarm_id_papers_given`, and the chest
+gives "one for you, and one for the person who killed Grip for you". Proof:
+`test/quests/wip/hero/relay.md` (run `seam2_hero_full_a`, 125/125 to the scroll).
+
 Sources: `quest_hero/scripts/quest_hero.rs2` `[debugproc,hero_partner]`,
+`[debugproc,hero_partner_lure]`, `[debugproc,hero_partner_candlestick]`,
 `quest_blackarmgang/scripts/quest_blackarmgang.rs2`
 `[debugproc,blackarmgang_partner]`; briefs `docs/quests/shield_of_arrav.md`.
 The C selftest pins the Heroes' Quest door to the LostCity form (op1 from the
