@@ -145,3 +145,8 @@
 - Round 5's leg-6 runner wrote "done" without running: it read the old leg-6 notebook from the original relay, which ends in "DONE". That notebook is retired as leg6.progress.round1-4.md; start leg6.progress.md fresh.
 - Leg 6 still holds three `t.blocked("ROUND 3 (orchestrator): ...")` markers (~1176 grid, ~1245 maze, ~1257 temple). Replace each with the same real crossing the earlier legs now drive: the grid as leg 3 does, the maze bridges and the temple door as leg 2 does (copy those rows, renamed -again). Done means `grep -c "ROUND 3 (orchestrator)" test/quests/regicide.lua` prints 0 and the full run reaches expect_complete.
 - The working file at the end of round 5 is snapshotted as wip/regicide/round5_working.lua.
+
+## leg 6 (round 6, DONE; final leg)
+- Ends in Ardougne Castle after goTalkToLathasToFinish, quest complete (expect_complete 4 rows PASS, qp +3). Full run 429/0, gate green, lint clean, helper_coverage FULL 64/64, no GUIDE-GAP.
+- The three ROUND 3 markers are replaced: second walk drives rockslides 4/5, the grid (safe bands; setvar of varp6010_upass_grid_pattern only if the server var reads 0), cell lock from 2393,9655, five rock bridges, pipe, unicorn door, the 18-hop walk to Iban's door and the four temple bridges + door, all suffixed -again.
+- max_frames raised to 200000 (the full run is ~5000 ticks; 120000 stopped at tick 3998 inside leg 6's door walk).
