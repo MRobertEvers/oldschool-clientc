@@ -27,7 +27,9 @@ topic file with one line added here.
 - `other_floor: ...`; `reach level N by the guide's route first`; a loc only on another floor (never a driver seam) -> verbs-pointer: One named copy; seam-facts: Seam pass vm-b1-seam1 (a)
 - Penguin Agility Course: steps/stepstone `other_floor`, `walk_to` stuck in the water, crusher has only Examine (FIXED vm-b1-seam2: walk onto 2636,4054,1, wade, climb stepstone01) -> gaps-world: Penguin Agility Course
 - Cold War: "The spell wears off as you leave the penguins behind" / "Move along, civilian." after entering the course water -> seam-facts: Seam pass vm-b1-seam2 (a)
-- "Nothing interesting happens." on the Burgh de Rott inn Broken wall; "You can't go any further." on the pub trapdoor -> gaps-world: Burgh de Rott inn
+- "Nothing interesting happens." on the Burgh de Rott inn Broken wall; "You can't go any further." on the pub trapdoor (both FIXED vm-b1-seam2/seam3) -> gaps-world: Burgh de Rott inn
+- Cold War: talking to the Thing answers "You need a pair of shears to shear this sheep." / no dialogue (Talk-to is op 3) -> seam-facts: Seam pass vm-b1-seam3 (c)
+- "You can't go any further." on a trapdoor into an underground (z+6400) area; a quest taking over a climb_shared.rs2 binding -> seam-facts: Seam pass vm-b1-seam3 (b)
 - a POH is bare grass, `loc_near` finds no hotspot, save `[poh_rooms]` shows 84xx ids -> gaps-world: A player-owned house is bare grass; seam-facts: Seam pass vm-b1-seam1 (b)
 - Agility Instructor: "You haven't finished the course yet, soldier." (Cold War stage 100) -> seam-facts: Seam pass vm-b1-seam1 (c)
 - `loc_near` level 2 on a bridge deck; goto to the wrong plane -> gaps-world: `t.world.loc_near` reports
@@ -388,6 +390,8 @@ topic file with one line added here.
 - "payout-reopen", "luthas-payout/customs-pay", "mesbox/p_delay recipe" -> gaps-dialogue: A payout branch
 - "vm-b1-seam1 (a)-(d)", "[seam:vm-b1-seam1]" -> seam-facts: Seam pass vm-b1-seam1
 - "vm-b1-seam2 (a)-(d)", "[seam:vm-b1-seam2]" -> seam-facts: Seam pass vm-b1-seam2
+- "vm-b1-seam3 (a)-(d)", "[seam:vm-b1-seam3]" -> seam-facts: Seam pass vm-b1-seam3
+- `ladder.py` prints "cut in route order" / exits 2 on a `.legs` line ("not a stage range", "falls in none of its ranges"); a leg needs a stage a later leg reaches -> relay: The legs follow the guide's order, and the route does not
 - helper_coverage CONTENT_GAP on a step that is really driven, pinned on a `mes()` in another branch; `{{tact|receives=}}` -> seam-facts: Seam pass vm-b1-seam2 (b)
 - "the varp seam", "never-arriving-varp", "journal cross-check" -> gaps-world: A stage poll
 - "section 8's player.attack note" -> gaps-combat: `t.player.attack`'s settle; "Ernest the Chicken's maze" -> gaps-world: The `goto_tile` bypass

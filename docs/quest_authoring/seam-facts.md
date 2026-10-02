@@ -1013,14 +1013,15 @@ dialogue; three Icelords killed). Check the flagged file:line against the step b
 In an OSRS transcript `{{tact|receives=...}}` / `{{tact|gives=...}}` is a silent item transfer, no
 game message: the invented "Larry gives you a clockwork book." (two branches) and "You hand over the
 three mission reports." are removed (OSRS-Content a0bdfa073c). Open: the Thing's Talk-to is op3 in `all.npc` (op1 is
-Shear) but content binds `[opnpc1,sheep_shearer_the_thing]`, so a test talks by pressing Shear.
+Shear) but content binds `[opnpc1,sheep_shearer_the_thing]`, so a test talks by pressing Shear (FIXED vm-b1-seam3 (c): Talk-to is op 3).
 
 (c) Darkness of Hallowvale's Burgh inn Broken wall climbs (gaps-world, "Burgh de Rott inn"); the next
 blocker is the pub trapdoor's `~climb_ladder(-1)` from plane 0 into an underground basement ("You
-can't go any further."), the same shape as Seam pass 37 (b).
+can't go any further."), the same shape as Seam pass 37 (b). FIXED vm-b1-seam3 (b).
 
 (d) Not done this pass: ladder legs cut by route order (The Fremennik Isles; `ladder.py` and
-relay.md unchanged) -- no fixer reported; the triage row stands for the next pass.
+relay.md unchanged) -- no fixer reported; the triage row stands for the next pass. FIXED
+vm-b1-seam3 (a).
 
 ## Seam pass matthew-mbp-m4-b49-seam1 (2026-10-02, batch matthew-mbp-m4-b49)
 
@@ -1137,6 +1138,40 @@ the client makes the button clickable from its buttontype (`src/ui/uitree_input.
 server answers the op-less IF_BUTTON with `[if_button,...]` (`torirs_server_world.c`, op 0). Dwarf
 Cannon's seven dead `if_setevents(..., ^if_event_op1)` lines are deleted (mcannon 114/0, identical
 row for row). Content should not arm IF1 buttons. Trap 33.
+
+## Seam pass vm-b1-seam3 (2026-10-02, batch vm-b1)
+
+(a) Relay legs can be cut by route: `docs/quests/ladders/<test_id>.legs` holds one stage range per
+leg in walking order, and `ladder.py` (`<id>`, `--leg K`, `--json`, `--write`) and `fail.py --leg K`
+follow it (relay.md, "The legs follow the guide's order, and the route does not"; v3 1c64900e9). A
+quest without the file is cut exactly as before (byte-identical output). The Fremennik Isles has
+`0-60 90-150 160-210 230-275 280-290 300-`; its new leg 1 (talkToMord .. tellSlugReport1) starts
+from `::fremennikisles` at stage 0 and drove talkToMord -> stage 5, the Jatizso ferry and King
+Gjuki's hall door (12/0). Jatizso route: from the dock 2420,3782 walk to 2412,3796, open
+`frisd_outer_city_wall_door_left` (2413,3797), walk to 2407,3807, open `frisd_town_wall_door`
+(2407,3806): Gjuki's hall is entered from the NORTH; walking straight north from the gate stalls
+at the jester chest (2407,3800).
+
+(b) A generated ladder binding that cannot reach an underground region is replaced, not
+overridden: the script compiler keeps ONE body per trigger, so a quest that takes over a trapdoor
+bound in `ladders_stairs/scripts/climb_shared.rs2` deletes the generated line there and leaves an
+ownership comment (`tools/ladder_import.py`'s `read_other_rs2_triggers` will not re-emit it), as
+the Sanguinesti rug trapdoor (ec0ea5f7ce) and now `burgh_inn_trapdoor_open` do. The underworld step
+is the reference trapdoor's: your own tile plus or minus 6400 along z
+(`~climb_ladder_to(movecoord(coord, 0, 0, 6400), false)`; `general_use/scripts/trapdoors.rs2`).
+Burgh de Rott's pub trapdoor and hideout ladder: gaps-world, "Burgh de Rott inn" (OSRS-Content
+dca1c3a937; scratch 16/0, a Darkness of Hallowvale copy 27/0 to stage 40).
+
+(c) Cold War's Thing (`sheep_shearer_the_thing`) talks on op 3 (Talk-to, as `all.npc` has it);
+op 1 Shear answers "You need a pair of shears to shear this sheep." or, with shears, "The sheep
+manages to get away from you!" and gives no wool (OSRS wiki 'Sheep (penguins)'; OSRS-Content
+dca1c3a937). A `talk_to(..., 1)` now reads `chat_message: no dialogue in 5 tick(s), content line
+'You need a pair of shears...'` and the stage stays 45. Lumbridge Larry (`peng_multi_larry_lumb`)
+is only placed while `varb3298_peng_multi_larry` is 1: a scratch that stages state 45 sets it too.
+
+(d) A regression run in a seam pass takes `--no-publish`: two fixers ran `run.py cooks_assistant`
+and `druid` without it and republished `selftest/quests/quest_{cook,druid}/play` in OSRS-Content
+(restored by hand). Seam pass 17 has the rule; running.md now says it at the run command.
 
 ## Seam pass matthew-mbp-m4-b51-seam1 (2026-10-02, batch matthew-mbp-m4-b51)
 
