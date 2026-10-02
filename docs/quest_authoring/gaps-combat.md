@@ -369,3 +369,13 @@ spawn is a multinpc parent needs its stats on the parent; the client only draws 
 In the Dad fight loop, put `t.ticks(2)` after each `t.player.attack("troll_champion", 2, 3)` before
 you look for the chat. Without it, the pending attack click can close Dad's "Stop! You win." page
 before the loop reads it, which makes the fight flaky. `troll.lua` has the working loop.
+
+## A large boss's guide WorldPoint is its centre tile; "You need a Slayer level of 40" (Royal Trouble, vm-b1-seam1)
+
+A Quest Helper `NpcStep` WorldPoint for an npc bigger than one tile is the tile under its model's
+centre (RuneLite `Actor.getWorldLocation`), not the south-west anchor `npc_add` and `t.npc.nearest`
+report: subtract `(size-1)/2` on each axis. Royal Trouble's Giant Sea Snake (5x5) is at the guide's
+2615,10280 as its middle, `nearest` reads SW 2613,10278; melee it from 2613..2617,10277, anywhere
+else on the shingle it shoots you (poison). It needs Slayer 40: below that, Attack writes "You need
+a Slayer level of 40 to attack this creature." and no swing (`hp no bar -> no bar`). Stats are the
+wiki's (100 hp, def 160): seam-facts, Seam pass vm-b1-seam1 (d).

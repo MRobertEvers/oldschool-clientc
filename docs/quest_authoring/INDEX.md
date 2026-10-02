@@ -24,7 +24,10 @@ topic file with one line added here.
 - `refused -- You can't go any further.` on a ladder -> start-and-travel: Why not `click_loc` the ladder
 - ladders, stairs, trapdoors, basements (`z+6400`), a scene that fails to load -> start-and-travel: Floors and ladders
 - a lever maze the hand-in never reads -> gaps-world: The `goto_tile` bypass
-- `other_floor: ...`; a loc only on a lower floor -> verbs-pointer: One named copy
+- `other_floor: ...`; `reach level N by the guide's route first`; a loc only on another floor (never a driver seam) -> verbs-pointer: One named copy; seam-facts: Seam pass vm-b1-seam1 (a)
+- Penguin Agility Course: steps/stepstone `other_floor`, `walk_to` stuck in the water, crusher has only Examine -> gaps-world: Penguin Agility Course
+- a POH is bare grass, `loc_near` finds no hotspot, save `[poh_rooms]` shows 84xx ids -> gaps-world: A player-owned house is bare grass; seam-facts: Seam pass vm-b1-seam1 (b)
+- Agility Instructor: "You haven't finished the course yet, soldier." (Cold War stage 100) -> seam-facts: Seam pass vm-b1-seam1 (c)
 - `loc_near` level 2 on a bridge deck; goto to the wrong plane -> gaps-world: `t.world.loc_near` reports
 - a shared object id's `WorldPoint` (`FAI_FALADOR_FURNACE`) is `not_found` -> gaps-world: Quest Helper's `WorldPoint`
 - where a multi-floor room is (`Zone`/`WorldPoint`) -> gaps-dialogue: Rewards and steps
@@ -167,6 +170,7 @@ topic file with one line added here.
 - `; progress t+10 hp .., ..` at the end of an await_dead detail -> verbs-combat: `t.npc.await_dead(npc, ticks=60`
 - a quest boss's first bar reading is empty (`0/60` after one hit, Elvarg; FIXED seam31) -> gaps-combat: Elvarg dies to the first hit
 - Dad's surrender page closes before the loop reads it -> gaps-combat: Troll Stronghold: Dad's surrender
+- a big boss is not on the guide's tile (`nearest` reads SW, guide reads centre); "You need a Slayer level of 40 to attack this creature." (Giant Sea Snake) -> gaps-combat: A large boss's guide WorldPoint is its centre tile
 - player hits missing on an npc for several ticks mid-attack (Melzar, trolls, KBD) -> seam-facts: Seam pass 29 (b)
 - every `::spawn`/`npc_add` of one npc on one tile drops the same loot -> seam-facts: Seam pass 29 (a)
 - `hp no bar -> no bar`, splats only on the player -> traps-23-33: Trap 31
@@ -338,6 +342,7 @@ topic file with one line added here.
 - "section 1/2", "S2" -> start-and-travel; "section 3" -> verbs-*; "4" -> verbs-root-and-quest; "6" -> running; "7" -> coverage-and-gate
 - "section 8" -> gaps-dialogue, gaps-world, gaps-combat, running, seam-facts, sampler-findings, content-gaps; its "first bullet" -> gaps-dialogue: Completion
 - "payout-reopen", "luthas-payout/customs-pay", "mesbox/p_delay recipe" -> gaps-dialogue: A payout branch
+- "vm-b1-seam1 (a)-(d)", "[seam:vm-b1-seam1]" -> seam-facts: Seam pass vm-b1-seam1
 - "the varp seam", "never-arriving-varp", "journal cross-check" -> gaps-world: A stage poll
 - "section 8's player.attack note" -> gaps-combat: `t.player.attack`'s settle; "Ernest the Chicken's maze" -> gaps-world: The `goto_tile` bypass
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits

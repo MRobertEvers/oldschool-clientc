@@ -906,3 +906,48 @@ multivarbit `upass_koftik_end`) in the OSRS cache; OSRS `caveguide5` is the temp
 found no Koftik and the pocket had no way out. FIXED: it finds `caveguide6`, whose Talk-to (the one
 binding, quest_regicide `koftik.rs2`) opens `@koftik_whereami` while `%upass` is `defeated_iban`.
 When a LostCity npc symbol finds nothing, compare the OSRS spawn file's npc at that tile.
+
+## Seam pass vm-b1-seam1 (2026-10-02, batch vm-b1)
+
+(a) `other_floor` is an honest answer, not a driver seam: the game's own client cannot press a loc
+on another plane (the pick drops it; an oploc resolves on the player's plane). The detail now names
+the level to reach by the guide's route (verbs-pointer, "One named copy ... other floors";
+conformance row `seam.click_loc_names_the_other_floor` checks the wording). The triage's two cases:
+Cold War's course steps/stones/crushers are level 0 and their water is unwalkable (gaps-world,
+"Penguin Agility Course"); Darkness of Hallowvale's shelf `myq3_agil_26_shelf_climb_down` at
+3626,3221,2 presses first time from 3625,3221,2 (`teleport: 3625,3221,2 -> 3626,3221,1`), so its
+parity miss was not reproducible.
+
+(b) A POH room or furniture name (`poh_dummy_garden`, `poh_crafting_table_3`, ...) in an UNTYPED
+position -- a command argument such as `poh_room_add`'s, the right side of `poh_room_get(...) =` --
+compiles to the same-named OBJ since 37f8b2a84 gave dbrows their own symbol kind (`poh_dummy_garden`
+is obj 8415 and dbrow 4167; dbrow 8415 is a sailing row). Every house was bare grass. FIXED for the
+starter rooms and `~poh_restore_decorations` (OSRS-Content `poh_state.rs2` `[proc,poh_row]`, a
+dbrow-typed parameter; `poh_construct.rs2`): pass the name through `~poh_row(...)`. NOT fixed: ~690
+other POH sites (a room built through the add-room interface still stores an obj id) and ~160 dbrow
+sites elsewhere -- `SSCOMPILE_AMBIGUOUS=all make -C src torirsserver-scripts` lists them; the
+compiler fix is to hint `def_<type>` initialisers, assignments and `return(...)` from the declared
+type (`src/serverscript/ssc_compile.c`). Saves written before carry obj ids; no migration.
+
+(c) Cold War's physical is enforced at the Agility Instructor: `~coldwar_course_leg`
+(`coldwar_outpost.rs2`) counts `%varb3305_peng_agility_state` 1 (stone 7), 2 (the last icicle
+pillar, x=2662), 3 (the ice) in order at state 100, and the instructor refuses 100 -> 105 below 3
+("You haven't finished the course yet, soldier. ..." -- port wording, no source gives the line),
+then resets it to 0 (it is the Icelord count from 125). Before, the fence gate dropped a player
+from the START into the finish pen and the instructor wrote 105 with no obstacle run. Sources: wiki
+Cold War/Quick guide and Transcript:Cold War, wiki Penguin Agility Course, Quest Helper
+`ColdWar.java` steps.put(100). A `goto_tile` into the finish (2652..2657 x 4038..4041) no longer
+reaches 105: run the obstacles. Proof: `build/seam_state/vm-b1-seam1/agility/` (course 49/2 -- the
+two FAILs a first-press icicle flake retried PASS and a scratch hollow walk; refusal 22/1).
+
+(d) Royal Trouble's Giant Sea Snake is fought as the wiki has it: a stat block in
+`royaltrouble.npc` (hp 100, att 170, str 90, def 160, ranged 130, +0 bonuses, crush every 4 ticks,
+poison 9, 20% earth weakness -- wiki 'Giant Sea Snake', matching the cache's stat1..5), Slayer 40
+checked on `[opnpc2]` and its `[apnpc2]` twin ("You need a Slayer level of 40 to attack this
+creature."), melee when touching its 5x5 body and ranged otherwise (`[ai_opplayer2]`), and no
+respawn once ROYAL_MISC is 120. It lies at the guide's 2615,10280 read as the MIDDLE of its body:
+a Quest Helper `NpcStep` WorldPoint for a large npc is the tile under its centre (RuneLite
+`Actor.getWorldLocation`), not the SW anchor `npc_add` takes -- subtract `(size-1)/2` per axis (SW
+2613,10278). Melee from 2613..2617,10277; the heavy box lands on 2615,10277. Proof: snake 28/0,
+the parity driver from leg 8 to quest complete 43/0 (12 lobsters at 70 combat: bring antipoison,
+food or Protect from Melee). Open: a spell bypasses the Slayer gate (tree-wide, `~pvm_default_spell`).

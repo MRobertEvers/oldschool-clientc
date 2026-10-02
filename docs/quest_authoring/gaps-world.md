@@ -676,3 +676,38 @@ transmog").*
   `transmog_apeatoll.lua` (Hold -> monkey drawn -> unequip -> human).
 - Not built yet (no quest needs it): a transmog into an npc bigger than one tile is not re-centred
   (the reference's `transformedSize`), and a transmogged player's chathead is still the player's.
+
+## Penguin Agility Course (Cold War stage 100): the water leg cannot be walked (vm-b1-seam1)
+
+Symptom: `click_loc peng_agility_steps01` / `peng_agility_stepstone01` answer `other_floor` from the
+course start 2636,4054,1; from the water (`goto_tile` 2634,4054,0) a `walk_to` one tile times out in
+place, and the first stepping stone refuses "I can't reach that!" even from the adjacent 2630,4056,0.
+Three causes, none in the driver:
+- ENGINE: `torirs_server_scene.c` `terrain_is_ocean()` counts overlay 537 (the course's wading
+  water, 2628-2635 x 4053-4065, level 0) as ocean, and `ocean_blocks_walk` blocks every tile of it.
+  Open: the wiki puts the crushers and the first stone in that water, so it must be walkable.
+- CONTENT: nothing takes the player from the guide's start tile 2636,4054,1 (Quest Helper
+  `agilityEnterWater`) down into the level-0 water (zone `inAgilityWater`); no source names the
+  mechanism. Open.
+- CONTENT: the Crusher npcs (`peng_agility_crushcourse_crushblock01..04_npc`, 856-859) have no op in
+  `all.npc`, so `[opnpc1,crushblock*]` never fires and the shared penguin lap tracker never starts
+  (`lap course=17 step=0` throughout); the wiki passes a crusher by timing a walk. Open.
+
+FIXED in the same pass: stone 7 (`peng_jump_stone_clickzone_07`, 2635,4065,1) is an `[aploc1]`
+jumped from stone 6 two tiles away (it answered "I can't reach that!": stone 6's serverside wall
+and the level-0 `peng_coast_6` leave no op-adjacent walked tile); the ice ends with the wiki's slide
+to the finish line 2657,4039,1; the fence gate `peng_agility_fencing_door` (west edge of 2652,4039)
+crosses either way -- finish (east) -> start 2651,4039 is the obstacle with 65 XP, start -> finish
+2652,4039 a plain crossing. The Agility Instructor refuses state 100 -> 105 until the course is run
+(seam-facts, Seam pass vm-b1-seam1 (c)); until the water leg lands, a test crosses it with
+`goto_tile` onto the first stone (2630,4057,1) and says so, or stops at `t.blocked`.
+
+## A player-owned house is bare grass; `loc_near` finds no hotspot (FIXED vm-b1-seam1)
+
+Symptom: inside a POH (`tile 64xx,..`) the instance is empty grass, `loc_near poh_workshop_2` or a
+furniture loc is `not_found`, and the save's `[poh_rooms]` holds 84xx ids. Cause and fix: seam-facts,
+Seam pass vm-b1-seam1 (b). Cold War's clockwork suit: `::coldwarpoh` (setup) stages the house the
+guide requires (Rimmington, a Workshop, a Crafting table 3) at the Rimmington portal 2953,3224,0;
+`enterPoh` is the portal's op 2 `Home` (op 1 Enter opens a four-option menu); then
+`click_loc("poh_clockmaking_3", 1)` + `choose:Clockwork` makes the mechanism and a second click +
+`choose:Clockwork toys` + `choose:Clockwork penguin` makes `peng_suit_unwound`.
