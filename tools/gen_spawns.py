@@ -196,6 +196,9 @@ INSTANCED_SQUARES = {
 # The Theatre had no such sweep, so its Maiden simply appeared twice.
 
 NPC_SPAWN_EXCLUSIONS = {
+    # Contact!: Maisa stands in the real chasm (m35_67) via
+    # quest_contact/configs/contact.spawn; the dump row is in empty instance space.
+    ("contact_maisa_multi", 3218, 9246, 0),
     ("arena_scorpion", 2608, 3159, 0),
     ("arena_bouncer", 2608, 3162, 0),
     ("arena_ogre", 2608, 3165, 0),
