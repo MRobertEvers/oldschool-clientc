@@ -197,3 +197,15 @@
   1. leg 2 (~line 562): `::setlevel agility 99` before Iban's collapsed bridges closed the guide's fall branch. Keep Agility 56; on a fall drive goBackUpToIbansCavern (cavewalltunnel_upass_up 2336,9793) and walk back. The old GUIDE-GAP comment there was wrong and is now a plain note.
   2. leg 4 (~line 790, inside camp_to_tracker): no teleport 2209,3201 -> 2196,3237 back across the log and the ring of leaves; walk them.
 - ONLY legs 2 and 4 are open (notebooks retired as leg<K>.progress.round7.md); legs 1, 3, 5, 6 stand. Done means `grep -c "ROUND 8 (orchestrator" test/quests/regicide.lua` prints 0 and the full run reaches expect_complete.
+
+## leg 2 (round 8, b48; supersedes the earlier leg 2 block's agility note)
+- Ends at 2312,3216 level 0 (Tirannwn arrival, quiet); regicide_quest = 3 (spoken_scouts). Pack adds woodplank x1; rest as leg 1.
+- No mid-run ::setlevel: agility stays 56. Iban's four bridges are a loop (cross()): a fall lands 2333,9866 or 2335,9821 level 0, the leg clicks cavewalltunnel_upass_up (goBackUpToIbansCavern-N), walks hops back to 2172,4686 (west pocket 2113,4729 via z 4730, or south pocket 2150,4546 via x 2173) and re-crosses from bridge A.
+- The run is deterministic in --only-leg 2: bridge B fell once, recovery proven green (72 rows). A fall-free run just has no recovery rows.
+- Rest as before: Idris scene fires ~8 ticks after the exit click; upass_mud via use_on stand_on_square; cell lock random (retried).
+
+## leg 4 (round 8)
+- Ends at 2220,3155 level 0 (just north of the tripwire, quiet, maybe poisoned); regicide_quest = 9 (defeated_guard). --from-leg 4 run: 335/0 PASS; lint clean.
+- Pack: magic_shortbow + rune_arrow worn, ~4 sharks, lobsters, spade, tinderbox, woodplank; setup gives ranged 70, hitpoints 70, defence 40, agility 56 (unchanged).
+- Round 8 change: removed the duplicate log+ring block at the head of the leg and the t.blocked in camp_to_tracker; the log and ring are walked/clicked once from the camp each way; cross() eats when hp < 30.
+- A full run hits TORIRS_MAX_FRAMES=240000 (run.unfinished) late in leg 6; leg 6 needs the frame budget raised or a faster route.
