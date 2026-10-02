@@ -124,7 +124,7 @@ quest_prince	prince	princealirescue		1	green	sonnet-b16
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo				
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
-quest_ratcatchers	ratcatchers	ratcatchers		3	todo	matthew-mbp-m4-b47	RETRY after 4d2d4d62e: the flute's buttons are [if_button,...] now (OSRS-Content c57a463b55), so op-0 presses play the tune; replace playNote1.noEffect + t.blocked with the tune, enterPitsForEnd and talkToFelkrashForEnd from wip/ratcatchers/relay.md (proved 211/0)		
+quest_ratcatchers	ratcatchers	ratcatchers		3	todo	matthew-mbp-m4-b49	REJECTED (matthew-mbp-m4-b49): file runs green (211/211, gate, lint, helper_coverage FULL 46 steps) but asserts none of the documented rewards: no Thieving XP row (+4500, ratcatchers.rs2:685) and no Rat pole row (inv_add vc_rat_pole, :684); t.skill.snapshot() is taken at line 308 and never used. Add a snapshot diff t.check/t.expect of literal 4500 thieving xp and an inventory check for vc_rat_pole after the final dialog, then rerun. Working file kept uncommitted.		
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo				
 quest_recipefordisaster_dwarf	rfd_dwarf	recipefordisaster	RFDDwarf.java	5	todo				
@@ -162,7 +162,7 @@ quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, b
 quest_swansong	swansong	swansong		4	todo				
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo				
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo				
-quest_tbwt	tbwt	taibwowannaitrio		3	todo	matthew-mbp-m4-b47	RETRY after 4d2d4d62e: Zembo is placed at Musa Point with his boozeshop (c57a463b55); replace parked.lua's getRum.zembo check + t.blocked with the talk/shop/buy rows in wip/tbwt/relay.md (47/0 to end of leg 1), remove the two stale -- CHECK header words, then author leg 2 (use_item_on_item(knife, banana))		
+quest_tbwt	tbwt	taibwowannaitrio		3	content_bug	matthew-mbp-m4-b49	Quest completes (221 PASS, guide FULL 40/40, gate+lint green) but the quest gives none of the documented XP rewards: Quest Helper lists Cooking 5000, Fishing 5000, Attack 2500, Strength 2500; quest_tbwt.rs2 [queue,tbwt_quest_complete] only awards QP+2000 coins and the scroll lists no XP. Test has no XP rows. Content must add the four stat_advance calls (x10 units) at completion, then add literal skill-delta rows (t.skill.snapshot already taken at tbwt.lua:713, unused). File left uncommitted in test/quests/tbwt.lua.		
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo				
@@ -174,10 +174,10 @@ quest_totem	totem	tribaltotem		3	green	sonnet-b36
 quest_toweroflife	toweroflife	toweroflife		4	todo				
 quest_tree	tree	treegnomevillage		2	green	sonnet-b28			
 quest_troll	troll	trollstronghold		3	green	sonnet-b36			
-quest_troll_love	troll_love	trollromance		3	todo	matthew-mbp-m4-b47	RETRY after 4d2d4d62e: the Trollweiss cave/crevice maplinks work (curseofarrav.rs2, c57a463b55) and wip/troll_love/parked.lua carries the Arrg kit (85/85/85, dragon scimitar, rune armour worn, 16 sharks); it ran 97/97 to the scroll -- copy it to test/quests/troll_love.lua, assert the cave .tile rows, fix sledSouth.msgs		
+quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
-quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b47	RETRY after 4d2d4d62e: leaveFallArea is drivable (five rockslide2_obstacle_upass + caverockpile 2443,9651 -> 2482,9715, no content change); replace the leg-4 GUIDE-GAP with the block in wip/upass/relay.md, add a fall retry to navigateMaze, and take the woodplank ground spawn after the bridge instead of ::give		
+quest_upass	upass	undergroundpass		3	todo	matthew-mbp-m4-b49	REJECTED (matthew-mbp-m4-b49): gate RED: step killJerro-supplies verdict FAIL (180-killJerro-supplies-FAIL.png) -- after the knight's talk: drain ok none; bread x0 stew x0. run.py did not publish (ledger SUMMARY FAIL), though the quest completes (varp 10, qp +5). File test/quests/upass.lua kept untracked; lint clean.		
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
