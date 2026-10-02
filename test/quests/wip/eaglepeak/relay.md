@@ -44,3 +44,12 @@
 - leavePeak: goto_tile 1993,4980 then click exitmid with stand_on_square (walkable centre square); declared GUIDE-GAP (eaglepeak.rs2:178), as is leg 5's gold exitmid (gold_room.rs2:343), so helper_coverage reads CONTENT_GAP not FULL; gate.py green, lint clean.
 - Camp talk at 2317,3503 gives ferret and box trap via mesboxes; Charlie pays 2500 Hunter XP (asserted literally).
 - Full run 205 rows PASS (3 runs of the full test plus 3 leg runs).
+
+## ROUND 2 (orchestrator, 2026-10-02, after sampler matthew-mbp-m4-b50)
+Legs 4 and 5 are reopened (their notebooks retired as leg<K>.progress.round1.md); legs 1-3 and 6 stand.
+The round-1 file (6d75971d2) is installed with two ROUND 2 t.blocked markers:
+- leg 4: fillFeeder7 (feeder1a, the guide's recovery step for a blocked lever 1) was pressed before pushLever1Up,
+  moving mechanical bird 1 early. Drop it; follow the guide's main-path order.
+- leg 5: fillFeeder5 then read as a refused press (fillFeeder5.kept). It must be a driven press feeder1 accepts
+  (gold_room.rs2 eaglepeak_gold_feeder_ready case 1) that moves bird 1.
+The goto_tile detail now says "at <landing> from <departure>" (driver b50); a goto past a gate the guide names reads CHEAT.
