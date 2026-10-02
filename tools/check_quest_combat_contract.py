@@ -2540,7 +2540,9 @@ def check_tai_bwo_wannai_trio() -> None:
             "[oploc2,tbwt_bamboo_door]", "~door_selfstage_close;",
             "%varp6054_tbwt_tinsay < ^tbwt_tinsay_claimed_final_reward | %varp321_tbwt_tiadeche < ^tbwt_tiadeche_claimed_final_reward",
             "@pray_at_altar(stat_base(prayer));", "[queue,tbwt_quest_complete]",
-            '"2000 coins|The three brothers return to Tai Bwo Wannai"',
+            # The real scroll (wiki File:Tai_Bwo_Wannai_Trio_reward_scroll.png) lists
+            # the brothers' four XP rewards and no coins line; seam b49-seam2.
+            '"5000 Fishing XP|5000 Cooking XP|2500 Attack XP|2500 Strength XP", tbwt_raw_karambwan);',
         ),
         "Tai Bwo Wannai Trio core item, door, altar and reward contract",
     )

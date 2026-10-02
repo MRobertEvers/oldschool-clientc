@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 90
+-- @seam-count 92
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 90
+local SEAM_COUNT = 92
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -8244,6 +8244,140 @@ return {
                 return "hollow", reading
             end
             return "ok", reading
+        end)
+
+        -- DWARF CANNON'S TOOLKIT AND GRIM TALES' PIANO TAKE THE IF1 PRESS
+        -- (matthew-mbp-m4-b49-seam2 if1_buttons_bound_as_if3).  Both
+        -- interfaces are IF1 (`if3=no`), so a click sends the op-less
+        -- IF_BUTTON and the server runs only [if_button,<com>] (LostCity
+        -- IfButtonHandler.ts:31); the content bound them [if_button1,...], so
+        -- mcannon was green only on an op-1 press no click makes and no piano
+        -- key ever played (seam2_mcannon_before / seam2_piano_before).  Graded
+        -- on the op-0 press landing: the hook selected
+        -- (varb2237_mcannonmulti_tool3 = 1) and the piano's first key
+        -- advancing varb3697_grim_pianotrack to 1.
+        seam("seam.if1_toolkit_and_piano_op0", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local use_on = verb("player", "use_on")
+            local click_loc = verb("player", "click_loc")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            local await_server = verb("var", "await_server")
+            local server = verb("var", "server")
+            local key = verb("key")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not use_on then return missing("player", "use_on") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            if not await_server then return missing("var", "await_server") end
+            if not server then return missing("var", "server") end
+            if not key then return missing("key") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give mcannontoolkit 1")
+            setup_cheat("::setvar varp0_mcannon 6")
+            setup_cheat("::setvar varb3694_grim_dwarfquest 20")
+            settle(2)
+            local function teardown()
+                key("escape")
+                setup_cheat("::setvar varb2237_mcannonmulti_tool3 0")
+                setup_cheat("::setvar varp0_mcannon 0")
+                setup_cheat("::setvar varb3697_grim_pianotrack 0")
+                setup_cheat("::setvar varb3694_grim_dwarfquest 0")
+                setup_cheat("::clearinv")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+            end
+            local goto_result, goto_detail = goto_tile(2564, 3461, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto the cannon 2564,3461,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local cannon = by_symbol("loc", "mcannon_cannon_multiloc")
+            local use_result, use_detail = use_on("mcannontoolkit", cannon)
+            local open_result = await_open("mcannon_interface", 10)
+            local hook_result, hook = widget("mcannon_interface:mcannon_tool3")
+            local hook_landed = "not_run"
+            if open_result == "ok" and hook_result == "ok" then
+                invoke(hook, 0)
+                hook_landed = await_server("varb2237_mcannonmulti_tool3", 1, 6)
+            end
+            local _, tool3 = server("varb2237_mcannonmulti_tool3")
+            key("escape")
+            settle(2)
+            local piano_goto = goto_tile(2903, 9874, 0)
+            local play_result, play_detail = "not_run", nil
+            local piano_open, key_result, piano_key = "not_run", "not_run", nil
+            local key_landed = "not_run"
+            if piano_goto == "ok" then
+                play_result, play_detail = click_loc("grim_grandpiano", 1)
+                piano_open = await_open("grim_piano", 10)
+                key_result, piano_key = widget("grim_piano:ue")
+                if piano_open == "ok" and key_result == "ok" then
+                    invoke(piano_key, 0)
+                    key_landed = await_server("varb3697_grim_pianotrack", 1, 6)
+                end
+            end
+            local _, track = server("varb3697_grim_pianotrack")
+            teardown()
+            local text = "toolkit on cannon -> " .. describe(use_result) .. " " .. describe(use_detail)
+                .. "; mcannon_interface open -> " .. describe(open_result) .. "; mcannon_tool3 invoke(op 0) -> tool3 await "
+                .. describe(hook_landed) .. " (read " .. describe(tool3) .. "); piano goto -> " .. describe(piano_goto)
+                .. "; grim_grandpiano op1 -> " .. describe(play_result) .. " " .. describe(play_detail)
+                .. "; grim_piano open -> " .. describe(piano_open) .. "; ue invoke(op 0) -> pianotrack await "
+                .. describe(key_landed) .. " (read " .. describe(track) .. ")"
+            if open_result ~= "ok" or hook_result ~= "ok" or piano_open ~= "ok" or key_result ~= "ok" then
+                return "no_subject", text .. " -- an interface did not open"
+            end
+            if hook_landed ~= "ok" or tool3 ~= 1 then
+                return "refused", text .. " -- the op-0 press did not run [if_button,mcannon_interface:mcannon_tool3]"
+            end
+            if key_landed ~= "ok" or track ~= 1 then
+                return "refused", text .. " -- the op-0 press did not run [if_button,grim_piano:ue]"
+            end
+            return "ok", text
+        end)
+
+        -- TAI BWO WANNAI TRIO'S VESSEL TAKES ONE KARAMBWANJI
+        -- (matthew-mbp-m4-b49-seam2 tbwt_completion_rewards).  This cache's
+        -- raw karambwanji is stackable and the load deleted the whole slot,
+        -- so one vessel ate the stack; OSRS wiki "Raw karambwanji" (oldid
+        -- 15184350) loads one.  Graded on both use orders: 5 -> 4 -> 3.
+        seam("seam.tbwt_vessel_loads_one_karambwanji", function()
+            local use_item_on_item = verb("player", "use_item_on_item")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            if not use_item_on_item then return missing("player", "use_item_on_item") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give tbwt_raw_karambwanji 5")
+            setup_cheat("::give tbwt_karambwan_vessel 2")
+            settle(2)
+            local first_result, first_detail = use_item_on_item("tbwt_raw_karambwanji", "tbwt_karambwan_vessel")
+            local first_landed = await("tbwt_karambwan_vessel_loaded_with_karambwanji", 1, 10)
+            local _, after_first = count("tbwt_raw_karambwanji")
+            local second_result = use_item_on_item("tbwt_karambwan_vessel", "tbwt_raw_karambwanji")
+            local second_landed = await("tbwt_karambwan_vessel_loaded_with_karambwanji", 2, 10)
+            local _, after_second = count("tbwt_raw_karambwanji")
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = "karambwanji on vessel -> " .. describe(first_result) .. " " .. describe(first_detail)
+                .. "; loaded await 1 -> " .. describe(first_landed) .. ", karambwanji 5 -> " .. describe(after_first)
+                .. "; vessel on karambwanji -> " .. describe(second_result) .. "; loaded await 2 -> "
+                .. describe(second_landed) .. ", karambwanji -> " .. describe(after_second)
+            if first_landed ~= "ok" or second_landed ~= "ok" then
+                return "no_subject", text .. " -- a vessel did not load"
+            end
+            if after_first ~= 4 or after_second ~= 3 then
+                return "refused", text .. " -- a load did not take exactly one karambwanji (want 4 then 3)"
+            end
+            return "ok", text
         end)
 
         step("finish", function()
