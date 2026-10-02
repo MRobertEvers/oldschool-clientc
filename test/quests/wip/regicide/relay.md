@@ -128,3 +128,8 @@
 - leaveUnicornArea: walk 2378,9605 -> 2378,9607 -> 2375,9607 -> 2375,9610, click `upass_unicorn_doorl` `{ at = { 2375, 9611 } }`: teleport 2375,9610 -> 2371,9666 (angle south, upass_unicorn_tunnels.rs2:27-29). Then openIbansDoor as before.
 - Also: leg 2's `goto-pickCellLock 2393,9657` lands INSIDE the north cell (z 9657-9660, closed by cave_railings2 at z 9656). The guide's tile is the corridor 2393,9655, reached on foot from the well landing: walk_to 2410,9656 then 2393,9655 (seam2_maze_walk row walkToCell-tile), then pick the 9655 railing.
 - Leg 6's second walk (`goto-crossLedge-again` .. the "second walk's maze" marker) is the same route with -again names; the copy did not drive leg 6.
+
+## orchestrator note (matthew-mbp-m4-b48 round 5)
+- The maze is not sealed: it is five rock bridges (walkway_upass_narrow_mid_top), each clicked from x-1 -- see "## seam2 (maze)" above. Leg 2 with the maze and the temple door was proven 42/42 by seam 2: `wip/regicide/seam2_leg2_proven.lua` is that leg-2 copy -- port its rows into leg 2, replacing the markers there.
+- Leg 6's second walk repeats the same three crossings (grid as in leg 3, maze bridges, temple door): replace its markers the same way.
+- Two more rows the seam found: `goto-pickCellLock 2393,9657` (legs 2 and 6) teleports INSIDE the cell row -- stand on 2393,9655 on the corridor instead (walkable from the well landing); `goto-openIbansDoor 2369,9718` (legs 2 and 6) skips a 185-step walk from 2371,9666 -- walk it.
