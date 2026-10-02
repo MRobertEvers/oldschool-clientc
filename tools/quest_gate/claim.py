@@ -326,7 +326,8 @@ def cmd_release(args) -> int:
     if outcome["released"]:
         print("released: %s" % " ".join(outcome["released"]))
     elif not outcome["refused"]:
-        print("released: nothing (no row of %s is still claimed)" % args.batch)
+        print("released: nothing (no claimed row of %s%s)" % (
+            args.batch, " matches " + " ".join(args.test_ids) if args.test_ids else " is left"))
     return EXIT_NOTHING if outcome["refused"] else EXIT_OK
 
 
