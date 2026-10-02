@@ -59,6 +59,19 @@ def collisions():
     return [name for name in raid_names() if name in taken]
 
 
+def run_quest_gate(script):
+    """exec_quest_gate as a child process: the exit code comes back so the
+    caller can grade more after it."""
+    import subprocess
+    clash = collisions()
+    if clash:
+        print("raid_gate: REFUSING: test/raids/%s.lua shares its id with the quest loop" % ", ".join(clash), file=sys.stderr)
+        return 2
+    env = dict(os.environ, TORIRS_QUEST_TESTS_DIR=RAID_TESTS_DIR, TORIRS_QUEST_PUBLISH_DIR=RAID_PUBLISH_DIR)
+    sys.stdout.flush()
+    return subprocess.call([sys.executable, os.path.join(QUEST_GATE_DIR, script)] + sys.argv[1:], env=env)
+
+
 def exec_quest_gate(script):
     clash = collisions()
     if clash:

@@ -13,4 +13,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import suite  # noqa: E402
 
 if __name__ == "__main__":
-    sys.exit(suite.exec_quest_gate("gate.py"))
+    # The quest gate runs as a child so that raid coverage (the encounter spec
+    # table against the tick ledger, tools/raid_gate/raid_coverage.py) can be
+    # graded afterwards for every test id named on the command line; a FULL
+    # coverage is part of a raid room's green (docs/RAID_ORCHESTRATOR.md 5).
+    code = suite.run_quest_gate("gate.py")
+    ids = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if ids and "--probe" not in sys.argv and "--cutscene-as" not in sys.argv:
+        import raid_coverage
+        cov = raid_coverage.main(["raid_coverage"] + ids)
+        if cov and not code:
+            code = cov
+    sys.exit(code)

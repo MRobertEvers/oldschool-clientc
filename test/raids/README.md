@@ -65,10 +65,17 @@ of row, all required:
    player is never adjacent to Bloat on a stomp tick, every tile stood on in
    Sotetseg's maze is a maze tile, no Verzik P1 auto resolved while the pillar
    stood between. A kill row alone proves nothing.
-3. **The tick ledger.** From `t.ticklog.rows()`, one row per spec-table
-   mechanic, with its tolerance stated: `maiden.cad: 10 ticks, 40 of 40 gaps
-   (spec 10, grade B)`; a first-attack offset is +-1; a grade E row reads
-   "measured N; approximation, Mn".
+3. **The tick ledger.** From `t.ticklog.rows()` / `t.ticklog.gaps()`, one PASS
+   row per spec-table mechanic, named `spec.<mechanic_id>`, whose detail starts
+   `measured <value>[ <unit>][, <free text>] (spec <value>[ <unit>], grade <G>, tol <tolerance>)`:
+   `spec.maiden.cad` -> `measured 10 ticks, 40 of 40 gaps (spec 10 ticks, grade B, tol exact)`;
+   `spec.maiden.first` -> `measured 9 (spec 9, grade B, tol +-1)`; a grade E row ->
+   `measured 3 (spec 1-5, grade E, tol approx); approximation, M40`. A measured comma
+   list is the distribution (every instance must meet the tolerance). The spec value,
+   grade and tolerance are copied from the room's table
+   (`docs/minigames/<raid>/encounters/<room>.tsv`); `tools/raid_gate/raid_coverage.py <id>`
+   grades the ledger against it and `tools/raid_gate/gate.py <id>` runs it after the
+   quest gate -- a room is green only when coverage reads FULL.
 
 An npc acting on tick T sees the world as it stood at the end of tick T-1
 (`docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md` section 1): a step that
