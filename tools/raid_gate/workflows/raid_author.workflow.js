@@ -1,0 +1,130 @@
+export const meta = {
+  name: 'raid-author-pass',
+  description: 'Resumable raid room-test pass: one Sonnet author per room writes test/raids/<raid>_<room>.lua (the fight driven, the technique rows, the tick ledger against the spec table), a Sonnet reviewer per room grades and commits it, an Opus sampler re-derives three spec numbers per kept room from the sources, and a closer pushes the raid branch',
+  phases: [
+    { title: 'State', detail: 'Sonnet: which rooms of this pass are already reviewed' },
+    { title: 'Author', detail: 'Sonnet authors, one per room; each writes <id>.author.json and a notebook' },
+    { title: 'Review', detail: 'Sonnet reviewers; each runs the raid gate (coverage included) and commits; writes <id>.review.json' },
+    { title: 'Sample', detail: 'Opus: re-derives three spec numbers per accepted room, reverts what it cannot re-derive, writes ROOM_LEDGER.md, pushes' },
+  ],
+}
+// The raid room-authoring pass (docs/RAID_ORCHESTRATOR.md section 6). Args:
+//   { pass: "<branch>-rooms-tob", raid: "tob", rooms: ["maiden", ...],
+//     mode: "entry" | "normal" | "hard" (default entry), context: "<paragraph>" }
+// State under build/author_state/<pass>/ (<id>.author.json, <id>.author.progress.md,
+// <id>.review.json, <id>.review.progress.md, sample.json, sample.progress.md).
+// Relaunch with the SAME args to continue; never resumeFromRunId. Never run it
+// alongside a seam or spec pass in this worktree. The raid loop is NOT the quest
+// loop (owner, 2026-10-02): no QUEUE.tsv, no claims, no wip/, no docs/quest_authoring/,
+// nothing pushed to v3.
+
+const WT = '/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid'
+const CONTENT = `${WT}/OSRS-Content/osrs239-content`
+const pass = args && args.pass
+const BATCH = (args && args.branch) || String(pass || '').replace(/-(rooms(-[a-z0-9]+)?|spec(-[a-z]+)?|seam\d+)$/, '')
+const raid = args && args.raid
+const rooms = (args && args.rooms) || []
+const mode = (args && args.mode) || 'entry'
+if (!pass) throw new Error('args.pass is required')
+if (!['tob', 'toa', 'cox'].includes(raid)) throw new Error('args.raid must be tob, toa or cox')
+if (!rooms.length) throw new Error('args.rooms is empty')
+const STATE = `${WT}/build/author_state/${pass}`
+const extraContext = (args && args.context) ? `\n\nCURRENT PICTURE: ${args.context}` : ''
+const RAID = {
+  tob: { name: 'Theatre of Blood', docs: `${WT}/docs/minigames/theater_of_blood`, plan: 'THEATRE_OF_BLOOD_PLAN.md', timing: `${WT}/docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md`, scripts: `${CONTENT}/server/scripts/minigames/minigame_tob/scripts`, constants: `${CONTENT}/server/scripts/minigames/minigame_tob/configs/tob.constant` },
+  toa: { name: 'Tombs of Amascut', docs: `${WT}/docs/minigames/tombs_of_amascut`, plan: 'TOMBS_OF_AMASCUT_PLAN.md', timing: `${WT}/docs/minigames/tombs_of_amascut/ENCOUNTERS.md`, scripts: `${CONTENT}/server/scripts/minigames/minigame_toa/scripts`, constants: `${CONTENT}/server/scripts/minigames/minigame_toa/configs/toa.constant` },
+  cox: { name: 'Chambers of Xeric', docs: `${WT}/docs/minigames/cox`, plan: 'COX_PLAN.md', timing: `${WT}/docs/minigames/cox/COX_MECHANICS.md`, scripts: `${CONTENT}/server/scripts/minigames/minigame_cox/scripts`, constants: `${CONTENT}/server/scripts/minigames/minigame_cox/configs/cox.constant` },
+}[raid]
+const ID = (room) => `${raid}_${room}`
+
+const COMMON = `Work ONLY inside ${WT} (the RAID orchestrator's git worktree, on branch ${BATCH} in both repos; cache.osrs239 there is a symlink -- never write into it). The owner's main checkout /Users/matthewevers/Documents/git_repos/3draster belongs to a different orchestrator: never read, build or run anything there. Absolute paths under ${WT}. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Never touch test/quests/, QUEUE.tsv, docs/quest_authoring/ or anything of the quest loop. Run every run in the FOREGROUND and wait for it; never background it. The raid run tooling is python3 ${WT}/tools/raid_gate/run.py <id> [--no-build --no-publish --script F --name N] and python3 ${WT}/tools/raid_gate/gate.py <id> (the quest gate plus raid coverage), python3 ${WT}/tools/raid_gate/raid_coverage.py <id>, python3 ${WT}/tools/quest_gate/lint_quest.py test/raids/<id>.lua, python3 ${WT}/tools/quest_gate/fail.py <id> (read a run's failing rows; never open ledger.tsv whole). PASS STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed pass resumes from disk.${extraContext}`
+const SYNC = `BRANCH MODEL: this pass runs on the raid branch ${BATCH} in BOTH repos (git -C ${WT} branch --show-current and git -C ${WT}/OSRS-Content branch --show-current must both print ${BATCH}; if not, stop and report). Never merge origin/v3 into the branch and never push to v3. Commit the submodule, stage the OSRS-Content gitlink in the parent, commit, then push BOTH branches: git -C ${WT}/OSRS-Content push -u origin ${BATCH} ; git -C ${WT} push -u origin ${BATCH}. A rejected push means another agent of this branch pushed first: git pull --no-rebase origin ${BATCH} in that repo, then push again. Never force, rebase, reset or stash.`
+const DISCIPLINE = `CONTEXT DISCIPLINE: (1) read a script only at the lines you need (grep -n for the symbol, then sed -n 'L,+40p'), never a whole room script (they run to thousands of lines); (2) after every run read the result with fail.py <id> (--all for every failing row), never ledger.tsv; (3) never cat the test file: grep -n '<row name>' and read twenty lines around the hit; (4) pipe exploratory commands through | head -c 4000; (5) open a screenshot only when fail.py names it or a row's claim needs the picture; (6) the spec table and DRIVER_NOTES.md are small: read them whole, once.`
+
+const AUTHOR_SCHEMA = { type: 'object', properties: {
+  test_id: { type: 'string' }, outcome: { type: 'string', enum: ['green', 'blocked', 'content_bug', 'gave_up'] }, runs: { type: 'integer' },
+  spec_rows_measured: { type: 'integer' }, spec_rows_total: { type: 'integer' }, technique_rows: { type: 'array', items: { type: 'string' } },
+  last_failure: { type: 'string' }, blocker: { type: 'string' }, doc_gaps: { type: 'array', items: { type: 'string' } }, compacted: { type: 'boolean' },
+}, required: ['test_id', 'outcome', 'runs', 'spec_rows_measured', 'spec_rows_total', 'technique_rows', 'last_failure', 'blocker', 'doc_gaps', 'compacted'] }
+const REVIEW_SCHEMA = { type: 'object', properties: {
+  test_id: { type: 'string' }, verdict: { type: 'string', enum: ['accepted', 'rejected', 'blocked', 'content_bug'] }, commit: { type: 'string' },
+  coverage: { type: 'string' }, findings: { type: 'array', items: { type: 'string' } }, shots_checked: { type: 'integer' }, doc_gaps: { type: 'array', items: { type: 'string' } },
+}, required: ['test_id', 'verdict', 'commit', 'coverage', 'findings', 'shots_checked', 'doc_gaps'] }
+const STATE_SCHEMA = { type: 'object', properties: { reviewed: { type: 'array', items: REVIEW_SCHEMA }, authored: { type: 'array', items: AUTHOR_SCHEMA }, sampled: { type: 'boolean' }, sample_considered: { type: 'array', items: { type: 'string' } }, sample_sent_back: { type: 'array', items: { type: 'string' } } }, required: ['reviewed', 'authored', 'sampled', 'sample_considered', 'sample_sent_back'] }
+
+const attempt = async (label, tries, make) => {
+  for (let i = 1; i <= tries; i++) {
+    const r = await make().catch(() => null)
+    if (r) return r
+    log(`${label}: no result on try ${i} of ${tries}`)
+  }
+  return null
+}
+
+const authorCard = (room, retry) => { const id = ID(room); return `${COMMON}
+${sentBack.has(id) ? `THIS ROOM WAS SENT BACK by the pass's Opus sampler after a previous launch (its finding is in ${STATE}/sample.json and ${WT}/docs/minigames/raid_loop/ROOM_LEDGER.md): first remove ${STATE}/${id}.author.json, ${STATE}/${id}.review.json and ${STATE}/${id}.review.progress.md (keep your notebook), then author it again from the committed file and the finding.\n` : ''}
+You are writing ONE raid room test: ${RAID.name}, room "${room}", test id "${id}", file ${WT}/test/raids/${id}.lua, mode "${mode}". READ, in this order, and nothing else up front: (a) ${WT}/docs/QUEST_AUTHORING.md, the 20 KB core (the file shape, the commands, the verb table, the rules); (b) ${WT}/test/raids/README.md (the three kinds of row and the ledger row contract); (c) ${WT}/docs/minigames/raid_loop/DRIVER_NOTES.md whole (the raid verbs: t.raid.enter/state/start_tile, t.ticklog.start/rows/gaps/slot/mark, t.tick, t.player.step_tick, t.prayer.set/read, t.npc.state/await_anim, t.world.hazard_at/spotanims/projectiles, and their traps -- the log's slots are the server's, translate with t.ticklog.slot before the fight; always filter rows by kind); (d) the room's spec table ${RAID.docs}/encounters/${room}.tsv whole: every row is a mechanic you must measure, with its value, grade and tolerance; (e) the room's section of ${RAID.timing} and of ${RAID.docs}/${RAID.plan} (grep -n for the room name, read that section only); (f) ${WT}/docs/minigames/raid_loop/CONTENT_BUGS.md (what is already known to be wrong in this room). Symbols (npcs, locs, objs) come from the room's own script under ${RAID.scripts}/ (grep -n, never whole) and ${RAID.constants}; never a numeric id.
+${DISCIPLINE}
+RESUME DISCIPLINE: ${STATE}/${id}.author.progress.md is your notebook. If it exists, a previous attempt was killed or gave up: read it first, ${retry ? 'the previous runs do NOT count toward your budget (you have your own ten), and' : 'count its runs toward your ten, and'} continue from its last step -- test/raids/${id}.lua on disk is that attempt's file. Append after EVERY run (run number, the first failing row from fail.py, what you changed).
+THE FILE: { id = "${id}", fixture = "fresh_lumbridge.ini", max_frames = <n>, setup = { ... }, run = function(t) ... end } -- a plain run function (no legs: one room is one leg). max_frames from a measured run, about 30 frames per server tick, under 480000; start at 120000. SETUP is bring-alongs only, each with a comment naming why: ::setlevel for the combat stats a ${mode}-mode ${room} player has, ::give for gear, potions and food (read the room's section of the plan or the wiki strategy page in ${RAID.docs}/sources/ for what a player brings), never anything that is part of the encounter.
+RUN, in this order, every step a ledger row with a detail that says something: (1) t.raid.enter("${raid}", "${room}", {mode = "${mode}"}) is the bring-along that lands you at the room's entrance the way a player arrives (the real instance; ToB spawns the boss unstarted, ToA leaves it unspawned); read t.raid.state() into a row. (2) t.ticklog.start() BEFORE the room starts, then t.ticklog.slot the boss row once it exists. (3) START THE ROOM BY THE PLAYER'S OWN CLICK (DRIVER_NOTES "The fight begins with the player's own click"): walk to the barrier with t.player.walk_to and cross it with t.player.click_loc; never ::tobgo/::toago, never a teleport past the barrier or past a phase. (4) THE FIGHT, DRIVEN: every point of boss damage from t.player.attack / t.player.cast with gear worn; every mechanic met by a real move -- t.prayer.set keyed on what the boss is doing (t.npc.await_anim on the boss's attack seq, t.npc.state), t.player.step_tick for a step that must land the tick BEFORE the scan (ENCOUNTER_TIMING section 1: an npc acting on tick T sees the end of T-1), t.world.hazard_at before stepping, t.world.obj_near + pickup for an orb; eat through opts.eat on the await; loop on the boss's state (hp ratio, phase npc id via npc_retype rows, t.npc.await_gone), never on a fixed tick count. ::godmode, ::kill, a scripted kill, a debugproc performing the mechanic, or ::setvar on a raid var are REJECTED. (5) THE TECHNIQUE ROWS: each published technique for this room (the plan's section, the strategy guide) as a row seen from the player's side, proved from the tick log (e.g. "no hit_player row on a tick the player stood on a hazard tile", "the step row resolved on tick T-1 and the spit's projectile row targets the previous tile", "no npc_anim auto row while the pillar stood between"). (6) THE SPEC ROWS, after the kill: one t.check per spec-table row named spec.<mechanic_id>, detail EXACTLY per the README contract: measured <value>[, <distribution text>] (spec <value>, grade <G>, tol <tol>) with the value, grade and tolerance copied from the table; a grade E row ends "; approximation, M<n>". Measure from t.ticklog.gaps / rows (cadence = gaps between the boss's attack seq rows; first attack = the first npc_anim attack row's tick minus the room-start mark tick; hazard lifetime = loc_set/map_spotanim rows; spawn counts = npc_spawn rows by type). Then python3 tools/raid_gate/raid_coverage.py ${id} must read FULL. (7) The room's end: the exit the content offers (the passage, the chest) by click, read back in a row; for ToB the supply chest row with the points asserted (tob_chest.rs2) where the room has one.
+EVERY RULE OF THE CORE HOLDS: no numeric interface or component id, every option an op number, no lane name, no narrating t.note in place of a row, no screenshot to pad rows, nothing may follow a return in a block. Lua: no local helper functions in the test file.
+BUDGET: ten runs (python3 ${WT}/tools/raid_gate/run.py ${id} --no-build --no-publish ; python3 ${WT}/tools/raid_gate/gate.py ${id}; fail.py ${id}). MAKE YOUR FIRST RUN EARLY: enter, start the log, cross the barrier, one attack, one spec row -- then grow it. When a verb misbehaves, a cheat does nothing, a symbol will not resolve or the room never starts: OUTCOME BLOCKED REQUIRES A t.blocked("<exact seam>") ROW AT THAT POINT, THEN return. When the room's own script misbehaves against a grade A-C spec row (the measured cadence is not the spec's, a hazard never spawns, the barrier cannot be crossed): outcome content_bug with the file:line and the spec row, the file stopping at t.blocked("content_bug: ...") -- never bend the test to the server's number and never edit the content.
+You may edit ONLY test/raids/${id}.lua and your notebook. Never script/plugins/, src/, tools/, OSRS-Content/, docs/ or another room's file. Do NOT commit or push. FINISH: write the schema JSON to ${STATE}/${id}.author.json (spec_rows_measured / spec_rows_total from raid_coverage's line; technique_rows = the names of your technique rows), then return it; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput even if you gave up.
+COMPACTION: if your conversation is ever compacted or summarized while you work, STOP at once, write what you have to the notebook, and report outcome gave_up with compacted=true and blocker "context compacted"; a fresh author resumes from your notebook.` }
+
+const reviewCard = (room, a) => { const id = ID(room); return `${COMMON}
+You are the reviewer for raid room test "${id}". The author reported: ${JSON.stringify(a, null, 1)}.
+${DISCIPLINE} A reviewer opens: every -FAIL shot, the barrier-cross shot, the shots of each prayer switch and each technique row, the kill and the exit, and beyond those a SAMPLE of at most 30 shots spread over the run; say in shots_checked how many you opened.
+RESUME DISCIPLINE: if ${STATE}/${id}.review.json exists, a previous reviewer finished: return its content unchanged. If ${STATE}/${id}.review.progress.md exists, continue from its last step (check git log for "raids: ${id}" before committing again). Append after every step.
+Do, in order:
+1. If the author's outcome is blocked or content_bug: confirm the file is green up to its t.blocked row (python3 ${WT}/tools/raid_gate/run.py ${id} --no-build ; python3 ${WT}/tools/raid_gate/gate.py ${id} --allow-blocked ; python3 ${WT}/tools/quest_gate/lint_quest.py test/raids/${id}.lua). If it is, commit it (step 4) with that verdict; a content_bug must name a file:line and a spec row, and you add its line to ${WT}/docs/minigames/raid_loop/CONTENT_BUGS.md under a heading for this pass (commit that file with the test). If it is not: verdict rejected; keep the file on disk uncommitted (never delete an author's work), findings = why. A blocker that names a verb DRIVER_NOTES.md documents as working, or a loc/npc visible in the author's own shots and never clicked, is not a blocker: reject.
+2. Otherwise re-run yourself: run.py ${id} --no-build ; gate.py ${id} (the quest gate AND raid coverage must both pass: coverage FULL) ; lint_quest.py. All green or the verdict is rejected.
+3. THE THREE KINDS OF ROW (test/raids/README.md): (a) the fight driven -- grep the file for every "::" string: only ::setlevel / ::give in setup and nothing else (t.raid.enter issues its own cheat inside the driver); any ::godmode, ::kill, ::tobgo, ::toago, ::setvar, a teleport past the barrier or a phase, or a debugproc doing the mechanic is one finding and rejects; every point of boss damage from attack/cast rows; (b) the technique rows -- each published technique of this room (the plan's section, the strategy page) has a row proved from the tick log, not narrated; (c) the spec rows -- read ${RAID.docs}/encounters/${room}.tsv and the ledger's spec.* rows side by side: every row measured, the measured figure consistent with the free text and with the ticklog.tsv in build/quest_gate/${id}/ (open it with grep for the kind and slot, never whole), and NO spec row rewritten to match the server (a row whose measured value and spec value both differ from the table is a finding). A room whose server-side number disagrees with a grade A-C spec row is content_bug, never accepted. Two or more findings = rejected.
+4. Accept: run.py just published evidence under ${CONTENT}/server/scripts/selftest/minigames/${raid}/${room}/play/ (its own "published ... -> ..." line names the path). Commit that directory in the submodule first (git -C ${WT}/OSRS-Content add osrs239-content/server/scripts/selftest/minigames/${raid}/${room}/play && git -C ${WT}/OSRS-Content commit -m "selftest/minigames: ${id} play evidence" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"), then in the parent: git add test/raids/${id}.lua OSRS-Content ; git commit -m "raids: ${id} <green|blocked|content_bug> (<rows> rows, <shots> shots, coverage <FULL|n of m>)" with the same trailer. Stage only those paths; other reviewers commit in this worktree at the same time, so never amend, reset or add -A. Do not push. If you reject, delete any published evidence run.py left uncommitted under that play/ directory.
+FINISH: write the schema JSON to ${STATE}/${id}.review.json, then return it. coverage = raid_coverage's verdict line. doc_gaps = the author's doc_gaps you judge real (a fact about a raid verb that DRIVER_NOTES.md lacks).` }
+
+phase('State')
+const state = (await attempt('state', 3, () => agent(`${COMMON}
+
+YOUR JOB: read this pass's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, verbatim; authored = every ${STATE}/<id>.author.json, verbatim; sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or []); sample_sent_back = its "sent_back" list (or []). Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], sampled: false, sample_considered: [], sample_sent_back: [] }
+const sentBack = new Set(state.sample_sent_back || [])
+const keptReviews = state.reviewed.filter(r => !sentBack.has(r.test_id))
+const reviewedIds = new Set(keptReviews.map(r => r.test_id))
+const authoredById = Object.fromEntries(state.authored.filter(a => !sentBack.has(a.test_id)).map(a => [a.test_id, a]))
+const pending = rooms.filter(room => !reviewedIds.has(ID(room)))
+log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} authored, ${sentBack.size} sent back; ${pending.length} pending: ${pending.join(', ') || 'none'}`)
+
+const RETRY_EFFORT = 'medium'
+const results = await pipeline(
+  pending,
+  async (room) => {
+    const id = ID(room)
+    if (authoredById[id]) return authoredById[id]
+    const first = await attempt(`author:${id}`, 2, () => agent(authorCard(room, false), { label: `author:${id}`, phase: 'Author', model: 'claude-sonnet-5-5', schema: AUTHOR_SCHEMA }))
+    const again = !first || first.compacted === true || first.outcome === 'gave_up'
+    if (!again) return first
+    log(`${id}: the author ${first ? first.outcome : 'returned no report'}; a fresh author resumes from the notebook at ${RETRY_EFFORT} effort with its own budget`)
+    const second = await attempt(`author:${id} (retry)`, 2, () => agent(authorCard(room, true), { label: `author:${id} (retry)`, phase: 'Author', model: 'claude-sonnet-5-5', effort: RETRY_EFFORT, schema: AUTHOR_SCHEMA }))
+    return second || first
+  },
+  async (a, room) => {
+    const id = ID(room)
+    const report = a || { test_id: id, outcome: 'gave_up', runs: 0, spec_rows_measured: 0, spec_rows_total: 0, technique_rows: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [], compacted: true }
+    return attempt(`review:${id}`, 2, () => agent(reviewCard(room, report), { label: `review:${id}`, phase: 'Review', model: 'claude-sonnet-5-5', schema: REVIEW_SCHEMA }))
+  },
+)
+const reviewed = [...keptReviews, ...results.filter(Boolean)]
+const missing = rooms.map(ID).filter(id => !reviewed.some(r => r.test_id === id))
+log(`${reviewed.filter(r => r.verdict === 'accepted').length} accepted, ${reviewed.filter(r => r.verdict === 'blocked').length} blocked, ${reviewed.filter(r => r.verdict === 'content_bug').length} content bugs, ${reviewed.filter(r => r.verdict === 'rejected').length} rejected; ${missing.length ? 'NO REVIEW for ' + missing.join(', ') + ' (relaunch with the same args)' : 'every room reviewed'}`)
+
+phase('Sample')
+const consideredIds = new Set((state.sample_considered || []).filter(x => !sentBack.has(x)))
+const accepted = reviewed.filter(r => r.verdict === 'accepted' && !consideredIds.has(r.test_id))
+const landSteps = `LAND: ${SYNC} Then write ${WT}/docs/minigames/raid_loop/ROOM_LEDGER.md (create with a two-line header if absent): under a heading for this pass, one line per room of this pass (${rooms.map(ID).join(', ')}): verdict, rows, coverage, the commit, and what remains (a sent-back finding, a blocker, a content bug); commit it by explicit path ("raids: ROOM_LEDGER.md after ${pass}", trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>") and push both repos.`
+const sample = await attempt('sample', 2, () => agent(`${COMMON}
+
+You are the Opus sampler for raid pass ${pass}. Accepted this launch: ${JSON.stringify(accepted.map(r => r.test_id))}; sampled by an earlier launch: ${[...consideredIds].join(', ') || 'none'}. RESUME DISCIPLINE: ${STATE}/sample.progress.md is your notebook; if it exists continue from its last step (check git log for a revert before reverting again; check git status -sb for "ahead" before pushing again). Append after every step.
+For EVERY accepted room (not a sample of them -- a raid room is expensive to get wrong): (1) RE-DERIVE THREE SPEC NUMBERS INDEPENDENTLY FROM THE SOURCES (docs/RAID_ORCHESTRATOR.md section 6): pick three rows of ${RAID.docs}/encounters/<room>.tsv on the kill path (a cadence, a phase trigger, a hazard number), open the files their source_ref names under ${RAID.docs}/sources/ and derive the value yourself from the quote, the cache record or the recorder's figure; a number you cannot re-derive from its source is sent back (the room reverted) as an open row, never accepted. (2) Read the ledger through fail.py --all and the ticklog.tsv under build/quest_gate/<id>/ (grep by kind, never whole): the spec rows' measured figures must be what the log says; the technique rows must be proved by log rows, not narrated; every point of boss damage from the player's attack rows; the barrier crossed by click; no ::godmode / ::kill / teleport past a phase. (3) Open the published PNGs under ${CONTENT}/server/scripts/selftest/minigames/${raid}/<room>/play/: the barrier cross, each prayer switch, each technique row, the kill and the exit must show what their names claim. A room that fails: git revert --no-edit <the reviewer's parent commit sha> (never reset; revert the submodule evidence commit too, by its sha in OSRS-Content), and record the finding. FINISH: ${landSteps} Write {"pushed": true, "considered": [${[...consideredIds].map(x => '"' + x + '"').join(', ')}${consideredIds.size ? ', ' : ''}${accepted.map(r => '"' + r.test_id + '"').join(', ')}], "sent_back": [ids you sent back now, with the finding each]} to ${STATE}/sample.json (merge, never drop an earlier launch's ids). Report which rooms you kept, which you sent back and why.`, { label: 'sample', model: 'opus' }))
+if (!sample) log('SAMPLE DID NOT LAND: relaunch this pass with the same args; the sampler resumes from sample.progress.md')
+return { pass, reviewed, missing, sample }
