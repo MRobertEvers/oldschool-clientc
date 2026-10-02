@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo				
 quest_kingsransom	kingsransom	kingsransom		4	todo				
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo				
-quest_legends	legends	legendsquest		3	green	sonnet-b45			
+quest_legends	legends	legendsquest		3	todo	sonnet-b45	RETRY after 7c7960476: test RNG fragility, not content: makeBowl (quest_legends.rs2:1286-1300, stat_random + random(256)<135 burns 1 or 2 bars) leaves 0-4 of the six gold bars; with bars left the backpack is full at talkToUngaduluForForce-holyforce ('Your inventory is full.', inv.await holyforce 0 -> 0, three runs in seam1). Drop every leftover gold_bar right after makeBowl (and recheck free slots before Ungadulu); only that leg changes		
 quest_losttribe	losttribe	thelosttribe		3	green	matthew-mbp-m4-b47			
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo				
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
@@ -107,7 +107,7 @@ quest_mm	mm	monkeymadnessi		3	green	sonnet-b46
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo				
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16			
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	matthew-mbp-m4-b51			
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	matthew-mbp-m4-b51	RETRY after 7c7960476: the grader now reads row 172 goto-cookToxin (Rimmington 2927,3211 -> 2547,3323 inside the Mourner HQ) as CHEAT for enterMournerBase/AfterPoison/ForGnome/NoPass: it skips mournerstewdoor, disguise-gated (area_ardougne_west/scripts/doors.rs2:19, mend1_disguise.rs2:335). Re-author only that hop: goto outside the HQ door, wear the full mourner gear, click_loc mournerstewdoor, walk to the range; coverage-and-gate 'outside the building ... the guide's way in is'		
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-mbp-m4-b51			
 quest_murder	murder	murdermystery		1	green	sonnet-b15			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
@@ -143,7 +143,7 @@ quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
 quest_royaltrouble	royaltrouble	royaltrouble		4	claimed	vm-b1@vm	RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)	2026-10-02T01:17:03Z	todo|
-quest_rumdeal	rumdeal	rumdeal		2	content_bug	matthew-mbp-m4-b51	content_bug: deal_water_hopper.rs2:5 [oploc1,deal_gate_closed] swaps in deal_gate_open at the same loc_angle/shape; deal_gate_open keeps the wall so 2120,5098 northward stays blocked; doors.rs2:110 rotates the angle on open, quest handler does not. Goto removed, not kept.		
+quest_rumdeal	rumdeal	rumdeal		2	todo	matthew-mbp-m4-b51	RETRY after 7c7960476: the pier gate (deal_gate_closed 2120,5098) now opens through ~door_open_active and the north island is walkable (OSRS-Content dd5fd24c78); delete the gate.walk_through check (it asserted the bug) and the t.blocked, then drive the route in test/quests/wip/rumdeal/relay.md (walk north in hops, no goto past the gate); also re-drive gate.goto/hopper.goto2 across the island stairs (goDownForWater DEAL_STAIRS_TOP 2138,5088,1; goUpWithWater/goUpToDropWater DEAL_STAIRS_BOTTOM 2150,5088,0) and check helper_coverage.py rumdeal		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1			
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15			
 quest_scrambled	scrambled	scrambled		4	todo				
