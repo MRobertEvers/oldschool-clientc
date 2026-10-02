@@ -1,0 +1,57 @@
+{
+ "seams": [
+  {
+   "key": "driver_other_floor_loc",
+   "kind": "driver",
+   "quests": [
+    "coldwar",
+    "darknessofhallowvale"
+   ],
+   "summary": "The quest driver cannot press a loc that stands on a different level from the one it resolves (driver reports other_floor), so guide steps on stacked or multi-level geometry cannot be driven: Cold War's penguin agility course level-0 steps and crushers and stone 7, and Darkness of Hallowvale's shelf at 3626,3221 plane 2 (a generic ladders_stairs loc).",
+   "evidence": "build/parity_state/vm-b1-parity/coldwar.parity.json legs_left[1] ('the level-0 steps/crushers (driver other_floor) and stone 7 could not be pressed by the driver'); darknessofhallowvale.parity.json open_issues[5] ('Shelf at 3626,3221 plane 2 was not hittable in the driver'). The scratch drivers and ledgers are in test/quests/orchestrator/vm/runs/vm-b1-parity/run_records.tgz (parity_coldwar, final_*, coldwar.leg*.lua; doh.leg3).",
+   "files": [
+    "script/plugins/quest_driver/",
+    "src/plugin/torirs_plugin_drive.c",
+    "OSRS-Content/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2"
+   ]
+  },
+  {
+   "key": "coldwar_agility_course_enforced",
+   "kind": "content",
+   "quests": [
+    "coldwar"
+   ],
+   "summary": "Cold War's agility instructor moves the stage 100 -> 105 without checking %peng_agility_state: the course the guide sends the player round is enforced only by geometry (the one-way fence gate), so the stage is reachable without running it. Gate the instructor's line on the course state the obstacles write (wiki: complete the penguin agility course), and make the person-sized fence gate reachable from the east as well as the north if the wiki's route needs it.",
+   "evidence": "build/parity_state/vm-b1-parity/close.json open_issues ('the agility instructor moves stage 100 to 105 without checking %peng_agility_state'); coldwar.parity.json open_issues (the peng_agility_fencing_door reached only from its north side). Source: docs/quests/cold_war.md.",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/",
+    "OSRS-Content/osrs239-content/server/scripts/skill_agility/scripts/penguin_course.rs2"
+   ]
+  },
+  {
+   "key": "coldwar_clockwork_suit_made",
+   "kind": "content",
+   "quests": [
+    "coldwar"
+   ],
+   "summary": "Cold War's clockwork penguin suit must be MADE at a clockmaking bench (the guide step: build the clockwork suit in a POH workshop, Crafting 10 / Construction 34 per the wiki); the parity scratch legs handed it over with ::give, which an author may not do. Make the bench path reachable for a quest test (a player-owned workshop with the clockmaking bench via the existing poh_workshop_functions.rs2, or the wiki's documented alternative) and prove it with a driver row that builds the suit and reads the item back.",
+   "evidence": "coldwar.parity.json legs_left[2] ('POH clockmaking of the suit (existing poh_workshop_functions.rs2) not driven: the suit was ::give'n in the scratch legs'). Source: docs/quests/cold_war.md and the Quest Helper guide (python3 tools/quest_gate/ladder.py coldwar).",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_coldwar/",
+    "OSRS-Content/osrs239-content/server/scripts/poh/"
+   ]
+  },
+  {
+   "key": "royaltrouble_sea_snake",
+   "kind": "content",
+   "quests": [
+    "royaltrouble"
+   ],
+   "summary": "Royal Trouble's Giant Sea Snake does not check the Slayer 40 the wiki requires to damage it, stands at a shore position instead of the guide's 2615,10280 (pool tiles blocked in the cache) and dies in ~10 ticks on generic stats. Enforce Slayer 40, place it where the guide's step can reach it (or document the cache block with evidence), and give it the wiki's stats so the boss is fought for real.",
+   "evidence": "royaltrouble.parity.json legs_left[1] and open_issues[5]. Source: docs/quests/royal_trouble.md; ladder.py royaltrouble.",
+   "files": [
+    "OSRS-Content/osrs239-content/server/scripts/quests/quest_royaltrouble/"
+   ]
+  }
+ ]
+}
