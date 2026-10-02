@@ -191,3 +191,9 @@
 - Probed twice (2026-10-01): from bridge D (2161,4640 level 1) every walk south is blocked, so the tunnel pair 2150,4545 / dwarf cavern is not reachable on foot from the pass; the marker stays.
 - Second pass is all on foot: plank room skipped (the woodplank from leg 2 is still in the pack), well from the last trap by walking west, Tirannwn via ring, tracker forests west, tripwire north (loc 2220,3153), middle forests, camp road, rabbit, bomb, then back east/south the same way, spring flats, ring, log.
 - Spear traps: the player must end WEST of the trap loc (trap5 loc 2430), not just near it. Setup levels unchanged.
+
+## orchestrator note (matthew-mbp-m4-b48 round 8)
+- Round 7 (5deefa070, 471 rows) fixed every round-6 finding; the sampler (7fc9688a4) sent it back for two things only, now `t.blocked("ROUND 8 ...")` markers in the file:
+  1. leg 2 (~line 562): `::setlevel agility 99` before Iban's collapsed bridges closed the guide's fall branch. Keep Agility 56; on a fall drive goBackUpToIbansCavern (cavewalltunnel_upass_up 2336,9793) and walk back. The old GUIDE-GAP comment there was wrong and is now a plain note.
+  2. leg 4 (~line 790, inside camp_to_tracker): no teleport 2209,3201 -> 2196,3237 back across the log and the ring of leaves; walk them.
+- ONLY legs 2 and 4 are open (notebooks retired as leg<K>.progress.round7.md); legs 1, 3, 5, 6 stand. Done means `grep -c "ROUND 8 (orchestrator" test/quests/regicide.lua` prints 0 and the full run reaches expect_complete.
