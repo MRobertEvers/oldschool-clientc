@@ -152,7 +152,7 @@ return {
                 local _, w = t.world.tile()
                 return w
             end
-            t.exec("walk-enterSwampBubbles", t.player.walk_to, 2453, 9716, 30) -- Koftik's ledge, just past rockslide 3
+            t.exec("goto-enterSwampBubbles", t.player.goto_tile, 2453, 9716, 0) -- Koftik's ledge, a few tiles past rockslide 3
             t.exec("enterSwampBubbles", t.player.click_loc, "upass_swampbubbles1", 1, { at = { 2465, 9713 } })
             t.await({ level = function() return fall_here().z < 9660 end, note = "landed in the fall pocket" }, 20)
             t.ticks(2)
@@ -185,11 +185,30 @@ return {
             t.ticks(2)
             local out = fall_here()
             t.check("leaveFallArea-surfaced", out.x == 2482 and out.z == 9715, "after the pile at " .. out.x .. "," .. out.z .. " level " .. out.level .. " :: " .. last_lines(3))
-            -- surfaced at 2482,9715, before rockslide 1: climb the three again, as the guide's crossTheBridge sends you
-            climb("climbOverRockslide1-again", 2480, 9713)
+            -- surfaced at 2482,9715, before rockslide 1: climb the three again, as the guide's crossTheBridge sends you.
+            -- Judged on the TILE, not on chat: after the pocket's five climbs the chat ring is full of "...step down
+            -- the other side" lines, so climb()'s line count reads a slip as a crossing (b52 closer run: "crossed"
+            -- rockslide 1 while still at 2480,9714). The far tiles are the ones the first climbs landed on
+            -- (LostCity [label,rockslide_obstacle] moves the player one tile past the slide).
+            local function climb_to(name, slide_x, slide_z, far_x, far_z)
+                local detail = ""
+                for attempt = 1, 10 do
+                    local _, w = t.world.tile()
+                    if w.x == far_x and w.z == far_z then break end
+                    if hp_now() <= 12 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
+                    local result = t.player.click_loc("rockslide2_obstacle_upass", 1, { at = { slide_x, slide_z } })
+                    t.ticks(8)
+                    local _, after = t.world.tile()
+                    detail = detail .. "[" .. attempt .. " " .. tostring(result) .. " -> " .. after.x .. "," .. after.z .. "] "
+                end
+                local _, final = t.world.tile()
+                t.check(name, final.x == far_x and final.z == far_z,
+                    "slide " .. slide_x .. "," .. slide_z .. ": now " .. final.x .. "," .. final.z .. " (far side " .. far_x .. "," .. far_z .. "); hp " .. hp_now() .. " :: " .. detail .. last_lines(2))
+            end
+            climb_to("climbOverRockslide1-again", 2480, 9713, 2480, 9712)
             t.exec("goto-climbOverRockslide2-again", t.player.goto_tile, 2473, 9706, 0)
-            climb("climbOverRockslide2-again", 2471, 9706)
-            climb("climbOverRockslide3-again", 2458, 9712)
+            climb_to("climbOverRockslide2-again", 2471, 9706, 2470, 9706)
+            climb_to("climbOverRockslide3-again", 2458, 9712, 2458, 9713)
 
             t.exec("goto-talkToKoftikAtBridge", t.player.goto_tile, 2452, 9715, 0)
             t.exec("talkToKoftikAtBridge", t.player.talk_to, "caveguide2", 1) -- koftik.rs2 [opnpc1,caveguide2]

@@ -269,3 +269,12 @@ Owner: Underground Pass is a LostCity quest; fix it against the LostCity impleme
   climbOverRockslide1..3-again) and removed from leg 4 (goto-climbDownWell now leaves from the furnace). Legs 1 and 4
   reopened (leg1.json, leg4.json removed; leg 4's notebook retired as leg4.progress.b49r2-3.md). Legs 2, 3, 5-8 stand.
   The leg-1 proof run is pending: the shared checkout's script pack was not building during b52's parity pass.
+- (orchestrator, b52) LEG 1 PROVEN ALONE: upass.leg1 44/0 -- swamp fall, five pocket rockslides, caverockpile -> 2482,9715,
+  then climbOverRockslide1..3-again judged by the far-side TILE (2480,9712 / 2470,9706 / 2458,9713), then Koftik.
+  climb() counts "step down the other side" in the last 12 chat lines; after the pocket that ring is full of them and it
+  read a slip as a crossing, so the re-climbs use climb_to (tile-judged). A fresh account has 10 hitpoints, so the eat
+  check (<= 12) eats a lobster on most tries -- leg 1 ends with none; that is fine.
+- LEG 3 REOPENED: the b52 parity closer's full run (build/quest_gate/upass/ledger.tsv, 12:27) DIED in leg 3 on
+  goto-collectOrb3 (walk to 2387,9677; 'Oh dear, you are dead!'), hitpoints 40 at leg.3.start after one lobster. Leg 2
+  ends on hitpoints 6 with no food. Find what killed the player on that walk (traps? aggressive npcs?) and carry/eat
+  enough; keep every other leg-3 row. Notebook retired as leg3.progress.b49.md.
