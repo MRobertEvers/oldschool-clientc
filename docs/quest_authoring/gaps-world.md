@@ -911,3 +911,18 @@ metal gates at 2898,9831 and walk hops to the gate. From a goto-landed tile `wal
 area can refuse or not move; keep the proved hop list in `test/quests/wip/bearyoursoul/relay.md`.
 The walk is dangerous: at hitpoints and defence 70, hp fell 70 -> 30 by the cave (suits, demons,
 hellhounds); the proof copy ran green 48/48 at hitpoints 80, defence 75 (`build/quest_gate/s1_bys_copy`).
+
+## Troll Stronghold approach: the walk from the first `troll_climbingrocks` stops short of the secret entrance (Eadgar's Ruse, matthew-mbp-m4-b51)
+
+*Origin: eadgar f540921a6 replaced the b50-stamped `goto-secretdoor` (mountain path -> troll area past
+`troll_climbingrocks`) with the real crossings.*
+
+The Death Plateau path has TWO pairs of `troll_climbingrocks`, and the guide's `climbOverRocks`
+(`EadgarsRuse.java:376`) names only the first, at 2856,3612. After the first pair (pressed from
+2856,3611; you land at z 3613), a `walk_to 2827,3646` toward `troll_stronghold_entrance` does not
+arrive: it stops at the nearest tile it can reach and the run goes on from there. Walk west to
+2834,3626, press the second pair with `t.player.click_loc("troll_climbingrocks", 1, { at = { 2834,
+3628 } })` (the pair is 2833-2834,3628; `at` picks that copy), check the tile (z >= 3629), then walk
+to the entrance. Check every `walk_to` result and the tile it reached; a stalled walk does not fail
+the row by itself. If you place a press from `t.world.loc_near`, read `tile_x`/`tile_z` from its
+table. It has no `x`/`z` fields (verbs-pointer).
