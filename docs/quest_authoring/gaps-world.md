@@ -538,6 +538,11 @@ Unknown command` and the await times out at 4. `build/quest_gate/s33clock_new` a
   and the clock is real again. Skip AFTER the relog, never before it.
 - Prefer it to a quest's own "set the result" debugproc (`::forget_growkelda`,
   `::forget_ferment`). Those write the outcome; the skip lets the quest compute it.
+- A tree in a tree patch is ordinary farming: one skip per stage, and each stage lands on the
+  growth softtimer, about 500 ticks after the skip. A willow is 6 x `t.clock.skip(40)`, each followed
+  by `t.var.await_server("varb701_varbit_701", 15 + stage, 560)` (Falador park patch). Its branches
+  are counted from the deadline instead, so one `t.clock.skip(30)` after check-health grows all 6
+  (matthew-mbp-m4-b50-seam1; `test/quests/wip/enlightenedjourney/relay.md`).
 
 ## A loc that changes symbol each use: Shilo Village's bone door (`thzq_tombrooml1/2/3`)
 
@@ -854,3 +859,28 @@ guide names no door, but a later author should open the door with
 Quest Helper's Etceteria bank tile (2612,3900) is a house wall and has no booth in the cache. The
 town's bank is the bank table `banktable_breakroute_bankable` at 2619,3894, op2 (`bank_booths.rs2`,
 the same `~openbank`).
+
+## Taverley Dungeon deep area: `walk_to 2874,9846` stalls at 2882,9843 (Bear Your Soul, matthew-mbp-m4-b50-seam1)
+
+*Origin: the b50 sampler reverted bearyoursoul (2132ad7af): a `goto_tile` from the ladder bottom
+(2884,9796) to the Cerberus cave mouth (2874,9846) jumped the dusty-key gate.*
+
+The ladder area does not reach the cave mouth on foot: a walk stops at 2882,9843. The content
+already has the real ways in (`areas/taverly/dungeon/scripts/jail_doors.rs2`,
+`velrak_the_explorer.rs2`, at LostCity parity), so no content changed:
+
+- **The dusty key** on `deepdungeondoor` (2924,9803) from its EAST side (`check_axis loc_west`:
+  x == 2924 is outside). op1 alone reads "This gate is locked."; the key reads "You unlock the gate."
+  and lands you at 2923,9803. The key is a Quest Helper item requirement
+  (`BearYourSoul.java:80-82,126-130`), so `::give dusty_key 1` in setup is legitimate; in game Velrak
+  hands it over from his cell (scratch `s1_bys_velrak`).
+- **The 70 Agility pipe** `taverly_dungeon_pipe_sc` (2887,9799 -> 2892,9799); at 69 it answers
+  "You need an Agility level of 70 to do this."
+- **The 80 Agility floor spikes** (2879,9813 -> 2877,9813).
+
+The key route needs the cauldron-room prison door `cauldrondoor` (2889,9831) pressed THREE times: the
+first two animate the suits of armour, the third walks you in, a fourth walks you back out. Then the
+metal gates at 2898,9831 and walk hops to the gate. From a goto-landed tile `walk_to` across the deep
+area can refuse or not move; keep the proved hop list in `test/quests/wip/bearyoursoul/relay.md`.
+The walk is dangerous: at hitpoints and defence 70, hp fell 70 -> 30 by the cave (suits, demons,
+hellhounds); the proof copy ran green 48/48 at hitpoints 80, defence 75 (`build/quest_gate/s1_bys_copy`).

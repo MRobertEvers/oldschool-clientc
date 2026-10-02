@@ -1066,3 +1066,45 @@ attempt's server line reads CHEAT too (coverage-and-gate, "lands at ... without 
 rockslide"). The three reverted Regicide runs go FULL/FULL/CONTENT_GAP -> TEST_GAP/TEST_GAP/MIXED on
 the hops their samplers named; the green regicide and all 99 committed greens are unchanged step by
 step. `--ledger` grades another run's ledger.
+
+## Seam pass matthew-mbp-m4-b50-seam1 (2026-10-02, batch matthew-mbp-m4-b50)
+
+(a) A goto row that names where it left from (`at <landing> from <departure>`) is proved but HELD
+BACK: with it, ten committed greens read TEST_GAP on goto hops past guide obstacles
+(coverage-and-gate, "The departure tile"). The driver still writes `at <landing>`.
+
+(b) Enlightened Journey's hand-ins all have sources now: willow trees and branches in tree patches,
+and Fill on vegetable sacks (content-gaps, "Enlightened Journey: no willow branch source"; relay in
+`wip/enlightenedjourney`).
+
+(c) Bear Your Soul's way into the deep Taverley Dungeon was already in the content: the dusty key,
+the 70 Agility pipe or the 80 Agility spikes (gaps-world, "Taverley Dungeon deep area"). No content
+change; relay in `wip/bearyoursoul`.
+
+(d) A ground spawn a quest needs goes into `tools/gen_spawns.py`, not the generated `.spawn` file:
+`OBJ_SPAWN_ADDITIONS` / `OBJ_SPAWN_EXCLUSIONS` / `OBJ_SPAWN_RELOCATIONS`, each with its source.
+`m19_57.spawn` is generated from dennisdev/rs-map-viewer (recipe `docs/ITEM_AND_NPCS.md` s7);
+Getting Ahead's knife, bucket, dye exclusion and moved upstairs pot are now in those tables, and
+the regenerated file is `cmp`-identical to the committed one. Regenerate into a SCRATCH `--out` and
+copy only the square you changed: the script unlinks every `.spawn` first, and four other squares
+(`m40_51` pigeons, `m42_55` murder weapon, `m45_159` beer glass, `m45_55` cannonballs) are still
+hand edits a full regeneration would drop. A spawn counterfactual runs without touching the shared
+tree: a symlink-farm content root with one `.spawn` swapped (old mtime) and
+`TORIRSSERVER_CONTENT=<farm>` on `run.py --script`.
+
+(e) "`::ejmodels` crashes above model 19729" was the client's interface-model map, not the id. The
+`uitree_scene_bridge` cache-id -> scene-id maps had a fixed 256 capacity and never grew, so the 256th
+distinct interface model (or npc chathead, or obj model) in one session was a null store in
+`UITreeSceneBridge_EnsureModel` (the OPT build drops the assert). They now double at 75% load. An
+`if_setmodel` widget whose model is not composited (or not in the cache) draws nothing
+(verbs-ui-and-npc: `t.ui.model_pose`). The repro (`::ejmodelsat`, a scratch debugproc) is not in the
+pack, so there is no conformance row.
+
+(f) Eagles' Peak's bronze-room Pedestal is not in the real cache's map either; the runtime stand-up
+stays (content-gaps, "A quest loc absent from `maps/*.jl2`").
+
+(g) `if_setevents` on an IF1 component (`if3=no`, `buttontype` != 0) does nothing in this engine:
+the client makes the button clickable from its buttontype (`src/ui/uitree_input.c:72`) and the
+server answers the op-less IF_BUTTON with `[if_button,...]` (`torirs_server_world.c`, op 0). Dwarf
+Cannon's seven dead `if_setevents(..., ^if_event_op1)` lines are deleted (mcannon 114/0, identical
+row for row). Content should not arm IF1 buttons. Trap 33.

@@ -292,6 +292,8 @@ Soul went down the Taverley ladder (2884,9796) and then `goto_tile`d to the Cerb
 The fix is cheap: put `dusty_key` in the setup (it is a required item, not one a guide step has you
 get), use it on the gate, and walk to `hellhound_cave_entrance_a_01`. Before each `goto_tile`, read
 the step's `items:` line in `ladder.py`. A key or "another way into" there names an obstacle.
+The proved route (key, pipe or spikes) is gaps-world "Taverley Dungeon deep area"
+(matthew-mbp-m4-b50-seam1).
 
 (b) A RECOVERY STEP TAKEN EARLY TURNS A MAIN-PATH STEP INTO A REFUSED PRESS. In the gold room,
 Eagles' Peak fed `eaglepeak_bird_feeder1a` (QH `fillFeeder7`, commented "If you've blocked lever

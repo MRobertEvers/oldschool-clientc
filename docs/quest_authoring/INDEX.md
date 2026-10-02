@@ -358,7 +358,16 @@ topic file with one line added here.
 - a `goto_tile` to a cell door lands inside the cell (`goto 2393,9657`, Underground Pass cells; `pickCellLock`) -> gaps-world: Underground Pass: `walk_to` stalls under attack and stops at rock bridges
 - matthew-mbp-m4-b50: FULL while a `goto_tile` inside Taverley Dungeon jumps the dusty-key gate (a guide `items:` line naming a key); a `<step>.kept` row PASS over "This feeder already has seed" after a QH recovery step pressed early (Eagles' Peak `fillFeeder7`) -> sampler-findings: Sample matthew-mbp-m4-b50
 - Ava refuses "You need to complete Priest in Peril first." after `::complete quest_priestinperil` (writes 60; Animal Magnetism gates on 61) -> gaps-combat: `::complete` writes the prerequisite's `^*_complete` stage
-- no source for `willow_branch` (Enlightened Journey `talkToAugusteWithBranches`); a `::give` of a hand-in item whose source you did not grep -> content-gaps: Enlightened Journey: no willow branch source
+- no source for `willow_branch` (Enlightened Journey `talkToAugusteWithBranches`); a `::give` of a hand-in item whose source you did not grep -> content-gaps: Enlightened Journey: no willow branch source (FIXED b50-seam1: willow patch + secateurs, sack Fill; routes in `wip/enlightenedjourney/relay.md`)
+- `walk_to 2874,9846 ... stalled at 2882,9843` below the Taverley ladder; "This gate is locked." on `deepdungeondoor` -> gaps-world: Taverley Dungeon deep area
+- a goto hop `not judged` because a press or walk sits before it; `at <landing> from <departure>` (held back, ten greens it would red) -> coverage-and-gate: The departure tile
+- `inv_op("sack_empty", 1)` answers `timeout` but the sack filled -> verbs-inventory-shops: `inv_op` answers `timeout` on an op that swaps the item
+- `shop.open("bob", 3, ...)` times out (Trade speaks two pages first); Wydin out of redberries -> verbs-inventory-shops: `shop.open` times out on a shopkeeper whose Trade speaks first
+- a willow takes six skips to grow; `varb701_varbit_701` stuck one stage behind the skip -> gaps-world: A step that waits real minutes (the tree bullet)
+- a quest loc in no `maps/*.jl2` (a "map row" proposal); `torirsserver-cache` bake not read by runs -> content-gaps: A quest loc absent from `maps/*.jl2`
+- an edit to a generated `areas/world/configs/m*.spawn`; `gen_spawns.py` tables; regenerating drops hand edits -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (d)
+- the client segfaults after many interface models (`::ejmodels`, `UITreeSceneBridge_EnsureModel`); `model_pose` reads `model=-1` -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (e)
+- `if_setevents(..., ^if_event_op1)` on an IF1 button does nothing -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (g)
 
 ## Citations: resolving a number or a name
 
