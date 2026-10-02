@@ -1,0 +1,1 @@
+{"test_id":"upass","leg":4,"outcome":"done","runs":3,"last_step":"searchUnicornCageAgain","last_failure":"","blocker":"","doc_gaps":["pit under bridge 5 (2406,9635) is not walkable out; recovery uses goto_tile","later legs: killJerro-supplies FAIL after RNG shift"],"compacted":false}

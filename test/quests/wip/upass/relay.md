@@ -209,3 +209,15 @@
   m38_151.spawn:35, woodplank at 2435,9726. From Koftik's ledge the north room only reaches 2446,9724 on foot
   (scratch collect_plank.lua), so take it after the bridge, as the guide's crossThePit substep does, with
   click_obj("woodplank", 3) plus t.inv.await.
+
+## leg 3 (b49 runner, steps green; run stops at leg 4's orchestrator t.blocked)
+- Ends at 2383,9668 level 0 (beside the logtrap rock); upass stage 2; run 93 rows, 92 PASS (leg.3.end PASS), then leg 4's ROUND marker blocks.
+- Backpack: caveorb1-4, woodplank x1, bronze_arrow x4, tinderbox, lobsters; shortbow worn. Leg sets hitpoints 40, defence 30 inside the leg.
+- ::give woodplank KEPT (brought-along, guide items: Plank): tried the orchestrator's collectPlank in leg 3 -- from 2431,9676 east through all four traps, walk_to 2436,9726 stalls at 2444,9677 (the north room is reachable only from Koftik's ledge before the bridge). To drop the give, leg 2's crossThePit must take it (collectPlank is its substep).
+- Fell back to the previous leg-3 text otherwise; do not edit leg 3 again (checkpoint hash).
+
+## leg 4 (b49 re-run: fall pocket added, maze retry)
+- Ends 2381,9604 level 0 (skeleton room), upass stage 4; checkpoint 4 written (run 3 of 3, full run). Worn adamant_scimitar; backpack horn, spade, lobster x18, caverailing/shortbow etc as before. Leg gives lobster 10 (was 4).
+- Added leaveFallArea: goto 2453,9716, swamp bubbles, five rockslides, caverockpile -> 2482,9715 (rows enterSwampBubbles-landed, leaveFallArea-rockslide1..5, leaveFallArea, leaveFallArea-surfaced), then the old goto-climbDownWell. GUIDE-GAP marker gone.
+- navigateMaze now retries each bridge (8 tries, walks the seam2 leg hops). The pit under bridge 5 (2406,9637) lands in a pocket 2406-2410,9632-9635 that walk_to cannot leave; a failed roll there is put back at 2405,9637 with goto_tile (plain travel, crosses nothing).
+- Full run 233/234: the one FAIL is killJerro-supplies (leg 6/7, bread x0 stew x0 after the knight talk), moved by the RNG shift -- not leg 4.

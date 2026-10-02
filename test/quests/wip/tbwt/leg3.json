@@ -1,0 +1,1 @@
+{"test_id":"tbwt","leg":3,"outcome":"done","runs":6,"last_step":"giveSpear","last_failure":"","blocker":"","doc_gaps":["quest_tbwt.rs2:98-109 tbwt_load_karambwan_vessel inv_delslot deletes the whole stackable karambwanji slot, not one"],"compacted":false}
