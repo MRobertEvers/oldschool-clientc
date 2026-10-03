@@ -1365,6 +1365,20 @@ def symbol_triggers(symbol):
     return found
 
 
+def trigger_is_unconditional(rel, line):
+    """True when the trigger body at `rel`:`line` reads no %variable: it does
+    the same thing for every player, whichever quest's file it lives in."""
+    with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().split("\n")
+    body = []
+    for text in lines[line:]:
+        if text.startswith("["):
+            break
+        body.append(text.split("//")[0])
+    text = "\n".join(body)
+    return bool(text.strip()) and not re.search(r"%\w+", text)
+
+
 def quest_rs2(quest_dir):
     """[(relpath, [lines])] for the quest's own scripts."""
     base = os.path.join(CONTENT_ROOT, "quests", quest_dir)
@@ -2950,6 +2964,13 @@ class Grader:
                 owner = norm(rel.split(os.sep)[1].replace("quest_", ""))
                 if any(owner in pre or pre in owner for pre in self.guide.prerequisites):
                     out.append(trigger)
+                elif trigger_is_unconditional(rel, trigger[1]):
+                    # ...or when its body reads no player variable at all: a
+                    # plain door or exit that happens to live in that quest's
+                    # file works for everyone (the Colosseum lobby exit in
+                    # twilightspromise.rs2 for Meat and Greet, b55: graded a
+                    # CONTENT_GAP, which let a goto_tile past it).
+                    out.append(trigger)
                 continue
             # An npc's talk in another quest's scripts is that quest's
             # dialogue, unless its own body reads this quest's varp.
@@ -4279,7 +4300,10 @@ class Grader:
         # fence is stages before searchSarahsCupboard, whose sub-step that
         # fence is).
         gotos = sorted(self.test.gotos)
-        own = [sym for _, sym in parent.targets if (_, sym) not in parent.promoted_targets]
+        # ...by any name of its family: the guide names the multinpc child
+        # (mag_emelio_1op), the test clicks the shell that spawns (mag_emelio).
+        own = sorted({name for _, sym in parent.targets if (_, sym) not in parent.promoted_targets
+                      for name in family(sym)})
         lines = self.test.code_lines
 
         def leads_to_parent(index):
@@ -4348,6 +4372,41 @@ class Grader:
                         "tile without crossing the %s the guide's sub-step names (%s)" % (
                             after[1], after[2], after[3], after[0], leaf.name, before[0], before[1], before[2],
                             owner, gated[0], ",".join(locs)))
+        # The run's own departure tile, when the goto row stamped one
+        # (`at <landing> from <departure>`). The goto before it can be far
+        # from the sub-step: Meat and Greet (b55) lands goto-colosseum
+        # outside, enters by the entrance, fights, then goto-emelio.end
+        # leaves 1819,9485 in the lobby for Emelio, past the
+        # colosseum_exit_lobby its sub-step leaveColosseumToReturnToEmelio
+        # names. The stamp is where the player stood: on the sub-step's side.
+        self.player_track()
+        departures = {}
+        for position, start in self._goto_from.items():
+            line = self.row_line(self.rows[position]["step"])
+            if line is None:
+                continue
+            span_last = next((last for first, last, _ in self.test.row_spans if first == line), line)
+            for goto in gotos:
+                if line <= goto[0] <= span_last:
+                    departures[goto[0]] = start
+        for index, after in enumerate(gotos):
+            start = departures.get(after[0])
+            if start is None or len(start) < 3:
+                continue
+            before = (after[0], start[0], start[1], start[2])
+            moved = (exact_near(leaf.point, before) and not exact_near(leaf.point, after) and
+                     exact_near(parent.point, after) and
+                     exact(leaf.point, before) < exact(parent.point, before) and
+                     exact(parent.point, after) < exact(leaf.point, after))
+            if not moved or not leads_to_parent(index):
+                continue
+            first_line = gotos[index - 1][0] if index else 0
+            if any(clicked.search(line) for line in lines[first_line:after[0] - 1]):
+                continue
+            return ("goto_tile %d,%d,%d at line %d leaves the %s side (departure %d,%d,%d stamped by its own "
+                    "row) for %s's tile without crossing the %s the guide's sub-step names (%s)" % (
+                        after[1], after[2], after[3], after[0], leaf.name, start[0], start[1], start[2],
+                        owner, gated[0], ",".join(locs)))
         return None
 
     def _stage_narration(self, results):
