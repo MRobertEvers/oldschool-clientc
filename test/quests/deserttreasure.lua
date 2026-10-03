@@ -7,10 +7,20 @@ return {
     setup = {
         "::clearinv",
         "::give coins 1000",
-        "::setlevel thieving 53",
+        -- Thieving 99, not 53: each of the chest's three locks is stat_random(thieving, 52, 128) (deserttreasure.rs2:1565-1581,
+        -- deserttreasure.constant:56-57; value > random(256), torirs_server_scripts.c SS_OP_STAT_RANDOM): 36% a lock at 53
+        -- (4.6% an attempt, so 14 attempts miss 51% of the time) and 50% at 99 (12.8%). The player's random stream is seeded
+        -- from its name (torirs_server_save.c:268): 53 passed as "deserttreasure" and missed 14 of 14 as hp_dt_1.
+        "::setlevel thieving 99",
         "::setlevel magic 50",
         "::setlevel firemaking 50",
         "::setlevel slayer 10",
+        -- Prayer 99 for Protect from Melee at Damis (leg 3; needs 43; prayer potions are on Quest Helper's list,
+        -- DesertTreasure.java:302/:607). Since the eat-delay port (raid branch, OSRS-Content 7936c59bf9) an eat no longer
+        -- holds his hits: unprayed, the true form killed the character in 2 of 2 runs (hp_dt_3, hp_dt_4) and the green
+        -- one ended at 9/99, OUT OF shark. His aura drains Prayer (deserttreasure.rs2 [proc,dt_damis_prayer_drain]); leg 5's
+        -- super restores give it back for Kamil.
+        "::setlevel prayer 99",
         "::complete quest_digsite",
         "::complete quest_templeofikov",
         "::complete quest_touristtrap",
@@ -234,8 +244,10 @@ return {
             and t.cheat("::setlevel strength 99") == "ok" and t.cheat("::setlevel defence 99") == "ok"
             and t.cheat("::setlevel hitpoints 99") == "ok",
             "magic 70 (water blast), attack/strength/defence/hitpoints 99 given: the guide lists water spells or melee gear for Fareed")
+        -- 150 death runes, not 100: Water Blast takes one a cast through Fareed, both Damis forms and Dessous; the green run
+        -- left 7 and hp_dt_15 ran out at Dessous ("You do not have enough Death Runes") after a longer true-form fight.
         t.check("leg2.kit-items", t.cheat("::give airrune 400") == "ok" and t.cheat("::give waterrune 400") == "ok"
-            and t.cheat("::give deathrune 100") == "ok" and t.cheat("::give tinderbox 1") == "ok"
+            and t.cheat("::give deathrune 150") == "ok" and t.cheat("::give tinderbox 1") == "ok"
             and t.cheat("::give gasmask 1") == "ok" and t.cheat("::give ice_gloves 1") == "ok"
             and t.cheat("::give rune_scimitar 1") == "ok" and t.cheat("::give rune_chainbody 1") == "ok"
             and t.cheat("::give rune_platelegs 1") == "ok" and t.cheat("::give rune_kiteshield 1") == "ok"
@@ -321,10 +333,16 @@ return {
         t.exec("goto-getCross", t.player.goto_tile, 3169, 2965, 0)
         local picked = false
         local pick_tries = 0
-        for attempt = 1, 14 do
+        for attempt = 1, 40 do -- 40 at 12.8% an attempt: 0.4% to miss them all
             pick_tries = attempt
+            -- a miss costs 3 hitpoints (deserttreasure.rs2:1552 dt_shadow_pick_fail) and the chest is reached at ~64/99: eat first
+            local _, hp_pick = t.skill.read("hitpoints")
+            if type(hp_pick) == "table" and (hp_pick.level or 99) < 30 and (select(2, t.inv.count("shark")) or 0) > 0 then
+                t.player.inv_op("shark", 1)
+                t.ticks(3)
+            end
             if select(2, t.inv.count("lockpick")) == 0 then
-                t.cheat("::give lockpick 6")
+                t.cheat("::give lockpick 1") -- one, not six: a miss snaps one, and the picks left over took leg 3's shark slots
                 t.ticks(2)
             end
             t.player.click_loc("fd_bandit_shutchest", 1)
@@ -376,10 +394,33 @@ return {
         -- Brought-along food (Quest Helper: combat gear): the kit gives hit "did not fit"; top up to 20 sharks now that the pack has room.
         t.check("leg3.food", t.cheat("::give shark 10") == "ok", "10 more sharks given as brought-along food; sharks now " .. tostring(select(2, t.inv.count("shark"))))
         t.ticks(2)
+        -- Protect from Melee for both forms (recipe: verbs-combat.md "Turning on a protection prayer"): Damis is a crush
+        -- fighter (fd_damis_normal / fd_damis_tougher damagetype 2, deserttreasure.npc) and a prayed npc melee hit is 0
+        -- (combat_stats.rs2 playerhit_n_melee_apply). The true form's aura drains it within ~90 ticks; then food. On before the
+        -- room: a prayer-tab detour between his spawn and the Attack let a wanderer claim the player first (hp_dt_5, hp_dt_6).
+        local function protect_melee(name, want)
+            local _, now = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local tab_result, wr = "ok", "ok"
+            if now ~= want then
+                tab_result = t.ui.tab("prayer")
+                t.ticks(2)
+                local pw
+                wr, pw = t.ui.widget("prayerbook:prayer15")
+                t.ui.invoke(pw, 1)
+                t.ticks(2)
+            end
+            local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local _, pr = t.skill.read("prayer")
+            t.check(name, tab_result == "ok" and wr == "ok" and on == want, "varb4118_prayer_protectfrommelee " .. tostring(now) .. " -> " .. tostring(on)
+                .. " (want " .. want .. "); prayer " .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
+        end
+        protect_melee("killDamis-protectMelee", 1)
         t.exec("waitForDamis-goto", t.player.goto_tile, 2738, 5088, 0)
         t.exec("waitForDamis", t.npc.await_present, "fd_damis_normal", 15, 20)
+        local sharks_at_damis = select(2, t.inv.count("shark"))
         t.exec("killDamis1-engage", t.player.attack, "fd_damis_normal", 2, 20)
-        t.exec("killDamis1", t.npc.await_dead_engaged, 300, 40, { eat = { item = "shark", below = 60 } })
+        local _, damis1_detail = t.exec("killDamis1", t.npc.await_dead_engaged, 300, 40, { eat = { item = "shark", below = 60 } })
+        local damis_lowest = tonumber(tostring(damis1_detail):match("lowest hp (%d+)/"))
         t.exec("killDamis2-present", t.npc.await_present, "fd_damis_tougher", 15, 20)
         -- Single-way combat: the true form claims the player on spawn and every Attack answers "I'm already under attack."
         -- (docs/quest_authoring/gaps-combat.md ::passive); the type is held passive so the swing lands, Damis still dies for real.
@@ -401,11 +442,18 @@ return {
         for round = 1, 60 do
             local cast_result = t.player.cast("water_blast", "fd_damis_tougher", 8)
             damis2_result, damis2_detail = t.npc.await_dead_engaged(8, 1, { eat = { item = "shark", below = 65 } })
+            local low = tonumber(tostring(damis2_detail):match("lowest hp (%d+)/"))
+            if low and (damis_lowest == nil or low < damis_lowest) then damis_lowest = low end
             if damis2_result == "ok" or damis2_result == "no_row" then
                 if damis2_result == "ok" then break end
             end
         end
         t.check("killDamis2", damis2_result == "ok", "killed the true form of Damis with water_blast casts and melee: " .. tostring(damis2_result) .. " " .. tostring(damis2_detail))
+        local sharks_after_damis = select(2, t.inv.count("shark"))
+        t.check("killDamis-margin", (sharks_after_damis or 0) >= 2 or (damis_lowest or 0) > 25,
+            "sharks at Damis " .. tostring(sharks_at_damis) .. ", eaten over both forms " .. tostring((sharks_at_damis or 0) - (sharks_after_damis or 0))
+            .. ", left " .. tostring(sharks_after_damis) .. ", lowest hp " .. tostring(damis_lowest) .. "/99 (margin: sharks left >= 2 or lowest hp > 25)")
+        protect_melee("killDamis-prayerOff", 0)
         t.ticks(2)
         t.check("killDamis-stage", select(2, t.var.server("varp5947_dt_shadow_stage")) == 100,
             "dt_shadow_stage = " .. tostring(select(2, t.var.server("varp5947_dt_shadow_stage"))) .. " a tick after the corpse (was 3 = ring, dt_shadow_complete = 100)")
@@ -473,9 +521,14 @@ return {
             return tostring(type(tile) == "table" and (tostring(tile.x) .. "," .. tostring(tile.z)) or tile) .. " level " .. tostring(level)
         end
         -- Brought-along food and ingredients (Quest Helper: combat gear, garlic powder, spice, cake for leg 4).
-        t.check("leg4.kit", t.cheat("::give shark 15") == "ok" and t.cheat("::give fd_crushed_garlic 1") == "ok"
-            and t.cheat("::give spicespot 1") == "ok" and t.cheat("::give cake 1") == "ok",
-            "15 sharks, garlic powder, spice and a cake given as brought-along items for the blood diamond and the troll child; sharks " .. tostring(select(2, t.inv.count("shark"))))
+        -- The quest items first, then sharks topped up to 11 rather than 15 more: prayed, Damis leaves 5-13 sharks in the pack
+        -- (it used to leave none), so 15 more filled it -- the garlic and spice "did not fit" (hp_dt_7, hp_dt_8) and then
+        -- leg 5's kit had no room for its restore potions (hp_dt_9, hp_dt_10). The green run reached leg 5 with 11.
+        local leg4_sharks_had = select(2, t.inv.count("shark")) or 0
+        local leg4_sharks_give = math.max(0, 11 - leg4_sharks_had)
+        t.check("leg4.kit", t.cheat("::give fd_crushed_garlic 1") == "ok" and t.cheat("::give spicespot 1") == "ok"
+            and t.cheat("::give cake 1") == "ok" and (leg4_sharks_give == 0 or t.cheat("::give shark " .. leg4_sharks_give) == "ok"),
+            leg4_sharks_give .. " sharks (" .. leg4_sharks_had .. " carried), garlic powder, spice and a cake given as brought-along items for the blood diamond and the troll child")
         t.ticks(2)
         t.exec("goto-enterEntrana", t.player.goto_tile, 3045, 3236, 0)
         t.exec("enterEntrana", t.player.talk_to, "shipmonk", 1)
@@ -603,11 +656,13 @@ return {
         -- (deserttreasure.rs2:1225 [softtimer,dt_ice_cold], ^dt_cold_interval = 10), and an xp drop no longer undoes it
         -- (LostCity Player.ts:1841-1851 addXp). Quest Helper's Ice diamond panel brings restore potions for it
         -- (quest-helper DesertTreasure.java:685 restorePotions = ItemCollections.RESTORE_POTIONS, which lists
-        -- _4DOSESTATRESTORE); a dose heals the five combat stats by 10 + 30% (restore_potion.rs2:35
-        -- [label,consume_effect_restore_potion]). Partial potions are drunk first; a dose swaps the obj, so the
+        -- _4DOSESTATRESTORE and _4DOSE2RESTORE); a super restore dose heals the combat stats by 8 + 25% (prayer_potion.rs2
+        -- [proc,super_restore_effect]). Partial potions are drunk first; a dose swaps the obj, so the
         -- verb's own settle is not the evidence (verbs-inventory-shops: sack Fill) -- the stat reading is.
         local cold_stats = { "attack", "strength", "defence", "magic" }
-        local restore_doses = { "1dosestatrestore", "2dosestatrestore", "3dosestatrestore", "4dosestatrestore" }
+        -- Super restores (the same RESTORE_POTIONS list, ItemCollections.java:532-540 _4DOSE2RESTORE): a dose also gives back
+        -- 8 + 25% Prayer (prayer_potion.rs2 [proc,super_restore_effect]), which Damis' aura took, for Protect from Melee at Kamil.
+        local restore_doses = { "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" }
         local function stat_reading()
             local parts = {}
             for _, s in ipairs(cold_stats) do
@@ -643,7 +698,7 @@ return {
         end
         -- Brought-along gear (Quest Helper: fire spells, spiked boots, restore potions) and food for the Ice Path.
         t.check("leg5.kit", t.cheat("::give death_spikedboots 1") == "ok" and t.cheat("::give firerune 400") == "ok" and t.cheat("::give deathrune 100") == "ok"
-            and t.cheat("::give abyssal_whip 1") == "ok" and t.cheat("::give 4dosestatrestore 2") == "ok" and t.cheat("::setlevel magic 99") == "ok",
+            and t.cheat("::give abyssal_whip 1") == "ok" and t.cheat("::give 4dose2restore 2") == "ok" and t.cheat("::setlevel magic 99") == "ok",
             "spiked boots, 400 fire runes and 100 death runes (fire blast), an abyssal whip for the ice trolls and two restore potions given as brought-along items, magic set to 99 (the Ice Path's cold drains a level per ten ticks); sharks " .. tostring(count("shark")))
         t.ticks(2)
         t.exec("wear-whip", t.player.equip, "abyssal_whip")
@@ -663,19 +718,33 @@ return {
             if t.cheat("::passive trollrescue_icetroll_melee" .. index) ~= "ok" then troll_passive = false end
         end
         t.check("killIceTrolls-passive", troll_passive, "::passive on the seven ice troll types: they no longer swarm the player but still take hits and die (test affordance, gaps-combat)")
+        -- Food margin over the troll fights (the cold now really drains, so they run longer: raid branch addXp change).
+        local sharks_at_trolls = count("shark")
+        local trolls_lowest, trolls_ticks = nil, 0
         for round = 1, 12 do
             if select(2, t.var.server("varb378_fd_icewarrior_trollskilled")) >= 5 then break end
+            -- Since the raid branch's addXp change the cold's drain is not undone by the kills' xp: at 35-40 Attack the 12
+            -- rounds killed 3-4 of 5 (hp_dt_9, hp_dt_10, hp_dt_13, hp_dt_14). A restore dose once it has taken 30 levels.
+            if cold_deficit() >= 30 then drink_restores("drinkRestore-trolls" .. round) end
             local engaged = "no_row"
             for _, sym in ipairs({ "trollrescue_icetroll_melee1", "trollrescue_icetroll_melee2", "trollrescue_icetroll_melee3",
                 "trollrescue_icetroll_melee4", "trollrescue_icetroll_melee5", "trollrescue_icetroll_melee6", "trollrescue_icetroll_melee7" }) do
                 engaged = t.player.attack(sym, 2, 20)
                 if engaged == "ok" then break end
             end
-            t.npc.await_dead_engaged(60, 4, { eat = { item = "shark", below = 75 } })
+            local _, troll_detail = t.npc.await_dead_engaged(60, 4, { eat = { item = "shark", below = 75 } })
+            local low = tonumber(tostring(troll_detail):match("lowest hp (%d+)/"))
+            if low and (trolls_lowest == nil or low < trolls_lowest) then trolls_lowest = low end
+            trolls_ticks = trolls_ticks + (tonumber(tostring(troll_detail):match("dead after (%d+) tick")) or 0)
         end
         t.ticks(2)
         t.check("killIceTrolls", select(2, t.var.server("varb378_fd_icewarrior_trollskilled")) >= 5,
             "ice trolls killed with the scimitar: fd_icewarrior_trollskilled = " .. tostring(select(2, t.var.server("varb378_fd_icewarrior_trollskilled"))) .. " (needs 5)")
+        local sharks_after_trolls = count("shark")
+        t.check("killIceTrolls-margin", (sharks_after_trolls or 0) >= 2 or (trolls_lowest or 0) > 25,
+            "sharks at the trolls " .. tostring(sharks_at_trolls) .. ", eaten " .. tostring((sharks_at_trolls or 0) - (sharks_after_trolls or 0))
+            .. ", left " .. tostring(sharks_after_trolls) .. ", lowest hp " .. tostring(trolls_lowest) .. "/99, "
+            .. trolls_ticks .. " tick(s) to kills (margin: sharks left >= 2 or lowest hp > 25)")
         t.exec("goto-enterTrollCave", t.player.goto_tile, 2866, 3720, 0)
         t.exec("enterTrollCave", t.player.click_loc, "trollrescue_troll_cave_entrance", 1)
         t.ticks(4)
@@ -684,15 +753,51 @@ return {
         t.ticks(2)
         -- Fire blast needs 59 Magic, and the walk and the troll fights have left it in the fifties.
         drink_restores("drinkRestore-killKamil")
+        -- Protect from Melee at Kamil (Quest Helper DesertTreasure.java:540 "Get into melee distance and protect from melee"):
+        -- he swings slash for up to 22 (icediamond_icewarrior strength 80 + 100, deserttreasure.npc), a prayed npc melee hit
+        -- is 0 (combat_stats.rs2 playerhit_n_melee_apply), and his freeze is max 5 (^dt_kamil_freeze_maxhit). Since the
+        -- eat-delay port (raid branch, OSRS-Content 7936c59bf9) an eat no longer holds his hits: unprayed he killed hp_dt_12.
+        local function protect_melee(name, want)
+            local _, now = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local tab_result, wr = "ok", "ok"
+            if now ~= want then
+                tab_result = t.ui.tab("prayer")
+                t.ticks(2)
+                local pw
+                wr, pw = t.ui.widget("prayerbook:prayer15")
+                t.ui.invoke(pw, 1)
+                t.ticks(2)
+            end
+            local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local _, pr = t.skill.read("prayer")
+            t.check(name, tab_result == "ok" and wr == "ok" and on == want, "varb4118_prayer_protectfrommelee " .. tostring(now) .. " -> " .. tostring(on)
+                .. " (want " .. want .. "); prayer " .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
+        end
+        protect_melee("killKamil-protectMelee", 1)
+        local sharks_at_kamil = count("shark")
         t.exec("goto-killKamil", t.player.goto_tile, 2863, 3753, 0)
+        -- Fire Blast needs Magic 59 (the cold drains a level per ten ticks, deserttreasure.rs2:1225 [softtimer,dt_ice_cold]).
+        local _, magic_at_kamil = t.skill.read("magic")
+        local magic_now = type(magic_at_kamil) == "table" and magic_at_kamil.level or nil
+        t.check("killKamil-magic", (magic_now or 0) >= 59, "magic " .. tostring(magic_now) .. "/"
+            .. tostring(type(magic_at_kamil) == "table" and magic_at_kamil.base_level) .. " before the first Fire Blast (needs 59)")
         t.exec("killKamil-engage", t.player.cast, "fire_blast", "icediamond_icewarrior", 8)
         local kamil_result, kamil_detail = "timeout", ""
+        local kamil_lowest = nil
         for round = 1, 40 do
             kamil_result, kamil_detail = t.npc.await_dead_engaged(60, 2, { eat = { item = "shark", below = 90 } })
+            local low = tonumber(tostring(kamil_detail):match("lowest hp (%d+)/"))
+            if low and (kamil_lowest == nil or low < kamil_lowest) then kamil_lowest = low end
             if kamil_result == "ok" then break end
             t.player.cast("fire_blast", "icediamond_icewarrior", 8)
         end
         t.check("killKamil", kamil_result == "ok", "killed Kamil with fire_blast: " .. tostring(kamil_result) .. " " .. tostring(kamil_detail))
+        local sharks_after_kamil = count("shark")
+        t.check("killKamil-margin", (sharks_after_kamil or 0) >= 2 or (kamil_lowest or 0) > 25,
+            "sharks at Kamil " .. tostring(sharks_at_kamil) .. ", eaten " .. tostring((sharks_at_kamil or 0) - (sharks_after_kamil or 0))
+            .. ", left " .. tostring(sharks_after_kamil) .. ", lowest hp " .. tostring(kamil_lowest) .. "/99 over every wait"
+            .. " (margin: sharks left >= 2 or lowest hp > 25)")
+        protect_melee("killKamil-prayerOff", 0)
         t.ticks(2)
         t.check("killKamil-stage", select(2, t.var.server("varb382_fd_icewarrior_subquest")) == 3,
             "fd_icewarrior_subquest = " .. tostring(select(2, t.var.server("varb382_fd_icewarrior_subquest"))) .. " a tick after the corpse (3 = Kamil dead), dt_ice_stage " .. tostring(select(2, t.var.server("varp5943_dt_ice_stage"))))
@@ -713,8 +818,14 @@ return {
         -- The long walk to the blocks drains again; drink only if the cold has taken twenty levels since Kamil.
         if cold_deficit() >= 20 then drink_restores("drinkRestore-breakIce") end
         t.exec("goto-breakIce1", t.player.goto_tile, 2828, 3808, 2)
-        t.exec("breakIce1", t.player.cast, "fire_blast", "troll_block_1", 8)
-        t.exec("breakIce1-dead", t.npc.await_dead_engaged, 60, 3, { eat = { item = "shark", below = 60 } })
+        local _, ice1_detail = t.exec("breakIce1", t.player.cast, "fire_blast", "troll_block_1", 8)
+        if string.find(tostring(ice1_detail), "left the pool inside the settle", 1, true) then
+            -- one Fire Blast at restored Magic can shatter the block inside the cast's own settle (hp_dt_14): no fight to await
+            t.check("breakIce1-dead", select(2, t.var.server("varb380_fd_icewarrior_dadfree")) == 1,
+                "the block left the pool inside the cast's settle: dadfree " .. tostring(select(2, t.var.server("varb380_fd_icewarrior_dadfree"))))
+        else
+            t.exec("breakIce1-dead", t.npc.await_dead_engaged, 60, 3, { eat = { item = "shark", below = 60 } })
+        end
         t.exec("breakIce2", t.player.cast, "fire_blast", "troll_block_2", 8)
         for round = 1, 6 do
             t.ticks(3)
@@ -849,8 +960,14 @@ return {
         })
         t.ticks(3)
         t.quest.expect_complete()
-        -- documented 20,006.9 Magic XP (dt_magic_reward_xp = 200069 tenths); the whole-unit readings of before/after differ by 20007
-        t.exec("reward.magic_xp", t.skill.expect_gain, "magic", 20007, snapshot)
+        -- documented 20,006.9 Magic XP (dt_magic_reward_xp = 200069 tenths). The whole-unit readings differ by 20007 or 20006
+        -- with the half point the run's spells left in the total (Fire Blast 34.5, Water Blast 28.5): the prayed fights cast
+        -- a different number of them, and hp_dt_13 / hp_dt_14 read 20006 for the full grant.
+        local _, magic_after = t.skill.read("magic")
+        local magic_before = snapshot and snapshot.magic and snapshot.magic.experience
+        local magic_gain = (type(magic_after) == "table" and magic_after.experience or 0) - (magic_before or 0)
+        t.check("reward.magic_xp", magic_before ~= nil and (magic_gain == 20007 or magic_gain == 20006),
+            "magic: before=" .. tostring(magic_before) .. " after=" .. tostring(type(magic_after) == "table" and magic_after.experience) .. " delta=" .. magic_gain .. " (20,006.9 documented)")
         t.finish(0)
         return
         -- LEG 6 END
