@@ -160,7 +160,7 @@ quest_soulsbane	soulsbane	asoulsbane		4	green	matthew-mbp-m4-b54
 quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	green	sonnet-b28			
 quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, batch haiku-b2): the author never returned a report; its file 'fixed' the sampler's cheated-hand-in finding by adding MORE cheats -- ::setvar squire 3/4/5 for the pie, Thurgo and portrait stages and ::give knights_portrait -- so every quest objective after the accept was cheated. Drive the Squire/Reldo/Thurgo/Vyvin/mining steps through clicks; ::give only for redberry_pie and the two iron bars.		
 quest_swansong	swansong	swansong		4	green	matthew-mbp-m4-b54			
-quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	green	matthew-mbp-m4-b56			
+quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo	matthew-mbp-m4-b56	REVERTED by sampler (matthew-mbp-m4-b56): goto_tile 1542,3570,0 teleports from Shiro's room straight INSIDE Phileas's house past its closed door (loc 42120 wallkit_shayzien_door01_l_reverse at 1540,3570; notes line 6 'click it, then walk in') -- guide returnToPhileasTent (stage 15->16, the arrival IS the step) and goto-talkToPhileasAgain both land inside; goto outside the door, open it with a click and walk in, keep everything else (the rest was clean: FULL 30/30, lizardman fought, 8000 coins + page literal). RELAY STATE: parked at test/quests/wip/taleoftherighteous/parked.lua		
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo				
 quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
