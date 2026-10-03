@@ -1,9 +1,9 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4	seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup	2026-10-03T09:33:47Z	todo|
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
-quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo				
+quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4		2026-10-03T09:33:47Z	todo|
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
@@ -71,7 +71,7 @@ quest_golem	golem	thegolem		1	green	sonnet-b15
 quest_grail	grail	holygrail		2	green	sonnet-b28			
 quest_grandtree	grandtree	thegrandtree		3	green	sonnet-b34			
 quest_grimtales	grimtales	grimtales		4	todo				
-quest_handinthesand	handinthesand	thehandinthesand		4	todo				
+quest_handinthesand	handinthesand	thehandinthesand		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4		2026-10-03T09:33:47Z	todo|
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16			
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	sonnet-b45			
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34			
@@ -99,7 +99,7 @@ quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10			
 quest_mcannon	mcannon	dwarfcannon		3	green	sonnet-b36			
-quest_meatandgreet	meatandgreet	meatandgreet		4	todo				
+quest_meatandgreet	meatandgreet	meatandgreet		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4		2026-10-03T09:33:47Z	todo|
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22			
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25			
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo				
@@ -165,7 +165,7 @@ quest_tasteofhope	tasteofhope	atasteofhope		4	todo
 quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
-quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo				
+quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4		2026-10-03T09:33:47Z	todo|
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32			
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	green	vm-b1			
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
@@ -175,7 +175,7 @@ quest_toweroflife	toweroflife	toweroflife		4	todo
 quest_tree	tree	treegnomevillage		2	green	sonnet-b28			
 quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51			
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
-quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo				
+quest_troubledtortugans	troubledtortugans	troubledtortugans		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4		2026-10-03T09:33:47Z	todo|
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo				
 quest_upass	upass	undergroundpass		3	green	matthew-mbp-m4-b52			
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
