@@ -51,7 +51,7 @@ xarpus.p2.max_hit.entry	poison max hit shown for Entry	6	hp	[wiki]	D	wiki_Xarpus
 xarpus.p2.stomp_max	pebble stomp damage per tick, upper bound	9	hp	[wiki][M40]	D	wiki_Theatre_of_Blood_Strategies.wikitext:838	M40	range
 xarpus.p2.stomp_interrupts	spits lost while a player stands under him (the spit is skipped)	1	count	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:838	-	exact
 xarpus.p3.screech_pct	screech threshold, Normal and Hard, percent of pool	25	percent	[wiki]	D	wiki_Xarpus.wikitext:258; wiki_Perfect_Xarpus.wikitext:21	-	+-1
-xarpus.p3.screech_pct_entry	screech threshold, Entry, percent of pool	22.5	percent	[wiki]	D	wiki_Theatre_of_Blood_Entry_Mode.wikitext:212	-	+-1
+xarpus.p3.screech_pct_entry	screech threshold, Entry, percent of pool	22.5	percent	[wiki]	D	wiki_Theatre_of_Blood_Entry_Mode.wikitext:212	-	bracket<=5
 xarpus.p3.turn_cadence	ticks between turns of his gaze, Normal and Entry	8	ticks	[plugin][blert][oosrs][wiki][guide]	C	blert_plugin/XarpusDataTracker.java:52; openosrs_theatre/XarpusHandler.java:281; wiki_Theatre_of_Blood_Strategies.wikitext:851; wiki_Guide_Advanced_Theatre_of_Blood.wikitext:225	-	exact
 xarpus.p3.first_turn	ticks from the screech to the first turn	8	ticks	[plugin][blert]	D	blert_plugin/XarpusDataTracker.java:124	-	+-1
 xarpus.p3.repeat_quadrant	consecutive turns to the same quadrant	0	count	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:853; wiki_Perfect_Xarpus.wikitext:21	-	exact

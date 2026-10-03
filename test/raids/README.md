@@ -152,6 +152,11 @@ something the tick log did not support. The rules the sampler holds a row to:
 - **Report a bracket as a bracket.** If the log only narrows a threshold to 19.6-23.1 %,
   write `measured 19.6-23.1`; if that is wider than the tolerance, measure more finely
   (hit on the exact thresholds) rather than writing the spec's figure.
+  A threshold row whose table tolerance is `bracket<=N` (a phase trigger as a share of
+  the pool: one run can only prove the interval between the reading before the crossing
+  hit and the reading after it) is graded as that interval: it passes when
+  `measured lo-hi` holds the spec value and is no wider than N. Write both readings and
+  the hit in the free text; a single number on such a row fails.
 - **The row's expect is the comparison**, never a constant `ok`: `t.check("spec.x", within, detail)`.
 - **The scope row is required**: without `spec.scope` the gate grades every row of the table.
 - A bring-along may include the spellbook (a setup cheat that sets the spellbook var, with a

@@ -34,7 +34,7 @@ UNITS = {"ticks", "cycles", "hp", "tiles", "count", "percent", "permille", "rati
 TAG_RE = re.compile(r"^(\[[A-Za-z0-9]+\])+$")
 ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_.]+$")
 VALUE_RE = re.compile(r"^(\?|-?\d+(\.\d+)?(-\d+(\.\d+)?)?|(-?\d+(\.\d+)?)(,-?\d+(\.\d+)?)+)$")
-TOL_RE = re.compile(r"^(exact|\+-\d+|range|approx)$")
+TOL_RE = re.compile(r"^(exact|\+-\d+|range|approx|bracket<=\d+(\.\d+)?)$")
 
 
 def check(path):

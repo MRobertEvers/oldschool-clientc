@@ -22,7 +22,9 @@ exact: measured == spec (or in the spec list); +-N: within N of the spec (a
 spec range: within N of its ends); range: inside the spec range -- and a SINGLE
 spec value under range is a bound: a ceiling row (its id or quantity says max,
 cap, ceiling, upper, at most, up to) wants measured <= spec, a floor row (min,
-floor, lower, at least) wants measured >= spec; approx (grade E only): no numeric
+floor, lower, at least) wants measured >= spec; bracket<=N (a threshold
+crossing): measured must be an interval lo-hi that holds the spec value and is
+no wider than N; approx (grade E only): no numeric
 check, but the detail must carry "approximation, M<n>".
 The grade in the row must equal the table's grade, so a promoted or demoted
 grade is a conscious edit of the table, never of the test alone.
@@ -198,6 +200,14 @@ def within(measured, spec, tol, quantity=""):
     if m is None or s is None:
         return False
     values = [m[1], m[2]] if m[0] == "range" else m[1]
+    if tol.startswith("bracket<="):
+        # A threshold crossing: one run proves only the interval between the
+        # reading before the crossing hit and the reading after it. The row
+        # passes when that interval holds the spec value and is no wider than
+        # the stated width; a single measured number is not a bracket.
+        if m[0] != "range" or s[0] != "list" or len(s[1]) != 1:
+            return False
+        return m[1] <= s[1][0] <= m[2] and (m[2] - m[1]) <= float(tol[len("bracket<="):])
     if tol == "range" and s[0] == "list" and len(s[1]) == 1:
         q = quantity.lower()
         bound = s[1][0]
