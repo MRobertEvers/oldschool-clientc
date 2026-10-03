@@ -804,9 +804,10 @@ under `build/seam_state/matthew-mbp-m4-raid-b1-seam3/`.
   there); a party test should assert the mirror's rows.
 - Off on 3: a step off the grid resolving on a tick = 3 mod 4 re-activates him on the
   next tick. The despawn check scans players' tiles in the NPC phase.
-- The maze waits for its runner: an eat on proc+2 holds the teleport (`p_delay`) to
-  proc+5 and the maze is not ended under it. Do not eat on proc+1..proc+2 if you assert
-  `maze_teleport_delay` 3 (the late landing is an open row).
+- The maze waits for its runner. Before the eat-delay port (seam6, landed in OSRS-Content
+  7936c59bf9) an eat on proc+2 held the teleport (`p_delay`) to proc+5. An eat no longer parks
+  the player, so it no longer holds the teleport (not re-measured: assert
+  `maze_teleport_delay` 3 and report a late landing as a finding).
 - Rag: a wrong tile resolved on tick N is hit on N+1 .. the tick the step back resolves;
   Entry 11 + 6.67 % of current hp.
 - `::tobsotepct <permille>` (scratches only) takes him to that share of the scaled
@@ -969,7 +970,9 @@ is a fact about a verb, the tick log, the grader or a room that the sections abo
   press with `{ slot = n }` after the step.
 - `t.player.inv_op` (eating) costs about 3 server ticks from press to settle. Budget it
   in a dodge loop: an eat started on T-2 of a hit is not finished on T.
-- Re-attack after every eat, dodge or step (README lessons); an eat drops the engagement.
+- Re-attack after every dodge or step (README lessons). Since the eat-delay port an eat
+  no longer drops the engagement (no consume script calls `p_stopaction`); a re-press
+  after an eat is redundant but harmless.
 
 ## Rows inside a timed loop
 
@@ -1143,9 +1146,10 @@ retaliation floor and exit. The fixers' reports are under
   no source says whether it should.
 - The ordinary Entry ball rolls 1..22 unprayed: over 40 balls the largest was 22 (three
   times), none above. Solo there are no ricochets.
-- Do not eat while a death ball is in flight if you classify splats by launch+16. The
-  impact is a player queue, the eat's `p_delay` holds it, and the splat lands late and
-  reads as an ordinary ball (2 of 5 moved in s4_sote_ball_before).
+- An eat no longer holds a death ball's impact (the eat-delay port, OSRS-Content 7936c59bf9):
+  the impact is a player queue and lands on launch+16 whether or not the player eats.
+  Before the port the eat's `p_delay` held it and the splat read as an ordinary ball
+  (2 of 5 moved in s4_sote_ball_before).
 - Long measurement without a maze: `::tobwarp 15 37` (3 tiles out, no melee), no prayer,
   no attacks (he stays above 66.6 %), 28 sharks with an hp < 55 threshold covers about 45
   attacks.
@@ -1219,16 +1223,11 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
 - `t.skill.read('hitpoints')` lags an eat by 1 to 3 ticks. Re-eating on the stale read
   wastes food: after an eat, wait for the reading to rise (or count the eat) before the
   next threshold test.
-- An eat's `p_delay` holds every queued hit on the player, not only the Sotetseg death
-  ball: a Sotetseg melee swung on tick 531 landed on 535 instead of 532. A row that
-  excuses a late splat by an eat must look for the eat in the ticks AFTER the swing
-  (swing+1 .. splat-1), not only before it, and must `t.check` every instance; an
-  unexplained late splat is a FAIL (or a content_bug), never a PASS.
-- Seam5 found the cause: our eat calls `p_delay`, LostCity's does not (seam5 section,
-  "An eat holds every queued npc hit"). It is still open after seam6: the port was made
-  and proved, but it moved two quest tests from green to RED and was not landed (seam6
-  section, "The eat-delay port did not land"). Until it lands, count eaten-through hits
-  separately.
+- An eat holds no hit any more. Until the eat-delay port (OSRS-Content 7936c59bf9) an eat's
+  `p_delay` held every queued hit on the player (a Sotetseg melee swung on tick 531
+  landed on 535 instead of 532). Now an incoming hit lands on its own tick while the
+  player eats, so a late splat cannot be excused by an eat: it is a FAIL (or a
+  content_bug), never a PASS. See the seam6 section, "The eat-delay port".
 
 ## Exact-tick actions
 
@@ -1410,20 +1409,17 @@ outside its files, and changed nothing. The fixers' reports are under
 - Since seam6 the reply prints at most four groups after `n=<count> shown=<groups>`, so it
   stays under the 252 characters that desync a session (trap 27).
 
-## An eat holds every queued npc hit
+## An eat held every queued npc hit (fixed by the eat-delay port)
 
-- general/scripts/food.rs2 eats with `p_delay(^eat_delay)` (2 ticks). A delayed player
-  runs no queue of any kind (torirs_server_scripts.c:938 and :1540, the same canAccess
-  gate as LostCity).
-- So a hit due at +1 lands at +3 when the eat lands on the swing tick, and at +4 when the
-  eat lands the tick after. This covers Sotetseg's melee and balls, every raid projectile
-  impact, and an ordinary dark wizard's spell.
-- An ordinary npc's melee (a goblin) is not held, because it lands in the npc's own turn.
-- LostCity's eat (consume.rs2:101-110) never calls `p_delay`: it sets an eat-delay clock
-  and adds to the action delay. The fix is a port of that into food.rs2 (and the other
-  consumption scripts that `p_delay`). Seam6 made and proved that port but did not land
-  it (seam6 section); it is still open.
-- Until it lands, count eaten-through hits separately in any hit-delay row.
+- HISTORY. Until OSRS-Content 7936c59bf9 general/scripts/food.rs2 ate with `p_delay(^eat_delay)`
+  (2 ticks), and a delayed player runs no queue of any kind (torirs_server_scripts.c:938
+  and :1540, the same canAccess gate as LostCity). A hit due at +1 landed at +3 when the
+  eat landed on the swing tick and at +4 the tick after (Sotetseg's melee and balls,
+  every raid projectile impact, an ordinary dark wizard's spell).
+- LostCity's eat (consume.rs2:101-110) never calls `p_delay`; the port of that landed in
+  seam6 (section "The eat-delay port"). A hit queued on the player is a delayed-player
+  queue still, so any OTHER script that `p_delay`s (the ToA supply drinks,
+  toa_supplies.rs2, are still `p_delay(1)`) holds it the same way.
 
 ## Measuring
 
@@ -1499,23 +1495,43 @@ protection prayers block wave nylocas hits. The second gives Verzik three separa
 and an enrage threshold compared without truncation, and makes the readouts know every
 mode's Maiden and Verzik records. One seam row proves the first:
 `seam.nylocas_protect_blocks_wave_hit`. The third seam, the tree-wide eat-delay port, was
-made and proved but not landed, because it moved two committed quest tests from green to
-RED. The fixers' reports are under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/`.
+held back by the closer because it moved two committed quest tests from green to RED; it
+landed afterwards on the owner's decision (2026-10-03) in OSRS-Content 7936c59bf9, with the seam
+rows `seam.eat_does_not_hold_queued_hit` and `seam.eat_delay_clocks`. The fixers'
+reports are under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/`.
 
-## The eat-delay port did not land: an eat still holds every queued hit
+## The eat-delay port: incoming hits land on their tick
 
-- An eat still parks the player for 2 ticks, and a potion for 1, so a scripted npc hit
-  queued on the player still lands late when the player eats on or after the swing tick.
-  The seam5 note "An eat holds every queued npc hit" still holds. Count eaten-through hits
-  separately in every hit-delay row.
-- The port was made and proved: LostCity's consume.rs2:96-110 clock shape in a new
-  consume_shared.rs2, no `p_delay` and no `p_stopaction` in any consume script, and an
-  eat adding 3 to a running weapon delay (wiki Food/Fast foods). It is saved as a patch
-  with its two seam rows under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/close/`.
-- The closer's full suite moved `troll` and `regicide` from green to RED with the port in,
-  and both were green again without it. Both deaths come from food tuned to the old
-  mechanics. The port has to land together with a quest-loop retune of those two tests.
-  See CONTENT_BUGS.md, "From seam6".
+- Landed 2026-10-03 on the owner's decision (OSRS-Content 7936c59bf9). An eat or a sip is a pair
+  of clocks in player/scripts/consumption/consume_shared.rs2 (`varp7219_consume_food_delay`,
+  `varp7218_consume_combo_delay`, `varp7220_consume_potion_delay`; LostCity
+  consume.rs2:96-110's shape), never a `p_delay`. Every food and potion script in the
+  tree uses it except the ToA supply drinks (toa_supplies.rs2, still `p_delay(1)`).
+- Incoming hits land on their tick. A scripted npc hit queued on the player (Sotetseg's
+  melee and balls, a raid projectile impact, a dark wizard's spell) lands where it would
+  without the eat: Sotetseg melee +1 x8 with an eat on the swing tick (landeat_sote_eat),
+  a young dark wizard's spell +1 eaten as plain. Eat around a timed hit freely; do not
+  count eaten-through hits separately any more.
+- An eat costs its delay on the eater's NEXT EAT and NEXT ATTACK only. Food every 3 ticks
+  (pies 1/2, cakes 2/2/3, pizzas 1/2); a combo food (`tbwt_cooked_karambwan`, halibut) may
+  follow a food on the same tick but not another combo food; potions have their own 3-tick
+  timer (a sip can share a tick with a food); barbarian mixes use the food timer. A
+  refused press is silent, as in LostCity.
+- The attack: an eat adds 3 ticks to a weapon delay that is still running (2 for
+  karambwan/halibut, stacked: shark + karambwan = 5) and nothing to a ready weapon. An
+  unarmed goblin fight swings 4,4 and 7,7 after an eaten swing.
+- An eat no longer stops the player's attack or walk (no `p_stopaction` in any consume
+  script).
+- `t.player.inv_op` settles for 3 ticks, so no test can press twice inside one food delay.
+  Read the clocks instead: `::eatdelay` prints `eatdelay: clock C food F combo K potion P
+  action A` (each the last tick still refused; food = the eat tick + 2), and `::eatgate`
+  runs the gate procs in one tick and prints two lines (`eatgate:` and `eatgate+:`).
+- The driver eater (`opts.eat`) still waits `QD.COMBAT_EAT_DELAY_TICKS` = 3 after
+  inv_op's own 3-tick settle, so it eats at most every 6 ticks; the server would take one
+  every 3.
+- Quest-loop impact: `troll` and `regicide` went green -> RED with the port (the player
+  dies without the held hits); the quest loop re-authors them with more food or prayer.
+  troll: first failing row 31 player.died at tick 465, in killGeneral's wait (2824,10077 level 2): the Troll general's hits killed the player after all 26 sharks were eaten (the general at 1/30). regicide: first failing row 205 goKillGuardAtSecondForest-walk-toForests, run from the Lumbridge respawn; the death came at the end of leg 4 (about tick 4663): the Tyras guard fight ate all 12 sharks (lowest 20/70, OUT OF shark), then the tripwire snag and its poison took the player to 0. See CONTENT_BUGS.md, "Quest loop impact of the eat-delay port".
 
 ## Protection prayers block a wave nylocas's hit
 

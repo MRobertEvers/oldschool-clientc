@@ -216,15 +216,18 @@ suite 118 green + deserttreasure RED (the seam1 baseline; troll and regicide mov
 with the eat port in and are green again without it); C selftest 11 failures (the
 baseline set); ::tobrun OK 56.
 
-- `eat_delay_port`: NOT LANDED. The LostCity consume.rs2 clock port (consume_shared.rs2,
-  no p_delay or p_stopaction in any consume script, +3 on a running weapon delay) passed
-  its two seam rows in the closer's conformance run (wizard +1 with eats; goblin 4,4 and
-  eaten 7,7). The full suite then moved troll (every shark eaten at the generals, its
-  eat-below-90 costs 3 attack ticks an eat) and regicide (0 hp after leg 4) from green to
-  RED. Still open: land the port together with a quest-loop retune of those two tests
-  (patch, files and rows in build/seam_state/matthew-mbp-m4-raid-b1-seam6/close/); the
-  ToA supply drinks' p_delay(1); the unported fast-food data. An eat still holds every
-  queued hit.
+- `eat_delay_port`: LANDED 2026-10-03 on the owner's decision, after the closer had held it
+  back: OSRS-Content 7936c59bf9 and the parent commit "raid-driver: the eat-delay port lands".
+  LostCity consume.rs2's clock shape (consume_shared.rs2, varps 7218-7220; no p_delay or
+  p_stopaction in any consume script; +3 on a running weapon delay). Conformance 267/267
+  (162 verbs + 105 seam rows: seam.eat_does_not_hold_queued_hit '+1,+1,+1 eaten',
+  seam.eat_delay_clocks 'no eat 4,4; eaten 7,7'); C selftest 11 failures, the baseline set
+  (the full-health bite waits 3 ticks); ::tobrun OK 56. Suite 116 green + deserttreasure RED
+  (seam1 baseline) + troll and regicide green -> RED, accepted: troll row 31 player.died at
+  tick 465 (all 26 sharks eaten at the Troll general, general 1/30), regicide row 205
+  goKillGuardAtSecondForest-walk-toForests (died at the end of leg 4, out of shark after the
+  Tyras guard, then the tripwire snag and poison); the quest loop re-authors both with more
+  food or prayer. Still open: the ToA supply drinks' p_delay(1); the unported fast-food data.
 - `tob_nylocas_prayer_and_damage`: LANDED. A wave nylocas's swing is 0 under the matching
   protection prayer (0 of 52 matched swings landed); Vasilias's prayed melee writes a 0
   row; row seam.nylocas_protect_blocks_wave_hit PASS. Still open: spec rows

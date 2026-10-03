@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 103
+-- @seam-count 105
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 162
-local SEAM_COUNT = 103
+local SEAM_COUNT = 105
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9006,6 +9006,235 @@ return {
             text[#text + 1] = "C slot " .. slots[3] .. " killed"
             teardown()
             return "ok", table.concat(text, "; ")
+        end)
+
+        -- AN EAT IS TWO CLOCKS, NEVER A PARK (raid seam6 eat_delay_port).  No
+        -- verb changed; two SEAM rows for the eat-delay port (consume_shared.rs2
+        -- + food.rs2 + every consumption script), placed after the raid seam5
+        -- row seam("seam.attack_fast_path", ...).
+        --
+        -- (1) seam.eat_does_not_hold_queued_hit -- seam5's row, unchanged (written in
+        --     build/seam_state/matthew-mbp-m4-raid-b1-seam5/conformance.tob_sotetseg_hit_delay.lua,
+        --     held until the food fix landed; it lands with this seam).  RED on the
+        --     committed content (an eat held the wizard's bolt +3), GREEN with this
+        --     seam.  The same logic as the eat_delay_scratch wizard row:
+        --       HEAD copy  seam6_eat_head1  eat on the cast tick +3,+3,+5,+3,+3,+3 (plain +1)
+        --       fixed      seam6_eat_fix5   eat on the cast tick +1,+1,+5,+1,+1,+1 (plain +1/+5)
+        --     and this snippet run as written under a harness that defines the PLAN
+        --     helpers (eat_delay/conf_harness.lua, run seam6_conf_rows*).
+        -- (2) seam.eat_delay_clocks -- NEW.  The gate procs answered in one tick by
+        --     ::eatgate (consume_shared.rs2's readout: food after food refused, a combo
+        --     food after a food allowed, a combo after a combo refused, a potion after
+        --     a food allowed, a potion after a potion refused, both refused through +2
+        --     = a 3-tick gap, a ready weapon +0, a running one +3 then +2), then an
+        --     unarmed goblin fight where every second swing is followed by a shark:
+        --     uneaten gaps 4, eaten gaps 7 (wiki Food/Fast foods: an eat while the
+        --     weapon delay runs adds 3).  HEAD copy: no ::eatgate, and the eaten gap
+        --     was 6/4 (the eat's p_stopaction let the retaliate flinch reset the
+        --     delay); fixed: 7,7.
+        seam("seam.eat_does_not_hold_queued_hit", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local WIZ = "young_dark_wizard"
+            local function teardown()
+                setup_cheat("::kill " .. WIZ .. " 10")
+                settle(2)
+            end
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 12")
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. WIZ .. " 1")
+            settle(3)
+            t.ticklog.start()
+            t.ticklog.mark("seam.eat_does_not_hold_queued_hit")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local ws, cast_seq, last_anim = nil, nil, nil
+            local acur, hcur, n, guard, engaged = since, since, 0, 0, false
+            local casts, eats = {}, {}
+            while guard < 160 and n < 10 do
+                local nr, nrow = by_symbol(WIZ)
+                if nr ~= "ok" then
+                    setup_cheat("::spawn " .. WIZ .. " 1")
+                    settle(2)
+                    engaged, ws = false, nil
+                else
+                    if ws == nil then ws = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(WIZ, 2, 20) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if ws ~= nil then
+                    local _, hp = t.ticklog.rows({ kind = "hit_player", since = hcur, slot = ws })
+                    for _, h in ipairs(hp) do
+                        hcur = math.max(hcur, h.serial)
+                        if cast_seq == nil and last_anim ~= nil then cast_seq = last_anim.seq end
+                    end
+                    local _, an = t.ticklog.rows({ kind = "npc_anim", since = acur, slot = ws })
+                    for _, r in ipairs(an) do
+                        acur = math.max(acur, r.serial)
+                        last_anim = r
+                        if cast_seq ~= nil and r.seq == cast_seq then
+                            n = n + 1
+                            casts[#casts + 1] = { tick = r.tick, slot = ws }
+                            if n % 2 == 0 then
+                                inv_op("shark", 1)
+                                eats[r.tick] = true
+                            end
+                        end
+                    end
+                end
+            end
+            local plain, eaten, seen = {}, {}, {}
+            for _, c in ipairs(casts) do
+                local _, hs = t.ticklog.rows({ kind = "hit_player", since = since, slot = c.slot })
+                for _, h in ipairs(hs) do
+                    if h.tick > c.tick and h.tick <= c.tick + 8 then
+                        local d = h.tick - c.tick
+                        if eats[c.tick] then eaten[#eaten + 1] = d else plain[#plain + 1] = d end
+                        break
+                    end
+                end
+            end
+            teardown()
+            local text = "cast seq " .. describe(cast_seq) .. "; no eat +" .. table.concat(plain, ",+")
+                .. "; eat on the cast tick +" .. table.concat(eaten, ",+")
+            if #plain < 2 or #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two casts of each kind"
+            end
+            for _, d in ipairs(plain) do seen[d] = true end
+            for _, d in ipairs(eaten) do
+                if not seen[d] then
+                    return "refused", text .. " -- an eat moved a queued npc hit to +" .. d
+                        .. " (a delay no uneaten cast showed): the eat's p_delay held the player's queue"
+                end
+            end
+            return "ok", text
+        end)
+
+        seam("seam.eat_delay_clocks", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local GOB = "goblin_unarmed_melee_1"
+            -- The stage before seam.attack_fast_path wields a magic shortbow
+            -- (ranged 99), which kills a 5-hp goblin with its first arrow and
+            -- leaves no swing gap to measure (closer's first full run: 0 gaps
+            -- in 166 ticks).  The gap under test is an UNARMED 4, so the bow
+            -- comes off for this row and goes back on at its teardown.
+            local BOW = "magic_shortbow"
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local bow_off = false
+            local function line(prefix)
+                local _, list = t.msg.last(20)
+                for _, m in ipairs(list or {}) do
+                    if string.sub(m.text, 1, #prefix) == prefix then return m.text end
+                end
+                return nil
+            end
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+                if bow_off and equip then equip(BOW) end
+            end
+            -- (a) the gate procs in one tick (consume_shared.rs2 ::eatgate)
+            setup_cheat("::eatgate")
+            local g1, g2 = line("eatgate:"), line("eatgate+:")
+            local want1 = "food 1 food-after-food 0 combo-after-food 1 combo-after-combo 0 potion-after-food 1 potion-after-potion 0"
+            local want2 = "food-refused-through +2 potion-refused-through +2 attack-ready +0 attack-running-2 +7"
+            if g1 == nil or g2 == nil then
+                return "refused", "no ::eatgate reply (" .. describe(g1) .. " / " .. describe(g2) .. "): consume_shared.rs2 is not in the pack"
+            end
+            if not string.find(g1, want1, 1, true) or not string.find(g2, want2, 1, true) then
+                return "refused", g1 .. " | " .. g2 .. " -- want " .. want1 .. " | " .. want2
+            end
+            -- (b) an eat while the weapon delay runs adds 3: unarmed (4) swing
+            -- gaps, measured hit_npc to hit_npc, with a shark eaten the tick a
+            -- swing's hit lands on every second swing
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 6")
+            -- not_found when no bow is worn (the row run on its own): unarmed already
+            if unequip and unequip(BOW) == "ok" then bow_off = true end
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOB .. " 1")
+            settle(3)
+            t.ticklog.start()
+            t.ticklog.mark("seam.eat_delay_clocks")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local gs, hcur, guard, engaged, last_hit, ate = nil, since, 0, false, nil, false
+            local plain, eaten = {}, {}
+            while guard < 160 and #eaten < 2 do
+                local nr, nrow = by_symbol(GOB)
+                if nr ~= "ok" then
+                    setup_cheat("::spawn " .. GOB .. " 1")
+                    settle(2)
+                    gs, engaged, last_hit, ate = nil, false, nil, false
+                else
+                    if gs == nil then gs = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(GOB, 2, 10) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if gs ~= nil then
+                    local _, hn = t.ticklog.rows({ kind = "hit_npc", since = hcur, slot = gs })
+                    for i, h in ipairs(hn) do
+                        hcur = math.max(hcur, h.serial)
+                        if last_hit ~= nil then
+                            if ate then eaten[#eaten + 1] = h.tick - last_hit else plain[#plain + 1] = h.tick - last_hit end
+                        end
+                        last_hit, ate = h.tick, false
+                        if i == #hn and (#plain + #eaten) % 2 == 1 then
+                            inv_op("shark", 1)
+                            ate = true
+                        end
+                    end
+                end
+            end
+            teardown()
+            local text = "eatgate ok; unarmed swing gaps: no eat " .. table.concat(plain, ",")
+                .. "; a shark eaten after the swing " .. table.concat(eaten, ",")
+            if #plain < 2 or #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two gaps of each kind"
+            end
+            for _, d in ipairs(plain) do
+                if d ~= 4 then return "refused", text .. " -- an uneaten unarmed gap of " .. d end
+            end
+            for _, d in ipairs(eaten) do
+                if d ~= 7 then
+                    return "refused", text .. " -- an eat while the weapon delay ran gave " .. d
+                        .. ", not 4 + 3 (wiki Food/Fast foods)"
+                end
+            end
+            return "ok", text
         end)
 
         -- A [MAPZONE] TRIGGER FIRES ON A SQUARE'S UPPER LEVEL (seam36
