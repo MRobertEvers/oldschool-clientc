@@ -448,3 +448,27 @@ for getting to Osman"). The seam relay sanctioned it. Nit: `mazeUp` is defined a
 Maisa's two questions are split across two talks, which is a port parity leg the relay already
 names.
 
+## Sample matthew-mbp-m4-b54 (2026-10-03)
+
+*The sampler checked swansong (920156338, 202/0, 226 shots) and opened every shot. It SENT the
+quest BACK. Commit 920156338 is reverted (95a3d480a), and so is the evidence commit (OSRS-Content
+fae051f140, reverted by 1940a57b00). The round-4 rows are kept in
+`test/quests/wip/swansong/round4_rejected.lua`.*
+
+(a) THE SEA TROLL QUEEN FIGHT IS NOT A FIGHT. `swan_seatroll_queen` and `swan_troll_ambush` have no
+block in any server `.npc` file. The only entry is `npc_anims.generated.npc`, which holds
+animations. They spawn at `init_defaults`' 10 hitpoints and attack/strength/defence 1
+(`torirs_server_content.c:4615`). The cache gives the Queen level 170 and 200 hitpoints
+(`configs/all.npc` `stat4=200`), and the sea trolls 100. The run cast ONE Fire Blast at the Queen.
+The runes went 200/80/60 to 196/75/59, magic xp rose by 54, and she died inside the cast's
+10-tick settle (shot 215, ledger `the npc left the pool inside the settle`). The first ambush troll
+read `21/30` after a 3 hitsplat. This is the same finding that sent Contact! back (round 3 (a) above;
+gaps-combat: A level-191 boss dies in seven ticks). Content must author both blocks. The test needs
+no change: re-run the round-4 file and check the Queen's bar falls slowly. A fight that lasts can
+also outrun the ambush trolls' 50-tick despawn (content-gaps: Swan Song's entrance ambush).
+
+Not findings: every leg the round-3 review named is now driven in game. The hammer is bought,
+the bones are picked up from the four trolls and three chickens, and the pot and lid are thrown on
+the wheel and fired in the oven. See content-gaps: Swan Song: Franklin gives no hammer. Casting at
+the Queen from the beach tile is Quest Helper's own `killQueen` (`combatGearRanged`,
+SwanSong.java:285). The rewards are the literal 15000/10000/50000 xp and 25000 coins.

@@ -168,6 +168,8 @@ topic file with one line added here.
 - a floor obj on a deck, `ground 0` -> seam-facts: Seam pass 18, (b)
 - a private ground drop is not there yet -> gaps-combat: Three world facts
 - an xpreward lamp; a make-X menu -> seam-facts: Seam pass 25, (e); verbs-ui-and-npc: Skill-multi menus
+- a second `use_on softclay` on a potter's wheel answers `timeout ... settle_after_click` though `skillmulti` opens (Swan Song throwLid) -> verbs-ui-and-npc: Skill-multi menus
+- the guide says an npc gives the hammer (Swan Song's Franklin) but the colony hole refuses without one; Malignius wants 7 bones and the trolls drop 4 -> content-gaps: Swan Song: Franklin gives no hammer
 - `use_item_on_item(a, b)` says `Nothing interesting happens.` but the reverse order works; which of `[opheldu,a]`/`[opheldu,b]` fires -> gaps-combat: `use_item_on_item` order (`[opheldu,b]`, the clicked item, first; corrected matthew-mbp-m4-b49-seam1)
 - `no_row zembo` at Musa Point; Karamjan rum for Tai Bwo Wannai Trio -> content-gaps: `no_row <npc>` for a world npc the guide names
 
@@ -217,6 +219,7 @@ topic file with one line added here.
 - `every press's menu held only Cancel` -> verbs-combat: A spell on a ground obj or a loc
 - `TELEPORTED to x,z,l`, `no teleport` -> verbs-combat: A spell with no target
 - a boss dies in one hit -> seam-facts: Seam pass 24, (a)
+- a level-170 boss dies to ONE spell, `the npc left the pool inside the settle` (Swan Song's Sea Troll Queen, no `.npc` block) -> sampler-findings: Sample matthew-mbp-m4-b54 (a)
 - died to a prayer-bypass roll -> gaps-combat: Three world facts
 - fever spiders; hitting through a door -> verbs-combat: Fever spiders
 - a claim survives a loc teleport -> seam-facts: Seam pass 25, (f)

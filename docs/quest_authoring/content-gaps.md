@@ -217,4 +217,22 @@ test header; do not invent five more kills. Two things follow from the port's ve
   about 50 ticks soft-locks stage 40. Kill the three without pausing; the measured run took
   about 34 ticks (`test/quests/wip/swansong/relay.md`).
 - Malignius later wants 7 bones. With 3 ambush trolls, the rest have to come from later
-  trolls.
+  trolls. Only one later troll exists (the one the first fishing cast wakes), so the trolls
+  leave 4 bones; see the next section for the other 3.
+
+## Swan Song: Franklin gives no hammer, and the trolls leave 4 of Malignius's 7 bones (matthew-mbp-m4-b54)
+
+*Origin: the matthew-mbp-m4-b54 round-4 review.*
+
+Quest Helper's hammer tooltip says "Franklin will give you one" (SwanSong.java:188). In the port
+nobody gives a hammer: no Swan Song script has an `inv_add` for one. The colony hole also refuses
+entry without it ("You'll want a hammer before heading in", `swansong_colony.rs2:109`), before you
+can reach Franklin. Quest Helper lists the hammer on `enterColony` too. So the hammer is bought in
+game, not given in setup: the Lumbridge general store (`generalshopkeeper1`, op 3, shop
+`generalshop1`) sells one for 1 coin. Setup gives only the coins.
+
+The bones tooltip says to pick them up from the sea trolls (SwanSong.java:154). The port has four
+sea trolls before Malignius: the three ambush trolls and the one the first fishing cast wakes. Each
+drops one `bones`, so three more are needed. Malignius asks for "the normal sort you get from
+people and small monsters", so kill three chickens (Lumbridge farm, `chicken_brown`) and pick up
+their bones. Do not `::give` bones.
