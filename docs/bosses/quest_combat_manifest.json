@@ -5379,15 +5379,48 @@
       "encounter_summary": "Three Strange Creatures (93)",
       "plan_line": 201,
       "cache_scope": "post-revision-239",
-      "implementation_status": "blocked-cache-version",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Strange_creature_(Shadows_of_Custodia)?oldid=15340738",
+          "revision": 15340738,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shadows_of_Custodia?oldid=15319376",
+          "revision": 15319376,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Shadows_of_Custodia?oldid=15303787",
+          "revision": 15303787,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "soc_quest_juvenile: level-93 Strange creature, 100 hitpoints, 95/55/45 attack/strength/defence, 25 magic, crush, attack speed 4, big bones (configs/shadowsofcustodia.npc); three are spawned owned by the player at Antos",
+        "soc_antos: Antos in the eastern chamber of the Stalker Den (configs/shadowsofcustodia.spawn)"
+      ],
+      "item_gamevals": [
+        "big_bones: the only drop (wiki: Strange creatures drop the juvenile custodian stalker table; quest leg needs none)"
+      ],
+      "loc_gamevals": [
+        "soc_cave_entrance / soc_cave_exit: the Stalker Den door pair"
+      ],
+      "trigger_handlers": [
+        "opnpc1:soc_antos spawns the three creatures (soc_spawn_creatures) and sets %varb16653_soc_stalkers_encountered",
+        "opnpc2:soc_quest_juvenile (trap 31 @player_combat_start)",
+        "ai_queue3:soc_quest_juvenile writes stage 20 when the last owned creature dies"
+      ],
+      "loot_contract": "Strange creatures drop big bones only; the juvenile custodian stalker table is not ported, the quest needs no drop and the wiki quest page lists no special loot.",
+      "test_ids": [
+        "quest:shadowsofcustodia"
+      ],
+      "known_gaps": [
+        "The creatures' bleed is not implemented: the pinned page gives no rate or damage.",
+        "The wiki max hit of 6 is not forced: the generic melee roll from 55 strength is used.",
+        "The Stalker Den is not multi-combat flagged and the full juvenile custodian stalker drop table is not ported."
+      ]
     },
     {
       "id": "quest-scrambled",
