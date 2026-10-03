@@ -66,6 +66,7 @@ topic file with one line added here.
 - `covered` -> traps-13-22: Trap 21; gaps-dialogue: `covered`: step-off and other sides
 - `none of 83 pixels hittested`, `hunted pose 1 (reach 99)` -> traps-13-22: Trap 21
 - `the world is not picking`, `(gate at x,y: why)`, `yaw N framed nothing in 5 poses` -> traps-13-22: `the world is not picking`
+- `yaw N framed nothing in 5 poses` on an exit ladder after a long boss fight -> traps-13-22: `the world is not picking`, "After a long fight the exit loc"
 - `I can't reach that!` -> start-and-travel: Doors; verbs-pointer: `t.player.click_loc`
 - `talk_to` `I can't reach that!` on an npc across a chasm or river (Contact!'s Maisa, Waterfall's Hudon) -> gaps-world: Talk-to answers "I can't reach that!" for an npc across a chasm
 - `reach_failed:`, `stood on with ::goto`, `stand_on_square` -> traps-23-33: `stand_on_square` needs; gaps-world: `coordz(...)`
@@ -205,6 +206,9 @@ topic file with one line added here.
 - `ok` while a neighbour still fights -> gaps-combat: A crowded spawn
 - one blow, then nothing; `target=-1 interact=kind0/op0` -> gaps-combat: A fight that lands
 - `OUT OF <food>`, `never needed to eat` -> verbs-combat: Eating
+- a boss bar `21/30` after a 3 hitsplat: is it 130 hp or 10? -> gaps-combat: A boss's first bar reading cannot tell
+- `player.died` in a real boss fight with a whip, no armour, 10 lobsters; food ran out in one run but not the last -> gaps-combat: A real level-191 boss beats a whip
+- "You have been poisoned!" right after a death respawn -> gaps-combat: "You have been poisoned!" right after a death respawn
 - `no_runes`; a cast `ok` that never landed; `re-CAST` -> verbs-combat: Casting; Cast fights re-cast
 - `This spell only affects skeletons, ...` -> verbs-combat: Crumble Undead
 - `every press's menu held only Cancel` -> verbs-combat: A spell on a ground obj or a loc
