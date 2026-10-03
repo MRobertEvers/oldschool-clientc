@@ -11022,7 +11022,11 @@ handle_resume_pausebutton(
             srv->active_player->last_com = uid;
             srv->active_player->last_slot = sub;
         }
-        else if( sub > 0 )
+        /* Row 0 is a row: the client sends 0xffff (-1 here) for "no sub"
+         * (net_out_resume_pausebutton), so 0 is a real child -- tob_partylist's
+         * Refresh and first row, tob_partydetails' Back. `sub > 0` left a
+         * sub-0 press acting on whatever slot the previous press latched. */
+        else if( sub >= 0 )
             srv->active_player->last_slot = sub;
     }
     if( ToriRSServer_ScriptsResumeButton(srv, uid) )
@@ -16572,6 +16576,35 @@ ToriRSServer_AmbientEnterRegion(
     ToriRSServer_SendAmbientsoundStart(player, scape, 1);
 }
 
+/*
+ * A music row's unlock flag is NOT (varp, bit). DBTable 44's `music:variable`
+ * column (what tools/gen_music_regions.py dumps into the `varp` field) is a
+ * two-part key, (variable, bit), whose first half is an INDEX, 1..27, into the
+ * 27 `musicmulti_N` words. The cache's own reader says so: clientscript 7305
+ * (OSRS-Content scripts/torirs_music_varp_get.cs2) maps variable 1 to
+ * %varp20_musicmulti_1 ... 27 to %varp5238_musicmulti_27, and content's shared
+ * writer `[proc,music_unlock]` (interface_music/scripts/music.rs2) has the same
+ * switch. Writing the index as a varp id unlocked nothing and wrote bits into
+ * whatever varp shared the number: "Welcome to the Theatre" (variable 18, bit
+ * 8) set bit 8 of varp 18, `musicplay`, which the music tab read back as an
+ * unknown play mode (256) and the track stayed locked.
+ *
+ * Index 0 has no word (the cache's switch starts at 1), so it is -1 here.
+ */
+static const int k_music_variable_varps[] = {
+    -1,  20,  21,  22,  23,   24,   25,   298,  311,  346,  414,  464,  598,  662,
+    721, 906, 1009, 1338, 1681, 2065, 2237, 2950, 3418, 3575, 4066, 4411, 4944, 5238,
+};
+
+int
+ToriRSServer_MusicVariableVarp(int variable)
+{
+    if( variable < 1 ||
+        variable >= (int)(sizeof(k_music_variable_varps) / sizeof(k_music_variable_varps[0])) )
+        return -1;
+    return k_music_variable_varps[variable];
+}
+
 void
 ToriRSServer_MusicEnterRegion(
     struct ToriRSServerPlayer* player,
@@ -16586,14 +16619,17 @@ ToriRSServer_MusicEnterRegion(
         return; /* 433 squares are mapped; the rest of the world is silent */
 
     /*
-     * Unlock first. `varp` is -1 for a track whose DBTable row carried no
+     * Unlock first. `track->varp` is the row's music VARIABLE (an index, see
+     * k_music_variable_varps), -1 for a track whose DBTable row carried no
      * unlock pair, which is a handful of them -- those play without ever
      * becoming selectable, which is better than writing varp -1.
      */
-    if( track->varp >= 0 && track->bit >= 0 && track->varp < TORIRSSERVER_VARP_COUNT )
+    int unlock_varp = ToriRSServer_MusicVariableVarp(track->varp);
+    if( unlock_varp >= 0 && track->bit >= 0 && track->bit < 32 &&
+        unlock_varp < TORIRSSERVER_VARP_COUNT )
     {
-        int mask = 1 << track->bit;
-        if( (player->varps[track->varp] & mask) == 0 )
+        int mask = (int)(1u << track->bit);
+        if( (player->varps[unlock_varp] & mask) == 0 )
         {
             char line[128];
             /*
@@ -16608,8 +16644,8 @@ ToriRSServer_MusicEnterRegion(
              * it here -- the first version of this function used the whole-varp
              * setter and wiped bits belonging to unrelated content.
              */
-            player->varps[track->varp] |= mask;
-            ToriRSServer_WorldMarkVarp(player, track->varp);
+            player->varps[unlock_varp] |= mask;
+            ToriRSServer_WorldMarkVarp(player, unlock_varp);
             snprintf(
                 line,
                 sizeof(line),

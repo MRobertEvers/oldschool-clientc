@@ -5209,6 +5209,8 @@ ToriRSServer_ScriptCommand(
          */
         snprintf(npc->say, sizeof(npc->say), "%s", text);
         npc->masks |= TORIRSSERVER_NMASK_SAY;
+        /* The line as the mask carries it (truncated to `say` like the wire). */
+        ToriRSServer_TicklogNpcSay(npc, npc->say);
         return 1;
     }
 
@@ -8005,6 +8007,8 @@ ToriRSServer_ScriptCommand(
         }
         ToriRSServer_ZoneLocAnim(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
                               (int)seq_id);
+        ToriRSServer_TicklogLocAnim(srv, coord_pack(loc->level, loc->x, loc->z), loc->loc_id,
+                                    loc->shape, loc->angle, (int)seq_id);
         return 1;
     }
 
@@ -8392,9 +8396,14 @@ ToriRSServer_ScriptCommand(
             player->anim_id = -1;
             player->anim_delay = (int)values[1];
             player->masks |= TORIRSSERVER_PMASK_SEQUENCE;
+            ToriRSServer_TicklogPlayerAnim(srv, player, -1, (int)values[1]);
             return 1;
         }
-        ToriRSServer_AnimPlayPlayer(player, values[0], values[1]);
+        /* Logged only when it won the gate: a refused emote is not sent, and
+         * the row is what the client plays (the npc funnel's rule). This op is
+         * the only caller of the player funnel, so it is the one hook. */
+        if( ToriRSServer_AnimPlayPlayer(player, values[0], values[1]) )
+            ToriRSServer_TicklogPlayerAnim(srv, player, (int)values[0], (int)values[1]);
         return 1;
     }
 
@@ -8697,6 +8706,8 @@ ToriRSServer_ScriptCommand(
          * delay in the low. */
         player->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
         player->masks |= TORIRSSERVER_PMASK_SPOTANIM;
+        ToriRSServer_TicklogPlayerSpotanim(srv, player, (int)values[0], (int)values[1],
+                                           (int)values[2]);
         return 1;
     }
 

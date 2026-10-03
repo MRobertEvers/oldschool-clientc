@@ -12471,21 +12471,28 @@ ToriRSServer_WorldSelftest(void)
     {
         static struct ToriRSServerCapture capture;
         const struct ToriRSServerMusicRegion* track = &k_ToriRSServer_MusicRegions[0];
+        int unlock_varp = ToriRSServer_MusicVariableVarp(track->varp);
         int old_song = player->music_track;
-        int old_unlock = player->varps[track->varp];
+        int old_unlock;
         int text_at;
         int midi_at;
 
         /* Keep this a pure output test: the selected first row has a real
          * unlock bit, but testing its UI label must not perturb the later
-         * varp/persistence cases. */
-        player->varps[track->varp] |= (int)(1u << track->bit);
+         * varp/persistence cases. The bit lives in the musicmulti word the
+         * row's variable names (ToriRSServer_MusicVariableVarp). */
+        SELFTEST_CHECK(unlock_varp > 0, "the first music row's variable %d should name a word",
+                       track->varp);
+        if( unlock_varp <= 0 )
+            unlock_varp = 0;
+        old_unlock = player->varps[unlock_varp];
+        player->varps[unlock_varp] |= (int)(1u << track->bit);
         player->music_track = -1;
         ToriRSServer_CaptureBegin(srv, &capture);
         ToriRSServer_MusicEnterRegion(player, track->region >> 8, track->region & 0xff);
         ToriRSServer_CaptureEnd(srv);
         player->music_track = old_song;
-        player->varps[track->varp] = old_unlock;
+        player->varps[unlock_varp] = old_unlock;
 
         text_at = ToriRSServer_CaptureFind(
             &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_SETTEXT), 0);
@@ -12504,6 +12511,70 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
                                &capture, srv->wire, track->song, 0, 30, 0, 30),
                            "the region track should carry the 30-cycle in/out fade profile");
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: region music unlocks the musicmulti word\n");
+    {
+        /*
+         * A music row's unlock pair is (variable, bit), and the variable is an
+         * index into the 27 musicmulti words, not a varp id: clientscript 7305
+         * (OSRS-Content scripts/torirs_music_varp_get.cs2) maps variable 18 to
+         * %varp1681_musicmulti_18, and content's [proc,music_unlock]
+         * (interface_music/scripts/music.rs2) writes the same word. Ver
+         * Sinhaza's square 14642 plays "Welcome to the Theatre" (song 556,
+         * DBTable 44 music:variable 18,8). Writing the index as a varp id set
+         * bit 8 of varp 18 (`musicplay`, which then read 256 in the lobby) and
+         * the track never unlocked.
+         */
+        static struct ToriRSServerCapture capture;
+        const struct ToriRSServerMusicRegion* track = ToriRSServer_MusicForRegion(14642);
+        int old_song = player->music_track;
+        int old_multi18 = player->varps[1681];
+        int old_musicplay = player->varps[18];
+        int old_varp1681_expected;
+
+        SELFTEST_CHECK(track != NULL && track->song == 556 && track->varp == 18 && track->bit == 8,
+                       "region 14642 should be song 556 with unlock variable 18 bit 8");
+        SELFTEST_CHECK(ToriRSServer_MusicVariableVarp(1) == 20 &&
+                           ToriRSServer_MusicVariableVarp(18) == 1681 &&
+                           ToriRSServer_MusicVariableVarp(27) == 5238,
+                       "music variables 1/18/27 should be varps 20/1681/5238 (clientscript 7305), "
+                       "got %d/%d/%d",
+                       ToriRSServer_MusicVariableVarp(1), ToriRSServer_MusicVariableVarp(18),
+                       ToriRSServer_MusicVariableVarp(27));
+        SELFTEST_CHECK(ToriRSServer_MusicVariableVarp(0) == -1 &&
+                           ToriRSServer_MusicVariableVarp(28) == -1,
+                       "music variables 0 and 28 name no word");
+        if( track != NULL )
+        {
+            player->varps[1681] &= ~(1 << 8);
+            player->varps[18] &= ~(1 << 8);
+            old_varp1681_expected = player->varps[1681] | (1 << 8);
+            player->music_track = -1;
+            ToriRSServer_CaptureBegin(srv, &capture);
+            ToriRSServer_MusicEnterRegion(player, 14642 >> 8, 14642 & 0xff);
+            ToriRSServer_CaptureEnd(srv);
+            SELFTEST_CHECK(player->varps[1681] == old_varp1681_expected,
+                           "entering 14642 should set bit 8 of varp 1681 musicmulti_18 and "
+                           "nothing else, got %d want %d",
+                           player->varps[1681], old_varp1681_expected);
+            SELFTEST_CHECK((player->varps[18] & (1 << 8)) == 0,
+                           "entering 14642 must not write varp 18 musicplay, got %d",
+                           player->varps[18]);
+            SELFTEST_CHECK(
+                ToriRSServer_CaptureFind(
+                    &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_MIDI_SONG), 0) >= 0,
+                "entering 14642 should still start song 556");
+            /* A second crossing finds the bit set and says nothing more. */
+            player->music_track = -1;
+            ToriRSServer_MusicEnterRegion(player, 14642 >> 8, 14642 & 0xff);
+            SELFTEST_CHECK(player->varps[1681] == old_varp1681_expected,
+                           "a second crossing should leave varp 1681 as it was, got %d",
+                           player->varps[1681]);
+        }
+        player->music_track = old_song;
+        player->varps[1681] = old_multi18;
+        player->varps[18] = old_musicplay;
     }
 
     fprintf(stderr, "ToriRSServer selftest: instanced music resolves the source square\n");

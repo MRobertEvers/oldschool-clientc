@@ -1,6 +1,7 @@
 -- quest-driver / ticklog: the embedded server's per-tick event log (npc
--- animations, projectiles, hits, spawns, deaths, loc changes, tiles, and the
--- sounds, music and jingles sent to a player), read by a test to build its
+-- animations, projectiles, hits, spawns, deaths, loc changes, tiles, the
+-- sounds, music and jingles sent to a player, a player's own animations and
+-- graphics, loc animations and npc overhead lines), read by a test to build its
 -- tick ledger. Raid seam 1 (docs/RAID_ORCHESTRATOR.md
 -- sections 4 and 6). The namespace QD.ticklog is declared in core.lua.
 --
@@ -31,9 +32,18 @@
 -- `dst_x, dst_z, dst_level`. opts filters: since (a serial: rows after it),
 -- kind (a name or a list of names), slot (an npc slot; for hit_player the
 -- dealing npc's slot, for an npc's sound row the emitting npc's), npc (a
--- t.npc row or client slot, translated to `slot`), pid, type (an npc type id), seq (npc_anim), spotanim, sound (a sound
--- row's id), track (music), jingle, source (a sound/music row's source), where
--- (a function(row) -> boolean).
+-- t.npc row or client slot, translated to `slot`), pid, type (an npc type id),
+-- seq (npc_anim, player_anim, loc_anim), spotanim (npc_spotanim,
+-- player_spotanim, map_spotanim, projectile), loc (a loc_set/loc_anim row's
+-- loc id), text (an npc_say row whose text CONTAINS this, plain), sound (a
+-- sound row's id), track (music), jingle, source (a sound/music row's source),
+-- where (a function(row) -> boolean).
+--
+-- PRESENTATION. `player_anim` is a sequence the server sent a player (`anim`;
+-- seq -1 is `anim(null)`, the cancel), recorded only once it won the priority
+-- gate, so a refused emote is no row; `player_spotanim` is `spotanim_pl`;
+-- `loc_anim` is `loc_anim` on the active loc (coord = the loc's south-west
+-- tile); `npc_say` is the overhead line (`text`, whole, up to 79 characters).
 --
 -- SOUNDS. A `sound` row is one SYNTH_SOUND packet the SERVER sent one player:
 -- `source` is "synth" (a plain sound_synth), "area" ([proc,sound_area]: coord
@@ -73,6 +83,12 @@ QD.ticklog.FIELDS = {
     sound = { "pid", "sound", "loops", "delay", "coord", "radius" },
     music = { "pid", "track" },
     jingle = { "pid", "jingle", "length_ms" },
+    -- `anim` / `spotanim_pl` / `loc_anim` / `npc_say` (torirs_server_scripts.c).
+    player_anim = { "pid", "seq", "delay" },
+    player_spotanim = { "pid", "spotanim", "height", "delay" },
+    loc_anim = { "coord", "loc", "shape", "angle", "seq" },
+    -- `text` (the row's label) is added by _name.
+    npc_say = { "slot", "type", "coord" },
 }
 
 -- The kinds whose label is their source rather than a test's mark text.
@@ -104,6 +120,9 @@ function QD.ticklog._name(raw)
         else
             row.source = raw.label
         end
+    end
+    if raw.kind == "npc_say" then
+        row.text = raw.label or ""
     end
     if row.src ~= nil then
         row.src_x, row.src_z, row.src_level = QD.ticklog._unpack(row.src)
@@ -188,6 +207,12 @@ function QD.ticklog._keep(row, opts, kinds)
         return false
     end
     if opts.spotanim ~= nil and row.spotanim ~= opts.spotanim then
+        return false
+    end
+    if opts.loc ~= nil and row.loc ~= opts.loc then
+        return false
+    end
+    if opts.text ~= nil and (row.text == nil or not string.find(row.text, opts.text, 1, true)) then
         return false
     end
     if opts.sound ~= nil and row.sound ~= opts.sound then

@@ -15,7 +15,9 @@
  * Blert -- npc attack starts (every npc animation goes through
  * ToriRSServer_AnimPlayNpc, C or content), projectiles, hits both ways,
  * spawns, deaths, type changes, loc and ground changes, and every sound, music
- * track and jingle sent to a player -- plus the tiles: a
+ * track and jingle sent to a player -- and the presentation the recorders read
+ * off the player and the room (a player's animation and graphic, a loc's
+ * animation, an npc's overhead line) -- plus the tiles: a
  * PLAYER_TILE row for every player every tick (after phase_players, so the
  * row is the tile the player's turn left them on, which is the tile every npc
  * acting on the NEXT tick will scan; ENCOUNTER_TIMING.md section 1) and an
@@ -79,6 +81,10 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_SOUND] = "sound",
     [TORIRSSERVER_TICKLOG_MUSIC] = "music",
     [TORIRSSERVER_TICKLOG_JINGLE] = "jingle",
+    [TORIRSSERVER_TICKLOG_PLAYER_ANIM] = "player_anim",
+    [TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM] = "player_spotanim",
+    [TORIRSSERVER_TICKLOG_LOC_ANIM] = "loc_anim",
+    [TORIRSSERVER_TICKLOG_NPC_SAY] = "npc_say",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -324,6 +330,7 @@ ticklog_row_npc_slot(const struct ToriRSServerTicklogRow* row)
     case TORIRSSERVER_TICKLOG_NPC_RETYPE:
     case TORIRSSERVER_TICKLOG_NPC_TILE:
     case TORIRSSERVER_TICKLOG_NPC_FACE:
+    case TORIRSSERVER_TICKLOG_NPC_SAY:
         return row->a;
     case TORIRSSERVER_TICKLOG_HIT_PLAYER:
         return row->b;
@@ -670,6 +677,74 @@ ToriRSServer_TicklogJingle(
         return;
     assert(player);
     ticklog_push(TORIRSSERVER_TICKLOG_JINGLE, player->pid, jingle, length_ms, 0, 0, 0, "script");
+}
+
+/*
+ * The presentation rows. Each is recorded where the mask or zone packet is
+ * written, so a row is what the client was told: a player animation only once
+ * it has won the priority gate (a refused one changes nothing on the wire), a
+ * player graphic and a loc animation on every send (neither has a gate), an
+ * npc's line as the SAY mask carries it. Bloat's stun graphic on the player,
+ * Sotetseg's and Xarpus's loc loops and Xarpus's screech are these kinds.
+ */
+void
+ToriRSServer_TicklogPlayerAnim(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int seq_id,
+    int delay)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push(TORIRSSERVER_TICKLOG_PLAYER_ANIM, player->pid, seq_id, delay, 0, 0, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogPlayerSpotanim(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int spotanim,
+    int height,
+    int delay)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push(TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM, player->pid, spotanim, height, delay, 0, 0,
+                 NULL);
+}
+
+void
+ToriRSServer_TicklogLocAnim(
+    const struct ToriRSServer* srv,
+    int coord,
+    int loc_id,
+    int shape,
+    int angle,
+    int seq_id)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_LOC_ANIM, coord, loc_id, shape, angle, seq_id, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogNpcSay(
+    const struct ToriRSServerNpc* npc,
+    char const* text)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    assert(text);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_SAY, slot, npc->type,
+                 ToriRSServer_CoordPack(npc->level, npc->x, npc->z), 0, 0, 0, text);
 }
 
 /* NPC_TILE rows are for the encounter, not the world: the roster stands a

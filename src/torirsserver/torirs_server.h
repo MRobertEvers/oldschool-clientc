@@ -5239,6 +5239,15 @@ enum ToriRSServerTicklogKind
     TORIRSSERVER_TICKLOG_MUSIC,         /* a=pid b=track (-1 = stop); label=the
                                          * source: "script", "region", "login" */
     TORIRSSERVER_TICKLOG_JINGLE,        /* a=pid b=jingle c=length ms; label "script" */
+    TORIRSSERVER_TICKLOG_PLAYER_ANIM,   /* a=pid b=seq (-1 = `anim(null)`, the cancel)
+                                         * c=delay; the seq the client is sent, after
+                                         * the priority gate and p_animprotect */
+    TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM, /* a=pid b=spotanim c=height d=delay
+                                         * (`spotanim_pl`) */
+    TORIRSSERVER_TICKLOG_LOC_ANIM,      /* a=coord b=loc id c=shape d=angle e=seq
+                                         * (`loc_anim`, the active loc) */
+    TORIRSSERVER_TICKLOG_NPC_SAY,       /* a=slot b=npc type c=coord; label=the text
+                                         * (`npc_say`, the overhead line) */
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5282,9 +5291,11 @@ ToriRSServer_TicklogKindName(int kind);
 int
 ToriRSServer_TicklogKindFromName(char const* name);
 
-/* One recorded event. `label` is set on a MARK row (the test's text) and on
- * SOUND / MUSIC / JINGLE rows (the source); empty on every other kind. */
-#define TORIRSSERVER_TICKLOG_LABEL_MAX 48
+/* One recorded event. `label` is set on a MARK row (the test's text), on
+ * SOUND / MUSIC / JINGLE rows (the source) and on an NPC_SAY row (the line the
+ * npc said); empty on every other kind. 80 is `ToriRSServerNpc.say`'s size, so
+ * an NPC_SAY row carries the whole line the client was sent. */
+#define TORIRSSERVER_TICKLOG_LABEL_MAX 80
 struct ToriRSServerTicklogRow
 {
     uint32_t serial;
@@ -5395,6 +5406,19 @@ void ToriRSServer_TicklogMusic(const struct ToriRSServer* srv,
 void ToriRSServer_TicklogJingle(const struct ToriRSServer* srv,
                                 const struct ToriRSServerPlayer* player, int jingle,
                                 int length_ms);
+/* The presentation rows of a player and a loc, and an npc's overhead text,
+ * recorded at the script ops that send them (torirs_server_scripts.c: `anim`,
+ * `spotanim_pl`, `loc_anim`, `npc_say` -- the only writers of a player's
+ * sequence and spotanim masks, a loc's animation and an npc's SAY mask). */
+void ToriRSServer_TicklogPlayerAnim(const struct ToriRSServer* srv,
+                                    const struct ToriRSServerPlayer* player, int seq_id,
+                                    int delay);
+void ToriRSServer_TicklogPlayerSpotanim(const struct ToriRSServer* srv,
+                                        const struct ToriRSServerPlayer* player, int spotanim,
+                                        int height, int delay);
+void ToriRSServer_TicklogLocAnim(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
+                                 int angle, int seq_id);
+void ToriRSServer_TicklogNpcSay(const struct ToriRSServerNpc* npc, char const* text);
 /** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */
@@ -7842,6 +7866,15 @@ ToriRSServer_RegionSquareFor(
     struct ToriRSServerPlayer* player,
     int* out_map_x,
     int* out_map_z);
+
+/**
+ * The varp that holds a music row's unlock bit, from the row's music VARIABLE
+ * (DBTable 44 `music:variable`'s first half, 1..27): clientscript 7305's
+ * mapping, 1 -> varp 20 (musicmulti_1) ... 27 -> varp 5238 (musicmulti_27).
+ * -1 for an index with no word (0, negative, or past 27).
+ */
+int
+ToriRSServer_MusicVariableVarp(int variable);
 
 void
 ToriRSServer_SendAmbientsoundStart(

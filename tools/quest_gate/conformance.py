@@ -60,8 +60,11 @@ USER = "qdconform"
 # was cut off mid-row as "frame cap, or the client exited 0".  At 60000 it had
 # outgrown it again: with 105 seam rows (raid seam6's eat-delay port added
 # seam.eat_does_not_hold_queued_hit and seam.eat_delay_clocks) a run reached the
-# cap at tick 1975 and the last two rows ERRORed on the frame cap.
-MAX_FRAMES = "80000"
+# cap at tick 1975 and the last two rows ERRORed on the frame cap.  At 80000 it
+# had outgrown it a third time: with 132 seam rows (raid seam8 added nineteen)
+# a run reached the cap at tick 2649 and the last row
+# (seam.verzik_entry_forms_cage_and_death) ERRORed on the frame cap.
+MAX_FRAMES = "120000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.

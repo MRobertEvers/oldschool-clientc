@@ -1680,11 +1680,10 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
 
 ## loops 0 is silent, and an area sound has a radius
 
-- `~sound_area` and `~sound_within_distance` (general/scripts/misc/sound.rs2) send loops 0,
-  which our client refuses (rs_audio.c:124, as the reference does). Every area sound in
-  the Theatre is therefore silent today, including Sotetseg's death-ball cast 3994 and the
-  tornado hum 4001 (CONTENT_BUGS.md). An area row with loops 0 is a sound nobody hears:
-  assert loops >= 1 where a test claims a sound is heard.
+- Fixed in seam8: `~sound_area` and `~sound_within_distance` send loops 1 now, so area
+  sounds (Sotetseg's death-ball cast 3994 and tornado hum 4001 among them) are heard. A
+  ported direct `sound_synth(x, 0, y)` is still silent; see seam8's "Area sounds are
+  heard". Assert loops >= 1 where a test claims a sound is heard.
 - An area sound reaches only players within its radius of its coord. Sotetseg's death
   ball (radius 10 around the projectile source) is not heard from the room's start tile,
   20 tiles south.
@@ -1695,7 +1694,7 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
   minigame_tob/configs/tob.npc: `tob_maiden_hit` 3999, `tob_nylocas_hit` 4020 (every
   Ischyros, Toxobolos and Hagios, and Vasilias), `tob_sotetseg_hit` 4019, `tob_xarpus_hit`
   4018 (standing form), `tob_verzik_human_hit` 4009 / `_vampire_hit` 4021 / `_spider_hit`
-  4022 (P1/P2/P3). Bloat has none. The source is the cache name and the 281-row `<npc>_hit`
+  4022 (P1/P2/P3). Bloat's `tob_bloat_hit` 3971 since seam8. The source is the cache name and the 281-row `<npc>_hit`
   defend_sound convention in LostCity's configs; no video audio was checked.
 - The engine plays defend_sound on every hit the npc takes, a blocked 0 included
   (`ToriRSServer_CombatHitNpc`), to players within 12 tiles of the npc's SOUTH-WEST tile,
@@ -1879,8 +1878,8 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
 - The driver's death fence still matches only 'Oh dear, you are dead!'
   (`QD.player.DEATH_LINE`), so a Theatre death is caught only by the hitpoints-0 reading.
   Read `::tobjail` or the 'You have died. Death count:' line to assert a death.
-- Bosses still target a caged raider (an Entry Maiden hit one 8 ticks into the cage):
-  assert cage rows within about 8 ticks of the death or expect a kind 3.
+- Obsolete since seam8: no room targets a caged raider any more (seam8's "The spectator
+  cage").
 - `::tobmate` adds a non-player party member with a full orb so a solo client can reach
   the cage-then-rejoin path (measurement only, never in a test).
 - A leaver's orb now reads 31 ('left the raid').
@@ -1891,8 +1890,8 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
   prices are enums 1952/1953 (the mushroom potato is back; the regular potions replace
   the `br_` copies). `t.ui.await_open('tob_midway_stores')`. A test cannot click a stock
   slot yet (no comsubid in `t.ui.invoke`); `::tobstores` / `::tobstorebuy` measure the
-  server half. The points label reads 0 on the client until varp 1746 is declared
-  transmit (open). Entry still hands out bandages.
+  server half. The points label reads the balance since seam8 declared varp 1746
+  transmit. Entry still hands out bandages.
 - The onion rule is per player now (the raider's own died-in bits), not the team's count.
 - Ver Sinhaza: `tob_surface_gravestone_chest` (Claim) unlocks the retrieval service (fee
   from the pack then the bank) and reclaims everything or nothing;
@@ -1914,8 +1913,8 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
 - The panel's first push draws only its last row (a client defect: a RUNCLIENTSCRIPT that
   GOSUBs an unloaded proc never finishes when more follow). Press the panel's Refresh
   twice before reading the member row.
-- Never press a sub-0 button and assert on it (list Refresh, the list's first row, panel
-  Back): the server does not latch sub 0, so the click acts on the previous slot.
+- Obsolete since seam8: the server latches sub 0, so list Refresh, the list's first row
+  and panel Back act on their own row.
 - Mode: invoke `tob_partydetails:mode`, then `t.chat.play({'options', 'choose:Normal
   Mode.'})`. Preferred Size/Level open a count prompt `t.chat.count` cannot answer while
   the panel is open.
@@ -1939,10 +1938,9 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
   `::tobmusic 1|2` plays them (scratch only).
 - The room title card plays `tob_transition_card` 3952 on the tick the blood opens
   (`~tob_title_show`): one `sound` row per card, none on `~tob_title_spread`.
-- 'Welcome to the Theatre' 556 is the engine's region track for the lobby square. The
-  engine's region unlock writes the wrong varp (CONTENT_BUGS.md), so a region track names
-  itself but never unlocks; entering the vault also prints the engine's region line for
-  582 beside the script's unlock line.
+- 'Welcome to the Theatre' 556 is the engine's region track for the lobby square. Since
+  seam8 the engine's region unlock writes the musicmulti word, so the track unlocks on
+  entry and the vault prints one unlock line.
 
 ## Proving a presentation change without the shared tree
 
@@ -1957,7 +1955,8 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
 - Tick log proof of a presentation fix: npc_spawn + npc_anim on one slot and tick (a spawn
   animation), projectile rows by spotanim, loc_set rows (a loc chain and its timing),
   sound rows with a control synth that must be present. A player's own spotanim or
-  animation and a loc_anim have no row: photograph them on consecutive ticks.
+  animation and a loc_anim are rows since seam8 (`player_spotanim`, `player_anim`,
+  `loc_anim`).
 - The corpus videos under build/frames/<id>/full.mp4 are video only (no audio), so a
   sound cannot be sourced from them as downloaded.
 
@@ -1970,3 +1969,293 @@ are ONE sample, not two. A statistical measurement (a turn rate, a spawn chance,
 throw's cap) needs runs under different names, and a row that depends on a rare roll can
 be searched for by changing the name, never by a cheat. Say in the row's detail how many
 names the figure covers.
+
+# Seam pass 8: what the presentation spec pass found
+
+Seam pass 8 (`matthew-mbp-m4-raid-b1-seam8`, triage `SEAM_TRIAGE_2026-10-03f.md`) fixes what
+the Theatre of Blood presentation spec pass measured. No driver verb changed. The engine
+seam adds four tick log row kinds (`player_anim`, `player_spotanim`, `loc_anim`,
+`npc_say`), fixes the region music unlock and latches a sub-0 pause button. Ten content
+seams landed in OSRS-Content 26ba1bd604: the spectator cage in every room's hunts, the
+death forms and doubled death sounds, Bloat's defend and hand sounds, the Sotetseg tornado
+and Verzik's Entry/Hard records, the reward tables and combat achievements, the HUD
+domains and the recorders' chat lines, the lobby shop and supply chest, and the area
+sounds. Nineteen seam rows prove them. The fixers' reports and scratches are under
+`build/seam_state/matthew-mbp-m4-raid-b1-seam8/`.
+
+## The tick log's presentation rows: player_anim, player_spotanim, loc_anim, npc_say
+
+- `player_anim` is {pid, seq, delay}. It is written only when the seq wins the priority
+  gate. `anim(null)` is seq -1, and a `p_animprotect` refusal writes no row.
+- `player_spotanim` is {pid, spotanim, height, delay}, from `spotanim_pl`.
+- `loc_anim` is {coord, loc, shape, angle, seq}. The coord is the active loc's south-west
+  tile.
+- `npc_say` is {slot, type, coord}, and `row.text` holds the whole line (up to 79
+  characters).
+- Filters: `loc=` (a loc_set or loc_anim row's loc id) and `text=` (an npc_say whose text
+  contains it, plain match). `seq=` and `spotanim=` now match the player and loc kinds
+  too. `slot=` matches npc_say in C.
+- Raid figures now in the log: Bloat's fly impact is player_spotanim 1569 and its hand
+  stun is 1575 at height 92. Sotetseg's are player_spotanim 1605 and 1608, plus
+  player_anim 1816 on the maze proc. Xarpus's loops are loc_anim 8065 on loc 32743
+  (exhumed) and 8068 on loc 32744 (acid).
+- No door animates in either content tree: a door is a loc_change, which writes a
+  `loc_set` row. Every ordinary `loc_anim` caller is an obstacle. The conformance row
+  uses the Brimhaven rope swing (loc 23568 at 2705,3209: loc seq 497 and player seq 751
+  on the same tick).
+- Ambient npc lines (cows' Moo, Al Kharid warriors' call for help) never fire in this
+  engine. Hans's 'Help! Help!' is the deterministic subject (hans.lua's approach, then
+  'I have come to kill everyone in this castle!').
+- Rows: `seam.ticklog_player_presentation_rows`, `seam.ticklog_loc_anim_row`,
+  `seam.ticklog_npc_say_row`.
+
+## Region music unlocks its musicmulti word
+
+- A music row's (variable, bit) pair names a musicmulti WORD by index, 1..27, never a
+  varp id. `ToriRSServer_MusicVariableVarp` holds clientscript 7305's table (18 -> varp
+  1681). Ver Sinhaza unlocks 'Welcome to the Theatre' as bit 8 of `varp1681_musicmulti_18`.
+  `varp18_musicplay` no longer reads 256 in the lobby, and the vault prints one unlock
+  line, not two. Row: `seam.music_region_unlocks_its_musicmulti`; C selftest stanza
+  'region music unlocks the musicmulti word'.
+
+## A sub-0 pause button acts on its own row
+
+- RESUME_PAUSEBUTTON now latches sub 0 (the client sends 0xffff, read as -1, for 'no
+  sub'). The party list's Refresh and first row and the party panel's Back act on their
+  own row: press them and assert as with any other button. The seam7 note 'never press a
+  sub-0 button' is obsolete. Row: `seam.pausebutton_sub_zero_latches`.
+
+## Area sounds are heard
+
+- `~sound_area`, `~.sound_area` and `~sound_within_distance` send loops 1. An OSRS client
+  drops an effect with loops 0 (Kronos184 Message.java:175; the mixer gets loops - 1;
+  ours is rs_audio.c:124). LostCity's 0 was right only for its 2004 client.
+- About 104 ported direct `sound_synth(x, 0, y)` calls are still silent: 99 under
+  quests/, plus prayer.rs2:395 (every prayer's activation sound) and gnome_gate.rs2:66.
+  Where a test claims a sound is heard, assert `row.loops >= 1`.
+- An ordinary area sound for a test: `::spawn eadgar_storeroom_guard` snores
+  troll_snore 869 (radius 5) every 8-16 ticks.
+- Hearing a sound in the client needs a private binary built with
+  `BUILD_DIAGNOSTIC_CFLAGS='-fomit-frame-pointer -DTORIRS_LOG_ENABLED=1'` (the shared OPT
+  binary compiles TORIRS_LOG out), run with `TORIRS_AUDIO_TRACE=1`. Build it cold:
+  objverify hashes sources, not flags. Row: `seam.area_sound_plays_once`.
+
+## The spectator cage: no room targets a caged raider
+
+- Every room's hunts skip a raider in the cage (`~tob_jailed`, bit 0 of
+  `%varp6840_tob_died_in`): Maiden's blackstorm, blood throw, facing and sweep; Bloat's
+  flies, spread, falling flesh, stomp and camera shake (`~tob_bloat_target`); every
+  nylocas swing, detonation and pillar collapse, and Vasilias (who swings nothing while
+  only a caged raider is in range); Sotetseg's autos, death balls, ricochets, hits in
+  flight, the maze proc's stun, teleport and runner choice, the rag and the tornado
+  (`~tob_sote_targetable`); Xarpus's spit, bounce, sweep, splash, delayed poison and stomp
+  (he draws only from raiders in the game and not caged); every Verzik hunt
+  (`~tob_verzik_target`). The seam7 note 'Bosses still target a caged raider' is
+  obsolete.
+- A Sotetseg runner ALIVE in the shadow realm is not caged. One who dies there is caged in
+  the arena, and the realm is let go without walking them out of the cage.
+- Prove a room's cage with `::tobmate` (a party member who is not a player) before the
+  barrier, then `::die` (or `::setlevel hitpoints 10`, `defence 1` and stand), then poll
+  `::tobjail` until `jailed=1` and count rows from that tick. A scratch can force the
+  flag with `::setvar varp6840_tob_died_in 1` plus `::tobmate`. All of these are
+  measurement cheats, never in a room test.
+- In the Xarpus room a caged raider is not released when the room is won (`cleared=1,
+  jailed=1` for 30+ ticks after the kill; CONTENT_BUGS.md). A room test that dies in
+  Xarpus cannot rejoin the raid until that is fixed.
+- Rows: `seam.tob_maiden_cage_and_one_death_anim`, `seam.bloat_hand_sound_and_cage`,
+  `seam.nylocas_cage_skipped_support_unanimated`, `seam.tob_sotetseg_cage_not_targeted`,
+  `seam.verzik_entry_forms_cage_and_death`.
+
+## Maiden: one death animation, and the death timeline
+
+- The killing blow is K. `maiden_death_a` 8093 plays ONCE at K+1 (the engine's
+  `npc_death_step` plays the body's death_anim), and it carries sounds 3942/3955/3958 in
+  band. The dying_a retype is at K+3, dying_b with 8094 at K+5, and npc_free at K+9.
+- The K+3 retype is an engine limit, not content: `[ai_queue3]` runs at the CORPSE stage
+  (K+1+death_delay) and no timer or queue runs on an npc holding death_tick. Blert holds
+  dying_a four ticks from K+1 (CONTENT_BUGS.md engine row).
+- A solo bow cannot finish her from 1%: the leaks out-heal it. Use `::tobmaidenpct 0` for
+  a measurement; a room test kills her for real.
+- Thrown pools vs trails: the real game draws a thrown pool with graphic 1579 alone and
+  only a blood spawn's trail with loc 32984. Ours still places 32984 under every pool
+  because the C world selftest counts that loc. A ready patch
+  (`build/seam_state/matthew-mbp-m4-raid-b1-seam8/scratch_maiden/pool_loc_change.diff`)
+  lands with the selftest and `tob_maiden.lua`'s pool_life row keyed to map_spotanim 1579.
+  Until then a test that counts 32984 tiles counts pools as trails.
+- `test/raids/tob_maiden.lua` must name the Entry records (`tob_maiden_100_story` ...
+  `_30_story`) since seam5. With those four symbols the committed file drives the whole
+  Entry room 64/64.
+
+## Bloat: defend sound, hand sound
+
+- `tob_bloat_hit` 3971 is Bloat's defend sound (tob.npc), played on every hit he takes.
+  Bloat's `npc_combat/t/tob_bloat*.combat` ledgers are not compiled: tob.npc states the
+  three Bloat blocks and `tools/gen_npc_combat.py` skips an npc with an authored block, so
+  a Bloat sound or animation goes in tob.npc.
+- The falling flesh plays one `barbassault_splat` 3308 per volley to every raider not in
+  the cage, on the landing tick (source Near-Reality PestilentBloat.kt:227-228, grade E
+  M163). Read it as `sound` rows with sound=3308 on the map_spotanim 1576 tick.
+- Bloat's cage tiles are out of fly line of sight, stomp reach and spread reach, so the
+  natural cage hit does not happen solo; the forced flag is the reproduction.
+- Rows: `seam.bloat_hand_sound_and_cage`, `seam.bloat_defend_sound`.
+
+## Nylocas: death timings and the support npc
+
+- Measure a death offset with REAL hits, never `::kill`: `::kill` lands on the npc's own
+  step tick (arrive delay 2). With real hits bigs read +1/+6 standing and +2/+7 walking,
+  smalls +1/+2 standing and +2/+3 after a step on hp0-1 (the engine arrive-delay row,
+  CONTENT_BUGS.md).
+- Sound 4020 `tob_nylocas_hit` is the defend sound on every hit, lethal or not. A `::kill`
+  log shows it only on death ticks because the kill is the only hit: read sound rows
+  against `hit_npc`, not `npc_death`.
+- The support npc (8358/10790/10811) is an invisible health carrier with no animation of
+  its own (tob.npc `param=defend_anim,null`, `death_anim,null`): a test expects no npc_anim
+  rows on it. The visible collapse is loc 32863 playing 8074 (a `loc_anim` row) between
+  loc_set 32863 at collapse +3 and the rubble 32864 at +7.
+- `::tobnylobreak` collapses a support with two latched chewers on demand (measurement
+  only).
+
+## Sotetseg: the tornado is the mode's record
+
+- The maze tornado is `tob_sotetseg_creeper` 8389 (Normal), `_story` 10866 (Entry) or
+  `_hard` 10869 (Hard), picked by `~tob_sote_tornado_type`. Assert npc_spawn/npc_tile by
+  the mode's type, not 8389. Row: `seam.tob_sotetseg_tornado_mode_record`.
+- Tick log rows read with `since=<row serial>` EXCLUDE that row: to count a proc and a
+  re-activation, take a `ticklog.mark` before the proc and read since the mark's serial.
+
+## Xarpus: the death screech, the spit landing
+
+- The death screech 3549 is now only the frame sound of seq 8063. Assert it through the
+  npc_anim 8063 row on the collapse tick, never through a sound row.
+- A spit lands at spit +3 on a LIVING target (the grade E spec says 2, M71). The landing
+  is a normal player queue on its target, so it waits while the target is dying (113 ->
+  119 measured): measure it on a living target.
+- With a `::tobmate` stand-in a solo raider takes every spit (a stand-in is never a
+  target); before, about half were lost on the stand-in's slot.
+
+## Verzik: Entry and Hard records
+
+- In Entry and Hard she wears her mode's records: seated 10830/10847
+  (`verzik_initial_story` / `verzik_initial_hard`), P1 10831/10848, P1->P2 10832/10849, P2
+  10833/10850, P2->P3 10834/10851, P3 10835/10852, bat 10836/10853; crabs 10841-10843 /
+  10858-10860, Athanatos 10844/10861, Matomenos 10845/10862, tornado 10846/10863. Webs and
+  pillars keep the Normal ids. A test talks to and attacks the mode's symbol and matches
+  tick log types by the mode's ids. `t.raid.enter` knows the mode forms (raid.lua).
+- The seated shell becomes the mode record on its first timer tick, so
+  `t.npc.nearest("verzik_initial")` answers no_row in Entry and Hard.
+- Entry levels per phase are the records' own and `::tobboss` shows them. P1 is att 180,
+  def 10, str 150, rng 180, mag 180. P1->P2 and P2 are 200/120/150/180/180, and P2->P3 is
+  the same. P3 is 180/120/200/180/180. Pools are unchanged (solo 1300 = 300 + 400 + 600).
+- P2 -> P3: npc_anim 8118 on the P2 body at the phase event E; npc_retype to the 8373
+  family at E+2 with 8119 on the same tick; the P3 id at E+6; the first P3 attack at E+12.
+- The P3 crab special is npc_anim 14406 plus a regular attack under it (a 1593/1594
+  projectile on the same tick, or the melee hit). The green ball is npc_anim 8124 or 8125
+  plus projectile 1598 on the same tick, with no second projectile.
+- Yellows: no `sound` row for 4000 (seq 8126 frame 59 carries it). Each pool's graphic
+  1595 is several map_spotanim rows on the cast tick, delays 0,183,237 (Normal/Entry, 14
+  ticks) or 0,183,366,417 (Hard, 20 ticks): count pools by distinct coord or by delay 0.
+- The P3 death plays 8128 once, at death +1; the bat spawns at death +3 playing 8129.
+- The P2 lightning's `hit_player` lands at cast + end_cycle/30 (+3 at the usual distance),
+  with its ball and shock, not on the cast tick.
+- `::tobvz` 'form' and `::tobmelee` (tob_selftest.rs2) still compare Normal types only:
+  they read form 0 / no boss for an Entry or Hard Verzik.
+
+## The vault: one team roll, the real tables, `::tobrewards`
+
+- The unique roll is one per raid for the team (10/91 Normal, 10/77 Hard, none in Entry),
+  latched on Verzik's room (instance regs 126/127: 0 not rolled, 1 missed, 2 hit) and
+  given to one raider owed a chest by a draw weighted by `~tob_board_score`.
+- The common table is the wiki's 29 rows over 30 slots, rolled three times, paid at the
+  mode's share: Entry 20, Normal 100, Hard 115, 130 inside the overall-time target, floored
+  at 1. Tertiaries: the elite clue (2/6/7 of 50), Lil' Zik (1/650 Normal, 1/500 Hard, none
+  in Entry), and the Hard kits and dust inside the target.
+- `::tobrewards` is a read-only readout of every table through the procs the vault rolls
+  with, and inside a raid the latch, a dry allocation and the chest checked against its
+  rows ('tobrewards chest <name> xN [noted] want a-b'). A table proof is this readout,
+  never thousands of raids. 'want a-b' is ONE roll's range: three rolls can stack on one
+  row. Row: `seam.tob_reward_table`.
+- `%varp6826_tob_completions` counts Normal and Hard only (Entry reads 0 -> 0). An Entry
+  completion awards CA 397 (and 396 under 1700 ticks of challenge time); Hard awards 381
+  inside the target.
+- The perfect-room tasks (243-249) are awarded on a raid resumed at Verzik (`t.raid.enter`
+  / `::tob 6`): their bits start set and rooms 1-5 never ran.
+- A `t.await` level function that calls `t.world.loc_near` raises 'attempt to yield across
+  a C-call boundary': poll with `t.ticks(1)` in a loop instead.
+- In rs2 content a '<' inside a string literal opens an interpolation and runs the parser
+  to EOF ('expected ')' after arguments to 'append'' at the last line).
+
+## The HUD and the chat lines the recorders parse
+
+- Varbit 6448 is the boss's hitpoints as a permille of its pool (0..1000, rounded up), and
+  6449 is always 1000. A full pool reads exactly 1000 at the fight start. 6440 reads 2 for
+  the whole stay in the raid from the first arrival, and 1 in the lobby with a party.
+  6447/6448/6449 read 0 in a room whose barrier is uncrossed. Read them with
+  `t.var.varbit('varb6440_tob_client_partystatus')` and the like.
+- The chat lines, raw as `t.msg` sees them, tags included:
+  - door: 'You enter the Theatre of Blood (Entry Mode)...';
+  - lobby member: '<leader> has entered the Theatre of Blood (Entry Mode). Step inside to
+    join him...';
+  - room end: "Wave 'The Maiden of Sugadinti' (Entry Mode) complete!<br>Duration:
+    <col=ff0000>0:13</col>";
+  - Verzik: "Wave 'The Final Challenge' (Normal Mode) complete!<br>Duration:
+    <col=ff0000>m:ss</col><br>Theatre of Blood completion time: <col=ff0000>m:ss</col>",
+    then 'Theatre of Blood total completion time: <col=ff0000>m:ss</col>'.
+  Strip `<[^>]*>` to compare with a recorder regex. Gone: 'The way onward is open', 'You
+  enter the chamber of', 'You follow the party', 'You join the party already inside' and
+  'You have completed the Theatre of Blood.'. 'The fight begins: <room>' stays.
+- The boss-defeated jingle 250 and the wave line reach every raider once.
+- A logout with the room started and not cleared is a death (team deaths +1, orb 30). On
+  return the raider is caged if anyone is standing, otherwise the mode's wipe runs. A
+  hallway logout keeps the room resume. A driver relog re-boots the embedded server, so
+  this is measured with `::toblogoutdrill`, which prints 'toblogoutdrill logout ...' and
+  'toblogoutdrill reenter ...' lines (measurement only).
+- `::tobmode` (`t.raid.enter`) without `::tobout` (`t.raid.leave`) first carries the last
+  room's party into the new build and joins the raider again (party [me, me]). A scratch
+  that lands twice must call `t.raid.leave` between the landings.
+- Sotetseg's arena floor is plaintile 33033 from room entry: 210 loc_set rows two ticks
+  after the arrival, barrier uncrossed. Read it with
+  `t.world.loc_near('tob_sotetseg_plaintile', 40)` before the fight.
+- Rows: `seam.tob_hud_status_and_wave_line`, `seam.tob_logout_in_fight_is_death`.
+
+## The lobby: the Stranger's shop, the escape crystal, the supply chest
+
+- A chest band read must be DEATHLESS: a fresh 10-hp character dies at Bloat's fight tile
+  inside the `::kill` window, and a death moves the band. Set `::setlevel hitpoints 99`
+  and assert no 'You have died' line since the room was built. A Hard chest pays the
+  Normal band less 4 (deathless 6..9).
+- The supply chest after Bloat (loc_add at 6405,97) is not seen by `t.world.loc_near` from
+  the fight tile 6439,95: `goto_tile 6406,97` first, then `click_loc
+  tob_midway_chest_closed`.
+- The store label `t.ui.text('tob_midway_stores:points_text')` reads 'Points Available: N'
+  and equals `::tobstores points=` (varbit 6460 on varp 1746, now declared transmit).
+- The party list's 'Make party' / 'My party' label is `t.ui.text('tob_partylist:myparty',
+  9)`. It reads 'Make party' once varp 1740 is -1, which the board writes the first time
+  it asks.
+- The Mysterious Stranger: stage the Trade form with `::setvar
+  varb15607_tobquest_stranger_vis 1` (A Night at the Theatre's talk that sets it is not
+  wired). Then `t.shop.open('tob_stranger', 3, 'tob_stranger_shop')` and
+  `t.shop.buy('tob_teleport', 1)` cost 75,000. The crystal's Teleport is
+  `t.player.inv_op('tob_teleport', 1)`: inside the Theatre it lands on 3677,3219 with
+  tobstate active=0; outside it answers 'Nothing interesting happens.' and keeps the
+  crystal.
+- `::tobstrangershroud` opens the Sinhaza shroud reward page (needs 100 completions and no
+  shroud held). It is a test affordance until the talk offers 'What do you have for me?'.
+  The cape page is an objbox: use '*' in `chat.play`.
+- A content-allocated shop inv (an id in pack/inv.alloc, not in all.inv.compack) needs
+  `size=` in its .inv, or `shop.open` answers 'shopmain is up but <inv> carried no stock'.
+- Rows: `seam.tob_partylist_button_reads_mycontroller`,
+  `seam.tob_stranger_sells_escape_crystal_and_it_leaves`,
+  `seam.tob_hard_chest_pays_fewer_and_label_reads_it`.
+
+## Proving a change to a file another seam owns
+
+- Build a private content root: HEAD server/scripts plus only your own block (seam8
+  `lobby/mk_tob_rs2.py`, `bloat8/pack.sh`), and keep a second private root at HEAD for the
+  before runs; run with `TORIRSSERVER_CONTENT` / `TORIRSSERVER_SCRIPTS`. Strip
+  server/scripts/selftest down to its sources (the evidence PNGs are 15 GB). run.py still
+  rebuilds the shared pack first, so a concurrent fixer's broken edit can refuse the run:
+  retry once it lands.
+- `make torirsserver` compiles the server sources on every call; check the binary carries
+  the change (`strings <bin> | grep player_anim`) before trusting a selftest count.
+- Every regression run of a quest passes `--no-publish`. Two seam8 runs without it
+  rewrote OSRS-Content's selftest/quests/quest_cook and quest_druid evidence.

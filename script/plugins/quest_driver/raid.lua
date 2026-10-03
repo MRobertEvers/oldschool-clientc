@@ -67,8 +67,16 @@ QD.raid._ROOMS = {
         xarpus = { id = 5, boss = { "tob_xarpus_static", "tob_xarpus_static_hard", "tob_xarpus_static_story",
             "tob_xarpus_feeding", "tob_xarpus_feeding_hard", "tob_xarpus_feeding_story",
             "tob_xarpus_combat", "tob_xarpus_combat_hard", "tob_xarpus_combat_story" } },
-        verzik = { id = 6, boss = { "verzik_initial", "verzik_phase1", "verzik_phase1_to2_transition",
-            "verzik_phase2", "verzik_phase3" } },
+        -- Entry/Hard Verzik is her mode's record from her first timer tick (raid
+        -- seam8, tob_verzik.rs2 ~tob_verzik_mode_form), so her _story/_hard forms too.
+        verzik = { id = 6, boss = { "verzik_initial", "verzik_initial_hard", "verzik_initial_story",
+            "verzik_phase1", "verzik_phase1_hard", "verzik_phase1_story",
+            "verzik_phase1_to2_transition", "verzik_phase1_to2_transition_hard",
+            "verzik_phase1_to2_transition_story",
+            "verzik_phase2", "verzik_phase2_hard", "verzik_phase2_story",
+            "verzik_phase2_to3_transition", "verzik_phase2_to3_transition_hard",
+            "verzik_phase2_to3_transition_story",
+            "verzik_phase3", "verzik_phase3_hard", "verzik_phase3_story" } },
     },
     toa = {
         nexus = { id = 1 },
