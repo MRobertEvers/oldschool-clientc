@@ -444,6 +444,8 @@ topic file with one line added here.
 - helper_coverage "X never reads %var" on a talk whose `[op*]` header sits directly over another (OPEN grader false positive) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (f)
 - Quest Helper names `LOTG_OLDAK_CUTSCENE` and `talk_to` finds no op on it -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (g) (`dorgesh_oldak_there`)
 - an Evil Creature (Eyes of Glouphrie) or any 1-max-hit npc takes your hp down a point; one fight read 40 -> 40 and another 40 -> 35 -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (h) (they hit back, wiki max hit 1) and (i) (per-npc seeded rolls; count swings)
+- a kill's return teleport never moves you; client.log `npc_findhero with no active npc ... from [ai_queue3,<npc>]` (H.A.M. rangers, Sigmund) (FIXED b55-seam2: queue the player's half) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam2 (a); the suspend checker misses a page after `npc_findhero`, five more candidates (OPEN) -> (b)
+- `click_loc slice_goblin_ladder_top` answers "I can't reach that!" on the H.A.M. watchtower (OPEN parity: landing tile behind the crates) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam2 (c)
 
 ## Citations: resolving a number or a name
 

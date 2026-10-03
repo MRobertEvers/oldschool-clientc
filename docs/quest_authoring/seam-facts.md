@@ -1700,3 +1700,44 @@ java.util.Random stream (`torirs_server_scripts.c`, `srv->npcs[slot].random`), s
 replays the same rolls even when its timing shifts: `b55s1_eyeglo_a`/`_b` read 40 -> 40 over 13
 creature swings, all 0. Prove "it hits back" or "it never hits" with several fights or a swing
 count (`[ai_opplayer2,<npc>]` lines under `TORIRSSERVER_VERBOSE=1`).
+
+## Seam pass matthew-mbp-m4-b55-seam2 (2026-10-03, batch matthew-mbp-m4-b55)
+
+(a) **A kill's return teleport never moves you, and client.log prints `npc_findhero with no active
+npc ... from [ai_queue3,<npc>]` (Another Slice of H.A.M.'s two H.A.M. rangers).** The death
+handler bound the hero, then called a proc that showed a `~mesbox`, `p_teleport`ed and wrote the
+stage. The page suspended the NPC script on the player: the stage write landed, the teleport did
+not move him off the watchtower (2447,5416,2, no way down from that side), and
+`~npc_default_death` resumed with no active npc. This is seam pass 21 (b) and seam 37 (d) one step
+further: binding the hero first is not enough, a page in an `[ai_queue]` still breaks the script.
+Fixed in OSRS-Content 2ca4e77a52 (batch matthew-mbp-m4-b55) (`slice_hammage.rs2`) the way LostCity's
+`grandtree_black_demon.rs2` does it (`queue(queue_defeat_blackdemon, 0, 0)` from the death
+handler): each handler does only the npc's half (dead flag, line, `~npc_default_death` while the npc
+is active) and, once both are dead at stage 6, `queue(slice_ham_rangers_return)`; that player
+script shows the mesbox, teleports to 2957,3512,0 and writes stage 7. `slice_ham_combat_login`
+queues it again after a logout during the mesbox. The destination is sourced: the second kill
+starts the kidnap cutscene, which ends at the generals (wiki Another_Slice_of_H.A.M. oldid
+15292360; Transcript oldid 15263379 "Upon defeating the two H.A.M. members"; Quest Helper
+`talkToGeneralsAgain` at WorldPoint(2957,3512,0) straight after `killHamMageAndArcher`, no travel
+step). The port has no kidnap cutscene; the mesbox narrates it. Sigmund's death handler
+(`slice_sigmund.rs2`) had the same shape: it now writes the flag and stage 10 in the npc's half
+and queues his parting line, which shows now (round 6 read `none`). Proof: `b55s2_slice_a` (mage
+first) and `b55s2_slice_b` (archer first) 148/0, `b55s2_close_b` 148/0 on the closer's pack:
+`killHam-box` "1 page(s): mesbox:With both ambushers down", stage 7, `killHam.returned`
+"2957,3512,0 (no goto)", `defeatSigmund.chat` "npc:Someday, somehow", no `no active npc` in
+client.log; `b55s2_slice_c` 109/0 relogs during the mesbox and lands at the generals.
+
+(b) **OPEN (tools): `tools/check_npc_script_player_suspend.py` passes a page AFTER `npc_findhero`.**
+It flags only a suspend with no player bound. Grep for an `[ai_queue<n>,...]` that binds
+`npc_findhero` and then reaches `~mesbox`/`~chatnpc*`/`~chatplayer`/`p_delay` before
+`~npc_default_death`. A comment-stripped sweep found five more, not fixed and not run:
+`quest_deserttreasure/deserttreasure.rs2:706` and `:1308` (`~chatplayer`),
+`quest_rumdeal/deal_combat.rs2:56`, `quest_thegreatbrainrobbery/brain_finale.rs2:45`,
+`quest_lunardiplomacy/lunardip_dream.rs2:166` (`~mesbox`).
+
+(c) **OPEN (content parity): the H.A.M. watchtower's own ladder down is out of reach.** The cache
+places `slice_goblin_ladder_top` (Climb-down) at 2442,5417,2 (`maps/m38_84.jl2:1753`), but the
+port lands you at 2447,5417,2 on the far side of the cover crates: `click_loc
+"slice_goblin_ladder_top" 1` answers `reach_failed: I can't reach that!` (`b55s2_slice_ladder`).
+In the game you arrive at the ladder with the crates as cover (wiki oldid 15292360). No guide step
+climbs down, so no test is blocked.
