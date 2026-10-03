@@ -600,7 +600,7 @@ Meat and Greet run: the goto from the lobby is CHEAT, a click on the exit first 
 stamped outside the Colosseum is not a cheat). It reads commits 171bc81b0 and OSRS-Content 343f1b4163,
 which live on the b55 batch branch until that batch merges. On the grader before the fix it fails 2/3.
 
-### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; OPEN)
+### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; FIXED by `frame_entries`, see the section after the next)
 
 The Eyes of Glouphrie's guide uses `enterCave` (Brimstail's cave entrance) as the default step of
 almost every stage: `ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`, and in the
@@ -621,3 +621,29 @@ in, goto only to the entrance, click it, and read back the landing tile. Do this
 just the first. What a sampler does: check every goto row's `at <landing> from <departure>` against
 the guide's zones. A departure outside and a landing inside, with no click on the way in since the
 last goto, is a teleport past it.
+### "lands at ... from ..., another map frame, without pressing the entrance <step> names ... on every visit" (`frame_entries`, matthew-mbp-m4-b55)
+
+The Eyes of Glouphrie's guide is `new ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`
+at almost every stage. The round-3 test clicked Brimstail's cave entrance twice, then came back into
+the cave three times by `goto_tile` (from the evergreen, from Narnode, from the Grand Tree) and
+helper_coverage read FULL: `enterCave` already had a PASS row. The sampler sent it back.
+
+`frame_entries` now charges the entrance step for every such hop. It reads a `ConditionalStep` whose
+constructor default is ONE ObjectStep on a route obstacle, and whose state zone lies in another map
+frame directly under (or over) that obstacle: the zone's box, folded by whole 6400-tile frames, holds
+the obstacle's tile within 16 tiles. A goto row that leaves the entrance's frame from outside every
+zone of that step and lands in the zone, with no press of the entrance between, is CHEAT on the
+entrance step.
+
+- Not judged: a hop inside one frame (the other route rules read those), a start inside one of the
+  step's own zones, and a dungeon the map puts somewhere else than under its mouth (Eadgar's Ruse's
+  `useParrotOnRack` defaults to the Troll Stronghold entrance, and Eadgar's cave is not under it).
+- What an author does: goto only to the entrance, click it, read back the landing tile. Every visit.
+- One committed green moved when the rule landed: Eadgar's Ruse, `goto-eadgar-3` from Ardougne
+  (2610,3287) into Eadgar's cave (2890,10086,2) past `troll_mad_eadgar_entrance`
+  (`enterEadgarCaveWithTrainedParrot`). It was reopened into batch matthew-mbp-m4-b55. The other 129
+  grade the same before and after.
+
+Fixture: `python3 tools/quest_gate/helper_coverage_frame_entry_test.py` (3 cases on the reverted Eyes
+of Glouphrie run, commits 9813e5044 and OSRS-Content 30d5622731 on the b55 batch branch until it
+merges). 3/3 on the rule, 1/3 on the grader before it.

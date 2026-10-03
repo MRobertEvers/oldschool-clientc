@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15			
 quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35			
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15			
-quest_eadgar	eadgar	eadgarsruse		1	green	matthew-mbp-m4-b51			
+quest_eadgar	eadgar	eadgarsruse		1	claimed	matthew-mbp-m4-b55@matthew-mbp-m4	REOPENED (grader frame_entries, v3 ca6b4cba5): goto-eadgar-3 (test line 369) teleports from Ardougne 2610,3287,0 into Eadgar's cave 2890,10086,2 past troll_mad_eadgar_entrance, the entrance the guide's enterEadgarCaveWithTrainedParrot names; goto to the entrance, click it, read back the landing tile	2026-10-03T13:09:08Z	todo|matthew-mbp-m4-b51
 quest_eaglepeak	eaglepeak	eaglespeak		4	green	matthew-mbp-m4-b50			
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16			
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
