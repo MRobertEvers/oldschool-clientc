@@ -2067,6 +2067,92 @@ AUDITED_OVERRIDES["Elemental Workshop II"] = dict(
     AUDITED_OVERRIDES["Elemental Workshop I"]
 )
 
+# Tale of the Righteous (matthew-mbp-m4-b56-parity): the Corrupt Lizardman in the cave
+# under Mount Quidamortem. Added as its own statement, like the ones around it.
+AUDITED_OVERRIDES["Tale of the Righteous"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Corrupt_Lizardman?oldid=15200061", "revision": 15200061, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Tale_of_the_Righteous?oldid=15316635", "revision": 15316635, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Transcript:Tale_of_the_Righteous?oldid=14898483", "revision": 14898483, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Unstable_Altar?oldid=15320666", "revision": 15320666, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Strange_Device_(Tale_of_the_Righteous)?oldid=14770159", "revision": 14770159, "retrieved": "2026-10-03"},
+    ],
+    "npc_gamevals": [
+        "shayzienquest_lizardman_boss: level-46 Corrupt Lizardman (id 8000), 50 hitpoints, 38/38/38 attack/strength/defence, ranged 38, +22 attack, +20 strength, crush, attack speed 4, aggressive, max hit 6, poisons (configs/taleoftherighteous.npc); called by the magic gate in the player's own copy of m18_155",
+        "shayzienquest_puzzle_piece: the Strange Device, a pushable prop (ops Push and Attack) in the player's own copy of the Tower of Magic prison, m24_159; it has no hitpoints and takes no damage",
+    ],
+    "item_gamevals": [
+        "bones: the lizardman's death_drop (wiki 100%)",
+        "xeric_fabric: 3 Xerician fabric, dropped always by the killer's kill (wiki 100%)",
+    ],
+    "loc_gamevals": [
+        "shayzienquest_cave: the crevice, a multiloc on varb6358 (rope from stage 9); Enter builds the player's copy of m18_155",
+        "shayzienquest_blockage / shayzienquest_boulder: the rockfall (Mine) and the boulder (Push) closing the cave passage until cleared",
+        "shayzienquest_cave_door: the magic gate; Pass at stage 9 calls the lizardman, at stage 10+ lets the player through",
+        "shayzienquest_crystal_*: four prison crystals cleansed by magic, melee and ranged blows on the device",
+    ],
+    "trigger_handlers": [
+        "oploc1:shayzienquest_cave_door adds the lizardman beside the gate (tor_cave.rs2)",
+        "opnpc2:shayzienquest_lizardman_boss (trap 31 @player_combat_start)",
+        "apnpc2:shayzienquest_lizardman_boss (@player_combat_start_ap)",
+        "ai_queue3:shayzienquest_lizardman_boss writes stage 10, drops 3 Xerician fabric and the Bones",
+        "opnpc2:shayzienquest_puzzle_piece melee and ranged blows; ~pvm_default_spell hands it combat spells (tor_archive.rs2)",
+    ],
+    "loot_contract": "The Corrupt Lizardman drops Bones and 3 Xerician fabric always (wiki Corrupt_Lizardman oldid 15200061); the Nightmare Zone variant drops nothing and is not modelled.",
+    "test_ids": [
+        "quest-combat-contract:tale-of-the-righteous",
+        "quest:taleoftherighteous",
+    ],
+    "known_gaps": [
+        "The lizardman swings crush only: the page lists crush and ranged, and no source gives the ratio or the range.",
+        "Poison strength is not stated by the page: severity 16 (4 damage) is this port's reading of 'poisons like other lizardmen'.",
+        "Attacking the Strange Device with an ice spell does not freeze the player (the wiki's note).",
+        "The wiki's grave-outside-the-crevice death rule is the ordinary death respawn here.",
+    ],
+}
+
+# Twilight's Promise (matthew-mbp-m4-b56-parity): Mezan, the Knight of Varlamore
+# fought in the Colosseum, and the eight Teomat cultists. Added as its own
+# statement so it does not share a merge point with the ones around it.
+AUDITED_OVERRIDES["Twilight's Promise"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Knight_of_Varlamore_(Twilight%27s_Promise)?oldid=15200510", "revision": 15200510, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Cultist?oldid=15326762", "revision": 15326762, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Twilight%27s_Promise?oldid=15356498", "revision": 15356498, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Transcript:Twilight%27s_Promise?oldid=15319500", "revision": 15319500, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Citizen_(Twilight%27s_Promise)?oldid=15031710", "revision": 15031710, "retrieved": "2026-10-03"},
+    ],
+    "npc_gamevals": [
+        "vmq2_knight_6_combat: level-81 Knight of Varlamore (Mezan, id 12916), 100 hitpoints, 70/70/40 attack/strength/defence, 20 magic, no bonuses, slash, attack speed 5, aggressive, max hit 8, no drops (configs/twilightspromise.npc); fought in the player's own copy of m28_48",
+        "vmq2_cultist_m_1..3 / vmq2_cultist_f_1..3: level-34 Cultist (ids 12918..12923), 25 hitpoints, 30/35/30 attack/strength/defence, stab, attack speed 4, aggressive, max hit 4, drops nothing (configs/twilightspromise.npc); eight stand in the player's own copy of m22_49, one attacks, the rest retaliate",
+        "vmq2_guard_1..4: the Teomat guards beside the player in the battle (no ops, no fighting)",
+    ],
+    "item_gamevals": [
+        "vmq2_crest / vmq2_amulet / vmq2_incriminating_letter / vmq2_quetzal_feed: the quest's four items (twins, the citizen's pocket, the HQ chest, Regulus)",
+    ],
+    "loc_gamevals": [
+        "vmq2_knight_6_combat_leave: added inside the arena copy at its gate; Exit / Quick-exit walk the player back to the training room",
+        "colosseum_entrance_outside: the lobby arrival for stages 14..22 (quest_twilightspromise/scripts/twilightspromise_colosseum.rs2)",
+    ],
+    "trigger_handlers": [
+        "opnpc2:vmq2_knight_6_combat and vmq2_cultist_m_1..f_3 (trap 31 @player_combat_start)",
+        "player_hit_npc_prepare: vmq2_knight_6_combat runs ~tp_mezan_prepare_hit -- four swings in one style and he prays against it (melee/ranged count hit or miss, a splashed spell does not), a swing in the prayed style does nothing",
+        "ai_queue3:vmq2_knight_6_combat writes varb9832 2 and queues the walk back to the training room (tp_mezan_leave)",
+        "ai_queue3:vmq2_cultist_* counts the felled for the hero; the eighth queues tp_battle_won (leave the copy, stage 46, the aftermath scene)",
+    ],
+    "loot_contract": "Mezan and the cultists drop nothing (death_drop null; the Cultist page lists Nothing, always).",
+    "test_ids": [
+        "quest-combat-contract:twilights-promise",
+        "quest:twilightspromise",
+    ],
+    "known_gaps": [
+        "The wiki lets the guards kill the cultists as well; the port has the player kill all eight (no npc-versus-npc fight exists in the quest toolkit), so the eighth fallen cultist ends the battle.",
+        "Only one cultist hunts the player at the start; the other seven retaliate when hit (the page: the rest only attack after being attacked first).",
+        "The cache has no per-prayer Mezan form, so his protection prayer is the overhead shout plus a server-side rule; no head icon is drawn.",
+        "The poison route the page mentions (reapplied through his prayers) is the ordinary poison timer, not a quest rule.",
+    ],
+}
+
 # The Eyes of Glouphrie (matthew-mbp-m4-b55-parity): six one-hitpoint Evil
 # Creatures. Added as its own statement so it does not share a merge point with
 # the dict above.
@@ -2098,6 +2184,53 @@ AUDITED_OVERRIDES["The Eyes of Glouphrie"] = {
     "known_gaps": [
         "The wiki's note that the last creature spawns at the Stronghold entrance when Brimstail kills his own or a count is lost is not ported: a creature killed by anyone else is simply gone for that player's varbit.",
         "The page gives no combat level and no weakness.",
+    ],
+}
+
+# Dream Mentor (matthew-mbp-m4-b56-parity): the four dream bosses and A Doubt.
+# Added as its own statement so it does not share a merge point with the ones above.
+AUDITED_OVERRIDES["Dream Mentor"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/The_Inadequacy?oldid=15292423", "revision": 15292423, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/The_Everlasting?oldid=15199540", "revision": 15199540, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/The_Untouchable?oldid=15199541", "revision": 15199541, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/The_Illusive?oldid=15199542", "revision": 15199542, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/A_Doubt?oldid=15199544", "revision": 15199544, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Dream_Mentor?oldid=15292367", "revision": 15292367, "retrieved": "2026-10-03"},
+        {"url": "https://oldschool.runescape.wiki/w/Transcript:Dream_Mentor?oldid=15299716", "revision": 15299716, "retrieved": "2026-10-03"},
+    ],
+    "npc_gamevals": [
+        "dream_inadequacy: level-343 The Inadequacy, 180 hitpoints, 564/170/240 attack/strength/defence, 170 ranged, crush + ranged, speed 4, aggressive (npc/configs/combat_stats.generated.npc, agrees with the page and cache stat1..5)",
+        "dream_everlasting: level-223 The Everlasting, 230 hitpoints, 187/231/120, crush, speed 6, aggressive, max hit 24 (configs/dreammentor.npc)",
+        "dream_untouchable: level-274 The Untouchable, 90 hitpoints, 187/255/434, crush, speed 6, NOT aggressive, max hit 26 (configs/dreammentor.npc)",
+        "dream_illusive: level-108 The Illusive, 144 hitpoints, 72/71/105, crush, speed 6, aggressive, max hit 8 (configs/dreammentor.npc)",
+        "dream_razorbeast: level-78 A Doubt, 59 hitpoints, 72/58/85, attack bonus 18, strength bonus 16, crush, speed 6, bones (configs/dreammentor.npc)",
+    ],
+    "item_gamevals": [
+        "bones: A Doubt's only drop (wiki 100%); the four bosses drop nothing",
+        "dream_vial_*/dream_astral_shards/dream_groundastral: the potion chain the dream is entered with",
+    ],
+    "loc_gamevals": [
+        "dream_plinth (\"Our lives\"): Read/Leave, the only way out of the dream; leaving frees the instance so the fight restarts from The Inadequacy",
+        "lunar_moonclan_brazier_multi: lit with a tinderbox (oplocu)",
+    ],
+    "trigger_handlers": [
+        "opnpc2:dream_inadequacy/everlasting/untouchable/illusive/razorbeast (trap 31 @player_combat_start)",
+        "ai_queue3:each boss queues dreammentor_boss_down to the player (no mesbox, teleport or delay in the npc script); the queue spawns the next form at the arena's centre in the owner's own instance, the last one ends the dream",
+        "ai_queue1/ai_applayer2/ai_opplayer2:dream_inadequacy flips between its melee swing and its ranged volley and summons up to five Doubts, all removed when it dies",
+        "dreammentor_on_damage (hooked in npc_default_damage beside the Giant Mole's): the Illusive burrows after two hits and is stomped at 22 hp or less; Cyrisus's courage bar fills with damage dealt and he strikes for up to 12 when it is full",
+        "prayer_checks / player_teleport_normal refuse inside the dream",
+    ],
+    "loot_contract": "The four bosses drop nothing; A Doubt drops Bones always (wiki A_Doubt 100% table).",
+    "test_ids": [
+        "quest-combat-contract:dream-mentor",
+        "quest:dreammentor",
+    ],
+    "known_gaps": [
+        "Cyrisus's Vengeance Other, his heal, his teleport and his random overhead lines are not authored; he strikes the boss once when the courage bar is full.",
+        "The Inadequacy's ranged volley is chosen by Elvarg's approach/operate flip, not strictly 'only when the player is outside melee range'.",
+        "The Illusive's burrow animation is the nearest cache sequence (dream_illusive_defend_p2); no sequence in the cache is named for burrowing.",
+        "Emergency teleports are refused only where the shared teleport spell/tab gate (player_teleport_normal) is used; jewellery and other teleports do not consult it.",
     ],
 }
 
