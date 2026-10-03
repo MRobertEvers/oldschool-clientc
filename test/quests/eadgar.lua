@@ -298,13 +298,7 @@ return {
         -- ---------------------------------------------------------------
         -- 4. Eadgar (2nd): explains the fake-man plan -> needs a parrot.
         -- ---------------------------------------------------------------
-        t.exec("goto-enterEadgarsCaveFromCook", t.player.goto_tile, 2892, 3672, 0)
-        t.exec("enterEadgarsCaveFromCook", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
-        t.ticks(3)
-        local enterEadgarsCaveFromCook_result, enterEadgarsCaveFromCook_tile = t.world.tile()
-        t.check("enterEadgarsCaveFromCook.landing", enterEadgarsCaveFromCook_result == "ok" and enterEadgarsCaveFromCook_tile ~= nil and enterEadgarsCaveFromCook_tile.z >= 10000,
-            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveFromCook_result) .. " " .. tostring(enterEadgarsCaveFromCook_tile and enterEadgarsCaveFromCook_tile.x) .. "," .. tostring(enterEadgarsCaveFromCook_tile and enterEadgarsCaveFromCook_tile.z))
-        t.exec("goto-enterEadgarsCaveFromCook-inside", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-eadgar-2", t.player.goto_tile, 2890, 10086, 2)
         t.exec("talkToEadgar-explainParrot", t.player.talk_to, "troll_eadgar", 1)
         t.exec("talkToEadgar-explainParrot-dialog", t.chat.play, {
             "player:The troll cook wants me to bring him a tasty human",
@@ -372,13 +366,7 @@ return {
         -- 6. Give the parrot to Eadgar -> explained_plan. Hide it under
         --    the rack in the prison -> hid_parrot.
         -- ---------------------------------------------------------------
-        t.exec("goto-enterEadgarCaveWithTrainedParrot", t.player.goto_tile, 2892, 3672, 0)
-        t.exec("enterEadgarCaveWithTrainedParrot", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
-        t.ticks(3)
-        local enterEadgarCaveWithTrainedParrot_result, enterEadgarCaveWithTrainedParrot_tile = t.world.tile()
-        t.check("enterEadgarCaveWithTrainedParrot.landing", enterEadgarCaveWithTrainedParrot_result == "ok" and enterEadgarCaveWithTrainedParrot_tile ~= nil and enterEadgarCaveWithTrainedParrot_tile.z >= 10000,
-            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarCaveWithTrainedParrot_result) .. " " .. tostring(enterEadgarCaveWithTrainedParrot_tile and enterEadgarCaveWithTrainedParrot_tile.x) .. "," .. tostring(enterEadgarCaveWithTrainedParrot_tile and enterEadgarCaveWithTrainedParrot_tile.z))
-        t.exec("goto-enterEadgarCaveWithTrainedParrot-inside", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-eadgar-3", t.player.goto_tile, 2890, 10086, 2)
         local eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("giveParrotToEadgar", t.player.use_on, "eadgar_drunk_parrot", eadgar_npc)
         t.exec("giveParrotToEadgar-dialog", t.chat.play, {
@@ -399,13 +387,7 @@ return {
         -- ---------------------------------------------------------------
         -- 7. Eadgar (3rd): explain the shopping list -> needs_items.
         -- ---------------------------------------------------------------
-        t.exec("goto-enterEadgarsCaveHiddenParrot", t.player.goto_tile, 2892, 3672, 0)
-        t.exec("enterEadgarsCaveHiddenParrot", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
-        t.ticks(3)
-        local enterEadgarsCaveHiddenParrot_result, enterEadgarsCaveHiddenParrot_tile = t.world.tile()
-        t.check("enterEadgarsCaveHiddenParrot.landing", enterEadgarsCaveHiddenParrot_result == "ok" and enterEadgarsCaveHiddenParrot_tile ~= nil and enterEadgarsCaveHiddenParrot_tile.z >= 10000,
-            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveHiddenParrot_result) .. " " .. tostring(enterEadgarsCaveHiddenParrot_tile and enterEadgarsCaveHiddenParrot_tile.x) .. "," .. tostring(enterEadgarsCaveHiddenParrot_tile and enterEadgarsCaveHiddenParrot_tile.z))
-        t.exec("goto-enterEadgarsCaveHiddenParrot-inside", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-eadgar-4", t.player.goto_tile, 2890, 10086, 2)
         t.exec("talkToEadgar-explainItems", t.player.talk_to, "troll_eadgar", 1)
         t.exec("talkToEadgar-explainItems-dialog", t.chat.play, {
             "player:I've hidden the parrot under the rack.",
@@ -439,13 +421,7 @@ return {
         --    last grain (the final one of the four requirements) also
         --    gets his "that's everything I need" follow-on page.
         -- ---------------------------------------------------------------
-        t.exec("goto-enterEadgarsCaveWithItems", t.player.goto_tile, 2892, 3672, 0)
-        t.exec("enterEadgarsCaveWithItems", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
-        t.ticks(3)
-        local enterEadgarsCaveWithItems_result, enterEadgarsCaveWithItems_tile = t.world.tile()
-        t.check("enterEadgarsCaveWithItems.landing", enterEadgarsCaveWithItems_result == "ok" and enterEadgarsCaveWithItems_tile ~= nil and enterEadgarsCaveWithItems_tile.z >= 10000,
-            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveWithItems_result) .. " " .. tostring(enterEadgarsCaveWithItems_tile and enterEadgarsCaveWithItems_tile.x) .. "," .. tostring(enterEadgarsCaveWithItems_tile and enterEadgarsCaveWithItems_tile.z))
-        t.exec("goto-enterEadgarsCaveWithItems-inside", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-eadgar-5", t.player.goto_tile, 2890, 10086, 2)
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
 
         t.exec("giveLogs", t.player.use_on, "logs", eadgar_npc)
@@ -586,13 +562,7 @@ return {
         -- ---------------------------------------------------------------
         -- 12. Give the troll truth potion to Eadgar -> needs_parrot_back.
         -- ---------------------------------------------------------------
-        t.exec("goto-enterEadgarsCaveWithTrollPotion", t.player.goto_tile, 2892, 3672, 0)
-        t.exec("enterEadgarsCaveWithTrollPotion", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
-        t.ticks(3)
-        local enterEadgarsCaveWithTrollPotion_result, enterEadgarsCaveWithTrollPotion_tile = t.world.tile()
-        t.check("enterEadgarsCaveWithTrollPotion.landing", enterEadgarsCaveWithTrollPotion_result == "ok" and enterEadgarsCaveWithTrollPotion_tile ~= nil and enterEadgarsCaveWithTrollPotion_tile.z >= 10000,
-            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveWithTrollPotion_result) .. " " .. tostring(enterEadgarsCaveWithTrollPotion_tile and enterEadgarsCaveWithTrollPotion_tile.x) .. "," .. tostring(enterEadgarsCaveWithTrollPotion_tile and enterEadgarsCaveWithTrollPotion_tile.z))
-        t.exec("goto-enterEadgarsCaveWithTrollPotion-inside", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-eadgar-6", t.player.goto_tile, 2890, 10086, 2)
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("givePotion", t.player.use_on, "eadgar_ground_troll_thistle_potion", eadgar_npc)
         t.exec("givePotion-dialog", t.chat.play, {
@@ -619,13 +589,7 @@ return {
         -- 14. Show the trained parrot to Eadgar -> makes the fake man,
         --     got_fake_man (troll_eadgar.rs2 eadgar_quest_make_fake_man).
         -- ---------------------------------------------------------------
-        t.exec("goto-enterEadgarsCaveWithTrainedParrotAgain", t.player.goto_tile, 2892, 3672, 0)
-        t.exec("enterEadgarsCaveWithTrainedParrotAgain", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
-        t.ticks(3)
-        local enterEadgarsCaveWithTrainedParrotAgain_result, enterEadgarsCaveWithTrainedParrotAgain_tile = t.world.tile()
-        t.check("enterEadgarsCaveWithTrainedParrotAgain.landing", enterEadgarsCaveWithTrainedParrotAgain_result == "ok" and enterEadgarsCaveWithTrainedParrotAgain_tile ~= nil and enterEadgarsCaveWithTrainedParrotAgain_tile.z >= 10000,
-            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveWithTrainedParrotAgain_result) .. " " .. tostring(enterEadgarsCaveWithTrainedParrotAgain_tile and enterEadgarsCaveWithTrainedParrotAgain_tile.x) .. "," .. tostring(enterEadgarsCaveWithTrainedParrotAgain_tile and enterEadgarsCaveWithTrainedParrotAgain_tile.z))
-        t.exec("goto-enterEadgarsCaveWithTrainedParrotAgain-inside", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-eadgar-7", t.player.goto_tile, 2890, 10086, 2)
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("makeFakeMan", t.player.use_on, "eadgar_drunk_parrot", eadgar_npc)
         t.exec("makeFakeMan-dialog", t.chat.play, {
