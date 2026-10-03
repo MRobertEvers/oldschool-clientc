@@ -1227,7 +1227,7 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
 
 ## Exact-tick actions
 
-- `t.ticks(n)` waits on the CLIENT clock, which can drift from the server tick by one.
+- `t.ticks(n)` waits on the CLIENT clock, not on server ticks.
   For an action that must resolve on a given server tick, `t.await` on `t.tick()`
   reaching the tick before it, then `t.player.step_tick`.
 
