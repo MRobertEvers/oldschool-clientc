@@ -1,14 +1,18 @@
 -- Eadgar's Ruse. Rewritten from the generated scaffold against the quest's
 -- own .rs2 scripts (server/scripts/quests/quest_eadgar/, plus the offer/
 -- turn-in half in areas/area_taverly/scripts/sanfew.rs2 and the state
--- machine in quests/quest_troll/scripts/troll_eadgar.rs2). The generated
--- scaffold's goto_tile chain walked every troll-stronghold door/stairs as a
--- click_loc; those are pure p_teleport() geography (quest_troll.rs2) with no
--- state of their own, so this file drops them and goto_tiles straight to
--- each real interaction point instead (doc section 2's "delete any
--- scaffold-emitted click_loc row for a ladder or gate", which the Troll
--- Stronghold's stairs/doors are -- verified against quest_troll.rs2 before
--- removing a single one of them).
+-- machine in quests/quest_troll/scripts/troll_eadgar.rs2).
+--
+-- Troll Stronghold legs are clicked, not teleported past: every trip from
+-- Eadgar's cave to the prison rack (stages 50 and 85), the kitchen (stage 15
+-- and 87) and the storeroom (stage 90) clicks troll_mad_eadgar_exit, walks
+-- (goto_tile, open ground only) to the door at 2839,3689, clicks
+-- troll_stronghold_door (p_teleport to 2837,10090 on level 2), then clicks
+-- each troll_stronghold_stairstop the guide names (goDownSouthStairs,
+-- goDownNorthStairs, goDownToPrison, goDownToStoreroom), reading the landing
+-- tile back against quest_troll.rs2's movecoord. Only the short walks on one
+-- floor between those clicks are goto_tile travel; the return climbs (stairs
+-- up, top exit) back toward Eadgar are still travel.
 --
 -- Setup: herblore 31, Druidic Ritual and Troll Stronghold complete
 -- (prerequisites sanfew.rs2's `sanfew_more_work` gates on), tutorial kit
@@ -273,12 +277,24 @@ return {
         t.drive.camera(0, 383, 600)
         t.check("enterStronghold", stronghold_click == "ok",
             "click_loc(troll_stronghold_door) -> " .. tostring(stronghold_click) .. " " .. tostring(stronghold_detail))
+        local enterStronghold_r, enterStronghold_h = t.world.tile()
+        t.check("enterStronghold.landing", enterStronghold_r == 'ok' and enterStronghold_h.x == 2837 and enterStronghold_h.z == 10090 and enterStronghold_h.level == 2,
+            "stronghold door: tile " .. tostring(enterStronghold_h and enterStronghold_h.x) .. "," .. tostring(enterStronghold_h and enterStronghold_h.z) .. "," .. tostring(enterStronghold_h and enterStronghold_h.level) .. " (want 2837,10090,2)")
 
+        t.exec("goto-goDownSouthStairs", t.player.goto_tile, 2843, 10053, 2)
+        t.exec("goDownSouthStairs", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2843, 10051, 2 } })
+        t.ticks(3)
+        local goDownSouthStairs_r, goDownSouthStairs_h = t.world.tile()
+        t.check("goDownSouthStairs.landing", goDownSouthStairs_r == 'ok' and goDownSouthStairs_h.x == 2841 and goDownSouthStairs_h.z == 10051 and goDownSouthStairs_h.level == 1,
+            "goDownSouthStairs stairs: tile " .. tostring(goDownSouthStairs_h and goDownSouthStairs_h.x) .. "," .. tostring(goDownSouthStairs_h and goDownSouthStairs_h.z) .. "," .. tostring(goDownSouthStairs_h and goDownSouthStairs_h.level) .. " want 2841,10051,1")
         local burntmeatgoto_result, burntmeatgoto_detail = t.player.goto_tile(2844, 10057, 1)
         t.ticks(2)
         t.drive.camera(0, 383, 200)
         t.check("goto-burntmeat-1", burntmeatgoto_result == "ok",
             "goto_tile(2844,10057,1) -> " .. tostring(burntmeatgoto_result) .. " " .. tostring(burntmeatgoto_detail))
+        local burntmeat1_r, burntmeat1_h = t.world.tile()
+        t.check("goto-burntmeat-1.at", burntmeat1_r == 'ok' and burntmeat1_h.x == 2844 and burntmeat1_h.z == 10057 and burntmeat1_h.level == 1,
+            "beside Burntmeat: tile " .. tostring(burntmeat1_h and burntmeat1_h.x) .. "," .. tostring(burntmeat1_h and burntmeat1_h.z) .. "," .. tostring(burntmeat1_h and burntmeat1_h.level) .. " (want 2844,10057,1)")
         t.exec("talkToBurntmeat-1", t.player.talk_to, "eadgar_troll_chief_cook", 1)
         t.exec("talkToBurntmeat-1-dialog", t.chat.play, {
             "player:Er, hi.",
@@ -298,7 +314,13 @@ return {
         -- ---------------------------------------------------------------
         -- 4. Eadgar (2nd): explains the fake-man plan -> needs a parrot.
         -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-2", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-enterEadgarsCaveFromCook", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarsCaveFromCook", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        t.ticks(3)
+        local enterEadgarsCaveFromCook_result, enterEadgarsCaveFromCook_tile = t.world.tile()
+        t.check("enterEadgarsCaveFromCook.landing", enterEadgarsCaveFromCook_result == "ok" and enterEadgarsCaveFromCook_tile ~= nil and enterEadgarsCaveFromCook_tile.z >= 10000,
+            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveFromCook_result) .. " " .. tostring(enterEadgarsCaveFromCook_tile and enterEadgarsCaveFromCook_tile.x) .. "," .. tostring(enterEadgarsCaveFromCook_tile and enterEadgarsCaveFromCook_tile.z))
+        t.exec("goto-enterEadgarsCaveFromCook-inside", t.player.goto_tile, 2890, 10086, 2)
         t.exec("talkToEadgar-explainParrot", t.player.talk_to, "troll_eadgar", 1)
         t.exec("talkToEadgar-explainParrot-dialog", t.chat.play, {
             "player:The troll cook wants me to bring him a tasty human",
@@ -366,7 +388,13 @@ return {
         -- 6. Give the parrot to Eadgar -> explained_plan. Hide it under
         --    the rack in the prison -> hid_parrot.
         -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-3", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-enterEadgarCaveWithTrainedParrot", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarCaveWithTrainedParrot", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        t.ticks(3)
+        local enterEadgarCaveWithTrainedParrot_result, enterEadgarCaveWithTrainedParrot_tile = t.world.tile()
+        t.check("enterEadgarCaveWithTrainedParrot.landing", enterEadgarCaveWithTrainedParrot_result == "ok" and enterEadgarCaveWithTrainedParrot_tile ~= nil and enterEadgarCaveWithTrainedParrot_tile.z >= 10000,
+            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarCaveWithTrainedParrot_result) .. " " .. tostring(enterEadgarCaveWithTrainedParrot_tile and enterEadgarCaveWithTrainedParrot_tile.x) .. "," .. tostring(enterEadgarCaveWithTrainedParrot_tile and enterEadgarCaveWithTrainedParrot_tile.z))
+        t.exec("goto-enterEadgarCaveWithTrainedParrot-inside", t.player.goto_tile, 2890, 10086, 2)
         local eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("giveParrotToEadgar", t.player.use_on, "eadgar_drunk_parrot", eadgar_npc)
         t.exec("giveParrotToEadgar-dialog", t.chat.play, {
@@ -379,6 +407,29 @@ return {
         t.expect("quest.stage.explained_plan", t.quest.expect_stage("explained_plan"))
 
         local rack_target = t.player.by_symbol("loc", "eadgar_rack")
+        t.exec("leaveEadgarsCaveWithParrot", t.player.click_loc, "troll_mad_eadgar_exit", 1)
+        t.ticks(3)
+        local leaveEadgarsCaveWithParrot_r, leaveEadgarsCaveWithParrot_h = t.world.tile()
+        t.check("leaveEadgarsCaveWithParrot.surface", leaveEadgarsCaveWithParrot_r == 'ok' and leaveEadgarsCaveWithParrot_h.level == 0 and leaveEadgarsCaveWithParrot_h.z < 4000,
+            "after troll_mad_eadgar_exit: tile " .. tostring(leaveEadgarsCaveWithParrot_h and leaveEadgarsCaveWithParrot_h.x) .. "," .. tostring(leaveEadgarsCaveWithParrot_h and leaveEadgarsCaveWithParrot_h.z) .. "," .. tostring(leaveEadgarsCaveWithParrot_h and leaveEadgarsCaveWithParrot_h.level) .. " want surface level 0, z < 4000")
+        t.exec("goto-strongholddoor-WithParrot", t.player.goto_tile, 2839, 3689, 0)
+        t.exec("enterStrongholdWithParrot", t.player.click_loc, "troll_stronghold_door", 1)
+        t.ticks(3)
+        local enterStrongholdWithParrot_r, enterStrongholdWithParrot_h = t.world.tile()
+        t.check("enterStrongholdWithParrot.landing", enterStrongholdWithParrot_r == 'ok' and enterStrongholdWithParrot_h.x == 2837 and enterStrongholdWithParrot_h.z == 10090 and enterStrongholdWithParrot_h.level == 2,
+            "troll_stronghold_door p_teleport(2_44_157_21_42): tile " .. tostring(enterStrongholdWithParrot_h and enterStrongholdWithParrot_h.x) .. "," .. tostring(enterStrongholdWithParrot_h and enterStrongholdWithParrot_h.z) .. "," .. tostring(enterStrongholdWithParrot_h and enterStrongholdWithParrot_h.level) .. " want 2837,10090,2")
+        t.exec("goto-goDownNorthStairsWithParrot", t.player.goto_tile, 2843, 10106, 2)
+        t.exec("goDownNorthStairsWithParrot", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2843, 10108, 2 } })
+        t.ticks(3)
+        local goDownNorthStairsWithParrot_r, goDownNorthStairsWithParrot_h = t.world.tile()
+        t.check("goDownNorthStairsWithParrot.landing", goDownNorthStairsWithParrot_r == 'ok' and goDownNorthStairsWithParrot_h.x == 2841 and goDownNorthStairsWithParrot_h.z == 10108 and goDownNorthStairsWithParrot_h.level == 1,
+            "goDownNorthStairsWithParrot stairs: tile " .. tostring(goDownNorthStairsWithParrot_h and goDownNorthStairsWithParrot_h.x) .. "," .. tostring(goDownNorthStairsWithParrot_h and goDownNorthStairsWithParrot_h.z) .. "," .. tostring(goDownNorthStairsWithParrot_h and goDownNorthStairsWithParrot_h.level) .. " want 2841,10108,1")
+        t.exec("goto-goDownToPrisonWithParrot", t.player.goto_tile, 2852, 10105, 1)
+        t.exec("goDownToPrisonWithParrot", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2852, 10107, 1 } })
+        t.ticks(3)
+        local goDownToPrisonWithParrot_r, goDownToPrisonWithParrot_h = t.world.tile()
+        t.check("goDownToPrisonWithParrot.landing", goDownToPrisonWithParrot_r == 'ok' and goDownToPrisonWithParrot_h.x == 2852 and goDownToPrisonWithParrot_h.z == 10105 and goDownToPrisonWithParrot_h.level == 0,
+            "goDownToPrisonWithParrot stairs: tile " .. tostring(goDownToPrisonWithParrot_h and goDownToPrisonWithParrot_h.x) .. "," .. tostring(goDownToPrisonWithParrot_h and goDownToPrisonWithParrot_h.z) .. "," .. tostring(goDownToPrisonWithParrot_h and goDownToPrisonWithParrot_h.level) .. " want 2852,10105,0")
         t.exec("goto-rack-1", t.player.goto_tile, 2829, 10097, 0)
         t.exec("hideParrot", t.player.use_on, "eadgar_drunk_parrot", rack_target)
         t.chat.close()
@@ -387,7 +438,13 @@ return {
         -- ---------------------------------------------------------------
         -- 7. Eadgar (3rd): explain the shopping list -> needs_items.
         -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-4", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-enterEadgarsCaveHiddenParrot", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarsCaveHiddenParrot", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        t.ticks(3)
+        local enterEadgarsCaveHiddenParrot_result, enterEadgarsCaveHiddenParrot_tile = t.world.tile()
+        t.check("enterEadgarsCaveHiddenParrot.landing", enterEadgarsCaveHiddenParrot_result == "ok" and enterEadgarsCaveHiddenParrot_tile ~= nil and enterEadgarsCaveHiddenParrot_tile.z >= 10000,
+            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveHiddenParrot_result) .. " " .. tostring(enterEadgarsCaveHiddenParrot_tile and enterEadgarsCaveHiddenParrot_tile.x) .. "," .. tostring(enterEadgarsCaveHiddenParrot_tile and enterEadgarsCaveHiddenParrot_tile.z))
+        t.exec("goto-enterEadgarsCaveHiddenParrot-inside", t.player.goto_tile, 2890, 10086, 2)
         t.exec("talkToEadgar-explainItems", t.player.talk_to, "troll_eadgar", 1)
         t.exec("talkToEadgar-explainItems-dialog", t.chat.play, {
             "player:I've hidden the parrot under the rack.",
@@ -421,7 +478,13 @@ return {
         --    last grain (the final one of the four requirements) also
         --    gets his "that's everything I need" follow-on page.
         -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-5", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-enterEadgarsCaveWithItems", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarsCaveWithItems", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        t.ticks(3)
+        local enterEadgarsCaveWithItems_result, enterEadgarsCaveWithItems_tile = t.world.tile()
+        t.check("enterEadgarsCaveWithItems.landing", enterEadgarsCaveWithItems_result == "ok" and enterEadgarsCaveWithItems_tile ~= nil and enterEadgarsCaveWithItems_tile.z >= 10000,
+            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveWithItems_result) .. " " .. tostring(enterEadgarsCaveWithItems_tile and enterEadgarsCaveWithItems_tile.x) .. "," .. tostring(enterEadgarsCaveWithItems_tile and enterEadgarsCaveWithItems_tile.z))
+        t.exec("goto-enterEadgarsCaveWithItems-inside", t.player.goto_tile, 2890, 10086, 2)
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
 
         t.exec("giveLogs", t.player.use_on, "logs", eadgar_npc)
@@ -562,7 +625,13 @@ return {
         -- ---------------------------------------------------------------
         -- 12. Give the troll truth potion to Eadgar -> needs_parrot_back.
         -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-6", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-enterEadgarsCaveWithTrollPotion", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarsCaveWithTrollPotion", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        t.ticks(3)
+        local enterEadgarsCaveWithTrollPotion_result, enterEadgarsCaveWithTrollPotion_tile = t.world.tile()
+        t.check("enterEadgarsCaveWithTrollPotion.landing", enterEadgarsCaveWithTrollPotion_result == "ok" and enterEadgarsCaveWithTrollPotion_tile ~= nil and enterEadgarsCaveWithTrollPotion_tile.z >= 10000,
+            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveWithTrollPotion_result) .. " " .. tostring(enterEadgarsCaveWithTrollPotion_tile and enterEadgarsCaveWithTrollPotion_tile.x) .. "," .. tostring(enterEadgarsCaveWithTrollPotion_tile and enterEadgarsCaveWithTrollPotion_tile.z))
+        t.exec("goto-enterEadgarsCaveWithTrollPotion-inside", t.player.goto_tile, 2890, 10086, 2)
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("givePotion", t.player.use_on, "eadgar_ground_troll_thistle_potion", eadgar_npc)
         t.exec("givePotion-dialog", t.chat.play, {
@@ -576,6 +645,29 @@ return {
         -- 13. Fetch the trained parrot back from the rack -> got_parrot_back
         --     (eadgar_troll_chief_cook.rs2 [oploc1,eadgar_rack]).
         -- ---------------------------------------------------------------
+        t.exec("leaveEadgarsCaveForParrot", t.player.click_loc, "troll_mad_eadgar_exit", 1)
+        t.ticks(3)
+        local leaveEadgarsCaveForParrot_r, leaveEadgarsCaveForParrot_h = t.world.tile()
+        t.check("leaveEadgarsCaveForParrot.surface", leaveEadgarsCaveForParrot_r == 'ok' and leaveEadgarsCaveForParrot_h.level == 0 and leaveEadgarsCaveForParrot_h.z < 4000,
+            "after troll_mad_eadgar_exit: tile " .. tostring(leaveEadgarsCaveForParrot_h and leaveEadgarsCaveForParrot_h.x) .. "," .. tostring(leaveEadgarsCaveForParrot_h and leaveEadgarsCaveForParrot_h.z) .. "," .. tostring(leaveEadgarsCaveForParrot_h and leaveEadgarsCaveForParrot_h.level) .. " want surface level 0, z < 4000")
+        t.exec("goto-strongholddoor-ForParrot", t.player.goto_tile, 2839, 3689, 0)
+        t.exec("enterStrongholdForParrot", t.player.click_loc, "troll_stronghold_door", 1)
+        t.ticks(3)
+        local enterStrongholdForParrot_r, enterStrongholdForParrot_h = t.world.tile()
+        t.check("enterStrongholdForParrot.landing", enterStrongholdForParrot_r == 'ok' and enterStrongholdForParrot_h.x == 2837 and enterStrongholdForParrot_h.z == 10090 and enterStrongholdForParrot_h.level == 2,
+            "troll_stronghold_door p_teleport(2_44_157_21_42): tile " .. tostring(enterStrongholdForParrot_h and enterStrongholdForParrot_h.x) .. "," .. tostring(enterStrongholdForParrot_h and enterStrongholdForParrot_h.z) .. "," .. tostring(enterStrongholdForParrot_h and enterStrongholdForParrot_h.level) .. " want 2837,10090,2")
+        t.exec("goto-goDownNorthStairsForParrot", t.player.goto_tile, 2843, 10106, 2)
+        t.exec("goDownNorthStairsForParrot", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2843, 10108, 2 } })
+        t.ticks(3)
+        local goDownNorthStairsForParrot_r, goDownNorthStairsForParrot_h = t.world.tile()
+        t.check("goDownNorthStairsForParrot.landing", goDownNorthStairsForParrot_r == 'ok' and goDownNorthStairsForParrot_h.x == 2841 and goDownNorthStairsForParrot_h.z == 10108 and goDownNorthStairsForParrot_h.level == 1,
+            "goDownNorthStairsForParrot stairs: tile " .. tostring(goDownNorthStairsForParrot_h and goDownNorthStairsForParrot_h.x) .. "," .. tostring(goDownNorthStairsForParrot_h and goDownNorthStairsForParrot_h.z) .. "," .. tostring(goDownNorthStairsForParrot_h and goDownNorthStairsForParrot_h.level) .. " want 2841,10108,1")
+        t.exec("goto-goDownToPrisonForParrot", t.player.goto_tile, 2852, 10105, 1)
+        t.exec("goDownToPrisonForParrot", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2852, 10107, 1 } })
+        t.ticks(3)
+        local goDownToPrisonForParrot_r, goDownToPrisonForParrot_h = t.world.tile()
+        t.check("goDownToPrisonForParrot.landing", goDownToPrisonForParrot_r == 'ok' and goDownToPrisonForParrot_h.x == 2852 and goDownToPrisonForParrot_h.z == 10105 and goDownToPrisonForParrot_h.level == 0,
+            "goDownToPrisonForParrot stairs: tile " .. tostring(goDownToPrisonForParrot_h and goDownToPrisonForParrot_h.x) .. "," .. tostring(goDownToPrisonForParrot_h and goDownToPrisonForParrot_h.z) .. "," .. tostring(goDownToPrisonForParrot_h and goDownToPrisonForParrot_h.level) .. " want 2852,10105,0")
         t.exec("goto-rack-2", t.player.goto_tile, 2829, 10097, 0)
         t.exec("fetchParrot", t.player.click_loc, "eadgar_rack", 1)
         t.exec("fetchParrot-dialog", t.chat.play, {
@@ -589,7 +681,13 @@ return {
         -- 14. Show the trained parrot to Eadgar -> makes the fake man,
         --     got_fake_man (troll_eadgar.rs2 eadgar_quest_make_fake_man).
         -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-7", t.player.goto_tile, 2890, 10086, 2)
+        t.exec("goto-enterEadgarsCaveWithTrainedParrotAgain", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarsCaveWithTrainedParrotAgain", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        t.ticks(3)
+        local enterEadgarsCaveWithTrainedParrotAgain_result, enterEadgarsCaveWithTrainedParrotAgain_tile = t.world.tile()
+        t.check("enterEadgarsCaveWithTrainedParrotAgain.landing", enterEadgarsCaveWithTrainedParrotAgain_result == "ok" and enterEadgarsCaveWithTrainedParrotAgain_tile ~= nil and enterEadgarsCaveWithTrainedParrotAgain_tile.z >= 10000,
+            "world.tile() after troll_mad_eadgar_entrance -> " .. tostring(enterEadgarsCaveWithTrainedParrotAgain_result) .. " " .. tostring(enterEadgarsCaveWithTrainedParrotAgain_tile and enterEadgarsCaveWithTrainedParrotAgain_tile.x) .. "," .. tostring(enterEadgarsCaveWithTrainedParrotAgain_tile and enterEadgarsCaveWithTrainedParrotAgain_tile.z))
+        t.exec("goto-enterEadgarsCaveWithTrainedParrotAgain-inside", t.player.goto_tile, 2890, 10086, 2)
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("makeFakeMan", t.player.use_on, "eadgar_drunk_parrot", eadgar_npc)
         t.exec("makeFakeMan-dialog", t.chat.play, {
@@ -607,6 +705,23 @@ return {
         --     eadgar_talk_to_troll_cook + burntmeat_gave_fake_man +
         --     burntmeat_where_goutweed).
         -- ---------------------------------------------------------------
+        t.exec("leaveEadgarsCaveWithScarecrow", t.player.click_loc, "troll_mad_eadgar_exit", 1)
+        t.ticks(3)
+        local leaveEadgarsCaveWithScarecrow_r, leaveEadgarsCaveWithScarecrow_h = t.world.tile()
+        t.check("leaveEadgarsCaveWithScarecrow.surface", leaveEadgarsCaveWithScarecrow_r == 'ok' and leaveEadgarsCaveWithScarecrow_h.level == 0 and leaveEadgarsCaveWithScarecrow_h.z < 4000,
+            "after troll_mad_eadgar_exit: tile " .. tostring(leaveEadgarsCaveWithScarecrow_h and leaveEadgarsCaveWithScarecrow_h.x) .. "," .. tostring(leaveEadgarsCaveWithScarecrow_h and leaveEadgarsCaveWithScarecrow_h.z) .. "," .. tostring(leaveEadgarsCaveWithScarecrow_h and leaveEadgarsCaveWithScarecrow_h.level) .. " want surface level 0, z < 4000")
+        t.exec("goto-strongholddoor-WithScarecrow", t.player.goto_tile, 2839, 3689, 0)
+        t.exec("enterStrongholdWithScarecrow", t.player.click_loc, "troll_stronghold_door", 1)
+        t.ticks(3)
+        local enterStrongholdWithScarecrow_r, enterStrongholdWithScarecrow_h = t.world.tile()
+        t.check("enterStrongholdWithScarecrow.landing", enterStrongholdWithScarecrow_r == 'ok' and enterStrongholdWithScarecrow_h.x == 2837 and enterStrongholdWithScarecrow_h.z == 10090 and enterStrongholdWithScarecrow_h.level == 2,
+            "troll_stronghold_door p_teleport(2_44_157_21_42): tile " .. tostring(enterStrongholdWithScarecrow_h and enterStrongholdWithScarecrow_h.x) .. "," .. tostring(enterStrongholdWithScarecrow_h and enterStrongholdWithScarecrow_h.z) .. "," .. tostring(enterStrongholdWithScarecrow_h and enterStrongholdWithScarecrow_h.level) .. " want 2837,10090,2")
+        t.exec("goto-goDownSouthStairsWithScarecrow", t.player.goto_tile, 2843, 10053, 2)
+        t.exec("goDownSouthStairsWithScarecrow", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2843, 10051, 2 } })
+        t.ticks(3)
+        local goDownSouthStairsWithScarecrow_r, goDownSouthStairsWithScarecrow_h = t.world.tile()
+        t.check("goDownSouthStairsWithScarecrow.landing", goDownSouthStairsWithScarecrow_r == 'ok' and goDownSouthStairsWithScarecrow_h.x == 2841 and goDownSouthStairsWithScarecrow_h.z == 10051 and goDownSouthStairsWithScarecrow_h.level == 1,
+            "goDownSouthStairsWithScarecrow stairs: tile " .. tostring(goDownSouthStairsWithScarecrow_h and goDownSouthStairsWithScarecrow_h.x) .. "," .. tostring(goDownSouthStairsWithScarecrow_h and goDownSouthStairsWithScarecrow_h.z) .. "," .. tostring(goDownSouthStairsWithScarecrow_h and goDownSouthStairsWithScarecrow_h.level) .. " want 2841,10051,1")
         t.exec("goto-burntmeat-2", t.player.goto_tile, 2844, 10057, 1)
         local burntmeat_npc = t.player.by_symbol("npc", "eadgar_troll_chief_cook")
         t.exec("giveFakeMan", t.player.use_on, "eadgar_fake_man", burntmeat_npc)
@@ -645,6 +760,12 @@ return {
         t.exec("searchDrawers", t.player.click_loc, "eadgar_kitchen_drawers_open", 2)
         t.inv.await("eadgar_troll_storeroom_key", 1, 10)
 
+        t.exec("goto-goDownToStoreroom", t.player.goto_tile, 2853, 10061, 1)
+        t.exec("goDownToStoreroom", t.player.click_loc, "troll_stronghold_stairstop", 1, { at = { 2852, 10061, 1 } })
+        t.ticks(3)
+        local goDownToStoreroom_r, goDownToStoreroom_h = t.world.tile()
+        t.check("goDownToStoreroom.landing", goDownToStoreroom_r == 'ok' and goDownToStoreroom_h.x == 2852 and goDownToStoreroom_h.z == 10064 and goDownToStoreroom_h.level == 0,
+            "goDownToStoreroom stairs: tile " .. tostring(goDownToStoreroom_h and goDownToStoreroom_h.x) .. "," .. tostring(goDownToStoreroom_h and goDownToStoreroom_h.z) .. "," .. tostring(goDownToStoreroom_h and goDownToStoreroom_h.level) .. " want 2852,10064,0")
         t.exec("goto-storeroomdoor", t.player.goto_tile, 2869, 10085, 0)
         t.exec("unlockStoreroom", t.player.click_loc, "eadgar_storeroomdoor", 1)
         t.expect("quest.stage.unlocked_storeroom", t.quest.expect_stage("unlocked_storeroom"))
@@ -709,6 +830,7 @@ return {
         -- inv.await(eadgar_goutweed_herb) reading 0 -> 0). Approaching from
         -- the WEST instead clears both the crate's own guard and
         -- troll_sguard7 (2858,10076) entirely.
+        t.ticks(8) -- let the patrolling guards pass the approach before walking in (their heading cycle is on the tick clock)
         t.exec("goto-crate", t.player.goto_tile, 2855, 10074, 0)
 
         -- RUN 2 (see notebook): click_loc's own click_minimenu press landed
@@ -765,6 +887,7 @@ return {
         t.check("reward.snapshot", herblore_snap_result == "ok",
             "skill.snapshot() -> " .. tostring(herblore_snap_result))
 
+        local _, qp_before = t.var.varp("varp101_qp")
         t.exec("goto-sanfew-2", t.player.goto_tile, 2897, 3426, 1)
         t.exec("talkToSanfew-turnin", t.player.talk_to, "sanfew", 1)
         t.exec("talkToSanfew-turnin-dialog", t.chat.play, {
@@ -781,6 +904,9 @@ return {
 
         t.quest.expect_complete()
         t.exec("reward.herblore_xp", t.skill.expect_gain, "herblore", 11000, herblore_snap)
+        local _, qp_after = t.var.varp("varp101_qp")
+        t.check("reward.questpoint", (qp_after or 0) - (qp_before or 0) == 1,
+            "quest points " .. tostring(qp_before) .. " -> " .. tostring(qp_after) .. " (the scroll shows 1 Quest Point)")
         t.finish(0)
         return
     end,
