@@ -29,6 +29,22 @@ At merge time, after `git -C OSRS-Content merge origin/v3` (taking v3's `pack/*.
 3. `make -C src torirsserver-scripts`, then `python3 OSRS-Content/tools/var_prefix_names.py`
    (dry run) must print `0 name(s) in 0 file(s)`.
 
+### 1a. Parent files where v3 and the raid branch both changed the same thing (2026-10-03)
+
+The quest orchestrator's fixer merged this branch (`e6ac51434` / content `7936c59bf9`)
+with v3 in a throwaway worktree and hit conflicts in five parent files, because v3 had
+landed its own version of the same fixes: `src/torirsserver/torirs_server_combat.c` (the
+LostCity addXp rule), `src/torirsserver/torirs_server_world_selftest.c`,
+`src/app/app_world_rebuild.c` (one ground row per OBJ_ADD), `test/quests/_conformance.lua`
+and `tools/wiki_droptable.py`. Taking v3's side for all five built and ran for their
+proof, but that is NOT the merge to make: `_conformance.lua` and the selftest carry this
+branch's rows and stanzas (113 seam rows, the tick log, the eat delay, the raid stanzas)
+and must be merged by hand, v3's rows kept and ours added; for the three C/tool files
+compare the two fixes line by line and keep one, with the other side's tests passing.
+The content conflict was `pack/varp.alloc` only; renumbering the consume varps to
+7223/7224/7225 in `varp.alloc`, `consume_delay.varp` and `consume_shared.rs2` compiled
+(re-check the next free id at merge time).
+
 ## 2. Quest tests the raid branch turns RED
 
 By the owner's decision (2026-10-03) the eat-delay port landed: an eat no longer holds a
@@ -39,6 +55,15 @@ queued npc hit. On the raid branch the quest suite reads 116 green and three RED
 antipoison and restore staging after its batch b55 closes and proves each against this
 branch's content, so they are green on both sides of the merge. The raid loop edits none
 of them. Before merging, confirm with that session that the three are ready.
+
+**Done on the quest side (2026-10-03):** the three tests are hardened and on v3 (parent
+`ac4ab4478`, OSRS-Content `a221108613`), proven green twice against this branch merged
+with v3 and green on v3 itself (troll 57/0, regicide 477/0, deserttreasure 261/0); report
+`test/quests/orchestrator/matthew-mbp-m4/reports/raid_hardening_2026-10-03.md` on v3.
+Correction to this loop's note: with the eat-delay port deserttreasure's old test also
+died to Damis's true form and to an unprayed Kamil, not only to the Magic level; the
+hardened test prays Protect from Melee for both. If one of the three goes red after the
+merge, send that session the first failing row.
 
 ## 3. Shared tooling the raid branch changed
 

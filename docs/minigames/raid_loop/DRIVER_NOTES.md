@@ -1960,3 +1960,13 @@ damage, hitpoint or spawn rule changed. The fixers' reports and scratches are un
   animation and a loc_anim have no row: photograph them on consecutive ticks.
 - The corpus videos under build/frames/<id>/full.mp4 are video only (no audio), so a
   sound cannot be sourced from them as downloaded.
+
+## The run name decides every roll (reported by the quest loop, 2026-10-03)
+
+The player's random stream is seeded from the account name
+(`src/torirsserver/torirs_server_save.c:268`), and the account is the run's name: with
+`run.py --name X` (or a test id) every roll of that run is fixed. Two runs under one name
+are ONE sample, not two. A statistical measurement (a turn rate, a spawn chance, a dodged
+throw's cap) needs runs under different names, and a row that depends on a rare roll can
+be searched for by changing the name, never by a cheat. Say in the row's detail how many
+names the figure covers.
