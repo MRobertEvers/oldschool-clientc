@@ -1,11 +1,11 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4	AWAITING SHOT REVIEW (matthew-mbp-m4-b55 round 7): the committed file is green twice (149/0), gate green, lint clean, helper_coverage FULL 29 (28 DRIVEN, 1 TRAVEL), no npc_findhero line; the reviewer could not open a screenshot (Read hook timeout), so it is not accepted. Next batch: review + sample the committed file and its published evidence, no re-author needed	2026-10-03T16:59:15Z	todo|matthew-mbp-m4-b55
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	green	matthew-mbp-m4-b56			
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b55			
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
-quest_atfirstlight	atfirstlight	atfirstlight		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4		2026-10-03T16:59:15Z	todo|
+quest_atfirstlight	atfirstlight	atfirstlight		4	green	matthew-mbp-m4-b56			
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	green	matthew-mbp-m4-b50			
 quest_belowicemountain	belowicemountain	belowicemountain		4	green	matthew-mbp-m4-b52			
@@ -41,7 +41,7 @@ quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green		
 quest_dragon	dragon	dragonslayer		3	green	sonnet-b36			
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)		
-quest_dreammentor	dreammentor	dreammentor		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4		2026-10-03T16:59:15Z	todo|
+quest_dreammentor	dreammentor	dreammentor		4	green	matthew-mbp-m4-b56			
 quest_druid	druid	druidicritual		1	green	sonnet-b15			
 quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35			
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15			
@@ -61,7 +61,7 @@ quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5
 quest_forgettabletale	forgettabletale	forgettabletale		3	green	sonnet-b42			
 quest_forsakentower	forsakentower	theforsakentower		4	green	matthew-mbp-m4-b53			
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo				
-quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4		2026-10-03T16:59:15Z	todo|
+quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	green	matthew-mbp-m4-b56			
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42			
 quest_gettingahead	gettingahead	gettingahead		4	green	matthew-mbp-m4-b50			
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28			
@@ -154,13 +154,13 @@ quest_shadowstorm	shadowstorm	shadowofthestorm		2	green	sonnet-b31	green after 7
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1			
 quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b22			
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo				
-quest_sleepinggiants	sleepinggiants	sleepinggiants		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4		2026-10-03T16:59:15Z	todo|
+quest_sleepinggiants	sleepinggiants	sleepinggiants		4	green	matthew-mbp-m4-b56			
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo				
 quest_soulsbane	soulsbane	asoulsbane		4	green	matthew-mbp-m4-b54			
 quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	green	sonnet-b28			
 quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, batch haiku-b2): the author never returned a report; its file 'fixed' the sampler's cheated-hand-in finding by adding MORE cheats -- ::setvar squire 3/4/5 for the pie, Thurgo and portrait stages and ::give knights_portrait -- so every quest objective after the accept was cheated. Drive the Squire/Reldo/Thurgo/Vyvin/mining steps through clicks; ::give only for redberry_pie and the two iron bars.		
 quest_swansong	swansong	swansong		4	green	matthew-mbp-m4-b54			
-quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4		2026-10-03T16:59:15Z	todo|
+quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	green	matthew-mbp-m4-b56			
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo				
 quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
@@ -176,11 +176,11 @@ quest_tree	tree	treegnomevillage		2	green	sonnet-b28
 quest_troll	troll	trollstronghold		3	green	matthew-mbp-m4-b51			
 quest_troll_love	troll_love	trollromance		3	green	matthew-mbp-m4-b49			
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	green	matthew-mbp-m4-b55			
-quest_twilightspromise	twilightspromise	twilightspromise		4	claimed	matthew-mbp-m4-b56@matthew-mbp-m4		2026-10-03T16:59:15Z	todo|
+quest_twilightspromise	twilightspromise	twilightspromise		4	green	matthew-mbp-m4-b56			
 quest_upass	upass	undergroundpass		3	green	matthew-mbp-m4-b52			
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
-quest_wanted	wanted	wanted		2	claimed	matthew-mbp-m4-b56@matthew-mbp-m4	REOPENED 2026-10-03 (matthew-mbp-m4-b56 parity closer's gate.py --all): helper_coverage TEST_GAP -- ledger row 64 'pos4.goto' lands at 3227,9547,0 (Lumbridge Swamp Caves) from 3191,3357,0 without pressing goblin_cave_entrance (guide step goDownToLumbridgeSwampCaves); the frame_entries rule (ca6b4cba5) grades it CHEAT when Solus's position-4 draw is the caves. Drive the cave entrance on that branch (rope, light source); to be fixed in batch matthew-mbp-m4-b56	2026-10-03T20:10:52Z	todo|sonnet-b29
+quest_wanted	wanted	wanted		2	green	matthew-mbp-m4-b56			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	green	matthew-mbp-m4-b53			
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
