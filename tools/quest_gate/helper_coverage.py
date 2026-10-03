@@ -3737,7 +3737,7 @@ class Grader:
                         before[0], before[1], before[2], start, from_row["index"], from_row["step"],
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
-        for found in (self.route_entries(), self.door_entries(), self.room_exits()):
+        for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries()):
             for name, items in found.items():
                 have = {key for key, _ in self._route_hops.get(name, [])}
                 merged = self._route_hops.setdefault(name, [])
@@ -4100,6 +4100,111 @@ class Grader:
                         self.guide.steps[self.guide.resolve(composite)].line or 0, word,
                         door.point[0], door.point[1], door.point[2], end_zone)))
         return self._door_entries
+
+    FRAME_FOLD_SLACK = 16
+
+    def frame_entries(self):
+        """{entrance step name: [((row index, row step), reason)]}: a goto
+        from one map frame into a state zone of a ConditionalStep X that lies
+        in ANOTHER frame (a cave, a dungeon: 6400 tiles away, nothing walks
+        there), when X's constructor default D is ONE ObjectStep on a route
+        obstacle standing in the frame the goto left. The guide shows D
+        whenever the player is in none of X's zones, so D is its way down, on
+        every visit and not only the first. The Eyes of Glouphrie (b55 round
+        3, sampler revert 65805d323): `new ConditionalStep(this, enterCave)`
+        with `addStep(inCave, ...)` at almost every stage; the test clicked
+        eyeglo_brimstails_cave_entrance twice, then came back three times by
+        goto (rows 76, 223, 260: from the evergreen, from Narnode, from the
+        Grand Tree) and read FULL, because enterCave already had a PASS row.
+
+        door_routes cannot see this: its door must touch the zones it opens
+        on, and a cave mouth stands on the surface above them. Judged only
+        when the zone IS the place under the entrance (its box folded by
+        whole 6400-tile frames holds D's tile within FRAME_FOLD_SLACK): a
+        dungeon the map puts somewhere else than under its mouth is not read.
+
+        Not judged: a hop that stays in one frame (walkable: the other rules'
+        business), a start inside one of X's zones, a landing in a zone the
+        guide shows D itself in, a hop with a press, walk, use or cast
+        between, a hop with a press of D's loc between, and a hop with no
+        departure stamp and rows between it and the last known tile."""
+        if getattr(self, "_frame_entries", None) is not None:
+            return self._frame_entries
+        self._frame_entries = {}
+        if not self.rows:
+            return self._frame_entries
+        resolve = self.guide.resolve
+        routes = []
+        for composite in sorted(self.guide.branch_conds):
+            step = self.guide.steps.get(resolve(composite))
+            if step is None or not step.children:
+                continue
+            door = self.guide.steps.get(resolve(step.children[0]))
+            if door is None or door.is_composite() or door.point is None or door.kind != "ObjectStep":
+                continue
+            obstacle = self._own_obstacle(door)
+            if obstacle is None:
+                continue
+            outside = set()
+            for child, condition in self.guide.branch_conds.get(composite, []):
+                if resolve(child) == door.name:
+                    outside.update(self.guide.condition_zones(condition))
+            # ...and the zone is the place UNDER (or over) the entrance: its
+            # box, folded by whole 6400-tile frames, holds D's tile within
+            # FRAME_FOLD_SLACK. A zone elsewhere in another frame is some
+            # other place the route visits, not what D opens on (Eadgar's
+            # Ruse: useParrotOnRack's default is the Troll Stronghold
+            # entrance, and inEadgarsCave is 50 tiles from under it).
+            far = []
+            for zone, box in self._region_of(composite):
+                if zone in outside:
+                    continue
+                frames = round(((box[2] + box[3]) / 2.0 - door.point[1]) / 6400.0)
+                if frames == 0:
+                    continue
+                slack = self.FRAME_FOLD_SLACK
+                if box[0] - slack <= door.point[0] <= box[1] + slack and \
+                        box[2] - frames * 6400 - slack <= door.point[1] <= box[3] - frames * 6400 + slack:
+                    far.append((zone, box))
+            if far:
+                routes.append((composite, door, obstacle[0], obstacle[1], far))
+        if not routes:
+            return self._frame_entries
+        track = self.player_track()
+        for i in range(1, len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if abs(before[1] - point[1]) <= 3200 and abs(before[0] - point[0]) <= 3200:
+                continue  # one frame: a walk could make it
+            if any(self._row_moves(row) for row in between):
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            for composite, door, locs, word, far in routes:
+                end_zone = next((zone for zone, box in far if self._in_box(box, point)), None)
+                if end_zone is None:
+                    continue
+                if any(self._in_box(box, before) for _, box in self._region_of(composite)):
+                    continue  # started in one of X's own zones
+                if abs(before[1] - door.point[1]) > 3200 or abs(before[0] - door.point[0]) > 3200:
+                    continue  # did not leave the entrance's frame
+                if self._pressed_between(between, locs, door.point):
+                    continue
+                items = self._frame_entries.setdefault(door.name, [])
+                if any(key == (row["index"], row["step"]) for key, _ in items):
+                    continue
+                items.append(((row["index"], row["step"]),
+                    "ledger row %s %r lands at %d,%d,%d (%s) from %d,%d,%d (row %s %r), another map frame, "
+                    "without pressing the %s %s names (%s): the guide's way into %s is %s (%s's default, guide "
+                    "line %d), on every visit" % (
+                        row["index"], row["step"], point[0], point[1], point[2], end_zone,
+                        before[0], before[1], before[2], from_row["index"], from_row["step"],
+                        word, door.name, ",".join(locs), end_zone, door.name, composite,
+                        self.guide.steps[self.guide.resolve(composite)].line or 0)))
+        return self._frame_entries
 
     def guarded_rooms(self):
         """[(composite X, room step S, room zones Z, door step O, O's zones A,
