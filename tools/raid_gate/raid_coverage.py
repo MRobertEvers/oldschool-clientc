@@ -19,8 +19,11 @@ e.g. `measured 10 ticks, 40 of 40 gaps (spec 10 ticks, grade B, tol exact)`,
 <value> is a number, a range a-b, or a comma list; a measured list is every
 instance (a distribution), and every instance must satisfy the tolerance:
 exact: measured == spec (or in the spec list); +-N: within N of the spec (a
-spec range: within N of its ends); range: inside the spec range; approx (grade
-E only): no numeric check, but the detail must carry "approximation, M<n>".
+spec range: within N of its ends); range: inside the spec range -- and a SINGLE
+spec value under range is a bound: a ceiling row (its id or quantity says max,
+cap, ceiling, upper, at most, up to) wants measured <= spec, a floor row (min,
+floor, lower, at least) wants measured >= spec; approx (grade E only): no numeric
+check, but the detail must carry "approximation, M<n>".
 The grade in the row must equal the table's grade, so a promoted or demoted
 grade is a conscious edit of the table, never of the test alone.
 
@@ -177,15 +180,30 @@ def numbers(text):
     return ("list", [float(x) for x in text.split(",")])
 
 
-def within(measured, spec, tol):
-    """Every measured instance against the spec under tol."""
+def within(measured, spec, tol, quantity=""):
+    """Every measured instance against the spec under tol. A SINGLE spec value
+    with tol range is a bound, not a point: a ceiling (the row's id or quantity
+    says max, cap, ceiling, upper, at most, up to) wants measured <= spec, a
+    floor (min, floor, lower, at least) wants measured >= spec; anything else
+    single-valued under range is equality."""
     if tol == "approx":
         return True
-    m = numbers(measured)
-    s = numbers(spec)
+    try:
+        m = numbers(measured)
+        s = numbers(spec)
+    except ValueError:
+        return False
     if m is None or s is None:
         return False
     values = [m[1], m[2]] if m[0] == "range" else m[1]
+    if tol == "range" and s[0] == "list" and len(s[1]) == 1:
+        q = quantity.lower()
+        bound = s[1][0]
+        if any(w in q for w in ("max", "cap", "ceiling", "upper", "at most", "up to")):
+            return all(v <= bound for v in values)
+        if any(w in q for w in ("min", "floor", "lower", "at least")):
+            return all(v >= bound for v in values)
+        return all(v == bound for v in values)
     if tol == "exact":
         if s[0] == "range":
             return all(s[1] <= v <= s[2] for v in values)
@@ -239,7 +257,11 @@ def grade(test_id, ledger_path=None, mode=None, party=None):
                 continue
             row = hits[-1]
             text_row = spec["unit"] == "text"
-            m = parse_row(row["detail"], text_row)
+            try:
+                m = parse_row(row["detail"], text_row)
+            except Exception as exc:  # a detail the parser cannot read is a finding, not a crash
+                m = None
+                findings.append("unparseable %s: %s" % (mid, exc))
             if not m:
                 findings.append("malformed %s: %r" % (mid, row["detail"][:120]))
                 continue
@@ -257,7 +279,8 @@ def grade(test_id, ledger_path=None, mode=None, party=None):
                 findings.append("spec value mismatch %s: row says %s, table says %s" % (mid, m["s"], spec["spec_value"]))
             if spec["tolerance"] == "approx" and not re.search(r"approximation, M\d+", row["detail"]):
                 findings.append("grade E row %s does not say 'approximation, Mn'" % mid)
-            if not within(m["m"], spec["spec_value"], spec["tolerance"]):
+            if not within(m["m"], spec["spec_value"], spec["tolerance"],
+                          spec["mechanic_id"] + " " + spec["quantity"]):
                 findings.append("out of tolerance %s: measured %s vs spec %s (tol %s)" % (
                     mid, m["m"], spec["spec_value"], spec["tolerance"]))
     if skipped:
