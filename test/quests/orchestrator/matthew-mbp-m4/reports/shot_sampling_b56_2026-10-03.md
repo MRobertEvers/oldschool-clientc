@@ -94,3 +94,35 @@ montages (every page read; the full frames of 221-800 were not opened).
   48 ticks). `[giant_lobster]` has an .npc block; check that it swings back
   on the rerun.
 - Not shown: the gate past Drezel (both runs teleport from Lumbridge).
+
+## troll, regicide, deserttreasure (sampler 1) -- the raid-branch hardening (50d90d513)
+
+All three KEEP. Every published shot was seen (85 / 632 / 443; 7 / 14 / 20
+opened singly, the rest by montage). No error text, no empty frames (the dark
+groups regicide 123-138, 518-522 and deserttreasure 126-151 are real dark
+scenes). The hardening added no forbidden cheat: new ::setlevel rows are in
+setup, supplies are bring-alongs (antipoison: Quest Helper Regicide.java:260).
+
+Fight margins read from the ledgers:
+- troll, general: lowest hp 71/99, 1 of 26 sharks eaten. Four of the five
+  general attacks returned timeout/no_row; only troll_general2 was fought
+  (the quest needs one key). Shots 059/060 show a Mountain troll, not a
+  general.
+- regicide, Tyras guard: lowest hp 32/70, 1 shark left; tripwire poison cured.
+- deserttreasure: Damis lowest 28/99 with 6 of 20 sharks left (the true form's
+  aura drains prayer to 0, so more prayer will not help if it fails again);
+  Kamil lowest 89/99, magic 91 at the cast; Fareed (not hardened) lowest
+  24/99 with no margin row.
+
+Hygiene, none of it new in 50d90d513 (carry item 18 material):
+- The margin rows pass on `sharks left >= 2 OR lowest hp > 25`
+  (regicide.lua:914, verified): a fight ending at 26 hp with no food passes.
+  Should be AND, or a floor on each.
+- deserttreasure.lua has mid-run `::setlevel` rows (:243-245 leg 2 magic 70 and
+  melee 99; :701 leg 5 magic 99) and hands out a new lockpick on every miss
+  (:345). Verified. Move the levels to setup; the lockpicks are a bring-along
+  count question.
+- Troll agility 40 -> 70 and deserttreasure thieving 53 -> 99 exist only to
+  remove dice failures.
+- regicide 555: the "Tyras guard" chathead is a plain bald head (cache
+  chathead id not checked). 619: mostly black viewport on a floor change.
