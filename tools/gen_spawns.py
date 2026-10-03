@@ -469,6 +469,35 @@ NPC_SPAWN_ADDITIONS = (
     ("vmq1_bandit_2_varrock", 3262, 3399, 0),
     ("vmq1_bandit_3_varrock", 3261, 3402, 0),
     ("vmq1_bandit_4_varrock", 3262, 3401, 0),
+    # Meat and Greet (matthew-mbp-m4-b55-parity): the dump predates Varlamore's
+    # Rising Darkness (25 September 2024), so none of the quest's npcs stand
+    # anywhere. Tiles: Emelio 1754,3074 (wiki Meat_and_Greet oldid 15355341
+    # `startmap`; Quest Helper MeatAndGreet.java talkToEmelioToStartQuest has
+    # 1753,3074 / 1754,3074); the three "connoisseurs" outside his house stand
+    # beside Renata's guide tile 1750,3072 (giveExperimentalKebabToRenata); the
+    # Spice Merchant 1685,3101 (talkToSpiceMerchantInBazaar); Alba 1587,3126
+    # (talkToAlba); Lelia 1819,9484 (talkToLelia, the Colosseum's southern
+    # lobby room). The connoisseurs are multinpc shells (varb11182_mag 6..14
+    # shows them, the cache's own multinpc7..15), so the BASE is spawned.
+    ("mag_emelio", 1754, 3074, 0),
+    ("mag_renata", 1750, 3072, 0),
+    ("mag_lucas", 1751, 3072, 0),
+    ("mag_vincens", 1749, 3072, 0),
+    ("fortis_shop_spices", 1685, 3101, 0),
+    ("mag_alba", 1587, 3126, 0),
+    ("mag_lelia", 1819, 9484, 0),
+    # The Eyes of Glouphrie (matthew-mbp-m4-b55-parity): the six "cute creatures"
+    # stand in the world from the start, Brimstail's Izzie first. They are the
+    # multi-npc wrappers keyed on each player's eyeglo_killed_eye_N varbit
+    # (0 cute, 1 evil and attackable, 2 gone), so the machine's reveal spawns
+    # nothing. The dump has none of them; the tiles are Quest Helper's NpcStep
+    # WorldPoints for killCreature1..6 (TheEyesOfGlouphrie.java, setupSteps).
+    ("eyeglo_fluffie_1", 2408, 9819, 0),
+    ("eyeglo_fluffie_2", 2465, 3494, 0),
+    ("eyeglo_fluffie_3", 2466, 3496, 3),
+    ("eyeglo_fluffie_4", 2422, 3526, 0),
+    ("eyeglo_fluffie_5", 2461, 3388, 0),
+    ("eyeglo_fluffie_6", 2462, 3443, 0),
 )
 
 

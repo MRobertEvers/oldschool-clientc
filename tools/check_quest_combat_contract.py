@@ -118,10 +118,22 @@ OSF_DWARF_SPAWN = CONTENT / "areas/world/configs/m46_153.spawn"
 CONTACT_NPC = CONTENT / "quests/quest_contact/configs/contact.npc"
 CONTACT_SCARAB = CONTENT / "quests/quest_contact/scripts/contact_scarab.rs2"
 CONTACT_DUNGEON = CONTENT / "quests/quest_contact/scripts/contact_dungeon.rs2"
+EYEGLO_NPC = CONTENT / "quests/quest_theeyesofglouphrie/configs/eyeglo.npc"
+EYEGLO_QUEST = CONTENT / "quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2"
 SWANSONG_NPC = CONTENT / "quests/quest_swansong/configs/swansong.npc"
+ASCENT_NPC = CONTENT / "quests/quest_ascentofarceuus/configs/ascentofarceuus.npc"
+ASCENT_LOCS = CONTENT / "quests/quest_ascentofarceuus/scripts/ascentofarceuus_locs.rs2"
 SWANSONG_CONSTANT = CONTENT / "quests/quest_swansong/configs/quest_swansong.constant"
 SWANSONG_COLONY = CONTENT / "quests/quest_swansong/scripts/swansong_colony.rs2"
 SWANSONG_FINALE = CONTENT / "quests/quest_swansong/scripts/swansong_finale.rs2"
+TT_NPC = CONTENT / "quests/quest_troubledtortugans/configs/troubledtortugans.npc"
+TT_FIGHTS = CONTENT / "quests/quest_troubledtortugans/scripts/troubledtortugans_fights.rs2"
+TT_CORE = CONTENT / "quests/quest_troubledtortugans/scripts/troubledtortugans.rs2"
+SLICE_NPC = CONTENT / "quests/quest_anothersliceofham/configs/slice.npc"
+SLICE_HAMMAGE = CONTENT / "quests/quest_anothersliceofham/scripts/slice_hammage.rs2"
+MAG_NPC = CONTENT / "quests/quest_meatandgreet/configs/meatandgreet.npc"
+MAG_FIGHTS = CONTENT / "quests/quest_meatandgreet/scripts/meatandgreet_fights.rs2"
+MAG_NPCS = CONTENT / "quests/quest_meatandgreet/scripts/meatandgreet_npcs.rs2"
 PLAYER_HIT_FUNNEL = CONTENT / "skill_combat/scripts/player/player_hit_npc_prepare.rs2"
 ELEM1_CORE = CONTENT / "quests/quest_elemental_workshop/scripts/quest_elemental_workshop.rs2"
 ELEM1_BOOK = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_workshop_shield_book.rs2"
@@ -3720,6 +3732,76 @@ def check_contact() -> None:
     )
 
 
+def check_anothersliceofham() -> None:
+    """Another Slice of H.A.M.'s tower pair and Sigmund are real fights (with no
+    block they fought on npc_default.npc's 10 hp). Wiki H.A.M._Mage oldid
+    15199436, H.A.M._Archer oldid 15199383, Sigmund oldid 15285834 (Another
+    Slice of H.A.M. version, level 64)."""
+    npc = SLICE_NPC.read_text()
+    for name, needles in (
+        ("slice_ham_mage", ("hitpoints=35", "defence=30", "magic=30", "huntmode=aggressive",
+                            "param=attackrate,10", "param=damagetype,^magic_style",
+                            "param=magicattack,8", "param=magic_maxhit,4",
+                            "param=stabdefence,5", "param=slashdefence,5",
+                            "param=crushdefence,0", "param=death_drop,null")),
+        ("slice_ham_archer", ("hitpoints=35", "defence=30", "ranged=30", "huntmode=aggressive",
+                              "param=attackrate,10", "param=damagetype,^ranged_style",
+                              "param=rangeattack,0", "param=stabdefence,5",
+                              "param=slashdefence,5", "param=death_drop,null")),
+    ):
+        block = _npc_block(npc, name)
+        for line in needles:
+            require(line in block, f"Another Slice of H.A.M.: [{name}] lacks `{line}`")
+    for name in ("slice_sigmund_showdown", "slice_sigmund_melee", "slice_sigmund_ranged",
+                 "slice_sigmund_magic", "slice_sigmund_noprayer"):
+        block = _npc_block(npc, name)
+        for line in ("hitpoints=70", "attack=55", "strength=55", "defence=44",
+                     "huntmode=aggressive", "param=attackrate,4",
+                     "param=damagetype,^crush_style", "param=magicattack,8",
+                     "param=death_drop,null"):
+            require(line in block, f"Another Slice of H.A.M.: [{name}] lacks `{line}`")
+    require_text(
+        SLICE_HAMMAGE.read_text(),
+        ("[ai_opplayer2,slice_ham_mage]\n~npc_generic_magicattack;",
+         "[ai_opplayer2,slice_ham_archer]\n~npc_rangeattack;"),
+        "Another Slice of H.A.M. slice_hammage.rs2",
+    )
+
+
+def check_ascent_of_arceuus() -> None:
+    """The Ascent of Arceuus: the five Tormented Souls and the Trapped Soul are
+    real fights (with no block they fought on npc_default.npc's 10 hp and died in
+    a tick). Wiki Tormented_Soul oldid 15329160 (ids 8512/8513), Trapped_Soul
+    oldid 15215953 (id 8514)."""
+    npc = ASCENT_NPC.read_text()
+    for name, needles in (
+        ("arcquest_ghost1", ("hitpoints=20", "attack=16", "strength=12", "defence=10",
+                             "huntmode=aggressive", "param=attackrate,4",
+                             "param=damagetype,^crush_style", "param=strengthbonus,0",
+                             "param=death_drop,null")),
+        ("arcquest_ghost2", ("hitpoints=20", "attack=16", "strength=12", "defence=10",
+                             "huntmode=aggressive", "param=attackrate,4",
+                             "param=damagetype,^crush_style", "param=strengthbonus,0",
+                             "param=death_drop,null")),
+        ("arcquest_soul", ("hitpoints=30", "attack=25", "strength=29", "defence=20",
+                           "huntmode=aggressive", "param=attackrate,4",
+                           "param=damagetype,^crush_style", "param=strengthbonus,0",
+                           "param=death_drop,bones")),
+    ):
+        block = _npc_block(npc, name)
+        for line in needles:
+            require(line in block, f"Ascent of Arceuus: [{name}] lacks `{line}`")
+    require_text(
+        ASCENT_LOCS.read_text(),
+        ("[opnpc2,arcquest_ghost1]", "[opnpc2,arcquest_ghost2]", "[opnpc2,arcquest_soul]",
+         "@player_combat_start;", "[ai_queue3,arcquest_ghost1]", "[ai_queue3,arcquest_ghost2]",
+         "[ai_queue3,arcquest_soul]", "~aoa_ghost_died;", "npc_add(^aoa_soul_coord, arcquest_soul, 500);",
+         "npc_setowner;", "~map_instance_from_square(^aoa_tower_template);",
+         "~aoa_spawn_tower_souls($handle);"),
+        "Ascent of Arceuus fights",
+    )
+
+
 def check_swansong() -> None:
     """Swan Song's Sea Troll Queen and level-79 sea trolls are real fights
     (sampler matthew-mbp-m4-b54 round 4: with no block they fought on
@@ -3785,6 +3867,93 @@ def check_swansong() -> None:
     )
     require("swan_seatroll_queen, 100);" not in finale,
             "Swan Song: the Queen is added for 100 ticks again (a despawn soft-locks stage 170)")
+
+
+def check_troubledtortugans() -> None:
+    """Troubled Tortugans' two gryphons are real fights (with no block both would
+    fight on npc_default.npc's 10 hp). Wiki Gryphon_(Troubled_Tortugans) oldid
+    15200682, Shellbane_gryphon_(Troubled_Tortugans) oldid 15267129; the cache
+    stat1..6 agree."""
+    npc = TT_NPC.read_text()
+    gryphon = _npc_block(npc, "tt_conch_gryphon")
+    for line in ("hitpoints=110", "attack=65", "strength=75", "defence=50", "magic=50",
+                 "huntmode=aggressive", "param=attackrate,5", "param=damagetype,^crush_style",
+                 "param=crushdefence,40", "param=magicdefence,100", "param=death_drop,null"):
+        require(line in gryphon, f"Troubled Tortugans: [tt_conch_gryphon] lacks `{line}`")
+    boss = _npc_block(npc, "tt_pearl_gryphon")
+    for line in ("hitpoints=400", "attack=160", "strength=210", "defence=120", "ranged=150",
+                 "magic=100", "huntmode=aggressive", "param=attackrate,5", "param=rangeattack,20",
+                 "param=crushdefence,40", "param=magicdefence,100", "param=death_drop,null"):
+        require(line in boss, f"Troubled Tortugans: [tt_pearl_gryphon] lacks `{line}`")
+    fights = TT_FIGHTS.read_text()
+    require_text(
+        fights,
+        ("[opnpc2,tt_conch_gryphon]", "[opnpc2,tt_pearl_gryphon]", "@player_combat_start;",
+         "[ai_opplayer2,tt_conch_gryphon]", "[ai_opplayer2,tt_pearl_gryphon]",
+         "[ai_queue3,tt_conch_gryphon]", "[ai_queue3,tt_pearl_gryphon]",
+         "npc_add(^ttq_cave_gryphon_coord, tt_conch_gryphon, ^ttq_fight_duration);",
+         "npc_add(^ttq_pearl_gryphon_coord, tt_pearl_gryphon, ^ttq_fight_duration);",
+         "%varb18321_tt = ^ttq_elder3;", "%varb18321_tt = ^ttq_korel2;",
+         "~playerhit_n_melee_bypass_prayer", "~npc_default_death;"),
+        "Troubled Tortugans gryphon fights",
+    )
+    require_text(TT_CORE.read_text(),
+                 ("[oploc1,tt_lair_entrance]", "~ttq_spawn_cave_gryphon;", "[label,ttq_mooring_disembark]",
+                  "~ttq_spawn_pearl;"),
+                 "Troubled Tortugans fight entry points")
+
+
+def check_meatandgreet() -> None:
+    """Meat and Greet's Dire Wolf Alpha, its pups and the arena Minotaur are real
+    fights (with no block they fought on npc_default.npc's 10 hp and died in a
+    tick, as Contact!'s scarab and Swan Song's Queen did). Wiki Dire_Wolf_Alpha
+    oldid 15208071, Dire_Wolf oldid 15208070 (Meat and Greet version, id 13813),
+    Minotaur_(Meat_and_Greet) oldid 15200556, Meat_and_Greet oldid 15355341."""
+    npc = MAG_NPC.read_text()
+    for name, needles in (
+        ("mag_direwolf", ("hitpoints=100", "attack=120", "strength=110", "defence=80",
+                          "magic=40", "huntmode=aggressive", "forcemulti=yes",
+                          "param=attackrate,4", "param=damagetype,^stab_style",
+                          "param=strengthbonus,0", "param=death_drop,null")),
+        ("mag_direwolf_minion", ("hitpoints=10", "attack=75", "strength=75", "defence=70",
+                                 "ranged=20", "param=attackrate,4",
+                                 "param=damagetype,^ranged_style", "param=rangeattack,500",
+                                 "param=death_drop,null")),
+        ("mag_minotaur", ("hitpoints=240", "attack=140", "strength=110", "defence=100",
+                          "magic=100", "huntmode=aggressive", "param=attackrate,5",
+                          "param=damagetype,^crush_style", "param=crushattack,60",
+                          "param=strengthbonus,10", "param=magicattack,300",
+                          "param=magic_maxhit,14", "param=stabdefence,30",
+                          "param=slashdefence,20", "param=crushdefence,50",
+                          "param=magicdefence,80", "param=death_drop,null")),
+    ):
+        block = _npc_block(npc, name)
+        for line in needles:
+            require(line in block, f"Meat and Greet: [{name}] lacks `{line}`")
+    fights = MAG_FIGHTS.read_text()
+    require_text(
+        fights,
+        ("[proc,mg_enter_den]", "~map_instance_from_square(^mg_den_template);",
+         "npc_add(map_instance_coord($handle, ^mg_den_alpha_x, ^mg_den_alpha_z, 1), mag_direwolf",
+         "[opnpc2,mag_direwolf]", "[opnpc2,mag_direwolf_minion]", "[opnpc2,mag_minotaur]",
+         "[ai_opplayer2,mag_direwolf]", "~npc_meleeattack;", "npc_add(movecoord(npc_coord, random(3), 0, -1), mag_direwolf_minion",
+         "[ai_opplayer2,mag_direwolf_minion]", "~npc_rangeattack;",
+         "[ai_queue3,mag_direwolf]", "%varb11184_mag_meat = ^mg_meat_kill;",
+         "obj_add($spot, wolf_bones, 1, ^lootdrop_duration);", "npc_del;",
+         "[proc,mg_enter_arena]", "~map_instance_from_square(^mg_arena_template);",
+         "npc_add($spot, mag_minotaur, 12000);", "[ai_opplayer2,mag_minotaur]",
+         "npc_say(\"Moo!\");", "npc_say(\"Moooooo!\");", "~npc_generic_magicattack;",
+         "npc_attackdelay($rate);", "[ai_queue3,mag_minotaur]", "%varb11182_mag = ^mg_lelia3;",
+         "~npc_default_death;"),
+        "Meat and Greet fights",
+    )
+    # The quest never hands the kebabs over by script alone: the stage writes are
+    # dialogue and fight consequences.
+    npcs = MAG_NPCS.read_text()
+    require_text(npcs, ("[proc,mg_pin_dial]", "if_openmain(number_pad);",
+                        "runclientscript*(torirs_numpad_build)", "p_countdialog_noprompt;",
+                        "^mg_pin_code"),
+                 "Meat and Greet pin pad")
 
 
 def check_creature_of_fenkenstrain() -> None:
@@ -4642,6 +4811,35 @@ def quest_progress_varp_sweep() -> tuple[list[tuple], int]:
     return misses, checked
 
 
+def check_theeyesofglouphrie() -> None:
+    """The Eyes of Glouphrie's six Evil Creatures are real one-hit fights (with
+    no block they spawned on npc_default.npc's 10 hp). Wiki Evil_Creature oldid
+    15349482: 1 hitpoint, 1/1/1/1/1, every bonus 0, crush, speed 4, max hit 1,
+    not aggressive, Bones always. Both the multi-npc wrapper the quest spawns
+    (eyeglo_fluffie_N) and its attackable leaf (eyeglo_fluffie_evil_N) carry it."""
+    npc = EYEGLO_NPC.read_text()
+    for number in range(1, 7):
+        for name in (f"eyeglo_fluffie_{number}", f"eyeglo_fluffie_evil_{number}"):
+            block = _npc_block(npc, name)
+            for line in ("hitpoints=1", "attack=1", "strength=1", "defence=1", "magic=1",
+                         "ranged=1", "param=attackrate,4", "param=damagetype,^crush_style",
+                         "param=strengthbonus,0", "param=stabdefence,0",
+                         "param=slashdefence,0", "param=crushdefence,0",
+                         "param=magicdefence,0", "param=rangedefence,0",
+                         "param=death_drop,bones"):
+                require(line in block, f"The Eyes of Glouphrie: [{name}] lacks `{line}`")
+            require("huntmode=aggressive" not in block,
+                    f"The Eyes of Glouphrie: [{name}] is aggressive; the wiki says No")
+    quest = EYEGLO_QUEST.read_text()
+    needles = []
+    for number in range(1, 7):
+        needles += [f"[opnpc2,eyeglo_fluffie_{number}]", f"[ai_queue3,eyeglo_fluffie_{number}]"]
+    needles += ["@player_combat_start;", "~eyeglo_check_creatures_done;", "~npc_default_death;",
+                "%varb2497_eyeglo_quest = ^eyeglo_creatures_defeated;",
+                "[proc,eyeglo_reveal_creatures]"]
+    require_text(quest, tuple(needles), "The Eyes of Glouphrie kill chain")
+
+
 def check_quest_progress_varps() -> None:
     """A quest's progress varp (or its varbit's carrier) is transmit=yes scope=perm.
 
@@ -4717,13 +4915,18 @@ def main() -> int:
         check_one_small_favour()
         check_contact()
         check_swansong()
+        check_troubledtortugans()
+        check_ascent_of_arceuus()
+        check_anothersliceofham()
+        check_meatandgreet()
+        check_theeyesofglouphrie()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact! and Swan Song, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet and The Eyes of Glouphrie, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 
