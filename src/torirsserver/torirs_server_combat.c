@@ -520,6 +520,9 @@ npc_sound_nearby(
          * `~sound_within_distance` passes 0 and would be silent here; every
          * direct `sound_synth` call site in both trees passes 1. */
         ToriRSServer_SendSynthSound(player, sound_id, 1, delay);
+        ToriRSServer_TicklogSound(srv, player, sound_id, 1, delay, TORIRSSERVER_TICKLOG_SOUND_NPC,
+                                  ToriRSServer_CoordPack(npc->level, npc->x, npc->z),
+                                  TORIRSSERVER_NPC_SOUND_TILES, (int)(npc - &srv->npcs[0]));
     }
 }
 

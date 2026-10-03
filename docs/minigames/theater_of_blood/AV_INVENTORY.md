@@ -15,17 +15,26 @@ Hits in `tob_selftest.rs2` and `test/raids/*.lua` go in the `tests:` part of the
 
 ## Counts (used / unused / used_wrong_place / unknown_purpose)
 
+**After seam 7** (`matthew-mbp-m4-raid-b1-seam7`, OSRS-Content a006110486): 95 TSV rows changed
+status, used_by or detail; every one names `seam7` in the row. Totals moved from 731 used /
+122 unused / 3 used_wrong_place / 134 unknown_purpose to 800 / 85 / 1 / 104. The rows that
+moved without a placement are re-grades with their reason in `detail`: sound 3288 and loc
+32969 (reached through a map-placed loc), music 556 (the engine's region table), seq 14399
+(a later quest's asset, now unknown_purpose). The one wrong-place row left is spotanim 1570,
+kept as a commented stand-in for Verzik's Hard Mode debris. All fifteen doubled sounds of
+section 0 are gone. The section-6 table below carries a seam-7 note per feature.
+
 | kind | maiden | bloat | nylocas | sotetseg | xarpus | verzik | lobby | raid-wide | unknown | total |
 |---|---|---|---|---|---|---|---|---|---|---|
-| seq (130) | 9/1/0/0 | 9/1/0/1 | 17/1/0/17 | 8/0/0/1 | 11/1/0/0 | 31/2/1/4 | . | 0/7/0/3 | 2/0/0/3 | 87/13/1/29 |
-| spotanim (63) | 3/0/0/3 | 6/1/1/0 | 6/3/0/1 | 5/1/0/0 | 5/0/0/4 | 20/2/0/2 | . | . | . | 45/7/1/10 |
-| sound (113) | 8/1/0/1 | 10/2/0/3 | 14/3/0/3 | 9/0/0/6 | 13/0/0/4 | 25/0/1/6 | . | 0/1/0/0 | 3/0/0/0 | 82/7/1/23 |
-| loc (456) | 15/0/0/2 | 29/1/0/3 | 76/0/0/3 | 43/3/0/5 | 11/0/0/3 | 44/2/0/12 | 34/3/0/3 | 96/36/0/31 | 1/0/0/0 | 349/45/0/62 |
+| seq (130) | 9/0/0/1 | 10/0/0/1 | 18/1/0/16 | 8/0/0/1 | 12/0/0/0 | 35/0/0/3 | . | 0/7/0/3 | 3/0/0/2 | 95/8/0/27 |
+| spotanim (63) | 3/0/0/3 | 7/0/1/0 | 10/0/0/0 | 5/1/0/0 | 9/0/0/0 | 22/1/0/1 | . | . | . | 56/2/1/4 |
+| sound (113) | 9/0/0/1 | 11/1/0/3 | 16/2/0/2 | 14/0/0/1 | 14/0/0/3 | 29/0/0/3 | . | 1/0/0/0 | 3/0/0/0 | 97/3/0/13 |
+| loc (456) | 15/0/0/2 | 30/0/0/3 | 76/0/0/3 | 44/2/0/5 | 11/0/0/3 | 46/2/0/10 | 35/2/0/3 | 104/35/0/24 | 1/0/0/0 | 362/41/0/53 |
 | npc (162) | 24/0/0/1 | 3/0/0/0 | 51/0/0/0 | 9/0/0/0 | 12/0/0/0 | 41/13/0/2 | . | 0/6/0/0 | . | 140/19/0/3 |
-| varbit (38) | . | . | . | 0/1/0/0 | . | 1/0/0/0 | 0/2/0/0 | 10/12/0/2 | 2/6/0/2 | 13/21/0/4 |
-| varp (6) | . | . | . | . | . | . | . | 2/3/0/0 | 0/0/0/1 | 2/3/0/1 |
-| music (15) | 2/0/0/0 | 2/0/0/0 | 2/0/0/0 | 2/0/0/0 | 2/0/0/0 | 2/1/0/0 | 0/1/0/0 | 0/1/0/0 | . | 12/3/0/0 |
-| interface (7) | . | . | . | . | . | . | 0/2/0/1 | 1/2/0/1 | . | 1/4/0/2 |
+| varbit (38) | . | . | . | 0/1/0/0 | . | 1/0/0/0 | 1/1/0/0 | 20/3/0/1 | 3/5/0/2 | 25/10/0/3 |
+| varp (6) | . | . | . | . | . | . | . | 3/2/0/0 | 0/0/0/1 | 3/2/0/1 |
+| music (15) | 2/0/0/0 | 2/0/0/0 | 2/0/0/0 | 2/0/0/0 | 2/0/0/0 | 3/0/0/0 | 1/0/0/0 | 1/0/0/0 | . | 15/0/0/0 |
+| interface (7) | . | . | . | . | . | . | 3/0/0/0 | 4/0/0/0 | . | 7/0/0/0 |
 
 The `unknown` room covers assets two rooms share (`tob_shadow_projectile*` is the creeper of both Sotetseg and Verzik, `tob_pillar_*`) and the `tobquest*` varbits, which belong to A Night at the Theatre.
 
@@ -152,16 +161,16 @@ The `unknown` room covers assets two rooms share (`tob_shadow_projectile*` is th
 
 | Feature | Implemented? | Exercised by a test? |
 |---|---|---|
-| Lobby party board and party list | **Partly.** The board is a dialogue (`MT/tob_board.rs2:99-113`) and "anyone who enters with you joins" (line 113). The `tob_partylist`/`tob_partydetails`/`tob_infoboard` interfaces (364/50/459) are never opened. | Party procs: `tob_selftest.rs2:1332` and onward. No board or interface test. |
-| Mysterious Stranger, escape crystal, gravestone chest | **No.** No `tob_stranger` reference anywhere. The gravestone chest has no handler. | No |
+| Lobby party board and party list | **Seam 7: yes.** The board opens `tob_partylist`/`tob_partydetails` fed by their clientscripts, and the door needs a party (DRIVER_NOTES "The party board and the scoreboard"). Before: **Partly.** The board is a dialogue (`MT/tob_board.rs2:99-113`) and "anyone who enters with you joins" (line 113). The `tob_partylist`/`tob_partydetails`/`tob_infoboard` interfaces (364/50/459) are never opened. | Party procs: `tob_selftest.rs2:1332` and onward. No board or interface test. |
+| Mysterious Stranger, escape crystal, gravestone chest | **Seam 7: the gravestone chest (Claim) and the deposit box, yes; the Stranger and the crystal, no** (no shop inv config, varbit 14980 unsourced). Before: **No.** No `tob_stranger` reference anywhere. The gravestone chest has no handler. | No |
 | Raid entry | Yes: `[oploc1,tob_surface_raid_entrance]` (`MT/tob_party.rs2:77`) and walk-in queue `MT/tob_raid.rs2:113`. | Via the room drivers (`test/raids/*.lua`) |
-| Room title card / transition | Yes, visually: the `tob_hud` portal and fade (`MT/tob_title.rs2:89`), called at `MT/tob_raid.rs2:387,882,942`. **Silent:** `tob_transition_card` 3952 is never played. | `tob_selftest.rs2:4776` (3 references) |
+| Room title card / transition | **Seam 7:** the card plays `tob_transition_card` 3952. Before: Yes, visually: the `tob_hud` portal and fade (`MT/tob_title.rs2:89`), called at `MT/tob_raid.rs2:387,882,942`. **Silent:** `tob_transition_card` 3952 is never played. | `tob_selftest.rs2:4776` (3 references) |
 | Top health bar and orbs | Yes (section 5). | `tob_selftest.rs2:3871` and onward |
-| Death and spectate flow | **No.** `~tob_board_death` (`MT/tob_chest.rs2:207`) has no caller. `[playerdeath,_]` (`player/death.rs2:21`) has no ToB hook (the Inferno has one, line 75). A raider who dies takes an ordinary death. `tob_purgatory_stance` 8070 is unused. Logout is hooked (`player/logout.rs2:29` to `MT/tob_raid.rs2:824`). | 1 spectator reference (`tob_selftest.rs2:2614`). No death test. |
-| Supply (midway) chests | Partly: a dialogue store (`MT/tob_chest.rs2:147`). The `tob_midway_stores` interface 405 and its varbits are unused. | `test/raids/tob_bloat.lua:1413`, `tob_selftest.rs2:2211` |
-| Treasure room, chests, loot beams | **No.** The vault is never built and loot is added to the inventory (`MT/tob_rewards.rs2:51-68`). There are no chests, no arrow, no purple aura, no `tob_chests` interface 23, and no "Curtain Closes" music. | None (`tob_open_vault`: 0 test references) |
-| Performance board and scoreboard | Chat lines only (`MT/tob_chest.rs2:214`, `MT/tob_board.rs2:72`). The `tob_scoreboard` interface 363 is never opened. | `tob_selftest.rs2:2276` (board) |
-| Music per room | 12 of 14 tracks, room and fight (`MT/tob_music.rs2:30-45`, called from `MT/tob_raid.rs2:382,941` and `MT/tob_party.rs2:225`). "Welcome to the Theatre" (556) and "The Curtain Closes" (582) are defined at `tob.constant:3351,3358` and never played. The jingle `verzik_s_defeat` (250) is unused. No `music_unlock` call exists in `minigame_tob`, so no track ever unlocks in the music tab. | None |
+| Death and spectate flow | **Seam 7: yes** (tob_spectate.rs2: the cage, the rejoin, the Entry restart and the Normal/Hard wipe; `seam.tob_death_cage_then_entry_restart`). Before: **No.** `~tob_board_death` (`MT/tob_chest.rs2:207`) has no caller. `[playerdeath,_]` (`player/death.rs2:21`) has no ToB hook (the Inferno has one, line 75). A raider who dies takes an ordinary death. `tob_purgatory_stance` 8070 is unused. Logout is hooked (`player/logout.rs2:29` to `MT/tob_raid.rs2:824`). | 1 spectator reference (`tob_selftest.rs2:2614`). No death test. |
+| Supply (midway) chests | **Seam 7:** the cache's `tob_midway_stores` 405 with enums 1952/1953. Before: Partly: a dialogue store (`MT/tob_chest.rs2:147`). The `tob_midway_stores` interface 405 and its varbits are unused. | `test/raids/tob_bloat.lua:1413`, `tob_selftest.rs2:2211` |
+| Treasure room, chests, loot beams | **Seam 7: yes** (tob_vault.rs2: trapdoor, vault instance, five chests on varbits 6450-6454, `tob_chests`, the crystal, the Ver Sinhaza claim chest, The Curtain Closes). Before: **No.** The vault is never built and loot is added to the inventory (`MT/tob_rewards.rs2:51-68`). There are no chests, no arrow, no purple aura, no `tob_chests` interface 23, and no "Curtain Closes" music. | None (`tob_open_vault`: 0 test references) |
+| Performance board and scoreboard | **Seam 7:** `tob_infoboard` 459 from the war and library tables; `tob_scoreboard` 363 through `~tob_board_scoreboard_open` (the scoreboard loc still prints chat lines). Before: Chat lines only (`MT/tob_chest.rs2:214`, `MT/tob_board.rs2:72`). The `tob_scoreboard` interface 363 is never opened. | `tob_selftest.rs2:2276` (board) |
+| Music per room | **Seam 7:** 14 of 14 play and 13 unlock (556 waits on the engine region-unlock fix); jingle 250 on every boss death. Before: 12 of 14 tracks, room and fight (`MT/tob_music.rs2:30-45`, called from `MT/tob_raid.rs2:382,941` and `MT/tob_party.rs2:225`). "Welcome to the Theatre" (556) and "The Curtain Closes" (582) are defined at `tob.constant:3351,3358` and never played. The jingle `verzik_s_defeat` (250) is unused. No `music_unlock` call exists in `minigame_tob`, so no track ever unlocks in the music tab. | None |
 | Combat Achievements | Partly: 18 `ca_task_complete` calls (`MT/tob_rewards.rs2:99-166`): KC tiers, the 7 perfect rooms/theatre, and 7 speed tiers, out of 46 wiki tasks (`sources/wiki_combat_achievements_tob.tsv`). | None (`tob_ca_`: 0 test references) |
 
 ## Method notes and limits

@@ -11,6 +11,7 @@ the thin layer that points those scripts at `test/raids/` instead of
 | `gate.py` | `tools/quest_gate/gate.py` over `test/raids/` |
 | `suite.py` | the shared part: the two paths, the id-collision refusal, the exec |
 | `spec_check.py` | validates an encounter spec table (section 3) |
+| `seq_frame_sounds.py` | prints a seq's frame sounds (frame, cycle, tick offset, sound id and name) from `configs/all.seq`; a frame sound is asserted through the `npc_anim` row, never a `sound` row |
 
 ## How the wrappers work
 

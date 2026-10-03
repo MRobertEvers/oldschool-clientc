@@ -14,7 +14,8 @@
  * What is recorded is the event set tools/verify_tob_timings.py reads from
  * Blert -- npc attack starts (every npc animation goes through
  * ToriRSServer_AnimPlayNpc, C or content), projectiles, hits both ways,
- * spawns, deaths, type changes, loc and ground changes -- plus the tiles: a
+ * spawns, deaths, type changes, loc and ground changes, and every sound, music
+ * track and jingle sent to a player -- plus the tiles: a
  * PLAYER_TILE row for every player every tick (after phase_players, so the
  * row is the tile the player's turn left them on, which is the tile every npc
  * acting on the NEXT tick will scan; ENCOUNTER_TIMING.md section 1) and an
@@ -75,6 +76,25 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_PLAYER_TILE] = "player_tile",
     [TORIRSSERVER_TICKLOG_NPC_TILE] = "npc_tile",
     [TORIRSSERVER_TICKLOG_NPC_FACE] = "npc_face",
+    [TORIRSSERVER_TICKLOG_SOUND] = "sound",
+    [TORIRSSERVER_TICKLOG_MUSIC] = "music",
+    [TORIRSSERVER_TICKLOG_JINGLE] = "jingle",
+};
+
+/* A SOUND row's label: where the send came from (the npc source adds the
+ * emitting npc's slot and type to it, "npc <slot> <type>"). */
+static char const* const k_sound_source_names[TORIRSSERVER_TICKLOG_SOUND_SOURCE_COUNT] = {
+    [TORIRSSERVER_TICKLOG_SOUND_SYNTH] = "synth",
+    [TORIRSSERVER_TICKLOG_SOUND_AREA] = "area",
+    [TORIRSSERVER_TICKLOG_SOUND_DISTANCE] = "distance",
+    [TORIRSSERVER_TICKLOG_SOUND_NPC] = "npc",
+};
+
+/* A MUSIC row's label. */
+static char const* const k_music_source_names[TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT] = {
+    [TORIRSSERVER_TICKLOG_MUSIC_SCRIPT] = "script",
+    [TORIRSSERVER_TICKLOG_MUSIC_REGION] = "region",
+    [TORIRSSERVER_TICKLOG_MUSIC_LOGIN] = "login",
 };
 
 char const*
@@ -307,6 +327,12 @@ ticklog_row_npc_slot(const struct ToriRSServerTicklogRow* row)
         return row->a;
     case TORIRSSERVER_TICKLOG_HIT_PLAYER:
         return row->b;
+    case TORIRSSERVER_TICKLOG_SOUND:
+        /* Only an npc's own noise names an npc; its slot rides in the label
+         * because all six fields carry the send itself. */
+        if( strncmp(row->label, "npc ", 4) == 0 )
+            return atoi(row->label + 4);
+        return -1;
     default:
         return -1;
     }
@@ -577,6 +603,73 @@ ToriRSServer_TicklogObjAdd(
     if( !ticklog_on_for(srv) )
         return;
     ticklog_push(TORIRSSERVER_TICKLOG_OBJ_ADD, coord, obj_id, count, receiver_pid, 0, 0, NULL);
+}
+
+/*
+ * The audio rows. One row per packet per player: a sound is a per-player
+ * SYNTH_SOUND, so an area sound heard by three players is three rows with the
+ * same tick, id and source tile. Called only where the packet is actually
+ * sent (a negative "no sound" id never reaches here), so a row is exactly
+ * what the player's client was told to play.
+ */
+void
+ToriRSServer_TicklogSound(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int sound,
+    int loops,
+    int delay,
+    int source,
+    int coord,
+    int radius,
+    int npc_slot)
+{
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    assert(source >= 0);
+    assert(source < TORIRSSERVER_TICKLOG_SOUND_SOURCE_COUNT);
+    if( source == TORIRSSERVER_TICKLOG_SOUND_NPC )
+    {
+        assert(npc_slot >= 0);
+        assert(npc_slot < TORIRSSERVER_NPC_MAX);
+        snprintf(label, sizeof(label), "npc %d %d", npc_slot, srv->npcs[npc_slot].type);
+    }
+    else
+        snprintf(label, sizeof(label), "%s", k_sound_source_names[source]);
+    ticklog_push(TORIRSSERVER_TICKLOG_SOUND, player->pid, sound, loops, delay, coord, radius,
+                 label);
+}
+
+void
+ToriRSServer_TicklogMusic(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int track,
+    int source)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    assert(source >= 0);
+    assert(source < TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT);
+    ticklog_push(TORIRSSERVER_TICKLOG_MUSIC, player->pid, track, 0, 0, 0, 0,
+                 k_music_source_names[source]);
+}
+
+void
+ToriRSServer_TicklogJingle(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int jingle,
+    int length_ms)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push(TORIRSSERVER_TICKLOG_JINGLE, player->pid, jingle, length_ms, 0, 0, 0, "script");
 }
 
 /* NPC_TILE rows are for the encounter, not the world: the roster stands a

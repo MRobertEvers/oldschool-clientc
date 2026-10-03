@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 105
+-- @seam-count 113
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 162
-local SEAM_COUNT = 105
+local SEAM_COUNT = 113
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -10092,6 +10092,177 @@ return {
             return "ok", text
         end)
 
+-- conformance.ticklog_sound_and_music_rows.lua (seam7 of the raid loop)
+--
+-- NO VERB WAS ADDED OR RENAMED.  t.ticklog.rows gained three row KINDS
+-- (`sound`, `music`, `jingle`, written by the server) and four filters
+-- (`sound=`, `track=`, `jingle=`, `source=`), so no step() row is owed and
+-- verb_list.py does not move.  Two SEAM rows: SEAM_COUNT / @seam-count +2.
+--
+-- PLACE: the snippet asked for directly after step("ticklog.gaps"); the closer
+-- moved both rows here, after the last world seam row and before raid.enter,
+-- because their goblin fight and the Varrock crossing moved the player and
+-- broke seam.attack_presses_the_watched_slot, and a backpack filled by eighty
+-- rows had no slot for the bones.  Both rows tear down what they spawn.
+--
+-- (1) seam.ticklog_sound_rows -- a bone buried (skill_prayer/scripts/
+--     bury_bone.rs2:40 `sound_synth(bones_down, 1, 0)`, synth 2738 in
+--     pack/4_soundeffects.pack) is ONE `sound` row, source "synth", sent to
+--     the player's pid, 1 loop, 0 delay; then an ordinary goblin fight (the
+--     Lumbridge [goblin], areas/lumbridge/configs/lumbridge.npc:
+--     attack_sound 469, defend_sound 472, death_sound 471) gives `sound` rows
+--     of source "npc" naming the goblin's WORLD slot (its defend/death noise,
+--     torirs_server_combat.c npc_sound_nearby: coord = its tile, radius 12),
+--     and the C kind+slot filter (`rows{kind="sound", slot=}`) returns exactly
+--     those.  Before this seam: no sound row of any kind (scratch run
+--     snd_before_1 on the shared binary: 0 sound rows over the same actions).
+-- (2) seam.ticklog_music_row -- a ::goto from Lumbridge (map square 50,50,
+--     track 76 "Harmony") to Varrock (50,53, track 125 "Garden") and back is a
+--     `music` row of source "region" per crossing, with the track the music
+--     region table names (torirs_server_music_regions.gen.h).  Before: none.
+        seam("seam.ticklog_sound_rows", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local GOB = "goblin"
+            local BONES_DOWN = 2738 -- pack/4_soundeffects.pack: 2738=bones_down
+            local GOBLIN_SOUNDS = { [469] = "attack", [472] = "defend", [471] = "death" }
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+            end
+            setup_cheat("::setlevel attack 40")
+            setup_cheat("::setlevel strength 40")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::clearinv")
+            setup_cheat("::give bones 1")
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_sound_rows")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            -- (a) the bury: one synth row, to this player, on the bury's tick
+            local bury_result, bury_detail = inv_op("bones", 1)
+            settle(3)
+            local _, tiles = t.ticklog.rows({ kind = "player_tile", since = since })
+            local pid = #tiles > 0 and tiles[#tiles].pid or nil
+            local _, buried = t.ticklog.rows({ kind = "sound", since = since, sound = BONES_DOWN })
+            if bury_result ~= "ok" or #buried ~= 1 then
+                return "refused", "bury -> " .. describe(bury_result) .. " " .. describe(bury_detail)
+                    .. "; " .. #buried .. " sound row(s) of bones_down " .. BONES_DOWN .. " (want 1)"
+            end
+            local b = buried[1]
+            if b.source ~= "synth" or b.pid ~= pid or b.loops ~= 1 or b.delay ~= 0
+                or b.coord ~= -1 or b.radius ~= -1 then
+                return "refused", string.format("the bury's sound row reads source=%s pid=%s "
+                    .. "loops=%s delay=%s coord=%s radius=%s (want synth, pid %s, 1, 0, -1, -1)",
+                    describe(b.source), describe(b.pid), describe(b.loops), describe(b.delay),
+                    describe(b.coord), describe(b.radius), describe(pid))
+            end
+            -- (b) an ordinary goblin fight: the goblin's own noise is "npc" rows
+            -- naming its world slot
+            setup_cheat("::spawn " .. GOB .. " 1")
+            settle(3)
+            local fight_since = b.serial
+            local gs, engaged, guard, dead = nil, false, 0, false
+            while guard < 120 and not dead do
+                local nr, nrow = by_symbol(GOB)
+                if nr == "ok" then
+                    if gs == nil then gs = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(GOB, 2, 10) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if gs ~= nil then
+                    local _, deaths = t.ticklog.rows({ kind = "npc_death", since = fight_since, slot = gs })
+                    dead = #deaths > 0
+                end
+            end
+            settle(3)
+            teardown()
+            if gs == nil or not dead then
+                return "no_subject", "the goblin fight did not finish (world slot "
+                    .. describe(gs) .. ", " .. guard .. " ticks)"
+            end
+            local _, all = t.ticklog.rows({ kind = "sound", since = fight_since })
+            local _, by_slot = t.ticklog.rows({ kind = "sound", since = fight_since, slot = gs })
+            local npc_rows, synth_rows, parts = 0, 0, {}
+            for _, r in ipairs(all) do
+                parts[#parts + 1] = r.tick .. ":" .. r.sound .. "/" .. tostring(r.source)
+                if r.source == "npc" and r.npc_slot == gs then
+                    npc_rows = npc_rows + 1
+                    if GOBLIN_SOUNDS[r.sound] == nil or r.radius ~= 12 or r.coord < 0 then
+                        return "refused", "an npc sound row of the goblin reads sound "
+                            .. r.sound .. " radius " .. describe(r.radius) .. " coord "
+                            .. describe(r.coord) .. " (want 469/472/471, 12, its tile)"
+                    end
+                elseif r.source == "synth" then
+                    synth_rows = synth_rows + 1
+                end
+            end
+            local text = string.format("bury: 1 synth row bones_down %d to pid %d at tick %d; "
+                .. "goblin world slot %d: %d npc row(s), %d synth row(s), slot filter %d "
+                .. "[tick:sound/source %s]", BONES_DOWN, pid, b.tick, gs, npc_rows, synth_rows,
+                #by_slot, table.concat(parts, " "))
+            if npc_rows == 0 then
+                return "refused", text .. " -- no npc-source row for the goblin"
+            end
+            if #by_slot ~= npc_rows then
+                return "refused", text .. " -- the C slot filter disagrees with the Lua count"
+            end
+            return "ok", text
+        end)
+
+        seam("seam.ticklog_music_row", function()
+            local goto_tile = verb("player", "goto_tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_music_row")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            -- Lumbridge first, so the crossing to Varrock is a change of square
+            -- whatever square the row before left the player on.
+            local back1 = goto_tile(3222, 3218, 0)
+            settle(2)
+            local _, start_rows = t.ticklog.rows({ kind = "player_tile", since = since })
+            local s1 = start_rows[#start_rows] and start_rows[#start_rows].serial or since
+            local there = goto_tile(3212, 3428, 0)
+            settle(3)
+            local _, to_varrock = t.ticklog.rows({ kind = "music", since = s1, source = "region" })
+            local _, mid = t.ticklog.rows({ kind = "player_tile", since = s1 })
+            local s2 = mid[#mid] and mid[#mid].serial or s1
+            local back2 = goto_tile(3222, 3218, 0)
+            settle(3)
+            local _, to_lumbridge = t.ticklog.rows({ kind = "music", since = s2, source = "region" })
+            local function list(rows)
+                local out = {}
+                for _, r in ipairs(rows) do
+                    out[#out + 1] = r.tick .. ":" .. r.track .. "/pid" .. r.pid
+                end
+                return table.concat(out, " ")
+            end
+            local text = "goto " .. describe(back1) .. "/" .. describe(there) .. "/" .. describe(back2)
+                .. "; to Varrock (50,53): " .. list(to_varrock) .. "; back to Lumbridge (50,50): "
+                .. list(to_lumbridge)
+            if #to_varrock ~= 1 or to_varrock[1].track ~= 125 then
+                return "refused", text .. " -- want one region row, track 125 Garden"
+            end
+            if #to_lumbridge ~= 1 or to_lumbridge[1].track ~= 76 then
+                return "refused", text .. " -- want one region row, track 76 Harmony"
+            end
+            return "ok", text
+        end)
+
         -- PLACE: LAST of the world-reading rows, after the willow seam row and
         -- before finish.  These rows teleport the player into the Theatre and
         -- leave him at Ver Sinhaza (::tobout lands at ^tob_outside 3677,3219),
@@ -10281,6 +10452,570 @@ return {
             -- is the first waves, before the first natural detonation at spawn+52.
             if landed_melee > 0 then return "refused", reading .. " -- a melee nylocas hit through Protect from Melee (tob_nylocas.rs2 ~tob_nylo_swing)" end
             return "ok", reading
+        end)
+
+-- conformance.tob_maiden_presentation.lua (seam7). NO VERB was added or changed by
+-- this seam: the one content edit is tob_maiden.rs2 ~tob_maiden_blackstorm no longer
+-- sending sound_synth(tob_maiden_shadow_attack) on top of maiden_attack_special's
+-- in-band frame-3 copy (configs/all.seq:181900).
+--
+-- ONE SEAM ROW, proposed. It needs the tick log's `sound` rows
+-- (ticklog_sound_and_music_rows, this pass): merge it only if that seam lands, and
+-- place it right AFTER seam("seam.nylocas_protect_blocks_wave_hit", ...) (the last
+-- raid seam row before step("finish")), or after the ticklog seam's own sound row
+-- if it adds one there. Proved as a scratch: build/quest_gate/s7m_sound_after
+-- (live pack, QUEST_BINARY=src/torirs_qd_snd) PASS "blackstorms 9 -> synth 3293
+-- sent 0", and s7m_sound_before (HEAD tob_maiden.rs2 pack) FAIL "3293/synth x9".
+        seam("seam.maiden_blackstorm_sound_once", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local await_anim = verb("npc", "await_anim")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not await_anim then return missing("npc", "await_anim") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            log_start()
+            setup_cheat("::god 1")
+            -- Her Entry body attacks every 10 ticks from tick 9 of the room; three
+            -- blackstorms (seq 8092) arrive within the first 40 ticks (s7m_sound_after:
+            -- 8091@21 8092@31 8092@41 8092@51 ...).
+            local storms, throws = 0, 0
+            for _ = 1, 8 do
+                local ar, _, _, aseq = await_anim("tob_maiden_100_story", nil, 15)
+                if ar == "ok" and aseq == 8092 then storms = storms + 1 end
+                if ar == "ok" and aseq == 8091 then throws = throws + 1 end
+                if storms >= 3 then break end
+            end
+            local sr, sounds = log_rows({ kind = "sound" })
+            setup_cheat("::god 0")
+            setup_cheat("::tobout")
+            if sr ~= "ok" then return sr, "ticklog sound rows -> " .. describe(sounds) end
+            local storm_sound, throw_sound = 0, 0
+            for _, row in ipairs(sounds) do
+                if row.sound == 3293 then storm_sound = storm_sound + 1 end
+                if row.sound == 3981 then throw_sound = throw_sound + 1 end
+            end
+            local reading = "blackstorms " .. storms .. ", synth 3293 sent " .. storm_sound
+                .. " (its frame-3 copy is the client's, configs/all.seq:181900); blood throws "
+                .. throws .. ", synth 3981 sent " .. throw_sound .. " (the control)"
+            if storms < 3 then return "timeout", reading end
+            if storm_sound > 0 then return "refused", reading .. " -- the blackstorm's sound is sent on top of its seq (tob_maiden.rs2 ~tob_maiden_blackstorm)" end
+            if throw_sound ~= throws then return "refused", reading .. " -- the blood throw's synth no longer matches its throws" end
+            return "ok", reading
+        end)
+
+-- seam7 tob_bloat_presentation: one seam row, no verb added or changed.
+--
+-- PLACE: test/quests/_conformance.lua PLAN, directly after
+-- seam("seam.nylocas_protect_blocks_wave_hit", ...) (the raid rows run last,
+-- DRIVER_NOTES "t.raid.enter": ::tobmode's potions shift every later slot).
+-- DEPENDS ON the ticklog_sound_and_music_rows seam (the tick log's `sound` kind,
+-- one row per SYNTH_SOUND sent, field `sound`, label = its source); land that
+-- seam first. Until the log knows the kind the row answers `refused` naming it.
+--
+-- What it pins: a Bloat down sends NO server sound. tob_bloat_sleep 8082 carries
+-- the snore 3976 (frames 26-66) and the shout 3545 (frame 101) in-band and the
+-- client plays a seq's frame sounds itself (src/app/app_world_sync.c
+-- app_play_frame_sounds); the old sound_synth(tob_bloat_snore) on the down tick
+-- and sound_synth(tob_bloat_shout) on the stomp tick doubled them
+-- (AV_INVENTORY.md "Sounds played twice": MT/tob_bloat.rs2:646,697). The flies'
+-- sound_synth (3945/3954/4016) is the control: it proves the log saw the room's
+-- sounds at all. Before the fix (build/quest_gate/seam7_bloat_before2, same
+-- room, TORIRSSERVER_VERBOSE): sound_synth(3976) x2 at both downs, (3545) x1.
+-- ::god 1 keeps the idle player alive through Hard Bloat's flies (damage is
+-- not what this row reads); teardown turns it off.
+        seam("seam.bloat_down_sounds_in_band", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "bloat", { mode = "hard" })
+            if entered ~= "ok" then teardown() return entered, "tob bloat hard -> " .. describe(entered_detail) end
+            log_start()
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- Wait for one whole down: npc_anim 8082 (tob_bloat_sleep) on tick D, the stomp on
+            -- D+29, the rise on D+33 (^tob_bloat_stomp_offset / ^tob_bloat_up_offset).
+            local down = nil
+            local _, now = verb("tick")()
+            for _wait = 1, 160 do
+                settle(1)
+                _, now = verb("tick")()
+                if down == nil then
+                    local _, anims = log_rows({ kind = "npc_anim", seq = 8082 })
+                    if anims ~= nil and #anims > 0 then down = anims[1].tick end
+                end
+                if down ~= nil and now >= down + 34 then break end
+            end
+            if down == nil or now < down + 34 then
+                teardown()
+                return "timeout", "no whole Bloat down seen (down " .. tostring(down) .. ", tick " .. tostring(now) .. ")"
+            end
+            local snore, shout, flies = 0, 0, 0
+            local sounds_result, sounds = log_rows({ kind = "sound" })
+            if sounds_result ~= "ok" then
+                teardown()
+                return "refused", "t.ticklog.rows{kind=sound} -> " .. tostring(sounds_result) .. " " .. describe(sounds)
+                    .. " (the ticklog_sound_and_music_rows seam is not on this tree)"
+            end
+            for _, s in ipairs(sounds or {}) do
+                if s.sound == 3976 then snore = snore + 1 end
+                if s.sound == 3545 then shout = shout + 1 end
+                if s.sound == 3945 or s.sound == 3954 or s.sound == 4016 then flies = flies + 1 end
+            end
+            teardown()
+            local reading = "down at tick " .. down .. ", read to " .. now .. ": server sounds snore 3976 x" .. snore
+                .. ", shout 3545 x" .. shout .. ", flies 3945/3954/4016 x" .. flies .. " (the control)"
+            if flies == 0 then return "refused", reading .. " -- the log saw no fly sound, so it read nothing" end
+            if snore > 0 or shout > 0 then
+                return "refused", reading .. " -- a down sound sent by script as well as by tob_bloat_sleep's frames (tob_bloat.rs2 ~tob_bloat_go_down / ~tob_bloat_stomp)"
+            end
+            return "ok", reading
+        end)
+
+-- seam7 tob_nylocas_presentation -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_nylocas.rs2
+-- ~tob_nylo_swing / ~tob_nylo_projectile / ~tob_nylo_detonate / ~tob_nylo_small_death_gfx /
+-- ~tob_nylo_drop_in and the eighteen small [ai_queue3] hooks; tob_nylocas_boss.rs2
+-- ~tob_nylo_land_boss / ~tob_vasilias_swing). This one seam row pins the presentation
+-- through verbs that already have rows (raid.enter, raid.start_tile, player.walk_to,
+-- player.click_loc, chat.play, ticklog.start/rows, npc.nearest, tick).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (the seam6 Nylocas row, after raid.leave): it enters the same room the same way and
+-- tears down with ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- What it reads (server tick log): a small killed on the engine's death path (::kill, the
+-- same npc_death_step -> [ai_queue3] a player kill takes) leaves its colour's
+-- tob_nylocas_death_<style>_standard graphic (1562-1564) on the tick and tile it despawns,
+-- and Vasilias' spawning form (10786, Entry) plays top_spider_melee_spawn_noloop (9030) on
+-- its spawn tick. ::kill and ::tobnyloskip are measurement cheats: fine in a seam row,
+-- never in a room test.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/scratch_conformance_row.lua
+-- (the same body under shims for verb/missing/describe/setup_cheat/settle/seam).
+        seam("seam.nylocas_presentation", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local nearest = verb("npc", "nearest")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not nearest then return missing("npc", "nearest") end
+            if not now_tick then return missing("tick") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::setlevel hitpoints 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            -- Rows of THIS row only: the harness's log runs from step("ticklog.start"),
+            -- world slots are reused, and a whole-log read in a raid room runs out
+            -- the per-resume instruction budget (closer seam7).
+            t.ticklog.mark("seam.nylocas_presentation")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::god 1")
+            -- Wave 1 (room tick 4): a melee small for pillar 3, a magic small for pillar 4, a ranged aggro small
+            -- (configs/tob_nylo.dbrow tob_nylo_spawn_01_*). Kill all three on the engine's death path, then mark the
+            -- other thirty waves out so Vasilias lands through the room's own clock once they have despawned.
+            local smalls = { "tob_nylocas_incoming_melee_story", "tob_nylocas_incoming_magic_story", "tob_nylocas_incoming_ranged_story" }
+            local killed = {}
+            for _ = 1, 30 do
+                settle(1)
+                for _, name in ipairs(smalls) do
+                    if not killed[name] and nearest(name, 40) == "ok" then
+                        setup_cheat("::kill " .. name .. " 40")
+                        killed[name] = true
+                    end
+                end
+                if killed[smalls[1]] and killed[smalls[2]] and killed[smalls[3]] then break end
+            end
+            setup_cheat("::tobnyloskip")
+            local boss = nil
+            for _ = 1, 120 do
+                settle(1)
+                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
+                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+            end
+            settle(2)
+            -- the standard death graphic on every killed small's despawn tick and tile
+            local STANDARD = { [10774] = 1562, [10775] = 1563, [10776] = 1564 }
+            local _, frees = log_rows({ kind = "npc_free", since = base })
+            -- killed ones only: a later wave's small that was let detonate leaves the detonate graphic instead
+            local _, deaths = log_rows({ kind = "npc_death", since = base })
+            local died_at = {}
+            for _, d in ipairs(deaths or {}) do
+                died_at[d.slot] = died_at[d.slot] or {}
+                table.insert(died_at[d.slot], d.tick)
+            end
+            local function was_killed(f)
+                for _, tick in ipairs(died_at[f.slot] or {}) do
+                    if tick <= f.tick and tick >= f.tick - 10 then return true end
+                end
+                return false
+            end
+            local _, spots = log_rows({ kind = "map_spotanim", since = base })
+            local spot_at = {}
+            for _, s in ipairs(spots or {}) do spot_at[s.tick .. ":" .. s.x .. ":" .. s.z .. ":" .. s.spotanim] = true end
+            local small_ok, small_seen, small_text = 0, 0, {}
+            for _, f in ipairs(frees or {}) do
+                local want = STANDARD[f.type]
+                if want ~= nil and was_killed(f) then
+                    small_seen = small_seen + 1
+                    local here = spot_at[f.tick .. ":" .. f.x .. ":" .. f.z .. ":" .. want] == true
+                    if here then small_ok = small_ok + 1 end
+                    small_text[#small_text + 1] = f.type .. "@" .. f.tick .. (here and ("+" .. want) or "-none")
+                end
+            end
+            local boss_seq = {}
+            if boss ~= nil then
+                local _, anims = log_rows({ kind = "npc_anim", slot = boss.slot, since = base })
+                for _, a in ipairs(anims or {}) do
+                    if a.tick == boss.tick then boss_seq[#boss_seq + 1] = a.seq end
+                end
+            end
+            teardown()
+            local reading = "killed smalls with their standard graphic on the despawn tick+tile " .. small_ok .. " of " .. small_seen
+                .. " (" .. table.concat(small_text, ",") .. "); Vasilias spawning form "
+                .. (boss and ("tick " .. boss.tick .. " npc_anim [" .. table.concat(boss_seq, ",") .. "]") or "never landed")
+            if small_seen < 3 or boss == nil then return "timeout", reading end
+            if small_ok ~= small_seen then return "refused", reading .. " -- tob_nylocas.rs2 [ai_queue3] -> ~tob_nylo_small_killed" end
+            local dropped = false
+            for _, s in ipairs(boss_seq) do if s == 9030 then dropped = true end end
+            if not dropped then return "refused", reading .. " -- tob_nylocas.rs2 ~tob_nylo_drop_in" end
+            return "ok", reading
+        end)
+
+-- seam7 tob_boss_hit_and_defend_sounds -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob.npc's
+-- `param=defend_sound,<name>` on 72 ToB boss blocks, six Verzik hard/story ledgers
+-- pinned, their six npc_anims.generated.npc blocks). This one seam row pins the
+-- behaviour through verbs that already have rows plus the tick log's `sound` kind.
+--
+-- DEPENDS ON the concurrent seam ticklog_sound_and_music_rows (the `sound` row kind,
+-- source "npc <slot> <type>"): merge this row only once that seam lands, and place it
+-- AFTER that seam's own row(s).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (the last raid seam row today), among the raid seam rows; it enters a ToB room, so
+-- it runs after the raid.* step rows, and its teardown is ::tobout.
+-- SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/scratch_s7h_hitsounds.lua
+-- (run s7h_hitsounds2: sotetseg.sound_rows "4019@156" on the hit_npc tick 156).
+        seam("seam.tob_boss_hit_sound", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::give twisted_bow")
+            setup_cheat("::wield twisted_bow")
+            setup_cheat("::give dragon_arrow 200")
+            setup_cheat("::wield dragon_arrow")
+            local entered, entered_detail = enter("tob", "sotetseg", { mode = "normal" })
+            if entered ~= "ok" then return entered, "tob sotetseg normal -> " .. describe(entered_detail) end
+            setup_cheat("::god 1")
+            log_start()
+            -- Rows of THIS row only: the harness's log runs from step("ticklog.start"),
+            -- world slots are reused, and a whole-log read in a raid room runs out
+            -- the per-resume instruction budget (closer seam7).
+            t.ticklog.mark("seam.tob_boss_hit_sound")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local found, boss = nearest("tob_sotetseg_combat", 40)
+            if found ~= "ok" or not is_table(boss) then teardown() return "not_found", "tob_sotetseg_combat -> " .. describe(boss) end
+            local slot_result, world_slot = log_slot(boss)
+            if slot_result ~= "ok" then teardown() return slot_result, describe(world_slot) end
+            attack("tob_sotetseg_combat", 2, 6, { slot = boss.slot })
+            -- every hit he takes (a blocked 0 included) must carry tob_sotetseg_hit 4019
+            -- from the engine's npc noise path, on the same tick as the hit
+            local hits, sounds = {}, {}
+            for _ = 1, 30 do
+                local _, h = log_rows({ kind = "hit_npc", slot = world_slot, since = base })
+                if #h > 0 then hits = h break end
+                settle(1)
+            end
+            settle(1)
+            local _, s = log_rows({ kind = "sound", source = "npc", slot = world_slot, since = base })
+            sounds = s
+            teardown()
+            if #hits == 0 then return "timeout", "no hit_npc row on Sotetseg (world slot " .. tostring(world_slot) .. ") in 30 ticks" end
+            local by_tick = {}
+            for _, r in ipairs(sounds) do
+                if r.sound == 4019 then by_tick[r.tick] = true end
+            end
+            local first = hits[1]
+            if not by_tick[first.tick] then
+                return "refused", "hit at tick " .. first.tick .. " (damage " .. first.damage .. ") had no 4019 npc sound row; sound rows: " .. #sounds
+            end
+            return "ok", "hit tick " .. first.tick .. " damage " .. first.damage .. " -> npc sound 4019 (tob_sotetseg_hit) on the same tick; " .. #sounds .. " npc sound row(s)"
+        end)
+
+-- seam7 tob_death_spectate_and_lobby_services -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: player/death.rs2,
+-- minigame_tob tob_spectate.rs2 (new), tob_hud.rs2, tob_chest.rs2, tob.rs2). This one
+-- seam row pins the Theatre death through verbs that already have rows (raid.enter,
+-- player.click_loc, chat.play, msg.last, inv.count, ticks): a solo Entry raider who
+-- dies is caged ("You have died. Death count: 1.", ::tobjail jailed=1, orb 30), the
+-- party is all down so three ticks later the room restarts ("You have failed.",
+-- jailed=0, started=0) and the raider holds 3 bandages more.
+--
+-- `::die` (player/death.rs2) is the death: it queues the same [queue,player_death]
+-- the engine's [playerdeath] trigger does, which is where the Theatre hook lives.
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (the last raid seam row), among the raid seam rows after the raid.* step rows; its
+-- teardown is ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/scratch/conformance_row_scratch.lua
+-- (the same body under shims for verb/missing/describe/setup_cheat), run s7conf.
+        seam("seam.tob_death_cage_then_entry_restart", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local count = verb("inv", "count")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not count then return missing("inv", "count") end
+            if not ticks then return missing("ticks") end
+            -- The newest line with this prefix (msg.last is newest first, so the
+            -- highest serial wins: an older readout must not answer a newer ask).
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local function readout(cmd, prefix)
+                setup_cheat(cmd)
+                ticks(1)
+                return newest(prefix)
+            end
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            local _, bandages0 = count("tob_bandages")
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::die")
+            local died = nil
+            local guard = 0
+            while died == nil and guard < 15 do
+                ticks(1)
+                died = newest("You have died. Death count: 1.")
+                guard = guard + 1
+            end
+            local caged = readout("::tobjail", "tobjail ")
+            local failed = nil
+            guard = 0
+            while failed == nil and guard < 10 do
+                ticks(1)
+                failed = newest("You have failed.")
+                guard = guard + 1
+            end
+            ticks(2)
+            local freed = readout("::tobjail", "tobjail ")
+            local state = readout("::tobstate", "tobstate ")
+            local _, bandages1 = count("tob_bandages")
+            setup_cheat("::tobout")
+            local detail = "death '" .. tostring(died) .. "'; cage '" .. tostring(caged) .. "'; wipe '" .. tostring(failed)
+                .. "'; after '" .. tostring(freed) .. "' / '" .. tostring(state) .. "'; bandages "
+                .. tostring(bandages0) .. " -> " .. tostring(bandages1)
+            if died == nil or caged == nil or string.find(caged, "jailed=1", 1, true) == nil
+                or string.find(caged, "orbs=30,", 1, true) == nil then
+                return "refused", "no cage: " .. detail
+            end
+            if failed == nil or freed == nil or string.find(freed, "jailed=0", 1, true) == nil
+                or state == nil or string.find(state, "started=0", 1, true) == nil then
+                return "refused", "no Entry restart: " .. detail
+            end
+            if (bandages1 or 0) ~= (bandages0 or 0) + 3 then
+                return "refused", "wipe bandages: " .. detail
+            end
+            return "ok", detail
+        end)
+
+-- seam7 tob_party_board_and_scoreboard_interfaces -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_board.rs2
+-- and tob_party.rs2). This one seam row pins the content behaviour through verbs
+-- that already have rows (player.goto_tile, player.click_loc, chat.drain/kind/choose,
+-- ui.await_open, ui.widget, ui.invoke, ui.expect_text, msg.last).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (its teardown ::tobout leaves the player free in the lobby world). It needs no
+-- raid; its own teardown disbands the party (the leader's action button) and
+-- closes the panel. SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/party_board/conformance_row_scratch.lua
+-- (the same body under shims for verb/missing/describe/setup_cheat/settle).
+        seam("seam.tob_party_board_forms_a_party", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local drain = verb("chat", "drain")
+            local kind = verb("chat", "kind")
+            local choose = verb("chat", "choose")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            local expect_text = verb("ui", "expect_text")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not drain then return missing("chat", "drain") end
+            if not kind then return missing("chat", "kind") end
+            if not choose then return missing("chat", "choose") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            if not expect_text then return missing("ui", "expect_text") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local function line(prefix)
+                local _, list = t.msg.last(20)
+                for _, m in ipairs(list or {}) do
+                    if string.sub(m.text, 1, #prefix) == prefix then return m.text end
+                end
+                return nil
+            end
+            local function teardown()
+                -- Disband (the leader's action button, sub 5) and close.
+                local ar, aid = widget("tob_partydetails:action")
+                if ar == "ok" then invoke(aid, 1) end
+                settle(2)
+                if verb("key") then t.key("escape") end
+                settle(2)
+            end
+            -- The lobby, beside the notice board (Ver Sinhaza, map 57_50).
+            local gr, gd = goto_tile(3662, 3216, 0)
+            if gr ~= "ok" then return gr, "goto the board: " .. describe(gd) end
+            local cr, cd = click_loc("tob_surface_notice_board", 1)
+            if cr ~= "ok" then return cr, "Read the notice board: " .. describe(cd) end
+            settle(2)
+            -- A first reading asks how experienced the player is; answer it.
+            if kind() == "mesbox" then
+                drain({ stop_at = "options", max_pages = 3 })
+                choose("Not very experienced. I'll start with Entry Mode.")
+                settle(2)
+                drain({ max_pages = 2 })
+            end
+            local lr, ld = await_open("tob_partylist", 10)
+            if lr ~= "ok" then return lr, "the board did not open tob_partylist: " .. describe(ld) end
+            local tr, td = expect_text("tob_partylist:frame", "Performers for the Theatre", 5, 1)
+            if tr ~= "ok" then return tr, describe(td) end
+            local wr, wid = widget("tob_partylist:myparty")
+            if wr ~= "ok" then return wr, "tob_partylist:myparty: " .. describe(wid) end
+            invoke(wid, 1)
+            local pr, pd = await_open("tob_partydetails", 10)
+            if pr ~= "ok" then teardown() return pr, "Make party did not open tob_partydetails: " .. describe(pd) end
+            -- The panel's own Refresh twice: the first push of a panel whose
+            -- clientscripts call a proc the client has not loaded draws only its
+            -- last row (seam7 engine finding).
+            local rr, rid = widget("tob_partydetails:refresh")
+            if rr == "ok" then invoke(rid, 1) settle(3) invoke(rid, 1) settle(3) end
+            local hr, hd = expect_text("tob_partydetails:frame", "Party of", 5, 1)
+            local mr, md = expect_text("tob_partydetails:mode", "Mode:", 5, 0)
+            local dr, dd = expect_text("tob_partydetails:action", "Disband", 5, 9)
+            setup_cheat("::tobparty")
+            local rec = line("tobparty: handle")
+            teardown()
+            if hr ~= "ok" then return hr, describe(hd) end
+            if mr ~= "ok" then return mr, describe(md) end
+            if dr ~= "ok" then return dr, describe(dd) end
+            if rec == nil or not string.find(rec, "role 2 members 1", 1, true) then
+                return "refused", "no leader record after Make party: " .. describe(rec)
+            end
+            return "ok", describe(hd) .. " | " .. describe(md) .. " | " .. rec
         end)
 
         step("finish", function()

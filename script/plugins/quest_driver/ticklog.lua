@@ -1,6 +1,7 @@
 -- quest-driver / ticklog: the embedded server's per-tick event log (npc
--- animations, projectiles, hits, spawns, deaths, loc changes, tiles), read by a
--- test to build its tick ledger. Raid seam 1 (docs/RAID_ORCHESTRATOR.md
+-- animations, projectiles, hits, spawns, deaths, loc changes, tiles, and the
+-- sounds, music and jingles sent to a player), read by a test to build its
+-- tick ledger. Raid seam 1 (docs/RAID_ORCHESTRATOR.md
 -- sections 4 and 6). The namespace QD.ticklog is declared in core.lua.
 --
 -- The log is the SERVER's (src/torirsserver/torirs_server_ticklog.c): every
@@ -29,9 +30,22 @@
 -- `dst` is also given unpacked as `x, z, level` / `src_x, src_z, src_level` /
 -- `dst_x, dst_z, dst_level`. opts filters: since (a serial: rows after it),
 -- kind (a name or a list of names), slot (an npc slot; for hit_player the
--- dealing npc's slot), npc (a t.npc row or client slot, translated to `slot`),
--- pid, type (an npc type id), seq (npc_anim), spotanim, where (a
--- function(row) -> boolean).
+-- dealing npc's slot, for an npc's sound row the emitting npc's), npc (a
+-- t.npc row or client slot, translated to `slot`), pid, type (an npc type id), seq (npc_anim), spotanim, sound (a sound
+-- row's id), track (music), jingle, source (a sound/music row's source), where
+-- (a function(row) -> boolean).
+--
+-- SOUNDS. A `sound` row is one SYNTH_SOUND packet the SERVER sent one player:
+-- `source` is "synth" (a plain sound_synth), "area" ([proc,sound_area]: coord
+-- and radius are the proc's tile and distance, one row per player in range),
+-- "distance" ([proc,sound_within_distance]) or "npc" (the engine's npc
+-- attack/defend/death noise: npc_slot/npc_type name the npc, coord its tile,
+-- radius 12). A seq's FRAME sounds are not rows: the client plays them from
+-- the seq record (src/world/world_cycle.c World_EmitAnimFrameSound), so a test
+-- asserts one through the npc_anim row's `seq` and names it with
+-- tools/raid_gate/seq_frame_sounds.py <seq>. `music` rows carry source
+-- "script" (midi_song; track -1 = stop), "region" (entering a mapped map
+-- square) or "login"; `jingle` rows are midi_jingle.
 
 QD.ticklog.FIELDS = {
     start = { "start_tick" },
@@ -53,7 +67,16 @@ QD.ticklog.FIELDS = {
     -- An `npc_facesquare` (SS_OP_NPC_FACESQUARE, the only writer of an npc's
     -- face-coord): the TILE it turned the npc to, not a packed coord.
     npc_face = { "slot", "type", "x", "z" },
+    -- A SYNTH_SOUND sent to `pid`; coord/radius are -1 for a plain synth.
+    -- `source` (from the row's label) and, for an npc's own noise,
+    -- `npc_slot`/`npc_type` are added by _name.
+    sound = { "pid", "sound", "loops", "delay", "coord", "radius" },
+    music = { "pid", "track" },
+    jingle = { "pid", "jingle", "length_ms" },
 }
+
+-- The kinds whose label is their source rather than a test's mark text.
+QD.ticklog._SOURCED = { sound = true, music = true, jingle = true }
 
 QD.ticklog._RAW = { "a", "b", "c", "d", "e", "f" }
 
@@ -68,8 +91,19 @@ function QD.ticklog._name(raw)
     for i, name in ipairs(names) do
         row[name] = raw[QD.ticklog._RAW[i]]
     end
-    if row.coord ~= nil then
+    if row.coord ~= nil and row.coord >= 0 then
         row.x, row.z, row.level = QD.ticklog._unpack(row.coord)
+    end
+    if QD.ticklog._SOURCED[raw.kind] then
+        -- "synth", "area", ..., or "npc <slot> <type>" for an npc's noise.
+        local source, slot, npc_type = tostring(raw.label or ""):match("^(%a+) (%d+) (%-?%d+)$")
+        if source ~= nil then
+            row.source = source
+            row.npc_slot = math.tointeger(tonumber(slot))
+            row.npc_type = math.tointeger(tonumber(npc_type))
+        else
+            row.source = raw.label
+        end
     end
     if row.src ~= nil then
         row.src_x, row.src_z, row.src_level = QD.ticklog._unpack(row.src)
@@ -137,7 +171,7 @@ function QD.ticklog._keep(row, opts, kinds)
     end
     if opts.slot ~= nil then
         local slot = row.slot
-        if row.kind == "hit_player" then
+        if row.kind == "hit_player" or row.kind == "sound" then
             slot = row.npc_slot
         end
         if slot ~= opts.slot then
@@ -154,6 +188,18 @@ function QD.ticklog._keep(row, opts, kinds)
         return false
     end
     if opts.spotanim ~= nil and row.spotanim ~= opts.spotanim then
+        return false
+    end
+    if opts.sound ~= nil and row.sound ~= opts.sound then
+        return false
+    end
+    if opts.track ~= nil and row.track ~= opts.track then
+        return false
+    end
+    if opts.jingle ~= nil and row.jingle ~= opts.jingle then
+        return false
+    end
+    if opts.source ~= nil and row.source ~= opts.source then
         return false
     end
     if opts.where ~= nil and not opts.where(row) then

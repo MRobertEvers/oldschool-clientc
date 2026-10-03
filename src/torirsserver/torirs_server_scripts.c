@@ -5046,6 +5046,47 @@ container_dirty(
  * and so unreachable from a per-domain ops file, and the family's whole
  * difficulty is that there must be exactly one of it — see its comment. */
 
+/*
+ * The tick log's SOUND row for one `sound_synth`, with its source.
+ *
+ * `sound_area` is not an opcode: it is a content proc
+ * (general/scripts/misc/sound.rs2) that hunts every player within a distance
+ * of a coord and calls `sound_synth` once per player. So the only place the
+ * engine can tell an area sound from a plain one is here, by the proc the
+ * opcode is running in, and the tile and radius are that proc's own
+ * arguments. The three procs share one signature, `(synth $sound, int $delay,
+ * coord $coord, int $distance)`, so the coord is int local 2 and the distance
+ * int local 3.
+ */
+static void
+sound_synth_ticklog(
+    const struct SSVM_State* state,
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int sound,
+    int loops,
+    int delay)
+{
+    char const* name;
+    int source = TORIRSSERVER_TICKLOG_SOUND_SYNTH;
+    int coord = -1;
+    int radius = -1;
+
+    assert(state->script);
+    name = state->script->name;
+    if( strcmp(name, "[proc,sound_area]") == 0 || strcmp(name, "[proc,.sound_area]") == 0 )
+        source = TORIRSSERVER_TICKLOG_SOUND_AREA;
+    else if( strcmp(name, "[proc,sound_within_distance]") == 0 )
+        source = TORIRSSERVER_TICKLOG_SOUND_DISTANCE;
+    if( source != TORIRSSERVER_TICKLOG_SOUND_SYNTH )
+    {
+        assert(state->script->int_arg_count == 4);
+        coord = state->int_locals[2];
+        radius = state->int_locals[3];
+    }
+    ToriRSServer_TicklogSound(srv, player, sound, loops, delay, source, coord, radius, -1);
+}
+
 int
 ToriRSServer_ScriptCommand(
     struct SSVM_State* state,
@@ -12445,7 +12486,11 @@ ToriRSServer_ScriptCommand(
         if( values[0] < 0 )
             return 1;
         if( player != NULL )
+        {
             ToriRSServer_SendSynthSound(player, values[0], values[1], values[2]);
+            if( ToriRSServer_TicklogEnabled(srv) )
+                sound_synth_ticklog(state, srv, player, values[0], values[1], values[2]);
+        }
         return 1;
     }
 
@@ -12485,6 +12530,8 @@ ToriRSServer_ScriptCommand(
                 ToriRSServer_SendMidiSongStop(player, 0, 30);
             else
                 ToriRSServer_SendMidiSong(player, id);
+            ToriRSServer_TicklogMusic(srv, player, id < 0 ? -1 : id,
+                                      TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
         }
         return 1;
     }
@@ -12524,7 +12571,10 @@ ToriRSServer_ScriptCommand(
             return 1;
         length_ms = (id < TORIRSSERVER_JINGLE_LENGTH_COUNT) ? k_ToriRSServer_JingleLengthMs[id] : 0;
         if( player != NULL )
+        {
             ToriRSServer_SendMidiJingle(player, id, length_ms);
+            ToriRSServer_TicklogJingle(srv, player, id, length_ms);
+        }
         return 1;
     }
 

@@ -5188,8 +5188,9 @@ ToriRSServer_CoxSimRun(struct ToriRSServer* srv);
 /*
  * The tick log (torirs_server_ticklog.c): the server's own per-tick record of
  * what an encounter did -- npc attack starts, projectiles, hits, spawns,
- * deaths, loc and ground changes and every tile a player or a moving npc stood
- * on -- for the raid loop's tick ledger (docs/RAID_ORCHESTRATOR.md sections 4
+ * deaths, loc and ground changes, every tile a player or a moving npc stood
+ * on, and every sound, music track and jingle the server sent a player -- for
+ * the raid loop's tick ledger (docs/RAID_ORCHESTRATOR.md sections 4
  * and 6). It is the event set tools/verify_tob_timings.py reads from Blert, so
  * a measured cadence here and a recorder's distribution compare directly.
  *
@@ -5230,7 +5231,47 @@ enum ToriRSServerTicklogKind
                                          * npcs within 32 tiles of a player) */
     TORIRSSERVER_TICKLOG_NPC_FACE,      /* a=slot b=npc type c=x d=z (the tile an
                                          * `npc_facesquare` turned it to) */
+    TORIRSSERVER_TICKLOG_SOUND,         /* a=pid sent to b=sound c=loops d=delay
+                                         * e=source coord or -1 f=radius or -1;
+                                         * label=the source (enum
+                                         * ToriRSServerTicklogSoundSource's name,
+                                         * "npc <slot> <type>" for an npc's own) */
+    TORIRSSERVER_TICKLOG_MUSIC,         /* a=pid b=track (-1 = stop); label=the
+                                         * source: "script", "region", "login" */
+    TORIRSSERVER_TICKLOG_JINGLE,        /* a=pid b=jingle c=length ms; label "script" */
     TORIRSSERVER_TICKLOG_KIND_COUNT
+};
+
+/*
+ * Where a SOUND row's packet came from. A sound is a per-player packet
+ * (SYNTH_SOUND), so "a noise at a tile" is a loop of sends and every send is
+ * its own row; the source says which loop. A seq's FRAME sounds are not here
+ * at all: the client plays them from the seq record (src/world/world_cycle.c
+ * World_EmitAnimFrameSound), so they are implied by the NPC_ANIM row.
+ */
+enum ToriRSServerTicklogSoundSource
+{
+    /* A plain `sound_synth` to the active player. e/f = -1. */
+    TORIRSSERVER_TICKLOG_SOUND_SYNTH = 0,
+    /* `sound_synth` inside `[proc,sound_area]` / `[proc,.sound_area]`
+     * (general/scripts/misc/sound.rs2: huntall + sound_synth per player):
+     * e = the proc's coord, f = its distance. */
+    TORIRSSERVER_TICKLOG_SOUND_AREA,
+    /* `sound_synth` inside `[proc,sound_within_distance]`: e/f as AREA. */
+    TORIRSSERVER_TICKLOG_SOUND_DISTANCE,
+    /* The engine's npc attack/defend/death noise (torirs_server_combat.c
+     * npc_sound_nearby): e = the npc's tile, f = the carry radius. */
+    TORIRSSERVER_TICKLOG_SOUND_NPC,
+    TORIRSSERVER_TICKLOG_SOUND_SOURCE_COUNT
+};
+
+/* Where a MUSIC row's track came from. */
+enum ToriRSServerTicklogMusicSource
+{
+    TORIRSSERVER_TICKLOG_MUSIC_SCRIPT = 0, /* `midi_song` (SS_OP_MIDI_SONG) */
+    TORIRSSERVER_TICKLOG_MUSIC_REGION,     /* ToriRSServer_MusicEnterRegion */
+    TORIRSSERVER_TICKLOG_MUSIC_LOGIN,      /* the login burst's track */
+    TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT
 };
 
 /** "npc_anim", "hit_player", ... -- the name a test and the TSV use. */
@@ -5241,7 +5282,8 @@ ToriRSServer_TicklogKindName(int kind);
 int
 ToriRSServer_TicklogKindFromName(char const* name);
 
-/* One recorded event. `label` is set only on a MARK row. */
+/* One recorded event. `label` is set on a MARK row (the test's text) and on
+ * SOUND / MUSIC / JINGLE rows (the source); empty on every other kind. */
 #define TORIRSSERVER_TICKLOG_LABEL_MAX 48
 struct ToriRSServerTicklogRow
 {
@@ -5341,6 +5383,18 @@ void ToriRSServer_TicklogLocSet(const struct ToriRSServer* srv, int coord, int l
                                 int angle, int kind);
 void ToriRSServer_TicklogObjAdd(const struct ToriRSServer* srv, int coord, int obj_id, int count,
                                 int receiver_pid);
+/* A SYNTH_SOUND sent to `player`. `coord`/`radius` are -1 for SYNTH; `npc_slot`
+ * is the emitting npc for SOUND_NPC and -1 otherwise. */
+void ToriRSServer_TicklogSound(const struct ToriRSServer* srv,
+                               const struct ToriRSServerPlayer* player, int sound, int loops,
+                               int delay, int source, int coord, int radius, int npc_slot);
+/* A MIDI_SONG (or MIDI_SONG_STOP: track -1) sent to `player`. */
+void ToriRSServer_TicklogMusic(const struct ToriRSServer* srv,
+                               const struct ToriRSServerPlayer* player, int track, int source);
+/* A MIDI_JINGLE sent to `player`. */
+void ToriRSServer_TicklogJingle(const struct ToriRSServer* srv,
+                                const struct ToriRSServerPlayer* player, int jingle,
+                                int length_ms);
 /** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */

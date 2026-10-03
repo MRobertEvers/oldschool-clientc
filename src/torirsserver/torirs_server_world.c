@@ -14817,6 +14817,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
         {
             player->music_track = song;
             ToriRSServer_SendMidiSong(player, song);
+            ToriRSServer_TicklogMusic(srv, player, song, TORIRSSERVER_TICKLOG_MUSIC_LOGIN);
         }
     }
 
@@ -16629,6 +16630,8 @@ ToriRSServer_MusicEnterRegion(
          * changes: 30 client cycles (600 ms) down and up. The backend has one
          * synthesizer, so it serializes rather than overlaps the two ramps. */
         ToriRSServer_SendMidiSongEnvelope(player, track->song, 0, 30, 0, 30);
+        ToriRSServer_TicklogMusic(player->world, player, track->song,
+                                  TORIRSSERVER_TICKLOG_MUSIC_REGION);
     }
 }
 
