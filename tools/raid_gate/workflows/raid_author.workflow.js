@@ -100,8 +100,12 @@ const pending = rooms.filter(room => !reviewedIds.has(ID(room)))
 log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} authored, ${sentBack.size} sent back; ${pending.length} pending: ${pending.join(', ') || 'none'}`)
 
 const RETRY_EFFORT = 'medium'
-const results = await pipeline(
-  pending,
+// At most WIDTH rooms at a time (owner, 2026-10-03: many agents at once hung the editor,
+// and a crash takes every running pass of every loop with it).
+const WIDTH = 3
+const results = []
+for (let i = 0; i < pending.length; i += WIDTH) results.push(...await pipeline(
+  pending.slice(i, i + WIDTH),
   async (room) => {
     const id = ID(room)
     if (authoredById[id]) return authoredById[id]
@@ -117,7 +121,7 @@ const results = await pipeline(
     const report = a || { test_id: id, outcome: 'gave_up', runs: 0, spec_rows_measured: 0, spec_rows_total: 0, technique_rows: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [], compacted: true }
     return attempt(`review:${id}`, 2, () => agent(reviewCard(room, report), { label: `review:${id}`, phase: 'Review', model: 'claude-sonnet-5-5', schema: REVIEW_SCHEMA }))
   },
-)
+))
 const reviewed = [...keptReviews, ...results.filter(Boolean)]
 const missing = rooms.map(ID).filter(id => !reviewed.some(r => r.test_id === id))
 log(`${reviewed.filter(r => r.verdict === 'accepted').length} accepted, ${reviewed.filter(r => r.verdict === 'blocked').length} blocked, ${reviewed.filter(r => r.verdict === 'content_bug').length} content bugs, ${reviewed.filter(r => r.verdict === 'rejected').length} rejected; ${missing.length ? 'NO REVIEW for ' + missing.join(', ') + ' (relaunch with the same args)' : 'every room reviewed'}`)
