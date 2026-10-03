@@ -70,6 +70,12 @@ merge, send that session the first failing row.
 test's setup `::complete quest_fishingcompo` names a dbrow with no ::complete arm (the arm
 is `quest_fishingcontest`) and was green only through that stray write to varp 11. The
 quest orchestrator was told with the one-line fix; a corrected copy ran 292/292.
+**Fixed on v3 (2026-10-03, parent `8eae3e3ff`, OSRS-Content `e3722b0292`):**
+forgettabletale stages `::complete quest_fishingcontest` (292/0), and a sweep fixed the
+same no-arm mistake in ghostsahoy, mortton (`quest_priestinperil`) and mourningsendpartii
+(`quest_mourningsendpart1`); `lint_quest.py` now refuses a setup `::complete` with no arm.
+Those three tests' prerequisites are really set now: after merging v3 into this branch,
+run the four and send that session the first failing row of any that moves.
 
 ## 2a. The content worktree is not clean (2026-10-03, seam8)
 
