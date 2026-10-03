@@ -328,7 +328,7 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
-- two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls
+- two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls (FIXED OSRS-Content f2902a94dd: `movecoord`'s middle argument is the level; seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a))
 - Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c); the client one tile short of the server (FIXED b52-seam1 (b))
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)

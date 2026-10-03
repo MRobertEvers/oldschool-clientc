@@ -186,7 +186,14 @@ The stew is a bring-along, so buying it is allowed: the Shayzien barman (`shayzi
 shop `shayzien_pub`, The Cloak and Stagger, 1550,3560) sells one for 20 coins. The only setup
 `::give` is the coins. Once a `cooking_generic` row exists, cook the stew instead.
 
-## Only one of three `npc_add` ambush trolls appears (Swan Song, matthew-mbp-m4-b54)
+## Only one of three `npc_add` ambush trolls appears (Swan Song, matthew-mbp-m4-b54; FIXED OSRS-Content f2902a94dd)
+
+FIXED by seam pass matthew-mbp-m4-b54-seam1: the offsets were written as `movecoord(coord, 2, 1, 0)`
+and `(-1, 2, 0)`, and `movecoord`'s middle argument is the LEVEL (LostCity ServerOps.ts:103-107),
+so trolls 2 and 3 stood on levels 1 and 2. Neither `npc_add` nor the map was the cause. See
+seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a); the rows are in `test/quests/wip/swansong/relay.md`.
+The original finding:
+
 
 `swansong_colony.rs2` `[proc,ssq_spawn_entrance_ambush]` (lines 119-123) calls `npc_add` three
 times for `swan_troll_ambush`: on `^ssq_entrance_ambush_coord`, at +2,+1 and at -1,+2. The client
