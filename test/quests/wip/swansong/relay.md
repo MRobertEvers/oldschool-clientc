@@ -143,3 +143,22 @@
   added after `flattenBar-5`). The player entered the colony with no hammer, `talkToFranklinHammer-hammer` read
   `hammer 1 -> 1`, and the walls went to `quest.stage.tasks_done` 80 and on to `quest.stage.queen_fight` 170.
   At the Queen that run died (23 sharks eaten, her bar 28/80): the food problem above is real and varies run to run.
+
+## killQueen: round 5 was sent back for its food margin (sampler matthew-mbp-m4-b54)
+
+- **What passed.** Every guide step ran with the seam3 staging (`round5_rejected.lua`, 208/0, 756 ticks). Franklin
+  handed over the hammer, and the bow killed the trolls in 52, 60 and 52 ticks and the fishing troll in 60 without
+  eating. `::swansong_queen_hp` read 200/200, and the Queen died after 164 ticks with 12 re-engagements.
+- **Why it went back.** Setup gave 15 sharks and 15 reached the Queen. `killQueen-dead` ate all 15 (lowest reading
+  30/99, `OUT OF shark` with her bar at 4/80 at t+147). Shots 228 and 236 show the hitpoints orb at **1**. The
+  reviewer's two reruns also ended at 1 hp. The author's first run (11 sharks fitted) ran out with her at 1/80.
+  That is under the "a quarter more than the worst run" rule (gaps-combat: Food is not reproducible).
+- **Slot peak.** The pack peaks on the fishing leg: 4 bones, 2 soft clay, hammer, net and 5 raw monkfish beside
+  15 sharks. With 16 the fifth cast failed. Before the chickens the pack held 4 bones, 2 soft clay, the hammer and
+  15 sharks (`pack-before-chickens`).
+- **Not tried yet (all honest setup).**
+  - `black_dragonhide_body`: magic defence +45, and only green `dragonhide_body` needs Dragon Slayer
+    (`levelrequire.rs2:178`). Worn magic defence goes from 35 (coif 4, chaps 23, vambraces 8) to 80.
+  - Eat to full before the first Attack: the fight opened at 72/99.
+  - Drop the hammer after the fifth wall.
+  If she still outlasts the food twice in a row, end at the Queen with `t.blocked`.
