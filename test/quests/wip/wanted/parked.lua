@@ -38,15 +38,19 @@ return {
         "::complete quest_princealirescue",
         "::complete quest_murdermystery",
         "::complete quest_makinghistory",
-        "::give coins 10000", -- getItemRequirements(): 10,000 coins for the Commorb (bought, not made)
-        "::give blankrune 20", -- getItemRequirements(): 20 un-noted rune essence for the Mage of Zamorak
-        "::give rune_scimitar 1", -- getItemRequirements(): "the ability to defeat a level 32 Black Knight" -- a real weapon, equipped in run()
-        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves). The light source and spiny helmet the guide also lists are NOT staged: 20 essence + coins + rope + scimitar + 5 sharks already fill the 28 slots, and no script in quest_wanted/ladders_stairs checks either
-        "::give shark 5", -- food for the Black Knight / Solus fights
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
         "::setlevel hitpoints 99",
+        "::give coins 10000", -- getItemRequirements(): 10,000 coins for the Commorb (bought, not made)
+        "::give blankrune 20", -- getItemRequirements(): 20 un-noted rune essence for the Mage of Zamorak
+        "::give rune_scimitar 1",
+        "::wield rune_scimitar", -- worn in setup so its backpack slot is free for the light source
+        "::give slayer_helm 1", -- getItemRequirements(): the spiny helmet OR slayer helm for the swamp caves (no spiny helmet obj exists; slayer_helm is the guide's alternative)
+        "::wield slayer_helm",
+        "::give candle_lantern_lit 1", -- getItemRequirements(): a light source for the swamp caves -- getItemRequirements(): "the ability to defeat a level 32 Black Knight" -- a real weapon, equipped in run()
+        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves). The light source and spiny helmet the guide also lists are NOT staged: 20 essence + coins + rope + scimitar + 5 sharks already fill the 28 slots, and no script in quest_wanted/ladders_stairs checks either
+        "::give shark 4", -- food for the Black Knight / Solus fights (four, not five: the backpack is full at 28 with the light source, and the Commorb purchase needs one free slot)
     },
 
     run = function(t)
@@ -95,7 +99,12 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         local qp_before_result, qp_before = t.var.varp("varp101_qp")
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
-        t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
+        do
+            local _, scim = t.inv.count("rune_scimitar")
+            local _, helm = t.inv.count("slayer_helm")
+            local _, lamp = t.inv.count("candle_lantern_lit")
+            t.check("equip.worn", scim == 0 and helm == 0 and lamp == 1, "scimitar and helm wielded in setup (backpack copies " .. tostring(scim) .. "/" .. tostring(helm) .. "), light source carried " .. tostring(lamp))
+        end
 
         -- 1. Sir Tiffy Cashien, Falador Park: the clerk's error, the loophole
         t.exec("tiffy1.talk", t.player.talk_to, "rd_teleporter_guy", 1)
@@ -138,9 +147,7 @@ return {
         t.ticks(3)
         t.exec("amik1.stairsDownGround", t.player.click_loc, "fai_falador_castle_spiralstairstop", 1)
         t.ticks(3)
-        if t.world.loc_near("fai_falador_castledoubledoorl", 12) == "ok" then
-            t.exec("amik1.exitCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
-        end
+        t.exec("amik1.exitCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
 
         -- 3. Tiffy: a crisis has arisen
         t.exec("goto-tiffy2", t.player.goto_tile, 2997, 3373, 0)
@@ -174,9 +181,7 @@ return {
         t.ticks(3)
         t.exec("amik2.stairsDownGround", t.player.click_loc, "fai_falador_castle_spiralstairstop", 1)
         t.ticks(3)
-        if t.world.loc_near("fai_falador_castledoubledoorl", 12) == "ok" then
-            t.exec("amik2.exitCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
-        end
+        t.exec("amik2.exitCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
 
         -- 5. Tiffy offers the Commorb: buy it for 10,000 coins
         t.exec("goto-tiffy3", t.player.goto_tile, 2997, 3373, 0)
@@ -251,6 +256,32 @@ return {
         t.expect("daquarius.exposition", t.var.await_server("varb1058_wanted_lord_d_exposition", 1, 10))
 
         -- 10. Mage of Zamorak, Varrock Zamorakian chapel: 20 un-noted essence for the tip
+        -- walk OUT of the Black Knights' base through the door clicked to get in, then up the Taverley ladder
+        do
+            local lw = t.player.walk_to(2907, 9695, 40)
+            local lwr, lwt = t.world.tile()
+            t.check("base.at_door_inside", lw == "ok" and lwr == "ok" and math.abs(lwt.x - 2907) <= 3 and lwt.z <= 9697, "walked to the door's inside tile -> " .. tostring(lw) .. " tile " .. (lwr == "ok" and (lwt.x .. "," .. lwt.z) or tostring(lwr)))
+        end
+        do
+            local cr_ = t.world.loc_near("castledoubledoorr", 10)
+            local op_r, op_d = t.world.loc_near("opencastledoubledoorr", 10)
+            t.check("base.door_state", true, "closed variant near: " .. tostring(cr_) .. "; open variant near: " .. tostring(op_r) .. " " .. tostring(op_d))
+            if cr_ ~= "ok" then
+                -- the door the entry click opened is still standing open: close it, then open it again, so the exit is a real door click
+                t.exec("leaveBase.closeDoor", t.player.click_loc, "opencastledoubledoorr", 1)
+                t.ticks(3)
+            end
+            t.exec("leaveBase", t.player.click_loc, "castledoubledoorr", 1)
+            t.ticks(2)
+            local ow = t.player.walk_to(2907, 9701, 20)
+            local owr, owt = t.world.tile()
+            t.check("base.left_through_door", ow == "ok" and owr == "ok" and owt.z >= 9699, "walked out north of the door -> " .. tostring(ow) .. " tile " .. (owr == "ok" and (owt.x .. "," .. owt.z) or tostring(owr)))
+        end
+        t.ticks(2)
+        t.exec("goto-ladder", t.player.goto_tile, 2884, 9796, 0)
+        t.exec("leaveTaverleyDungeon", t.player.click_loc, "ladder_from_cellar", 1)
+        t.ticks(4)
+        do local lr, lt = t.world.tile(); t.check("taverley.surface", lr == "ok" and lt.z < 9000, lr == "ok" and (lt.x .. "," .. lt.z .. "," .. lt.level) or tostring(lr)) end
         t.exec("goto-mage", t.player.goto_tile, 3253, 3388, 0)
         if t.world.loc_near("fai_varrock_poor_door_flipped", 8) == "ok" then
             t.exec("mage.openChapelDoor", t.player.click_loc, "fai_varrock_poor_door_flipped", 1)
@@ -514,7 +545,11 @@ return {
         t.exec("goDownToLumbridgeCellar", t.player.click_loc, "qip_cook_trapdoor_open", 1)
         t.ticks(4)
         do local cr, ct = t.world.tile(); t.check("cellar.underground", cr == "ok" and ct.z > 9000, cr == "ok" and (ct.x .. "," .. ct.z .. "," .. ct.level) or tostring(cr)) end
-        t.exec("dk.goto", t.player.goto_tile, 3318, 9628, 0)
+        -- the Lost Tribe hole in the cellar's east wall (Squeeze-through), then the tunnel behind it to the Dorgeshuun mine
+        t.exec("dk.squeezeThroughHole", t.player.click_loc, "lost_tribe_cavewall_hole_walldecor", 1)
+        t.ticks(3)
+        do local hr, ht = t.world.tile(); t.check("dk.in_tunnel", hr == "ok" and ht.x >= 3220, hr == "ok" and (ht.x .. "," .. ht.z .. "," .. ht.level) or tostring(hr)) end
+        t.exec("dk.goto", t.player.goto_tile, 3315, 9629, 0)
         t.exec("dk.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("dk.solus", t.chat.play, {
             "npc:Oh thank you, you have freed me!",
@@ -561,6 +596,14 @@ return {
 
         -- 16. Position 6 -- Solus summons a level 32 Black Knight (Wanted!)
         local pool6 = POOL[pos6_id]
+        -- leave the mine the way we came: back along the tunnel, squeeze out through the hole, climb the cellar ladder
+        t.exec("dk.goto_tunnel_end", t.player.goto_tile, 3221, 9618, 0)
+        t.exec("dk.squeezeBackThroughHole", t.player.click_loc, "lost_tribe_cavewall_hole_walldecor", 1)
+        t.ticks(3)
+        do local br, bt = t.world.tile(); t.check("dk.back_in_cellar", br == "ok" and bt.x < 3220, br == "ok" and (bt.x .. "," .. bt.z .. "," .. bt.level) or tostring(br)) end
+        t.exec("dk.climbOutOfCellar", t.player.click_loc, "ladder_from_cellar", 1)
+        t.ticks(4)
+        do local sr, st = t.world.tile(); t.check("dk.surface", sr == "ok" and st.z < 9000, sr == "ok" and (st.x .. "," .. st.z .. "," .. st.level) or tostring(sr)) end
         t.exec("pos6.goto", t.player.goto_tile, pool6[2], pool6[3], pool6[4])
         if pos6_id == 9 then
             t.exec("pos6.openTreeDoor", t.player.click_loc, "treedoorl", 1)

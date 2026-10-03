@@ -166,7 +166,11 @@ return {
         t.ticks(4)
 
         -- guide 1.10 talkToPhileasAgain (stage 5 -> 6)
-        t.exec("goto-talkToPhileasAgain", t.player.goto_tile, 1542, 3570, 0)
+        t.exec("goto-talkToPhileasAgain", t.player.goto_tile, 1539, 3570, 0)
+        t.exec("talkToPhileasAgain-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+        t.ticks(3)
+        t.player.walk_to(1542, 3570, 8)
+        t.check("talkToPhileasAgain-inside", select(2, t.world.tile()) ~= nil, "walked in through the door, tile " .. tostring(select(2, t.world.tile())))
         t.exec("talkToPhileasAgain", t.player.talk_to, "phileas_rimor_visible", 1)
         t.exec("talkToPhileasAgain-dialog", t.chat.play, {
             "player:Good day.",
@@ -374,6 +378,7 @@ return {
         t.expect("quest.stage.shiro2", t.quest.expect_stage("shiro2"))
         t.exec("passMagicGate-leave", t.player.click_loc, "shayzienquest_cave_door", 1)
         t.ticks(4)
+        do local wr = t.player.walk_to(6416, 114, 40); local _, wt = t.world.tile(); t.check("goto-leaveCave-again", wt.z >= 100, "walk_to=" .. tostring(wr) .. " walked toward the exit loc at 6416,117 from 6419,92, now at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
         t.exec("leaveCave-again", t.player.click_loc, "shayzienquest_lab_exit", 1)
         t.ticks(4)
 
@@ -410,7 +415,10 @@ return {
         t.expect("quest.stage.house", t.quest.expect_stage("house"))
 
         -- guide 1.28 returnToPhileasTent: walking into the house is the trigger (a timer sees the tile)
-        t.exec("returnToPhileasTent", t.player.goto_tile, 1542, 3570, 0)
+        t.exec("goto-returnToPhileasTent", t.player.goto_tile, 1539, 3570, 0)
+        local door_ok, door_row = t.world.loc_near("wallkit_shayzien_door01_l_reverse_open", 4)
+        t.check("returnToPhileasTent-doorstate", door_ok == "ok", "door at 1540,3570 still open from the first visit: " .. tostring(door_ok))
+        t.player.walk_to(1542, 3570, 10)
         t.exec("returnToPhileasTent.await", t.var.await, "varb6358_shayzienquest", 16, 30)
         t.exec("returnToPhileasTent-dialog", t.chat.play, {
             "player:Err, this doesn't look good.",
