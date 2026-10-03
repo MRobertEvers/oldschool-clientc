@@ -2026,7 +2026,7 @@ that avoids every splat halves the blood spawn chance, at most 8 blood spawns. D
 6. A blood spawn moves on 77 % of ticks (44,137 moves in 57,029 slug-ticks), not a third.
 7. The blood spawn halving when everyone avoids the splats (Jagex) is absent from `~tob_maiden_pool_roll` (read from the script, not run).
 8. Entry blood spawns spawn with 90 hitpoints (cache unit 10; `~tob_maiden_pool_roll` ignores the mode).
-9. Death: `^tob_maiden_death_a_ticks` is 2 (cache 3), so the two animations are cut to 6 ticks where the cache and a plugin say 7 (read from the constant, not run).
+9. Death: `^tob_maiden_death_a_ticks` is 2 (cache 3), so the two animations are cut to 6 ticks where the cache and a plugin say 7 (read from the constant, not run). *Restated 2026-10-03 (seam4):* the 3 + 4 cache ticks are the two animations' lengths and AdvancedRaidTracker adds its 7 to the tick it sees `maiden_death_a` (K+1); the recordings hold the first death form 4 ticks in 13 of 13 rooms and despawn her 8 ticks after it, 9 after the killing blow in the 3 rooms that record her at 0 hitpoints and 8 in the 10 where the killing hit shows on the dying_a tick (`maiden_spec_pass_2026-10-02.txt` lines 39-55), which is what `maiden.death_a_len` (4) and `maiden.death_total` (8-9) now state and what our server does (8093 K+1, 8094 K+5, free K+9).
 Open, not bugs: the Hard focus bonus (25 here, "double" from one narrator, M120), the blackstorm flight (M122), Entry offsets (M121), trail damage (Wiki 5-13 / 2-5, ours 10 + 2c).
 
 Reproduce: `python3 sources/blert_api/maiden_modes_extract.py <raw>` and `maiden_spec_analyses.py <raw>`; the raw streams are fetched by `sources/blert_api/fetch_blert_maiden.py` (3 s per request).

@@ -8,7 +8,8 @@ list_m<mode>_s<scale>.json challenge listings, fetched 2026-10-02 by
 sources/blert_api/fetch_blert_maiden.py. Raw streams are not committed.
 Prints: transmog threshold and hitpoint continuity, the T-1 aim of blood pools, which
 player receives the two extra splats, blood spawn movement (as a fraction, and as runs), and
-hitpoints by party size.
+hitpoints by party size, and (appended 2026-10-03) her death timeline: killing blow, dying_a,
+dying_b and despawn ticks.
 """
 import collections, glob, json, math, os, sys
 RAW = sys.argv[1]
@@ -163,3 +164,37 @@ print("still runs (length, count)", sorted(stills.items()))
 print("still runs of 1-4 ticks", sum(k for n, k in stills.items() if n < 5),
       "two-tile steps", sum(k for n, k in steps.items() if n >= 2),
       "free-tick step rate (ticks outside still runs of 5+) %d of %d" % (steps[1], steps[1] + short))
+
+print("\n== death timeline (appended 2026-10-03, seam4): killing blow, dying_a, dying_b, despawn")
+# Per raid: the last player attack on her live form (atk), the tick her live form reads 0
+# hitpoints if the recorder ever shows it (hp0), the first tick of the dying_a id 8364/10826
+# (A), of the dying_b id 8365/10827 (B), and her NPC_DEATH event (D). Every other hit in
+# these streams shows on the tick after the attack, so when no hp0 is recorded the killing
+# hit shows on the dying_a tick itself. The cache seqs (maiden_death_a 90 cycles = 3 ticks,
+# maiden_death_b 120 = 4) are the animations' lengths, not the ticks between these ids.
+LIVE = MAIDEN - {8364, 8365, 10826, 10827}
+DYING_A = {8364, 10826}; DYING_B = {8365, 10827}
+ab = collections.Counter(); bd = collections.Counter(); ad = collections.Counter()
+kill_a = collections.Counter(); kill_d = collections.Counter()
+for u, ev in streams.items():
+    her = [e for e in ev if "npc" in e and e["npc"]["id"] in MAIDEN]
+    A = min(e["tick"] for e in her if e["npc"]["id"] in DYING_A)
+    B = min(e["tick"] for e in her if e["npc"]["id"] in DYING_B)
+    D = [e["tick"] for e in her if e["type"] == 9]
+    D = D[0] if len(D) == 1 else None
+    hp0 = [e["tick"] for e in her if e["type"] == 8 and e["npc"]["id"] in LIVE
+           and "hitpoints" in e["npc"] and hp(e["npc"]["hitpoints"])[0] == 0]
+    hp0 = min(hp0) if hp0 else None
+    atk = max(e["tick"] for e in ev if e["type"] == 5 and e["tick"] < A
+              and e.get("attack", {}).get("target", {}).get("id") in LIVE)
+    K = hp0 if hp0 is not None else A          # the tick the killing hit shows
+    ab[B - A] += 1; bd[None if D is None else D - B] += 1; ad[None if D is None else D - A] += 1
+    kill_a[A - K] += 1; kill_d[None if D is None else D - K] += 1
+    print(u[:8], "mode", lists[u]["mode"], "scale", lists[u]["scale"], "atk", atk, "hp0", hp0,
+          "dying_a", A, "dying_b", B, "despawn", D, "(K = %d: dying_a K+%d dying_b K+%d despawn K+%s)"
+          % (K, A - K, B - K, None if D is None else D - K))
+print("dying_a -> dying_b", dict(ab), "dying_b -> despawn", dict(bd), "dying_a -> despawn", dict(ad))
+print("raids that record 0 hitpoints on her live form", sum(1 for u in streams
+      if any(e["type"] == 8 and e["npc"]["id"] in LIVE and "hitpoints" in e["npc"] and hp(e["npc"]["hitpoints"])[0] == 0
+             for e in streams[u] if "npc" in e)), "of", len(streams))
+print("killing hit -> dying_a", dict(kill_a), "killing hit -> despawn", dict(kill_d))

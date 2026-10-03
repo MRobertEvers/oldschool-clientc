@@ -35,3 +35,21 @@ mode 12 eligible 188 throws 50 violations 0
 slug lives 22 moves followed by a move on the next tick 1009 of 1043
 still runs (length, count) [(5, 15), (8, 1), (20, 1), (32, 11), (35, 1), (37, 1), (281, 1), (305, 1), (462, 1), (478, 1)]
 still runs of 1-4 ticks 0 two-tile steps 0 free-tick step rate (ticks outside still runs of 5+) 1043 of 1043
+
+== death timeline (appended 2026-10-03, seam4): killing blow, dying_a, dying_b, despawn
+147369d5 mode 12 scale 1 atk 512 hp0 None dying_a 513 dying_b 517 despawn 521 (K = 513: dying_a K+0 dying_b K+4 despawn K+8)
+23f16b8d mode 12 scale 2 atk 315 hp0 None dying_a 316 dying_b 320 despawn 324 (K = 316: dying_a K+0 dying_b K+4 despawn K+8)
+287a5e70 mode 11 scale 3 atk 126 hp0 None dying_a 127 dying_b 131 despawn 135 (K = 127: dying_a K+0 dying_b K+4 despawn K+8)
+2d77f535 mode 12 scale 3 atk 179 hp0 180 dying_a 181 dying_b 185 despawn 189 (K = 180: dying_a K+1 dying_b K+5 despawn K+9)
+3c159bc9 mode 11 scale 4 atk 234 hp0 235 dying_a 236 dying_b 240 despawn 244 (K = 235: dying_a K+1 dying_b K+5 despawn K+9)
+4dea5b4d mode 12 scale 5 atk 135 hp0 None dying_a 136 dying_b 140 despawn 144 (K = 136: dying_a K+0 dying_b K+4 despawn K+8)
+54f2c13f mode 12 scale 4 atk 151 hp0 None dying_a 152 dying_b 156 despawn 160 (K = 152: dying_a K+0 dying_b K+4 despawn K+8)
+606916a5 mode 11 scale 5 atk 179 hp0 None dying_a 180 dying_b 184 despawn 188 (K = 180: dying_a K+0 dying_b K+4 despawn K+8)
+843e8d1f mode 12 scale 3 atk 208 hp0 None dying_a 209 dying_b 213 despawn 217 (K = 209: dying_a K+0 dying_b K+4 despawn K+8)
+b00a3f14 mode 12 scale 2 atk 340 hp0 None dying_a 341 dying_b 345 despawn 349 (K = 341: dying_a K+0 dying_b K+4 despawn K+8)
+d6550d0e mode 12 scale 5 atk 150 hp0 None dying_a 151 dying_b 155 despawn 159 (K = 151: dying_a K+0 dying_b K+4 despawn K+8)
+e011cdd1 mode 12 scale 4 atk 154 hp0 None dying_a 155 dying_b 159 despawn 163 (K = 155: dying_a K+0 dying_b K+4 despawn K+8)
+e7a9ee48 mode 12 scale 1 atk 506 hp0 507 dying_a 508 dying_b 512 despawn 516 (K = 507: dying_a K+1 dying_b K+5 despawn K+9)
+dying_a -> dying_b {4: 13} dying_b -> despawn {4: 13} dying_a -> despawn {8: 13}
+raids that record 0 hitpoints on her live form 3 of 13
+killing hit -> dying_a {0: 10, 1: 3} killing hit -> despawn {8: 10, 9: 3}
