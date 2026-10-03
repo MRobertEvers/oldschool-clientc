@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Facing Jad Head-on II
+|image = [[File:TzKal-Zuk.png|150px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without equipping any range or mage weapons before wave 69.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Restriction
+|id = 350
+|leagueRegion = Karamja
+}}
+'''Facing Jad Head-on II''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without using any [[ranged]] and [[magic]] weapons before fighting him.
+
+==Strategy==
+[[Justiciar armour]] and [[Dinh's bulwark]] are recommended for the massive ranged defence bonus and passive damage reduction effect, reducing a good chunk of damage from the ranged mobs during the run. A [[Saradomin godsword]] is recommended to restore health and prayer points. Even then, try to get as few enemies as possible attacking to avoid the chances of getting combo'd out, since all of the monsters can hit very hard.
+
+The player is still allowed to cast spells as long as they don't equip a wand or staff; as melee armour provides negative magic bonuses, they will need to be taken off in order for the spells to hit. Alternatively, a [[Voidwaker]] and [[Ancestral robe top]] likely provides enough positive magic accuracy to allow barrage spells to hit. Note that despite [[Polestaff|polestaves]] such as the [[pharaoh's sceptre]] and [[keris partisan]] being unable to autocast spells, they are still considered magic weapons and will fail the task if equipped.
+
+It is highly recommended to bring both a [[noxious halberd]] and [[scythe of Vitur]] for this task if the player can manage the monsters. The halberd is very useful for players who don't want to flinch monsters without running the risk of other monsters attacking or getting melee'd by a [[Jal-Xil|ranger]], [[Jal-Zek|mager]], or [[JalTok-Jad|Jad]]. This is especially true in the triple Jad wave, as letting one use melee will cause the Jads to potentially attack in sync when the player already has to focus on flicking incoming attacks.
+
+'''DO NOT''' equip a magic or ranged weapon after clearing the triple Jad wave; wait for Zuk's cutscene to start before doing so. If the weapon is swapped to before Zuk's wave starts, the attempt will be void.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

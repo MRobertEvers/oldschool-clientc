@@ -1,0 +1,41 @@
+{{Update|date=19 January 2016|link=https://secure.runescape.com/m=forum/sl=0/forums?380,381,255,65733280|category=website}}
+{{Headline|25|Dev Blog: The Inferno & TzKal-Zuk (Jad 2)}}
+
+Last week we offered Jad 2 as an expansion to the TzHaar Fight Cave. With an a lot of excitement surrounding the proposal but the content falling just short in the poll, we would like to offer a bit more insight into the content and make a couple of small changes.
+{{ToC}}
+==The Inferno==
+Upon completing 63 waves of the Fight Cave, you will be given a choice: take your hard-earned Fire Cape and leave or risk it for a chance in '''The Inferno'''.
+
+If you accept the challenge you will be faced with '''22 additional waves''' leading up to the fight of a lifetime. You will fight '''new TzHaar monsters''' along the way, challenging you both mechanically and in terms of endurance.
+
+If you are able to make it to the final fight, you are in for a treat. You will be up against '''TzKal-Zuk''', an incredibly fierce foe that will not be taken down by just anyone.
+
+Our goal with this content is to, once again, bring you that same '''feeling of accomplishment''' that you felt the first time you killed TzTok-Jad. This boss will be very challenging and will '''turn you into a panicky mess''' as you approach the final fight.
+
+==Why is The Inferno an extension of the Fight Cave?==
+One of the most consistent comments we have received since discussing an expansion of the Fight Cave at RuneFest last year is that you do not want this update to be the Fight Kiln coming to Old School. Keeping The Inferno as an extension of the Fight Cave will offer you a very different experience to what the Fight Kiln offered in RS3.
+
+An extension, rather than a separate cave, doubles-down on the challenge of endurance that the Fight Cave offers. The limit of a single inventory and the gear you're wearing is challenge enough when completing the first 63 waves - completing an additional 22... Now THAT is an endurance challenge!
+
+Offering The Inferno as a separate piece of content would require a lot more development time in order for it to have the same impact. Keeping it as an extension allows us to create a very challenging and enjoyable piece of content in much less time, meaning we can deliver the content much sooner and keep up the work on other projects, too.
+
+==The Rewards==
+We will be offering three potential rewards for those skilled enough to take down TzKal-Zuk: a new best-in-slot melee cape, a new best-in-slot ranged cape and a new best-in-slot magic cape.
+[[File:Dev Blog- The Inferno (1).png|center|375px]]
+
+
+These capes will have the following stats:
+[[File:Dev Blog- The Inferno (2).png|center|575px]]
+
+
+These capes will be untradeable and the only way to retrieve one if you lose it will be to successfully complete The Inferno and kill TzKal-Zuk once again.
+
+We will be offering these capes in two questions. If both questions receive over 75% approval, all three capes will be the reward for completing The Inferno and taking down TzKal-Zuk.
+
+The ranged and magic capes have been bundled together in a question to avoid an awkward mix of capes being offered as a reward.
+
+'''Please note''': The ranged cape will not increase the max hit of the dark bow. This will be capped at 48-48.
+* '''Question''': Should a new best-in-slot melee cape be given as a reward for defeating TzKal-Zuk?
+* '''Question''': Should a new best-in-slot ranged cape and best-in-slot magic cape be given as a reward for defeating TzKal-Zuk?
+
+'''''Mods Alfred, Archie, Ash, Ghost, Ian, Jed, John C, Kieren, Mat K, Maz, Ronan, Weath'''''<br>''The Old School Team''

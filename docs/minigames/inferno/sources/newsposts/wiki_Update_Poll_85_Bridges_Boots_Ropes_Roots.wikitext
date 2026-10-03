@@ -1,0 +1,168 @@
+{{Update|date=17 September 2025|url=https://secure.runescape.com/m=news/poll-85---bridges-boots-ropes--roots?oldschool=1|category=game}}
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We’re aware that the new permanent ropes at Baxtorian Falls (after completing Waterfall Quest and the Kandarin Medium Diary), currently skip the plateau needed for the medium clue step.
+| Hotfixed.
+|-
+| Ground item labels are currently not displaying on the offical client.
+| Coldfixed.
+|}
+
+''Bridges, boots, ropes and roots - more Poll 85 changes are here!''
+
+==Changelog September 17th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Poll 85 Batch 2'''
+
+* Players can now repair the broken bridge near Fenkenstrain's Mausoleum, creating a new shortcut to the island. You will need level 59 Construction with 12 teak planks and 56 nails. 69 Agility is required to cross the bridge afterwards. Note, you'll need to repair both sides of the bridge before you can safely cross it.
+* The number of Fremennik Sea Boot teleports now scales by tier: 1 → 3 → 5 → Unlimited (Easy → Medium → Hard → Elite)
+* Shops on desktop now include the same quantity buttons as Mobile, letting you set and left-click to buy your chosen amount.
+* After completing Waterfall Quest and the Kandarin Medium Diary, permanent ropes are now in place at Baxtorian Falls for easy dungeon access.
+* The Harmony Island herb patch is now permanently disease-free for guaranteed healthy herbs.
+* All Hunter Experts can now give you a one-time free Hunter Kit (across all experts) to help you get started.
+
+'''Client and Mobile Updates'''
+
+* Mobile players can now optionally display a mobile icon by their character in the minimenu, helping others understand why you may be less responsive. The icon remains hidden in PvP areas like the Wilderness and Ferox Enclave.
+* Fixed visual flickering in various locations and NPCs when using the new renderer beta.
+* Fixed a bug where the 'Limit FPS' setting would be ignored when the game is out of focus (Desktop Official Client)
+* The Official Client’s AFK logout timer can now be set up to 30 minutes.
+* Fixed an issue on mobile which caused private chat messages and system messages to overlap the chat stone UI.
+
+'''Other Changes'''
+
+* Hallowed Sepulchre chests now correctly drop stackable clue scrolls if you haven’t reached your clue cap.
+* Impling jars now only show the warning that prevents you from opening the jar if you already have a clue or scrollbox of that type on you and you’ve reached your stackable clue cap. Note, the other warning, which appears when you would receive a clue but don’t have one on you, remains unchanged.
+* Fixed a bug where Slayer masters weren’t respecting the 'Ignore Combat Level' setting, which could stop players from receiving tasks they were otherwise eligible for.
+* Fixed a bug where Slayer masters wouldn’t provide tips for Jad and Zuk tasks, leaving the advice dialogue blank.
+* Some typos have been fixed in clan broadcasts.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Poll 85==
+More Poll 85 has arrived this week, introducing a batch of changes aimed at making your gameplay feel a bit nicer. Let's take a look at them! 
+
+===Bridge Over Less Troubled Waters===
+Tired of that pesky broken bridge near Fenkenstrain’s Mausoleum mocking you? Well, now you can actually repair it! All it takes is 59 Construction, 12 teak planks, and 56 nails. Once built, the shortcut requires 69 Agility to cross. This should make trips to and from the area far more convenient. Be warned, though - you'll find you need to repair both sides of the bridge before you can safely cross it.
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/mos.jpg here]!'']]
+
+===Fremennik Sea Boots===
+The teleports on the Fremennik Sea Boots now scale by Diary tier, making them more useful the further you progress. Teleports are now:
+
+* Tier 1 (Easy): 1 teleport per day
+* Tier 2 (Medium): 3 teleports per day
+* Tier 3 (Hard): 5 teleports per day
+* Tier 4 (Elite): Unlimited teleports
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/boot.jpg here]!'']]
+
+===Desktop Shops Match Mobile===
+Shops on desktop now include the same quantity buttons that mobile players have enjoyed for some time. These let you set a preferred purchase or sell amount, and then buy or sell that amount with a single left-click. This should make shopping and skilling supplies much faster.
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/shop.jpg here]!'']]
+
+===The Ropes are on Baxtorian Falls===
+Once you’ve completed both Waterfall Quest and the Kandarin Medium Diary, ropes will now be permanently secured at Baxtorian Falls. That means no more realising (after sprinting all the way there with 0 run energy left) that you left your rope in the bank, only to drift helplessly downstream in a puddle of soggy shame.
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (4).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/bax.jpg here]!'']]
+
+===Harmony Island Herb Patch===
+The herb patch on Harmony Island is now permanently free from disease. Any herbs planted there are guaranteed to remain healthy until harvest, providing a reliable location for your herb runs.
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (5).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/herb.jpg here]!'']]
+
+===Hunter Starter Pack===
+All Hunter Experts across Gielinor can now provide players with a one-time free Hunter Kit. This should make getting started with the skill a little easier, particularly for newer players looking to try out different Hunter tools. This applies across all experts.
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (6).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/hunt.png here]!'']]
+
+==Client and Mobile Updates==
+Mobile players can now choose to display a mobile icon next to their character in the minimenu. It’s a handy way to let others know you might be a little slower to type back - though don’t worry, the icon will stay hidden in PvP areas like the Wilderness and Ferox Enclave.
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (7).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/menu.png here]!'']]
+
+Not feeling it? You can always toggle this off in the settings menu!
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (8).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-17/settings.png here]!'']]
+
+We’ve also heard your feedback about extending this feature to other areas, like Friends Chats and Clan systems. While we can’t deliver this right away, it’s on our radar, and we’ll be looking into ways to expand it in the future! 
+
+A few other client and mobile updates this week also include: 
+
+* Fixed visual flickering in various locations and NPCs when using the new renderer beta.
+* Fixed a bug where the 'Limit FPS' setting would be ignored when the game is out of focus (Desktop Official Client).
+* The Official Client’s AFK logout timer can now be set up to 30 minutes.
+* Fixed an issue on mobile which caused private chat messages and system messages to overlap the chat stone UI.
+
+==Other Changes==
+
+* Hallowed Sepulchre chests now correctly drop stackable clue scrolls if you haven’t reached your clue cap.
+* Impling jars now only show the warning that prevents you from opening the jar if you already have a clue or scrollbox of that type on you and you’ve reached your stackable clue cap. Note, the other warning, which appears when you would receive a clue but don’t have one on you, remains unchanged.
+* Fixed a bug where Slayer masters weren’t respecting the 'Ignore Combat Level' setting, which could stop players from receiving tasks they were otherwise eligible for.
+* Fixed a bug where Slayer masters wouldn’t provide tips for Jad and Zuk tasks, leaving the advice dialogue blank.
+* Some typos have been fixed in clan broadcasts.
+
+==A Discord Community Event==
+A reminder for anyone who missed it last week, we'll be hosting a Chambers mass on Friday in the official [http://discord.gg/OSRS OSRS Discord!] 
+
+[[File:Poll 85 - Bridges, Boots, Ropes & Roots (9).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/Olm.jpg here]!'']]
+
+* '''When?''' Friday, 19th September
+* '''Time?''' 16.00 - 17.00 BST (Mass at 15.45)
+* '''Where?''' World 522
+
+===What to expect?===
+Beautiful chaos. Piles of deaths, Olm's head almost certainly deciding to laser the entire raid at once, a few heroic clutches (probably accidental), and a tragically low number of purples.
+
+But you can also expect plenty of laughs, some excellent stories, and that unique brand of mass-event madness that makes it all worth it. We're here for the fun - not the points (definitely not the points). Whether we walk away with loot (remember, scuffed = stuff) or just tales of chaos, we'll have a laugh together.
+
+Not keen to be burned alive by your entire team? No worries! You can still join in by spectating - Mod Rach will be streaming her POV so you can enjoy the carnage from the safety of your bank tab.
+
+Requirements? Nothing but a bit of Chambers knowledge, a pulse, and a willingness to die with grace would be beneficial.
+
+So polish your pickaxes, forget your anti-venom, and let's give Olm a show we won't forget - for better or for much, much worse!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1nj9g8k/poll_85_bridges_boots_ropes_roots/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

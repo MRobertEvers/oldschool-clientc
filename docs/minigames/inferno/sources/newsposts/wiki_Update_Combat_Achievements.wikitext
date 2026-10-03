@@ -1,0 +1,366 @@
+{{Update|date=21 July 2021|rev=26 July 2021|link=https://secure.runescape.com/m=news/combat-achievements?oldschool=1|category=game}}
+[[File:Combat Achievements newspost.png|right]]
+{{clear}}
+{{ToC}}
+==Issues and Hotfixes (July 26th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:35 BST)''' We promised Limited Account Builds the ability to complete Combat Achievements until the Hard tier, however the task "Prepared for Battle" as it requires full Shayzien Armour equipped.
+|'''(11:35 BST)''' This was an oversight on our end which we will be able to resolve next week. We can change the task to something that Limited Accounts can complete or remove it altogether. We apologize for the inconvenience caused.
+|-
+|'''(11:45 BST)''' We've received reports of Cannons always hitting 0s.
+|'''(11:55 BST)''' [FIXED] We've deployed a hotfix, Cannons should now be working as normal.
+|-
+|'''(11:50 BST)''' Scorpia tasks aren't retroactively completing.
+|'''(12:00 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(12:00 BST)''' Completing Phosani's Nightmare is unlocking tasks for regular Nightmare when it shouldn't be.
+|'''(12:10 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(12:20 BST)''' We've received reports of players being unable to purchase normal teleport crystals within The Gauntlet.
+|'''(13:10 BST)''' [FIXED] The team has deployed a hotfix to resolve this issue.
+|-
+|'''(12:35 BST)''' We've received reports of some non-range/mage items failing the "Face Jad Head-On" task.
+|'''(13:25 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(12:45 BST)''' We've received reports of inconsistencies with Bird houses
+|'''(13:34 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(12:45 BST)''' The task, "Back in my Day", within the Theatre of Blood was not recognising Scythes as intended.
+|'''(12:57 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(13:15 BST)''' The Chaos Elemental gives no damage XP when hit.
+|'''(13:23 BST)''' [FIXED] Players should now receive XP as intended.
+|-
+|'''(13:19 BST)''' Barrow's Brothers Medium Task "Can't Touch Me" is nearly impossible to complete due to the Barrow's brothers having a very high chance of hitting the player as they are spawned.
+|'''(14:00 BST)''' We've temporarily added a small delay between when a Barrow's brother spawns and does their first attack. This should help provide enough time to move away before getting hit!
+
+We're considering changing this task next week to "Kill a Barrow's brother while they're bound/frozen." so the delay can be removed.
+
+Let us know what you think. Should the delay stay or would you rather the task be changed?
+|-
+|'''(13:20 BST)''' We've received reports of the Adventurer's Log Counters Tab not showing anything at all.
+|'''(13:42 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(13:39 BST)''' The task "A Timely Snack" is not being completed when tanking 3 balls on solo.
+|'''(15:02 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(13:39 BST)''' The task "Wolf Puncher II" is failing if the player makes one attuned weapon.
+|'''(13:52 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(13:56 BST)''' The task "Facing Jad Head-On" III and IV tasks are being failed by equipping items that aren't weapons.
+|'''(15:02 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(14:05 BST)''' The Collection Log Counter is showing increasingly bigger numbers.
+|'''(15:25 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(14:05 BST)''' The task "Denying the Healers II" completes even when healers clearly heal Jad.
+|'''(16:11 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(14:55 BST)''' The "Demonic Weakling" task is not working as intended because the Altars become active after Skotizo's long death animation.
+|'''(15:25 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(16:11 BST)''' The "Demonic Evasion" task is not completing as players are considered to take damage, even when correctly praying against Magic.
+|'''(16:25 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(16:40 BST)''' The "Fire in the Hole!" task was difficult for some players as the task would not complete if a Cannon was already full.
+|'''(16:40 BST)''' Players must load all four Cannons (both Cannons on both ships) to complete this task. However, when a Cannon is already full it will prevent players from completing their task. We are implementing a hotfix which will allow players to gain progress on the task when using the fish on a Cannon, even if it's full. No points will be given and the fish will not be removed from the player inventory - it will just count towards progress on the task.
+|-
+|'''(17:24 BST)''' Completion of the "Morytania Only" challenge was instead completing the "Back in My Day" task instead.
+|'''(17:25 BST)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(11:23 BST, 22nd July)''' The "Glough Speed-Trialist" task was not completing as intended.
+|'''(11:23 BST, 22nd July)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(11:23 BST, 22nd July)''' The "From One King to Another" task was not completing if players had a Ring of Recoil or Ring of Suffering equipped.
+|'''(11:23 BST, 22nd July)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(11:00 BST, 26th July)''' The "Playing with Jads" Grandmaster task was encountering issues to complete.
+|'''(11:00 BST, 26th July)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(11:00 BST, 26th July)''' The "Fremmenik Way" Grandmaster task was failing upon equipping items which are not weapons.
+|'''(11:00 BST, 26th July)''' [FIXED] We've deployed a hotfix to resolve this issue.
+|-
+|'''(11:00 BST, 26th July)''' Some tasks located in the Fight Caves were not behaving as intended.
+|'''(11:00 BST, 26th July)''' Fight Cave tasks will now no longer complete if you log out during the Fight Caves. We're investigating an issue related to this feature and will update the newspost accordingly.
+|}
+
+''Welcome! The big news this week is the arrival of Combat Achievements – a sweet new way to measure how tough you are and score some juicy rewards for said toughness. Plus, we’ve made a couple of changes to the Gauntlet. So, find yourself a spot in the shade (or a seat by an air conditioner) and let's get stuck in!''
+
+==Combat Achievements==
+Have you smashed your way through the many bosses of Gielinor in a dozen different ways? Want some recognition for your mad skills? Well, you’re in luck, because Combat Achievements is designed for precisely that!
+
+This new system will have you completing tasks of steadily increasing difficulty as you bash those bosses. Similar to Achievement Diaries, Combat Achievements are split into different tiers, steadily increasing in difficulty. There are a lot of bosses and monsters within Old School, so unlike Achievement Diaries' four tiers, Combat Achievements will have a whopping six – Easy, Medium, Hard, Elite, Master and Grandmaster.
+
+It's worth mentioning that all kill count tasks and Gauntlet speed tasks are retroactive, meaning that these tasks will include your previous amount of kills or your previous recorded times within The Gauntlet, as this was the only area completely unaffected by the Equipment Rebalance. All other speed tasks will have to be completed after the update goes live.
+
+[[File:Combat Achievements (1).png|600px|centre]]
+
+{{Collapsed section|18|Recommendations & Requirements - Click to Expand}}
+''The 'Recommended Stats' aren't a strict requirement, but do reflect the level of a typical account that's suitably progressed for these achievement levels.''
+
+;Easy
+For the first tier, take on the Barrows, Sarachnis, The King Black Dragon, The Mole, the free-to-play giants and various other non-boss creatures around the game.
+
+Recommended:
+*Base 60 Combat stats
+
+Mandatory requirements:
+*Access to Morytania
+*Access to Wintertodt/Tempoross
+*62 Slayer
+
+;Medium
+This tier covers demi-bosses, and other slightly trickier bosses such as the Dagannoth Kings and Skotizo.
+
+Recommended:
+*Base 70 Combat stats
+
+Mandatory requirements:
+*The ability to summon Thralls
+*77 Slayer
+
+;Hard
+Now it’s getting tough. At this tier, you’ll be defeating bosses in the God Wars Dungeon or such as the Abyssal Sire, Grotesque Guardians and Wilderness bosses.
+
+Recommended:
+*Base 80 Combat stats
+
+Mandatory requirements:
+*85 Slayer
+*Access to Zulrah
+*Completion of A Night at the Theatre
+
+;Elite
+Here's where things really start to get heated! The Elite tier covers tasks including Raids-related challenges, The Gauntlet and the Fight Caves. At this tier you are expected to have access to most areas in the game.
+
+Recommended:
+*Base 90 Combat stats
+
+Mandatory requirements:
+*95 Slayer
+*Song of the Elves
+*Dragon Slayer II
+*Fremennik Exiles
+
+;Master
+A tier for the seriously battle-worn. You'll face off against the clock for some challenges, and tackle content equivalent in difficulty to the Inferno.
+
+Recommended:
+*Base 95+ Combat stats
+*A good understanding and proficiency with most PvM activities within the game.
+
+;Grandmaster
+This final tier is for the best of the best! You'll be expected to face the toughest challenges Gielinor has to offer. If you thought the Inferno was difficult, this will blow your mind.
+
+Recommended:
+*Maxed Combat stats
+*Experienced across all PvM activities
+{{Collapsed section end}}
+
+===Getting Started===
+Ghommal is your go-to NPC for Combat Achievements. He hangs around outside the Warriors' Guild in Burthorpe, and will be your one-stop shop for information and hard-earned rewards (more on that shortly).
+
+[[File:Combat Achievements (2).png|500px|centre]]
+
+To implement a new Combat Achievements interface, we’ve changed a few things around on the Hub. Open the Quest Panel and you'll see the Minigame Interface is no longer there (it’s now in the Clan/Social Panel instead).
+
+[[File:Combat Achievements (3).png|200px|centre]]
+
+In its place, a new coloured star symbol has appeared. This is effectively your portfolio of accomplishments, from the number of quests you’ve completed to your time in-game. You can also view the Collection Log and access all of its features by clicking the relevant info box.
+
+[[File:Combat Achievements (4).png|200px|centre]]
+
+This is where you’ll track your progress and Combat Achievements. Click on the 'Combat Tasks Completed' info box for an overview of how many tasks you’ve nailed in each category, plus fun extra stats like your top bosses and how many times you've sent them packing!
+
+[[File:Combat Achievements (5).png|600px|centre]]
+
+By clicking each box on the left, or using the three-lined icon in the top left corner and selecting Tasks, you can see a detailed list of what each Combat Achievements tier has to offer. Click the plus icon next to a task to see what you need to do.
+
+We’ve also provided a handy filter bar to help you refine your task lists and choose relevant goals to suit your current mood. You can filter tiers, types of task and specific monsters or areas. You can also exclude your complete or incomplete tasks.
+
+If you want a full list of tasks available with the launch of Combat Achievements, our wonderful friends at the OSRS Wiki have got <u>[[Combat Achievements#Tiers|a complete list here]]</u>. Check it out!
+
+[[File:Combat Achievements (6).png|600px|centre]]
+
+From the three-lined icon previously mentioned, there are also two additional screens you can access: Bosses and Rewards. The Bosses screen will let you view your task progress on each monster individually, so you can keep track of your ongoing feud with a particular nasty.
+
+[[File:Combat Achievements (7).png|600px|centre]]
+
+Clicking on each boss gives you a detailed overview, including:
+*Boss info
+*Recommended requirements/difficulty
+*Combat level
+*Your kill count
+*Links to the Collection Log, its location on the map and the Wiki entry.
+
+You can also reset your times on this screen. This can be done at any time, but will require your PIN.
+
+[[File:Combat Achievements (8).png|600px|centre]]
+
+===Rewards===
+The final section of the Combat Achievements screen is all about those hard-earned rewards! You’ll unlock this section when you’ve completed every task in a single tier. As previously mentioned, rewards are claimed by speaking to Ghommal.
+
+Every tier comes with an upgraded Ghommal's Hilt. At the final tier (Ghommal's Hilt 6), this equippable off-hand item will give you unlimited teleports to Trollheim and Mor Ul Rek. Much like the Quest Cape, if we add new tasks to a Combat Achievements tier with future content, you'll have to complete these new tasks to regain access to that tier Hilt and any above it.
+
+[[File:Combat Achievements (9).png|600px|centre]]
+
+Each tier also gives you an XP Lamp (which increase in value as you climb through the ranks) and a set of bonuses that will make taking out Slayer monsters a bit more enjoyable. Some tiers also feature recolours for the Dragon Hunter Crossbow and Slayer Helmets, so be sure to keep checking this panel!
+
+[[File:Combat Achievements (10).png|600px|centre]]
+
+As a bonus, Clans will now have the option to broadcast Combat Achievement tier completions, so you can share your successes with your Clan mates!
+
+{{Collapsed section|18|Full Rewards List (SPOILERS) - click here for more details}}
+;Easy
+*Ghommal's Hilt 1
+**Daily Trollheim teleports - 3
+
+*5k XP Lamp (minimum skill requirement: 20)
+*The drop chance of a Clue Scroll (Easy) from all sources (except Impling Jars) is increased by 5%
+*The maximum quantity assigned from the Like A Boss Slayer reward increases by 2
+
+;Medium
+*Ghommal's Hilt 2
+**Daily Trollheim teleports - 5
+
+*10k XP Lamp (minimum skill requirement: 30)
+*The drop chance of a Clue Scroll (Medium) from all sources (except Impling Jars) is increased by 5%
+*The maximum quantity assigned from the Like A Boss Slayer reward increases by 4
+
+;Hard
+*Ghommal's Hilt 3
+**Daily Trollheim teleports - Unlimited
+
+*15k XP Lamp (minimum skill requirement: 40)
+*The drop chance of a Clue Scroll (Hard) from all sources (except Impling Jars) increases by 5%
+*The maximum quantity assigned from the Like A Boss Slayer reward increases by 6
+*The drop chance of an Ecumenical Key increases by 8%
+*The killcount required to access a God Wars boss is reduced to 38
+*You can access a privately rented God Wars boss instance for a fee of 150k coins
+*You can combine King Black Dragon Heads with a Dragon Hunter Crossbow to recolour it
+
+;Elite
+*Ghommal's Hilt 4
+**Daily Trollheim teleports - Unlimited
+**Daily Mor Ul Rek teleports - 3
+
+*25k XP Lamp (minimum skill requirement: 50)
+*The drop chance of a Clue Scroll (Elite) from all sources (except Impling Jars) increases by 5%
+*The maximum quantity assigned from the Like A Boss Slayer reward increases by 8
+*The drop chance of an Ecumenical Key increases by 16%
+*The killcount required to access a God Wars boss is reduced to 36
+*You can access a privately rented God Wars boss instance for a fee of 125k coins
+*You can combine Vorkath's Head with a Dragon Hunter Crossbow to recolour it
+*Ghommal can make you a TzTok Slayer Helmet
+
+;Master
+*Ghommal's Hilt 5
+**Daily Trollheim teleports - Unlimited
+**Daily Mor Ul Rek teleports - 5
+
+*35k XP Lamp (minimum skill requirement: 60)
+*The maximum quantity assigned from the Like A Boss Slayer reward increases by 11
+*When you are assigned a TzTok-Jad or TzKal-Zuk Slayer task you will have to kill two of either
+*The drop chance of an Ecumenical Key increases by 25%
+*The killcount required to access a God Wars boss is reduced to 33
+*You can access a privately rented God Wars boss instance for a fee of 100k coins
+*Ghommal can make you a Vampyric Slayer Helmet
+
+;Grandmaster
+*Ghommal's Hilt 6
+**Daily Trollheim teleports - Unlimited
+**Daily Mor Ul Rek teleports - Unlimited
+
+*50k XP Lamp (minimum skill requirement: 70)
+*The maximum quantity assigned from the Like A Boss Slayer reward increases by 15
+*When you are assigned a TzTok-Jad or TzKal-Zuk Slayer task you will have to kill three of either
+*The drop chance of an Ecumenical Key is increased by 33%
+*The killcount required to access a God Wars boss is reduced to 30
+*You can access a private God Wars boss instance for a fee of 75k coins
+*Ghommal can make you a Tzkal Slayer Helmet
+{{Collapsed section end}}
+
+===Clue Scrolls===
+As part of the Combat Achievements update, one of the rewards unlocked is an increase to certain clue drop rates. Clues obtained from skilling were particularly tricky to apply this to.
+
+Previously, there would be one roll per skilling action to determine if you would get any clue. If that roll was successful then a secondary roll was made to determine what clue you should receive. This was fine in itself, but if we wanted to only buff one specific tier of clue it would quickly become troublesome.
+
+For example: if you rolled for a Medium Clue, but you already had one, then it would try and give you the next tier of clue. This meant that your chance of receiving, let's say, an Easy Clue, could vary from a 40% chance to a 100% chance depending on what clues you already owned, assuming you pass the initial skilling clue roll.
+
+So attempting to increase the drop rate of Easy Clues would directly affect your chances of obtaining other tiers of clues, which was undesirable.
+
+We've now reworked the system as two independent rolls, so in our example above, your Easy Clue will no longer have its drop rate affected by the other clues in your possession. Theoretically, this also means you can receive multiple different clues in one skilling action.
+
+Because this inherently nerfs the potential best drop rate of Easy to Hard Clues, they have been made more common to compensate. They should now be closer to the 'best' drop rate pre-update.
+
+==Combat Achievements Competition==
+To kick off the release of Combat Achievements, we're throwing in some extra thrills with six competitions and some fantastic prizes!
+
+There are six tiers to Combat Achievements, and we'll be awarding the first players to complete each tier. Here's what you could win:
+
+===First To Complete Easy Tier===
+The first player to complete the Easy tier of Combat Achievements will receive a year's membership!
+
+===First To Complete Medium Tier===
+The first player to complete the Medium tier of Combat Achievements will receive a year's membership!
+
+===First To Complete Hard Tier===
+The first player to complete the Hard tier of Combat Achievements will receive a year's membership!
+
+===First To Complete Elite Tier===
+The first player to complete the Elite tier of Combat Achievements will receive a year's membership and a King Black Dragon building set!
+
+===First To Complete Master Tier===
+The first player to complete the Master tier of Combat Achievements will receive a year's membership and a King Black Dragon building set!
+
+===First To Complete Grandmaster Tier===
+The first player to complete the Grandmaster tier of Combat Achievements will receive a year's membership and a King Black Dragon building set!
+
+Both start today and will run until completion of the competitions. View all the Ts&Cs by visiting our [http://services.runescape.com/m=forum/forums?380,381,741,66222751 forum thread].
+
+Good luck!
+
+==Gauntlet Changes==
+Need a way out, sharpish? Players can now create Escape Crystals, which are a one-way ticket out of the Gauntlet! They cost 200 shards each and can be made at the Singing Bowl in the first room. Left-click a Crystal to get the hell outta there.
+
+You can also make the Crystal Paddlefish, a new combo food, by combining a Paddlefish with 10 Crystal Shards at the Singing Bowl. You score 5 XP in Crafting and Smithing for making them, and eating them will heal 16 HP. Bon appétit!
+
+==A Last Message From Mod MikeD==
+''Hey everyone,
+
+''After a couple of very exciting years, the time has come for me to leave Old School Runescape. I wanted to take the opportunity to let you all know how much I appreciated getting to work on such a legendary title.''
+
+''I’ve learned an invaluable lesson about community and what it means to be a part of such a passionate development team. I wouldn’t trade this experience for anything.''
+
+''I know we leave something of ourselves behind when we go, I just hope I left something good.''
+
+''Thanks,''
+
+''Mike Donatelli''
+
+''Product Director''
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+*560 - (UK) - PvP World
+*579 - (US) - High-Risk PvP World
+*561 - (UK) - Free-to-play PvP World
+*580 - (US) - LMS Competitive
+
+==Other News==
+*Petrified Pete’s Reward Shop now has PIN protection.
+*Piscarilius patrolmen no longer teleport innocent players who happen to be standing on the same tile as a burglary suspect. It’s not a fair cop!
+*Cannons are once again permitted in the Giants' Den under Shayzien.
+*The Demonic Offering spell, and similar spells, no longer have a walk-stalling effect.
+*Some typos have been fixed in the Rum Deal quest.
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,740,66222686 official forums], on the [https://www.reddit.com/r/2007scape/comments/oomskc/combat_achievements_weekly_game_update_july_21st/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jerv, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

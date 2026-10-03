@@ -1,0 +1,60 @@
+{{Infobox Monster
+|name = Jal-AkRek-Ket
+|image = [[File:Jal-AkRek-Ket.png|250px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 70
+|size = 1
+|examine = It might be smaller, but I still don't want to be near that thing.
+|xpbonus = 0
+|max hit = 18
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|slayxp = 15
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 15
+|att = 120
+|str = 120
+|def = 95
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 25
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 25
+|dslash = 25
+|dcrush = 25
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|id = 7696
+}}
+'''Jal-AkRek-Ket''' is a [[volcanic creature]] encountered in the [[Inferno]]. It appears when a [[Jal-Ak]] has been killed, alongside a [[Jal-AkRek-Mej]] and [[Jal-AkRek-Xil]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-AkRek-Ket now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* While the Jal-AkRek-Mej and Jal-AkRek-Xil use a slightly different model than the Jal-Ak, the Jal-AkRek-Ket seems to be a scaled-down version of the Jal-Ak.
+
+{{Inferno}}

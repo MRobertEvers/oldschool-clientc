@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Inferno Speed-Runner
+|image = [[File:Inferno entrance.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Inferno in less than 65 minutes.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Speed
+|id = 352
+|leagueRegion = Karamja
+}}
+'''Inferno Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Inferno]] in less than 65 minutes.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

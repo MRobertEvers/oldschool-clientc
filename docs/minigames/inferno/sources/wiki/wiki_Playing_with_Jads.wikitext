@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Playing with Jads
+|image = [[File:JalTok-Jad.png|280px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete wave 68 of the Inferno within 30 seconds of the first JalTok-Jad dying.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Mechanical
+|id = 344
+|leagueRegion = Karamja
+}}
+'''Playing with Jads''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete wave 68 of the [[Inferno]] within 30 seconds of the first [[JalTok-Jad]] dying.
+
+==Strategy==
+Since [[Yt-HurKot|healers]] spawn when a Jad reaches half health, it is recommended to trigger the spawn of healers for each Jad before killing the first one. Kill or trap each set of healers as they spawn. After all three Jads have spawned healers and their healers have been dealt with, lower each Jad's health carefully, ensuring not to kill any prematurely. Once each Jad is sufficiently weakened, swiftly kill each Jad in succession.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

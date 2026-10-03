@@ -1,0 +1,344 @@
+{{Update|date=19 January 2022|link=https://secure.runescape.com/m=news/leagues-iii---shattered-relics-launch?oldschool=1|category=game}}
+[[File:Leagues III - Shattered Relics Launch newspost.png|right]]
+{{Clear}}
+
+<center>''This week we’re embarking on a new adventure with Leagues III: Shattered Relics!''
+
+
+<b>We are pleased to announce the game is back online!<br>
+
+All game worlds should be available including the nine additional Leagues worlds.<br>
+
+Thank you for your patience and support as the team worked to resolve the issues!<br>
+
+Happy 'Scaping!</b></center>
+
+==Leagues III: Shattered Relics==
+Get ready to experience Old School RuneScape in a brand new way! Leagues III: Shattered Relics is finally here, and you’ll be able to play it as much as you like until '''March 6th, 2022.'''
+
+Let’s take a look at that trailer again…
+
+
+<center><big><big>[https://www.youtube.com/watch?v=pwfn1ZlBq9o What is Leagues III: Shattered Relics? | Old School RuneScape]</big></big></center>
+
+
+To start your Leagues adventure, you’ll need an account with '''active membership.''' Once you’ve got yourself one of those, simply open up the game and select one of the worlds marked in '''green''' on the World Selector page. At launch, there’ll be 22 Leagues worlds available:
+
+* '''US (East):''' 401, 402, 403, 404, 578 & 581
+* '''US (West):''' 409, 410, 411 & 540
+* '''EU:''' 405, 406, 458, 459 & 460
+* '''UK:''' 407, 408 & 558
+* '''Australia:''' 412, 568, 569 & 570
+
+When you begin you’ll start as a fresh new Iron account. But don’t worry – this doesn’t affect any of your stats in the main game, so you can use whichever account you like for this game mode!
+
+Leagues III: Shattered Relics begins with an opening cutscene explaining where you’ve come from and what’s about to happen. After that, you’ll appear in the familiar fishing town of Catherby, where a mysterious figure is waiting to explain everything you need to know.
+
+[[File:Leagues III - Shattered Relics Launch (1).png|centre|600px|thumb|''An image from the opening cutscene.'']]
+[[File:Leagues III - Shattered Relics Launch (2).png|centre|600px|thumb|''The Leagues III starting area.'']]
+
+The Sage has kindly stepped in to help guide you on your journey through this League, and provide a short tutorial. The basics remain the same - complete tasks to unlock League Points, which in turn can be exchanged to unlock more Fragment slots (and later, main game rewards). You can also gain Sage’s Renown, which is your main currency for unlocking the biggest restrictions in this League: skills and bosses.
+
+Initially, you’ll only be able to earn XP in Fishing, Thieving and Defence, along with one Combat skill of your choice (Attack, Magic or Ranged). You’ll also get a starting Fragment based on your selection.
+
+From there on out, the choice is yours! Unlike previous Leagues, there are no area restrictions and you can explore the whole of Gielinor however you see fit. Plus, your Run Energy will never deplete!
+
+If you do need any additional information about the League, its mechanics, or anything else, you can find it in the new Leagues tab in the Character Summary window.
+
+[[File:Leagues III - Shattered Relics Launch (3).png|centre|253px|thumb|''The Leagues tab.'']]
+
+Read on for information about getting started, or dive straight in! Further details can be found at the [[Shattered Relics League|OSRS Wiki]], the official [https://discord.com/invite/OSRS Old School RuneScape Discord], the official [https://discord.com/invite/vbhPUHU Leagues III Discord], or the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit].
+
+Expand the tabs below to learn more about Leagues III: Shattered Relics!
+
+----
+
+{{Collapsed section|18|League-Specific Rules}}
+* You will start as a new Iron player near the town of Catherby, which means you cannot trade with other players or use the Grand Exchange.
+* You will have the normal items from Tutorial Island in your Backpack and Bank.
+* All skills except Defence, Fishing and Thieving, plus the Combat skill of your choice, will be locked.
+* Additional skills, bosses and quest bundles can be purchased with Sage's Renown which can be earned by completing tasks.
+* You may still perform skilling activities within the range of your locked skills, but will not receive any experience. For example, you can still cut normal trees and receive logs without unlocking Woodcutting, but you cannot progress to oak trees until you unlock the skill.
+* XP rates will be accelerated by 5x the usual rate.
+* For this League, Clue Scrolls will stack in Clue Scroll Boxes.
+* Any death will respawn you at the starting point in Catherby.
+
+[[File:Leagues III - Shattered Relics Launch (4).png|centre|600px|thumb|''The starting area, just west of Catherby.'']]
+{{Collapsed section end}}
+{{Collapsed section|18|Tasks}}
+Tasks are a collection of goals that earn you League Points. They include all kinds of activities including skilling, obtaining rare drops, killing creatures, completing quests, and even playing minigames.
+
+You can find a full list in the ‘Tasks’ tab of the Leagues Menu, where you’ll also be able to check how many League Points you need for your next Fragment Slot. The Task List can also be filtered by tier, type, area, skill and whether or not you’ve completed it.
+Sage’s Renown Unlocks
+
+[[File:Leagues III - Shattered Relics Launch (5).png|centre|600px|thumb|''The Tasks tab.'']]
+
+The amount of League Points received varies according to the tier of the task, ranging from Easy to Master. You’ll also earn Sage’s Renown, which we’ll learn about later on.
+
+[[File:Leagues III - Shattered Relics Launch (6).png|centre|222px|thumb|''Nice work, you completed a task!'']]
+Our friends at the OSRS Wiki have a [[Shattered Relics League/Tasks|full list of tasks]] for you to peruse!
+{{Collapsed section end}}
+{{Collapsed section|18|Fragments and Set Effects}}
+Leagues III: Shattered Relics introduces a new currency called Sage’s Renown, which you’ll earn by completing tasks. Sage’s Renown is used to unlock skills and bosses, and for auto-completing quests. You can find all these options under the ‘Unlocks’ tab in the Leagues Menu.
+
+Unlike League Points, Sage’s Renown disappears once you spend it – so choose your unlocks wisely!
+
+To begin with, you’ll only have four skills available. To gain XP in the others, you’ll need to unlock it with Sage’s Renown. Please note that you won’t receive any extra XP when unlocking the skill – you’ll be starting from Level 1, even if you got XP from a quest!
+Waystones
+
+[[File:Leagues III - Shattered Relics Launch (7).png|centre|600px|thumb|''The skill unlocks interface.'']]
+
+Bosses can also be unlocked with Sage’s Renown. You must meet all the normal pre-requisites for a particular boss before you can face them, even after they’re unlocked.
+
+[[File:Leagues III - Shattered Relics Launch (8).png|centre|600px|thumb|''The bosses unlocks interface.'']]
+
+Quests are a bit different – they come in bundles, rather than individual unlocks. Unlocking a specific questline will auto-complete all the quests in the bundle.
+
+[[File:Leagues III - Shattered Relics Launch (9).png|centre|600px|thumb|''The quests auto-complete interface.'']]
+
+Select a bundle and click the Info button to learn which items and areas you’ll unlock. If you’ve already completed some of the quests in the bundle, you’ll get a discount.
+
+Please note that you can only auto-complete quests while in a Bank. Any XP you would ordinarily gain from the quest will NOT be received – you’ll have to actually do the quest to get your hands on that!
+
+[[File:Leagues III - Shattered Relics Launch (10).png|centre|600px|thumb|''An example of a quest bundle.'']]
+
+You can find a full list of restricted content and the associated unlock cost in the Restricted Content section of the [[Shattered_Relics_League/Guide#Restricted_content|OSRS Wiki]].
+
+{{Collapsed section end}}
+{{Collapsed section|18|Fragments and Set Effects}}
+The all-powerful Relics of the previous two Leagues have been split into Fragments and scattered across Gielinor!
+
+It’s not all bad though – by experimenting with Fragments, you’ll be able to customise your gameplay experience like never before!
+
+You can learn all you need to know about Fragments and Set Effects in the ‘Fragments’ section of the Leagues Menu – but here’s a quick run-down.
+
+[[File:Leagues III - Shattered Relics Launch (11).png|centre|600px|thumb|''The Fragments menu.'']]
+
+Here’s the key thing about Fragments – unlike Relics, your choices aren’t permanent, and you can swap Fragments around as you please. You can do so by simply dragging and dropping a Fragment into any unlocked slot. If there’s already a Fragment in the slot, it’ll be replaced.
+
+This menu also lets you filter Fragments to see only the ones you’ve unlocked. You can also check individual Fragment Effects, and your current active and passive effects, such as your current XP boost.
+
+[[File:Leagues III - Shattered Relics Launch (12).png|centre|600px|thumb|''Here's the first Fragment in an active slot.'']]
+
+To maximise your Fragments’ potential, you’ll need to take advantage of their Set Effects. Using Fragments from the same family will activate their Set Effect, an awesome, super-specialised buff. Read all about ‘em in the Fragments menu!
+
+Lastly, Fragments will level up as you gain experience while they’re active. Your active Fragments will get one XP point for every XP point you earn – so they should level up sharpish!
+
+So what are these Fragments? There are lots of different ones, but we suppose we can give you a sneak peek. When you pick your first Combat skill to unlock, you’ll gain a matching Fragment. Let’s take a look:
+
+[[File:Leagues III - Shattered Relics Launch (13).png|centre|600px|thumb|''Your first choice.'']]
+
+;Unwavering Warrior (Attack)
+Choosing Attack as your first Combat skill will get you a free Steel Scimitar and the Unholy Warrior Fragment. When active, melee attacks get an accuracy boost when you are on 0 Prayer Points:
+
+* Level 1: 12%
+* Level 2: 20%
+* Level 3: 30%
+
+
+;Focused Ranger (Ranged)
+Along with an Oak Longbow and some Iron Arrows, you’ll also receive the Bottomless Quiver Fragment when choosing Ranged as your starting Combat skill.
+
+With this Fragment active, Ranged ammunition and weapon charges have a chance to be saved – with the exception of Chinchompas, who are sadly irreplaceable.
+
+* Level 1: 30%
+* Level 2: 60%
+* Level 3: 90%
+
+
+;Masterful Wizard (Magic)
+Choosing Magic as your starting Combat skill nets you a Staff and some Runes, plus the Arcane Conduit Fragment. When active, Runes and Magic weapon charges have a chance to be saved on cast:
+
+* Level 1: 30%
+* Level 2: 60%
+* Level 3: 90%
+
+Please note that your starting Fragment and skill cannot be changed, although you can find the other two Fragments later on. Plus, you can unlock the other skills using Sage’s Renown.
+
+How do you find Fragments, you ask? Well, every Fragment in the League can be discovered while partaking in regular activities as part of ordinary gameplay. Want a Firemaking Fragment? Light some fires! Hunter? Catch some kebbits! And so on.
+
+Any kind of Combat has the chance to get you a Combat Fragment, so get to Slaying!
+
+
+Check out the following pages from the OSRS Wiki to see a full list of [[Shattered_Relics_League/Fragments|Fragments]] and [[Shattered_Relics_League/Fragments#Set_effects|Set Effects]].
+{{Collapsed section end}}
+{{Collapsed section|18|Waystones}}
+With the whole of Gielinor to explore, we thought we’d save you some time by creating easy transport options. Along with your unlimited Run Energy, you’ll find Waystones in certain major cities and popular destinations. Once activated, you can travel between Waystones as many times as you like, with no cooldown.
+
+[[File:Leagues III - Shattered Relics Launch (14).png|centre|600px|thumb|''An active Waystone near Catherby.'']]
+
+Here's a handy guide to the Waystone network:
+
+[[File:Leagues III - Shattered Relics Launch (15).png|centre|600px|thumb|''A list of Waystone locations from in-game.'']]
+
+{{Collapsed section end}}
+{{Collapsed section|18|HiScores and League Points}}
+You’ll get League Points for completing tasks, and harder tasks offer more Points – but you’ll need to be a real tough cookie to reach the higher echelons of the Leagues HiScores table! The more tasks you complete, the higher you’ll climb!
+
+We’ll also be bringing back League Firsts, which will be awarded to the quickest player to complete this League’s most impressive feats including:
+
+* Obtaining a pet
+* Achieving a Level 99
+* Completing an Elite Achievement Diary
+* Maxing a Fragment
+* Obtaining all Fragments
+* Unlocking all skills
+* Unlocking all bosses
+* Reaching Tiers 5,6, and 7 (''three separate firsts'')
+* Reaching Tiers 5,6, and 7 without unlocking hitpoints (''three separate firsts'')
+* Completing each tier of the Combat Achievements (''six separate firsts - Easy, Medium, Hard, Elite, Master and Grandmaster'')
+{{Collapsed section end}}
+{{Collapsed section|18|Rewards}}
+Leagues might be a temporary game mode, but we don’t want you going away empty-handed! You’ll be able to spend your hard-earned League Points on various rewards back in the main game – including some from previous Leagues. Let’s have a gander…
+
+;Shattered Relic Hunter Outfit
+
+As long-time League fans will know, each League has its own themed outfits, available in three distinctly fashionable tiers. The more points you accumulate in the League, the higher tier of outfit you can access. Naturally, you get more flair for your fashion at the higher tiers – and each outfit comes with its own emote, too.
+
+The Relic Hunter outfit for Leagues III is the Shattered Relic Hunter Outfit, and it’s perfect for sailing ominously down the River of Souls in.
+
+[[File:Leagues III - Shattered Relics Launch (16).png|centre|600px|thumb|''All variants of each Relic Hunter outfit (from left to right: Tier 1, Tier 2 & Tier 3).'']]
+
+;Shattered Relics Home Teleport Animation
+
+Spice up your tawdry old Home Teleport animation with a stylish new variant, perfect for when you’re too ‘shattered’ to schlep back to Lumbridge. This little scroll will teach you to teleport in style by placing down some Relics. Careful with those, now!
+
+[[File:Leagues III - Shattered Relics Launch (17).gif|centre|493px|thumb|''The Relic-centric Home Teleport animation.'']]
+
+;Leagues Banner
+
+Show your support for your favourite League (so far) with this themed banner! The banner is wearable, though if you don't fancy using up a main-hand slot, it can be proudly displayed in your Player Owned House via the Leagues Hall.
+
+[[File:Leagues III - Shattered Relics Launch (18).gif|centre|600px|thumb|''The Leagues III Banner.'']]
+
+;Weapon Variety Pack
+
+Show the bosses who’s boss with the Shattered Relics Weapon Variety Pack, including cosmetic recolours for all kinds of playstyles. Whether you’re wielding the Abyssal Whip, the Tentacle Whip, the Rune Crossbow, God Books, or just strutting your stuff in Mystic Robes, this pack has a fancy new option for you.
+
+[[File:Leagues III - Shattered Relics Launch (19).png|centre|600px|thumb|''Cool whip! (Left: Abyssal Whip, Right: Tentacle Whip)'']]
+[[File:Leagues III - Shattered Relics Launch (20).gif|centre|598px|thumb|''A classic, given new life. (Rune Crossbow)'']]
+[[File:Leagues III - Shattered Relics Launch (21).png|centre|600px|thumb|''Which God Book do you wield? (left to right: Armadyl, Bandos, Guthix, Saradomin, Zamorak & Zaros)'']]
+[[File:Leagues III - Shattered Relics Launch (22).png|centre|600px|thumb|''Mystic Robes for mystic bros. (Mystic Robes)'']]
+
+;Dwarven Multicannon Ornament Kit
+
+The Dwarven Multicannon is an interesting item. It’s expensive to operate, but packs a hefty punch, and can greatly speed up those Slayer tasks! The advantages are obvious: it can be used at the very start of the game as the quests required to unlock it are pretty low level. It then remains viable right up to 99 Slayer.
+
+How could we possibly improve this iconic weapon? Uh, by sticking an Ornament Kit on it, obviously! Use the Kit to give your Multicannon a fresh look, not unlike a certain something from classic RuneScape.
+
+[[File:Leagues III - Shattered Relics Launch (23).gif|centre|600px|thumb|''A cannon based on a classic! (Dwarven Multicannon)'']]
+
+;Void & Elite Void Ornament Kit
+
+Void is the perfect reward for Leagues III because it already fits with Melee, Range and Magic Combat thanks to the different Helmet types. Plus, the Void and Elite Void variants are great for both mid and late game PvM players. A snazzy Leagues-themed recolour for these outfits is the perfect reward for speedy ‘Scapers.
+
+[[File:Leagues III - Shattered Relics Launch (24).png|centre|600px|thumb|''Enter the void in style! (left to right: Void Melee, Ranged, Mage, Void Elite, Melee, Ranged & Mage)'']]
+{{Collapsed section end}}
+{{Collapsed section|18|League to League Rewards}}
+Certain stuff is so rare and exciting that getting it in a temporary game mode is kind of a buzzkill! To remedy this problem, certain items can be carried over from League to League, including:
+
+;Pets
+
+You'll be able to reclaim any pet received during the first two Leagues so it can follow you about in Leagues III: Shattered Relics. Note that pets obtained in this manner will not count towards the League First.
+
+;Seasonal Cosmetics
+
+For those of you who participated in the Halloween or Christmas event during Leagues II: Trailblazer, you'll be able to claim your holiday rewards from the main man Diango! Find him in Draynor Market.
+{{Collapsed section end}}
+{{Collapsed section|18|Leagues Veteran Worlds}}
+Last time, we noticed that the League Veteran Worlds were not being used as intended, and weren’t utilised as much as we expected. We’ve scrapped them for Leagues III, but in return we’ve increased the number of League worlds available!
+{{Collapsed section end}}
+{{Collapsed section|18|League Trophies}}
+Unlike other rewards, League Trophies can’t be bought – only earned. They’re an exclusive reward for those who strived to clamber up the top tiers of the HiScores – so it wouldn’t be fair if just anyone could grab ‘em at the Grand Exchange!
+
+To get your hands on one, you’ll need to place in one of the following tiers:
+
+{| style="margin:0 auto;" class="wikitable"
+!Tier
+!Threshold
+|-
+|Bronze
+|100 League Points (Minimum amount to appear on the HiScores)
+|-
+|Iron
+|Top 80%
+|-
+|Steel
+|Top 60%
+|-
+|Mithril
+|Top 40%
+|-
+|Adamant
+|Top 20%
+|-
+|Rune
+|Top 5%
+|-
+|Dragon
+|Top 1%
+|}
+
+All League Trophies can be displayed in the Player Owned House or held. They also all have a unique emote that you can access by right-clicking them.
+
+As a bonus, we'll be keeping an eye on the first person to take down the fearsome fifth general Nex, by themselves! If you're the first one to accomplish this feat, you'll earn yourself a few months of membership.
+{{Collapsed section end}}
+
+And that just about wraps it up! We hope you enjoy your time in Leagues III: Shattered Relics and we can’t wait to see you race to grab those League Firsts and hit Dragon tier.
+
+On your marks, get set… go!
+
+==Between Two Worlds==
+Our epic trailer for Leagues III: Shattered Relics features an original soundtrack, Between Two Worlds, created by Tal Richards, and featuring Ciele and Bizarre Star Strings.
+
+[[File:Leagues III - Shattered Relics Launch (25).jpg|600px|centre]]
+
+Enhance your experience with our most open and versatile Leagues as Between Two Worlds is now streaming on all major platforms including Spotify, Apple Music and more. For a full list, check out this page.
+
+You can also join us on '''Thursday, January 20th''' at '''17:00 GMT''' over on [http://twitch.tv/oldschoolrs Twitch] for an exclusive interview with Tal Richards & Ciele before our Leagues III Q&A begins!
+
+And to learn more about our fantastic musicians, check the following links:
+
+* [https://osrs.game/Tal-Richards Tal Richards Artist Page]
+* [https://twitter.com/talllevyy Tal Richards on Twitter]
+* [https://osrs.game/Ciele Ciele's Artist Page]
+* [https://twitter.com/cielemusic Ciele on Twitter]
+
+You can watch the full music video here:
+
+
+<center><big><big>[https://www.youtube.com/watch?v=4gyfGJwpQRA Between Two Worlds - Tal Richards feat. Ciele & Bizarre Star Strings | Old School RuneScape]</big></big></center>
+
+
+We’d like to give a special thanks to Mod Scratchr, Mod Zarella, Mod Shed, Mod Grace, Mod Surma, Mod Kasia, Mod Razor, Mod Bob, Mod Archie, Mod Parrish, Mod Daz, Mod Aethra, Mod Kandosii, Mod Dnz, Rick Nath and Surface Digital for their work on this amazing video.
+
+==Other Changes==
+Before we walk you through the bits and pieces we’ve changed this week, we’d like to have a word about botting at Last Man Standing.
+
+Every day we ban thousands of bots in Old School, but we understand that some do slip through the net. The anti-cheating team remain committed to tackling bots, and the methods we use to detect bots continue to advance. Unfortunately, due to the low entry requirements for Last Man Standing, new bots continually return to cheat after other accounts they use have been banned. To help resolve this, and improve your player experience, we’ve added additional requirements to Competitive and High Stakes modes.
+
+'''Players will now need a total Skill Level of 750 and at least 30 Quest Points to participate in these modes.'''
+
+We understand that higher requirements are frustrating for legitimate players, and apologise for the inconvenience. Your patience is much appreciated as we work to make this minigame fun and fair for everyone.
+
+* The Edgeville General Store now stocks a Knife, in case players leaving Edgeville need to slash any spider webs.
+* Monster Examine is now re-enabled on Nex. Learn more in our latest Nex post.
+* Dying at the same moment as killing TzKal-Zuk now correctly subtracts 1 KC from a task.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,782,66243697 official forums], on the [https://www.reddit.com/r/2007scape/comments/s7msuu/leagues_iii_shattered_relics_megathread/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the#gameupdate channel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

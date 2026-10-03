@@ -1,0 +1,180 @@
+{{External|rs=TokHaar-Kal-Ket}}
+{{Infobox Item
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|version4 = Locked and broken
+|version5 = Locked and mangled
+|name1 = Infernal cape
+|name2 = Infernal cape (broken)
+|name3 = Infernal cape (l)
+|name4 = Infernal cape (l) (broken)
+|name5 = Infernal cape (l) (mangled)
+|image1 = [[File:Infernal cape.png]]
+|image2 = [[File:Infernal cape (broken).png]]
+|image3 = [[File:Infernal cape (l).png]]
+|image4 = [[File:Infernal cape (l) (broken).png]]
+|image5 = [[File:Infernal cape (l) (mangled).png]]
+|release1 = [[1 June]] [[2017]]
+|release2 = [[1 June]] [[2017]]
+|release3 = [[29 August]] [[2019]]
+|release4 = [[17 June]] [[2026]]
+|release5 = [[17 June]] [[2026]]
+|update1 = The Inferno
+|update2 = The Inferno
+|update3 = Last Man Standing (2019)
+|update4 = Bank Tags, Trouver System Rework & More!
+|update5 = Bank Tags, Trouver System Rework & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable1 = Yes
+|equipable2 = No
+|equipable3 = Yes
+|equipable4 = No
+|equipable5 = No
+|stackable = No
+|noteable = No
+|options1 = Wear, Drop
+|options2 = Drop
+|options3 = Wear, Drop
+|options4 = Drop
+|options5 = Drop
+|examine1 = Whose idea was it to have a cape made of lava anyway?
+|examine2 = A broken Infernal cape.
+|examine3 = Whose idea was it to have a cape made of lava anyway?
+|examine4 = A broken Infernal cape.
+|examine5 = A mangled Infernal cape.
+|value1 = 80000
+|value2 = 1
+|value3 = 80000
+|value4 = 1
+|value5 = 1
+|alchable = No
+|weight = 1.814
+|id1 = 21295
+|id2 = 21287
+|id3 = 24224
+|id4 = 33500
+|id5 = 33502
+|leagueRegion = Karamja
+}}
+{{Synced switch
+|version1 = [[File:Infernal cape detail.png|left|150px]]
+|version2 = [[File:Infernal cape (broken) detail.png|left|150px]]
+|version3 = [[File:Infernal cape (l) detail.png|left|150px]]
+|version4 = [[File:Infernal cape (l) (broken) detail.png|left|150px]]
+|version5 = [[File:Infernal cape (l) (mangled) detail.png|left|150px]]
+}}
+The '''infernal cape''' is the most powerful melee cape in terms of overall bonuses, awarded for defeating [[TzKal-Zuk]] in the [[Inferno]]. It surpasses its predecessor, the [[fire cape]], boasting greater melee attack and strength bonuses, along with slightly higher defensive bonuses. In spite of this, it is still surpassed by the [[Ardougne cloak]]s [[Ardougne cloak 3|3]] and [[Ardougne cloak 4|4]] in stab attack and prayer bonuses, and by the [[mythical cape]] in crush attack.
+
+An infernal cape can be exchanged for a chance of obtaining the [[Jal-Nib-Rek]] pet by speaking to [[TzHaar-Ket-Keh]]. Like killing [[TzKal-Zuk]], there is a 1/100 chance of obtaining the pet this way. If the player already has the pet, capes cannot be exchanged.
+
+An infernal cape can be combined with the [[max cape]] to change its appearance by turning it into the [[infernal max cape]].
+
+As of 1 October 2026, there are '''176,365''' <!--page=7055--> accounts that have obtained an infernal cape.
+
+If the player dies a PvP death at level 20 Wilderness or below and the item is [[Items Kept on Death|unprotected]], it will remain in the player's inventory; however, the item will be in a broken, unusable state and must be repaired by using it on [[Perdu]] and paying him {{NoCoins|225,000}} [[coins]].
+
+If the player dies a PvP death above level 20 Wilderness and the item is [[Items Kept on Death|unprotected]], it will be converted to coins. To prevent this, a [[Trouver parchment]] and a payment of {{NoCoins|500,000}} coins can be given to [[Perdu]] in order to permanently [[(l)|lock]] the item. The locked item will remain in the player's inventory; however, the item will be in a mangled, unusable state and must be repaired by using it on Perdu and paying him {{NoCoins|500,000}} coins.
+
+While equipping the fire cape will grant players the [[fiery (attribute)|fiery attribute]] and will therefore make them susceptible to the extra damage from the special effect of [[pearl bolts (e)]], the infernal cape does not grant this attribute.{{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1455113239860219907|date=1 November 2021|archiveurl=https://reldo.runescape.wiki/i/98674|archivedate=4 November 2021|quote=TIL Pearl bolts do bonus damage if the opponent is wearing a fire cape. Just another thing that makes Inferno worth doing.}}
+
+{{Costume storage|cape rack}}
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Normal
+|version2 = Locked
+|astab = 4
+|aslash = 4
+|acrush = 4
+|amagic = 1
+|arange = 1
+|dstab = 12
+|dslash = 12
+|dcrush = 12
+|dmagic = 12
+|drange = 12
+|str = 8
+|rstr = 0
+|mdmg = 0
+|prayer = 2
+|slot = cape
+|image = [[File:Infernal cape equipped male.png|139px]]
+|altimage = [[File:Infernal cape equipped female.png|139px]]
+}}
+
+==Comparison==
+The infernal cape is very popular for many forms of melee combat and is often the cape of choice. In certain scenarios, other capes may be preferred for their higher accuracy bonuses, higher Prayer bonus, or for being easier to obtain or replace. 
+
+{{Infotable Bonuses|Infernal cape#Normal|Fire cape#Normal|Mythical cape|Ardougne cloak 4|Hitpoints cape#Trimmed|Prayer cape#Trimmed|Obsidian cape|comment6 = When equipped, doubles the player's natural [[Hitpoints]] regeneration rate to 2 Hitpoints per minute|comment7 = When equipped or in the inventory, acts as a [[holy wrench]]|sort=str,prayer|order=desc,desc|nototals=yes|Mixed hide cape}}
+
+==Products==
+{{Uses material list|Infernal cape}}
+
+==Treasure Trails==
+{{EmoteClueHeader}}
+{{EmoteClue|tier=master|emote=Cry|location=[[TzHaar-Hur-Lek's Ore and Gem Store]] in [[Mor Ul Rek]]|item1=infernal cape|item2=toktz-xil-ul|cost=0|variation=fire cape}}
+{{EmoteClueBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Infernal cape}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 June 2026
+|update = Bank Tags, Trouver System Rework & More!
+|change = *New broken and mangled variants of the Infernal cape have been added.
+**Locked Infernal cape now breaks on death below level 20 Wilderness, adding a "(broken)" suffix after the existing "(l)" suffix.
+**Locked Infernal cape now mangles on death above level 20 Wilderness, adding a "(mangled)" suffix after the existing "(l)" suffix.
+}}
+{{Subject changes
+|date = 24 September 2025
+|update = Interface Uplift
+|change = The infernal cape's animated texture will no longer freeze when teleporting.
+}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = The repair cost of the infernal cape has been increased from 75,000 to 225,000 [[coins]].
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Infernal cape equipped.gif|Infernal cape animation when equipped by a player.
+Infernal cape detail animated.gif|Infernal cape animation when dropped on the ground.
+Infernal Cape (Badge).png|The infernal cape [[Steam Badges|Steam Badge]].
+</gallery>
+
+===Concept art===
+<gallery>
+File:Infernal cape concept.png|Early concepts for the infernal cape, including some suggested by players.
+File:Infernal cape concept 2.png|Further concepts presented to players for voting.
+File:Infernal cape concept 3.png|Further concepts presented to players for voting.
+File:Infernal cape concept 4.gif|Example of one of the concepts in-game.
+File:Infernal Cape.png|Reddit user Xxredz and player Jediah won the polls and inspired further designs, and eventually the final cape design.
+</gallery>
+
+==Trivia==
+[[File:Infernal cape IRL.png|thumb|Real life version of Infernal cape seen in The Inferno's behind-the-scenes video]]
+*The first player to obtain the cape was ''Woox'', who claimed the cape two days after release.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/870939670363996160|date=3 June 2017|archiveurl=https://reldo.runescape.wiki/i/106851|archivedate=29 May 2020|quote=A MASSIVE CONGRATULATIONS TO @WooxSolo FOR DEFEATING THE INFERNO! First in the world!}}
+**As the first player to complete the Inferno, he was awarded a real-life version of the infernal cape, as well as a [[rsw:RuneFest 2017|RuneFest 2017]] ticket with full-expenses paid travel and lifetime membership.{{CiteForum|author=Mod Ronan|url=http://services.runescape.com/m=news/the-inferno?oldschool=1|title=The Inferno|forum=Old School RuneScape|postdate=June 1, 2017}}
+*The infernal cape and [[fire cape]], along with their max cape variants, are the only capes to have an animated texture whilst wearing them.
+*As of [[13 November]] [[2020]], 1,692 infernal capes have been removed from users who obtained an infernal cape illegitimately by having another person complete the Inferno for them.{{CiteTwitter|author=Mod Tyran|url=https://twitter.com/JagexTyran/status/1327212531887329282|date=13 November 2020|archiveurl=https://reldo.runescape.wiki/i/99809|archivedate=13 November 2020|quote=Happy Friday 13th, we're rolling out a further 260 offences for illegitimate Infernal Capes this week. That's 1,692 in total so far.}}
+* Prior to an unknown update, defeating TzKal-Zuk with a full inventory resulted in the infernal cape and tokkul not being given to the player at all. However, the cape's [[collection log]] slot would still be unlocked. Currently, doing so results in both being placed on the ground for the player to pick up.
+**If TzKal-Zuk is defeated with only one inventory slot open, the infernal cape will be given to the player, but their tokkul will be dropped on the ground.
+
+==References==
+{{Reflist}}
+
+{{Inferno}}
+{{Obsidian equipment}}
+{{Cape}}
+
+[[Category:Warm clothing]]
+[[Category:Collection log items]]
+[[Category:Lockable items]]
+[[Category:Melee armour]]

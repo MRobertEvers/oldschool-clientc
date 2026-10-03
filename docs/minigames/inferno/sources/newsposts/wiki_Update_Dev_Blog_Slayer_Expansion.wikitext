@@ -1,0 +1,208 @@
+{{Update|date=15 May 2015|link=http://services.runescape.com/m=news/dev-blog-slayer-expansion?oldschool=1|category=website}}
+[[File:Dev Blog- Slayer Expansion newspost.png|right]]
+{{clear}}
+We've just put up a [http://services.runescape.com/m=forum/forums.ws?380,381,177,65622584 developer blog] detailing a whole array of new features and changes to Slayer.
+
+As always, we are looking for as much feedback as we can get so be sure to head over to the blog and let us know what you think!
+
+'''''Mods Archie, Ash, Ghost, Ian, John C, Mat K, Ronan, Weath'''''<br>''The Old School Team''
+
+
+
+----
+
+
+
+
+
+{{Headline|25|Dev Blog: Slayer Expansion}}
+
+[[File:Dev Blog- Slayer Expansion (1).png|center]]
+----
+'''Change log'''<br>After an immense amount of community feedback, the following changes have been made!
+* Slayer helm bonuses will not be applied on boss assignments where the boss can't currently be assigned as a slayer target.
+* Added a special attack to the Abyssal Dagger.
+* Moved Cerberus' location to Taverley, the boss will still require a Slayer assignment to fight.
+* Removed Broad darts - it was clear from the feedback they just aren't necessary.
+* Reduced the herb sack storage capacity from 100 to 30 of each grimy herb.
+* Increased Primordial boots strength bonus from 4 to 5.
+* Added some more information regarding the Slayer cave extension and additional monster spawns.
+* Added some more information regarding slayer assignment list reworks.
+* Cerberus now requires 95 Slayer.
+
+As always please let us know what you think of these changes!
+{{ToC}}
+==Boss slayer==
+Boss slayer has been a very highly requested update to slayer and is the first feature on offer.
+[[File:Dev Blog- Slayer Expansion (2).png|right]]
+We would like to offer it as an unlockable task costing 200 slayer points. Rather than being set a task for a specific boss, you would simply receive a slayer assignment of 'kill x bosses' and would be able to kill any boss that you would like. All bosses listed on the boss log will be included as well as slayer bosses.
+
+Tasks of bosses will be available from Nieve and Duradel and as the experience rates at bosses will not be particularly great, upon completing a boss task you will be rewarded with an additional 5,000 slayer experience.
+
+===Slayer Helm & Boss Slayer===
+Following an immense amount of feedback, the Slayer helm bonuses will only apply on boss tasks that can already be assigned as slayer tasks. This means should you choose to complete your boss assignment at the Chaos Elemental, Commander Zilyana, Corporeal Beast, General Graardor, Giant Mole, Chaos Fanatic, Crazed Archaeologist, Barrows brothers or Zulrah the slayer helm damage bonuses won't be applied.
+
+* '''Question: Should players be able to unlock the chance of getting boss slayer assignments through the Slayer reward points shop? Slayer helm bonuses will not be applied to bosses that can't already be assigned as Slayer targets.'''
+
+==TzHaar Task==
+[[File:Dev Blog- Slayer Expansion (3).png|right]]
+We would like to offer a TzHaar task that can be unlocked for a cost of 100 slayer points. Upon receiving this task from a slayer master, you will be given the choice of either killing the given number of TzHaar monsters or taking on the challenge of completing the fight cave.
+
+If you choose to opt for the fight cave challenge, upon completing the fight cave you will receive a bonus 25,000 slayer experience.
+
+==TzTok-Jad Pet==
+TTo tie in with the TzHaar task, we will be offering to introduce the TzTok-Jad pet.
+
+Players completing the fight cave would have a slim chance of getting a Jad pet upon defeating TzTok-Jad himself. Your chance of receiving the pet when on task is double that of a player completing the cave normally.
+[[File:Dev Blog- Slayer Expansion (4).png|right]]
+We would also like to include an additional option to get yourself a Jad pet. If you aren't lucky enough to get a Jad pet after getting yourself a fire cape, you would then be able to sacrifice your fire cape for another shot at the pet on the spot. The chances of getting a pet by sacrificing your fire cape would, again, be slim.
+
+* '''Question: Should players be able to unlock the chance of getting Tzhaar slayer assignments through the Slayer reward points shop? Upon receiving this task from a slayer master, you will be given the choice of either killing the given number of TzHaar monsters or taking on the challenge of completing the fight cave.'''
+
+==Cerberus - The hellhound boss==
+Last year saw the release of the first Slayer bosses, Thermy & Kraken, and since then we've had no end of requests for more. Cerberus, the hellhound boss, is the first new boss we'd like to offer you.
+
+Located in a new cavern, accessed from Taverley dungeon, Cerberus is thought to guard an ancient gate leading to another plane and with three heads is certainly no pushover.
+
+You'll need 95 Slayer and either a hellhound or boss slayer assignment to take on the demonic canine but those strong enough to slay the beast may find themselves one of the new rewards!
+
+===Cerberus Drops===
+The signature drop we're offering is new best-in-slot boots for all 3 combat classes. However, rather than just dropping the boots Cerberus will have a chance to drop one of the collars worn around its three heads. Embedded within each collar is a powerful crystal from which Cerberus draws its power. If you're lucky enough to find one of these crystals you'll be able to use your magic and crafting skills to create three new boots.
+
+Each of the crystals and new pairs of boots are tradeable and do not degrade at all but once created, can not be reverted or broken down in to the original components.
+
+===Eternal Boots===
+Created by infusing infinity boots with one of the as yet unnamed crystals, Eternal boots provide a +8 magic attack as well as +5 stab, slash, crush and range defence and +8 magic defence.
+
+Eternal boots require 75 defence and magic to wear.
+
+===Pegasian Boots===
+Created by infusing ranger boots with one of the as yet unnamed crystals, Pegasian boots provide a +12 range attack, -12 magic attack and +5 stab, slash, crush & magic defence.
+
+Pegasian boots require 75 defence and ranged to wear.
+
+===Primordial boots===
+Created by infusing dragon boots with the final as yet unnamed crystals, Primordial boots provide +2 stab, slash and crush attack, -4 magic attack, -1 range attack, +22 stab, slash and crush defence and +5 strength bonus.
+
+Primordial boots require 75 defence and strength to wear.
+
+===Smouldering Stone & Infernal Tools===
+Another new item we're offering is the smouldering stone. Dropped by Cerberus and very rarely by standard Hellhounds, the smouldering stone can be attached to a dragon axe or pickaxe to upgrade them.
+
+Requiring 61 woodcutting and 85 firemaking to create, the Infernal axe has a 1 in 3 chance to incinerate logs when chopping trees, providing firemaking experience equal to 50% of burning the logs with a tinderbox. Over time however, the stone will lose power and the axe must be recharged with either another smouldering stone or dragon axe after burning 5,000 logs.
+[[File:Dev Blog- Slayer Expansion (5).png|right]]
+Requiring 61 mining and 85 smithing to create, the Infernal pickaxe has a 1 in 3 chance to incinerate ores when mined which provides a small amount of smithing experience depending on the ores mined. The infernal pickaxe can even incinerate ores that you can't usually smelt, like granite, and will still provide some smithing xp. After incinertating 5,000 ores, the infernal pickaxe must be recharged with either another smouldering stone or dragon pickaxe.
+
+Both infernal tools are untradeable and once created can't be dismantled.
+
+===Hellpup Pet===
+As with all other bosses, Cerberus will also have a very small chance of dropping a boss pet, a hellhound pup.
+
+* '''Question: Should we introduce Cerberus the Hellhound slayer boss as described in the developer blog?'''
+
+==Abyssal Sire - The abyss boss==
+The next slayer boss on offer is the Abyssal Sire, a higher order of Abyssal demon that possesses the power to manipulate tissue of both the living and dead to its will. Using this ability the Abyssal Sire creates a bio-nexus from the remains of adventurers, rearranging their flesh into a living, subservient environment from which it feeds and flourishes. Once a nexus is established, a Sire will often become bloated from its endless greed as it feeds continuously but this does not mean that it becomes any less lethal. When disturbed, a sire will become enraged that another dare to encroach upon its territory and unleashes the full fury of the Abyss upon its latest victim before, they too, join its Nexus for eternity.
+[[File:Dev Blog- Slayer Expansion (6).png|right|250px]]
+Requiring 85 slayer and either an abyssal demon or boss slayer assignment to fight, an Abyssal Sire will prove a challenge for even the most experienced slayers. Those fortunate enough to survive the fight may find themselves a new abyssal dagger!
+
+===Abyssal dagger===
+The abyssal sire signature drop, an abyssal dagger will require 70 attack to equip and will be a very useful stab alternative to the Zamorak Hasta. With +75 stab attack and +70 strength bonuses, the dagger is slightly weaker than a zamorak hasta but the abyssal dagger can use stab while training purely attack, strength or defence.
+
+====Special attack====
+It is clear from the initial feedback that the Abyssal dagger should have a special attack. There was quite a split on what this should be so your input on this new addition will be critical so please let us know what you think about it and if you're not in favor, how you would improve it.
+
+The special attack we'd like to offer introduces a bleed effect. For 50% special attack energy, your next attack will have double accuracy and whatever your next attack deals, will also be dealt again as a bleed effect over the next 6 seconds. So for example, if your special attack deals 20 damage, another 20 damage will be dealt passively as 5 hits of 4 over 6 seconds.
+
+===Other Rewards===
+Abyssal Sires will also have a slim chance of dropping abyssal whips and heads as well as a very low chance of dropping an abyssal minion boss pet.
+
+* '''Question: Should we introduce the Abyssal Sire, the abyssal demon Slayer boss, as described in the developer blog?'''
+
+==Additional slayer reward points purchases==
+Along with this slayer update we would like to give a few more uses for slayer points.
+
+===Extended tasks===
+We would like to add to the list of monsters that you can purchase extended tasks for. Here is a list of those we had in mind.
+[[File:Dev Blog- Slayer Expansion (7).png|right]]
+{|class=wikitable
+!Assignment
+!Current (Nieve)
+!Current (Duradel)
+!Extended
+|-
+|Bloodveld || 120 - 185 || 130 - 200 || 200 - 250
+|-
+|Aberrant spectre || 120 - 185 || 130 - 200 || 200 - 250
+|-
+|Aviansies || 120 - 185 || 120 - 200 || 200 - 250
+|-
+|Mithril Dragons || 4 - 8 || 5 - 10 || 20 - 30
+|-
+|Cave Horror || 120 - 180 || 110 - 170 || 200 - 250
+|-
+|Dust Devil || 120 - 185 || 130 - 200 || 200 - 250
+|-
+|Skeletal Wyvern || 5 - 15 || N/A || 50 - 70
+|-
+|Gargoyle || 120 - 185 || 130 - 200 || 200 - 250
+|-
+|Nechryael || 120 - 185 || 110 - 170 || 200 - 250
+|-
+|Cave Kraken || 100 - 120 || 100 - 120 || 130 - 200
+|}
+
+These task extensions can be purchased individually or as part of a new mega-pack that unlocks all extensions for a small discount.
+
+* '''Question: Should extensions to tasks, listed in the developer blog, be added to the slayer point rewards shop?'''
+
+===Herb sack===
+[[File:Dev Blog- Slayer Expansion (8).png|right]]
+The herb sack would be an untradeable item purchased for 750 slayer points. It would require 58 herblore to use and would have the very useful ability to store up to 30 of each major grimy herb (which includes the main 14 types of herb from guam to torstol).
+
+It would have a left-click 'Fill' option and an 'Empty' option with the bank open.
+
+* '''Question: Should the herb sack, an item that can store up to 30 of each grimy herb be added to the Slayer reward points store?'''
+
+==Stronghold slayer cave expansion==
+We've had a number of requests regarding several different monsters that are assigned as slayer tasks to offer more spawns to help prevent spots filling up on every world. We've also had many requests to add some new monsters to the stronghold slayer cave.
+
+===Additions to the slayer cave===
+We would like to extend the stronghold slayer cave west beyond the iron and steel dragons to include a few new monsters in the cave. The monsters that would be introduced are:
+[[File:Dev Blog- Slayer Expansion (9).png|right]]
+* Blue dragons
+* Red dragons
+* Black demons
+
+You will not be able to use a cannon in the extended area, this is to prevent the Stronghold Slayer cave becoming the one stop location for every assignment.
+
+* '''Question: Should the Stronghold Slayer cave be extended, adding black demons, blue & red dragons?'''
+
+===Additional monster spawns around the map===
+We would also like to increase the amount of monster spawns for the following monsters in the listed locations:
+
+* Blue & baby blue dragons in Taverley dungeon
+* Red dragons in Brimhaven dungeon
+* Black demons in Taverley dungeon
+* Baby green dragons in the Brimhaven dungeon.
+
+
+* '''Question: Should we increase the amount of black demons, blue and baby blue dragons in Taverley dungeon, red dragons in Brimhaven dungeon and introduce baby green dragons to the Brimhaven dungeon?'''
+
+===Drop table improvements===
+We've had some requests to make improvements to existing slayer monster drop tables in order to keep them rewarding so we'd like to offer some minor changes to Dark beasts and spiritual mages.
+
+Dark beasts will be slightly buffed with some of the less useful items on the drop table being replaced with some more valuable items commonly found on generic monster drop tables.
+
+Spiritual mages will have a slight increase in the amount of runes and essence they drop, the contents of the drop table itself won't change.
+
+* '''Question: Should dark beast and spiritual mage drop tables be improved slightly, as detailed in the developer blog?'''
+
+===Slayer assignment refactoring===
+Lastly, we'd like to rework the current assignment list that slayer masters use to select tasks. As it stands, the chance of receiving each monster as an assignment differs from monster to monster and some of the requirements on receiving certain tasks, such as 110 combat to be assigned dark beasts, have been requested to be removed. So we're offering to completely re-write the task selection system for each slayer master with more sensible requirements and an equal chance of selecting each available task. It isn't possible to be very specific with this rework at this this stage but should it pass, will be done in a such way that has as minimal an impact on overall Slayer experience per hour as possible.
+
+* '''Question: Should Slayer assignment tables be reworked as described in the Developer blog?'''
+
+So there you have it! As always your feedback is critical so before selecting how best to break up the questions for polling we'll review all of your feedback early next week.
+
+
+'''''Mods Archie, Ash, Ghost, Ian, John C, Mat K, Ronan, Weath'''''<br>''The Old School Team''

@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Nibbler Chaser
+|image = [[File:Jal-Nib.png|150px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without using any magic spells during any wave in the Inferno.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Restriction
+|id = 349
+|leagueRegion = Karamja
+}}
+'''Nibbler Chaser''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without casting any spells in the [[Inferno]].
+
+==Strategy==
+[[Blood Barrage]] can no longer be used as a means to restore health, so alternate means of healing include the [[Saradomin godsword]] (also restores prayer), [[ancient godsword]] (less efficient) or [[toxic blowpipe]].
+
+[[Chinchompa (weapon)|Chinchompas]] or a [[venator bow]] will be needed to kill the [[Jal-Nib]]s.
+
+While the achievement's description states that all spells cannot be used, there are some exceptions. For example, summoning [[thrall]]s and [[Death Charge]] will '''not''' cause the achievement to be failed. Similarly, the [[eldritch Nightmare staff]] '''special attack''' does not fail the task despite it being a targeted attack and calculating damage based on magic level and magic strength. 
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

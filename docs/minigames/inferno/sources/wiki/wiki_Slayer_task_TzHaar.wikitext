@@ -1,0 +1,88 @@
+{{Stub}}
+{{Infobox Slayer
+|name = TzHaar
+|icon = [[File:TzRek-Zuk chathead.png]]
+|skillreq = None
+|combatreq = None
+|otherreq = None
+|chaeldar = 90-150
+|nieve = 110-180
+|duradel = 130-199
+|id = 2168
+}}
+
+[[TzHaar]] are an ancient race dwelling underneath the [[Karamja Volcano]] in [[Mor Ul Rek]] that can be assigned as a Slayer task if the player has unlocked the perk ''Hot Stuff'' for 100 slayer points.
+
+TzHaar come in four varieties: the artisans [[TzHaar-Hur]], the sages [[TzHaar-Mej|TzHaar-Mej]], hunters [[TzHaar-Xil]], and guards [[TzHaar-Ket]]s. Killing any of these while wearing a charged [[ring of wealth]] increases their chances of dropping [[gems]] (and [[Onyx bolt tips]] for level 221 TzHaar-Kets).
+
+The Hur and Ket primarily attack with melee, while the Xil can use either melee or ranged, depending on the weapon they are using; those wielding [[Toktz-xil-ul]] (resembling a throwing disc) will be able to use both styles, while those wielding [[Toktz-xil-ak]] or [[Toktz-xil-ek]]s use only melee. TzHaar-Mej attack with magic.
+
+Players killing TzHaar are recommended to kill the Ket or melee-using Xil, as they are easily safespotted through the many vents littering Mor Ul Rek. Attacking a Hur will cause all nearby TzHaar to attack the player, while attacking a Mej will cause nearby Xil and Ket to attack the player. When facing Ket, the player can also choose to kill the stronger level 221 variants in the inner area of the city, who can also drop pieces of [[obsidian armour]]. Accessing this inner area requires the player to show a [[fire cape]] to the Ket guards standing by the gates leading inside.
+
+When offered an assignment of TzHaar, the Slayer master may instead allow the player to kill [[TzTok-Jad]] or [[TzKal-Zuk]], with the latter requiring that the player has at least one TzKal-Zuk kill count. This can be further increased to two and three kills per task with the completion of the [[Combat Achievements/Master|master]] and [[Combat Achievements/Grandmaster|grandmaster]] combat achievement tiers respectively. While completing these tasks, the player will obtain slayer experience from every [[volcanic creature]] killed in their respective area and benefits from the slayer helmet's bonus for the entire run. If the player dies or leaves, the task is cancelled and no points are used.
+
+A single kill of TzTok-Jad awards 37,010 slayer experience (25,250 from Jad and 11,760 from the pre-wave monsters, including the four healers), while a single kill of TzKal-Zuk yields ~125,000 experience (depending on how many cycles of monsters spawn while fighting Zuk, and the amount of both Jad and Zuk healers killed); 101,890 experience comes from Zuk, and the remaining from pre-wave monsters. Killing them on a slayer task not only speeds up kill times, but also increases the drop rate of their respective pets by 50% and 25%, making them much more rewarding for pet hunters.
+{{clear}}
+
+==Bursting/Barraging TzHaar-Ket==
+{{Map|name=TzHaar-Ket-Rak|x=2545|y=5110|zoom=2|mapID=23|r=3|align=right|width=200|height=200|}}
+TzHaar-Ket have a relatively low magic level and a +0 magic defence boost. Therefore, players who have defeated [[TzTok-Jad]] and posses a fire cape can opt to burst/barrage TzHaar-Ket within the inner area of [[Mor Ul Rek]]. The best location to do this is near the [[TzHaar-Ket-Rak's Challenges]] minigame.  In this area, the TzHaar-Ket heavily outnumber the TzHaar-Mej and Tzhaar-Xil, so the player can avoid all damage by using the [[Protect from Melee]] prayer. 
+
+The most effective method for grouping Tzhaar-Ket is to use a fast Ranged weapon (such as cheap darts or knives) to draw their aggression. A faster way to group them is to drink a [[Goading potion]] or to use [[Dinh's bulwark]] special attack, but these methods can risk aggroing the TzHaar-Xil in the area. 
+{{clear}}
+==Monster Variants==
+{|class = "wikitable sortable"
+!Monster
+!Combat level
+!Slayer XP
+!Locations
+!Notes
+|-
+|[[TzHaar-Hur]]
+|74
+|80
+|
+*[[Mor Ul Rek]]
+|
+* Attacking one will cause nearby Mej, Xil, and Ket to attack the player.
+|-
+|[[TzHaar-Mej (monster)|TzHaar-Mej]]
+|100
+|100
+|
+* [[Mor Ul Rek]]
+|
+* Attacking one will cause nearby Xil and Ket to attack the player.
+|-
+|[[TzHaar-Xil]]
+|120
+|120
+|
+* [[Mor Ul Rek]]
+|
+*Comes in three variants; two melee-using variants, and one melee/range variant.
+|-
+|[[TzHaar-Ket]]
+|149 <br/> 221
+|140 <br/> 200
+|
+*[[Mor Ul Rek]]
+|
+*Has a level 221 variant in the inner parts of the city, requires a one-time show of a [[fire cape]] to a guard outside the gate separating the two halves
+|-
+|[[TzTok-Jad]]
+|702
+|25,250 (37,010 total)
+|
+*[[Mor Ul Rek]] - [[Fight Caves]]
+|
+*Can be offered prior to killing Jad for the first time
+|-
+|[[TzKal-Zuk]]
+|1,400
+|101,890 (~125,000 total)
+|
+*[[Mor Ul Rek]] - [[Inferno]]
+|
+*Can only be offered after killing Zuk once (without a slayer task)
+|}

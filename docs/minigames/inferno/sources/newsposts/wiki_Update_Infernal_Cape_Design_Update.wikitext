@@ -1,0 +1,74 @@
+{{Update|date=24 April 2017|link=http://services.runescape.com/m=news/infernal-cape-design-update?oldschool=1|category=website}}
+[[File:Infernal Cape Design Update newspost.png|right]]
+{{clear}}
+
+{{Headline|25|Infernal Cape Design Update}}
+
+
+<center><b>On Thursday 20th April, we released the design for the much-anticipated<br>Infernal Cape.</b>
+
+We understand that for many of you the design was great and paid homage to its legendary predecessor the Fire Cape. There was, however, a lot of critical feedback, and we’d like to address that.
+
+In this post we are going to detail a couple of the technical limitations we faced with this design, and what we've done to address your feedback in spite of these limitations.</center>
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Lighting in Old School}}
+
+In Old School RuneScape, all characters are lit from the front. This causes the back of all characters to appear shadowed. This shadowing causes the darkening and desaturation of items worn on a players back.
+
+A great example of this is the original Fire Cape. Below you can see the texture of the Fire Cape texture next to what the cape actually looks like in game.
+
+
+[[File:Infernal Cape Design Update (1).png|center]]
+
+
+Quite a difference, right? The very bright texture of the Fire Cape results in what is quite a dim, slightly desaturated cape when worn.
+
+This is the main limitation we've faced when creating the Infernal Cape. With such a limited range of colours at our disposal, making the lava of the Infernal Cape truly shine is no easy task.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|The New Design}}
+
+
+[[File:Infernal Cape Design Update (2).png|center|400px]]
+
+
+With the new Infernal Cape design, we've made some key tweaks in order to minimize the impact of the character lighting in Old School.
+
+We've darkened the rocks which float in the lava. This additional contrast causes the lava to appear brighter, giving the cape a bit more of the glow we were looking for.
+
+We’ve also added a jewelled obsidian trim to the bottom of the cape in response to those of you who felt the original design was too basic. This additional geometry sets the Infernal Cape it aside from the original Fire Cape slightly more.
+
+
+[[File:Infernal Cape Design Update (3).webm|center|200px|loop|autoplay]]
+
+
+The Infernal Cape is a reward that only the best of adventurers will obtain, and therefore must symbolise significant courage and determination.
+
+We believe that the Infernal Cape now fits that criteria. With its silhouette like the Fire cape, heavy lava flow, and the red inside-lining we know and love, it is sure to attract the admiration of passers-by.
+
+Mod Ghost & Mod Ry went into further detail about lighting and colour rendering in game on last week’s Q&A – if you're interested in hearing more, check out the [https://www.youtube.com/watch?v=KK5hOx3SHzE&feature=youtu.be&t=2010 '''recording of the stream on our YouTube channel'''].
+
+
+{{Horizontal Line}}
+
+
+'''In other news'''
+
+We've made some changes to the [http://services.runescape.com/m=news/dev-blog-fossil-island?oldschool=1 '''Fossil Island developer blog''']. Specifically, we've corrected and clarified the experience provided by birdhouses.
+
+For further details on this change, please read the now updated [http://services.runescape.com/m=news/dev-blog-fossil-island?oldschool=1 '''Fossil Island blog'''].
+
+
+{{Horizontal Line}}
+
+
+Discuss this post on our [http://services.runescape.com/m=forum/forums.ws?380,381,382,65904606 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

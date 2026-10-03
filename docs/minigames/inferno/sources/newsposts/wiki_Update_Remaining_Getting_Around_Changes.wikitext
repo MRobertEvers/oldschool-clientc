@@ -1,0 +1,454 @@
+{{Update|date=01 April 2026|url=https://secure.runescape.com/m=news/remaining-getting-around-changes?oldschool=1|category=game}}
+[[File:Remaining Getting Around Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week brings the rest of the Getting Around Poll changes, along with tweaks to boat combat and Last Man Standing QoL improvements!''
+
+There will be '''no game update next week''' as the team's focusing on getting everything ready for the Leagues VI: Demonic Pacts launch. We'll be back with our sixth League on Wednesday, April 15th!
+
+==Changelog - April 1st==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Remaining Getting Around Changes'''
+
+* The Perfected Quetzal Whistle has been given the same functionality as the Corrupted Bow of Faerdhinen: charging any Quetzal Whistle now contributes to the infinite Perfected Quetzal Whistle unlock.
+* Added a new canoe route along the River Dougne, with 5 new canoe stations:
+** Near Castle Wars
+** West of Tree Gnome Village
+** South of Ardougne Zoo
+** East of Chaos Druid Tower
+** North of Combat Training Camp
+* Made several Agility Shortcuts faster by shortening animations, removing pauses, and allowing stepping stones to be crossed with a single click:
+** Draynor to Port Sarim tunnel
+** Falador crumbled wall
+** Rocks north-west of Corsair Cove
+** Kalphite Queen entrance
+** Falador fence jump
+** Dwarven Mine crevice
+** Alchemical Hydra shortcut
+* Added a new 'Favourites' right-click option for Fairy rings, if you have at least one destination marked as favourite. Hovering over this option will display a sub-menu of your favourite destinations, allowing you to teleport immediately with a single click.
+* Added a 'Last Destination' right-click option to Spirit Trees, with the exception of Spiritual Fairy Trees in the POH. Selecting this option will teleport you straight to the last location you travelled to using any Spirit Tree.
+* Added a toggle to the Lunar return orb so you can choose whether it immediately teleports you on left-click.
+
+====Boat Combat Tweaks====
+
+* Applied a buff to cannons when they are actively ''manned by a player,'' ensuring that a player using a cannon is on par to the DPS of traditional combat +2 Crew members using cannons.
+* Reduced the HP of some sea creatures, especially for those that are smaller and lower-level, so that they are less tanky and their health is more thematically suitable.
+* In relation to the changes above, Bounty Task XP has been reduced by 25% so that the position of Bounty Task within the meta is kept intact.
+* Enabled ranged modifiers such as the Void Armour effect and Ranged Prayers to work in cannon combat, meaning your worn ranged gear will now correctly apply its stats to the overall damage.
+
+====Last Man Standing QoL Tweaks====
+
+* Increased the timer before a game is forcefully ended to 20 minutes, up from 16 minutes 15 seconds.
+* Venom effect from the Noxious Halberd and Burn effect from the Eclipse Set are now cleared from your player character when you win a fight in Last Man Standing.
+* You can now hold up to 2 Sanfew Serums in your Last Man Standing setup, rather than just 1.
+* Rebalanced the points awarded, increasing them for the end of the game.
+** Increased placement points by 1 for the last 9 players standing.
+** Increased kill points by 1 for 3 kills and 5 kills.
+** This means that the new max points a player can get is now 9 points, in the case that the player places 1st (6 points) and scores 5 or more kills (3 points).
+
+====Other Changes====
+
+* Resolved a set of Z-buffer issues across the game:
+** Verzik Vitur no longer clips into her throne.
+** The shield no longer clips into the arena at Inferno during the final stage.
+** Fixed flickering on the floor and cups clipping through a table at Cam Torum.
+** Water flowing from a Varlamore Ancient Fountainhead no longer cuts through the ground.
+** Clipping issues of bed models and the wish list at north Silvarea are fixed.
+** Fixed rendering issues at the Agility Pyramid.
+** Portals found at the Training Grounds during the Recruitment Drive quest no longer clip into the ground.
+* The POH teleport nexus now shows the correct spell icon for Paddewwa Teleport for mobile users.
+* Some text referring to cannonballs has been made more consistent with the objects' names.
+* A typo has been fixed in the description of Armadyl brew(1).
+* A picture of a pink skirt has been removed from the Prayer skill guide.
+
+====PvP Rota====
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Remaining Getting Around Changes==
+The final round of changes from the <u>[https://secure.runescape.com/m=news/a=13/getting-around?oldschool=1 Getting Around Poll]</u> are here! You can see the batches we've previously released from this <u>[https://secure.runescape.com/m=news/a=13/holy-moleys-and-the-hooded-slayer-helm-are-here?oldschool=1 here]</u>, <u>[https://secure.runescape.com/m=news/a=13/deadman-annihilation-tweaks-shellbane-gryphon-cas--more?oldschool=1 here]</u>, <u>[https://secure.runescape.com/m=news/a=13/cow-boss-is-out-today?oldschool=1 here]</u> and <u>[https://secure.runescape.com/m=news/a=13/more-from-the-getting-around-poll?oldschool=1 here]</u>.
+
+Before getting into the remaining changes from the poll, let's kick things off with a tweak for the Perfected Quetzal (i)...
+
+===Tweaking How the Perfected Quetzal Whistle Becomes Infinite===
+To start with, we're giving the Perfected Quetzal Whistle the same functionality as the Corrupted Bow of Faerdhinen. This means you can now work toward unlocking infinite charges gradually, rather than sticking with Hunter Rumours for extended periods before getting the most out of your whistle. Starting with this game update, charging any Quetzal Whistle will now contribute to the infinite unlock, counting toward the total requirement of 10,000 teleport charges worth of Hunter meat.
+
+You can check your progress towards the unlock by asking about the Perfected Quetzal (i) to Soar Leader Pitri and giving him some hunter meat.
+
+[[File:Remaining Getting Around Changes (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/pitri1.png here]!'']]
+
+Once you've reached the total amount of charges required, you'll get an in-game notification informing you that you've unlocked the infinite version of the Perfected Quetzal, which you can get by showing the whistle to Pitri.
+
+[[File:Remaining Getting Around Changes (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/pitri2.png here]!'']]
+
+Now, let's dive right into the remaining updates from the poll...
+
+===River Dougne Canoe Stations===
+[[File:Remaining Getting Around Changes (3).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/canoe.jpg here]!'']]
+
+To make your travels across Kandarin smoother, we've added a new canoe route along the River Dougne, similar to the one along the River Lum. You'll find 5 new canoe stations added, connecting key locations across Kandarin while keeping the system rooted in its original design:
+
+* Near Castle Wars:  Links up with the Ring of dueling and Balloon Network, and should be handy for Clue Scrolls.
+* West of Tree Gnome Village: Close to the Farming patch and Spirit Tree.
+* South of Ardougne Zoo: Provides easier access to central Ardougne, and also close to the Spirit Tree.
+* East of Chaos Druid Tower: Improves travel to the Fishing Guild and North Ardougne.
+* North of Combat Training Camp: Connects to Tree Gnome Village and Barbarian Assault.
+
+[[File:Remaining Getting Around Changes (4).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/maps.png here]!'']]
+
+For consistency, the River Lum canoe station interface has been updated to match that of the River Dougne.
+
+[[File:Remaining Getting Around Changes (5).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/lum.png here]!'']]
+
+Plus, you can now store and withdraw an axe at any canoe station along both the River Lum and River Dougne. Stored axes are shared across all stations, so once you’ve stored one, you’ll never have to worry about bringing an axe to use canoes again. You'll also find that you don't need to withdraw the axe to use it - just interact with the tree and you're good to go!
+
+[[File:Remaining Getting Around Changes (6).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/axe.png here]!'']]
+
+Note that existing canoe types and level requirements also apply to the River Dougne canoe stations.
+
+===Faster Agility Shortcuts===
+We feel that some Agility shortcuts can do with a bit of trimming to ''really'' feel like shortcuts. For this reason, we've made the following changes:
+
+* Stepping stone shortcuts now require just a single click to cross, rather than having to click each stone.
+* Animations for certain Agility shortcuts have been shortened where they previously felt too long, so you’ll spend less time watching your character shuffle about.
+* Unnecessary delays have been removed. For example, your character won’t be left standing around before crossing.
+
+We've made these changes the below shortcuts:
+
+* Draynor to Port Sarim tunnel
+* Falador crumbled wall
+* Rocks north-west of Corsair Cove
+* Kalphite Queen entrance
+* Falador fence jump
+* Dwarven Mine crevice
+* Alchemical Hydra shortcut
+
+No more awkward pauses and unnecessary clicks at certain shortcuts, making them feel more worthwhile once you've unlocked them.
+
+===Fairy Ring Favourites===
+Previously, even if you've favourited destinations on a Fairy ring, you had to go through the Configure option first. With this change, we've removed a few unnecessary clicks and reduced the menu navigation for players who know where they’re going.
+
+[[File:Remaining Getting Around Changes (7).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/favourite.png here]!'']]
+
+You'll now see a new 'Favourites' right-click option added to Fairy rings, if you have at least one destination marked as favourite. Hovering over this option will display a sub-menu of your favourite destinations, allowing you to teleport immediately with a single click! If you don't see this option at Fairy rings, it just means you haven't saved any favourites yet.
+
+===Last Destination option to Spirit Trees===
+To make Spirit Tree travels more convenient for those who regularly bounce between the same locations, we've added a 'Last Destination' option to them. Right-clicking a Spirit Tree and selecting this option will teleport you straight to the last location you travelled to using any Spirit Tree, without needing to open the full destination menu.
+
+[[File:Remaining Getting Around Changes (8).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/lastdestination.png here]!'']]
+
+* The Last Destination is shared across all Spirit Trees.
+* If you haven’t travelled using a Spirit Tree yet, you’ll be told there’s no destination to return to.
+* If you’re already at your last destination, the game will let you know instead of teleporting you.
+* This option is available on all Spirit Trees except Spiritual Fairy Tree in the Player-Owned houses. In the POH, Spirit Trees share menu space with Fairy rings, leaving no room for the Last Destination option to be added.
+
+===Lunar Return Orb===
+In a similar vein, we've made a small tweak to the Lunar return orb.
+
+We've added a toggle to the Lunar return orb so you can choose whether it immediately teleports you on left-click. You can access this toggle by using the new right-click 'Ponder' option on the Return orb.
+
+[[File:Remaining Getting Around Changes (9).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-31/ponder.png here]!'']]
+
+
+[[File:Remaining Getting Around Changes (10).png|thumb|500px|center|''You can enable the toggle by choosing the "Yes, and don't ask again" option.
+If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-31/orb.png here]!'']]
+
+* When the toggle is enabled, left-clicking the Return Orb will teleport you to Rellekka immediately, without opening a  confirmation dialogue. This will offer a quicker option for those who frequently use the orb.
+* When the toggle is disabled, the Return Orb will behave exactly as it has always did, showing the confirmation dialogue before teleporting, for safeguard reasons.
+* The toggle is enabled by default, but can be switched off at any time, maintaining the previous behaviour available for players who prefer the extra confirmation.
+
+And that's a wrap for the Getting Around Poll changes! Now that all of them have made their way into the game, we hope these changes make your journeys across Gielinor smoother and snappier. More convenience, less clicks!
+
+==Boat Combat Tweaks==
+Following your feedback, we've got further boat combat balancing changes, as we mentioned <u>[https://secure.runescape.com/m=news/a=13/easter-2026--pvp-qol-improvements?oldschool=1#Sailing last week]</u>. We'll be closely monitoring how these changes feel in practice, so let us know your thoughts on our usual social channels.
+
+===Buff to Cannons Manned by Player===
+To start with, we've applied a buff to cannonballs and cannons when they are actively ''manned by a player''.  Our goal here was to close the gap between cannons and player gear, ensuring that a player using a cannon is on par to the DPS of traditional combat +2 Crew members using cannons.
+
+You can expect max hits like in the below video while you man the Dragon Cannon.
+[[File:Remaining Getting Around Changes (11).mp4|thumb|600px|center|''If you can’t see the asset above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/videowip.mp4 here]!'']]
+
+To clarify further, cannons and cannonballs now have new stats applied to them called Heavy Ranged Accuracy and Heavy Ranged Strength. These work as you expect - they add bonuses to your Heavy Ranged combat with cannons, on top of the existing stats. However, crewmates do not benefit from these new stats.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Cannon
+! Heavy Accuracy
+|-
+| Bronze
+| 30
+|-
+| Iron
+| 40
+|-
+| Steel
+| 60
+|-
+| Mithril
+| 70
+|-
+| Adamant
+| 85
+|-
+| Rune
+| 110
+|-
+| Dragon
+| 150
+|}
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Cannonballs
+! Heavy Strength
+|-
+| Bronze
+| 15
+|-
+| Iron
+| 30
+|-
+| Steel
+| 40
+|-
+| Mithril
+| 50
+|-
+| Granite
+| 65
+|-
+| Adamant
+| 80
+|-
+| Rune
+| 90
+|-
+| Dragon
+| 100
+|}
+
+===Sea Creature HP===
+We've also reduced the HP of some sea creatures, especially for those that are smaller and lower-level, so that they are less tanky and their health is more thematically suitable. You can see the reduced Sea Creature HP as follows:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Sea Creature
+! New HP
+! Old HP
+|-
+| Tern
+| 22
+| 46
+|-
+| Dolphin
+| 45
+| 74
+|-
+| Eagle Ray
+| 55
+| 74
+|-
+| Sea Mogre
+| 59
+| 87
+|-
+| Osprey
+| 72
+| 114
+|-
+| Frigatebird
+| 79
+| 121
+|-
+| Bull Shark
+| 81
+| 128
+|-
+| Butterfly Ray
+| 83
+| 101
+|-
+| Stingray
+| 106
+| 128
+|-
+| Hammerhead Shark
+| 125
+| 128
+|-
+| Albatross
+| 135
+| 179
+|-
+| Pygmy Kraken
+| 150
+| 177
+|-
+| Narwhal
+| 187
+| 220
+|-
+| Manta Ray
+| 194
+| 225
+|}
+
+====Additional fixes and adjustments:====
+
+* In relation to the changes above, we've adjusted the Bounty Task XP so that the position of Bounty Task within the meta is kept intact. As part of this, Bounty Task XP has been reduced by 25%.
+* We've also tackled an issue where the player's worn gear wasn't contributing as expected to the damage calculations. We've enabled ranged modifiers such as the Void Armour effect and Ranged Prayers to work in cannon combat, meaning your worn ranged gear will now correctly apply its stats to the overall damage.
+
+We’re also aware that boat combat can feel overly intense against some high-level sea creatures, particularly as they’re currently fought in multi-combat areas. To address this, we’re working on introducing single-way combat encounters for the Vampyre Kraken, Armoured Kraken, and Great White Shark. While we don’t have an ETA just yet, we’re aiming to release this change in the coming weeks.
+
+==Last Man Standing QoL Tweaks==
+<u>[https://secure.runescape.com/m=news/a=13/easter-2026--pvp-qol-improvements?oldschool=1#PvP Last week]</u>, we released a series of PvP Quality of Life changes, including for the Last Man Standing minigame. After monitoring your feedback thoroughly, we've made the following tweaks:
+
+* Increased the timer before a game is forcefully ended to 20 minutes, up from 16 minutes 15 seconds.
+* Venom effect from the Noxious Halberd and Burn effect from the Eclipse Set are now cleared from your player character when you win a fight in Last Man Standing.
+* You can now hold up to 2 Sanfew Serums in your Last Man Standing setup, rather than just 1.
+* Rebalanced the points awarded, increasing them for the end of the game.
+** Increased placement points by 1 for the last 9 players standing.
+** Increased kill points by 1 for 3 kills and 5 kills.
+** This means that the new max points a player can get is now 9 points, in the case that the player places 1st (6 points) and scores 5 or more kills (3 points).
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Rank
+! Updated Points
+! Old Points
+|-
+| 1st
+| 6
+| 5
+|-
+| 2nd
+| 5
+| 4
+|-
+| 3rd & 4th
+| 4
+| 3
+|-
+| 5th to 9th
+| 3
+| 2
+|}
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Kill Count
+! Updated Points
+! Old Points
+|-
+| 3 kills
+| 2
+| 1
+|-
+| 5 kills
+| 3
+| 2
+|}
+
+We've got more ''upcoming'' changes we'd like to make but didn't have time to implement this week, including:
+
+* For the "Max/Med" starter kit, replace the Rune Crossbow and diamond bolts (e) with a Dragon Crossobw and Opal dragon bolts (e).
+* Replace the Dragon dagger with Dragon claws in the "Max/Med" starter kit.
+* Add the Oathplate helm into the "Max/Med defensive" loot pool.
+* If the "Automatically smash empty vials" option is disabled, players will keep their vials in their Inventory once a potion is fully consumed. The vials will be cleared upon killing another player.
+* Adjust the default preset for players who have never played Last Man Standing before to have 3 Saradomin brews, 2 Sanfew serums and 10 sharks.
+* Set the default spellbook to Ancient Magicks if the player is brand new to the Last Man Standing gear setup.
+* Allow Zuriel's staff in Last Man Standing to autocast Ancient Magicks spells as well.
+* Replace the Berserker ring with the Berserker ring (i) in the starter kit for all builds.
+
+In addition, an ''upcoming'' tweak for Emir's Arena:
+
+* Add Ancient warriors' weapons to the list of items that can be used at Emir's Arena.
+
+While these changes didn't make it in this week, we're aiming to release them as soon as possible. Appreciate your patience while we work on these changes, and we'll keep you updated.
+
+==Other Changes==
+
+* Resolved a set of Z-buffer issues across the game:
+** Verzik Vitur no longer clips into her throne.
+** The shield no longer clips into the arena at Inferno during the final stage.
+** Fixed flickering on the floor and cups clipping through a table at Cam Torum.
+** Water flowing from a Varlamore Ancient Fountainhead no longer cuts through the ground.
+** Clipping issues of bed models and the wish list at north Silvarea are fixed.
+** Fixed rendering issues at the Agility Pyramid.
+** Portals found at the Training Grounds during the Recruitment Drive quest no longer clip into the ground.
+* The POH teleport nexus now shows the correct spell icon for Paddewwa Teleport for mobile users.
+* Some text referring to cannonballs has been made more consistent with the objects' names.
+* A typo has been fixed in the description of Armadyl brew(1).
+* A picture of a pink skirt has been removed from the Prayer skill guide.
+
+==Easter Livestream==
+[[File:Remaining Getting Around Changes (12).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/livestream.png here]!'']]
+
+Mark your calendars for our Easter 2026 Livestream TOMORROW!
+
+* '''When:''' April 2nd, 15:30 UTC
+* '''Where:''' Our official <u>[https://www.twitch.tv/oldschoolrs Twitch channel]</u>
+* We'll be sailing across Gielinor in Easter fashionscape on World 520.
+* The finalists of the egg decoration competition will be polled by the Twitch chat.
+* We'll be playing Hide and Seek with you live on Twitch.
+* Mass Nex event with Mod Rach on World 521
+
+Check out our sail route map below:
+[[File:Remaining Getting Around Changes (13).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/eastermap.png here]!'']]
+
+See you tomorrow!
+
+==Organised Chaos: Mass Nex==
+As part of our <u>[https://secure.runescape.com/m=news/the-organised-chaos-saga?oldschool=1 Organised Choas]</u> event series, we’re kicking things off with a mass Nex over on world 520. 
+[[File:Remaining Getting Around Changes (14).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-01/nexbanner.png here]!'']]
+
+Join Community Manager Mod Rach, Mod Lenny (one of the developers behind Nex’s creation), and community creator Muts as we take on Nex together on mass. Expect a relaxed, low-pressure sesh, plenty of players, and the kind of chaos that comes with it.
+
+====When?====
+
+* April 10th, 15:00 - 16:00 UTC (16:00 BST, 11:00 ET, 08:00 PT, 01:00 AET)
+
+====Where?====
+We'll start over on world 520, if this world gets full, we'll move over to 521, 522 and so on.
+
+We’ll be live over on <u>[http://twitch.tv/oldschoolrs twitch.tv/oldschoolrs]</u> - but this stream will be less formal and structured than our usual broadcasts - so expect something more relaxed here. You can read more about Organised Chaos and what to expect in our <u>[https://secure.runescape.com/m=news/the-organised-chaos-saga?oldschool=1 dedicated blog]</u>. 
+
+We may grab a few questions for Mod Lenny and Muts during the event, so if there’s something you’re curious about, feel free to share it in advance and we’ll see what we can cover.
+
+Let’s just try not to kick off the series by ending Muts’ Grandmaster Hardcore account, please…
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1s9fwql/remaining_getting_around_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''
