@@ -290,7 +290,9 @@ header reads 'Someone', as Captain Bleemadge's does.
 down and all four crystals are held; the player keeps the crystals for the pillars.
 
 (h) A wiki transcript whose `index.php?action=raw` 403s is fetchable as
-`api.php?action=parse&oldid=<id>&prop=wikitext&format=json`.
+`api.php?action=parse&oldid=<id>&prop=wikitext&format=json`. Since 2026-10 every `action=raw` URL
+answers curl with a Cloudflare challenge page; the api.php forms still work (seam pass
+matthew-mbp-m4-b53-seam2 (d)).
 
 ### Seam pass 25 (2026-09-28)
 
@@ -1309,8 +1311,8 @@ proving it, and both bite any scratch row:
 - ANY xp gain snaps a drained stat back to its base level (torirs_server_combat.c:1174
   `stat_boosted < stat_level`), which LostCity's `addXp` does not do (Player.ts:1840-1851). An Attack-xp
   hit cancels the Sourhog drain. Keep xp off the stat a drain row asserts (aggressive style pays
-  Strength only). STILL OPEN after b53-seam1: a fix exists but was not landed (seam pass
-  matthew-mbp-m4-b53-seam1 (f)).
+  Strength only). FIXED b53-seam2: a drained stat now stays drained through xp (seam pass
+  matthew-mbp-m4-b53-seam2 (a)).
 - A boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`) does not walk
   to an idle owner. Engage it with `t.player.attack` before waiting on its attacks.
 Also: a 1-tick `t.msg.await` loop interleaved with skill reads can miss a line that lands between
@@ -1376,7 +1378,9 @@ it ignores the plane (Trap 29), so assert the floor with `t.world.tile().level`.
 `build/quest_gate/wlb_altar_route_s3` 13/13 (chaos runes crafted) and a What Lies Below copy 57/0
 through `useWandOnAltar`. Route rows: `test/quests/wip/whatliesbelow/relay.md`.
 
-(c) The Ribbiting Tale's Marcellus and frogs (Locus Oasis) are placed by a quest-local
+(c) (The child-record spawn and the stage-8 gap below are superseded: FIXED b53-seam2, seam pass
+matthew-mbp-m4-b53-seam2 (b) -- the rows are the shells now.) The Ribbiting Tale's Marcellus and
+frogs (Locus Oasis) are placed by a quest-local
 `quest_ribbitingtale/configs/ribbitingtale.spawn`, not by `gen_spawns.py`. The xrsps dump has no
 npc anywhere near (x 1660-1720, z 2960-3010), so there was no dump row to correct. Rule: an npc the
 dump lacks ENTIRELY goes in a quest-local `<quest>.spawn` with cited tiles (idesofmilk,
@@ -1413,7 +1417,7 @@ keep the lane `.constant` files), put HEAD's version of the changed file there, 
 --pack <content>/configs`, then run the scratch test with `TORIRSSERVER_SCRIPTS=<dir>`.
 `client.log` names the pack it loaded.
 
-(f) NOT LANDED: the xp-grant drain snap (seam pass matthew-mbp-m4-b52-seam1 (d)). A fix that
+(f) FIXED b53-seam2 (seam pass matthew-mbp-m4-b53-seam2 (a)). Was NOT LANDED: the xp-grant drain snap (seam pass matthew-mbp-m4-b52-seam1 (d)). A fix that
 follows LostCity `Player.ts:1841-1851` (a drained stat stays drained through an xp grant; a
 level-up replenishes it by the levels gained) was written and selftested, but it turned committed
 green Desert Treasure RED: the Ice Path cold (deserttreasure.rs2:1222-1247) then really drains
@@ -1422,3 +1426,46 @@ spell."). The closer reverted it. It must land in one pass together with a deser
 restore (restore potions as a bring-along) and a free backpack slot before the child troll. The
 patch and the evidence are in `build/seam_state/matthew-mbp-m4-b53-seam1/drain_fix_carried.patch`
 and `build/seam_state/next-seam-carry.md` item 4.
+
+## Seam pass matthew-mbp-m4-b53-seam2 (2026-10-02, batch matthew-mbp-m4-b53)
+
+(a) A drained stat stays drained through an xp grant. `ToriRSServer_CombatAddXp`
+(src/torirsserver/torirs_server_combat.c) follows LostCity `Player.ts:1841-1851` (addXp): the
+current level moves with the base only while the two are equal, a level-up adds the levels gained to
+a drained stat (6/60 -> 7/61, never to the base), and a boost survives a grant. Before, the next xp
+grant snapped any drained stat back to its base, so one hit cancelled the Ice Path cold, the
+Sourhog spit or any `stat_sub`. Proof: `build/quest_gate/b53s2_drain_before` FAIL `attack 60/60` ->
+`b53s2_drain_after` 7/0 `attack 6/60`; the world selftest's drain stanza; conformance
+`seam.drain_survives_xp_gain`. It landed with Desert Treasure's leg 5 edit (gaps-combat: "Your
+Magic level is not high enough" after a draining walk). Supersedes b52-seam1 (d)'s first bullet and
+b53-seam1 (f). Still open: `::maxstats` (stat_advance) leaves a drained stat drained by its deficit,
+as LostCity's `::maxme` does; and the `[advancestat]` trigger still runs before the current level
+is updated (LostCity updates first).
+
+(b) The Ribbiting Tale's npcs are placed as the cache's multinpc SHELLS
+(`ribbitingtale.spawn`: `frog_quest_marcellus`/`_gary`/`_sue`/`_dave`/`_jane`, 13401-13405,
+configs/all.npc:429457-429520), and Talk-to is bound on the shells (Trap 19). The live child
+follows `varb9844_frog_quest` (`varb9845_frog_quest_patch_unlocked` for Marcellus), read by VALUE
+with the last rung as the default for every larger value (Trap 28): Gary/Sue are "Frog" before
+stage 4, Dave/Jane a Talk-less "Frog" before stage 4, and Marcellus turns into the farmer (npc 12936)
+at completion. Drive them by the SHELL symbol: a child symbol stops resolving once the varbit picks
+another child (verbs-pointer: `t.player.talk_to`). `[label,ribbit_yellow_talk]` is rebuilt from the
+wiki Transcript:The_Ribbiting_Tale_of_a_Lily_Pad_Labour_Dispute (oldid 15005191); stage 8 is the
+election talk (Quest Helper talkToYellowFrogs, TheRibbitingTaleOfALilyPadLabourDispute.java:75/:126)
+and writes `^ribbit_chop` (10). Proof: `build/quest_gate/seam2_ribbit_copy3` 97/0 to the scroll
+(`quest.stage.chop` 10, `names.*` rows per stage). Cuthbert, Lord of Dread kills a fresh 10 hp
+character: bring 40 combat stats, a wielded mithril scimitar and lobsters. Rows:
+`test/quests/wip/ribbitingtale/relay.md`. OPEN (content, no guide step): the "It's all sorted"
+branch at stage 14 is shadowed, the lily pad refusal at stages 8-10 is not authored, and the
+farmer's Pay/Trade have no trigger.
+
+(c) The Queen of Thieves' doorway refusal "You should speak to Devan Rutter before going in there."
+stays port wording: a search on 2026-10-02 found no source for what the doorway says (transcripts
+14962997/14785766, The_Queen_of_Thieves 15352295 and Quick_guide 15013569, Devan_Rutter 15353387,
+The_Warrens 15317408, Doorway 15335504, Quest Helper). Devan_Rutter oldid 15353387 is a second
+source for the gate itself ("will not let players enter until they prove their loyalty by killing
+Conrad King"). The searched list is in the comment above `[oploc1,piscquest_tentdoor]`.
+
+(d) Fetch a cited wiki oldid with
+`curl -A '<ua>' 'https://oldschool.runescape.wiki/api.php?action=query&prop=revisions&revids=<oldid>&rvprop=content|ids&rvslots=main&format=json&formatversion=2'`;
+`index.php?action=raw` now returns a Cloudflare challenge page to curl.

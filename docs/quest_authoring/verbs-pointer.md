@@ -134,6 +134,12 @@ ONCE when the COPY under the pressed pixel stepped between the aim and the press
 element, never swapped for another copy); the row then says
 `<npc> moved a,b -> c,d between aim and press; re-aimed at x,y`.
 
+A multinpc target is resolved through `QD.player._live_npc_id` (pointer.lua): a live row whose
+`npc_id` is the symbol's id first, then a row whose `base_npc_id` is. So a CHILD symbol
+(`frog_quest_gary_unnamed`) finds the npc only while the varbit selects that very child; target the
+spawned SHELL symbol (`frog_quest_gary`) to follow the npc across its forms (seam-facts: Seam pass
+matthew-mbp-m4-b53-seam2 (b)).
+
 ### `t.player.press(npc, op=1, ticks=8, opts)`
 
 `t.player.press(npc, op=1, ticks=8, opts)` -> `ok` `timeout` `refused` `no_row` / by_symbol's and

@@ -420,13 +420,27 @@ in 8 ticks, player still on 2780,3198).
 
 ## A drain row reads the stat back at base; an owner-raised boss stands still (Porcine of Interest, b52-seam1)
 
-Two engine facts that bite a row asserting a boss's special effect. First, ANY xp gain raises a
-drained stat back to its base level (torirs_server_combat.c:1174), which LostCity's `addXp` does not
-do. So a Sourhog spit's 90% Attack drain is gone the moment you earn Attack xp. Fight on a style
-that pays the asserted stat no xp (aggressive pays Strength only) and poll the stat each tick.
+Two engine facts that bite a row asserting a boss's special effect. First (FIXED b53-seam2, see
+the next heading): ANY xp gain used to raise a drained stat back to its base level, which LostCity's
+`addXp` does not do, so a Sourhog spit's 90% Attack drain was gone the moment you earned Attack xp.
+A drain now survives xp; still poll the stat each tick.
 Second, a quest boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`)
 does not walk to an idle owner. Engage it with `t.player.attack` before you wait on its attacks.
-Both are OPEN engine seams (seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)).
+The second is an OPEN engine seam (seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)).
+
+## "Your Magic level is not high enough" after a draining walk; "Your hands are full, mister!" (Desert Treasure, b53-seam2)
+
+A drained stat now STAYS drained through xp gains (LostCity `Player.ts:1841-1851`; seam-facts: Seam
+pass matthew-mbp-m4-b53-seam2 (a)), and a level-up adds only the levels gained. So a content drain
+(the Ice Path cold, the Sourhog spit, a `stat_sub`) is real for the rest of the walk, and a cast or
+wield gated on that stat can refuse after it. That is the game, not a driver bug: bring the guide's
+restore potions and drink them before the gated action. Desert Treasure leg 5: the cold leaves
+Magic 57/99 at Kamil and Fire Blast needs 59; `::give 4dosestatrestore 2` as a bring-along (Quest
+Helper DesertTreasure.java:685 `restorePotions`), then `t.player.inv_op(<dose>, 1)` per dose. Prove
+the drink with the skill reading (`attack 57/99 -> 96/99`), not the verb's settle: a dose swaps the
+obj. A hand-over into a full pack refuses ("Your hands are full, mister!", deserttreasure.rs2:1163),
+and `::give shark N` fills free slots only ("Gave 4 x Shark, 12 did not fit"), so eat or drop one
+first (`freeSlot-eatShark`).
 
 ## A drop hunt lands too few drops for its kills, or the kill loop reads "I'm already under attack." (In Search of Knowledge, matthew-mbp-m4-b52)
 
