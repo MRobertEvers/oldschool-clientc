@@ -1451,3 +1451,50 @@ outside its files, and changed nothing. The fixers' reports are under
   only the timing.
 - Run seam-pass regression quests with `--no-publish`. Without it, run.py rewrites
   OSRS-Content's tracked selftest/quests/<quest>/play evidence.
+
+# What the fourth ToB room pass tripped on (matthew-mbp-m4-raid-b1-rooms-tob)
+
+Three facts the room authors and reviewers of the fourth launch asked for.
+
+## Protection prayers do not reduce a nylocas hit
+
+- Every nylocas swing (`~tob_nylo_swing`, tob_nylocas.rs2:1071-1092), detonation
+  (`~tob_nylo_detonate`, :1150-1166) and pillar collapse (:1537) queues
+  `combat_damage_player` with `add(1, random($max))`. That queue
+  (skill_combat/scripts/npc_combat_magic.rs2:261) applies slayer, worn-gear and
+  ethereum reductions only. It reads no overhead prayer, so Protect from Melee or
+  Missiles changes nothing in the Nylocas room.
+- The roll starts at 1, so a nylocas never splats 0 before gear reduction. The gear
+  reduction always uses the magic style, whatever the nylocas's style.
+- Do not spend prayer points or a technique row on protection in this room. If a spec
+  row needs a prayer to protect, write that row as a content finding naming these lines.
+  Do not write it as a driving failure.
+
+## Small controlled hits on a boss, for a threshold row
+
+- Bring the weak weapon as a setup bring-along (`::give`), and swap to it inside `run`
+  with `t.player.equip`. Wielding gear is a player action, not a cheat. Then hit near the
+  threshold one splat at a time.
+- Levels go down only in setup. Any `::setlevel` inside `run` is a world-changing cheat
+  and a rejection (test/raids/README.md "Cheats inside `run`"). If you need a low
+  Strength for small hits, set it in setup and plan the whole fight around it. You can
+  also use the weak weapon only near the threshold.
+- Report what the log brackets. See "A measured value must come from the log, not from
+  the spec" above.
+
+## Verzik P3 webs bind the tile you stood on when she threw
+
+- `~tob_verzik_webs` throws three webs at the tile each player stood on at the throw
+  (tob_verzik.rs2:2703-2713). Each lands after its flight
+  (`[queue,tob_verzik_web_land]`, :2745).
+- If you are still on that tile when it lands, you are frozen
+  (`%varp5754_frozen` = map_clock + `^tob_verzik_web_lifetime` 20 + 1, :2752-2756) and see
+  "You are bound by a web!". An unfreed web snaps after 20 ticks for 1..40
+  (`^tob_verzik_p3_web_break_max`, :2760-2770). Killing the 10-hp web frees you at no
+  cost (:2777).
+- The verzik author saw that a bound player's press at the web never landed ("no hit
+  landed" every 2 ticks, so the web was never killed). Walk off the throw tile during the
+  flight, about two ticks before her web special lands. Then press the web from the
+  next tile with a ranged or magic attack.
+- Solo, there is one web per cast (one per player), so `p3_webs_per_cast` 3 cannot be
+  measured in a solo run.
