@@ -56,6 +56,8 @@ topic file with one line added here.
 
 ## Pressing and clicking
 
+- a repeating machine op (Giants' Foundry lava/waterfall) makes `click_loc` wait 20 ticks and overshoot the heat, stalls `walk_near`, or answers `covered` under the foundry hud -> gaps-world: A machine that repeats its op every tick
+- "You need a pickaxe" with a pickaxe in the pack -> gaps-world: "You need a pickaxe" with a pickaxe in the pack
 - `player.attack: first press covered (...) -> settled camera: ...`; a boss raised one row after a press that walked you answers `covered` -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35); seam-facts: Seam pass 35 (e)
 - `click_loc: the walk outlasted the 20-tick settle; followed it N more tick(s)`; a timed lift missed while walking -> verbs-pointer: A press whose walk outlasts the 20-tick settle (seam35)
 - `map_flag: no dialogue in 5 tick(s)` on a freed/respawned multinpc form (Desert Treasure's troll parents) -> seam-facts: Seam pass 33 (e); traps-13-22: trap 19
@@ -104,6 +106,7 @@ topic file with one line added here.
 - `use_on` leaves the tile the content checks ("You need to stand in Betty's open doorway"); a loc used from three tiles off -> verbs-inventory-shops: `use_on` walks off the tile
 ## Dialogue and chat
 
+- `chat.choose("Yes.")` answers stale on a choice that reopens a name prompt (`p_choice2` then `p_namedialog`, The Garden of Death) -> gaps-dialogue: A choice that reopens as a name prompt
 - a `|` drawn inside a line (`find the|helmet`); `chat.play` meets an extra page (`npc:together.`) -> verbs-chat: A long line is more than one page
 - a Talk-to missing on a multinpc shell drawn as a `*_noop` form (Fight Arena's Sammy) -> gaps-world: A multinpc shell whose every visible child
 - `expected kind=npc, got player` -> traps-13-22: Trap 18
@@ -192,6 +195,7 @@ topic file with one line added here.
 
 ## Fights
 
+- `t.player.attack` never answers on an "Attack" npc with no hitpoints (Tale of the Righteous' Strange Device); does `click_minimenu` take "Attack" or 2? -> gaps-combat: `t.player.attack` never answers on an npc with no hitpoints
 - `slot N left the pool ... came back as slot M ... -- followed it`; a teleporting boss graded dead `corroborated by ABSENCE` while alive -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35)
 - a Haunted Mine `t.drive.op` for Dayth's Attack or the lift -> gaps-world: A timed lift or a `covered` boss press (both real presses since seam35)
 - `; progress t+10 hp .., ..` at the end of an await_dead detail -> verbs-combat: `t.npc.await_dead(npc, ticks=60`

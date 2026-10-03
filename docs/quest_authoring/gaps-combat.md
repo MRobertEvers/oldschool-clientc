@@ -627,3 +627,22 @@ What an author does: stage hitpoints and a little food, and record the measured 
 kill row (ticks to death, and hp before and after from `t.skill.read`). Expect the orb to fall by
 a point or two on the slower kills. Do not write "30 hp" in a comment. Do not write "hp untouched"
 or "they never retaliate" either.
+
+## `t.player.attack` never answers on an npc with no hitpoints: press op 2 (Tale of the Righteous, matthew-mbp-m4-b56)
+
+Tale of the Righteous' Strange Device (`shayzienquest_puzzle_piece`) offers "Attack" but has no
+hitpoints, so it never takes a hit and shows no health bar. `t.player.attack` settles on the fight
+it expects, and on this npc that fight never starts, so the verb does not answer `ok`, even though
+the content ran (`The strange device hums and a crystal turns white.`).
+
+Press the op directly instead:
+
+```lua
+local device = t.player.by_symbol("npc", "shayzienquest_puzzle_piece")
+t.exec("attackWithMelee", t.drive.click_minimenu, device, 2)
+t.exec("attackWithMelee.cleansed", t.msg.expect, "crystal turns white")
+```
+
+`click_minimenu`'s `option` is the numeric op slot (2 = Attack here). It is not the menu label.
+Grade the content's own message, because no kill row can prove the step. A spell on the same
+device still goes through `t.player.cast`.
