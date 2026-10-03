@@ -26,7 +26,13 @@ local plugin = {
 -- leaves its namespace empty and the first quest step calls nil thirty steps
 -- later. Counting them at on_start is what turns that into one line at boot.
 local PARTS = { "chat", "scroll", "levelup", "player", "var", "inv", "msg",
-                "ui", "npc", "world", "drive", "t" }
+                "ui", "npc", "world", "drive", "t",
+                -- the raid seam's parts (docs/RAID_ORCHESTRATOR.md section 4),
+                -- copied by the waves loop without raid.lua. QD.wave
+                -- (waves.lua) joins this list when waves seam pass 2 gives it
+                -- its first verb (t.wave.enter / state); until then it is
+                -- empty by design and would only log "EMPTY namespaces".
+                "prayer", "ticklog" }
 
 function plugin.on_start(api)
     -- The quest coroutine is resumed from C with no `api` of its own (it

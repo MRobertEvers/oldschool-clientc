@@ -37905,6 +37905,11 @@ ToriRSServer_WorldSelftest(void)
             npc->max_hitpoints = 200;
             npc->hitpoints = 200;
 
+            /* The tick log rides along (raid seam 1): it changes nothing the
+             * fight does, and this fight has every row kind a boss room
+             * leans on -- swings, hits, a retype, a free, a tile per tick. */
+            int log_start = ToriRSServer_TicklogEnable(srv, NULL);
+
             ToriRSServer_CombatEngage(srv, slot);
             SELFTEST_CHECK(player->combat_target == slot &&
                                player->interaction.kind == TORIRSSERVER_INTERACT_NPC,
@@ -37956,6 +37961,74 @@ ToriRSServer_WorldSelftest(void)
                            npc->hitpoints, hp_after_change);
 
             ToriRSServer_WorldNpcFree(srv, slot);
+
+            /* What the tick log saw of that fight. */
+            {
+                static struct ToriRSServerTicklogRow log_rows[4096];
+                int log_count = ToriRSServer_TicklogRead(0, log_rows, 4096);
+                int player_tiles = 0;
+                int hits_on_slot = 0;
+                int retypes = 0;
+                int frees = 0;
+                int starts = 0;
+                int tiles_in_order = 1;
+                int last_tile_tick = log_start;
+                uint32_t mark;
+
+                for( int i = 0; i < log_count; i++ )
+                {
+                    const struct ToriRSServerTicklogRow* row = &log_rows[i];
+
+                    if( row->kind == TORIRSSERVER_TICKLOG_START )
+                        starts++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_PLAYER_TILE && row->a == player->pid )
+                    {
+                        /* One per tick, each a tick after the last. */
+                        if( row->tick != last_tile_tick + 1 )
+                            tiles_in_order = 0;
+                        last_tile_tick = row->tick;
+                        player_tiles++;
+                    }
+                    if( row->kind == TORIRSSERVER_TICKLOG_HIT_NPC && row->a == slot )
+                        hits_on_slot++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_RETYPE && row->a == slot &&
+                        row->b == from_type && row->c == to_type )
+                        retypes++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_FREE && row->a == slot )
+                        frees++;
+                }
+                fprintf(stderr,
+                        "  ticklog: %d row(s); %d player_tile over %d tick(s); %d hit_npc, "
+                        "%d npc_retype, %d npc_free on slot %d\n",
+                        log_count, player_tiles, srv->tick - log_start, hits_on_slot, retypes,
+                        frees, slot);
+                SELFTEST_CHECK(starts == 1 && log_count > 0 && log_rows[0].serial == 1,
+                               "the tick log opens with one start row, got %d of %d rows",
+                               starts, log_count);
+                SELFTEST_CHECK(player_tiles == srv->tick - log_start && tiles_in_order,
+                               "a player_tile row every tick: %d rows over %d ticks (in order "
+                               "%d)",
+                               player_tiles, srv->tick - log_start, tiles_in_order);
+                SELFTEST_CHECK(hits_on_slot > 0, "the swings that landed are hit_npc rows, got %d",
+                               hits_on_slot);
+                SELFTEST_CHECK(retypes == 1, "the transform is one npc_retype row, got %d",
+                               retypes);
+                SELFTEST_CHECK(frees == 1, "and the free is one npc_free row, got %d", frees);
+                mark = ToriRSServer_TicklogMark("selftest\tmark");
+                SELFTEST_CHECK(mark == (uint32_t)log_count + 1 &&
+                                   ToriRSServer_TicklogRead((uint32_t)log_count, log_rows, 1) ==
+                                       1 &&
+                                   log_rows[0].kind == TORIRSSERVER_TICKLOG_MARK &&
+                                   strcmp(log_rows[0].label, "selftest mark") == 0 &&
+                                   log_rows[0].tick == srv->tick,
+                               "a mark is the next serial at this tick, label kept: serial %u "
+                               "label '%s'",
+                               (unsigned)mark, log_rows[0].label);
+                ToriRSServer_TicklogDisable();
+                SELFTEST_CHECK(!ToriRSServer_TicklogEnabled(srv) &&
+                                   ToriRSServer_TicklogMark("off") == 0,
+                               "and a disabled log records nothing");
+            }
             /* Put the level back by hand, as the cow section does:
              * `ToriRSServer_CombatSetLevel` would re-derive the xp from it and
              * the sections below read both. */

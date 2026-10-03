@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""spec_check -- validate an encounter spec table (docs/RAID_ORCHESTRATOR.md section 3).
+"""spec_check -- validate a wave minigame's encounter spec table
+(docs/WAVES_ORCHESTRATOR.md section 6; copied from the raid loop's
+tools/raid_gate/spec_check.py at 94f55b306, docs/minigames/waves_loop/FORKED_FROM.md).
 
-    python3 tools/raid_gate/spec_check.py docs/minigames/theater_of_blood/encounters/maiden.tsv ...
-    python3 tools/raid_gate/spec_check.py --all          # every encounters/*.tsv under docs/minigames/
+    python3 tools/waves_gate/spec_check.py docs/minigames/inferno/encounters/nibblers.tsv ...
+    python3 tools/waves_gate/spec_check.py --all   # every encounters/*.tsv under
+                                                   # docs/minigames/inferno/ and colosseum/
 
 A spec table is a TSV with exactly these columns:
 
     mechanic_id  quantity  spec_value  unit  tags  grade  source_ref  closes  tolerance
 
-* mechanic_id: `<room>.<name>`, unique in the file, [a-z0-9_.]+
+* mechanic_id: `<unit>.<name>`, unique in the file, [a-z0-9_.]+
 * spec_value: a number, a range `a-b`, a list `a,b,c`, or `?` (grade E only)
 * unit: ticks | cycles | hp | tiles | count | percent | permille | ratio | text
-* tags: one or more `[tag]` from the raid's constants legend ([cache] [wiki] [blert]
-  [tmt] [qol] [oosrs] [tool] [nr] [toa] [jagex] [plugin] [video] [guide] [Mn])
+* tags: one or more `[tag]` provenance tags ([jagex] [cache] [blert] [plugin] [wiki]
+  [guide] [video] [Mn], docs/WAVES_ORCHESTRATOR.md section 6; any [word] is accepted)
 * grade: A-E per section 2; E requires an [Mn] tag; A requires [jagex] or [cache];
   B requires [blert]; D or better forbids `?`
 * source_ref: `<file>[:<line or anchor>][; ...]` where each <file> exists under
-  docs/ (relative to the repo root or to the raid's docs directory) -- a quote
+  docs/ (relative to the repo root or to the game's docs directory,
+  docs/minigames/<game>/, or its sources/) -- a quote
   that cannot be opened is not a source
 * closes: an Mn id, or `-`
 * tolerance: `exact`, `+-N`, `range`, or `approx` (grade E only)
@@ -35,6 +39,8 @@ TAG_RE = re.compile(r"^(\[[A-Za-z0-9]+\])+$")
 ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_.]+$")
 VALUE_RE = re.compile(r"^(\?|-?\d+(\.\d+)?(-\d+(\.\d+)?)?|(-?\d+(\.\d+)?)(,-?\d+(\.\d+)?)+)$")
 TOL_RE = re.compile(r"^(exact|\+-\d+|range|approx)$")
+# docs/minigames/<game>/ for every wave minigame the loop owns (section 1).
+WAVE_GAMES = ("inferno", "colosseum")
 
 
 def check(path):
@@ -47,7 +53,7 @@ def check(path):
     if header != COLUMNS:
         return ["%s: header is %r, expected %r" % (path, header, COLUMNS)]
     seen = set()
-    raid_docs = os.path.dirname(os.path.dirname(os.path.abspath(path)))
+    game_docs = os.path.dirname(os.path.dirname(os.path.abspath(path)))
     for n, line in enumerate(lines[1:], start=2):
         cells = line.split("\t")
         if len(cells) != len(COLUMNS):
@@ -92,8 +98,8 @@ def check(path):
                 findings.append("%s:%d: empty source_ref" % (path, n))
                 continue
             file_part = ref.split(":")[0].strip()
-            candidates = [os.path.join(ROOT, file_part), os.path.join(raid_docs, file_part),
-                          os.path.join(raid_docs, "sources", file_part), os.path.join(ROOT, "docs", file_part)]
+            candidates = [os.path.join(ROOT, file_part), os.path.join(game_docs, file_part),
+                          os.path.join(game_docs, "sources", file_part), os.path.join(ROOT, "docs", file_part)]
             if not any(os.path.exists(c) for c in candidates):
                 findings.append("%s:%d: source_ref %r names no file under docs/" % (path, n, ref))
     if not findings:
@@ -104,8 +110,11 @@ def check(path):
 def main(argv):
     paths = argv[1:]
     if paths == ["--all"] or not paths:
-        # <room>.scope.tsv is raid_coverage's scope sidecar, not a spec table.
-        paths = sorted(p for p in glob.glob(os.path.join(ROOT, "docs", "minigames", "*", "encounters", "*.tsv"))
+        # <unit>.scope.tsv is waves_coverage's scope sidecar, not a spec table.
+        # The two wave minigames only: docs/minigames/ also holds the raid
+        # loop's documents once both branches reach v3.
+        paths = sorted(p for game in WAVE_GAMES
+                       for p in glob.glob(os.path.join(ROOT, "docs", "minigames", game, "encounters", "*.tsv"))
                        if not p.endswith(".scope.tsv"))
     findings = []
     for p in paths:

@@ -585,6 +585,59 @@ function QD._combat_pick_copy(target, npc_symbol, opts)
     return "no_row", "the copy named " .. tostring(copy_text) .. " left the pool before the press"
 end
 
+-- ------------------------------------------------------------ the fast path
+--
+-- SEAM attack_fast_path (raid seam5): which press a fight takes.  A caller in
+-- a hurry -- `ticks` <= 2, or `opts.quick = true` -- gets QD.drive._press_quick
+-- (pointer.lua, end of file: one aim, one press, and on `covered` exactly one
+-- re-aim and one more press, then an answer naming the copies the menu
+-- offered); every other call keeps the quest press below, unchanged.
+-- `opts.quick = false` keeps the quest press whatever `ticks` says.  Shared by
+-- t.player.attack, t.player.cast (spell.lua) and the re-presses of
+-- npc.await_dead_engaged, so the three verbs decide it one way.
+QD.COMBAT_QUICK_TICKS = 2
+
+function QD._combat_quick(ticks, opts)
+    if type(opts) == "table" and opts.quick ~= nil then
+        assert(type(opts.quick) == "boolean", "opts.quick must be true or false")
+        return opts.quick
+    end
+    return type(ticks) == "number" and ticks <= QD.COMBAT_QUICK_TICKS
+end
+
+-- The copy selector inside `opts`: `{ quick = true }` alone names no copy
+-- (nil, the nearest); anything else is handed to QD._combat_pick_copy as it
+-- was, so a malformed selector still raises there.
+function QD._combat_selector(opts)
+    if type(opts) == "table" and opts.quick ~= nil and opts.slot == nil and opts.at == nil then
+        return nil
+    end
+    return opts
+end
+
+-- The fast press on ONE copy, with QD._combat_press_attack's returns plus the
+-- fast path's account: (result, fail_detail, row_text, presses, account).
+function QD._combat_press_quick(target, label, op, element)
+    assert(element ~= nil, "attack press names no npc copy")
+    target.reach_element = element
+    local click_result, click, account, presses = QD.drive._press_quick(target, op)
+    target.reach_element = nil
+    if click_result ~= "ok" then
+        return click_result, "attack " .. label .. " op" .. tostring(op) .. ": "
+            .. tostring(click) .. " (" .. tostring(presses) .. " press(es)) -- "
+            .. tostring(account), nil, presses, account
+    end
+    assert(type(click) ~= "table" or click.element_id == element,
+        "attack press landed on another npc copy")
+    local row_text = type(click) == "table" and click.row_text or ""
+    if string.find(row_text, "Attack", 1, true) ~= 1 then
+        return "refused", "attack " .. label .. " op" .. tostring(op)
+            .. ": pressed '" .. tostring(row_text) .. "', which is not an Attack row -- "
+            .. tostring(account), row_text, presses, account
+    end
+    return "ok", nil, row_text, presses, account
+end
+
 -- ---------------------------------------------------------------------- attack
 
 -- t.player.attack(npc_symbol, op, ticks) -> `ok` / click_minimenu's own
@@ -649,8 +702,20 @@ end
 -- 99-melee character read zero hitsplats over 180 ticks with no refusal
 -- (build/parity_state/parity2c/rumdeal.parity.progress.md, parity_rumdeal4):
 -- whatever the press hit, the watched slot was never it.
+--
+-- THE FAST PATH -- SEAM attack_fast_path (raid seam5).  `ticks` <= 2 or
+-- `opts.quick = true` presses through QD.drive._press_quick instead of the
+-- press loop below: one aim at the copy, one press, and on `covered` exactly
+-- ONE re-aim (the copy's new tile, or a camera nudge) and one more press --
+-- no cover recovery, no walk_near, no pixel hunt past two ticks.  Still
+-- covered, it answers `covered` at once with the ticks spent and the copies
+-- the menus offered by slot ("press one of those instead").  `opts` may then
+-- carry `quick` beside the selector (`{ slot = n, quick = true }`); the stamp
+-- remembers it, so npc.await_dead_engaged re-presses the same way.
 function QD.player.attack(npc_symbol, op, ticks, opts)
     op = op or 2
+    local quick = QD._combat_quick(ticks, opts)
+    opts = QD._combat_selector(opts)
     ticks = ticks or 10
 
     -- SEAM combat-hunt-kills-the-character (2026-09-20): a dead player keeps
@@ -674,6 +739,31 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     end
     local slot = before.slot
     local element = before.element_id
+    -- SEAM attack_exact_copy (raid seam3): THIS ATTACK NAMES ITS COPY, AND THE
+    -- ENGAGEMENT STAMP MAY NAME NO OTHER.  The stamp is written only past a
+    -- landed Attack row (below), so every other exit of this verb -- covered,
+    -- no_row, refused, a press that timed out -- used to leave the PREVIOUS
+    -- fight's stamp standing, and an npc.await_dead_engaged after it held that
+    -- previous copy's slot and re-pressed IT: a hunt that asked for copy B and
+    -- failed to press it went on fighting copy A.  A stamp naming a different
+    -- slot is dropped here, before the press, so a failed attack leaves
+    -- "nothing is engaged" (no_row) -- the truth -- and a landed one writes its
+    -- own.  A stamp naming THIS slot is kept: a re-attack of the copy already
+    -- engaged that does not land is still that fight.  A CONSUMED stamp is
+    -- left alone too: await_dead_engaged answers it `no_row` without touching
+    -- the slot, so it can hold nothing.
+    -- The drop is SAID only on the exits that leave no stamp (`dropped`, below):
+    -- a landed attack replaces the stamp anyway, and a hunt loop that attacks a
+    -- new copy every round would otherwise carry this sentence on every row.
+    local stale = QD._combat_last
+    local dropped = ""
+    if stale ~= nil and not stale.consumed and stale.slot ~= slot then
+        dropped = " -- the engagement stamp on slot " .. tostring(stale.slot) .. " ("
+            .. tostring(stale.symbol) .. ", tick " .. tostring(stale.tick) .. ") was dropped:"
+            .. " this attack named slot " .. tostring(slot) .. ", so npc.await_dead_engaged"
+            .. " now holds nothing rather than the old copy"
+        QD._combat_last = nil
+    end
     local before_health = QD._combat_health_text(before)
     local before_hit = before.hit_cycle
     -- The chat-ring watermark the refusal fence below reads from.  Taken
@@ -708,10 +798,10 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     -- CURRENT form, which is the same press with a target this verb's symbol
     -- lookup cannot build, and one press loop answering for both keeps the
     -- retry count, the row check and their two sentences in one place.
-    local press_result, press_detail, row_text, presses =
-        QD._combat_press_attack(target, tostring(npc_symbol), op, element)
+    local press_result, press_detail, row_text, presses, quick_account =
+        QD._combat_press_attack(target, tostring(npc_symbol), op, element, quick)
     if press_result ~= "ok" then
-        return press_result, press_detail .. " -- the copy named " .. copy_text
+        return press_result, press_detail .. " -- the copy named " .. copy_text .. dropped
     end
 
     local refusal = nil
@@ -739,6 +829,7 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     local after_result, after = QD._combat_row_by_slot(slot)
     local detail = "attack " .. tostring(npc_symbol) .. " op" .. tostring(op)
         .. " [" .. tostring(row_text) .. "] in " .. tostring(presses) .. " press(es)"
+        .. (quick and (" (" .. tostring(quick_account) .. ")") or "")
         .. ", pressed " .. copy_text .. ", watching slot " .. tostring(slot)
         .. ": hp " .. before_health .. " -> " .. QD._combat_health_text(after)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
@@ -762,6 +853,7 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
                 .. " swing was ever made -- stand where the copy can be reached)"
         end
         return "refused", detail .. " -- the SERVER refused the swing: '" .. refusal .. "'" .. why
+            .. dropped
     end
 
     -- Stamped on the timeout path too: "an Attack row was pressed on this
@@ -792,6 +884,8 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
         bar_seen = (before_health ~= "no bar" and before_health ~= "gone")
             or (after_result == "ok" and after ~= nil and after.health_ratio >= 0),
         tick = api_drive.tick(),
+        -- seam5: a fast-path attack's re-engagements are fast presses too.
+        quick = quick or nil,
     }
 
     -- The other end of the fence at the head of this verb: a player killed BY
@@ -1224,8 +1318,12 @@ end
 -- a step between aim and press re-aims that copy (QD.drive._npc_reaim) -- and
 -- is taken off again after each, whatever it answered, so the caller's target
 -- is left as it was handed in.
-function QD._combat_press_attack(target, label, op, element)
+function QD._combat_press_attack(target, label, op, element, quick)
     assert(element ~= nil, "attack press names no npc copy")
+    if quick then
+        -- seam5: the fast press (QD._combat_press_quick, above player.attack).
+        return QD._combat_press_quick(target, label, op, element)
+    end
     local click_result, click
     local presses = 0
     local walked = false
@@ -1492,7 +1590,9 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     local engaged = QD._combat_last
     if not engaged then
         return "no_row", "await_dead_engaged: nothing is engaged -- no t.player.attack in"
-            .. " this run has pressed an Attack row, so there is no slot to hold"
+            .. " this run has pressed an Attack row on the copy it last named (an attack that"
+            .. " named another copy and did not land drops the old stamp), so there is no slot"
+            .. " to hold"
     end
     -- A stamp a CAST opened (spell.lua's t.player.cast sets engaged.spell) is
     -- re-opened by casting again, never by an Attack press: the message names
@@ -1509,6 +1609,13 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
 
     local slot = engaged.slot
     local op = engaged.op or 2
+    -- seam5: re-press the way the opening press was made (the stamp's
+    -- `quick`), unless the caller says otherwise with opts.quick.
+    local quick = engaged.quick == true
+    if type(opts) == "table" and opts.quick ~= nil then
+        assert(type(opts.quick) == "boolean", "opts.quick must be true or false")
+        quick = opts.quick
+    end
     local opened = tostring(engaged.name or engaged.symbol)
         .. " (npc " .. tostring(engaged.npc_id) .. ")"
     local forms = opened
@@ -1624,7 +1731,8 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " dead after "
                 .. tostring(elapsed) .. " tick(s)" .. QD._combat_grace_text(elapsed, ticks)
                 .. ", " .. tostring(reengaged)
-                .. " re-engagement(s), last hp " .. last .. "; held " .. forms
+                .. " re-engagement(s)" .. (quick and " (fast path re-presses)" or "")
+                .. ", last hp " .. last .. "; held " .. forms
                 .. (absent_at_entry and "; already absent at the head of the wait" or "")
                 .. " -- " .. verdict .. QD._combat_eat_text(eater)
                 .. QD._combat_progress_text(progress)
@@ -1676,19 +1784,23 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                     reengaged = reengaged + 1
                     -- The copy the slot IS, by the element this row reads
                     -- now (seam21) -- never the id's centre-ranked copy.
-                    local press_result, press_detail, press_row = QD._combat_press_attack(
+                    local press_result, press_detail, press_row, _, press_account =
+                        QD._combat_press_attack(
                         { kind = "npc", id = row.npc_id, symbol = row.name }, form, op,
-                        row.element_id)
+                        row.element_id, quick)
                     QD.note("await_dead_engaged re-engage " .. tostring(reengaged) .. " on "
                         .. form .. ": " .. tostring(press_result) .. " "
-                        .. tostring(press_detail or press_row))
+                        .. tostring(press_detail or press_row)
+                        .. ((quick and press_result == "ok" and press_account)
+                            and (" (" .. tostring(press_account) .. ")") or ""))
                 end
             end
         end
     end
 
     return "timeout", "await_dead_engaged: slot " .. tostring(slot) .. " still alive after "
-        .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
+        .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s)"
+        .. (quick and " (fast path re-presses)" or "") .. ", hp "
         .. last .. "; held " .. forms .. QD._combat_watch_text(watch)
         .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
 end

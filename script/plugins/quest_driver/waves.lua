@@ -1,0 +1,9 @@
+-- quest-driver / waves: enter a wave minigame at a wave the way the content's
+-- own debugproc builds it (`::inferno <wave>`; the Colosseum's equivalent),
+-- and read the wave number, the alive count, the pillars or modifiers, paused
+-- or not (docs/WAVES_ORCHESTRATOR.md section 5, rows `wave.enter / wave.state`).
+-- It stands where the raid branch's raid.lua stood (the raid loop's t.raid.*
+-- enters ToB/ToA/CoX rooms through debugprocs only that branch's content has,
+-- so it was not copied: docs/minigames/waves_loop/FORKED_FROM.md).
+-- Verbs are added by waves seam pass 2; the namespace QD.wave is declared in
+-- core.lua, and quest_driver.lua's PARTS gains "wave" with the first verb.

@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""raid_coverage -- grade a raid room test's tick ledger against its encounter spec
-table (docs/RAID_ORCHESTRATOR.md sections 5 and 6).
+"""waves_coverage -- grade a wave minigame test's tick ledger against its encounter
+spec table (docs/WAVES_ORCHESTRATOR.md section 6). Copied from the raid loop's
+tools/raid_gate/raid_coverage.py at 94f55b306 (docs/minigames/waves_loop/FORKED_FROM.md)
+and changed to the waves layout.
 
-    python3 tools/raid_gate/raid_coverage.py tob_maiden [tob_bloat ...] [--ledger PATH]
+    python3 tools/waves_gate/waves_coverage.py inferno_nibblers [colosseum_sol_heredit ...] [--ledger PATH]
 
-For test id <raid>_<room> the spec table is docs/minigames/<raid docs>/encounters/
-<room>.tsv (tools/raid_gate/spec_check.py defines it); a whole-raid id (tob_entry,
-cox_solo, toa_150) is graded against every room table of its raid. The ledger is
-build/quest_gate/<id>/ledger.tsv (or --ledger).
+For test id <game>_<unit> (<game> = inferno | colosseum; the unit may itself hold
+underscores: colosseum_sol_heredit -> unit sol_heredit) the spec table is
+docs/minigames/<game>/encounters/<unit>.tsv (tools/waves_gate/spec_check.py defines
+it); the full-run id <game>_full (wave 1 to the reward, section 4 step 6) is graded
+against every unit table of its game. The ledger is build/quest_gate/<id>/ledger.tsv
+(or --ledger).
 
 THE ROW CONTRACT. For every spec row the test writes one PASS ledger row named
 `spec.<mechanic_id>` whose detail starts with
@@ -42,9 +46,9 @@ TEXT ROWS. A spec row whose unit is `text` is graded by equality: the detail rea
 measured text runs to the first `;`, the spec text to `, grade` -- and the two texts
 must match after trimming and case-folding.
 
-SIDECAR. `<room>.scope.tsv` beside the table (mechanic_id, scope, note) states a row's
+SIDECAR. `<unit>.scope.tsv` beside the table (mechanic_id, scope, note) states a row's
 scope outright -- all, entry, normal, hard, party (two or more players), stat (a
-distribution no single room settles) -- and overrides the name heuristic.
+distribution no single run settles) -- and overrides the name heuristic.
 
 Verdict per test: FULL (every in-scope spec row measured and within tolerance) or a list of
 findings: `unmeasured <id>`, `out of tolerance <id>: measured .. vs spec ..`,
@@ -59,8 +63,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "tools", "quest_gate"))
 import ledger  # noqa: E402
 
-RAID_DOCS = {"tob": "theater_of_blood", "toa": "tombs_of_amascut", "cox": "cox"}
-FULL_RAID_ROOMS = {"entry", "solo", "150"}
+# <game> prefix of a test id -> its docs directory under docs/minigames/.
+GAME_DOCS = {"inferno": "inferno", "colosseum": "colosseum"}
+# A unit name that means "the whole run": graded against every unit table.
+FULL_RUN_UNITS = {"full"}
 SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?),\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx)\)")
 NUM_RE = re.compile(r"^-?[\d.]+(?:-[\d.]+)?(?:,-?[\d.]+)*$")
 SCOPE_RE = re.compile(r"mode=(?P<mode>entry|normal|hard|all)\s+party=(?P<party>\d)")
@@ -101,9 +107,9 @@ SIDECAR_SCOPES = {"all", "entry", "normal", "hard", "party", "stat"}
 
 
 def read_sidecar(table):
-    """docs/minigames/<raid>/encounters/<room>.scope.tsv: mechanic_id <TAB> scope
+    """docs/minigames/<game>/encounters/<unit>.scope.tsv: mechanic_id <TAB> scope
     [<TAB> note]. scope is all | entry | normal | hard (the mode the row belongs
-    to) | party (needs two or more players) | stat (a distribution no single room
+    to) | party (needs two or more players) | stat (a distribution no single run
     settles). An entry here overrides the name heuristic in row_scope."""
     path = table[:-len(".tsv")] + ".scope.tsv"
     out = {}
@@ -141,9 +147,9 @@ def row_scope(spec, mode, party, ids, sidecar=None):
             return "names %s" % other
     if mode == "entry" and not any(w in tokens for w in MODE_WORDS["entry"]):
         mid = spec["mechanic_id"]
-        room, _, name = mid.partition(".")
-        siblings = {"%s.entry_%s" % (room, name), "%s.%s.entry" % (room, name), "%s.%s_entry" % (room, name),
-                    "%s.entry.%s" % (room, name)}
+        unit, _, name = mid.partition(".")
+        siblings = {"%s.entry_%s" % (unit, name), "%s.%s.entry" % (unit, name), "%s.%s_entry" % (unit, name),
+                    "%s.entry.%s" % (unit, name)}
         if siblings & ids:
             return "has an entry sibling"
     if party == 1 and any(w in text for w in PARTY_WORDS) and not any(w in text for w in SOLO_WORDS):
@@ -152,14 +158,15 @@ def row_scope(spec, mode, party, ids, sidecar=None):
 
 
 def spec_tables(test_id):
-    raid, _, room = test_id.partition("_")
-    assert raid in RAID_DOCS, "unknown raid prefix in %s" % test_id
-    directory = os.path.join(ROOT, "docs", "minigames", RAID_DOCS[raid], "encounters")
-    if room in FULL_RAID_ROOMS:
+    game, _, unit = test_id.partition("_")
+    assert game in GAME_DOCS, "unknown game prefix in %s (want one of %s)" % (
+        test_id, ", ".join(sorted(GAME_DOCS)))
+    directory = os.path.join(ROOT, "docs", "minigames", GAME_DOCS[game], "encounters")
+    if unit in FULL_RUN_UNITS:
         return sorted(p for p in glob.glob(os.path.join(directory, "*.tsv"))
-                      if os.path.basename(p)[:-4] not in FULL_RAID_ROOMS
+                      if os.path.basename(p)[:-4] not in FULL_RUN_UNITS
                       and not p.endswith(".scope.tsv"))
-    path = os.path.join(directory, "%s.tsv" % room)
+    path = os.path.join(directory, "%s.tsv" % unit)
     return [path] if os.path.isfile(path) else []
 
 
@@ -226,7 +233,7 @@ def within(measured, spec, tol, quantity=""):
 def grade(test_id, ledger_path=None, mode=None, party=None):
     tables = spec_tables(test_id)
     if not tables:
-        return ["no spec table for %s under docs/minigames/<raid>/encounters/" % test_id]
+        return ["no spec table for %s under docs/minigames/<game>/encounters/" % test_id]
     path = ledger_path or os.path.join(ROOT, "build", "quest_gate", test_id, "ledger.tsv")
     rows, _ = ledger.read(path)
     if rows is None:

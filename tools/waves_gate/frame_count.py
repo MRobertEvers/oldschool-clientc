@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """frame_count -- dump the frames of a video section so a tick can be counted
-(docs/RAID_ORCHESTRATOR.md section 3.1: anchor on the attack animation's first
-frame, count frames, not seconds; one game tick is 0.6 s).
+(docs/WAVES_ORCHESTRATOR.md section 9, after docs/RAID_ORCHESTRATOR.md section 3.1:
+anchor on the attack animation's first frame, count frames, not seconds; one game
+tick is 0.6 s; ten instances from two players, the distribution not a number).
+Copied from the raid loop's tools/raid_gate/frame_count.py at 94f55b306.
 
-    python3 tools/raid_gate/frame_count.py <url> <start> <end> [--out DIR] [--every N]
+    python3 tools/waves_gate/frame_count.py <url> <start> <end> [--out DIR] [--every N]
 
 <start>/<end> are mm:ss or seconds. The whole video is downloaded once with yt-dlp
 into build/frames/<video id>/full.mp4, the section cut locally with ffmpeg, and every
@@ -11,7 +13,7 @@ frame (or every Nth) is written as <out>/f%06d.png at the stream's own frame
 rate. Prints: the video id, fps, the frame count, and the directory, so that
 frame k is at start + k/fps seconds and a gap of g frames is g/fps/0.6 ticks.
 Then Read the PNGs (the attack's first frame per the cache seq record) and write
-the row to docs/minigames/<raid>/sources/videos.tsv:
+the row to docs/minigames/<game>/sources/videos.tsv (<game> = inferno | colosseum):
     url  timestamp  fps  frames  ticks  mechanic_id  measured_by
 """
 import argparse

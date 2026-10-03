@@ -5185,6 +5185,175 @@ int ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
 int
 ToriRSServer_CoxSimRun(struct ToriRSServer* srv);
 
+/*
+ * The tick log (torirs_server_ticklog.c): the server's own per-tick record of
+ * what an encounter did -- npc attack starts, projectiles, hits, spawns,
+ * deaths, loc and ground changes and every tile a player or a moving npc stood
+ * on -- for the raid loop's tick ledger (docs/RAID_ORCHESTRATOR.md sections 4
+ * and 6). It is the event set tools/verify_tob_timings.py reads from Blert, so
+ * a measured cadence here and a recorder's distribution compare directly.
+ *
+ * OFF unless enabled: every hook below is one load and one branch until
+ * `ToriRSServer_TicklogEnable` runs, so no ordinary quest run or live world
+ * pays for it. One world at a time is logged (the embedded server has one;
+ * the selftest enables it on the world it is testing), which is what lets the
+ * hooks that only hold an npc pointer -- the animation funnel, the type
+ * change -- find their slot and their tick.
+ *
+ * Every row is {serial, tick, kind, a..f, label}; `tick` is `srv->tick` as
+ * it stood when the event happened, `serial` counts from 1 in recording
+ * order. Coordinates are packed the content way, ToriRSServer_CoordPack. The
+ * fields per kind are listed beside the enum. When a path is given, each row
+ * is also appended to it as it is recorded (TSV, header `ticklog-v1`), so a
+ * python tool and the test read the same rows.
+ */
+enum ToriRSServerTicklogKind
+{
+    TORIRSSERVER_TICKLOG_START = 0,     /* a=tick enabled on */
+    TORIRSSERVER_TICKLOG_MARK,          /* label=the test's text */
+    TORIRSSERVER_TICKLOG_NPC_ANIM,      /* a=slot b=npc type c=seq d=delay */
+    TORIRSSERVER_TICKLOG_NPC_SPOTANIM,  /* a=slot b=npc type c=spotanim d=height e=delay */
+    TORIRSSERVER_TICKLOG_PROJECTILE,    /* a=src coord b=dst coord c=target (wire form)
+                                         * d=spotanim e=start cycle f=end cycle */
+    TORIRSSERVER_TICKLOG_MAP_SPOTANIM,  /* a=coord b=spotanim c=height d=delay */
+    TORIRSSERVER_TICKLOG_HIT_PLAYER,    /* a=pid b=dealer npc slot or -1 c=damage d=hitsplat
+                                         * e=dealer pid or -1 f=dealer npc type or -1 */
+    TORIRSSERVER_TICKLOG_HIT_NPC,       /* a=slot b=npc type c=damage d=hitsplat */
+    TORIRSSERVER_TICKLOG_NPC_SPAWN,     /* a=slot b=npc type c=coord */
+    TORIRSSERVER_TICKLOG_NPC_DEATH,     /* a=slot b=npc type c=coord (the killing blow) */
+    TORIRSSERVER_TICKLOG_NPC_FREE,      /* a=slot b=npc type c=coord */
+    TORIRSSERVER_TICKLOG_NPC_RETYPE,    /* a=slot b=from type c=to type d=duration */
+    TORIRSSERVER_TICKLOG_LOC_SET,       /* a=coord b=loc id (-1 removed) c=shape d=angle e=kind */
+    TORIRSSERVER_TICKLOG_OBJ_ADD,       /* a=coord b=obj id c=count d=receiver pid or -1 */
+    TORIRSSERVER_TICKLOG_PLAYER_TILE,   /* a=pid b=x c=z d=level (every tick, after players move) */
+    TORIRSSERVER_TICKLOG_NPC_TILE,      /* a=slot b=x c=z d=level e=npc type (on change only,
+                                         * npcs within 32 tiles of a player) */
+    TORIRSSERVER_TICKLOG_NPC_FACE,      /* a=slot b=npc type c=x d=z (the tile an
+                                         * `npc_facesquare` turned it to) */
+    TORIRSSERVER_TICKLOG_KIND_COUNT
+};
+
+/** "npc_anim", "hit_player", ... -- the name a test and the TSV use. */
+char const*
+ToriRSServer_TicklogKindName(int kind);
+
+/** The kind for a name, or -1. */
+int
+ToriRSServer_TicklogKindFromName(char const* name);
+
+/* One recorded event. `label` is set only on a MARK row. */
+#define TORIRSSERVER_TICKLOG_LABEL_MAX 48
+struct ToriRSServerTicklogRow
+{
+    uint32_t serial;
+    int tick;
+    int kind;
+    int a, b, c, d, e, f;
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+};
+
+/**
+ * Start logging `srv`. `path` may be NULL (rows kept in memory only) or a
+ * file the rows are appended to as they are recorded. Calling it again on the
+ * world already being logged keeps the rows and answers the tick it started
+ * on; a different world takes the log over from scratch. Returns the tick the
+ * log started on.
+ */
+int
+ToriRSServer_TicklogEnable(
+    struct ToriRSServer* srv,
+    char const* path);
+
+/** Stop logging and drop every row. Safe when the log is off. */
+void
+ToriRSServer_TicklogDisable(void);
+
+/** 1 while `srv` is the world being logged. */
+int
+ToriRSServer_TicklogEnabled(const struct ToriRSServer* srv);
+
+/** The tick the log started on, or -1 when it is off. */
+int
+ToriRSServer_TicklogStartTick(void);
+
+/** The path rows are appended to, or NULL. */
+char const*
+ToriRSServer_TicklogPath(void);
+
+/** Rows recorded so far (the last serial). */
+uint32_t
+ToriRSServer_TicklogCount(void);
+
+/**
+ * Copy up to `max` rows whose serial is greater than `after_serial` into
+ * `out`, oldest first. Returns the number copied.
+ */
+int
+ToriRSServer_TicklogRead(
+    uint32_t after_serial,
+    struct ToriRSServerTicklogRow* out,
+    int max);
+
+/**
+ * As ToriRSServer_TicklogRead, keeping only rows of `kind` (-1: any) about npc
+ * `slot` (-1: any; the npc slot is field `a`, or `b` on a HIT_PLAYER row, and
+ * a kind with no npc slot never matches a slot filter). `*out_scanned` is the
+ * last serial looked at, matched or not -- the `after_serial` to pass next --
+ * so a reader pages through a log of npc_tile rows without carrying them
+ * across the Lua boundary.
+ */
+int
+ToriRSServer_TicklogReadFiltered(
+    uint32_t after_serial,
+    int kind,
+    int slot,
+    struct ToriRSServerTicklogRow* out,
+    int max,
+    uint32_t* out_scanned);
+
+/** A MARK row carrying `label` at the logged world's current tick. Returns its
+ *  serial, or 0 when the log is off. */
+uint32_t
+ToriRSServer_TicklogMark(char const* label);
+
+/* The hooks. Each is a no-op while the log is off or `srv` is not the world
+ * being logged. */
+void ToriRSServer_TicklogNpcAnim(const struct ToriRSServerNpc* npc, int seq_id, int delay);
+void ToriRSServer_TicklogNpcSpotanim(const struct ToriRSServerNpc* npc, int spotanim, int height,
+                                     int delay);
+void ToriRSServer_TicklogProjectile(const struct ToriRSServer* srv, int src_coord, int dst_coord,
+                                    int target, int spotanim, int start_cycle, int end_cycle);
+void ToriRSServer_TicklogMapSpotanim(const struct ToriRSServer* srv, int coord, int spotanim,
+                                     int height, int delay);
+void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,
+                                   const struct ToriRSServerPlayer* player, int damage,
+                                   int hitsplat, int dealer_pid);
+void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int damage, int hitsplat);
+void ToriRSServer_TicklogNpcSpawn(const struct ToriRSServer* srv, int slot);
+void ToriRSServer_TicklogNpcDeath(const struct ToriRSServer* srv, int slot);
+void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);
+/* An npc turned to a square (`npc_facesquare`, the one writer of
+ * TORIRSSERVER_NMASK_FACE_COORD): x/z are tiles, not the wire's half-tiles. */
+void ToriRSServer_TicklogNpcFace(const struct ToriRSServerNpc* npc, int x, int z);
+void ToriRSServer_TicklogNpcRetype(const struct ToriRSServerNpc* npc, int from_type, int to_type,
+                                   int duration);
+void ToriRSServer_TicklogLocSet(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
+                                int angle, int kind);
+void ToriRSServer_TicklogObjAdd(const struct ToriRSServer* srv, int coord, int obj_id, int count,
+                                int receiver_pid);
+/** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
+ *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
+ *  tile changed since the last row it got. */
+void ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv);
+
+/**
+ * The npc whose script is dealing the damage being applied, for the
+ * HIT_PLAYER row's dealer: the `damage`/`p_overhit` opcodes run with the
+ * VICTIM active, so the npc is only known to the script state that called
+ * them. Set to the slot around the call and back to -1 after it.
+ */
+void ToriRSServer_TicklogSetDealerNpc(int slot);
+
 /**
  * Route one decoded client packet into the game state.
  *

@@ -27,6 +27,11 @@ local QD = {
                      -- bind/stage/expect_stage/expect_complete
     session = {},   -- session.lua (seam 18 D): logout/login/relog through
                      -- the client's own logout button and title screen
+    prayer = {},    -- prayer.lua (raid seam 1): set/read a prayer by click
+    wave = {},      -- waves.lua (waves seam pass 2): enter a wave minigame
+                     -- at a wave, read its state (docs/WAVES_ORCHESTRATOR.md
+                     -- section 5); raid.lua's QD.raid is not on this branch
+    ticklog = {},   -- ticklog.lua (raid seam 1): the server's per-tick event log
 }
 
 -- The one global this chunk exports. QD itself stays `local` -- a register,
@@ -665,6 +670,26 @@ end
 
 function QD.settle()
     return await({ level = function() return api_drive.settled() end, note = "t.settle" }, 30)
+end
+
+-- t.tick() -> (ok, tick): the SERVER's tick, srv->tick, read from the
+-- embedded world (raid seam 1, docs/RAID_ORCHESTRATOR.md section 4).
+--
+-- Not api_drive.tick, which every deadline above is written against: that is
+-- the client's world cycle / 30, a clock that runs at the client's frame pace
+-- from wherever the client started. A tick-ledger row ("Maiden swung on 9,
+-- 19, 29"; "the step resolved on T+1") is about the server's phase order, and
+-- only srv->tick states it -- it is the clock every t.ticklog row carries.
+-- `unsupported` on a socket-server run or a binary without the seam.
+function QD.tick()
+    if api_drive.server_tick == nil then
+        return "unsupported", "t.tick: this binary has no api_drive.server_tick (rebuild)"
+    end
+    local result, tick = api_drive.server_tick()
+    if result ~= "ok" then
+        return result, "t.tick: no embedded server in this run"
+    end
+    return "ok", tick
 end
 
 -- t.finish(code): write the ledger's SUMMARY row and END THE RUN.

@@ -253,8 +253,32 @@ end
 --
 -- Returns (result, fail_detail, click, presses): on `ok`, fail_detail is nil
 -- and `click` is _press_row's answer (row_text, row_action, element_id).
-function QD.player._cast_press(target, label, element, arm)
+--
+-- `quick` (seam5 attack_fast_path, combat.lua QD._combat_quick): the fast
+-- press instead (QD.drive._press_quick on the "select" row, re-armed before
+-- its one re-press) -- one aim, one press, one re-aim, one more press, no
+-- walk; a fifth return carries its account.
+function QD.player._cast_press(target, label, element, arm, quick)
     assert(element ~= nil, "cast press names no npc copy")
+    if quick then
+        target.reach_element = element
+        local quick_result, quick_click, account, quick_presses =
+            QD.drive._press_quick(target, "select", arm)
+        target.reach_element = nil
+        if quick_result ~= "ok" then
+            return quick_result, label .. ": " .. tostring(quick_click) .. " ("
+                .. tostring(quick_presses) .. " press(es)) -- " .. tostring(account), nil,
+                quick_presses, account
+        end
+        assert(type(quick_click) ~= "table" or quick_click.element_id == element,
+            "cast press landed on another npc copy")
+        local quick_held, quick_why = QD.player._select_row_is_held(target, quick_click)
+        if not quick_held then
+            return "refused", label .. ": " .. tostring(quick_why) .. " -- " .. tostring(account),
+                quick_click, quick_presses, account
+        end
+        return "ok", nil, quick_click, quick_presses, account
+    end
     local click_result, click
     local presses = 0
     local walked = false
@@ -315,6 +339,10 @@ end
 -- watching slot N`, the Magic XP delta, the copy's health before and after
 -- and the newest splat inside the window -- never "landed" (banner above).
 function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
+    -- seam5 attack_fast_path: `ticks` <= 2 or opts.quick -> the fast press
+    -- (combat.lua QD._combat_quick; the attack verb's banner).
+    local quick = QD._combat_quick(ticks, opts)
+    opts = QD._combat_selector(opts)
     ticks = ticks or 10
     attack_op = attack_op or 2
     -- SEAM self_cast_and_moving_multinpc_press (seam28): NO target -- a
@@ -399,8 +427,8 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     end
 
     -- Phase 2: the named copy's one "Cast ... ->" row.
-    local press_result, press_detail, click, presses = QD.player._cast_press(target, label,
-        element, arm)
+    local press_result, press_detail, click, presses, quick_account =
+        QD.player._cast_press(target, label, element, arm, quick)
     if press_result ~= "ok" then
         QD.player._show_backpack()
         return press_result, tostring(press_detail) .. " -- the copy named " .. tostring(copy_text)
@@ -435,7 +463,9 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     local after_result, after = QD._combat_row_by_slot(slot)
     local xp_after = QD.player._magic_xp()
     local detail = label .. " [" .. row_text .. "] (" .. tostring(arm_detail) .. ") in "
-        .. tostring(presses) .. " press(es), pressed " .. tostring(copy_text)
+        .. tostring(presses) .. " press(es)"
+        .. (quick and (" (" .. tostring(quick_account) .. ")") or "")
+        .. ", pressed " .. tostring(copy_text)
         .. ", watching slot " .. tostring(slot) .. ": hp " .. before_health .. " -> "
         .. QD._combat_health_text(after) .. ", magic xp " .. tostring(xp_before)
         .. " -> " .. tostring(xp_after)
@@ -472,6 +502,8 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
             op = attack_op,
             -- What npc.await_dead_engaged re-casts (the wrap below).
             spell = symbol,
+            -- seam5: a fast-path cast's re-casts are fast presses too.
+            quick = quick or nil,
             npc_id = before.npc_id,
             name = before.name,
             health_before = before_health,
@@ -492,6 +524,14 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     if xp_paid and settle_result == "ok" then
         return "ok", detail .. " -- CAST (Magic XP paid; watched "
             .. tostring(QD.player.SPELL_FLIGHT_TICKS) .. " ticks of flight)"
+    end
+    if quick and xp_paid then
+        -- seam5: a fast cast's `ticks` (<= 2) is shorter than the flight
+        -- window by design; the cast DID run (XP paid, the stamp is written),
+        -- so the timeout says that rather than "never ran".
+        return "timeout", detail .. " -- CAST (Magic XP paid; the stamp is written), but the "
+            .. tostring(QD.player.SPELL_FLIGHT_TICKS) .. "-tick flight window outlasts ticks="
+            .. tostring(ticks) .. ", so no splat was waited for"
     end
     return "timeout", detail .. " -- no Magic XP, no refusal and the npc still there after "
         .. tostring(ticks) .. " ticks: the cast never ran"
@@ -570,16 +610,16 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
         idle_moving = idle_moving + 1
         return result, idle
     end
-    QD._combat_press_attack = function(target, label, op, element)
-        local result, fail_detail, row_text, presses = QD.player._recast_press(spell, target,
-            label, element)
+    QD._combat_press_attack = function(target, label, op, element, quick)
+        local result, fail_detail, row_text, presses, account = QD.player._recast_press(spell,
+            target, label, element, quick)
         if result == "ok" then
             recast_ok = recast_ok + 1
         else
             recast_not = recast_not + 1
             last_not = tostring(result) .. " " .. tostring(fail_detail)
         end
-        return result, fail_detail, row_text, presses
+        return result, fail_detail, row_text, presses, account
     end
     local result, detail = QD.npc._await_dead_engaged_by_attack(ticks, attempts, opts)
     QD._combat_press_attack = press_by_attack
@@ -604,7 +644,7 @@ end
 -- the stand-in for QD._combat_press_attack while a cast fight is waited out.
 -- Returns that function's four values: (result, fail_detail, row_text,
 -- presses).
-function QD.player._recast_press(spell, target, label, element)
+function QD.player._recast_press(spell, target, label, element, quick)
     local cast_label = "re-cast " .. spell .. " on " .. tostring(label)
     local component_result, component_id = QD.player._spell_component(spell)
     if component_result ~= "ok" then
@@ -623,13 +663,13 @@ function QD.player._recast_press(spell, target, label, element)
         QD.player._show_backpack()
         return arm_result, arm_detail, nil, 0
     end
-    local result, fail_detail, click, presses = QD.player._cast_press(target, cast_label,
-        element, arm)
+    local result, fail_detail, click, presses, account = QD.player._cast_press(target,
+        cast_label, element, arm, quick)
     QD.player._show_backpack()
     if result ~= "ok" then
         return result, fail_detail, nil, presses
     end
-    return "ok", nil, type(click) == "table" and click.row_text or "", presses
+    return "ok", nil, type(click) == "table" and click.row_text or "", presses, account
 end
 
 -- ------------------------------------ a cast on a GROUND OBJ or a LOC

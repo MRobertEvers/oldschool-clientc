@@ -32,6 +32,12 @@ struct WorldEntity_Projectile
      * despawn/re-sync id space stays the server's. */
     int target;
 
+    /** The spotanimtype this projectile draws (MAP_PROJANIM's id), -1 for a
+     *  model-only one (the debug hotkey). World never reads it; the quest
+     *  driver does (DriveUi_Projectiles). Set by the spawner after
+     *  World_ProjectileSpawn. */
+    int spotanim_id;
+
     /* Dynamic state. dst_x/dst_z are re-aimed every cycle at the target
      * entity's live draw position while it stays synced (reference
      * addProjectiles); with no target they hold the spawn destination. */
