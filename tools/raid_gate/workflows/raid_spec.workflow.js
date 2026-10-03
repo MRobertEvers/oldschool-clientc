@@ -26,7 +26,7 @@ export const meta = {
 const WT = '/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid'
 const CONTENT = `${WT}/OSRS-Content/osrs239-content`
 const pass = args && args.pass
-const BATCH = (args && args.branch) || String(pass || '').replace(/-(spec(-[a-z]+)?|seam\d+)$/, '')
+const BATCH = (args && args.branch) || String(pass || '').replace(/-(spec(-[a-z0-9]+)*|seam\d+)$/, '')
 const raid = args && args.raid
 const encounters = (args && args.encounters) || []
 if (!pass) throw new Error('args.pass is required (e.g. "matthew-mbp-m4-raid-b1-spec-tob")')
