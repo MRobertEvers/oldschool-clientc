@@ -390,3 +390,33 @@ is directly right of Volatile" fits both vial 2 and vial 4. The test picks the v
 note's line template, which is the generator's own order, so it always picks right. That is not a
 cheat, because the table and the refinery are still clicked. But a player has a 50% chance, so
 name it if a reviewer asks for content parity with the real note.
+
+## Sample matthew-mbp-m4-b53, round 2 (2026-10-02)
+
+*Origin: the sampler checked whatliesbelow (38ed22f0e, 89/0, 169 shots) and queenofthieves
+(e09df54ad, 78/0, 88 shots) and opened every shot. It passed both quests. None of the findings
+below sent a quest back.*
+
+(a) AN NPC'S LINES ARE TITLED WITH ANOTHER NPC'S NAME, AND THE CHATHEAD IS MISSING. In What
+Lies Below, Rat Burgiss's `bringFolderToRat` lines (shots 052-062) are headed "Outlaw".
+`whatliesbelow.rs2:83` calls `~wlb_spawn_outlaws` before `~chatnpc("Hello again! ...")` at :84.
+That proc (`whatliesbelow_papers.rs2:11-20`) runs `npc_find`/`npc_add` on `surok_outlaw1..3`.
+Both commands rebind the ACTIVE npc, so every later `~chatnpc` in the branch speaks as the last
+outlaw found or added. `t.chat.play` matches the text and not the title, so the row PASSes, and
+only a shot shows the problem. This is a different cause from the "Someone" header (Sample
+matthew-mbp-m4-b52 (a)), where a var write hides the speaker. The content fix is to call the spawn
+after the branch's last `~chatnpc`, or to look the npcs up on the secondary pointer (`.npc_find`,
+as `death_thin_npcs.rs2:57` does). The accept branch at :38 already spawns after its last line.
+
+(b) A GAP WHERE AN EM DASH SHOULD BE. The Queen of Thieves writes a real `—` in four `~chatnpc`
+lines (`queenofthieves.rs2:60, 81, 145, 218`). The dialogue font has no glyph for it, so Devan's
+line draws as "see you now    tent at the end of the tunnels" (shot 048). `chat.play` fragments
+that stop short of the dash still match. Content should write `-` or rephrase the line.
+
+(c) A LINE THAT NAMES A DOOR THE MAP DOES NOT HAVE. The Queen says "The door will need picking"
+(`queenofthieves.rs2:225`), but Councillor Hughes' house has no wall loc with an op. Its doors are
+`kr_bankdoor_l/r_inactive`, which have no ops in `configs/all.loc`. The wiki Quick guide (oldid
+15013569) says "enter the house ... and climb the stairs" and names no lock. So the
+`goto-goToKingstown` hop into the house is plain travel. To check a hop like this, list every
+shape 0-3/9 loc that has an `op` between the departure and the landing (`maps/m<x>_<z>.jl2`
+joined to `configs/all.loc`). A door with no op is not a step.
