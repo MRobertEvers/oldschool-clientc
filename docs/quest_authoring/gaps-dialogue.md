@@ -369,3 +369,16 @@ For matching, `t.chat.play` compares each entry against the page text by plain s
 that spans the break must spell the `|` (`"npc:Yes she was staying here,|but"`), and one that stops
 before it (`"npc:Yes she was staying here"`) matches as usual. The ledger detail prints the `|`.
 Copy the entry from there.
+
+## A gap where an em dash should be: the dialogue font has no glyph for U+2014
+
+*Origin: sample matthew-mbp-m4-b53 round 2 (b); fixed for The Queen of Thieves in seam pass
+matthew-mbp-m4-b53-seam3.*
+
+A real em dash (U+2014) inside `~chatnpc`/`~chatplayer`/`~mesbox` text draws as a blank gap: Devan's
+line read "see you now    tent at the end of the tunnels" (queenofthieves shot 048). `chat.play`
+fragments that stop short of the dash still match, so only a shot shows it. Content writes `' - '`
+for a dash, as LostCity dialogue does (LostCity_Content2 `quest_hero/scripts/npcs/grip.rs2:40`,
+`quest_grail/scripts/sir_percival.rs2:42`). OPEN: about 174 other port-authored chat lines in
+OSRS-Content still carry U+2014 (for example `quest_ethicallyacquiredantiquities`); a test whose
+`chat.play` entry spans one copies the dash byte for byte until the content is swept.

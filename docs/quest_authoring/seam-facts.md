@@ -1469,3 +1469,40 @@ Conrad King"). The searched list is in the comment above `[oploc1,piscquest_tent
 (d) Fetch a cited wiki oldid with
 `curl -A '<ua>' 'https://oldschool.runescape.wiki/api.php?action=query&prop=revisions&revids=<oldid>&rvprop=content|ids&rvslots=main&format=json&formatversion=2'`;
 `index.php?action=raw` now returns a Cloudflare challenge page to curl.
+
+## Seam pass matthew-mbp-m4-b53-seam3 (2026-10-02, batch matthew-mbp-m4-b53)
+
+(a) Contact!'s Maisa is talked to ACROSS the chasm; nothing walks to her. She stands "at the other
+end of a gaping chasm" (wiki Contact! oldid 15292391), and she says Kaleef "wouldn't have been able
+to get across this chasm" (Transcript:Contact! oldid 15263370). Quest Helper Contact.java:244 puts
+her at 2258,4317, "on the west side of the chasm". The chasm is `maps/m35_67.jm2`'s flag-1 strip at
+x2259..2263, unbroken from z4298 to z4338, with no bridge flag on level 1. The map, the maze ladder
+landing and the spawn were all right. The port lacked the across-the-gap talk:
+`[apnpc1,contact_maisa_multi]`/`[apnpc1,contact_maisa]` are now stacked on her `[opnpc1]`
+(OSRS-Content fd1bf2f29f), the shape LostCity uses for Hudon across the river (`quest_waterfall/scripts/hudon.rs2`).
+The engine's ap rung fires at range 10 with line of sight (`torirs_server_world.c` ~2087-2099), and
+line of sight crosses a floor-blocked chasm. Proof: `build/quest_gate/b53s3_maisa_before`
+talkToMaisa FAIL "I can't reach that!" -> `b53s3_maisa_after2` 11/0; the committed contact.lua
+copy with Maisa and Osman rows ran 130/0 to `quest.stage.told_osman` (70), with `maisa.across`
+"talked from 2264,4317; Maisa 2258,4317 across the chasm". Rows: `test/quests/wip/contact/relay.md`.
+OPEN (parity): the port splits Maisa's two questions over two talks and lacks the transcript's
+"I don't know." row.
+
+(b) An npc's lines titled with another npc's name and no chathead (What Lies Below: Rat Burgiss
+headed "Outlaw"). `npc_find` and `npc_add` both rebind the PRIMARY active npc in this engine
+(`torirs_server_scripts.c` SS_OP_NPC_ADD / NPC_FIND call `SSVM_SetActive(..., SSVM_PRIMARY, ...)`),
+so a spawn proc called before a `~chatnpc` makes every later line speak as the npc it found or
+added. `.npc_add` is not a fix here (it still sets the primary pointer); `.npc_find` is. The
+What Lies Below fix (OSRS-Content fd1bf2f29f) calls `~wlb_spawn_outlaws` after the last `~chatnpc` of
+the two paths that leave the player collecting pages; the hand-in paths no longer spawn. Proof:
+`b53s3_wlb_speaker_before` `name=ok:Outlaw` 10/4 -> `_after` `name=ok:Rat Burgiss` 14/0;
+whatliesbelow.lua 89/0, shot 053 headed "Rat Burgiss" with his head. `t.chat.play` matches the
+text, not the title: only `t.chat.name()`/`expect_head` or a shot sees this. Unchecked: other
+`npc_find` calls inside another npc's handler (`whatliesbelow_surok.rs2:92`,
+`whatliesbelow_zaff.rs2:78`, `whatliesbelow_king.rs2:20`).
+
+(c) The Queen of Thieves writes `' - '` for its four em dashes (gaps-dialogue: A gap where an em
+dash should be), and the Queen's Hughes line follows Transcript:The_Queen_of_Thieves oldid 14962997
+("find proof of her corruption ... northern side of Kingstown ... she's never in"; no door to pick,
+no lock), OSRS-Content fd1bf2f29f. A content reword must keep every `chat.play` prefix a green test
+asserts, punctuation included: dropping the period after "Kingstown" sent the run to 64/14.

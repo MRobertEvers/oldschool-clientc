@@ -67,6 +67,7 @@ topic file with one line added here.
 - `none of 83 pixels hittested`, `hunted pose 1 (reach 99)` -> traps-13-22: Trap 21
 - `the world is not picking`, `(gate at x,y: why)`, `yaw N framed nothing in 5 poses` -> traps-13-22: `the world is not picking`
 - `I can't reach that!` -> start-and-travel: Doors; verbs-pointer: `t.player.click_loc`
+- `talk_to` `I can't reach that!` on an npc across a chasm or river (Contact!'s Maisa, Waterfall's Hudon) -> gaps-world: Talk-to answers "I can't reach that!" for an npc across a chasm
 - `reach_failed:`, `stood on with ::goto`, `stand_on_square` -> traps-23-33: `stand_on_square` needs; gaps-world: `coordz(...)`
 - `I can't reach that!` on a tunnel exit you walked up to (Eagles' Peak `eaglepeak_puzzle1_exitmid`, `eaglepeak_human_exitmid`) -> traps-23-33: `stand_on_square` needs a GUIDE-GAP marker
 - `target shares the player's tile and the step off it did not land` -> start-and-travel: `goto_tile` before
@@ -103,6 +104,8 @@ topic file with one line added here.
 - `expected kind=npc, got player` -> traps-13-22: Trap 18
 - `no_row` from `choose:` -> traps-01-12: Trap 3
 - `mismatch` on an em dash; no `player:` echo -> gaps-dialogue: A `choose:` is not always followed
+- a blank gap in a dialogue shot where the transcript has an em dash -> gaps-dialogue: A gap where an em dash should be
+- an npc's lines headed with another npc's name ("Outlaw") and no chathead, `name=ok:<other>` -> seam-facts: Seam pass matthew-mbp-m4-b53-seam3 (b) (npc_find/npc_add rebind the primary npc)
 - `the dialogue closed after 2 page(s)` at a payout -> gaps-dialogue: A payout branch
 - `expected kind=npc, got none` on a `mes()` line -> gaps-dialogue: Only the chat procs
 - `refused -- stale reopen` -> traps-23-33: Trap 30; gaps-dialogue: Back-to-back choice menus
@@ -328,6 +331,7 @@ topic file with one line added here.
 - an npc the spawn dump lacks entirely: quest-local `<quest>.spawn` or `gen_spawns.py`? -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (c); content-gaps: `no_row <npc>` for a world npc
 - Queen of Thieves: the tent doorway `piscquest_tentdoor` did nothing / "You should speak to Devan Rutter before going in there." (FIXED b53-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (d); the refusal text is unsourced port wording (searched) -> Seam pass matthew-mbp-m4-b53-seam2 (c)
 - a wiki `index.php?action=raw` fetch returns a Cloudflare challenge page -> seam-facts: Seam pass matthew-mbp-m4-b53-seam2 (d)
+- Contact!: Maisa sealed off by the chasm, `walk_to` stalls at 2263,4316 (FIXED b53-seam3: talk across it, `[apnpc1]`) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam3 (a); a content reword turned a green test RED on a dropped period -> Seam pass matthew-mbp-m4-b53-seam3 (c)
 - the scroll lists XP but `t.skill.expect_gain` reads +0 at completion (Tai Bwo Wannai Trio: claimed from Tinsay/Tiadeche/Tamayu afterwards) -> seam-facts: Seam pass matthew-mbp-m4-b49-seam2 (b)
 - one karambwan vessel load emptied the raw karambwanji stack (FIXED b49-seam2: one per load) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji
 
