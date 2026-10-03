@@ -21,7 +21,7 @@ quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
-quest_contact	contact	contact		4	todo	matthew-mbp-m4-b53	RETRY after 83944803b: Maisa is talked to ACROSS the chasm ([apnpc1] added, OSRS-Content fd1bf2f29f; the map is right, never walk/goto past it) -- replace the maisa probe + t.blocked with the rows in test/quests/wip/contact/relay.md (walk_to 2264,4314 then 2264,4317, talk_to contact_maisa_multi twice for the two questions, then goto-osman + talkToOsman to stage 70); next unproved step talkToOsmanOutsideSoph		
+quest_contact	contact	contact		4	green	matthew-mbp-m4-b53			
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
