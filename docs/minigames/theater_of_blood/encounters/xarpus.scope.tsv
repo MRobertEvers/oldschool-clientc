@@ -58,7 +58,8 @@ xarpus.p3.first_turn	all	timed gaze, Normal and Entry; Hard has no timed rotatio
 xarpus.p3.repeat_quadrant	all	timed gaze, Normal and Entry; Hard faces the last hitter (xarpus.p3.hard_gaze_rule) but the sidecar has no two-mode scope (open: normal+entry scope)
 xarpus.p3.retaliate_base	normal	Normal figure; Entry's is xarpus.p3.retaliate_min_entry
 xarpus.p3.retaliate_min_entry	entry	Entry figure
-xarpus.p3.retaliate_uplift	all	applies in every mode; a solo room measures it
+xarpus.p3.retaliate_uplift	stat	the 40 percent share cannot be split from one retaliation hit on the player's side (base and buff multiply); confirmed through the ceiling row xarpus.p3.retaliate_max_entry (Entry, 80 hp), restated 2026-10-03
+xarpus.p3.retaliate_max_entry	entry	Entry figure: the largest retaliation hit of the room, a ceiling (57 x 1.4 = 79.8)
 xarpus.p3.hard_gaze_rule	hard	Hard Mode only
 xarpus.death.collapse	all	applies in every mode; a solo room measures it
 # heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
