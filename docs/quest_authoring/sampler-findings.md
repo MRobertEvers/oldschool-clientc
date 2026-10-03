@@ -576,3 +576,34 @@ Not findings (theeyesofglouphrie): all five cave entries (rows 3, 44, 78, 240, 2
 leaving by goto is travel. The kill comment now says 1 hp and max hit 1. Rewards and qp are
 literal and match the scroll (shot 466). The batch's queue commit (7a00d57e6) had left the row at
 `todo` with the round-3 failure, so the sampler set it to green.
+
+## Sample matthew-mbp-m4-b55, round 6 (2026-10-03)
+
+*The sampler checked anothersliceofham (d84fd096c, 148/0, 178 shots) and eadgar (f0ca475f0, 197/0,
+260 shots). It SENT Another Slice of H.A.M. BACK and passed Eadgar's Ruse after fixing two rows
+itself. Commit d84fd096c is reverted (632cd5e13), and so is its evidence commit (OSRS-Content
+82ebb21d96, reverted by c4fc42005c). The file is kept in
+`test/quests/wip/anothersliceofham/round6_rejected.lua`.*
+
+(a) ANOTHER SLICE OF H.A.M. HIDES A RETURN TELEPORT THAT NEVER FIRES. `goto-generals2` (row 102)
+departs from the watchtower top, 2447,5416,2, after the archer's death mesbox. The content should
+have moved the player to the Generals at that point. Details are in content-gaps: "A goto right
+after a fight hides a return teleport that never fired". The quest goes back to a content seam.
+The t.exec rows `zanik.at_dig`, `special.armed` and `special.energy` are pure reads.
+
+(b) EADGAR'S RUSE: TWO ROWS STILL GRADED THE STATUS OF A READ. These were `lookup.stileBefore`
+(`world.tile()`'s `"ok"`, whose detail printed `table: 0x...`) and `reward.snapshot`.
+`climbStile`'s condition ("the tile differs from the one read before goto-stile") was already
+true after the goto alone. The lint rule misses `x == "ok"` on a read's status, so a reviewer has
+to look for it. The sampler dropped both rows. climbStile now asserts the north-side landing
+2817,>=3564,0, which only the crossing reaches (`stiles.rs2` stile_crossing). It was rerun twice
+at 195/0, gate green, FULL 63.
+
+Not findings (eadgar): the gotos from the prison or the kitchen back to the surface pass
+`troll_stronghold_stairs` and `troll_stronghold_top_exit_*`, which read no quest var
+(`quest_troll.rs2:177-198`). They grade TRAVEL/ALTERNATIVE, and stage 86's
+`leavePrisonWithParrot`/`goUpToTopFloorWithParrot`/`leaveStrongholdWithParrot` are the same locs.
+Every stronghold entry, stairs down and storeroom stairs is clicked and has an exact landing read.
+The rewards are literal: 11000 Herblore and qp 4 to 5, matching the scroll in shot 257. The batch
+queue writer skipped both round-6 rows, because queue.json listed them from round 5. So the
+sampler set eadgar to green.

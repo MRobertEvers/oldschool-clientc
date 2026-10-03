@@ -271,3 +271,21 @@ in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
   (`lotg_intro.rs2:67-71`), so setup needs `::complete quest_losttribe`, which the scaffold
   leaves out. Nothing has a trigger on `lost_tribe_cellar_wall`. Guide steps 1.3 (Kazgar) and 1.4
   (`climbThroughHole`) are therefore travelled with `goto_tile` and graded as content gaps.
+
+## A goto right after a fight hides a return teleport that never fired (H.A.M. watchtower, matthew-mbp-m4-b55 round 6)
+
+*Symptom: the stage advances after a kill and a mesbox says you head back, but the next row's
+`goto_tile` detail reads `from <the fight's tile>`. The content's own teleport did not run.*
+
+- **Another Slice of H.A.M.** When both H.A.M. rangers die, `slice_ham_rangers_check`
+  (`slice_hammage.rs2:110-115`) runs inside `[ai_queue3,slice_ham_archer]`. It shows "With both
+  ambushers down, you make your way back to report to the Generals." and sets stage 7, but
+  `p_teleport(^slice_generals_coord)` leaves the player on the tower top at 2447,5416,2. client.log
+  then prints `npc_findhero with no active npc` at `[proc,npc_default_death]` from
+  `slice_hammage.rs2:108`. The tower has no ladder down, so a real player is stranded there. The
+  committed test hid this with `goto-generals2`. The fix belongs in content: `queue()` a player
+  script for the mesbox, the teleport and the stage write, as seam-facts says for a `p_delay` in
+  an npc script (seam pass 21 (b), seam 37 (d)).
+- **For authors:** after a fight whose content should move you, read `t.world.tile()` and compare it
+  with the destination before any goto. A goto there is only travel when the content never meant
+  to move you.
