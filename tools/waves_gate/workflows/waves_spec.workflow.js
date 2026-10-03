@@ -120,6 +120,9 @@ const PARTS = [
 (4) WHAT THE GUIDES STATE: ${GAME.docs}/sources/transcripts/STATED.md, grouped by unit: every sentence in which a narrator states a number or a rule a technique rests on (a tick, an attack speed, "pray X when", "the blob reads your prayer", a safespot tile, an order of attacks), quoted with video id and [mm:ss]. A narrator's number is grade D on its own; two players agreeing is still one kind of source. Where two guides disagree, list both.` },
 ]
 
+// args.serial: one worker at a time (owner, 2026-10-03: many workers at once hang the
+// editor); the default is parallel.
+const runAll = (args && args.serial) ? (async (thunks) => { const out = []; for (const th of thunks) out.push(await th().catch(() => null)); return out }) : parallel
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
@@ -132,7 +135,7 @@ log(`state: corpus ${state.corpus_done ? 'done' : `${partsTodo.length} part(s) t
 phase('Corpus')
 let corpus = state.corpus_done ? { game, parts: state.corpus_parts_done, sources_md: `${GAME.docs}/SOURCES.md`, unavailable: [], unit_cut: [], notes: 'done by an earlier launch' } : null
 if (!corpus) {
-  const parts = await parallel(partsTodo.map(p => () => attempt(`corpus:${p.key}`, 2, () => agent(`${COMMON}
+  const parts = await runAll(partsTodo.map(p => () => attempt(`corpus:${p.key}`, 2, () => agent(`${COMMON}
 
 ${p.prompt}
 ${PART_TAIL(p.key)}`, { label: `corpus:${game}:${p.key}`, phase: 'Corpus', model: 'claude-sonnet-5-5', schema: PART_SCHEMA }))))
@@ -158,7 +161,7 @@ Do: (1) git -C ${WT} status --short for ${GAME.docs} and tools/waves_gate; read 
 }
 
 phase('Spec')
-const fresh = await parallel(todo.map(unit => () => attempt(`spec:${unit}`, 2, () => agent(`${COMMON}
+const fresh = await runAll(todo.map(unit => () => attempt(`spec:${unit}`, 2, () => agent(`${COMMON}
 
 YOUR JOB: build ONE unit's spec table, ${GAME.name} / ${unit}, persist your report, do not commit. The product is ${GAME.docs}/encounters/${unit}.tsv with EXACTLY the columns mechanic_id, quantity, spec_value, unit, tags, grade, source_ref, closes, tolerance (python3 ${WT}/tools/waves_gate/spec_check.py <file> validates it and its docstring defines every column; run it before you finish, it must print ok), and beside it ${GAME.docs}/encounters/${unit}.scope.tsv (mechanic_id <TAB> scope: which rows a solo run can measure in one test, which are statistical and settled by the recorder tool, which belong to another mode; python3 ${WT}/tools/waves_gate/waves_coverage.py documents the sidecar). THREE KINDS OF ROW, all from the first pass (WAVES_ORCHESTRATOR.md section 3 and section ${game === 'inferno' ? '7' : '8'}): MECHANIC rows (spawn logic and positions; each monster's hitpoints, levels, attack style and the rule that picks it, cadence, first attack after spawning, the tick the prayer is read on, projectile flights, max hits prayed and unprayed, special behaviour, movement and line of sight; thresholds, timers, counts); PRESENTATION rows (for every attack, special, spawn, death and transition: its sequence, graphic, projectile and sound, sourced from ${GAME.docs}/AV_INVENTORY.tsv and the cache dumps ${GAME.docs}/sources/cache_*.txt, a plugin constant, the wiki, or a video frame; an asset whose purpose no source gives is unknown_purpose and gets no row that invents one); REWARD AND SYSTEM rows where the unit has them. Do not take the current constants as the spec: they came from a private-server port. Concurrent workers build the other units' tables; ${GAME.constants} is shared: edit only the block that belongs to YOUR unit, the smallest edit, and name every shared edit in files_changed.
 RESUME: ${STATE}/${unit}.spec.progress.md is your notebook; if it exists continue from its last step. Append after every row you grade.
@@ -182,4 +185,4 @@ RESUME DISCIPLINE: ${STATE}/close.progress.md is your notebook; if it exists con
 Do: (1) git status and diff in BOTH repos; read every changed file in full. For every spec table: python3 ${WT}/tools/waves_gate/spec_check.py <file> prints ok; then RE-DERIVE three rows per table yourself from the sources (open the file source_ref names, find the sentence or constant, confirm the value and the grade the rules allow: A needs [jagex] or [cache], B needs an OBSERVED Blert distribution, C needs two independent non-recorder sources, D one, E an [Mn]); a row whose grade the source does not support is downgraded by you, in the table, with a note in open_issues; a row whose source you cannot find is removed and listed. Send back in open_issues any row whose measured_by restates the constant instead of a measurement, reports only the first instance, or was taken under a god mode where a fight could reach it. Check each table carries presentation rows and that each names an asset the inventory lists. For every change to ${GAME.constants}: a tag may only move UP the ranking and never without the source it names; revert any other edit by rewriting that block from git show HEAD:<path>. Every content_bugs entry across the reports is copied into ${WT}/docs/minigames/waves_loop/CONTENT_BUGS.md (create it with a header if absent; one line each: game, unit, constant or script line, source quote, our measurement, the report that found it): found is not fixed, write the row. (2) make -C ${WT}/src torirsserver-scripts compiles clean; if a constant's VALUE changed, python3 ${WT}/tools/quest_gate/run.py cooks_assistant --no-publish still exits 0 with no FAIL row (quote the line), and say plainly that the full quest suite was not run by this pass. (3) ${SYNC} Commit the SUBMODULE first when content changed (explicit paths; message "waves: ${GAME.name} spec pass [spec:${pass}] -- <one clause per tagged or changed constant naming its source>"), then the parent with explicit paths (the encounters/*.tsv tables and sidecars, sources/ additions, SOURCES.md, OPEN.md, CONTENT_BUGS.md, the OSRS-Content gitlink), message "waves: ${GAME.name} unit spec tables [spec:${pass}] -- <units, grade counts>". (4) Write ${WT}/docs/minigames/waves_loop/SPEC_LEDGER.md: under a heading for this pass, one line per unit (rows, A/B/C/D/E counts, presentation rows, open rows, content bugs); commit and push. (5) FINISH: write {"landed": true, "commit": "<parent sha>"} to ${STATE}/close.json, then return the schema.`, { label: 'close+land', phase: 'Close', model: 'opus', schema: LAND }))
 }
 if (!land) log('CLOSE DID NOT LAND: relaunch this pass with the same args')
-return { pass, corpus, reports, failed, land }
+return { pass, units_reported: reports.map(r => r.unit), failed, land }
