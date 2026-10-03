@@ -168,3 +168,10 @@ is still open is listed in full under "Still open". Paths: `minigame_tob/` is
 - ToB, Verzik: P3 auto max 34 at the enrage is code only (33 sampled); yellow pool graphic 1595 is 183 cycles in our cache, so the pool vanishes on the client long before a 14/20-tick blast (blert's 14 is the live graphics object's lifetime; mechanism unsourced).
 - ToB, Verzik: inline literals in tob_verzik.rs2 (post-floor purple roll 50 [M18, fitted], Hard yellows 20, webs 32, transition 6, Athanatos flight 20 + 160, green ball 181) could become tob.constant entries.
 - ToB, room tests: the tick log has no room-start row; a `room_start` ticklog row written by `~tob_room_start` would give room tests their anchor.
+
+## From the ToB room-authoring pass matthew-mbp-m4-raid-b1-rooms-tob (2026-10-02)
+
+- ToB, Sotetseg (tob_sotetseg.rs2:948, spec.sotetseg.hp_entry_per_player, grade A): `~tob_sote_end_maze` `npc_changetype` hands the combat form full hitpoints: 364 before the first maze, 2044 after it (Entry pool 560), so the fight cannot be finished and the second maze never fires.
+- ToB, Sotetseg (tob_sotetseg.rs2:821, technique.maze_path_lit): `~tob_sote_light_path` lights no tile (`~tob_sote_set_tile` 735 loc_find misses, 0 loc_set rows), so the shadow-realm path is never visible.
+- ToB, Sotetseg (tob_sotetseg.rs2:905, spec.sotetseg.maze_off_on_3): a step-off ends the maze 5 ticks later on cycle tick 3 where the spec says 1.
+- ToB, Sotetseg (coverage, unfixed): cadence 2,3,5 vs 5; first_attack_entry 5 vs 7; melee_roll_adjacent 636 vs 483; melee_hit_delay 0,1 vs 1; death_ball_hit_entry_solo 6-14 vs 15; ball_max_entry 3 vs 22.
