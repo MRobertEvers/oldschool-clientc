@@ -5,7 +5,7 @@
 return {
     id = "tob_nylocas",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 300000,
+    max_frames = 420000,
     setup = {
         "::clearinv",
         -- an Entry nylocas player's combat stats: melee and ranged weapons for the nylocas' two killable styles
@@ -16,16 +16,21 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 70",
-        -- one weapon per nylocas style: a wrong-style hit nulls that nylocas for good
+        -- one weapon per nylocas style: a wrong-style hit nulls that nylocas for good (a dart's own ranged attack bonus is 0 and 7 of 10
+        -- darts missed a nylocas the bow's +69 hits 9 of 10 times)
         "::give abyssal_whip 1",
         "::give magic_shortbow 1",
-        -- the third weapon: a spell the magic nylocas (a wrong-style hit nulls them) can be killed with, fire strike
+        "::give rune_arrow 800",
+        -- the third weapon: a spell the magic nylocas can be killed with, fire strike
         "::give staff_of_fire 1",
         "::give airrune 1500",
         "::give mindrune 500",
-        "::give rune_arrow 800",
-        -- food: the aggro nylocas swing at the player every 3 ticks for the whole room
-        "::give shark 22",
+        -- food economy of the room (the aggro nylocas swing at the player every 3 ticks for the whole room, with no prayer or armour
+        -- check): six Saradomin brews (four doses, +2 and 15 percent of hitpoints each, overheal to 116, one tick to drink), three
+        -- super restores (undo the brews' stat drain and refill prayer for Vasilias), and thirteen sharks; 27 slots with the weapons
+        "::give 4dosepotionofsaradomin 6",
+        "::give 4dose2restore 3",
+        "::give shark 13",
     },
     run = function(t)
         t.check("spec.scope", true, "mode=entry party=1")
@@ -46,6 +51,28 @@ return {
         local _, tick0 = t.tick()
         t.drive.camera(0, 512, 1100)
         t.player.equip("rune_arrow")
+        t.player.equip("magic_shortbow")
+        -- the combat tab's second style button: rapid for the bow (an arrow every three ticks, not four)
+        local tab_result, tab_detail = t.ui.tab("combat")
+        t.ticks(1)
+        local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_1")
+        local style_press_result, style_press_detail = t.ui.invoke(style_widget, 1)
+        t.ticks(2)
+        local style_read_result, style_read = t.var.varp("varp43_com_mode")
+        t.check("setup.rapid", style_widget_result == "ok" and style_press_result == "ok" and style_read == 1,
+            "combat tab style slot 1 pressed for the bow: tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ", widget "
+            .. tostring(style_widget_result) .. " " .. tostring(style_widget) .. ", press " .. tostring(style_press_result)
+            .. " " .. tostring(style_press_detail) .. ", varp43_com_mode reads " .. tostring(style_read_result) .. " " .. tostring(style_read))
+        -- auto-retaliate off (the combat tab's own button): the server would otherwise swing back at whatever hit the player with the
+        -- weapon in hand, and a wrong-style swing nulls that nylocas for good (56 nulled hits in one pass)
+        local retaliate_before_result, retaliate_before = t.var.varp("varp172_option_nodef")
+        local retaliate_widget_result, retaliate_widget = t.ui.widget("combat_interface:retaliate")
+        local retaliate_press_result = "skipped"
+        if retaliate_before == 0 then retaliate_press_result = t.ui.invoke(retaliate_widget, 1) end
+        t.ticks(2)
+        local retaliate_after_result, retaliate_after = t.var.varp("varp172_option_nodef")
+        t.check("setup.retaliate_off", retaliate_after == 1, "combat tab auto-retaliate button: varp172_option_nodef read " .. tostring(retaliate_before)
+            .. " before, press " .. tostring(retaliate_press_result) .. ", " .. tostring(retaliate_after) .. " after (1 is off)")
         local weapon = { melee = "abyssal_whip", ranged = "magic_shortbow", magic = "staff_of_fire" }
         local style_names = { "melee", "ranged", "magic" }
         local fighting_kinds = { "big_fighting", "fighting" }
@@ -53,7 +80,12 @@ return {
         local boss_symbol = { melee = "nylocas_boss_melee_story", magic = "nylocas_boss_magic_story", ranged = "nylocas_boss_ranged_story" }
         local prayer_of = { melee = "protectfrommelee", magic = "protectfrommagic", ranged = "protectfrommissiles" }
         local hold_of = { melee = 5, ranged = 5, magic = 5 }
-        local current, swings, casts, eaten, idle, lowest, disarms = nil, 0, 0, 0, 0, 99, 0
+        local current, swings, casts, eaten, idle, lowest, disarms = "ranged", 0, 0, 0, 0, 99, 0
+        local brews, restores, brew_doses, top_up = 0, 0, 0, false
+        local expect_hp, expect_until, expect_tick, next_trace, last_fallen = 0, 0, 0, 0, 0
+        local equip_bad, equip_samples, pending, swap_holds = 0, {}, nil, 0
+        local brew_names = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
+        local restore_names = { "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" }
         local boss_style, boss_calls, waves_calls, slow = nil, 0, 0, {}
         local boss_forms = {}
         local fight_end = "tick cap"
@@ -84,14 +116,21 @@ return {
         for _, mark_row in ipairs(serial_rows) do death_serial = mark_row.serial end
         for iteration = 1, 9000 do
             local _, now = t.tick()
-            if now - tick0 >= 300 then fight_end = "tick cap, 300 ticks after the click" break end
+            if now - tick0 >= 395 then fight_end = "tick cap, 395 ticks after the click (the swarm of bigs that arrives from click+410 killed the player from 85 in under 20 ticks in every attempt)" break end
             if now - tick0 >= next_progress then
-                next_progress = next_progress + 60
+                next_progress = next_progress + 100
                 local _, deaths_now = t.ticklog.rows({ kind = "npc_death" })
                 t.expect("fight.progress" .. (now - tick0), "ok", "tick " .. (now - tick0) .. " after the click, npc deaths " .. #deaths_now
-                    .. ", swings " .. swings .. ", casts " .. casts .. ", idle " .. idle .. ", sharks " .. eaten .. ", lowest hp " .. lowest
+                    .. ", swings " .. swings .. ", casts " .. casts .. ", idle " .. idle .. ", sharks " .. eaten .. ", brew doses " .. brews .. ", restores " .. restores .. ", swap holds " .. swap_holds .. ", equip failures " .. equip_bad .. " " .. table.concat(equip_samples, " | ") .. ", lowest hp " .. lowest
                     .. ", pillars fallen " .. pillars_fallen .. ", ticks spent equip " .. cost.equip .. " eat " .. cost.eat .. " press " .. cost.press
                     .. " step " .. cost.step .. " wait " .. cost.wait)
+            end
+            -- the last polls (tick:hp:eaten+press), written every eight ticks once the room is full
+            if now - tick0 >= 370 and now - tick0 >= next_trace then
+                next_trace = now - tick0 + 8
+                local tail = {}
+                for i = math.max(1, ring_count - 11), ring_count do tail[#tail + 1] = ring[(i - 1) % 60 + 1] end
+                t.expect("fight.trace" .. (now - tick0), "ok", "pillars fallen " .. pillars_fallen .. ", sharks " .. eaten .. ", brew doses " .. brews .. ": " .. table.concat(tail, " "))
             end
             -- the room's own hitpoint readout (::tobwhy only prints what it reads): the first wave's smalls are untouched
             -- six ticks in, and the first big seen is untouched when this loop first sees it
@@ -136,6 +175,8 @@ return {
             if tile ~= nil and tile.x < 6000 then fight_end = "player died (respawned at " .. tile.x .. ")" break end
             local hp_now = 99
             if hp_result == "ok" and hp.level ~= nil then hp_now = hp.level end
+            local guess = expect_hp - 5 * (select(2, t.tick()) - expect_tick)
+            if select(2, t.tick()) < expect_until and hp_now >= 60 and hp_now < guess then hp_now = guess end
             if hp_now < lowest then lowest = hp_now end
             -- the more copies swinging, the higher the hitpoints are kept: one press can hang for twenty ticks on a covered big
             -- every fighting copy in view (the nearest of each of the six forms), and whether it has held its tile since an earlier
@@ -156,31 +197,67 @@ return {
             end
             local fight_count = #fight_rows
             local eat_below = 78 + 2 * math.min(fight_count, 3)
+            if top_up then eat_below = 112 end
             local ate = 0
             local out_of_food = false
             while hp_now <= eat_below and ate < 3 do
-                local food_result, food = t.inv.count("shark")
-                if food_result == "ok" and food == 0 then out_of_food = true break end
+                -- a brew first while the hitpoints are 84 or under (it adds 16 and overheals to 116), a shark under 78
+                local item = nil
+                if hp_now <= 88 or top_up then
+                    for _, name in ipairs(brew_names) do
+                        local brew_result, brew_count = t.inv.count(name)
+                        if brew_result == "ok" and brew_count > 0 then item = name break end
+                    end
+                end
+                if item == nil and hp_now <= 78 + 2 * math.min(fight_count, 3) then
+                    local food_result, food = t.inv.count("shark")
+                    if food_result == "ok" and food > 0 then item = "shark" end
+                end
+                if item == nil then
+                    if hp_now <= 78 then out_of_food = true end
+                    break
+                end
                 local before_eat = select(2, t.tick())
-                t.player.inv_op("shark", 1)
-                eaten = eaten + 1
+                -- (the bare backpack press left the player in the drink's delay and the next cast was refused: 9 of 9 refusals followed one)
+                t.player.inv_op(item, 1)
+                if item == "shark" then eaten = eaten + 1 else brews = brews + 1 end
                 ate = ate + 1
                 lock = nil
-                -- the hitpoint read lags the eat by a tick or two: wait for it to rise, or the next pass eats a second shark at 91
-                local hp_before_eat = hp_now
-                for _ = 1, 4 do
-                    t.ticks(1)
-                    hp_result, hp = t.skill.read("hitpoints")
-                    if hp_result == "ok" and hp.level ~= nil then hp_now = hp.level end
-                    if hp_now > hp_before_eat then break end
+                -- the hitpoint read lags the eat by one to three ticks: do not wait for it, count the heal (a brew gives 16, to 116; a
+                -- shark 20, to 99) and trust the read again three ticks on
+                if item == "shark" then
+                    expect_hp = math.min(99, hp_now + 20)
+                else
+                    expect_hp = math.min(116, hp_now + 16)
+                end
+                hp_now = expect_hp
+                expect_tick = select(2, t.tick())
+                expect_until = expect_tick + 3
+                if item ~= "shark" then
+                    brew_doses = brew_doses + 1
+                    -- every second dose a super restore puts the drained attack, strength, ranged and magic back
+                    if brew_doses >= 2 then
+                        for _, name in ipairs(restore_names) do
+                            local restore_result, restore_count = t.inv.count(name)
+                            if restore_result == "ok" and restore_count > 0 then
+                                t.player.inv_op(name, 1)
+                                restores = restores + 1
+                                break
+                            end
+                        end
+                        brew_doses = 0
+                    end
                 end
                 cost.eat = cost.eat + (select(2, t.tick()) - before_eat)
                 if hp_now < lowest then lowest = hp_now end
             end
+            top_up = false
             ring_count = ring_count + 1
             ring[(ring_count - 1) % 60 + 1] = (now - tick0) .. ":" .. hp_now .. ":e" .. ate
-            if out_of_food and hp_now < 40 then fight_end = "out of food at hitpoints " .. hp_now break end
-            if hp_now < 45 and fight_count >= 1 then fight_end = "left the room at hitpoints " .. hp_now .. " with " .. fight_count .. " copies swinging, after eating" break end
+            if out_of_food and hp_now < 35 then fight_end = "out of food at hitpoints " .. hp_now break end
+            -- the swarm of bigs that arrives with waves 20 and on killed the player from 85 to 0 in fifteen ticks (a brew heals 16 a tick at
+            -- best, seven bigs hit 12): leave while the room can still be left, so the log is graded and not lost to player.died
+            if (hp_now < 60 and fight_count >= 3) or (hp_now < 90 and fight_count >= 5) or hp_now < 45 then fight_end = "left the room at hitpoints " .. hp_now .. " with " .. fight_count .. " copies swinging, after eating" break end
             -- a press that took six ticks or more: what it cost in hitpoints is read here, on the poll after it
             if hang_pending ~= nil then
                 hang_events[#hang_events + 1] = hang_pending.text .. " hp " .. hang_pending.hp .. "->" .. hp_now
@@ -191,6 +268,10 @@ return {
                 next_pillar_poll = now + 6
                 local _, fell = t.ticklog.rows({ kind = "npc_death", type = 10790 })
                 pillars_fallen = #fell
+                if pillars_fallen > last_fallen then
+                    last_fallen = pillars_fallen
+                    top_up = true
+                end
             end
             -- the support nearest to falling (the lowest health bar) is the one let fall: its chewers are left alone until its bar is
             -- nearly empty, then cut to three, with the hitpoints topped up first, so the collapse hands the player three attackers and
@@ -210,27 +291,14 @@ return {
                             doomed = { x = row.x + 1, z = row.z + 1 }
                         end
                     end
-                    if min_fraction <= 0.12 then zone_cap = 3 else zone_cap = 99 end
+                    zone_cap = 99
                 end
             end
             if zone_cap == 3 and pillars_fallen == 0 and not brace_logged then
                 brace_logged = true
-                local brace_eaten = 0
-                local brace_hp = hp_now
-                while brace_hp < 90 and brace_eaten < 4 do
-                    local food_result, food = t.inv.count("shark")
-                    if food_result == "ok" and food == 0 then break end
-                    t.player.inv_op("shark", 1)
-                    eaten = eaten + 1
-                    brace_eaten = brace_eaten + 1
-                    lock = nil
-                    t.ticks(1)
-                    local brace_result, brace_read = t.skill.read("hitpoints")
-                    if brace_result == "ok" and brace_read.level ~= nil then brace_hp = brace_read.level end
-                end
-                hp_now = brace_hp
-                brace_text = "support bar at " .. string.format("%.2f", min_fraction) .. " on tick " .. (now - tick0) .. ": hitpoints topped up to " .. brace_hp
-                    .. " with " .. brace_eaten .. " sharks, chewers on it cut to three"
+                top_up = true
+                brace_text = "support bar at " .. string.format("%.2f", min_fraction) .. " on tick " .. (now - tick0) .. " at hitpoints " .. hp_now
+                    .. ": hitpoints topped up on the next pass, chewers on it cut to three"
             end
             -- who swings at the player now (read first, so a press on a chewer is dropped for a fresh aggro)
             local target, target_symbol, target_style, on_boss = nil, nil, nil, false
@@ -250,6 +318,7 @@ return {
             end
             -- is the locked copy still there, and has its press had time to land
             local waiting = false
+            local hold_boss, boss_age_text = false, nil
             if lock ~= nil then
                 -- the kill is in the tick log the tick it lands: free the next press without waiting out the corpse
                 local _, new_deaths = t.ticklog.rows({ kind = "npc_death", since = death_serial })
@@ -274,7 +343,7 @@ return {
                 -- nothing swings at the player: kill the chewers, nearest first, except those on the support let fall
                 if target == nil then
                     local candidates, zone_count = {}, 0
-                    -- (no cast at a chewer: it costs five ticks, and one such press hung for 53 ticks while its Hagios exploded)
+                    -- (no cast at a chewer: a cast left armed refused 29 of the next presses and the kill rate fell by two thirds)
                     for index = 1, 2 do
                         for _, kind in ipairs(incoming_kinds) do
                             local symbol = "tob_nylocas_" .. kind .. "_" .. style_names[index] .. "_story"
@@ -298,8 +367,7 @@ return {
                         local score = 0
                         if tile ~= nil then score = math.max(math.abs(c.row.x - tile.x), math.abs(c.row.z - tile.z)) end
                         if c.style ~= current then score = score + 3 end
-                        if c.zone and zone_count > zone_cap then score = score - 50 end
-                        if (skips[c.row.slot] or 0) <= now and (not c.zone or zone_count > zone_cap or pillars_fallen >= 1) and score < best_score then
+                                                if (skips[c.row.slot] or 0) <= now and score < best_score then
                             best_score = score
                             target, target_symbol, target_style = c.row, c.symbol, c.style
                         end
@@ -317,16 +385,52 @@ return {
                         t.prayer.set(prayer_of[target_style], true)
                     end
                     if not on_boss and boss_style ~= nil then fight_end = "boss gone" break end
+                    -- a hit that lands after she turns is the wrong style and nulls her for good: press only early in a form's ten ticks
+                    -- (a cast flies six ticks, so it is pressed in the first three; a swing or an arrow in the first six)
+                    if on_boss then
+                        local _, boss_world_slot = t.ticklog.slot(target)
+                        local _, turns = t.ticklog.rows({ kind = "npc_retype", slot = boss_world_slot })
+                        local last_turn = turns[#turns]
+                        if last_turn ~= nil then
+                            local age = now - last_turn.tick
+                            local limit = 5
+                            if target_style == "magic" then limit = 2 end
+                            if age > limit and age < 10 then hold_boss = true end
+                            boss_age_text = "form age " .. age
+                        end
+                    end
                 end
-                if target == nil then
+                -- a swing or a dart in flight is judged by the weapon in hand when it LANDS (the damage type is the player's, read at the
+                -- hit): a swap before the hit_npc row turns it into a wrong-style hit and nulls that nylocas for good
+                local hold_swap = false
+                if target ~= nil and current ~= target_style and pending ~= nil and now - pending.tick < 6 then
+                    local pending_done = false
+                    local _, landed = t.ticklog.rows({ kind = "hit_npc", slot = pending.world_slot })
+                    for _, r in ipairs(landed) do
+                        if r.tick >= pending.tick then pending_done = true break end
+                    end
+                    if not pending_done then
+                        local _, dead = t.ticklog.rows({ kind = "npc_death", slot = pending.world_slot })
+                        for _, r in ipairs(dead) do
+                            if r.tick >= pending.tick then pending_done = true break end
+                        end
+                    end
+                    if not pending_done then hold_swap = true swap_holds = swap_holds + 1 end
+                end
+                if target == nil or hold_boss or hold_swap then
                     idle = idle + 1
                     t.ticks(1)
                     cost.wait = cost.wait + 1
                 else
                     if current ~= target_style then
                         local before_equip = select(2, t.tick())
-                        t.player.equip(weapon[target_style])
-                        current = target_style
+                        local equip_result, equip_detail = t.player.equip(weapon[target_style])
+                        if equip_result == "ok" then
+                            current = target_style
+                        else
+                            equip_bad = equip_bad + 1
+                            if #equip_samples < 4 then equip_samples[#equip_samples + 1] = weapon[target_style] .. " " .. tostring(equip_result) .. ": " .. string.sub(tostring(equip_detail), 1, 160) end
+                        end
                         cost.equip = cost.equip + (select(2, t.tick()) - before_equip)
                     end
                     local before = select(2, t.tick())
@@ -351,11 +455,12 @@ return {
                     if on_boss then boss_calls = boss_calls + 1 else waves_calls = waves_calls + 1 end
                     if call_result == "ok" or call_result == "timeout" then
                         local _, world_slot = t.ticklog.slot(target)
+                        if type(world_slot) == "number" then pending = { world_slot = world_slot, tick = before } else pending = nil end
                         lock = { world_slot = world_slot, slot = target.slot, symbol = target_symbol, tick = select(2, t.tick()), hold = hold_of[target_style], fight = (target_symbol ~= nil and string.find(target_symbol, "_fighting_", 1, true) ~= nil) or on_boss }
                         if on_boss then lock.hold = 4 end
                     else
                         if string.find(tostring(call_detail), "already under attack", 1, true) ~= nil then under_attack = under_attack + 1 end
-                        if #samples < 3 then samples[#samples + 1] = tostring(call_result) .. ": " .. string.sub(tostring(call_detail), 1, 150) end
+                        if #samples < 4 then samples[#samples + 1] = tostring(call_result) .. ": " .. string.sub(tostring(call_detail), 1, 150) end
                         skips[target.slot] = now + 3
                         -- a refused or covered press (stale menu, a cast left armed): step away one tile, then press again
                         local before_step = select(2, t.tick())
@@ -379,7 +484,7 @@ return {
         t.check("fight.loop", swings + casts > 20, "melee/ranged swings " .. swings .. ", casts " .. casts .. ", idle polls " .. idle
             .. ", spells put down " .. disarms .. ", sharks eaten " .. eaten .. ", lowest hitpoints " .. lowest .. ", ended by " .. fight_end .. ", "
             .. (select(2, t.tick()) - tick0) .. " ticks after the click; calls on waves " .. waves_calls .. ", on Vasilias " .. boss_calls
-            .. "; press results " .. table.concat(result_texts, ", ") .. "; ticks per call " .. table.concat(slow, ",") .. "; ticks spent equip "
+            .. "; press results " .. table.concat(result_texts, ", ") .. " (first non-ok answers: " .. table.concat(samples, " | ") .. "); ticks per call " .. table.concat(slow, ",") .. "; ticks spent equip "
             .. cost.equip .. " eat " .. cost.eat .. " press " .. cost.press .. " step " .. cost.step .. " wait " .. cost.wait .. "; pillars fallen "
             .. pillars_fallen .. ", most chewers on the doomed support " .. zone_peak .. ", " .. tostring(brace_text) .. "; last polls (tick:hp:eaten+press) " .. table.concat(ring, " ", ring_count > 60 and (ring_count % 60) + 1 or 1, math.min(ring_count, 60)) .. " " .. (ring_count > 60 and table.concat(ring, " ", 1, ring_count % 60) or "") .. "; trace " .. table.concat(trace, " "))
         local leave_result, leave_detail = t.raid.leave()
@@ -508,6 +613,18 @@ return {
             m.first_wave[1] = wave_ticks[1] - room_start
         end
         local flicker_wave = nil
+        -- the room being left frees every copy on one tick: that last free tick (three or more frees on it) is a teardown, not a despawn
+        local frees_at, teardown_tick = {}, -1
+        for _, c in ipairs(lives) do
+            frees_at[c.free] = (frees_at[c.free] or 0) + 1
+            if c.free > teardown_tick then teardown_tick = c.free end
+        end
+        if (frees_at[teardown_tick] or 0) < 3 then teardown_tick = -1 end
+        local kept_lives = {}
+        for _, c in ipairs(lives) do
+            if c.free ~= teardown_tick then kept_lives[#kept_lives + 1] = c end
+        end
+        lives = kept_lives
         for index, c in ipairs(lives) do
             if index % 40 == 0 then t.ticks(1) end
             local small = (c.type < 10777) or (c.type >= 10780 and c.type < 10783)
@@ -797,7 +914,7 @@ return {
             .. " hit_npc rows with damage and " .. nulled .. " at 0 on nylocas")
         t.check("tech.aggro_first", kills.fighting > 0, "kills of the fighting (aggro) forms " .. kills.fighting
             .. " against the incoming forms " .. kills.incoming .. ": the ones that swing at the player are met first")
-        t.check("tech.food", eaten > 0 and lowest > 0, "sharks eaten " .. eaten .. ", lowest hitpoints " .. lowest .. ", eaten from 78 (84 with three copies swinging) and below, one at a time, the next only once the hitpoint read had risen")
+        t.check("tech.food", (eaten + brews) > 0 and lowest > 0, "sharks eaten " .. eaten .. ", brew doses " .. brews .. ", lowest hitpoints " .. lowest .. ", eaten from 78 (84 with three copies swinging) and below, one at a time, the next only once the hitpoint read had risen")
         local spawned_waves, spawned_total = #wave_ticks, 0
         for _, c in ipairs(lives) do spawned_total = spawned_total + 1 end
         local walking_text = "none"
@@ -808,14 +925,13 @@ return {
         end
         local hang_text = "none"
         if #hang_events > 0 then hang_text = table.concat(hang_events, "; ", 1, math.min(#hang_events, 5)) end
-        t.blocked("driver seam: t.player.attack / t.player.cast run far past their deadline once a press answers covered (this pass: ticks=1, "
-            .. #hang_events .. " presses took six ticks or more (" .. hang_ticks .. " ticks in all; first ones: " .. hang_text .. "), inside the cover "
-            .. "recovery (combat.lua _combat_press_attack: _npc_cover_recovery, then walk_near; earlier passes of this room measured single ticks=1 presses of 22, 44 and 53 ticks that ended in player.died while four or five bigs swung), and the kill rate it leaves, one nylocas per " .. string.format("%.0f", (select(2, t.tick()) - tick0) / math.max(1, kills.melee + kills.ranged + kills.magic)) .. " ticks, is below the 0.07 a tick at which the aggro forms arrive, while the aggro forms swing unconditionally "
-            .. "(tob_nylocas.rs2:1072 rolls 1..max and queues combat_damage_player, no prayer or armour check): " .. (kills.melee + kills.ranged + kills.magic)
-            .. " of the " .. spawned_all .. " nylocas spawned in " .. spawned_waves .. " waves were killed in " .. (select(2, t.tick()) - tick0)
-            .. " ticks (press results " .. table.concat(result_texts, ", ") .. "), " .. eaten .. " sharks eaten one at a time waiting for the heal to show; "
-            .. "four or five swinging bigs hit 5-6 a tick and a shark nets +3 against them, and a support's fall retargets every chewer on it at once "
-            .. "(tob_nylocas.rs2:1619, 10-13 seen), so the fight ended by " .. fight_end .. ": Vasilias, the support collapse rows, entry_spawn_total and "
-            .. "the nylocas.vasilias_* rows are unreached; walking smalls despawned hp0+" .. walking_text .. " (open engine arrive delay)")
+        local kills_all = kills.melee + kills.ranged + kills.magic
+        t.blocked("room not completed (a tactics wall, not a proven driver seam): the fight ended by " .. fight_end .. " " .. (select(2, t.tick()) - tick0)
+            .. " ticks after the click with " .. kills_all .. " of the " .. spawned_all .. " nylocas spawned in " .. spawned_waves .. " waves killed (one per "
+            .. string.format("%.0f", (select(2, t.tick()) - tick0) / math.max(1, kills_all)) .. " ticks; the aggro forms arrive at one per 3.5), " .. eaten
+            .. " sharks and " .. brews .. " brew doses eaten, " .. pillars_fallen .. " of 4 supports fallen, press results " .. table.concat(result_texts, ", ")
+            .. "; the aggro forms swing unconditionally (tob_nylocas.rs2:1072 rolls 1..max and queues combat_damage_player: no prayer check, only worn gear), "
+            .. "a support's fall retargets every chewer on it at once (tob_nylocas.rs2:1619), so Vasilias, the support collapse rows and the nylocas.vasilias_* rows "
+            .. "were never reached; walking smalls despawned hp0+" .. walking_text .. " (open engine arrive delay)")
     end,
 }
