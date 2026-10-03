@@ -83,6 +83,10 @@ if (!triage) {
 YOUR JOB: triage, no edits. ${reuse ? `Read ${WT}/${reuse} in full: it holds a completed triage (one "## <kind>: <key>" section per seam with Quests, Files, a summary paragraph and an Evidence line) -- transcribe it exactly into the schema.` : `Read the newest ${WT}/docs/minigames/raid_loop/SEAM_TRIAGE_*.md in full and transcribe it exactly into the schema (the raid loop always writes its triage by hand; a pass without one is a launch error).`} BEFORE returning, write the schema JSON to ${STATE}/triage.json (python3 -c with json.dump). Return the schema.`, { label: reuse ? 'triage (transcribe)' : 'triage', model: reuse ? 'claude-sonnet-5-5' : 'opus', effort: reuse ? 'low' : undefined, schema: TRIAGE_SCHEMA }))
   if (!triage) throw new Error('triage produced no result after two tries; relaunch with the same args')
 }
+// A triage with no seams is a lost result, never a finished pass (seam10, 2026-10-03: the
+// triage agent wrote four seams to triage.json and returned none, no fixer ran, and the
+// closer spent a whole suite closing nothing). The State phase reads the file next launch.
+if (!triage.seams || triage.seams.length === 0) throw new Error('triage returned no seams; if ' + STATE + '/triage.json holds them, relaunch with the same args (the State phase reads it)')
 const doneKeys = new Set(state.done.map(d => d.key))
 const fixable = triage.seams.filter(s => s.kind !== 'design')
 const todo = fixable.filter(s => !doneKeys.has(s.key))
