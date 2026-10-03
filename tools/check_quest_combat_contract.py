@@ -4351,7 +4351,7 @@ def check_ghosts_ahoy() -> None:
         book,
         (
             "npc_add(^ahoy_lobster_spawn_coord, giant_lobster, ^ahoy_lobster_lifetime);",
-            "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
+            "npc_setowner;", "npc_setmode(opplayer2);", "hint_npc;",
             "[opnpc2,giant_lobster]", "[apnpc2,giant_lobster]",
             "[ai_queue3,giant_lobster]", "npc_findhero", "p_finduid(uid)",
             "%varb215_ahoy_killed_lobster = 1;",
@@ -4363,6 +4363,13 @@ def check_ghosts_ahoy() -> None:
         ),
         "Ghosts Ahoy owner-private timed lobster and complete loot",
     )
+    # The lobster is a melee monster (wiki Giant_lobster_(Ghosts_Ahoy) oldid 15272821:
+    # Stab, speed 4, max hit 4): it retaliates through the default [ai_queue1,_]
+    # opplayer2 rung. An applayer2 override with no [ai_applayer2] handler made it
+    # hit once and never again (seam ghostsahoy_giant_lobster_never_swings, b56).
+    require("[ai_queue1,giant_lobster]" not in book and "[ai_spawn,giant_lobster]" not in book
+            and "npc_setmode(applayer2);" not in book,
+            "Ghosts Ahoy: the giant lobster must not be put in the ranged applayer2 mode")
     require("@wiki_lobster_drop" not in book and "@lobster_drop" not in book,
             "Ghosts Ahoy: quest lobster must not leak a generic lobster table")
     require_text(
