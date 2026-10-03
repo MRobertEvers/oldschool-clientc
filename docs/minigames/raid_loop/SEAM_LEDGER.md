@@ -387,3 +387,33 @@ selftest 11 failures, the baseline set; ::tobrun OK 56; cheats 23/23.
   dies to acid-pool sweeps by tick ~205 (needs a pool-avoiding stance, author's); orb
   timing moved +1 -> +0 (spec rows written on the old timing move); landings in flight
   are dropped when Xarpus dies (no source either way).
+
+## matthew-mbp-m4-raid-b1-seam10 (2026-10-03): the rows the sixth ToB room launch lost (triage SEAM_TRIAGE_2026-10-03h.md)
+
+No fixer of this pass left a report, a progress note, a conformance snippet or an edit:
+the state dir held only triage.json when the closer ran, and none of the four seams'
+content files differ from HEAD. Nothing landed; the triage document is committed so the
+next launch starts from it. Gates on the unchanged tree: scripts compile (42416),
+spec_check clean, check-quest-verbs (162 verbs, 141 seam rows), check-drive-abi,
+check-pt-switch, test-quest-cheats, test-plugin-lua, lint 127 clean, conformance 303/303
+PASS, quest suite 115 green plus the four baseline REDs (deserttreasure, forgettabletale,
+regicide, troll), nothing moved.
+
+- `tob_nylocas_vasilias_entry_rows`: NOT LANDED (no fixer report). Still open, all of it:
+  vasilias_switch_entry (measured 9/10 vs 15), vasilias_attacks_entry (2 vs 3-4),
+  pillar_collapse_entry_min (3/15/27 hp vs 30+) and explosion_radius (1 vs 2) unsettled
+  from their source lines; vasilias_reflect, entry_recoil_cap and av.vasilias_death.seq
+  unconfirmed; no recipe; the text-row detail format question unanswered.
+- `tob_verzik_purple_globule_and_yellow_blast`: NOT LANDED (no fixer report). Still open:
+  av.p2_purple.poison_globule (1588 never seen after an Athanatos landing),
+  av.p3_yellows.gfx_blast (1597 never seen; a yellow pool placed under her footprint at
+  6423,99), the weapon-swap hit attribution for tech.p1_cap_melee_ranged, and the exact
+  reads for throne_seq, jingle, map_locs, death_cage and barrier.
+- `tob_xarpus_entry_solo_survival`: NOT LANDED (no fixer report). Still open: the room
+  copy dies in phase 2 near tick 205 (spit and pool damage per tick not yet measured
+  against the Entry rows), spit_landing 3 vs spec 2 after seam9's queue move, no
+  surviving recipe proved under two run names, and why the author's pass did not
+  reproduce for the reviewer.
+- `tob_bloat_stomp_defence`: NOT LANDED (no fixer report). Still open: the Dragon
+  warhammer drain is intermittent (80 of 80 in most runs, 80 to 56 in one), cause not
+  found, no deterministic recipe for bloat.stomp_defence.
