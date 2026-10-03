@@ -1252,7 +1252,7 @@ drive_install_modules(struct lua_State* L, void* script)
 {
     assert(L);
     assert(script);
-    /* One flat `api.drive`, assembled from seven files. Order is registration
+    /* One flat `api.drive`, assembled from eight files. Order is registration
      * order only; the names are disjoint and the inventory test proves it. */
     lua_newtable(L);
     PluginDriveCore_RegisterLua(L, script);
@@ -1262,6 +1262,7 @@ drive_install_modules(struct lua_State* L, void* script)
     PluginDrivePointer_RegisterLua(L, script);
     PluginDriveUi_RegisterLua(L, script);
     PluginDriveTicklog_RegisterLua(L, script);
+    PluginDriveLos_RegisterLua(L, script);
     lua_setfield(L, -2, "drive");
 }
 

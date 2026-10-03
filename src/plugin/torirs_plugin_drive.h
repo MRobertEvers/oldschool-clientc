@@ -297,6 +297,9 @@ void PluginDriveChat_RegisterLua(struct lua_State* L, void* script); /* verbs-ch
 void PluginDriveRead_RegisterLua(struct lua_State* L, void* script); /* verbs-read */
 void PluginDrivePointer_RegisterLua(struct lua_State* L, void* script); /* verbs-pointer */
 void PluginDriveUi_RegisterLua(struct lua_State* L, void* script); /* verbs-ui */
+/* waves seam los_and_pack: api.drive.server_los / server_npc_pack
+ * (torirs_plugin_drive_los.c, over torirs_server_los_query.c). */
+void PluginDriveLos_RegisterLua(struct lua_State* L, void* script);
 
 /*
  * Shared Lua argument helpers, defined in torirs_plugin_drive.c so six files

@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 158 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 171 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 158
+-- @verb-count 171
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 102
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 158
+local VERB_COUNT = 171
 local SEAM_COUNT = 102
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -3138,6 +3138,118 @@ return {
                 field("base_level", equals(43)), "the reading's base_level is not the Prayer 43 stated above")
         end)
 
+        -- PLACEMENT: test/quests/_conformance.lua PLAN, directly AFTER
+        -- step("prayer.points", ...) and BEFORE the stage that puts the prayer
+        -- out and the inventory tab back ("put the prayer out and the
+        -- inventory tab back for the rows below").  At that point Prayer is 43
+        -- (the prayer verbs' own stage) and Protect from Melee is LIT (the
+        -- stage before prayer.read lit it).  Three verbs: prayer.set_on_tick,
+        -- prayer.switch, prayer.flick (verb count +3, no seam row).  Waves seam
+        -- pass 2, prayer_flick; proved in build/quest_gate/pf_a2 (77/77 PASS)
+        -- and in the Inferno in build/quest_gate/pf_b1 (15/15 PASS).
+        --
+        -- Graded on the info table's TICKS (the server's own, t.tick()) and on
+        -- the varbits, not on the verb's word.
+
+        step("prayer.set_on_tick", function()
+            local fn = verb("prayer", "set_on_tick")
+            if not fn then return missing("prayer", "set_on_tick") end
+            local tick_fn = verb("tick")
+            if not tick_fn then return missing("tick") end
+            local server = verb("var", "server")
+            if not server then return missing("var", "server") end
+            local _, now = tick_fn()
+            local at = now + 2
+            -- Protect from Melee is lit: put it out ON tick `at`.
+            local result, detail, info = fn("protectfrommelee", false, at)
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if type(info) ~= "table" or info.issued ~= at or info.seen ~= at or info.in_force ~= at + 1 then
+                return "hollow", "asked tick " .. at .. " but info issued/seen/in_force = "
+                    .. describe(info and info.issued) .. "/" .. describe(info and info.seen) .. "/"
+                    .. describe(info and info.in_force) .. " -- " .. text
+            end
+            -- t.var.server reads the CLIENT's record of a transmit=yes varbit,
+            -- which can trail the server's own value by a few frames after the
+            -- press (seen in build/quest_gate/pf_d1): give it two ticks.
+            local ticks = verb("ticks")
+            if not ticks then return missing("ticks") end
+            ticks(2)
+            local _, value = server("varb4118_prayer_protectfrommelee")
+            if value ~= 0 then
+                return "hollow", "answered ok but varb4118 reads " .. describe(value) .. " -- " .. text
+            end
+            -- A tick that has passed is never pressed.
+            local _, later = tick_fn()
+            local late_result, late_detail, late_info = fn("protectfrommelee", true, later - 1)
+            local _, still = server("varb4118_prayer_protectfrommelee")
+            if late_result ~= "timeout" or still ~= 0 or (late_info and late_info.issued ~= nil) then
+                return "hollow", "a passed tick answered " .. describe(late_result) .. " and left varb4118 "
+                    .. describe(still) .. " -- " .. describe(late_detail)
+            end
+            return "ok", text .. " | passed tick -> " .. describe(late_detail)
+        end)
+
+        step("prayer.switch", function()
+            local fn = verb("prayer", "switch")
+            if not fn then return missing("prayer", "switch") end
+            local tick_fn = verb("tick")
+            if not tick_fn then return missing("tick") end
+            local _, now = tick_fn()
+            -- Two protections in one tick: the later press wins
+            -- (prayer.rs2 [proc,prayer_toggle] -> ~prayer_deactivate_conflicting).
+            local result, detail, info = fn({ "protectfrommagic", "protectfrommissiles" }, { tick = now + 2 })
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if type(info) ~= "table" or info.issued ~= now + 2 or info.seen ~= now + 2
+                or #info.presses ~= 2 or info.final.protectfrommagic ~= 0
+                or info.final.protectfrommissiles ~= 1
+                or info.displaced.protectfrommagic ~= "protectfrommissiles" then
+                return "hollow", "two presses on tick " .. (now + 2) .. " did not read back as one tick with "
+                    .. "magic displaced by missiles -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- setup: Protect from Missiles out again (the switch above lit it), so
+        -- the flick starts from nothing lit.
+        stage(function()
+            local set = verb("prayer", "set")
+            if set then
+                set("protectfrommissiles", false)
+            end
+            settle(1)
+        end)
+
+        step("prayer.flick", function()
+            local fn = verb("prayer", "flick")
+            if not fn then return missing("prayer", "flick") end
+            local tick_fn = verb("tick")
+            if not tick_fn then return missing("tick") end
+            local _, now = tick_fn()
+            local at = now + 3
+            local result, detail, info = fn("protectfrommelee", at)
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if type(info) ~= "table" or type(info.on) ~= "table" or type(info.off) ~= "table"
+                or info.on.issued ~= at - 1 or info.off.issued ~= at or info.in_force ~= at then
+                return "hollow", "a flick for tick " .. at .. " pressed ON on " .. describe(info and info.on and info.on.issued)
+                    .. " and OFF on " .. describe(info and info.off and info.off.issued) .. " -- " .. text
+            end
+            -- One tick of Protect from Melee (drain 12) cannot reach 60: free.
+            if info.points_before ~= info.points_after then
+                return "hollow", "a one-tick flick cost points " .. describe(info.points_before) .. " -> "
+                    .. describe(info.points_after) .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
         -- put the prayer out and the inventory tab back for the rows below
         stage(function()
             local set = verb("prayer", "set")
@@ -4286,6 +4398,110 @@ return {
                 .. describe(stepped) .. "), and a talk_to taken from that square again answered "
                 .. "ok from " .. describe(talked.x) .. "," .. describe(talked.z) .. " ("
                 .. describe(talk_detail) .. "); npc standoff 1, obj and player none"
+        end)
+
+        -- Waves seam pass 2, supplies_by_dose: inv.doses and player.drink
+        -- (verb count +2, no seam row); proved on a Lumbridge goblin in
+        -- build/quest_gate/sbd_d (16/16 PASS) and inside the Inferno (wave 1
+        -- practice, same run rows 14-16).
+        --
+        -- PLACED HERE, just before the shop block, by the pass's closer: its
+        -- seam author's place (after the prayer rows) ran it on a FULL backpack
+        -- (`0 of 28 backpack slot(s) free`, the ::give answered nothing), and
+        -- the seam rows there need every cell they hold.  Here the stage may
+        -- open with `::clearinv`, because the shop stage right after it opens
+        -- with its own `::clearinv` and nothing between them reads the bag.
+        --
+        -- BACKPACK: after the clear the stage gives two cells
+        -- (1doseprayerrestore and 4doseprayerrestore); after the rows they hold
+        -- vial_empty and 3doseprayerrestore, which the shop stage clears.
+        --
+        -- Graded on the verb's own `info` readings (stats before/after, the
+        -- slot's new item) and on the formula in prayer_potion.rs2
+        -- (`stat_heal(prayer, 7, 25)`), not on the verb's word.  The owed
+        -- restore is computed from the reading's own base level; a lit
+        -- protection prayer may drain one point between the verb's before and
+        -- after reads, hence the -1.
+        stage(function()
+            setup_cheat("::clearinv")
+            settle(2)
+            setup_cheat("::give 1doseprayerrestore")
+            setup_cheat("::give 4doseprayerrestore")
+            setup_cheat("::drain prayer 30 0")
+            settle(2)
+        end)
+
+        step("inv.doses", function()
+            local fn = verb("inv", "doses")
+            if not fn then return missing("inv", "doses") end
+            local result, detail, info = fn("prayer_potion")
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not is_table(info) or info.doses ~= 5 or info.stem ~= "prayerrestore"
+                or type(info.free) ~= "number" or info.free < 0 or info.free >= info.capacity then
+                return "hollow", "a 1-dose and a 4-dose were given, so 5 doses of prayerrestore and "
+                    .. "a free count below capacity are owed: " .. text
+            end
+            local unknown, unknown_detail = fn("nosuchpotion")
+            if unknown ~= "no_row" then
+                return "hollow", "an unknown family answered " .. describe(unknown) .. " ("
+                    .. describe(unknown_detail) .. "), not no_row"
+            end
+            return "ok", text .. " [nosuchpotion -> no_row]"
+        end)
+
+        step("player.drink", function()
+            local fn = verb("player", "drink")
+            if not fn then return missing("player", "drink") end
+            -- None carried: not_found, and nothing pressed.
+            local none, none_detail = fn("saradomin_brew")
+            if none ~= "not_found" then
+                return "hollow", "saradomin_brew is not carried and answered " .. describe(none)
+                    .. " (" .. describe(none_detail) .. ")"
+            end
+            -- Fewest doses first: the 1-dose, which leaves a vial in its slot.
+            local result, detail, info = fn("prayer_potion")
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not is_table(info) or info.item ~= "1doseprayerrestore" or info.after ~= "vial_empty"
+                or info.doses_before - info.doses_after ~= 1 then
+                return "hollow", "the 1-dose is the fewest and must be drunk first, leaving vial_empty: "
+                    .. text
+            end
+            local prayer = info.stats and info.stats.prayer
+            if not is_table(prayer) then
+                return "hollow", "answered ok without a prayer reading: " .. text
+            end
+            local owed = math.min(prayer.base, prayer.before + 7 + (prayer.base * 25) // 100)
+            if prayer.after < owed - 1 then
+                return "hollow", "prayer " .. prayer.before .. " -> " .. prayer.after .. ", owed "
+                    .. owed .. " (7 + 25% of " .. prayer.base .. ", prayer_potion.rs2): " .. text
+            end
+            -- Back to back, with then_attack = true and no fight here: the
+            -- second press lands inside the first drink's p_delay(1) and is
+            -- dropped by the server, so the verb must re-press; the drink
+            -- happens, and the then_attack half fails with the drink still in
+            -- `info`.  Which word it fails with depends on the harness's last
+            -- fight (QD._combat_last): `no_row` with "no fight is engaged" when
+            -- there was none (the seam's own scratch, sbd_e), else the
+            -- re-attack's own answer at a subject that is long gone (the
+            -- closer's run: no_row from player.attack).  Either way it is
+            -- not ok, and info.attack carries the same word.
+            local again, again_detail, again_info = fn("prayer_potion", { then_attack = true })
+            local again_text = describe(again_detail)
+            if again == "ok" or again == "timeout" or not is_table(again_info)
+                or again_info.item ~= "4doseprayerrestore"
+                or again_info.after ~= "3doseprayerrestore"
+                or not is_table(again_info.attack) or again_info.attack.result ~= again
+                or not string.find(tostring(again_detail), "then_attack", 1, true) then
+                return "hollow", "a back-to-back drink with then_attack and no fight here must drink the "
+                    .. "4-dose and answer the re-attack's failure: " .. describe(again) .. " " .. again_text
+            end
+            return "ok", text .. " [then back to back: " .. again_text .. "]"
         end)
 
         -- ------------------------------- phase 9b: the shop
@@ -6528,6 +6744,78 @@ return {
                     .. ", the cache says 1: " .. describe(text)
             end
             return "ok", text
+        end)
+
+        -- PLACEMENT: test/quests/_conformance.lua PLAN, directly AFTER
+        -- step("npc.state_text", ...) (the raid seam1 block that spawned
+        -- STATE_NPC "man" and hit it with a Wind Strike, so `state_slot` is
+        -- his CLIENT slot and he has a fight).  Two verbs: world.los and
+        -- npc.pack (verb count +2, no seam row).  Waves seam pass 2,
+        -- los_and_pack; proved on ordinary ground in
+        -- build/quest_gate/los_scratch_c (25/25 PASS) and in the Inferno in
+        -- build/quest_gate/los_scratch_d.  Both need a binary with
+        -- api_drive.server_los / server_npc_pack (in the shared test client
+        -- since the seam pass's closer rebuilt it).
+        --
+        -- world.los is graded on two FIXED Lumbridge tile pairs whose
+        -- collision the cache decides, not on where the harness stands:
+        -- 3200,3233 -> 3201,3233 straddle a wall (flags 0x180c | 0x10080,
+        -- WALL_EAST(_PROJ) / WALL_WEST(_PROJ)) and must read false;
+        -- 3203,3233 -> 3209,3233 is open grass and must read true.
+
+        step("world.los", function()
+            local los = verb("world", "los")
+            if not los then return missing("world", "los") end
+            local r, d, seen, reading = los({ x = 3200, z = 3233 }, { x = 3201, z = 3233 })
+            if r ~= "ok" then return r, describe(d) end
+            if not reading.in_scene then
+                return "no_subject", "the wall pair is outside the built scene: " .. describe(d)
+            end
+            if seen ~= false or reading.line_of_sight ~= false then
+                return "refused", "a wall pair read as seen: " .. describe(d)
+            end
+            local r2, d2, seen2 = los({ x = 3203, z = 3233 }, { x = 3209, z = 3233 })
+            if r2 ~= "ok" then return r2, describe(d2) end
+            if seen2 ~= true then
+                return "refused", "an open pair read as blocked: " .. describe(d2)
+            end
+            local r3, d3 = los({ x = 3203, z = 3233 }, { x = 3209, z = 3233 }, { routine = "nosuch" })
+            if r3 ~= "refused" then
+                return "refused", "an unknown routine was not refused: " .. describe(r3) .. " " .. describe(d3)
+            end
+            return "ok", describe(d) .. " | " .. describe(d2)
+        end)
+
+        -- t.npc.pack(radius): the man is in it, by his client slot, with his
+        -- record's size, a target text, a server tick, and a sees_player that
+        -- agrees with world.los("player", row) asked the same tick.
+        step("npc.pack", function()
+            local pack = verb("npc", "pack")
+            local los = verb("world", "los")
+            if not pack then return missing("npc", "pack") end
+            if not los then return missing("world", "los") end
+            if state_slot == nil then return "no_subject", "world.projectiles chose no man" end
+            local r, d, rows, raw = pack(15)
+            if r ~= "ok" then return r, describe(d) end
+            local man = nil
+            for i = 1, #rows do
+                if rows[i].client_slot == state_slot then man = rows[i] end
+            end
+            if man == nil then
+                return "hollow", "client slot " .. tostring(state_slot) .. " is not in the pack: " .. describe(d)
+            end
+            if man.symbol ~= STATE_NPC or man.size ~= 1 or type(man.sees_player) ~= "boolean"
+                or type(man.target_text) ~= "string" or type(raw.tick) ~= "number" then
+                return "refused", "the man's pack row is incomplete: " .. describe(d)
+            end
+            local lr, ld, lseen = los("player", man)
+            if lr ~= "ok" or lseen ~= man.sees_player then
+                return "refused", "world.los(player, man) " .. describe(lr) .. " " .. tostring(lseen)
+                    .. " disagrees with sees_player " .. tostring(man.sees_player) .. ": " .. describe(ld)
+            end
+            return "ok", string.format("slot %d (client %d) %s target %s sees=%s gap %d | %s", man.slot,
+                man.client_slot, tostring(man.symbol), man.target_text, tostring(man.sees_player),
+                man.gap_player, describe(ld))
         end)
 
         -- ONE EDGE PER SWING, AT THE CACHE ATTACKRATE.  The first gap may carry
@@ -9861,6 +10149,161 @@ return {
                 return "refused", text .. " -- 30 minutes did not grow 6 branches that the secateurs cut back to state 22"
             end
             return "ok", text
+        end)
+
+        -- Conformance rows for waves seam pass 2, wave_enter_state_pause
+        -- (t.wave.state / enter / await_wave / await_clear / pause / resume).
+        --
+        -- PLACEMENT: LAST of every row that reads the world, just before
+        -- `finish`, by the pass's closer, after two earlier places went red
+        -- downstream.  After the prayer rows (its author's place) it left the
+        -- client's npc pool holding the arena's npcs after the leave (wave.resume
+        -- reads `pool 20: harpie x5, nibbler x15` out of the run; CONTENT_BUGS.md
+        -- ENG-19), and seam.no_row_is_not_a_kill went red twice on a FULL pool it
+        -- could not vouch for.  Just before phase 9's relog, every row passed
+        -- except seam.drain_survives_xp_gain, which read the drain as 7/60
+        -- twice in a row (the stat_restore tick moved into its window: ENG-2).
+        -- Here nothing after it reads the world.
+        -- The block enters a PRACTICE Inferno run through the content's own
+        -- debugproc and leaves it through the arena's Cave exit (a practice run
+        -- leaves on that click, inferno.rs2:190), then its closing stage travels the
+        -- player back to the Lumbridge tile the rows after it expect. Measured shapes:
+        -- build/quest_gate/ws2_wave_a (20/20 PASS) and ws2_wave_b5 (20/20 PASS).
+        -- The logout-button pause is NOT exercised here: under today's content it
+        -- ends the session (ws2_wave_b5 row 17), which the rows after this block
+        -- cannot survive; ws2_wave_b5 is its proof.
+        --
+        -- Uses the harness's own helpers: verb, missing, describe, is_table, step,
+        -- stage. The return of each step is the verdict pair.
+
+        -- the state outside any run: a table, nothing active
+        step("wave.state", function()
+            local fn = verb("wave", "state")
+            if not fn then return missing("wave", "state") end
+            local result, detail, s = fn()
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not is_table(s) or not is_table(s.pillars) or not is_table(s.pillars.w) then
+                return "hollow", "answered ok with no state table (pillars w/s/e) as its third return -- " .. text
+            end
+            if s.active ~= false or s.game ~= "inferno" then
+                return "hollow", "outside a run the state read active=" .. describe(s.active) .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- setup: Protect from Missiles up before the run starts.  Wave 1 holds a
+        -- bat (inferno_creature_harpie, ranged), and wave.pause walks to the
+        -- Cave exit under its fire: the closer's second conformance run DIED
+        -- there (attempt 1, 'Oh dear, you are dead!' read at tick 300, 40
+        -- hitpoints), the retry skipped wave.pause and left the practice run
+        -- active, and wave.resume and session.login went red behind it.  The
+        -- bat's hit honours the protection prayer (inferno_ai.rs2:35 via
+        -- ~check_protect_prayer; prayer_flick's pf_b_final 0/3 hits with it up).
+        stage(function()
+            local set = verb("prayer", "set")
+            if set then
+                set("protectfrommissiles", true)
+            end
+            local tab = verb("ui", "tab")
+            if tab then
+                tab("inventory")
+            end
+            settle(1)
+        end)
+
+        -- the content's debugproc entry, a practice run at wave 1
+        step("wave.enter", function()
+            local fn = verb("wave", "enter")
+            if not fn then return missing("wave", "enter") end
+            local unsupported = fn("colosseum", 1)
+            if unsupported ~= "unsupported" then
+                return "hollow", "colosseum answered " .. describe(unsupported) .. ", not unsupported"
+            end
+            local result, detail, s = fn("inferno", 1)
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not is_table(s) or s.active ~= true or s.wave ~= 1 or s.practice ~= true
+                or not (s.alive > 0) or s.pool ~= s.alive then
+                return "hollow", "entered but the state is not an active practice wave 1 with pool = alive -- " .. text
+            end
+            if s.pillars.w.hp ~= 255 or s.pillars.s.hp ~= 255 or s.pillars.e.hp ~= 255 then
+                return "hollow", "the three pillars are not at 255 -- " .. text
+            end
+            local again = fn("inferno", 3)
+            if again ~= "refused" then
+                return "hollow", "a second enter without opts.restart answered " .. describe(again) .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
+        step("wave.await_wave", function()
+            local fn = verb("wave", "await_wave")
+            if not fn then return missing("wave", "await_wave") end
+            local result, detail = fn(1, 3)
+            return result, "-> " .. describe(detail)
+        end)
+
+        -- nothing is killed, so the wave cannot clear: the verb must time out
+        -- and name the last state, never answer ok
+        step("wave.await_clear", function()
+            local fn = verb("wave", "await_clear")
+            if not fn then return missing("wave", "await_clear") end
+            local result, detail = fn(4)
+            local text = "-> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "timeout" then
+                return "hollow", "with nothing killed it answered " .. describe(result) .. " -- " .. text
+            end
+            if not string.find(tostring(detail), "ACTIVE wave 1", 1, true) then
+                return "hollow", "the timeout does not name the last state -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- the content's request path on a PRACTICE run leaves (inferno.rs2:190):
+        -- the verb must say the run ended without a pause
+        step("wave.pause", function()
+            local fn = verb("wave", "pause")
+            if not fn then return missing("wave", "pause") end
+            local result, detail = fn({ via = "exit" })
+            local text = "-> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "refused" or not string.find(tostring(detail), "ENDED", 1, true) then
+                return "hollow", "a practice run's Cave exit did not read as an ended run -- " .. text
+            end
+            return "ok", text
+        end)
+
+        step("wave.resume", function()
+            local fn = verb("wave", "resume")
+            if not fn then return missing("wave", "resume") end
+            local result, detail = fn()
+            local text = "-> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "refused" or not string.find(tostring(detail), "no run is paused", 1, true) then
+                return "hollow", "with no paused run it did not refuse -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- prayer out, backpack tab back, and the player back on the Lumbridge
+        -- landing (3222,3218), so `finish` ends the run where the rows before
+        -- this block left it
+        stage(function()
+            local set = verb("prayer", "set")
+            if set then
+                set("protectfrommissiles", false)
+            end
+            local tab = verb("ui", "tab")
+            if tab then
+                tab("inventory")
+            end
+            local go = verb("player", "goto_tile")
+            if go then
+                go(3222, 3218, 0)
+            end
         end)
 
         step("finish", function()

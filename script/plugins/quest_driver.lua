@@ -28,11 +28,10 @@ local plugin = {
 local PARTS = { "chat", "scroll", "levelup", "player", "var", "inv", "msg",
                 "ui", "npc", "world", "drive", "t",
                 -- the raid seam's parts (docs/RAID_ORCHESTRATOR.md section 4),
-                -- copied by the waves loop without raid.lua. QD.wave
-                -- (waves.lua) joins this list when waves seam pass 2 gives it
-                -- its first verb (t.wave.enter / state); until then it is
-                -- empty by design and would only log "EMPTY namespaces".
-                "prayer", "ticklog" }
+                -- copied by the waves loop without raid.lua, and QD.wave
+                -- (waves.lua: t.wave.enter / state / await_wave / await_clear
+                -- / pause / resume, waves seam pass 2).
+                "prayer", "ticklog", "wave" }
 
 function plugin.on_start(api)
     -- The quest coroutine is resumed from C with no `api` of its own (it

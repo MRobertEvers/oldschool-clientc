@@ -457,3 +457,266 @@ function QD.world.hazard_at(x, z, level)
         out.count == 0 and "nothing" or table.concat(parts, "; "))
     return "ok", out
 end
+
+-- world.los / npc.pack -------------------------------------------------------
+--
+-- SEAM los_and_pack (waves seam pass 2, docs/minigames/waves_loop/
+-- SEAM_TRIAGE_2026-10-03b.md; docs/WAVES_ORCHESTRATOR.md section 5 rows
+-- "line of sight" and "pack reads").  Both read the EMBEDDED SERVER, never
+-- the client: api_drive.server_los / server_npc_pack
+-- (src/plugin/torirs_plugin_drive_los.c) ask the server's own line routines
+-- (torirs_server_los_query.c -> ToriRSServer_SceneLineOfSight / Approached /
+-- LineOfWalk) with the arguments the server's own callers pass.  A socket-
+-- server run (no world in this process) answers `unsupported` from C.  The
+-- seam's transitional nil guards were removed by the pass's closer once the
+-- shared test client carried both readers (QUEST_SUITE_KIT.md working rules).
+
+-- One pack row's per-row cost for the scan meter (field reads + compares).
+QD.drive._scan_cost_pack = 40
+
+-- `spec` -> footprint {x, z, w, h, level, label} on the SERVER's map, or nil
+-- and a reason.  Forms: "player" (the driven player's server tile); a pack
+-- row (has `client_slot`: its `slot` is the WORLD slot); a t.npc row (its
+-- `slot` is the CLIENT slot, translated by api_drive.server_npc_slot); a
+-- tile table {x=, z=[, level=][, size=]} or {x, z[, level]}.  An npc is
+-- read at the tile the server holds it on this tick, with its record's
+-- size, so the client's interpolated position never enters the answer.
+function QD.world._los_footprint(spec, pack)
+    if spec == "player" then
+        return { x = pack.player_x, z = pack.player_z, w = 1, h = 1, level = pack.level,
+                 label = string.format("player %d,%d", pack.player_x, pack.player_z) }
+    end
+    if type(spec) ~= "table" then
+        return nil, "a los end is \"player\", an npc row or a tile table, got " .. type(spec)
+    end
+    local world_slot = nil
+    if spec.client_slot ~= nil and spec.slot ~= nil then
+        world_slot = spec.slot
+    elseif spec.slot ~= nil and spec.npc_id ~= nil then
+        local slot_result, slot = api_drive.server_npc_slot(spec.slot)
+        if slot_result ~= "ok" then
+            return nil, string.format("client npc slot %d has no server slot (%s)", spec.slot,
+                slot_result)
+        end
+        world_slot = slot
+    end
+    if world_slot ~= nil then
+        local one_result, one = api_drive.server_npc_pack(104, world_slot)
+        local row = one_result == "ok" and one.rows[1] or nil
+        if row == nil then
+            return nil, string.format("server slot %d is not in the pack (despawned or > 104 tiles)",
+                world_slot)
+        end
+        return { x = row.x, z = row.z, w = row.size, h = row.size, level = row.level,
+                 label = string.format("%s slot %d at %d,%d (%dx%d)",
+                     tostring(row.symbol), row.slot, row.x, row.z, row.size, row.size) }
+    end
+    local x = spec.x or spec[1]
+    local z = spec.z or spec[2]
+    if type(x) ~= "number" or type(z) ~= "number" then
+        return nil, "a tile table needs numeric x and z"
+    end
+    local size = spec.size or 1
+    local level = spec.level or spec[3] or pack.level
+    return { x = x, z = z, w = size, h = size, level = level,
+             label = size > 1 and string.format("%d,%d (%dx%d)", x, z, size, size)
+                 or string.format("%d,%d", x, z) }
+end
+
+-- t.world.los(from, to[, opts]) -> ("ok", detail, seen, reading)
+--                                 | refused | not_found | unsupported.
+--
+-- Line of sight from `from` to `to` AS THE SERVER COMPUTES IT, this tick.
+-- `seen` is the answer of ONE routine, `opts.routine`:
+--   "approached" (default) -- ToriRSServer_SceneApproached: the AP rung and
+--      every ranged reach (player -> npc, and an npc with attackrange > 1
+--      before it fires, which LostCity casts BACKWARDS from the player to the
+--      npc: PathingEntity.inApproachDistance).  False on overlapping
+--      footprints; npc/player occupancy is not in it, BLOCK_NPC_AND_PLAYERS is.
+--   "line_of_sight" -- SceneLineOfSight extra 0: RuneScript `lineofsight`,
+--      HuntVis 1 (what a hunt with checkvis=1 asks).
+--   "line_of_walk"  -- SceneLineOfWalk: `lineofwalk`, HuntVis 2.
+-- `reading` carries all three, `intersect`, `gap` (Chebyshev), `in_scene`,
+-- `src_flags`/`dst_flags` and `blockers` (the flagged tiles of the ray's box:
+-- the candidates that decided a false), plus `from`/`to` footprints and
+-- `tick` (the SERVER tick).  The ray runs from `from` to `to` as given: to
+-- ask what an npc's attack asks, pass from = "player", to = the npc (or read
+-- t.npc.pack's sees_player, which does it).  It never moves or clicks.
+function QD.world.los(from, to, opts)
+    opts = opts or {}
+    local routine = opts.routine or "approached"
+    if routine ~= "approached" and routine ~= "line_of_sight" and routine ~= "line_of_walk" then
+        return "refused", "world.los: routine must be approached, line_of_sight or line_of_walk, got "
+            .. tostring(routine)
+    end
+    local pack_result, pack = api_drive.server_npc_pack(0)
+    if pack_result ~= "ok" then
+        return pack_result, "world.los: no driven player on the server (" .. pack_result .. ")"
+    end
+    local a, why_a = QD.world._los_footprint(from, pack)
+    if a == nil then
+        return "not_found", "world.los from: " .. why_a
+    end
+    local b, why_b = QD.world._los_footprint(to, pack)
+    if b == nil then
+        return "not_found", "world.los to: " .. why_b
+    end
+    if a.level ~= b.level then
+        return "refused", string.format("world.los: %s is on level %d, %s on level %d", a.label,
+            a.level, b.label, b.level)
+    end
+    local result, reading = api_drive.server_los(a.level, a.x, a.z, a.w, a.h, b.x, b.z, b.w, b.h)
+    if result ~= "ok" then
+        return result, "world.los: server_los answered " .. result
+    end
+    reading.from = a
+    reading.to = b
+    reading.routine = routine
+    local seen = reading[routine] == true
+    local blockers = {}
+    for i = 1, math.min(#reading.blockers, 6) do
+        local blocker = reading.blockers[i]
+        blockers[#blockers + 1] = string.format("%d,%d=0x%x", blocker.x, blocker.z, blocker.flags)
+    end
+    if #reading.blockers > 6 or reading.blockers_truncated then
+        blockers[#blockers + 1] = "..."
+    end
+    local detail = string.format(
+        "los %s -> %s level %d at server tick %d: %s by %s (line_of_sight=%s approached=%s "
+            .. "line_of_walk=%s intersect=%s gap=%d in_scene=%s; src 0x%x dst 0x%x; blockers %s)",
+        a.label, b.label, a.level, reading.tick, tostring(seen), routine,
+        tostring(reading.line_of_sight), tostring(reading.approached),
+        tostring(reading.line_of_walk), tostring(reading.intersect), reading.gap,
+        tostring(reading.in_scene), reading.src_flags, reading.dst_flags,
+        #blockers == 0 and "none" or table.concat(blockers, " "))
+    return "ok", detail, seen, reading
+end
+
+-- The text for what a pack row is aiming at.  `walking to` is NOT a target:
+-- it is the queued waypoint (npc_walk), named after the npc whose footprint
+-- holds it, because content that moves an npc onto something without an
+-- engine target (the Inferno's Jal-Nib walking to a pillar) shows up only
+-- there, and inventing a target for it would hide that.
+function QD.npc._pack_target_text(row, by_slot)
+    if row.target_kind == "player" then
+        return string.format("player pid %d%s", row.target_pid,
+            row.target_via_mode and " (mode)" or "")
+    end
+    if row.target_kind == "npc" then
+        return string.format("npc %s slot %d", tostring(row.target_symbol), row.target_slot)
+    end
+    if row.walk_x >= 0 then
+        for _, other in pairs(by_slot) do
+            if other.slot ~= row.slot and row.walk_x >= other.x and row.walk_x < other.x + other.size
+                and row.walk_z >= other.z and row.walk_z < other.z + other.size then
+                return string.format("none, walking to %d,%d inside %s slot %d", row.walk_x,
+                    row.walk_z, tostring(other.symbol), other.slot)
+            end
+        end
+        return string.format("none, walking to %d,%d", row.walk_x, row.walk_z)
+    end
+    return "none"
+end
+
+-- t.npc.pack(radius_or_area[, opts]) -> ("ok", detail, rows, pack)
+--                                      | not_found | unsupported.
+--
+-- Every npc around the player, NEAREST FIRST, read from the SERVER this
+-- tick.  `radius_or_area`: a number (Chebyshev gap from the npc's footprint
+-- to the player's tile, 0..104) or an area {x0, z0, x1, z1} (inclusive; an
+-- npc counts when its footprint touches it).  Each row:
+--   slot (WORLD slot, the tick log's key), client_slot (the t.npc row's slot,
+--   -1 when this client has no name for it), type, symbol, x, z, level, size
+--   (the record's), hitpoints / max_hitpoints (server), dying,
+--   attackrange, mode (LostCity npcmode), target_kind ("player" | "npc" |
+--   "none"), target_pid, target_slot / target_client_slot / target_symbol,
+--   target_via_mode, target_text, face_entity, walk_x / walk_z,
+--   anim_seq / anim_tick (the tick log's newest npc_anim for the slot, SERVER
+--   tick; -1 while the log is off -- t.ticklog.start() first),
+--   sees_player (the server's ranged-reach line of sight to the player this
+--   tick: SceneApproached from the player's tile to the npc's footprint, the
+--   call combat makes before an npc with reach fires), los_player (plain
+--   line of sight the same way), gap_player,
+--   and from the CLIENT row with that client slot: health_ratio /
+--   health_scale / health_active (nil when the client has no row).
+-- Style is NOT here: it is not a server field; map type to style from the
+-- unit's spec table.  `pack` is the raw reading (tick, pid, player tile).
+function QD.npc.pack(radius_or_area, opts)
+    opts = opts or {}
+    local area = nil
+    local radius = 104
+    if type(radius_or_area) == "number" then
+        radius = radius_or_area
+    elseif type(radius_or_area) == "table" then
+        area = radius_or_area
+        assert(#area == 4, "npc.pack: an area is {x0, z0, x1, z1}")
+    else
+        error("npc.pack: radius_or_area must be a number or {x0, z0, x1, z1}")
+    end
+    assert(radius >= 0 and radius <= 104, "npc.pack: radius must be 0..104")
+    local ask = radius
+    if area ~= nil then
+        -- The server cuts by the gap to the PLAYER; an area is cut here, so
+        -- ask for every npc that could touch it.
+        ask = 104
+    end
+    local result, pack = api_drive.server_npc_pack(ask)
+    if result ~= "ok" then
+        return result, "npc.pack: server_npc_pack answered " .. result
+    end
+    local all = pack.rows
+    local client = {}
+    local client_result, client_rows = api_drive.npcs(0)
+    if client_result == "ok" then
+        for i = 1, #client_rows do
+            client[client_rows[i].slot] = client_rows[i]
+        end
+        QD.drive._scan_spend(#client_rows, 4)
+    end
+    local by_slot = {}
+    for i = 1, #all do
+        by_slot[all[i].slot] = all[i]
+    end
+    local rows = {}
+    for i = 1, #all do
+        local row = all[i]
+        local keep
+        if area ~= nil then
+            keep = row.x <= area[3] and row.x + row.size - 1 >= area[1]
+                and row.z <= area[4] and row.z + row.size - 1 >= area[2]
+        else
+            keep = row.gap_player <= radius
+        end
+        if keep then
+            local seen = client[row.client_slot]
+            if seen ~= nil then
+                row.health_ratio = seen.health_ratio
+                row.health_scale = seen.health_scale
+                row.health_active = seen.health_active
+            end
+            row.target_text = QD.npc._pack_target_text(row, by_slot)
+            rows[#rows + 1] = row
+        end
+    end
+    QD.drive._scan_spend(#all, QD.drive._scan_cost_pack)
+    local parts = {}
+    local shown = opts.max_detail or 10
+    for i = 1, math.min(#rows, shown) do
+        local row = rows[i]
+        parts[#parts + 1] = string.format(
+            "%s#%d@%d,%d s%d hp %d/%d tgt %s sees=%s anim %s",
+            tostring(row.symbol), row.slot, row.x, row.z, row.size, row.hitpoints,
+            row.max_hitpoints, row.target_text, row.sees_player and "y" or "n",
+            row.anim_seq >= 0 and string.format("%d@%d", row.anim_seq, row.anim_tick) or "-")
+    end
+    if #rows > shown then
+        parts[#parts + 1] = string.format("... +%d more", #rows - shown)
+    end
+    local where = area ~= nil
+        and string.format("area %d,%d..%d,%d", area[1], area[2], area[3], area[4])
+        or string.format("r=%d", radius)
+    local detail = string.format("pack at server tick %d, player %d,%d level %d, %s: %d npc(s)%s",
+        pack.tick, pack.player_x, pack.player_z, pack.level, where, #rows,
+        #parts > 0 and (": " .. table.concat(parts, "; ")) or "")
+    return "ok", detail, rows, pack
+end

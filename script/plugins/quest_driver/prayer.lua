@@ -7,6 +7,9 @@
 --   t.prayer.set(name, on)  -> ok | refused | no_row | not_found | not_visible | timeout
 --   t.prayer.read()         -> ok, detail, set      (set[name] = true/false, all 29)
 --   t.prayer.points()       -> ok, detail, reading  (t.skill.read("prayer")'s reading)
+--   t.prayer.set_on_tick(name, on, tick) / switch(list, opts) / flick(name, at_tick)
+--                           -> result, detail, info -- presses on a named SERVER
+--                              tick; the section at the end of this file
 --
 -- THE PRESS IS THE PLAYER'S.  `set` opens the prayer side tab through the
 -- lane's own tab map (`prayer=5`, revconfig/osrs239/osrs239_dat2_cache.ini
@@ -175,32 +178,23 @@ function QD.prayer._lines_since(since)
     return "new chat: " .. table.concat(parts, " | ")
 end
 
--- t.prayer.set(name, on): `on` is true (light it) or false (put it out).
-function QD.prayer.set(name, on)
-    if on ~= true and on ~= false then
-        error("prayer.set(" .. tostring(name) .. ", on): on must be true or false, got " .. tostring(on))
+-- ("ok", component) or (result, detail): the prayer tab opened and `entry`'s
+-- button DISPLAYED, ready for a press (file banner: a press on a node that has
+-- not painted is dropped).  `who` prefixes the detail.  A button already
+-- displayed answers on the spot, without a yield: the tick-exact verbs below
+-- call this before they wait for their tick, and again right before the
+-- press, so that second call must cost nothing.
+function QD.prayer._prepare(entry, who)
+    local resolved_result, resolved = api_drive.component(entry[2])
+    if resolved_result == "ok" then
+        local presented_result, presented = api_drive.widget_presented(resolved)
+        if presented_result == "ok" and presented == true then
+            return "ok", resolved
+        end
     end
-    local entry, why = QD.prayer._entry(name)
-    if not entry then
-        return "no_row", why
-    end
-    local want = on and 1 or 0
-    local word = on and "on" or "off"
-    local before_result, before, before_source = QD.prayer._varbit(entry)
-    if before_result ~= "ok" then
-        return before_result, "prayer.set " .. entry[1] .. ": the varbit before the press read "
-            .. tostring(before_result) .. " " .. tostring(before)
-    end
-    if before == want then
-        return "ok", string.format(
-            "%s already %s: %s = %d (%s) on drive tick %d -- no press made (a press would toggle it %s)",
-            entry[1], word, entry[3], before, tostring(before_source), api_drive.tick(),
-            on and "off" or "on")
-    end
-
     local tab_result, tab_detail = QD.ui.tab("prayer")
     if tab_result ~= "ok" then
-        return tab_result, "prayer.set " .. entry[1] .. ": the prayer tab did not open: " .. tostring(tab_detail)
+        return tab_result, who .. " " .. entry[1] .. ": the prayer tab did not open: " .. tostring(tab_detail)
     end
     QD.prayer._component = nil
     local shown = await({
@@ -213,17 +207,53 @@ function QD.prayer.set(name, on)
             local presented_result, presented = api_drive.widget_presented(id)
             return presented_result == "ok" and presented == true
         end,
-        note = "prayer.set " .. entry[2] .. " displayed",
+        note = who .. " " .. entry[2] .. " displayed",
     }, QD.prayer.PAINT_TICKS)
     local component = QD.prayer._component
     if shown ~= "ok" then
         if component == nil then
-            return "not_found", "prayer.set " .. entry[1] .. ": " .. entry[2]
+            return "not_found", who .. " " .. entry[1] .. ": " .. entry[2]
                 .. " never resolved after the prayer tab opened"
         end
         return "not_visible", string.format(
-            "prayer.set %s: %s (component %d) was never displayed in %d tick(s) after the prayer tab opened",
-            entry[1], entry[2], component, QD.prayer.PAINT_TICKS)
+            "%s %s: %s (component %d) was never displayed in %d tick(s) after the prayer tab opened",
+            who, entry[1], entry[2], component, QD.prayer.PAINT_TICKS)
+    end
+    return "ok", component
+end
+
+-- t.prayer.set(name, on): `on` is true (light it) or false (put it out).
+function QD.prayer.set(name, on)
+    if on ~= true and on ~= false then
+        error("prayer.set(" .. tostring(name) .. ", on): on must be true or false, got " .. tostring(on))
+    end
+    local entry, why = QD.prayer._entry(name)
+    if not entry then
+        return "no_row", why
+    end
+    local want = on and 1 or 0
+    local word = on and "on" or "off"
+    -- "Already so?" is asked of the SERVER's own value (waves seam pass 2):
+    -- the client's record of varp83 can trail it by a few frames after a
+    -- press (build/quest_gate/pf_d1: t.var.server read 1 right after
+    -- set_on_tick saw the server's 0), and a press decided from a stale 1
+    -- would put a lit prayer out.  The settle below still waits for the
+    -- client's record, so a t.var.server read after set() agrees with it.
+    local before_result, before, before_source = QD.prayer._server_varbit(entry)
+    if before_result ~= "ok" then
+        return before_result, "prayer.set " .. entry[1] .. ": the varbit before the press read "
+            .. tostring(before_result) .. " " .. tostring(before)
+    end
+    if before == want then
+        return "ok", string.format(
+            "%s already %s: %s = %d (%s) on drive tick %d -- no press made (a press would toggle it %s)",
+            entry[1], word, entry[3], before, tostring(before_source), api_drive.tick(),
+            on and "off" or "on")
+    end
+
+    local prepare_result, component = QD.prayer._prepare(entry, "prayer.set")
+    if prepare_result ~= "ok" then
+        return prepare_result, component
     end
 
     local serial_result, since = api_drive.message_serial()
@@ -317,4 +347,535 @@ function QD.prayer.points()
     end
     return "ok", string.format("prayer points %d/%d (xp %d) on drive tick %d",
         reading.level, reading.base_level, reading.experience, api_drive.tick()), reading
+end
+
+-- ------------------------------------------------------------------------
+-- Presses on a named SERVER tick: set_on_tick, switch, flick
+-- (waves seam pass 2, prayer_flick; docs/WAVES_ORCHESTRATOR.md section 5 row
+-- "prayer flick", docs/minigames/waves_loop/SEAM_TRIAGE_2026-10-03b.md)
+-- ------------------------------------------------------------------------
+--
+--   t.prayer.set_on_tick(name, on, tick)  -> ok | timeout | refused | no_row
+--                                            | not_found | not_visible
+--                                            | unsupported, detail, info
+--   t.prayer.switch(list, opts)           -> the same set, detail, info
+--   t.prayer.flick(name, at_tick)         -> the same set, detail, info
+--
+-- THE CLOCK IS THE SERVER'S: srv->tick, the tick every t.ticklog row carries
+-- (t.tick()), never api_drive.tick().  A press "on tick T" is a press issued
+-- while t.tick() reads T, i.e. after tick T ran and before T+1 runs.
+--
+-- WHY THAT PRESS IS IN FORCE FOR T+1 AND NOT FOR T.  ToriRSServer_WorldTick
+-- does `srv->tick++` first and then phase_clients_in (empty), phase_npc_events,
+-- phase_npcs, phase_players (src/torirsserver/torirs_server_world.c, the
+-- WorldTick body); a client's packets are handled BEFORE that, in
+-- ToriRSServer_EmbedPump -> pump_client -> SessionPump -> step_online, and the
+-- pump runs the tick only after every client's input (torirs_server_embed.c,
+-- "Every client's input first, then *one* tick").  So the `[if_button]` ->
+-- `~prayer_toggle` of a press issued on T has run, and the varbit is set,
+-- before tick T+1's npc phase: an npc that rolls on T+1 reads the prayer
+-- (`~check_protect_prayer`, skill_combat/combat_stats.rs2:163, read at the
+-- roll: playerhit_n_melee_apply :924, inferno_hit_player inferno_ai.rs2:35),
+-- and one that rolled on T did not see it.  That is the T-1 rule of
+-- docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md section 1 written in our
+-- server's numbers: to have a prayer up for an attack rolled on tick A, press
+-- it on A-1 -- set_on_tick(name, true, A - 1), or flick(name, A).
+--
+-- WHAT EACH ANSWER NAMES.  Every detail carries the tick the press was ISSUED
+-- on, the server tick the server's own varbit was first SEEN changed on
+-- (api_drive.varbit_content: ToriRSServer_VarbitGet, the value content reads,
+-- not the client's copy), and the tick it is IN FORCE from (issued + 1).
+-- `info` (third return) carries the same numbers for a technique row:
+-- {issued, seen, in_force, before, after, ...}.  `ok` is answered only when
+-- the varbit was seen changed while the server tick still read the issue
+-- tick; a change first seen on a later tick is `timeout` ("taken in late"),
+-- because then the driver cannot say which npc phase saw it.
+--
+-- NEVER A LATE PRESS.  The tab is opened and the button waited for BEFORE the
+-- wait for the tick; when the driver wakes on any tick but the asked one, or
+-- is called after it, nothing is pressed and the answer is `timeout`.
+--
+-- TWO PRESSES IN ONE TICK (switch).  The presses of one switch are issued in
+-- one Lua resume, with no yield between them, so one EmbedPump takes them all
+-- in, in order, before the next tick.  Two protection prayers pressed in one
+-- tick: the LATER press wins -- `[proc,prayer_toggle]` lights a prayer with
+-- `~prayer_deactivate_conflicting($prayer, $data)` first
+-- (skill_prayer/scripts/prayer.rs2), and the three protections share
+-- `data=group,^prayer_group_overhead` (configs/prayers.dbrow).  switch answers
+-- the earlier one as "displaced by" the later.
+--
+-- WHAT A FLICK COSTS on this server: prayer.rs2's `[proc,prayer_switched]`
+-- arms `settimer(prayer_drain, 1)`, `[timer,prayer_drain]` adds the drain
+-- effect (12 for each protection) to %varp6296_prayer_drain_counter every
+-- tick a prayer is up and takes a point per max(60, 60 + 2 * prayer bonus),
+-- and the last prayer going off clears the timer AND zeroes the counter.  A
+-- timer armed on T first fires on T+1 (`srv->tick >= clock + interval`,
+-- torirs_server_scripts.c timer loop), in the player phase, after the npcs.
+-- flick reports the points and the counter before and after.
+
+-- The server's tick, or nil on a binary / run without one.
+function QD.prayer._server_tick()
+    if api_drive.server_tick == nil then
+        return nil
+    end
+    local result, tick = api_drive.server_tick()
+    if result ~= "ok" then
+        return nil
+    end
+    return tick
+end
+
+-- (result, value, source) for one entry's varbit as the SERVER holds it now:
+-- ToriRSServer_VarbitGet through api_drive.varbit_content.  A binary without
+-- that reader falls back to the client's record and says so in `source`.
+function QD.prayer._server_varbit(entry)
+    local symbol_result, varbit_id = api_drive.symbol("varbit", entry[3])
+    if symbol_result ~= "ok" then
+        return "no_row", "prayer: varbit " .. entry[3] .. " does not resolve (" .. tostring(symbol_result) .. ")"
+    end
+    if type(api_drive.varbit_content) ~= "function" then
+        local result, value = api_drive.varbit_server(varbit_id)
+        return result, value, "client record (no api_drive.varbit_content in this binary)"
+    end
+    local result, value = api_drive.varbit_content(varbit_id)
+    if result ~= "ok" then
+        return result, "prayer: varbit_content(" .. entry[3] .. ") answered " .. tostring(result)
+    end
+    return "ok", value, "server"
+end
+
+-- Waits for server tick `tick` and answers ("ok", tick) on it, or
+-- ("timeout", detail) when it has passed or the driver woke after it.
+-- Nothing here presses: the caller presses only on "ok".
+function QD.prayer._await_server_tick(tick, who)
+    local now = QD.prayer._server_tick()
+    if now == nil then
+        return "unsupported", who .. ": this run has no server tick (api_drive.server_tick)"
+    end
+    if now > tick then
+        return "timeout", string.format("%s: tick %d has passed (server tick now %d) -- not pressed",
+            who, tick, now)
+    end
+    if now < tick then
+        await({
+            level = function()
+                local at = QD.prayer._server_tick()
+                return at ~= nil and at >= tick
+            end,
+            note = who .. " waits for server tick " .. tick,
+        }, (tick - now) + 3)
+        now = QD.prayer._server_tick()
+    end
+    if now ~= tick then
+        return "timeout", string.format(
+            "%s: woke on server tick %s, not %d -- not pressed (never a late press)", who, tostring(now), tick)
+    end
+    return "ok", tick
+end
+
+-- One press list, issued NOW in one resume.  `presses` is a list of
+-- {entry=, want=, component=}.  Returns issued_tick, end_tick, since (the
+-- chat serial before the first press), or nil, detail, <the failing call's
+-- result word> when the serial or a click fails.
+function QD.prayer._press_all(presses, who)
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" then
+        return nil, who .. ": the chat serial is unreadable: " .. tostring(since), serial_result
+    end
+    local issued = QD.prayer._server_tick()
+    for i = 1, #presses do
+        local press = presses[i]
+        local click_result, click_detail = api_drive.if_click(press.component, 1)
+        if click_result ~= "ok" then
+            return nil, string.format("%s: press %d of %d on %s (component %d) answered %s %s",
+                who, i, #presses, press.entry[2], press.component, tostring(click_result), tostring(click_detail)),
+                click_result
+        end
+    end
+    return issued, QD.prayer._server_tick(), since
+end
+
+-- After a press list: wait until the LAST press shows on the server's varbit
+-- (or a refusal line arrives), recording the server tick it was first seen
+-- on.  Packets are taken in in order by one pump, so the last one showing
+-- means every earlier one has been handled.  Returns settled ("ok" or
+-- "timeout"), seen_tick, refusal.
+function QD.prayer._await_seen(presses, since, who)
+    local last = presses[#presses]
+    QD.prayer._seen_tick = nil
+    QD.prayer._seen_refusal = nil
+    local settled = await({
+        level = function()
+            local result, value = QD.prayer._server_varbit(last.entry)
+            if result == "ok" and value == last.want then
+                QD.prayer._seen_tick = QD.prayer._server_tick()
+                return true
+            end
+            local refusal = QD.prayer._refusal_since(since)
+            if refusal then
+                QD.prayer._seen_refusal = refusal
+                QD.prayer._seen_tick = QD.prayer._server_tick()
+                return true
+            end
+            return false
+        end,
+        note = who .. " " .. last.entry[3] .. " == " .. last.want,
+    }, QD.prayer.SET_TICKS)
+    return settled, QD.prayer._seen_tick, QD.prayer._seen_refusal
+end
+
+-- t.prayer.set_on_tick(name, on, tick) -> result, detail, info
+-- Press `name` to `on` while the server tick reads `tick`; in force from
+-- tick+1's npc phase.  info = {name, want, asked, issued, seen, in_force,
+-- before, after}.  A prayer already in the asked state on `tick` is `ok`
+-- with "no press made" and info.issued = nil.
+function QD.prayer.set_on_tick(name, on, tick)
+    if on ~= true and on ~= false then
+        error("prayer.set_on_tick(" .. tostring(name) .. ", on, tick): on must be true or false, got " .. tostring(on))
+    end
+    if type(tick) ~= "number" then
+        error("prayer.set_on_tick(" .. tostring(name) .. ", on, tick): tick must be a server tick number, got "
+            .. tostring(tick))
+    end
+    local who = "prayer.set_on_tick"
+    local entry, why = QD.prayer._entry(name)
+    if not entry then
+        return "no_row", why
+    end
+    local want = on and 1 or 0
+    local word = on and "on" or "off"
+    local info = { name = entry[1], want = want, asked = tick }
+    local now = QD.prayer._server_tick()
+    if now == nil then
+        return "unsupported", who .. ": this run has no server tick (api_drive.server_tick)", info
+    end
+    if now > tick then
+        return "timeout", string.format("%s %s %s: tick %d has passed (server tick now %d) -- not pressed",
+            who, entry[1], word, tick, now), info
+    end
+    -- The tab and the button first, while there is time.
+    local prepare_result, component = QD.prayer._prepare(entry, who)
+    if prepare_result ~= "ok" then
+        return prepare_result, component, info
+    end
+    local wait_result, wait_detail = QD.prayer._await_server_tick(tick, who .. " " .. entry[1] .. " " .. word)
+    if wait_result ~= "ok" then
+        return wait_result, wait_detail, info
+    end
+    -- The tab can have been changed by something else while waiting: re-check
+    -- (free when the button is still displayed).
+    prepare_result, component = QD.prayer._prepare(entry, who)
+    if prepare_result ~= "ok" then
+        return prepare_result, component, info
+    end
+    if QD.prayer._server_tick() ~= tick then
+        return "timeout", string.format("%s %s %s: the prayer tab re-opened past tick %d -- not pressed",
+            who, entry[1], word, tick), info
+    end
+    local before_result, before = QD.prayer._server_varbit(entry)
+    if before_result ~= "ok" then
+        return before_result, who .. " " .. entry[1] .. ": the varbit before the press read "
+            .. tostring(before_result) .. " " .. tostring(before), info
+    end
+    info.before = before
+    if before == want then
+        info.after = before
+        return "ok", string.format(
+            "%s already %s on server tick %d: %s = %d (server) -- no press made (a press would toggle it %s)",
+            entry[1], word, tick, entry[3], before, on and "off" or "on"), info
+    end
+    local presses = { { entry = entry, want = want, component = component } }
+    local issued, issued_end, since = QD.prayer._press_all(presses, who .. " " .. entry[1])
+    if issued == nil then
+        -- (nil, detail, the failing call's own result word)
+        return since, issued_end, info
+    end
+    info.issued = issued
+    local settled, seen, refusal = QD.prayer._await_seen(presses, since, who)
+    local after_result, after = QD.prayer._server_varbit(entry)
+    info.after = after_result == "ok" and after or nil
+    info.seen = seen
+    local where = string.format("pressed %s (component %d) on server tick %d (asked %d)",
+        entry[2], component, issued, tick)
+    if refusal and info.after ~= want then
+        return "refused", string.format("%s %s refused: %s -- %s; %s = %s on server tick %s",
+            entry[1], word, refusal, where, entry[3], tostring(info.after), tostring(seen)), info
+    end
+    if settled ~= "ok" or info.after ~= want then
+        return "timeout", string.format("%s %s: %s; server %s still %s after %d tick(s) (%s) -- not re-pressed",
+            entry[1], word, where, entry[3], tostring(info.after),
+            (QD.prayer._server_tick() or issued) - issued, QD.prayer._lines_since(since)), info
+    end
+    if seen ~= issued then
+        info.in_force = seen + 1
+        return "timeout", string.format(
+            "%s %s: %s; server %s %d -> %d first seen on server tick %d -- taken in LATE (not before tick %d's "
+                .. "npc phase for certain; in force from %d at the latest)",
+            entry[1], word, where, entry[3], before, want, seen, issued + 1, seen + 1), info
+    end
+    info.in_force = issued + 1
+    return "ok", string.format(
+        "%s %s: %s; server %s %d -> %d seen on server tick %d; in force from tick %d's npc phase "
+            .. "(an npc rolling on %d sees it %s, one that rolled on %d did not)",
+        entry[1], word, where, entry[3], before, want, seen, issued + 1, issued + 1, word, issued), info
+end
+
+-- t.prayer.switch(list, opts) -> result, detail, info
+-- Two or more presses inside ONE server tick.  `list` entries are a name
+-- (press it ON) or {name, on}; they are pressed in list order, with no yield
+-- between them.  opts.tick: wait for that server tick first (as
+-- set_on_tick); without it the presses go on the tick the call is made on.
+-- A press asking for the state its prayer is already in is not made (it would
+-- toggle it back), judged against the server's varbit on the press tick and
+-- then against this list's own earlier presses of the same name.
+-- `ok`: every press issued on one tick, seen on that tick, and every prayer
+-- ends as the last press naming it asked -- or ends off because a LATER press
+-- in this switch lit something (the server's conflict rule; "displaced by").
+-- info = {issued, seen, in_force, presses = {{name, want}...},
+--         final = {name = value}, displaced = {name = by}}.
+function QD.prayer.switch(list, opts)
+    if type(list) ~= "table" or #list < 1 then
+        error("prayer.switch(list, opts): list must be a non-empty list of names or {name, on}, got " .. tostring(list))
+    end
+    opts = opts or {}
+    local who = "prayer.switch"
+    local asks = {}
+    for i = 1, #list do
+        local item = list[i]
+        local name, on = item, true
+        if type(item) == "table" then
+            name, on = item[1], item[2]
+        end
+        if on ~= true and on ~= false then
+            error("prayer.switch: entry " .. i .. " (" .. tostring(name) .. "): on must be true or false, got "
+                .. tostring(on))
+        end
+        local entry, why = QD.prayer._entry(name)
+        if not entry then
+            return "no_row", who .. ": entry " .. i .. ": " .. why
+        end
+        asks[#asks + 1] = { entry = entry, want = on and 1 or 0 }
+    end
+    local info = { asked = opts.tick, presses = {}, final = {}, displaced = {} }
+    local now = QD.prayer._server_tick()
+    if now == nil then
+        return "unsupported", who .. ": this run has no server tick (api_drive.server_tick)", info
+    end
+    if opts.tick ~= nil and now > opts.tick then
+        return "timeout", string.format("%s: tick %d has passed (server tick now %d) -- not pressed",
+            who, opts.tick, now), info
+    end
+    -- Every button displayed first (one tab holds them all).
+    for i = 1, #asks do
+        local prepare_result, component = QD.prayer._prepare(asks[i].entry, who)
+        if prepare_result ~= "ok" then
+            return prepare_result, component, info
+        end
+        asks[i].component = component
+    end
+    if opts.tick ~= nil then
+        local wait_result, wait_detail = QD.prayer._await_server_tick(opts.tick, who)
+        if wait_result ~= "ok" then
+            return wait_result, wait_detail, info
+        end
+        for i = 1, #asks do
+            local prepare_result, component = QD.prayer._prepare(asks[i].entry, who)
+            if prepare_result ~= "ok" then
+                return prepare_result, component, info
+            end
+            asks[i].component = component
+        end
+        if QD.prayer._server_tick() ~= opts.tick then
+            return "timeout", string.format("%s: the prayer tab re-opened past tick %d -- not pressed",
+                who, opts.tick), info
+        end
+    end
+    -- Which presses to make: the server's state now, then this list's own.
+    local state = {}
+    local before = {}
+    local presses = {}
+    local skipped = {}
+    for i = 1, #asks do
+        local ask = asks[i]
+        local key = ask.entry[1]
+        if state[key] == nil then
+            local read_result, value = QD.prayer._server_varbit(ask.entry)
+            if read_result ~= "ok" then
+                return read_result, who .. " " .. key .. ": the varbit before the press read "
+                    .. tostring(read_result) .. " " .. tostring(value), info
+            end
+            state[key] = value
+            before[key] = value
+        end
+        if state[key] == ask.want then
+            skipped[#skipped + 1] = key .. "=" .. ask.want
+        else
+            presses[#presses + 1] = ask
+            state[key] = ask.want
+            info.presses[#info.presses + 1] = { name = key, want = ask.want }
+        end
+    end
+    if #presses == 0 then
+        return "ok", string.format("%s: nothing to press on server tick %d -- every prayer already as asked (%s)",
+            who, QD.prayer._server_tick(), table.concat(skipped, ", ")), info
+    end
+    local issued, issued_end, since = QD.prayer._press_all(presses, who)
+    if issued == nil then
+        return since, issued_end, info
+    end
+    info.issued = issued
+    local settled, seen, refusal = QD.prayer._await_seen(presses, since, who)
+    info.seen = seen
+    -- Final values, and whether each one is what its last press asked.
+    local last_index = {}
+    for i = 1, #presses do
+        last_index[presses[i].entry[1]] = i
+    end
+    local parts = {}
+    local wrong = {}
+    for i = 1, #presses do
+        local key = presses[i].entry[1]
+        if last_index[key] == i then
+            local read_result, value = QD.prayer._server_varbit(presses[i].entry)
+            info.final[key] = read_result == "ok" and value or nil
+            local text = string.format("%s %s->%s", key, tostring(before[key]), tostring(info.final[key]))
+            if info.final[key] ~= presses[i].want then
+                local by = nil
+                if info.final[key] == 0 then
+                    for j = i + 1, #presses do
+                        if by == nil and presses[j].want == 1 then
+                            by = presses[j].entry[1]
+                        end
+                    end
+                end
+                if by then
+                    info.displaced[key] = by
+                    text = text .. " (asked " .. presses[i].want .. "; displaced by " .. by .. ", a later press this tick)"
+                else
+                    wrong[#wrong + 1] = key
+                    text = text .. " (asked " .. presses[i].want .. ")"
+                end
+            end
+            parts[#parts + 1] = text
+        end
+    end
+    local order = {}
+    for i = 1, #presses do
+        order[#order + 1] = presses[i].entry[1] .. (presses[i].want == 1 and "(on)" or "(off)")
+    end
+    local where = string.format("%d press(es) %s issued on server tick %d%s%s",
+        #presses, table.concat(order, ", "), issued,
+        (issued_end == issued) and " (all inside that one tick)" or (" -- the last on tick " .. tostring(issued_end)),
+        (#skipped > 0) and ("; not pressed, already so: " .. table.concat(skipped, ", ")) or "")
+    if refusal and #wrong > 0 then
+        return "refused", string.format("%s: %s; refused: %s; server: %s", who, where, refusal,
+            table.concat(parts, ", ")), info
+    end
+    if settled ~= "ok" or #wrong > 0 or issued_end ~= issued then
+        return "timeout", string.format("%s: %s; server: %s; not as asked: %s (%s)", who, where,
+            table.concat(parts, ", "), (#wrong > 0) and table.concat(wrong, ", ") or "none",
+            QD.prayer._lines_since(since)), info
+    end
+    if seen ~= issued then
+        info.in_force = seen + 1
+        return "timeout", string.format(
+            "%s: %s; server: %s; first seen on server tick %d -- taken in LATE (in force from %d at the latest)",
+            who, where, table.concat(parts, ", "), seen, seen + 1), info
+    end
+    info.in_force = issued + 1
+    return "ok", string.format("%s: %s; server: %s, seen on server tick %d; in force from tick %d's npc phase",
+        who, where, table.concat(parts, ", "), seen, issued + 1), info
+end
+
+-- (points, counter) now: the prayer stat's current level as the client holds
+-- it, and the server's drain counter (%varp6296_prayer_drain_counter, a
+-- server-only varp, read through t.var.server's content path).  nil when
+-- unreadable.
+function QD.prayer._drain_reading()
+    local points = nil
+    local skill_result, reading = QD.skill.read("prayer")
+    if skill_result == "ok" then
+        points = reading.level
+    end
+    local counter_result, counter = QD.var.server("varp6296_prayer_drain_counter")
+    if counter_result ~= "ok" then
+        counter = nil
+    end
+    return points, counter
+end
+
+-- t.prayer.flick(name, at_tick) -> result, detail, info
+-- The one-tick flick: `name` up for tick `at_tick`'s npc phase and for no
+-- other -- ON pressed on server tick at_tick-1, OFF pressed on at_tick (file
+-- section banner: a press on T is in force from T+1).  Back-to-back flicks
+-- (flick(n, A), flick(n, A+1), ...) put the off and the next on inside the
+-- same tick, which is the player's off-on double click.  The prayer must be
+-- off before the flick: one already up is `refused` (a flick of a held prayer
+-- is a hold).  info = {in_force = at_tick, on = <set_on_tick info>,
+-- off = <set_on_tick info>, points_before, points_after, counter_before,
+-- counter_after}.  The points are read before the ON press and after the
+-- OFF press is seen; the drain timer of a tick runs in its player phase,
+-- after the npcs, so the cost of tick at_tick is in points_after.
+function QD.prayer.flick(name, at_tick)
+    if type(at_tick) ~= "number" then
+        error("prayer.flick(" .. tostring(name) .. ", at_tick): at_tick must be a server tick number, got "
+            .. tostring(at_tick))
+    end
+    local who = "prayer.flick"
+    local entry, why = QD.prayer._entry(name)
+    if not entry then
+        return "no_row", why
+    end
+    local info = { name = entry[1], in_force = at_tick }
+    local now = QD.prayer._server_tick()
+    if now == nil then
+        return "unsupported", who .. ": this run has no server tick (api_drive.server_tick)", info
+    end
+    if now > at_tick - 1 then
+        return "timeout", string.format(
+            "%s %s for tick %d: its ON press belongs on tick %d, which has passed (server tick now %d) -- not pressed",
+            who, entry[1], at_tick, at_tick - 1, now), info
+    end
+    local up_result, up = QD.prayer._server_varbit(entry)
+    if up_result ~= "ok" then
+        return up_result, who .. " " .. entry[1] .. ": the varbit read " .. tostring(up_result) .. " " .. tostring(up), info
+    end
+    if up == 1 then
+        return "refused", string.format("%s %s for tick %d: %s is already up on server tick %d -- a flick starts "
+            .. "from off (put it out first, or flick the tick after)", who, entry[1], at_tick, entry[1], now), info
+    end
+    info.points_before, info.counter_before = QD.prayer._drain_reading()
+    local on_result, on_detail, on_info = QD.prayer.set_on_tick(entry[1], true, at_tick - 1)
+    info.on = on_info
+    if on_result ~= "ok" then
+        return on_result, who .. " " .. entry[1] .. " for tick " .. at_tick .. ": the ON press: " .. tostring(on_detail), info
+    end
+    if on_info.issued == nil then
+        return "refused", who .. " " .. entry[1] .. " for tick " .. at_tick
+            .. ": the prayer came up by itself before the ON press: " .. tostring(on_detail), info
+    end
+    -- The counter on tick at_tick, after its timer ran and before the OFF
+    -- press zeroes it: what this one tick added.
+    if QD.prayer._await_server_tick(at_tick, who .. " " .. entry[1]) == "ok" then
+        local _, counter_up = QD.prayer._drain_reading()
+        info.counter_up = counter_up
+    end
+    local off_result, off_detail, off_info = QD.prayer.set_on_tick(entry[1], false, at_tick)
+    info.off = off_info
+    info.points_after, info.counter_after = QD.prayer._drain_reading()
+    if off_result ~= "ok" then
+        return off_result, string.format("%s %s for tick %d: ON pressed on %d (seen %s), then the OFF press: %s",
+            who, entry[1], at_tick, on_info.issued, tostring(on_info.seen), tostring(off_detail)), info
+    end
+    if off_info.issued == nil then
+        return "timeout", string.format("%s %s for tick %d: ON pressed on %d, but the prayer was already off on "
+            .. "tick %d with no OFF press (drained out or turned off elsewhere): %s",
+            who, entry[1], at_tick, on_info.issued, at_tick, tostring(off_detail)), info
+    end
+    return "ok", string.format(
+        "%s %s up for tick %d's npc phase only: ON pressed on server tick %d (seen %d), OFF pressed on %d "
+            .. "(seen %d); prayer points %s -> %s; drain counter %s before, %s on tick %d while up, %s after the OFF",
+        who, entry[1], at_tick, on_info.issued, on_info.seen, off_info.issued, off_info.seen,
+        tostring(info.points_before), tostring(info.points_after),
+        tostring(info.counter_before), tostring(info.counter_up), at_tick, tostring(info.counter_after)), info
 end

@@ -6,7 +6,9 @@ from the raid loop's driver seam (raid commit `94f55b306`, copied verbatim or me
 by waves seam pass 1, `matthew-mbp-m4-waves-b1-seam1`; every copied file is a row in
 `FORKED_FROM.md`) and were proved here on ordinary Lumbridge npcs (scratch
 `build/quest_gate/dp_scratch3`, 31/31 PASS) and by the driver's own conformance file
-(`test/quests/_conformance.lua`, 158 verbs and 102 seam rows, all PASS). The
+(`test/quests/_conformance.lua`, 158 verbs and 102 seam rows, all PASS). Seam pass 2
+(`matthew-mbp-m4-waves-b1-seam2`) added t.wave.*, the tick-exact prayer verbs,
+t.world.los, t.npc.pack, t.player.drink and t.inv.doses (171 verbs). The
 contract for every other verb is `docs/QUEST_AUTHORING.md`. Add a heading here for
 each new verb or fact a later seam pass lands.
 
@@ -186,10 +188,118 @@ other name every row after the relog runs on a fresh tutorial account.
 boosted stat one level every 100 ticks counted from login. A row that reads a drain
 must account for that window (`CONTENT_BUGS.md` ENG-2).
 
-## t.wave does not exist yet
+## t.wave.state / enter / await_wave / await_clear
 
-`waves.lua` is an empty part (`QD.wave`), filled by seam pass 2 with
-`t.wave.enter` / `t.wave.state`; `wave` joins `quest_driver.lua`'s PARTS then.
+`t.wave.state([game])` returns ok, a one-line detail and a table read from the
+server's own Inferno varps (they sit above the cache's varp range, so the client has
+no copy): `active, wave, alive, practice, paused, logout_requested, saved_wave`,
+`pillars.w/s/e = {hp, dead}`, `pool` (wave-credit npcs in the client's pool), `tick`
+(server) and `tile`. Nothing is cached.
+
+`t.wave.enter(game, wave[, {restart=true}])` sends `::inferno <wave>` (the content's
+debugproc, a bring-along) and settles when the run is active on that wave, alive > 0
+and the pool has caught up. The run it starts is a PRACTICE run: one wave, then the
+content leaves (`inferno.rs2:413`). It refuses an active or a paused run unless
+`opts.restart`; `colosseum` answers unsupported (no content yet). Measured: enter 1 on
+server tick 5, wave begun on 13 (+8, `^inferno_wave_delay`), alive 4 = pool 4, pillars
+255 (ws2_wave_a2). Wave 69 settles on active + wave only (not proved).
+
+`t.wave.await_wave(n, ticks)` and `t.wave.await_clear(ticks)` answer ok with the
+server tick it happened on, or timeout with the last state. `await_clear` is ok when
+alive reaches 0 after the wave began, the wave number moves, or the run ends; it
+refuses when no run is active. Deadlines are drive ticks; ticks in details are
+server ticks. Today a wave re-spawns every 8 ticks (CONTENT_BUGS.md ENG-5), so a
+clear may never come.
+
+## t.wave.pause / resume
+
+`t.wave.pause({via="logout"|"exit"})` presses ONCE (a second logout press is the real
+game's wave reset) and answers what the server did: ok (pause requested, or paused),
+refused (no run, or the run ended: a practice run leaves on the Cave exit),
+unsupported (the logout press ended the session: the client is on the title screen,
+call `t.session.login()` next) or timeout. On this content the logout button logs out
+and clears the run (ENG-8), so only `via="exit"` arms the content's pause.
+
+`t.wave.resume()` after a login presses the Cave entrance op 1 and the row
+"Resume the Inferno (wave N).", and is ok once the run is active on the saved wave
+and begun (+16 ticks, `^inferno_resume_delay`). Today the entrance is unreachable
+from the exit pad (ENG-6, ENG-7): the seam's proof staged a paused run with
+`::setvar` and a labelled `::goto 2495,5123` in its scratch, not in the verb. A relog
+reboots the embedded server, so the server tick restarts at 0, and the login chat
+line arrives a tick after `relog` returns.
+
+## t.prayer.set decides "already so?" from the server
+
+Since seam pass 2, `t.prayer.set` reads the SERVER's varbit (`varbit_content`) before
+it presses, not the client's record, which can trail the server by a few frames after
+a press; the settle after the press still waits for the client's record. A test that
+asserts with `t.var.server` on a prayer varbit right after a tick-exact verb waits
+`t.ticks(2)` first.
+
+## t.prayer.set_on_tick / switch / flick -- presses on a named server tick
+
+All three return (result, detail, info) and count in SERVER ticks (`t.tick()`).
+A press "on tick T" is issued while `t.tick()` reads T and is in force from tick
+T+1's npc phase. So for an attack rolled on tick A: `set_on_tick(name, true, A-1)`
+or `flick(name, A)`. `info` carries `issued`, `seen` (the tick the server's varbit
+was first seen changed) and `in_force`, so a technique row can assert "the prayer
+was up on the tick the hit was rolled".
+
+`set_on_tick(name, on, tick)` never presses late: a passed tick or a late wake is
+timeout with no press. A prayer already in the asked state is ok "no press made"
+with `info.issued` nil. `switch(list, {tick=})` presses every entry (`"name"` = on,
+or `{name, on}`) in one Lua resume, so all land in one tick; with two protections
+the later press wins (`~prayer_deactivate_conflicting`), reported in
+`info.final` / `info.displaced`. `flick(name, A)` presses ON on A-1 and OFF on A,
+refuses when the prayer is already up, and reports `points_before/after`. Read a
+cost over a window with `t.prayer.points()` after `t.ticks(2)`: `points_after` is
+the client's stat read at once.
+
+Measured: 20 back-to-back flicks of Protect from Melee cost 0 points; holding it
+for 20 npc phases cost 4. T-1: a city guard hit 0/6 times with the prayer pressed on
+A-1 against 4/6 pressed on A; the Inferno bat 0/3 against 3/3 (pf_a_final,
+pf_b_final). Prayer regenerates on this branch (ENG-10).
+
+## t.world.los -- line of sight as the server computes it
+
+`t.world.los(from, to[, {routine=}])` returns ok, a detail, `seen` and a `reading`.
+`from`/`to` are `"player"`, a `t.npc` row, a `t.npc.pack` row, or `{x=, z=[, size=]}`.
+`routine` is `approached` (default: the AP rung and every ranged reach),
+`line_of_sight` (RuneScript `lineofsight`) or `line_of_walk`. The reading holds all
+three, `intersect`, `gap`, `in_scene`, the tile flags, the flagged `blockers` of the
+ray's box and the server tick. An npc's ranged check is cast from the PLAYER to the
+npc (LostCity does it backwards): ask `los("player", npc)` or read `sees_player`.
+Only wall projectile bits and LOC_PROJ_BLOCKER block sight; a `::goto` onto a loc
+tile reads blocked from it. Today the Inferno pillars block nothing (ENG-13).
+Neither verb clicks: record with `t.check`, not `t.exec`.
+
+## t.npc.pack -- every npc around the player
+
+`t.npc.pack(radius | {x0, z0, x1, z1})` returns ok, a detail, rows (nearest first)
+and the raw reading. `slot` is the WORLD slot (the tick log's key); `client_slot` is
+the `t.npc` row's slot. A row has `symbol, x, z, size, hitpoints, attackrange, mode,
+target_kind/target_text, walk_x/z, anim_seq/anim_tick, sees_player, gap_player,
+health_ratio`. `anim_*` need `t.ticklog.start()` first. Attack style is not a server
+field: map the symbol to a style from the unit's spec table. "walking to X,Z" in the
+target text is a queued waypoint, not an engine target (the nibblers, ENG-14).
+
+## t.player.drink / t.inv.doses
+
+`t.player.drink(family[, opts])` drinks one dose by the item's own Drink op, fewest
+doses first. Families: `prayer_potion`, `super_restore`, `saradomin_brew`,
+`ranging_potion`, `bastion`, or any content stem. It returns ok, a detail and `info`
+(item, slot, `after` (vial_empty after the last dose), stats before/after/base, doses
+before/after, presses, pressed/landed tick); not_found when none is carried; no_row
+for an unknown family. A drink lands +1 tick after the press; a press inside the last
+drink's or eat's delay is dropped by the server, so the verb re-presses every 2 ticks.
+`opts.then_attack` (npc symbol, row, or true) re-attacks one tick after landing: never
+on the landing tick, the drink's trailing `p_stopaction` wipes it (ENG-18). `t.exec`
+passes only two returns, so call drink directly and write the row with `t.check`.
+
+`t.inv.doses(family)` returns ok, a text and `{doses, free, capacity, items}`;
+carrying none is ok with 0. On this branch an eat holds a projectile hit until its
+delay ends (+2/+3 ticks) while melee lands at once (ENG-16): plan eats off the
+projectile-impact tick.
 
 ## gate.py in this worktree needs QUEST_HELPER_ROOT
 
