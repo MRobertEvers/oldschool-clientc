@@ -24,7 +24,21 @@ E only): no numeric check, but the detail must carry "approximation, M<n>".
 The grade in the row must equal the table's grade, so a promoted or demoted
 grade is a conscious edit of the table, never of the test alone.
 
-Verdict per test: FULL (every spec row measured and within tolerance) or a list of
+SCOPE. A test plays one mode at one party size and cannot measure every row of a
+table, so the test writes one PASS row `spec.scope` whose detail starts
+`mode=<entry|normal|hard> party=<n>` (or the caller passes --mode/--party). Rows
+out of that scope are skipped and listed, never counted: a row whose mechanic_id or
+quantity names another mode (hard/hm, entry/story, normal/regular), a row with no mode
+marker whose entry_/.entry/_entry sibling exists when the mode is entry, and a row
+that names a party size or scale other than the test's (party, scale, _3_5, 2_5, duo,
+trio, 4p, 5p, team, per_player) unless it also says solo/_1. Without a scope row
+every row counts (mode all).
+
+TEXT ROWS. A spec row whose unit is `text` is graded by equality: the detail reads
+`measured <text> (spec <text>, grade <G>, tol exact)` and the two texts must match
+after trimming and case-folding.
+
+Verdict per test: FULL (every in-scope spec row measured and within tolerance) or a list of
 findings: `unmeasured <id>`, `out of tolerance <id>: measured .. vs spec ..`,
 `grade mismatch <id>`, `malformed <id>`. Exit 0 when every requested test is FULL.
 """
@@ -39,7 +53,57 @@ import ledger  # noqa: E402
 
 RAID_DOCS = {"tob": "theater_of_blood", "toa": "tombs_of_amascut", "cox": "cox"}
 FULL_RAID_ROOMS = {"entry", "solo", "150"}
-ROW_RE = re.compile(r"^measured\s+(?P<m>[-\d.,]+(?:-[\d.]+)?)(?:\s+[a-z]+)?[^()]*\(spec\s+(?P<s>[-\d.,?]+(?:-[\d.]+)?)(?:\s+[a-z]+)?,\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx)\)")
+SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?)(?:\s+[a-z_]+)?,\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx)\)")
+NUM_RE = re.compile(r"^-?[\d.]+(?:-[\d.]+)?(?:,-?[\d.]+)*$")
+SCOPE_RE = re.compile(r"mode=(?P<mode>entry|normal|hard|all)\s+party=(?P<party>\d)")
+
+
+def parse_row(detail, text_row=False):
+    """{m, s, g, t} from a spec row's detail, or None. The measured value is the
+    text between `measured ` and the first comma or the `(spec` group; the spec
+    group is the LAST one in the detail, so free text may carry parentheses."""
+    if not detail.startswith("measured "):
+        return None
+    hits = list(SPEC_RE.finditer(detail))
+    if not hits:
+        return None
+    spec = hits[-1]
+    head = detail[len("measured "):spec.start()].strip()
+    if text_row:
+        measured = head.rstrip(",; ").strip()
+        spec_value = spec.group("s").strip()
+    else:
+        measured = head.split(",")[0].split(";")[0].strip().split(" ")[0]
+        spec_value = spec.group("s").strip().split(" ")[0]
+        if not NUM_RE.match(measured) and measured != "?":
+            return None
+    return {"m": measured, "s": spec_value, "g": spec.group("g"), "t": spec.group("t")}
+
+
+MODE_WORDS = {"hard": ("hard", "hm"), "entry": ("entry", "story"), "normal": ("normal", "regular")}
+PARTY_WORDS = ("party", "scale", "_3_5", "3_5", "2_5", "duo", "trio", "4p", "5p", "team", "per_player", "per player")
+SOLO_WORDS = ("solo", "_1", "1p")
+
+
+def row_scope(spec, mode, party, ids):
+    """None when the row is in scope, else the reason it is skipped."""
+    if mode == "all":
+        return None
+    text = ("%s %s" % (spec["mechanic_id"], spec["quantity"])).lower()
+    tokens = re.split(r"[^a-z0-9]+", text)
+    for other, words in MODE_WORDS.items():
+        if other != mode and any(w in tokens for w in words):
+            return "names %s" % other
+    if mode == "entry" and not any(w in tokens for w in MODE_WORDS["entry"]):
+        mid = spec["mechanic_id"]
+        room, _, name = mid.partition(".")
+        siblings = {"%s.entry_%s" % (room, name), "%s.%s.entry" % (room, name), "%s.%s_entry" % (room, name),
+                    "%s.entry.%s" % (room, name)}
+        if siblings & ids:
+            return "has an entry sibling"
+    if party == 1 and any(w in text for w in PARTY_WORDS) and not any(w in text for w in SOLO_WORDS):
+        return "names a party size"
+    return None
 
 
 def spec_tables(test_id):
@@ -98,7 +162,7 @@ def within(measured, spec, tol):
     return False
 
 
-def grade(test_id, ledger_path=None):
+def grade(test_id, ledger_path=None, mode=None, party=None):
     tables = spec_tables(test_id)
     if not tables:
         return ["no spec table for %s under docs/minigames/<raid>/encounters/" % test_id]
@@ -109,42 +173,70 @@ def grade(test_id, ledger_path=None):
     by_step = {}
     for r in rows:
         by_step.setdefault(r["step"], []).append(r)
+    if mode is None:
+        scope_rows = [r for r in by_step.get("spec.scope", []) if r["verdict"] == "PASS"]
+        sm = SCOPE_RE.search(scope_rows[-1]["detail"]) if scope_rows else None
+        mode = sm.group("mode") if sm else "all"
+        party = int(sm.group("party")) if sm else 0
     findings = []
+    skipped = []
     total = 0
     for table in tables:
-        for spec in read_spec(table):
-            total += 1
+        specs = read_spec(table)
+        ids = {sp["mechanic_id"] for sp in specs}
+        for spec in specs:
             mid = spec["mechanic_id"]
+            why = row_scope(spec, mode, party or 0, ids)
+            if why:
+                skipped.append("%s (%s)" % (mid, why))
+                continue
+            total += 1
             hits = [r for r in by_step.get("spec." + mid, []) if r["verdict"] == "PASS"]
             if not hits:
                 findings.append("unmeasured %s (%s)" % (mid, spec["quantity"]))
                 continue
             row = hits[-1]
-            m = ROW_RE.match(row["detail"])
+            text_row = spec["unit"] == "text"
+            m = parse_row(row["detail"], text_row)
             if not m:
                 findings.append("malformed %s: %r" % (mid, row["detail"][:120]))
                 continue
-            if m.group("g") != spec["grade"]:
-                findings.append("grade mismatch %s: row says %s, table says %s" % (mid, m.group("g"), spec["grade"]))
-            if m.group("t") != spec["tolerance"]:
-                findings.append("tolerance mismatch %s: row says %s, table says %s" % (mid, m.group("t"), spec["tolerance"]))
-            if m.group("s") != spec["spec_value"]:
-                findings.append("spec value mismatch %s: row says %s, table says %s" % (mid, m.group("s"), spec["spec_value"]))
+            if m["g"] != spec["grade"]:
+                findings.append("grade mismatch %s: row says %s, table says %s" % (mid, m["g"], spec["grade"]))
+            if m["t"] != spec["tolerance"]:
+                findings.append("tolerance mismatch %s: row says %s, table says %s" % (mid, m["t"], spec["tolerance"]))
+            if text_row:
+                if m["s"].strip().lower() != spec["spec_value"].strip().lower():
+                    findings.append("spec value mismatch %s: row says %r, table says %r" % (mid, m["s"], spec["spec_value"]))
+                if m["m"].strip().lower() != spec["spec_value"].strip().lower():
+                    findings.append("text mismatch %s: measured %r vs spec %r" % (mid, m["m"], spec["spec_value"]))
+                continue
+            if m["s"] != spec["spec_value"]:
+                findings.append("spec value mismatch %s: row says %s, table says %s" % (mid, m["s"], spec["spec_value"]))
             if spec["tolerance"] == "approx" and not re.search(r"approximation, M\d+", row["detail"]):
                 findings.append("grade E row %s does not say 'approximation, Mn'" % mid)
-            if not within(m.group("m"), spec["spec_value"], spec["tolerance"]):
+            if not within(m["m"], spec["spec_value"], spec["tolerance"]):
                 findings.append("out of tolerance %s: measured %s vs spec %s (tol %s)" % (
-                    mid, m.group("m"), spec["spec_value"], spec["tolerance"]))
+                    mid, m["m"], spec["spec_value"], spec["tolerance"]))
+    if skipped:
+        print("%s: scope mode=%s party=%s; %d row(s) out of scope skipped: %s" % (
+            test_id, mode, party, len(skipped), ", ".join(skipped)))
     return findings, total
 
 
 def main(argv):
     ledger_path = None
+    mode = None
+    party = None
     ids = []
     it = iter(argv[1:])
     for a in it:
         if a == "--ledger":
             ledger_path = next(it)
+        elif a == "--mode":
+            mode = next(it)
+        elif a == "--party":
+            party = int(next(it))
         else:
             ids.append(a)
     if not ids:
@@ -152,7 +244,7 @@ def main(argv):
         return 2
     bad = 0
     for test_id in ids:
-        result = grade(test_id, ledger_path)
+        result = grade(test_id, ledger_path, mode, party)
         if isinstance(result, list):
             print("%s: %s" % (test_id, "; ".join(result)))
             bad += 1
@@ -165,7 +257,7 @@ def main(argv):
             for f in findings:
                 print("    " + f)
         else:
-            print("%s: FULL (%d spec rows measured within tolerance)" % (test_id, total))
+            print("%s: FULL (%d in-scope spec rows measured within tolerance)" % (test_id, total))
     return 1 if bad else 0
 
 

@@ -76,6 +76,24 @@ of row, all required:
    (`docs/minigames/<raid>/encounters/<room>.tsv`); `tools/raid_gate/raid_coverage.py <id>`
    grades the ledger against it and `tools/raid_gate/gate.py <id>` runs it after the
    quest gate -- a room is green only when coverage reads FULL.
+   **Scope.** A test plays one mode at one party size, so its first spec row is
+   `t.check("spec.scope", true, "mode=entry party=1")`; rows the table marks for another
+   mode (hard, entry, normal), rows whose `entry_` sibling applies in entry mode, and rows
+   that name a party size or scale other than the test's are skipped by the grader and
+   listed, never counted. **Text rows** (unit `text`) read
+   `measured <text> (spec <text>, grade <G>, tol exact)` and match by equality. The
+   measured free text may carry parentheses; the `(spec ...)` group is the last one.
+
+### Cheats inside `run`
+
+Setup takes bring-alongs only (`::setlevel`, `::give`). Inside `run` the only cheats a
+room test may issue are READ-ONLY state readouts the raid's content provides as
+instruments -- `::tobstate`, `::toastate`, `::coxstate`, `::tobwhy`, `::tobboss`,
+`::tobsotestate` and their like, procs whose body only `mes`es what it reads -- used to
+corroborate a ledger row, never to replace a measurement from the tick log. Anything
+that changes the world (`::tobgo`, `::tobadv`, `::tobscale`, `::tobsotedrain`,
+`::tobcrabdrop`, `::kill`, `::godmode`, `::setvar`, a heal, a teleport past a barrier
+or a phase) is a rejection. `t.raid.enter` issues the room-entry cheat itself.
 
 An npc acting on tick T sees the world as it stood at the end of tick T-1
 (`docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md` section 1): a step that
