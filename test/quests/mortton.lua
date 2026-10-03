@@ -63,7 +63,7 @@ return {
         "::setlevel defence 40",
         "::setlevel attack 40",
         "::setlevel strength 40",
-        "::complete quest_priestperil", -- Shades of Mort'ton's own prerequisite quest
+        "::complete quest_priestinperil", -- Shades of Mort'ton's own prerequisite quest
         -- Herblore itself is locked behind Druidic Ritual (brew_potion.rs2:
         -- 513's ~herblore_unlocked, quest_druid.rs2:33) regardless of level.
         "::complete quest_druidicritual",

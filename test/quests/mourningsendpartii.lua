@@ -115,7 +115,7 @@ return {
         "::give rope 1",
         "::give death_talisman 1",
         "::setlevel agility 99", -- guaranteed wall-support crossing, see header
-        "::complete quest_mourningsendparti",
+        "::complete quest_mourningsendpart1", -- quest_cheat.rs2's arm; quest_mourningsendparti had no arm and did nothing
         "::mend2", -- last: resets mourning_quest_main and teleports beside Arianwyn
     },
 
