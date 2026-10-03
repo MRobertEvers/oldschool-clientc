@@ -40,6 +40,7 @@ return {
         "::give coins 10000", -- getItemRequirements(): 10,000 coins for the Commorb (bought, not made)
         "::give blankrune 20", -- getItemRequirements(): 20 un-noted rune essence for the Mage of Zamorak
         "::give rune_scimitar 1", -- getItemRequirements(): "the ability to defeat a level 32 Black Knight" -- a real weapon, equipped in run()
+        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves)
         "::give shark 5", -- food for the Black Knight / Solus fights
         "::setlevel attack 99",
         "::setlevel strength 99",
@@ -249,6 +250,13 @@ return {
         t.check("hunt.pos2_drawn", pos2_id ~= nil, "position 2 pool id drawn = " .. tostring(pos2_id) .. " (" .. tostring(pos2_id and POOL[pos2_id][1]) .. ")")
 
         -- 12. Position 2 -- Solus forcibly teleports the player to Camelot
+        if pos2_id == 19 then
+            -- guide step goDownToLumbridgeSwampCaves: enter through the goblin_cave_entrance hole, then plain travel inside the caves
+            t.exec("pos2.goto_swamp", t.player.goto_tile, 3169, 3172, 0)
+            t.exec("pos2.goDownToLumbridgeSwampCaves", t.player.click_loc, "goblin_cave_entrance", 1)
+            t.ticks(4)
+            do local er, et = t.world.tile(); t.check("pos2.in_caves", er == "ok" and et.z > 9000, er == "ok" and (et.x .. "," .. et.z .. "," .. et.level) or tostring(er)) end
+        end
         t.exec("pos2.goto", t.player.goto_tile, POOL[pos2_id][2], POOL[pos2_id][3], POOL[pos2_id][4])
         t.exec("pos2.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("pos2.solus", t.chat.play, {
@@ -316,6 +324,13 @@ return {
         t.check("hunt.pos4_drawn", pos4_id ~= nil, "position 4 pool id drawn = " .. tostring(pos4_id) .. " (" .. tostring(pos4_id and POOL[pos4_id][1]) .. ")")
 
         -- 14. Position 4 -- Solus's Flames of Zamorak: damage as a % of current HP, never lethal
+        if pos4_id == 19 then
+            -- guide step goDownToLumbridgeSwampCaves: enter through the goblin_cave_entrance hole, then plain travel inside the caves
+            t.exec("pos4.goto_swamp", t.player.goto_tile, 3169, 3172, 0)
+            t.exec("pos4.goDownToLumbridgeSwampCaves", t.player.click_loc, "goblin_cave_entrance", 1)
+            t.ticks(4)
+            do local er, et = t.world.tile(); t.check("pos4.in_caves", er == "ok" and et.z > 9000, er == "ok" and (et.x .. "," .. et.z .. "," .. et.level) or tostring(er)) end
+        end
         t.exec("pos4.goto", t.player.goto_tile, POOL[pos4_id][2], POOL[pos4_id][3], POOL[pos4_id][4])
         local hp_before_result, hp_before_reading = t.skill.read("hitpoints")
         t.step("pos4.hp_before", hp_before_result == "ok" and "PASS" or "FAIL", "hitpoints=" .. tostring(hp_before_reading and hp_before_reading.level))
@@ -415,6 +430,13 @@ return {
         t.check("hunt.pos6_drawn", pos6_id ~= nil, "position 6 pool id drawn = " .. tostring(pos6_id) .. " (" .. tostring(pos6_id and POOL[pos6_id][1]) .. ")")
 
         -- 16. Position 6 -- Solus summons a level 32 Black Knight (Wanted!)
+        if pos6_id == 19 then
+            -- guide step goDownToLumbridgeSwampCaves: enter through the goblin_cave_entrance hole, then plain travel inside the caves
+            t.exec("pos6.goto_swamp", t.player.goto_tile, 3169, 3172, 0)
+            t.exec("pos6.goDownToLumbridgeSwampCaves", t.player.click_loc, "goblin_cave_entrance", 1)
+            t.ticks(4)
+            do local er, et = t.world.tile(); t.check("pos6.in_caves", er == "ok" and et.z > 9000, er == "ok" and (et.x .. "," .. et.z .. "," .. et.level) or tostring(er)) end
+        end
         t.exec("pos6.goto", t.player.goto_tile, POOL[pos6_id][2], POOL[pos6_id][3], POOL[pos6_id][4])
         t.exec("pos6.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("pos6.solus", t.chat.play, {
