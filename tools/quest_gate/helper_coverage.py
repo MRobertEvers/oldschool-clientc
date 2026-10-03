@@ -137,7 +137,14 @@ CLASSES (first rule that fires wins, in this order).
                a room an obstacle step's door opens on to a nearby tile in no
                zone, after which the step the guide shows only inside that
                room is driven (room_exits; Heroes' Quest's hop out of the
-               secret room to melee Grip, charged to killGrip); or a
+               secret room to melee Grip, charged to killGrip); or a goto
+               that lands in a room the MAP walls in (maps/*.jl2 walls and
+               blocked tiles, MapWalls; a door loc in its perimeter) from a
+               departure outside it, with no press of that door in the 500
+               ticks before -- whether or not the guide names the door,
+               charged to the step the goto serves (enclosure_entries; Tale
+               of the Righteous's returnToPhileasTent past Phileas's house
+               door); or a
                PASS row named after an obstacle step whose newest server
                line is that attempt's failure (stale_success: passTrap5-tile
                on "...and fail, activating the trap!").
@@ -1088,6 +1095,7 @@ PARENTS = {}      # multinpc/multiloc child -> {parent}
 CHILDREN = {}     # multinpc/multiloc parent -> [child]
 OPS = {}          # (kind, symbol) -> {op number: op name, lowercased}
 SCRIPTS = {}      # (trigger kind, subject) -> (relpath, line): labels, procs, triggers
+LOC_CLIP = {}     # loc symbol -> (blockwalk, width, length, active): all.loc's collision fields (MapWalls)
 _BODIES = {}
 
 
@@ -1349,8 +1357,275 @@ def content_index():
                     CHILDREN.setdefault(symbol, []).append(child)
             for number, op in re.findall(r"^op([1-5])=(.+)$", body, re.M):
                 OPS.setdefault((kind, symbol), {})[int(number)] = op.strip().lower()
+            if kind == "loc":
+                clip = [re.search(r"^%s=(\d+)" % field, body, re.M)
+                        for field in ("blockwalk", "width", "length", "active")]
+                LOC_CLIP[symbol] = (int(clip[0].group(1)) if clip[0] else 2,
+                                    int(clip[1].group(1)) if clip[1] else 1,
+                                    int(clip[2].group(1)) if clip[2] else 1,
+                                    int(clip[3].group(1)) == 1 if clip[3] else
+                                    re.search(r"^op[1-5]=", body, re.M) is not None)
     _CONTENT_INDEX = (triggers, categories, debugprocs)
     return _CONTENT_INDEX
+
+
+MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
+# A wall loc on a room's perimeter that is the way through it: its display
+# name, or an Open op (a closed door/gate shows Open).
+DOOR_NAME_RE = re.compile(r"\b(door|doors|gate|gates|portcullis|doorway)\b")
+CLIMB_NAME_RE = re.compile(r"\b(ladder|stairs|staircase|stairway|trapdoor|trap door|steps)\b")
+
+
+class MapWalls:
+    """The map's walls, read the way the client builds its collision map
+    (OSRS CollisionMap.addWall / addLoc), from `maps/m<x>_<z>.jl2` (`level x
+    z: loc shape [rotation]`, square-local tiles) and `.jm2` (`f<flags>` per
+    tile: 1 blocked, 2 on level 1 = a bridge, which moves that column's locs
+    and blocks one level down). all.loc's `blockwalk` is the client's
+    clipType (default 2): a wall (shapes 0-3) or an object (9-21) blocks
+    unless it is 0, a ground decoration (22) only when it is 1 and the loc
+    is active (`active=1`, or ops when absent); wall decorations (4-8)
+    never -- the server's own stamp (torirs_server_scene.c, the switch on
+    loc->shape; angle 0 west, 1 north, 2 east, 3 south). Only what the
+    grader needs: wall edges and blocked tiles per level, the locs that make
+    each edge, which locs are doors (DOOR_NAME_RE / an Open op) and which are
+    climbs (CLIMB_NAME_RE / a Climb op) with the tiles around them. Locs
+    content adds or removes at run time are not seen."""
+
+    WEST, NORTH, EAST, SOUTH = 1, 2, 4, 8
+    STEP = {1: (-1, 0, 4), 2: (0, 1, 8), 4: (1, 0, 1), 8: (0, -1, 2)}  # side -> dx, dz, opposite side
+
+    def __init__(self, root=None):
+        self.root = root or MAPS_ROOT
+        self.loaded = set()
+        self.present = set()
+        self.walls = {}       # (x, z, level) -> side flags
+        self.edge_locs = {}   # (x, z, level, side) -> [(symbol, (x, z, level) of the loc)]
+        self.blocked = set()
+        self.climb_at = {}    # (x, z, level) -> [(symbol, origin)]: climbs whose footprint or ring holds it
+        self.climb_ring = {}  # (symbol, origin) -> [(x, z, footprint x, footprint z, side)]: the 4-way ring
+        self._names = None
+
+    def names(self):
+        if self._names is None:
+            self._names = {}
+            path = os.path.join(os.path.dirname(self.root), "configs", "all.loc.compack")
+            if os.path.isfile(path):
+                with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                    for line in handle:
+                        key, _, value = line.strip().partition("=")
+                        if key.isdigit() and value:
+                            self._names[int(key)] = value
+        return self._names
+
+    @staticmethod
+    def is_door(symbol):
+        """A CLOSED door or gate: an Open op, or a door/gate name -- not an
+        open leaf (Close and no Open: it lies along the wall it swung to, and
+        the doorway beside it is open, so it never closes a room)."""
+        words = {op_word(name) for name in OPS.get(("loc", symbol), {}).values()}
+        if "close" in words and "open" not in words:
+            return False
+        display = DISPLAY.get(("loc", symbol), "")
+        if DOOR_NAME_RE.search(display) and not CLIMB_NAME_RE.search(display):
+            return True
+        return "open" in words and "trapdoor" not in symbol and "trap_door" not in symbol
+
+    @staticmethod
+    def is_climb(symbol):
+        if CLIMB_NAME_RE.search(DISPLAY.get(("loc", symbol), "")):
+            return True
+        return any(op_word(name) == "climb" or name.startswith("climb") for name in
+                   OPS.get(("loc", symbol), {}).values())
+
+    @staticmethod
+    def climb_ways(symbol):
+        """(goes up, goes down) for a climb loc, from its ops (`Climb-up`,
+        `Climb-down`; a bare `Climb` or none readable: both). A trapdoor
+        goes down."""
+        ops = [name for name in OPS.get(("loc", symbol), {}).values()]
+        up = any(re.search(r"\bup\b", name) for name in ops)
+        down = any(re.search(r"\bdown\b", name) for name in ops) or "trap" in symbol
+        if not up and not down:
+            return True, True
+        return up, down
+
+    def _add_wall(self, x, z, level, side, symbol, at):
+        dx, dz, opposite = self.STEP[side]
+        for key, flag in (((x, z, level), side), ((x + dx, z + dz, level), opposite)):
+            self.walls[key] = self.walls.get(key, 0) | flag
+            self.edge_locs.setdefault(key + (flag,), []).append((symbol, at))
+
+    def load(self, square_x, square_z):
+        if (square_x, square_z) in self.loaded:
+            return
+        self.loaded.add((square_x, square_z))
+        base = os.path.join(self.root, "m%d_%d" % (square_x, square_z))
+        if not os.path.isfile(base + ".jl2"):
+            return
+        content_index()
+        self.present.add((square_x, square_z))
+        origin_x, origin_z = square_x * 64, square_z * 64
+        bridges = set()
+        tile_flags = []
+        if os.path.isfile(base + ".jm2"):
+            with open(base + ".jm2", "r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
+            for match in re.finditer(r"^([0-3]) (\d+) (\d+):[^\n]*?\bf(\d+)", text, re.M):
+                level, x, z, flags = (int(v) for v in match.groups())
+                tile_flags.append((level, x, z, flags))
+                if level == 1 and flags & 2:
+                    bridges.add((x, z))
+        for level, x, z, flags in tile_flags:
+            if flags & 1:
+                real = level - 1 if (x, z) in bridges else level
+                if real >= 0:
+                    self.blocked.add((origin_x + x, origin_z + z, real))
+        with open(base + ".jl2", "r", encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+        names = self.names()
+        for match in re.finditer(r"^([0-3]) (\d+) (\d+): (\d+) (\d+)(?: (\d+))?", text, re.M):
+            level, x, z, loc, shape = (int(v) for v in match.groups()[:5])
+            rotation = int(match.group(6) or 0)
+            real = level - 1 if (x, z) in bridges else level
+            if real < 0:
+                continue
+            symbol = names.get(loc, str(loc))
+            blockwalk, width, length, active = LOC_CLIP.get(symbol, (2, 1, 1, False))
+            wx, wz = origin_x + x, origin_z + z
+            if self.is_climb(symbol):
+                size = (length, width) if rotation in (1, 3) else (width, length)
+                key = (symbol, (wx, wz, real))
+                footprint = {(wx + ox, wz + oz) for ox in range(size[0]) for oz in range(size[1])}
+                ring = []
+                for fx, fz in sorted(footprint):
+                    for side, (dx, dz, _) in self.STEP.items():
+                        if (fx + dx, fz + dz) not in footprint:
+                            ring.append((fx + dx, fz + dz, fx, fz, side))
+                self.climb_ring[key] = ring
+                for tx, tz in footprint | {(r[0], r[1]) for r in ring}:
+                    self.climb_at.setdefault((tx, tz, real), []).append(key)
+            if shape <= 3:
+                if blockwalk == 0:
+                    continue
+                at = (wx, wz, real)
+                if shape == 0:
+                    self._add_wall(wx, wz, real, (self.WEST, self.NORTH, self.EAST, self.SOUTH)[rotation], symbol, at)
+                elif shape == 2:
+                    first = (self.WEST, self.NORTH, self.EAST, self.SOUTH)[rotation]
+                    second = (self.NORTH, self.EAST, self.SOUTH, self.WEST)[rotation]
+                    self._add_wall(wx, wz, real, first, symbol, at)
+                    self._add_wall(wx, wz, real, second, symbol, at)
+                # shapes 1 and 3 are corner pillars: they block only a
+                # diagonal step, which a 4-way flood never takes
+            elif 9 <= shape <= 21:
+                if blockwalk == 0:
+                    continue
+                if rotation in (1, 3):
+                    width, length = length, width
+                for ox in range(width):
+                    for oz in range(length):
+                        self.blocked.add((wx + ox, wz + oz, real))
+            elif shape == 22 and blockwalk == 1 and active:
+                self.blocked.add((wx, wz, real))
+
+    def _ready(self, x, z):
+        square = (x >> 6, z >> 6)
+        if square not in self.loaded:
+            # a wall on a neighbour's edge row also closes this square's tile
+            for sx in (square[0] - 1, square[0], square[0] + 1):
+                for sz in (square[1] - 1, square[1], square[1] + 1):
+                    self.load(sx, sz)
+        return square in self.present
+
+    def _flood(self, x, z, level, limit, perimeter):
+        """Tiles a 4-way walk from (x, z) reaches on `level` without crossing
+        a wall or entering a blocked tile; None past `limit` tiles. The wall
+        locs met on the way go into `perimeter`."""
+        seen = {(x, z)}
+        todo = [(x, z)]
+        while todo:
+            cx, cz = todo.pop()
+            for side, (dx, dz, opposite) in self.STEP.items():
+                nx, nz = cx + dx, cz + dz
+                if (nx, nz) in seen:
+                    continue
+                if self.walls.get((cx, cz, level), 0) & side or self.walls.get((nx, nz, level), 0) & opposite:
+                    for symbol, at in self.edge_locs.get((cx, cz, level, side), []):
+                        perimeter[(symbol, at)] = True
+                    continue
+                if not self._ready(nx, nz) or (nx, nz, level) in self.blocked:
+                    continue
+                seen.add((nx, nz))
+                if len(seen) > limit:
+                    return None
+                todo.append((nx, nz))
+        return seen
+
+    def enclosure(self, x, z, level, limit):
+        """The building the tile (x, z, level) is in, across its floors: a
+        4-way flood from it that stops at walls and blocked tiles, and that
+        follows every climb loc it reaches to the floor that climb leads to
+        (Climb-up one level up, Climb-down one down, from the tiles around
+        it). {floors {level: tiles}, tiles (the landing floor's), doors
+        [(symbol, tile)] (closed doors met on any floor), climbs [symbol],
+        to_dungeon (a climb DOWN from level 0: it leads to another map
+        frame), box (min x, max x, min z, max z over every floor)} when every
+        flood closes within `limit` tiles in all; None when one does not
+        (open ground, a courtyard bigger than a building, an upper floor
+        whose stairs come down outside) or the tile is not on a loaded map
+        square."""
+        if not self._ready(x, z) or (x, z, level) in self.blocked:
+            return None
+        floors = {}
+        perimeter = {}
+        climbs = set()
+        to_dungeon = False
+        total = 0
+        todo = [(x, z, level)]
+        while todo:
+            sx, sz, sl = todo.pop()
+            if (sx, sz) in floors.get(sl, ()):
+                continue
+            if not self._ready(sx, sz) or (sx, sz, sl) in self.blocked:
+                continue
+            seen = self._flood(sx, sz, sl, limit - total, perimeter)
+            if seen is None:
+                return None
+            floors.setdefault(sl, set()).update(seen)
+            total += len(seen)
+            for tx, tz in seen:
+                for key in self.climb_at.get((tx, tz, sl), ()):
+                    if key in climbs:
+                        continue
+                    climbs.add(key)
+                    up, down = self.climb_ways(key[0])
+                    if down and sl == 0:
+                        to_dungeon = True
+                    for other in ([sl + 1] if up and sl < 3 else []) + ([sl - 1] if down and sl > 0 else []):
+                        # the tiles beside the climb on the floor it leads to,
+                        # not through a wall from it (a ring tile outside the
+                        # upstairs wall is not where the climb comes out)
+                        todo.extend((rx, rz, other) for rx, rz, fx, fz, side in self.climb_ring[key]
+                                    if not self.walls.get((fx, fz, other), 0) & side)
+        tiles = [t for tiles in floors.values() for t in tiles]
+        return {
+            "floors": floors, "tiles": floors[level],
+            "doors": sorted({(symbol, at) for symbol, at in perimeter if self.is_door(symbol)}),
+            "climbs": sorted({key[0] for key in climbs}), "to_dungeon": to_dungeon,
+            "box": (min(t[0] for t in tiles), max(t[0] for t in tiles),
+                    min(t[1] for t in tiles), max(t[1] for t in tiles)),
+        }
+
+
+_MAP_WALLS = None
+
+
+def map_walls():
+    global _MAP_WALLS
+    if _MAP_WALLS is None:
+        _MAP_WALLS = MapWalls()
+    return _MAP_WALLS
 
 
 def symbol_triggers(symbol):
@@ -3202,6 +3477,7 @@ class Grader:
             expanded.extend(groups)
         steps = [group[0] for group in expanded]
         members = {group[0].name: group for group in expanded}
+        self._ladder_leaves = [leaf for group in expanded for leaf in group]  # enclosure_entries charges these
         driven = {}
         driven_symbols = set()
         self.loc_uses = {}
@@ -3737,7 +4013,8 @@ class Grader:
                         before[0], before[1], before[2], start, from_row["index"], from_row["step"],
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
-        for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries()):
+        for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries(),
+                      self.enclosure_entries()):
             for name, items in found.items():
                 have = {key for key, _ in self._route_hops.get(name, [])}
                 merged = self._route_hops.setdefault(name, [])
@@ -4205,6 +4482,149 @@ class Grader:
                         word, door.name, ",".join(locs), end_zone, door.name, composite,
                         self.guide.steps[self.guide.resolve(composite)].line or 0)))
         return self._frame_entries
+
+    ENCLOSURE_MAX_TILES = 400
+    ENCLOSURE_BOX_SLACK = 2
+
+    def _hop_step(self, position, until, room):
+        """The ladder leaf a goto at rows[position] serves: the one its own row
+        is named after (the longest such name: goto-talkToPhileasAgain is
+        talkToPhileasAgain's, not talkToPhileas's), else the first PASS row
+        before `until` named after a leaf whose WorldPoint is in `room`'s box
+        on its level. None when neither says."""
+        leaves = getattr(self, "_ladder_leaves", None) or []
+        row = self.rows[position]
+        named = [leaf for leaf in leaves if self.row_names_step(row["step"], leaf.name)]
+        if named:
+            return max(named, key=lambda leaf: len(leaf.name))
+        slack = self.ENCLOSURE_BOX_SLACK
+        box = room["box"]
+        for later in self.rows[position + 1:until]:
+            if later.get("verdict") != "PASS":
+                continue
+            named = [leaf for leaf in leaves if self.row_names_step(later["step"], leaf.name)]
+            if not named:
+                continue
+            leaf = max(named, key=lambda leaf: len(leaf.name))
+            point = leaf.point
+            if point is not None and box[0] - slack <= point[0] <= box[1] + slack and \
+                    box[2] - slack <= point[1] <= box[3] + slack and point[2] == room["level"]:
+                return leaf
+            return None
+        return None
+
+    DOOR_OPEN_TICKS = 500  # doors.rs2/doubledoors.rs2 loc_add(..., 500): an opened door shuts after 500 ticks
+
+    def _door_opened_before(self, position, doors):
+        """Did a PASS row before rows[position] press one of `doors` (the copy
+        at its tile, _pressed_between) at most DOOR_OPEN_TICKS ticks earlier
+        (the ledger's per-row `ticks`, summed)? The door may still stand open:
+        a goto through an open doorway is a walk."""
+        elapsed = 0
+        for row in reversed(self.rows[:position]):
+            if elapsed > self.DOOR_OPEN_TICKS:
+                return False
+            if row.get("verdict") == "PASS" and any(
+                    self._pressed_between([row], [symbol], at) for symbol, at in doors):
+                return True
+            try:
+                elapsed += int(row.get("ticks") or 0)
+            except ValueError:
+                pass
+        return False
+
+    def enclosure_entries(self):
+        """{ladder step name: [((row index, row step), reason)]}: a goto that
+        lands in a ROOM -- a tile the map's walls close in (MapWalls: a 4-way
+        flood from the landing stops within ENCLOSURE_MAX_TILES) with a door
+        loc in its perimeter -- from a departure outside it, with no PASS row
+        pressing that door in the DOOR_OPEN_TICKS before. It went through the wall
+        or past the closed door. Charged to the step the goto serves
+        (_hop_step). door_entries needs the guide to name the door (an
+        ObjectStep a ConditionalStep defaults to); a house the guide only
+        walks into has no such step. Tale of the Righteous (b56 sampler,
+        8f3c5b544 reverted): returnToPhileasTent (stage 15 -> 16, "return to
+        Phileas", an arrival) was row 93's goto_tile 1542,3570,0 from Shiro's
+        room 1486,3634,1, and goto-talkToPhileasAgain landed there from the
+        prison 1551,10211,0 -- both inside Phileas's house, past
+        wallkit_shayzien_door01_l_reverse at 1540,3570 (maps/m24_55.jl2), and
+        the grade read FULL 30/30.
+
+        The flood follows the room's own climbs to the floors they lead to
+        (MapWalls.enclosure): Sanfew's upstairs room is closed only if the
+        stairs come down into a closed ground floor; a plain stair from an
+        open doorway is travel. Outside means: a tile no floor's flood
+        reached, and on another level of the same map frame also outside
+        the building's box (+ENCLOSURE_BOX_SLACK: another floor of the same
+        building not reached through the room's climbs is the climb rules'
+        business); or another map frame. Not judged: a landing on open
+        ground or in an area bigger than a building, a building with a climb
+        DOWN from level 0 (a dungeon below may come out anywhere), a room
+        with no door (sealed: reached by its ladder), a hop with a press, walk, use or
+        cast between it and an unstamped start, and a hop within
+        DOOR_OPEN_TICKS of a press of the door (it may still stand open).
+        Locs content adds or removes at run time are not seen."""
+        if getattr(self, "_enclosure_entries", None) is not None:
+            return self._enclosure_entries
+        self._enclosure_entries = {}
+        if not self.rows:
+            return self._enclosure_entries
+        track = self.player_track()
+        walls = None
+        slack = self.ENCLOSURE_BOX_SLACK
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue  # the run's first reading, and no departure stamp: where it left from is not known
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if walls is None:
+                walls = map_walls()
+            room = walls.enclosure(point[0], point[1], point[2], self.ENCLOSURE_MAX_TILES)
+            if room is None or not room["doors"]:
+                continue
+            room["level"] = point[2]
+            box = room["box"]
+            if room["to_dungeon"]:
+                continue  # a climb down from it leads to another frame, which may come out anywhere
+            other_frame = abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200
+            if other_frame:
+                where = "another map frame"
+            elif (before[0], before[1]) in room["floors"].get(before[2], ()):
+                continue  # a hop inside the building (any floor its climbs reach)
+            elif before[2] == point[2]:
+                where = "outside it on the same level"
+            else:
+                if box[0] - slack <= before[0] <= box[1] + slack and box[2] - slack <= before[1] <= box[3] + slack:
+                    continue  # another floor of the same building, not reached through this room's climbs
+                where = "level %d, outside the building's footprint" % before[2]
+            if self._door_opened_before(position, room["doors"]):
+                continue
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            leaf = self._hop_step(position, until, room)
+            if leaf is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._enclosure_entries.setdefault(leaf.name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            doors = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["doors"][:3])
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r lands at %d,%d,%d in a room the map walls in (%d tiles%s, x %d-%d z %d-%d, "
+                "door %s: maps/m%d_%d.jl2) from %d,%d,%d (%s, row %s %r), with no press of that door in the "
+                "%d ticks before: it went past the closed door (enclosure_entries)" % (
+                    row["index"], row["step"], point[0], point[1], point[2], len(room["tiles"]),
+                    "" if len(room["floors"]) == 1 else " on this floor, levels %s by %s" % (
+                        ",".join(str(l) for l in sorted(room["floors"])), ",".join(room["climbs"][:2])),
+                    box[0], box[1], box[2], box[3], doors, point[0] >> 6, point[1] >> 6,
+                    before[0], before[1], before[2], where, from_row["index"], from_row["step"],
+                    self.DOOR_OPEN_TICKS)))
+        return self._enclosure_entries
 
     def guarded_rooms(self):
         """[(composite X, room step S, room zones Z, door step O, O's zones A,
