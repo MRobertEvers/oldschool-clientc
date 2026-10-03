@@ -321,3 +321,238 @@ Never use `::tobgo` or `::toago`.
 - CoX `::coxgoto` lands at the room centre, and Tekton wakes and attacks on landing (99
   -> 65 measured), so arm the character before entering. The same seed gives the same
   layout every run: seed 1 puts Tekton in cell 1,1 on floor index 1.
+
+# Seam pass 2: the Theatre of Blood content as the server now plays it
+
+Seam pass 2 (`matthew-mbp-m4-raid-b1-seam2`) added no verbs. It fixed the ToB content
+rows the spec pass found (CONTENT_BUGS.md), so the facts below are what a room test
+asserts after it. Each was measured with a scratch script that entered the room with
+`t.raid.enter` and read `ticklog.tsv`; the run directories are named in
+`SEAM_LEDGER.md` and the fixers' reports.
+
+## Measuring a room while other workers edit OSRS-Content
+
+- `run.py` checks and rebuilds the SHARED pack first, so another worker's half-written
+  file breaks your run. To isolate a before/after, build a private content root:
+  `git archive HEAD -- osrs239-content/server/scripts` (leave out `selftest` and
+  `build*`), symlink the other content directories, compile it with
+  `src/build_opt/sscompile --src <copy>/server/scripts --out <copy>/server/scripts/build
+  --content-root <copy>`, and run with `TORIRSSERVER_CONTENT=<copy>` and
+  `TORIRSSERVER_SCRIPTS=<copy>/server/scripts/build`. The embedded server also reads the
+  `.npc` configs from that root.
+- Keep that pack inside its own worktree (`<copy>/osrs239-content/server/scripts/build`).
+  The server's stale check walks the pack's parent directory, so a pack in a shared
+  scratch directory picks up other workers' files.
+- The C `--selftest` loads the repo's shared pack unless `TORIRSSERVER_SCRIPTS` is set.
+
+## Reading a debugproc's reply
+
+- `t.cheat` returns no reply text for a debugproc. Read it with `t.msg.last(n)`, which
+  returns the ring NEWEST FIRST and includes older lines. Filter on a serial greater
+  than the newest one you read before the cheat; otherwise you can read the previous
+  call's line when the new one has not arrived yet.
+- `t.cheat('::tobwhy')` runs synchronously in the embedded server's pump, so
+  `map_clock` does not advance between two cheats: put `t.ticks(1)` between readings.
+  The reply carries `map_clock=N` (the tick log's clock) and ` npc <name> hp=X` lines.
+  Take the block that ends `npcs in instance=K` and the K npc lines before it, or two
+  calls' lines merge.
+- `t.cheat('::kill <symbol> <radius>')` logs `debugproc not found` in client.log and
+  then the engine ladder handles it. It works; that line is not a failure.
+
+## Tick-log details that bite
+
+- `npc_tile` rows are written only when the tile changes, while blert has a position
+  every tick. Fill positions forward per tick before you detect direction flips.
+- For an hp gate, take the npc's hitpoints AS SEEN on tick t: start hp minus the
+  `hit_npc` rows on EARLIER ticks. The npc phase runs before the player phase, so a hit
+  logged on tick t lands after the boss's own turn that tick.
+- Under `::god`/`::godmode`, `hit_player` is written absorbed (hitsplat 26, damage 0);
+  real damage is hitsplat 28. A max-hit row needs god mode off.
+- The tick log has no room-start row. A `t.ticklog.mark` written right after
+  `t.chat.play({'options','choose:Yes, begin the fight.'})` lands one tick after the
+  Maiden's room start (mark 10, `::tobwhy` clock 18 = start 9 + 9). Read the anchor from
+  the server, or state the offset in the ledger row.
+- A content `npc_queue` armed from inside the npc's own `[ai_timer]` drains in the SAME
+  npc turn, so `npc_queue(q, arg, N)` from a timer fires on T+N-1, and one armed
+  elsewhere fires on T+N. Verzik's P1 bolt, yellows and webs ask for N+1 for this
+  reason.
+- Per-room rolls replay: a boss's rolls are seeded from its spawn key and a lives
+  counter, so two runs with the same history replay identical rooms. Offset runs by
+  entering and leaving rooms, not with a new `--name`. About 16,000 server ticks is the
+  480000-frame ceiling.
+
+## tools/verify_tob_timings.py --ticklog: our run against the blert checks
+
+- `python3 tools/verify_tob_timings.py --ticklog <run>/ticklog.tsv` measures a run on our
+  server against the same tob.constant figures and the same checks the blert cache
+  gets. It refuses a header other than `ticklog-v1`.
+- Rooms are found by cache ids. Maiden: attack seqs 8091/8092 and pool loc 32984 (splat
+  when no blood spawn stood on the tile, trail when one did). Bloat: down seq 8082, up =
+  the slot's next `npc_tile`, stomp = the Bloat's `hit_player` inside the down (flies in
+  flight and hand ticks excluded), hands = `map_spotanim` 1570-1573 (shadow) and 1576
+  (drop). Sotetseg 8138/8139. Xarpus spit 8059 and exhumed loc 32743. Verzik phase = npc
+  type (8370/8372/8374, story 10831/10833/10835, hard 10848/10850/10852), attack seqs
+  only. Nylocas waves are not measured (a spawn row has no wave number).
+- Room tick 0 is not in the log: give `--start-tick N` (repeatable) or
+  `--start-mark REGEX` plus `--anchor-offset`. Without an anchor, Maiden's first attack,
+  Bloat's first walk and Xarpus' first exhumed print as notes, not checks. The Xarpus
+  spawn gap needs `--scale` (and `--mode`).
+- Bloat walks use blert's definition, walkTime = down - up - 1, where up is the first
+  step after the down. The first walk is down - room tick 0 - 1.
+- blert sees a loc's despawn one tick early (M5), so the tool adds 1 to a recorded pool
+  or trail run: trail 29 -> 30, splat 13 -> 14 (against our 11, a named mismatch).
+- blert event 141 (xarpusExhumed) is stamped on the tick the exhumed is gone; lifetime
+  = tick - spawnTick, 11 x98 regular.
+
+## Entry Mode hitpoints stack, and the party affordances
+
+- Every Entry npc's hitpoints are `~tob_entry_scale(unit, players)` = unit x 1 / 1.9 /
+  2.7 / 3.4 / 4.0 (Jagex, Entry Mode Improvements, 1 Mar 2023): Maiden 500 / 950 / 1350
+  / 1700 / 2000, a Matomenos 16 / 30 / 43 / 54 / 64. The wiki's Entry infobox figure is
+  the FIVE-player one.
+- `::tobscale <n>` re-states the current room's boss for a party of n and prints
+  `tobscale n hp=H of M`. It is the only way a one-player driver reads a 2-5 player
+  pool. It does not move Vasilias (not the room's registered boss). Never use it in a
+  "fought for real" room test.
+- `::tobboss` prints `tobboss record=entry|normal|hard room_mode=M hp=H of M base=B
+  def=D of D0 name=...` for the room's boss: assert the mode's cache record and its
+  Defence with it.
+
+## Which npc id fights in each mode
+
+- Bloat, Sotetseg and Xarpus spawn their mode's cache record in Entry and Hard
+  (`tob_bloat_story`/`_hard`, `tob_sotetseg_combat_story`/`_hard` and their maze
+  forms 10865/10864 and 10868/10867, `tob_xarpus_*_story`/`_hard`). Filter tick-log
+  `npc_retype`/`npc_anim` rows on all three families.
+- Maiden (and her crabs and blood spawns) and Verzik stay the Normal ids in every mode;
+  their triggers exist only for the Normal ids.
+- `t.raid.enter('tob', 'sotetseg', {mode='entry'|'hard'})` lists the mode records since
+  seam2; before, its detail read `boss unspawned` there while answering ok.
+
+## The room watchdog runs every tick
+
+- The per-player room watch is a 1-tick queue since seam2. Standing in Maiden's blood is
+  hit every tick (a pool landing on T hits T..T+10, plus the extras a tick later; a
+  99-hp player standing still dies in about 7 ticks). Sotetseg's realm chip lands every
+  7 ticks and the maze rag every tick. A room reads cleared about 2 ticks after its boss
+  is gone.
+- The boss is looked up from the room's fight tile, not from the player, so a solo
+  Sotetseg runner in the shadow realm no longer clears the room.
+
+## Maiden after seam2
+
+- Her 70/50/30 transmog keeps her hitpoints and pool: assert "hp after the retype <= hp
+  before" on the transmog tick (`::tobwhy`). Measured 1444 -> 1444 solo Normal.
+- Hard period: the gap after an attack is 10 - ceil(c/2), floor 5, where c counts LEAKS
+  (arrivals) up to that attack; kills do not count. In the tick log a crab
+  `npc_death` is a leak only when it was not killed. Measured c1 9, c2 9, c3 8, c4 8,
+  c6 7, c7 6, c8 6, c>=10 5; c=5 and c>=9 are formula only (E, M20).
+- Hard crab sets are fixed: all ten at 2-5 players; solo seven at local (45,40) N3,
+  (49,38) N4i, (49,40) N4o, (41,20) S2, (45,20) S3, (49,22) S4i, (49,20) S4o. Normal and
+  Entry draw a uniform subset of 2 x party. A crab's hitpoints are its POOL (75 of 75).
+- Blood spawns step one tile every tick while free (0.968 of slug-ticks moved, 0
+  two-tile steps). Take out 32-tick freezes, the last ~5 ticks while she dies, and the
+  east entrance pocket (local 50-51, 27-34) before computing a move rate.
+- Blood-spawn chance per expiring pool: 20 if stood in, 10 if another pool of the throw
+  was, 5 when the whole team dodged. No Hard ramp (focus) damage in a solo raid.
+- Death, K = her `npc_death`: `npc_anim` 8093 at K+1, retype to 8364 at K+3, 8365 at
+  K+5, `npc_free` at K+9 (measured seam2 closer; blert K+9). Assert on `npc_free`, not
+  on the 8364 retype tick (the retype lands at the engine's corpse stage, 2 late).
+- Measurement debugprocs (never in a room test): `::tobmaidenpct <pct>` takes her
+  current body to pct of the scaled pool with `npc_damage`; `::tobmaidenleave <n>`
+  kills every walking Matomenos but n; `::tobmaidenunit` prints the room's pure
+  functions.
+
+## Bloat after seam2
+
+- The first step, first fly and first falling-flesh volley come ON down+33. Bloat does
+  not move on the down tick. A visible reversal is never closer than 5 ticks to the
+  next down.
+- Falling flesh never lands on local x29..34, z29..34 (the tank). Regular mode's first
+  volley after a rise falls on the rise tick; Hard keeps a strict 6/4 cadence through
+  downs.
+- The run, hands and hurry gates are strictly below 60 / 90 / 40 % of the scaled
+  maximum. Entry flies hit 4-8 and the Entry stomp 20-40 (minimum an approximation,
+  M62).
+- Turn rate as a per-tick hazard: 1 in 17 Regular, 1 in 7 Hard (blert's
+  analyze_bloat.py "turn rate" is odds over non-turn ticks and reads 1 in 15 / 1 in 6).
+  The down chance is 25 % Regular and 28 % Hard per eligible tick, fitted against
+  blert's first walks [M17b].
+
+## Nylocas after seam2
+
+- Lifetime tick 1 is the spawn tick. A small's explosion animation is on lifetime tick
+  52 and it despawns 52 ticks after spawning; a big's on 53 and 55. An exploding big
+  leaves two smalls on its despawn tick at its SW tile (0,0) and (+1,+1). A big killed
+  by a player despawns hp0+6 standing / +7 walking with the same two splits. A nylocas
+  killed during its explosion animation dies through the death path (no extra split).
+- Nylocas do not step on their spawn tick. A flicker's first colour change is +5 after
+  spawn (then a 2-tick hold). An aggro turns incoming -> fighting on its first turn with
+  its SW tile inside the arena box (local x 26..37, z 19..30) and does not step that
+  turn: +10 west/east, +11 south, +9 east-lane big. Read them as `npc_retype` rows.
+- Vasilias lands with her SW tile on 3294,4247 (local 30,23), holds the spawning form 2
+  ticks, then melee for 9 and every later form for 10. She attacks exactly twice per
+  form: +2 or +3 after the change, then +4 (opening form +1 or +4). Grade a window as two
+  attack `npc_anim` rows inside one `npc_retype` interval.
+- The Hard Prinkipas does not self-destruct: a room test must kill all three or
+  Vasilias never lands.
+- A passive solo room now loses all four supports (about room tick 540 with `::god` and
+  no kills), because exploding bigs split. A measurement scratch can keep the room alive
+  with `::kill tob_nylocas_<incoming|fighting|big_incoming|big_fighting>_<style>[_hard|_story] 40`;
+  never in a room test.
+- Known gap: a small killed by a player despawns hp0+3 standing / +4..+5 walking against
+  blert's +2; assert it as "measured N, open" (CONTENT_BUGS).
+
+## Sotetseg after seam2
+
+- Attacks every 5. Ten ordinary 1606 balls, then a 1604 death ball INSTEAD of the 11th
+  (one `npc_anim` 8139, no 1606 that tick), next attack +10. The death ball's
+  `hit_player` row is at D+16 at any distance (projectile end_cycle 450). Melee (8138)
+  `hit_player` at +1.
+- At a maze proc (`npc_retype` 8388 -> 8387, or the mode's pair) every raider is stunned
+  5 ticks and teleported at proc+3 (`player_tile` level 3); the first step resolves at
+  proc+5 (`step_tick` before that answers timeout). The maze ends only on world ticks
+  that are multiples of 4; his first attack is re-activation+1 and never a death ball.
+- `::tobgo` teleports to the fight tile (6415,84), so warp AFTER it (adjacent =
+  `::tobwarp 15 39`, 3 tiles = `::tobwarp 15 37`).
+- `::tobsotedrain <n>` drains his Defence through `npc_statsub`; `::tobsotestate` a tick
+  later shows the floor (def=100 of 200).
+
+## Xarpus after seam2
+
+- Signatures: exhumed = `loc_set` loc 32743 (despawn `loc_set` -1 on the same coord),
+  heal orb = projectile spotanim 1550 (one per uncovered exhumed per tick from rise+3),
+  acid pool = `loc_set` 32744, wake = the first `npc_retype` (static -> feeding),
+  stand-up = the second (8339->8340 Normal, 10771->10772 Hard, 10767->10768 Entry).
+  Fight tick 0 = the wake retype.
+- Phase 1, solo: opens at 75 % of his pool (Normal 2812/3750, Hard 3375/4500, Entry
+  390/520). Normal/Entry 7 exhumed rising at fight ticks 9, 21, ..., 81, lifetime 11,
+  stand-up 9 after the last despawn; Hard 9 exhumed at 9, 21, ..., 105, lifetime 9,
+  stand-up 7 after (fight tick 121). Heal per orb Normal 20, Hard 21, Entry 6. Hard lays
+  its 98-pool ring on fight tick 3 and it hurts in phase 1.
+- Hard phase 3 has no timed turn: he faces the quadrant of the last LANDED hit with
+  damage > 0. The gaze retaliation is a `hit_player` row with NO `npc_anim` on its
+  tick. Use `::tobxarpusarm` right after the stand-up to reach phase 3 early.
+- Melee tiles around a standing Xarpus (instance handle 1): his 5x5 is 6432..6436 x
+  97..101, centre 6434,99; south-middle 6434,96 is the SW quadrant, east-middle 6437,99
+  the SE quadrant. In Hard the ring's reach leaves 6433-6435, 91-92 (the entrance gap)
+  as the only safe barrier tiles; the fight tile 6434,92 is in it.
+
+## Verzik after seam2
+
+- Her pool survives every change of form (`~tob_verzik_retype`): a solo Normal room is
+  6750 = 1500 + 2 x 2625, and the P1 shield is 1500 (`::tobvzskip` spent=1500; it was
+  3750 before the seam2 closer). Entry solo is 1100 = 300 + 2 x 400, Defence 10 / 120 /
+  120 by phase (`::tobboss`). P3 still uses the P2 figure in Entry (open).
+- P1: wind-up 8109 on T, bolt 1580 on T+3.
+- P2: count attacks as `npc_anim` 8114/8116 rows while she is 8372. An Athanatos cast is
+  projectile 1586 on that tick and the Athanatos (npc 8384) appears 6 ticks later; the
+  first cast can come on attack 0 (a 25 % roll), then 20+ attacks between casts. Reds
+  are npc 8385: two, one when one raider is left, sized as their pool at the party's
+  scale (solo Normal 150, Entry 20; they were the record's 200 before seam2).
+- P2 -> P3: 8118 plays on the P2 form at the phase event E, the P3 id 8374 arrives at
+  E+6 with 8119, the first P3 attack is at E+12. The cache's 8373 form is not worn yet.
+- P3: yellows blast on pool tick +14 (Hard +20) with the next auto 7 later; webs special
+  42 ticks to the next auto; green ball flight 221 cycles; auto max 33, 34 once enraged.
+- `::tobvzpct <pct>` spends her current phase to pct % of its own pool (a debugproc
+  that does damage: scratches only). `::tobvzskip` spends a whole phase.

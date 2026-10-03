@@ -30790,8 +30790,8 @@ ToriRSServer_WorldSelftest(void)
          * she has BECOME, and the latch is actually on a player once she starts
          * throwing.
          *
-         * She is put into phase two rather than fought there. Her P1 pool is
-         * 2437 x 2 hitpoints deep and the fixture is a lone godmoded player
+         * She is put into phase two rather than fought there. Her P2 and P3
+         * pools are 2625 x 2 hitpoints deep and the fixture is a lone godmoded player
          * with a debug command, not a team — `~tob_verzik_phase_hp <= 0` is the
          * script's own gate for the hop, and writing the hitpoints under it is
          * the same event the raid would produce, seventeen ticks of transition
@@ -30821,7 +30821,8 @@ ToriRSServer_WorldSelftest(void)
                  * EXACTLY the P1 share of the bar, and exact matters in both
                  * directions.
                  *
-                 * Her three phases share one 8500-point pool and each phase
+                 * Her three phases share one pool (the record's 9000 at five
+                 * players since seam2, 8500 before) and each phase
                  * reads its own slice of it: P1 ends when
                  * `hitpoints - 2 * p23_pool` reaches zero, P2 when
                  * `hitpoints - p23_pool` does. Nothing heals her in between -
@@ -30830,10 +30831,12 @@ ToriRSServer_WorldSelftest(void)
                  * all three slices at once and she transforms P1 -> P2 -> P3 on
                  * consecutive ticks. Measured: type 8372 for exactly one tick.
                  *
-                 * Twice the <=3-player pool (2437) is the boundary: it ends
-                 * phase one and leaves phase two's own slice whole.
+                 * Twice the <=3-player pool is the boundary: it ends phase
+                 * one and leaves phase two's own slice whole. 2625 is the
+                 * cache's 3500 (`verzik_phase2` / `verzik_phase3` stat4) at
+                 * 75 %, `^tob_verzik_p23_hp_3` since seam2; it was blert's 2437.
                  */
-                srv->npcs[boss].hitpoints = 2 * 2437;
+                srv->npcs[boss].hitpoints = 2 * 2625;
                 /* Three ticks of hop, one to launch, thirteen of flight, and
                  * then her P2 clock: first attack at +5, one every 4 after. */
                 for( int t = 0; t < 60; t++ )
@@ -32011,7 +32014,8 @@ ToriRSServer_WorldSelftest(void)
                  * one is the phase this fixture is in.
                  *
                  * `::tob 6` + `::tobgo` stands her up on the throne at a full
-                 * 8500, the fixture player is in god mode and deals no damage,
+                 * 9000 (the record's base; 8500 before seam2), the fixture
+                 * player is in god mode and deals no damage,
                  * and P1 ends only when its share of the pool is spent
                  * (`~tob_verzik_p1_tick`: "she does not die here, she comes off
                  * the throne"). So she never leaves it inside this window and
@@ -34096,7 +34100,11 @@ ToriRSServer_WorldSelftest(void)
          */
         {
             const int k_nylo_support = 8358;
-            const int k_room_ticks = 520;
+            /* 700, not the 520 it was: the room is now defended rather than
+             * idled (see "DEFEND THE SUPPORTS" below), and a defended solo room
+             * empties and drops Vasilias later than an idle one whose bigs
+             * vanished without splitting. */
+            const int k_room_ticks = 700;
             /* Local tiles, from tob.constant. Written here rather than read from
              * the content for the reason the cadence table gives: a test that
              * reads the constant the implementation reads agrees with any value.
@@ -34349,24 +34357,45 @@ ToriRSServer_WorldSelftest(void)
                          * not happen.
                          *
                          * Counted by SPAWN TILE rather than by how the room's
-                         * population moved: the corpse is reaped inside the same
-                         * two ticks and other nylocas detonate on their own
+                         * population moved: other nylocas detonate on their own
                          * schedule, so a net head count answers +-1 whatever the
                          * splits did. blert's six offsets from the parent's
                          * south-west tile are the definition, so they are the
                          * measurement.
                          *
-                         * Two ticks, and no wave can land in them: waves only
-                         * spawn on cycle tick 0, four ticks apart.
+                         * Counted on the tick the corpse is GONE. Since seam2
+                         * the splits arrive on the big's despawn tick, hp0 + 6
+                         * standing / + 7 walking (blert's death-timing table,
+                         * 759 killed bigs; tob_nylocas.rs2
+                         * `~tob_nylo_split_on_death`), so the harness waits for
+                         * the corpse on the death tile to leave, ten ticks at
+                         * most, rather than a fixed two.
                          */
                         static const struct { int dx, dz; } k_split[] = {
                             { -1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 2, 1 },
                         };
+                        int corpse = -1;
 
-                        for( int w = 0; w < 2; w++ )
+                        for( int n = 0; n < TORIRSSERVER_NPC_MAX; n++ )
+                        {
+                            const char* name;
+
+                            if( !srv->npcs[n].active || srv->npcs[n].hitpoints != 0 )
+                                continue;
+                            if( srv->npcs[n].x - base_x != death_lx ||
+                                srv->npcs[n].z - base_z != death_lz )
+                                continue;
+                            name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC,
+                                                               srv->npcs[n].type);
+                            if( name && strstr(name, "_big_") != NULL )
+                                corpse = n;
+                        }
+                        for( int w = 0; w < 10; w++ )
                         {
                             selftest_tick(srv);
                             ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
+                            if( corpse < 0 || !srv->npcs[corpse].active )
+                                break;
                         }
                         for( int n = 0; n < TORIRSSERVER_NPC_MAX; n++ )
                         {
@@ -34485,6 +34514,53 @@ ToriRSServer_WorldSelftest(void)
                     }
                 }
 
+                /*
+                 * DEFEND THE SUPPORTS once the collapse has been measured. A
+                 * big that explodes on its own now leaves its two splits, as
+                 * the real one does (blert 15 of 15; seam2), so the no-kill solo
+                 * this loop used to be loses all four supports around room tick
+                 * 540 and Vasilias never lands - a raid nobody can clear without
+                 * killing nylocas. So from the collapse on, the harness kills
+                 * one every tick through the real kill path, a chewer
+                 * (an `incoming` one) first: what a team defending the supports does. Before it the
+                 * room is left alone, because `tobnylobreak` needs a support
+                 * with two chewers on it.
+                 */
+                if( collapse_tick >= 0 && boss_slot < 0 )
+                {
+                    int victim = -1;
+                    int victim_chews = 0;
+
+                    for( int n = 0; n < TORIRSSERVER_NPC_MAX && !victim_chews; n++ )
+                    {
+                        const char* name;
+
+                        if( !srv->npcs[n].active || srv->npcs[n].hitpoints <= 0 )
+                            continue;
+                        /* The supports carry a `tob_nylocas_` name too. */
+                        if( srv->npcs[n].type == k_nylo_support )
+                            continue;
+                        if( ToriRSServer_MapInstanceFind(srv->npcs[n].x, srv->npcs[n].z) != handle )
+                            continue;
+                        name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC,
+                                                           srv->npcs[n].type);
+                        if( !name || strncmp(name, "tob_nylocas_", 12) != 0 )
+                            continue;
+                        if( strstr(name, "_incoming_") == NULL && strstr(name, "_fighting_") == NULL )
+                            continue;
+                        /* `incoming` is the pillar-bound form: a chewer. */
+                        if( strstr(name, "_incoming_") != NULL )
+                        {
+                            victim = n;
+                            victim_chews = 1;
+                        }
+                        else if( victim < 0 )
+                            victim = n;
+                    }
+                    if( victim >= 0 )
+                        ToriRSServer_CombatHitNpc(srv, victim, 0, srv->npcs[victim].hitpoints);
+                }
+
                 /* Vasilias' colour clock, once she is down. */
                 if( boss_slot >= 0 && srv->npcs[boss_slot].active )
                 {
@@ -34544,10 +34620,12 @@ ToriRSServer_WorldSelftest(void)
 
             fprintf(stderr,
                     "  Nylocas: wave 1 on room tick %d (%d spawns, %d on a lane tile), "
-                    "pillars %d -> %d, boss %d ticks later, %d colour changes "
-                    "(first %d, then %d..%d)\n",
+                    "pillars %d -> %d (%d standing), emptied on room tick %d, boss %d ticks later, "
+                    "%d colour changes (first %d, then %d..%d)\n",
                     wave1_tick - start_tick, wave1_count, wave1_on_lane, pillar_hp_start,
-                    pillar_hp_low, boss_tick - clear_tick, forms_seen, form_gap_first,
+                    pillar_hp_low, ToriRSServer_MapInstanceVarGet(handle, 14),
+                    clear_tick < 0 ? -1 : clear_tick - start_tick,
+                    boss_tick - clear_tick, forms_seen, form_gap_first,
                     form_gap_min, form_gap_max);
 
             /*
@@ -34598,8 +34676,10 @@ ToriRSServer_WorldSelftest(void)
                 int lx = srv->npcs[boss_slot].x - base_x;
                 int lz = srv->npcs[boss_slot].z - base_z;
 
-                SELFTEST_CHECK(lx == 29 && lz == 22,
-                               "she drops in the middle of the room, at (%d, %d)",
+                /* blert NPC_SPAWN 3294,4247 (her SW tile) in 18 of 18 rooms:
+                 * ^tob_vasilias_boss_lx/lz 30,23 since seam2 (was 29,22). */
+                SELFTEST_CHECK(lx == 30 && lz == 23,
+                               "she drops where blert records her landing, at (%d, %d)",
                                lx, lz);
                 /*
                  * M8: sixteen ticks after the last nylocas despawns, rounded up

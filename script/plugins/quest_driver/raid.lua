@@ -57,7 +57,8 @@ QD.raid._ROOMS = {
         bloat = { id = 2, boss = { "tob_bloat", "tob_bloat_hard", "tob_bloat_story" } },
         -- No boss until the waves are done: ~tob_spawn_boss returns early.
         nylocas = { id = 3 },
-        sotetseg = { id = 4, boss = { "tob_sotetseg_combat", "tob_sotetseg_noncombat" } },
+        sotetseg = { id = 4, boss = { "tob_sotetseg_combat", "tob_sotetseg_combat_hard", "tob_sotetseg_combat_story",
+            "tob_sotetseg_noncombat", "tob_sotetseg_noncombat_hard", "tob_sotetseg_noncombat_story" } },
         xarpus = { id = 5, boss = { "tob_xarpus_static", "tob_xarpus_static_hard", "tob_xarpus_static_story",
             "tob_xarpus_feeding", "tob_xarpus_feeding_hard", "tob_xarpus_feeding_story",
             "tob_xarpus_combat", "tob_xarpus_combat_hard", "tob_xarpus_combat_story" } },
