@@ -226,6 +226,10 @@ topic file with one line added here.
 - "Your Magic level is not high enough" at a cast after a walk through a draining area (Desert Treasure's Kamil); a stat that stays low after xp -> gaps-combat: "Your Magic level is not high enough" after a draining walk
 - "Your hands are full, mister!"; `::give` says "N did not fit" -> gaps-combat: "Your Magic level is not high enough" after a draining walk
 - Troll Romance: `player.died` against Arrg; what kit wins -> verbs-combat: the Arrg paragraph at the end
+- a quest boss dies to one spell, or a level-79 troll reads 21/30 after one hit of 3 (Swan Song's Sea Troll Queen and sea trolls) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a) (read the server: `::swansong_queen_hp`, `::swansong_troll_hp`)
+- `I'm already under attack.` on every Attack after the first, against several aggressive npcs at once (Swan Song colony ambush) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (b) (`forcemulti=yes` where the wiki says multicombat)
+- prayer falls about 21 a swing with no damage at range; `I can't reach that!` attacking a boss in the sea; the character dies after 23 sharks (Swan Song's Sea Troll Queen) -> gaps-combat: A boss you cannot reach on foot drains 21 Prayer a swing
+- how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
 
 ## Completion and rewards
 
@@ -420,6 +424,9 @@ topic file with one line added here.
 - `if_setevents(..., ^if_event_op1)` on an IF1 button does nothing -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (g)
 - `no_row slayer_master_2_mazchna`, a Warriors' Guild npc, Mac or Patchy missing; an npc the spawn dump had that this cache renumbered (name drift) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (c); docs/ITEM_AND_NPCS.md section 3
 - Rum Deal: "You open the gate." then `walk_to` stalls at 2120,5098 (pier gate) -> FIXED b51 seam1: seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (b); test/quests/rumdeal.lua
+- an `npc_add`ed ambush or boss vanishes mid-fight and the stage never moves (Swan Song's trolls and Queen) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (c)
+- the guide says an npc gives a tool but a gate before him demands it ("You'll want a hammer before heading in", Swan Song's Franklin) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (d)
+- a seam fixer refused an edit because another seam owns the file -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (e)
 
 ## Citations: resolving a number or a name
 
