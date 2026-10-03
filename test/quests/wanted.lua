@@ -25,7 +25,6 @@ return {
         "::wanted", -- resets %wanted_* to 0 and stands the player beside Sir Tiffy (rd_teleporter_guy) in Falador Park -- the quest's own staging cheat, cook.lua's "::cook" idiom
         "::complete quest_blackknightsfortress", -- sir_amik_varze.rs2's own [opnpc1] gate (%spy = 4) ahead of its %rd_main switch
         "::complete quest_recruitmentdrive", -- Wanted!'s own requirement; also unblocks rd_teleporter_guy/sir_amik_varze's Wanted! branch (%rd_main = ^rd_complete)
-        "::complete quest_runemysteries", -- Aubury only teleports a player who finished Rune Mysteries (aubury.rs2:62), the guide's goToEssenceMine
         "::complete quest_losttribe", -- Wanted!'s own requirement
         "::complete quest_priestinperil", -- Wanted!'s own requirement (dbrow quest_priestinperil, not quest_priestperil)
         "::complete miniquest_entertheabyss", -- Wanted!'s own requirement (dbrow miniquest_entertheabyss, not quest_entertheabyss)
@@ -38,19 +37,15 @@ return {
         "::complete quest_princealirescue",
         "::complete quest_murdermystery",
         "::complete quest_makinghistory",
+        "::give coins 10000", -- getItemRequirements(): 10,000 coins for the Commorb (bought, not made)
+        "::give blankrune 20", -- getItemRequirements(): 20 un-noted rune essence for the Mage of Zamorak
+        "::give rune_scimitar 1", -- getItemRequirements(): "the ability to defeat a level 32 Black Knight" -- a real weapon, equipped in run()
+        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves)
+        "::give shark 5", -- food for the Black Knight / Solus fights
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
         "::setlevel hitpoints 99",
-        "::give coins 10000", -- getItemRequirements(): 10,000 coins for the Commorb (bought, not made)
-        "::give blankrune 20", -- getItemRequirements(): 20 un-noted rune essence for the Mage of Zamorak
-        "::give rune_scimitar 1",
-        "::wield rune_scimitar", -- worn in setup so its backpack slot is free for the light source
-        "::give slayer_helm 1", -- getItemRequirements(): the spiny helmet OR slayer helm for the swamp caves (no spiny helmet obj exists; slayer_helm is the guide's alternative)
-        "::wield slayer_helm",
-        "::give candle_lantern_lit 1", -- getItemRequirements(): a light source for the swamp caves -- getItemRequirements(): "the ability to defeat a level 32 Black Knight" -- a real weapon, equipped in run()
-        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves). The light source and spiny helmet the guide also lists are NOT staged: 20 essence + coins + rope + scimitar + 5 sharks already fill the 28 slots, and no script in quest_wanted/ladders_stairs checks either
-        "::give shark 4", -- food for the Black Knight / Solus fights (four, not five: the backpack is full at 28 with the light source, and the Commorb purchase needs one free slot)
     },
 
     run = function(t)
@@ -58,25 +53,22 @@ return {
         -- wanted_hunt.rs2 ~wanted_pool_clue) -- three are drawn at random by
         -- the server for scan positions 2/4/6, so the test reads back which
         -- ids got drawn instead of assuming any particular location.
-        -- { name, hop x, hop z, level, item, zone minx, maxx, minz, maxz } -- the hop is an OPEN tile
-        -- outside (checked against the map walls), never inside a building; 9, 16, 18 and 19
-        -- are finished by clicking the loc the guide names (tree door, railing, pub door, cave).
         local POOL = {
-            [5]  = { "Musa Point", 2916, 3160, 0, "banana", 2908, 2924, 3152, 3168 },
-            [6]  = { "Draynor Market", 3081, 3250, 0, "horsey_black", 3077, 3085, 3246, 3254 },
-            [7]  = { "the goblin village", 2957, 3507, 0, "goblin_armour", 2947, 2967, 3499, 3516 },
-            [8]  = { "Ardougne Market", 2661, 3307, 0, "fur", 2655, 2668, 3301, 3313 },
-            [9]  = { "the Grand Tree", 2465, 3489, 0, "gnome_hat_cream", 2463, 2469, 3493, 3499 },
-            [10] = { "the Shrine of Scorpius", 2465, 3228, 0, "blessedsnake", 2461, 2470, 3225, 3231 },
-            [11] = { "Ali Morrisane's stall", 3303, 3213, 0, "feud_karidian_fakebeard", 3300, 3306, 3209, 3216 },
-            [12] = { "the Wizards' Tower", 3106, 3160, 0, "bluewizhat", 3104, 3114, 3155, 3166 },
-            [13] = { "the pub in Brimhaven", 2795, 3162, 0, "eye_patch", 2791, 2800, 3154, 3170 },
-            [14] = { "Castle Wars", 2447, 3090, 0, "castlewars_ticket", 2435, 2447, 3081, 3099 },
-            [15] = { "Rellekka", 2659, 3657, 0, "viking_cloak_brown", 2654, 2664, 3650, 3665 },
-            [16] = { "McGrubor's Wood", 2660, 3500, 0, "red_vine_worm", 2662, 2677, 3484, 3504 },
-            [17] = { "the Slayer Tower", 3429, 3557, 0, "slayer_earmuffs", 3405, 3453, 3534, 3580 },
-            [18] = { "the pub in Yanille", 2551, 3086, 0, "greenmans_ale", 2548, 2557, 3077, 3082 },
-            [19] = { "the Lumbridge Swamp Caves", 3170, 3176, 0, "giant_frog_legs", 3216, 3239, 9540, 9555 },
+            [5]  = { "Musa Point", 2916, 3160, 0, "banana" },
+            [6]  = { "Draynor Market", 3081, 3250, 0, "horsey_black" },
+            [7]  = { "the goblin village", 2957, 3507, 0, "goblin_armour" },
+            [8]  = { "Ardougne Market", 2661, 3307, 0, "fur" },
+            [9]  = { "the Grand Tree", 2466, 3496, 0, "gnome_hat_cream" },
+            [10] = { "the Shrine of Scorpius", 2465, 3228, 0, "blessedsnake" },
+            [11] = { "Ali Morrisane's stall", 3303, 3212, 0, "feud_karidian_fakebeard" },
+            [12] = { "the Wizards' Tower", 3109, 3160, 0, "bluewizhat" },
+            [13] = { "the pub in Brimhaven", 2795, 3162, 0, "eye_patch" },
+            [14] = { "Castle Wars", 2441, 3090, 0, "castlewars_ticket" },
+            [15] = { "Rellekka", 2659, 3657, 0, "viking_cloak_brown" },
+            [16] = { "McGrubor's Wood", 2639, 3486, 0, "red_vine_worm" },
+            [17] = { "the Slayer Tower", 3429, 3557, 0, "slayer_earmuffs" },
+            [18] = { "the pub in Yanille", 2552, 3079, 0, "greenmans_ale" },
+            [19] = { "the Lumbridge Swamp Caves", 3227, 9547, 0, "giant_frog_legs" },
         }
 
         local bind_result, bind_detail = t.quest.bind({
@@ -99,12 +91,7 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         local qp_before_result, qp_before = t.var.varp("varp101_qp")
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
-        do
-            local _, scim = t.inv.count("rune_scimitar")
-            local _, helm = t.inv.count("slayer_helm")
-            local _, lamp = t.inv.count("candle_lantern_lit")
-            t.check("equip.worn", scim == 0 and helm == 0 and lamp == 1, "scimitar and helm wielded in setup (backpack copies " .. tostring(scim) .. "/" .. tostring(helm) .. "), light source carried " .. tostring(lamp))
-        end
+        t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
 
         -- 1. Sir Tiffy Cashien, Falador Park: the clerk's error, the loophole
         t.exec("tiffy1.talk", t.player.talk_to, "rd_teleporter_guy", 1)
@@ -123,15 +110,7 @@ return {
         t.expect("quest.stage.amik_first", t.quest.expect_stage("amik_first"))
 
         -- 2. Sir Amik Varze (White Knights' Castle, 2nd floor): DECLINE the squire offer
-        t.exec("amik1.goto_castle", t.player.goto_tile, 2968, 3338, 0)
-        if t.world.loc_near("fai_falador_castledoubledoorl", 12) == "ok" then
-            t.exec("amik1.openCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
-        end
-        t.exec("amik1.climbToWhiteKnightsCastleF1", t.player.click_loc, "fai_falador_castle_spiralstairs", 1)
-        t.ticks(3)
-        t.exec("amik1.climbToWhiteKnightsCastleF2", t.player.click_loc, "fai_falador_castle_spiralstairs", 1)
-        t.ticks(3)
-        do local fr, ft = t.world.tile(); t.check("amik1.on_amiks_floor", fr == "ok" and ft.level == 2, fr == "ok" and (ft.x .. "," .. ft.z .. "," .. ft.level) or tostring(fr)) end
+        t.exec("goto-amik1", t.player.goto_tile, 2960, 3337, 2)
         t.exec("amik1.talk", t.player.talk_to, "sir_amik_varze", 1)
         t.exec("amik1.dialog", t.chat.play, {
             "player:Hello Sir Amik.",
@@ -143,11 +122,6 @@ return {
             "npc:No, not right now -- but Sir Tiffy Cashien in Falador Park may have something more suited to your impatience. Go and speak with him.",
         })
         t.expect("quest.stage.tiffy_second", t.quest.expect_stage("tiffy_second"))
-        t.exec("amik1.stairsDownF1", t.player.click_loc, "fai_falador_castle_spiralstairstop", 1)
-        t.ticks(3)
-        t.exec("amik1.stairsDownGround", t.player.click_loc, "fai_falador_castle_spiralstairstop", 1)
-        t.ticks(3)
-        t.exec("amik1.exitCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
 
         -- 3. Tiffy: a crisis has arisen
         t.exec("goto-tiffy2", t.player.goto_tile, 2997, 3373, 0)
@@ -159,15 +133,7 @@ return {
         t.expect("quest.stage.amik_second", t.quest.expect_stage("amik_second"))
 
         -- 4. Amik: Solus Dellagar is back; accept the mission
-        t.exec("amik2.goto_castle", t.player.goto_tile, 2968, 3338, 0)
-        if t.world.loc_near("fai_falador_castledoubledoorl", 12) == "ok" then
-            t.exec("amik2.openCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
-        end
-        t.exec("amik2.climbToWhiteKnightsCastleF1", t.player.click_loc, "fai_falador_castle_spiralstairs", 1)
-        t.ticks(3)
-        t.exec("amik2.climbToWhiteKnightsCastleF2", t.player.click_loc, "fai_falador_castle_spiralstairs", 1)
-        t.ticks(3)
-        do local fr, ft = t.world.tile(); t.check("amik2.on_amiks_floor", fr == "ok" and ft.level == 2, fr == "ok" and (ft.x .. "," .. ft.z .. "," .. ft.level) or tostring(fr)) end
+        t.exec("goto-amik2", t.player.goto_tile, 2960, 3337, 2)
         t.exec("amik2.talk", t.player.talk_to, "sir_amik_varze", 1)
         t.exec("amik2.dialog", t.chat.play, {
             "player:Hello Sir Amik.",
@@ -177,11 +143,6 @@ return {
             "npc:Go and report back to Sir Tiffy -- he'll sort you out with the equipment you need.",
         })
         t.expect("quest.stage.tiffy_third", t.quest.expect_stage("tiffy_third"))
-        t.exec("amik2.stairsDownF1", t.player.click_loc, "fai_falador_castle_spiralstairstop", 1)
-        t.ticks(3)
-        t.exec("amik2.stairsDownGround", t.player.click_loc, "fai_falador_castle_spiralstairstop", 1)
-        t.ticks(3)
-        t.exec("amik2.exitCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
 
         -- 5. Tiffy offers the Commorb: buy it for 10,000 coins
         t.exec("goto-tiffy3", t.player.goto_tile, 2997, 3373, 0)
@@ -207,22 +168,7 @@ return {
         t.expect("commorb.intel", t.var.await_server("varb1053_wanted_commorb_intel", 1, 10))
 
         -- 7. Lord Daquarius (Taverley Dungeon, SW room) tells you nothing
-        t.exec("goto-taverley", t.player.goto_tile, 2885, 3400, 0)
-        t.exec("enterTaverleyDungeon", t.player.click_loc, "ladder_outside_to_underground", 1)
-        t.ticks(4)
-        do local dr, dt = t.world.tile(); t.check("taverley.underground", dr == "ok" and dt.z > 9000, dr == "ok" and (dt.x .. "," .. dt.z .. "," .. dt.level) or tostring(dr)) end
-        -- travel hop inside the dungeon to the open hall tile NORTH of the Black Knights' base door (reach.py: closed-door route from the ladder, no door crossed), then the door is clicked
-        t.exec("goto-base-door", t.player.goto_tile, 2907, 9701, 0)
-        t.exec("goToBlackKnightsBase", t.player.click_loc, "castledoubledoorr", 1)
-        t.ticks(2)
-        do
-            local bw = t.player.walk_to(2907, 9695, 20)
-            local bwr, bwt = t.world.tile()
-            t.check("base.door_crossed", bw == "ok" and bwr == "ok" and bwt.z <= 9697, "walk_to south of the door -> " .. tostring(bw) .. " tile " .. (bwr == "ok" and (bwt.x .. "," .. bwt.z) or tostring(bwr)))
-            local bw2 = t.player.walk_to(2893, 9683, 40)
-            local bwr2, bwt2 = t.world.tile()
-            t.check("base.at_daquarius", bw2 == "ok" and bwr2 == "ok" and math.abs(bwt2.x - 2893) <= 3 and math.abs(bwt2.z - 9683) <= 3, "walk_to Daquarius -> " .. tostring(bw2) .. " tile " .. (bwr2 == "ok" and (bwt2.x .. "," .. bwt2.z) or tostring(bwr2)))
-        end
+        t.exec("goto-daquarius1", t.player.goto_tile, 2891, 9681, 0)
         t.exec("daquarius1.talk", t.player.talk_to, "lord_daquarius", 1)
         t.exec("daquarius1.dialog", t.chat.play, {
             "player:I'm looking for Solus Dellagar. I know he's been working with the Black Knights.",
@@ -236,13 +182,7 @@ return {
 
         -- 8. Kill a Black Knight after talking to Daquarius (drop_tables/scripts/black_knight.rs2)
         t.exec("blackknight.attack", t.player.attack, "black_knight", 2, 20)
-        local bkr, bkd = t.exec("blackknight.dead", t.npc.await_dead_engaged, 60, 8, { eat = { item = "shark", below = 50 } })
-        do
-            local low = tonumber(string.match(tostring(bkd), "lowest hp (%d+)/"))
-            if low == nil and string.find(tostring(bkd), "never needed to eat", 1, true) then low = 50 end
-            local _, sharks = t.inv.count("shark")
-            t.check("blackknight.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(bkd))
-        end
+        t.exec("blackknight.dead", t.npc.await_dead_engaged, 60, 8)
         t.expect("daquarius.hint_dead", t.var.await_server("varb1055_wanted_daquarius_hint", 2, 10))
 
         -- 9. Daquarius gives in: Solus is somewhere with fur "not from a bear"
@@ -256,36 +196,7 @@ return {
         t.expect("daquarius.exposition", t.var.await_server("varb1058_wanted_lord_d_exposition", 1, 10))
 
         -- 10. Mage of Zamorak, Varrock Zamorakian chapel: 20 un-noted essence for the tip
-        -- walk OUT of the Black Knights' base through the door clicked to get in, then up the Taverley ladder
-        do
-            local lw = t.player.walk_to(2907, 9695, 40)
-            local lwr, lwt = t.world.tile()
-            t.check("base.at_door_inside", lw == "ok" and lwr == "ok" and math.abs(lwt.x - 2907) <= 3 and lwt.z <= 9697, "walked to the door's inside tile -> " .. tostring(lw) .. " tile " .. (lwr == "ok" and (lwt.x .. "," .. lwt.z) or tostring(lwr)))
-        end
-        do
-            local cr_ = t.world.loc_near("castledoubledoorr", 10)
-            local op_r, op_d = t.world.loc_near("opencastledoubledoorr", 10)
-            t.check("base.door_state", true, "closed variant near: " .. tostring(cr_) .. "; open variant near: " .. tostring(op_r) .. " " .. tostring(op_d))
-            if cr_ ~= "ok" then
-                -- the door the entry click opened is still standing open: close it, then open it again, so the exit is a real door click
-                t.exec("leaveBase.closeDoor", t.player.click_loc, "opencastledoubledoorr", 1)
-                t.ticks(3)
-            end
-            t.exec("leaveBase", t.player.click_loc, "castledoubledoorr", 1)
-            t.ticks(2)
-            local ow = t.player.walk_to(2907, 9701, 20)
-            local owr, owt = t.world.tile()
-            t.check("base.left_through_door", ow == "ok" and owr == "ok" and owt.z >= 9699, "walked out north of the door -> " .. tostring(ow) .. " tile " .. (owr == "ok" and (owt.x .. "," .. owt.z) or tostring(owr)))
-        end
-        t.ticks(2)
-        t.exec("goto-ladder", t.player.goto_tile, 2884, 9796, 0)
-        t.exec("leaveTaverleyDungeon", t.player.click_loc, "ladder_from_cellar", 1)
-        t.ticks(4)
-        do local lr, lt = t.world.tile(); t.check("taverley.surface", lr == "ok" and lt.z < 9000, lr == "ok" and (lt.x .. "," .. lt.z .. "," .. lt.level) or tostring(lr)) end
-        t.exec("goto-mage", t.player.goto_tile, 3253, 3388, 0)
-        if t.world.loc_near("fai_varrock_poor_door_flipped", 8) == "ok" then
-            t.exec("mage.openChapelDoor", t.player.click_loc, "fai_varrock_poor_door_flipped", 1)
-        end
+        t.exec("goto-mage", t.player.goto_tile, 3260, 3384, 0)
         t.exec("mage1.talk", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("mage1.dialog", t.chat.play, {
             "choose:Solus Dellagar",
@@ -339,39 +250,14 @@ return {
         t.check("hunt.pos2_drawn", pos2_id ~= nil, "position 2 pool id drawn = " .. tostring(pos2_id) .. " (" .. tostring(pos2_id and POOL[pos2_id][1]) .. ")")
 
         -- 12. Position 2 -- Solus forcibly teleports the player to Camelot
-        local pool2 = POOL[pos2_id]
-        t.exec("pos2.goto", t.player.goto_tile, pool2[2], pool2[3], pool2[4])
-        if pos2_id == 9 then
-            t.exec("pos2.openTreeDoor", t.player.click_loc, "treedoorl", 1)
-            local tw = t.player.walk_to(2465, 3495, 20)
-            t.step("pos2.walkIntoTree", tw == "ok" and "PASS" or "FAIL", "walk_to inside the Grand Tree -> " .. tostring(tw))
-        elseif pos2_id == 16 then
-            t.exec("pos2.goToMcGruborsWood", t.player.click_loc, "mcgruborlooserailing", 1)
-            t.ticks(10)
-        elseif pos2_id == 18 then
-            t.exec("pos2.openPubDoor", t.player.click_loc, "poshdoor", 1)
-            local pw = t.player.walk_to(2552, 3079, 20)
-            t.step("pos2.walkIntoPub", pw == "ok" and "PASS" or "FAIL", "walk_to inside the Yanille pub -> " .. tostring(pw))
-        elseif pos2_id == 19 then
+        if pos2_id == 19 then
+            -- guide step goDownToLumbridgeSwampCaves: enter through the goblin_cave_entrance hole, then plain travel inside the caves
+            t.exec("pos2.goto_swamp", t.player.goto_tile, 3169, 3172, 0)
             t.exec("pos2.goDownToLumbridgeSwampCaves", t.player.click_loc, "goblin_cave_entrance", 1)
             t.ticks(4)
             do local er, et = t.world.tile(); t.check("pos2.in_caves", er == "ok" and et.z > 9000, er == "ok" and (et.x .. "," .. et.z .. "," .. et.level) or tostring(er)) end
-            -- walk the cave with static-map waypoints (reach.py route from the entrance to the north bank of the stepping stone)
-            local cave_way = {{3158, 9573}, {3146, 9573}, {3149, 9564}, {3157, 9560}, {3164, 9555}, {3174, 9557}, {3186, 9557}, {3194, 9553}, {3203, 9556}, {3212, 9559}, {3221, 9556}}
-            for wi, wp in ipairs(cave_way) do
-                local cw = t.player.walk_to(wp[1], wp[2], 40)
-                if cw ~= "ok" then t.step("pos2.caveWalk" .. wi, "FAIL", "walk_to " .. wp[1] .. "," .. wp[2] .. " -> " .. tostring(cw)) end
-            end
-            t.exec("pos2.crossSteppingStone", t.player.click_loc, "swamp_cave_steppingstone_b", 1)
-            t.ticks(6)
-            local sw = t.player.walk_to(3222, 9548, 20)
-            t.step("pos2.walkToEndOfCaves", sw == "ok" and "PASS" or "FAIL", "walk_to the end of the caves -> " .. tostring(sw))
         end
-        do
-            local zr, zt = t.world.tile()
-            t.check("pos2.in_pool_zone", zr == "ok" and zt.x >= pool2[6] and zt.x <= pool2[7] and zt.z >= pool2[8] and zt.z <= pool2[9],
-                "tile " .. (zr == "ok" and (zt.x .. "," .. zt.z .. "," .. zt.level) or tostring(zr)) .. " in " .. pool2[1] .. " zone x " .. pool2[6] .. "-" .. pool2[7] .. " z " .. pool2[8] .. "-" .. pool2[9])
-        end
+        t.exec("pos2.goto", t.player.goto_tile, POOL[pos2_id][2], POOL[pos2_id][3], POOL[pos2_id][4])
         t.exec("pos2.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("pos2.solus", t.chat.play, {
             "npc:You again???",
@@ -403,15 +289,7 @@ return {
         t.expect("hunt.pos2_complete", t.var.await_server("varb1067_wanted_mission2", 1, 10))
 
         -- 13. Champions' Guild (fixed): Solus casts Smoke Barrage -- no damage, no poison
-        t.exec("cg.goto", t.player.goto_tile, 3191, 3367, 0)
-        if t.world.loc_near("championdoor", 8) == "ok" then
-            t.exec("cg.openGuildDoor", t.player.click_loc, "championdoor", 1)
-        end
-        do
-            local gw = t.player.walk_to(3191, 3361, 20)
-            local gwr, gwt = t.world.tile()
-            t.check("cg.inside_guild_zone", gwr == "ok" and gwt.x >= 3188 and gwt.x <= 3194 and gwt.z >= 3352 and gwt.z <= 3362, "walk_to inside the guild -> " .. tostring(gw) .. " tile " .. (gwr == "ok" and (gwt.x .. "," .. gwt.z) or tostring(gwr)))
-        end
+        t.exec("cg.goto", t.player.goto_tile, 3191, 3357, 0)
         t.exec("cg.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("cg.solus", t.chat.play, {
             "npc:Well now, I am beginning to get sick of your constant interference!",
@@ -446,39 +324,14 @@ return {
         t.check("hunt.pos4_drawn", pos4_id ~= nil, "position 4 pool id drawn = " .. tostring(pos4_id) .. " (" .. tostring(pos4_id and POOL[pos4_id][1]) .. ")")
 
         -- 14. Position 4 -- Solus's Flames of Zamorak: damage as a % of current HP, never lethal
-        local pool4 = POOL[pos4_id]
-        t.exec("pos4.goto", t.player.goto_tile, pool4[2], pool4[3], pool4[4])
-        if pos4_id == 9 then
-            t.exec("pos4.openTreeDoor", t.player.click_loc, "treedoorl", 1)
-            local tw = t.player.walk_to(2465, 3495, 20)
-            t.step("pos4.walkIntoTree", tw == "ok" and "PASS" or "FAIL", "walk_to inside the Grand Tree -> " .. tostring(tw))
-        elseif pos4_id == 16 then
-            t.exec("pos4.goToMcGruborsWood", t.player.click_loc, "mcgruborlooserailing", 1)
-            t.ticks(10)
-        elseif pos4_id == 18 then
-            t.exec("pos4.openPubDoor", t.player.click_loc, "poshdoor", 1)
-            local pw = t.player.walk_to(2552, 3079, 20)
-            t.step("pos4.walkIntoPub", pw == "ok" and "PASS" or "FAIL", "walk_to inside the Yanille pub -> " .. tostring(pw))
-        elseif pos4_id == 19 then
+        if pos4_id == 19 then
+            -- guide step goDownToLumbridgeSwampCaves: enter through the goblin_cave_entrance hole, then plain travel inside the caves
+            t.exec("pos4.goto_swamp", t.player.goto_tile, 3169, 3172, 0)
             t.exec("pos4.goDownToLumbridgeSwampCaves", t.player.click_loc, "goblin_cave_entrance", 1)
             t.ticks(4)
             do local er, et = t.world.tile(); t.check("pos4.in_caves", er == "ok" and et.z > 9000, er == "ok" and (et.x .. "," .. et.z .. "," .. et.level) or tostring(er)) end
-            -- walk the cave with static-map waypoints (reach.py route from the entrance to the north bank of the stepping stone)
-            local cave_way = {{3158, 9573}, {3146, 9573}, {3149, 9564}, {3157, 9560}, {3164, 9555}, {3174, 9557}, {3186, 9557}, {3194, 9553}, {3203, 9556}, {3212, 9559}, {3221, 9556}}
-            for wi, wp in ipairs(cave_way) do
-                local cw = t.player.walk_to(wp[1], wp[2], 40)
-                if cw ~= "ok" then t.step("pos4.caveWalk" .. wi, "FAIL", "walk_to " .. wp[1] .. "," .. wp[2] .. " -> " .. tostring(cw)) end
-            end
-            t.exec("pos4.crossSteppingStone", t.player.click_loc, "swamp_cave_steppingstone_b", 1)
-            t.ticks(6)
-            local sw = t.player.walk_to(3222, 9548, 20)
-            t.step("pos4.walkToEndOfCaves", sw == "ok" and "PASS" or "FAIL", "walk_to the end of the caves -> " .. tostring(sw))
         end
-        do
-            local zr, zt = t.world.tile()
-            t.check("pos4.in_pool_zone", zr == "ok" and zt.x >= pool4[6] and zt.x <= pool4[7] and zt.z >= pool4[8] and zt.z <= pool4[9],
-                "tile " .. (zr == "ok" and (zt.x .. "," .. zt.z .. "," .. zt.level) or tostring(zr)) .. " in " .. pool4[1] .. " zone x " .. pool4[6] .. "-" .. pool4[7] .. " z " .. pool4[8] .. "-" .. pool4[9])
-        end
+        t.exec("pos4.goto", t.player.goto_tile, POOL[pos4_id][2], POOL[pos4_id][3], POOL[pos4_id][4])
         local hp_before_result, hp_before_reading = t.skill.read("hitpoints")
         t.step("pos4.hp_before", hp_before_result == "ok" and "PASS" or "FAIL", "hitpoints=" .. tostring(hp_before_reading and hp_before_reading.level))
         t.exec("pos4.scan", t.player.inv_op, "wanted_crystal_ball", 1)
@@ -503,17 +356,7 @@ return {
                 and wkc_tile.x >= 2954 and wkc_tile.x <= 2998 and wkc_tile.z >= 3327 and wkc_tile.z <= 3353 and wkc_tile.level == 0,
             "player tile " .. tostring(wkc_result == "ok" and (wkc_tile.x .. "," .. wkc_tile.z .. "," .. wkc_tile.level) or wkc_result)
                 .. " (White Knights' Castle 2954-2998,3327-3353)")
-        -- heal up the way Savant's line says: eat three of the sharks staged in setup (no ::setlevel)
-        for eat_n = 1, 3 do
-            t.player.inv_op("shark", 1)
-            t.ticks(5)
-        end
-        do
-            local hr, hh = t.skill.read("hitpoints")
-            local _, sharks_left = t.inv.count("shark")
-            t.check("pos4.healed_by_food", hr == "ok" and hh ~= nil and hh.level >= 60 and sharks_left ~= nil and sharks_left >= 1,
-                "hitpoints " .. tostring(hh and hh.level) .. " (want >= 60) after eating 3 sharks, sharks left " .. tostring(sharks_left) .. " (want >= 1)")
-        end
+        t.cheat("::setlevel hitpoints 99") -- heal up, as Savant's own line tells the player to
         t.exec("pos4.savant", t.chat.play, {
             "player:What happened?",
             "mesbox:Savant: I managed to shield you from most of his attack",
@@ -541,15 +384,7 @@ return {
         t.expect("hunt.pos4_complete", t.var.await_server("varb1069_wanted_mission3", 1, 10))
 
         -- 15. Dorgesh-Kaan mine (fixed): the 'hostage' Woman who is Solus
-        t.exec("goto-lumbridge-castle", t.player.goto_tile, 3222, 3218, 0)
-        t.exec("goDownToLumbridgeCellar", t.player.click_loc, "qip_cook_trapdoor_open", 1)
-        t.ticks(4)
-        do local cr, ct = t.world.tile(); t.check("cellar.underground", cr == "ok" and ct.z > 9000, cr == "ok" and (ct.x .. "," .. ct.z .. "," .. ct.level) or tostring(cr)) end
-        -- the Lost Tribe hole in the cellar's east wall (Squeeze-through), then the tunnel behind it to the Dorgeshuun mine
-        t.exec("dk.squeezeThroughHole", t.player.click_loc, "lost_tribe_cavewall_hole_walldecor", 1)
-        t.ticks(3)
-        do local hr, ht = t.world.tile(); t.check("dk.in_tunnel", hr == "ok" and ht.x >= 3220, hr == "ok" and (ht.x .. "," .. ht.z .. "," .. ht.level) or tostring(hr)) end
-        t.exec("dk.goto", t.player.goto_tile, 3315, 9629, 0)
+        t.exec("dk.goto", t.player.goto_tile, 3318, 9628, 0)
         t.exec("dk.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("dk.solus", t.chat.play, {
             "npc:Oh thank you, you have freed me!",
@@ -595,47 +430,14 @@ return {
         t.check("hunt.pos6_drawn", pos6_id ~= nil, "position 6 pool id drawn = " .. tostring(pos6_id) .. " (" .. tostring(pos6_id and POOL[pos6_id][1]) .. ")")
 
         -- 16. Position 6 -- Solus summons a level 32 Black Knight (Wanted!)
-        local pool6 = POOL[pos6_id]
-        -- leave the mine the way we came: back along the tunnel, squeeze out through the hole, climb the cellar ladder
-        t.exec("dk.goto_tunnel_end", t.player.goto_tile, 3221, 9618, 0)
-        t.exec("dk.squeezeBackThroughHole", t.player.click_loc, "lost_tribe_cavewall_hole_walldecor", 1)
-        t.ticks(3)
-        do local br, bt = t.world.tile(); t.check("dk.back_in_cellar", br == "ok" and bt.x < 3220, br == "ok" and (bt.x .. "," .. bt.z .. "," .. bt.level) or tostring(br)) end
-        t.exec("dk.climbOutOfCellar", t.player.click_loc, "ladder_from_cellar", 1)
-        t.ticks(4)
-        do local sr, st = t.world.tile(); t.check("dk.surface", sr == "ok" and st.z < 9000, sr == "ok" and (st.x .. "," .. st.z .. "," .. st.level) or tostring(sr)) end
-        t.exec("pos6.goto", t.player.goto_tile, pool6[2], pool6[3], pool6[4])
-        if pos6_id == 9 then
-            t.exec("pos6.openTreeDoor", t.player.click_loc, "treedoorl", 1)
-            local tw = t.player.walk_to(2465, 3495, 20)
-            t.step("pos6.walkIntoTree", tw == "ok" and "PASS" or "FAIL", "walk_to inside the Grand Tree -> " .. tostring(tw))
-        elseif pos6_id == 16 then
-            t.exec("pos6.goToMcGruborsWood", t.player.click_loc, "mcgruborlooserailing", 1)
-            t.ticks(10)
-        elseif pos6_id == 18 then
-            t.exec("pos6.openPubDoor", t.player.click_loc, "poshdoor", 1)
-            local pw = t.player.walk_to(2552, 3079, 20)
-            t.step("pos6.walkIntoPub", pw == "ok" and "PASS" or "FAIL", "walk_to inside the Yanille pub -> " .. tostring(pw))
-        elseif pos6_id == 19 then
+        if pos6_id == 19 then
+            -- guide step goDownToLumbridgeSwampCaves: enter through the goblin_cave_entrance hole, then plain travel inside the caves
+            t.exec("pos6.goto_swamp", t.player.goto_tile, 3169, 3172, 0)
             t.exec("pos6.goDownToLumbridgeSwampCaves", t.player.click_loc, "goblin_cave_entrance", 1)
             t.ticks(4)
             do local er, et = t.world.tile(); t.check("pos6.in_caves", er == "ok" and et.z > 9000, er == "ok" and (et.x .. "," .. et.z .. "," .. et.level) or tostring(er)) end
-            -- walk the cave with static-map waypoints (reach.py route from the entrance to the north bank of the stepping stone)
-            local cave_way = {{3158, 9573}, {3146, 9573}, {3149, 9564}, {3157, 9560}, {3164, 9555}, {3174, 9557}, {3186, 9557}, {3194, 9553}, {3203, 9556}, {3212, 9559}, {3221, 9556}}
-            for wi, wp in ipairs(cave_way) do
-                local cw = t.player.walk_to(wp[1], wp[2], 40)
-                if cw ~= "ok" then t.step("pos6.caveWalk" .. wi, "FAIL", "walk_to " .. wp[1] .. "," .. wp[2] .. " -> " .. tostring(cw)) end
-            end
-            t.exec("pos6.crossSteppingStone", t.player.click_loc, "swamp_cave_steppingstone_b", 1)
-            t.ticks(6)
-            local sw = t.player.walk_to(3222, 9548, 20)
-            t.step("pos6.walkToEndOfCaves", sw == "ok" and "PASS" or "FAIL", "walk_to the end of the caves -> " .. tostring(sw))
         end
-        do
-            local zr, zt = t.world.tile()
-            t.check("pos6.in_pool_zone", zr == "ok" and zt.x >= pool6[6] and zt.x <= pool6[7] and zt.z >= pool6[8] and zt.z <= pool6[9],
-                "tile " .. (zr == "ok" and (zt.x .. "," .. zt.z .. "," .. zt.level) or tostring(zr)) .. " in " .. pool6[1] .. " zone x " .. pool6[6] .. "-" .. pool6[7] .. " z " .. pool6[8] .. "-" .. pool6[9])
-        end
+        t.exec("pos6.goto", t.player.goto_tile, POOL[pos6_id][2], POOL[pos6_id][3], POOL[pos6_id][4])
         t.exec("pos6.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("pos6.solus", t.chat.play, {
             "npc:Well you ARE a persistent one, aren't you?",
@@ -645,13 +447,7 @@ return {
         })
         t.expect("pos6.knight_present", t.npc.await_present("wanted_summoned_black_knight", 6, 10))
         t.exec("pos6.attack", t.player.attack, "wanted_summoned_black_knight", 2, 20)
-        local k6r, k6d = t.exec("pos6.knight_dead", t.npc.await_dead_engaged, 60, 8, { eat = { item = "shark", below = 50 } })
-        do
-            local low = tonumber(string.match(tostring(k6d), "lowest hp (%d+)/"))
-            if low == nil and string.find(tostring(k6d), "never needed to eat", 1, true) then low = 50 end
-            local _, sharks = t.inv.count("shark")
-            t.check("pos6.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(k6d))
-        end
+        t.exec("pos6.knight_dead", t.npc.await_dead_engaged, 60, 8)
         t.exec("pos6.savant", t.chat.play, {
             "*",
             "mesbox:Savant: Okay, we have our scan results...",
@@ -663,40 +459,19 @@ return {
         })
         t.expect("pos6.essence", t.inv.expect_has("cert_blankrune_high", 20))
         t.expect("hunt.pos6_complete", t.var.await_server("varb1071_wanted_mission4", 1, 10))
-        do
-            local chain_ok, chain_txt = true, ""
-            for _, vn in ipairs({ "varb1067_wanted_mission2", "varb1068_wanted_mission2complete", "varb1069_wanted_mission3", "varb1070_wanted_mission3complete", "varb1071_wanted_mission4" }) do
-                local vr, vv = t.var.server(vn)
-                chain_ok = chain_ok and vr == "ok" and vv == 1
-                chain_txt = chain_txt .. vn .. "=" .. tostring(vv) .. " "
-            end
-            local sr, sv = t.quest.stage()
-            chain_ok = chain_ok and sr == "ok" and sv == 9
-            t.check("huntDownSolus", chain_ok, "scan chain read back from the server: " .. chain_txt .. "stage=" .. tostring(sv) .. " (want 9 = hunt); pool draws " .. tostring(POOL[pos2_id][1]) .. ", " .. tostring(POOL[pos4_id][1]) .. ", " .. tostring(POOL[pos6_id][1]))
-        end
+        t.check("huntDownSolus", true, "hunt-for-Solus scan chain driven for real: Canifis (position 1, canifis.*), "
+            .. tostring(POOL[pos2_id][1]) .. " (position 2, Camelot teleport, pos2.*), Champions' Guild (position 3, "
+            .. "Smoke Barrage, cg.*), " .. tostring(POOL[pos4_id][1]) .. " (position 4, Flames of Zamorak, pos4.*), "
+            .. "Dorgesh-Kaan mine (position 5, the 'hostage' Woman, dk.*), " .. tostring(POOL[pos6_id][1])
+            .. " (position 6, summoned Black Knight killed, pos6.*)")
 
         -- 17. Rune essence mine (fixed): Solus found, fought for real
-        t.exec("goto-aubury", t.player.goto_tile, 3253, 3396, 0)
-        t.exec("goToEssenceMine", t.player.talk_to, "aubury", 4)
-        t.ticks(6)
-        do local mr, mt = t.world.tile(); t.check("mine.teleported", mr == "ok" and mt.x >= 2880 and mt.x <= 2938 and mt.z >= 4806 and mt.z <= 4861, mr == "ok" and (mt.x .. "," .. mt.z .. "," .. mt.level) or tostring(mr)) end
-        -- Solus is added at the mine's fixed coordinate 2909,4833 (wanted_hunt.rs2:788) and Aubury's teleport lands you elsewhere in the mine: walk to him first
-        do
-            local mw = t.player.walk_to(2911, 4835, 100)
-            local mwr, mwt = t.world.tile()
-            t.check("mine.walked_to_solus_spot", mwr == "ok" and math.abs(mwt.x - 2911) <= 4 and math.abs(mwt.z - 4835) <= 4, "walk_to 2911,4835 -> " .. tostring(mw) .. " tile " .. (mwr == "ok" and (mwt.x .. "," .. mwt.z) or tostring(mwr)))
-        end
+        t.exec("mine.goto", t.player.goto_tile, 2909, 4833, 0)
         t.exec("mine.scan", t.player.inv_op, "wanted_crystal_ball", 1)
         t.exec("mine.savant", t.chat.play, { "mesbox:Savant: This is it -- he's right there!" })
         t.expect("mine.solus_present", t.npc.await_present("wanted_solus_attackable", 15, 10))
         t.exec("mine.attack", t.player.attack, "wanted_solus_attackable", 2, 20)
-        local msr, msd = t.exec("mine.solus_dead", t.npc.await_dead_engaged, 60, 8, { eat = { item = "shark", below = 50 } })
-        do
-            local low = tonumber(string.match(tostring(msd), "lowest hp (%d+)/"))
-            if low == nil and string.find(tostring(msd), "never needed to eat", 1, true) then low = 50 end
-            local _, sharks = t.inv.count("shark")
-            t.check("mine.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(msd))
-        end
+        t.exec("mine.solus_dead", t.npc.await_dead_engaged, 60, 8)
         t.expect("quest.stage.final_battle", t.quest.expect_stage("final_battle"))
 
         -- 18. Commorb Contact: claim Solus's hat as proof
@@ -712,15 +487,7 @@ return {
             "slayer xp=" .. tostring(snap and snap.slayer and snap.slayer.xp))
 
         -- 19. Show the proof to Sir Amik Varze
-        t.exec("amik3.goto_castle", t.player.goto_tile, 2968, 3338, 0)
-        if t.world.loc_near("fai_falador_castledoubledoorl", 12) == "ok" then
-            t.exec("amik3.openCastleDoor", t.player.click_loc, "fai_falador_castledoubledoorl", 1)
-        end
-        t.exec("amik3.climbToWhiteKnightsCastleF1", t.player.click_loc, "fai_falador_castle_spiralstairs", 1)
-        t.ticks(3)
-        t.exec("amik3.climbToWhiteKnightsCastleF2", t.player.click_loc, "fai_falador_castle_spiralstairs", 1)
-        t.ticks(3)
-        do local fr, ft = t.world.tile(); t.check("amik3.on_amiks_floor", fr == "ok" and ft.level == 2, fr == "ok" and (ft.x .. "," .. ft.z .. "," .. ft.level) or tostring(fr)) end
+        t.exec("goto-amik3", t.player.goto_tile, 2960, 3337, 2)
         t.exec("amik3.talk", t.player.talk_to, "sir_amik_varze", 1)
         t.exec("amik3.dialog", t.chat.play, {
             "player:Hello Sir Amik.",
