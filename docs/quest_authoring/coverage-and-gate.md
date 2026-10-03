@@ -572,7 +572,8 @@ unconditional `p_teleport` out of the lobby, so it works for every quest. The te
 FULL. The sampler sent the quest back (sampler-findings: Sample matthew-mbp-m4-b55). When the
 grader cites another quest's file, open that trigger. If it reads no quest var, click it. The
 failure-path legs (`leaveColosseumToGetAnotherKebabFromEmelio`, `enterArenaAfterFailing`) are a
-real ALTERNATIVE when the first fight is won.
+real ALTERNATIVE when the first fight is won. The grader half is FIXED: see the next section.
+
 ### A goto out of a place whose exit the guide names reads FULL through "no trigger ... serves this quest" (Meat and Greet, matthew-mbp-m4-b55; FIXED)
 
 Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. The test left the lobby
