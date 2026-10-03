@@ -573,3 +573,23 @@ FULL. The sampler sent the quest back (sampler-findings: Sample matthew-mbp-m4-b
 grader cites another quest's file, open that trigger. If it reads no quest var, click it. The
 failure-path legs (`leaveColosseumToGetAnotherKebabFromEmelio`, `enterArenaAfterFailing`) are a
 real ALTERNATIVE when the first fight is won.
+### A goto out of a place whose exit the guide names reads FULL through "no trigger ... serves this quest" (Meat and Greet, matthew-mbp-m4-b55; FIXED)
+
+Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. The test left the lobby
+with one `goto_tile` from 1819,9485 to Emelio and helper_coverage still read FULL. Two holes, both closed:
+
+- **A plain exit in another quest's file serves every quest.** The only `[oploc1,colosseum_exit_lobby]`
+  lives in `quest_twilightspromise/scripts/twilightspromise.rs2:367`, and `relevant_triggers` counted
+  another quest's loc only when that quest is a prerequisite, so the step read CONTENT_GAP ("no trigger
+  serves this quest (only ..., another quest's)") and then ALTERNATIVE. A trigger whose body reads no
+  `%variable` (`trigger_is_unconditional`) does the same thing for everyone and now counts.
+- **The departure stamp is where the player stood.** `teleported_across` judged a promoted sub-step by
+  the goto BEFORE the hop, which here landed outside the Colosseum (the player then walked in by the
+  entrance). When the goto row carries `at <landing> from <departure>`, the departure tile is now the
+  "before" side: beside the sub-step's loc, landing at the parent, no click on the loc since the last
+  goto -> CHEAT "leaves the <step> side (departure x,z,l stamped by its own row) ... without crossing".
+  The parent's targets are matched by family, so a guide id `mag_emelio_1op` is found in a test that
+  talks to the shell `mag_emelio`.
+
+What an author does: click the exit the guide names, then walk or goto from where it lands. All 130
+committed greens grade the same before and after the change.
