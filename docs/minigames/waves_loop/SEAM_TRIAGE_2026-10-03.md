@@ -55,7 +55,8 @@ Files: `script/plugins/plugin_api.meta.lua`, `script/plugins/quest_driver.lua`,
 `tools/waves_gate/spec_check.py`, `tools/waves_gate/waves_coverage.py`,
 `tools/waves_gate/frame_count.py`, `tools/waves_gate/vtt_to_md.py`,
 `test/waves/README.md`, `test/waves/fixtures/README.md`,
-`test/waves/fixtures/fresh_lumbridge.ini`, `docs/minigames/waves_loop/FORKED_FROM.md`
+`test/waves/fixtures/fresh_lumbridge.ini`, `test/quests/_conformance.lua`,
+`tools/quest_gate/verb_list.py`, `docs/minigames/waves_loop/FORKED_FROM.md`
 
 Summary. Bring the raid loop's seven driver rows onto the waves branch and prove them
 here: the tests-directory override (`TORIRS_QUEST_TESTS_DIR`, `TORIRS_QUEST_PUBLISH_DIR`
@@ -102,8 +103,14 @@ offered). Method, in this order:
    Lumbridge goblin with the fast press, reads `npc.state` and `await_anim`, measures the
    goblin's attack cadence from `t.ticklog.gaps`, steps one tile with `step_tick` and
    reads the tick it resolved on, and reads `hazard_at`, `spotanims` and `projectiles`
-   during a spell cast. Quote the ledger rows. Then the conformance rows for every verb
-   brought over, as the pass's card says.
+   during a spell cast. Quote the ledger rows.
+8. Conformance: `test/quests/_conformance.lua` is yours in this seam (the driver's own
+   gate, not a quest test). Three-way merge the raid tip's rows into it, drop the
+   `raid.*` rows, keep every row `v3` added since the merge base, set `VERB_COUNT`,
+   `SEAM_COUNT` and their `-- @verb-count` / `-- @seam-count` comments to what is
+   really there, and bring `tools/quest_gate/verb_list.py` in line if it needs it.
+   Run the conformance file through `run.py` yourself and quote its totals; the closer
+   runs the make targets.
 
 Evidence. `git diff --stat 80b58e323 94f55b306 -- script/plugins src tools/quest_gate`
 (35 files, 4,794 insertions); `docs/WAVES_ORCHESTRATOR.md` section 5's table, rows 1 to
