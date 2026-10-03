@@ -1225,8 +1225,10 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
   (swing+1 .. splat-1), not only before it, and must `t.check` every instance; an
   unexplained late splat is a FAIL (or a content_bug), never a PASS.
 - Seam5 found the cause: our eat calls `p_delay`, LostCity's does not (seam5 section,
-  "An eat holds every queued npc hit"). It is open; until it lands, count eaten-through
-  hits separately.
+  "An eat holds every queued npc hit"). It is still open after seam6: the port was made
+  and proved, but it moved two quest tests from green to RED and was not landed (seam6
+  section, "The eat-delay port did not land"). Until it lands, count eaten-through hits
+  separately.
 
 ## Exact-tick actions
 
@@ -1394,12 +1396,9 @@ outside its files, and changed nothing. The fixers' reports are under
   record's base, which the content lowers (`~tob_verzik_entry_levels`, constants from the
   cache `_story` records in tob_verzik.constant).
 - Entry pillars read `tobpillars N hp=200` (`::tobpillars 0`). Normal and Hard stay 185.
-- Measure the Entry P3 pool from the pool growth, not from her hitpoints on the P3 form.
-  `::tobboss` reads `of 1100` before the fight (P1 300 + P2 400 + P2 400) and `of 1300`
-  from the tick she starts to fall (`~tob_verzik_p3_restate` adds 200), so P3 = 1300 - 300
-  - 400 = 600.
-- Her hitpoints on the P3 form are 600 less any P2 overkill and any hit taken during the
-  6-tick fall (one run read 535). P2 overkill carries into P3 in every mode.
+- SUPERSEDED by seam6 ("Verzik's three pools" below): the bar is now P1 + P2 + P3 (1300
+  solo Entry) from the barrier, each phase opens on its own full pool, and nothing carries.
+  Measure a pool from `::tobboss phase_hp=X of Y`, not from the pool growth.
 - The Entry P2 lightning has no Entry figure in any source. Keep `verzik.p2_zap_max`
   scoped to normal. A solo Entry zap measured 8 and 3 under Protect from Magic.
 - An Entry red reads `red hp=20 def=30 mag=30`.
@@ -1407,11 +1406,9 @@ outside its files, and changed nothing. The fixers' reports are under
 ## ::tobaddlevels
 
 - Read-only (tob_verzik.rs2). It prints hp/att/str/def/rng/mag for every Verzik red and
-  every NORMAL Maiden crab or blood spawn in the room. It does not match the Entry/Hard
-  crab and slug records.
-- The reply is one `mes` line that grows by about 45 characters per add. With more than
-  five adds alive it passes the 252 characters that desync a session (trap 27), so use it
-  with few adds alive (open).
+  every Maiden crab or blood spawn in the room, in every mode since seam6.
+- Since seam6 the reply prints at most four groups after `n=<count> shown=<groups>`, so it
+  stays under the 252 characters that desync a session (trap 27).
 
 ## An eat holds every queued npc hit
 
@@ -1424,7 +1421,8 @@ outside its files, and changed nothing. The fixers' reports are under
 - An ordinary npc's melee (a goblin) is not held, because it lands in the npc's own turn.
 - LostCity's eat (consume.rs2:101-110) never calls `p_delay`: it sets an eat-delay clock
   and adds to the action delay. The fix is a port of that into food.rs2 (and the other
-  consumption scripts that `p_delay`). It is open after seam5.
+  consumption scripts that `p_delay`). Seam6 made and proved that port but did not land
+  it (seam6 section); it is still open.
 - Until it lands, count eaten-through hits separately in any hit-delay row.
 
 ## Measuring
@@ -1456,19 +1454,13 @@ outside its files, and changed nothing. The fixers' reports are under
 
 Three facts the room authors and reviewers of the fourth launch asked for.
 
-## Protection prayers do not reduce a nylocas hit
+## Protection prayers against nylocas hits (fixed in seam6)
 
-- Every nylocas swing (`~tob_nylo_swing`, tob_nylocas.rs2:1071-1092), detonation
-  (`~tob_nylo_detonate`, :1150-1166) and pillar collapse (:1537) queues
-  `combat_damage_player` with `add(1, random($max))`. That queue
-  (skill_combat/scripts/npc_combat_magic.rs2:261) applies slayer, worn-gear and
-  ethereum reductions only. It reads no overhead prayer, so Protect from Melee or
-  Missiles changes nothing in the Nylocas room.
-- The roll starts at 1, so a nylocas never splats 0 before gear reduction. The gear
-  reduction always uses the magic style, whatever the nylocas's style.
-- Do not spend prayer points or a technique row on protection in this room. If a spec
-  row needs a prayer to protect, write that row as a content finding naming these lines.
-  Do not write it as a driving failure.
+- Before seam6 no nylocas swing read the overhead prayer. Since seam6 (OSRS-Content
+  2cddff56d5) a wave nylocas's swing is blocked to 0 by the protection prayer of its style.
+  See "Protection prayers block a wave nylocas's hit" in the seam6 section below.
+- Explosions (`~tob_nylo_detonate`) and support collapses still ignore prayer.
+- The gear reduction still always uses the magic style, whatever the nylocas's style.
 
 ## Small controlled hits on a boss, for a threshold row
 
@@ -1498,3 +1490,119 @@ Three facts the room authors and reviewers of the fourth launch asked for.
   next tile with a ranged or magic attack.
 - Solo, there is one web per cast (one per player), so `p3_webs_per_cast` 3 cannot be
   measured in a solo run.
+
+# Seam pass 6: the fourth room pass's residue
+
+Seam pass 6 (`matthew-mbp-m4-raid-b1-seam6`, triage `SEAM_TRIAGE_2026-10-03d.md`) changed
+no driver verb. It landed two content seams in OSRS-Content 2cddff56d5. The first makes
+protection prayers block wave nylocas hits. The second gives Verzik three separate pools
+and an enrage threshold compared without truncation, and makes the readouts know every
+mode's Maiden and Verzik records. One seam row proves the first:
+`seam.nylocas_protect_blocks_wave_hit`. The third seam, the tree-wide eat-delay port, was
+made and proved but not landed, because it moved two committed quest tests from green to
+RED. The fixers' reports are under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/`.
+
+## The eat-delay port did not land: an eat still holds every queued hit
+
+- An eat still parks the player for 2 ticks, and a potion for 1, so a scripted npc hit
+  queued on the player still lands late when the player eats on or after the swing tick.
+  The seam5 note "An eat holds every queued npc hit" still holds. Count eaten-through hits
+  separately in every hit-delay row.
+- The port was made and proved: LostCity's consume.rs2:96-110 clock shape in a new
+  consume_shared.rs2, no `p_delay` and no `p_stopaction` in any consume script, and an
+  eat adding 3 to a running weapon delay (wiki Food/Fast foods). It is saved as a patch
+  with its two seam rows under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/close/`.
+- The closer's full suite moved `troll` and `regicide` from green to RED with the port in,
+  and both were green again without it. Both deaths come from food tuned to the old
+  mechanics. The port has to land together with a quest-loop retune of those two tests.
+  See CONTENT_BUGS.md, "From seam6".
+
+## Protection prayers block a wave nylocas's hit
+
+- A wave nylocas's swing is blocked to 0 by the protection prayer of its style: Ischyros
+  melee, Toxobolos ranged (Protect from Missiles), Hagios magic. The block shows as the
+  block splat, a `hit_player` row with damage 0, hitsplat 26.
+- The prayer is read on the swing tick (`~tob_nylo_swing` -> `~tob_nylo_wave_damage`,
+  tob_damage.rs2). Pray before the swing, not before the hit lands.
+- Measured: 0 of 52 matched swings landed, while the other two styles landed as before.
+  The seam row `seam.nylocas_protect_blocks_wave_hit` reads three melee hits at 0 under
+  Protect from Melee, with 11 thrown hits landed as the control.
+- Explosions (`~tob_nylo_detonate`) and support collapses still ignore prayer.
+- Source: wiki Protection prayers ("block all damage in most circumstances against
+  NPCs"), and the nylocas styles from wiki Theatre of Blood/Entry Mode:157 and the
+  infoboxes.
+
+## Vasilias and prayer
+
+- A Vasilias melee swing into Protect from Melee is now a 0 with its own `hit_player`
+  row. Before seam6 it wrote no row at all.
+- Her ranged and magic forms into the matching prayer roll 1-17
+  (`^tob_vasilias_prayed_max`). That figure is sourced for Normal only but applies in
+  every mode. Entry off-prayer is 1-24.
+- Her prayer test and the waves' are one proc, `~tob_nylo_prayed_against` over
+  `~check_protect_prayer`.
+
+## Praying in the Nylocas room
+
+- Pray the style of the aggro majority. A big counts two, and a melee copy counts only
+  once it is within 2 tiles.
+- A test-copy variant that did this switched 21 times in 395 ticks and blocked 57 of 100
+  nylocas hits, with no spec row moved. It survived past click+410 to tick 482 (28 waves);
+  the unprayed test always stopped earlier.
+
+## Classifying a nylocas hit by the prayer in force
+
+- Use every attack animation of the hit's slot in the 6 ticks before the hit, not only
+  the last one. A thrown hit lands 1 or more ticks after its swing and the slot swings
+  every 3, so "the last anim before the hit" attributes it to the next swing.
+- Read hits only up to the end of the measured window. A later hit's swing may postdate
+  the animation read.
+
+## ::tobnyloskip
+
+- Typed in a started Nylocas room, before or during the waves, it marks all 31 waves out.
+  Vasilias then lands through the room's own clear and boss-tick path, 16 or more ticks
+  after the last nylocas despawns.
+- It skips a phase of the room, so it is a measurement cheat only: never in a room test.
+
+## Verzik's three pools
+
+- Her three phases are three pools end to end on one npc (`~tob_verzik_fresh_pool`). The
+  npc's hitpoints and max are what is left of the current phase plus the whole pools
+  still to come.
+- The barrier gives P1 + P2 + P3: solo Entry 1300 = 300 + 400 + 600 (cache_npc_verzik.txt
+  :430, :491, :552), solo Normal 6750. `::tobboss hp=N of M` reads 1300, then 1000, then
+  600 as the phases fall.
+- A P1 or P2 overkill is dropped at the phase change. Every heal (the Athanatos, the reds'
+  absorb, the tornado, Hard's last heal) stops at the phase's own pool.
+- Measure a phase pool from `::tobboss phase=N phase_hp=X of Y`. Never derive it from
+  (total - P1) / 2 or from "the 400 floor".
+
+## Verzik's thresholds are "at or below", compared whole
+
+- An in-phase threshold compares left x 100 <= pool x pct, with no integer percent. The
+  reds come at 140 of 400 and not at 141. The enrage comes at 120 of 600 and not at 121
+  (before seam6, 125 enraged).
+- For a threshold row, read `::tobboss phase_hp` right after the event. The hit before
+  it must leave her above the threshold.
+
+## ::tobboss in Verzik's room
+
+- It adds `phase=` (0 P1, 1 P2, 2 P3, 3 the fall off the throne) and `phase_hp=X of Y`.
+- `record=` stays normal in Entry because she wears the Normal forms. `room_mode` and the
+  levels give her mode.
+
+## Readouts that know every mode
+
+- `::tobboss`, `::tobcrabdrop`, `::tobcrabkill`, `::tobcrabweaken`, `::tobcrabkillreal`,
+  `::tobgates slugs=` and `::tobaddlevels` recognise every mode's Maiden bodies, crabs,
+  slugs and reds. An Entry Maiden reads `record=entry` on her 100, 70, 50 and 30 bodies.
+- `::tobaddlevels` prints at most four groups, followed by `shown=`.
+
+## ::tobvzleft and the enr= field
+
+- `::tobvzleft <n>` sets Verzik's current phase to exactly n hitpoints. A negative n is
+  an overkill. A value above her current hp heals by `npc_statheal`, so it stops where
+  her pool clamps. It performs damage, so it is for scratches only and is rejected in a
+  room test.
+- `::tobvz` gains `enr=`, the P3 enrage latch.

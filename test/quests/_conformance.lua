@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 102
+-- @seam-count 103
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 162
-local SEAM_COUNT = 102
+local SEAM_COUNT = 103
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9960,6 +9960,98 @@ return {
                     .. " -- " .. describe(after_detail)
             end
             return "ok", describe(detail) .. "; then " .. describe(after_detail)
+        end)
+
+        -- PROTECTION PRAYERS BLOCK A WAVE NYLOCAS'S HIT (raid seam6
+        -- tob_nylocas_prayer_and_damage).  Content only, no verb changed:
+        -- tob_damage.rs2 ~tob_nylo_prayed_against / ~tob_nylo_wave_damage,
+        -- tob_nylocas.rs2 ~tob_nylo_swing, tob_nylocas_boss.rs2
+        -- ~tob_vasilias_hit.  Pinned through verbs that already have rows
+        -- (raid.enter, raid.start_tile, player.walk_to, player.click_loc,
+        -- chat.play, prayer.set, ticklog.start/rows).  It enters and STARTS a
+        -- ToB room, so it runs here, after the raid.* step rows and last of
+        -- the rows that touch the world; its teardown is ::tobout.  Graded:
+        -- three melee nylocas hits after Protect from Melee is in force, all
+        -- 0, and at least one ranged/magic hit landed as the control.
+        -- Fixer proof: s6np_conf_row PASS on the seam's content, s6np_conf_row_head
+        -- FAIL (m5,m5,m4) on the committed content.
+        seam("seam.nylocas_protect_blocks_wave_hit", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local pray = verb("prayer", "set")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not pray then return missing("prayer", "set") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not now_tick then return missing("tick") end
+            -- Entry wave nylocas types (cache_npc_nylocas / all.npc.compack):
+            -- 10774..10785, style = (type - 10774) % 3 (0 melee, 1 ranged, 2 magic).
+            local function teardown(prayed)
+                if prayed then pray("protectfrommelee", false) end
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown(false) return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown(false)
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local prayed, pray_detail = pray("protectfrommelee", true)
+            if prayed ~= "ok" then teardown(false) return prayed, "Protect from Melee -> " .. describe(pray_detail) end
+            local _, in_force = now_tick()
+            in_force = in_force + 2
+            -- The idle player is swung at by the room's aggro forms from the first waves on
+            -- (s6np_waves_after6: 27 melee swings into Protect from Melee in 40 ticks of window).
+            -- Wait for three melee hits and one thrown (ranged/magic) hit after the prayer is in force.
+            local melee, thrown, landed_melee, landed_thrown = 0, 0, 0, 0
+            local samples = {}
+            for _ = 1, 200 do
+                settle(1)
+                melee, thrown, landed_melee, landed_thrown = 0, 0, 0, 0
+                samples = {}
+                local _, hits = log_rows({ kind = "hit_player" })
+                for _, h in ipairs(hits or {}) do
+                    if h.tick > in_force and h.npc_type ~= nil and h.npc_type >= 10774 and h.npc_type <= 10785 then
+                        if (h.npc_type - 10774) % 3 == 0 then
+                            melee = melee + 1
+                            if h.damage > 0 then landed_melee = landed_melee + 1 end
+                            samples[#samples + 1] = "m" .. h.damage
+                        else
+                            thrown = thrown + 1
+                            if h.damage > 0 then landed_thrown = landed_thrown + 1 end
+                        end
+                    end
+                end
+                if melee >= 3 and landed_thrown >= 1 then break end
+            end
+            teardown(true)
+            local reading = "melee nylocas hits under Protect from Melee " .. melee .. " (" .. landed_melee .. " landed: "
+                .. table.concat(samples, ",") .. "), thrown hits " .. thrown .. " (" .. landed_thrown .. " landed, the control)"
+            if melee < 3 or landed_thrown < 1 then return "timeout", reading end
+            -- Explosions are not prayable but come from a detonating slot; an idle player
+            -- beside one can take one as a melee-type hit. Allow none here: the row's window
+            -- is the first waves, before the first natural detonation at spawn+52.
+            if landed_melee > 0 then return "refused", reading .. " -- a melee nylocas hit through Protect from Melee (tob_nylocas.rs2 ~tob_nylo_swing)" end
+            return "ok", reading
         end)
 
         step("finish", function()
