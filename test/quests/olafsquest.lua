@@ -6,7 +6,7 @@
 -- Items from getItemRequirements(): 2 given in setup (::give), none left to gather.
 -- Setup always starts with ::clearinv: the fresh character carries fourteen
 -- slots of tutorial kit that block a non-stackable requirement fitting in the backpack.
--- Rewards from Quest Helper: 1 experience, 1 item, quest points 1 (QuestPointReward). Reward checks NOT emitted -- see the CHECK near boss_fight above.
+-- Rewards (Quest Helper): 20000 coins, 4 rubies, 12000 Defence xp, 1 quest point -- each asserted literally after expect_complete.
 --
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0 (Lumbridge, beside
 -- Hans). Every step below carries its own Quest Helper WorldPoint; the
