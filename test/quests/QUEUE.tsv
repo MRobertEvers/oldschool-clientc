@@ -99,7 +99,7 @@ quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10			
 quest_mcannon	mcannon	dwarfcannon		3	green	sonnet-b36			
-quest_meatandgreet	meatandgreet	meatandgreet		4	todo	matthew-mbp-m4-b55	REVERTED by sampler (matthew-mbp-m4-b55): guide step 24 leaveColosseumToReturnToEmelio crossed by goto_tile 1819,9485 -> 1753,3074 although [oploc1,colosseum_exit_lobby] (twilightspromise.rs2:367) is unconditional and drivable (QUEST_AUTHORING: goto_tile never past a loc the guide names; helper_coverage ALTERNATIVE rested on a false CONTENT_GAP); no quest-point reward row (expect_complete hand-rolled out, scroll shows 1 Quest Point); margin rows print 'hp after table: 0x...' instead of the hp. Everything else held (spice pad, alpha + Minotaur real fights with Protect from Melee, 8000 Cooking). RELAY STATE: parked at test/quests/wip/meatandgreet/parked.lua		
+quest_meatandgreet	meatandgreet	meatandgreet		4	green	matthew-mbp-m4-b55			
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22			
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25			
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo				
