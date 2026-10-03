@@ -1,6 +1,6 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4	seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup	2026-10-03T09:33:47Z	todo|
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		released by matthew-mbp-m4-b55: AWAITING SHOT REVIEW (b55 round 7): the file on branch matthew-mbp-m4-b55 (merged with the batch) is green twice 149/0, gate green, lint clean, helper_coverage FULL 29; the reviewer could not open a screenshot (Read hook timeout). Next: review + sample the committed file and its published evidence, no re-author -- seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	claimed	matthew-mbp-m4-b55@matthew-mbp-m4		2026-10-03T09:33:47Z	todo|
