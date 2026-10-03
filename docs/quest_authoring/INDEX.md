@@ -8,6 +8,7 @@ topic file with one line added here.
 ## Travel and finding things
 
 - `talk_to` walks around or answers "I can't reach that!" after a goto beside an npc behind a counter or wall -> start-and-travel: An npc behind a counter or wall
+- `talk_to` answers "I can't reach that!" from every tile in front of a bar whose counter tiles are floor-blocked, npc two tiles back (At First Light, Verity) -> start-and-travel: A counter whose tiles are floor-blocked
 - the guide says "Charter at a cost of 3000 coins" and no verb opens the charter map -> start-and-travel: No charter verb
 - a `walk_to`/`click_loc` stops at a building's wall and the guide names no door (Swan Song's stove, 2316,3668); tempted to `goto_tile` inside -> start-and-travel: A loc inside a walled building
 - "I can't reach that!" right after a fence squeeze; pulled back to the fence after a goto -> gaps-world: A fence squeeze pulls you back
@@ -53,6 +54,7 @@ topic file with one line added here.
 - Rum Deal: Pete says "take a boat over" but nothing takes you to Braindeath Island; the goto from the Port Phasmatys dock is the only way -> gaps-world: Rum Deal: Pete says "take a boat over"
 - Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
 - an npc's tile one behind when read right at the script's `mes()` line; an npc's `slot` changed after a teleport out of view and back -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (b), (c)
+- a goto from an underground room to a tile far beyond its wall reads FULL; the wall is a multiloc `Hole`/`Squeeze-through` (Lost Tribe cellar, Wanted! dk); a goto leaves a castle/base it walked into -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (a), (b)
 
 ## Pressing and clicking
 
@@ -243,6 +245,7 @@ topic file with one line added here.
 - fewer sharks at the boss than `::give shark N` said ("N did not fit", no row fails); a boss kill whose detail says `OUT OF shark` or ends at 1 hp; no bank verb to restock (Swan Song round 5) -> gaps-combat: Fewer sharks at the boss than the setup gave
 - a note says one more shark "cannot fit"; every rerun of a boss fight reads the same ticks and food; the margin row has no lowest hp (Swan Song round 6) -> gaps-combat: A note says one more food item cannot fit
 - how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
+- setup says the guide's light source or helmet "does not fit in 28 slots" while the run equips and spends items before the step that needs them -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (c)
 
 ## Completion and rewards
 
@@ -259,6 +262,7 @@ topic file with one line added here.
 - a boss dies in a few ticks and never hits you; "1 Quest Point" twice on the scroll; a brief's skill XP the content pays as a lamp -> gaps-combat: A level-191 boss dies in seven ticks; gaps-dialogue: A brief names skill XP; sampler-findings: Sample matthew-mbp-m4-b53, round 3 (Contact!'s boss and doubled line FIXED seam pass matthew-mbp-m4-b53-seam4)
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 - `reward.*` shot shows the Quest List tab; `reward tab ... not selected`; `10,500 Magic XP` read as 500 -> verbs-root-and-quest: Reward rows photograph the tab; `t.scroll.reward_xp`
+- a reward row asserts a var an earlier step already set (`varlamore_visited == 1` for the Fortis teleport) -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (d)
 
 ## Long quests
 
@@ -311,6 +315,7 @@ topic file with one line added here.
 - sonnet-b41: `teleportAway` UNMATCHED with its row PASS -> coverage-and-gate: A step named `teleportAway`; next mesbox missing after an objbox -> verbs-chat: The next script's mesbox; `is_modal() == true` never holds -> verbs-ui-and-npc: `t.ui.is_modal() == true`; stage row reads the old value after a goto out of a zone -> gaps-world: A stage a zone exit writes
 - vm-b1 (2): gate RED `step 'leg.N.end' ... has no shot` on the last leg; `kickBoard` UNMATCHED on a Search press -> coverage-and-gate: Gate RED on the last leg's; Meiyerditch ladder op 1 does nothing, Drakan wall shortcut lands on 3595,3309,2 -> gaps-world: Meiyerditch; no ladder step for rope (yak hair), the window tax Enter amount, stage 275 never seen, Bork gives nothing, runts kill you -> gaps-world: The Fremennik Isles
 - CONTENT_GAP "only <other quest>.rs2, another quest's" then ALTERNATIVE on an exit loc the guide names, and a `goto_tile` past it reads FULL -> coverage-and-gate: CONTENT_GAP "only <other quest>.rs2"
+- a quest draws random branches (Wanted! pool stops) and only the drawn ones ran; `reach.py` dies on a missing `locs.pickle`; `locs_near.py` prints `''` for a multiloc wall -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (e), (f)
 
 ## Harness and runs
 

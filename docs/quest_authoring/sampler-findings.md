@@ -607,3 +607,52 @@ Every stronghold entry, stairs down and storeroom stairs is clicked and has an e
 The rewards are literal: 11000 Herblore and qp 4 to 5, matching the scroll in shot 257. The batch
 queue writer skipped both round-6 rows, because queue.json listed them from round 5. So the
 sampler set eadgar to green.
+
+## Sample matthew-mbp-m4-b56, round 2 (2026-10-03)
+
+*The sampler checked twilightspromise (7f69624b0, 154/0, 412 shots) and wanted (d3672c684, 152/0,
+277 shots) and SENT BOTH BACK. Both commits are reverted (728e039cf, 3c5008256), and so are their
+evidence commits (OSRS-Content a45c71ef73, 3e59236da2). The round-2 files are kept in
+`test/quests/wip/<id>/parked.lua`; the next author resumes those, not the reverted files.*
+
+(a) WANTED!: A GOTO THROUGH A CAVE WALL THAT HAS AN OP. `dk.goto` clicks the Lumbridge cellar
+trapdoor, then teleports about 100 tiles from 3210,9616 to the Dorgeshuun mine at 3318,9628. The
+cellar's east wall `lost_tribe_cellar_wall` (3219,9618) is a multiloc. After The Lost Tribe it is a
+`Hole` with `Squeeze-through` (`losttribe.rs2:245`), and a tunnel lies behind it. The shots tell:
+201 shows the walled cellar and 202 the mine. `enclosure_entries` cannot see it. The hole is a wall
+decoration whose op is not Open, so the cellar counts as a sealed room with no door. The landing
+is also outside the cellar. Look for these on any goto whose departure is underground.
+
+(b) WANTED!: GOTOS THAT LEAVE A CLOSED SPACE WITHOUT WALKING OUT. Three rows do this:
+- `goto-tiffy2` and `goto-tiffy3` depart from 2955,3337, inside the White Knights' Castle, past
+  `fai_falador_castledoubledoorr` 2965,3339.
+- `goto-mage` departs from inside the Black Knights' base in Taverley Dungeon.
+- `pos6.goto` departs from the mine.
+
+The orchestrator's rule covers the way out as well as the way in. An author who opened a door on
+the way in walks back out through it.
+
+(c) WANTED!: GUIDE GEAR LEFT OUT FOR "NO ROOM". The setup comment said the light source and spiny
+helmet did not fit, because the 28 slots were full. That is true only at setup time. The run wears
+the scimitar at once and spends the coins and the 20 essence before the swamp caves. Count the
+slots at the step that needs the item, not at setup. If an item still does not fit, cite the script
+that proves it does not matter.
+
+(d) TWILIGHT'S PROMISE: A REWARD ROW THAT READS THE WRONG CARRIER. `reward.teleport` asserted
+`varb9650_varlamore_visited == 1`. The first Regulus flight already sets that var
+(`twilightspromise.rs2:177`), so the row cannot fail. The spell is gated on `%varb9649_vmq2 >=
+^tp_complete` instead (`skill_magic/scripts/spells/teleport.rs2:37-41`). Before you trust a
+"reward carrier" var, grep where the reward's own use reads it. A var that an earlier step wrote
+proves nothing about the reward.
+
+(e) A RANDOM DRAW LEAVES BRANCHES UNRUN. Wanted!'s hunt draws three of fifteen pool stops. This run
+drew Castle Wars, the swamp caves and McGrubor's Wood, so the Grand Tree, Yanille pub and other
+branches never ran. A green ledger proves only the drawn ids, which the `hunt.pos*_drawn` rows
+name. Check every other branch's hop tile and entrance click against the map with `reach.py` and
+`locs_near.py`, since no run will.
+
+(f) SAMPLE TOOLS. `reports/sample_tools/reach.py` now finds `locs.pickle` itself: it uses a copy
+beside the script, else `build/orchestrator/sample_b56/locs.pickle`, and builds that file through
+`locs_near.py` when it is missing. `locs_near.py` prints `''` for a multiloc's base record, for
+example `lost_tribe_cellar_wall`. Read its `multiloc<N>` records in `configs/all.loc` for the name
+and op a player sees.

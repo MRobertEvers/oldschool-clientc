@@ -5,7 +5,15 @@ Ignores script-spawned locs, npcs, diagonal-only gaps, and maplinks (stairs)."""
 import os, re, sys, pickle
 from collections import deque
 BASE = "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content"
-ids, info = pickle.load(open(os.path.dirname(os.path.abspath(__file__)) + "/locs.pickle", "rb"))
+# The loc-name table is a 5 MB pickle that is not committed: use a copy beside this script, else
+# locs_near.py's cache under build/, building it there (one locs_near.py call) when neither exists.
+HERE = os.path.dirname(os.path.abspath(__file__))
+SHARED = "/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/sample_b56/locs.pickle"
+PICKLE = HERE + "/locs.pickle" if os.path.exists(HERE + "/locs.pickle") else SHARED
+if not os.path.exists(PICKLE):
+    import subprocess
+    subprocess.run([sys.executable, HERE + "/locs_near.py", "0", "0", "0"], check=True, capture_output=True)
+ids, info = pickle.load(open(PICKLE, "rb"))
 sx, sz, tx, tz = map(int, sys.argv[1:5])
 P = int(sys.argv[5]) if len(sys.argv) > 5 else 0
 MG = int(sys.argv[6]) if len(sys.argv) > 6 else 40

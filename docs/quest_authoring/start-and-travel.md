@@ -92,6 +92,15 @@ Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator
 1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
 is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
 
+### A counter whose tiles are floor-blocked, with the npc two tiles away: the talk is refused (At First Light, matthew-mbp-m4-b56)
+
+The rule above needs the npc to stand straight across a ONE-tile gap. Verity (1559,9464) stands
+behind a bar whose counter row, z 9463 x 1556-1560, is floor-blocked in the map flags. There is no
+counter loc there, and the flap `hg_table_tavern02_door01` has no op. `talk_to` from 1559,9462,
+1561,9463 and 1559,9461 all answered "I can't reach that!". The tiles behind the bar are a sealed
+pocket, so a goto there is a teleport past the bar. The row is a content_bug, not a goto. Name the
+counter tiles and the refused tiles in the row.
+
 ### A loc inside a walled building, and the guide names no door: find the door in the map square (matthew-mbp-m4-b54)
 
 A `walk_to` or `click_loc` from outside stops at the wall, and the easy fix is a `goto_tile`

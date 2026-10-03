@@ -25,6 +25,7 @@ def load():
             k, v = line.split("=", 1)
             if k in ("name", "op1", "op2", "op3", "blockwalk", "width", "length", "multiloc", "multivar"):
                 info[cur][k] = v
+    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
     pickle.dump((ids, info), open(CACHE, "wb"))
     return ids, info
 
