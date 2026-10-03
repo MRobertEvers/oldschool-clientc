@@ -35,3 +35,5 @@
   first walk (walkTime on downNumber 1): [(39, 11), (40, 9), (41, 4), (42, 4), (43, 3), (44, 1), (45, 4), (46, 3), (47, 4), (48, 2)]
   later walks: [(34, 8), (35, 8), (36, 7), (37, 3), (38, 5), (39, 6), (40, 13), (41, 4), (42, 8), (43, 5), (45, 1), (46, 8), (47, 1), (49, 2)]
 hands cadence threshold (all modes): highest hp% with a 4-tick gap 39.60, lowest hp% with a 6-tick gap 40.23 (n4=908 n6=688)
+turn hazard mode 11 (restated 2026-10-02): 129 turns over 2214 at-risk walking ticks = 0.0583 +- 0.0050 (1 in 17.2; 2 SE 4.8-6.8 %)
+turn hazard mode 12 (restated 2026-10-02): 211 turns over 1520 at-risk walking ticks = 0.1388 +- 0.0089 (1 in 7.2; 2 SE 12.1-15.7 %)

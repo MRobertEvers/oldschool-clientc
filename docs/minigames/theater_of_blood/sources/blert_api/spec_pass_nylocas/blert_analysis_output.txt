@@ -46,3 +46,17 @@ m11 raids 14 stall alive pre-20 [(12, 17), (13, 10), (14, 4), (15, 2)] post-20 [
 m12 raids 4 stall alive pre-20 [(16, 1), (17, 1)] post-20 [(24, 1), (25, 4), (26, 4), (30, 2)] cap at wave 1/19/20/21 [[15], [15], [24], [24]]
 ### Vasilias landing tile (npc 8354 / 10807 NPC_SPAWN xCoord,yCoord)
 {(8354, 3294, 4247): 14, (10807, 3294, 4247): 4}
+### an_blert_prince.py (restated 2026-10-02): hitpoints at a Prinkipas' end, kill or self-destruct
+raid 54f2c13f prince 1 spawn 68: hp 0 at +17, death event +23, hp at +52 0, last hp 0
+raid 54f2c13f prince 2 spawn 160: hp 0 at +20, death event +26, hp at +52 0, last hp 0
+raid 54f2c13f prince 3 spawn 252: hp 0 at +57, death event +62, hp at +52 25, last hp 0
+raid bb09269c prince 1 spawn 68: hp 0 at +28, death event +34, hp at +52 0, last hp 0
+raid bb09269c prince 2 spawn 168: hp 0 at +10, death event +16, hp at +52 0, last hp 0
+raid bb09269c prince 3 spawn 260: hp 0 at +52, death event +57, hp at +52 0, last hp 0
+raid e011cdd1 prince 1 spawn 71: hp 0 at +28, death event +34, hp at +52 0, last hp 0
+raid e011cdd1 prince 2 spawn 163: hp 0 at +9, death event +15, hp at +52 0, last hp 0
+raid e011cdd1 prince 3 spawn 255: hp 0 at +51, death event +56, hp at +52 0, last hp 0
+raid e48be92c prince 1 spawn 69: hp 0 at +9, death event +16, hp at +52 0, last hp 0
+raid e48be92c prince 2 spawn 161: hp 0 at +9, death event +14, hp at +52 0, last hp 0
+raid e48be92c prince 3 spawn 249: hp 0 at +55, death event +60, hp at +52 9, last hp 0
+princes 12, death event with hp 0 first 12, ended with hitpoints left 0, alive with hp > 0 past +52 2

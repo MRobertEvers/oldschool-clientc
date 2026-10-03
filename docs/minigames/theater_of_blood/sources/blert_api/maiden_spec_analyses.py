@@ -7,7 +7,8 @@
 list_m<mode>_s<scale>.json challenge listings, fetched 2026-10-02 by
 sources/blert_api/fetch_blert_maiden.py. Raw streams are not committed.
 Prints: transmog threshold and hitpoint continuity, the T-1 aim of blood pools, which
-player receives the two extra splats, blood spawn movement, and hitpoints by party size.
+player receives the two extra splats, blood spawn movement (as a fraction, and as runs), and
+hitpoints by party size.
 """
 import collections, glob, json, math, os, sys
 RAW = sys.argv[1]
@@ -127,3 +128,38 @@ for mode in (11, 12):
                 viol += 1
             since = 0 if b else since + 1
     print("mode", mode, "eligible", elig, "throws", thr, "violations", viol)
+
+print("\n== blood spawn movement as runs (restated 2026-10-02): a free slug steps every tick")
+# The fraction above mixes free ticks with still runs. Read each slug's consecutive pairs as
+# runs: a move followed by a move, and the length of every run of ticks it stood still.
+# Every still run is 5+ ticks: 5 = the ticks after Maiden dies, 32 = a freeze, 8/20/37 end the
+# slug's life (frozen, then killed), 281-478 = Hard slugs stuck at 3187,4458. A free slug never
+# pauses for 1-4 ticks and never steps two tiles, so the 0.337 above is not a step rate.
+follow = collections.Counter(); stills = collections.Counter()
+for u, ev in streams.items():
+    by = collections.defaultdict(dict)
+    for e in ev:
+        if e["type"] in (7, 8) and e["npc"]["id"] in SLUG:
+            by[e["npc"]["roomId"]][e["tick"]] = (e["xCoord"], e["yCoord"])
+    for tk in by.values():
+        ts = sorted(tk)
+        d = [max(abs(tk[b][0] - tk[a][0]), abs(tk[b][1] - tk[a][1])) if b - a == 1 else None
+             for a, b in zip(ts, ts[1:])]
+        for x, y in zip(d, d[1:]):
+            if x and y is not None:
+                follow["move" if y else "still"] += 1
+        run = 0
+        for m in d + [None]:
+            if m == 0:
+                run += 1
+            else:
+                if run:
+                    stills[run] += 1
+                run = 0
+short = sum(n * k for n, k in stills.items() if n < 5)
+print("slug lives", sum(len(set(e["npc"]["roomId"] for e in ev if e["type"] in (7, 8) and e["npc"]["id"] in SLUG)) for ev in streams.values()),
+      "moves followed by a move on the next tick", follow["move"], "of", follow["move"] + follow["still"])
+print("still runs (length, count)", sorted(stills.items()))
+print("still runs of 1-4 ticks", sum(k for n, k in stills.items() if n < 5),
+      "two-tile steps", sum(k for n, k in steps.items() if n >= 2),
+      "free-tick step rate (ticks outside still runs of 5+) %d of %d" % (steps[1], steps[1] + short))

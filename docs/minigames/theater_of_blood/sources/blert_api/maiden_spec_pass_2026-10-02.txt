@@ -30,3 +30,8 @@ throws 21 owner furthest from her hitbox 16 owner northernmost 11
 == blood roll over the new raids (eligible = two attacks since the last throw)
 mode 11 eligible 34 throws 11 violations 0
 mode 12 eligible 188 throws 50 violations 0
+
+== blood spawn movement as runs (restated 2026-10-02): a free slug steps every tick
+slug lives 22 moves followed by a move on the next tick 1009 of 1043
+still runs (length, count) [(5, 15), (8, 1), (20, 1), (32, 11), (35, 1), (37, 1), (281, 1), (305, 1), (462, 1), (478, 1)]
+still runs of 1-4 ticks 0 two-tile steps 0 free-tick step rate (ticks outside still runs of 5+) 1043 of 1043

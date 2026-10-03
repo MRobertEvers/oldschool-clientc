@@ -32,6 +32,7 @@ first_drop_hp = collections.defaultdict(list)
 hurry = []          # (hp%, gap)
 spacing = collections.defaultdict(list)
 elig = collections.defaultdict(lambda: [0, 0])  # mode -> [turns, eligible walking ticks]
+hazard = collections.defaultdict(lambda: [0, 0])  # mode -> [turns, at-risk walking ticks] (restated 2026-10-02)
 walkfirst = collections.defaultdict(collections.Counter)
 walklater = collections.defaultdict(collections.Counter)
 lockout = collections.defaultdict(collections.Counter)
@@ -127,6 +128,21 @@ for f in sorted(glob.glob(os.path.join(raw, "*_11.json"))):
             last = i
         if i - last >= cd:
             elig[mode][1] += 1
+    # Per-tick hazard (restated 2026-10-02). `elig` above is turns over eligible NON-turn ticks, which
+    # is odds rather than a probability, and it counts turns on blert tick 31 / 15 with no eligible tick
+    # behind them. A per-tick roll `random(N) = 0` is measured as turns over at-risk ticks: a walking
+    # tick is at risk from the earliest tick a turn is ever seen (31 Regular, 15 Hard = the cooldown
+    # from the room's first walking tick) and then from `cd` walking ticks after each turn, the turn
+    # tick itself counted. Checked on our tick log by the seam2 Bloat fixer: it reads 1/61.8 for a 1-in-64 roll.
+    first_risk, nxt = {11: 31, 12: 15}.get(mode, 31), None
+    for i, t in enumerate(walking):
+        if nxt is None and t >= first_risk:
+            nxt = i
+        if nxt is not None and i >= nxt:
+            hazard[mode][1] += 1
+            if t in rs:
+                hazard[mode][0] += 1
+                nxt = i + cd
     for d in downs:
         ws = max([u for u in ups if u < d], default=0)
         r = [x for x in revs if ws <= x <= d]
@@ -158,4 +174,10 @@ for mode in sorted(C, key=lambda m: (m is None, m)):
 four = [h for h, g in hurry if g == 4]
 six = [h for h, g in hurry if g == 6]
 print("hands cadence threshold (all modes): highest hp%% with a 4-tick gap %.2f, lowest hp%% with a 6-tick gap %.2f (n4=%d n6=%d)" % (max(four), min(six), len(four), len(six)))
+for mode in sorted(hazard):
+    t, r = hazard[mode]
+    h = t / r
+    se = (h * (1 - h) / r) ** 0.5
+    print("turn hazard mode %s (restated 2026-10-02): %d turns over %d at-risk walking ticks = %.4f +- %.4f (1 in %.1f; 2 SE %.1f-%.1f %%)" % (
+        mode, t, r, h, se, 1 / h, 100 * (h - 2 * se), 100 * (h + 2 * se)))
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "bloat_rooms.csv"), "w").write("\n".join(rooms_csv) + "\n")
