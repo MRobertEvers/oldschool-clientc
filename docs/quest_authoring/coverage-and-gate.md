@@ -593,3 +593,8 @@ with one `goto_tile` from 1819,9485 to Emelio and helper_coverage still read FUL
 
 What an author does: click the exit the guide names, then walk or goto from where it lands. All 130
 committed greens grade the same before and after the change.
+
+Fixture: `python3 tools/quest_gate/helper_coverage_departure_cross_test.py` (3 cases on the reverted
+Meat and Greet run: the goto from the lobby is CHEAT, a click on the exit first is DRIVEN, the same goto
+stamped outside the Colosseum is not a cheat). It reads commits 171bc81b0 and OSRS-Content 343f1b4163,
+which live on the b55 batch branch until that batch merges. On the grader before the fix it fails 2/3.
