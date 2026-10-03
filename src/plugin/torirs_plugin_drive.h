@@ -93,6 +93,11 @@ char const* DriveResultName(enum DriveResult result);
  *                                 the world index NPC_SPAWN carries)
  *                               b=seq id (-1 = the server stopped it)
  *                               c=server tick (world cycle / 30) it arrived
+ *   DRIVE_EVENT_NPC_FACE        a=npc SERVER slot  b=tile x  c=tile z
+ *                                 (absolute; the FACE_COORD op's wire
+ *                                 half-tiles halved, so a sized square
+ *                                 reads as its centre tile)
+ *                               d=server tick (world cycle / 30) it arrived
  *
  * The level of a tile payload rides in `c`'s high half nowhere: pass level in
  * `d` only where the table above says so.  If a kind needs a fifth number,
@@ -120,6 +125,7 @@ enum App_DriveEventKind
     DRIVE_EVENT_NPC_RETYPE,
     DRIVE_EVENT_INV_PACKET,
     DRIVE_EVENT_NPC_SEQ,
+    DRIVE_EVENT_NPC_FACE,
     DRIVE_EVENT_KIND_COUNT
 };
 
@@ -948,6 +954,14 @@ struct DriveNpcRow
      * `facing` is the wire face-entity the npc is locked onto: an npc slot
      * below 32768, 32768 + pid for a player, -1 for none
      * (WORLD_FACING_PLAYER_BASE).
+     *
+     * `face_x` / `face_z` / `face_tick` are the newest FACE_COORD op the
+     * server sent (`npc_facesquare`): the absolute tile the npc was turned
+     * to (the centre tile of a sized square) and the server tick it arrived
+     * on. -1 / -1 / -1 before the first one. They outlive the turn: the
+     * entity's own pending square (facing.square_x) is cleared the cycle the
+     * turn is consumed (WorldEntity_NPC.face_sent_x). A face-entity lock
+     * does not clear them; `facing` says whether one is held now.
      */
     int anim_id;
     int anim_frame;
@@ -957,6 +971,9 @@ struct DriveNpcRow
     int spotanim_sent_id;
     int spotanim_tick;
     int facing;
+    int face_x;
+    int face_z;
+    int face_tick;
 };
 
 struct DriveLocRow

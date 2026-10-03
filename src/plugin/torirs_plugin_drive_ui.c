@@ -435,6 +435,20 @@ drive_ui_fill_npc_state(struct WorldEntity_NPC const* npc, struct DriveNpcRow* o
         ? npc->spotanim_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES
         : -1;
     out->facing = npc->facing.entity_id;
+    /* The newest FACE_COORD op, in absolute tiles: the wire's half-tiles
+     * ((tile << 1) + size) halved. 0,0 is the wire's "none". */
+    if( npc->face_sent_x != 0 || npc->face_sent_z != 0 )
+    {
+        out->face_x = npc->face_sent_x >> 1;
+        out->face_z = npc->face_sent_z >> 1;
+        out->face_tick = npc->face_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES;
+    }
+    else
+    {
+        out->face_x = -1;
+        out->face_z = -1;
+        out->face_tick = -1;
+    }
 }
 
 enum DriveResult
@@ -1534,6 +1548,14 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "spotanim_tick");
     lua_pushinteger(L, row->facing);
     lua_setfield(L, -2, "facing");
+    /* The newest FACE_COORD op (npc_facesquare): tile and server tick, -1
+     * before the first. A `nil` face_x means a binary built before them. */
+    lua_pushinteger(L, row->face_x);
+    lua_setfield(L, -2, "face_x");
+    lua_pushinteger(L, row->face_z);
+    lua_setfield(L, -2, "face_z");
+    lua_pushinteger(L, row->face_tick);
+    lua_setfield(L, -2, "face_tick");
 }
 
 static int

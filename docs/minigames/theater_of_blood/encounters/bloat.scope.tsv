@@ -1,0 +1,60 @@
+# bloat.scope.tsv -- scope of every row of bloat.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+bloat.fly_cadence	all	applies in every mode; a solo room measures it
+bloat.fly_first	all	applies in every mode; a solo room measures it
+bloat.fly_damage	normal	Normal figure; Entry's is bloat.entry_fly_max
+bloat.fly_prayer	normal	Normal figure under Protect from Missiles; Entry's flies are bloat.entry_fly_max
+bloat.fly_flight	all	applies in every mode; a solo room measures it
+bloat.fly_los	all	stand behind the tank from Bloat; a solo room measures it
+bloat.fly_spread	party	spreading to the players a hit player can see needs two or more players
+bloat.down_to_move	all	applies in every mode; a solo room measures it
+bloat.stomp_at	all	applies in every mode; a solo room measures it
+bloat.stomp_damage	normal	Normal figure; Entry's is bloat.entry_stomp_max
+bloat.stomp_defence	all	applies in every mode; a solo room measures it
+bloat.stomp_range	all	applies in every mode; a solo room measures it
+bloat.first_walk	all	the walk clock is one in every mode (bloat.entry_walk restates it for Entry as E); a solo room measures the first walk
+bloat.first_walk_cap	stat	the forced-down spike at 47: a walk reaches it only when no per-tick roll fired: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (98 445 first walks) and with a cox_sim-style measurement loop over many of our rooms
+bloat.walk_later	all	the walk clock is one in every mode (bloat.entry_walk restates it for Entry as E); a solo room has 6+ later walks
+bloat.walk_unattacked	stat	+4 on the walk after an unattacked down: needs many walks per arm: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+bloat.first_walk_bonus	stat	first-walk window minus later-walk window: the windows' edges are distribution ends: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+bloat.down_chance	stat	21-24 % per-tick down hazard: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (pooled maximum likelihood) and with a cox_sim-style measurement loop over many of our rooms
+bloat.turn_cd_hard	hard	Hard Mode only
+bloat.turn_rate	stat	5.8 % per-walking-tick reversal hazard, Normal: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (129 of 2214 at-risk ticks; a room has a handful of turns) and with a cox_sim-style measurement loop over many of our rooms
+bloat.turn_rate_hard	stat	13.9 % per-walking-tick reversal hazard, Hard: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (211 of 1520 at-risk ticks) and with a cox_sim-style measurement loop over many of our rooms
+bloat.turn_lockout	stat	down never sooner than 5 ticks after a reversal: a lower bound read from the closest pair over many walks: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+bloat.speed_walk	all	applies in every mode; a solo room measures it
+bloat.speed_run	all	applies in every mode; a solo room measures it
+bloat.speed_run_below	all	applies in every mode; a solo room measures it
+bloat.speed_alt	all	applies in every mode; a solo room measures it
+bloat.hand_tiles	all	applies in every mode; a solo room measures it
+bloat.hand_lead	all	applies in every mode; a solo room measures it
+bloat.hand_cadence	all	applies in every mode; a solo room measures it
+bloat.hand_cadence_hurt	all	applies in every mode; a solo room measures it
+bloat.hand_threshold	all	applies in every mode; a solo room measures it
+bloat.hand_after_rise	normal	stated for Normal against Hard's running clock; no source states Entry
+bloat.hand_hard_start	hard	Hard Mode only
+bloat.hand_hard_clock	hard	Hard Mode only
+bloat.hand_hard_down	hard	Hard Mode only
+bloat.hand_area	stat	220 tiles a hand can land on: the union of drop tiles over many drops: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+bloat.hand_damage	normal	Normal figure; Entry's is bloat.entry_hand_damage
+bloat.hand_stun	all	applies in every mode; a solo room measures it
+bloat.hand_live	all	applies in every mode; a solo room measures it
+bloat.hp_normal	normal	Normal hitpoints list by party size (a solo Normal room reads its element 1500)
+bloat.hp_hard	hard	Hard Mode only
+bloat.hp_scale	party	shares for 3-or-fewer, 4 and 5 players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+bloat.hp_entry_unit	entry	Entry figure
+bloat.hp_entry_scale	party	Entry multiples for party sizes 1..5; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+bloat.walk_damage_pct	all	applies in every mode; a solo room measures it
+bloat.entry_fly_max	entry	Entry figure
+bloat.entry_stomp_max	entry	Entry figure
+bloat.entry_hand_damage	entry	Entry figure
+bloat.entry_walk	entry	Entry figure
+bloat.entry_turn	entry	Entry figure
+bloat.tech_flinch_window	all	technique; a solo room measures it
+bloat.tech_flinch_tiles	all	technique; a solo room measures it
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# bloat.turn_cd	normal+entry	the quantity says 'Normal and Entry'; the heuristic keeps it in Entry and Normal and skips it in Hard (bloat.turn_cd_hard)
+# bloat.hand_gate	normal+entry	the quantity says 'Normal and Entry'; the heuristic keeps it in Entry and Normal and skips it in Hard (hands from tick 1)

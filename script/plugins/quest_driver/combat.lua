@@ -674,6 +674,31 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     end
     local slot = before.slot
     local element = before.element_id
+    -- SEAM attack_exact_copy (raid seam3): THIS ATTACK NAMES ITS COPY, AND THE
+    -- ENGAGEMENT STAMP MAY NAME NO OTHER.  The stamp is written only past a
+    -- landed Attack row (below), so every other exit of this verb -- covered,
+    -- no_row, refused, a press that timed out -- used to leave the PREVIOUS
+    -- fight's stamp standing, and an npc.await_dead_engaged after it held that
+    -- previous copy's slot and re-pressed IT: a hunt that asked for copy B and
+    -- failed to press it went on fighting copy A.  A stamp naming a different
+    -- slot is dropped here, before the press, so a failed attack leaves
+    -- "nothing is engaged" (no_row) -- the truth -- and a landed one writes its
+    -- own.  A stamp naming THIS slot is kept: a re-attack of the copy already
+    -- engaged that does not land is still that fight.  A CONSUMED stamp is
+    -- left alone too: await_dead_engaged answers it `no_row` without touching
+    -- the slot, so it can hold nothing.
+    -- The drop is SAID only on the exits that leave no stamp (`dropped`, below):
+    -- a landed attack replaces the stamp anyway, and a hunt loop that attacks a
+    -- new copy every round would otherwise carry this sentence on every row.
+    local stale = QD._combat_last
+    local dropped = ""
+    if stale ~= nil and not stale.consumed and stale.slot ~= slot then
+        dropped = " -- the engagement stamp on slot " .. tostring(stale.slot) .. " ("
+            .. tostring(stale.symbol) .. ", tick " .. tostring(stale.tick) .. ") was dropped:"
+            .. " this attack named slot " .. tostring(slot) .. ", so npc.await_dead_engaged"
+            .. " now holds nothing rather than the old copy"
+        QD._combat_last = nil
+    end
     local before_health = QD._combat_health_text(before)
     local before_hit = before.hit_cycle
     -- The chat-ring watermark the refusal fence below reads from.  Taken
@@ -711,7 +736,7 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     local press_result, press_detail, row_text, presses =
         QD._combat_press_attack(target, tostring(npc_symbol), op, element)
     if press_result ~= "ok" then
-        return press_result, press_detail .. " -- the copy named " .. copy_text
+        return press_result, press_detail .. " -- the copy named " .. copy_text .. dropped
     end
 
     local refusal = nil
@@ -762,6 +787,7 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
                 .. " swing was ever made -- stand where the copy can be reached)"
         end
         return "refused", detail .. " -- the SERVER refused the swing: '" .. refusal .. "'" .. why
+            .. dropped
     end
 
     -- Stamped on the timeout path too: "an Attack row was pressed on this
@@ -1492,7 +1518,9 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     local engaged = QD._combat_last
     if not engaged then
         return "no_row", "await_dead_engaged: nothing is engaged -- no t.player.attack in"
-            .. " this run has pressed an Attack row, so there is no slot to hold"
+            .. " this run has pressed an Attack row on the copy it last named (an attack that"
+            .. " named another copy and did not land drops the old stamp), so there is no slot"
+            .. " to hold"
     end
     -- A stamp a CAST opened (spell.lua's t.player.cast sets engaged.spell) is
     -- re-opened by casting again, never by an Attack press: the message names

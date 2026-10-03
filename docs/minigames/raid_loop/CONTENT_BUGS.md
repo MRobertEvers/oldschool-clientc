@@ -43,6 +43,9 @@ is removed only by the commit that fixes it, named here in its place.
 - Engine, retaliation: an ordinary npc hit by magic may never retaliate (a Lumbridge man:
   one swing then none, or none at all in the full harness; a cow: none). `DRIVER_NOTES.md`
   "An ordinary npc hit by magic may never retaliate". Found by the npc-state fixer.
+  Seam3: a cast never recomputed the combat varps (every spell after `::setlevel magic`
+  splashed); fixed in OSRS-Content 93707f5d60 (seam3) (`[proc,pvm_spell_cast]` calls `~player_combat_stat`).
+  Possibly related, not re-measured on the man: still open.
 - Quest loop impact (for the PR, not a raid row): `ToriRSServer_CombatAddXp` now follows
   LostCity's `Player.addXp` (a drained stat stays drained through xp), as RAID_ORCHESTRATOR.md
   section 4 asks. The quest test `deserttreasure` moved green -> RED because the Ice Path
@@ -147,12 +150,12 @@ is still open is listed in full under "Still open". Paths: `minigame_tob/` is
 - ToB, Maiden: spec row `maiden.blood_spawn_step` (337 permille) is wrong as a move rate; restate it as "a free blood spawn steps one tile every tick, never two (1009 of 1021), excluding frozen/dying ticks" (grade B). RESTATED 2026-10-02: 997-1000 permille of pairs outside still runs of 5+ ticks (blert 1043 of 1043, no still run of 1-4). Ours reads 968 (seam2's 1-4 tick stalls in the east entrance pocket), so a room test asserting the row fails until those stalls go.
 - ToB, Maiden: blert's non-trail splat is drawn 13 (+1 = 14) against our pool loc's 11 (`^tob_maiden_blood_splat_ticks`, also the damage window); unsourced which is wrong (verify_tob_timings named mismatch).
 - ToB, Maiden Hard: the per-set scuff roll (3 %) still applies in Hard; 0 of 30 recorded Hard sets were scuffed (not significant at 3 %).
-- ToB, Bloat: later walks one tick short. With blert's walkTime (down - first step - 1) ours reads 33 in 8 of 50 attacked walks (bf_fix6_atk_normal) against blert's minimum 34, i.e. down-to-down 67 vs 68; the down clock armed in `~tob_bloat_get_up` must land the next down >= 68 after the last one.
+- ToB, Bloat: later walks one tick short (33 vs blert's minimum 34). FIXED in OSRS-Content 93707f5d60 (seam3): the clock and cap are armed at rise + walk_min/cap + ^tob_bloat_walk_first_step (blert walkTime = down - first step - 1): 14 attacked walks min 34, down-to-down min 68 (b3_after_entry).
 - ToB, Bloat: one recorded later walk of 61 (raid 8e3ebf74, Bloat 27 %) lies outside 34..46, a speed-flip lockout extension below 40 %; the verifier names it rather than loosening.
-- ToB, Bloat Entry: falling-flesh damage still 30-50, unsourced (M62).
+- ToB, Bloat Entry: falling-flesh damage 30-50. FIXED in OSRS-Content 93707f5d60 (seam3): 20-25 [video][M62] (grade E, one narrator), ^tob_bloat_entry_hand_min/_max in tob_bloat.constant; 17 Entry hand hits 20-25 (b3_after_entry).
 - ToB, Bloat: spec table bloat.tsv rows turn_rate / turn_rate_hard state blert's odds estimator; restate as the per-tick hazard 5.8 % +-0.5 / 13.9 % +-0.9 (RESTATED 2026-10-02: 4.8-6.8 / 12.1-15.7 %, `bloat_stats.txt` lines 38-39); entry_fly_max / entry_stomp_max ranges vs the implemented 4-8 / 20-40; add the first_walk measurement for the refit down chance.
-- ToB, Nylocas: a small killed by a player despawns hp0+3 standing / +4..+5 walking against blert's +2 (2751 events): needs `death_delay=1` on the 18 small records in tob.npc plus the engine row below.
-- ToB, Nylocas (ENGINE): an npc that moved on its killing tick gets a 2-tick arrive delay (`npc_death_step` QUEUED / SS_OP_NPC_ARRIVEDELAY), so a walking big's death animation plays at t+3 where blert's table says t+2.
+- ToB, Nylocas: a small killed by a player despawned hp0+3 standing. FIXED in OSRS-Content 93707f5d60 (seam3): `death_delay=1` on the 18 small records (blert mechanics page): standing 2 x29. The walking residue (+3 / +4) is the engine row below.
+- ToB, Nylocas (ENGINE): an npc that moved on or just before its killing tick gets an arrive delay (src/torirsserver/torirs_server_combat.c:2830-2836, `npc_death_step`'s TORIRSSERVER_DEATH_QUEUED arm: +1 if it moved on D-1, +2 on D), so a walking small despawns hp0+3 / +4 (measured 4 x93 cheat kills, 3 x5 player kills, seam3) where blert's table says +2 ("Walking: stop and turn anim same tick t+1, despawn t+2"). Proposed: an npc record field (e.g. `death_arrivedelay=no`, parsed beside death_delay at torirs_server_content.c:1733) honoured in that arm, set on the 18 small records.
 - ToB, Nylocas: Vasilias' +2 vs +3 first-attack offset is modelled as blert's distribution (2 in 3 early); blert's split depends on the style pair (rng->mel always +2), not modelled.
 - ToB, Nylocas: explosion damage lands on the animation tick; no source says animation or despawn.
 - ToB, Nylocas: spec row nylocas.prince_min_life should be re-worded "no self-destruct". RESTATED 2026-10-02: `never` (text), grade C; all 12 recorded princes died at hp 0.
@@ -171,7 +174,52 @@ is still open is listed in full under "Still open". Paths: `minigame_tob/` is
 
 ## From the ToB room-authoring pass matthew-mbp-m4-raid-b1-rooms-tob (2026-10-02)
 
-- ToB, Sotetseg (tob_sotetseg.rs2:948, spec.sotetseg.hp_entry_per_player, grade A): `~tob_sote_end_maze` `npc_changetype` hands the combat form full hitpoints: 364 before the first maze, 2044 after it (Entry pool 560), so the fight cannot be finished and the second maze never fires.
-- ToB, Sotetseg (tob_sotetseg.rs2:821, technique.maze_path_lit): `~tob_sote_light_path` lights no tile (`~tob_sote_set_tile` 735 loc_find misses, 0 loc_set rows), so the shadow-realm path is never visible.
-- ToB, Sotetseg (tob_sotetseg.rs2:905, spec.sotetseg.maze_off_on_3): a step-off ends the maze 5 ticks later on cycle tick 3 where the spec says 1.
-- ToB, Sotetseg (coverage, unfixed): cadence 2,3,5 vs 5; first_attack_entry 5 vs 7; melee_roll_adjacent 636 vs 483; melee_hit_delay 0,1 vs 1; death_ball_hit_entry_solo 6-14 vs 15; ball_max_entry 3 vs 22.
+- ToB, Sotetseg: the maze changetypes re-based his hitpoints (364 -> 2044 of 560). FIXED in OSRS-Content 93707f5d60 (seam3): `~tob_sote_retype` carries hp and pool at both retypes: Entry 371/371/371 and 184/184/184 over two mazes, Normal 1997 and 990 of 3000.
+- ToB, Sotetseg: the shadow-realm path lit no tile. FIXED in OSRS-Content 93707f5d60 (seam3): lit from the runner's first realm tick (proc+4), when a scene exists for `loc_find`: 25-30 `loc_set` rows per maze.
+- ToB, Sotetseg: off on 3 ended the maze 5 ticks later, not 1. FIXED in OSRS-Content 93707f5d60 (seam3): the despawn check scans both grids' players in the NPC phase (`~tob_sote_grid_occupied`), wiki Advanced ToB guide: 1 and 1 (115->116, 147->148).
+- ToB, Sotetseg (coverage): cadence 2,3,5 and melee_hit_delay 0 were the default retaliation swing; first_attack 5; Entry melee and ball maxima Normal. FIXED in OSRS-Content 93707f5d60 (seam3): tob_retaliate.rs2 (56 gaps flat 5, melee +1 on 13 of 13), first attack 6 (blert), Entry 20 melee / 22 ball (wiki infobox). Still open from this row: melee_roll_adjacent 636 vs 483 (not re-measured) and death_ball_hit_entry_solo, still 6 against 15 in the closer's run of the committed test (s3close_sote_noblock; also death_ball_flight_distance_independent 5 vs 0 there).
+
+## From seam3 (matthew-mbp-m4-raid-b1-seam3, 2026-10-03)
+
+Fixed in OSRS-Content 93707f5d60 (seam3) (the rows the triage named; the room-pass rows above are replaced in place):
+
+- ToB, every boss: the default `[ai_queue1,_]` retaliated for `retaliate=no` records (Sotetseg's stray 8138 landing +0). FIXED: tob_retaliate.rs2, a no-op binding per record (93), the record author's `retaliate=no`.
+- Tree-wide, magic: a cast never set the magic damage type, so the Nylocas style check nulled every spell. FIXED: `%varp6295_damagetype = ^magic_style` around `~player_hit_npc_prepare` (player_magic.rs2), and the cast recomputes combat varps (LostCity changestat.rs2): 10 damaging hits, 6 magic nylocas killed from 12 Fire Bolts.
+- Tree-wide, death: a raid hit in flight at a dead player landed after the respawn (Maiden 99 in Lumbridge). FIXED: `~raid_death_clear_hits` (death.rs2) clears the personal ToB/CoX/ToA hit queues by name, LostCity's combat_clearqueue pattern.
+- ToB, Maiden: blackstorm `hit_player` rows had npc_slot -1; a lethal auto launched at a corpse or a departed raider landed. FIXED: the queue carries her uid and instance, `npc_finduid` before `p_overhit`, 0-hp and out-of-instance targets skipped at launch and landing.
+- ToB, Nylocas Entry: explosions rolled 18/21. FIXED: 8 for small and big (wiki Entry Mode page "about 8"), tob_nylocas.constant.
+- ToB, Verzik Entry: P1 bolt 137, P2 bomb 44, slam 45, stomp 82, P3 melee 63, P3 auto 33/34. FIXED: 60 / 16 / 16 / ~34 / 36 / 20 (wiki Entry infobox), tob_verzik.constant.
+- ToB, Verzik, every mode: the P2 stomp dealt a flat 82. FIXED (behaviour change in Normal and Hard too): rolled 1..max, "up to 82 ... always a successful hit" (Strategies:909).
+- ToB, Xarpus: poison 8-16 in every mode, stomp pairs up to 15. FIXED: poison capped at the infobox 11 (Normal/Hard), Entry halved rounding up and capped at 6; stomp pair capped at 9 per tick (wiki Strategies "up to 9 damage per tick"), Entry at most 5.
+- ToB, supply chests: nothing placed `tob_midway_chest_closed`, every Open re-awarded the points, Entry had no bandages, stamina was unlimited. FIXED: placed at `~tob_room_cleared` (after Bloat at the wiki map pin, local 5,33; after Sotetseg at local 17,5), reward once per chest per player, Entry 10 bandages, one stamina per chest (wiki Chest (Theatre of Blood), Entry Mode, New Modes).
+
+Found and left open:
+
+- ENGINE, retaliation (root of the ToB fix): the default `[ai_queue1,_]` still fires for every `retaliate=no` npc outside ToB (40+ in cox.npc, about 40 in toa.npc, 3 in zulrah.npc). Fix at src/torirsserver/torirs_server_world.c:5487-5489 (the npc queue drain dispatching SS_TRIGGER_AI_QUEUE1): skip queue 1 when the record says `retaliate=no` and the trigger would resolve to the `_` default; or add an `nc_retaliate` reader. Then tob_retaliate.rs2 can go. Found by tob_shared_combat_scripts.
+- Tree-wide, combat varps: `%varp6285_com_magicattack` and friends are never recomputed on a stat change (no `[changestat]` trigger; LostCity has `[changestat,_] gosub(player_combat_stat)`). Casts and swings are covered; anything else that reads com_* sees stale values after `::setlevel` or a level-up until the next equip.
+- Tree-wide, magic damage type, other callers: powered staves (gear/powered_staff.rs2:506: trident, sanguinesti, shadow), specs/pvm_purging_staff.rs2:36, pvm_eye_of_ayak.rs2:56, pvm_wild_cave_accursed_charged.rs2, pvm_voidwaker.rs2, pvm_blessed_saradomin_sword.rs2, pvm_verzik_special_weapon.rs2 (Dawnbringer) call `~player_hit_npc_prepare` with the weapon's style: a powered staff is nulled by a Hagios.
+- death.rs2: "Oh dear, you are dead!" prints twice per death (`~combat_death_message` and `~respawn_message`).
+- ToB, Verzik P1: `tob_verzik_p1_land` (tob_verzik.rs2, queued with player_uid only) writes `hit_player` npc_slot -1 and sets lethal against a 0-hp target; same fix as Maiden's (carry her uid, `npc_finduid`, skip 0-hp at launch, check hp and instance at landing).
+- ENGINE, tick log: the HIT_NPC row has no dealer column (ToriRSServer_TicklogHitNpc, torirs_server_ticklog.c, pushes e=0 f=0), so a dying Matomenos absorbed into Maiden cannot be told from a player's killing hit. Proposal: carry the dealer pid, or -2 for an npc_damage from the npc's own frame.
+- ToB, Maiden Entry pools: 10 + 2c carried from Normal, grade E [M121]; `^tob_maiden_pool_entry_divisor` = 1 discloses it.
+- ToB, Maiden: the blood throw still aims a pool at a dead raider's tile (harmless, unsourced).
+- ToB, Nylocas: SPEC GAP, protection prayers against wave nylocas: no table row and no pinned source; `tob_nylo_swing` never checks prayer.
+- ToB, Nylocas Entry: Vasilias measured 9 then 10 per form and 2 attacks per form (the Normal figures) against `nylocas.vasilias_switch_entry` 15 / `vasilias_attacks_entry` 3-4 (grade D, one blert raid): no Entry switch interval is implemented.
+- ToB, Nylocas: [M93] is stale: wiki Strategies:746 pins the Normal 18/21 explosion maxima; tob.constant's note and nylocas.tsv `explosion_max` (E) can be promoted to D.
+- ToB, Sotetseg: an eat on proc+2 holds the maze teleport (`p_delay`, food.rs2) to proc+5 against blert's +3 (72/72 + 6/6); the maze no longer ends under such a runner, but the late landing remains; how the game exempts the teleport is unsourced.
+- ToB, Sotetseg Entry: `^tob_sote_melee_prayed_max_entry` = 10 is derived (20 halved); no source.
+- ToB, Sotetseg: the second chest's tile (local 17,5, east flank) is unsourced ("by the exit").
+- ToB, Sotetseg: tob.constant's `^tob_var_maze_seen` comment still describes the old one-tick latch; the check now scans tiles and the realm's slot 58 holds the runner's landing tick (tob.constant was frozen this pass).
+- ToB, Sotetseg: the boss HUD bar read 17 % on the tick `::tobboss` said hp 0 of 560 (shot 081 of tob_sotetseg_seam3_noblock); not investigated.
+- ToB, Xarpus: the poison buff formula is unpublished; the infobox cap 11 clips the [M70] reading (42 of 69 Normal hits read 11 at 100 % absorbed). tob_selftest.rs2 pins `~tob_xarpus_scale_poison(8,100)` = 16.
+- ToB, Xarpus Entry P3: retaliation rolls 50-75 in every mode against the Entry infobox "38+ recoil" (spec `xarpus.p3.retaliate_min_entry` 38, D).
+- ToB, Xarpus: proposed spec row `xarpus.p2.stomp_max_entry` 5 per tick ([wiki][M40], E; Strategies:838 + Entry Mode:20), measured 5; tob.constant's stomp comment (16 per tick, open) is stale.
+- ToB, Verzik Entry, SPEC GAPS (Normal figures still rolled): P2 lightning 48, exploding nylocas 63/26/8, Athanatos landing 78, reds blood spell 45, P3 power blast 80, web snap 40 [M50], the enraged P3 auto (kept 20).
+- ToB, Verzik: the wiki's Normal infobox says P2 47 / 50 (bounce) / ~80 (under) against `^tob_verzik_p2_bomb_max` 44 and `^tob_verzik_p2_slam_max` 45 (Strategies prose); for a spec pass.
+- ToB, Verzik P3 melee hits every player at `npc_range <= 1`, i.e. also under her; the wiki says "everyone adjacent"; unverified.
+- ToB, supply chests: `tob_bandages` has no Heal script (the wiki: heals 20, restores prayer and run energy, super combat/ranging/stamina effects); the chest stays visually closed (the cache's chest state is per player, varbits 6460/6461); points and the death count are instance registers, so a party shares one balance where the wiki has per-player points.
+- Driver (attack_exact_copy, half reverted): a press whose pixel lands inside a menu an earlier `covered` press left open SELECTS one of that menu's rows (uitree_interact.c `interact_minimenu`), so a retry can attack another copy while answering `covered` (s3ec_stale_before1: 5 `hit_npc` on copy A, 0 on the asked B). The fixer's fix (close any open menu in `QD.drive._press_row` before moving) was reverted by the seam3 closer: its tick moved hauntedmine (the Dayth fight lost: died at 633 with 23 sharks eaten, green 95/95 without it), childrenofthesun (its own retry loop consumed the mesbox a tick earlier) and thefeud (talkToAVillager off-viewport, 24 FAILs) from green to RED; each was green again with HEAD pointer.lua and nothing else changed. A fix must keep the old timing when the press pixel is outside the open menu (dismiss only when the pixel is inside its rectangle). Re-measured on the final tree: s3close_stale_menu, 5 `hit_npc` on A, 0 on B.
+- Client: a `::tele` on a run's first tick can SIGSEGV in `app_wev_actor_root_fine` <- `app_logic_tick` (HEAD and seam binaries, ~/Library/Logs/DiagnosticReports/torirs_questtest-2026-10-03-002740.ips); waiting 5 ticks avoided it.
+- Selftest: no C stanza pins the `npc_face` tick-log row (extend the Hans facesquare stanza, torirs_server_world_selftest.c ~15923).
+- Tooling: `raid_coverage.parse_row` cuts a measured comma list to its first element, so a distribution row passes while later instances are out of tolerance; the sidecar vocabulary has one scope per row (no `normal+hard`, and `party` ignores the mode).
+

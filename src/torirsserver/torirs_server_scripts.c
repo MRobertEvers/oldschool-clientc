@@ -8736,6 +8736,11 @@ ToriRSServer_ScriptCommand(
         npc->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
         npc->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
         npc->masks |= TORIRSSERVER_NMASK_FACE_COORD;
+        /* The only writer of an npc's FACE_COORD mask (no C movement or
+         * combat path turns an npc to a square), so the tick log's npc_face
+         * row is complete from here: the raid tests read "Xarpus turned to
+         * the quadrant he was hit from" off it. */
+        ToriRSServer_TicklogNpcFace(npc, coord_x(coord), coord_z(coord));
         /*
          * A coord facing SUPERSEDES the entity latch, and the server's own copy
          * has to say so or the two ends desync permanently.

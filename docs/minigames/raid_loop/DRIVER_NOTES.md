@@ -197,6 +197,11 @@ and Strength 1. Raid bosses run their own AI scripts. Any ordinary-npc proof tha
 relies on retaliation to magic alone will be flaky. `::passive` applies to an npc type,
 so a spawned copy of a passive type is passive too.
 
+Seam3: a cast did not recompute the combat varps, so after `::setlevel magic` every
+spell rolled attack 0 and splashed; that is fixed ("A cast lands at the level ::setlevel
+set", below) and is a likely part of this. A splash still calls `~npc_retaliate`, so it
+is not the whole story: the man was not re-measured, and the row stays open.
+
 ## t.world.spotanims / t.world.projectiles / t.world.hazard_at: the tile hazards
 
 - `spotanims(radius)` and `projectiles(radius)` return rows nearest first, and
@@ -556,3 +561,391 @@ asserts after it. Each was measured with a scratch script that entered the room 
   42 ticks to the next auto; green ball flight 221 cycles; auto max 33, 34 once enraged.
 - `::tobvzpct <pct>` spends her current phase to pct % of its own pool (a debugproc
   that does damage: scratches only). `::tobvzskip` spends a whole phase.
+
+# Seam pass 3: what the first ToB room pass exposed
+
+Seam pass 3 (`matthew-mbp-m4-raid-b1-seam3`, triage `SEAM_TRIAGE_2026-10-03.md`) added
+one verb (`t.npc.await_face`), three fields on `t.npc.state` rows, one tick-log kind
+(`npc_face`), the engagement-stamp rule for an attack on another copy, three tree-wide
+combat fixes, the Entry-mode damage figures of every room, the supply chests, and the
+six scope sidecars `raid_coverage.py` reads. The facts below are what a room test sees
+after it; the run directories are named in `SEAM_LEDGER.md` and the fixers' reports
+under `build/seam_state/matthew-mbp-m4-raid-b1-seam3/`.
+
+## Small API facts the first room authors tripped on
+
+- `t.msg.last(n)` returns `(status, list)`, not the list.
+- `t.ticklog.rows(opts)` returns `(ok, list)`.
+- Instance coordinates are the template region moved by whole 64-tile blocks. In the
+  first ToB instance slot (region 13122) an instance tile is template x - 3136,
+  z + 4160; the Nylocas fight tile 6431,94 is template 3295,4254.
+- An npc's footprint is its south-west tile plus the cache record's `size`. Verzik P2
+  (8372) is size 3 with her south-west tile at 6431,89, so she covers 6431..6433 x
+  89..91.
+
+## t.npc.state rows: face_x, face_z, face_tick (the square an npc was turned to)
+
+- The newest FACE_COORD op the server sent that npc (`npc_facesquare`): the absolute
+  tile, and for a sized square its centre tile (the wire's half-tiles are halved). All
+  three read -1 before the first op.
+- They outlive the turn. The entity's own pending square is cleared the cycle the turn
+  is consumed, and a later face-entity lock does not clear them; `facing` says whether a
+  lock is held now.
+- `face_tick` is on `api_drive.tick()`'s clock, like `seq_tick`, not on `t.tick()`'s.
+- `t.npc.state_text(row)` adds `last face square X,Z on tick T` (or `none`). On a binary
+  older than seam3 it says `last face square unread`.
+- Ordinary-npc subject: Hans in Lumbridge. Every `~chatnpc` page runs
+  `npc_facesquare(coord)` (interface_chat/scripts/chat.rs2:192), so talking to him turns
+  him to the player's tile. Conformance row `seam.npc_facing_read`.
+
+## t.npc.await_face(selector, since_row, ticks[, opts]): "the boss turned on tick T"
+
+- Returns `('ok', detail, tick, x, z)`, `timeout`, `not_found`, `no_row` or
+  `unsupported` (a binary without the face fields).
+- Two ways to meet it, and the detail names which. EDGE: the next `npc_face` drive event
+  on that copy; a turn to the square it already faces still counts. SINCE: pass an
+  `npc.state` row read BEFORE the action; a turn newer than that reading (later
+  `face_tick` or a different square) also counts.
+- Use the SINCE path when the cause is a verb that has already returned
+  (`chat.continue_`, an attack): the op can go past while that verb waits for its own
+  edge. The copy is resolved once, before the wait, as in `await_anim`. Default 10 ticks.
+- Conformance row `npc.await_face` (Hans's second page turns him again).
+
+## The tick log's npc_face row
+
+- Kind `npc_face` {slot, type, x, z}: written in `SS_OP_NPC_FACESQUARE`, the only writer
+  of an npc's FACE_COORD mask (no C movement or combat path turns an npc to a square).
+  x and z are tiles, not a packed coord.
+- Filter by kind and by the WORLD slot (`t.ticklog.slot(row)`), as with every log row.
+  The log's tick and the client's `face_tick` are different clocks; never compare them
+  (measured log 16 vs client 15, log 173 vs client 172).
+
+## Xarpus's gaze, read (Entry, measured with ::god in face_xarpus2)
+
+- Every P2 spit is an `npc_face` row on the target's tile, on the spit's own tick, every
+  4 ticks (120, 124, 128, 132 -> 6433,92 while the player stood there).
+- After the screech, P3 turns are `npc_face` rows every `^tob_xarpus_stare_ticks` = 8
+  ticks (141..173) to quadrant tiles at centre +-5 (6429,94 SW, 6439,104 NE, 6429,104
+  NW), never the same square twice in a row. Read the quadrant from the row's x/z against
+  his centre 6434,99.
+- `raid.state`'s `boss_slot` names the static form. The fighting form has its own client
+  slot: select it by symbol (`tob_xarpus_combat_story` / `_hard` / `tob_xarpus_combat`).
+
+## A press names its copy; a stale menu can still take another (open)
+
+- `t.player.attack`, `talk_to` and `press` with `{slot=}` or `{at=}` press only a menu
+  row carrying that copy's element id. When the menu has no row for it the verb answers
+  `covered`, and the detail names the copies the menu did offer for the same op: "menu
+  has no row for it; the menu offered this op on 1 other copy(ies) -- element 1073760392
+  'Attack Nylocas Hagios (level-46)' -- none pressed". That is the asked copy hidden or
+  gone, not a wrong press: re-pick a target and attack again.
+- OPEN: a menu a `covered` press left open is NOT closed before the next press. In this
+  client a press of either mouse button on an open menu's row SELECTS that row
+  (uitree_interact.c `interact_minimenu`), so a retry whose pixel falls inside the old
+  menu can attack another copy while every press still answers `covered`
+  (s3ec_stale_before1: 5 hits on the copy never asked for). The seam3 fixer closed the
+  menu first; the closer reverted that half because the tick it cost moved three green
+  quests to RED (CONTENT_BUGS.md, seam3). Until it lands, grade which copy was hit from
+  the tick log (`hit_npc` rows on the asked world slot), not from the verb's answer.
+- A `t.player.attack` that names a different slot than the current engagement and does
+  not land (covered, no_row, refused, press timeout) drops the old stamp. The next
+  `t.npc.await_dead_engaged` answers `no_row` "nothing is engaged" instead of re-pressing
+  the previous copy, and the failing attack's detail says "the engagement stamp on slot
+  N ... was dropped". A failed re-attack of the SAME slot keeps the stamp.
+- Two copies on one tile: `::spawn <npc>` twice from one player tile lands both on
+  player.x+1, player.z+1. `t.npc.tiles(sym, r)` lists both with slot and element.
+  Conformance row `seam.attack_exact_copy_on_one_tile` (goblins).
+- With auto-retaliate on, the SERVER swings back at whichever npc hits the player, which
+  is not a press. A test that grades which copy was hit turns it off:
+  `::setvar varp172_option_nodef 1`.
+- In the Nylocas room filter `hit_npc` rows by nylocas type: the four supports take a
+  `hit_npc` row every chew (about 400 rows in 160 ticks).
+
+## Bosses never retaliate through content any more (retaliate=no honoured)
+
+- `minigame_tob/scripts/tob_retaliate.rs2` binds a no-op `[ai_queue1,<record>]` for each
+  of the 93 `retaliate=no` ToB records, replacing the default `[ai_queue1,_]`
+  (`npc_setmode(opplayer2)`). A boss now attacks only on its own `[ai_timer]` clock, and
+  Maiden's and Verzik's `playerface` latch survives a hit.
+- Before: a ranged or magic hit left Sotetseg in opplayer2, and stepping adjacent drew an
+  extra 8138 off his 5-tick clock that landed +0. After: 21 attack anims all on one
+  residue mod 5, every 8138 lands +1 (sc3_sote_retal_after).
+- Melee never calls `~npc_retaliate` (only ranged, magic and specials do); an ordinary
+  npc's melee retaliation is the engine's latch (torirs_server_combat.c:1427). A
+  retaliation proof must hit with ranged or magic.
+- CoX, ToA and Zulrah `retaliate=no` npcs still have the defect until the engine row
+  lands (CONTENT_BUGS.md); a new `retaliate=no` record in tob.npc needs a line in
+  tob_retaliate.rs2 until then.
+
+## A cast lands at the level ::setlevel set, and is a magic hit
+
+- `[proc,pvm_spell_cast]` recomputes the combat varps first (`~player_combat_stat`, as
+  LostCity's `[changestat,_]` does). Before, a cast with nothing equipped after
+  `::setlevel magic 99` rolled attack 0 and splashed 12 of 12 Fire Bolts at a Hagios.
+- A cast is a MAGIC hit in the damage funnel (`%varp6295_damagetype = ^magic_style`
+  around `~player_hit_npc_prepare`, restored after). A spell damages a magic nylocas:
+  10 damaging hits and 6 kills from 12 Fire Bolts (sc3_nylo_cast_after2).
+- Powered staves (trident, sanguinesti, shadow) and the magic specials still arrive as
+  the weapon's melee style and are nulled by a Hagios: use a spellbook spell for the
+  magic nylocas (open row).
+- Other combat varps (`%varp6285_com_magicattack` and friends) are still not recomputed
+  on a stat change outside a cast or a swing.
+
+## A hit in flight at a player who dies does not land after the respawn
+
+- The death script clears the raids' personal delayed-hit queues
+  (`~raid_death_clear_hits`, death.rs2) in the same turn as the respawn teleport: ToB
+  Maiden's blackstorm, Sotetseg's melee/ball/impact, Xarpus's delayed poison and stomp,
+  Verzik's P1 bolt, acid and ball; the CoX Olm and Vasa and ToA hit queues likewise.
+- Room-wide queues (urnbomb pools, webs, the Athanatos landing, Xarpus splats) are not
+  cleared; they check the victim's tile at impact.
+- "Oh dear, you are dead!" prints twice per death, so `player.died`'s detail reads
+  "2 time(s)" (open row).
+- Measurement trap: a heal cheat (`::setlevel hitpoints N`) during the 7-tick death
+  sequence revives the corpse; never heal inside a death measurement.
+
+## Maiden after seam3
+
+- Her blackstorm's `hit_player` rows name her WORLD slot (`t.ticklog.slot(boss row)`;
+  1079 in a solo Entry room) with `npc_type` her current form (8360..8363) and
+  `dealer_pid` -1. Pool and blood-spawn trail hits stay `npc_slot` -1, so split autos
+  from pools with `npc_slot == boss_slot` against `npc_slot == -1`.
+- A raider at 0 hitpoints is not a blackstorm target, and a shot whose target is at 0
+  hitpoints or outside the launch instance at impact does not land. Solo Entry: death at
+  93, respawn in Lumbridge at 100 (7 ticks), blackstorm flight 5 from the fight tile.
+- Entry pools deal the Normal 10 + 2c (measured 10/14/18 at c 0/2/4): grade E [M121], no
+  source gives an Entry figure (`^tob_maiden_pool_entry_divisor` = 1,
+  tob_maiden.constant). The Entry blackstorm is the halved auto: 18/20/21/25 at c
+  0/1/2/4.
+- Timing a death against an attack: poll `t.ticklog.rows({kind='npc_anim', seq=8092,
+  since=serial})` one `t.ticks(1)` at a time, then act on T+k.
+
+## Bloat after seam3
+
+- Every later walk is 34..42 in blert's numbers (walkTime = next down - first step - 1;
+  the first step is the rise tick, down + 33), plus the lockout extensions. The earliest
+  down is rise + 35; down-to-down is never below 68. The first walk is unchanged
+  (counted from room tick 0).
+- Entry falling flesh hits 20-25 (grade E, M62, one narrator); Normal and Hard 30-50.
+- Measuring a hand hit: on a fresh shadow volley (`map_spotanim` 1570-1573 on tick S),
+  `::tobwarp` onto a shadow tile and repeat the warp every tick until S+3 (a running
+  attack engagement walks the player off between ticks); keep `::god` off through S+5.
+  The splat judges the tile held at the end of S+2 (T-1).
+
+## The supply chests (after Bloat and after Sotetseg)
+
+- `tob_midway_chest_closed` appears when the room reads cleared (`~tob_room_cleared`).
+  After Bloat it stands at room-local (5,33) (the wiki infobox's map pin), e.g. 6405,97;
+  `t.world.loc_near` reports it at level 1 because the corridor is a bridge deck, and it
+  is played at plane 0. After Sotetseg it stands at room-local (17,5), the east flank of
+  the exit (the flank is not sourced).
+- To open it: cross the exit barrier first (Bloat `tob_arena_barrier` at local 23,31;
+  Sotetseg local 15,19), walk to Bloat (9,32) or Sotetseg (17,8), then
+  `t.player.click_loc('tob_midway_chest_closed', 1)`. From the arena `click_loc`
+  answers `not_visible`. Never stand within 1 tile of the exit passage (Bloat 5,31;
+  Sotetseg 15,5): `~tob_exit_walked` moves the party into the next room.
+- Messages. Entry: "You take N bandages from the chest." (N = 10, or the free slots if
+  fewer), then "The chest is empty.". Normal and Hard: "You have N points to spend."
+  (10-13 with no deaths in the two rooms, 8-11 with one, 6-9 with two or more), then a
+  5-row options menu; a second Open goes straight to the menu and awards nothing; a
+  second stamina from one chest answers "You can only take one stamina potion from each
+  chest.". Died in both rooms: "The chest contains a single onion.", then "The chest is
+  empty.".
+- The Entry bandages have no Heal script yet (open row): carrying them does nothing.
+
+## Nylocas after seam3
+
+- Entry explosions roll 1-8 for small and big (wiki Entry page "about 8"); Normal and
+  Hard keep 18/21. Measured 14 explosion hits 1-8 in a solo Entry room.
+- An explosion's `hit_player` row lands on the detonation tick T with `npc_slot` = the
+  exploding nylocas (deleted a tick or three later). Grade explosions as: the dealer slot
+  has a detonate `npc_anim` (7992/8000/8006) on the same tick (`map_spotanim` 1565-1567
+  marks the tile). A `hit_player` with `npc_slot` -1 is a projectile whose thrower
+  despawned in flight, not an explosion.
+- Magic (Hagios) aggros stand about 6 tiles off and cast, so their explosions never
+  reach a player standing still; explosions are met next to a pillar or beside a
+  melee/ranged aggro.
+- A small killed by a player despawns hp0 + 2 standing (blert +2). It is +3 if it stepped
+  the tick before the kill and +4 if it stepped on the kill tick: the engine's arrive
+  delay, an open engine row. Assert standing smalls exactly 2 and walking ones as
+  "measured N, open (engine arrive delay)".
+- Wave count from the tick log: a wave is a lane-tile `npc_spawn` on a room cycle tick
+  ((tick - support spawn tick) % 4 == 0); a big killed on its lane tile splits there on
+  other ticks, which are not waves. Counted that way the first flicker is wave 16 of 31
+  (about room tick 136, so a fight capped at 115 ticks never sees it).
+- Vasilias in Entry: lands on the first cycle tick at or after the last nylocas despawn
+  + 16 (measured +17), south-west 3294,4247, spawning form 2 ticks, melee 9, then each
+  form 10, exactly 2 attacks per form (first +1 in the opening melee, then +2
+  melee/ranged, +3 magic). The Entry spec rows `vasilias_switch_entry` 15 /
+  `vasilias_attacks_entry` 3-4 are not what the server plays (open).
+- Measuring a whole room solo without dying (never a room test): every 3 ticks
+  `::kill tob_nylocas_<incoming|big_incoming|fighting|big_fighting>_<melee|ranged>_story
+  40` (twice each), magic left alive; `::goto 6428 85 0` (the SW support's north-east
+  corner); `::setlevel hitpoints 99` every tick. Vasilias lands about room tick 364.
+- A loop around `t.player.attack` without its own hitpoint check can die here: one
+  attack call spent 30+ ticks in covered/re-press handling while magic aggros hit for
+  100 in 50 ticks, and only verbs check alive.
+
+## Sotetseg after seam3
+
+- First attack: room start + 6 in every mode (blert B 6; Entry D 7 +-1). Assert 6 from
+  the barrier mark - 1.
+- Entry max hits: 20 melee and 22 ball/ricochet (wiki infobox); Normal and Hard keep 45
+  and 50. Entry Protect from Melee caps at 10, a derived figure.
+- He keeps his hitpoints and pool across both maze retypes: `::tobboss` reads the same
+  hp (of 560 Entry, of 3000 Normal) before the arm, after the proc and after the
+  re-activation.
+- The shadow-realm path is lit on proc+4, the runner's first tick in the realm:
+  `loc_set` rows with loc 33035 (`tob_sotetseg_lighttile`) at level 3, one per path
+  tile (25-30 per maze). `t.world.hazard_at` reads 33035 on the start tile and 33034
+  (darktile) off the path. In a solo raid the arena mirror lights nothing (nobody stands
+  there); a party test should assert the mirror's rows.
+- Off on 3: a step off the grid resolving on a tick = 3 mod 4 re-activates him on the
+  next tick. The despawn check scans players' tiles in the NPC phase.
+- The maze waits for its runner: an eat on proc+2 holds the teleport (`p_delay`) to
+  proc+5 and the maze is not ended under it. Do not eat on proc+1..proc+2 if you assert
+  `maze_teleport_delay` 3 (the late landing is an open row).
+- Rag: a wrong tile resolved on tick N is hit on N+1 .. the tick the step back resolves;
+  Entry 11 + 6.67 % of current hp.
+- `::tobsotepct <permille>` (scratches only) takes him to that share of the scaled
+  pool; `::tobsotepct 330` opens the second maze.
+- Loc ops in an instance nobody stands in: `loc_find` (and so `loc_change`) finds a
+  map-placed loc only through a scene window around a player.
+
+## Xarpus after seam3
+
+- Every poison hit (splash, standing in a pool, the delayed hit for crossing one) is the
+  4-8 base x (100 + absorbed %)/100, capped at 11 in Normal and Hard. Entry halves it,
+  rounding up, capped at 6. With all 7 exhumed through: Normal {8,10,11}, Entry {4,5,6}.
+- Stomp: two splats on the tick after you stand in his 5x5, each 2-8, the pair never
+  past 9 (the second is cut). Entry halves each, so its tick is at most 5. The splats
+  are slotless `hit_player` rows (`npc_slot` -1): pick them out by tile (player inside
+  6432..6436 x 97..101 on the previous tick), not by dealer.
+- In an Entry test `spec.xarpus.p2.max_hit.entry` is the largest npc-dealt poison hit
+  (<= 6). Do not derive `poison_base` from Entry hits: it is a Normal row.
+
+## Verzik after seam3
+
+- P2 bounce, measured with `t.player.step_tick` in solo Entry: the tile held at the END
+  of T-1 decides the attack on T. Adjacent, e.g. 6430,90 (local 30,26): body slam
+  (`npc_anim` 8116, rolled against crush, knockback to 6427,93, 5-tick stun) on 10 of 15
+  attacks (75 % [M48]). Under her, e.g. 6431,90 (local 31,26): the STOMP (8116 plus
+  "There's nothing for you there!") 5 of 5, knockback to 6429,88, 7-tick stun -- under
+  her is NOT safe in P2 (walking under is P3's melee rule). Two out, 6429,90: bomb or
+  zap. A step onto 6430,90 issued at T-1 (resolving on T) drew no slam 4 of 4: step off
+  on T-2 so the step lands by T-1.
+- Entry damage (wiki Entry infobox, tob_verzik.constant): P1 bolt up to 60 (30 under
+  Protect from Magic); P2 urnbomb 16 (8 prayed); body slam 16; stomp ~34; P3 melee 36;
+  P3 magic/ranged 20 (10 prayed), also after the enrage. Still the Normal figures in
+  Entry (no source): lightning 48, exploding nylocas 63/26/8, Athanatos landing 78,
+  blood spell 45, power blast 80, web snap 40.
+- The P2 stomp is now rolled 1..max in every mode ("up to 82 ... always a successful
+  hit", Strategies:909); it dealt a flat 82 before.
+- Attribution: P1 bolt `hit_player` rows have `npc_slot` -1 and `npc_type` -1 (a
+  player-side landing queue): match them to projectile 1580 by tick (+3). P2 and P3 hits
+  carry her slot and type 8372 / 8374. Exploding-nylocas blasts show `npc_slot` -1.
+  The P3 green ball is projectile 1598 with no `npc_anim` row of its own and lands for
+  75 % of the Hitpoints level (74 at 99).
+
+## Measurement recipes from seam3
+
+- Healing without god-mode rows: `t.cheat('::god 1', false); t.cheat('::god 0', false)`
+  in the same pump tops hitpoints up (the god branch heals on the way in); the
+  `hit_player` rows outside that window keep their real damage. Never in a room test.
+- A private content root, for measuring while other workers edit OSRS-Content:
+  `git archive` OSRS-Content HEAD `server/scripts` with the pathspecs
+  `':(exclude)osrs239-content/server/scripts/selftest'` and
+  `':(exclude)osrs239-content/server/scripts/build*'` (or the archive is 16 GB), symlink
+  every other entry of osrs239-content and osrs239-content/server, `mkdir
+  server/scripts/build` (or sscompile fails "cannot write .../build/script.dat"), run
+  `tools/ss_allocate.py --tree` and `src/build_opt/sscompile --src/--out/--content-root`,
+  then run with `TORIRSSERVER_CONTENT` / `TORIRSSERVER_SCRIPTS` set
+  (build/seam_state/matthew-mbp-m4-raid-b1-seam3/vz3/pack.sh and prun.py).
+- A `::tele` on a run's very first tick can crash the client in
+  `app_wev_actor_root_fine` (seen on HEAD and on the seam binary). Wait a few ticks
+  (`t.ticks(5)`) before the first teleport.
+
+## Coverage scope sidecars: what a test is held to
+
+- `docs/minigames/theater_of_blood/encounters/<room>.scope.tsv` (mechanic_id, scope,
+  note) classifies every row of the room table for `tools/raid_gate/raid_coverage.py`:
+  `all`, `entry`, `normal`, `hard`, `party` (two or more players or `::tobscale`), or
+  `stat` (a distribution one room cannot settle; `verify_tob_timings.py` over Blert and
+  many of our rooms settle those, a room test does not write them).
+- A solo Entry test (spec.scope `mode=entry party=1`) is held to maiden 39, bloat 32,
+  nylocas 44, sotetseg 43, xarpus 34 and verzik 85 rows. Two-mode rows ("Normal and
+  Hard") are `# heuristic` comment lines scoped by the name heuristic. To see the list:
+  `python3 tools/raid_gate/raid_coverage.py tob_<room> --mode entry --party 1` (the first
+  line names every skipped row and why).
+- The grader checks only the FIRST element of a measured comma list (`parse_row`, open
+  row). Check every instance in the test itself with `t.check`.
+
+## Text rows: the exact ledger detail
+
+A text row (unit `text`) is graded by equality: the measured text is everything between
+`measured ` and the FIRST `;`, the spec text everything between `(spec ` and `, grade`
+with one trailing ` text` dropped, both trimmed and case-folded. Write the table's
+spec_value verbatim after `measured `, then `;`, then the evidence. A comma does not end
+the measured text (`measured never text, 19 pools` failed), and never put the word
+`text` or a unit after the measured value. `tol` is the table's tolerance even on a text
+row, and a grade E text row still carries `approximation, M<n>`. A run that saw
+something else writes what it saw as the measured text. The evidence clauses below are
+examples; the measured text, the `(spec ...)` group, grade and tol are exact.
+
+- maiden (party) `spec.maiden.blood_extra_target`: `measured furthest; the two extras of
+  4 throws landed round the player furthest from her hitbox (2 players, distances 3 and
+  7) (spec furthest text, grade C, tol exact)`
+- maiden (all) `spec.maiden.drain_stat`: `measured target_time; bow equipped on her
+  target tick, swapped to a melee weapon before impact: Ranged drained, Attack/Strength
+  untouched, 3 of 3 blackstorms (spec target_time text, grade C, tol exact)`
+- maiden (party) `spec.maiden.target_rule`: `measured closest_then_orb; every blackstorm
+  went to the player closest to her centre, the tie went by orb order (2 players) (spec
+  closest_then_orb text, grade D, tol exact)`
+- maiden (hard) `spec.maiden.trail_life_hard`: `measured never; Hard room: 6 trail tiles
+  laid, 0 removed by the room's end (loc_set add, no del) (spec never text, grade B, tol
+  exact)`
+- maiden (hard) `spec.maiden.hard_spawn_invulnerable`: `measured yes; Hard room: 5 hits
+  on a blood spawn, every hit_npc 0 and its hitpoints unchanged (spec yes text, grade D,
+  tol exact)`
+- bloat (all) `spec.bloat.fly_los`: `measured nearest-side-any-tile; flies hit on every
+  walking tick with a clear tile on the nearest 5x5 side; 0 flies on 12 walking ticks
+  stood directly behind the tank (spec nearest-side-any-tile text, grade A, tol exact)`
+- bloat (party) `spec.bloat.fly_spread`: `measured ?; what the run saw (a solo room
+  cannot drive the spread); approximation, M64 (spec ? text, grade E, tol approx)`
+- bloat (all) `spec.bloat.stomp_defence`: `measured full; Defence drained to 60 before
+  the down, read 99 on the stomp tick, 3 of 3 downs (spec full text, grade D, tol
+  exact)`
+- bloat (all) `spec.bloat.speed_alt`: `measured flip-per-attack; below 40 %: speed
+  1->2->1 on 6 consecutive attacks, hit or miss, from npc_tile steps (spec
+  flip-per-attack text, grade D, tol exact)`
+- bloat (hard) `spec.bloat.hand_hard_clock`: `measured continuous; Hard room: drop gaps 4
+  or 6 only across 3 downs and rises (spec continuous text, grade B, tol exact)`
+- bloat (hard) `spec.bloat.hand_hard_down`: `measured text-yes; Hard room: hands landed
+  on ticks Bloat was down (3 downs) (spec text-yes text, grade B, tol exact)`
+- nylocas (all) `spec.nylocas.vasilias_first_form`: `measured melee; her first npc id on
+  landing was the melee form (from npc_spawn) (spec melee text, grade B, tol exact)`
+- nylocas (hard) `spec.nylocas.prince_min_life`: `measured never; Hard room: an
+  unattacked Prinkipas still alive at +52 and +80 ticks, despawned only at hp 0 (spec
+  never text, grade C, tol exact)`
+- sotetseg (all) `spec.sotetseg.maze_cycle_phase`: `measured global; re-activation tick
+  mod 4 equal for both mazes (2 and 2) (spec global text, grade B, tol +-1)`
+- xarpus (all) `spec.xarpus.p2.splat_lifetime`: `measured never; 19 pools laid, 0
+  removed within the observed 45 ticks (spec never text, grade D, tol exact)`
+- verzik (all) `spec.verzik.p2_scan_rule`: `measured adjacent or inside on T-1; bounce on
+  4 of 4 attacks with the player adjacent on T-1 and 0 of 4 at distance 2, step_tick rows
+  (spec adjacent or inside on T-1 text, grade C, tol exact)`
+- verzik (all) `spec.verzik.p2_bomb_judged_tile`: `measured previous tick tile; hit on 3
+  of 3 bombs stood on at T-1 and stepped off on T, 0 of 3 stepped onto on T (spec
+  previous tick tile text, grade C, tol exact)`
+- verzik (all) `spec.verzik.p2_purple_gate`: `measured suppressed while alive; no
+  Athanatos cast while one was alive (2 casts, 1 live window of 30 ticks) (spec
+  suppressed while alive text, grade D, tol exact)`
+- verzik (all) `spec.verzik.p3_special_order`: `measured crabs,webs,yellows,ball;
+  specials in order crabs, webs, yellows, ball, crabs (5 specials) (spec
+  crabs,webs,yellows,ball text, grade C, tol exact)`
+- verzik (all) `spec.verzik.p3_melee_predicate`: `measured adjacent not overlapping on
+  T-1; melee only with the tank adjacent and not under her on T-1: 3 melees adjacent, 0
+  with the tank under her, 0 on her first P3 attack (spec adjacent not overlapping on
+  T-1 text, grade C, tol exact)`
+
+The ledger detail is one line: the wrapping above is this page's, not the string's.

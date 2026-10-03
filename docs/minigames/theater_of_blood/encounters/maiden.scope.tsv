@@ -1,0 +1,87 @@
+# maiden.scope.tsv -- scope of every row of maiden.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+maiden.cadence	normal	Normal figure; Entry's is maiden.cadence_entry
+maiden.first_attack	normal	Normal figure; Entry's is maiden.first_attack_entry
+maiden.first_attack_hard	hard	Hard Mode only
+maiden.cadence_entry	entry	Entry figure
+maiden.first_attack_entry	entry	Entry figure
+maiden.cadence_hard_c0	hard	Hard Mode only
+maiden.hard_period_c1_c2	hard	Hard Mode only
+maiden.hard_period_c3_c4	hard	Hard Mode only
+maiden.hard_period_c6	hard	Hard Mode only
+maiden.hard_period_c7_c8	hard	Hard Mode only
+maiden.hard_period_c5	hard	Hard Mode only
+maiden.hard_period_floor	hard	Hard Mode only
+maiden.anim_auto_len	all	cache seq 8092 length; the same animation in every mode
+maiden.anim_blood_len	all	cache seq 8091 length; the same animation in every mode
+maiden.auto_launch_cycles	all	applies in every mode; a solo room measures it
+maiden.auto_flight_total	all	applies in every mode; a solo room measures it
+maiden.auto_impact_offset	all	applies in every mode; a solo room measures it
+maiden.blood_cooldown	all	fewest autos between two throws; a solo room's ~40 attacks show it
+maiden.blood_roll	stat	1-in-3 throw chance over eligible attacks: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (130 of 419 regular, 50 of 188 hard; a solo room has ~30 eligible attacks) and with a cox_sim-style measurement loop over many of our rooms
+maiden.blood_extra_splats	all	applies in every mode; a solo room measures it
+maiden.blood_extra_target	party	'furthest player' needs two or more players to choose between; solo it is trivially the only one
+maiden.blood_flight_base	all	applies in every mode; a solo room measures it
+maiden.blood_flight_step	all	applies in every mode; a solo room measures it
+maiden.blood_extra_delay	all	applies in every mode; a solo room measures it
+maiden.pool_life	all	applies in every mode; a solo room measures it
+maiden.pool_hit_cadence	all	applies in every mode; a solo room measures it
+maiden.scan_lead	all	the T-1 aim; a solo step_tick measures it
+maiden.pool_damage_base	normal	Normal figure; Entry's is maiden.pool_damage_entry
+maiden.pool_damage_per_leak	normal	Normal figure (10 + 2c); Entry's pool is maiden.pool_damage_entry and no source states an Entry per-leak rule
+maiden.pool_heal_ratio	all	she heals what the splat dealt; a ratio, not a mode figure
+maiden.auto_damage_base	normal	Normal figure (36.5); Entry's is maiden.auto_max_entry
+maiden.auto_damage_per_leak	normal	Normal figure (+3.5 per leak); Entry's ceiling is maiden.auto_max_entry
+maiden.auto_protect_ratio	all	Protect from Magic halves in every mode (tob_maiden.rs2 tob_maiden_hit_damage); compare protected and unprotected hits at one leak count
+maiden.auto_max_entry	entry	Entry figure
+maiden.drain_chance	stat	50 % drain chance per blackstorm: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (a solo room has ~40 blackstorms) and with a cox_sim-style measurement loop over many of our rooms
+maiden.drain_stat	all	bow flick between the target tick and the impact; a solo room measures it
+maiden.target_rule	party	closest-then-orb needs two or more players to rank
+maiden.threshold_percent	all	applies in every mode; a solo room measures it
+maiden.transmog_hp_jump	all	applies in every mode; a solo room measures it
+maiden.crab_count	normal	Normal list by party size (a solo Normal room reads its element 2); Entry's is maiden.crab_count_entry
+maiden.crab_count_hard	hard	Hard Mode only
+maiden.crab_count_entry	entry	Entry figure
+maiden.crab_spawn_tick	all	applies in every mode; a solo room measures it
+maiden.crab_slots	party	all ten slots are used only at scale 5; below that a subset of 2 x scale
+maiden.crab_scuff_chance	stat	3 % scuffed-set chance: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (2 of 60 sub-scale-5 events) and with a cox_sim-style measurement loop over many of our rooms
+maiden.crab_walk	all	applies in every mode; a solo room measures it
+maiden.crab_arrive_gap	all	applies in every mode; a solo room measures it
+maiden.leak_heal_multiplier	all	applies in every mode; a solo room measures it
+maiden.freeze_full_bonus	all	140 magic attack bonus and an ice spell; a solo room measures it
+maiden.crab_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.crab_hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.crab_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.crab_hp_entry_unit	entry	Entry figure
+maiden.blood_spawn_chance	stat	10 % spawn chance per unstepped splat: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+maiden.blood_spawn_chance_stepped	stat	20 % spawn chance per stepped splat: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+maiden.blood_spawn_dodge_halves	party	halving per raider who dodged needs two or more raiders
+maiden.blood_spawn_cap	stat	at most 8 alive at once: a solo room never reaches the cap: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+maiden.blood_spawn_dodged_cap	all	the most blood spawns from one fully dodged throw over the room (a solo player dodging is 'everyone')
+maiden.blood_spawn_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.blood_spawn_hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.blood_spawn_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.blood_spawn_hp_entry_unit	entry	Entry figure
+maiden.blood_spawn_step	all	applies in every mode; a solo room measures it
+maiden.trail_life	normal	Normal figure (Hard is maiden.trail_life_hard); no source states Entry's
+maiden.trail_life_hard	hard	Hard Mode only
+maiden.trail_damage	normal	Normal figure; Entry's is maiden.trail_damage_entry
+maiden.trail_damage_entry	entry	Entry figure
+maiden.hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.hp_hard_5	hard	Hard, five players (also needs the scale)
+maiden.hp_entry_unit	entry	Entry figure
+maiden.hp_entry_scaling	party	Entry multiples for party sizes 1..5; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+maiden.death_a_len	all	applies in every mode; a solo room measures it
+maiden.death_b_len	all	applies in every mode; a solo room measures it
+maiden.death_total	all	applies in every mode; a solo room measures it
+maiden.extra_scatter_size	all	applies in every mode; a solo room measures it
+maiden.dodge_distance	all	technique: a solo step_tick measures it
+maiden.hard_focus_hits	hard	Hard Mode only
+maiden.hard_focus_bonus	hard	Hard Mode only
+maiden.hard_spawn_invulnerable	hard	Hard Mode only
+maiden.pool_damage_entry	entry	Entry figure

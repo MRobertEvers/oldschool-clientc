@@ -50,6 +50,9 @@ QD.ticklog.FIELDS = {
     obj_add = { "coord", "obj", "count", "receiver_pid" },
     player_tile = { "pid", "x", "z", "level" },
     npc_tile = { "slot", "x", "z", "level", "type" },
+    -- An `npc_facesquare` (SS_OP_NPC_FACESQUARE, the only writer of an npc's
+    -- face-coord): the TILE it turned the npc to, not a packed coord.
+    npc_face = { "slot", "type", "x", "z" },
 }
 
 QD.ticklog._RAW = { "a", "b", "c", "d", "e", "f" }

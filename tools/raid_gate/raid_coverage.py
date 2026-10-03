@@ -152,7 +152,8 @@ def spec_tables(test_id):
     directory = os.path.join(ROOT, "docs", "minigames", RAID_DOCS[raid], "encounters")
     if room in FULL_RAID_ROOMS:
         return sorted(p for p in glob.glob(os.path.join(directory, "*.tsv"))
-                      if os.path.basename(p)[:-4] not in FULL_RAID_ROOMS)
+                      if os.path.basename(p)[:-4] not in FULL_RAID_ROOMS
+                      and not p.endswith(".scope.tsv"))
     path = os.path.join(directory, "%s.tsv" % room)
     return [path] if os.path.isfile(path) else []
 

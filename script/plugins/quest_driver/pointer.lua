@@ -1687,6 +1687,17 @@ function QD.drive._press_row(target, pos, action, deadline)
     -- SEAM-PRESS-PIXEL retry in the loop above).  This function never moves
     -- it -- see "THE PRESS PIXEL" at the end of this file for why searching
     -- before every press was measured and backed out.
+    --
+    -- NOT HERE: a menu an earlier `covered` press left open is not closed
+    -- before this press (raid seam3 attack_exact_copy measured that a press
+    -- landing inside such a menu SELECTS one of its rows -- another copy's
+    -- Attack, s3ec_stale_before1).  The dismissal it added cost the presses
+    -- that found a menu open a tick or two, and the seam3 closer's full suite
+    -- moved hauntedmine, childrenofthesun and thefeud from green to RED on
+    -- that timing alone (each green again with this file's HEAD copy and
+    -- everything else unchanged).  The defect is an open row
+    -- (docs/minigames/raid_loop/CONTENT_BUGS.md, seam3); a fix must keep the
+    -- old timing when the press pixel is outside the open menu.
     local move_result = api_drive.mouse_move(pos.x, pos.y)
     if move_result ~= "ok" then
         return move_result, "mouse_move"
@@ -1733,7 +1744,8 @@ function QD.drive._press_row(target, pos, action, deadline)
     if row_result ~= "ok" then
         return "covered", "element " .. tostring(pos.element_id) .. " at " .. tostring(pos.x)
             .. "," .. tostring(pos.y) .. ": pickset held=" .. tostring(held_result == "ok")
-            .. ", menu has no row for it -- " .. QD.drive._menu_summary()
+            .. ", menu has no row for it" .. QD.drive._menu_other_copies(action, pos.element_id)
+            .. " -- " .. QD.drive._menu_summary()
     end
 
     local left_result = api_drive.mouse_button("left", 1, row.centre_x, row.centre_y)
@@ -1754,6 +1766,34 @@ function QD.drive._press_row(target, pos, action, deadline)
     -- field exists to retire.  (SEAM silent_press_npc_step, 2026-09-21.)
     return "ok", { row_text = row.text, row_action = row.action,
         element_id = pos.element_id }
+end
+
+-- SEAM attack_exact_copy (raid seam3): the rows a `covered` menu DID offer for
+-- this press's own op on other elements -- another copy of the npc standing
+-- under the pixel, which _press_row never takes (it matches its row on the
+-- named element alone).  Named outright so a reader of the row sees "the menu
+-- offered copy X, not the one asked for" without decoding the summary.  "" when
+-- there is none, or when `action` is the select wildcard (no op to compare).
+function QD.drive._menu_other_copies(action, element_id)
+    if action == nil or action < 0 then
+        return ""
+    end
+    local rows_result, rows = api_drive.menu_rows()
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return ""
+    end
+    local others = {}
+    for i = 1, #rows do
+        if rows[i].action == action and rows[i].target_id ~= element_id then
+            others[#others + 1] = "element " .. tostring(rows[i].target_id)
+                .. " '" .. tostring(rows[i].text) .. "'"
+        end
+    end
+    if #others == 0 then
+        return ""
+    end
+    return "; the menu offered this op on " .. tostring(#others) .. " other copy(ies) -- "
+        .. table.concat(others, ", ") .. " -- none pressed"
 end
 
 -- The LOGGED bypass, never the default -- every call is a ledger note.

@@ -1,0 +1,67 @@
+# sotetseg.scope.tsv -- scope of every row of sotetseg.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+sotetseg.cadence	all	'every mode'
+sotetseg.first_attack	normal	Normal figure; Entry's is sotetseg.first_attack_entry
+sotetseg.first_attack_entry	entry	Entry figure
+sotetseg.post_death_ball_gap	all	applies in every mode; a solo room measures it
+sotetseg.magic_per_ball	all	applies in every mode; a solo room measures it
+sotetseg.melee_roll_adjacent	stat	P(melee | adjacent at T-1) = 483 permille: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (a room has a few dozen adjacent attack ticks) and with a cox_sim-style measurement loop over many of our rooms
+sotetseg.melee_range	all	applies in every mode; a solo room measures it
+sotetseg.melee_hit_delay	all	applies in every mode; a solo room measures it
+sotetseg.melee_max_prayed	normal	Normal figure under Protect from Melee (half of 45); Entry's melee is sotetseg.melee_max_entry
+sotetseg.melee_max_entry	entry	Entry figure
+sotetseg.ball_max_entry	entry	Entry figure
+sotetseg.prayer_disable	all	applies in every mode; a solo room measures it
+sotetseg.ricochet_count	party	the split balls aim at OTHER players: needs two or more
+sotetseg.ball_flight_by_distance	all	flight time against the solo player's distance; the name heuristic misread 'teams' as a party size
+sotetseg.death_ball_flight	all	applies in every mode; a solo room measures it
+sotetseg.death_ball_flight_distance_independent	all	death balls at two or more distances in one room
+sotetseg.death_ball_split_radius	party	the damage is divided among players in the 3x3: needs two or more
+sotetseg.death_ball_floor	party	the guaranteed-kill figure with two or more players alive
+sotetseg.death_ball_max_5	party	party size 5
+sotetseg.death_ball_max_4	party	party size 4
+sotetseg.death_ball_max_3	party	party size 3 and below, Normal (the death ball's ceiling at a scale)
+sotetseg.death_ball_hit_entry_solo	entry	Entry figure
+sotetseg.death_ball_hit_entry_group	party	Entry in groups
+sotetseg.death_ball_count_hard	hard	Hard Mode only
+sotetseg.death_ball_after_maze	all	applies in every mode; a solo room measures it
+sotetseg.hp_normal	normal	Normal hitpoints list by party size (a solo Normal room reads its element 3000)
+sotetseg.hp_hard	hard	Hard Mode only
+sotetseg.hp_entry_per_player	entry	Entry figure
+sotetseg.defence_level	all	list Normal, Entry, Hard: each mode's room reads its own element
+sotetseg.attack_level	all	list Normal, Entry, Hard: each mode's room reads its own element
+sotetseg.defence_floor	all	applies in every mode; a solo room measures it
+sotetseg.defence_restore	all	applies in every mode; a solo room measures it
+sotetseg.maze_trigger_hp	all	percent of the scaled pool; the name heuristic misread 'SCALED' as a party size
+sotetseg.maze_boss_idle_at_proc	all	applies in every mode; a solo room measures it
+sotetseg.maze_no_attacks	all	applies in every mode; a solo room measures it
+sotetseg.maze_teleport_delay	all	applies in every mode; a solo room measures it
+sotetseg.maze_first_move	all	applies in every mode; a solo room measures it
+sotetseg.maze_cycle	all	applies in every mode; a solo room measures it
+sotetseg.maze_cycle_phase	all	applies in every mode; a solo room measures it
+sotetseg.maze_off_on_3	all	applies in every mode; a solo room measures it
+sotetseg.post_maze_first_attack	all	applies in every mode; a solo room measures it
+sotetseg.maze_grid_w	all	applies in every mode; a solo room measures it
+sotetseg.maze_grid_h	all	applies in every mode; a solo room measures it
+sotetseg.maze_seeds	all	applies in every mode; a solo room measures it
+sotetseg.maze_max_x_change	stat	largest column change between seeds, the maximum over 183 mazes: one room's two mazes rarely reach 5: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+sotetseg.maze_start_column	all	each maze's start column inside 1-13
+sotetseg.maze_no_lateral_rate	stat	share of turns with no lateral move: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (183 mazes, CI 17.8-22.2 %) and with a cox_sim-style measurement loop over many of our rooms
+sotetseg.maze_players_hard	all	spec 1 is the Normal and Entry runner count; a solo room in any mode sends its one player
+sotetseg.maze_chip_interval	all	applies in every mode; a solo room measures it
+sotetseg.maze_chip_damage	all	applies in every mode; a solo room measures it
+sotetseg.maze_first_chip	all	applies in every mode; a solo room measures it
+sotetseg.rag_interval	all	applies in every mode; a solo room measures it
+sotetseg.rag_percent	all	applies in every mode; a solo room measures it
+sotetseg.rag_flat_entry	entry	Entry figure
+sotetseg.rag_range	all	applies in every mode; a solo room measures it
+sotetseg.tornado_row	all	the tornado chases a SOLO runner in every mode (tob_sotetseg.rs2: party size 1 or Hard); the name heuristic skipped it for 'Hard Mode: also ...'
+sotetseg.tornado_speed	all	the solo runner's tornado, every mode
+sotetseg.tornado_damage	all	the solo runner's tornado, every mode
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# sotetseg.melee_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.melee_max_entry)
+# sotetseg.ball_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.ball_max_entry)
+# sotetseg.rag_flat	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.rag_flat_entry)

@@ -1,0 +1,67 @@
+# xarpus.scope.tsv -- scope of every row of xarpus.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+xarpus.hp.normal_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+xarpus.hp.normal_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+xarpus.hp.normal_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+xarpus.hp.hard_5	hard	Hard, 5-scale (also needs the scale)
+xarpus.hp.hard_4	hard	Hard, 4-scale (also needs the scale)
+xarpus.hp.hard_3	hard	Hard, 3-scale and below
+xarpus.hp.entry_per_player	entry	Entry figure
+xarpus.defence.normal	normal	Normal record; Entry's is xarpus.defence.entry
+xarpus.defence.hard	hard	Hard Mode only
+xarpus.defence.entry	entry	Entry figure
+xarpus.size.p1_p2	all	applies in every mode; a solo room measures it
+xarpus.p1.start_hp_pct	all	applies in every mode; a solo room measures it
+xarpus.p1.first_exhumed_tick	all	applies in every mode; a solo room measures it
+xarpus.p1.exhumed_count.normal	normal	Normal list by party size (a solo Normal room reads its element 7)
+xarpus.p1.exhumed_count.hard_solo	hard	Hard Mode only
+xarpus.p1.exhumed_count.hard_3_5	party	Hard, party 3-5
+xarpus.p1.exhumed_count.entry	entry	Entry list for party 1 and 4 (a solo Entry room reads its element 7)
+xarpus.p1.spawn_gap.normal	normal	Normal list by party size (a solo Normal room reads its element 12)
+xarpus.p1.spawn_gap.hard_solo	hard	Hard Mode only
+xarpus.p1.spawn_gap.hard_3_5	party	Hard, party 3-5
+xarpus.p1.spawn_gap.entry	entry	Entry list for party 1 and 4 (a solo Entry room reads its element 12)
+xarpus.p1.open_ticks.normal	normal	Normal figure; Entry's is xarpus.p1.open_ticks.entry
+xarpus.p1.open_ticks.hard	hard	Hard Mode only
+xarpus.p1.open_ticks.entry	entry	Entry figure
+xarpus.p1.heal_delay	all	applies in every mode; a solo room measures it
+xarpus.p1.heal_gap	all	applies in every mode; a solo room measures it
+xarpus.p1.heal_amount.normal	normal	Normal list by party size (a solo Normal room reads its element 20)
+xarpus.p1.heal_amount.hard_solo	hard	Hard Mode only
+xarpus.p1.heal_amount.hard_3_5	party	Hard, party 3-5
+xarpus.p1.heal_amount.entry	entry	Entry figure
+xarpus.p1.cover_stops_heal	all	applies in every mode; a solo room measures it
+xarpus.p1.handoff.hard	hard	Hard Mode only
+xarpus.p1.flyup_anim	all	applies in every mode; a solo room measures it
+xarpus.hard.ring_tiles	hard	Hard Mode only
+xarpus.hard.ring_tick	hard	Hard Mode only
+xarpus.p2.first_spit	all	applies in every mode; a solo room measures it
+xarpus.p2.cadence	all	'all modes and party sizes'; the name heuristic misread 'party sizes' as a party row
+xarpus.p2.spit_anim	all	applies in every mode; a solo room measures it
+xarpus.p2.spit_release	all	applies in every mode; a solo room measures it
+xarpus.p2.spit_landing	all	applies in every mode; a solo room measures it
+xarpus.p2.scan_lag	all	applies in every mode; a solo room measures it
+xarpus.p2.splat_radius	all	applies in every mode; a solo room measures it
+xarpus.p2.splat_lifetime	all	applies in every mode; a solo room measures it
+xarpus.p2.chain_count	all	applies in every mode; a solo room measures it
+xarpus.p2.poison_base	normal	Normal base 4-8 (max 11 with the buff, xarpus.p2.max_hit.normal); Entry's poison is xarpus.p2.max_hit.entry (6), below this base's ceiling
+xarpus.p2.poison_buff	all	applies in every mode; a solo room measures it
+xarpus.p2.max_hit.normal	normal	Normal figure; Entry's is xarpus.p2.max_hit.entry
+xarpus.p2.max_hit.entry	entry	Entry figure
+xarpus.p2.stomp_max	all	applies in every mode; a solo room measures it
+xarpus.p2.stomp_interrupts	all	applies in every mode; a solo room measures it
+xarpus.p3.screech_pct_entry	entry	Entry figure
+xarpus.p3.first_turn	all	timed gaze, Normal and Entry; Hard has no timed rotation (xarpus.p3.hard_gaze_rule) but the sidecar has no two-mode scope, so a Hard test must not be held to it (open: normal+entry scope)
+xarpus.p3.repeat_quadrant	all	timed gaze, Normal and Entry; Hard faces the last hitter (xarpus.p3.hard_gaze_rule) but the sidecar has no two-mode scope (open: normal+entry scope)
+xarpus.p3.retaliate_base	normal	Normal figure; Entry's is xarpus.p3.retaliate_min_entry
+xarpus.p3.retaliate_min_entry	entry	Entry figure
+xarpus.p3.retaliate_uplift	all	applies in every mode; a solo room measures it
+xarpus.p3.hard_gaze_rule	hard	Hard Mode only
+xarpus.death.collapse	all	applies in every mode; a solo room measures it
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# xarpus.p1.handoff.normal	normal+entry	the quantity says 'Normal and Entry'; skipped in Hard (xarpus.p1.handoff.hard)
+# xarpus.p3.screech_pct	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (xarpus.p3.screech_pct_entry)
+# xarpus.p3.turn_cadence	normal+entry	the quantity says 'Normal and Entry'; skipped in Hard (xarpus.p3.hard_gaze_rule)

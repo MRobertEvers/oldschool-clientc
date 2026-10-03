@@ -1746,6 +1746,14 @@ end
 --   spotanim_sent_id,     the newest SPOTANIM op and its tick (a spell's
 --   spotanim_tick         impact graphic, readable after its loop ended)
 --   facing                wire face-entity: npc slot, 32768 + pid, or -1
+--   face_x, face_z,       the newest FACE_COORD op (`npc_facesquare`): the
+--   face_tick             absolute tile it turned the npc to and the server
+--                         tick it arrived on; -1 before the first.  They
+--                         outlive the turn (the entity's pending square is
+--                         cleared the cycle it is consumed) and a later
+--                         face-entity lock does not clear them -- `facing`
+--                         says whether one is held now.  nil on a binary
+--                         built before raid seam3 npc_facing_read.
 --
 -- `seq_tick` and not "anim_id changed": the client does not restart a seq
 -- re-sent while it is still playing (world_apply_primary_animation), so a
@@ -1815,11 +1823,17 @@ end
 
 -- One line for a ledger detail: every state field, named.
 function QD.npc.state_text(row)
+    local face = "last face square none"
+    if row.face_x == nil then
+        face = "last face square unread (binary before npc_facing_read)"
+    elseif row.face_x >= 0 then
+        face = string.format("last face square %d,%d on tick %d", row.face_x, row.face_z, row.face_tick)
+    end
     return string.format(
         "%s slot %d at %d,%d: anim %d frame %d, spotanim %d, last seq %d on tick %d,"
-            .. " last spotanim %d on tick %d, facing %d, hp %d/%d (now tick %d)",
+            .. " last spotanim %d on tick %d, facing %d, %s, hp %d/%d (now tick %d)",
         tostring(row.name), row.slot, row.x, row.z, row.anim_id, row.anim_frame, row.spotanim_id,
-        row.seq_id, row.seq_tick, row.spotanim_sent_id, row.spotanim_tick, row.facing,
+        row.seq_id, row.seq_tick, row.spotanim_sent_id, row.spotanim_tick, row.facing, face,
         row.health_ratio, row.health_scale, api_drive.tick())
 end
 
@@ -1879,4 +1893,81 @@ function QD.npc.await_anim(selector, seq_id, ticks, opts)
     end
     return "ok", string.format("%s slot %d: seq %d on tick %d", tostring(row.name), slot, got_seq,
         got_tick), got_tick, got_seq
+end
+
+-- t.npc.await_face(selector, since_row, ticks[, opts]) -> ("ok", detail, tick, x, z)
+-- | timeout | not_found | no_row | unsupported.
+--
+-- Waits for a square the server turns that copy to (`npc_facesquare`,
+-- NPC_INFO's FACE_COORD op) and answers the server tick it arrived on and the
+-- absolute tile it turned to.  Two ways to meet it, both named in the detail:
+--
+--   edge   the NEXT op after this call (the drive event npc_face, stamped
+--          where the op is applied: task_exec_entity_info.c).  A turn to the
+--          square the npc already faces still answers -- Xarpus re-facing
+--          one quadrant is a second turn, not silence.
+--   since  `since` is an npc.state row of the same copy read BEFORE the
+--          action, or nil.  When given, a turn newer than that reading also
+--          counts even if it landed before this call: face_tick later than
+--          the reading's, or a different square.  The click that caused the
+--          turn is usually a verb that has already returned -- a
+--          chat.continue_, a hit -- and the op went past while that verb
+--          waited for its own edge.  (A second turn to the SAME square on the
+--          SAME tick as the reading is invisible to this path; the edge
+--          path still sees one that arrives after the call.)
+--
+-- Ticks are on api_drive.tick()'s clock, the one seq_tick and face_tick use
+-- (not t.tick()'s; DRIVER_NOTES.md "t.tick() is the server's tick").
+--
+-- The copy is resolved ONCE, before the wait, like await_anim.  `ticks`
+-- defaults to 10.  The server's own record of the same turn is the tick-log
+-- row npc_face (slot, type, x, z).
+function QD.npc.await_face(selector, since, ticks, opts)
+    assert(since == nil or type(since) == "table", "npc.await_face: since must be an npc.state row or nil")
+    local result, row = QD.npc.state(selector, opts)
+    if result ~= "ok" then
+        return result, row
+    end
+    if row.face_x == nil then
+        return "unsupported", "npc.await_face: this binary's npc rows carry no face_x (built before"
+            .. " raid seam3 npc_facing_read)"
+    end
+    local slot = row.slot
+    local got_tick, got_x, got_z, how
+    local waited, detail = await({
+        event = "npc_face",
+        match = function(ev)
+            if ev.a ~= slot then
+                return false
+            end
+            got_x, got_z, got_tick, how = ev.b, ev.c, ev.d, "edge"
+            return true
+        end,
+        level = function()
+            if since == nil then
+                return false
+            end
+            local now_result, now = QD.npc._pick({ slot = slot })
+            if now_result ~= "ok" or now.face_tick == nil or now.face_tick < 0 then
+                return false
+            end
+            if now.face_tick <= (since.face_tick or -1) and now.face_x == since.face_x
+                and now.face_z == since.face_z then
+                return false
+            end
+            got_x, got_z, got_tick = now.face_x, now.face_z, now.face_tick
+            how = string.format("newer than the reading %s,%s on tick %s", tostring(since.face_x),
+                tostring(since.face_z), tostring(since.face_tick))
+            return true
+        end,
+        note = string.format("npc.await_face %s slot %d", tostring(row.name), slot),
+    }, ticks or 10)
+    if waited ~= "ok" then
+        return waited, string.format("%s slot %d: no face square within %d tick(s)%s (last %d,%d on tick %d): %s",
+            tostring(row.name), slot, ticks or 10,
+            since ~= nil and (" newer than the reading on tick " .. tostring(since.face_tick)) or "",
+            row.face_x, row.face_z, row.face_tick, tostring(detail))
+    end
+    return "ok", string.format("%s slot %d at %d,%d: turned to %d,%d on tick %d (%s)", tostring(row.name),
+        slot, row.x, row.z, got_x, got_z, got_tick, how), got_tick, got_x, got_z
 end

@@ -74,6 +74,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_OBJ_ADD] = "obj_add",
     [TORIRSSERVER_TICKLOG_PLAYER_TILE] = "player_tile",
     [TORIRSSERVER_TICKLOG_NPC_TILE] = "npc_tile",
+    [TORIRSSERVER_TICKLOG_NPC_FACE] = "npc_face",
 };
 
 char const*
@@ -302,6 +303,7 @@ ticklog_row_npc_slot(const struct ToriRSServerTicklogRow* row)
     case TORIRSSERVER_TICKLOG_NPC_FREE:
     case TORIRSSERVER_TICKLOG_NPC_RETYPE:
     case TORIRSSERVER_TICKLOG_NPC_TILE:
+    case TORIRSSERVER_TICKLOG_NPC_FACE:
         return row->a;
     case TORIRSSERVER_TICKLOG_HIT_PLAYER:
         return row->b;
@@ -515,6 +517,22 @@ ToriRSServer_TicklogNpcFree(
     g_ticklog.npc_tile_plus1[slot] = 0;
     ticklog_push(TORIRSSERVER_TICKLOG_NPC_FREE, slot, npc->type,
                  ToriRSServer_CoordPack(npc->level, npc->x, npc->z), 0, 0, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogNpcFace(
+    const struct ToriRSServerNpc* npc,
+    int x,
+    int z)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_FACE, slot, npc->type, x, z, 0, 0, NULL);
 }
 
 void

@@ -1,0 +1,146 @@
+# verzik.scope.tsv -- scope of every row of verzik.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+verzik.p1_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p1_hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p1_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p23_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p23_hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p23_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p1_hp_1p	entry	Entry figure
+verzik.entry_p2_hp_1p	entry	Entry figure
+verzik.entry_p3_hp_1p	entry	Entry figure
+verzik.entry_hp_scaling	party	percent added per extra player; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p1_hp_5p	party	Entry, five players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p2_hp_5p	party	Entry, five players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p3_hp_5p	party	Entry, five players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.web_hp	all	'every mode and party size'; the name heuristic misread 'party' as a party row
+verzik.entry_pillar_hp	entry	Entry figure
+verzik.reds_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.reds_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_reds_hp_1p	entry	Entry figure
+verzik.entry_athanatos_hp	entry	Entry figure
+verzik.entry_combat_nylo_hp	entry	Entry figure
+verzik.p1_defence	normal	Normal figure; Entry has its own records (verzik.entry_defence)
+verzik.p2_defence	normal	Normal figure; Entry has its own records (verzik.entry_defence)
+verzik.p3_defence	normal	Normal figure; Entry has its own records (verzik.entry_defence)
+verzik.p3_magic_ranged_level	normal	Normal record's levels; Entry has its own records
+verzik.entry_defence	entry	Entry figure
+verzik.p1_cadence	all	applies in every mode; a solo room measures it
+verzik.p1_first_windup	all	applies in every mode; a solo room measures it
+verzik.p1_launch_after_windup	all	applies in every mode; a solo room measures it
+verzik.p1_bolt_flight	all	applies in every mode; a solo room measures it
+verzik.p1_bolt_impact_after_launch	all	applies in every mode; a solo room measures it
+verzik.p1_verdict_tick	all	applies in every mode; a solo room measures it
+verzik.entry_p1_max_hit	entry	Entry figure
+verzik.p1_cap	all	applies in every mode; a solo room measures it
+verzik.p1_dawn_damage	all	applies in every mode; a solo room measures it
+verzik.p1_safe_swings	all	applies in every mode; a solo room measures it
+verzik.pillar_count	all	applies in every mode; a solo room measures it
+verzik.pillar_hit	normal	Normal bolt against a Normal pillar (185); Entry's pillar is verzik.entry_pillar_hp and its bolt verzik.entry_p1_max_hit, no Entry figure for this
+verzik.entry_pillar_collapse_max	entry	Entry figure
+verzik.pillar_stun	all	applies in every mode; a solo room measures it
+verzik.pillar_knockback	all	applies in every mode; a solo room measures it
+verzik.pillar_hide_range	all	applies in every mode; a solo room measures it
+verzik.pillar_collapse_range	all	applies in every mode; a solo room measures it
+verzik.hard_debris_sets	hard	Hard Mode only
+verzik.hard_debris_max	hard	Hard Mode only
+verzik.hard_debris_radius	hard	Hard Mode only
+verzik.p2_id_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p2_first_attack_after_id	all	applies in every mode; a solo room measures it
+verzik.p2_first_attack_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p2_cadence	all	applies in every mode; a solo room measures it
+verzik.p2_scan_tick	all	applies in every mode; a solo room measures it
+verzik.p2_scan_rule	all	applies in every mode; a solo room measures it
+verzik.p2_scythe_walk_ticks	all	technique; a solo step_tick measures it
+verzik.p2_bomb_max	normal	Normal figure; Entry has its own records (verzik.entry_p2_bomb_max)
+verzik.entry_p2_bomb_max	entry	Entry figure
+verzik.p2_bomb_judged_tile	all	applies in every mode; a solo room measures it
+verzik.p2_bomb_live_ticks	all	applies in every mode; a solo room measures it
+verzik.p2_bomb_flight	all	applies in every mode; a solo room measures it
+verzik.p2_slam_damage_max	normal	Normal damage figure; Entry has its own records and no source gives Entry's slam (spec gap)
+verzik.p2_slam_knockback	all	applies in every mode; a solo room measures it
+verzik.p2_slam_stun	all	applies in every mode; a solo room measures it
+verzik.p2_slam_chance	all	grade E approx: no numeric check
+verzik.p2_stomp_max	normal	Normal damage figure; no source gives Entry's stomp (spec gap)
+verzik.p2_stomp_knockback	all	applies in every mode; a solo room measures it
+verzik.p2_stomp_stun	all	applies in every mode; a solo room measures it
+verzik.p2_zap_max	normal	Normal damage figure; no source gives Entry's zap (spec gap, tob_verzik_room2)
+verzik.p2_zap_self_damage	all	damage to HER, no roll, the same in every mode (tob_verzik.rs2 zap self-damage has no mode branch)
+verzik.p2_zap_bounces	all	applies in every mode; a solo room measures it
+verzik.p2_zap_floor	all	applies in every mode; a solo room measures it
+verzik.p2_purple_first	all	attack index of the first Athanatos cast, recorded in Normal; the summon logic is one in every mode
+verzik.p2_purple_gap	all	stall P2 to see a second cast
+verzik.p2_purple_roll	stat	25 % re-summon chance after every third lightning ball: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+verzik.p2_purple_gate	all	applies in every mode; a solo room measures it
+verzik.p2_crabs_with_purple	all	applies in every mode; a solo room measures it
+verzik.p2_purple_land	all	applies in every mode; a solo room measures it
+verzik.p2_purple_poison_dmg	normal	Normal damage figure; no source gives Entry's (spec gap)
+verzik.p2_purple_heal	normal	Normal heal figure; no source gives Entry's (spec gap)
+verzik.p2_purple_heal_period	all	applies in every mode; a solo room measures it
+verzik.p2_crab_per_cast	all	at most one per living raider: a solo room reads 1; the name heuristic misread 'party size' as a party row
+verzik.p2_crab_blast_near	normal	Normal damage figure; no source gives Entry's crab blast (spec gap, tob_verzik_room2)
+verzik.p2_crab_blast_mid	normal	Normal damage figure; no source gives Entry's crab blast (spec gap, tob_verzik_room2)
+verzik.p2_crab_blast_far	normal	Normal damage figure; no source gives Entry's crab blast (spec gap, tob_verzik_room2)
+verzik.p2_crab_lifetime	all	applies in every mode; a solo room measures it
+verzik.reds_threshold	all	applies in every mode; a solo room measures it
+verzik.reds_count	party	two per summon, one when a single player is alive: a solo room always reads 1
+verzik.reds_attacks_between	all	stall P2 to see a second summon
+verzik.reds_first_attack_after	all	applies in every mode; a solo room measures it
+verzik.reds_absorb_window	all	applies in every mode; a solo room measures it
+verzik.p2_heal_spell_chance	stat	75 % heal-spell chance in the reds phase: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+verzik.p2_heal_spell_max	normal	Normal damage figure; no source gives Entry's (spec gap)
+verzik.p2_heal_spell_fraction	all	applies in every mode; a solo room measures it
+verzik.p3_id_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p3_first_attack_after_id	all	applies in every mode; a solo room measures it
+verzik.p3_first_attack_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p3_cadence	all	applies in every mode; a solo room measures it
+verzik.p3_enraged_cadence	all	applies in every mode; a solo room measures it
+verzik.p3_enrage_threshold	all	recorded in Normal and Hard; the name heuristic skipped it for '17 hard raids'
+verzik.p3_tornado_per_raider	all	one per living raider: a solo room reads 1
+verzik.p3_attacks_between_specials	all	applies in every mode; a solo room measures it
+verzik.p3_special_order	all	applies in every mode; a solo room measures it
+verzik.p3_scan_tick	all	applies in every mode; a solo room measures it
+verzik.p3_melee_predicate	all	applies in every mode; a solo room measures it
+verzik.p3_melee_chance	all	grade E approx: no numeric check
+verzik.p3_aggro_timeout	party	re-picking the tank needs another player to pick
+verzik.p3_auto_max	normal	Normal figure; Entry has its own records (verzik.entry_p3_auto_max)
+verzik.entry_p3_auto_max	entry	Entry figure
+verzik.p3_melee_max	normal	Normal figure; Entry has its own records (verzik.entry_p3_melee_max)
+verzik.entry_p3_melee_max	entry	Entry figure
+verzik.hard_yellow_pool_lifetime	hard	Hard Mode only
+verzik.hard_yellow_pools	hard	Hard Mode only
+verzik.p3_yellow_max	normal	Normal damage figure; no source gives Entry's power blast (spec gap)
+verzik.p3_after_yellows	all	applies in every mode; a solo room measures it
+verzik.p3_ball_delay	all	applies in every mode; a solo room measures it
+verzik.p3_ball_flight	all	applies in every mode; a solo room measures it
+verzik.p3_ball_damage_pct	normal	Normal damage figure; no source gives Entry's green ball (spec gap)
+verzik.hard_ball_ladder	hard	Hard Mode only
+verzik.p3_webs_per_cast	all	applies in every mode; a solo room measures it
+verzik.p3_web_lifetime	all	applies in every mode; a solo room measures it
+verzik.p3_web_snap_damage	normal	Normal damage figure; no source gives Entry's web snap (spec gap)
+verzik.p3_web_rotation_ticks	party	the team's web DPS rotation
+verzik.p3_webs_to_next_auto	all	applies in every mode; a solo room measures it
+verzik.p3_after_special	all	applies in every mode; a solo room measures it
+verzik.p3_tornado_min	all	'every mode'
+verzik.p3_tornado_pct	all	applies in every mode; a solo room measures it
+verzik.p3_tornado_heal_mult	all	applies in every mode; a solo room measures it
+verzik.p3_tornado_respawn	all	applies in every mode; a solo room measures it
+verzik.p3_proj_flight	all	applies in every mode; a solo room measures it
+verzik.hard_bomb_pct	hard	Hard Mode only
+verzik.hard_acid_ticks	hard	Hard Mode only
+verzik.hard_acid_max	hard	Hard Mode only
+verzik.hard_reds_explode	hard	Hard Mode only
+verzik.hard_nylo_cycle	hard	Hard Mode only
+verzik.hard_lastheal_threshold	hard	Hard Mode only
+verzik.hard_lastheal_amount	hard	Hard Mode only
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# verzik.pillar_hp	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_pillar_hp)
+# verzik.athanatos_hp	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_athanatos_hp)
+# verzik.combat_nylo_hp	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_combat_nylo_hp)
+# verzik.p1_max_hit	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_p1_max_hit)
+# verzik.pillar_collapse_max	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_pillar_collapse_max)
+# verzik.p3_yellow_pool_lifetime	normal+entry	the quantity says 'normal and entry'; skipped in Hard (verzik.hard_yellow_pool_lifetime)
+# verzik.p3_yellow_pools	normal+entry	the quantity says 'normal and entry'; skipped in Hard (verzik.hard_yellow_pools)

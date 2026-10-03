@@ -1,0 +1,96 @@
+# nylocas.scope.tsv -- scope of every row of nylocas.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+nylocas.cycle	all	applies in every mode; a solo room measures it
+nylocas.first_wave	all	applies in every mode; a solo room measures it
+nylocas.wave_count	normal	Normal wave table (31 waves); Entry's room is nylocas.entry_spawn_total, nylocas.cap_entry and nylocas.natural_stall_entry
+nylocas.natural_stall_sum	normal	Normal stalls; Entry's is nylocas.natural_stall_entry
+nylocas.cap_pre20	normal	Normal cap; Entry's is nylocas.cap_entry
+nylocas.cap_pre20_hard	hard	Hard Mode only
+nylocas.cap_increase_gate	normal	Normal cap rule; Entry's cap is nylocas.cap_entry
+nylocas.cap_entry	entry	Entry figure
+nylocas.natural_stall_entry	entry	Entry figure
+nylocas.prince_cap_weight	hard	Hard Mode only
+nylocas.hm_prince_stall	hard	Hard Mode only
+nylocas.hm_prince_waves	hard	Hard Mode only
+nylocas.hm_prince_tile	hard	Hard Mode only
+nylocas.vasilias_tile	all	applies in every mode; a solo room measures it
+nylocas.spawn_total	normal	Normal wave table; Entry's is nylocas.entry_spawn_total
+nylocas.spawn_big	normal	Normal wave composition (Blert, Normal rooms); no Entry recording
+nylocas.spawn_aggro	normal	Normal wave composition (Blert, Normal rooms); no Entry recording
+nylocas.spawn_flicker	normal	Normal wave composition (Blert, Normal rooms); no Entry recording
+nylocas.lane_tiles	all	applies in every mode; a solo room measures it
+nylocas.pillar_assignment	normal	Normal wave composition (which spawns attack which pillar); no Entry recording
+nylocas.pillar_anchors	all	applies in every mode; a solo room measures it
+nylocas.flicker_first_wave	normal	Normal wave composition (first flicker wave); no Entry recording
+nylocas.flicker_first_switch	all	applies in every mode; a solo room measures it
+nylocas.flicker_hold	all	applies in every mode; a solo room measures it
+nylocas.aggro_swap	all	applies in every mode; a solo room measures it
+nylocas.lifetime_small	all	applies in every mode; a solo room measures it
+nylocas.lifetime_big	all	applies in every mode; a solo room measures it
+nylocas.big_explode_splits	all	applies in every mode; a solo room measures it
+nylocas.kill_despawn_small	all	applies in every mode; a solo room measures it
+nylocas.kill_despawn_big	all	applies in every mode; a solo room measures it
+nylocas.split_spawn_tick	all	applies in every mode; a solo room measures it
+nylocas.split_count	all	applies in every mode; a solo room measures it
+nylocas.split_tiles	all	applies in every mode; a solo room measures it
+nylocas.split_pillar_share	stat	share of splits per pillar (near uniform): a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (772 parents) and with a cox_sim-style measurement loop over many of our rooms
+nylocas.attackrate	all	cache attackrate, every form and mode
+nylocas.small_hp	normal	Normal hitpoints list by party size (a solo Normal room reads its element 8); Entry's is nylocas.small_hp_entry
+nylocas.big_hp	normal	Normal hitpoints list by party size (a solo Normal room reads its element 16); Entry's is nylocas.big_hp_entry
+nylocas.small_hp_entry	entry	Entry figure
+nylocas.big_hp_entry	entry	Entry figure
+nylocas.entry_hp_party_scaling	party	Entry hitpoints by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+nylocas.max_hit_small_entry	entry	Entry figure
+nylocas.max_hit_big_entry	entry	Entry figure
+nylocas.explosion_radius	all	applies in every mode; a solo room measures it
+nylocas.explosion_max	normal	Normal figure; Entry's is nylocas.explosion_entry
+nylocas.explosion_entry	entry	Entry figure
+nylocas.pillar_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+nylocas.pillar_hp_solo	normal	Normal, solo
+nylocas.pillar_hp_2_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+nylocas.pillar_hp_hard_5	hard	Hard, five players (also needs the scale)
+nylocas.pillar_hp_entry_unit	entry	Entry figure
+nylocas.pillar_hp_step	party	hitpoints added per player below five; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+nylocas.pillar_bite_cadence	all	applies in every mode; a solo room measures it
+nylocas.pillar_bite_damage	all	mean over every bite on a support in the room
+nylocas.pillar_collapse_anim	all	applies in every mode; a solo room measures it
+nylocas.pillar_collapse_max	normal	Normal figure; Entry's is nylocas.pillar_collapse_entry_min
+nylocas.pillar_collapse_entry_min	entry	Entry figure
+nylocas.pillars_down_wipe	party	the team wipe when four supports fall: a room test that fights for real never lets it happen; a party measurement run settles it
+nylocas.ranged_flight	all	applies in every mode; a solo room measures it
+nylocas.vasilias_spawn_delay	all	applies in every mode; a solo room measures it
+nylocas.vasilias_first_form	all	applies in every mode; a solo room measures it
+nylocas.vasilias_first_switch	normal	Normal/Hard window (9); Entry's windows are nylocas.vasilias_switch_entry (14 first, then 15)
+nylocas.vasilias_repeats	all	applies in every mode; a solo room measures it
+nylocas.vasilias_attackrate	all	applies in every mode; a solo room measures it
+nylocas.vasilias_attacks_per_window	normal	Normal/Hard 10-tick window; Entry's is nylocas.vasilias_attacks_entry (3-4)
+nylocas.vasilias_attack_gap_in_window	all	gap 4 in every mode (nylocas.vasilias_attacks_entry records gap 4 in Entry)
+nylocas.vasilias_first_attack_after_switch	normal	Normal/Hard windows (125 recorded); Entry's 15-tick windows are not recorded
+nylocas.vasilias_switch_tick_attacks	all	Jagex: no instant attack after switching
+nylocas.vasilias_hp_entry_unit	entry	Entry figure
+nylocas.vasilias_hp_entry_party	party	Entry hitpoints for 1 to 5 players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+nylocas.vasilias_reflect	all	applies in every mode; a solo room measures it
+nylocas.vasilias_max_hit	normal	Normal figure; Entry's is nylocas.vasilias_max_hit_entry
+nylocas.vasilias_max_hit_hard	hard	Hard Mode only
+nylocas.vasilias_max_hit_entry	entry	Entry figure
+nylocas.vasilias_switch_entry	entry	Entry figure
+nylocas.vasilias_attacks_entry	entry	Entry figure
+nylocas.entry_recoil_cap	entry	Entry figure
+nylocas.hm_split_cap	hard	Hard Mode only
+nylocas.hm_ranged_splash	hard	Hard Mode only
+nylocas.hm_bounce_near	hard	Hard Mode only
+nylocas.hm_bounce_far	hard	Hard Mode only
+nylocas.prince_hp	hard	Prinkipas exists only in Hard Mode
+nylocas.prince_switch	hard	Prinkipas exists only in Hard Mode
+nylocas.prince_min_life	hard	Prinkipas exists only in Hard Mode
+nylocas.prince_max_hit	hard	Prinkipas exists only in Hard Mode
+nylocas.entry_spawn_total	entry	Entry figure
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# nylocas.cap_post20	normal+hard	the quantity says 'Normal and Hard'; the heuristic keeps it in Normal and Hard and skips it in Entry (nylocas.cap_entry)
+# nylocas.max_hit_small	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (nylocas.max_hit_small_entry)
+# nylocas.max_hit_big	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (nylocas.max_hit_big_entry)
+# nylocas.vasilias_switch	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (nylocas.vasilias_switch_entry)
+# nylocas.vasilias_hp	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (nylocas.vasilias_hp_entry_unit)

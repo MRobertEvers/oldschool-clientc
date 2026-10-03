@@ -5228,6 +5228,8 @@ enum ToriRSServerTicklogKind
     TORIRSSERVER_TICKLOG_PLAYER_TILE,   /* a=pid b=x c=z d=level (every tick, after players move) */
     TORIRSSERVER_TICKLOG_NPC_TILE,      /* a=slot b=x c=z d=level e=npc type (on change only,
                                          * npcs within 32 tiles of a player) */
+    TORIRSSERVER_TICKLOG_NPC_FACE,      /* a=slot b=npc type c=x d=z (the tile an
+                                         * `npc_facesquare` turned it to) */
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5330,6 +5332,9 @@ void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int da
 void ToriRSServer_TicklogNpcSpawn(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcDeath(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);
+/* An npc turned to a square (`npc_facesquare`, the one writer of
+ * TORIRSSERVER_NMASK_FACE_COORD): x/z are tiles, not the wire's half-tiles. */
+void ToriRSServer_TicklogNpcFace(const struct ToriRSServerNpc* npc, int x, int z);
 void ToriRSServer_TicklogNpcRetype(const struct ToriRSServerNpc* npc, int from_type, int to_type,
                                    int duration);
 void ToriRSServer_TicklogLocSet(const struct ToriRSServer* srv, int coord, int loc_id, int shape,

@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 161
+-- @verb-count 162
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 98
+-- @seam-count 100
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 161
-local SEAM_COUNT = 98
+local VERB_COUNT = 162
+local SEAM_COUNT = 100
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6516,7 +6516,7 @@ return {
             if r ~= "ok" then return "no_subject", "npc.state -> " .. describe(row) end
             local text = fn(row)
             for _, field in ipairs({ "anim ", "frame ", "spotanim ", "last seq ", "last spotanim ",
-                "facing ", "hp " }) do
+                "facing ", "last face square ", "hp " }) do
                 if type(text) ~= "string" or not string.find(text, field, 1, true) then
                     return "hollow", "state_text does not name '" .. field .. "': " .. describe(text)
                 end
@@ -6579,6 +6579,115 @@ return {
                 setup_cheat("::setlevel strength " .. state_levels.strength)   -- setup
             end
             settle(12)   -- the single-way claim lapses before the next row
+        end)
+
+        -- RAID SEAM3 npc_facing_read: which square an npc was turned to, read two
+        -- ways -- the client's t.npc.state face_x/face_z/face_tick and the server's
+        -- npc_face tick-log row -- on Hans (every ~chatnpc page runs
+        -- npc_facesquare(coord), interface_chat/scripts/chat.rs2:192); never a boss.
+        -- Proved first by build/quest_gate/face_after4 (21/21) and face_conf1.
+        stage(function()
+            setup_cheat("::tele lumbridge")                        -- setup
+            settle(3)
+        end)
+
+        local face_hans_slot = nil
+        local face_hans_tile = nil
+
+        -- WHICH SQUARE THE NPC WAS TURNED TO, AND ON WHICH TICK: t.npc.state's
+        -- face_x/face_z/face_tick (the newest FACE_COORD op, kept past the
+        -- turn that consumes the entity's pending square) and the server's
+        -- own npc_face tick-log row for the same turn.  Graded on both naming
+        -- the player's tile, the square npc_facesquare(coord) was given.
+        seam("seam.npc_facing_read", function()
+            local state = verb("npc", "state")
+            local talk_to = verb("player", "talk_to")
+            local walk_near = verb("player", "walk_near")
+            local by_symbol = verb("player", "by_symbol")
+            if not state then return missing("npc", "state") end
+            if not (talk_to and walk_near and by_symbol) then
+                return "no_subject", "player.talk_to/walk_near/by_symbol missing"
+            end
+            local target = by_symbol("npc", "hans")
+            if target == nil then return "no_subject", "no hans to talk to" end
+            walk_near(target)
+            local sr, hans = state("hans")
+            if sr ~= "ok" then return "no_subject", "npc.state hans -> " .. describe(hans) end
+            if hans.face_x == nil then
+                return "missing", "npc.state rows carry no face_x (binary before npc_facing_read)"
+            end
+            face_hans_slot = hans.slot
+            local wr, wslot = t.ticklog.slot(hans)
+            if wr ~= "ok" then return "no_subject", "ticklog.slot hans -> " .. describe(wslot) end
+            local tr, td = talk_to("hans")
+            if tr ~= "ok" then return "no_subject", "talk_to hans -> " .. describe(td) end
+            local _, tile = t.world.tile()
+            face_hans_tile = tile
+            local text, seen = "none", nil
+            local waited = t.await({
+                level = function()
+                    local r, row = state({ slot = face_hans_slot })
+                    if r ~= "ok" then
+                        text = describe(row)
+                        return false
+                    end
+                    text = t.npc.state_text(row)
+                    seen = row
+                    return row.face_x == tile.x and row.face_z == tile.z and row.face_tick >= 0
+                end,
+                note = "hans face square = the player's tile",
+            }, 4)
+            if waited ~= "ok" then
+                return "timeout", string.format("player at %d,%d; %s", tile.x, tile.z, text)
+            end
+            local rr, rows = t.ticklog.rows({ kind = "npc_face", slot = wslot })
+            if rr ~= "ok" then return rr, "ticklog.rows npc_face -> " .. describe(rows) end
+            local logged = nil
+            for i = #rows, 1, -1 do
+                if rows[i].x == tile.x and rows[i].z == tile.z then
+                    logged = rows[i]
+                    break
+                end
+            end
+            if logged == nil then
+                return "hollow", string.format("npc.state faced %d,%d but no npc_face row for world slot %s names it (%d row(s))",
+                    seen.face_x, seen.face_z, tostring(wslot), #rows)
+            end
+            return "ok", string.format("player at %d,%d; %s; tick log: npc_face tick %d slot %d type %d -> %d,%d",
+                tile.x, tile.z, text, logged.tick, logged.slot, logged.type, logged.x, logged.z)
+        end)
+
+        -- THE NEXT TURN, AS AN EDGE: Hans's own next page turns him again
+        -- (a second facesquare to the same square), and npc.await_face
+        -- answers its tick and tile.  The press that causes it is a verb that
+        -- has already returned, so the state row read before it is passed as
+        -- `since` (a turn newer than that reading also counts).
+        step("npc.await_face", function()
+            local await_face = verb("npc", "await_face")
+            if not await_face then return missing("npc", "await_face") end
+            if face_hans_slot == nil or face_hans_tile == nil then
+                return "no_subject", "seam.npc_facing_read opened no dialogue with hans"
+            end
+            local drain = verb("chat", "drain")
+            local choose = verb("chat", "choose")
+            local continue_ = verb("chat", "continue_")
+            if not (drain and choose and continue_) then
+                return "no_subject", "chat.drain/choose/continue_ missing"
+            end
+            drain({ stop_at = "options" })
+            local cr, cd = choose(1)
+            if cr ~= "ok" then return "no_subject", "chat.choose 1 -> " .. describe(cd) end
+            local br, before = t.npc.state({ slot = face_hans_slot })
+            if br ~= "ok" then return "no_subject", "npc.state -> " .. describe(before) end
+            continue_(true)
+            local r, d, tick, x, z = await_face({ slot = face_hans_slot }, before, 5)
+            drain({ stop_at = "none" })
+            if r ~= "ok" then return r, describe(d) end
+            if x ~= face_hans_tile.x or z ~= face_hans_tile.z or tick < before.face_tick then
+                return "hollow", string.format("turned to %d,%d on tick %d, not the player's %d,%d after tick %d: %s",
+                    x, z, tick, face_hans_tile.x, face_hans_tile.z, before.face_tick, describe(d))
+            end
+            return "ok", tostring(d)
         end)
 
         -- A GROUND OBJ ON A CENTREPIECE'S OWN TILE IS PRESSED WHERE IT IS DRAWN.
@@ -8483,6 +8592,99 @@ return {
                 return "no_subject", text .. " -- Dayth never changed slot in the window"
             end
             return "ok", text
+        end)
+
+        -- ONE COPY ASKED, ONE COPY PRESSED (raid seam3 attack_exact_copy).  Two
+        -- goblins spawned on ONE tile (::spawn twice from the same player tile
+        -- lands both on player.x+1, player.z+1, torirs_server_world.c's spawn
+        -- cheat) draw over each other, and a press names one of them by slot.
+        -- Graded from the client: the asked copy is hit (a health bar, or gone
+        -- inside the settle) and the wait holds THAT slot, while the other copy
+        -- never carries a bar -- a client is sent a HEADBAR only once something
+        -- has hit the npc, so health_ratio < 0 is "nothing ever hit it".
+        -- Scratch proof with the server's tick log: s3ec_after1 "asked world
+        -- slot 1080 ...: 8 hit_npc row(s) on it, 0 on the other copy (world
+        -- 1079)".  The press-into-an-open-menu half (a press naming B landing
+        -- inside the menu a covered press left over A SELECTED A's Attack row:
+        -- s3ec_stale_before1 5 hit_npc rows on A, 0 on B) is OPEN: its fix cost
+        -- three green quests a tick and the seam3 closer reverted it
+        -- (raid_loop/CONTENT_BUGS.md); the repro stays a scratch
+        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam3/scratch/stale_menu.lua).
+        seam("seam.attack_exact_copy_on_one_tile", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local engaged = verb("npc", "await_dead_engaged")
+            local tiles = verb("npc", "tiles")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not engaged then return missing("npc", "await_dead_engaged") end
+            if not tiles then return missing("npc", "tiles") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            -- The stage before the Dayth rows set ranged 99: one arrow would
+            -- kill a goblin inside the attack's own settle, and a fight that is
+            -- several hits long is the subject here.  Put back on every exit.
+            setup_cheat("::setlevel ranged 1")
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                setup_cheat("::setlevel ranged 99")
+                settle(2)
+            end
+            local goto_result = goto_tile(3229, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(1)
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(3)
+            local _, _, rows = tiles(GOBLIN, 3)
+            local copies = {}
+            for _, row in ipairs(rows or {}) do
+                if row.x == 3230 and row.z == 3234 then copies[#copies + 1] = row end
+            end
+            if #copies < 2 then
+                teardown()
+                return "no_subject", "two ::spawn " .. GOBLIN .. " did not put two copies on 3230,3234 ("
+                    .. #copies .. ")"
+            end
+            table.sort(copies, function(x, y) return x.slot < y.slot end)
+            local other, asked = copies[1], copies[2]
+            local result, detail = attack(GOBLIN, 2, 20, { slot = asked.slot })
+            local text = "two copies on 3230,3234: asked slot " .. asked.slot .. " (element "
+                .. describe(asked.element_id) .. "), other slot " .. other.slot .. " (element "
+                .. describe(other.element_id) .. "); attack -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" and result ~= "timeout" then
+                teardown()
+                return result, text
+            end
+            if string.find(tostring(detail), "pressed slot " .. asked.slot .. " ", 1, true) == nil then
+                teardown()
+                return "hollow", text .. " -- the detail does not name the asked slot as the one pressed"
+            end
+            local wait_result, wait_detail = engaged(60, 4)
+            text = text .. "; await_dead_engaged -> " .. describe(wait_result) .. " " .. describe(wait_detail)
+            -- The whole pool (radius 0): a spawned goblin wanders off its tile.
+            local _, _, after = tiles(GOBLIN, 0)
+            local other_now = nil
+            for _, row in ipairs(after or {}) do
+                if row.slot == other.slot then other_now = row end
+            end
+            teardown()
+            if wait_result ~= "ok" or string.find(tostring(wait_detail), "slot " .. asked.slot .. " ", 1, true) == nil then
+                return "refused", text .. " -- the wait did not finish the asked slot"
+            end
+            if other_now == nil then
+                return "refused", text .. " -- the copy NOT asked for left the pool too"
+            end
+            if type(other_now.health_ratio) ~= "number" or other_now.health_ratio >= 0 then
+                return "refused", text .. " -- the copy NOT asked for carries a health bar ("
+                    .. describe(other_now.health_ratio) .. "/" .. describe(other_now.health_scale)
+                    .. "): something hit the other copy"
+            end
+            return "ok", text .. " [other slot " .. other.slot .. " never hit: health_ratio "
+                .. describe(other_now.health_ratio) .. "]"
         end)
 
         -- A [MAPZONE] TRIGGER FIRES ON A SQUARE'S UPPER LEVEL (seam36

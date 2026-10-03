@@ -104,7 +104,9 @@ def check(path):
 def main(argv):
     paths = argv[1:]
     if paths == ["--all"] or not paths:
-        paths = sorted(glob.glob(os.path.join(ROOT, "docs", "minigames", "*", "encounters", "*.tsv")))
+        # <room>.scope.tsv is raid_coverage's scope sidecar, not a spec table.
+        paths = sorted(p for p in glob.glob(os.path.join(ROOT, "docs", "minigames", "*", "encounters", "*.tsv"))
+                       if not p.endswith(".scope.tsv"))
     findings = []
     for p in paths:
         findings += check(p)
