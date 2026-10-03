@@ -145,3 +145,37 @@ Content OSRS-Content 93707f5d60, parent 4767f8589. Conformance 262/262 (162 verb
   classified; closer skipped `.scope.tsv` in spec_check.py and raid_coverage.py's
   whole-raid glob. Still open: `parse_row` grades only the first element of a measured
   list; one scope per row (no normal+hard, party ignores the mode).
+
+## matthew-mbp-m4-raid-b1-seam4 (2026-10-03; parent 80b6fbc9d, OSRS-Content a44e3d97bf)
+
+Triage `SEAM_TRIAGE_2026-10-03b.md`. Conformance 263/263 (162 verbs + 101 seam rows);
+suite 118 green + deserttreasure RED (the seam1 baseline, nothing moved); C selftest 11
+failures (the baseline set); ::tobrun OK 56.
+
+- `tob_entry_records_and_readouts`: LANDED. Entry Athanatos pool 30, Defence/Magic 40
+  (cache record 10844) on the spawned type; Normal/Hard Athanatos Defence/Magic 50; story
+  records audited against cache_npc_*.txt; ::tobboss prints att/str/rng/mag and size,
+  ::tobpurple added (s4e_verzik_entry_c: killed in 4 hits, P3 at tick 128). Still open:
+  Entry Verzik and Maiden fight at Normal levels, three Normal records have no levels,
+  Entry P2 lightning and the P3 pool 400; tob_verzik's own test stops at P2 cycle 4.
+- `tob_maiden_room3`: LANDED (3 of 4 rows). Blood spawns 1000 permille, two extras on
+  every throw, Entry trail 2-5. The death rows were NOT changed: four blert raids show
+  K+1/K+5/K+9 as ours does. Still open: restate `maiden.death_a_len`/`death_total` in the
+  spec table, dying_a id at K+3, Normal trail 5-13; the committed tob_maiden test lost its
+  accidental pool rows (copy 60/1, coverage 32 of 39) and must drive them on purpose.
+- `tob_sotetseg_room3`: LANDED. Solo Entry death ball a flat 15 (three sources), ball max
+  22 confirmed over 40 balls, first attack 6 and the clock unchanged. Still open: the spec
+  row's tolerance to `exact` and the Entry Mode source; gear reduction on the flat 15
+  unsourced; the author attempt's maze-2 tornado step.
+- `tob_xarpus_room3`: LANDED. The generator lets a minigame own a death queue
+  (MINIGAME_DEATH_QUEUES), so the Entry kill plays 8063 for 2 ticks with the book and no
+  bones; Entry retaliation floor 38 (ceiling 57 [M123], plan row added); stomp already
+  within cap (Entry 5, Normal 9); exit route through the gate documented. Still open:
+  K -> retype 3 ticks (death_delay), the exit opens mid-fight, no book in Normal/Hard,
+  `xarpus_death_story` has no overlay, the author attempt's exit and uplift rows.
+- `npc_state_size_and_stale_menu`: LANDED. `size` on every npc pool row (row
+  seam.npc_state_size PASS: goblin 1, cow 2; npc.state_text grades size); a stale menu is
+  dismissed only when the press would select another copy's row (5 -> 0 hits on the copy
+  not asked for; the three seam3 regressions stay green and tick-identical). Still open:
+  a press on a stale menu's Walk here / Examine / Cancel row or title bar behaves as
+  before, because three green quest timelines depend on it.
