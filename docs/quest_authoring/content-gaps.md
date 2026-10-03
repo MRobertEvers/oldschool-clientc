@@ -260,7 +260,10 @@ in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
   at stage 13. The Favour reward and the Graceful recolour interface are not authored
   (`aoa_leftover_*`). The Karuulm elevator lands at 1311,10188, not at the guide's 1312,10211
   (Kaal's footprint).
-- **Another Slice of H.A.M.** `slice_artifact_hotspot_0N_1` (`configs/all.loc:256904`, "Artefact")
+- **Another Slice of H.A.M.** (FIXED b55-seam1, OSRS-Content f97d2dcd59: the digs are the trowel USED
+  on the artefact and the cleaning an artefact used on the table; the route clicks end to end with
+  `::complete quest_losttribe`, whose trigger is on the hole's multiloc child -> seam-facts: Seam
+  pass matthew-mbp-m4-b55-seam1 (a)-(c).) `slice_artifact_hotspot_0N_1` (`configs/all.loc:256904`, "Artefact")
   has no op1, so the menu offers only Examine. `[oploc1,slice_artifact_hotspot_0N]`
   (`slice_tegdak.rs2:103-143`) never fires, and there is no `[oplocu]` for the trowel. Stage 2 to 3
   cannot be driven (content_bug), and the stage 3-11 tail is still to be driven after the fix.

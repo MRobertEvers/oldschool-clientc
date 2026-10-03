@@ -2077,7 +2077,7 @@ AUDITED_OVERRIDES["The Eyes of Glouphrie"] = {
         {"url": "https://oldschool.runescape.wiki/w/Transcript:The_Eyes_of_Glouphrie?oldid=15317126", "revision": 15317126, "retrieved": "2026-10-03"},
     ],
     "npc_gamevals": [
-        "eyeglo_fluffie_1..6 (the multi-npc wrappers the quest spawns) and eyeglo_fluffie_evil_1..6 (their attackable leaves): Evil Creature, 1 hitpoint, 1/1/1/1/1 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, max hit 1, not aggressive (configs/eyeglo.npc)",
+        "eyeglo_fluffie_1..6 (the multi-npc wrappers the quest spawns) and eyeglo_fluffie_evil_1..6 (their attackable leaves): Evil Creature, 1 hitpoint, 1/1/1/1/1 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, max hit 1 (strength=1 + strengthbonus 0 -> npc_melee_maxhit 1), not aggressive but fights back when attacked (wiki infobox max hit 1 + attack sound; cache seq eyeglo_fluffie_attack) (configs/eyeglo.npc)",
     ],
     "item_gamevals": [
         "bones: the Evil Creature's only drop, always (npc_default_death's death_drop)",
@@ -2086,7 +2086,7 @@ AUDITED_OVERRIDES["The Eyes of Glouphrie"] = {
         "eyeglo_gnome_machine_02_multiloc: Oaknock's machine (Unlock / Repair / Operate on varb2502_eyeglo_machine_broken) -- the operate window's activation reveals the creatures",
     ],
     "trigger_handlers": [
-        "opnpc2:eyeglo_fluffie_1..6 (trap 31 @player_combat_start, retaliate off)",
+        "opnpc2:eyeglo_fluffie_1..6 (trap 31 @player_combat_start; ~npc_retaliate(0) engages the creature on the click, and the engine's on-hit latch would anyway -- it fights back, max hit 1)",
         "ai_queue3:eyeglo_fluffie_1..6 writes eyeglo_killed_eye_N to 2, counts the kills and moves the quest to 45 when the sixth falls (eyeglo_quest.rs2)",
         "eyeglo_machine_online writes eyeglo_killed_eye_1..6 to 1: the wrapper turns from the Cute Creature into the Evil Creature for that player only",
     ],
@@ -2097,7 +2097,7 @@ AUDITED_OVERRIDES["The Eyes of Glouphrie"] = {
     ],
     "known_gaps": [
         "The wiki's note that the last creature spawns at the Stronghold entrance when Brimstail kills his own or a count is lost is not ported: a creature killed by anyone else is simply gone for that player's varbit.",
-        "The page gives no combat level and no weakness. The block states the wiki's Crush / max hit 1 / speed 4, but the quest binds ~npc_retaliate(0): a creature never swings back, which no source contradicts (it dies to the first hit).",
+        "The page gives no combat level and no weakness.",
     ],
 }
 

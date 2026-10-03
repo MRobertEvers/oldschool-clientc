@@ -4816,20 +4816,38 @@ def check_theeyesofglouphrie() -> None:
     no block they spawned on npc_default.npc's 10 hp). Wiki Evil_Creature oldid
     15349482: 1 hitpoint, 1/1/1/1/1, every bonus 0, crush, speed 4, max hit 1,
     not aggressive, Bones always. Both the multi-npc wrapper the quest spawns
-    (eyeglo_fluffie_N) and its attackable leaf (eyeglo_fluffie_evil_N) carry it."""
+    (eyeglo_fluffie_N) and its attackable leaf (eyeglo_fluffie_evil_N) carry it.
+
+    They FIGHT BACK (seam matthew-mbp-m4-b55-seam1): the same infobox's max hit
+    1 and "Attacking" sound, and the cache's eyeglo_fluffie_attack seq. Max hit
+    1 is strength=1 + strengthbonus 0 through [proc,npc_melee_maxhit]; a
+    `retaliate=no`, or any strength / strengthbonus that rolls above 1, is the
+    regression this refuses."""
     npc = EYEGLO_NPC.read_text()
     for number in range(1, 7):
         for name in (f"eyeglo_fluffie_{number}", f"eyeglo_fluffie_evil_{number}"):
             block = _npc_block(npc, name)
             for line in ("hitpoints=1", "attack=1", "strength=1", "defence=1", "magic=1",
                          "ranged=1", "param=attackrate,4", "param=damagetype,^crush_style",
-                         "param=strengthbonus,0", "param=stabdefence,0",
+                         "param=crushattack,0", "param=strengthbonus,0", "param=stabdefence,0",
                          "param=slashdefence,0", "param=crushdefence,0",
                          "param=magicdefence,0", "param=rangedefence,0",
                          "param=death_drop,bones"):
                 require(line in block, f"The Eyes of Glouphrie: [{name}] lacks `{line}`")
             require("huntmode=aggressive" not in block,
                     f"The Eyes of Glouphrie: [{name}] is aggressive; the wiki says No")
+            require("retaliate=no" not in block,
+                    f"The Eyes of Glouphrie: [{name}] says retaliate=no; wiki Evil_Creature "
+                    "oldid 15349482 gives max hit 1 and an attack sound -- they fight back")
+            strengths = [line for line in block if line.startswith("strength=")]
+            require(strengths == ["strength=1"],
+                    f"The Eyes of Glouphrie: [{name}] strength lines {strengths}; max hit must be 1")
+    anims = (CONTENT / "npc/configs/npc_anims.generated.npc").read_text()
+    for number in range(1, 7):
+        block = _npc_block(anims, f"eyeglo_fluffie_{number}")
+        require("param=attack_anim,eyeglo_fluffie_attack" in block,
+                f"The Eyes of Glouphrie: [eyeglo_fluffie_{number}] lost its cache swing "
+                "eyeglo_fluffie_attack (npc_anims.generated.npc)")
     quest = EYEGLO_QUEST.read_text()
     needles = []
     for number in range(1, 7):
