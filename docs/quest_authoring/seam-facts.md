@@ -1543,3 +1543,33 @@ scroll font a trailing "I!" draws like "II". Settle a scroll-title complaint fro
 and Bone Man I!` (questscroll.rs2:73 + the `quest_ragandboneman1` displayname), which is the wiki's
 own scroll image (Rag and Bone Man I oldid 15292348, Rewards). The quest was renamed from "Rag and
 Bone Man" to "Rag and Bone Man I"; the old name is not the title. NO CHANGE.
+
+## Seam pass matthew-mbp-m4-b54-seam2 (2026-10-03, batch matthew-mbp-m4-b54)
+
+(a) **"You can't go any further." on a cellar ladder (`ladder_cellar`, 17384; Swan Song's Wizards'
+Guild basement at 2594,3085).** The ladder was bound only through its `climb_down_ladder`
+category: `~climb_ladder(-1)` -> `~climb` -> `~maplink_try`, which is keyed on the PLAYER's tile.
+The guild's one row, `[maplink_0_40_48_34_13_down]`, is keyed on the ladder's own tile, and a
+shape-10 ladder blocks that tile, so a press from 2594,3086 never matched it. The miss fell through
+to the plane default (level 0 - 1) and the blocked message. LostCity climbs every copy from the
+player's own tile one dungeon mapsquare down: `[oploc1,loc_1754] p_arrivedelay;
+~climb_ladder(movecoord(coord(), 0, 0, 6400), false);` (LostCity_Content2
+`scripts/ladders+stairs/scripts/ladders.rs2:83-85`; the same tile, `maps/m40_48.jm2:6369`
+`0 34 13: 1754 10`). Fixed in OSRS-Content 662de599a5: a name binding `[oploc1,ladder_cellar]` in
+`ladders_stairs/scripts/ladders.rs2` animates, lets a verified maplink row answer first, and
+otherwise `p_telejump`s to `movecoord(coord, 0, 0, 6400)`. All 33 harvested `ladder_cellar` rows
+were already exactly +6400, so the cellar ladders that worked still land on the same tiles (ikov
+`enterDungeonForBoots` PASS). Proof: scratch `b54s2_cellar_before2` FAIL "You can't go any
+further." at 2594,3086,0 -> `b54s2_cellar_after` 10/0, tile 2594,9486,0, Wizard Frumscone at
+2588,9489, `quest.stage.frumscone_done` 95. Rows: `test/quests/wip/swansong/relay.md`.
+OPEN: `ladder_from_cellar` (17385) in that basement climbs to 2594,9486 **level 1** by the plane
+default; LostCity `loc_1755` is `movecoord(coord(), 0, 0, -6400)` (`ladders.rs2:87-94`). It has
+about 50 placements, some on level 1, so it needs its own audit; leave a basement by `goto_tile`.
+
+(b) **`no npc ... in the client's entity pool` on the first `talk_to` after a ladder into a new
+mapsquare.** `click_loc` returns on `map_flag` while the player is still walking to the ladder, so
+the climb lands later (here at the end of the following `t.ticks(3)`), and the npc pool for the new
+mapsquare arrives a tick after the tile does. Put `t.exec("<npc>-present", t.npc.await_present,
+"<npc>", 15, 10)` between the ladder's `-tile` row and the `talk_to`. Swan Song's round-2 file went
+from row 122 FAIL to 152/12 (`quest.stage.queen_fight` 170) with that one row added
+(`b54s2_round2_await`).
