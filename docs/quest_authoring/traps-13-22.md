@@ -222,6 +222,11 @@ shape: no pose projects the target on screen at all. A camouflaged loc (a rock-f
 does this even from the right approach tile -- check its model/size in `all.loc` before blaming the
 tile.
 
+After a long fight the exit loc can simply be out of view: Contact!'s `leaveChasm` failed `yaw 1093
+framed nothing in 5 poses` on the boss ladder after the Giant Scarab fight ended far from it. Walk
+back toward it first (`t.player.walk_to(6442, 70, 60)` there), then `click_loc` (seam pass
+matthew-mbp-m4-b53-seam4).
+
 ## Trap 22. A `~mesbox`/`~chatnpc_specific`-style page SUSPENDS the calling script, not decorates it.
 
 Everything the branch does after opening one -- a plain `mes()` line, an `inv_add`, a varp write --

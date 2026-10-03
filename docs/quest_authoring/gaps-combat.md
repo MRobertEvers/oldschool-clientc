@@ -460,3 +460,41 @@ of Knowledge needs twelve tattered pages, and red dragons drop one in 10 (`[proc
 
 Before raising `max_frames`, count the kills: pages needed times the drop rate. A `::give` of the
 drops is not the fix (coverage-and-gate: "A `-- GUIDE-GAP:` over a `::give` of a quest drop").
+
+## A boss's first bar reading cannot tell 130 hitpoints from 10: read the server
+
+*Origin: seam pass matthew-mbp-m4-b53-seam4 (Contact!'s Giant Scarab).*
+
+The client health bar is 30 units wide whatever the npc's hitpoints, so `hp no bar -> 21/30,
+hitsplat 3` reads the same on a 10-hp npc and on a 130-hp one. To prove a boss carries its real
+block, read the server. Contact! has `t.cheat("::contact_scarab_hp")`, answered by
+`t.msg.expect("Giant Scarab hitpoints")` with `Giant Scarab hitpoints 130/130 attack 169 strength
+190 defence 169 ranged 190` (`[debugproc,contact_scarab_hp]`, `contact_scarab.rs2`). For another
+boss, a `[debugproc]` that prints `npc_stat(hitpoints)`/`npc_basestat(...)` of the nearest copy is a
+test read, not a content change. Then check the bar falls slowly: Contact!'s boss read 108/130
+after 8 ticks of melee.
+
+## A real level-191 boss beats a whip, no armour and 10 lobsters: stage the guide's gear
+
+*Origin: seam pass matthew-mbp-m4-b53-seam4 (Contact!).*
+
+Once Contact!'s Giant Scarab had its wiki block (130 hp, max hit 20, poison 9, four level-66/68
+summons), the round-3 staging (abyssal whip, no armour, 10 lobsters, eat below 50) died 73 ticks
+into `await_dead_engaged`. Slash against its slash defence 99 barely lands. The staging that wins is
+`rune_full_helm`, `rune_chainbody`, `rune_platelegs`, a `zamorak_spear` (the wiki's advice: weaker
+to stab) and sharks. It took 131 to 213 ticks. `rune_platebody` refuses without Dragon Slayer, so
+use `rune_chainbody`.
+
+Food is not reproducible from one run. The embedded server's clock is not locked, so the same staging
+ate 18 sharks in one run and all 20 in the next (lowest hp 19/99). Give a quarter more food than the
+worst run you saw (Contact!: 25 sharks), or add prayer. Take the gear from the guide's
+"recommended" list and the boss page's weakness. Do not take it from the last green run.
+
+## "You have been poisoned!" right after a death respawn
+
+*Origin: seam pass matthew-mbp-m4-b53-seam4 (open, not fixed).*
+
+A ranged hit that poisons is queued. If the player dies before it lands, it lands after the
+respawn: `b53s4_scarab_fight_b` printed "You have been poisoned!" in Lumbridge. Death does not clear
+the queue (`skill_combat/scripts/poison.rs2`, engine/shared). If a row after a death reads poison or
+hp, expect it. The fix is an engine/shared seam.
