@@ -1,6 +1,6 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo	matthew-mbp-m4-b55	REVIEW BLOCKED (matthew-mbp-m4-b55): run.py green, gate green, lint clean, helper_coverage FULL, fail.py no failing row, no npc_findhero line, guide walk and rewards fine; but the Read tool's PreToolUse hook timed out on every screenshot so no shot could be opened. Not committed; re-run the reviewer to open shots and commit. Published evidence left uncommitted under OSRS-Content/.../quest_anothersliceofham/play.		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo	matthew-mbp-m4-b55	AWAITING SHOT REVIEW (matthew-mbp-m4-b55 round 7): the committed file is green twice (149/0), gate green, lint clean, helper_coverage FULL 29 (28 DRIVEN, 1 TRAVEL), no npc_findhero line; the reviewer could not open a screenshot (Read hook timeout), so it is not accepted. Next batch: review + sample the committed file and its published evidence, no re-author needed		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b55			
