@@ -1202,3 +1202,64 @@ retaliation floor and exit. The fixers' reports are under
   (520 x 3.4, the four-player stack); the same room entered fresh stood at 520.
   `^tob_var_scale` appears to count earlier `t.raid.enter` re-entries (open). Enter one
   raid per run.
+
+# What the third ToB room pass tripped on (matthew-mbp-m4-raid-b1-rooms-tob)
+
+Folded from the reviewers' doc gaps and the sampler's send-backs of the third launch.
+
+## A covered first press still costs ticks
+
+- `t.player.attack(sym, op, 1)` settles in one tick only when the first press lands.
+  When it is covered (a pool decal, another npc, the boss moving), the verb's cover
+  recovery and `walk_near` spent 22 to 53 ticks before it answered. In a timed loop
+  step to a tile with a clear line to the boss first, or press with `{ slot = n }`.
+
+## Hitpoints after an eat, and what an eat holds
+
+- `t.skill.read('hitpoints')` lags an eat by 1 to 3 ticks. Re-eating on the stale read
+  wastes food: after an eat, wait for the reading to rise (or count the eat) before the
+  next threshold test.
+- An eat's `p_delay` holds every queued hit on the player, not only the Sotetseg death
+  ball: a Sotetseg melee swung on tick 531 landed on 535 instead of 532. A row that
+  excuses a late splat by an eat must look for the eat in the ticks AFTER the swing
+  (swing+1 .. splat-1), not only before it, and must `t.check` every instance; an
+  unexplained late splat is a FAIL (or a content_bug), never a PASS.
+
+## Exact-tick actions
+
+- `t.ticks(n)` waits on the CLIENT clock, which can drift from the server tick by one.
+  For an action that must resolve on a given server tick, `t.await` on `t.tick()`
+  reaching the tick before it, then `t.player.step_tick`.
+
+## Verzik phase 1: pillars, bombs, the attack spot
+
+- The hide tile behind the west pillar is 6426,93 (and 87, 81), but attacking from it
+  walks you out of cover, because the pillar blocks the line. Attack from 6428,93.
+- Bolt hits on a pillar are `npc_hitmark` events only, never `hit_npc` rows. Read pillar
+  health with `::tobpillars 0`.
+- A P2 bomb's `hit_player` row lands on the landing tick + 1. The landing tick is the
+  1584 ground graphic's `map_spotanim` row, and that row's `delay` field carries the
+  graphic's duration, not an offset.
+
+## Maiden: the Ancients spellbook
+
+- There is no verb and no in-room route to the Ancients spellbook, so no ice spell can be
+  cast and `maiden.freeze_full_bonus` stays an open driver row (see "Specials and stats
+  the driver cannot read").
+
+## A measured value must come from the log, not from the spec
+
+- A spec row whose test writes the SPEC value as "measured" when a consistency check
+  holds is not measured, and the sampler sends the room back. Two examples from this
+  pass: `xarpus.p3.retaliate_uplift` wrote 40 because one retaliation of 78 fit
+  `base * 140 / 100`, but in Entry (base 50-75 scaled by 38/50 first, seam4) a 78 fits
+  any uplift from 37 to 105 percent; `xarpus.p3.screech_pct_entry` wrote 22.5 while the
+  log bracketed the threshold at 19.6-23.1 percent (120 -> 102 on the first splat of a
+  scythe swing), wider than its tolerance of +-1.
+- Narrow a threshold with small hits near it (a weak weapon, one hitsplat a swing), and
+  pin a scaling factor with several samples (the largest seen hit caps it: in Entry a 79
+  needs an uplift of at least 39 percent). Write what the log brackets; if the bracket is
+  wider than the tolerance, the row is open, not a pass.
+- The grader still reads only the first element of a measured list (above), so a list
+  row such as `measured 1,4 ticks` against an exact 1 is graded as 1. Grade every
+  instance in the test.
