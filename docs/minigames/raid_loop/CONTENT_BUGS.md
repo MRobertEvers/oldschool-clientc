@@ -273,3 +273,7 @@ Fixed in OSRS-Content d2134f89f5 (seam5): the rows above marked so. Found and le
 ## ToB room pass, fourth launch (tob_sotetseg review)
 
 - ToB, Sotetseg: the maze proc runs one tick after the crossing splat (proc-1 in both mazes of the Entry solo run), so the last reading before the 2nd proc is 32.5 % against spec sotetseg.maze_trigger_hp 66.6,33.3 (grade C, tol range: blert sees 33.3 to 34.1, the crossing hit lands on the proc tick). Server: tob_sotetseg.rs2:809-834 (`~tob_sote_check_maze` runs after the splat is applied, tob_sotetseg.rs2:98-109). Evidence: raid_coverage tob_sotetseg, ledger row spec.sotetseg.maze_trigger_hp.
+
+## ToB room pass, fourth launch (tob_verzik review)
+
+- ToB, Verzik P3 enrage: `~tob_verzik_enraged` (tob_verzik.rs2:2338) compares an integer percent (`divide(multiply(left,100),pool) <= 20`), so 125 of 600 hitpoints (20.8 %) already enrages against spec verzik.p3_enrage_threshold (grade B, 20 percent at or below; blert sees tornadoes first at 13.7-19.9 %). Evidence: raid_coverage tob_verzik, ledger row spec.verzik.p3_enrage_threshold (tick 555).
