@@ -412,6 +412,8 @@ topic file with one line added here.
 - a willow takes six skips to grow; `varb701_varbit_701` stuck one stage behind the skip -> gaps-world: A step that waits real minutes (the tree bullet)
 - a quest loc in no `maps/*.jl2` (a "map row" proposal); `torirsserver-cache` bake not read by runs -> content-gaps: A quest loc absent from `maps/*.jl2`
 - an edit to a generated `areas/world/configs/m*.spawn`; `gen_spawns.py` tables; regenerating drops hand edits -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (d)
+- "You can't go any further." on a cellar ladder (`ladder_cellar`; the Wizards' Guild basement, Swan Song) (FIXED b54-seam2, OSRS-Content 662de599a5) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam2 (a); start-and-travel: Why not `click_loc` the ladder
+- `no npc ... in the client's entity pool` on the first `talk_to` after a ladder or teleport into a new mapsquare -> seam-facts: Seam pass matthew-mbp-m4-b54-seam2 (b) (`t.npc.await_present` first)
 - `npc_add`ed copies missing from `t.npc.tiles` while the proc ran (one of three Swan Song trolls); a `movecoord` whose middle argument is not 0 -> seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a) (the middle argument is the LEVEL)
 - a quest drop hand-added to a generated `wiki_*.rs2`; a quest bone missing from one drop table version; `QUEST_TERTIARY_HOOKS`; a regeneration adds `~gwd_death_was_npc_kill` -> seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (b)
 - the client segfaults after many interface models (`::ejmodels`, `UITreeSceneBridge_EnsureModel`); `model_pose` reads `model=-1` -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (e)

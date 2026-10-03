@@ -178,6 +178,11 @@ maplink row and falls through to `[proc,climb]`'s +/-1-plane default. `goto_tile
 same tile trick reaches an instanced area behind a trapdoor too (`z+6400`: `3120,9567,0` for the
 Wizards' Tower basement), with no `click_loc` on the trapdoor at all.
 
+A cellar ladder (`ladder_cellar`, 17384) is the exception since b54-seam2 (OSRS-Content
+662de599a5): its name binding climbs from wherever you stand to `z+6400`, as LostCity does, so
+`click_loc` on it works from any side (seam-facts: Seam pass matthew-mbp-m4-b54-seam2 (a)). After
+it, `t.npc.await_present` the npc you want before the `talk_to` (same entry, (b)).
+
 #### An agility crossing answers "Nothing interesting happens." off its source tile (sonnet-b44)
 
 *Origin: author batch sonnet-b44 (regicide, content_bug).*
