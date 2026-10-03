@@ -3,7 +3,7 @@ quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b5
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	content_bug	matthew-mbp-m4-b55	content_bug: slice_artifact_hotspot_0N_1 (all.loc:256904, shape 24242, Artefact) has no op1; the menu offers only Examine so [oploc1,slice_artifact_hotspot_0N] (slice_tegdak.rs2:118-143) cannot fire and no oplocu exists for the trowel; stage 2->3 undrivable. Stage 5-11 tail must be re-added after the fix.		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
-quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo	matthew-mbp-m4-b55	REJECTED (matthew-mbp-m4-b55): run/gate/lint green and helper_coverage FULL, but (1) the 2000 coins reward (^aoa_coin_reward, inv_add in aoa_quest_complete) has no literal-amount row; add t.inv.count coins delta == 2000 (and the memoirs page item); (2) fight.margin is vacuous: hp_low stays 99 (the hp read returns a wrong stat) while the shots show hp orb 27/40, so the sharks-left/lowest-hp margin proves nothing; read the real hitpoints current value and record staged/eaten/lowest hp		
+quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b55			
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26			
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo				
 quest_ball	ball	witchshouse		2	green	sonnet-b29			
@@ -165,7 +165,7 @@ quest_tasteofhope	tasteofhope	atasteofhope		4	todo
 quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
-quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo	matthew-mbp-m4-b55	REJECTED (matthew-mbp-m4-b55): run/gate/lint green and helper_coverage FULL (23/23), but two findings: (1) killCreature3 is reached by goto_tile to level 3 (a ::goto teleport, shot 409 shows 'Teleported to 2466,3495,3') past the Grand Tree ladders the guide names (climbUpToF1/F2/F3); the file must climb them by click_loc. (2) the six fight rows record no measured staged/eaten/lowest hp/ticks and assert no margin; the detail is a literal string 'hp untouched', not a read of hp.		
+quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	green	matthew-mbp-m4-b55			
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32			
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	green	vm-b1			
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
