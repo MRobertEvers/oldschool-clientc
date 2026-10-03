@@ -547,3 +547,32 @@ Hitpoints were staged at 40 with 8 sharks, none eaten, and the six fights took 1
 rewards are literal: 2000 coins (0 to 2000), one `veos_memoirs_arc_page`, 1500 Hunter, 500
 Runecraft and 1 qp. Nit: the four `searchRocks-N` rows are `t.check(true, ...)`. The stage check
 after them is the real gate.
+
+## Sample matthew-mbp-m4-b55, round 4 (2026-10-03)
+
+*The sampler checked theeyesofglouphrie (0759d793e, 298/0, 466 shots) and eadgar (42f93acac,
+158/0, 233 shots). It passed The Eyes of Glouphrie and SENT Eadgar's Ruse BACK. Commit 42f93acac
+is reverted (42e21b756), and so is its evidence commit (OSRS-Content 8f936a7800, reverted by
+f52b8c7aec). The file is kept in `test/quests/wip/eadgar/round4_rejected.lua`.*
+
+(a) EADGAR'S RUSE GOES FROM EADGAR'S CAVE INTO THE TROLL STRONGHOLD BY GOTO. The six entries into
+Eadgar's cave were fixed: each one clicks `troll_mad_eadgar_entrance` and reads back 2893,10074.
+But three gotos still start inside the cave (2890,10085,2) and land inside the stronghold:
+`goto-rack-1` (row 53, to the prison rack at 2829,10097,0), `goto-rack-2` (row 124, same tile) and
+`goto-burntmeat-2` (row 135, to the kitchen at 2844,10057,1). The real route is the cave exit, the
+surface, `troll_stronghold_door`, and then one or two flights of stairs. The guide names every one
+of these for that state: `leaveEadgarsCave*`, `enterStronghold*`, `goDownNorthStairs*`,
+`goDownToPrison*`, `goDownSouthStairsWithScarecrow` (stages 50, 85 and 87). helper_coverage read
+FULL (coverage-and-gate: A goto from one cave into another reads FULL). The file's header comment
+says it drops every stronghold door and stairs click on purpose. That rule is wrong now.
+
+(b) `goto-burntmeat-1` (row 27, down the south stairs) and `goto-storeroomdoor` (row 142, down to
+the storeroom, the guide's `goDownToStoreroom` at 2852,10061,1) also go down guide-named stairs by
+goto. The grader calls these TRAVEL, but the batch rule covers stairs too.
+
+Not findings (theeyesofglouphrie): all five cave entries (rows 3, 44, 78, 240, 280) click
+`eyeglo_brimstails_cave_entrance` and check z > 9000 on the landing. Shots 002/003, 187/188,
+289/290, 397/398 and 435/436 show the cave after the click. The guide names no cave exit, so
+leaving by goto is travel. The kill comment now says 1 hp and max hit 1. Rewards and qp are
+literal and match the scroll (shot 466). The batch's queue commit (7a00d57e6) had left the row at
+`todo` with the round-3 failure, so the sampler set it to green.

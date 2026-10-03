@@ -621,6 +621,28 @@ in, goto only to the entrance, click it, and read back the landing tile. Do this
 just the first. What a sampler does: check every goto row's `at <landing> from <departure>` against
 the guide's zones. A departure outside and a landing inside, with no click on the way in since the
 last goto, is a teleport past it.
+### A goto from one cave into another reads FULL (Eadgar's Ruse, matthew-mbp-m4-b55 round 4; OPEN)
+
+`frame_entries` only judges a goto that LEAVES from the surface. A goto that starts in one
+underground place and lands in another is not judged, even when the real route goes up to the
+surface and back down through a door the guide names. Eadgar's Ruse round 4 went from Eadgar's
+cave (2890,10085,2) straight to the Troll Stronghold prison rack (2829,10097,0) and to Burntmeat's
+kitchen (2844,10057,1). On the way it skipped `troll_mad_eadgar_exit`, `troll_stronghold_door` and
+the stairs. The guide names all of them for that state (`leaveEadgarsCaveWithParrot`,
+`enterStrongholdWithParrot`, `goDownNorthStairsWithParrot`, `goDownToPrisonWithParrot`, and the
+same for stages 85 and 87). The steps still read DRIVEN, because helper_coverage matched them to
+other rows: an earlier `catchParrot` row, and the first visit's door click at line 271.
+
+- What an author does: leaving one cave for another place underground is two trips. Click the
+  exit, goto the next entrance on the surface, click it, then click each flight of stairs. Read back
+  the landing tile (and level) after each click.
+- What a sampler does: list every goto row whose departure AND landing are both above z 6400. If
+  the two tiles are in different places (a different dungeon, building or floor), find the guide's
+  steps for that state. A goto that skips any exit, door or stairs the guide names there is a
+  teleport.
+- Grader gap (OPEN): judge an underground-to-underground hop the same way as a surface-to-cave one
+  when the landing zone is a step's zone and the departure is outside every zone of that step.
+
 ### "lands at ... from ..., another map frame, without pressing the entrance <step> names ... on every visit" (`frame_entries`, matthew-mbp-m4-b55)
 
 The Eyes of Glouphrie's guide is `new ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`
