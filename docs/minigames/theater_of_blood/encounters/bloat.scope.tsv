@@ -58,3 +58,26 @@ bloat.tech_flinch_tiles	all	technique; a solo room measures it
 # heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
 # bloat.turn_cd	normal+entry	the quantity says 'Normal and Entry'; the heuristic keeps it in Entry and Normal and skips it in Hard (bloat.turn_cd_hard)
 # bloat.hand_gate	normal+entry	the quantity says 'Normal and Entry'; the heuristic keeps it in Entry and Normal and skips it in Hard (hands from tick 1)
+bloat.av.idle.seq	all	presentation: record readyanim
+bloat.av.walk.seq	all	presentation: record walkanim
+bloat.av.down.seq	all	presentation: down
+bloat.av.down.len	all	presentation: down
+bloat.av.stomp.shout_offset	all	presentation: stomp
+bloat.av.stomp.camera	all	presentation: stomp
+bloat.av.fly.proj	all	presentation: flies
+bloat.av.fly.gfx	all	presentation: flies
+bloat.av.fly.sound	all	presentation: flies; variants 1/4/6 unsourced, not rows
+bloat.av.hand.shadow_gfx	all	presentation: falling flesh; the cache gives no rule for choosing among the four, ours is random
+bloat.av.hand.shadow_seq	all	presentation: falling flesh
+bloat.av.hand.splat_gfx	all	presentation: falling flesh
+bloat.av.hand.hit_sound	all	presentation: falling flesh
+bloat.av.hand.stun_gfx	all	presentation: falling flesh
+bloat.av.defend.sound	all	presentation: Bloat takes a hit; candidate content bug, D
+bloat.av.death.seq	all	presentation: death
+bloat.av.death.free	all	presentation: death
+bloat.av.death.sound	all	presentation: death
+bloat.av.room.chamber_anim	all	presentation: arena
+bloat.av.room.ambience	all	presentation: arena
+bloat.av.room.chain_anim	all	presentation: arena
+bloat.av.music.room	all	presentation: music
+bloat.av.music.fight	all	presentation: music

@@ -223,3 +223,7 @@ No new server code was fetched in this pass.
 * Discord (WDR, GM30, Max Eff Moneys, Flash's Hideout): not reachable.
 * runescape.com original newsposts: HTTP 403 to non-browser clients (COMMUNITY_SOURCES.md); the wiki's `Update:` copies stand in.
 * Fandom mirrors, RSPS wikis, aggregator blogs: see README section 5.
+
+## 10. Raidwide spec pass, 2026-10-03 (`encounters/raidwide.tsv`)
+
+No external fetch was made in this pass (no wiki, Blert or video request): every row is read from files already pinned under `sources/` (the wiki pages, the `Update:` newsposts, the plugin code, `cache_*.txt`, `AV_INVENTORY.tsv`, `wiki_combat_achievements_tob.tsv`) and measured on our own server in scratch runs (`build/spec_state/matthew-mbp-m4-raid-b1-spec-tob-av/ledgers_raidwide/`, copies of seam 7's scratches plus `raidwide_hud`, `raidwide_lobby`, `raidwide_music_rooms`, `raidwide_chest_once`, `raidwide_chest_entry`, `raidwide_party_hard`, `raidwide_party_hud`, `raidwide_vault_ticks`); the closer copied the 16 ledgers the table cites to `sources/raidwide_ledgers_2026-10-03/` (build/spec_state is git-ignored) and the rows cite that copy. `videos.tsv` was not touched: no frame count was needed (the two video-sourced wordings are D rows read from the transcripts; the wipe delay is E, M300).

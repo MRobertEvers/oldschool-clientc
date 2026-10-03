@@ -62,6 +62,34 @@ xarpus.p3.retaliate_uplift	stat	the 40 percent share cannot be split from one re
 xarpus.p3.retaliate_max_entry	entry	Entry figure: the largest retaliation hit of the room, a ceiling (57 x 1.4 = 79.8)
 xarpus.p3.hard_gaze_rule	hard	Hard Mode only
 xarpus.death.collapse	all	applies in every mode; a solo room measures it
+xarpus.av.enter.music	all	music row on room entry
+xarpus.av.wake.music	all	music row at the wake
+xarpus.av.wake.npc_type	all	retype at the wake
+xarpus.av.p1.idle_seq	all	readyanim of the feeding form
+xarpus.av.p2.idle_seq	all	readyanim of the combat form
+xarpus.av.exhumed_open.loc	all	exhumed rise loc
+xarpus.av.exhumed_open.seq	all	loc anim= binding
+xarpus.av.exhumed_open.sound	all	cache name only
+xarpus.av.exhumed_heal.proj	all	heal orb graphic
+xarpus.av.exhumed_heal.sound	all	cache name only
+xarpus.av.exhumed_close.sound	all	cache name only
+xarpus.av.hard_ring.loc	hard	ring loc id; count is xarpus.hard.ring_tiles
+xarpus.av.p2_start.seq	all	single plugin constant, cache name agrees
+xarpus.av.p2.npc_type	all	retype at the transform
+xarpus.av.spit.seq	all	single plugin constant, cache name agrees
+xarpus.av.spit.proj	all	single plugin constant
+xarpus.av.splat_land.gfx	all	single plugin constant
+xarpus.av.splat_chain.proj	all	single plugin constant
+xarpus.av.splat_land.loc	all	single plugin constant
+xarpus.av.splat_land.seq	all	loc anim= binding
+xarpus.av.splat_land.sound	all	cache name only
+xarpus.av.screech.sound	all	cache name only
+xarpus.av.screech.text	all	unobservable in the tick log
+xarpus.av.death.seq	all	cache npc record plus plugin
+xarpus.av.death.npc_type	all	retype at the collapse
+xarpus.av.death.sound_script	all	tob_xarpus.rs2:1414 sound_synth(tob_xarpus_death_screech)
+xarpus.av.death_pools.window	all	video B_gjVdmfOrY 60 fps by seam7; no recorder reads it
+xarpus.av.death_pools.gfx	all	spotanim anim= and angle= binding
 # heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
 # xarpus.p1.handoff.normal	normal+entry	the quantity says 'Normal and Entry'; skipped in Hard (xarpus.p1.handoff.hard)
 # xarpus.p3.screech_pct	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (xarpus.p3.screech_pct_entry)

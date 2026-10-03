@@ -85,3 +85,26 @@ maiden.hard_focus_hits	hard	Hard Mode only
 maiden.hard_focus_bonus	hard	Hard Mode only
 maiden.hard_spawn_invulnerable	hard	Hard Mode only
 maiden.pool_damage_entry	entry	Entry figure
+maiden.av.idle.seq	all	presentation row
+maiden.av.blackstorm.seq	all	presentation row
+maiden.av.blackstorm.proj	all	presentation row
+maiden.av.blackstorm.sound	all	presentation row
+maiden.av.blood_throw.seq	all	presentation row
+maiden.av.blood_throw.proj	all	presentation row
+maiden.av.blood_throw.sound	all	presentation row
+maiden.av.blood_throw.pool_gfx	all	presentation row
+maiden.av.blood_throw.pool_gfx_offset	all	presentation row
+maiden.av.blood_throw.impact_sound	all	presentation row
+maiden.av.blood_throw.pool_loc	all	presentation row
+maiden.av.slug_trail.loc	all	presentation row
+maiden.av.slug.spawn_npc	all	presentation row
+maiden.av.slug.walk_idle_seq	all	presentation row
+maiden.av.crab_spawn.npc	all	presentation row
+maiden.av.crab_death.seq	all	presentation row
+maiden.av.transmog.body_ids	all	presentation row
+maiden.av.death_a.seq	all	presentation row
+maiden.av.death_b.seq	all	presentation row
+maiden.av.death.dying_a_form_ticks	all	presentation row
+maiden.av.hit_sound	all	presentation row
+maiden.av.room_music	all	presentation row
+maiden.av.fight_music	all	presentation row

@@ -1,0 +1,9 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	music.maiden	PASS	14	001-music.maiden	mode entry; ::tobmode at tick 5, ::tobgo at tick 10, end 14; music rows: t10/track569/script
+2	music.bloat	PASS	12	002-music.bloat	mode entry; ::tobmode at tick 17, ::tobgo at tick 22, end 26; music rows: t15/track556/region t17/track578/script t22/track571/script
+3	music.nylocas	PASS	12	003-music.nylocas	mode entry; ::tobmode at tick 29, ::tobgo at tick 34, end 38; music rows: t15/track556/region t17/track578/script t22/track571/script t27/track556/region t29/track580/script t34/track579/script
+4	music.sotetseg	PASS	12	004-music.sotetseg	mode entry; ::tobmode at tick 41, ::tobgo at tick 46, end 50; music rows: t15/track556/region t17/track578/script t22/track571/script t27/track556/region t29/track580/script t34/track579/script t39/track556/region t41/track584/script t46/track581/script
+5	music.xarpus	PASS	12	005-music.xarpus	mode entry; ::tobmode at tick 53, ::tobgo at tick 58, end 62; music rows: t15/track556/region t17/track578/script t22/track571/script t27/track556/region t29/track580/script t34/track579/script t39/track556/region t41/track584/script t46/track581/script t51/track556/region t53/track567/script t58/track564/script
+6	music.verzik	PASS	12	006-music.verzik	mode entry; ::tobmode at tick 65, ::tobgo at tick 70, end 74; music rows: t15/track556/region t17/track578/script t22/track571/script t27/track556/region t29/track580/script t34/track579/script t39/track556/region t41/track584/script t46/track581/script t51/track556/region t53/track567/script t58/track564/script t63/track556/region t65/track566/script t70/track572/script
+SUMMARY	6	PASS	74	exit=0	pass=6 fail=0

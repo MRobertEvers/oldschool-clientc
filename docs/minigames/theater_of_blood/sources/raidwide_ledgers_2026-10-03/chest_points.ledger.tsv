@@ -1,0 +1,8 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	deaths.1	PASS	30	001-deaths.1	tobjail jailed=0 died_in=0 deaths=0 room=2 cleared=1 orbs=16,0,0,0,0 tile=6407,97,0
+2	chest.1	PASS	5	002-chest.1	tobstores points=10 stamina=1 stock=8 0:
+3	chest.2	FAIL	99	003-chest.2,004-chest.2-FAIL	no chest (not_found tob_midway_chest_closed); cleared=false; Teleported to 6407,97,0. | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | No live tob_bloat within 60 tiles. | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | No live tob_bloat within 60 tiles. | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0 | tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=0 boss_uid=67106 fight=6439,95,0
+4	points.distribution	PASS	0		points after the first chest, deathless solo Normal, n=1: 10 [frame unchanged]
+5	entry.chest	FAIL	32	005-entry.chest,006-entry.chest-FAIL	no chest
+SUMMARY	5	FAIL	166	exit=0	pass=3 fail=2

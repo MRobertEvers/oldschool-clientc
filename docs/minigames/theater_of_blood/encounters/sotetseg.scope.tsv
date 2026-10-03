@@ -65,3 +65,42 @@ sotetseg.tornado_damage	all	the solo runner's tornado, every mode
 # sotetseg.melee_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.melee_max_entry)
 # sotetseg.ball_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.ball_max_entry)
 # sotetseg.rag_flat	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.rag_flat_entry)
+sotetseg.av.ball.seq	all	8139 is a plugin constant only: the npc record's attack_anim is the melee seq
+sotetseg.av.ball.proj	all	start tick = the animation tick (+0)
+sotetseg.av.ball.cast_sound	all	cache name only; ENCOUNTER_TIMING.md section 5.1 lists it
+sotetseg.av.ball.hit_sound	all	cache name only
+sotetseg.av.ricochet.proj	party	a party run (two raiders) closes the measurement
+sotetseg.av.ricochet.hit_sound	party	party run needed
+sotetseg.av.melee.seq	all	also the attack_anim of every Sotetseg npc record in tob.npc
+sotetseg.av.melee.frame_sound	all	seam7 removed the sound_synth double
+sotetseg.av.walk_idle.seq	all	the npc record is the cache's own binding; our server sends no row
+sotetseg.av.death_ball.seq	all	blert's SOTE_BALL_ANIMATION covers the death ball cast
+sotetseg.av.death_ball.proj	all	start tick = the animation tick (+0)
+sotetseg.av.death_ball.proj_anim	all	cache binding (configs/all.spotanim:10320)
+sotetseg.av.death_ball.cast_sound	all	video narrator + cache name; seam7 took the radius from Near-Reality
+sotetseg.av.death_ball.impact_gfx	all	instrument gap, see open_issues
+sotetseg.av.death_ball.impact_sound	all	cache name only; offset unsourced
+sotetseg.av.death_ball.message	all	Jagex's wording; colour from tob-qol's raw string
+sotetseg.av.maze.boss_seq	all	only the plan's Near-Reality-derived text names it as HIS animation; the cache binds 8142 to the exit loc 33037
+sotetseg.av.maze.proc_sound	all	cache name + plan
+sotetseg.av.maze.player_anim	all	blert MAZE_TELEPORT_ANIMATION and tob-qol MAZE_TELE_ANIM; seam7 left it unproved
+sotetseg.av.maze.floor_plain	all	re-activation+1 is unsourced; blert names it DISABLED, tob-qol 'inactive overworld'
+sotetseg.av.maze.floor_dark	all	blert's INACTIVE id; tob-qol calls 33034 the underworld's inactive tile, so the arena use rests on seam7's video read (Plank2g 0:36 plain vs 1:53 dark)
+sotetseg.av.maze.lit_path	all	three plugins agree; tile counts are the generated path, see sotetseg.maze_seeds
+sotetseg.av.maze.arena_progress	all	ATR names 33035 SOTETSEG_RED_TILE
+sotetseg.av.maze.exit_portal	all	a later room test should click it
+sotetseg.av.rag.gfx	all	blert MAZE_RAG_GRAPHICS_OBJECT and ATR SOTETSEG_RAGGED_TILE
+sotetseg.av.rag.sound	all	cache name only; 3970 (the _2 variant) is unsourced and not placed
+sotetseg.av.drain.gfx	all	instrument gap
+sotetseg.av.tornado.npc	all	the _story/_hard suffix is the cache's own mode convention; the Entry/Hard ids were 'unsourced' in AV_INVENTORY but the cache dump holds them
+sotetseg.av.tornado.seq	all	the despawn seq 9005 is unsourced and not a row
+sotetseg.av.tornado.spawn_sound	all	cache name only; the wiki calls the tornado a 'red vortex'
+sotetseg.av.tornado.hit_sound	all	name-based placement (seam7)
+sotetseg.av.hit.defend_sound	all	cache name only
+sotetseg.av.death.seq	all	ATR alone (SOTETSEG_DEATH_ANIMATION); the cache's npc dump holds no death_anim field
+sotetseg.av.death.sound	all	cache name; the plan confirmed it against all.synth.compack
+sotetseg.av.death.jingle	all	raid-wide: see raidwide.tsv
+sotetseg.av.death.chest_loc	all	the wiki says players can buy supplies after Bloat and Sotetseg; the loc id is the cache name's
+sotetseg.av.music.room	all	wiki track name; the id from the cache's music row
+sotetseg.av.music.fight	all	tolerance +-1: the mark is written a tick after the barrier answer
+sotetseg.av.hard_maze.parent_locs	hard	source's value kept; ours places 0

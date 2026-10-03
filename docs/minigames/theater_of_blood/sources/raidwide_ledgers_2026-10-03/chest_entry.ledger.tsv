@@ -1,0 +1,6 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	points.distribution	PASS	5	001-points.distribution	points after the first chest, deathless solo Normal, n=0: 
+2	entry.bandages	PASS	29	002-entry.bandages	tob_bandages 10 after the Entry Bloat chest
+3	entry.bandages_once	PASS	2	003-entry.bandages_once	tob_bandages 10 after a second Open
+SUMMARY	3	PASS	36	exit=0	pass=3 fail=0
