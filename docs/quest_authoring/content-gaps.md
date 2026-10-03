@@ -185,3 +185,13 @@ that." (`cooking.rs2` `[proc,attempt_cook]`, the `db_find(cooking_generic:uncook
 The stew is a bring-along, so buying it is allowed: the Shayzien barman (`shayzien_barman`, op 3,
 shop `shayzien_pub`, The Cloak and Stagger, 1550,3560) sells one for 20 coins. The only setup
 `::give` is the coins. Once a `cooking_generic` row exists, cook the stew instead.
+
+## Only one of three `npc_add` ambush trolls appears (Swan Song, matthew-mbp-m4-b54)
+
+`swansong_colony.rs2` `[proc,ssq_spawn_entrance_ambush]` (lines 119-123) calls `npc_add` three
+times for `swan_troll_ambush`: on `^ssq_entrance_ambush_coord`, at +2,+1 and at -1,+2. The client
+shows one troll (shots 030 and 032, and `t.npc.tiles` lists one copy), so `%varb2107` never
+reaches 3 and stage 50 cannot be reached. The test stops at `t.blocked` with `content_bug`. Not
+yet known: whether `npc_add` drops the two offset spawns or their tiles are blocked. Check that on
+the server first (the spawn tiles in the map's collision, and a server-side npc count after the
+proc). Do not work around it in the test.

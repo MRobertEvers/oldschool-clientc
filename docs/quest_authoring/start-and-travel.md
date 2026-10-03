@@ -82,6 +82,27 @@ message survives only as `target shares the player's tile and the step off it di
 means every one of the eight neighbours refused the walk (a walled-in loc), not that the camera is
 pointed elsewhere.
 
+### An npc behind a counter or wall: goto an ORTHOGONAL tile, not a diagonal one (matthew-mbp-m4-b54)
+
+An npc that stands behind a counter, a bar or a wall corner is reached only from a tile that
+shares its row or column across the gap. A goto to a tile diagonal to it lands, and then
+`talk_to` walks around or answers "I can't reach that!", because the diagonal crosses a wall
+corner. Put the goto on the open side, straight across from the npc. Tiles that work: Bone
+Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator from
+1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
+is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+
+### No charter verb: reach a charter port with `goto_tile` when the guide allows any route (matthew-mbp-m4-b54)
+
+No driver verb works Trader Stan's charter map (`transport_charter/scripts/charter_npc.rs2`
+`[label,charter_op]` opens `~charter_map_open`). Ethically Acquired Antiquities' guide step
+`talkToTraderStan` says "Charter at a cost of 3000 coins", but the wiki says the 3,000 coins are
+only one recommended way to get there and the player may reach Port Sarim by any route
+(`docs/quests/ethically_acquired_antiquities.md:50-52`). So `goto-stan` from the Fortis Cothon to
+3039,3193 is plain travel, and the coins are not a bring-along to `::give`. If the voyage itself
+is the guide's step (the quest's state changes on arrival), a goto is not enough: report the
+missing verb as a gap.
+
 ### `walk_near` takes the `{kind=, id=}` table
 
 `walk_near(target, ticks, minimum)` takes the `{kind=, id=}` table `player.by_symbol` returns:

@@ -288,6 +288,11 @@ within five tiles) has to find its subject, not assume it.
 nothing -- a prerequisite cheat that silently does nothing leaves the whole downstream cascade
 looking like a content bug (Heroes' Quest lost its entire Herblore leg to it).
 
+The Dig Site is the same trap: its folder is `quest_itexam` and its dbrow is `quest_digsite`.
+Bone Voyage's first run (matthew-mbp-m4-b54) staged `::complete quest_itexam`, got no line back,
+and the dig-site gate stayed shut; `::complete quest_digsite` works. The arm list in
+`quests/scripts/quest_cheat.rs2` names every dbrow that has one.
+
 ## `::complete has no arm for that quest.`: Tourist Trap, Temple of Ikov, Troll Stronghold and Wanted! have arms now
 
 *Origin: sampler sonnet-b40 (deserttreasure and deviousminds reviews); fixed by seam33

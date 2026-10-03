@@ -7,6 +7,8 @@ topic file with one line added here.
 
 ## Travel and finding things
 
+- `talk_to` walks around or answers "I can't reach that!" after a goto beside an npc behind a counter or wall -> start-and-travel: An npc behind a counter or wall
+- the guide says "Charter at a cost of 3000 coins" and no verb opens the charter map -> start-and-travel: No charter verb
 - "I can't reach that!" right after a fence squeeze; pulled back to the fence after a goto -> gaps-world: A fence squeeze pulls you back
 - a trap door landing never reads `z > 6400` (Mourner HQ basement 2044,4628) -> gaps-world: The Mourner HQ basement is an instance region
 - "Nothing interesting happens." on a wall into a boss lair (FIXED seam31); the Crandor hole refuses from one side -> gaps-world: Crandor
@@ -325,6 +327,7 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
+- two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls
 - Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c); the client one tile short of the server (FIXED b52-seam1 (b))
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)
@@ -367,7 +370,7 @@ topic file with one line added here.
 - `last_item` vs `last_useitem` -> gaps-combat: `use_item_on_item` order; seam-facts: Seam pass 21, (c)
 - named content gaps (The Feud, One Small Favour, Shadow of the Storm) -> content-gaps
 - place facts (Watchtower, Tourist Trap, Death's Coffer, Witchaven, Ghosts Ahoy, Hazeel Cult) -> seam-facts: passes 23-28
-- `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
+- `::complete quest_druid` or `::complete quest_itexam` does nothing (dbrows `quest_druidicritual`, `quest_digsite`) -> gaps-combat: `::complete` takes a DBROW name
 - `::complete has no arm for that quest.`; `::complete quest_wanted` leaves `wanted_main` 0 (arms for touristtrap, templeofikov, trollstronghold, wanted exist since seam33) -> gaps-combat: `::complete has no arm for that quest.`; QUEST_SERVER_CHEATS.md: `::complete <quest row>`
 - a `$row = <name>` compare that never matches; a name that is both a dbrow and a varp (`quest_wanted`) -> seam-facts: Seam pass 33 (d)
 - a quest stage moves BACK after re-asking an npc (Oracle, Oziach) -> seam-facts: Seam pass 33 (f); Seam pass 32 (f)
