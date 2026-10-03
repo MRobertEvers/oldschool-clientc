@@ -1,6 +1,6 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	content_bug	matthew-mbp-m4-b55	content_bug: slice_artifact_hotspot_0N_1 (all.loc:256904, shape 24242, Artefact) has no op1; the menu offers only Examine so [oploc1,slice_artifact_hotspot_0N] (slice_tegdak.rs2:118-143) cannot fire and no oplocu exists for the trowel; stage 2->3 undrivable. Stage 5-11 tail must be re-added after the fix.		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo	matthew-mbp-m4-b55	RETRY after 9b89fcbb9: dig sites are trowel-USE (oplocu) now, hotspot N -> varb355N/artefact N, clean by using each dirty artefact on slice_table_01; rewrite dig1..6 (use_on trowel, not click_loc op1) and cleanArtefacts rows, replace goto-enterCity/goto-talkToUrtag with hole -> Kazgar -> cave_goblin_city_doorr -> dorgesh_inner_door_posh_closed 2733,5363 rows, keep ::complete quest_losttribe before DTTD, re-add the stage 2-11 tail; exact rows in test/quests/wip/anothersliceofham/relay.md		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b55			
