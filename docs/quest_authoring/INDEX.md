@@ -215,7 +215,9 @@ topic file with one line added here.
 - a `::spawn` drop hunt sees too few drops (Imp Catcher beads) -> sampler-findings: Sample sonnet-b34, (b)
 - battle mage `hp no bar -> no bar`; an `[opnpc2]` ending in `p_opnpc(2)` -> traps-23-33: A binding that re-enters itself
 - a LostCity `npc_getmode = opplayer2` test never true mid-fight -> seam-facts: Seam pass 30 (c)
-- a drained stat reads base again after your next hit (Sourhog spit `attack 60 -> 60`); an owner-raised boss never comes to attack you -> gaps-combat: A drain row reads the stat back at base
+- a drained stat reads base again after your next hit (Sourhog spit `attack 60 -> 60`) (FIXED b53-seam2); an owner-raised boss never comes to attack you -> gaps-combat: A drain row reads the stat back at base
+- "Your Magic level is not high enough" at a cast after a walk through a draining area (Desert Treasure's Kamil); a stat that stays low after xp -> gaps-combat: "Your Magic level is not high enough" after a draining walk
+- "Your hands are full, mister!"; `::give` says "N did not fit" -> gaps-combat: "Your Magic level is not high enough" after a draining walk
 - Troll Romance: `player.died` against Arrg; what kit wins -> verbs-combat: the Arrg paragraph at the end
 
 ## Completion and rewards
@@ -319,11 +321,13 @@ topic file with one line added here.
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)
 - Porcine of Interest: Sourhog spit numbers (20-30, 90% drain, goggles cancel) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)
-- a drained stat back at its base after one xp drop (a drain row FAILs after a hit); the drain fix that turned Desert Treasure RED -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (f) (OPEN, patch carried)
+- a drained stat back at its base after one xp drop (a drain row FAILs after a hit); the drain fix that turned Desert Treasure RED -> seam-facts: Seam pass matthew-mbp-m4-b53-seam2 (a) (FIXED b53-seam2, landed with DT leg 5)
 - the chaos talisman lands on level 3 and the altar is not in the room; `click_loc chaos_altar` `covered ... menu has no row for it` (What Lies Below) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (b) (a ladder maze, climb three laddertops)
-- The Ribbiting Tale: no Marcellus/frogs at the Locus Oasis (FIXED b53-seam1, quest-local spawn); Dave/Jane only "Hello there!" at stage 8 (OPEN) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (c)
+- The Ribbiting Tale: no Marcellus/frogs at the Locus Oasis (FIXED b53-seam1, quest-local spawn); Dave/Jane only "Hello there!" at stage 8 (FIXED b53-seam2); the frogs always "Frog"/always named -> seam-facts: Seam pass matthew-mbp-m4-b53-seam2 (b)
+- `talk_to(<child symbol>)` stops finding a multinpc once its varbit picks another child -> verbs-pointer: `t.player.talk_to`
 - an npc the spawn dump lacks entirely: quest-local `<quest>.spawn` or `gen_spawns.py`? -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (c); content-gaps: `no_row <npc>` for a world npc
-- Queen of Thieves: the tent doorway `piscquest_tentdoor` did nothing / "You should speak to Devan Rutter before going in there." (FIXED b53-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (d)
+- Queen of Thieves: the tent doorway `piscquest_tentdoor` did nothing / "You should speak to Devan Rutter before going in there." (FIXED b53-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (d); the refusal text is unsourced port wording (searched) -> Seam pass matthew-mbp-m4-b53-seam2 (c)
+- a wiki `index.php?action=raw` fetch returns a Cloudflare challenge page -> seam-facts: Seam pass matthew-mbp-m4-b53-seam2 (d)
 - the scroll lists XP but `t.skill.expect_gain` reads +0 at completion (Tai Bwo Wannai Trio: claimed from Tinsay/Tiadeche/Tamayu afterwards) -> seam-facts: Seam pass matthew-mbp-m4-b49-seam2 (b)
 - one karambwan vessel load emptied the raw karambwanji stack (FIXED b49-seam2: one per load) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji
 
