@@ -14,10 +14,12 @@ Rules for every seam here:
 - **Measure first, on this branch's HEAD, with the tick log**, and quote the rows. Then the
   source line. Then the fix. Then the same measurement again. A fix with no source line
   for what the real game does is not made; the seam is reported UNSOURCED.
-- **Which source.** This server plays the rev-239 game. LostCity's 2004 source settles a
-  rule only where the modern game kept it; where the wiki's mechanics page or a newspost
-  states the modern rule, that outranks 2004 code. Quote both when they differ and say
-  which you followed and why.
+- **Which source.** This server plays the rev-239 game, and neither wave minigame existed in 2004
+  (owner, 2026-10-03): the 2004 source (LostCity) is NOT a source in this loop. Do not cite
+  it, do not port from it, and do not treat a difference from it as a defect. A rule is
+  settled from a Jagex newspost, the cache, the pinned modern wiki mechanics page, plugin
+  code or a recording. Rows in `CONTENT_BUGS.md` that cite 2004 code are to be re-sourced
+  by you from those, or reported UNSOURCED and left unchanged.
 - **The fixers run one at a time** and each rebuilds the script pack after its own content
   edit (`make -C <worktree>/src torirsserver-scripts > <log> 2>&1`). C changes are proved
   with a PRIVATE client (`PLATFORM_OBJ_BASE`, `PLATFORM_TARGET`, `QUEST_BINARY`); the closer
@@ -43,8 +45,7 @@ softtimer (`inferno_waves.rs2:154`) is not cleared when the wave begins
 (`~inferno_begin_wave`, `:64`). Measured three times in seam pass 2 (npc_spawn rows at
 ticks 13, 21, 29, 37, 45). Sources: the wave table spawns each wave once
 (`docs/minigames/inferno/SOURCES.md`, the wave table rows and Blert's per-wave spawn
-events in `sources/blert/SAMPLE_SUMMARY.md`); a softtimer repeats until cleared
-(LostCity `Player.ts:945`). Fix the timer's lifetime so a wave spawns once, the next wave
+events in `sources/blert/SAMPLE_SUMMARY.md`); a softtimer in OUR engine repeats until cleared (quote our engine's line). Fix the timer's lifetime so a wave spawns once, the next wave
 starts only after the last npc of the wave is dead, and the delay between a clear and the
 next spawn is whatever the content already intends (do NOT retune it: read it, measure it,
 report it with the constant's name, and leave its value for the spec pass to grade).
@@ -65,16 +66,8 @@ Files: `OSRS-Content: every path that content commit 7936c59bf9 changed outside 
 Summary. ENG-16, ENG-17, ENG-18 (and ENG-4's third item), measured in seam pass 2: an eat's
 `p_delay(2)` holds a queued PROJECTILE hit until the delay ends (cast 30, hit 33 instead of
 31); an eat costs 0, 1 or 2 ticks of the next swing depending on where in the swing it
-lands; a drink ends in `p_stopaction` and wipes an Attack pressed during it. Sources:
-LostCity `consume.rs2:108-110` (`%action_delay += 3`, no `p_delay`), `OpHeldHandler.ts:55`
-(the target is dropped at the press), and the modern rule on the pinned wiki (pin the
-Food page's delay section and the Potion page with `tools/toa_fetch_wiki.py` into
-`docs/minigames/inferno/sources/wiki/`: food delays the next attack by 3 ticks, a potion
-does not delay an attack, a karambwan and a potion combine with food in one tick: quote
-the sentences; where the wiki and 2004 differ, the wiki's modern rule wins).
-The raid loop ported this on the owner's decision as content commit `7936c59bf9`: bring
-that port over as the opening rules say, then check it against the sources above yourself
-rather than trusting it. Restore the selftest stanza seam pass 1 left out
+lands; a drink ends in `p_stopaction` and wipes an Attack pressed during it. Sources: the modern rule on the pinned wiki. Pin the Food page (its delay section), the Potion page, Tick eating and Combo eating with `tools/toa_fetch_wiki.py` into `docs/minigames/inferno/sources/wiki/` and quote the sentences that state: what an eat delays (the player's next attack, by how many ticks), whether a potion delays an attack, what combines in one tick, and whether an incoming hit lands on its own tick while the player eats (tick eating rests on that). The existing rows cite 2004 code: that is not a source; re-source each from these pages. A behaviour no modern source states is left as it is and reported UNSOURCED.
+The raid loop ported this on the owner's decision as content commit `7936c59bf9`: bring that port over as the opening rules say, then check every behaviour it changes against the modern sources above yourself: a part of the port that rests only on 2004 code and that no modern source supports is left out and listed. Restore the selftest stanza seam pass 1 left out
 (`torirs_server_world_selftest.c`, the raid tip's eat-delay loop at 19625-19652 of parent
 commit `94f55b306`) and write the two conformance rows it left out
 (`seam.eat_does_not_hold_queued_hit`, `seam.eat_delay_clocks`) as your snippet.
@@ -101,16 +94,13 @@ on an npc whose cache record says so (find one in `configs/all.npc` with a cappe
 it and read from the tick log whether it swings back. The raid loop fixed its bosses
 through content (content commit `93707f5d60`, read it as reference with
 `git -C <worktree>/OSRS-Content show --stat 93707f5d60`); the general rule belongs where
-the default retaliation is decided. Source: the cache field itself and LostCity's
-retaliation code (quote the line).
+the default retaliation is decided. Source: the cache field itself, and a modern page or plugin that states the npc does not fight back (quote it).
 (2) ENG-4 item 2: a spell cast never sets the magic damage type, so a style check treats
 it as the weapon's style. Measure with a staff in hand: cast at an npc and read the hit's
 type in the tick log's `hit_npc` row. The raid's fix is in `player_magic.rs2` at
-`7936c59bf9` (28 lines): take that hunk as the opening rules allow, after checking it
-against LostCity's magic damage code.
+`7936c59bf9` (28 lines): take that hunk as the opening rules allow, after checking it against the pinned wiki's statement of what a spell's damage type is (quote it).
 (3) ENG-9: no combat logout delay: seam pass 2's run logged out on the tick it was last
-hit. Source: LostCity `logout.rs2:29`, `p_preventlogout(..., 16)`; pin the wiki's Logout
-page section on the 10-second rule and quote it (the modern rule wins if it differs).
+hit. Source: pin the wiki's Logout page and quote its combat rule (how long after being attacked a logout is refused, and the message); the window's length comes from that page, not from 2004 code.
 Prove: logout pressed within the window is refused with the game's message; pressed after
 it, it logs out.
 The tick log's recording hooks in `torirs_server_combat.c` stay exactly as they are.
@@ -125,11 +115,8 @@ Units: every unit (prayer is held through every wave); inferno_blob_and_splits (
 Files: `OSRS-Content/osrs239-content/server/scripts/player/scripts/stat_restore.rs2`, `OSRS-Content/osrs239-content/server/scripts/skill_prayer/scripts/prayer.rs2`
 
 Summary. (1) ENG-10: prayer points regenerate (91 to 93 over 220 ticks with nothing lit)
-because `[timer,stat_restore]` skips only hitpoints. Source: LostCity `stat.rs2:36-37`
-(`// prayer doesnt regen`) and the wiki's Prayer page (pin it; quote the sentence). Fix.
-(2) ENG-11: our drain adds the effect every tick and zeroes the counter when the last
-prayer goes off; LostCity arms a 5-tick timer, adds effect times 5 and keeps the counter.
-Do NOT assume 2004 is right for the modern game. Pin the wiki's Prayer page and its
+because `[timer,stat_restore]` skips only hitpoints. Source: the wiki's Prayer page (pin it; quote the sentence that says prayer points do not regenerate on their own). Fix.
+(2) ENG-11: our drain adds the effect every tick and zeroes the counter when the last prayer goes off. The row calls that a defect because 2004 code differs; that is not a reason. Pin the wiki's Prayer page and its
 "Prayer drain mechanics" section (drain effect per prayer, drain resistance from prayer
 bonus, when the counter is checked, what switching off does to the counter) and settle
 each difference from its sentences: change ours only where the modern rule says ours is

@@ -382,6 +382,12 @@ and the owner has the contact sheet. Then the next minigame.
 
 ## 12. Standing rules
 
+**The 2004 source is not a source here (owner, 2026-10-03).** Neither wave minigame existed
+in 2004: never cite LostCity, never port from it, and never call a difference from it a
+defect. Where sections 5 and 10 name LostCity for the eat delay and the stat drain, read
+"the modern rule, from a newspost, the cache, the pinned wiki mechanics page, plugin code
+or a recording"; a rule no modern source states is left unchanged and listed as open.
+
 Settle every disagreement from the source line and quote it. Found is not fixed: write
 the row. Never loosen a provenance tag, never delete an `[Mn]` with its guess, never
 promote a grade on a video alone. Mutate only in a throwaway worktree. Commit by explicit

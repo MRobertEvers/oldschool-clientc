@@ -4,6 +4,8 @@ Found is not fixed: every defect in our content is one row here until the commit
 in `fixed in`. Paths: `MI/` is `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/`;
 `sources/` is `docs/minigames/inferno/sources/`.
 
+**Sources (owner, 2026-10-03):** the 2004 source (LostCity) is not a source in this loop. Rows below that cite it (ENG-5, ENG-9, ENG-10, ENG-11, ENG-16, ENG-18 and others) keep their MEASUREMENTS; their source column is to be re-stated from a modern source by the seam that takes the row, or the row is marked UNSOURCED and nothing is changed for it.
+
 | id | game | unit | where (file:line) | finding | source (file:line, quote) | found by | fixed in |
 |---|---|---|---|---|---|---|---|
 | INF-AV-001 | inferno | entrance_systems | MI/scripts/inferno.rs2:227 (also :221, the `[oploc1,inferno_entrance_op]` handler at :273) | The fire-cape sacrifice writes `varb5646_inferno_sacrificed_firecape = 1`. The entrance loc's multiloc table draws `inferno_entrance_noop` (no op) for values 0 and 1 and `inferno_entrance_op` (op1 Jump-in) only for 2 and up, so the client never offers Jump-in: not on a first visit (0, which is when the handler would take the cape) and not after the sacrifice (1). The handler at :273 is unreachable by click; only `::inferno` and the other debugprocs enter. | `sources/cache_locs.txt:1602-1605` "multivarbit=varb5646_inferno_sacrificed_firecape / multiloc1=inferno_entrance_noop / multiloc2=inferno_entrance_noop / multiloc3=inferno_entrance_op"; `tools/loc_var_audit.py:9` "**`multiloc1` is value 0**" | inventory agent 2026-10-03 | |
