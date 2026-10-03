@@ -357,3 +357,33 @@ selftest 11 failures, the baseline set; ::tobrun OK 56; cheats 23/23.
 - Closer: the OSRS-Content selftest/quests/quest_cook and quest_druid evidence that two
   fixer runs republished is still dirty in the working tree (the restore was refused by
   the permission check); it is not committed.
+
+## matthew-mbp-m4-raid-b1-seam9 (2026-10-03; parent fd3cc7dc9, OSRS-Content 24198b54ed): what the client draws, the death stages, the cage on a win
+
+- `client_played_anim_reads`: LANDED (npc rows gain pose_anim/pose_frame/pose_kind and
+  ready/walk/turn/run_anim from the client's secondary track and idle set; projectile and
+  spotanim rows gain seq/seq_frame; loc rows gain seq/seq_frame and
+  ambient_sound/range/inner/random from world->area_sounds; `size` was already there;
+  rows seam.npc_pose_reads_the_drawn_track, seam.element_seq_projectile_and_static_loc,
+  seam.loc_and_graphic_seq_in_bloat_room, seam.npc_pose_follows_a_retype). Still open: no
+  room test uses the new fields yet (the room authors' next pass); tob_bloat.lua's
+  av.idle.seq filters on "tile unchanged" and reads 8081, it must filter on pose_kind;
+  t.npc.state_text does not print the pose; a Canifis citizen never turns werewolf
+  (CONTENT_BUGS seam9).
+- `tob_death_stage_arrive_delay_and_heal_row`: LANDED (Maiden's living records
+  death_delay=0 and npc_death_step runs [ai_queue3] at K+1: dying_a K+1..K+5, fade K+5,
+  free K+9; seam8's pool-loc patch with its C selftest stanza, a thrown pool is graphic
+  1579 alone; no arrive delay for a record stating death_delay under 2, small Nylocas
+  anim +1 / free +2 walking or standing; tick log kind npc_heal with source; rows
+  seam.ticklog_npc_heal_row, seam.maiden_death_forms_on_recorded_ticks,
+  seam.small_nylocas_dies_without_arrive_wait). Still open: tob_maiden.lua's pool rows key
+  on loc 32984 (re-key to map_spotanim 1579); npc_spawn never sets death_seq_tick = -1
+  (engine, CONTENT_BUGS seam9); the Athanatos heal timing itself.
+- `tob_cage_release_on_room_win`: LANDED (every room releases its caged raider on the win
+  through the cage's own per-tick queue, wiki Strategies:3; Xarpus's spit and orb
+  landings are his npc queues 4/5 with a carried due tick, landing at T+f whatever the
+  target is doing; rows seam.tob_cage_released_on_room_win,
+  seam.tob_xarpus_landing_ignores_a_dying_target). Still open: the tob_xarpus room copy
+  dies to acid-pool sweeps by tick ~205 (needs a pool-avoiding stance, author's); orb
+  timing moved +1 -> +0 (spec rows written on the old timing move); landings in flight
+  are dropped when Xarpus dies (no source either way).
