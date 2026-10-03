@@ -295,3 +295,65 @@ failures, the baseline set; ::tobrun OK 56.
 - `tob_music_and_title_card`: LANDED (unlocks where played, the vault track, jingle 250
   on every boss death, card sound 3952). Still open: the engine's region unlock writes the
   wrong varp (556 never unlocks; the vault prints two unlock lines).
+
+## matthew-mbp-m4-raid-b1-seam8 (2026-10-03): what the presentation spec pass found
+
+Triage `SEAM_TRIAGE_2026-10-03f.md`; parent 0397a0b29, OSRS-Content 26ba1bd604. No verb
+changed; conformance 294/294 (162 verbs + 132 seam rows, nineteen new). Suite 115 green +
+deserttreasure, regicide and troll RED (the baseline) + forgettabletale RED (its setup
+names a dbrow with no ::complete arm and was green only through the old music bug's write
+to varp 11; the corrected copy ran 292/292; the one-line fix is the quest loop's). C
+selftest 11 failures, the baseline set; ::tobrun OK 56; cheats 23/23.
+
+- `tob_maiden_death_and_cage`: LANDED (8093 once; no hunt targets the cage; row
+  seam.tob_maiden_cage_and_one_death_anim). Still open: the dying_a hold is 2 ticks, not 4
+  (engine row: [ai_queue3] at the CORPSE stage); the pool-loc patch is ready but needs the
+  C selftest and tob_maiden.lua re-keyed to spotanim 1579; tob_maiden.lua must name the
+  _story records.
+- `tob_bloat_sounds_and_cage`: LANDED (3971 the defend sound via tob.npc, applied by the
+  closer; 3308 per volley, grade E M163; cage skip; rows seam.bloat_hand_sound_and_cage,
+  seam.bloat_defend_sound). Still open: the natural cage hit does not reproduce solo.
+- `tob_nylocas_deaths_and_cage`: LANDED (support npc unanimated; 8074 sourced; 4020 is the
+  hit sound; cage skip incl. Vasilias; row seam.nylocas_cage_skipped_support_unanimated).
+  Still open: the small arrive delay (engine row); Hard Vasilias' spreads need two players.
+- `tob_sotetseg_tornado_and_cage`: LANDED (the mode's tornado record; cage skip; realm let
+  go on a runner's death; rows seam.tob_sotetseg_cage_not_targeted,
+  seam.tob_sotetseg_tornado_mode_record). Still open: tob.npc blocks for the _story/_hard
+  tornado; ricochet/sharing skips and the Hard arena tornado unexercised.
+- `tob_xarpus_death_sound_and_cage`: LANDED (3549 in band only; spit/bounce/damage skip the
+  cage). Still open: a caged raider is not released when the room is won; the spit landing
+  waits on a dying target; M71 stays E at measured 3.
+- `tob_verzik_forms_and_presentation`: LANDED (Entry/Hard records, configs/tob_verzik.npc,
+  8373, crabs and ball on a regular attack, 4000 in band, 1595 to the blast, 8128 once, zap
+  with its ball, cage skip; raid.lua knows the forms; row
+  seam.verzik_entry_forms_cage_and_death). Still open: the Athanatos heal timing (needs an
+  npc_heal row); ::tobvz/::tobmelee Normal-only; tob_verzik.lua must be re-authored to the
+  Entry records.
+- `tob_rewards_and_completion`: LANDED (team roll, weights, 29-row table, mode shares,
+  tertiaries, completions, CA thresholds and six tasks, ::tobrewards; the moved constants
+  deleted from tob.constant; row seam.tob_reward_table). Still open: M22 scaling, the
+  deadweight, Lil' Zik as a follower, HM Grandmaster, 27 hook-needing CA tasks, perfect
+  bits on a raid resumed at Verzik.
+- `tob_hud_chat_lines_and_room_flow`: LANDED (6448 permille, 6440 = 2, the recorders'
+  lines, fight logout a death, jingle to every raider, Sotetseg's floor at entry; rows
+  seam.tob_hud_status_and_wave_line, seam.tob_logout_in_fight_is_death). Still open: the
+  party-wide paths need two players; a logout in the maze; ~tob_restore heals only the
+  clearer; the watchdog double-arm; the lobby HUD box.
+- `tob_lobby_stranger_and_supply_chest`: LANDED (varps 1740/1746/3052 declared, the
+  Stranger's shop, the escape crystal, shroud tiers via ::tobstrangershroud, Hard chest
+  -4 with M164; rows seam.tob_partylist_button_reads_mycontroller,
+  seam.tob_stranger_sells_escape_crystal_and_it_leaves,
+  seam.tob_hard_chest_pays_fewer_and_label_reads_it). Still open: the Poll 83 login call
+  in tob_raid.rs2, A Night at the Theatre's Stranger talk, ~tob_orator_place uncalled.
+- `sound_area_loops`: LANDED (loops 1 in sound.rs2; row seam.area_sound_plays_once). Still
+  open: about 104 direct `sound_synth(x, 0, y)` calls (prayer activation among them); the
+  2004 lanes' loops-0 sounds are silent in our client.
+- `ticklog_player_kinds_and_engine_rows`: LANDED (player_anim, player_spotanim, loc_anim,
+  npc_say; the music variable map with its C selftest stanza; the sub-0 latch; rows
+  seam.ticklog_player_presentation_rows, seam.ticklog_loc_anim_row,
+  seam.ticklog_npc_say_row, seam.music_region_unlocks_its_musicmulti,
+  seam.pausebutton_sub_zero_latches). Still open: npc_sound_nearby's carry unsourced (not
+  changed); tob_board.rs2's stale sub-0 comments; cows and Al Kharid warriors never speak.
+- Closer: the OSRS-Content selftest/quests/quest_cook and quest_druid evidence that two
+  fixer runs republished is still dirty in the working tree (the restore was refused by
+  the permission check); it is not committed.
