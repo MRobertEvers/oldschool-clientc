@@ -1506,3 +1506,40 @@ dash should be), and the Queen's Hughes line follows Transcript:The_Queen_of_Thi
 ("find proof of her corruption ... northern side of Kingstown ... she's never in"; no door to pick,
 no lock), OSRS-Content fd1bf2f29f. A content reword must keep every `chat.play` prefix a green test
 asserts, punctuation included: dropping the period after "Kingstown" sent the run to 64/14.
+
+## Seam pass matthew-mbp-m4-b54-seam1 (2026-10-03, batch matthew-mbp-m4-b54)
+
+(a) **`npc_add`ed copies missing from `t.npc.tiles` (Swan Song: one of three ambush trolls).**
+`movecoord(coord, dx, dlevel, dz)` takes the LEVEL in its middle argument, not x or z (LostCity
+`engine/src/engine/script/handlers/ServerOps.ts:103-107`,
+`CoordGrid.packCoord(position.level + y, position.x + x, position.z + z)`; ours,
+`torirs_server_scripts.c` `SS_OP_MOVECOORD`, is the same). Swan Song's
+`[proc,ssq_spawn_entrance_ambush]` wrote `movecoord(..., 2, 1, 0)` / `(-1, 2, 0)`, so trolls 2 and 3
+spawned on levels 1 and 2 above the entrance. Neither engine's `npc_add` checks collision
+(ours `npc_spawn`, world.c; LostCity `NpcOps.ts:57-68`), so a missing copy is never a blocked tile.
+Fixed in OSRS-Content f2902a94dd (`(2, 0, 1)` / `(-1, 0, 2)`). Proof: the committed swansong.lua's
+`kill79Trolls-present` read `1 copy(s)` before and `3 copy(s) -- 2343,3657 / 2342,3659 / 2345,3658 L0`
+after; a copy without the `t.blocked` killed all three (varb2107 1/2/3) to `quest.stage.trolls_beaten`
+(50). Rows and the next leg (Herman behind `swan_desk`): `test/quests/wip/swansong/relay.md`.
+OPEN: the wiki (Swan_Song revid 15359363) has EIGHT level-79 trolls, the port three (`varb2107` is
+2 bits); the ambush `npc_add` duration is 50 ticks, so a slower fight softlocks stage 40. UNCHECKED,
+same bug class: `skill_hunter/scripts/stymphike.rs2:111` `movecoord(%varp6583_..., 2, 2, 0)`.
+
+(b) **A quest drop added by hand to a generated `wiki_*.rs2` vanishes on regeneration.** A
+quest-owned Tertiary drop goes in `tools/wiki_droptable.py` `QUEST_TERTIARY_HOOKS` (obj gameval ->
+proc and call line, with a wiki oldid). The generator emits the call at the end of every label whose
+npc's OWN Tertiary block lists that obj, and stops with exit 2 when a rule's proc or obj no longer
+exists. Never hand-edit a generated `wiki_*.rs2`; regenerate it:
+`tools/wiki_droptable.py --regenerate <drop_tables/scripts/wiki_x.rs2> --write --out-dir <scratch>`,
+diff, install. Rag and Bone Man I's goblin skull is the one rule (OSRS Wiki 'Goblin' rev 15290833:
+Always, in Drop table 1 AND 2; 'Rag and Bone Man I' rev 15292348: "Each bone is a guaranteed drop");
+the old hand edit covered table 1 only. A regeneration of any wiki file written before 79d754bf0 also
+adds the `~gwd_death_was_npc_kill` early return to every label (115 of 128 lack it): expect that
+diff; it does nothing outside the God Wars Dungeon.
+
+(c) **A scroll title that looks like "Rag and Bone Man II" is "Rag and Bone Man I!".** In the p12
+scroll font a trailing "I!" draws like "II". Settle a scroll-title complaint from the
+`quest.scroll_title` row's `got=` text, never from the pixels: here it read `You have completed Rag
+and Bone Man I!` (questscroll.rs2:73 + the `quest_ragandboneman1` displayname), which is the wiki's
+own scroll image (Rag and Bone Man I oldid 15292348, Rewards). The quest was renamed from "Rag and
+Bone Man" to "Rag and Bone Man I"; the old name is not the title. NO CHANGE.

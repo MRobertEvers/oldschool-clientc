@@ -230,6 +230,7 @@ topic file with one line added here.
 ## Completion and rewards
 
 - `quest.scroll_title` fails after a postquest shop -> seam-facts: Seam 24: a postquest shop
+- the scroll title looks like "... II" on a part-I quest (Rag and Bone Man I) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (c) (the p12 "I!" draws like "II"; read `got=`)
 - `no painted journal within 20 ticks` -> gaps-combat: `quest.journal` can time out
 - no `QUEST COMPLETE!` banner; no journal proc -> seam-facts: Seam 24; Seam pass 25, (d); gaps-dialogue: `t.ui.journal_open`
 - `[scroll already photographed:` -> gaps-dialogue: Journal branches shadowed
@@ -411,6 +412,8 @@ topic file with one line added here.
 - a willow takes six skips to grow; `varb701_varbit_701` stuck one stage behind the skip -> gaps-world: A step that waits real minutes (the tree bullet)
 - a quest loc in no `maps/*.jl2` (a "map row" proposal); `torirsserver-cache` bake not read by runs -> content-gaps: A quest loc absent from `maps/*.jl2`
 - an edit to a generated `areas/world/configs/m*.spawn`; `gen_spawns.py` tables; regenerating drops hand edits -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (d)
+- `npc_add`ed copies missing from `t.npc.tiles` while the proc ran (one of three Swan Song trolls); a `movecoord` whose middle argument is not 0 -> seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a) (the middle argument is the LEVEL)
+- a quest drop hand-added to a generated `wiki_*.rs2`; a quest bone missing from one drop table version; `QUEST_TERTIARY_HOOKS`; a regeneration adds `~gwd_death_was_npc_kill` -> seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (b)
 - the client segfaults after many interface models (`::ejmodels`, `UITreeSceneBridge_EnsureModel`); `model_pose` reads `model=-1` -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (e)
 - `if_setevents(..., ^if_event_op1)` on an IF1 button does nothing -> seam-facts: Seam pass matthew-mbp-m4-b50-seam1 (g)
 - `no_row slayer_master_2_mazchna`, a Warriors' Guild npc, Mac or Patchy missing; an npc the spawn dump had that this cache renumbered (name drift) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (c); docs/ITEM_AND_NPCS.md section 3
