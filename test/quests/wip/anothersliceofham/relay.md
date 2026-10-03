@@ -129,3 +129,58 @@
   so the first of two stacked trigger headers had an empty body. The headers are split now.
 - **Inventory:** the committed setup (14 slots) plus the trowel, the brush and six artefacts fits in 28.
   Do not add setup items without counting.
+
+## Guide killHamMageAndArcher -> talkToGeneralsAgain: the content moves you to the generals now (seam matthew-mbp-m4-b55-seam2 anothersliceofham_rangers_return_never_fires)
+
+- **What was broken (content).** The return after the two H.A.M. rangers ran INSIDE the dying npc's
+  `[ai_queue3,...]`. Its `~mesbox` parked that npc script on the player, the stage write landed, but the
+  `p_teleport` never moved him off the tower (round 6: `goto-generals2` detail `from 2447,5416,2`), and
+  `~npc_default_death` resumed with no active npc (`npc_findhero with no active npc ... slice_hammage.rs2:108`).
+- **Fixed in content (OSRS-Content 2ca4e77a52):** `slice_hammage.rs2` -- each death handler does
+  only the npc's half (dead flag, "You have defeated the H.A.M. ..." line, `~npc_default_death`) and, once
+  both flags are set at stage 6, `queue(slice_ham_rangers_return)`. The queued PLAYER script shows the mesbox,
+  `p_teleport(^slice_generals_coord)` (2957,3512,0) and writes stage 7. `slice_ham_combat_login` queues the same
+  return when both rangers are dead at stage 6 (a logout during the mesbox). Same shape fixed for Sigmund
+  (`slice_sigmund.rs2`): the death handler writes the flag and stage 10 and queues his parting line, which
+  now actually shows (round 6's `defeatSigmund.chat` read `none`).
+- **Why a teleport and not a climb down (source).** In the game the second kill starts the kidnap cutscene in
+  the village and it ends with you at the generals: wiki Another_Slice_of_H.A.M. oldid 15292360 walkthrough
+  ("When you have done this, there will be another short cutscene where Zanik is kidnapped by Sigmund. The
+  goblin generals will tell you..."), Transcript oldid 15263379 "Upon defeating the two H.A.M. members"
+  (Sigmund, Zanik and both generals in one scene); Quest Helper AnotherSliceOfHam.java (master 4f8bb22ff2)
+  goes from `killHamMageAndArcher` (2447,5417,2) straight to `talkToGeneralsAgain` at WorldPoint(2957,3512,0),
+  with no travel step. This port has no kidnap cutscene, so the mesbox narrates it and the teleport is the
+  scene's end move. The quick guide (oldid 14458352) says nothing about the way back.
+- **The tower's own ladder down (OPEN, not this seam).** The cache map does place `slice_goblin_ladder_top`
+  (Climb-down) at 2442,5417,2 (`maps/m38_84.jl2:1753`), but the port lands you at 2447,5417,2 on the far side
+  of the cover crates: `click_loc "slice_goblin_ladder_top" 1` answers `reach_failed: I can't reach that!`
+  (`build/quest_gate/b55s2_slice_ladder`, shot 122). The game lands you at the ladder with the crates as cover.
+  That is a parity leg (landing tile, Climb-down, Hide-behind) for the content queue. It does not block the
+  guide: no guide step climbs down.
+- **What the round-7 author changes** (proved 148/0 in `build/quest_gate/b55s2_slice_a`, mage first, and
+  `build/quest_gate/b55s2_slice_b`, archer first; scripts under
+  `build/seam_state/matthew-mbp-m4-b55-seam2/scratch/`):
+  1. Drop `goto-generals2` (round6_rejected.lua:201). The content moves you.
+  2. Replace `killHam-box`'s `chat.drain` (detail `none`) with
+     `t.exec("killHam-box", t.chat.play, { "mesbox:With both ambushers down" })`, then `t.ticks(2)`, then
+     `quest.stage.generals_again`, then the tile row:
+     `do local tr, th = t.world.tile(); t.check("killHam.returned", tr == "ok" and th.level == 0 and math.abs(th.x - 2957) <= 2 and math.abs(th.z - 3512) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2957,3512,0, no goto)") or tostring(th)) end`
+     Measured: `killHam-box` `1 page(s): mesbox:With both ambushers down, you`, `killHam.returned`
+     `2957,3512,0`, then `talkToGeneralsAgain` with no goto, in both kill orders.
+  3. Replace `defeatSigmund.chat`'s `chat.drain` with `t.exec("defeatSigmund.chat", t.chat.play, { "npc:Someday, somehow" })`.
+     Measured `1 page(s): npc:Someday, somehow, I will have`.
+  4. The three pure reads the sampler named cannot fail; make each a comparison:
+     - `zanik.at_dig` (round6_rejected.lua:144, after the sixth hand-in): `t.check("zanik.at_dig",
+       t.var.expect("varb3557_slice_zanik_at_dig", 0))` -- 0 = following (`^slice_zanik_following`), 1 = waiting
+       at the dig; b55s2_slice_a read 0 there.
+     - `special.armed`: `t.check("special.armed", t.var.expect("varp301_sa_attack", 1))`.
+     - `special.energy`: read it into a local and compare: `local _, e = t.var.varp("varp300_sa_energy");
+       t.check("special.energy", (e or 0) >= 1000, "special energy " .. tostring(e) .. " (the ancient mace special costs 100%)")`.
+  5. Optional, proves the logout path: after both kills, `t.check("relog.during_box", t.session.relog())` while the
+     mesbox is up; the login queues the return again (`build/quest_gate/b55s2_slice_c` 109/0: logged out from
+     2447,5416,2 at stage 6, mesbox re-shown, stage 7, 2957,3512,0).
+  6. Lint (closer, seam2): `lint_quest.py` (rule 1450bf4f2, after round 6) refuses the committed
+     `anothersliceofham.lua` lines 47, 52, 56, 59, 81 (`t.check(..., t.world.tile(...))` cannot fail) and
+     round4_rejected.lua's twins. Every tile row the round-7 file carries must compare `h.x`/`h.z`/`h.level`
+     the way `killHam.returned` above does. Closer re-run on the committed pack: `b55s2_close_b` (archer first)
+     148/0, same `killHam-box` / `killHam.returned 2957,3512,0` / `defeatSigmund.chat` rows.

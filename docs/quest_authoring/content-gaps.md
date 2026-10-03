@@ -272,7 +272,7 @@ in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
   leaves out. Nothing has a trigger on `lost_tribe_cellar_wall`. Guide steps 1.3 (Kazgar) and 1.4
   (`climbThroughHole`) are therefore travelled with `goto_tile` and graded as content gaps.
 
-## A goto right after a fight hides a return teleport that never fired (H.A.M. watchtower, matthew-mbp-m4-b55 round 6)
+## A goto right after a fight hides a return teleport that never fired (H.A.M. watchtower, matthew-mbp-m4-b55 round 6; FIXED matthew-mbp-m4-b55-seam2)
 
 *Symptom: the stage advances after a kill and a mesbox says you head back, but the next row's
 `goto_tile` detail reads `from <the fight's tile>`. The content's own teleport did not run.*
@@ -289,3 +289,20 @@ in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
 - **For authors:** after a fight whose content should move you, read `t.world.tile()` and compare it
   with the destination before any goto. A goto there is only travel when the content never meant
   to move you.
+
+**FIXED (matthew-mbp-m4-b55-seam2, OSRS-Content 2ca4e77a52; seam-facts: Seam pass matthew-mbp-m4-b55-seam2).** `slice_hammage.rs2`: the death handlers do the npc's half only
+(flag, line, `~npc_default_death` with the npc still active) and `queue(slice_ham_rangers_return)` once
+both are dead at stage 6; that player script shows the mesbox, teleports to 2957,3512,0 and writes
+stage 7, and `slice_ham_combat_login` queues it again after a logout during the mesbox. The teleport
+is sourced: the second kill starts the kidnap cutscene, which ends at the generals (wiki
+Another_Slice_of_H.A.M. oldid 15292360; Transcript oldid 15263379 "Upon defeating the two H.A.M.
+members"; Quest Helper `talkToGeneralsAgain` at 2957,3512,0 straight after `killHamMageAndArcher`).
+Sigmund's death handler (`slice_sigmund.rs2`) had the same shape and now queues his parting line.
+Measured: `b55s2_slice_a` (mage first) and `b55s2_slice_b` (archer first) 148/0, `killHam.returned`
+`2957,3512,0` with no goto, no `npc_findhero with no active npc` in client.log.
+
+- **The shape to grep for in any quest:** a `[ai_queue<n>,...]` that binds `npc_findhero` and then
+  reaches `~mesbox`/`~chatnpc*`/`~chatplayer`/`p_delay` BEFORE `~npc_default_death`.
+  `tools/check_npc_script_player_suspend.py` does not catch it (it flags only a suspend with no
+  player bound). Queue the player's half; write any stage the kill decides in the npc's half or
+  in the queued script, never after a page.
