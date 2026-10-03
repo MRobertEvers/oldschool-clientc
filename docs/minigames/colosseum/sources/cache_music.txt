@@ -1,0 +1,11 @@
+# music tracks and jingles -- pack/6_musictracks.pack, pack/11_musicjingles.pack,
+# songs/*.jmid, and the tree's docs/audio/*.tsv rows (paths relative to the worktree)
+
+[jingle 305] glorious_champion_fortis_colosseum    (pack/11_musicjingles.pack:306)
+  file: jingles/glorious_champion_fortis_colosseum.jmid present
+  docs/audio/jingle_names.tsv:309: 305	glorious_champion_fortis_colosseum	wiki
+
+[song 782] song_782    (pack/6_musictracks.pack:783)
+  file: songs/song_782.jmid present
+  docs/audio/music_tracks_osrs239.tsv:781: 3475	Are You Not Entertained?	Are You Not Entertained?	in the Fortis Colosseum.	549	782	24,13
+

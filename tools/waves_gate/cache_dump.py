@@ -26,6 +26,19 @@ symbol, dump line, source line, bindings), read by the inventory builder.
 
 The minigame is a table at the bottom (GAMES). The Fortis Colosseum reuses the
 tool by adding its own entry; nothing above the table is Inferno-specific.
+
+    tools/waves_gate/cache_dump.py --game colosseum \\
+        --content OSRS-Content/osrs239-content \\
+        --out docs/minigames/colosseum/sources \\
+        --index build/inventory_state/colosseum.cache_index.json
+
+The Colosseum entry turns on rules the Inferno's does not use (each one a key
+of its GAMES entry, so the Inferno's dumps stay byte-identical): varcs and
+inventories (`extra_kinds`), an id block (`id_blocks`), the cache's own sound
+browser (`synth_menus`), enum/struct/param data binding (`data_bind`), the
+clientscripts that read each var, interface, enum and inv (`cs2_scan`),
+skeletal sequence lengths (`maya_lengths`), a loc's random sounds
+(`loc_soundrandom`) and a whole-square map listing, cache_map.txt (`map_dump`).
 """
 import argparse
 import json
@@ -204,10 +217,127 @@ CONTEXT_KIND = [
 ]
 
 
+# param type letter (configs/all.param `type=`) -> record kind
+PARAM_KIND = {"g": "enum", "J": "struct", "o": "obj", "O": "obj", "A": "seq",
+              "t": "spotanim", "n": "npc", "l": "loc", "P": "sound"}
+# the output type an enum() call names -> record kind
+CS2_KIND = {"struct": "struct", "obj": "obj", "namedobj": "obj", "enum": "enum",
+            "npc": "npc", "seq": "seq", "loc": "loc", "spotanim": "spotanim",
+            "synth": "sound"}
+
+
+def param_types(content):
+    out, cur = {}, None
+    for line in read_text(content / "configs" / "all.param"):
+        m = re.match(r"^\[([^\]]+)\]", line)
+        if m:
+            cur = m.group(1)
+        elif cur and line.startswith("type="):
+            out[cur] = line[5:].strip()
+    return out
+
+
+def data_bind(game, content, S, ids, names, recs, cscripts, bound_structs, enum_types):
+    """Rule 2b (LEDGER_cache.md). Enums carry no value type in this cache
+    (configs/all.enum is lossy), so an enum's values are followed only when a
+    clientscript reads them with a typed enum() call, either directly
+    (`enum(int, struct, enum_5312, $i)`) or through the struct param the enum
+    was loaded from (`$e = struct_param($s, param_690)` ... `enum(int,
+    namedobj, $e, $i)`). A struct's params are followed by the param's
+    declared type (configs/all.param). Returns the CS2 suite's lines."""
+    ptype = param_types(content)
+    texts, by_param, types = {}, defaultdict(set), defaultdict(set)
+    for i, (sym, n) in cscripts.items():
+        p = content / "scripts" / f"{sym}.cs2"
+        if not p.exists():
+            continue
+        lines = read_text(p)
+        texts[sym] = lines
+        var_param = {}
+        for t in lines:
+            for m in re.finditer(r"(\$\w+)\s*=\s*struct_param\(.*?,\s*(param_\d+)\)", t):
+                var_param[m.group(1)] = m.group(2)
+            for m in re.finditer(r"\benum\(\s*\w+\s*,\s*(\w+)\s*,\s*(enum_\d+|\$\w+)", t):
+                if m.group(2).startswith("enum_"):
+                    types[int(m.group(2)[5:])].add(m.group(1))
+                elif m.group(2) in var_param:
+                    by_param[var_param[m.group(2)]].add(m.group(1))
+
+    # seeds
+    sel_varps = {ids["varp"][i] for i in S.sel["varp"]}
+    for sym, rec in recs["varbit"].items():
+        for n, k, v in fields(rec):
+            if k == "basevar" and v in sel_varps and sym in names["varbit"]:
+                S.add("varbit", names["varbit"][sym], "data", f"basevar {v} (configs/all.varbit:{n})")
+    for sym, rec in recs["struct"].items():
+        params = {v.split(",")[0]: v.split(",", 2)[-1] for _, k, v in fields(rec) if k == "param"}
+        why = game["struct_select"](params)
+        if why:
+            bound_structs[sym] = why
+    npc_ids = set(S.sel["npc"])
+    for sym, rec in recs["enum"].items():
+        vals = [v.split(",", 1)[1] for _, k, v in fields(rec) if k == "val"]
+        if len(vals) >= 2 and all(x.lstrip("-").isdigit() and int(x) in npc_ids for x in vals) \
+                and sym in names["enum"]:
+            S.add("enum", names["enum"][sym], "data",
+                  f"every value ({len(vals)}) is a selected npc id")
+    for i, (sym, n) in cscripts.items():
+        if not name_match(game, sym) or sym not in texts:
+            continue
+        for ln, t in enumerate(texts[sym], 1):
+            for m in re.finditer(r"\b(enum|struct)_(\d+)\b", t):
+                if m.group(1) == "enum" and int(m.group(2)) in ids["enum"]:
+                    S.add("enum", int(m.group(2)), "data", f"named in scripts/{sym}.cs2:{ln}")
+                elif m.group(1) == "struct" and m.group(0) in recs["struct"]:
+                    bound_structs.setdefault(m.group(0), f"named in scripts/{sym}.cs2:{ln}")
+
+    def take(kind, val, why):
+        if kind == "struct":
+            s2 = f"struct_{val}"
+            if s2 in recs["struct"] and s2 not in bound_structs:
+                bound_structs[s2] = why
+                return True
+            return False
+        if val not in ids.get(kind, {}):
+            return False
+        new = not S.has(kind, val)
+        S.add(kind, val, "data", why)
+        return new
+
+    changed = True
+    while changed:
+        changed = False
+        for sym in list(bound_structs):
+            for n, k, v in fields(recs["struct"][sym]):
+                if k != "param":
+                    continue
+                pname, _, val = v.split(",", 2)
+                kind = PARAM_KIND.get(ptype.get(pname, ""))
+                if not kind or not val.lstrip("-").isdigit() or int(val) < 0 \
+                        or pname in game.get("struct_param_skip", ()):
+                    continue
+                if kind == "enum" and pname in by_param:
+                    types[int(val)].update(by_param[pname])
+                changed |= take(kind, int(val), f"{pname} of {sym} (configs/all.struct:{n})")
+        for i in list(S.sel["enum"]):
+            outs = {CS2_KIND.get(t) for t in types.get(i, ())} - {None}
+            if len(outs) != 1 or ids["enum"].get(i) not in recs["enum"]:
+                continue
+            kind = outs.pop()
+            for n, k, v in fields(recs["enum"][ids["enum"][i]]):
+                val = v.split(",", 1)[-1]
+                if k != "val" or not val.lstrip("-").isdigit() or int(val) < 0:
+                    continue
+                changed |= take(kind, int(val), f"value of enum_{i} read as "
+                                f"{'/'.join(sorted(types[i]))} (configs/all.enum:{n})")
+    enum_types.update({i: sorted(t) for i, t in types.items()})
+    return texts
+
+
 def run(game_name, content, out, index_path):
     game = GAMES[game_name]
     kinds = ["npc", "seq", "spotanim", "loc", "obj", "varp", "varbit",
-             "enum", "dbrow", "struct"]
+             "enum", "dbrow", "struct"] + game.get("extra_kinds", [])
     ids, names, recs = {}, {}, {}
     for k in kinds:
         ids[k], names[k] = compack(content, k)
@@ -226,7 +356,7 @@ def run(game_name, content, out, index_path):
 
     # ---- rule 1: by name ------------------------------------------------
     for k in ["npc", "seq", "spotanim", "loc", "obj", "varp", "varbit",
-              "enum", "dbrow"]:
+              "enum", "dbrow"] + game.get("extra_kinds", []):
         for i, sym in ids[k].items():
             if name_match(game, sym):
                 S.add(k, i, "name", sym)
@@ -251,6 +381,32 @@ def run(game_name, content, out, index_path):
                 S.add(k, i, "family", rx)
     for k, i, why in game["named_ids"]:
         S.add(k, i, "doc", why)
+    # a contiguous id block whose other records the name rule already chose
+    for k, lo, hi, why in game.get("id_blocks", []):
+        for i in range(lo, hi + 1):
+            if i in ids[k] and not S.has(k, i):
+                S.add(k, i, "block", why)
+    # the cache's own sound browser: a `synth` dbrow menu lists sounds
+    # (column 2, `name,id`) and sub-menus (column 1, dbrow ids)
+    synth_menu_of = {}   # sound id -> menu symbol
+    for top in game.get("synth_menus", []):
+        todo = [(top, top)]
+        while todo:
+            sym, path = todo.pop(0)
+            rec = recs["dbrow"].get(sym)
+            if not rec:
+                continue
+            S.add("dbrow", names["dbrow"][sym], "synth", path)
+            for n, key, v in fields(rec):
+                m = re.match(r"1:\d+:(\d+)$", v) if key == "values" else None
+                if m and int(m.group(1)) in ids["dbrow"]:
+                    sub = ids["dbrow"][int(m.group(1))]
+                    todo.append((sub, f"{path} > {sub}"))
+                m = re.match(r"2:\d+:[^,]*,(\d+)$", v) if key == "values" else None
+                if m:
+                    sid = int(m.group(1))
+                    synth_menu_of.setdefault(sid, sym)
+                    S.add("sound", sid, "synth", f"{sym} (configs/all.dbrow:{n})")
 
     # ---- rule 3: by map -------------------------------------------------
     placements = defaultdict(list)
@@ -263,9 +419,11 @@ def run(game_name, content, out, index_path):
 
     # ---- rule 4: by reference from the minigame's own content -----------
     refs = defaultdict(list)   # (kind, id) -> [file:line]
-    root = content / game["content_dir"]
-    files = sorted(root.rglob("*"))
-    files = [f for f in files if f.is_file()]
+    files = []
+    if game["content_dir"]:
+        root = content / game["content_dir"]
+        files = sorted(root.rglob("*"))
+        files = [f for f in files if f.is_file()]
     for extra in game.get("extra_ref_files", []):
         files.extend(sorted(content.glob(extra)))
     kind_names = {k: names[k] for k in ["npc", "seq", "spotanim", "loc",
@@ -297,6 +455,14 @@ def run(game_name, content, out, index_path):
         S.add(k, i, "ref", where[0] + (f" (+{len(where)-1})" if len(where) > 1 else ""))
     for k, i, why in game["ref_constants"]:
         S.add(k, i, "ref", why)
+
+    # ---- rule 2b: data (enums, structs, params), games that ask for it ---
+    bound_structs = OrderedDict()   # struct symbol -> why
+    enum_types = {}                 # enum id -> output type read by a clientscript
+    cs_texts = {}                   # script symbol -> lines (the whole CS2 suite)
+    if game.get("data_bind"):
+        cs_texts = data_bind(game, content, S, ids, names, recs, cscripts,
+                             bound_structs, enum_types)
 
     # ---- rule 2: by binding, to a fixed point ---------------------------
     bindings = defaultdict(list)   # (kind, id) -> [(field, kind, id, line)]
@@ -345,6 +511,8 @@ def run(game_name, content, out, index_path):
                         changed |= bind(k, i, key, "loc", v, n)
                     elif k == "loc" and key in ("multivarbit", "multivarp"):
                         changed |= bind(k, i, key, "varbit" if key == "multivarbit" else "varp", v, n)
+                    elif k == "loc" and re.match(r"soundrandom\d+$", key) and game.get("loc_soundrandom"):
+                        changed |= bind(k, i, key, "sound", int(v), n)
                     elif k == "loc" and key == "soundid":
                         try:
                             changed |= bind(k, i, key, "sound", int(v), n)
@@ -368,6 +536,55 @@ def run(game_name, content, out, index_path):
             cs_sel[i] = ["name"]
     for i, why in game["clientscripts"]:
         cs_sel.setdefault(i, []).append(why)
+
+    # clientscripts that read a selected var, interface, enum or inv (games
+    # that ask for it): the whole CS2 suite is scanned for the literal
+    read_by = defaultdict(list)    # (kind, id) -> [(script, line, text)]
+    script_hits = defaultdict(set)  # script symbol -> matched lines
+    iface_hooks = defaultdict(list)  # interface id -> [(line, event, script id)]
+    if game.get("cs2_scan"):
+        tok = {}
+        for k in ("varp", "varbit", "varc"):
+            for i in S.sel.get(k, {}):
+                tok[f"%{ids[k][i]}"] = (k, i)
+        for k in ("interface", "enum", "inv"):
+            for i in S.sel.get(k, {}):
+                tok[f"{k}_{i}"] = (k, i)
+        cs_id = {sym: i for i, (sym, n) in cscripts.items()}
+        rx = re.compile(r"%[A-Za-z0-9_]+|\b(?:interface|enum|inv)_\d+\b")
+        for sym in sorted(cs_texts, key=lambda s: cs_id[s]):
+            for ln, t in enumerate(cs_texts[sym], 1):
+                for m in rx.finditer(t):
+                    if m.group(0) in tok:
+                        read_by[tok[m.group(0)]].append((sym, ln, t.strip()))
+                        script_hits[sym].add(ln)
+        for (k, i), hits in read_by.items():
+            if k == "enum":
+                continue   # a shared table: its readers are listed, not selected
+            for sym, ln, t in hits:
+                w = f"reads {k} {ids[k].get(i, i)}"
+                lst = cs_sel.setdefault(cs_id[sym], [])
+                if w not in lst:
+                    lst.append(w)
+        cs_sel = OrderedDict(sorted(cs_sel.items()))
+        for i in S.sel["interface"]:
+            p = content / "interfaces" / f"{ids['interface'][i]}.if"
+            if p.exists():
+                for ln, t in enumerate(read_text(p), 1):
+                    m = re.match(r"^(on\w+)=i:(\d+)", t)
+                    if m:
+                        iface_hooks[i].append((ln, m.group(1), int(m.group(2))))
+
+    def read_by_lines(kind, i):
+        rb = read_by.get((kind, i), [])
+        body = [f"  read_by: {s}  (scripts/{s}.cs2:{ln}): {t[:160]}" for s, ln, t in rb[:12]]
+        if len(rb) > 12:
+            body.append(f"  read_by: ... {len(rb) - 12} more lines in "
+                        f"{len({s for s, _, _ in rb[12:]})} scripts")
+        if game.get("cs2_scan") and kind in ("varp", "varbit", "varc", "interface", "enum", "inv") \
+                and not rb:
+            body.append("  read_by: no clientscript names it (scripts/*.cs2 scanned whole)")
+        return body
 
     # ---- write ------------------------------------------------------------
     out.mkdir(parents=True, exist_ok=True)
@@ -426,6 +643,10 @@ def run(game_name, content, out, index_path):
                                    if not (kind == "seq" and kk == "frame")]
             elif summarise:
                 summarise(None, entry)
+            rb = read_by_lines(kind, i)
+            if rb:
+                entry["read_by"] = [(s, ln) for s, ln, _ in read_by.get((kind, i), [])]
+                lines.extend(rb)
             lines.append("")
             index["records"].append(entry)
         (out / fname).write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -461,6 +682,14 @@ def run(game_name, content, out, index_path):
             out_l.append(f"  total={total} client cycles = {total * 20} ms = {total / 30:.2f} game ticks")
         else:
             out_l.append("  frames=0 (no frame list: skeletal or empty; length from maya fields if any)")
+            mr = [v for _, k, v in other if k == "mayarange"]
+            if game.get("maya_lengths") and mr:
+                a, b = (int(x) for x in mr[0].split(",")[:2])
+                total = b - a
+                out_l.append(f"  maya length: mayarange {a}..{b} = {total} client cycles = "
+                             f"{total * 20} ms = {total / 30:.2f} game ticks "
+                             "(one skeletal keyframe per 20 ms client cycle)")
+                entry["maya"] = True
         entry["frames"] = len(frames)
         entry["cycles"] = total
         entry["frame_sounds"] = [(fr, sid, nm, n) for n, fr, sid, nm, _ in sounds_l]
@@ -478,6 +707,20 @@ def run(game_name, content, out, index_path):
     counts["spotanim"] = emit_config("spotanim", "cache_spotanim.txt",
                                      "spotanims (graphics and projectiles)")
     counts["obj"] = emit_config("obj", "cache_objs.txt", "obj records")
+
+    def append_kind(kind, fname, title):
+        """Emit an extra kind and append it to an existing dump file."""
+        base = (out / fname).read_text().splitlines()
+        n = emit_config(kind, fname + f".{kind}.tmp", title)
+        for e in index["records"]:
+            if e["kind"] == kind:
+                e["line"] += len(base) + 1
+        extra = (out / (fname + f".{kind}.tmp")).read_text().splitlines()
+        (out / fname).write_text("\n".join(base + [""] + extra) + "\n", encoding="utf-8")
+        (out / (fname + f".{kind}.tmp")).unlink()
+        counts[kind] = n
+    if "inv" in game.get("extra_kinds", []):
+        append_kind("inv", "cache_objs.txt", "inventories (configs/all.inv)")
 
     # locs: the record plus where the map places it
     def loc_summary(rec, entry):
@@ -508,6 +751,8 @@ def run(game_name, content, out, index_path):
     (out / "cache_vars_varp.tmp").unlink()
     (out / "cache_vars_varbit.tmp").unlink()
     counts["varp"], counts["varbit"] = n_vp, n_vb
+    if "varc" in game.get("extra_kinds", []):
+        append_kind("varc", "cache_vars.txt", "varcs (client-only vars)")
 
     # sounds: name-only pack
     lines = [f"# sound effects -- {len(S.sel['sound'])} selected from "
@@ -547,6 +792,10 @@ def run(game_name, content, out, index_path):
                     lines.append(f"  {t}    (interfaces/{sym}.if:{ln})")
             if comps is not None:
                 lines.append(f"  (only components {', '.join(comps)} quoted; the rest is the shared top level)")
+        for ln, ev, sid in iface_hooks.get(i, []):
+            lines.append(f"  hook: {ev} runs clientscript {sid} {cscripts.get(sid, ('?', 0))[0]}"
+                         f"  (interfaces/{sym}.if:{ln})")
+        lines.extend(read_by_lines("interface", i))
         lines.append("")
         index["records"].append({"kind": "interface", "id": i, "symbol": sym, "line": head,
                                  "source": f"pack/3_interfaces.pack:{n}",
@@ -559,10 +808,17 @@ def run(game_name, content, out, index_path):
         head = len(lines) + 1
         lines.append(f"[clientscript {i}] {sym}    (pack/12_clientscripts.pack:{n})  why= {', '.join(whys)}")
         p = content / "scripts" / f"{sym}.cs2"
+        # a script chosen only because it reads a selected record is quoted
+        # at those lines; a script chosen by name or number is quoted whole
+        only = None
+        if game.get("cs2_scan") and all(w.startswith("reads ") for w in whys):
+            only = script_hits.get(sym, set())
         if p.exists():
             for ln, t in enumerate(read_text(p), 1):
-                if t.strip():
+                if t.strip() and (only is None or ln in only):
                     lines.append(f"  {t}    (scripts/{sym}.cs2:{ln})")
+            if only is not None:
+                lines.append(f"  (only the lines that name a selected record are quoted)")
         lines.append("")
         index["records"].append({"kind": "clientscript", "id": i, "symbol": sym, "line": head,
                                  "source": f"pack/12_clientscripts.pack:{n}",
@@ -578,7 +834,7 @@ def run(game_name, content, out, index_path):
     for sym, rec in recs["struct"].items():
         fl = fields(rec)
         params = {v.split(",")[0]: v.split(",", 2)[-1] for _, k, v in fl if k == "param"}
-        why = game["struct_select"](params)
+        why = game["struct_select"](params) or bound_structs.get(sym)
         if why:
             tail = sym.split("_")[-1]
             struct_rows.append((int(tail) if tail.isdigit() else -1, sym, rec, why))
@@ -592,6 +848,11 @@ def run(game_name, content, out, index_path):
             if rec:
                 for n, v in rec[1]:
                     lines.append(f"  {v}    (configs/all.{kind}:{n})")
+            if kind == "enum" and enum_types.get(i):
+                lines.append(f"  read_as: output type {'/'.join(enum_types[i])} "
+                             "(the enum() calls of the CS2 suite that read it)")
+            if kind == "enum":
+                lines.extend(read_by_lines(kind, i))
             lines.append("")
             index["records"].append({"kind": kind, "id": i, "symbol": sym, "line": head,
                                      "source": f"configs/all.{kind}:{rec[0] if rec else '?'}",
@@ -638,7 +899,7 @@ def run(game_name, content, out, index_path):
                 if t.startswith("#"):
                     continue
                 cols = t.split("\t")
-                if sym in cols or (len(cols) > 5 and cols[5] == str(i)) or \
+                if sym in cols or (kind == "song" and len(cols) > 5 and cols[5] == str(i)) or \
                         (tsv == "music_regions.tsv" and str(i) == "502" and "mor_ul_rek" in cols):
                     lines.append(f"  docs/audio/{tsv}:{ln}: {t}")
         lines.append("")
@@ -651,6 +912,39 @@ def run(game_name, content, out, index_path):
     (out / "cache_music.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     counts["music"] = sum(1 for k, *_ in mus if k == "song")
     counts["jingle"] = sum(1 for k, *_ in mus if k == "jingle")
+
+    # the map squares, whole: every loc each one places (games that ask)
+    if game.get("map_dump"):
+        lines = ["# map squares -- every loc the cache map places in the minigame's squares,",
+                 "# from OSRS-Content/osrs239-content/maps/m<x>_<z>.jl2 (`==== LOC ====`: "
+                 "`level x z: loc shape [angle]`).",
+                 "# A square is 64x64 tiles: world x = 64*sqx + local x, world z = 64*sqz + local z.",
+                 "# Per square: one line per distinct loc (count, levels, local bounding box, first",
+                 "# placement line); then every placement of the locs the name rule selects.", ""]
+        for square, box, label in game["map"]:
+            pl = jl2(content, square)
+            sx, sz = (int(v) for v in square.split("_"))
+            byloc = defaultdict(list)
+            for p in pl:
+                byloc[p[3]].append(p)
+            levels = sorted({p[0] for p in pl})
+            lines.append(f"== {label}: maps/m{square}.jl2  (region {(sx << 8) | sz}, world x "
+                         f"{64 * sx}..{64 * sx + 63}, z {64 * sz}..{64 * sz + 63}; levels {levels}; "
+                         f"{len(pl)} placements of {len(byloc)} distinct locs)")
+            for loc in sorted(byloc):
+                ps = byloc[loc]
+                xs, zs = [p[1] for p in ps], [p[2] for p in ps]
+                lines.append(f"  {loc}\t{ids['loc'].get(loc, '?')}\tx{len(ps)}\tlevels "
+                             f"{sorted({p[0] for p in ps})}\tlocal x {min(xs)}-{max(xs)} z {min(zs)}-{max(zs)}"
+                             f"\t(maps/m{square}.jl2:{ps[0][6]})")
+            named = [p for p in pl if name_match(game, ids["loc"].get(p[3], ""))]
+            lines.append(f"  -- every placement of a loc the name rule selects ({len(named)}):")
+            for lv, x, z, loc, shape, ang, n in named:
+                lines.append(f"  placed {loc} {ids['loc'].get(loc)} level {lv} local {x},{z} "
+                             f"(world {64 * sx + x},{64 * sz + z}) shape {shape} angle {ang}"
+                             f"  (maps/m{square}.jl2:{n})")
+            lines.append("")
+        (out / "cache_map.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     index["counts"] = counts
     index["refs"] = {f"{k}:{i}": v for (k, i), v in refs.items()}
@@ -676,6 +970,22 @@ def inferno_structs(params):
         if v in ("The Inferno", "TzKal-Zuk", "Defeat TzKal-Zuk", "Defeat TzKal-Zuk.",
                  "Kill TzKal-Zuk"):
             return f"{k}={v}"
+    return None
+
+
+def colosseum_structs(params):
+    # Combat Achievement tasks: param_1312=25 is the boss group of every
+    # Colosseum task ("Defeat Sol Heredit once.", "Complete Wave 4 without ...")
+    if "param_1306" in params and params.get("param_1312") == "25":
+        return "combat achievement, param_1312=25"
+    # the modifier records the modifier enum lists: index 1895, name 1896
+    if "param_1895" in params and "param_1896" in params:
+        return "modifier record (param_1895 + param_1896)"
+    for k, v in params.items():
+        s = v.strip()
+        if s in ("Fortis Colosseum", "Sol Heredit", "Dizana's", "Dizana's (l)") or \
+                s.startswith("Defeat Sol Heredit"):
+            return f"{k}={s}"
     return None
 
 
@@ -737,6 +1047,63 @@ GAMES = {
         # music_tracks_osrs239.tsv row 2922 and music_regions.tsv 38_79 name it
         "music_ids": {502},
         "jingles": set(),
+    },
+    # The Fortis Colosseum. Rules restated in
+    # docs/minigames/colosseum/sources/LEDGER_cache.md.
+    "colosseum": {
+        # no Colosseum content exists in our server; only the generated
+        # combat ledgers name its records
+        "content_dir": None,
+        "extra_ref_files": ["npc_combat/c/colosseum_*.combat"],
+        "name_tokens": {"colosseum", "colosseeum", "colossi", "colossus", "solheredit",
+                        "solhereditecho", "colosseumrewards", "npccolosseum",
+                        "colosseummodifiers", "glaiveofralos", "tonalztics", "dizanas",
+                        "manticore", "warband", "warbander", "glaive", "minimus", "gloria"},
+        "jal_token": re.compile(r"(?!)"),
+        "name_substr": re.compile(r"sol_heredit|sunfire_splinter|minotaur_boss|"
+                                  r"jaguar_ranger|jaguar_human|jaguar_warrior|serpent_mager|"
+                                  r"serpent_shaman|doom_scorpion|ralos01|(?:^|_)echo_crystal(?:$|_)"),
+        # other game modes and other content that names the Colosseum: a
+        # Leagues task, a Deadman finale, a quest's knight (vmq2_), the Meat
+        # and Greet quest's records (mag_: quest_meatandgreet uses them), a
+        # skill guide row, a clue helper row
+        "exclude": re.compile(r"^(placeholder_|cert_|br_|trailblazer|leagues?_|deadman_|"
+                              r"skill_feature_|cluehelper_|mag_)|deadman|vmq2"),
+        "npc_name_exclude": re.compile(r"^(deadman_|leagues?_)"),
+        "npc_names": {"Sol Heredit", "Minimus", "Gloria", "Smol Heredit"},
+        "families": [],
+        "named_ids": [],
+        "id_blocks": [
+            ("seq", 10798, 10923, "seq id block 10798-10923 (every other record in it "
+                                  "is chosen by name)"),
+            ("spotanim", 2666, 2734, "spotanim id block 2666-2734 (every other record in it "
+                                     "is chosen by name)"),
+        ],
+        # the cache's own sound browser lists every Colosseum sound by monster
+        "synth_menus": ["synth_npccolosseum", "synth_colosseumrewards"],
+        "map": [
+            ("28_48", None, "arena"),
+            ("28_148", None, "lobby"),
+        ],
+        "ref_exclude": set(),
+        "ref_constants": [],
+        "clientscripts": [],
+        "iface_components": {},
+        "struct_select": lambda params: colosseum_structs(params),
+        "music": set(),
+        # "Are You Not Entertained?": dbrow music_fortis_colosseum names midi
+        # 782, whose pack name is the unrecovered song_782
+        "music_ids": {782},
+        "jingles": set(),
+        "extra_kinds": ["varc", "inv"],
+        "data_bind": True,
+        "cs2_scan": True,
+        "maya_lengths": True,
+        "map_dump": True,
+        "loc_soundrandom": True,
+        # a Combat Achievement task's category struct (struct_3594, "Combat
+        # Achievements"), shared by every task in the game
+        "struct_param_skip": {"param_1307"},
     },
 }
 

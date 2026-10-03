@@ -1,0 +1,1474 @@
+# sequences -- 166 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.seq (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[481] torch    (configs/all.seq:6773)
+  why= bind: anim of loc lunar_mine_cave_torch
+  frames=5  lengths=7 6x4
+  total=31 client cycles = 620 ms = 1.03 game ticks
+  (no frame sound)
+  framestep=5
+
+[808] human_ready    (configs/all.seq:19871)
+  why= bind: readyanim of npc colosseum_glory, readyanim of npc colosseum_jaguar_warrior, readyanim of npc colosseum_warbander_ranged_female, readyanim of npc colosseum_warbander_melee_male, readyanim of npc colosseum_passionate_supporter, readyanim of npc colosseeum_gladiator_1, readyanim of npc colosseeum_gladiator_2, readyanim of npc colosseeum_gladiator_3, readyanim of npc colosseum_duelist_flavour, readyanim of npc colosseum_lobby_guard_static_f_1, readyanim of npc colosseum_lobby_guard_static_f_2, readyanim of npc colosseum_teoki_ralos, readyanim of npc colosseum_teoki_ranul
+  frames=12  lengths=21x12
+  total=252 client cycles = 5040 ms = 8.40 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[813] human_staffready    (configs/all.seq:19956)
+  why= bind: readyanim of npc colosseum_standard_mager, readyanim of npc colosseum_warbander_mage_male, readyanim of npc colosseum_lobby_guard_static_m_1, readyanim of npc colosseum_lobby_guard_static_m_2
+  frames=12  lengths=21x12
+  total=252 client cycles = 5040 ms = 8.40 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[819] human_walk_f    (configs/all.seq:20070)
+  why= bind: walkanim of npc colosseum_master_outside, walkanim of npc colosseum_master, walkanim of npc colosseum_glory, walkanim of npc colosseum_jaguar_warrior, walkanim of npc colosseum_warbander_ranged_female, walkanim of npc colosseum_warbander_melee_male, walkanim of npc colosseum_passionate_supporter, walkanim of npc colosseeum_gladiator_1, walkanim of npc colosseeum_gladiator_2, walkanim of npc colosseeum_gladiator_3, walkanim of npc colosseum_duelist_flavour, walkanim of npc colosseum_lobby_guard_static_f_1, walkanim of npc colosseum_lobby_guard_static_f_2, walkanim of npc colosseum_teoki_ralos, walkanim of npc colosseum_teoki_ranul
+  frames=8  lengths=6x8
+  total=48 client cycles = 960 ms = 1.60 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[820] human_walk_b    (configs/all.seq:20081)
+  why= bind: walkanim_b of npc colosseum_glory, walkanim_b of npc colosseum_jaguar_warrior, walkanim_b of npc colosseum_warbander_ranged_female, walkanim_b of npc colosseum_warbander_melee_male, walkanim_b of npc colosseum_passionate_supporter, runanim_b of npc colosseum_passionate_supporter, walkanim_b of npc colosseeum_gladiator_1, walkanim_b of npc colosseeum_gladiator_2, walkanim_b of npc colosseeum_gladiator_3, walkanim_b of npc colosseum_duelist_flavour, walkanim_b of npc colosseum_lobby_guard_static_f_1, walkanim_b of npc colosseum_lobby_guard_static_f_2, walkanim_b of npc colosseum_teoki_ralos, walkanim_b of npc colosseum_teoki_ranul
+  frames=8  lengths=6x8
+  total=48 client cycles = 960 ms = 1.60 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[821] human_walk_l    (configs/all.seq:20092)
+  why= bind: walkanim_l of npc colosseum_glory, walkanim_l of npc colosseum_jaguar_warrior, walkanim_l of npc colosseum_warbander_ranged_female, walkanim_l of npc colosseum_warbander_melee_male, walkanim_l of npc colosseum_passionate_supporter, runanim_l of npc colosseum_passionate_supporter, walkanim_l of npc colosseeum_gladiator_1, walkanim_l of npc colosseeum_gladiator_2, walkanim_l of npc colosseeum_gladiator_3, walkanim_l of npc colosseum_duelist_flavour, walkanim_l of npc colosseum_lobby_guard_static_f_1, walkanim_l of npc colosseum_lobby_guard_static_f_2, walkanim_l of npc colosseum_teoki_ralos, walkanim_l of npc colosseum_teoki_ranul
+  frames=4  lengths=6x4
+  total=24 client cycles = 480 ms = 0.80 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[822] human_walk_r    (configs/all.seq:20099)
+  why= bind: walkanim_r of npc colosseum_glory, walkanim_r of npc colosseum_jaguar_warrior, walkanim_r of npc colosseum_warbander_ranged_female, walkanim_r of npc colosseum_warbander_melee_male, walkanim_r of npc colosseum_passionate_supporter, runanim_r of npc colosseum_passionate_supporter, walkanim_r of npc colosseeum_gladiator_1, walkanim_r of npc colosseeum_gladiator_2, walkanim_r of npc colosseeum_gladiator_3, walkanim_r of npc colosseum_duelist_flavour, walkanim_r of npc colosseum_lobby_guard_static_f_1, walkanim_r of npc colosseum_lobby_guard_static_f_2, walkanim_r of npc colosseum_teoki_ralos, walkanim_r of npc colosseum_teoki_ranul
+  frames=4  lengths=6x4
+  total=24 client cycles = 480 ms = 0.80 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[824] human_running    (configs/all.seq:20113)
+  why= bind: runanim of npc colosseum_passionate_supporter
+  frames=8  lengths=5 4x3 5 4x3
+  total=34 client cycles = 680 ms = 1.13 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[1205] human_halberdwalk_f    (configs/all.seq:25894)
+  why= bind: walkanim of npc colosseum_standard_mager, walkanim of npc colosseum_warbander_mage_male, walkanim of npc colosseum_lobby_guard_static_m_1, walkanim of npc colosseum_lobby_guard_static_m_2
+  frames=8  lengths=6x8
+  total=48 client cycles = 960 ms = 1.60 game ticks
+  (no frame sound)
+  stretches=yes
+  verticaloffset=8
+
+[1206] human_halberdwalk_b    (configs/all.seq:25906)
+  why= bind: walkanim_b of npc colosseum_standard_mager, walkanim_b of npc colosseum_warbander_mage_male, walkanim_b of npc colosseum_lobby_guard_static_m_1, walkanim_b of npc colosseum_lobby_guard_static_m_2
+  frames=8  lengths=6x8
+  total=48 client cycles = 960 ms = 1.60 game ticks
+  (no frame sound)
+  stretches=yes
+  verticaloffset=8
+
+[1207] human_halberdwalk_l    (configs/all.seq:25918)
+  why= bind: walkanim_l of npc colosseum_standard_mager, walkanim_l of npc colosseum_warbander_mage_male, walkanim_l of npc colosseum_lobby_guard_static_m_1, walkanim_l of npc colosseum_lobby_guard_static_m_2
+  frames=4  lengths=6x4
+  total=24 client cycles = 480 ms = 0.80 game ticks
+  (no frame sound)
+  stretches=yes
+  verticaloffset=8
+
+[1208] human_halberdwalk_r    (configs/all.seq:25926)
+  why= bind: walkanim_r of npc colosseum_standard_mager, walkanim_r of npc colosseum_warbander_mage_male, walkanim_r of npc colosseum_lobby_guard_static_m_1, walkanim_r of npc colosseum_lobby_guard_static_m_2
+  frames=4  lengths=6x4
+  total=24 client cycles = 480 ms = 0.80 game ticks
+  (no frame sound)
+  stretches=yes
+  verticaloffset=8
+
+[3105] fire_effect    (configs/all.seq:56369)
+  why= bind: anim of loc hg_torch_landing01
+  frames=6  lengths=6 5 6x2 5x2
+  total=33 client cycles = 660 ms = 1.10 game ticks
+  (no frame sound)
+  framestep=6
+
+[6252] scorpion_update_ready    (configs/all.seq:130542)
+  why= bind: readyanim of npc colosseum_doom_scorpion
+  frames=8  lengths=6x8
+  total=48 client cycles = 960 ms = 1.60 game ticks
+  (no frame sound)
+  framestep=8
+
+[6253] scorpion_update_walk    (configs/all.seq:130553)
+  why= bind: walkanim of npc colosseum_doom_scorpion
+  frames=8  lengths=4x8
+  total=32 client cycles = 640 ms = 1.07 game ticks
+  (no frame sound)
+  framestep=8
+
+[6254] scorpion_update_attack_tail    (configs/all.seq:130564)
+  why= ref: npc_combat/c/colosseum_doom_scorpion.combat:16
+  frames=11  lengths=4x5 3 2x2 3 4x2
+  total=38 client cycles = 760 ms = 1.27 game ticks
+  (no frame sound)
+  interleave=21,23,25,27,29,30,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,83,109,110
+  stretches=yes
+  forcedpriority=6
+
+[6255] scorpion_update_defend    (configs/all.seq:130580)
+  why= ref: npc_combat/c/colosseum_doom_scorpion.combat:17
+  frames=11  lengths=3x3 4 5x3 4 3x3
+  total=41 client cycles = 820 ms = 1.37 game ticks
+  (no frame sound)
+  interleave=21,23,25,27,29,30,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,83,109,110
+  forcedpriority=6
+
+[6256] scorpion_update_death    (configs/all.seq:130595)
+  why= ref: npc_combat/c/colosseum_doom_scorpion.combat:15
+  frames=16  lengths=4x6 5 7 6 4 3 10 5x3 50
+  total=124 client cycles = 2480 ms = 4.13 game ticks
+  (no frame sound)
+  forcedpriority=10
+
+[6481] varrock_heavybag_ready    (configs/all.seq:137476)
+  why= bind: anim of loc civitas_combat_dummy_noop
+  frames=4  lengths=8x4
+  total=32 client cycles = 640 ms = 1.07 game ticks
+  (no frame sound)
+
+[6853] camp_fire    (configs/all.seq:150925)
+  why= bind: anim of loc brazier_varlamore01_default01_2x2
+  frames=20  lengths=5x20
+  total=100 client cycles = 2000 ms = 3.33 game ticks
+  (no frame sound)
+  framestep=20
+
+[9610] vfx_scarab_explosion01    (configs/all.seq:223229)
+  why= bind: anim of spotanim vfx_colosseum_human_explosion_01, anim of spotanim vfx_colosseum_human_explosion_02, anim of spotanim vfx_colosseum_human_explosion_03, anim of spotanim vfx_colosseum_human_explosion_04, anim of spotanim vfx_colosseum_human_explosion_05, anim of spotanim vfx_colosseum_human_explosion_06, anim of spotanim vfx_colosseum_human_explosion_07, anim of spotanim vfx_colosseum_human_explosion_08, anim of spotanim vfx_colosseum_minotaur_explosion_01
+  frames=18  lengths=2 3x11 4x5 5
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  framestep=1
+  verticaloffset=5
+
+[9642] projectile_zebak_pitcher01    (configs/all.seq:223559)
+  why= bind: anim of spotanim vfx_colosseum_bee_jar_travel
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=1
+  mayaid=28442624
+  mayarange=0,90
+
+[10098] spotanim_leviathan_smoke_01    (configs/all.seq:232124)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_01
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10099] spotanim_leviathan_smoke_02    (configs/all.seq:232132)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_02
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10100] spotanim_leviathan_smoke_03    (configs/all.seq:232140)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_03
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10101] spotanim_leviathan_smoke_04    (configs/all.seq:232148)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_04
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10102] spotanim_leviathan_smoke_05    (configs/all.seq:232156)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_05
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10103] spotanim_leviathan_smoke_06    (configs/all.seq:232164)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_06
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10104] spotanim_leviathan_smoke_07    (configs/all.seq:232172)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_07
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10105] spotanim_leviathan_smoke_08    (configs/all.seq:232180)
+  why= bind: anim of spotanim vfx_colossi_stab_dust_08
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10327] vfx_leviathan_01_projectile_ranged_01    (configs/all.seq:235704)
+  why= bind: anim of spotanim vfx_manticore_01_projectile_ranged_01
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10328] vfx_leviathan_01_projectile_melee_01    (configs/all.seq:235726)
+  why= bind: anim of spotanim vfx_manticore_01_projectile_melee_01
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10329] vfx_leviathan_01_projectile_magic_01    (configs/all.seq:235748)
+  why= bind: anim of spotanim vfx_manticore_01_projectile_magic_01
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10330] vfx_leviathan_01_projectile_impact_01    (configs/all.seq:235770)
+  why= bind: anim of spotanim vfx_manticore_01_projectile_impact_magic_01, anim of spotanim vfx_manticore_01_projectile_impact_ranged_01, anim of spotanim vfx_manticore_01_projectile_impact_melee_01
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10798] npc_colosseum_crystal_spawn_01    (configs/all.seq:248709)
+  why= name: npc_colosseum_crystal_spawn_01
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=1,8239,1,25,25,100    -> frame 1 plays sound 8239 varl_colossi_crystal_proj_spawn_02  (configs/all.seq:248731)
+  sound=3,8246,1,25,25,100    -> frame 3 plays sound 8246 varl_colossi_crystal_proj_spawn_bass_01  (configs/all.seq:248732)
+  sound=4,8070,1,25,25,100    -> frame 4 plays sound 8070 varl_colossi_crystal_beam_crystal_spawn_01  (configs/all.seq:248733)
+  forcedpriority=9
+  verticaloffset=4
+
+[10799] npc_colosseum_crystal_idle_01    (configs/all.seq:248736)
+  why= name: npc_colosseum_crystal_idle_01; bind: readyanim of npc colosseum_beam_crystal, walkanim of npc colosseum_beam_crystal
+  frames=32  lengths=3 4x3 3 4x3 3 4x3 3 4x3 3 4x3 3 4x3 3 4x3 3 4x3
+  total=120 client cycles = 2400 ms = 4.00 game ticks
+  (no frame sound)
+  forcedpriority=4
+  verticaloffset=4
+
+[10800] npc_colosseum_crystal_despawn_01    (configs/all.seq:248772)
+  why= name: npc_colosseum_crystal_despawn_01; ref: npc_combat/c/colosseum_beam_crystal.combat:15
+  frames=15  lengths=4x15
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=4
+
+[10801] npc_colosseum_crystal_charge_01    (configs/all.seq:248792)
+  why= name: npc_colosseum_crystal_charge_01
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  framestep=10
+  forcedpriority=6
+  verticaloffset=4
+
+[10802] npc_colosseum_crystal_attack_01    (configs/all.seq:248817)
+  why= name: npc_colosseum_crystal_attack_01; ref: npc_combat/c/colosseum_beam_crystal.combat:16
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  forcedpriority=7
+  verticaloffset=4
+
+[10803] vfx_colosseum_crystal_charge_01_beam_01    (configs/all.seq:248831)
+  why= name: vfx_colosseum_crystal_charge_01_beam_01; bind: anim of spotanim vfx_colosseum_crystal_charge_01_beam_01, anim of spotanim vfx_colosseum_crystal_charge_01_beam_01_echo
+  frames=43  lengths=1x3 3x40
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  framestep=32
+  verticaloffset=4
+
+[10804] vfx_colosseum_crystal_charge_01_beam_02    (configs/all.seq:248878)
+  why= name: vfx_colosseum_crystal_charge_01_beam_02; bind: anim of spotanim vfx_colosseum_crystal_charge_01_beam_02, anim of spotanim vfx_colosseum_crystal_charge_01_beam_02_echo
+  frames=43  lengths=1x3 3x40
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  framestep=32
+  verticaloffset=4
+
+[10805] vfx_colosseum_crystal_charge_01_beam_03    (configs/all.seq:248925)
+  why= name: vfx_colosseum_crystal_charge_01_beam_03; bind: anim of spotanim vfx_colosseum_crystal_charge_01_beam_03, anim of spotanim vfx_colosseum_crystal_charge_01_beam_03_echo
+  frames=43  lengths=1x3 3x40
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  framestep=32
+  verticaloffset=4
+
+[10806] vfx_colosseum_crystal_charge_01_beam_04    (configs/all.seq:248972)
+  why= name: vfx_colosseum_crystal_charge_01_beam_04; bind: anim of spotanim vfx_colosseum_crystal_charge_01_beam_04, anim of spotanim vfx_colosseum_crystal_charge_01_beam_04_echo
+  frames=43  lengths=1x3 3x40
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  framestep=32
+  verticaloffset=4
+
+[10807] vfx_colosseum_crystal_attack_01_beam_01    (configs/all.seq:249019)
+  why= name: vfx_colosseum_crystal_attack_01_beam_01; bind: anim of spotanim vfx_colosseum_crystal_attack_01_beam_01, anim of spotanim vfx_colosseum_crystal_attack_01_beam_01_echo
+  frames=27  lengths=1x3 5x24
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10808] vfx_colosseum_crystal_attack_01_beam_02    (configs/all.seq:249049)
+  why= name: vfx_colosseum_crystal_attack_01_beam_02; bind: anim of spotanim vfx_colosseum_crystal_attack_01_beam_02, anim of spotanim vfx_colosseum_crystal_attack_01_beam_02_echo
+  frames=27  lengths=1x3 5x24
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10809] vfx_colosseum_crystal_attack_01_beam_03    (configs/all.seq:249079)
+  why= name: vfx_colosseum_crystal_attack_01_beam_03; bind: anim of spotanim vfx_colosseum_crystal_attack_01_beam_03, anim of spotanim vfx_colosseum_crystal_attack_01_beam_03_echo
+  frames=27  lengths=1x3 5x24
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10810] vfx_colosseum_crystal_attack_01_beam_04    (configs/all.seq:249109)
+  why= name: vfx_colosseum_crystal_attack_01_beam_04; bind: anim of spotanim vfx_colosseum_crystal_attack_01_beam_04, anim of spotanim vfx_colosseum_crystal_attack_01_beam_04_echo
+  frames=27  lengths=1x3 5x24
+  total=123 client cycles = 2460 ms = 4.10 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10811] vfx_colosseum_crystal_attack_01_impact_01    (configs/all.seq:249139)
+  why= name: vfx_colosseum_crystal_attack_01_impact_01; bind: anim of spotanim vfx_colosseum_crystal_attack_01_impact_01, anim of spotanim vfx_colosseum_crystal_attack_01_impact_01_echo
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10812] vfx_colosseum_sunfire_lightning_01_beam_01    (configs/all.seq:249152)
+  why= name: vfx_colosseum_sunfire_lightning_01_beam_01; bind: anim of spotanim vfx_colosseum_sunfire_lightning_01_beam_01, anim of spotanim vfx_colosseum_sunfire_lightning_01_beam_01_echo
+  frames=50  lengths=2x8 14 30 2x30 3x10
+  total=150 client cycles = 3000 ms = 5.00 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10813] vfx_colosseum_hot_sand_01_idle_01    (configs/all.seq:249205)
+  why= name: vfx_colosseum_hot_sand_01_idle_01
+  frames=18  lengths=5x18
+  total=90 client cycles = 1800 ms = 3.00 game ticks
+  (no frame sound)
+  framestep=18
+
+[10814] vfx_colosseum_hot_sand_01_despawn_01    (configs/all.seq:249226)
+  why= name: vfx_colosseum_hot_sand_01_despawn_01
+  frames=15  lengths=4x15
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  framestep=1
+
+[10815] vfx_colosseum_hot_sand_02_projectile_01    (configs/all.seq:249244)
+  why= name: vfx_colosseum_hot_sand_02_projectile_01; bind: anim of spotanim vfx_colosseum_hot_sand_02_projectile_01, anim of spotanim vfx_colosseum_hot_sand_02_projectile_02, anim of spotanim vfx_colosseum_hot_sand_02_projectile_01_echo, anim of spotanim vfx_colosseum_hot_sand_02_projectile_02_echo
+  frames=8  lengths=3 4x3 3 4x3
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10816] vfx_colosseum_hot_sand_02_idle_01    (configs/all.seq:249254)
+  why= name: vfx_colosseum_hot_sand_02_idle_01; bind: anim of loc colosseum_molten_pool_1
+  frames=15  lengths=4x15
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  framestep=1
+
+[10817] npc_colosseum_solar_flare_crystal_idle_01    (configs/all.seq:249272)
+  why= name: npc_colosseum_solar_flare_crystal_idle_01; bind: readyanim of npc colosseum_solar_flare, walkanim of npc colosseum_solar_flare
+  frames=41  lengths=3x20 4x21
+  total=144 client cycles = 2880 ms = 4.80 game ticks
+  sound=1,7980,1,8,4,100    -> frame 1 plays sound 7980 varl_audio_modifier_solar_flare_spawn_03  (configs/all.seq:249315)
+  framestep=21
+  verticaloffset=5
+
+[10818] vfx_doom_scorpion_attack_impact_01    (configs/all.seq:249318)
+  why= name: vfx_doom_scorpion_attack_impact_01; bind: anim of spotanim vfx_doom_scorpion_attack_impact_01
+  frames=5  lengths=4x5
+  total=20 client cycles = 400 ms = 0.67 game ticks
+  (no frame sound)
+  verticaloffset=5
+
+[10819] vfx_doom_scorpion_01_player_death_01    (configs/all.seq:249326)
+  why= name: vfx_doom_scorpion_01_player_death_01; bind: anim of spotanim vfx_doom_scorpion_01_player_death_01
+  frames=76  lengths=3x5 4 3x69 5
+  total=231 client cycles = 4620 ms = 7.70 game ticks
+  sound=1,8030,1,1,0,100    -> frame 1 plays sound 8030 doom_snail_player_death_a_02  (configs/all.seq:249403)
+  sound=17,8032,1,1,0,100    -> frame 17 plays sound 8032 doom_snail_player_death_c_01  (configs/all.seq:249404)
+  sound=54,8031,1,1,0,100    -> frame 54 plays sound 8031 doom_snail_player_death_b_01  (configs/all.seq:249405)
+
+[10820] vfx_colosseum_bees_jar_impact_01    (configs/all.seq:249407)
+  why= name: vfx_colosseum_bees_jar_impact_01; bind: anim of spotanim vfx_colosseum_bee_jar_impact_01
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=28508160
+  mayarange=0,90
+
+[10821] npc_colosseum_bees_spawn_01    (configs/all.seq:249411)
+  why= name: npc_colosseum_bees_spawn_01
+  frames=31  lengths=2x3 3x28
+  total=90 client cycles = 1800 ms = 3.00 game ticks
+  sound=2,7964,1,15,0,100    -> frame 2 plays sound 7964 varl_audio_modifier_bee_swarm_spawn04  (configs/all.seq:249444)
+  forcedpriority=9
+
+[10822] npc_colosseum_bees_idle_01    (configs/all.seq:249446)
+  why= name: npc_colosseum_bees_idle_01; bind: readyanim of npc colosseum_modifier_bees, walkanim of npc colosseum_modifier_bees
+  frames=32  lengths=3 4x3 3 4x3 3 4x3 3 4x3 3 4x3 3 4x3 3 4x3 3 4x3
+  total=120 client cycles = 2400 ms = 4.00 game ticks
+  (no frame sound)
+  forcedpriority=4
+
+[10823] npc_colosseum_bees_attack_01    (configs/all.seq:249481)
+  why= name: npc_colosseum_bees_attack_01; ref: npc_combat/c/colosseum_modifier_bees.combat:16
+  frames=30  lengths=2x30
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=1,7989,1,15,0,100    -> frame 1 plays sound 7989 varl_audio_modifier_bee_swarm_attack06  (configs/all.seq:249513)
+  forcedpriority=6
+
+[10824] npc_colosseum_bees_despawn_01    (configs/all.seq:249515)
+  why= name: npc_colosseum_bees_despawn_01; ref: npc_combat/c/colosseum_modifier_bees.combat:15
+  frames=31  lengths=3x31
+  total=93 client cycles = 1860 ms = 3.10 game ticks
+  sound=1,8007,1,15,0,100    -> frame 1 plays sound 8007 varl_audio_modifier_bee_swarm_despawn01  (configs/all.seq:249548)
+  forcedpriority=10
+
+[10825] chest_colosseum01_reward01_spawn_01    (configs/all.seq:249550)
+  why= block: seq id block 10798-10923 (every other record in it is chosen by name); bind: anim of loc colosseum_reward
+  frames=28  lengths=5x27 15
+  total=150 client cycles = 3000 ms = 5.00 game ticks
+  (no frame sound)
+  framestep=1
+
+[10826] vfx_colosseum_totem_projectile_01    (configs/all.seq:249581)
+  why= name: vfx_colosseum_totem_projectile_01; bind: anim of spotanim vfx_colosseum_totem_projectile_01
+  frames=28  lengths=4x3 3 2x2 3 4x3 3 2x2 3 4x3 3 2x2 3 4x3 3x4
+  total=90 client cycles = 1800 ms = 3.00 game ticks
+  sound=2,8000,1,5,0,100    -> frame 2 plays sound 8000 varl_audio_modifier_totem_projectile  (configs/all.seq:249610)
+
+[10827] npc_colosseum_totem_idle_01    (configs/all.seq:249612)
+  why= name: npc_colosseum_totem_idle_01; bind: readyanim of npc colosseum_healing_totem, walkanim of npc colosseum_healing_totem
+  frames=51  lengths=2x16 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3 2 3
+  total=120 client cycles = 2400 ms = 4.00 game ticks
+  sound=3,7965,1,3,0,100    -> frame 3 plays sound 7965 varl_audio_modifier_totem_idle_start  (configs/all.seq:249666)
+  sound=15,8019,1,3,0,100    -> frame 15 plays sound 8019 varl_audio_modifier_totem_idle  (configs/all.seq:249667)
+  framestep=36
+  forcedpriority=4
+
+[10828] npc_colosseum_totem_attack_01    (configs/all.seq:249669)
+  why= name: npc_colosseum_totem_attack_01; ref: npc_combat/c/colosseum_healing_totem.combat:16
+  frames=31  lengths=3x30 30
+  total=120 client cycles = 2400 ms = 4.00 game ticks
+  sound=1,8006,1,3,0,100    -> frame 1 plays sound 8006 varl_audio_modifier_totem_attack  (configs/all.seq:249702)
+  forcedpriority=6
+
+[10829] vfx_colosseum_totem_impact_01    (configs/all.seq:249704)
+  why= name: vfx_colosseum_totem_impact_01; bind: anim of spotanim vfx_colosseum_totem_impact_01
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  sound=1,7976,1,3,0,100    -> frame 1 plays sound 7976 varl_audio_modifier_totem_impact  (configs/all.seq:249715)
+
+[10830] vfx_colosseum_explosion01    (configs/all.seq:249717)
+  why= name: vfx_colosseum_explosion01; bind: anim of spotanim spotanim_colossi_finalboss_01_melee
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10831] vfx_colosseum_explosion02    (configs/all.seq:249729)
+  why= name: vfx_colosseum_explosion02; bind: anim of spotanim spotanim_colossi_finalboss_02_melee
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10832] vfx_colosseum_explosion03    (configs/all.seq:249741)
+  why= name: vfx_colosseum_explosion03; bind: anim of spotanim spotanim_colossi_finalboss_03_melee
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10833] vfx_colosseum_explosion04    (configs/all.seq:249753)
+  why= name: vfx_colosseum_explosion04; bind: anim of spotanim spotanim_colossi_finalboss_04_melee
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10834] vfx_colosseum_human_gib_01    (configs/all.seq:249765)
+  why= name: vfx_colosseum_human_gib_01
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=1
+  mayaid=31260672
+  mayarange=0,60
+  verticaloffset=4
+
+[10835] vfx_colosseum_manticore_gib_01    (configs/all.seq:249771)
+  why= name: vfx_colosseum_manticore_gib_01
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=1
+  mayaid=31195136
+  mayarange=0,60
+  verticaloffset=4
+
+[10836] vfx_colosseum_colossi_gib_01    (configs/all.seq:249777)
+  why= name: vfx_colosseum_colossi_gib_01
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=1
+  mayaid=31326208
+  mayarange=0,60
+  verticaloffset=4
+
+[10837] vfx_colosseum_minotaur_gib_01    (configs/all.seq:249783)
+  why= name: vfx_colosseum_minotaur_gib_01
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=1
+  mayaid=31129600
+  mayarange=0,60
+  verticaloffset=4
+
+[10838] vfx_colosseum_manticore_explosion_01    (configs/all.seq:249789)
+  why= name: vfx_colosseum_manticore_explosion_01; bind: anim of spotanim vfx_colosseum_manticore_explosion_01
+  frames=18  lengths=2 3x11 4x5 5
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10839] vfx_colosseum_colossi_explosion_01    (configs/all.seq:249810)
+  why= name: vfx_colosseum_colossi_explosion_01; bind: anim of spotanim vfx_colosseum_colossi_explosion_01, anim of spotanim vfx_colosseum_finalboss_explosion_01
+  frames=18  lengths=2 3x11 4x5 5
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  verticaloffset=4
+
+[10840] npc_minotaur_boss_idle    (configs/all.seq:249831)
+  why= name: npc_minotaur_boss_idle; bind: readyanim of npc colosseum_minotaur, readyanim of npc colosseum_minotaur_routefind
+  frames=16  lengths=4x3 3x2 4x6 3x2 4x3
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10841] npc_minotaur_boss_defend    (configs/all.seq:249849)
+  why= name: npc_minotaur_boss_defend; ref: npc_combat/c/colosseum_minotaur.combat:17 (+1)
+  frames=18  lengths=3x6 4x6 3x6
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=4,8035,1,4,0,100    -> frame 4 plays sound 8035 varl_minotaur_boss_defend_growl_01  (configs/all.seq:249869)
+  forcedpriority=4
+
+[10842] npc_minotaur_boss_walk    (configs/all.seq:249871)
+  why= name: npc_minotaur_boss_walk; bind: walkanim of npc colosseum_minotaur, walkanim of npc colosseum_minotaur_routefind
+  frames=14  lengths=4x2 5x2 4x5 5x2 4x3
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=6,8039,1,7,0,100    -> frame 6 plays sound 8039 varl_minotaur_boss_fs_01  (configs/all.seq:249886)
+  sound=12,8036,1,7,0,100    -> frame 12 plays sound 8036 varl_minotaur_boss_fs_02  (configs/all.seq:249887)
+
+[10843] npc_minotaur_boss_attack_melee    (configs/all.seq:249889)
+  why= name: npc_minotaur_boss_attack_melee; ref: npc_combat/c/colosseum_minotaur.combat:16 (+1)
+  frames=22  lengths=3 2x3 3x15 2x3
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=5,8044,1,4,0,100    -> frame 5 plays sound 8044 varl_minotaur_boss_attack_melee_01  (configs/all.seq:249912)
+
+[10844] npc_minotaur_boss_attack_magic    (configs/all.seq:249914)
+  why= name: npc_minotaur_boss_attack_magic
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=2,8046,1,4,0,100    -> frame 2 plays sound 8046 varl_minotaur_boss_attack_magic_heal_charge_01  (configs/all.seq:249935)
+  sound=12,8037,1,4,0,100    -> frame 12 plays sound 8037 varl_minotaur_boss_attack_magic_heal_cast_01  (configs/all.seq:249936)
+
+[10845] npc_minotaur_boss_spawn    (configs/all.seq:249938)
+  why= name: npc_minotaur_boss_spawn
+  frames=38  lengths=4x37 2
+  total=150 client cycles = 3000 ms = 5.00 game ticks
+  sound=13,8043,1,4,0,100    -> frame 13 plays sound 8043 varl_minotaur_boss_spawn_magic_01  (configs/all.seq:249977)
+  sound=22,8038,1,4,0,100    -> frame 22 plays sound 8038 varl_minotaur_boss_spawn_growl_01  (configs/all.seq:249978)
+  sound=31,8034,1,4,0,100    -> frame 31 plays sound 8034 varl_minotaur_boss_spawn_fs_01  (configs/all.seq:249979)
+  sound=36,8045,1,4,0,100    -> frame 36 plays sound 8045 varl_minotaur_boss_spawn_fs_02  (configs/all.seq:249980)
+
+[10846] npc_minotaur_boss_death    (configs/all.seq:249982)
+  why= name: npc_minotaur_boss_death; ref: npc_combat/c/colosseum_minotaur.combat:15 (+1)
+  frames=30  lengths=3x30
+  total=90 client cycles = 1800 ms = 3.00 game ticks
+  sound=1,8033,1,4,0,100    -> frame 1 plays sound 8033 varl_minotaur_boss_death_growl_01  (configs/all.seq:250014)
+  sound=6,8036,1,7,0,100    -> frame 6 plays sound 8036 varl_minotaur_boss_fs_02  (configs/all.seq:250015)
+  sound=9,8039,1,7,0,100    -> frame 9 plays sound 8039 varl_minotaur_boss_fs_01  (configs/all.seq:250016)
+  sound=17,8040,1,7,0,100    -> frame 17 plays sound 8040 varl_minotaur_boss_death_fade_01  (configs/all.seq:250017)
+  framestep=1
+
+[10847] npc_jaguar_ranger_claws_attack    (configs/all.seq:250019)
+  why= name: npc_jaguar_ranger_claws_attack
+  frames=32  lengths=1 3x3 2x2 1x3 2x2 3x2 2 1x2 2x11 3x2 2 1x2
+  total=63 client cycles = 1260 ms = 2.10 game ticks
+  sound=4,8361,1,7,0,100    -> frame 4 plays sound 8361 varlamore_jaguar_warrior_spear_swipe_01  (configs/all.seq:250054)
+  sound=13,8360,1,7,0,100    -> frame 13 plays sound 8360 varlamore_jaguar_warrior_shield_swipe_01  (configs/all.seq:250055)
+  sound=21,8359,1,7,0,100    -> frame 21 plays sound 8359 varlamore_jaguar_warrior_spear_swipe_02  (configs/all.seq:250056)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  forcedpriority=6
+  verticaloffset=8
+
+[10848] npc_jaguar_human_unarmed_def    (configs/all.seq:250059)
+  why= name: npc_jaguar_human_unarmed_def
+  frames=8  lengths=8 6 5 4 25 4 5 6
+  total=63 client cycles = 1260 ms = 2.10 game ticks
+  sound=1,513,1,8,0,100    -> frame 1 plays sound 513 human_hit  (configs/all.seq:250069)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  verticaloffset=8
+
+[10849] npc_jaguar_human_death    (configs/all.seq:250072)
+  why= name: npc_jaguar_human_death
+  frames=10  lengths=8 4x3 14 4 3x3 20000
+  total=20047 client cycles = 400940 ms = 668.23 game ticks
+  sound=1,512,1,4,0,100    -> frame 1 plays sound 512 human_death  (configs/all.seq:250085)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=8
+
+[10850] npc_fremennik_warbander_archer_att_colosseum    (configs/all.seq:250088)
+  why= name: npc_fremennik_warbander_archer_att_colosseum
+  frames=10  lengths=4x4 15 10 5 4x3
+  total=58 client cycles = 1160 ms = 1.93 game ticks
+  sound=6,2692,1,4,0,100    -> frame 6 plays sound 2692 arrow_launch  (configs/all.seq:250101)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  forcedpriority=6
+  verticaloffset=8
+
+[10851] npc_fremennik_warband_archer_human_unarmed_def    (configs/all.seq:250104)
+  why= name: npc_fremennik_warband_archer_human_unarmed_def
+  frames=8  lengths=8 6 5 4 25 4 5 6
+  total=63 client cycles = 1260 ms = 2.10 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  verticaloffset=8
+
+[10852] npc_fremennik_warband_archer_human_death    (configs/all.seq:250116)
+  why= name: npc_fremennik_warband_archer_human_death
+  frames=10  lengths=8 4x3 14 4 3x3 20000
+  total=20047 client cycles = 400940 ms = 668.23 game ticks
+  sound=1,512,1,4,0,100    -> frame 1 plays sound 512 human_death  (configs/all.seq:250129)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=8
+
+[10853] npc_fremennik_warbander_mage_zaros_vertical_casting_walkmerge    (configs/all.seq:250132)
+  why= name: npc_fremennik_warbander_mage_zaros_vertical_casting_walkmerge
+  frames=13  lengths=4 1 2 3 20 1 2 3 20 1 2 3 4
+  total=66 client cycles = 1320 ms = 2.20 game ticks
+  sound=1,7962,1,4,0,100    -> frame 1 plays sound 7962 varlamore_fremennik_mage_fire_cast_01  (configs/all.seq:250147)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  verticaloffset=8
+
+[10854] npc_fremennik_warband_mage_human_unarmed_def    (configs/all.seq:250150)
+  why= name: npc_fremennik_warband_mage_human_unarmed_def
+  frames=8  lengths=8 6 5 4 25 4 5 6
+  total=63 client cycles = 1260 ms = 2.10 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  verticaloffset=8
+
+[10855] npc_fremennik_warband_mage_human_death    (configs/all.seq:250162)
+  why= name: npc_fremennik_warband_mage_human_death
+  frames=10  lengths=8 4x3 14 4 3x3 20000
+  total=20047 client cycles = 400940 ms = 668.23 game ticks
+  sound=1,512,1,8,0,100    -> frame 1 plays sound 512 human_death  (configs/all.seq:250175)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=8
+
+[10856] npc_fremennik_warbander_melee_human_sword_stab    (configs/all.seq:250178)
+  why= name: npc_fremennik_warbander_melee_human_sword_stab
+  frames=6  lengths=4x2 6 3 18 4
+  total=39 client cycles = 780 ms = 1.30 game ticks
+  sound=2,2549,1,4,0,100    -> frame 2 plays sound 2549 stabsword_stab  (configs/all.seq:250187)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  forcedpriority=6
+  verticaloffset=8
+
+[10857] npc_fremennik_warband_melee_human_unarmed_def    (configs/all.seq:250190)
+  why= name: npc_fremennik_warband_melee_human_unarmed_def
+  frames=8  lengths=8 6 5 4 25 4 5 6
+  total=63 client cycles = 1260 ms = 2.10 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  verticaloffset=8
+
+[10858] npc_fremennik_warband_melee_human_death    (configs/all.seq:250202)
+  why= name: npc_fremennik_warband_melee_human_death
+  frames=10  lengths=8 4x3 14 4 3x3 20000
+  total=20047 client cycles = 400940 ms = 668.23 game ticks
+  sound=1,512,1,4,0,100    -> frame 1 plays sound 512 human_death  (configs/all.seq:250215)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=8
+
+[10859] npc_serpent_mager_casting    (configs/all.seq:250218)
+  why= name: npc_serpent_mager_casting
+  frames=17  lengths=4x4 10 4x3 10 4 10 2 20 4x4
+  total=100 client cycles = 2000 ms = 3.33 game ticks
+  sound=3,8338,1,4,0,100    -> frame 3 plays sound 8338 varl_serpent_shaman_water_cast_01  (configs/all.seq:250237)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45,168,169,171,172,174,175,177,178,180,181,183,184,186,188,189,191,192,197,198,199,205,207,208,219,220,221,222
+  verticaloffset=8
+
+[10860] npc_serpent_mager_death    (configs/all.seq:250240)
+  why= name: npc_serpent_mager_death
+  frames=10  lengths=8 4x3 14 4 3x3 20000
+  total=20047 client cycles = 400940 ms = 668.23 game ticks
+  sound=1,512,1,8,0,100    -> frame 1 plays sound 512 human_death  (configs/all.seq:250253)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=8
+
+[10861] npc_human_staffready_spawn    (configs/all.seq:250256)
+  why= block: seq id block 10798-10923 (every other record in it is chosen by name)
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  forcedpriority=9
+  verticaloffset=8
+
+[10862] npc_human_ready_spawn    (configs/all.seq:250270)
+  why= block: seq id block 10798-10923 (every other record in it is chosen by name)
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  forcedpriority=9
+  verticaloffset=8
+
+[10863] npc_manticore_01_idle    (configs/all.seq:250284)
+  why= name: npc_manticore_01_idle; bind: readyanim of npc colosseum_manticore
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..100 = 100 client cycles = 2000 ms = 3.33 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=18808832
+  mayarange=0,100
+  verticaloffset=4
+
+[10864] npc_manticore_01_walk    (configs/all.seq:250289)
+  why= name: npc_manticore_01_walk; bind: walkanim of npc colosseum_manticore, walkanim_l of npc colosseum_manticore, walkanim_r of npc colosseum_manticore
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=20,8369,1,5,0,100    -> frame 20 plays sound 8369 manticore_footstep03  (configs/all.seq:250292)
+  sound=49,8409,1,5,0,100    -> frame 49 plays sound 8409 manticore_footstep04  (configs/all.seq:250293)
+  mayaid=18743296
+  mayarange=0,60
+  verticaloffset=4
+
+[10865] npc_manticore_01_backwards_walk    (configs/all.seq:250296)
+  why= name: npc_manticore_01_backwards_walk; bind: walkanim_b of npc colosseum_manticore
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=3,8369,1,5,0,100    -> frame 3 plays sound 8369 manticore_footstep03  (configs/all.seq:250299)
+  sound=31,8409,1,5,0,100    -> frame 31 plays sound 8409 manticore_footstep04  (configs/all.seq:250300)
+  mayaid=18677760
+  mayarange=0,60
+  verticaloffset=4
+
+[10866] npc_manticore_01_death    (configs/all.seq:250303)
+  why= name: npc_manticore_01_death; ref: npc_combat/c/colosseum_manticore.combat:15
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=6,8373,1,5,0,100    -> frame 6 plays sound 8373 manticore_death_roar02  (configs/all.seq:250307)
+  sound=12,8407,1,5,0,100    -> frame 12 plays sound 8407 manticore_death_impact01  (configs/all.seq:250308)
+  sound=41,8396,1,5,0,100    -> frame 41 plays sound 8396 manticore_death_impact02  (configs/all.seq:250309)
+  sound=81,8403,1,5,0,100    -> frame 81 plays sound 8403 manticore_death_impact03  (configs/all.seq:250310)
+  framestep=1
+  mayaid=18546688
+  mayarange=0,120
+  verticaloffset=4
+
+[10867] npc_manticore_01_death_explode    (configs/all.seq:250313)
+  why= name: npc_manticore_01_death_explode
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=6,8373,1,5,0,100    -> frame 6 plays sound 8373 manticore_death_roar02  (configs/all.seq:250316)
+  sound=12,8407,1,5,0,100    -> frame 12 plays sound 8407 manticore_death_impact01  (configs/all.seq:250317)
+  sound=41,8396,1,5,0,100    -> frame 41 plays sound 8396 manticore_death_impact02  (configs/all.seq:250318)
+  sound=81,8403,1,5,0,100    -> frame 81 plays sound 8403 manticore_death_impact03  (configs/all.seq:250319)
+  mayaid=18874368
+  mayarange=0,120
+  verticaloffset=4
+
+[10868] npc_manticore_01_triple_charge    (configs/all.seq:250322)
+  why= name: npc_manticore_01_triple_charge
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=4,8381,1,5,0,100    -> frame 4 plays sound 8381 manticore_triple_charge_roar_02  (configs/all.seq:250325)
+  sound=16,8384,1,5,0,100    -> frame 16 plays sound 8384 manticore_triple_charge03  (configs/all.seq:250326)
+  sound=19,8376,1,5,0,100    -> frame 19 plays sound 8376 manticore_projectile01_02  (configs/all.seq:250327)
+  sound=52,8393,1,5,0,100    -> frame 52 plays sound 8393 manticore_projectile02_02  (configs/all.seq:250328)
+  sound=85,8395,1,5,0,100    -> frame 85 plays sound 8395 manticore_projectile03_02  (configs/all.seq:250329)
+  mayaid=18481152
+  mayarange=0,120
+  verticaloffset=4
+
+[10869] npc_manticore_01_triple_throw    (configs/all.seq:250332)
+  why= name: npc_manticore_01_triple_throw
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,8404,1,5,0,100    -> frame 2 plays sound 8404 manticore_triple_throw_whoosh06  (configs/all.seq:250335)
+  sound=31,8388,1,5,0,100    -> frame 31 plays sound 8388 manticore_triple_throw_projectile02  (configs/all.seq:250336)
+  sound=36,8404,1,5,0,100    -> frame 36 plays sound 8404 manticore_triple_throw_whoosh06  (configs/all.seq:250337)
+  sound=66,8388,1,5,0,100    -> frame 66 plays sound 8388 manticore_triple_throw_projectile02  (configs/all.seq:250338)
+  mayaid=19005440
+  mayarange=0,90
+  verticaloffset=4
+
+[10870] npc_manticore_01_spawn_01    (configs/all.seq:250341)
+  why= name: npc_manticore_01_spawn_01
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..30 = 30 client cycles = 600 ms = 1.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=18612224
+  mayarange=0,30
+  verticaloffset=4
+
+[10871] npc_manticore_01_spawn_02    (configs/all.seq:250346)
+  why= name: npc_manticore_01_spawn_02
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..30 = 30 client cycles = 600 ms = 1.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=18939904
+  mayarange=0,30
+  verticaloffset=4
+
+[10872] human_shield_combatant_idle    (configs/all.seq:250351)
+  why= block: seq id block 10798-10923 (every other record in it is chosen by name)
+  frames=16  lengths=5x16
+  total=80 client cycles = 1600 ms = 2.67 game ticks
+  (no frame sound)
+  framestep=16
+  verticaloffset=8
+
+[10873] human_doom_scorpion_01_player_death_01    (configs/all.seq:250371)
+  why= name: human_doom_scorpion_01_player_death_01
+  frames=43  lengths=3x34 57 3x7 50
+  total=230 client cycles = 4600 ms = 7.67 game ticks
+  (no frame sound)
+  framestep=1
+  forcedpriority=10
+  verticaloffset=8
+
+[10874] npc_colossi_finalboss_01_idle    (configs/all.seq:250419)
+  why= name: npc_colossi_finalboss_01_idle; data: param_1323 of struct_881 (configs/all.struct:4979); bind: readyanim of npc poh_solheredit_pet, readyanim of npc colosseum_sol_p1, readyanim of npc solheredit_pet
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=90
+  forcedpriority=4
+  mayaid=27459584
+  mayarange=0,90
+
+[10875] npc_colossi_finalboss_01_sitting_idle    (configs/all.seq:250425)
+  why= name: npc_colossi_finalboss_01_sitting_idle; bind: readyanim of npc colosseum_boss_seated, walkanim of npc colosseum_boss_seated
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=27197440
+  mayarange=0,90
+
+[10876] npc_colossi_finalboss_01_arena_jump    (configs/all.seq:250429)
+  why= name: npc_colossi_finalboss_01_arena_jump
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=12,8297,1,31,15,100    -> frame 12 plays sound 8297 varl_colossi_arena_jump_metal_01  (configs/all.seq:250432)
+  sound=22,8254,1,31,15,100    -> frame 22 plays sound 8254 varl_colossi_arena_delayed_take_off_01  (configs/all.seq:250433)
+  sound=25,8172,1,31,15,100    -> frame 25 plays sound 8172 varl_colossi_arena_jump_low_wind_05  (configs/all.seq:250434)
+  sound=29,8101,1,31,15,100    -> frame 29 plays sound 8101 varl_colossi_arena_jump_take_off_02  (configs/all.seq:250435)
+  mayaid=26607616
+  mayarange=0,90
+
+[10877] npc_colossi_finalboss_01_arena_land    (configs/all.seq:250437)
+  why= name: npc_colossi_finalboss_01_arena_land
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=5,8203,1,15,15,100    -> frame 5 plays sound 8203 varl_colossi_arena_land_metal_impact2_03  (configs/all.seq:250440)
+  sound=8,8064,1,15,15,100    -> frame 8 plays sound 8064 varl_colossi_arena_land_rumble_01  (configs/all.seq:250441)
+  sound=13,8167,1,15,15,100    -> frame 13 plays sound 8167 varl_colossi_arena_land_metal_impact_02  (configs/all.seq:250442)
+  sound=14,8262,1,15,15,100    -> frame 14 plays sound 8262 varl_colossi_arena_land_impact_02  (configs/all.seq:250443)
+  mayaid=27590656
+  mayarange=0,90
+
+[10878] npc_colossi_finalboss_01_walk    (configs/all.seq:250445)
+  why= name: npc_colossi_finalboss_01_walk; bind: walkanim of npc colosseum_sol_p1
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,8248,1,15,12,100    -> frame 2 plays sound 8248 varl_colossi_boss_footsteps_08  (configs/all.seq:250449)
+  sound=46,8143,1,15,12,100    -> frame 46 plays sound 8143 varl_colossi_boss_footsteps_06  (configs/all.seq:250450)
+  forcedpriority=5
+  mayaid=26804224
+  mayarange=0,90
+
+[10879] npc_colossi_javelin_walk    (configs/all.seq:250452)
+  why= name: npc_colossi_javelin_walk; bind: walkanim of npc colosseum_javelin_colossus
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,8248,1,4,4,100    -> frame 2 plays sound 8248 varl_colossi_boss_footsteps_08  (configs/all.seq:250456)
+  sound=46,8143,1,4,4,100    -> frame 46 plays sound 8143 varl_colossi_boss_footsteps_06  (configs/all.seq:250457)
+  forcedpriority=5
+  mayaid=26804224
+  mayarange=0,90
+  verticaloffset=4
+
+[10880] npc_colossi_shockwave_01_walk_nosound    (configs/all.seq:250460)
+  why= name: npc_colossi_shockwave_01_walk_nosound; bind: walkanim of npc poh_solheredit_pet, walkanim of npc solheredit_pet
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  forcedpriority=5
+  mayaid=26804224
+  mayarange=0,90
+  verticaloffset=4
+
+[10881] npc_colossi_shockwave_01_walk    (configs/all.seq:250466)
+  why= name: npc_colossi_shockwave_01_walk; bind: walkanim of npc colosseum_shockwave_colossus
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,7953,1,4,4,100    -> frame 2 plays sound 7953 varl_audio_shockwave_colossi_step_01  (configs/all.seq:250469)
+  sound=46,7957,1,4,4,100    -> frame 46 plays sound 7957 varl_audio_shockwave_colossi_step_02  (configs/all.seq:250470)
+  mayaid=26804224
+  mayarange=0,90
+  verticaloffset=4
+
+[10882] npc_colossi_finalboss_01_melee_attack    (configs/all.seq:250473)
+  why= name: npc_colossi_finalboss_01_melee_attack
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  forcedpriority=7
+  replymode=1
+  mayaid=26279936
+  mayarange=0,120
+  mayamask=89
+  mayamask=90
+  mayamask=91
+  mayamask=92
+  mayamask=93
+  mayamask=94
+  mayamask=95
+  mayamask=96
+  mayamask=97
+  mayamask=98
+
+[10883] npc_colossi_finalboss_01_melee_attack_telegraph    (configs/all.seq:250489)
+  why= name: npc_colossi_finalboss_01_melee_attack_telegraph
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..180 = 180 client cycles = 3600 ms = 6.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,8147,1,15,12,100    -> frame 2 plays sound 8147 varl_colossi_boss_melee_attack_telegraph_charge_16  (configs/all.seq:250505)
+  sound=3,8206,1,15,12,100    -> frame 3 plays sound 8206 varl_colossi_boss_melee_attack_telegraph_bass_03  (configs/all.seq:250506)
+  sound=75,8137,1,15,12,100    -> frame 75 plays sound 8137 varl_colossi_boss_melee_attack_telegraph_back_footstep_01  (configs/all.seq:250507)
+  sound=88,8047,1,15,12,100    -> frame 88 plays sound 8047 varl_colossi_boss_melee_attack_telegraph_stab_08  (configs/all.seq:250508)
+  sound=99,8308,1,15,12,100    -> frame 99 plays sound 8308 varl_colossi_boss_melee_attack_telegraph_stab_impact_06  (configs/all.seq:250509)
+  sound=106,8289,1,15,12,100    -> frame 106 plays sound 8289 varl_colossi_arena_ground_rumble_05  (configs/all.seq:250510)
+  sound=127,8170,1,15,12,100    -> frame 127 plays sound 8170 varl_colossi_boss_melee_attack_telegraph_trident_end_move_14  (configs/all.seq:250511)
+  sound=128,8131,1,15,12,100    -> frame 128 plays sound 8131 varl_colossi_boss_melee_attack_telegraph_dislodge_06  (configs/all.seq:250512)
+  sound=154,8169,1,15,12,100    -> frame 154 plays sound 8169 varl_colossi_boss_melee_attack_telegraph_footstep_06  (configs/all.seq:250513)
+  sound=161,8051,1,15,12,100    -> frame 161 plays sound 8051 varl_colossi_boss_melee_attack_telegraph_footstep_09  (configs/all.seq:250514)
+  sound=163,8139,1,15,12,100    -> frame 163 plays sound 8139 varl_colossi_boss_melee_attack_telegraph_bass_step_01  (configs/all.seq:250515)
+  interleave=89,90,91,92,93,94,95,96,97,98
+  forcedpriority=7
+  replymode=1
+  mayaid=26869760
+  mayarange=0,180
+  mayamask=89
+  mayamask=90
+  mayamask=91
+  mayamask=92
+  mayamask=93
+  mayamask=94
+  mayamask=95
+  mayamask=96
+  mayamask=97
+  mayamask=98
+
+[10884] npc_colossi_finalboss_01_grapple_attack_telegraph    (configs/all.seq:250517)
+  why= name: npc_colossi_finalboss_01_grapple_attack_telegraph
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=4,8329,1,15,12,100    -> frame 4 plays sound 8329 varl_grapple_att_charge_01  (configs/all.seq:250533)
+  sound=6,8094,1,15,12,100    -> frame 6 plays sound 8094 varl_grapple_att_arm_shield_floor_impact_03  (configs/all.seq:250534)
+  sound=7,8075,1,15,12,100    -> frame 7 plays sound 8075 varl_colossi_boss_grapple_attack_first_shield_drop_01  (configs/all.seq:250535)
+  sound=12,8290,1,15,12,100    -> frame 12 plays sound 8290 varl_colossi_boss_grapple_attack_shield_drop_01  (configs/all.seq:250536)
+  sound=17,8277,1,15,12,100    -> frame 17 plays sound 8277 varl_grapple_att_arm_footstep_06  (configs/all.seq:250537)
+  sound=59,8066,1,15,12,100    -> frame 59 plays sound 8066 varl_grapple_att_arm_lunge_03  (configs/all.seq:250538)
+  sound=62,8266,1,15,12,100    -> frame 62 plays sound 8266 varl_grapple_att_arm_bass_02  (configs/all.seq:250539)
+  sound=67,8298,1,15,12,100    -> frame 67 plays sound 8298 varl_grapple_att_arm_footstep_07  (configs/all.seq:250540)
+  sound=86,8278,1,15,12,100    -> frame 86 plays sound 8278 varl_grapple_att_arm_arm_return_01  (configs/all.seq:250541)
+  sound=93,8081,1,15,12,100    -> frame 93 plays sound 8081 varl_grapple_att_arm_return_bass_02  (configs/all.seq:250542)
+  interleave=89,90,91,92,93,94,95,96,97,98
+  forcedpriority=7
+  replymode=1
+  mayaid=26673152
+  mayarange=0,120
+  mayamask=89
+  mayamask=90
+  mayamask=91
+  mayamask=92
+  mayamask=93
+  mayamask=94
+  mayamask=95
+  mayamask=96
+  mayamask=97
+  mayamask=98
+
+[10885] npc_colossi_finalboss_01_shieldslam_telegraph    (configs/all.seq:250544)
+  why= name: npc_colossi_finalboss_01_shieldslam_telegraph
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=5,8150,1,15,12,100    -> frame 5 plays sound 8150 varl_colossi_boss_shieldslam_charge_06  (configs/all.seq:250559)
+  sound=76,8322,1,15,12,100    -> frame 76 plays sound 8322 varl_colossi_boss_shieldslam_arm_prep_04  (configs/all.seq:250560)
+  sound=86,8145,1,15,12,100    -> frame 86 plays sound 8145 varl_colossi_boss_shield_drop_impact_03  (configs/all.seq:250561)
+  sound=87,8281,1,15,12,100    -> frame 87 plays sound 8281 varl_colossi_arena_ground_rumble_03  (configs/all.seq:250562)
+  interleave=89,90,91,92,93,94,95,96,97,98
+  forcedpriority=7
+  mayaid=26738688
+  mayarange=0,120
+  mayamask=89
+  mayamask=90
+  mayamask=91
+  mayamask=92
+  mayamask=93
+  mayamask=94
+  mayamask=95
+  mayamask=96
+  mayamask=97
+  mayamask=98
+
+[10886] npc_colossi_finalboss_tripleattack    (configs/all.seq:250564)
+  why= name: npc_colossi_finalboss_tripleattack
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..360 = 360 client cycles = 7200 ms = 12.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=5,8197,1,15,12,100    -> frame 5 plays sound 8197 varl_colossi_tripleattack_metal_intro_03  (configs/all.seq:250580)
+  sound=8,8271,1,15,12,100    -> frame 8 plays sound 8271 varl_colossi_boss_hiss_01  (configs/all.seq:250581)
+  sound=16,8317,1,15,12,100    -> frame 16 plays sound 8317 varl_colossi_tripleattack_charge_06  (configs/all.seq:250582)
+  sound=67,8198,1,15,12,100    -> frame 67 plays sound 8198 varl_colossi_tripleattack_first_whoosh_02  (configs/all.seq:250583)
+  sound=79,8116,1,15,12,100    -> frame 79 plays sound 8116 varl_colossi_tripleattack_first_impact_01  (configs/all.seq:250584)
+  sound=82,8060,1,15,12,100    -> frame 82 plays sound 8060 varl_colossi_tripleattack_first_rumble_02  (configs/all.seq:250585)
+  sound=116,8182,1,15,12,100    -> frame 116 plays sound 8182 varl_colossi_tripleattack_final_dislodge_06  (configs/all.seq:250586)
+  sound=124,8274,1,15,12,100    -> frame 124 plays sound 8274 varl_colossi_tripleattack_small_charge_01  (configs/all.seq:250587)
+  sound=125,8220,1,15,12,100    -> frame 125 plays sound 8220 varl_colossi_boss_hiss_03b  (configs/all.seq:250588)
+  sound=164,8275,1,15,12,100    -> frame 164 plays sound 8275 varl_colossi_tripleattack_trident_2nd_whoosh_03  (configs/all.seq:250589)
+  sound=165,8261,1,15,12,100    -> frame 165 plays sound 8261 varl_colossi_tripleattack_trident_2nd_whoosh_01  (configs/all.seq:250590)
+  sound=173,8296,1,15,12,100    -> frame 173 plays sound 8296 explosion_06  (configs/all.seq:250591)
+  sound=190,8304,1,15,12,100    -> frame 190 plays sound 8304 varl_colossi_boss_hiss_04  (configs/all.seq:250592)
+  sound=191,8113,1,15,12,100    -> frame 191 plays sound 8113 varl_colossi_tripleattack_mid_charge_01  (configs/all.seq:250593)
+  sound=281,8229,1,15,12,100    -> frame 281 plays sound 8229 varl_colossi_tripleattack_final_stab_whoosh_05  (configs/all.seq:250594)
+  sound=294,8293,1,15,12,100    -> frame 294 plays sound 8293 varl_colossi_tripleattack_shorter_end_rumble_03  (configs/all.seq:250595)
+  sound=297,8171,1,15,12,100    -> frame 297 plays sound 8171 varl_colossi_tripleattack_shorter_end_impact_01  (configs/all.seq:250596)
+  sound=300,8242,1,15,12,100    -> frame 300 plays sound 8242 varl_colossi_tripleattack_metallic_ending_stab_01  (configs/all.seq:250597)
+  sound=329,8210,1,15,12,100    -> frame 329 plays sound 8210 varl_colossi_tripleattack_final_dislodge_03  (configs/all.seq:250598)
+  sound=353,8283,1,15,12,100    -> frame 353 plays sound 8283 varl_colossi_boss_triple_attack_footstep_01  (configs/all.seq:250599)
+  sound=356,8139,1,15,12,100    -> frame 356 plays sound 8139 varl_colossi_boss_melee_attack_telegraph_bass_step_01  (configs/all.seq:250600)
+  sound=357,8327,1,15,12,100    -> frame 357 plays sound 8327 varl_colossi_boss_triple_attack_footstep_02  (configs/all.seq:250601)
+  interleave=89,90,91,92,93,94,95,96,97,98
+  forcedpriority=7
+  replymode=1
+  mayaid=26411008
+  mayarange=0,360
+  mayamask=89
+  mayamask=90
+  mayamask=91
+  mayamask=92
+  mayamask=93
+  mayamask=94
+  mayamask=95
+  mayamask=96
+  mayamask=97
+  mayamask=98
+
+[10887] npc_colossi_finalboss_tripleattack_shorter    (configs/all.seq:250603)
+  why= name: npc_colossi_finalboss_tripleattack_shorter
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..330 = 330 client cycles = 6600 ms = 11.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=4,8211,1,15,12,100    -> frame 4 plays sound 8211 varl_colossi_tripleattack_metal_intro_01  (configs/all.seq:250619)
+  sound=8,8271,1,15,12,100    -> frame 8 plays sound 8271 varl_colossi_boss_hiss_01  (configs/all.seq:250620)
+  sound=12,8178,1,15,12,100    -> frame 12 plays sound 8178 varl_colossi_tripleattack_charge_07  (configs/all.seq:250621)
+  sound=71,8305,1,15,12,100    -> frame 71 plays sound 8305 varl_colossi_tripleattack_trident_whoosh_03  (configs/all.seq:250622)
+  sound=76,8082,1,15,12,100    -> frame 76 plays sound 8082 varl_colossi_tripleattack_trident_stab_02  (configs/all.seq:250623)
+  sound=85,8140,1,15,12,100    -> frame 85 plays sound 8140 varl_colossi_tripleattack_shorter_impact_02  (configs/all.seq:250624)
+  sound=113,8182,1,15,12,100    -> frame 113 plays sound 8182 varl_colossi_tripleattack_final_dislodge_06  (configs/all.seq:250625)
+  sound=125,8117,1,15,12,100    -> frame 125 plays sound 8117 varl_colossi_boss_short_hiss_02  (configs/all.seq:250626)
+  sound=126,8274,1,15,12,100    -> frame 126 plays sound 8274 varl_colossi_tripleattack_small_charge_01  (configs/all.seq:250627)
+  sound=163,8275,1,15,12,100    -> frame 163 plays sound 8275 varl_colossi_tripleattack_trident_2nd_whoosh_03  (configs/all.seq:250628)
+  sound=175,8261,1,15,12,100    -> frame 175 plays sound 8261 varl_colossi_tripleattack_trident_2nd_whoosh_01  (configs/all.seq:250629)
+  sound=181,8296,1,15,12,100    -> frame 181 plays sound 8296 explosion_06  (configs/all.seq:250630)
+  sound=190,8286,1,15,12,100    -> frame 190 plays sound 8286 varl_colossi_boss_short_hiss_04  (configs/all.seq:250631)
+  sound=191,8218,1,15,12,100    -> frame 191 plays sound 8218 varl_colossi_tripleattack_mid_charge_02  (configs/all.seq:250632)
+  sound=246,8334,1,15,12,100    -> frame 246 plays sound 8334 varl_colossi_tripleattack_final_stab_whoosh_04  (configs/all.seq:250633)
+  sound=258,8293,1,15,12,100    -> frame 258 plays sound 8293 varl_colossi_tripleattack_shorter_end_rumble_03  (configs/all.seq:250634)
+  sound=259,8171,1,15,12,100    -> frame 259 plays sound 8171 varl_colossi_tripleattack_shorter_end_impact_01  (configs/all.seq:250635)
+  sound=260,8242,1,15,12,100    -> frame 260 plays sound 8242 varl_colossi_tripleattack_metallic_ending_stab_01  (configs/all.seq:250636)
+  sound=295,8210,1,15,12,100    -> frame 295 plays sound 8210 varl_colossi_tripleattack_final_dislodge_03  (configs/all.seq:250637)
+  sound=316,8283,1,15,12,100    -> frame 316 plays sound 8283 varl_colossi_boss_triple_attack_footstep_01  (configs/all.seq:250638)
+  sound=324,8139,1,15,12,100    -> frame 324 plays sound 8139 varl_colossi_boss_melee_attack_telegraph_bass_step_01  (configs/all.seq:250639)
+  sound=326,8327,1,15,12,100    -> frame 326 plays sound 8327 varl_colossi_boss_triple_attack_footstep_02  (configs/all.seq:250640)
+  interleave=89,90,91,92,93,94,95,96,97,98
+  forcedpriority=7
+  replymode=1
+  mayaid=26214400
+  mayarange=0,330
+  mayamask=89
+  mayamask=90
+  mayamask=91
+  mayamask=92
+  mayamask=93
+  mayamask=94
+  mayamask=95
+  mayamask=96
+  mayamask=97
+  mayamask=98
+
+[10888] npc_colossi_finalboss_01_death    (configs/all.seq:250642)
+  why= name: npc_colossi_finalboss_01_death
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..250 = 250 client cycles = 5000 ms = 8.33 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=4,8048,1,15,12,100    -> frame 4 plays sound 8048 varl_colossi_boss_death_metallic_impact_10  (configs/all.seq:250647)
+  sound=8,8115,1,15,12,100    -> frame 8 plays sound 8115 varl_colossi_boss_death_ringing_02  (configs/all.seq:250648)
+  sound=11,8324,1,15,12,100    -> frame 11 plays sound 8324 varl_colossi_boss_death_first_shield_drop_04  (configs/all.seq:250649)
+  sound=17,8075,1,15,12,100    -> frame 17 plays sound 8075 varl_colossi_boss_grapple_attack_first_shield_drop_01  (configs/all.seq:250650)
+  sound=121,8337,1,15,12,100    -> frame 121 plays sound 8337 varl_colossi_boss_death_first_whoosh_01  (configs/all.seq:250651)
+  sound=131,8105,1,15,12,100    -> frame 131 plays sound 8105 varl_colossi_boss_death_first_fall_03  (configs/all.seq:250652)
+  sound=170,8157,1,15,12,100    -> frame 170 plays sound 8157 varl_colossi_boss_death_whoosh_03  (configs/all.seq:250653)
+  sound=186,8244,1,15,12,100    -> frame 186 plays sound 8244 varl_colossi_boss_death_second_fall_06  (configs/all.seq:250654)
+  sound=187,8284,1,15,12,100    -> frame 187 plays sound 8284 varl_colossi_boss_death_land_rumble_01  (configs/all.seq:250655)
+  framestep=1
+  forcedpriority=10
+  mayaid=26542080
+  mayarange=0,250
+
+[10889] npc_colossi_javelin_01_idle    (configs/all.seq:250657)
+  why= name: npc_colossi_javelin_01_idle; bind: readyanim of npc colosseum_javelin_colossus
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..60 = 60 client cycles = 1200 ms = 2.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  framestep=60
+  mayaid=27328512
+  mayarange=0,60
+  verticaloffset=4
+
+[10890] npc_colossi_javelin_01_walk    (configs/all.seq:250663)
+  why= name: npc_colossi_javelin_01_walk
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=47,8351,1,4,4,100    -> frame 47 plays sound 8351 varlamore_javelin_colossi_fs_01  (configs/all.seq:250666)
+  sound=89,8342,1,4,4,100    -> frame 89 plays sound 8342 varlamore_javelin_colossi_fs_03  (configs/all.seq:250667)
+  mayaid=27066368
+  mayarange=0,90
+  verticaloffset=4
+
+[10891] npc_colossi_javelin_01_walkfade    (configs/all.seq:250670)
+  why= name: npc_colossi_javelin_01_walkfade
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=5,8341,1,4,4,100    -> frame 5 plays sound 8341 varlamore_javelin_colossi_appear_01  (configs/all.seq:250673)
+  sound=45,8342,1,4,4,100    -> frame 45 plays sound 8342 varlamore_javelin_colossi_fs_03  (configs/all.seq:250674)
+  sound=89,8351,1,4,4,100    -> frame 89 plays sound 8351 varlamore_javelin_colossi_fs_01  (configs/all.seq:250675)
+  mayaid=27525120
+  mayarange=0,90
+  verticaloffset=4
+
+[10892] npc_colossi_javelin_01_range_attack    (configs/all.seq:250678)
+  why= name: npc_colossi_javelin_01_range_attack; ref: npc_combat/c/colosseum_boss_seated.combat:16 (+2)
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=22,8357,1,5,5,100    -> frame 22 plays sound 8357 varlamore_colossi_javelin_range_attack_grab_01  (configs/all.seq:250681)
+  sound=59,8347,1,5,5,100    -> frame 59 plays sound 8347 varlamore_javelin_colossi_range_fs_01  (configs/all.seq:250682)
+  sound=64,5792,1,5,5,100    -> frame 64 plays sound 5792 npc_akkha_melee_spear_swoosh_01  (configs/all.seq:250683)
+  mayaid=27000832
+  mayarange=0,90
+  verticaloffset=4
+
+[10893] npc_colossi_javelin_01_artillery_attack    (configs/all.seq:250686)
+  why= name: npc_colossi_javelin_01_artillery_attack
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=23,8350,1,5,5,100    -> frame 23 plays sound 8350 varlamore_colossi_javelin_artillery_attack_grab_01  (configs/all.seq:250689)
+  sound=53,5792,1,5,5,100    -> frame 53 plays sound 5792 npc_akkha_melee_spear_swoosh_01  (configs/all.seq:250690)
+  sound=54,8340,1,5,5,100    -> frame 54 plays sound 8340 varlamore_colossi_javelin_artillery_attack_whoosh_01  (configs/all.seq:250691)
+  sound=57,8347,1,5,5,100    -> frame 57 plays sound 8347 varlamore_javelin_colossi_range_fs_01  (configs/all.seq:250692)
+  mayaid=26476544
+  mayarange=0,90
+  verticaloffset=4
+
+[10894] npc_colossi_javelin_01_death    (configs/all.seq:250695)
+  why= name: npc_colossi_javelin_01_death; ref: npc_combat/c/colosseum_boss_seated.combat:15 (+2)
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,8345,1,5,5,100    -> frame 2 plays sound 8345 varlamore_colossi_death_spear_drop_01  (configs/all.seq:250699)
+  sound=9,8349,1,5,5,100    -> frame 9 plays sound 8349 varlamore_colossi_death_growl_01  (configs/all.seq:250700)
+  sound=39,8351,1,5,5,100    -> frame 39 plays sound 8351 varlamore_javelin_colossi_fs_01  (configs/all.seq:250701)
+  sound=72,8358,1,5,5,100    -> frame 72 plays sound 8358 varlamore_colossi_death_body_impact_01  (configs/all.seq:250702)
+  framestep=1
+  mayaid=27131904
+  mayarange=0,120
+  verticaloffset=4
+
+[10895] npc_colossi_shockwave_01_death    (configs/all.seq:250705)
+  why= name: npc_colossi_shockwave_01_death; ref: npc_combat/c/colosseum_shockwave_colossus.combat:15
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..120 = 120 client cycles = 2400 ms = 4.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=3,7955,1,5,5,100    -> frame 3 plays sound 7955 varl_audio_shockwave_death_impact_01  (configs/all.seq:250708)
+  sound=9,8349,1,5,5,100    -> frame 9 plays sound 8349 varlamore_colossi_death_growl_01  (configs/all.seq:250709)
+  sound=36,8351,1,5,5,100    -> frame 36 plays sound 8351 varlamore_javelin_colossi_fs_01  (configs/all.seq:250710)
+  sound=71,7959,1,5,5,100    -> frame 71 plays sound 7959 varl_audio_shockwave_death_impact_02  (configs/all.seq:250711)
+  mayaid=27131904
+  mayarange=0,120
+  verticaloffset=4
+
+[10896] npc_colossi_javelin_01_spearhead    (configs/all.seq:250714)
+  why= name: npc_colossi_javelin_01_spearhead; bind: anim of spotanim npc_colossi_javelin_01_spearhead
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..30 = 30 client cycles = 600 ms = 1.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=27656192
+  mayarange=0,30
+
+[10897] npc_colossi_javelin_01_artillery_slow    (configs/all.seq:250718)
+  why= name: npc_colossi_javelin_01_artillery_slow
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10898] npc_colossi_javelin_01_artillery_fast    (configs/all.seq:250740)
+  why= name: npc_colossi_javelin_01_artillery_fast
+  frames=20  lengths=2x10 1x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10899] npc_colossi_javelin_01_artillery_fire    (configs/all.seq:250762)
+  why= name: npc_colossi_javelin_01_artillery_fire; bind: anim of spotanim npc_colossi_javelin_01_artillery_fire
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..30 = 30 client cycles = 600 ms = 1.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=27852800
+  mayarange=0,30
+
+[10900] npc_colossi_javelin_01_spearhead_fire_slow    (configs/all.seq:250766)
+  why= name: npc_colossi_javelin_01_spearhead_fire_slow; bind: anim of spotanim npc_colossi_javelin_01_artillery_slow, anim of spotanim npc_colossi_javelin_01_spearhead_fire_slow
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10901] npc_colossi_javelin_01_spearhead_fire_fast    (configs/all.seq:250788)
+  why= name: npc_colossi_javelin_01_spearhead_fire_fast; bind: anim of spotanim npc_colossi_javelin_01_artillery_fast, anim of spotanim npc_colossi_javelin_01_spearhead_fire_fast
+  frames=20  lengths=2x10 1x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10902] npc_colossi_shockwave_01_idle    (configs/all.seq:250810)
+  why= name: npc_colossi_shockwave_01_idle; bind: readyanim of npc colosseum_shockwave_colossus
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  (no frame sound)
+  mayaid=27262976
+  mayarange=0,90
+  verticaloffset=4
+
+[10903] npc_colossi_shockwave_01_clapattack    (configs/all.seq:250815)
+  why= name: npc_colossi_shockwave_01_clapattack; ref: npc_combat/c/colosseum_shockwave_colossus.combat:16; bind: anim of spotanim npc_colossi_shockwave_01_clapattack
+  frames=0 (no frame list: skeletal or empty; length from maya fields if any)
+  maya length: mayarange 0..90 = 90 client cycles = 1800 ms = 3.00 game ticks (one skeletal keyframe per 20 ms client cycle)
+  sound=2,7949,1,5,5,100    -> frame 2 plays sound 7949 varl_audio_shockwave_colossi_open_arms_02  (configs/all.seq:250818)
+  sound=11,7948,1,5,5,100    -> frame 11 plays sound 7948 varl_audio_shockwave_colossi_charge_03  (configs/all.seq:250819)
+  sound=46,7951,1,5,5,100    -> frame 46 plays sound 7951 varl_audio_shockwave_colossi_whoosh_01  (configs/all.seq:250820)
+  sound=59,7958,1,5,5,100    -> frame 59 plays sound 7958 varl_audio_shockwave_colossi_clap_01  (configs/all.seq:250821)
+  sound=62,7952,1,5,5,100    -> frame 62 plays sound 7952 varl_audio_shockwave_colossi_projectile_03  (configs/all.seq:250822)
+  mayaid=26345472
+  mayarange=0,90
+  verticaloffset=4
+
+[10904] vfx_colossi_shockwave_clap_proj    (configs/all.seq:250825)
+  why= name: vfx_colossi_shockwave_clap_proj
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+  framestep=2
+
+[10905] spotanim_colossi_finalboss_01_death    (configs/all.seq:250848)
+  why= name: spotanim_colossi_finalboss_01_death; bind: anim of spotanim npc_colossi_finalboss_01_death
+  frames=16  lengths=136 4x6 30 4x7 32
+  total=250 client cycles = 5000 ms = 8.33 game ticks
+  (no frame sound)
+  framestep=15
+  forcedpriority=10
+
+[10906] spotanim_colossi_finalboss_01_land    (configs/all.seq:250868)
+  why= name: spotanim_colossi_finalboss_01_land; bind: anim of spotanim npc_colossi_colossi_01_land
+  frames=12  lengths=14 6x3 3 4x2 2x4 39
+  total=90 client cycles = 1800 ms = 3.00 game ticks
+  (no frame sound)
+
+[10907] spotanim_colossi_finalboss_01_triple_attack_shorter    (configs/all.seq:250882)
+  why= name: spotanim_colossi_finalboss_01_triple_attack_shorter; bind: anim of spotanim npc_colossi_colossi_tripleattack_01_telegraph_shorter, anim of spotanim npc_colossi_colossi_tripleattack_01_telegraph_shorter_echo
+  frames=64  lengths=9 4x4 3 2 3x17 48 3 4x3 3x10 25 3x5 2 3x17 63
+  total=330 client cycles = 6600 ms = 11.00 game ticks
+  (no frame sound)
+
+[10908] spotanim_colossi_finalboss_01_triple_attack    (configs/all.seq:250948)
+  why= name: spotanim_colossi_finalboss_01_triple_attack; bind: anim of spotanim npc_colossi_colossi_tripleattack_01_telegraph, anim of spotanim npc_colossi_colossi_tripleattack_01_telegraph_echo
+  frames=64  lengths=9 4x4 3 2 3x17 48 3 4x3 3x10 32 4x5 3 4x17 63
+  total=360 client cycles = 7200 ms = 12.00 game ticks
+  (no frame sound)
+
+[10909] spotanim_colossi_finalboss_01_melee    (configs/all.seq:251014)
+  why= name: spotanim_colossi_finalboss_01_melee
+  frames=6  lengths=5x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10910] projanim_glaive_01_special    (configs/all.seq:251022)
+  why= name: projanim_glaive_01_special; bind: anim of spotanim projanim_glaive_01_special
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  framestep=10
+
+[10911] projanim_glaive_01_regular    (configs/all.seq:251035)
+  why= name: projanim_glaive_01_regular; bind: anim of spotanim projanim_glaive_01_regular
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  framestep=10
+
+[10912] projanim_glaive_02_special    (configs/all.seq:251048)
+  why= name: projanim_glaive_02_special; bind: anim of spotanim projanim_glaive_02_special
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  framestep=10
+
+[10913] projanim_glaive_02_regular    (configs/all.seq:251061)
+  why= name: projanim_glaive_02_regular; bind: anim of spotanim projanim_glaive_02_regular
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+  framestep=10
+
+[10914] human_glaive_ralos01_charged_special    (configs/all.seq:251074)
+  why= name: human_glaive_ralos01_charged_special
+  frames=18  lengths=3 4 5 6x2 1 2 3x5 4 5x2 3x3
+  total=65 client cycles = 1300 ms = 2.17 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45
+  forcedpriority=6
+  verticaloffset=8
+
+[10915] spotanim_glaive_charged_special    (configs/all.seq:251097)
+  why= name: spotanim_glaive_charged_special; bind: anim of spotanim vfx_glaive_charged_special
+  frames=20  lengths=3 4 5 6x2 1 2 3x12 2
+  total=65 client cycles = 1300 ms = 2.17 game ticks
+  sound=1,7942,1,6,5,100    -> frame 1 plays sound 7942 varlamore_glaive_charged_special_throw_whoosh_01  (configs/all.seq:251118)
+  sound=3,7943,1,6,5,100    -> frame 3 plays sound 7943 varlamore_glaive_charged_special_throw_spin_01  (configs/all.seq:251119)
+
+[10916] human_glaive_ralos01_uncharged_special    (configs/all.seq:251121)
+  why= name: human_glaive_ralos01_uncharged_special
+  frames=18  lengths=3 4 5 6x2 1 2 3x5 4 5x2 3x3
+  total=65 client cycles = 1300 ms = 2.17 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45
+  forcedpriority=6
+  verticaloffset=8
+
+[10917] spotanim_glaive_uncharged_special    (configs/all.seq:251144)
+  why= name: spotanim_glaive_uncharged_special; bind: anim of spotanim vfx_glaive_uncharged_special
+  frames=20  lengths=3 4 5 6x2 1 2 3x12 2
+  total=65 client cycles = 1300 ms = 2.17 game ticks
+  sound=1,7938,1,6,5,100    -> frame 1 plays sound 7938 varlamore_glaive_uncharged_special_throw_whoosh_01  (configs/all.seq:251165)
+  sound=3,7937,1,6,5,100    -> frame 3 plays sound 7937 varlamore_glaive_uncharged_special_throw_spin_01  (configs/all.seq:251166)
+
+[10918] spotanim_glaive_01_impact_special_01    (configs/all.seq:251168)
+  why= name: spotanim_glaive_01_impact_special_01; bind: anim of spotanim vfx_glaive_01_impact_special_01
+  frames=20  lengths=3x20
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  (no frame sound)
+
+[10919] spotanim_glaive_01_impact_regular_01    (configs/all.seq:251190)
+  why= name: spotanim_glaive_01_impact_regular_01; bind: anim of spotanim vfx_glaive_01_impact_regular_01
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10920] spotanim_glaive_02_impact_special_01    (configs/all.seq:251202)
+  why= name: spotanim_glaive_02_impact_special_01; bind: anim of spotanim vfx_glaive_02_impact_special_01
+  frames=10  lengths=3x10
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  (no frame sound)
+
+[10921] spotanim_glaive_charged_regular    (configs/all.seq:251214)
+  why= name: spotanim_glaive_charged_regular; bind: anim of spotanim vfx_glaive_charged_regular
+  frames=6  lengths=3 4 5 6x2 26
+  total=50 client cycles = 1000 ms = 1.67 game ticks
+  sound=1,7940,1,6,5,100    -> frame 1 plays sound 7940 varlamore_glaive_regular_throw_whoosh_01  (configs/all.seq:251221)
+
+[10922] human_glaive_ralos01_uncharged_throw    (configs/all.seq:251223)
+  why= name: human_glaive_ralos01_uncharged_throw
+  frames=12  lengths=3 4 5 6x2 3x2 4x4 3
+  total=49 client cycles = 980 ms = 1.63 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45
+  replymode=1
+  verticaloffset=8
+
+[10923] human_glaive_ralos01_charged_throw    (configs/all.seq:251240)
+  why= name: human_glaive_ralos01_charged_throw
+  frames=12  lengths=3 4 5 6x2 3x2 4x4 3
+  total=49 client cycles = 980 ms = 1.63 game ticks
+  (no frame sound)
+  interleave=1,2,9,11,13,15,17,19,37,39,41,43,45
+  replymode=1
+  verticaloffset=8
+
+[10945] npc_quetzal_idle_01    (configs/all.seq:251810)
+  why= bind: readyanim of npc quetzal_colosseum, readyanim of npc quetzal_child_green, readyanim of npc quetzal_child_orange, readyanim of npc quetzal_child_blue, readyanim of npc quetzal_child_cyan, readyanim of npc quetzal_child_green_orange
+  frames=88  lengths=8x2 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x4 7x4 8x2
+  total=660 client cycles = 13200 ms = 22.00 game ticks
+  sound=32,8581,1,15,0,100    -> frame 32 plays sound 8581 varl_quetzel_01  (configs/all.seq:251900)
+  sound=39,8525,1,15,0,100    -> frame 39 plays sound 8525 varl_quetzel_02  (configs/all.seq:251901)
+  forcedpriority=4
+
+[10947] npc_quetzal_flying_idle_01    (configs/all.seq:252012)
+  why= bind: walkanim of npc quetzal_colosseum, walkanim of npc quetzal_child_green, walkanim of npc quetzal_child_orange, walkanim of npc quetzal_child_blue, walkanim of npc quetzal_child_cyan, walkanim of npc quetzal_child_green_orange
+  frames=12  lengths=2x6 3x6
+  total=30 client cycles = 600 ms = 1.00 game ticks
+  sound=3,8501,1,5,0,100    -> frame 3 plays sound 8501 varl_quetzal_wing_flap02  (configs/all.seq:252026)
+  forcedpriority=4
+
+[11092] human_ready_alt    (configs/all.seq:254294)
+  why= bind: readyanim of npc colosseum_master_outside, readyanim of npc colosseum_master
+  frames=12  lengths=21x12
+  total=252 client cycles = 5040 ms = 8.40 game ticks
+  (no frame sound)
+  verticaloffset=8
+
+[11746] npc_minotaur_boss_walk_fast    (configs/all.seq:272207)
+  why= name: npc_minotaur_boss_walk_fast
+  frames=14  lengths=3x2 4x2 3x5 4x2 3x3
+  total=46 client cycles = 920 ms = 1.53 game ticks
+  sound=6,8039,1,7,0,100    -> frame 6 plays sound 8039 varl_minotaur_boss_fs_01  (configs/all.seq:272222)
+  sound=12,8036,1,7,0,100    -> frame 12 plays sound 8036 varl_minotaur_boss_fs_02  (configs/all.seq:272223)
+
+[11747] npc_minotaur_boss_attack_melee_louder    (configs/all.seq:272225)
+  why= name: npc_minotaur_boss_attack_melee_louder
+  frames=22  lengths=3 2x3 3x15 2x3
+  total=60 client cycles = 1200 ms = 2.00 game ticks
+  sound=5,8044,1,10,6,100    -> frame 5 plays sound 8044 varl_minotaur_boss_attack_melee_01  (configs/all.seq:272248)
+
+[11748] npc_minotaur_boss_death_louder    (configs/all.seq:272250)
+  why= name: npc_minotaur_boss_death_louder
+  frames=30  lengths=3x30
+  total=90 client cycles = 1800 ms = 3.00 game ticks
+  sound=1,8033,1,10,6,100    -> frame 1 plays sound 8033 varl_minotaur_boss_death_growl_01  (configs/all.seq:272282)
+  sound=6,8036,1,10,6,100    -> frame 6 plays sound 8036 varl_minotaur_boss_fs_02  (configs/all.seq:272283)
+  sound=9,8039,1,10,6,100    -> frame 9 plays sound 8039 varl_minotaur_boss_fs_01  (configs/all.seq:272284)
+  sound=17,8040,1,10,6,100    -> frame 17 plays sound 8040 varl_minotaur_boss_death_fade_01  (configs/all.seq:272285)
+  framestep=1
+
