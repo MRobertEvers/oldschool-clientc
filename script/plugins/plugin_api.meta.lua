@@ -1020,6 +1020,7 @@ except the plain readers marked as returning a value.
 ---@field tab fun(tab_number: integer): string, string
 ---@field tab_by_name fun(name: string): string, integer|nil Tab NAME through app->revconfig_refs' "tab" kind (the [tabs] map, else a panel_<name> role); no_row for a name neither source declares.
 ---@field modal_live fun(): string, boolean Re-verified; modal_host_uid is never cleared on close.
+---@field menu_rect fun(x?: integer, y?: integer): string, table|nil The open minimenu's box {x, y, width, height, margin, hit}; hit is UIMinimenu_HitOption at (x, y): a 1-based menu_rows index it would SELECT, -1 swallowed (title bar or margin), -2 outside. closed when no menu is up (raid seam4).
 ---@field npcs fun(radius: integer): string, table Nearest first; names normalised of <col=..>.
 ---@field locs fun(radius: integer): string, table Each row carries loc_id (the id the MAP or a zone packet placed) AND resolved_loc_id (the multiloc child it currently draws as). And `shape`, the RSCACHE_LOC_SHAPE_* the map placed it with (0-3/9 walls, 10-11 centrepiece).
 ---@field loc_variants fun(loc_id: integer): string, table|nil { resolved, slots } -- the multiloc child this def draws as now, and its flattened family. `timeout` while the def is being fetched: poll again next frame.

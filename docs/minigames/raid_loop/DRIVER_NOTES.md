@@ -631,7 +631,7 @@ under `build/seam_state/matthew-mbp-m4-raid-b1-seam3/`.
 - `raid.state`'s `boss_slot` names the static form. The fighting form has its own client
   slot: select it by symbol (`tob_xarpus_combat_story` / `_hard` / `tob_xarpus_combat`).
 
-## A press names its copy; a stale menu can still take another (open)
+## A press names its copy (the stale-menu half: see seam4 below)
 
 - `t.player.attack`, `talk_to` and `press` with `{slot=}` or `{at=}` press only a menu
   row carrying that copy's element id. When the menu has no row for it the verb answers
@@ -639,7 +639,8 @@ under `build/seam_state/matthew-mbp-m4-raid-b1-seam3/`.
   has no row for it; the menu offered this op on 1 other copy(ies) -- element 1073760392
   'Attack Nylocas Hagios (level-46)' -- none pressed". That is the asked copy hidden or
   gone, not a wrong press: re-pick a target and attack again.
-- OPEN: a menu a `covered` press left open is NOT closed before the next press. In this
+- FIXED IN PART by seam4 ("A press no longer takes another copy's row from a stale
+  menu", below). The seam3 text follows. A menu a `covered` press left open was NOT closed before the next press. In this
   client a press of either mouse button on an open menu's row SELECTS that row
   (uitree_interact.c `interact_minimenu`), so a retry whose pixel falls inside the old
   menu can attack another copy while every press still answers `covered`
@@ -988,12 +989,10 @@ is a fact about a verb, the tick log, the grader or a room that the sections abo
   could not be driven through a drain there: report it open, not as a pass.
 - No verb reads equipment bonuses and no verb casts an ice spell, so
   `maiden.freeze_full_bonus` is unreachable from a room test (open driver row).
-- `::tobboss` prints hp and Defence but no Attack level, so `sotetseg.attack_level` has
-  no read-only readout (open row; do not reach for a write cheat).
-- `t.npc.state` and `t.npc.nearest` rows carry no `size` (the pool row, struct
-  DriveNpcRow, has none). A footprint row (`xarpus.size.p1_p2`) is the cache record's
-  `size`, read from the content `.npc` file, plus the south-west tile from the row; the
-  player side cannot measure it (open driver row).
+- `::tobboss` now prints att/str/rng/mag and `size=` (seam4, "::tobboss levels and
+  size" below); `sotetseg.attack_level` reads from it.
+- Every npc pool row now carries `size` (seam4, "t.npc rows carry size" below), so
+  `xarpus.size.p1_p2` is measured from the player's side.
 
 ## Bloat walks before the barrier click
 
@@ -1019,5 +1018,187 @@ is a fact about a verb, the tick log, the grader or a room that the sections abo
   always reaches 100 percent (a late cover still lets one orb through), and the hit
   reached 103-105. Survive the probe on a Saradomin brew's boost (hp 115).
 - The room-exit item `tob_skeleton_with_weapon` at 6435,109 answered "I can't reach
-  that!" to `click_loc` from 6434..6436,106 (the arena's north edge); the route to it is
-  undocumented (open).
+  that!" to `click_loc` from 6434..6436,106 (the arena's north edge): it stands past the
+  exit gate. The route is in seam4's "Xarpus room exit" below.
+
+# Seam pass 4: the second room pass's residue
+
+Seam pass 4 (`matthew-mbp-m4-raid-b1-seam4`, triage `SEAM_TRIAGE_2026-10-03b.md`) added
+one field to every npc pool row (`size`), one internal driver call
+(`api_drive.menu_rect`, used by the press), two read-only debugproc readouts, and the
+content fixes of OSRS-Content a44e3d97bf: the Entry Athanatos, Maiden's blood spawns,
+extras and Entry trail, Sotetseg's solo Entry death ball, and Xarpus's Entry death,
+retaliation floor and exit. The fixers' reports are under
+`build/seam_state/matthew-mbp-m4-raid-b1-seam4/`.
+
+## t.npc rows carry size (the footprint)
+
+- Every pool row (`t.npc.state`, `t.npc.nearest`, `t.npc.by_symbol`, `t.npc.tiles`) has
+  `size`: the footprint in tiles from the npc config, 1 when the config states none.
+- `x,z` is the footprint's south-west corner. The npc covers `x .. x+size-1` by
+  `z .. z+size-1`.
+- A transmog rewrites it on the tick the client applies the new type. Entry Xarpus reads
+  3 in his static form (`tob_xarpus_static_story`) and 5 in his fighting form (npc 10768)
+  from the stand-up (scratch s4xsize_after1).
+- `t.npc.state_text(row)` names it as `size N`. On a binary built before seam4 it says
+  `size unread` and `row.size` is nil.
+- Conformance rows: `npc.state_text` grades the man at size 1; `seam.npc_state_size`
+  grades `goblin_unarmed_melee_1` at 1 and `cow` at 2.
+
+## Ordinary npcs for a footprint check
+
+- `goblin_unarmed_melee_1` 1, `man` 1, `cow` 2 (configs/all.npc `[cow] size=2`).
+- `::spawn cow` in the Lumbridge goblin field gives a size-2 subject.
+
+## A press no longer takes another copy's row from a stale menu
+
+- Before it presses, `QD.drive._press_row` asks the client's own hit test
+  (`api_drive.menu_rect(x, y)`, which is `UIMinimenu_HitOption`). If the press would
+  SELECT a row of an open menu that offers this press's op on a different element (another
+  copy), it dismisses the menu first.
+- Each dismissal prints `QUEST stale-menu N: ...` to `client.log`.
+- Before: 5 `hit_npc` rows on the copy never asked for (s4stale_before2). After: 0
+  (s4stale_after3, two dismissals, each on row 6 `Attack Goblin`).
+- So for `attack`, `talk_to` and `press` with `{slot=}` or `{at=}`, the verb's answer
+  tells you which copy was hit again. The tick log's `hit_npc` rows on the asked world
+  slot are still the stronger proof.
+- Unchanged on purpose: a press on a stale menu's `Walk here`, `Examine` or `Cancel` row,
+  on the asked copy's own row, or on its title bar behaves as before seam4. A stale
+  `Walk here` row can still walk the player, and a title-bar press is swallowed.
+  hauntedmine, childrenofthesun and thefeud have green timelines that depend on those
+  presses: dismissing them made the presses faster, but every later tick moved and all
+  three went RED. If a room test sees an unexplained step after a `covered` press, look
+  for this (open row in CONTENT_BUGS.md).
+- A dismissal saves ticks; it does not cost them (tryToPickUpKey 24 -> 20, catchSnake
+  26 -> 10). The seam3 regression came from moving a timeline the quest tests were
+  written against.
+
+## ::tobboss levels and size; ::tobpurple
+
+- `::tobboss` (tob_selftest.rs2) prints `tobboss record=R room_mode=M hp=H of P base=B
+  def=D of Db att=A of Ab str=S of Sb rng=G of Gb mag=K of Kb size=Z name=N`, each level as
+  current of base.
+- The new fields sit before `name=`, so readers matching `hp=(%d+) of`, `def=(%d+) of` or
+  `record=%a+ room_mode=%d+ hp=(%d+)` still work.
+- Sotetseg reads att 180 (Entry), 250 (Normal), 350 (Hard), all size 5 (spec
+  `sotetseg.attack_level`). Xarpus reads size 3 static and feeding, 5 in combat (spec
+  `xarpus.size.p1_p2`). Run s4e_readouts_a, s4e_xarpus_a.
+- `::tobpurple` (read-only) prints `tobpurple n=N mode=M`, then ` hp=H of P def=D of Db
+  mag=K of Kb size=3` for each Nylocas Athanatos in the instance. In Entry it reads
+  `hp=30 of 30 def=40 of 50 mag=40 of 50 size=3`.
+- `encounters/sotetseg.tsv`'s `attack_level` note ("ours uses the Normal record in every
+  mode") is stale: the readout shows the mode records.
+
+## Entry Verzik: the Athanatos is 30 hp
+
+- The room spawns one Athanatos type in every mode. In Entry, `~tob_verzik_athanatos_land`
+  gives it record 10844's figures: pool 30 (stacked for the party like the reds and the
+  crabs), Defence 40, Magic 40 (cache_npc_verzik.txt:699-701).
+- Solo Entry: a whip killed it in 4 hits summing 30, and P3 followed at tick 128
+  (s4e_verzik_entry_c). Before, the bar held at 21-28 of 30 for the whole P2.
+- The Normal and Hard Athanatos now have the cache's Defence and Magic 50; before they
+  stood at the engine default 1.
+- Its Defence and Magic are lowered with `npc_statsub`, so the base stays 50. If the
+  engine restores npc stats over time they could climb back during a long P2 (not
+  measured).
+- Entry Verzik and Entry Maiden still fight as their NORMAL records: `::tobboss` reads
+  Verzik's att/str/rng/mag as 400 in P1 and P2 (open; only Defence and the pool are set
+  by script).
+- Entry P2 lightning still rolls the Normal figure (41 measured against a solo player at
+  99 hp), and the P3 pool is still 400 of 1100 against spec 600. Both are open.
+
+## Maiden after seam4
+
+- Blood spawns step on every free tick: 1000 permille, 5538 of 5538 free pairs over 8
+  slugs, no still runs of 1-4 (s4m3_after2). Any still run in a room test is a freeze or
+  her death, so measure `maiden.blood_spawn_step` over all pairs outside runs of 5+.
+- Every blood throw carries exactly two extras (30 of 30 throws, solo Entry).
+- In the tick log, a projectile row with spotanim 1578 and target -1 is the pool under
+  the player (`projanim_pl`); target 0 is an extra (`projanim_map`), flying 25 cycles
+  longer.
+- Entry trail damage is a 2-5 roll (`^tob_maiden_trail_damage_entry_min/max`, wiki
+  Blood_spawn:48). It shows as `hit_player` rows with npc_slot -1 and hitsplat 28. A pool
+  never lands on blood, so while you stand on a trail tile every npc_slot -1 hit is a trail
+  hit (18 and 17 hits in two runs, all 2-5). Normal and Hard trails keep `10 + 2c`.
+- Trail recipe: from `t.npc.tiles('maiden_blood_slug', 40)` pick a slug at x <= 6447 (solo
+  instance handle 1), `t.player.walk_to` its tile, and stand 3-4 ticks. Slugs in the east
+  pocket at 6450-6451 cannot be reached.
+- Death timeline on our server: 8093 at K+1 (engine death seq), dying_a retype at K+3
+  (`[ai_queue3]` at the engine's corpse stage), dying_b and 8094 at K+5, `npc_free` at K+9.
+  Blert has 8364 at K+1, 8365 at K+5 and the despawn at K+9 (raids 147ff143, db36efc7,
+  e2fbcc68, a40d3d9c Hard; seam2 saw 13 of 13). The spec rows `maiden.death_a_len` 3 and
+  `death_total` 7 are animation lengths and AdvancedRaidTracker's count from K+1; they need
+  restating (open). Until then, assert 8093 -> 8094 = 4 and killing blow -> `npc_free` = 9
+  and say which rows they are.
+- A seam that changes how many `random()` calls she makes per tick changes the whole
+  room's roll stream. The committed tob_maiden test relied on accidents (standing in a pool,
+  a slug spawning) and lost its pool rows after seam4 (copy run s4m3_maiden_copy: 60 PASS,
+  1 FAIL at `pool_heal_ratio`, coverage 32 of 39). Drive the mechanic on purpose.
+
+## Sotetseg after seam4
+
+- The death ball in solo Entry (scale 1) is a flat 15 at launch+16 (`~tob_sote_ball_flat`),
+  not a roll: 85:15, 145:15, 205:15 (s4_sote_ball_after). In groups (Entry 80, Normal and
+  Hard 121/155/188) it is still a roll under the ceiling, split over the 3x3.
+- Sources: wiki_Sotetseg.wikitext:105, wiki_Theatre_of_Blood_Entry_Mode.wikitext:191,
+  transcripts/yt_B_gjVdmfOrY.md:93. Gear reduction still applies (`~gear_reduce_damage`);
+  no source says whether it should.
+- The ordinary Entry ball rolls 1..22 unprayed: over 40 balls the largest was 22 (three
+  times), none above. Solo there are no ricochets.
+- Do not eat while a death ball is in flight if you classify splats by launch+16. The
+  impact is a player queue, the eat's `p_delay` holds it, and the splat lands late and
+  reads as an ordinary ball (2 of 5 moved in s4_sote_ball_before).
+- Long measurement without a maze: `::tobwarp 15 37` (3 tiles out, no melee), no prayer,
+  no attacks (he stays above 66.6 %), 28 sharks with an hp < 55 threshold covers about 45
+  attacks.
+
+## Xarpus after seam4
+
+- Room exit (Entry/Normal, instance handle 1): the Dawnbringer skeleton
+  `tob_skeleton_with_weapon` at 6435,109 stands two tiles past the exit gate
+  `tob_arena_barrier` at 6434,107. After the kill: `t.player.walk_to(6434, 106, 12)`;
+  `t.player.click_loc('tob_arena_barrier', 1, {at={6434,107}})`, which puts you on
+  6434,108; then `t.player.click_loc('tob_skeleton_with_weapon', 1)`,
+  `t.chat.continue_()` on the objbox, and `t.inv.await('verzik_special_weapon', 1, 5)`.
+- The gate's `click_loc` answers `timeout` (detail `settle_after_click from 6434,106 ->
+  6434,108`) even when you crossed, so assert `t.world.tile()` z == 108, not the result
+  word.
+- The exit gate opens while he is still alive (`~tob_barrier_step` runs once the room
+  starts; open row). Do not take a crossing as proof of the kill.
+- Entry death: killing blow K = `npc_death`, 8062 at K+1, then at K+3 the book
+  `obj_add`, `npc_retype` 10768 -> 10769 (`xarpus_death_story`) and `npc_anim` 8063
+  together, `npc_free` at K+5. Measure `xarpus.death.collapse` as `npc_anim` 8063 ->
+  `npc_free` (2). Normal and Hard: 8340 -> 8341 and 10772 -> 10773, same shape.
+- P3 retaliation in Entry is the 50-75 base scaled by 38/50 (38-57: floor [wiki] Entry
+  infobox "38+ recoil", ceiling [M123]), then times (100 + 40 % of absorbed %) / 100. Solo
+  is always 100 % absorbed, so Entry reads 53-79 and Normal/Hard 70-105. To check the
+  uplift in Entry, invert `floor(b*38/50)` for b in 50..75.
+- The retaliation fires once per HITSPLAT: a scythe swing from the faced quadrant takes
+  three (77 + 22 killed a 99-hp player in one tick in Entry before the floor change).
+  Probe with a one-hitsplat weapon.
+- Stomp re-measured standing in 6432..6436 x 97..101 for 36 ticks: Entry per-tick sum
+  max 5 ({5:24, 4:7, 3:4, 2:1}), Normal max 9. The splats are slotless `hit_player` rows.
+  A spit splash launched before you stepped under can land on the same tick (stomp 3 +
+  poison 6), so count slotless rows only.
+
+## Tooling facts from seam4
+
+- `tools/wiki_droptable.py` `MINIGAME_DEATH_QUEUES`: a minigame can own a wiki-tabled
+  npc's `[ai_queue3]`. The generator then writes `[proc,wiki_<slug>_drop]` with no binding
+  and refuses to write unless the owner file binds the trigger and calls the proc. Call the
+  proc BEFORE any `npc_changetype`, because `npc_param(death_drop)` is read off the current
+  type (dropping after the retype put a pile of bones under Xarpus).
+- Never call a driver verb (`t.player.attack`, `t.npc.nearest` and the like) inside a
+  `t.await` level function. A nested verb's own await appears to resolve the outer await
+  at once (an await on an `npc_death` row answered ok after 1 tick with no death). Poll
+  with a loop of `t.ticks(1)` instead.
+- `t.ticklog.rows` has no from_type/to_type filter for `npc_retype`; filter with
+  `where=function(r) return r.to_type == X end`.
+- `run.py <quest>` without `--no-publish` copies that run's shots and ledger over the
+  quest's committed evidence in OSRS-Content (`selftest/quests/<dir>/play`). Seam
+  regression runs pass `--no-publish`, and `--name <label>` when another worker holds
+  the quest id's lock.
+- Entering a raid a fourth time in one session stood an Entry Xarpus up at 1768 of 1768
+  (520 x 3.4, the four-player stack); the same room entered fresh stood at 520.
+  `^tob_var_scale` appears to count earlier `t.raid.enter` re-entries (open). Enter one
+  raid per run.

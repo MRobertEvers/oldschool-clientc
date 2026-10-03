@@ -1688,16 +1688,38 @@ function QD.drive._press_row(target, pos, action, deadline)
     -- it -- see "THE PRESS PIXEL" at the end of this file for why searching
     -- before every press was measured and backed out.
     --
-    -- NOT HERE: a menu an earlier `covered` press left open is not closed
-    -- before this press (raid seam3 attack_exact_copy measured that a press
-    -- landing inside such a menu SELECTS one of its rows -- another copy's
-    -- Attack, s3ec_stale_before1).  The dismissal it added cost the presses
-    -- that found a menu open a tick or two, and the seam3 closer's full suite
-    -- moved hauntedmine, childrenofthesun and thefeud from green to RED on
-    -- that timing alone (each green again with this file's HEAD copy and
-    -- everything else unchanged).  The defect is an open row
-    -- (docs/minigames/raid_loop/CONTENT_BUGS.md, seam3); a fix must keep the
-    -- old timing when the press pixel is outside the open menu.
+    -- A STALE MENU UNDER THE PIXEL (raid seam4 npc_state_size_and_stale_menu).
+    -- While a menu is up it owns the mouse, and a press of EITHER button on
+    -- one of its rows SELECTS that row (uitree_interact.c interact_minimenu):
+    -- a press whose pixel lands on a row of a menu an earlier `covered` press
+    -- left open takes THAT row while answering `covered` -- another copy's
+    -- Attack (seam3 s3ec_stale_before1: 5 hits on the copy never asked for).
+    -- So when the client's own hit test (api_drive.menu_rect(x, y), i.e.
+    -- UIMinimenu_HitOption) says this press would SELECT a row offering this
+    -- press's op on ANOTHER element, the menu is dismissed first.  ONLY then:
+    -- seam3 dismissed every open menu, and this seam's first cut every menu
+    -- whose rectangle held the pixel; both moved hauntedmine, childrenofthesun
+    -- and thefeud from green to RED -- not by costing ticks (the presses that
+    -- dismissed got FASTER: tryToPickUpKey 24 -> 20, catchSnake 26 -> 10,
+    -- attemptToEnterHouse 16 -> 14) but because those three tests' green
+    -- timelines contain presses that landed on a stale menu's title bar
+    -- (swallowed) or its `Walk here` row (a walk), and any change to those
+    -- presses shifts every tick after them (s4 after1/after2 ledgers).  A
+    -- press on a stale row that is not another copy's own op (Walk here,
+    -- Examine, Cancel, the asked copy's own row) is left exactly as before:
+    -- an open row in docs/minigames/raid_loop/CONTENT_BUGS.md.
+    local stale = QD.drive._stale_menu_under(pos, action)
+    if stale ~= nil then
+        QD.drive._stale_menu_dismissals = (QD.drive._stale_menu_dismissals or 0) + 1
+        api_drive.report(string.format("stale-menu %d: press for element %s at %d,%d: %s -- %s",
+            QD.drive._stale_menu_dismissals, tostring(pos.element_id), pos.x, pos.y, stale,
+            QD.drive._menu_summary()))
+        if QD.drive._dismiss_menu(pos) ~= "ok" then
+            return "covered", "element " .. tostring(pos.element_id) .. " at " .. tostring(pos.x)
+                .. "," .. tostring(pos.y) .. ": " .. stale .. " and it did not close -- not pressed"
+                .. " -- " .. QD.drive._menu_summary()
+        end
+    end
     local move_result = api_drive.mouse_move(pos.x, pos.y)
     if move_result ~= "ok" then
         return move_result, "mouse_move"
@@ -1766,6 +1788,37 @@ function QD.drive._press_row(target, pos, action, deadline)
     -- field exists to retire.  (SEAM silent_press_npc_step, 2026-09-21.)
     return "ok", { row_text = row.text, row_action = row.action,
         element_id = pos.element_id }
+end
+
+-- nil unless a menu is up and a press at `pos` would SELECT one of its rows
+-- that offers `action` (this press's own op) on an element other than
+-- `pos.element_id` -- another copy (QD.drive._press_row's stale-menu banner).
+-- Otherwise one sentence naming the row and the menu's box, for the report and
+-- for the detail of a press that could not clear it.  The answer is the
+-- client's own hit test (api_drive.menu_rect(x, y) -> UIMinimenu_HitOption),
+-- never a guess from the row centres.  A binary built before menu_rect answers
+-- nil, which is the pre-seam4 behaviour (no dismissal at all).  The select
+-- wildcard (action < 0, use_on's one collapsed row) is not judged, as in
+-- QD.drive._menu_other_copies.
+function QD.drive._stale_menu_under(pos, action)
+    if api_drive.menu_rect == nil or action == nil or action < 0 then
+        return nil
+    end
+    local rect_result, rect = api_drive.menu_rect(pos.x, pos.y)
+    if rect_result ~= "ok" or type(rect) ~= "table" or rect.hit == nil or rect.hit < 1 then
+        return nil
+    end
+    local rows_result, rows = api_drive.menu_rows()
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    local row = rows[rect.hit]
+    if row == nil or row.action ~= action or row.target_id == pos.element_id then
+        return nil
+    end
+    return string.format("the pixel is on row %d '%s' (element %s) of a menu left open by an earlier"
+        .. " press (%d,%d %dx%d) -- another copy's own op", rect.hit, tostring(row.text),
+        tostring(row.target_id), rect.x, rect.y, rect.width, rect.height)
 end
 
 -- SEAM attack_exact_copy (raid seam3): the rows a `covered` menu DID offer for

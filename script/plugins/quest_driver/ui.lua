@@ -1754,6 +1754,15 @@ end
 --                         face-entity lock does not clear them -- `facing`
 --                         says whether one is held now.  nil on a binary
 --                         built before raid seam3 npc_facing_read.
+--   size                  the footprint in tiles (the npc config's `size`,
+--                         1 when it states none) as the client holds it NOW:
+--                         a transmog rewrites it, so Xarpus reads 3 in his
+--                         static form and 5 once he fights.  x, z are the
+--                         footprint's south-west corner: the npc covers
+--                         x .. x+size-1 by z .. z+size-1.  nil on a binary
+--                         built before raid seam4 npc_state_size_and_stale_menu.
+--                         Every pool row carries it (npc.nearest, by_symbol,
+--                         tiles), not only npc.state's.
 --
 -- `seq_tick` and not "anim_id changed": the client does not restart a seq
 -- re-sent while it is still playing (world_apply_primary_animation), so a
@@ -1829,10 +1838,14 @@ function QD.npc.state_text(row)
     elseif row.face_x >= 0 then
         face = string.format("last face square %d,%d on tick %d", row.face_x, row.face_z, row.face_tick)
     end
+    local size = "size unread (binary before npc_state_size_and_stale_menu)"
+    if row.size ~= nil then
+        size = "size " .. tostring(row.size)
+    end
     return string.format(
-        "%s slot %d at %d,%d: anim %d frame %d, spotanim %d, last seq %d on tick %d,"
+        "%s slot %d at %d,%d, %s: anim %d frame %d, spotanim %d, last seq %d on tick %d,"
             .. " last spotanim %d on tick %d, facing %d, %s, hp %d/%d (now tick %d)",
-        tostring(row.name), row.slot, row.x, row.z, row.anim_id, row.anim_frame, row.spotanim_id,
+        tostring(row.name), row.slot, row.x, row.z, size, row.anim_id, row.anim_frame, row.spotanim_id,
         row.seq_id, row.seq_tick, row.spotanim_sent_id, row.spotanim_tick, row.facing, face,
         row.health_ratio, row.health_scale, api_drive.tick())
 end

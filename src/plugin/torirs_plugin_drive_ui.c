@@ -208,6 +208,40 @@ DriveUi_ModalLive(struct App* app, int* out_live)
     return DRIVE_OK;
 }
 
+enum DriveResult
+DriveUi_MenuRect(
+    struct App* app,
+    int has_point,
+    int point_x,
+    int point_y,
+    int* out_visible,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height,
+    int* out_hit)
+{
+    struct UIMinimenu const* menu;
+
+    assert(app);
+    assert(out_visible);
+    assert(out_x);
+    assert(out_y);
+    assert(out_width);
+    assert(out_height);
+    assert(out_hit);
+    menu = &app->interact.minimenu;
+    *out_visible = menu->visible ? 1 : 0;
+    if( !menu->visible )
+        return DRIVE_OK;
+    *out_x = menu->x;
+    *out_y = menu->y;
+    *out_width = menu->width;
+    *out_height = menu->height;
+    *out_hit = has_point ? UIMinimenu_HitOption(menu, point_x, point_y) : -2;
+    return DRIVE_OK;
+}
+
 /* ------------------------------------------------------------- pool walks */
 
 /* <col=RRGGBB>...</col> comes off WorldEntity_NPC.name wholesale: strip every
@@ -558,6 +592,10 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
             out[j].overhead_timer = 0;
         }
         drive_ui_fill_npc_state(npc, &out[j]);
+        /* The footprint (DriveNpcRow.size): World_NpcSetType stores the
+         * config's size clamped to 1, and every reader of the entity
+         * (world_cycle.c, app_world_click.c) clamps again; so does this. */
+        out[j].size = npc->size > 0 ? npc->size : 1;
         if( count < cap )
             count++;
     }
@@ -1486,6 +1524,49 @@ lua_drive_modal_live(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.menu_rect([x, y]) -> ("ok", {x, y, width, height, margin, hit})
+ * while a minimenu is up, ("closed", nil) when none is (DriveUi_MenuRect's
+ * banner).  `margin` is UIMinimenu_HitOption's close margin.  `hit` answers
+ * "what would a press at (x, y) do": a 1-based index into api_drive.menu_rows()
+ * (the row it would SELECT), -1 swallowed (title bar or margin), -2 outside
+ * (the menu closes); -2 when no point is passed. */
+static int
+lua_drive_menu_rect(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int has_point = lua_gettop(L) >= 2;
+    int point_x = PluginDrive_ArgOptInt(L, 1, 0);
+    int point_y = PluginDrive_ArgOptInt(L, 2, 0);
+    int visible = 0;
+    int x = 0, y = 0, width = 0, height = 0, hit = -2;
+    enum DriveResult result;
+
+    assert(app);
+    result = DriveUi_MenuRect(
+        app, has_point, point_x, point_y, &visible, &x, &y, &width, &height, &hit);
+    if( result != DRIVE_OK || !visible )
+    {
+        lua_pushstring(L, DriveResultName(result != DRIVE_OK ? result : DRIVE_CLOSED));
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, 0, 6);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, width);
+    lua_setfield(L, -2, "width");
+    lua_pushinteger(L, height);
+    lua_setfield(L, -2, "height");
+    lua_pushinteger(L, 10);
+    lua_setfield(L, -2, "margin");
+    lua_pushinteger(L, hit >= 0 ? hit + 1 : hit);
+    lua_setfield(L, -2, "hit");
+    return 2;
+}
+
 static void
 drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
 {
@@ -1556,6 +1637,11 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "face_z");
     lua_pushinteger(L, row->face_tick);
     lua_setfield(L, -2, "face_tick");
+    /* The footprint in tiles (DriveNpcRow.size), the type's size as the
+     * client holds it now -- a transmog changes it. A `nil` size means a
+     * binary built before raid seam4 npc_state_size_and_stale_menu. */
+    lua_pushinteger(L, row->size);
+    lua_setfield(L, -2, "size");
 }
 
 static int
@@ -1918,6 +2004,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"tab", lua_drive_tab},
     {"tab_by_name", lua_drive_tab_by_name},
     {"modal_live", lua_drive_modal_live},
+    {"menu_rect", lua_drive_menu_rect},
     {"npcs", lua_drive_npcs},
     {"locs", lua_drive_locs},
     {"loc_variants", lua_drive_loc_variants},

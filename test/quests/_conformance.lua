@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 100
+-- @seam-count 101
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 162
-local SEAM_COUNT = 100
+local SEAM_COUNT = 101
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6505,7 +6505,9 @@ return {
         end)
 
         -- t.npc.state_text(row): the one-line ledger reading of a state row.
-        -- Graded on every state field being named in the line it returns.
+        -- Graded on every state field being named in the line it returns, and
+        -- (raid seam4 npc_state_size_and_stale_menu) on the man's footprint:
+        -- every pool row carries `size`, 1 for a man (configs/all.npc states none).
         step("npc.state_text", function()
             local fn = verb("npc", "state_text")
             local state = verb("npc", "state")
@@ -6515,11 +6517,15 @@ return {
             local r, row = state({ slot = state_slot })
             if r ~= "ok" then return "no_subject", "npc.state -> " .. describe(row) end
             local text = fn(row)
-            for _, field in ipairs({ "anim ", "frame ", "spotanim ", "last seq ", "last spotanim ",
+            for _, field in ipairs({ "size ", "anim ", "frame ", "spotanim ", "last seq ", "last spotanim ",
                 "facing ", "last face square ", "hp " }) do
                 if type(text) ~= "string" or not string.find(text, field, 1, true) then
                     return "hollow", "state_text does not name '" .. field .. "': " .. describe(text)
                 end
+            end
+            if row.size ~= 1 then
+                return "refused", "the man's footprint read " .. describe(row.size)
+                    .. ", the cache says 1: " .. describe(text)
             end
             return "ok", text
         end)
@@ -8685,6 +8691,77 @@ return {
             end
             return "ok", text .. " [other slot " .. other.slot .. " never hit: health_ratio "
                 .. describe(other_now.health_ratio) .. "]"
+        end)
+
+        -- AN NPC'S FOOTPRINT, READ FROM THE PLAYER'S SIDE (raid seam4
+        -- npc_state_size_and_stale_menu).  Before, a pool row carried no size,
+        -- so Xarpus's 3 -> 5 (xarpus.size.p1_p2) had to be looked up by hand
+        -- and a footprint guessed.  Graded on two ordinary npcs the cache
+        -- sizes differently: goblin_unarmed_melee_1 (configs/all.npc states no
+        -- size: 1) and cow (`size=2`), each read through t.npc.state and
+        -- t.npc.nearest (the same pool row), and state_text naming it.
+        -- Scratch proof: s4size_after1 (goblin 1, cow 2; the shared binary
+        -- without the field, s4size_before1, reads nil); s4xsize_after1 Entry
+        -- Xarpus: static form 3, fighting form (npc 10768) 5.  Note the
+        -- triage's "cow (1)" is wrong: the cache states cow size=2, which makes
+        -- the cow the ordinary size-2 npc this row wanted.
+        seam("seam.npc_state_size", function()
+            local state = verb("npc", "state")
+            local nearest = verb("npc", "nearest")
+            local state_text = verb("npc", "state_text")
+            local goto_tile = verb("player", "goto_tile")
+            if not state then return missing("npc", "state") end
+            if not nearest then return missing("npc", "nearest") end
+            if not state_text then return missing("npc", "state_text") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            local COW = "cow"
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                setup_cheat("::kill " .. COW .. " 10")
+                settle(2)
+            end
+            local goto_result = goto_tile(3229, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(1)
+            goto_result = goto_tile(3225, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3225,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. COW)
+            settle(3)
+            local text = {}
+            for _, want in ipairs({ { GOBLIN, 1 }, { COW, 2 } }) do
+                local symbol, size = want[1], want[2]
+                local near_result, near = nearest(symbol, 8)
+                if near_result ~= "ok" then
+                    teardown()
+                    return "no_subject", symbol .. ": npc.nearest -> " .. describe(near_result) .. " " .. describe(near)
+                end
+                local state_result, row = state(symbol, { slot = near.slot })
+                if state_result ~= "ok" then
+                    teardown()
+                    return state_result, symbol .. ": npc.state -> " .. describe(row)
+                end
+                local line = state_text(row)
+                text[#text + 1] = symbol .. ": nearest size " .. describe(near.size) .. ", " .. line
+                if near.size ~= size or row.size ~= size then
+                    teardown()
+                    return "refused", table.concat(text, "; ") .. " -- the cache sizes " .. symbol .. " "
+                        .. size
+                end
+                if not string.find(line, "size " .. size, 1, true) then
+                    teardown()
+                    return "hollow", table.concat(text, "; ") .. " -- state_text does not name 'size " .. size .. "'"
+                end
+            end
+            teardown()
+            return "ok", table.concat(text, "; ")
         end)
 
         -- A [MAPZONE] TRIGGER FIRES ON A SQUARE'S UPPER LEVEL (seam36

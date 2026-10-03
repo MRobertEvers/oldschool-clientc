@@ -858,6 +858,36 @@ enum DriveResult DriveUi_TabByName(struct App* app, char const* name, int* out_t
  *  boot and permanently wrong after the session's first dialogue. */
 enum DriveResult DriveUi_ModalLive(struct App* app, int* out_live);
 
+/**
+ * The open minimenu's rectangle, in canvas pixels -- the box
+ * UIMinimenu_HitOption tests its rows inside -- and, when `has_point`, what a
+ * press at (`point_x`, `point_y`) would do to it: `*out_hit` is
+ * UIMinimenu_HitOption's own answer (>= 0 the option index it would SELECT,
+ * the same index DrivePointer_MenuRows reports rows in; -1 swallowed by the
+ * title bar or the close margin; -2 outside: the menu closes).  -2 when no
+ * point is asked.  `*out_visible` 0 (and every other out untouched) when no
+ * menu is up.
+ *
+ * Why a driver needs it (raid seam4 npc_state_size_and_stale_menu): while a
+ * menu is up it owns the mouse, and a press of EITHER button on one of its
+ * rows SELECTS that row (uitree_interact.c interact_minimenu) -- so a press
+ * aimed at the world whose pixel falls on a row of a menu an earlier
+ * `covered` press left open takes THAT row, another copy's Attack among
+ * them.  The row centres DriveMenuRow carries cannot say where a row's band
+ * or the box's sides are; the client's hit test can.  Owner: verbs-ui.
+ */
+enum DriveResult DriveUi_MenuRect(
+    struct App* app,
+    int has_point,
+    int point_x,
+    int point_y,
+    int* out_visible,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height,
+    int* out_hit);
+
 struct DriveNpcRow
 {
     int slot;
@@ -974,6 +1004,16 @@ struct DriveNpcRow
     int face_x;
     int face_z;
     int face_tick;
+    /**
+     * The npc's footprint in tiles (the npc config's `size`, 1 when the
+     * config states none), as the client entity holds it NOW: World_NpcSetType
+     * rewrites it on every transmog, so a boss that changes form (Xarpus's
+     * static form 3 -> fighting form 5) reads its new footprint the tick the
+     * client applies the new type.  `tile_x`/`tile_z` are the footprint's
+     * south-west corner, so the npc covers [tile_x, tile_x + size) x
+     * [tile_z, tile_z + size). (raid seam4 npc_state_size_and_stale_menu.)
+     */
+    int size;
 };
 
 struct DriveLocRow
