@@ -434,10 +434,12 @@ round-3 rows are kept in `test/quests/wip/contact/round3_rejected.lua`.*
 (a) THE BOSS FIGHT IS NOT A FIGHT. `contact_scarab_boss` has no `.npc` combat block, so it fights
 with the engine's default stats: 10 hitpoints and attack/strength/defence 1. It died 7 ticks after
 the first swing and dealt no damage (shots 080-081). The wiki gives it 130 hitpoints. See
-gaps-combat: A level-191 boss dies in seven ticks.
+gaps-combat: A level-191 boss dies in seven ticks. FIXED seam pass matthew-mbp-m4-b53-seam4
+(OSRS-Content 4fa2748185).
 
 (b) The completion scroll lists "1 Quest Point" twice (shot 098). See gaps-dialogue: A brief names
-skill XP that the content pays as a lamp.
+skill XP that the content pays as a lamp. FIXED seam pass matthew-mbp-m4-b53-seam4 (OSRS-Content
+4fa2748185).
 
 Not findings: the maze is walked on foot with the trap presses, both times. Maisa is talked to
 across the chasm through the `[apnpc1]` trigger. The instance is left by its ladder. The goto from

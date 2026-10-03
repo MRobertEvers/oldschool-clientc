@@ -391,6 +391,12 @@ spawn is a multinpc parent needs its stats on the parent; the client only draws 
 
 *Origin: sampler matthew-mbp-m4-b53, round 3 (contact sent back).*
 
+**FIXED for Contact! by seam pass matthew-mbp-m4-b53-seam4 (OSRS-Content 4fa2748185).** The new
+`quest_contact/configs/contact.npc` carries the wiki block (oldid 15328051) and the Contact!
+summons (`_b`, levels 66/68). Proof: `b53s4_scarab_fight_e` read 130/130 from the server, 108/130
+after 8 ticks, dead after 131 ticks with 13 sharks eaten. The check below still applies to any other
+`npc_add` boss. How to stage the fight now: "A real level-191 boss beats a whip" (end of this file).
+
 Contact!'s Giant Scarab (`contact_scarab_boss`) has no block in any server `.npc` file. The only
 entry is `npc_anims.generated.npc`, which holds animations and no stats. The engine does not seed
 combat stats from the cache's `stat1..stat5` (`npc_def_seed_from_cache` copies only the bonuses), so

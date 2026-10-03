@@ -33,3 +33,49 @@
   descent into the private chasm.
 - **Port dialogue is not the transcript.** The transcript asks both questions in one conversation and
   offers an "I don't know." row. That is a separate parity leg; this seam did not change it.
+
+## killGiantScarab is a real level-191 fight now: stage the character for it (seam matthew-mbp-m4-b53-seam4 contact_giant_scarab_combat_stats)
+
+- **What changed (content, uncommitted in this pass):** `quest_contact/configs/contact.npc` (new) gives
+  `contact_scarab_boss` the wiki's stats: Giant_Scarab_(Contact!) oldid 15328051, 130 hp, attack 169,
+  strength 190, defence 169, ranged 190, max hit 20, stab defence 70, speed 4, aggressive, poison 9.
+  `contact_scarab.rs2` gives it its own swing. It stabs a player standing next to its 3x3 body. It shoots
+  a player anywhere else, and that ranged swing also poisons them: "The vast scarab clacks its
+  mandibles and you are mystically poisoned" (poison 9, and it overrides an antipoison). The four
+  summons are now the Contact! versions, `contact_insectoid_mage_b` (level 66) and
+  `contact_locust_bow_b` / `contact_locust_lance_b` (level 68), with 20 hp each (wiki Scarab_Mage oldid
+  15281960, Locust_rider oldid 15281959, cache stats). They are no longer the dungeon's level 93/98/106
+  forms. A server read was added: `t.cheat("::contact_scarab_hp")` prints
+  `Giant Scarab hitpoints <cur>/<base> ...`. The client bar is 30 wide, so it cannot tell 130 from 10.
+- **The round-3 staging dies.** Abyssal whip, no armour, 10 lobsters, eating below 50: in
+  `build/quest_gate/b53s4_contact_copy_r3` (a verbatim copy of `round3_rejected.lua`) rows 1-212 pass,
+  then `player.died` lands 73 ticks into `killGiantScarab.dead` with the boss still at 25/30. Whip slash
+  against slash defence 99 barely lands, and the boss plus four summons hit for about 5 a tick.
+- **Staging that wins** (`build/quest_gate/b53s4_contact_copy_geared3`, SUMMARY 241 PASS 241/0): change
+  only the setup and the eat item.
+  - Setup:
+    `"::give rune_full_helm 1", "::give rune_chainbody 1", "::give rune_platelegs 1", "::give zamorak_spear 1", "::give shark 20"`
+    then
+    `"::wield rune_full_helm", "::wield rune_chainbody", "::wield rune_platelegs", "::wield zamorak_spear"`.
+    Drop the whip and the lobsters. `rune_platebody` refuses without Dragon Slayer.
+  - The spear is the wiki's own advice: "weaker to stab than any other melee style, so a Zamorakian spear
+    is recommended". Quest Helper Contact.java:133/136 lists combat gear and food as brought along.
+  - The kill: `t.npc.await_dead_engaged(400, 40, { eat = { item = "shark", below = 50 } })` ->
+    `dead after 213 tick(s), 11 re-engagement(s) ... ate shark 18 time(s)`. Then `quest.stage.scarab_killed`
+    110, pickUpKeris, Osman, ready 120.
+- **Walk back to the ladder before leaveChasm.** The fight ends far from the ladder, and `leaveChasm`
+  failed `screen_position: yaw 1093 framed nothing in 5 poses`. Add
+  `t.player.walk_to(6442, 70, 60)` first. That is the arrival tile minus 14,4; the copy reads it from
+  `chasm2.arrived`, 6456,74, and walk_to the arrival tile itself stalls at 6442,70. After that,
+  `leaveChasm` PASSes `map_flag` and `chasm.left` reads 2116,4364,2.
+- **Margins.** Two runs of this staging (`geared2` and `geared3`) gave the same 213 ticks and 18 sharks,
+  with a lowest hp of 25. Twenty sharks left 2 spare, so do not bring fewer.
+- **Not in the port (known_gaps in docs/bosses/quest_combat_manifest.json, quest-contact):**
+  - The summons all appear on entry. The wiki says the Scarab summons them one at a time, cycling
+    magic, ranged, melee, but no source gives the rate.
+  - The Scarab's light-extinguish (QH Contact.java:261; Quick guide oldid 15233716) is absent: no rate
+    or message is sourced, and the chasm has no darkness. Do not assert it.
+- **Closer re-run (seam4 closer, `build/quest_gate/b53s4c_close_geared`, 241/0):** the same staging
+  took 203 ticks and ate all 20 sharks (lowest hp 19/99). Runs are not tick-reproducible
+  (the embedded server's clock is not locked), so the "2 spare" above is not a margin: give
+  `"::give shark 25"` (or add prayer) when rewriting `contact.lua`.

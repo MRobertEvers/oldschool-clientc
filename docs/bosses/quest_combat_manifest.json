@@ -4352,15 +4352,70 @@
       "encounter_summary": "Giant Scarab (191); summoned Locust Rider (68) and Scarab Mages (66/119)",
       "plan_line": 147,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Giant_Scarab_(Contact!)?oldid=15328051",
+          "revision": 15328051,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Contact!?oldid=15327950",
+          "revision": 15327950,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Contact!/Quick_guide?oldid=15233716",
+          "revision": 15233716,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Locust_rider?oldid=15281959",
+          "revision": 15281959,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Scarab_Mage?oldid=15281960",
+          "revision": 15281960,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Giant_Scarab_(Nightmare_Zone)?oldid=15200671",
+          "revision": 15200671,
+          "retrieved": "2026-10-02"
+        }
+      ],
+      "npc_gamevals": [
+        "contact_scarab_boss: owner-private level-191 Giant Scarab, 130 hitpoints, 169/190/169 attack/strength/defence, 190 ranged, stab + ranged, max hit 20, poison 9 (configs/contact.npc)",
+        "contact_insectoid_mage_b: level-66 Contact! Scarab Mage summon (wiki id 799)",
+        "contact_locust_bow_b/contact_locust_lance_b: level-68 Contact! Locust rider summons (wiki ids 801/800)",
+        "contact_osman_cave_instance: the post-kill Osman in the same instance"
+      ],
+      "item_gamevals": [
+        "contact_keris: guaranteed on the instance floor at the Scarab's first eligible death"
+      ],
+      "loc_gamevals": [
+        "contact_ug_boss_ladder: dungeon -> owner-private copy of m35_67 from native state 80",
+        "contact_boss_ug_ladder: chasm -> dungeon, releasing the instance"
+      ],
+      "trigger_handlers": [
+        "oploc1:contact_ug_boss_ladder builds the instance and spawns the Scarab and its four summons (contact_dungeon.rs2)",
+        "opnpc2:contact_scarab_boss and the three _b summons (trap 31 @player_combat_start)",
+        "ai_opplayer2:contact_scarab_boss melee in reach, ranged otherwise plus the mystic poison",
+        "ai_opplayer2:contact_locust_bow_b ranged / contact_insectoid_mage_b magic",
+        "ai_queue3:contact_scarab_boss Keris drop, native 110, summon sweep, cave Osman"
+      ],
+      "loot_contract": "The Giant Scarab has no generic table: its first death at native state below 110 puts one Keris on the floor of the killer's own instance (wiki 100% Keris) and removes the remaining summons, which die with it. Each summon keeps the Bones its drop table always gives.",
+      "test_ids": [
+        "quest-combat-contract:contact-giant-scarab",
+        "quest:contact"
+      ],
+      "known_gaps": [
+        "The summons all appear when the instance is built; the wiki says the Scarab summons them one at a time, cycling magic, ranged, melee, but no source gives the rate.",
+        "The Scarab's light-extinguishing attack (Quest Helper Contact.java:261, Quick guide oldid 15233716) is absent: no source gives its rate or message and the chasm has no darkness state.",
+        "The mystic poison fires on a ranged swing at an unpoisoned player; the pinned page gives no rate (rev 15199518 also required Protect from Missiles, which 15328051 dropped).",
+        "The page's 50% fire weakness (20 August 2025) is not stated: the revision-239 cache carries no weakness param for the npc."
+      ]
     },
     {
       "id": "quest-cold-war",

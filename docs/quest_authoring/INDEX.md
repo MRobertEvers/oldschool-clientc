@@ -238,7 +238,7 @@ topic file with one line added here.
 - completion not readable after the last page -> gaps-dialogue: Completion, reopened dialogues; `t.msg.await` never sees
 - the reward differs from the wiki; split scroll lines -> gaps-dialogue: `~quest_complete_rewards`; `t.scroll.rewards()`
 - which rewards need a row -> coverage-and-gate: A reward row; gaps-dialogue: Rewards and steps
-- a boss dies in a few ticks and never hits you; "1 Quest Point" twice on the scroll; a brief's skill XP the content pays as a lamp -> gaps-combat: A level-191 boss dies in seven ticks; gaps-dialogue: A brief names skill XP; sampler-findings: Sample matthew-mbp-m4-b53, round 3
+- a boss dies in a few ticks and never hits you; "1 Quest Point" twice on the scroll; a brief's skill XP the content pays as a lamp -> gaps-combat: A level-191 boss dies in seven ticks; gaps-dialogue: A brief names skill XP; sampler-findings: Sample matthew-mbp-m4-b53, round 3 (Contact!'s boss and doubled line FIXED seam pass matthew-mbp-m4-b53-seam4)
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 - `reward.*` shot shows the Quest List tab; `reward tab ... not selected`; `10,500 Magic XP` read as 500 -> verbs-root-and-quest: Reward rows photograph the tab; `t.scroll.reward_xp`
 

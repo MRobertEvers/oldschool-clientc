@@ -115,6 +115,9 @@ OSF_VARP = CONTENT / "quests/quest_onesmallfavour/configs/onesmallfavour.varp"
 OSF_NPC = CONTENT / "quests/quest_onesmallfavour/configs/onesmallfavour.npc"
 OSF_GENERATED_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
 OSF_DWARF_SPAWN = CONTENT / "areas/world/configs/m46_153.spawn"
+CONTACT_NPC = CONTENT / "quests/quest_contact/configs/contact.npc"
+CONTACT_SCARAB = CONTENT / "quests/quest_contact/scripts/contact_scarab.rs2"
+CONTACT_DUNGEON = CONTENT / "quests/quest_contact/scripts/contact_dungeon.rs2"
 PLAYER_HIT_FUNNEL = CONTENT / "skill_combat/scripts/player/player_hit_npc_prepare.rs2"
 ELEM1_CORE = CONTENT / "quests/quest_elemental_workshop/scripts/quest_elemental_workshop.rs2"
 ELEM1_BOOK = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_workshop_shield_book.rs2"
@@ -604,6 +607,16 @@ def check_manifest() -> None:
         "https://oldschool.runescape.wiki/w/Dwarf_gang_member",
         "https://oldschool.runescape.wiki/w/Animate_rock_scroll",
     } <= urls, "One Small Favour: live Wiki audit set drifted")
+    contact = [row for row in rows if row["id"] == "quest-contact"]
+    require(len(contact) == 1, "manifest: expected exactly one Contact! row")
+    require(contact[0]["implementation_status"] == "implementation-in-progress",
+            "Contact!: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(contact[0][key]), f"Contact!: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in contact[0]["source_audits"]}
+    require({15328051, 15327950, 15233716, 15281959, 15281960, 15200671} <= revisions,
+            "Contact!: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -3618,6 +3631,81 @@ def check_in_search_of_the_myreque() -> None:
             "In Search of the Myreque: private varp allocations drifted")
 
 
+def _npc_block(text: str, name: str) -> list[str]:
+    """The `key=value` lines of one `[name]` block of a .npc file."""
+    lines: list[str] = []
+    inside = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("[") and line.endswith("]"):
+            inside = line == f"[{name}]"
+            continue
+        if inside and line and not line.startswith("//"):
+            lines.append(line)
+    return lines
+
+
+def check_contact() -> None:
+    """Contact!'s Giant Scarab is a real level-191 fight (sampler b53 round 3:
+    with no block it fought on npc_default.npc's 10 hp and died in 7 ticks).
+    Wiki Giant_Scarab_(Contact!) oldid 15328051; summons Locust_rider oldid
+    15281959 / Scarab_Mage oldid 15281960 (the Contact! versions, ids 799-801)."""
+    npc = CONTACT_NPC.read_text()
+    boss = _npc_block(npc, "contact_scarab_boss")
+    for line in ("hitpoints=130", "attack=169", "strength=190", "defence=169",
+                 "ranged=190", "huntmode=aggressive", "param=attackrate,4",
+                 "param=damagetype,^stab_style", "param=strengthbonus,0",
+                 "param=rangebonus,0", "param=stabdefence,70", "param=slashdefence,99",
+                 "param=crushdefence,99", "param=magicdefence,159",
+                 "param=rangedefence,103", "param=poison_severity,41",
+                 "param=death_drop,null"):
+        require(line in boss, f"Contact!: [contact_scarab_boss] lacks `{line}`")
+    for name, needles in (
+        ("contact_locust_bow_b", ("hitpoints=20", "attack=90", "strength=90", "defence=20",
+                                  "ranged=90", "param=attackrate,6",
+                                  "param=damagetype,^ranged_style", "param=rangeattack,80")),
+        ("contact_locust_lance_b", ("hitpoints=20", "attack=90", "strength=90", "defence=20",
+                                    "param=attackrate,4", "param=damagetype,^crush_style",
+                                    "param=strengthbonus,30")),
+        ("contact_insectoid_mage_b", ("hitpoints=20", "attack=90", "strength=90", "defence=10",
+                                      "magic=70", "param=attackrate,15",
+                                      "param=damagetype,^magic_style", "param=magic_maxhit,17")),
+    ):
+        block = _npc_block(npc, name)
+        for line in needles:
+            require(line in block, f"Contact!: [{name}] lacks `{line}`")
+    scarab = CONTACT_SCARAB.read_text()
+    require_text(
+        scarab,
+        ("[proc,contact_spawn_scarab](int $handle)",
+         "npc_add($spot, contact_scarab_boss, 3000);",
+         "contact_insectoid_mage_b, 3000);", "contact_locust_lance_b, 3000);",
+         "contact_locust_bow_b, 3000);",
+         "[opnpc2,contact_scarab_boss]", "[opnpc2,contact_insectoid_mage_b]",
+         "[opnpc2,contact_locust_lance_b]", "[opnpc2,contact_locust_bow_b]",
+         "[ai_opplayer2,contact_scarab_boss]", "if (npc_range(coord) <= 1) {",
+         "~npc_meleeattack;", "~npc_rangeattack;", "~contact_scarab_mystic_poison;",
+         "[proc,contact_scarab_mystic_poison]",
+         "The vast scarab clacks its mandibles and you are mystically poisoned",
+         "%varp102_poison = npc_param(poison_severity);",
+         "[ai_opplayer2,contact_locust_bow_b]", "[ai_opplayer2,contact_insectoid_mage_b]",
+         "~npc_generic_magicattack;",
+         "[ai_queue3,contact_scarab_boss]", "obj_add($spot, contact_keris, 1, ^lootdrop_duration);",
+         "%varb3274_contact = ^contact_scarab_killed;", "~npc_default_death;",
+         "npc_type = contact_insectoid_mage_b | npc_type = contact_locust_lance_b | npc_type = contact_locust_bow_b"),
+        "Contact! Giant Scarab fight",
+    )
+    for dungeon_form in ("contact_insectoid_mage, ", "contact_locust_lance, ", "contact_locust_bow, "):
+        require(dungeon_form not in scarab,
+                f"Contact!: the fight spawns the dungeon form `{dungeon_form.strip(', ')}`, not the Contact! summon")
+    require_text(
+        CONTACT_DUNGEON.read_text(),
+        ("[proc,contact_enter_private_chasm]", "~map_instance_from_square(^contact_chasm_template);",
+         "~contact_spawn_scarab($handle);"),
+        "Contact! owner-private chasm",
+    )
+
+
 def check_creature_of_fenkenstrain() -> None:
     require_text(
         FENK_CONSTANT.read_text(),
@@ -4546,13 +4634,14 @@ def main() -> int:
         check_roving_elves()
         check_ghosts_ahoy()
         check_one_small_favour()
+        check_contact()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour and Contact!, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

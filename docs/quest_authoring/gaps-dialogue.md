@@ -291,7 +291,9 @@ the skill you picked. Name the picked skill in the row (`lamp.strength_xp_7000`)
 
 `~quest_complete_rewards` writes the quest point line itself. Contact!'s reward string started with
 `1 Quest Point|` (`contact_shared.rs2:22`), so its scroll showed "1 Quest Point" twice. No other
-quest in the tree passes it. Check the scroll shot for a doubled first line.
+quest in the tree passes it. Check the scroll shot for a doubled first line. FIXED by seam pass
+matthew-mbp-m4-b53-seam4 (OSRS-Content 4fa2748185): the scroll shows one quest-point line, and
+"and bank" is visible again (`b53s4_scroll_qp_after`, 9/0).
 
 ### `t.scroll.rewards()` returns wrapped lines
 
