@@ -1393,7 +1393,10 @@ class MapWalls:
     content adds or removes at run time are not seen."""
 
     WEST, NORTH, EAST, SOUTH = 1, 2, 4, 8
-    STEP = {1: (-1, 0, 4), 2: (0, 1, 8), 4: (1, 0, 1), 8: (0, -1, 2)}  # side -> dx, dz, opposite side
+    # enclosure() floods from a blocked start tile (a landing on furniture);
+    # False is the seam-1 reading (no room at all), kept for the fixtures.
+    START_ON_BLOCKED = True
+    STEP ={1: (-1, 0, 4), 2: (0, 1, 8), 4: (1, 0, 1), 8: (0, -1, 2)}  # side -> dx, dz, opposite side
 
     def __init__(self, root=None):
         self.root = root or MAPS_ROOT
@@ -1404,6 +1407,7 @@ class MapWalls:
         self.blocked = set()
         self.climb_at = {}    # (x, z, level) -> [(symbol, origin)]: climbs whose footprint or ring holds it
         self.climb_ring = {}  # (symbol, origin) -> [(x, z, footprint x, footprint z, side)]: the 4-way ring
+        self.locs_at = {}     # (x, z, level) -> [(symbol, origin)]: every loc on the tile (an object's footprint)
         self._names = None
 
     def names(self):
@@ -1493,6 +1497,13 @@ class MapWalls:
             symbol = names.get(loc, str(loc))
             blockwalk, width, length, active = LOC_CLIP.get(symbol, (2, 1, 1, False))
             wx, wz = origin_x + x, origin_z + z
+            size = (length, width) if rotation in (1, 3) else (width, length)
+            if 9 <= shape <= 22:
+                for ox in range(size[0] if shape != 22 else 1):
+                    for oz in range(size[1] if shape != 22 else 1):
+                        self.locs_at.setdefault((wx + ox, wz + oz, real), []).append((symbol, (wx, wz, real)))
+            else:
+                self.locs_at.setdefault((wx, wz, real), []).append((symbol, (wx, wz, real)))
             if self.is_climb(symbol):
                 size = (length, width) if rotation in (1, 3) else (width, length)
                 key = (symbol, (wx, wz, real))
@@ -1538,10 +1549,11 @@ class MapWalls:
                     self.load(sx, sz)
         return square in self.present
 
-    def _flood(self, x, z, level, limit, perimeter):
+    def _flood(self, x, z, level, limit, perimeter, touched=None, through=None):
         """Tiles a 4-way walk from (x, z) reaches on `level` without crossing
-        a wall or entering a blocked tile; None past `limit` tiles. The wall
-        locs met on the way go into `perimeter`."""
+        a wall or entering a blocked tile (except those in `through`); None
+        past `limit` tiles. The wall locs met on the way go into
+        `perimeter`, the blocked tiles it stops at into `touched`."""
         seen = {(x, z)}
         todo = [(x, z)]
         while todo:
@@ -1554,7 +1566,11 @@ class MapWalls:
                     for symbol, at in self.edge_locs.get((cx, cz, level, side), []):
                         perimeter[(symbol, at)] = True
                     continue
-                if not self._ready(nx, nz) or (nx, nz, level) in self.blocked:
+                if not self._ready(nx, nz):
+                    continue
+                if (nx, nz, level) in self.blocked and (through is None or (nx, nz, level) not in through):
+                    if touched is not None:
+                        touched[(nx, nz, level)] = True
                     continue
                 seen.add((nx, nz))
                 if len(seen) > limit:
@@ -1574,22 +1590,39 @@ class MapWalls:
         flood closes within `limit` tiles in all; None when one does not
         (open ground, a courtyard bigger than a building, an upper floor
         whose stairs come down outside) or the tile is not on a loaded map
-        square."""
-        if not self._ready(x, z) or (x, z, level) in self.blocked:
+        square.
+
+        The tile itself may be blocked (a goto lands where it is told, on a
+        table, a barrel, a stair's footprint, a rock): the flood starts from
+        it anyway, since a player standing there steps off it to any side no
+        wall closes (twilightspromise's goto-enterHQ onto civitas_stairs_1x3,
+        atfirstlight's goto-makeEquipmentPile onto Atza's table). Before
+        matthew-mbp-m4-b56-grader2 a blocked landing was read as no room at
+        all."""
+        if not self._ready(x, z):
+            return None
+        if (x, z, level) in self.blocked and not self.START_ON_BLOCKED:
             return None
         floors = {}
         perimeter = {}
+        touched = {}
         climbs = set()
         to_dungeon = False
+        down_from_ground = []
         total = 0
-        todo = [(x, z, level)]
+        # A blocked start: the whole footprint of the loc(s) the player stands
+        # in. A goto onto the middle of a 2x3 staircase steps off at its
+        # front, not into the stair's own blocked tiles (Ardougne castle's
+        # stairs at 2571,3295 read as a 1-tile "room" without this).
+        start = self.footprint(x, z, level)
+        todo = sorted(start)
         while todo:
             sx, sz, sl = todo.pop()
             if (sx, sz) in floors.get(sl, ()):
                 continue
-            if not self._ready(sx, sz) or (sx, sz, sl) in self.blocked:
+            if not self._ready(sx, sz) or ((sx, sz, sl) in self.blocked and (sx, sz, sl) not in start):
                 continue
-            seen = self._flood(sx, sz, sl, limit - total, perimeter)
+            seen = self._flood(sx, sz, sl, limit - total, perimeter, touched, start)
             if seen is None:
                 return None
             floors.setdefault(sl, set()).update(seen)
@@ -1602,20 +1635,81 @@ class MapWalls:
                     up, down = self.climb_ways(key[0])
                     if down and sl == 0:
                         to_dungeon = True
+                        down_from_ground.append(key)
                     for other in ([sl + 1] if up and sl < 3 else []) + ([sl - 1] if down and sl > 0 else []):
                         # the tiles beside the climb on the floor it leads to,
                         # not through a wall from it (a ring tile outside the
                         # upstairs wall is not where the climb comes out)
                         todo.extend((rx, rz, other) for rx, rz, fx, fz, side in self.climb_ring[key]
                                     if not self.walls.get((fx, fz, other), 0) & side)
+        if all((tx, tz, level) in start for tx, tz in floors.get(level, ())) and (x, z, level) in self.blocked:
+            # the player stands in a blocked footprint no walkable tile of this
+            # floor touches (water, a barrier, the museum barge's gangway at
+            # 3362,3447): no room to read, not a 1-tile one
+            return None
         tiles = [t for tiles in floors.values() for t in tiles]
+        # Every loc with an op the room touches -- a wall in its perimeter, a
+        # blocked tile it stops at, a loc inside it: one of these may be a way
+        # in or out that is not a door (a stepping stone, a squeeze gap, a
+        # portal, a counter flap with an op).
+        ops = set()
+        found = list(perimeter) + [loc for key in touched for loc in self.locs_at.get(key, ())] + \
+            [loc for sl, seen in floors.items() for tx, tz in seen for loc in self.locs_at.get((tx, tz, sl), ())]
+        for symbol, at in found:
+            # an op, or a script trigger (a use-on: Spirits of the Elid's
+            # desert_water_cave_root has no op, only [oplocu])
+            if OPS.get(("loc", symbol)) or symbol_triggers(symbol):
+                ops.add((symbol, at))
         return {
-            "floors": floors, "tiles": floors[level],
+            "floors": floors, "tiles": floors.get(level) or {(x, z)},
             "doors": sorted({(symbol, at) for symbol, at in perimeter if self.is_door(symbol)}),
+            "ops": sorted(ops), "down_from_ground": sorted(down_from_ground),
             "climbs": sorted({key[0] for key in climbs}), "to_dungeon": to_dungeon,
             "box": (min(t[0] for t in tiles), max(t[0] for t in tiles),
                     min(t[1] for t in tiles), max(t[1] for t in tiles)),
         }
+
+    def steps_off(self, x, z, level):
+        """The 4-way neighbours a player on (x, z, level) steps to without
+        crossing a wall (blocked tiles included: the caller decides)."""
+        out = []
+        for side, (dx, dz, opposite) in self.STEP.items():
+            if self.walls.get((x, z, level), 0) & side or self.walls.get((x + dx, z + dz, level), 0) & opposite:
+                continue
+            out.append((x + dx, z + dz))
+        return out
+
+    def in_room(self, room, x, z, level):
+        """Is a player on (x, z, level) inside `room` (an enclosure())? On a
+        tile the flood reached, or on a BLOCKED tile (a loc the flood does
+        not enter: a table, a barrel, a diagonal wall) that steps off into
+        it: a player teleported onto the furniture is in the room, and one
+        on a diagonal wall tile at its corner may step in."""
+        tiles = room["floors"].get(level, ())
+        if (x, z) in tiles:
+            return True
+        if (x, z, level) not in self.blocked:
+            return False
+        self._ready(x, z)
+        return any((fx, fz) in tiles or any(tile in tiles for tile in self.steps_off(fx, fz, fl))
+                   for fx, fz, fl in self.footprint(x, z, level))
+
+    def footprint(self, x, z, level):
+        """{(x, z, level)}: the tile, and when it is blocked every blocked
+        tile within 4 that carries a loc it carries (the rest of a table's or
+        a staircase's footprint)."""
+        start = {(x, z, level)}
+        if (x, z, level) not in self.blocked:
+            return start
+        mine = set(self.locs_at.get((x, z, level), ()))
+        if not mine:
+            return start
+        for dx in range(-4, 5):
+            for dz in range(-4, 5):
+                tile = (x + dx, z + dz, level)
+                if tile in self.blocked and mine & set(self.locs_at.get(tile, ())):
+                    start.add(tile)
+        return start
 
 
 _MAP_WALLS = None
@@ -3558,6 +3652,19 @@ class Grader:
                 "class": "CHEAT", "reason": "not in the ladder (a ConditionalStep state): %s" % crossed,
                 "guide_line": leaf.line, "alt_group": None,
             })
+        # A goto past a door or into a sealed pocket that no guide step can
+        # be charged with (Grader._charge_name) is a step of its own.
+        for name, hops in sorted(self.route_hops().items()):
+            if not name.startswith(self.UNCHARGED):
+                continue
+            reason = hops[0][1] if len(hops) == 1 else "%s (and %d more: ledger row%s %s)" % (
+                hops[0][1], len(hops) - 1, "" if len(hops) == 2 else "s",
+                ", ".join("%s %r" % hop[0] for hop in hops[1:]))
+            results.append({
+                "step": name, "type": "goto", "stage": None, "text": "", "targets": [], "point": None,
+                "class": "CHEAT", "reason": "no guide step to charge: %s" % reason,
+                "guide_line": None, "alt_group": None,
+            })
         self._stage_narration(results)
         self._alternatives(results)
         return results
@@ -4014,7 +4121,7 @@ class Grader:
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
         for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries(),
-                      self.enclosure_entries()):
+                      self.enclosure_entries(), self.enclosure_exits(), self.sealed_entries()):
             for name, items in found.items():
                 have = {key for key, _ in self._route_hops.get(name, [])}
                 merged = self._route_hops.setdefault(name, [])
@@ -4560,7 +4667,7 @@ class Grader:
         business); or another map frame. Not judged: a landing on open
         ground or in an area bigger than a building, a building with a climb
         DOWN from level 0 (a dungeon below may come out anywhere), a room
-        with no door (sealed: reached by its ladder), a hop with a press, walk, use or
+        with no door (sealed_entries' business), a hop with a press, walk, use or
         cast between it and an unstamped start, and a hop within
         DOOR_OPEN_TICKS of a press of the door (it may still stand open).
         Locs content adds or removes at run time are not seen."""
@@ -4583,7 +4690,7 @@ class Grader:
                 continue
             if walls is None:
                 walls = map_walls()
-            room = walls.enclosure(point[0], point[1], point[2], self.ENCLOSURE_MAX_TILES)
+            room, via = self._landing_room(walls, track, i)
             if room is None or not room["doors"]:
                 continue
             room["level"] = point[2]
@@ -4593,7 +4700,7 @@ class Grader:
             other_frame = abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200
             if other_frame:
                 where = "another map frame"
-            elif (before[0], before[1]) in room["floors"].get(before[2], ()):
+            elif walls.in_room(room, before[0], before[1], before[2]):
                 continue  # a hop inside the building (any floor its climbs reach)
             elif before[2] == point[2]:
                 where = "outside it on the same level"
@@ -4604,27 +4711,283 @@ class Grader:
             if self._door_opened_before(position, room["doors"]):
                 continue
             until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
-            leaf = self._hop_step(position, until, room)
-            if leaf is None:
+            doors = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["doors"][:3])
+            name = self._charge_name(position, until, room, "past " + room["doors"][0][0])
+            if name is None:
                 continue
             row, from_row = self.rows[position], self.rows[before_position]
             if stamped:
                 from_row = dict(from_row, step=from_row["step"] + " departure")
-            items = self._enclosure_entries.setdefault(leaf.name, [])
+            items = self._enclosure_entries.setdefault(name, [])
             if any(key == (row["index"], row["step"]) for key, _ in items):
                 continue
-            doors = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["doors"][:3])
             items.append(((row["index"], row["step"]),
-                "ledger row %s %r lands at %d,%d,%d in a room the map walls in (%d tiles%s, x %d-%d z %d-%d, "
+                "ledger row %s %r lands at %d,%d,%d%s in a room the map walls in (%d tiles%s, x %d-%d z %d-%d, "
                 "door %s: maps/m%d_%d.jl2) from %d,%d,%d (%s, row %s %r), with no press of that door in the "
                 "%d ticks before: it went past the closed door (enclosure_entries)" % (
-                    row["index"], row["step"], point[0], point[1], point[2], len(room["tiles"]),
+                    row["index"], row["step"], point[0], point[1], point[2], self._via_text(via),
+                    len(room["tiles"]),
                     "" if len(room["floors"]) == 1 else " on this floor, levels %s by %s" % (
                         ",".join(str(l) for l in sorted(room["floors"])), ",".join(room["climbs"][:2])),
                     box[0], box[1], box[2], box[3], doors, point[0] >> 6, point[1] >> 6,
                     before[0], before[1], before[2], where, from_row["index"], from_row["step"],
                     self.DOOR_OPEN_TICKS)))
         return self._enclosure_entries
+
+    # A goto no ladder step can be charged with is reported as a step of its
+    # own (grade() adds it, CHEAT), named "(goto past <loc>)".
+    UNCHARGED = "(goto "
+    # enclosure_entries charges a goto it cannot tie to a guide step to the
+    # next guide step the run does, else to an UNCHARGED step of its own;
+    # False is the seam-1 reading (not charged at all), kept for the fixtures.
+    ENCLOSURE_CHARGE_ANY = True
+    ENCLOSURE_NEXT_READING_TILES = 4
+
+    def _charge_name(self, position, until, room, what):
+        """The step name a goto at rows[position] is charged to: _hop_step's
+        leaf, else (ENCLOSURE_CHARGE_ANY) the first PASS row before `until`
+        named after a ladder leaf, else "(goto <what>)". Wanted!'s `mage`
+        and `pos2.goto` rows name no guide step, and the steps after them
+        are the test's own (`mage.talk`); twilightspromise's
+        `goto-enterHQ` names none either (there is no enterHQ step) and its
+        next guide row is goUpHQ, whose stairs are outside the side room it
+        landed in. Before matthew-mbp-m4-b56-grader2 all three went
+        uncharged."""
+        leaves = getattr(self, "_ladder_leaves", None) or []
+        if room is not None:
+            leaf = self._hop_step(position, until, room)
+        else:
+            leaf = self._row_leaf(self.rows[position]["step"], leaves)
+        if leaf is not None:
+            return leaf.name
+        if not self.ENCLOSURE_CHARGE_ANY:
+            return None
+        for row in [self.rows[position]] + [r for r in self.rows[position + 1:until] if r.get("verdict") == "PASS"]:
+            named = self._row_leaf(row["step"], leaves)
+            if named is not None:
+                return named.name
+        return self.UNCHARGED + what + ")"
+
+    def _row_leaf(self, row_step, leaves):
+        """The leaf a row is named after: the exact name, else the longest
+        name the row's name starts with, else the longest row_names_step
+        match (a row `goUpHQ` is goUpHQ's, not goUpHQ2's)."""
+        named = [leaf for leaf in leaves if self.row_names_step(row_step, leaf.name)]
+        if not named:
+            return None
+        row_name = norm(row_step)
+        exact = [leaf for leaf in named if norm(leaf.name) == row_name]
+        if exact:
+            return exact[0]
+        prefix = [leaf for leaf in named if row_name.startswith(norm(leaf.name))]
+        return max(prefix or named, key=lambda leaf: len(leaf.name))
+
+    ROW_CROSSES = re.compile(r"click_loc|pressed the copy|teleport: |\bemerged\b|\blanded\b")
+    LINE_CROSSES = re.compile(r"t\.player\.(click_loc|press|use_on|cast)\b|t\.drive\.op\b|t\.sail\.")
+
+    def _row_crosses(self, row):
+        """_row_moves without the plain walks: a press, a use on a loc, a
+        cast, an op, a teleport -- what can take the player through a wall
+        or a closed door. A walk (`walk_to`, a talk's `map_flag`) never
+        opens a door, so where it ends is reachable from where it began."""
+        if self.ROW_CROSSES.search(row.get("detail") or ""):
+            return True
+        line = self.row_line(row["step"])
+        return line is not None and self.LINE_CROSSES.search(self.test.code_lines[line - 1]) is not None
+
+    def _reading_after(self, track, i):
+        """Where the player stood next after the goto at track[i], before any
+        row that could take them through a wall or door (_row_crosses; a
+        walk or a talk's walk is fine): the next reading, or the next goto's
+        departure stamp. None when unknown."""
+        position = track[i][0]
+        for j in range(i + 1, len(track)):
+            later, point, is_goto = track[j]
+            if is_goto:
+                if any(self._row_crosses(row) for row in self.rows[position + 1:later]):
+                    return None
+                return self._goto_from.get(later)
+            if any(self._row_crosses(row) for row in self.rows[position + 1:later + 1]):
+                return None
+            return point
+        return None
+
+    @staticmethod
+    def _via_text(via):
+        return "" if via is None else " (a blocked tile on the room's edge; the player stood at %d,%d,%d next)" % via
+
+    def _landing_room(self, walls, track, i):
+        """(room, via): the enclosure the goto at track[i] lands in. A landing
+        on a blocked tile whose own flood is open (a diagonal wall at a
+        building's corner: it steps off inside and outside) is read by where
+        the player stood NEXT (_reading_after, within
+        ENCLOSURE_NEXT_READING_TILES on the same level, nothing moving the
+        player between): that tile's room, when the landing steps off into
+        it. Atza's house (atfirstlight goto-talkToAtza, 1696,3061 on
+        wallkit_wooden01_default01 shape 9; the next goto left from
+        1696,3064, inside). `via` is that next tile, else None."""
+        point = track[i][1]
+        room = walls.enclosure(point[0], point[1], point[2], self.ENCLOSURE_MAX_TILES)
+        if room is not None or not walls.START_ON_BLOCKED or point not in walls.blocked:
+            return room, None
+        after = self._reading_after(track, i)
+        if after is None or after[2] != point[2] or after in walls.blocked or \
+                max(abs(after[0] - point[0]), abs(after[1] - point[1])) > self.ENCLOSURE_NEXT_READING_TILES:
+            return None, None
+        room = walls.enclosure(after[0], after[1], after[2], self.ENCLOSURE_MAX_TILES)
+        if room is None or not walls.in_room(room, point[0], point[1], point[2]):
+            return None, None
+        return room, after
+
+    # A goto out of a room further than this may stand for a teleport out
+    # (room_exits' ROOM_EXIT_TILES, the same policy).
+    ENCLOSURE_EXIT_TILES = 24
+
+    def enclosure_exits(self):
+        """{step name: [((row index, row step), reason)]}: the mirror of
+        enclosure_entries -- a goto that LEAVES a room the map walls in (the
+        departure's flood closes within ENCLOSURE_MAX_TILES, a closed door
+        in its perimeter) for a tile outside it on the same level, at most
+        ENCLOSURE_EXIT_TILES away, with no PASS row pressing that door in
+        the DOOR_OPEN_TICKS before. A walk out of that room opens the door.
+        At First Light (b56 sampler): goto-returnToFoxAfterTrim left Atza's
+        house (1698,3063; fortis_door_l at 1698,3064) and the test never
+        clicked a fortis door. Charged like an entry (_charge_name).
+
+        Not judged: a hop further than ENCLOSURE_EXIT_TILES or to another
+        level or map frame (a teleport out of a room is a spell away, and a
+        climb is the climb rules' business: Dream Mentor's
+        goto-returnToOneiromancer, 76 tiles out of the brazier hall, is left
+        to that policy), a room with a climb down from level 0, a hop with
+        an unknown start or a press, walk, use or cast between, and a hop
+        within DOOR_OPEN_TICKS of a press of the door."""
+        if getattr(self, "_enclosure_exits", None) is not None:
+            return self._enclosure_exits
+        self._enclosure_exits = {}
+        if not self.rows:
+            return self._enclosure_exits
+        track = self.player_track()
+        walls = map_walls()
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if before[2] != point[2] or \
+                    max(abs(before[1] - point[1]), abs(before[0] - point[0])) > self.ENCLOSURE_EXIT_TILES:
+                continue  # another level, or far enough that a teleport out is the player's way
+            room = walls.enclosure(before[0], before[1], before[2], self.ENCLOSURE_MAX_TILES)
+            if room is None or not room["doors"] or room["to_dungeon"]:
+                continue
+            if walls.in_room(room, point[0], point[1], point[2]):
+                continue
+            if self._door_opened_before(position, room["doors"]):
+                continue
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            name = self._charge_name(position, until, None, "out past " + room["doors"][0][0])
+            if name is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._enclosure_exits.setdefault(name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            box = room["box"]
+            doors = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["doors"][:3])
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r leaves a room the map walls in (%d tiles, x %d-%d z %d-%d, door %s: "
+                "maps/m%d_%d.jl2) from %d,%d,%d (row %s %r) for %d,%d,%d outside it, with no press of that "
+                "door in the %d ticks before: it went out past the closed door (enclosure_exits)" % (
+                    row["index"], row["step"], len(room["tiles"]), box[0], box[1], box[2], box[3], doors,
+                    before[0] >> 6, before[1] >> 6, before[0], before[1], before[2], from_row["index"],
+                    from_row["step"], point[0], point[1], point[2], self.DOOR_OPEN_TICKS)))
+        return self._enclosure_exits
+
+    def sealed_entries(self):
+        """{step name: [((row index, row step), reason)]}: a goto that lands
+        in a POCKET the map closes on every side -- the landing's flood
+        closes within ENCLOSURE_MAX_TILES, with no door and no climb -- from
+        a tile outside it on the same level of the same map frame. Nothing
+        a player does reaches it on foot. At First Light (b56 sampler):
+        goto-talkToVerity and goto-talkToVerityEnd land at 1559,9467, behind
+        the bar counter (14 tiles, the flap hg_table_tavern02_door01 at
+        1556,9463 has no op), from 1557,9451 in the same cave.
+
+        A loc with an op or a script trigger in the pocket or on its edge
+        (MapWalls.enclosure's `ops`: a stepping stone, a squeeze gap, a
+        portal, a root a rope is used on) may be the way in: the hop is
+        charged only when none was pressed in the DOOR_OPEN_TICKS before
+        (Wanted!'s pos4.goto past the swamp cave's stepping stone, whose
+        pocket's only op loc is tog_cave_down), and not at all when the run
+        uses one before the next goto (the goto stood the player AT it, on
+        the wrong side of the map's blocked tiles: Spirits of the Elid's
+        desert_water_cave_root, Twilight's Promise's
+        colosseum_entrance_outside).
+
+        Not judged: a pocket with a door (enclosure_entries) or a climb (it
+        may be the way in), a hop from another level or map frame (a
+        ladder, a cave, a teleport), and the usual unknown start."""
+        if getattr(self, "_sealed_entries", None) is not None:
+            return self._sealed_entries
+        self._sealed_entries = {}
+        if not self.rows:
+            return self._sealed_entries
+        track = self.player_track()
+        walls = map_walls()
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if before[2] != point[2] or abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200:
+                continue
+            room, via = self._landing_room(walls, track, i)
+            if room is None or room["doors"] or room["climbs"] or room["to_dungeon"]:
+                continue
+            if walls.in_room(room, before[0], before[1], before[2]):
+                continue
+            if room["ops"] and self._door_opened_before(position, room["ops"]):
+                continue  # one of its op locs was pressed: that may have been the way in
+            room["level"] = point[2]
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            if room["ops"] and any(row.get("verdict") == "PASS" and self._pressed_between([row], [symbol], at)
+                                   for row in self.rows[position + 1:until] for symbol, at in room["ops"]):
+                # the goto stood the player AT the pocket's op loc and the run
+                # then used it (Twilight's Promise goto-enterColosseum onto the
+                # facade beside colosseum_entrance_outside, then Enter): the
+                # loc was not skipped
+                continue
+            name = self._charge_name(position, until, room, "into a sealed pocket")
+            if name is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._sealed_entries.setdefault(name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            box = room["box"]
+            ops = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["ops"][:3])
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r lands at %d,%d,%d%s in a pocket the map closes on every side (%d tiles, "
+                "x %d-%d z %d-%d, no door, no climb, %s: maps/m%d_%d.jl2) from %d,%d,%d "
+                "(row %s %r) on the same level: no walk reaches it (sealed_entries)" % (
+                    row["index"], row["step"], point[0], point[1], point[2], self._via_text(via),
+                    len(room["tiles"]), box[0], box[1], box[2], box[3],
+                    "no loc with an op" if not ops else "its only op locs %s not pressed in the %d ticks before" % (
+                        ops, self.DOOR_OPEN_TICKS),
+                    point[0] >> 6, point[1] >> 6, before[0], before[1], before[2], from_row["index"],
+                    from_row["step"])))
+        return self._sealed_entries
 
     def guarded_rooms(self):
         """[(composite X, room step S, room zones Z, door step O, O's zones A,

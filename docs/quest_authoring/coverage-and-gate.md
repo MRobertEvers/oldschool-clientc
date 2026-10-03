@@ -686,3 +686,53 @@ Landing it moved 70 committed greens plus bonevoyage, every one on this rule alo
 Juliet's room, the Duke's room, Phileas ...); their rows were reopened. Conservative misses: a
 building with a climb down from level 0 (the Champions' Guild), a room over 400 tiles, run-time
 locs, a door-less sealed room reached by a ladder.
+
+### A goto onto a table, a stair or a bar's back reads FULL; a goto out of a room, or with no step named, too (matthew-mbp-m4-b56-grader2)
+
+The b56 round-1 sampler found gotos of the `enclosure_entries` class that the rule still read FULL
+in four tests (atfirstlight, twilightspromise, wanted, dreammentor; shot_sampling_b56_2026-10-03.md).
+Why each missed, and what grades it now:
+
+- **The landing was ON a loc.** A goto lands where it is told, and these landed on Atza's table, a
+  barrel, `civitas_stairs_1x3`'s footprint, the bar's rock: `MapWalls.enclosure` read a blocked tile
+  as no room at all. It now floods from the whole footprint of the loc the player stands in (a
+  2x3 staircase steps off at its front). A blocked landing whose flood reaches no walkable tile
+  (water, the museum barge's gangway) is still no room. A landing on a diagonal wall at a room's
+  corner (`goto-talkToAtza`, 1696,3061, shape 9) is read by where the player stood next, before any
+  press: `(a blocked tile on the room's edge; the player stood at x,z,l next)`. A departure on a
+  blocked tile that steps off into the room is inside it (this removed one seam-1 false CHEAT:
+  death's `goToHaroldDoor1`, from the top of the stairs into the corridor).
+- **No guide step to charge.** `goto-mage`, `pos2.goto` (Wanted!) and `goto-enterHQ` (no
+  `enterHQ` step) were dropped because `_hop_step` found no leaf. Such a hop is now charged to the
+  next guide row before the next goto (`goUpHQ`), else reported as a step of its own, CHEAT:
+  `(goto past <door>)`, `(goto out past <door>)`, `(goto into a sealed pocket)` with "no guide step
+  to charge: ...".
+- **`enclosure_exits`: "leaves a room the map walls in ... it went out past the closed door".**
+  The mirror: the departure's flood is a room with a closed door, the landing is outside it on the
+  same level at most 24 tiles away (`ENCLOSURE_EXIT_TILES`, `room_exits`' policy: further may stand
+  for a teleport out), and no PASS row pressed the door in the 500 ticks before. Dream Mentor's
+  `goto-returnToOneiromancer` (76 tiles out of the brazier hall) is left to that policy.
+- **`sealed_entries`: "lands at ... in a pocket the map closes on every side".** A landing whose
+  flood closes with no door and no climb, from a tile outside it on the same level of the same
+  frame: behind Verity's bar (`goto-talkToVerity`, 14 tiles, the flap has no op), behind the
+  Custodia and Rising Sun bars, inside the Ikov web, in Kennith's room. A pocket whose edge or
+  inside has a loc with an op or a script trigger is charged only when none of those was pressed in
+  the 500 ticks before (Wanted!'s `pos4.goto` past the swamp cave's stepping stone), and not at all
+  when the run uses one right after the goto (it stood the player AT that loc: Spirits of the Elid's
+  root, Twilight's Promise's Colosseum entrance).
+- **Deliberately not graded:** a goto across a climb the guide names in an ObjectStep (the White
+  Knights' Castle stairs, the Taverley Dungeon ladder, the Lumbridge cellar trapdoor). Plain climbs
+  are travel; a prototype charging them moved 24 more tests (8 greens) and reverses that policy.
+  The Champions' Guild keeps its climb-down skip: `champions_trap_door_open` has no maplink row, so
+  where the cellar is cannot be read. McGrubor's Wood (876 tiles), the essence mine (825) and the
+  Black Knights' base in Taverley Dungeon (707) are over the 400-tile room limit.
+
+What an author does: never goto onto furniture or behind a counter; stand on the walkable side and
+talk or use across it. To leave a room, click its door (or walk out an open doorway), then goto.
+
+Proof: `tools/quest_gate/helper_coverage_enclosure_hops_test.py` (12 cases on the four round-1 runs,
+commits 7936d2d97 and OSRS-Content 994d64d507): 12/12, 4/12 with all four changes off, and each
+change off fails its own cases. Landing it moved 15 committed greens of b56 (blackknight,
+cooks_assistant, eadgar, enlightenedjourney, hauntedmine, hero, hunt, ikov, itgronigen, murder,
+queenofthieves, recruitmentdrive, seaslug, shadowsofcustodia, totem) and 25 of the 71 seam-1
+reopened rows; the list is build/seam_state/matthew-mbp-m4-b56-grader2/movers.tsv.
