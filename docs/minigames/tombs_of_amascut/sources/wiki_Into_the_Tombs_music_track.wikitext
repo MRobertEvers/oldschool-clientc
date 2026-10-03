@@ -1,0 +1,40 @@
+{{Infobox Music
+|name = Into the Tombs
+|number = 719
+|file = [[File:Into the Tombs.ogg]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|hint = This track unlocks in the Tombs of Amascut.
+|quest = No
+|instruments = Standard Drum Kit, Power Drum Kit, Bright Acoustic Piano, Acoustic Grand Piano, Sitar, Shamisen, Blown Bottle, FX 5 (brightness), String Ensemble 1, Choir Ohhs, Brass Section, Electric Bass (Finger), Tubular Bells, Orchestra Hit, Overdriven Guitar
+|duration = 07:11
+|tempo = 100 BPM
+|signature = 4/4
+|album = ''[[RuneScape-_Tombs Of Amascut|RuneScape: Tombs Of Amascut]]''
+|composer = Julian Surma
+|map = {{Map|3328,9152|3392,9152|3392,9088|3328,9088|mapID=-1|mtype=polygon|bucket=yes|zoom=2}}
+|cacheid = 734
+|sortname = Into the Tombs
+|unlockdetail = Unlocked in the [[Tombs of Amascut]].
+}}
+'''Into the Tombs''' is a [[music]] track that is unlocked in the [[Tombs of Amascut]]. During the first weeks of its release, until [[11 October]] [[2022]], the track could be heard in the [[Main Menu]] instead of [[Scape Main]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=2
+|date=24 August 2022
+|file=[[File:Into the Tombs (8-bit).ogg]]
+}}
+{{Music changes
+|version=2
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Into the Tombs.ogg]]
+}}
+{{Music changes footer}}
+{{Tombs of Amascut}}
+{{Music}}
+[[Category:Old School-exclusive music]]

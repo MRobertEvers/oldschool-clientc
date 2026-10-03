@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Perfect Kephri
+|image = [[File:Tombs of Amascut - Kephri's children.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Kephri in a group of two or more, without anyone taking any damage from the following: egg explosions, Kephri's attacks, Exploding Scarabs, Bodyguards, dung attacks. No eggs may hatch throughout the fight.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 442
+|leagueRegion = Desert
+}}
+'''Perfect Kephri''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Kephri]] in an group of two or more players without taking any damage from egg explosions, her auto-attacks, exploding scarabs, bodyguards (chip damage from range and melee bodyguards does not disqualify if prayed against, neither does poison damage) and dung attacks, at raid level 150 or above. In addition, players must not let any [[Agile Scarab]]s hatch.
+
+Unlike [[Perfect Ba-Ba]], [[Perfect Akkha]], and [[Perfect Zebak]], this combat achievement does not require any Kephri invocations to be enabled.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

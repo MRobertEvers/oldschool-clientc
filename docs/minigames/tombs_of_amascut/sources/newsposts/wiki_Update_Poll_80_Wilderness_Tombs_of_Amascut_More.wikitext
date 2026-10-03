@@ -1,0 +1,545 @@
+{{Update|date=17 July 2023|rev=18 July 2023|url=https://secure.runescape.com/m=news/poll-80-wilderness-tombs-of-amascut--more?oldschool=1|category=community}}
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! newspost.png|right]]
+{{clear}}
+==Poll 80 - Feedback==
+With an influx of discussion from you fine folk yesterday, we think it's time to give you a list of changes we've discussed as part of your feedback from Poll 80.
+{{Collapsed section|18|New Unpolled Changes - click to open}}
+We've seen a lot of feedback regarding what questions from Poll 80 should be polled and unpolled, which is a completely fair criticism. The Polling Charter was created to make sure that we refer to it when going over decisions like QoL Poll questions to ensure we are asking poll questions about the right things.
+
+For Poll 80, we've been misguided in our approach to this Quality of Life poll and we would like to make several changes that adhere to the Pollin Charter. We will look to be better in the future and continue to use the charter to identify correctly what needs to be polled vs unpolled changes.
+
+As for what we're making unpolled, everything in this section will be changed to unpolled:
+
+===Accessibility Changes for ToA===
+
+You'd be correct in thinking this change would qualify as unpolled when referring to the Polling Charter! As this change falls under accessibility, this will now be an unpolled change.
+
+===Smaller ToA Changes===
+
+Although for these questions, there will be some changes visually (especially for Question 5) we agree with the players and have moved both questions as unpolled changes for Tombs of Amascut.
+
+===Pyramid Plunder Changes===
+
+First, we’d like to clarify that this problem wasn’t caused by a bug, just a misbalance of the failure rates at higher level rooms, making it extremely easy to fail above Room 5 when opening Sarcophagi. As this is a balancing change, it will no longer be polled.
+
+===Blue Dragon Dust in NMZ Shop===
+
+Much like its former Red Spider Eggs brethren, we added a new, consistent method of obtaining this secondary which is why we want to remove it from the NMZ Shop. As for other secondaries found there, we don’t feel like much of the remaining ones impact things too much as there are plenty of ways to get them from other sources.
+
+So, like the previous removal, we will also be making this change unpolled.
+
+===Wilderness Boss Rework Singles Changes===
+We saw a lot of players read ‘Question 13’ and dislike the change, only to follow up by reading the next question to agree with the overall proposal.
+
+After a discussion with the team, we feel that these changes, alongside removing the 1-tick delay when entering the Singles Versions Lairs and the Medium Diary requirement to interact with these bosses are integrity changes and should be added unpolled to keep these bosses safer from nefarious users and make it better for activity in these areas.
+
+===Hard Diary & Tele Delay Removal===
+Although we’ve seen a lot of support for this some players have suggested that this makes it safer for players to escape by giving them this benefit.
+
+Whilst we can understand the sentiment, especially from PKers, we think that players should be rewarded for their time in the Wilderness and allow the opportunity to react quickly to the threat from another player.
+
+If a player can legitimately escape with fast reactions they should be allowed that opportunity and if not, then they should be paying closer attention.
+
+We also see the feedback that a lot of areas across the Wilderness are seemingly inconsistent in both terms of mechanics and risk vs reward which is something we want to continue to work towards adjusting.
+
+===Mage Arena 1 Capes===
+
+Players have pointed out that changes like ‘Make X’ options should be unpolled according to the Polling Charter, so it will be unpolled.
+
+===Repair Costs===
+Players think the costs of Void/Elite Void are too cheap and that items like the Ava’s Assembler & Dragon Defender should be added to the roster, with the latter fixing the issue of the Avernic being too high!
+
+We originally put the cost of Void/Elite Void lower to see how you felt about them, and now we’ve seen your feedback we know that this should be higher. Along with the other feedback points, here’s what we are doing to the Repair Costs.
+
+Here’s the list of changes:
+
+* Increase the repair cost of the Dragon Defender from 80,000 to 240,000
+* Increase the initial proposed cost of the Avernic Defender from 300,000 to 600,000
+* Increase the repair cost of Ava’s Assembler from 75,000 to 240,000
+* Increase the cost of Full Void from 300,000 to 640,000
+** 1 Helmet – 160,000
+** Void Body – 180,000
+** Void Bottom – 180,000
+** Void Gloves – 120,000
+* Increase the cost of Elite Void pieces, full set increases from 400,000 to 780,000
+** Elite Void Body – 250,000
+** Elite Void Bottom – 250,000
+
+===Avernic Defender Valued Risk===
+Players rightly pointed out this is a balancing issue rather than something that needs to be polled. We will be changing the 'risk value' of the Avernic Defender as originally described. In addition to this, we will look into the 'risk value' of similar items, with the first being the Ward of Elidinis (f). What do you think the ‘risk value’ of this would be?
+{{Collapsed section end}}
+
+{{Collapsed section|18|Current Unpolled Tweaks - click to open}}
+===Scorpia Loot Changes===
+Players would like the estimated improvement to be increased as with it being one of the most dangerous areas in the game, it should compensate fairly.
+
+First off, we’ve edited the accompanying text to give you a comparison of current GP/HR which stands at about 660,000 GP/HR at one kill per minute (this doesn't include the cost of supplies which brings it down significantly).
+
+Secondly, we agree that this should be an area of fair compensation, and we are going to explore increasing the new GP/HR. Not only that, but we think that a flat increase like that doesn’t give it justice for its risk, so the team would like to explore adding a unique of some kind. If you’ve got any ideas for this, please feel free to let us know so we can feature it in an upcoming poll!
+
+===Chaos Elemental Loot===
+Players were disappointed by the lack of description of how this will affect the drop table and some don’t want us to remove the Weapon Poison as it’s one of the best early methods of obtaining it.
+
+The easy part, we aren’t going to remove Weapon Poison from the drop table of this chaotic creature. The harder part is balancing, and we want to make sure we can put the Chaos Ele in a good place, so we are going to continue with removing all the 'troll' drops and review your feedback once this has happened. So, stay tuned for more!
+
+===Wilderness Boss Trio Drop Tables===
+Players still feel like compared to the Singles versions; these should offer more because of the risk associated with these bosses.
+
+We’ve seen a lot of great feedback to balance the difference in risk and reward from both the Singles and Multi variants of these reworked bosses.
+
+Although we can’t make any of these changes immediately within the timeframe of this blog, rest assured we will be revisiting all of the ideas that you’ve suggested to help improve balance and consistency as we previously stated!
+
+One thing we can change quite easily however is the Pet Drop rate between these two. Currently, the perception is that it’s better to go for the Singles Versions than the riskier Multis. So, as an unpolled change, we are going to make the drop rate from the Multi Versions better.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Question Changes & Feedback - click to open}}
+===Path of Apmeken Changes===
+Players feel like the changes we're polling are a good start, but more needs to be done to make this room feel better.
+
+We've seen from your feedback that the main gripe with this room is not feeling like you can 'control' the time it takes to complete the room. So, for clarity we are going to make the explosions from the Volatile Baboons one-shot any NPC in the 3x3 explosion radius, meaning you can use this as a legitimate tactic when clearing monkeys.
+
+We will also be making a slight change to Shaman Baboons and allowing you to Poison them to stop them from spawning their underlings (otherwise known as Thralls)!
+
+Whilst we don't believe making an Invocation for this room is the right solution, we've also seen other suggestions like making the spawns fixed from each wave and more that we are going to look at in the near future.
+
+===New Skill Guide===
+Players love that they can now open the Skill Guide without cancelling their current action but feel changing the design and making the newer version the default takes away from the iconic Skill Guide.
+
+The new Skill Guide offers a tonne of handy utility features that make it suitable for viewing in any style of play, but we know that the main gripe with the current Skill Guide is that you can't continue your activity when opening it.
+
+Although we can't give the current Skill Guide the resizing and movement functions of the new version, we are instead going to change the function of the current Skill Guide and stop it from pausing your ongoing action.
+
+We are still going to offer the New Style Skill Guide in this question but, we will not be making it the default option and leaving the current design as the standard.
+
+We've also seen players ask about other UI elements of the game that shouldn't stop actions and the team would like to at some point in the future review our current UI offerings and how they affect gameplay.
+
+===Calisto Changes===
+Players like the changes we’re making to Calisto but would like there to be no chip damage from this boss, like the other two Wilderness Boss Rework NPCs.
+
+We’ve rightly seen that part of the Wilderness is risk and deciding when you ‘should’ bank to reap your rewards for the content in the wasteland.
+
+Chip damage ultimately goes against this principle and makes you bank rather than allowing you to choose when to, so we are going to remove the Chip damage from the Boss.
+
+===Lava Dragons Redesign===
+Players are unsure of the current design iteration of the Lava Dragons, feeling that the current model doesn’t give as fierce of a look from the design of the body.
+
+We believe that due to the image we showcased, it’s hard to imagine what it would truly look like in-game, as this model doesn’t have any animations attached and isn’t ‘in situ’.
+
+As the Polling Charter states we shouldn’t be polling these kinds of changes, but we believed because of the long-standing legacy of the Lava Dragons it would be a good idea to check with you first!
+
+So, we will be removing this as a question and instead start further discussions with you all on how we can adapt these long-time lizards to fit the Old School aesthetic.
+
+Funnily enough, the artists had a fully updated model, and we used a previous version, so here it is! Let us know what you think.
+
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (6).png|600px|centre]]
+
+===Rogues’ Chest Rebalancing===
+Players are on board with this change, but with no numbers given feel that it’s hard to judge if this balancing will be ‘worth it’ as players feel that if it doesn’t at least match content like pickpocketing Vyres or Elves, it won’t be worth it.
+
+Ultimately, we want a focus on GP rewards over a huge experience boost, although we’d still want to improve that somewhat. With it being in the deep Wilderness, the focus should be on enticing players to the potential reward making you feel like it’s worth the risk.
+
+We understand the feedback and can assure you this is something we will keep in mind when approaching rebalancing, should it pass a poll.
+
+===PvP World Immunity===
+We’ve seen mixed reception regarding this change as currently with the PvP World PJ Timer and Loot Keys it seems redundant. Agreed, as this job was added to our backlog before the introduction of Loot Keys, this was overlooked, and we’ve removed this question.
+
+===VLS in PvP Worlds===
+Players would like to know why we are polling this again, as it’s failed every time it’s been asked from a poll.
+
+Whereas last time this question was polled, it was heavily restricted, we want to hear from you all and for those unfamiliar as to why we are asking this again, here’s some clarity around what it would impact.
+
+Simply, it’s an alternative weapon for players to use in PvP Worlds ONLY that wouldn’t break the balance of the worlds themselves, which has been constantly requested.
+
+Typically PvP worlds are full of PKers fighting and trying to hit big numbers to kill their opponent, rather than running their opponent out of food. The VLS lacks the ‘hitting big numbers’ factor when compared to current Meta weapons like the AGS, Dragon Claws or Voidwaker. Instead of the high damage hits these weapons offer, the benefit of the VLS is its consistent damage and not necessarily KO potential, which means it’s a fun, alternative weapon for players to try out PvP with.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Quality of Life Polls & Expectations - click to open}}
+We saw a lot of players discuss how they were disappointed with the number of Tombs of Amascut and Chambers of Xeric changes in this poll when previously we’ve stated they’d be the focus.
+
+Running these types of polls is a constant process of managing our resources to ensure we can deliver the changes that we’re offering. The truth is that sometimes we have to accept that content we know we can definitely deliver in a reasonable timeframe is better than not delivering anything. We try to strike a healthy balance between what you’re expecting to see and what we’re able to implement.
+
+In the case of Poll 80, a large amount of the work was already done as part of our recent GameJam, so it made sense for us to slot it in alongside the rest of what’s on offer. There is a LOT more we want to do for ToA, and we have some exciting changes for CoX lined up for the near future, but we’re not quite ready to share the full details with you just yet.
+
+We’re constantly reviewing the process these polls follow. We hope you can understand that with a game as vast and as content-rich as Old School RuneScape, the specific thing you might want, might not be what every other player wants. The team strive to create a good balance between different player types, content, and difficulty, but that doesn’t mean we can’t continue to improve. Expect to see more information on further changes to our QoL process!
+{{Collapsed section end}}
+
+It's time for our ''80th'' QoL poll, and we've got a fantastic array of options to celebrate this massive milestone.
+
+This poll’s theme is… Tombs of Amascut and Wilderness Content! Hold on to your waterskins and rev up the magic carpet, it’s time for a trip to the Kharidian Desert…
+{{ToC|limit=1}}
+{{clear}}
+==Tombs of Amascut==
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (1).png|center|600px]]
+
+
+Our latest raid is almost a year old, and has seen over 26 million completions so far! Be honest – how many of you are still running dry on Tumeken’s Shadow?
+
+With all those tomb-raiders zipping in and out, it’s no wonder that the Tombs are in need of a little touch-up – and you’ve given us plenty of suggestions! We’ll start with a bit of monkeying around…
+
+===The Path of Apmeken===
+The infamous ''monkey'' room, the one thing standing between you and a showdown with the blood-curdling Ba-Ba.
+
+One of the most common pieces of feedback for this particular room is that it feels too long compared to the other Paths, and playing better doesn’t speed things up.
+
+Here are the core issues:
+* There's a ''maximum'' number of monkeys that can be spawned in at once, which will prevent the next wave from spawning if it is reached. Baboon shamans, Volatile baboons and Cursed baboons don't count towards this cap.
+* There's a ''minimum'' number of monkeys where a new wave is forced to start. This means that if there are fewer enemies than the minimum, the next wave will begin as soon as possible.
+* There's a delay where the next wave won't spawn for a fixed number of ticks.
+
+Luckily, we can make some tweaks under the hood (perhaps using a ''monkey wrench''?) that will let skilled players save some time:
+* Increase the maximum monkey limit, meaning that waves are more likely to begin even if the room is already busy.
+* Increase the minimum monkey limit, meaning waves are more likely to start sooner rather than waiting for you to kill one or two pesky baboons before beginning.
+* Reduce the delay between waves, so that if the other conditions above are met then the room will proceed faster.
+
+While these changes definitely make things quicker, we run the risk of overwhelming players who aren’t yet familiar with the strategy. To fix this, we can give players a little help with clean-up by having the volatile baboon’s explosion deal damage to other baboons in the room. This means you could kite volatiles around and trigger them next to big groups of baboon thralls, use them to quickly deal with a baboon shaman, or perhaps use the pillar to stack a number of enemies up and pop them all with a satisfying explosion. BaBOOM!
+
+It's important for us to strike the right balance here, so please let us know what you think.
+
+{{News Poll|1|'''Should we make changes to the Path of Apmeken as outlined in Poll 80?'''<br>''(This includes increasing the minimum and maximum number of monkeys that can spawn and reducing the ticks between waves.)''}}
+
+Let's move to the other side of the tombs now, from the Path of Apmeken to the Guardian of Het…
+
+===Akkha===
+Akkha's enrage phase (otherwise known as<!-- the CUM PHASE teeheehee-->… no, we can’t say that…<!-- YES YOU CAN, DEWIT-->) was a hot topic early on in Tombs of Amascut’s life cycle. These days it feels like most players have gotten to grips with chasing Akkha around the room while navigating an onslaught of damaging… orbs, though we'd still like to make one last quality of life improvement.
+
+Right now, Akkha will teleport to a new location after a fixed number of hitsplats, determined by how many players are in the room. This leaves you to do a whole lot of running even if you’re not actually damaging the boss. We want to change this so that Akkha only teleports after a set number of ''damaging'' hitsplats, which would save you some cardio after hitting nothing but 0s.
+
+We think this solution keeps things challenging while providing more consistency during the fight – what do you reckon?
+
+{{News Poll|2|'''Should we make Akkha teleport after only ''damaging'' hitsplats during his final phase?'''<br>''(This means hitting 0s wouldn't cause Akkha to move around the room.)''}}
+
+===Accessibility===
+One of the biggest successes of this Raid is the level of accessibility it offers. With the Invocation system, players are able to customise their PvM experience to suit their playstyle and level of expertise. From those who haven't taken on Jad yet to long-standing PvM veterans with Zuk Helms and all, everyone can join in the tomb-raiding fun.
+
+However, we’ve seen feedback suggesting that the Invocations could be clearer about the impact they’ll have on your Raid. We want to improve readability and clarity across the board, while providing wiki links for more detailed explanations. This will be the first unpolled change.
+
+===Smaller Changes===
+There were a couple more points of feedback we saw in the recent survey that we'd like to address as unpolled changes:
+
+* Add the ability to deposit supplies in the Tombs' main area, next to the Helpful Spirit.
+* Add an option to deposit and retrieve your pickaxe in the Lobby Area, for use in the Path of Het.
+
+Adding a Deposit Box to the Lobby Area, would make it possible to deposit extra supplies and potions without letting players smuggle stuff from the Raid to the outside world.
+
+We are also creating a similar way to deposit and retrieve your Pickaxe – either a statue like the ones seen in the Path of Het or an option on our good friend the Bank Camel.
+
+We hope that these changes to Tombs of Amascut will keep it going for years to come!
+
+==Non-Wilderness Questions==
+Before we dive deep into the bloodthirsty and barren wasteland of the Wilderness we'd like to discuss a few other things. We’re not scared! Honest! We just want to whet your appetite for the big, cool changes… and make sure our spades are stored safely in the Bank.
+
+===Skill Guide===
+Iconic, easily accessible and one of the first things you discover as a player, the Skill Guide is there to help you understand what you can get from certain skills and at what level!
+
+But… isn’t it frustrating that clicking on this essential information pauses your current action? We’ve all been in the situation where we’d like to double-check our next milestone but can’t bear the momentary XP waste.
+
+Luckily, during the recent Game Jam one of our team members spent time working on a new Skill Guide that lets you peruse its many pages without disrupting your training activities.
+
+To implement this change, we’d need to alter the design of the Skill Guide – which is a problem, because we know how fond you are of the original UI! ''If'' this question passes the poll, we’ll offer a toggle which will let players switch between the new, more efficient style, and the style they know and love. However, the new version of the Skill Guide will be the default.
+
+Here’s the new and improved Skill Guide in action:
+
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (2).png|center|600px]]
+
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (3).png|thumb|center|600px|''If you can't see the video, click [https://cdn.runescape.com/assets/img/external/oldschool/2023/newsposts/2023-07-17/SkillGuide-Video.mp4 here] to watch it!''<br><br>'''Wiki Note: The original mp4 file, with a size of 29.6 MB, is too large to be uploaded to the wiki.''']]
+
+
+Phwoar!
+
+{{News Poll|3|'''Should we give players an alternative option for the Skill Guide that will not cancel your current action?'''<br>''(This would be the default going forward but players can toggle back to the previous version)''}}
+
+===Wintertodt Respawn Timer===
+This piece of feedback has been ''chilling'' out in our backlog for a while.
+
+Currently, Wintertodt has a randomised respawn timer, which we implemented to prevent third-party clients from adding a viewable timer. Since this is something we later added ourselves, we think it’s time to ditch the randomness and give the Wintertodt a consistent one-minute respawn time.
+
+We’ve also heard your feedback regarding moving the timer into the health bar to make it easier to see all the info you need at once. Well, since we’re here – why not!
+
+{{News Poll|4|'''Should we adjust the respawn timer at Wintertodt to 1 minute and improve its visibility?'''}}
+
+===Dragonfire Shield===
+Currently, this best-in-slot beast of an item has a fiery attack that can be used in a tight spot to deal a cheeky bit of damage. However, it behaves slightly differently between PvP and PvM. The attack gives Magic, Defence and Hitpoints XP versus monsters, but only Defence XP versus other players.
+
+We’d like to make this more consistent by having the attack only give Defence XP in both PvM and PvP – after all, it’s a defensive move!
+
+{{News Poll|5|'''Should we change the Dragonfire Shield's fiery attack to reward only Defence experience in both PvM and PvP?'''}}
+
+Alright. We’ve had a word with Perdu and our spades are secure. It’s time to enter… the Wilderness. Gulp!
+
+==Wilderness and PvP Changes==
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (4).png|center|600px]]
+
+
+This chunk of questions obviously takes a lot of inspiration from your feedback, but also draws on some of the smaller parts from recent Game Jam projects.
+
+===Callisto===
+It’s time to take a closer look at the big bear in the not-so-blue house. In the past, Callisto was made immune to Magic because people kept safe spotting him, but since we’ve redesigned his lair we no longer think this immunity is a ''bear'' necessity!
+
+We’d like to remove Magic immunity from both Callisto and Artio, while augmenting their Magic defence to compensate.
+
+We also know chip damage has been a hot topic lately, and we’d like to reduce the % of chip damage taken when facing these gruesome grizzlies.
+
+Lastly, we’d like to adjust the guaranteed freeze players can get any time they’re above 0 accuracy to make it a bit more balanced.
+
+{{News Poll|6|'''Should we remove the Magic Immunity, adjust the Magic Defence and reduce the % of chip damage from Callisto?'''}}
+
+===Webweaver Bow===
+''Fangs'' for the feedback on this one! One of the coolest things about the Webweaver Bow is its special attack, which fires four arrows at once.
+
+While that’s great, it uses Ether, rather than the energy usually used by special attacks. We want to reduce the amount of Ether used per special attack from 4 to 1 to make up for it.
+
+{{News Poll|7|'''Should we change the Webweaver Bow's special attack to consume 1 ether instead of 4?'''}}
+
+===Random Events===
+A smaller change, here – we’d like to prevent Random Events from spawning in the Wilderness Boss Dungeons. This should make for a less distracting experience – and it’ll stop the Mysterious Old Man having to sign so many insurance forms!
+
+{{News Poll|8|'''Should we remove Random Events from spawning in the Wilderness Boss Dungeons?'''}}
+
+===Arceuus Spells and PvP===
+Two of the spells that stick out the most from the Arceuus Spellbook are '''Mark of Darkness''' and '''Greater Corruption'''. Currently, using them against other players doesn’t feel great – so we’d like to breathe a little more life into them (haha) with a couple of buffs.
+
+First, we want to give both Lesser and Greater corruption 50% accuracy (instead of 33% and 66% respectively). But wait, isn’t that ''less accurate'' than the current accuracy bonus on Greater Corruption? Hold your horses – to compensate, we’re doubling the Prayer drain effect on this spell. Scary stuff!
+
+Additionally, we'd like to tweak Mark of Darkness to work a little more like the Charge spell, where it will take effect on you, the caster, rather than your target. This would mean you'd use Mark of Darkness to supercharge your next Corruption spellcast, rather than endlessly splashing your Mark of Darkness.
+
+{{News Poll|9|'''Should we adjust Mark of Darkness and Greater Corruption as outlined in Poll 80?'''}}
+
+===Lava Dragons===
+They’re bubbly, they’re ferocious, and they’re super hot… let’s talk lava dragons!
+
+With the introduction of Ensouled Dragon Heads, we’ve become aware that lava dragons don’t have that drop. Obviously they do have heads, so instead of replacing any current loot we’d like to add this as an extra drop on their table.
+
+{{News Poll|10|'''Should we add Ensouled Dragon Heads to the Lava Dragons droptable?'''}}
+
+===Rogues' Chest===
+Much like the Muddy Chests we’ll talk about later in this poll blog, the Rogues’ Chest is in a multi-combat area deep in level 54 Wilderness and requires a high Thieving level to open. With an average loot of around 1,600 GP (making it around 330,000 GP per hour) we think this could be a little higher – especially when you consider that methods at similar levels give better rewards without any of the risk!
+
+We want to increase the GP and XP per hour first and foremost. As an extra bonus, we’ll also consider adding a little semi-rare something to the loot table. With your approval, we could revitalise this under-loved area of the Wilderness!
+
+{{News Poll|11|'''Should we rebalance the XP and GP per hour of the Rogues' Chest?'''}}
+
+===Looting Bag===
+The Looting Bag is an essential item for anyone who plans to tackle the Wilderness. But it has a small issue that’s come up time and time again in your feedback – sometimes, you don’t ''want'' certain items to go into your Looting Bag, and you have to constantly close and open it to make sure you have what you need to hand.
+
+We want to add a toggle feature that will let players stop Blighted Food and Potions from being stuffed into the Looting Bag.
+
+{{News Poll|12|'''Should we introduce a toggle option on the Looting Bag that would stop Blighted supplies from automatically being added to the bag?'''}}
+
+===Larran's Chest Ladder===
+As we've recently made Larran's Keys tradeable, we've seen more activity crop up around ye olde Pirate Ship west of the Pirates' Hideout. We’ve also seen players commenting that the ladders of the ship make it difficult to chase targets – if they get a freeze off, they can leave you stuck upstairs while they make their escape.
+
+While many popular ladders (there's a phrase you don't hear every day...) exist in multi-combat zones, this particular ladder is in a single-way combat zone and can prove to be pretty frustrating if you're looking to fight here.
+
+We’d like to offer an alternative – if this question passes, if you are frozen or bound around the Pirate Ship, you will be unfrozen as soon as the caster uses a ladder, similar to being unfrozen when the caster runs too far away. This should make battles in this area more interesting, and hopefully it’ll increase activity too!
+
+{{News Poll|13|'''Should we remove freezes and binds on a player if the player casting the spell has travelled up or down the ladders by Larran's Chest?'''}}
+
+===Cannons and PvP Worlds===
+Currently, Dwarven Multicannons cannot be placed in PvP worlds. This is actually a bit weird, because Dwarven Multicannons can’t actually damage other players. We’d like to enable them again so that players can kill monsters in between bouts of PvP.
+
+Of course, if this question passes, we’ll ensure that Cannons can’t be used in the same areas as Looting Bags.
+
+{{News Poll|14|'''Should we remove freezes and binds on a player if the player casting the spell has travelled up or down the ladders by Larran's Chest?'''<br>''(These wouldn't be allowed to be placed anywhere the Looting Bag could work)''}}
+
+===(NEAR MISS) VLS in PvP Worlds===
+For our final question, we’ve got a near miss! This question was previously run as a restricted poll, which led 74.6% of you to vote ‘Yes’ to Vesta’s Longsword in PvP Worlds. Since it was so close, we want to give you another chance to allow this iconic item into PvP Worlds ONLY.
+
+If this question passes, players will be able to use Vesta’s Longsword in PvP Worlds against other players. They will not be able to use it outside of PvP Worlds, and when fighting NPCs it will lose all bonuses – effectively making it a cosmetic item.
+
+{{News Poll|15|'''Should it be possible to use Vesta's Longsword in combat against other players in PvP worlds?'''<br>''(The Longsword would lose all bonuses when used against NPCs, effectively turning it into a cosmetic item.)''}}
+
+==Unpolled Changes==
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (7).png|center|600px]]
+
+
+That’s all for the polled changes, but as usual we’d also like to include some Quality of Life improvements that we feel don’t need a poll.
+
+Back to the Lava Dragons! Currently, the lava dragons’ models contain textures from before the creation of Old School, which gives them a somewhat messy look.
+
+We’d like to make the lava dragons look a little fiercer – despite their safespot, they’re supposed to be terrifying monsters!
+
+Here’s how our proposal stacks up against their current model:
+
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (5).png|thumb|center|600px|''Current Lava Dragon'']]
+
+[[File:Poll 80- Wilderness, Tombs of Amascut & More! (6).png|thumb|center|600px|''Proposed Lava Dragon Rework'']]
+
+===Pyramid Plunder===
+Back in Poll 78 we changed certain elements of the Pyramid Plunder minigame. Good news – that all went down a treat! Less good news – while we were working on it we noticed something… rather odd.
+
+Now as you’re all aware, the big reward from this minigame is the Pharaoh’s Sceptre, which lets you teleport all over the Desert. Now, your chance to get the Sceptre is ''supposed'' to increase with each room you complete, which makes sense, because each room requires a higher Thieving level than the previous one.
+
+Unfortunately, it seems like somebody knocked over the Mummy’s brain jar when he was doing the maths on this one, because reaching Room 6 actually ''reduces'' your chance to get a Sceptre. By the time you reach Room 8, you’re ''four times'' less likely to receive one – turning Pyramid Plunder into a pyramid blunder.
+
+Obviously, we want to fix it so that players have a fair chance to obtain this coveted loot – but since this is a significant change, we thought we’d ask you first.
+
+===Blue Dragon Scales and Nightmare Zone===
+Nightmare Zone already boasts some of the best AFK methods in the game – and if you know what you’re doing, you can rack up a number of points too.
+
+Much like their brethren Red Spider Eggs, we’d like to remove Blue Dragon Scales from the Nightmare Zone Shop since we recently gave people a faster way to acquire them.
+
+===Wilderness Boss Rework Caves===
+On the subject of Wilderness bosses, let’s talk about their lairs. Currently, we’ve noticed a couple of issues with how players enter and leave the caves.
+
+As Wilderness content goes, we feel that the singles variants of the Wilderness bosses (Calvar'ion, Artio and Spindel) are perhaps a little too safe, so we'd like to up the stakes by adding a short teleport delay, similar to the one present at the Revenant caves (more on that later). We’d also offer players the ability to remove this delay if they’ve completed the Hard Wilderness Diary.
+
+Secondly, we are going to remove the 1-tick delay before being able to act upon entering the caves – although there are animations that play here, so we’ll have to ensure that these still play correctly.
+
+Hopefully, these changes will make PvP in these areas feel a little more fluid and get that blood pumping, whether you're doing a spot of Slayer or [https://www.youtube.com/watch?v=17gJNqV2LNs&pp=ygUJb3NycyByaHlz assembling an entire Voidwaker without banking]!
+
+===Wilderness Boss Rework Unlock===
+The new-and-improved Wilderness Bosses are ''super'' popular – but unfortunately, that makes them a target for less savoury individuals with nefarious designs.
+
+Although our fantastic Anti-Cheating Team are aware that this area is a hotspot and keeping a close eye on things, we want to lighten their load and make it harder for illegitimate players to access the Wilderness Bosses.
+
+To do this, we are locking the Singles versions of the bosses behind the Medium Wilderness Diary.
+
+We understand that this approach won’t be everyone’s cup of tea, but hope you’ll see the benefit of keeping more bots out of our bosses.
+
+===Revenant Caves Teleport===
+Another teleport change! In line with what we’ve promised above for the Wilderness Boss caves, we are going to offer players who’ve completed the Wilderness Hard Diary the ability to remove the teleport delay at the Revenant Caves.
+
+===Wilderness Boss Loot Tables===
+With the success of the Wilderness Boss Rework, we’d also like to revitalise some of the less well-known Wilderness bosses by boosting their loot tables. Please note that the figures listed here are all subject to balance testing, and may look different on launch.
+
+;Scorpia
+This boss is some of the riskiest content in the Wilderness. You’re not just fighting this mean mama, you’re also fighting her kids – and whichever passing PKers decide to get in on the action. This would be pretty cool, if Scorpia’s horrible loot table didn’t mean you actually lose money by fighting her.
+
+We’d like to increase Scorpia’s average loot to around 2 million GP/hr, up from a measly 11,000 GP per kill.
+
+;Chaos Elemental
+This creature of PuRE chAoS (and parent to the cutest pet around) is an iconic Old School boss, but besting it in battle is likely to leave you out of cash. To make it a bit more lucrative, we’d like to remove some of its weaker drops like Bat Bones and Weapon Poison.
+
+;Wilderness Boss Rework - Multi Trio
+Okay, okay, we know we said the Wilderness Boss Rework was very popular – and it was! – but we still think this fearsome trio aren’t meeting the values we were aiming for. To rectify this, we’d like to increase the loot available for groups at the multi-combat variants.
+
+One of the simplest ways to boost profitability here is to increase the ''minimum'' loot quantity from 15% up to 25%. This would make it effective to tackle these bosses in teams of 5, instead of 7. Currently teams of 7 barely see a boost in drops (around 105% loot per kill) whereas a team of 5 will get 25% more loot.
+
+We also want to include some specific changes for each boss:
+* Callisto: Increase Rune 2-handed Sword drops from 1 to 3 and remove existing minimum quantities of Blighted Anglerfish, Coins and Dark Crab.
+* Venenatis: Remove existing minimum quantities of Rune Darts and Rune Knives.
+* Vet'ion: Remove existing minimum quantities of Blighted Anglerfish, Coins, Dark Crab, Rune Darts and Rune Knives.
+
+In the above cases, 'removing minimum quantities' means giving these drops a static quantity instead. For example, if you could currently receive 15-50 Blighted Anglerfish, removing the minimum quantity would result in you always getting 50 Blighted Anglerfish.
+We also want to add the following valuable items to the loot table of all three bosses:
+* Blighted Anglerfish (Noted)
+* Blighted Ancient Ice Sack
+* Blighted Super Restore (4)
+* Dragon Dagger
+* Dragon Platelegs
+* Dragon Plateskirt
+* Mystic Air Staff
+* Mystic Earth Staff
+* Mystic Robe Top
+* Mystic Robe Bottom
+* Rune Kiteshield
+* Rune Platelegs
+* Water Battlestaff
+* Wilderness Crabs Teleport
+
+;Spindel
+The singles variant of Venenatis always attacks on a 4-tick cycle. However, when moving to a spot that’s 1 tick away, it will attack again instantly, which makes the fight inconsistent. We want to fix this issue, and compensate players by giving them adequate resupply drops after each kill.
+
+However, this will take some balancing to ensure players aren’t able to stay at Spindel indefinitely. Watch this space!
+
+===Mage Arena===
+Back up north, we know that PvP’ers are still diehard fans of the original Mage Arena Capes. These flashy bits of fabric are as iconic as they are useful, but actually getting them can be a little tedious.
+
+So, we thought we’d make things easier by adding a ‘Make X’ option once you’ve completed the initial quest – although this does mean you can only make up to the number of Capes you can hold in your Inventory at the time.
+
+===Repair Costs===
+Isn't it satisfying to make someone 'sit' in the wilderness wearing Elite Void and Firecape, and as they shout "Pleae" you run to trade your Loot Key in and oh... that's only 150,000 GP.
+
+Considering how powerful these items are, the repair costs are noticeably low. We’d like to change that:
+
+
+{| class="wikitable" style="text-align:center; width:500px;"
+|-
+!Item
+!Current Cost
+!New Cost
+|-
+|Void (1 Helm, Body, Bottom & Gloves)
+|160,000
+|640,000
+|-
+|Elite Void (1 Helm, Elite Body, Elite Bottom & Gloves)
+|170,000
+|780,000
+|-
+|Fighter Torso
+|50,000
+|150,000
+|-
+|Firecape
+|50,000
+|150,000
+|-
+|Infernal Cape
+|75,000
+|225,000
+|-
+|Ava's Assembler
+|75,000
+|240,000
+|-
+|Ava's Assembler
+|80,000
+|240,000
+|-
+|Avernic Defender
+|1,000,000
+|600,000
+|}
+
+===Avernic Defender (l)===
+On the topic of cool items, a particularly smooth-voiced individual recently pointed out that the Avernic Defender actually ranks higher in value than something like a Berserker Ring, which doesn’t make much sense to us! So, in order to make sure that the Defender sits in a more balanced place, we want to lower its value from 5,000,000 GP value down to 1,200,000 GP, which is the price of the Trouver Parchment + 500k.
+
+===Muddy Chests===
+Like the Rogues’ Chest we spoke about above, we think we can all agree that the loot from Muddy Chests just isn’t worth the hassle.
+
+We’d like to review the loot table to include Wilderness-specific items like Blighted supplies and Larran’s Keys – although this is subject to balancing, of course. We’d also like to note that these changes would only affect Members.
+
+===Wilderness Diary===
+There are some great rewards from the Wilderness Diary, but one of the more underwhelming ones is the miserable 50 Runes you get from the final tier.
+
+Considering that this tier requires multiple high-level skills ''and'' risking life and limb in the most dangerous part of the map, we reckon it should be a bit more rewarding. Our plan is to bump the number of Runes up to 200 and give players the chance to get ''all'' kinds of Runes – a much better reward for one of the toughest Diaries in the game.
+
+===Blighted Magic Sacks===
+Blighted Sacks have been a great way to give players some utility without having them cart around big piles of Runes, but we think they could be even better.
+
+Firstly, we’d like to ensure that Wave and Surge Sacks give players access to all the relevant Wave and Surge spells.
+
+Next, we’d like to convert Bind and Snare Sacks into Entangle Sacks, which will let players cast all three binding spells.
+
+You’ll still need the appropriate Magic level to cast each spell, but this change means you can cast all your favourites with just one item!
+
+===Revenant Caves Shortcut===
+Although the shortcut in this area gives players another way to escape the clutches of PKers, it doesn’t make sense that you can still jump it while encased in ice or tangled by magic.
+
+We’d like to experiment with making it so that players who are currently frozen or bound cannot use this shortcut until the 3-tick ‘thaw’ window towards the end of a freeze. You can still use the shortcut, but you’ll have to wiggle free first!
+
+===Scrying Pool===
+A few years ago, we disabled the Scrying Pool as it was being used for nefarious purposes. However, with a couple of engine updates, we’ve been able to mitigate this issue, and we’re pleased to announce that the Scrying Pool will soon be making a triumphant return!
+
+===Splash Weapons===
+Recently we unintentionally released holiday event items that were guaranteed to hit 0, and because this was unintended behaviour, we removed them. However, the people have spoken, and they want their silly, useless items back!
+
+Soon, the Cursed Goblin Hammer and similar items will go back to having -100 in all combat bonuses. We reckon this change will really make a splash!
+
+==What's Next?==
+Normally, this is where we’d talk about the next numbered QoL poll. However, if you have a read back through the blog, you’ll notice one thing missing…
+
+When are we going to make changes to Chambers of Xeric? Old School’s first-ever raid still has issues with scouting and scaling. Because these are long-requested improvements, we want to make sure the Quality-of-Life team are able to dedicate some time towards resolving them.
+
+Therefore, the next thing on our list is a set of Chambers of Xeric improvements, ''not'' Poll 81.
+
+Well, after reading through all that we think you deserve a treat. So here’s a magical Poll Blog blessing for your next grinding sesh. Best of luck, and happy ‘scaping!
+
+----
+
+You can also discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,883,66283665 official forums], on the [https://www.reddit.com/r/2007scape/comments/1522mk4/poll_80_wilderness_tombs_of_amascut_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

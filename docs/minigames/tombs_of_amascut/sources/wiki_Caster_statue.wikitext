@@ -1,0 +1,17 @@
+{{Infobox Scenery
+|name = Caster statue
+|image = [[File:Caster statue.png|180px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options = None
+|examine = It seems to be casting some sort of energy beam!
+|map = {{Map|name=Caster statue|3677,5281|mapID=-1|r=2|mtype=square}}
+|id = 45486
+}}
+The '''caster statue''' is found in Path of Het in the [[Tombs of Amascut]]. Periodically shooting energy beams, it must be redirected to the [[shielded statue]] in order to weaken [[Het's Seal]].
+[[File:Path of Het - energy beam.png|thumb|left|300px|Het's Seal weakening after the energy beam is redirected to the shielded statue.]]
+
+{{Tombs of Amascut}}

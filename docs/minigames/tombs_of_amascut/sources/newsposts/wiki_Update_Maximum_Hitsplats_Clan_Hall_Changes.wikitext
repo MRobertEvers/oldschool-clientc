@@ -1,0 +1,116 @@
+{{Update|date=3 August 2022|link=https://secure.runescape.com/m=news/maximum-hitsplats--clan-hall-changes?oldschool=1|category=game}}
+[[File:Maximum Hitsplats & Clan Hall Changes newspost.png|right]]
+{{clear}}
+
+''This week's update brings some much anticipated features from Poll 76, including a whole host of quality of life changes, some TLC for the Clan Hall, and shiny hitsplats!''
+
+----
+<center>'''NOTE: The sections in a previous iteration of this newspost pertaining to the Clan Hall have been removed and instead scheduled for next week alongside other Clan Hall changes. Apologies for any inconvenience caused and for any piano and/or cat enthusiasts throughout Gielinor this week.'''</center>
+__TOC__
+==Trimmed Max Hitsplats==
+You might have noticed that Old School RuneScape features an awful lot of numbers. Experience, levels, killcounts, completions - you get the gist.
+
+However, very few numbers feel better than a big ol’ hitsplat. Whether it's the 73 your friend has so generously risked for you or your Crystal Halberd working overtime to skip that pesky Sotetseg ball: big hits feel good.
+
+And while big hits feel good, ''max hits'' feel even better! Today's update gives players the option to toggle a golden trim for every max hit they land.
+
+[[File:Maximum Hitsplats & Clan Hall Changes (1).png|centre|600px|thumb|''You are GOLD (gold!)'']]
+
+In this context, a 'max hit' means the biggest number you can possibly roll, taking into account your gear, active buffs and Prayers, and anything else that might affect your damage.
+
+Note that it only applies to damage you’re dealing directly to an opponent, so typeless damage like recoil or environmental damage won’t appear with this luxurious trim.
+
+Your hitsplats will also remain untrimmed any time where damage is guaranteed, such as when facing Hespori’s flowers. After all, if all your hits were max hits, they wouldn’t feel special anymore!
+
+Lastly, any max hit below 10 won’t show, because a single digit isn’t quite punchy enough to deserve the trim. Should you disagree, you can always edit that threshold in the Settings! Whether you want to see your mighty 3s highlighted in all their glory, or think nothing less than a solid 50 is deserving of the honour, the option is there for you to choose.
+
+It should go without saying, but just in case: don’t trade with any other player claiming they can trim your max hits for you. They could steal your max hits, and you might never get them back! The only legit way to get the trim is in the Settings menu.
+----
+If you want a taste of what's to come next week, check out this neat expandable section!
+{{Collapsed section|18|Clan Hall Changes(SPOILER WARNING!)}}
+==Clan Hall Upgrades==
+Need a break from all that hit splatting? Kick back and relax in an upgraded Clan Hall!
+
+Be careful where you sit, though – the latest member of your Clan, Hannibal the Clan Hall cat, just got a whole lot more personality! Now you and your Clanmates can pet this fluffy fellow to your heart’s content, and even feed him fish and milk to make sure he’s living his best life. Maybe stay away from the liver and chianti, though…
+
+If you’re the proud owner of a Catspeak Amulet, you’ll also be able to chat to Hannibal and receive his wisdom on a number of topics – including the nearby piano, which has also received some love this week!
+
+[[File:Maximum Hitsplats & Clan Hall Changes (2).png|centre|600px]]
+
+We've sent an army of piano tuners (Hannibal kept eating the piano salmons) to your Clan Halls to perform some much-needed musical maintenance.
+
+Adventurers who sit down to play a tune should find that the black keys are now working when using either the 'Entertain' option for your clan or the 'Play quietly' option for yourself.
+
+We hope to see some fantastic covers now that you’ve been given a full range of musical options!
+
+Finally, if you want to see who exactly is busting out another Sea Shanty II in the Clan Hall, the Clan Chat now indicates how many members are currently in the channel, as well as how many people are in the Clan. Click or tap on that info to switch it to the number of guests in the channel instead.
+{{Collapsed section end}}
+==Poison Dynamite==
+Lastly, let’s talk Poison Dynamite. This explosive item is aimed at restricted accounts aiming to minimise their combat experience.
+
+When we removed ‘spawn hitting’, it made it much harder for these accounts to gain critical achievements to progress their adventure, so we proposed this caustic, explosive combo to let these players enjoy the game in the manner they were accustomed to.
+
+You’ll be able to make Poison Dynamite by mixing your bogstandard, boring Dynamite with three Cave Nightshade plants. When lit with a Tinderbox (and after a short delay), your creation will explode and deal damage that scales with your Firemaking level.
+
+Assuming the enemy isn’t immune to poison, there’s a chance that they’ll start to take poison damage, too. Yowch!
+
+So when can you get your hands on this stuff? Soon! We’ll be running a beta to make sure that Poison Dynamite works as intended very soon. We’d say ‘keep your eyes peeled!’, but actually, we recommend wearing safety goggles…
+
+==Other Changes==
+* The Agility skill guide now shows the correct Ranged level requirement for the Bow of Faerdhinen.
+* Checking the contents of your Looting Bag while moving no longer makes the game forget your destination.
+* The Spellbook selection drop-down boxes on the PvP Arena load-out menus now work more reliably on mobile devices.
+* The level requirement checks for enchanting various Crossbow Bolts have been corrected.
+* The click-zone of the skull slope has been expanded in the Ape Atoll Agility course. This should make the journey to your favourite Monkey Backpack a little smoother!
+* Players who have unlocked access to the rowing boats north of Fossil Island can now row there directly from the camp.
+* Pending damage is no longer cleared as players cross rooftop Agility obstacles on the Deadman world. Make sure to watch your back the next time you try making a death-defying rooftop escape during combat - we know it looks cool, but we're not sure it's worth the damage stack!
+* Camera effects found inside Baba Yaga's house, Barrows and the Fishing Trawler minigame can now be toggled in the Settings menu. Perhaps buying Astral Runes isn't quite the action-packed, thrill-seeking experience we'd always hoped it could be...
+* Key Master Teleport Scrolls are no longer tradeable via PvP death.
+* Players with items stored in an item retrieval service (like the ones at Vorkath or Hespori) will now be reminded of this when logging in. The message will gently remind you that if you die before retrieving your items then they'll be gone forever.
+
+==Miscellaneous Updates==
+===Tombs of Amascut Blog Update===
+Keen to learn all you can about our upcoming raid, Tombs of Amascut? Then you’ll want to head to [https://secure.runescape.com/m=news/tombs-of-amascut-everything-you-need-to-know?oldschool=1#Invocations this post].
+
+We’ve recently updated it with more information about the Invocation system, and how it will impact the difficulty of the raid and the loot you’ll receive. While we haven’t released the names of any specific Invocations just yet, this post should tell you all you need to know about this exciting new mechanic.
+
+As a reminder, Tombs of Amascut launches on August 24th – so get your gear in… gear and prepare to face our most versatile raiding experience yet!
+
+===Tombs of Amascut Login Screen Competition===
+In case you missed it, there’s a poll running in-game right now to determine the winner of our Tombs of Amascut login screen competition. We’ve narrowed it down to four finalists, and need your help to choose the winner!
+
+You can see the finalists below. Don’t forget to hop in-game and cast your vote!
+
+{| class="wikitable" style="margin:0 auto"
+| [[File:Maximum Hitsplats & Clan Hall Changes (3).png|centre|300px]]
+| [[File:Maximum Hitsplats & Clan Hall Changes (4).png|centre|300px]]
+|-
+! A
+! B
+|-
+| [[File:Maximum Hitsplats & Clan Hall Changes (5).png|centre|300px]]
+| [[File:Maximum Hitsplats & Clan Hall Changes (6).png|centre|300px]]
+|-
+! C
+! D
+|}
+
+==PvP Rota==
+The PvP rota has moved to Period A:
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+The PvP Arena is using 'Zerk' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+Discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,825,66258185 official forums], on the [https://www.reddit.com/r/2007scape/comments/wf2kil/maximum_hitsplats_clan_hall_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

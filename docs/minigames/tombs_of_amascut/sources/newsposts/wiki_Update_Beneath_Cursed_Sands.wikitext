@@ -1,0 +1,204 @@
+{{Update|date=27 April 2022|link=https://secure.runescape.com/m=news/beneath-cursed-sands?oldschool=1|category=game}}
+[[File:Beneath Cursed Sands newspost.png|right]]
+{{clear}}
+__TOC__
+----
+[[File:Beneath Cursed Sands (1).png|600px|centre]]
+
+''When Sophanem was beset by a series of plagues, the gates to the golden city of Menaphos quickly closed. They've been locked ever since – no one goes in, and no one comes out. There are, however, rumours of strange happenings within the city walls, and stories of Menaphite citizens mysteriously going missing.''
+
+''Someone needs to investigate, but few are willing to accept the risk. Maisa, a spy from Al Kharid, has grown tired of inaction. She’s determined to solve this mystery – but she can’t do it alone…''
+
+Beneath Cursed Sands is an all-new quest designed to support our most narrative-driven raid yet, Tombs of Amascut. That’s set to launch this summer, but you can play the quest today and get up to date on all the latest happenings in the Kharidian Desert.
+
+Begin the quest by speaking to Jamila in Sophanem.
+
+[[File:Beneath Cursed Sands (2).png|centre]]
+
+{{Collapsed section|18|Requirements and Rewards}}
+Beneath Cursed Sands is a Master-level quest, with some mid-level requirements:
+
+* Completion of Contact!
+* 62 Agility
+* 55 Firemaking
+* 55 Crafting
+
+Upon completion you'll be rewarded with:
+
+* 2 Quest Points
+* Access to the Tombs of Amascut
+* The ability to upgrade the Keris to the Keris Partisan
+* Circlet of Water
+* 20,000 Agility XP
+{{Collapsed section end}}
+
+[[File:Beneath Cursed Sands (3).png|600px|centre]]
+
+==Rewards==
+Beneath Cursed Sands will introduce not one, but TWO unique items to the game, each offering their own unique benefits. Let’s take a closer look!
+
+===Keris Partisan===
+[[File:Beneath Cursed Sands (4).png|centre]]
+
+In Contact!, you acquired the Keris, a shapely dagger used by the followers of Elidinis to tackle the Scabarite threat. Beneath Cursed Sands will grant you the opportunity to upgrade to the Keris Partisan, a spear-like weapon that requires 65 Attack to wield.
+
+Unlike other spears, the Keris Partisan has an aggressive attack style that will let you focus on training strength while you crush some bugs.
+
+Like the original Keris, the Partisan’s unique shape allows it to slip between the chitinous shells of insectoid enemies like the Kalphite Queen, dealing extra damage!
+
+We also reckon it’ll come in handy during the Tombs of Amascut Raid, where you’ll have the chance to upgrade it even further.
+
+===Circlet of Water===
+The Circlet of Water is an untradeable helm that acts like a Waterskin when worn. When first obtained, it is uncharged and requires Water Runes to activate. Five Water Runes are required per charge, for a maximum of 500,000 charges. You’ll put Shantay out of business!
+
+Each drink of water removes one charge from the Circlet. If lost, it can be reclaimed from the High Priest of Sophanem.
+
+[[File:Beneath Cursed Sands (5).png|600px|centre]]
+
+We can’t wait for you to play Beneath Cursed Sands and let us know what you think!
+
+Now, it’s not too long until you’ll be able to take on the Tombs of Amascut… stay tuned!
+
+===Pharaoh's Sceptre===
+Since we were in the Desert anyway, we thought we’d use today’s update to make some improvements to the Pharaoh’s Sceptre.
+
+The number of charges the Sceptre can hold has been increased, dependent on your completion of the Desert Achievement Diaries:
+
+* No Diaries: '''3 Teleports''' (no change)
+* Easy Desert Diary: '''10 Teleports'''
+* Medium Desert Diary: '''25 Teleports'''
+* Hard Desert Diary: '''50 Teleports'''
+* Elite Desert Diary: '''100 Teleports'''
+
+We’ve also added a new teleport which will take you to one of the areas added for Beneath Cursed Sands. To unlock the teleport, you’ll need to use the Sceptre on an Obelisk in the area.
+
+We've also tidied up the right-click menu that appears while the Sceptre is in your Inventory. From now on, you’ll only see options to ‘Teleport’ or ‘Teleport to Previous’. Selecting the ‘Teleport’ option will take you to a list of available locations.
+
+The right-click menu you see while the Sceptre is equipped remains unchanged.
+
+Finally, we’ve condensed the Sceptre into just two variants: Charged and Uncharged. The Uncharged version is tradeable, but the Charged version is not. Upon login, any Sceptres in your Inventory or Equipment will be automatically converted to the new versions – although Sceptres in storage (such as the Bank) will have to be updated manually. To do so, just click them while they’re in your Inventory.
+
+==Status Update on Inventory Rework Issues==
+Last week, we introduced a number of changes to the Inventory system designed to modernise it and make it easier for us to roll out new features in the future. Regretfully, this caused a number of issues, and we've been working as fast as we can to return everything to normal.
+
+Here’s a summary of what’s been identified and fixed so far:
+
+===Last week===
+* The ability to use spells like Alchemy while fishing, resulting in multiple simultaneous skill XP gain.
+* Switching tabs (which is common in high-end PvM or PvP) causing dropped inputs.
+* Using an item on something on the other side of a wall getting you stuck (instead of simply running around it).
+* A significant increase in responsiveness seeing items being dragged into the inventory far too easily.
+
+===This week pre-update===
+* De-synced inventories causing dead clicks or moving items to unexpected places. A hotfix for this was deployed on April 26th, and we are still monitoring this closely.
+
+===This week post-update===
+* Clicks feel slightly 'off' due to a shortened 'drag dead time'. This should be back to normal with this week's update.
+
+Here are the '''known issues''' that we're still working on and hope to fix shortly. As some of the fixes also rely on engine changes, we can’t say exactly when we expect these to be rolled out.
+
+* Items no longer becoming transparent in unexpected ways when used on each other (we think we can fix this by next week).
+* An issue preventing players turning to face the objects they use items on.
+* Spam clicking very specific items could occasionally trigger an incorrect action. This seems rare, but is a high priority fix.
+
+We're aware that many of you would have preferred we just revert all of the changes until everything could be fixed. Due to the way these changes were built, this was virtually impossible, so we have instead done all we can to minimise the disruption. Hindsight is a wonderful thing, so we'll be taking learnings from this experience to ensure that future changes can indeed be more easily reverted should problems arise. We’ve also noted your feedback about better utilising beta worlds to test large updates.
+
+We appreciate your continued patience as we work to resolve these issues. We know that nothing we say can ease the frustration you’ve felt, but we do hope the transparency eases the pain a little.
+
+==Other Changes==
+* Added a music area for the Modern Music Area Mode to the Kharidian Desert.
+* Moved the Nomad music track to the Ruins of Unkah, as it was incorrectly playing on Karamja rather than in the Kharidian Desert.
+* A selection of previously unlisted and unavailable tracks have been added to the music list. These will be automatically unlocked if you have completed the relevant content.
+* Fixed a few plotholes and inconsistencies in the Icthlarin’s Little Helper and Contact! quests.
+* Removed some inappropriate dialogue from the Prince Ali Rescue, Icthlarin's Little Helper and Contact! quests.
+* Fixed an issue where the boss health overlay wasn’t fading in and out correctly.
+* Added a visual indicator to the Guardians of the Rift portals to show which ones are active.
+* The 42 Mining requirement for What Lies Below has been changed to a recommendation.
+* Corrected a small typo in the Easter Event.
+
+Before we move on to the rest of the blog, we just wanted to give you all an update on the '''Poll 76 changes'''. We know you’re eager to see them in the game, but unfortunately our updates and release schedule hasn’t given us much room to squeeze them in alongside the rest of our planned content.
+
+Polled improvements help ‘fill in the gaps’ between content releases. They’re developed alongside planned content and released whenever necessary.
+
+We appreciate that some of the Poll 76 changes might seem small from the outside, but they still need time to plan and test them before launch.
+
+For now, please trust that we hear your concerns and we’re already working to get these changes to you as quickly as we can.
+
+==DMM re-run Open Beta==
+We're delighted to confirm that the DMM re-run Open Beta will be held on '''Friday, April 29th at 13:00 BST'''. We appreciate your patience as we've shuffled some dates around to ensure this goes ahead without any hiccups! Thank you for your continued patience as we work towards hosting the final you deserve.
+
+==RuneScape Board Game==
+[[File:Beneath Cursed Sands (6).png|600px|centre]]
+
+Hopefully you’ve heard the good news – we’ve partnered with Steamforged to bring the magical world of Gielinor to the tabletop! That’s not all, though – we’ve got a name, box art, a date for the Steamforged Kickstarter, and a look at the first four minis to be revealed!
+
+[[File:Beneath Cursed Sands (7).png|600px|centre]]
+
+Steamforged will be bringing RuneScape Kingdoms: Shadow of Elvarg to Kickstarter May 31st, 2022. It’s a cooperative board game for 1-5 players, set in the Gielinor you know and love!
+
+Explore from above with a board styled like a fast-travel map, jumping from region to region as you level your skills and complete quests. Then, zoom in for face-to-face encounters with iconic bosses that grow tougher the closer you come to your final quest!
+
+Each group member can play their way, choosing which skills to master and working towards those all-important capes.
+
+[[File:Beneath Cursed Sands (8).png|600px|centre]]
+
+Steamforged’s Kickstarter will be live for just 10 days, so be sure to [https://www.kickstarter.com/projects/steamforged/runescape-board-game follow the campaign], or you might miss out!
+
+Now, we promised you minis – so let’s take a look! Steamforged have developed a unique style inspired by Old School’s low-poly roots, but with all the detail you’d expect from a thoroughly modern mini. Each one showcases iconic outfits, NPCs and bosses from the past 21 years. We can’t wait to get our hands on ‘em!
+
+Last week we revealed two player pieces, plus the big bad boss, Elvarg. Ready for another one? Check out the skiller!
+
+[[File:Beneath Cursed Sands (9).jpg|600px|centre]]
+
+To learn more, head to our [https://secure.runescape.com/m=news/runescape-board-game---announcement?oldschool=1 announcement blog] or check out Steamforged’s [https://steamforged.com/blogs/brands/announcing-runescape-kingdoms-board-game?utm_source=rs&utm_medium=email&utm_content=7&utm_campaign=202200429_OS_EML_ENG_COM_April-Newsletter weekly blogs] as they work towards the Kickstarter later this year. And if you fancy getting your hands on the game, we recommend [https://www.kickstarter.com/projects/steamforged/runescape-board-game following the campaign] so that you’re ready for launch.
+
+==Shattered Relics Medal Winners!==
+[[File:Beneath Cursed Sands (10).jpg|600px|centre]]
+
+Now, it’s finally time to name the winners of the prestigious Shattered Relics medals!
+
+For those who missed it, we announced that we’d be sending real-life medals to players who showed exceptional hard work and dedication in Leagues III: Shattered Relics.
+
+First up, Bronze, Silver, and Gold Medals will be sent to the 3rd, 2nd, and 1st place players in the following categories:
+
+* Most League Points
+* Most Tasks Completed
+* Most XP Gained
+* First to Max
+
+The second set of Gold medals go to the dedicated players who were first to complete the following achievements:
+
+* First to Obtain All Fragments
+* First to Unlock all Skills
+* First to Unlock all Bosses
+* First to Reach Tier 7
+* First to Reach Tier 7 without Hitpoints
+
+After confirming with the Anti-Cheating Team we are happy to announce the winners. Congratulations to the following:
+
+* '''Mazhar''' - 1st in Most League Points & 1st in Most Tasks Completed
+* '''Knuupy''' - 2nd in Most League Points & 3rd in Most Tasks Completed
+* '''Gl Im Tom''' - 3rd in Most League Points & 2nd in Most Tasks Completed
+* '''Tzuyuwu''' - 1st in Most Experience Gained
+* '''Neztergodx''' - 2nd in Most Experience Gained
+* '''SspicyJesus''' - 3rd in Most Experience Gained
+* '''Yuno''' - 1st to Max (99 in All Skills)
+* '''Stefn''' - 2nd to Max (99 in All Skills)
+* '''Schnops''' - 3rd to Max (99 in All Skills)
+* '''CanNotLogIn''' - First to Obtain All Fragments
+* '''Daniiex''' - First to Unlock all Skills
+* '''Crowride1873''' - First to Unlock all Bosses
+* '''SoloMission''' - First to Reach Tier 7
+* '''MagnumCopus''' - First to Reach Tier 7 without Hitpoints
+
+Winners will be contacted with further details through the player inbox over the next few days!
+
+If you missed out on one of these prizes, you can always reward yourself with the Antique Nickel variant of the medal or one of the Ltd Edition Leagues pins from the [https://runescape.backstreetmerch.com/collections/old-school-runescape-featured Official Merch Store]! Everyone's a winner here, right gang?
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,801,66250744 official forums], on the [https://www.reddit.com/r/2007scape/comments/ud0007/beneath_cursed_sands_release_weekly_game_update/?utm_source=share&utm_medium=web2x&context=3 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdatechannel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team''

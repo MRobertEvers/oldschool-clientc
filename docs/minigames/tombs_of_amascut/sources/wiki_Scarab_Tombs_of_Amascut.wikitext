@@ -1,0 +1,55 @@
+{{Infobox Monster
+|name = Scarab
+|image = [[File:Scarab (Tombs of Amascut).png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 56
+|size = 1
+|examine = This isn't really the most convenient time to be under attack!
+|xpbonus = 
+|max hit = 6
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|hitpoints = 12
+|scaledhp = Yes
+|att = 20
+|str = 32
+|def = 28
+|mage = 1
+|range = 50
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 150
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11697
+}}
+'''Scarabs''' are a monster encountered in the Path of Scabaras within the [[Tombs of Amascut]]. They attack players while solving the path's puzzles.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Scarabs now have a 40% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

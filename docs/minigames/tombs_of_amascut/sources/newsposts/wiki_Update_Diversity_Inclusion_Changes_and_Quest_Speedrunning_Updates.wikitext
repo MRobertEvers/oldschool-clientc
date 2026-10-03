@@ -1,0 +1,279 @@
+{{Update|date=9 November 2022|url=https://secure.runescape.com/m=news/diversity--inclusion-changes-and-quest-speedrunning-updates?oldschool=1|category=game}}
+[[File:Diversity & Inclusion Changes and Quest Speedrunning Updates newspost.png|right]]
+{{clear|right}}
+''We’re making moves this week with D&I changes, Halloween buffs, and two new quests for you to speedrun!''
+
+__TOC__
+==Diversity and Inclusion Changes==
+[[File:Diversity & Inclusion Changes and Quest Speedrunning Updates (1).png|center|600px]]
+
+If you’re an avid FashionScaper, enjoy romancing royals, or love a good quest, we’ve got a few changes this week guaranteed to make you happy!
+
+First up, changing anything about your base character model is now completely free, with no limitations! This means we’ve got freebies afoot (little shoe joke for you there) at Yrsa’s Shoe Shop in Rellekka, Thessalia's Shop in Varrock, the Hairdresser's in Falador and the Makeover Mage!
+
+Now that you’ve got those fancy new duds, why not walk them over to Miscellania, where the dating scene has recently been revived? The following changes have been made to the Throne of Miscellania and Royal Trouble quests:
+* You may now choose to romance either the handsome Prince Brand or the beautiful Princess Astrid, regardless of your character’s gender.
+* Or, if you’re not looking for a long-term commitment, you can now choose to become your selected royal’s best friend instead of marrying them.
+
+Speaking of quests, the gender requirement during Recruitment Drive has been removed and replaced with a new puzzle which will test your powers of observation. In addition, you'll receive a cool 3,000 GP for completing the quest.
+
+You'll also notice that anyone can now join any Consortium company – excepting The Red Axe – regardless of which gender they present as. Any references to the companies’ previous gender discrimination have been removed from the quest.
+
+Following completion of The Feud, all NPCs in the town of Pollnivneach will revert to their usual names, instead of going by Ali. You can learn more by speaking to the citizens during and after the quest!
+
+If you've got the itch for something more mischievous, both male and female H.A.M. members can now be pickpocketed at level 15 Thieving, granting 22.2 XP per successful pickpocket. The Skill Guide and level up messages have been updated accordingly.
+
+To coincide with the above change, Barbarian Village inhabitants of any gender can now drop Clue Keys - hurrah!
+
+King Roald has finally heard the long-lasting complaints from The Varrock guards and has now supplied them with armour just like their counterparts in other cities. We're sure this will stop them being murdered en masse for Clue Scrolls.
+
+Lastly, citizen models across Gielinor are now more diverse! You'll notice a greater variety of farmers, warriors, guards, paladins, heroes, knights, tribespeople, and regular folks.
+
+We’re still working on more Diversity and Inclusion changes, but we’re not quite ready to talk about them just yet. Keep your ears to the ground on that one!
+
+==Quest Speedrunning==
+Good news speedrunners! We’re adding '''Prince Ali Rescue''' and '''Beneath Cursed Sands''' to the Quest Speedrunning roster.
+
+This also means that you’ll now be able to rack up the points required to purchase formerly-unobtainable Tier 3 Speedrunning outfit!
+
+[[File:Diversity & Inclusion Changes and Quest Speedrunning Updates (2).png|thumb|center|600px|''The Tier 3 Speedrunning outfit and the Graceful version.'']]
+
+
+{|class=wikitable style="text-align:center;"
+! Quest
+! Requirements
+! Items
+! Trophy Times
+|-
+|Prince Ali Rescue
+|30 Agility<br>
+30 Mining<br>
+30 Woodcutting<br>
+30 Firemaking<br>
+Base 25 combat stats
+|100 Coins<br>
+1 Stamina Potion<br>
+3 Energy Potions<br>
+2 Tuna
+|Bronze - 17:00<br>
+Silver - 14:00<br>
+Gold - 12:00<br>
+Platinum - 11:00
+|-
+|Beneath Cursed Sands
+|Contact!<br>
+Recipe for Disaster<br>
+The Fremennik Exiles<br>
+Horror from the Deep<br>
+King's Ransom<br>
+Knight Waves Training Grounds<br>
+Animal Magnetism<br>
+65 Agility<br>
+55 Firemaking<br>
+65 Crafting<br>
+60 Mining<br>
+60 Smithing<br>
+Base 85 combat stats<br>
+A Player Owned House in Pollnivneach
+|10,000 Coins<br>
+6 Stamina Potions (3 in Bank)<br>
+30 Sharks (25 in Bank)<br>
+12 Saradomin Brews (8 in Bank)<br>
+6 Super Restore Potions (4 in Bank)<br>
+Superantipoison<br>
+12 Waterskins (8 in Bank)<br>
+Abyssal Whip<br>
+Dragon Defender<br>
+Bandos Chestplate<br>
+Bandos Tassets<br>
+Primordial Boots<br>
+Neitiznot Faceguard<br>
+Fire Cape<br>
+Amulet of Fury<br>
+Berserker Ring (i)<br>
+Barrows Gloves<br>
+500 Runite Bolts<br>
+Rune Crossbow<br>
+Black Dragonhide Body<br>
+Black Dragonhide Chaps<br>
+Ava's Accumulator<br>
+Book of Law
+|Bronze - 52:00<br>
+Silver - 40:00<br>
+Gold - 32:00<br>
+Platinum - 28:00
+|}
+
+We’re also launching Betas for two further quests, '''A Taste of Hope''' and '''Sins of The Father''', so you can give us your feedback before they launch in December!
+
+You won’t need to jump into any beta worlds this time – you’ll be able to test them from any regular Quest Speedrunning world! Remember, though, that these beta quests won’t give you trophies or set best times.
+
+For those of you that want to know more about the testing, here are the requirements we've currently set:
+
+{|class=wikitable style="text-align:center;"
+! Quest
+! Requirements
+! Items
+! Trophy Times
+|-
+|A Taste of Hope
+|Darkness of Hallowvale<br>
+Recipe for Disaster<br>
+Monkey Madness I<br>
+The Fremennik Isles<br>
+Shades of Mort'ton<br>
+Ghosts Ahoy<br>
+55 Agility<br>
+50 Mining<br>
+48 Crafting<br>
+40 Herblore<br>
+38 Slayer<br>
+Base 70 combat stats
+|12,000 Coins<br>
+5 Stamina Potions (2 in Bank)<br>
+30 Sharks (20 in Bank)<br>
+4 Super Restore Potions (2 in Bank)<br>
+Enchant Emerald or Jade Tablet<br>
+Emerald<br>
+Ghostspeak Amulet<br>
+Rod of Ivandis<br>
+Dragon Scimitar<br>
+Dragon Defender<br>
+Fighter Torso<br>
+Dragon Platelegs<br>
+Dragon Boots<br>
+Helm of Neitiznot<br>
+Obsidian Cape<br>
+Amulet of Glory<br>
+Berserker Ring (i)<br>
+Rune Gloves
+|Bronze - 56:00<br>
+Silver - 44:00<br>
+Gold - 36:00<br>
+Platinum - 32:00
+|-
+|Sins of The Father
+|A Taste of Hope<br>
+Vampyre Slayer<br>
+Recipe for Disaster<br>
+The Fremennik Exiles<br>
+King's Ransom<br>
+Shades of Mort'ton<br>
+Ghosts Ahoy<br>
+Knight Waves Training Grounds<br>
+70 Woodcutting<br>
+65 Agility<br>
+60 Fletching<br>
+56 Crafting<br>
+50 Slayer<br>
+Base 90 combat stats
+|15,000 Coins<br>
+6 Stamina Potions (3 in Bank)<br>
+30 Sharks (25 in Bank)<br>
+16 Saradomin Brews (12 in Bank)<br>
+8 Super Restore Potions (6 in Bank)<br>
+Superantipoison<br>
+Enchant Ruby or Topaz Tablet<br>
+Ruby<br>
+Ghostspeak Amulet<br>
+Ivandis Flail<br>
+Drakan's Medallion<br>
+Abyssal Whip<br>
+Dragon Defender<br>
+Bandos Chestplate<br>
+Bandos Tassets<br>
+Primordial Boots<br>
+Neitiznot Faceguard<br>
+Fire Cape<br>
+Amulet of Fury<br>
+Berserker Ring (i)<br>
+Barrows Gloves<br>
+50 Adamant Darts (in Bank)
+|Bronze - 90:00<br>
+Silver - 72:00<br>
+Gold - 60:00<br>
+Platinum - 54:00
+|}
+
+
+We’ve also made the following changes to Speedrunning worlds:
+* Ammo dropped when fired now only appears to the person who fired it.
+* Lit fires now last a consistent amount of time before going out.
+* Ash left behind by fires now only appears to the person who lit the fire.
+* Poison, venom and disease effects are now correctly wiped when starting or ending a speedrun.
+
+We’re also aware of an issue where items that drop because the Inventory overflows (for example, when you’re given an item but already have a full Inventory) are not correctly deleted when starting or ending a speedrun.
+
+We expect to have a global fix for this issue released later this month. In the meantime, we will manually fix particularly bad instances of this problem. Where needed, best times will be reset to ensure times don't become unobtainable.
+
+Also, as an added extra, Quest Speedrunning trophies have been made lighter... without using cheaper metals!
+
+As always, we'd love to hear what you think of the requirements, starting items and any other feedback you may have.
+
+Finally, as a quick heads up, we'll have a new competition for all you fast-footed folk starting on November 16th, so get practicing your time-saving techniques in Prince Ali Rescue & Beneath Cursed Sands!
+
+We’d like to give a big shoutout to the speedrunning community for all their help! If you’re looking for more information about where to start or just regular, friendly advice, check out the places below:
+* [https://discord.com/invite/JcaS8WF RuneScape Speedrunning Discord]
+* [https://discord.gg/m3AaNEWJax Quest Speedrunning Discord]
+* [https://www.speedrun.com/osrs Speedrun.com]
+
+Speaking of quests, we’ve made a couple of quality-of-life changes to Ratcatchers:
+* The rats will absolutely hate this announcement, but we’ve made it easier for cats to catch them.
+* Cats will now run away when they reach 1 HP in their fight against the King Rat, rather than valiantly fighting to the death. Now your furry friend can accompany you until you’re ready to exchange them for Death Runes, as nature intended.
+* Lastly, the guards in the mansion segment of the quest haven’t had a pay rise for a while and have become lax in their duties. They should be a bit easier to anticipate, and you’ll no longer get caught between awkward rotations while conducting your sneaky business.
+
+==Tombs of Amascut==
+As we discussed last week, we've made some adjustments to Osmumten's Fang. If you missed it, the big change is that the weapon now rolls your accuracy twice, but doesn't re-roll an enemy's Defence.
+
+For a full rundown, including the raid's drop mechanics, [https://secure.runescape.com/m=news/a=97/tombs-of-amascut-drop-mechanics--osmumtens-fang?oldschool=1 click here].
+
+This behaviour will be reflected everywhere except the Tombs of Amascut, where the Fang will act as it did before the change.
+
+==Halloween 2022==
+[[File:Diversity & Inclusion Changes and Quest Speedrunning Updates (3).png|center|600px]]
+
+
+We’re glad you’re all enjoying the Halloween goodness! Because you’ve been so ghoulishly delightful, we’re buffing the event so you’ll enjoy it even more!
+
+Firstly, you’ll get more treats per drop, a higher chance to get treats in the first place, and a reduced cooldown on treats when gathering logs, ore or fish.
+
+Generous treaters are now more common and hang around for longer – we’ve also reduced their spawn delays, so they’ll appear faster, too!
+
+Lastly, we’ve noticed you guessing the size of the global ghouls – sorry, ''goals'' – as anywhere between 500 million to 1 billion. As a heads-up, it’s not even as much as the smallest of guesses… and may even be off by a couple 100 million!
+
+==Crack The Clue 3==
+It's been over a month since Crack The Clue 3 began and we've throughly enjoyed watching all of you intrepid treasure hunters solve the clues created by the fantastic Woox!
+
+If you're wanting to start, fear not it's not too late as there are plenty of great places to find those like-minded hunters:
+* [https://www.reddit.com/r/2007scape/ /r/2007scape]
+* [https://www.reddit.com/r/CrackTheClue/ /r/CrackTheClue]
+* [http://discord.gg/GpTc4bW The Crack The Clue Discord server]
+* [https://discord.gg/2AVnN5xKGB The Runestone Hunters Discord server]
+
+==Other Changes==
+* Corrected the 42 Mining ‘requirement’ for What Lies Below to be a recommendation.
+* The issues with the Divine Rune Pouch (t), including the visibility bug in the 4th slot and the issue where the ZMI payment menu wouldn’t highlight correctly, have been fixed.
+* You may now reclaim the Darkness of Hallowvale reward tome after completing A Taste of Hope from the chest located at the Burgh de Rott hideout… if you like.
+* Fixed some incorrectly formatted dialogue in the Big Chompy Bird Hunting quest.
+* The world switcher now displays all worlds correctly for players who have opted out of Fresh Start Worlds.
+* MOBILE ONLY: Optimised the on-tap highlights to help with framerate dropping issues.
+* STEAM ONLY: Tooltips will no longer be cut off on the right side of the screen.
+
+==PvP Rota Changes==
+The PvP rota has moved to '''Period A''':
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''deactivated''' with this rota.
+
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,850,66266263 official forums], on the [https://www.reddit.com/r/2007scape/comments/yqffv4/diversity_inclusion_changes_and_quest/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

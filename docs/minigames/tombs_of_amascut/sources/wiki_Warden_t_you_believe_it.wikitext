@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Warden't you believe it
+|image = [[File:Tombs of Amascut - fighting Elidinis' Warden.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat the Wardens with all Wardens invocations activated, at expert level and without dying yourself.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 460
+|leagueRegion = Desert
+}}
+'''Warden't you believe it''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat the Wardens with all of their invocations active without dying, at raid level 300 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+==Trivia==
+*The name is a pun on the term "wouldn't you believe it".
+
+{{Combat Achievements}}

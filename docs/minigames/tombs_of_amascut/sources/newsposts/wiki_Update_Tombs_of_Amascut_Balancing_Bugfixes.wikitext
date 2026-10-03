@@ -1,0 +1,242 @@
+{{Update|date=1 September 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-balancing--bugfixes?oldschool=1|category=game}}
+[[File:Tombs of Amascut- Balancing & Bugfixes newspost.png|right]]
+{{clear}}
+__TOC__
+==Your Feedback, Our Response==
+<table class="wikitable" style="text-align:center; width:665px;">
+<tr>
+<th>Date/Time</b></td>
+<th>Your Feedback</th>
+<th>Our Response</th>
+</tr>
+<tr>
+<td>12:30 BST, September 1st</td>
+<td>Players expressed frustration at the quantities of Smelling Salts, Liquid Adrenaline and Ambrosia being offered following today's change.</td>
+<td><p>As a temporary fix we've tweaked the quantities offered to guarantee a minimum of 2 of each of the above whenever they appear.</p>
+<p>In next week's game update, we'll be changing this to a single 2-dose potion. Unfortunately, this cannot be hotfixed.</p></td>
+</tr>
+</table>
+
+''This week is packed with Tombs of Amascut tweaks! Read on to see what’s changed…
+==Tombs of Amascut Balance Changes==
+If you haven’t been living under a pyramid for the last week, you’ll know that our newest raid, Tombs of Amascut, is live and kicking with over one million completions so far!
+
+We’ve been poring over the ancient scrolls (Reddit etc) to uncover your feedback– we’ve addressed a whole bunch of it! Keep reading for all the deets.
+
+===Zebak===
+* Raised base Hitpoints by ~10%.
+* Increased the base number of jugs by two.
+* Jugs no longer set attack delay, but still respect it – so you should be able to pop a jug and hit Zebak immediately, but might have to wait if you hit Zebak before the jug.
+* Jugs roll two tiles further before stopping.
+
+Overall, we feel like Zebak’s in a pretty good place (balance wise – we won’t comment on his swampy prison). He does, however, have a tendency to die off before he really gets going. We reckon a few extra Hitpoints will make the fight more challenging, without letting it drag on forever.
+
+Although there’s a solution for every jug setup, player positioning can make it tricky to utilise this mechanic. Given how punishing Zebak’s roar is, we’ve made things a bit more consistent with this suite of helpful jug-based changes.
+
+===Akkha===
+* Orbs spawned during the enrage phase will now only deal full damage to one player.
+* The number of orbs spawned during the enrage phase has been slightly reduced, since many players felt dodging them wasn't really feasible.
+* To compensate, the base damage of the enrage phase orbs has been slightly increased, However the max damage of the orbs is capped at 25 to prevent them from being overly punishing on higher Raid Levels.
+* Akkha will change styles if he hasn't swapped for over 60 seconds. We apologise to any would-be lepidopterists out there!
+
+Akkha’s also pretty much functioning as intended. Our chief concern is that the enrage section of his fight is extremely punishing, especially at higher Raid Level. We hope that the above changes will help players feel like dodging the orbs is worth their time.
+
+Additionally, an incredibly creative, tick-perfect kiting tactic known as ‘the butterfly method’ recently surfaced, allowing super-skilled players to take 0 damage and avoid all of Akkha’s special attacks. The method requires some pretty precise clicks, and we’re definitely impressed by the ingenuity, so we’re not removing it entirely. That said, we don’t want to negate the fight completely (or negate the effects of Invocations), so after a short while Akkha will switch things up a bit.
+
+===Ba-Ba===
+* Bananas spawned via the Jungle Japes Invocation now occurs on monkey death rather than randomly.
+* Bananas spawned via the Jungle Japes Invocation now deal significantly reduced damage.
+* The damage done by open sarcophagi is no longer dealt in a 3x3 area.
+
+Ba-ba’s looking pretty healthy at the moment – considering the whole skeleton thing – although we have had some feedback regarding the bananas and sarcophagus damage. We hope these changes will make the fight a bit less frustrating!
+
+===Wardens===
+* Adjusted the damage formula for Phase 2 to benefit less from accuracy and have a lower max ceiling.
+* Reduced core exposure time by 7 cycles.
+* Increased the Wardens’ Hitpoints during Phase 2 for high-scale groups.
+* Slightly reduced the amount of damage dealt to the Warden when successfully clearing the Phase 3 skull mechanic.
+* Slightly increased the base Hitpoints of the Warden during Phase 3.
+* Reduced the base allowed duration for solving the skull mechanic during Phase 3.
+* Slightly reduced the Magic Attack bonus of the Warden during Phase 3.
+
+We may be a little biased, but we think you’ll agree that visually and conceptually, the Wardens are a fantastic fight. That said, the balance is a little off.
+
+As the final boss of the raid, the Wardens should be challenging and resource-intensive – but during Phase 2, arguably the toughest part, players spend more time attacking the core than fighting the boss.
+
+These changes should ensure that the battle feels a little more back-and-forth for big groups and players with high-end gear, without significantly affecting smaller groups with less flashy gear.
+
+Phase 3's skull mechanic deals enough damage that the surviving Warden is almost instantly pushed into the next skull mechanic. Players spend more time interacting with this mechanic than anything in the rest of the fight, so we’ve gone ahead and tweaked the pacing to keep you all on your toes.
+
+Similarly, most groups have never even seen the fail condition for the skull mechanic – so we’ve tightened up the timing to make sure more of you get the full Wardens experience. Good luck!
+
+===Path of Apmeken===
+* Reduced the number of monkeys that spawn in each wave.
+* Adjusted the timings of the waves so they overlap more smoothly.
+* By default, players will now receive 100 Potions from the crate rather than 20.
+* Completing the room will now delete the regular Hammer from your Inventory.
+
+Ba-Ba’s troop of baboons are definitely an engaging encounter, but their antics do mean that the Path of Apmeken takes longer than the other paths. These changes should make it a bit more reasonable, and properly reward you for moving fast!
+
+===Path of Het===
+* Changed the health scaling of Het's Seal for different group sizes.
+
+This change aims to make 1-downs a little more reliable in groups where there may be big differences between the highest and lowest Mining levels.
+
+===Mid-raid Loot===
+* Ambrosia and Liquid Adrenaline are now 1-dose potions.
+* Liquid Adrenaline now rarely shows up in the Chaos pack.
+* Ambrosia now only shows up in the Life pack.
+* Adjusted the quantity of items provided in the Chaos pack.
+* Increased the amount of Run Energy that Smelling Salts restore.
+* The mid-raid loot interface no longer stops your movement, so you'll be able to withdraw your supplies on the fly!
+
+Ambrosia and Liquid Adrenaline are both items we wanted people to opt in to if they felt needed, at the high price of losing out on other useful items.
+
+When they were both available alongside Smelling Salts in the Chaos pack, players could get everything they wanted without any real decision making. We hope that these changes get players making more meaningful choices, especially at higher skill levels.
+
+===General Changes===
+* Players can now boost to hit the Prayer and Smithing level requirements for creating Elidinis' Ward (f).
+* Players can now boost to hit the Crafting level requirement for creating the Divine Rune Pouch.
+* Reduced the number of AoE mechanics that stack with each other – for example, walking into a Kephri bomb on a tile where two players once stood will no longer result in taking double damage.
+* Players using the 'On A Diet' Invocation will no longer be provided with Silk Dressings or Honey Locusts.
+* Monster Examine has been re-enabled within the Tombs of Amascut.
+
+We noticed that grouping up for ToA could be less desirable because on top of the sheer number of obstacles to dodge, you’re also being more harshly punished for running into them. Previously, if two people were caught in the same AoE attack, the damage would stack, which could result in innocent players getting absolutely obliterated if they wandered into the splash zone. Now that’s fixed, players can group up and run headfirst into danger without endangering anyone else.
+
+You’ll also notice that Monster Examine has been re-enabled, as promised. Enjoy!
+
+===Drop Rates===
+* Slightly reduced the '''base''' drop chance for tradeable uniques.
+* Slightly increased the effect that Raid Level has on tradeable unique drop rate.
+
+We’ve been carefully monitoring the drop rates since release and have decided that some small changes are needed to keep rewards in line with the difficulty of the raid.
+
+While Expert is ''significantly'' better than Normal Mode if you’re hoping for uniques, Normal is proving a bit easier than expected, and Expert perhaps a little harder. We want players to really feel the value of trying higher Raid Levels – hence the changes.
+
+We’ll be keeping a ''very'' close eye on this as further balancing changes come in and metas develop.
+
+==Tombs of Amascut Bug Fixes==
+As with any major release, some pesky bugs have slipped through our net – and we’re not talking about Kephri!
+
+So, without further ado, here’s what we’ve fixed or changed during the week. Please note that many of these were addressed in the ‘Your Feedback, Our Response’ section of last week’s newspost – this is just here to keep everyone in the loop.
+
+* Max hits on the Wardens' cores are now only guaranteed with Melee weapons.
+* Thralls and pets will no longer appear on top of the skulls during the final phase of the Wardens' encounter, nor on the jugs in Zebak's encounter, nor on the eggs in Kephri's encounter.
+* Players will no longer find themselves blocked from completing the raid if they die at the same time as the final Warden.
+* Zebak will now properly reset following a wipe, so no more getting swept away on re-entry!
+* Players can no longer safespot Ba-Ba using the fallen rubble in some positions. Ba-Ba wanted us to let you know that she's grateful for the occasional downtime but would much prefer to get back to punching anybody who disturbs her.
+* Players are no longer able to get stuck inside a big rock when fighting Ba-Ba.
+* Fixed a bug where Akkha's orbs occasionally wouldn't spawn for his enrage phase.
+* Kephri no longer regenerates HP during her final phase.
+* Venom pool duration on the Path of Apmeken was reduced from 30 seconds to 20 seconds.
+* Placing two mirrors in the same location on the Path of Het no longer deletes one of the mirrors.
+* Mirrors in the Path of Het can no longer be pushed into walls.
+* Damage dealt to Het's Seal now scales properly with the tier of Pickaxe you're using. Don't forget to store a Pickaxe with the statue if you want to save yourself an Inventory space!
+* Charged Crystal Pickaxes can now be deposited to the Pickaxe storage on the Path of Het.
+* Tumeken's Shadow now only grants passive Magic Attack and Damage bonuses to its in-built spell, not to other spells.
+* Saradomin Brews are no longer disabled by the 'On A Diet' Invocation. Note that Honey Locusts and Silk Dressing are considered food by this Invocation - this is intended.
+* Players using specific RuneLite plugins will no longer turn invisible when using a Blessed Crystal Scarab, even if those plugins are still turned on.
+* Grand Exchange clerks will now display the values of new items added alongside Tombs of Amascut.
+* Pieces of Armadyl Armour now break down into the correct amount of Armadylean Plates for you to fortify your Masori Armour with.
+* The Divine Rune Pouch can now be picked up from the ground. Ultimate Irons who've looted a Thread of Elidinis can carry on using their place of death as a morbid storage option for their upgraded Pouch!
+
+Now that you're all up to date with what changed during last week, let's have a look at what we're doing today:
+
+* The Osmumten's Fang should now distribute damage accordingly rather than 'clamping' damage at the lowest hits.
+* Magic damage will no longer be capped at level 120 and is instead capped at 125.
+* 1-dose variants of Nectar and Tears of Elidinis are now more visually distinct.
+* The Infernal Max Cape no longer has an unusual graphical interaction with Tumeken's Shadow. You can finally return to flexing in style!
+* The Masori Mask no longer has any graphical issues when worn with Tumeken's Shadow or Osmumten's Fang.
+* The MVP board has had some adjustments made so that players see a wider spread of the various titles available.
+* Players can no longer melee Zebak without risking being melee’d back.
+* Zebak's roar can no longer knock players into safespots at the edges of the room.
+* Jugs should no longer roll through rocks in Zebak's fight.
+* Jugs should more reliably explode on contact with a rock.
+* Fixed a bug where the Arcane Scarab was nullifying damage in some instances.
+* Fixed a bug where the Arcane Scarab was teleporting immediately after firing.
+* The exploding scarabs between Kephri's shield phases should now detonate more consistently.
+* Fixed a bug where players could click through the Wardens Phase 1 Obelisk.
+* The 'tile push' during Wardens Phase 3 no longer pushes players into the terrain.
+
+We’re keeping a close eye on balancing for both difficulty and rewards, but rest assured that we won’t be making any knee-jerk reactions. You can look forward to any balancing changes in later weeks.
+
+We've made some early changes that should alleviate some of the world lag people have been experiencing; we don't think this will be enough and will continue working on the recent server issues. However, we do hope to see some improvements with this update.
+
+Alright – who fancies a celebration?
+
+==Tombs of Amascut World Firsts==
+In last week's newspost, we challenged players to race to complete the first Normal Mode and Expert Mode runs.
+
+In case you missed it on our socials, we'd like to once again congratulate our Tombs of Amascut World First winners!
+
+* Normal Mode World First (Any Raid Level between 150 and 299) - Group Size: 7
+** Rovint
+** Oblv Yuumi
+** Oblv Poenari
+** 54N Kappa
+** Animeme
+** Hardesnikkel
+** Kanao
+
+[[File:Tombs of Amascut- Balancing & Bugfixes (1).png|centre|600px]]
+
+* Expert Mode World First (Any Raid Level above 300) - Group Size: Solo
+** Oblv Jraze
+
+[[File:Tombs of Amascut- Balancing & Bugfixes (2).png|centre|600px]]
+
+Congratulations to all of the World First runners! Everybody named above will receive 12 months of Membership, so keep a close eye on your in-game inbox to claim your prize!
+
+Everyone else: don’t be disheartened! There are still lots of achievements to go for. We've started to see more than a handful of clears north of 400 Raid Level, who knows where the ceiling might be?!
+
+We can't wait to see just how high players are able to push their Raid Level over the coming weeks!
+
+==Tombs of Amascut Route Races==
+Now that people are starting to get a little more comfortable within the raid, we'd like to challenge you to go faster.
+
+The Tombs of Amascut Route Races is a speedrunning competition for each of the four paths in Normal Mode Tombs of Amascut.
+
+Simply pick one of the four routes, clear the path, defeat the boss at the end and submit a clear video of the whole thing to us – no extra prizes for filming on Unregistered Hypercam 2. The fastest team for each of the four races will receive two months of Membership for everyone in the group!
+
+We’ll say it again: you must have a recorded video of your speedrun for it to be eligible for the competition. To submit your entry, simply [https://jagex.eu.qualtrics.com/jfe/form/SV_a2BsdokrtRUsiOi fill out this form], including a link to the video.
+
+T&Cs for the competition can be found [https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-08-31/RouteRacesT&CsFinal.pdf here]. Good luck!
+
+We'd like to take a moment to thank everybody who's gotten stuck into the Tombs of Amascut over the past week.
+
+The team has absolutely loved watching you take on the various bosses, and we really appreciate all the feedback you've given us so far!
+
+If you've not had a chance to try Tombs of Amascut yet, complete Beneath Cursed Sands and give it a go! Entry Mode is very accessible, so get some friends together and get tomb raiding.
+
+==Other Changes==
+Don’t worry, we haven’t forgotten about the rest of the game! Here are the other patch notes from this week:
+
+* Fixed a bug that allowed players to access total level worlds without meeting the required total level.
+* Fixed a bug that prevented Rune Thrownaxe special attacks working on the door supports on Waterbirth Island.
+* Skill XP tooltips have been adjusted on the C++ client and should now be working as expected on both Desktop and Mobile.
+
+==PvP Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is now using <b>'Pure'</b> loadouts in Ranked Tournaments this week.
+
+----
+
+That about wraps it up for this week!
+
+As always, make sure to get in touch with us using the links at the bottom of the post if you have any thoughts, feedback or further issues to report with Tombs of Amascut.
+
+Thanks for reading and happy raiding!
+
+Discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,833,66261461 official forums], on the [https://www.reddit.com/r/2007scape/comments/x33ll9/tombs_of_amascut_balancing_bugfixes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

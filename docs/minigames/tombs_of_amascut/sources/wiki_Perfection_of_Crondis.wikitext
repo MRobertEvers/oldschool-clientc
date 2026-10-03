@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfection of Crondis
+|image = [[File:Tombs of Amascut - Fighting Zebak.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete 'Perfect Crondis' and 'Perfect Zebak' in a single run of the Tombs of Amascut.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Perfection
+|id = 440
+|leagueRegion = Desert
+}}
+'''Perfection of Crondis''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete [[Perfect Crondis]] and [[Perfect Zebak]] in a single run of the [[Tombs of Amascut]] raid at raid level 300 or above.
+
+==Strategy==
+[[Perfect Crondis]] and [[Perfect Zebak]] do not need to be completed in succession. As death invocations do not need to be enabled, players that complete Perfect Crondis and then fail Perfect Zebak can all die and re-attempt Perfect Zebak without having to redo Perfect Crondis.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

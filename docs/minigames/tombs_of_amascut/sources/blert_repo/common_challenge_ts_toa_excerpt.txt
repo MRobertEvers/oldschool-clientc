@@ -1,0 +1,85 @@
+18-  TOB = ChallengeProto.TOB,
+19-  COX = ChallengeProto.COX,
+20:  TOA = ChallengeProto.TOA,
+21-  COLOSSEUM = ChallengeProto.COLOSSEUM,
+22-  INFERNO = ChallengeProto.INFERNO,
+--
+361-  COX_OLM = StageProto.COX_OLM,
+362-
+363:  TOA_APMEKEN = StageProto.TOA_APMEKEN,
+364:  TOA_BABA = StageProto.TOA_BABA,
+365:  TOA_SCABARAS = StageProto.TOA_SCABARAS,
+366:  TOA_KEPHRI = StageProto.TOA_KEPHRI,
+367:  TOA_HET = StageProto.TOA_HET,
+368:  TOA_AKKHA = StageProto.TOA_AKKHA,
+369:  TOA_CRONDIS = StageProto.TOA_CRONDIS,
+370:  TOA_ZEBAK = StageProto.TOA_ZEBAK,
+371:  TOA_WARDENS = StageProto.TOA_WARDENS,
+372-
+373-  MOKHAIOTL_DELVE_1 = StageProto.MOKHAIOTL_DELVE_1,
+--
+966-    case ChallengeType.COX:
+967-      return 'Chambers of Xeric';
+968:    case ChallengeType.TOA:
+969-      return 'Tombs of Amascut';
+970-    case ChallengeType.COLOSSEUM:
+--
+1007-      return short ? 'Zuk' : 'TzKal-Zuk';
+1008-
+1009:    case Stage.TOA_APMEKEN:
+1010-      return 'Apmeken';
+1011:    case Stage.TOA_BABA:
+1012-      return 'Baba';
+1013:    case Stage.TOA_CRONDIS:
+1014-      return 'Crondis';
+1015:    case Stage.TOA_ZEBAK:
+1016-      return 'Zebak';
+1017:    case Stage.TOA_HET:
+1018-      return 'Het';
+1019:    case Stage.TOA_AKKHA:
+1020-      return 'Akkha';
+1021:    case Stage.TOA_SCABARAS:
+1022-      return 'Scabaras';
+1023:    case Stage.TOA_KEPHRI:
+1024-      return 'Kephri';
+1025:    case Stage.TOA_WARDENS:
+1026-      return 'Wardens';
+1027-
+--
+1098-    Stage.COLOSSEUM_WAVE_12,
+1099-  ],
+1100:  [ChallengeType.TOA]: [
+1101:    Stage.TOA_APMEKEN,
+1102:    Stage.TOA_BABA,
+1103:    Stage.TOA_CRONDIS,
+1104:    Stage.TOA_ZEBAK,
+1105:    Stage.TOA_HET,
+1106:    Stage.TOA_AKKHA,
+1107:    Stage.TOA_SCABARAS,
+1108:    Stage.TOA_KEPHRI,
+1109:    Stage.TOA_WARDENS,
+1110-  ],
+1111-  [ChallengeType.COX]: [
+--
+1258-}
+1259-
+1260:export type ToaStage =
+1261:  | Stage.TOA_APMEKEN
+1262:  | Stage.TOA_BABA
+1263:  | Stage.TOA_SCABARAS
+1264:  | Stage.TOA_KEPHRI
+1265:  | Stage.TOA_HET
+1266:  | Stage.TOA_AKKHA
+1267:  | Stage.TOA_CRONDIS
+1268:  | Stage.TOA_ZEBAK
+1269:  | Stage.TOA_WARDENS;
+1270-
+1271-/**
+1272- * Returns true if the stage is part of the Tombs of Amascut.
+1273- * @param stage The stage to check.
+1274: * @returns True if the stage is a ToA stage.
+1275- */
+1276:export function isToaStage(stage: Stage): stage is ToaStage {
+1277:  return stage >= Stage.TOA_APMEKEN && stage <= Stage.TOA_WARDENS;
+1278-}
+1279-

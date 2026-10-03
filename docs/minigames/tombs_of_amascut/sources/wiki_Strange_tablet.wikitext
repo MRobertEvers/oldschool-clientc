@@ -1,0 +1,19 @@
+{{Infobox Scenery
+|name = Strange tablet
+|image = [[File:Strange tablet (Tombs of Amascut).png|250x250px]]
+|release = [[8 September]] [[2022]]
+|update = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|location = [[Osmumten]]'s burial chamber
+|options = None
+|examine = A strange tablet with a hole in the middle.
+|map = {{Map|name=Strange tablet|3669,5154|mapID=-1|mtype=pin}}
+|id = 46238,46239
+}}
+The '''strange tablet''' can be found inside [[Osmumten]]'s burial chamber, which is accessible after defeating the final boss in the [[Tombs of Amascut]]. It leads to a small chamber to the west that contains the [[strange chest]], accessible after using the [[Ancient key (Tombs of Amascut)|ancient key]] on it.
+
+==Trivia==
+* The golden engravings can be read as Morse code, which can be translated as "A secret lies ahead uwu".
+
+{{Tombs of Amascut}}

@@ -1,0 +1,380 @@
+{{Update|date=29 May 2025|url=https://secure.runescape.com/m=news/yama-cas--more?oldschool=1|category=game}}
+[[File:Yama CAs & More! newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week brings some truly fiendish Combat Achievements, changes to the GE tax, and bug fixes!''
+
+==Changelog May 29th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Yama Combat Achievements'''
+
+* Yama Combat Achievements are live!
+
+'''Yama Tweaks and Fixes'''
+
+* Updated the Chasm of Fire Contract overhead icon colours for better consistency: green for Ranged, blue for Magic, yellow for Special Attacks, red for Melee, and purple for binding spells.
+* The Chasm of Fire teleport scroll now teleports you in front of the Voice of Yama.
+* The Master Scroll Book now uses the correct icon for the Chasm Teleport Scroll.
+* Elite Clues are now more common, dropping at a rate of 1/30 instead of 1/66.
+* In the case that you don't receive a Contract upon killing a demon with the eligible style, you'll get a second Ash drop to let you know you’re killing them correctly.
+* Fixed a bug where the Dragon and Bone Claws were not guaranteeing their second hitsplat from the Soulflame Horn.
+* The Phoenix Necklace proc will no longer remove a Soulflame Horn buff.
+* The Dossier no longer mentions the lockbox when opening it.
+* The Collection Log now displays the correct Dossier icon.
+* Surge Potion now has a 6-tick delay when used in PVP areas. The Special Attack Energy will not restore if a player has moved more than 15 tiles away.
+* Diabolical Worms can now be stored in the Tackle Box.
+* Crushing Infernal Shale now guarantees fair returns. You can still get multiple Crushed Infernal Shales per Infernal Shale chiselled, but you're guaranteed to get at least as many as you crushed.
+* Fixed a bug where players could use the Wet Cloth to bypass the Mining requirement of Infernal Shale.
+* The Infernal pickaxe no longer processes Infernal Shale.
+* Increased the buy limit of Yama Contracts from the Grand Exchange to 50 from 5.
+* The Purging Staff Special Attack now counts towards Contract of Glyphic Attenuation.
+* Scarred extracts now work as expected with Aether Runes when using Daeyalt Essence.
+* Added an ‘empty’ option to the Barrel of Demonic Tallow so it can be emptied from the Inventory with the Bank interface open.
+* You can no longer use an Imp Box on Jim to smuggle the Rag out.
+* Fixed a bug where the screen fading to black had a permanent duration if you entered as your friend left.
+* The Oathplate Armour set now has the correct icon in the Grand Exchange.
+* Oathplate shards now appear in the Yama Collection Log entry.
+* Removed the Dragon Chainbody from the Yama Collection Log.
+* The player cost of Worm, Catalyst, and Shard contracts now better reflects the value of their rewards.
+* Removed the Agility shortcut icons from the bottom floor of the Chasm of Fire.
+
+Plus, some hotfixes from last week: 
+
+* Rebalanced Dossier rewards:
+** Teleport Scrolls now appear less frequently and in higher quantities.
+** Increased the drop rate of Radiant Contracts and reduced the rate of Horn and Oathplate contracts.
+* Void Flares now apply special on-hit effects correctly.
+* Fixed an issue where Staff Special Attacks would consume Special Attack Energy even if you were out of range due to range reduction effects like Myopia or Sensory Clouding.
+
+'''Yama: Contract-related Tweaks '''
+
+* Yama will no longer have increased HP on any Contract '''except for '''the Contract of Bloodied Blows and Contract of Glyphic Attenuation. In addition:
+** Contract of Bloodied Blows: Yama's HP is increased by 20%, down from 40%.
+** Contract of Glyphic Attenuation: Yama's HP is increased by 15%, down from 25%.
+* In Contract of Bloodied Blows, we've lowered Yama's prayer penetration on magic and ranged attack from 10% to 5%.
+* All of Yama's Contracts will trigger phase transitions at 75% and 50% HP rather than 66% and 33% HP.
+* For the Contract of Glyphic Attenuation, players with high Prayer bonus gain a damage increase. We've made this damage bonus larger at the higher thresholds.
+* Void flares in 'duo' contracts no longer always spawn with 140hp, making them easier to solo and occasionally more manageable in a duo.
+* It's no longer possible to splash on Void flares during the Contract of Bloodied Blows.
+* Removed the ‘tile ragging’ mechanic from the Contracts of Catalyst, Worm and Shard Acquisition. This is still present on the Contracts of Harmony and Oathplate Acquisition.
+* Removed the Demonbane restriction from all Contracts.
+* To practise for the toughest Contracts (the Contracts of Harmony and Oathplate Acquisition) and money-making purposes, we've added a new option for you: Bring Yama 100 noted Pineapple Pizzas and he'll let you take him on in this empowered form. The fight's identical to the toughest Contracts of Worm, Catalyst and Shard Acquisition, but you'll receive regular loot.
+
+'''Grand Exchange Tax Changes '''
+To help maintain a healthy and balanced in-game economy, we're making changes to GE tax:
+
+* Increased GE tax rate from 1.0% to 2.0%
+** Any existing offers remain taxed at 1.0%, and only new offers use the new 2.0% rate.
+* Adjusted the sink rates for several high-value items and removed others entirely.
+* Additional low-tier and early-game items such as food, energy potions, teleport tablets, early-game ammo, and Mind Runes are now tax-exempt.
+
+'''Other Changes '''
+
+* Burning logs at a bonfire now offers the same XP as traditional Firemaking, though they'll still be used at a slower rate than lighting them manually.
+* Players entering through the Guthix portal at Castle Wars will now be randomly assigned a team at the start of each game. Leaving and rejoining the waiting room won’t change your team - your assignment only resets when a new game begins.
+* Dragon Claws have regained their second-hit passing logic.
+* Players can no longer smuggle non-combat items into Soul Wars.
+* The Master Scroll Book now uses the correct icon for the Colossal Wyrm Teleport.
+* Using a Volatile or Eldritch Nightmare Staff Special Attack will no longer disable a player's set autocast when re-equipping another staff.
+* We've identified Pure accounts whose Defence level was erroneously bumped from Level 1 to Level 2 due to last week's bug that caused ranged weapons to grant incorrect type of combat XP. Their Defence has now been restored to Level 1.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '''<nowiki/>'Zerker'<nowiki/>''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Yama Combat Achievements==
+Prepare to face the ultimate test of skill and strategy with the newly unveiled Yama Combat Achievements. These tasks are designed to push even the most advanced players to their limits.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Tier
+! Category
+! Title
+! Description
+|-
+| Elite
+| Kill Count
+| Yama Adept
+| Defeat Yama once.
+|-
+| Elite
+| Speed
+| Yama speed trialist
+| Defeat Yama in an average time of under 3:38 over your last four kills.
+|-
+| Elite
+| Mechanical
+| Back so soon?
+| Defeat Yama without attacking the Judge with the wrong style and without taking more than one instance of damage each time he exiles you from the arena.
+|-
+| Master
+| Kill Count
+| Yama Veteran
+| Defeat Yama fifty times.
+|-
+| Master
+| Speed
+| Yama speed chaser
+| Defeat Yama in an average time of under 3:00 over your last four kills.
+|-
+| Master
+| Restriction
+| No toppings, no drinks, thanks
+| Defeat Yama without anybody healing using anything other than plain pizza and without anybody drinking any potions.
+|-
+| Master
+| Mechanical
+| Shadow dancer
+| Defeat Yama without getting hit by shadows and without ever being more than one tile away from the centre of his shadow crash attack.
+|-
+| Master
+| Mechanical
+| Fire fighter
+| Defeat Yama without getting hit by fire and having only killed void flares with special attacks.
+|-
+| Grandmaster
+| Speed
+| Yama speed runner
+| Defeat Yama in an average time of under 2:34 over your last four kills.
+|-
+| Grandmaster
+| Perfection
+| Contract Choreographer
+| Defeat Yama whilst completing 'Shadow Dancer', 'Fire Fighter', 'Back so soon?' and without taking any other avoidable damage.
+|-
+| Grandmaster
+| Kill Count
+| Contractually unbound
+| Defeat Yama under the conditions of one of his advanced contracts.
+|}
+So go get stuck in - the gauntlet has been thrown! Sharpen your blades, strategise with your comrades, and see if you've got what it takes to master the Master of Pacts. 
+
+==Yama Tweaks and Fixes==
+[[File:Yama CAs & More! (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-29/Yama579.png here]!'']]
+
+This week brings a whole host of Yama or Chasm of Fire-related tweaks, we're hitting you with a big ol' list!
+
+* Updated the Chasm of Fire Contract overhead icon colours for better consistency: green for Ranged, blue for Magic, yellow for Special Attacks, red for Melee, and purple for binding spells.
+* The Chasm of Fire teleport scroll now teleports you in front of the Voice of Yama.
+* The Master Scroll Book now uses the correct icon for the Chasm Teleport Scroll.
+* Elite Clues are now more common, dropping at a rate of 1/30 instead of 1/66.
+* In the case that you don't receive a Contract upon killing a demon with the eligible style, you'll get a second Ash drop to let you know you’re killing them correctly.
+* Fixed a bug where the Dragon and Bone Claws were not guaranteeing their second hitsplat from the Soulflame Horn.
+* The Phoenix Necklace proc will no longer remove a Soulflame Horn buff.
+* The Dossier no longer mentions the lockbox when opening it.
+* The Collection Log now displays the correct Dossier icon.
+* Surge Potion now has a 6-tick delay when used in PVP areas. The Special Attack Energy will not restore if a player has moved more than 15 tiles away.
+* Diabolical Worms can now be stored in the Tackle Box.
+* Crushing Infernal Shale now guarantees fair returns. You can still get multiple Crushed Infernal Shales per Infernal Shale chiselled, but you're guaranteed to get at least as many as you crushed.
+* Fixed a bug where players could use the Wet Cloth to bypass the Mining requirement of Infernal Shale.
+* The Infernal pickaxe no longer processes Infernal Shale.
+* Increased the buy limit of Yama Contracts from the Grand Exchange to 50 from 5.
+* The Purging Staff Special Attack now counts towards Contract of Glyphic Attenuation.
+* Scarred extracts now work as expected with Aether Runes when using Daeyalt Essence.
+* Added an ‘empty’ option to the Barrel of Demonic Tallow so it can be emptied from the Inventory with the Bank interface open.
+* You can no longer use an Imp Box on Jim to smuggle the Rag out.
+* Fixed a bug where the screen fading to black had a permanent duration if you entered as your friend left.
+* The Oathplate Armour set now has the correct icon in the Grand Exchange.
+* Oathplate shards now appear in the Yama Collection Log entry.
+* Removed the Dragon Chainbody from the Yama Collection Log.
+* The player cost of Worm, Catalyst, and Shard contracts now better reflects the value of their rewards.
+* Removed the Agility shortcut icons from the bottom floor of the Chasm of Fire.
+
+Plus, some hotfixes from last week: 
+
+* Rebalanced Dossier rewards:
+** Teleport Scrolls now appear less frequently and in higher quantities.
+** Increased the drop rate of Radiant Contracts and reduced the rate of Horn and Oathplate contracts.
+* Void Flares now apply special on-hit effects correctly.
+* Fixed an issue where Staff Special Attacks would consume Special Attack Energy even if you were out of range due to range reduction effects like Myopia or Sensory Clouding.
+
+==Yama: Contract-related Tweaks==
+Since last Friday’s hotfix adventure, we’ve made some significant changes to Contracts based on your feedback.
+
+First up, Yama will no longer have increased HP on any Contract '''except for''' the Contract of Bloodied Blows and Contract of Glyphic Attenutation. Yama's HP is slightly reduced on both of the aforementioned Contracts too:
+
+* Contract of Bloodied Blows: Yama's HP is increased by 20%, down from 40%.
+* Contract of Glyphic Attenuation: Yama's HP is increased by 15%, down from 25%.
+
+On the topic of Contract of Bloodied Blows, we've lowered Yama's prayer penetration on magic and ranged attack from 10% to 5%.
+
+On top of these adjustments, a good chunk of feedback made clear that Phase 3 for a lot of these fights was pretty enjoyable, while Phases 1 and 2 felt like a bit of a slog - particularly frustrating when a small mistake can kill you. With that in mind, ''all'' of Yama's Contracts will trigger phase transitions at 75% and 50% HP rather than 66% and 33% HP. This means you'll spend more time taking on the toughest part of the fight, but the HP reductions should mean that kills are a bit snappier.
+
+Here's a few smaller changes we’re making:
+
+* For the Contract of Glyphic Attenuation, players with high Prayer bonus gain a damage increase. We've made this damage bonus larger at the higher thresholds.
+* Void flares in 'duo' contracts no longer always spawn with 140hp, making them easier to solo and occasionally more manageable in a duo.
+* It's no longer possible to splash on Void flares during the Contract of Bloodied Blows.
+* Removed the ‘tile ragging’ mechanic from the Contracts of Catalyst, Worm and Shard Acquisition. This is still present on the Contracts of Harmony and Oathplate Acquisition.
+* Removed the Demonbane restriction from all Contracts.
+
+Additionally, you can now bring Yama 100 Noted Pineapple Pizzas (his favourite!) to persuade him to let you fight him in his empowered form. This fight is intended to give you much-needed practice for the toughest Contracts of Worm, Catalyst and Shard Acquisition, but you’ll receive regular loot.
+
+Naturally, these changes do make these Contracts easier than before, so we've compiled a list of the first among you to complete the Purifying Sigil, to make sure that players who stepped up to the challenge even when it seemed insurmountable are remembered by the history books, let's take a look.
+
+* 1) Widega
+* 2) RangedSkully
+* 3) M a x S
+* 4) BoerJohannes
+* 5) I Mster I
+* 6) Gnomonkey
+* 7) Radeyz
+* 8) No1
+* 9) Oblv JRazE
+* 10) Noobtype
+
+We'd like to say a huge congratulations to everybody out there who's completed any Contracts so far, we hope to see some of you tackling these adjusted Contracts and sharing your thoughts with us!
+
+==Grand Exchange Tax==
+As part of our ongoing commitment to maintaining a healthy in-game economy, we're making a change to the Grand Exchange tax rate. We understand that any update involving your hard-earned gold can be sensitive, so we want to be fully transparent about the reasons behind this change and how it will affect your gameplay.
+
+'''Why Change the GE Tax Rate?'''
+The amount of GP entering the game has steadily increased over the years, but our systems for removing that GP, known as "money sinks", haven’t kept pace. A change like increasing the GE tax is a meaningful step towards restoring economic balance, helping to curb inflation and preserve the value of your wealth.
+
+The goal here isn’t to punish trade, but to ensure that Old School continues to have a vibrant and sustainable economy for years to come. Increasing the GE tax is one of the most effective ways we can do that.
+
+'''Here’s what’s changing:'''
+
+* The Grand Exchange tax rate will rise from 1.0% to 2.0%.
+* Items under 50 GP will still not be taxed (since 2% of those values round down to less than 1 coin).
+* A tax cap of 5,000,000 coins remains in place for high-value trades as it did before.
+* Existing offers at the time of the update will remain taxed at 1.0%, or not taxed at all, ensuring fairness for trades made under the old rules.
+* Only newly created offers after the update goes live will see the new 2% rate.
+
+'''Improvements to Item Sinks'''
+Alongside the tax rate change, we’ve also taken the chance to give the item sink system a bit of a clean-up!
+
+In case you’re not familiar: when you buy or sell items on the Grand Exchange, most of the tax you pay gets deleted straight out of the game, helping remove GP from circulation. However, a small slice of that tax pie is also used by the game to buy certain items from players and sink them into the void, permanently deleting them from the economy. This keeps high-supply items from getting too out of hand and helps prices stay balanced over time.
+
+In this update, we’re refining the item sink system further:
+
+* Added Burning Claws to the sink list.
+* Increased sink rates for several high-impact items, including:
+** Osmumten's Fang
+** Lightbearer
+** Arcane Prayer Scroll
+** Dexterous Prayer Scroll
+** Dragonhunter Lance
+** Dragon Pickaxe
+* Meanwhile, these items are now a little less likely to be sunk:
+** Spectral Spirit Shield
+** Arcane Spirit Shield
+** Kodai Wand
+
+Finally, after reviewing item performance and value over time, we've removed the following items from the sink list entirely:
+
+* Saradomin Swords
+* Warrior ring
+* Seers ring
+* Bandos Boots
+* Sarachnis Cudgel
+* Hydra claw
+* Kraken Tentacle
+* Trident of the seas (full)
+* Occult necklace
+* Preserve prayer scroll
+* Kodai insignia
+
+Some items on this list might seem too low-price to be worth sinking. In most cases, the real issue is the sheer volume of these items entering the game. We think the GP is better directed toward other, more effective sinks.
+
+You’ll still pay tax when trading these items, but the game won’t be scooping them up and deleting them anymore. We hope these changes will let us focus your taxes on the items that are most heavily in need of an item sink, while still removing plenty of gold from the game overall.
+
+We’ve also made some low-value and early-game utility items fully exempt from GE tax. This includes things like low-tier food, Energy Potions, teleport tablets, early-game ammo, and Mind Runes. These items are useful for newer and lower-level players, and taxing them didn’t really sink much gold, but it did make the early game just a little less friendly. So we’ve cleaned that up!
+
+At the end of the day, this isn’t just about numbers - it’s about keeping the Old School economy healthy, so your GP stays valuable and prices stay fair. We’ll be monitoring these changes closely, and as always, we’d love to hear your thoughts.
+
+==Shape the Future of Player Support==
+We’re checking in - and we’d love your input!
+
+At the end of last year, we asked for your thoughts on Jagex Player Support: what was working, what wasn’t, and where you wanted to see improvements. Your feedback in the December 2024 survey was incredibly valuable and directly shaped the Player Support roadmap we shared in April for both RuneScape and Old School.
+
+Now, we’re back with a follow-up survey to see how we’re doing. What are your thoughts on the Roadmap? Have the changes we’ve made improved your experience? Are there still areas we need to focus on? Whether you’ve recently interacted with Player Support or simply have suggestions, we want to hear from you.
+
+The survey will be live from 29 May to 5 June, and you can complete it [https://jagex.questionpro.eu/ps-feedback-may25?game=osrs&chl=np here].
+
+This is the first in a series of regular check-ins, and it only takes a few minutes to complete. Every response helps us make Player Support better for everyone, so thank you for taking the time to share your thoughts.
+
+==Merch Update==
+Today we are celebrating all things Amascut!
+
+===NEW Tombs of Amascut Pins and Keyrings!===
+[[File:Yama CAs & More! (2).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-29/3.jpg here]!'']]
+
+A range of Tombs of Amascut pins and keyrings from AngelsScapes hit the [https://runescape.backstreetmerch.com/ official merch store] today.
+
+They include a Masori Max Cape Keyring and a Fortified Elidinis’ Ward Keyring as well as limited edition Amascut, Osmumten, Tumeken’s Shadow, Masori and Ornate Elidinis’ Ward pins. Get them while you can!  
+
+===Tombs of Amascut Soundtrack Album OUT NOW!===
+[[File:Yama CAs & More! (3).webm|thumb|centre|600px|''If you can’t see the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-29/Amascuts%20Promise.webm here]!'']]
+
+Unseal the legacy of a fallen goddess with the Tombs of Amascut soundtrack album – now available on all major digital music platforms. Includes all in game tracks, including bangers such as Amascut’s Promise and Into the Tombs! 
+
+Add the tracks to your playlist now by using the handy links on <!--https://lnk.to/tombs-of-amascut--> this page!
+
+===NEW Shadows of Amascut Novel===
+[[File:Yama CAs & More! (4).jpg|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-29/1.jpg here]!'']]
+
+If you're left wanting more Amascut content, you're in luck - ''RuneScape: Shadows of Amascut'' is set to be published later this year! You can pre-order this novel direct from Titan, from your local bookstore or [https://a.co/d/9AVaYpU Amazon]. Here’s the synopsis:
+
+''Was the Hereditas Expedition doomed from the start? Led by Pontifex Bilrach, the Mahjarrat must find the artifacts of the dead god Tumeken and complete the Ritual of Rejuvenation, otherwise they face extinction. Forced to work together by Zaros, the Mahjarrat form an uneasy alliance, though they all have their own ambitions. ''
+
+''Having found only sand and false hope wandering through the Kharidian Desert, the search is becoming ever more frustrating and the casualties mount as the humans die for the Mahjarrat cause. The desert is vast and full of danger, the sun is oppressive, and there are traitors in their midst. Can the Mahjarrat succeed despite these impossible odds?''
+
+Like the other two recent novels from Titan - [https://a.co/d/gJ3julm Gift of Guthix ]and [https://a.co/d/88yj6E8 Fall of Hallowvale] - Shadow of Amascut builds on in-game content from both Old School and RuneScape, filling the gaps in lore and introducing characters both new and recognisable. Ideal for lorehounds or anyone who enjoys a good story!  
+
+===More Plushies!===
+[[File:Yama CAs & More! (5).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-29/2.jpg here]!'']]
+
+Wise Old Man and Gnome Child are now available in beanie keyring form!  
+
+Treat your car keys to a keyring upgrade, decorate your gaming set up or attach to your rucksack for an AFK adventure!
+
+These miniature versions of the popular plushies from Makeship are available to pre-order [https://www.makeship.com/shop/creator/runescape here ]for a limited time. Get them before pre-orders end on June 12th!
+
+Did you know that you can also vote for Makeship to bring back popular plushie designs you missed out on? Cast your votes [https://www.makeship.com/shop/creator/runescape here]!  
+
+==Other Changes==
+
+* Burning logs at a bonfire now offers the same XP as traditional Firemaking, though they'll still be used at a slower rate than lighting them manually.
+* Players entering through the Guthix portal at Castle Wars will now be randomly assigned a team at the start of each game. Leaving and rejoining the waiting room won’t change your team - your assignment only resets when a new game begins.
+* Dragon Claws have regained their second-hit passing logic.
+* Players can no longer smuggle non-combat items into Soul Wars.
+* The Master Scroll Book now uses the correct icon for the Colossal Wyrm Teleport.
+* Using a Volatile or Eldritch Nightmare Staff Special Attack will no longer disable a player's set autocast when re-equipping another staff.
+* We've identified Pure accounts whose Defence level was erroneously bumped from Level 1 to Level 2 due to last week's bug that caused ranged weapons to grant incorrect type of combat XP. Their Defence has now been restored to Level 1.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '''<nowiki/>'Zerker'<nowiki/>''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1ky6p8m/yama_cas_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Dylan, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Ludo, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

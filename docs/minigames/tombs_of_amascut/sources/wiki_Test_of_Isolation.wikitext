@@ -1,0 +1,42 @@
+{{Infobox Music
+|name = Test of Isolation
+|number = 725
+|file = [[File:Test of Isolation.ogg]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|hint = This track unlocks in the Tombs of Amascut.
+|quest = No
+|instruments = Pizzicato Strings, Melodic Tom, FX 4 (atmosphere), Flute, Sitar, Rock Organ, Koto, Choir Ohhs, FX 7 (echoes), Standard Drum Kit, Ethnic Drum Kit
+|duration = 04:19
+|signature = 4/4
+|tempo = 120 BPM
+|album = ''[[RuneScape-_Tombs Of Amascut|RuneScape: Tombs Of Amascut]]''
+|composer = Grace Docksey
+|map = 
+|cacheid = 738
+|sortname = Test of Isolation
+|unlockdetail = Unlocked in the Path of Scabaras within the [[Tombs of Amascut]].
+}}
+'''Test of Isolation''' is a [[music]] track that is unlocked in the Path of Scabaras within the [[Tombs of Amascut]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=1
+|date=24 August 2022
+|file=[[File:Test of Isolation (8-bit).ogg]]
+}}
+{{Music changes
+|version=1
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Test of Isolation.ogg]]
+}}
+{{Music changes footer}}
+==Trivia==
+*This tracks motif is featured in {{RSL|Temple of Isolation (music track)}} - part of the Desert Quest series in ''RuneScape 3''.
+{{Tombs of Amascut}}
+{{Music}}
+[[Category:Old School-exclusive music]]

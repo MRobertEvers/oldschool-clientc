@@ -1,0 +1,302 @@
+{{Update|date=22 February 2022|rev=9 March 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-raid-rewards-v2?oldschool=1|category=community}}
+[[File:Tombs of Amascut- Raid Rewards V2 newspost.png|right]]
+{{ToC}}{{clear}}
+==Your Feedback, Our Actions==
+{|class=wikitable style="text-align:center; width:665px;"
+!Last Updated
+!Your Feedback
+!Our Response
+|-
+|March 9th
+|We've seen feedback about the Heka not having the same level of power as the Scythe of Vitur or Twisted Bow.
+|We're aware of the feedback but haven't found any alternative suggestions on how the Heka could work that would warrant changing it right now.
+
+We're confident you'll enjoy using the Heka once it's live, where it should really come into its own! We're opting to continue with the current design.
+|-
+|March 9th
+|Players didn't like the functions provided with the uncharged version of the Ward of Elidinis.
+|Initially, we wanted the uncharged version of the Ward to be designed for usability rather than viability, we agree that this version could provide more functionality than it does currently.
+
+Therefore, we are changing the stats to the following:
+* Magic Accuracy: Decreased from 10 to '''5'''.
+* Stab Defence: Decreased from 18 to '''5'''.
+* Slash Defence: Decreased from 22 to '''3'''.
+* Crush Defence: Decreased from 21 to '''9'''.
+* Ranged Defence: Increased from 0 to '''6'''.
+* Prayer Bonus: Decreased from 4 to '''0'''.
+* Magic Damage: Increased from 0 to '''3%'''.
+
+This will now give the uncharged version more viability as you can receive some of the Magic Damage Bonus from it without upgrading it with the Arcane Sigil.
+|-
+|February 28th
+|You liked the idea of improvements to the Heka of Tumeken, and the new special effects that depend on which Spellbook is active.
+
+However, there was some confusion about how the effects will work.
+|We've given clearer explanations of each effect in the Heka of Tumeken section. Scroll down to take a look!
+|-
+|February 28th
+|We've had questions about the availability and usability of the uncharged version of the Ward of Elidinis.
+|To clarify, the reason the stats were added to the uncharged version was to not make it viable, but so it could be used straight away.
+
+In terms of availability, we've seen comparisons to the Pegasian Crystal and Boots.
+
+The drop rates for both the Pegasian Crystal and the Ranger Boots are very far apart which causes such a disparity in the supply/demand. As the Ward and the Arcane Sigil will both be very rare items we don't think it will pose this same problem, but we will monitor it closely.
+|-
+|February 28th
+|Some players felt that the option to create the Ward of Elidinis through an NPC undervalues the stats required to create it.
+|This is a completely fair opinion, we agree. and we will be removing the option to ask Abbot Langley to create the charged Ward for you.
+
+This is a big change, of course, and we want to know if this would mean the Charged Ward would be untradeable and require a player to have the skill requirements to use it. What do you think?
+|-
+|February 28th
+|Players feel underwhelmed by the rework of Osmumten's Fang, especially compared to the more significant changes made to the other rewards.
+|Firstly, we'd like to clarify that the Fang was intended to be a great weapon specifically for this raid. We are going to be adding some more high-defence NPCs, and when we do, the Fang will really come into its own!
+
+However, we'd like to add some additional changes.
+
+Firstly, we want to raise the attack accuracy from 150 to 175. This is a strong buff that would make it one of the highest accuracy weapons in the game. We want it to be the best choice for high-defence monsters, but currently, there aren't many monsters with high enough defence to justify using the weapon as is. This buff would further push the Fang's attack capabilities, while leaving weapons like the Rapier as the better choice for lower defence targets.
+
+The second change would be to reduce the special attack cost down to 25%. It isn't currently the most powerful special attack available – certainly not when compared to the likes of Godswords – but by reducing the cost of using it in this way, it should feel like it has its place.
+|-
+|February 28th
+|Players feel like the Stat Renewal Potion is too niche to be useful.
+|This item gathered the most negative feedback. Lots of players deemed it too weak.
+
+We wanted to slowly introduce the effects and components of an Overload-style potion for the main game, and this was one of the components. We won't be making any changes at the moment – we know it's not very powerful right now, but we believe the set-up for the future is going to be worth it!
+|-
+|February 28th
+|Some players are worried that adding another use for the Pharaoh's Sceptre will exacerbate the botting problem at Pyramid Plunder.
+|This is a completely fair concern, but after speaking with our Anti-Cheating Team (ACT) we've concluded that the changes we made last year achieved what we wanted, to help prevent botting. Because of this, we feel confident about including teleportation as part of the Sceptre.
+
+Besides, having an item that teleports you to all other pyramids in the Kharidian Desert but leaves one out feels a little odd!
+|-
+|February 28th
+|Players have suggested using a new item to teleport to the raid, because the Pharaoh's Sceptre is clunky and requires lots of effort to recharge.
+|We completely agree. With the Sceptre as it is, you would have a maximum of eight teleports to the raid (with the Elite Desert Diary) and afterwards, you would have to go through Pyramid Plunder to recharge it, which you can't even do until all charges are depleted.
+
+This feels extremely counter-productive, so we're looking at making a few tweaks.
+
+Firstly, we would increase the number of charges the Sceptre holds, depending on Desert Diary rewards, as follows:
+* No Diaires: 3 Teleports
+* With the Easy Desert Diary Completion: 10 Teleports
+* With the Medium Desert Diary Completion: 25 Teleports
+* With the Hard Desert Diary Completion: 50 Teleports
+* With the Elite Desert Diary Completion: 100 Teleports
+
+You would be able to recharge your Sceptre at any time, regardless of how many recharges you have left.
+
+Next, we would make it so that only the uncharged version of the Sceptre was tradeable, and any version with charges would act more like Xeric's Tailsman. You'd be able to ekamanually uncharge the Sceptre at any time, making it tradeable once more.
+|}
+
+We haven’t forgotten about those Tombs of Amascut rewards! In fact, we’ve been discussing your feedback at length. However, in January, a new piece of content dropped that made us re-think a few of our decisions: Nex.
+
+The rewards for defeating the fearsome Angel of Death were really impressive, and this inspired us to reassess Tombs of Amascut’s loot. Your input was also crucial in helping us see how we could push even further with these desert delights!
+
+So, what’s changing? While we are still happy with some of the items we’ve designed, others have undergone significant reworks. As an added bonus, we’ve also included two new features that will neatly coincide with this particular Raid. Let’s get into it!
+
+[[File:Tombs of Amascut- Raid Rewards V2 (1).png|thumb|center|600px|''Concept Art for Tombs of Amascut rewards.'']]
+
+<center>'''As always, we refer to the in-game timings as cycles. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the wider community.'''</center>
+
+==Masori Armour==
+{{News Poll|qtext=|2=''The Masori were powerful ranged weapon-wielders active during an ancient Kharidian war. They focused primarily on defending ordinary people from the violent thieves and murderers who sought to take advantage of the wartime chaos. This mighty clan has been long since disbanded, but their weapons can still be found in the palaces of wealthy Menaphites, and among the treasures of long-dead Pharaohs.''}}
+
+'''Requirements'''
+* 80 Ranged
+* 30 Defence (80 when upgraded)
+
+Probably the biggest change in this rework is the removal of the Low Life effect – and the additional Dodge mechanics – from Masori Armour. Although some of you liked the unique effect for this set, its uses were a bit niche and many of you felt the tradeoff was simply not worth it.
+
+As such, the armour set will now consist of the Helmet, Chestplate and Chainskirt – and no Amulet. This doesn’t mean that Low Life won’t be visited in some form in the future, but for now, it won’t be a feature here.
+
+Instead, the stats that came from the effects of Low Life on the original Masori Armour will make up the base versions of the new set – plus the original Prayer Bonus:
+
+<center>[[File:Tombs of Amascut- Raid Rewards V2 (2).png]][[File:Tombs of Amascut- Raid Rewards V2 (3).png]][[File:Tombs of Amascut- Raid Rewards V2 (4).png]]</center>
+
+Wait… base version? Yep, we’ve decided to take a similar approach to Nex rewards and offer some shiny upgrades to the Masori Armour, with the base version still being equippable, with different requirements.
+
+Using plates broken down from Armadyl’s Armour and crafting them (with 90 Crafting) onto your Masori Armour pieces with a chisel, you can create the upgraded versions.
+
+'''Breaking Down Values'''
+* Armadyl Helmet - 1 Armadyl Plate
+* Armadyl Chestplate - 4 Armadyl Plates
+* Armadyl Chainskirt - 3 Armadyl Plates
+
+'''Crafting Values (with 90 Crafting)'''
+* Armadyl Helmet - 1 Armadyl Plate
+* Armadyl Chestplate - 4 Armadyl Plates
+* Armadyl Chainskirt - 3 Armadyl Plates
+
+The base equipment will focus on low Defence and high Offence, making it one of the best choices for an Offence Ranged build, while the upgraded version will be the new best-in-slot Ranged gear in all categories:
+
+<center>[[File:Tombs of Amascut- Raid Rewards V2 (5).png]][[File:Tombs of Amascut- Raid Rewards V2 (6).png]][[File:Tombs of Amascut- Raid Rewards V2 (7).png]]</center>
+
+The fully upgraded armour will surpass the Offence capabilities of Armadyl’s pieces. For comparison, the fully upgraded armour will have the following stats over a full Armadyl’s set:
+
+* Stab Accuracy: '''+18'''
+* Slash Accuracy: '''+18'''
+* Crush Accuracy: '''+18'''
+* Mage Accuracy: '''+23'''
+* Ranged Accuracy: '''+19'''
+* Stab Defence: '''+8'''
+* Slash Defence: '''+10'''
+* Crush Defence: '''+10'''
+* Mage Defence: '''+12'''
+* Ranged Defence: '''+8'''
+* Range Strength: '''+8'''
+* Prayer Bonus: '''0'''
+
+{{News Poll|1|Should Masori Armour be added to the game along with the combination method that utilises Armadyl Plates, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+==Heka of Tumeken and The Ward of Elidinis==
+===Heka of Tumeken===
+{{News Poll|qtext=|2=''Tumeken was the God of Sun and Elidinis was the Goddess of Fertility. As husband and wife, they were the joint leaders of the Menaphite Pantheon. But while Tumeken and Elidinis steered the people of the Kharidian Desert spiritually, it was the responsibility of the human Pharaoh to rule in practical matters. Osmumten was the last Pharaoh before the end of the ancient war, and he fought alongside Tumeken against enemy forces, until the noble God sacrificed himself to end the conflict. After her husband’s death, Elidinis fled to mourn the loss of her family. Before before she left, the Goddess gifted Osmumten with Tumeken's Heka and her own broken Ward.''}}
+
+'''Requirements'''
+* 85 Magic
+
+The Heka of Tumeken is a wand-like magical weapon, requiring 85 Magic. It has a built-in spell with charges which will need to be replenished, using one Soul Rune and three Chaos Runes per charge.
+
+The wand stats haven’t changed too much and still have a base attack rate of two cycles with every fourth hit, firing a bigger attack that deals significantly more damage, and with a longer delay afterwards. For a more visual example:
+
+<center>'''20 damage → 20 damage → 20 damage → 60 damage'''</center>
+
+<center>'''2 cycles → 2 cycles → 2 cycles → 4 cycles'''</center>
+
+And here’s the newest example of how damage will be calculated:
+
+* Standard fast attacks scale based on ''''(Magic Level / 6) + 1'<nowiki/>''' for the base max hit.
+* The slower fourth attack scales based on ''''(Magic Level - 25) / 2'<nowiki/>''' for the base max hit.
+* Mage Strength no longer applies uniquely to the Heka.
+
+[[File:Tombs of Amascut- Raid Rewards V2 (8).png|center]]
+
+While the original design of the Heka of Tumeken was great on paper, it was lacking a certain 'something'.
+
+Instead of scaling differently according to your Magic Strength, the Heka will now unleash a special effect dependent on the spellbook you are attuned to, alongside a fourth, more powerful attack, allowing you more options for your builds. Here’s what we’re thinking:
+
+'''Standard Spellbook'''
+* Your fourth, more powerful attack will gain an additional 10% boosted damage.
+
+'''Ancient Spellbook'''
+* Your fourth, more powerful attack will hit into a 3x3 Area of Effect (AoE).
+
+'''Lunar Spellbook'''
+* Your fourth, more powerful attack will heal allies (not including yourself) by 5% of your current Magic level (rounded down) along the path of the projectile (capped at 5 players).
+* The Heka's attack range is increased by '''one''' for all attacks.
+
+'''Arceuus Spellbook'''<br>On your fourth, more powerful attack, Lose 3 Prayer points and in return:
+* Drain 5% of the NPCs Magic Level (up to 20%).
+* Boost your Magic level by 50% of drained Magic level (capped at 15% additional Magic level).
+* ''The boost is not permanent and will be lost after a period of time.''
+
+This means you’ve got a fast-attacking weapon that can be mastered to work effectively in tricky encounters, along with free additional mastery to explore with the unique spellbook effects and varying attack speeds. Because, let’s be real… Magic needs some love!
+
+{{News Poll|2|Should the Heka of Tumeken be added to the game, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+===Ward of Elidinis===
+'''Requirements'''
+* 80 Magic
+* 80 Defence
+* 80 Prayer
+
+The Ward of Elidinis will be the new best-in-slot magical shield. Players will get the broken Ward as rare loot from the Tombs of Amascut. With 90 Prayer and 90 Smithing, you'll be able to combine the broken Ward with an Arcane Sigil and 10,000 Soul Runes to repair it.
+
+[[File:Tombs of Amascut- Raid Rewards V2 (9).png|center]]
+
+Both the broken and fully repaired Wards can be equipped, but the broken Ward will be tradeable, and untradeable when fixed. Players can dismantle it to recover both the Sigil and the Ward, but the Runes will be lost. Dying in PvP will result in the Sigil and the broken Ward being dropped.
+
+Here are the stats for the charged Ward of Elidinis, and the Arcane Spirit Shield's stats, for comparison:
+
+<center>[[File:Tombs of Amascut- Raid Rewards V2 (10).png]][[File:Tombs of Amascut- Raid Rewards V2 (11).png]]</center>
+
+{{News Poll|3|Should the Ward of Elidinis be added to the game along with the combination method that utilises an Arcane Sigil and 10,000 Soul Runes, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+==Lightbearer==
+{{News Poll|qtext=|2=''Ahmek was a formidable warrior who sought to capitalise on the political instability at the end of the war. He crafted a powerful ring which he imbued with the unstable energy left behind from Tumekin's sacrifice. Ahmek sought to use this ring to emerge as a new power in the region; by forcibly uniting thieves and mercenaries under his command, he would overthrow Osmumten. His scheming proved fruitless, however, when the ring was stolen, and he was murdered in his sleep. The Menaphite Guards claimed the ring from the body of the murderous thief and dutifully presented it to the Pharaoh.''}}
+
+We’ve not made any changes to the Lightbearer’s stats or effects, so here’s a reminder:
+
+The Lightbearer is a ring with no Attack, Defence, or other bonuses. It does, however, have a unique effect. When equipped, '''your special attack energy will regenerate 100% faster''' (approximately 15 seconds per 10% / 150 seconds per 100%). Unequipping the ring will cause the timer to reset.
+
+We assume that for the most part you'll want to continue using rings like the Berserker ring. But there will be some situations where the additional special attack rate will warrant its use. We think this ring will shine in places where kill times are longer, or where you'll want to use a special attack per kill (like Graardor, K'ril, Abyssal Sire etc). You could even use it whilst Woodcutting or Fishing!
+
+{{News Poll|4|Should Lightbearer be added to the game, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+==Osmumten’s Fang==
+{{News Poll|qtext=|2=Known to his people as Osmumten the Hunter, he was renowned for bringing down many of the land's deadliest beasts. During his hunts, he wore armour and weapons crafted by the region's finest artisans. One such weapon was his Fang, with which he was eventually buried.}}
+
+'''Requirements'''
+* 82 Attack
+
+Osmumten’s Fang is a five-cycle weapon that packs serious punch while on Stab. It’s decently effective against low defence NPCs, but it excels against monsters with a high defence. We expect its damage-per-second output to be comparable to Rapier-tier weapons on opponents with low Defence, with much greater damage-per-second output on opponents with higher Defence.
+
+We’re doing something a bit different with the Fang, so let’s look at how the damage will be calculated. Instead of rolling ‘'''0-max'''’ hit like most weapons, it will instead:
+* Roll ‘(max hit * 0.15) - (max hit - (max hit * 0.15))’
+* For example: If the max hit is 60, then it would roll between 9-51.
+
+[[File:Tombs of Amascut- Raid Rewards V2 (12).png|center]]
+
+Alongside this, Osmumten’s Fang will include a special attack. Costing 25%, this special attack would '''increase the max hit of the weapon to its true max hit for one attack''', and '''boost accuracy by an additional 50%.'''.
+
+For example: If its max hit was '''60''', it would then roll '''9-60''', provided it passes accuracy.
+
+One new aspect of the Fang is more similar to the Crystal Halberd and various Spears: this weapon will deal full damage to the Corporeal Beast when on Stab. In addition, we will be removing the 50 damage cap that Corp currently has from every weapon. Now you’ve got a weapon that’s great for taking on ol' Corp, so you can have more fun hunting the Sigil to make that completed Ward of Elidinis!
+
+{{News Poll|5|Should Osmumten's Fang be added to the game, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+==And there's more!==
+===Stat Renewal Potion===
+How about something completely new! We know that one of the most useful potions you can create during Chambers of Xeric is Overload, which boosts all the player's combat stats by 6 + 16% while damaging them for 50 HP. Uniquely, the boost is repeated every 15 seconds until the effects wear off, after which the player heals 50 HP. This makes it better than your standard potions as it ticks up over time.
+
+Tombs of Amascut will introduce a new secondary component called Lily of the Sands. When combined with a Dwarf Weed, this will create the new Stat Renewal Potion. You will need 71 Herblore to create it, and each one you make will net you 150 XP.
+
+Essentially, the Stat Renewal Potion has the same stat-renewal aspect of an Overload, so if your combat stats are below base, it will restore them back up. This means:
+* The effect would last for five minutes.
+* The amount it would restore is 16% of your skill level + 6
+
+''This potion will not boost your stats above your base level.''
+
+{{News Poll|6|Should the Stat Renewal Potion and the new secondary component, Lily of the Sands, be added to the game, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+===Pharaoh Sceptre Teleport & Rework===
+Ok, one more treat while you’re here! As we’re raiding in the desert, we want to give players an easy way to get to an instance once it comes available.
+
+As it happens, there's already a specific item that can get you to a couple of important places within the Desert: The Pharaoh’s Sceptre. So, let’s make use of it!
+
+We want this item to let players access the raid easily, the same way you can jump to Chambers of Xeric and Theatre of Blood.
+
+The first thing we want to do is to significantly increase the number of charges the Sceptre can hold, depending on your completion of Desert Diaries:
+* No Diaires: '''3 Teleports''' (No Change)
+* With the Easy Desert Diary Completion: '''10 Teleports'''
+* With the Medium Desert Diary Completion: '''25 Teleports'''
+* With the Hard Desert Diary Completion: '''50 Teleports'''
+* With the Elite Desert Diary Completion: '''100 Teleports'''
+
+We would keep the current method of recharging teleports, but you could also recharge your Sceptre at any time, regardless of how many recharges you have left.
+
+{{News Poll|7|Should we increase the number of charges the Pharaoh's Sceptre can hold including the increased charges rewarded from completing different tiers of the Desert Diary, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+Next, we would make it so that only the uncharged version of the Sceptre was tradeable, and any version with charges would act more like a Xeric's Tailsman.
+
+This means there would no longer be eight different types of Sceptres, (one per charge), just '''two''' versions: charged and uncharged. You'd also be able to manually uncharge the Sceptre at any point to make it tradeable again.
+
+Using the Sceptre on an obelisk outside the raid entrance and you'll be granted an additional teleport close to the raid entrance. This will only be possible after completing Beneath Cursed Sands.
+
+If this passes, we’ll also tidy up the right-click menu, so you just have ‘Teleport’ and ‘Teleport to Previous’ options on your Sceptre. Clicking on ‘Teleport’ will then bring you an interface with more options of where to go.
+
+The Sceptre would also be recoloured and made untradeable after completing it’s attunement.
+
+{{News Poll|8|Should we change the functionality of the Pharaoh's Sceptre and add an additional teleport to the entrance to the raid, as explained in the 'Tombs of Amascut: Raid Rewards V2' blog?}}
+
+----
+
+That’s what we’d call a wrap! Got feedback? Here’s how to join the discussion:
+
+* Join the [http://discord.gg/OSRS Official Old School RuneScape Discord] server and head to the '''#tombs-of-amascut''' channel in the Summer Summit area.
+* Use the '''#OSRSRaids''' hashtag on [https://twitter.com/OldSchoolRS Twitter].
+* Reply to the [https://www.reddit.com/r/2007scape/comments/tabqsy/tombs_of_amascut_rewards_blog_v2_ward_of_elidinis/ Tombs of Amascut Reddit thread] or make your own threads with '('''Tombs of Amascut / ToA''')' in the title.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team''

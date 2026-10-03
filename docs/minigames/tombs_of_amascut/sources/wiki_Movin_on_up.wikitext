@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Movin' on up
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete a Tombs of Amascut raid at level 50 or above.
+|tier = Hard
+|monster = Tombs of Amascut: Entry Mode
+|type = Restriction
+|id = 464
+|leagueRegion = Desert
+}}
+'''Movin' on up''' is a [[Combat Achievements/Hard|hard combat achievement]] which requires the player to complete a [[Tombs of Amascut]] raid at level 50 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Entry Mode}}
+
+{{Combat Achievements}}

@@ -1,0 +1,23 @@
+{{Infobox Combat Achievement
+|name = Ba-Bananza
+|image = [[File:Tombs of Amascut - Fighting Ba-Ba.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Ba-Ba with all Ba-Ba invocations activated and the path levelled up to at least four, without dying yourself.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 453
+|leagueRegion = Desert
+}}
+'''Ba-Bananza''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Ba-Ba]] with all Ba-Ba invocations activated and the path levelled up to at least four, without dying. 
+
+In solo, task '''is''' awarded even with multiple deaths, so it is recommended to set invocations to unlimited deaths, so that you can try repeatedly. Set invocations Walk the path and Pathmaster to have a chance to get room to level 4 as the second path. An invocation level of 300 is required to achieve the task, so it is recommended to pick remaining invocations that will not make a difference to completing the task, such as those affecting the Wardens.
+
+If still struggling, you can attempt the monkey room as the third boss (doing two easier ones first) allowing use for ambrosia given by helpful spirit. Double check the monkey path has levelled up to 4 before attempting, as Walk the path is random.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

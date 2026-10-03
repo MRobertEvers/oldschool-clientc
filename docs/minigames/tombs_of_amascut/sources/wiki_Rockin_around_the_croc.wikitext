@@ -1,0 +1,54 @@
+{{Infobox Combat Achievement
+|name = Rockin' around the croc
+|image = [[File:Tombs of Amascut - Zebak wave attack.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Zebak with all Zebak invocations activated and the path levelled up to at least four, without dying yourself.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 455
+|leagueRegion = Desert
+}}
+'''Rockin' around the croc''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Zebak]] at a path level of 4 with all invocations active without dying, at raid level 300 or above.
+
+==Strategy==
+At a path level of 4, Zebak will attack every 5 ticks (every 3 seconds), increasing to 2 upon triggering the enrage phase (every 1.2 seconds). In addition, his '''Tidal Waves''' attack will now only have a single gap, although the waves can still be skipped over with proper experience.
+
+In addition, the '''Pathmaster''' invocation is most direct way of levelling Zebak to the level 4 path requirement. It is however possible to get it with both '''Pathseeker''' or '''Pathfinder''' active - the probability of having Zebak reaching level 4 during such raids is 1/3, and 5/6 respectively.
+
+In solo you '''can''' still get the achievement even after dying multiple times.
+
+{| class="wikitable sortable sticky-header align-center-1" style="text-align:left;"
+! colspan="2" class="unsortable" style="width: 15%" | Invocation
+! class="unsortable" style="width: 70%" | Details
+|-
+|[[File:Zebak icon.png|link=]]
+|Not Just a Head
+|
+* Zebak will occasionally cast a form of [[Blood Blitz]] on all players, causing one of two effects:
+** Blood Blitz will attack as normal, always hitting regardless of the player's defence bonuses for 8-11 damage, healing roughly ~66% of that amount. If players are clumped, the damage is increased and will splash onto them.
+** Summons a [[Blood Cloud]] that chases after players. It will take damage upon spawning but will heal if it makes contact with a player, dealing rapid but light damage.
+|-
+|[[File:Zebak icon.png|link=]]
+|Arterial Spray
+|Zebak's blood magic will have increased range and healing.
+
+Not Just a Head must be active in order to activate this invocation.
+|-
+|[[File:Zebak icon.png|link=]]
+|Blood Thinners
+|Three [[Blood Cloud]]s are summoned instead of one.
+
+Not Just a Head must be active in order to activate this invocation.
+|-
+|[[File:Zebak icon.png|link=]]
+|Upset Stomach
+|Zebak's acid pools will have their spread increased from 3x3 to 5x5 and the jugs will have their water reduced from 5x5 to 3x3.
+|}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

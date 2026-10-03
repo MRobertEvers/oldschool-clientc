@@ -1,0 +1,15 @@
+{{Infobox NPC
+|name = Unstable Orb
+|image = [[File:Unstable Orb.png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = A magical orb.
+|map = No
+|id = 11804
+|leagueRegion = Desert
+}}
+'''Unstable Orbs''' are objects that appear during the fight with [[Akkha]] in the [[Tombs of Amascut]], where they appear once he rejuvenates himself at the tail end of the fight. These hit the player for moderate damage, which can be slightly mitigated with [[Protect from Magic]]. In addition, they move in a single direction as indicated by the arrows under them, making their movements easy to predict.
+[[File:Tombs of Amascut - Akkha's final stand.png|thumb|left|300px|The unstable orbs moving throughout the arena.]]
+{{Tombs of Amascut}}

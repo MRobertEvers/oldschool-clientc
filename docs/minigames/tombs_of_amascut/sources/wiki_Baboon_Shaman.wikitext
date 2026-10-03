@@ -1,0 +1,71 @@
+{{Infobox Monster
+|name = Baboon Shaman
+|image = [[File:Baboon Shaman.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 74
+|size = 1
+|examine = An undead baboon shaman.
+|xpbonus = 
+|max hit = 7
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 8
+|hitpoints = 40
+|scaledhp = Yes
+|att = 60
+|str = 60
+|def = 20
+|mage = 60
+|range = 60
+|attbns = 25
+|strbns = 0
+|amagic = 25
+|mbns = 0
+|arange = 25
+|rngbns = 0
+|dstab = 900
+|dslash = 900
+|dcrush = 900
+|dmagic = 900
+|dlight = -50
+|dstandard = -50
+|dheavy = -50
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = Yes
+|immunethrall = No
+|id = 11715
+}}
+'''Baboon Shamans''' are a monster encountered in the [[Path of Apmeken]] within the [[Tombs of Amascut]]. They are able to summon [[Baboon Thrall]]s, as well as use a magic attack that drains [[prayer points]] equal to the amount of damage dealt.
+
+Each shaman has a maximum amount of thralls it can have summoned at once. If this limit is reached, or are inflicted with [[poison]]/[[venom]], the shaman will switch to using magic attacks instead.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = Baboon shaman's [[Hitpoints]] have been decreased from 50 to 40.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change= Baboon Shamans now always take maximum damage from Ranged attacks. To compensate, their HP has been increased from 16 to 50.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The health of baboons in the Path of Apmeken are now static, rather than scaling based on raid level and group size.
+}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll = Awakened DT2 Bosses & Poll 80
+|change = Baboon Shamans are now vulnerable to poison and venom, and being inflicted with either will also now cause them to stop summoning Baboon Thralls and switch to magic attacks.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

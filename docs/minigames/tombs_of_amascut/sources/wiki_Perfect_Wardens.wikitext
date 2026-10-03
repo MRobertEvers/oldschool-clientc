@@ -1,0 +1,40 @@
+{{Infobox Combat Achievement
+|name = Perfect Wardens
+|image = [[File:Tombs of Amascut - fighting Tumeken's Warden.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat The Wardens in a group of two or more, without anyone taking avoidable damage from the following: Warden attacks, obelisk attacks, lightning attacks in phase three, skull attack in phase three, Demi god attacks in phase three. You must have all Wardens invocations activated.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 444
+|leagueRegion = Desert
+}}
+'''Perfect Wardens''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat the Wardens in a group of at least two players, while not taking damage from any avoidable attacks, while having all of their invocations enabled, at raid level 150 or above.
+
+==Strategy==
+Phase 1 has two possible attacks that will disqualify the player - standing next to the obelisk when it is destroyed causes an explosion that will fail the task, as well as getting hit by the pyramids that come down.
+
+Phase 2 begins to introduce attacks that will disqualify the player if they are not dealt with. For the purposes of this task, [[Elidinis' Warden]] should be fought instead of [[Tumeken's Warden]] as it will not try to chase after players, so they can focus solely on using [[Protect from Missiles]] or [[Protect from Magic]]. Tumeken's phantoms are also significantly easier to handle. Red skulls indicate a '''magic''' attack, while plain skulls indicate a '''ranged''' attack. The Warden will also launch prayer-disabling projectiles in the form of a scimitar, arrow or orb, in which [[Protect from Melee]]/Ranged/Magic should be used to block the attack. Failing to pray against the attacks will disqualify the players from the achievement.
+
+The [[obelisk (Tombs of Amascut)|obelisk]] will also cycle between three special attacks for the duration of phase 2, '''Windmill''', '''Lightning''' and '''Converging Beam'''. The attacks can be easily avoided by making the most of the tiles to find safe spots.
+
+Phase 3 is the hardest part of the achievement, especially in the enrage phase since getting hit by a lightning attack will immediately disqualify the player. As with the Warden attacks, make sure to pray against the attacks from the first phantom. In a normal level 150 raid, the Warden will only have 2560 health in a duo encounter and will be quite easy to defeat in high-level gear.
+
+This task can be done with alt account as +1, but requires alt account to log out during p1 and log back in once the p3 has started. If alt account never enters into p1/p2, they will be spawned into the fight when p3 starts. Logging out and back in circumvents that and still doesn't count as death for the purpose of this task.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 December 2022
+|update = Christmas Event 2022
+|change = A bug in which damage dealt via the [[Obelisk (Tombs of Amascut)|obelisk]] did not cause the task to fail has been fixed.
+}}
+{{Subject changes footer}}
+
+
+{{Combat Achievements}}

@@ -1,0 +1,114 @@
+{{Update|date=21 August 2024|url=https://secure.runescape.com/m=news/miscellaneous-fixes?oldschool=1|category=game}}
+[[File:Miscellaneous Fixes newspost.png|right]]
+{{clear}}
+__TOC__
+''This week’s update features fixes and feedback changes as we prepare for Araxxor’s launch next week.''
+
+==Changelog August 21st==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Osmumten's Fang Inventory Icon Changes'''
+
+* Both the Standard and Ornamental Fang's Inventory icons now look bigger and clearer, as per your feedback.
+
+'''Araxxor Arrives Next Week!'''
+
+* The new Slayer boss, Araxxor, is set to weave some serious trouble starting next '''Wednesday, August 28th!'''
+
+'''Summer Summit 2024'''
+
+* Mark your calendars for '''September 7th, 8pm BST / 3pm ET / 12pm PT''' for all the exciting news this year’s Summer Summit will bring!
+
+'''Other Changes'''
+
+* The Key Master in Cerberus' Lair no longer shows a combat level.
+* The Deadman: Armageddon variants of the Mage Arena 2 capes should now work as intended with the respective God Spells.
+* Special attacks can once again be used in Last Man Standing on F2P worlds.
+* Ironmen can now pick up the Keystone Crystal if a teammate drops it in the Chambers of Xeric. The crystal still awards points to the player who initially collected it, rather than to the player who uses it to complete the challenge room.
+* The off-hand Imcando Hammer now correctly works with Infernal Eels and coconuts.
+* Corrected a typo in the name of the off-hand Imcando Hammer.
+* Corrected the name of the ‘Cat Mask'.
+* Tweaked a shrine in the Temple of Ranul to face away from the wall.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<nowiki/>'''Zerker'''<nowiki/>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Osmumten's Fang Icon Changes==
+[[File:Miscellaneous Fixes (1).png|thumb|350px|center|''Inventory icon adjustment to the Standard Osmumten's Fang'']]
+
+[[File:Miscellaneous Fixes (2).png|thumb|350px|center|''Inventory icon adjustment to the Ornamental Osmumten's Fang'']]
+
+A few weeks ago, we tweaked Osmumten's Fang's model and special attack as part of the animation spring clean. This slight model adjustment ended up causing the Fang’s Inventory icon to appear smaller than before, and you weren't keen on it. We heard you loud and clear, and the art team has been working on adjusting its Inventory icon based on your feedback. You'll be pleased to hear that both the Standard and Ornamental Fang's Inventory icons now look bigger and clearer, as per your request!
+
+Before we continue with what else has been fixed in this game update, we've got some exciting announcements to make!
+
+==Araxxor Arrives Next Week!==
+[[File:Miscellaneous Fixes (3).jpg|400px|center]]
+The new Slayer boss, Araxxor, is crawling his way into Old School in a matter of days. This arachnoid menace is set to weave some serious trouble starting '''next Wednesday, August 28th!'''
+
+For those who need to catch up, we first discussed this Araxyte from the deep dark swamps of Morytania in its [https://secure.runescape.com/m=news/a=13/new-slayer-boss---the-araxyte?oldschool=1 poll blog.] You can also check our latest [https://secure.runescape.com/m=news/gielinor-gazette---july-2024?oldschool=1 Gazette] for a chat with Mod Arcane about Araxxor.
+
+Stick around and keep your eyes open for this eight-legged terror... lest he creep up on you!
+
+==Summer Summit 2024==
+[[File:Miscellaneous Fixes (4).jpg|600px|center]]
+Summer may be drawing to a close, but the Summer Summit 2024 is just around the corner!
+
+Mark your calendars for '''September 7th, 8pm BST / 3pm ET / 12pm PT''' for all the exciting news the Summer Summit will bring!
+
+Want to find out what we've been working on behind the scenes? Are you curious about the future content releases and what's in store for you? Make sure to tune in to [https://www.twitch.tv/oldschoolrs our official Twitch channel] on the day to get a first look at Old School's roadmap for the rest of the year and up until the next Summit at RuneFest in March.
+
+===Watch Party over on Discord!===
+As this year's Summer Summit airs, we'll be hosting a watch party in [http://discord.gg/OSRS our official Discord server]: You'll be able to watch it together with fellow 'Scapers, our lovely Chat Mods and some JMods in its dedicated channel, making predictions about what will happen at the Summer Summit and filling out a community-led bingo board!
+
+We'll be giving more details about this community activity on Discord closer to the time, so join us on [http://discord.gg/OSRS Discord ]and stay tuned for more!
+
+With these announcements out of the way, let's continue with some fixes we managed to sneak in while the team is busy preparing for Araxxor's launch next week…
+
+==Other Changes==
+
+* The Key Master in Cerberus' Lair no longer shows a combat level.
+* The Deadman: Armageddon variants of the Mage Arena 2 capes should now work as intended with the respective God Spells.
+* Special attacks can once again be used in Last Man Standing on F2P worlds.
+* Ironmen can now pick up the Keystone Crystal if a teammate drops it in the Chambers of Xeric. The crystal still awards points to the player who initially collected it, rather than to the player who uses it to complete the challenge room.
+* The off-hand Imcando Hammer now correctly works with Infernal Eels and coconuts.
+* Corrected a typo in the name of the off-hand Imcando Hammer.
+* Corrected the name of the ‘Cat Mask'.
+* Tweaked a shrine in the Temple of Ranul to face away from the wall.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<nowiki/>'''Zerker'''<nowiki/>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

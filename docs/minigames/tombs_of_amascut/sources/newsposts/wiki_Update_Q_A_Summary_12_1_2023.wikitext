@@ -1,0 +1,292 @@
+{{Update|date=18 January 2023|link=https://secure.runescape.com/m=news/qa-summary-1212023?oldschool=1|category=community}}
+[[File:Q&A Summary 12-1-2023 newspost.png|right]]
+{{clear}}
+This week's livestream focused on the newly released Secrets of the North! Topics included:
+* [[#Question #1|The art of Secrets of the North with Mod Jerv]]
+* [[#Question #1 2|How Secrets of the North was created]]
+* [[#Question #5|The "Step Back" method]]
+* [[#Question #13|Nulled Damage during Phase Transitions]]
+
+Thanks to Mod Ayiza (Lead Community Manager), Mod Arcane (Senior Content Developer), Mod Bruno (QA Analyst) and Mod Jerv (Concept Artist) for their insights!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+Missed the live stream? Check out the transcript below!
+
+__TOC__
+==Art Segment==
+===Question #1===
+{{Cquote2|Love the teleport effect Hazeel and Khazard have! Will we be seeing more unique effects implemented? There are a bunch of teleport items that would benefit from having their own unique animations.}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=575s Youtube Time Stamp]
+
+* '''Mod Jerv:''' I agree with that a lot! That was Mod Ghost who played around with that - he had a lot of fun with smoke clouds, and it also used it for the Assassin. It looks really cool how it fades into one of the NPCs and then disappears. We’ve had a lot of time to play around with things in the art team, and we definitely have more fun spending more time on small things like this. I’m hoping we can put more of a budget into great teleport solutions.
+
+===Question #2===
+{{Cquote2|What was your favourite part to design?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=637s Youtube Time Stamp]
+
+* '''Mod Jerv:''' The Mahjarrat storyline has a lot of lore, and the most fun part was trying to get all of that lore into a design that had some subtlety to it and wasn’t too on the nose. The challenge of trying to make a good design while keeping smaller elements in the design was the fun part of it, definitely.
+
+==Q&A==
+===Question #1===
+{{Cquote2|Mod Arcane, congratulations on such a successful release! This first one is for you. Talk us through your decisions when creating the new solo boss for Secrets of the North. Tell us about some of your favourite mechanics. Are there any which are totally new and unique, or are some of them taken from other encounters like a raid for example?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1269s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Talking through the decisions when creating a boss, I mainly look at a bunch of different games and different bosses for inspiration. I then try different things until I figure out what felt good.
+* '''Mod Arcane:''' I know that for ToA, there were a lot of paper designs where I would program it all out, and I quickly realised that a lot of it wouldn’t work together. So for this, I skipped that step completely and started putting things into the game immediately, because you get a much better feel for it. That was a big change for me personally, in just trying to get them into the game as fast as possible!
+* '''Mod Arcane:''' For favourite mechanics, I really liked the whole spike mechanic and how the initial locations for the spikes when you go into the arena are slightly random, where every time a spike spawns, it effectively duplicates to form next to it. So you’ll go from two to four to eight, and there’ll just be more and more in the arena, so it becomes a generally unique shape and no environment will feel the same.
+* '''Mod Arcane:''' I hope that means in the long term it won’t be as repetitive because you’re not always standing in the exact same three tiles over and over again. I know that for Hydra, sometimes that can feel like you end up marking the three tiles in the arena and go “okay, start here and then wait to move to this tile”. I’m hoping this makes it a little bit more random! I quite enjoy things like that where you don’t want to scuff the arena too much, so I think it’s quite cool.
+* '''Mod Arcane:''' Working with line-of-sight, I think this is something we’ve not really delved into too much. The explosion attack towards the end where you want to hide behind the spikes is something that’s quite cool. I find the mage attack really satisfying too. It’s not particularly mechanically innovative; it’s a basic range attack, but every now and again you get the whole Jad-esque style of having to Pray Mage. I just feel the animation and the projectile are synced up and look really smooth as a big ball of energy. It feels really satisfying.
+* '''Mod Arcane:''' Are some encounters taken from raids? Not really, I think there are a few that are somewhat unique. I don’t think we’ve really messed with Prayer very much as a mechanic, and this is the first boss that has Prayer points, at least in a certain phase. I think that’s caught a few players off guard, but people figured it out pretty fast!
+* '''Mod Arcane:''' I was quite worried that people wouldn’t really figure out the whole Prayer phase for quite a while, and they’d just be sitting there looking at the boss waiting for the drain. That would be really boring! But people figured out smite and the Prayer sapphire bolts, which have never worked in PvM before. I was a bit worried that people would never connect the dots. I was really happy with that, and people figured it out and seem to be enjoying it.
+
+===Question #2===
+{{Cquote2|Mod Bruno, do you want to share any complicated or interesting bugs/problems that arose in testing the new boss?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1468s Youtube Time Stamp]
+
+* '''Mod Bruno:''' There wasn’t really a whole lot, aside from a few weird, nitpicky things. One interesting thing was initially that the thralls were able to do direct drain to the Muspah’s shield phase. That alone would nearly kill the whole phase, which we decided was a bit too much. We nerfed it down and made thralls do nothing because it’s not really prayer drain that they’re attacking.
+* '''Mod Bruno:''' Aside from that, when it does the explosion attack, the first couple of tiles adjacent to the boss, including spikes, were being ignored. This was confusing to me because the spikes were there, but they weren’t protecting me. So that had to be fixed as well! There weren’t too many interesting bugs - aside from a few things like corruption not proccing correctly - it was pretty smooth!
+
+===Question #3===
+{{Cquote2|Is there a hidden mechanic when it comes to the "Prayer Shield" phase of the fight? Even if you use Sapphire Bolts, Smite, Ancient mace, etc, you are still met with the chat message "The Phantom Muspah's prayer shield mitigates regular damage". You still do massively reduced damage with your weapon, so it's weird to assume that Sapphire bolts are the only way that you can deal high damage to this phase. Can this be explained?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1542s Youtube Time Stamp]
+
+* '''Mod Bruno:''' There isn’t any secret mechanics - it’s not that deep. We did intend for sapphire bolts to be the meta for this; I specifically remember testing sapphire bolts to make sure they work. Other items like the ancient mace also worked, but it isn’t that high a level - it’s very weak and is never going to do as much as a sapphire bolt spec or even a smited bow hit or anything like that. It’s pretty simple, and how players are killing right now is exactly how we intended them to kill it.
+* '''Mod Arcane:''' I do think that the chat message is coming out a little too much. It’s intended to only be a message saying that the prayer shield mitigates regular damage. It’s only ever supposed to come out if your attack effectively did nothing. If you didn’t have smite on, then you weren’t using sapphire bolts or you didn’t do an ancient mace attack, that’s when the message is supposed to show up.
+* '''Mod Arcane:''' If that feels like it’s showing up too much, or when it shouldn’t be, then it sounds like a bug. Functionally the boss is working, but maybe it’s just the messages coming out too frequently.
+
+===Question #4===
+{{Cquote2|Can you explain why the Saturated Heart is untradeable? If the Imbued Heart and Ancient Essence is tradeable, what is the reason for making this untradeable beyond making it unbaggable for UIM?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1662s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It wasn’t the goal to just simply make it unbaggable for Ultimate Ironman - I’m not that petty! The general idea was that the main game mode requires a couple more untradeables to look for - there aren’t very many things that main has that get locked to your account permanently.
+* '''Mod Arcane:''' I was looking to have more of those. I wanted to have that as a perk, and it was polled as such. I would like to think that some people agreed, but I do think that one of the unfortunate oversights was that some people like to trade Imbued Hearts.
+* '''Mod Arcane:''' Say you’re doing ToB with your friends. You can trade Imbued Hearts between you and use them, or even during the encounter itself you can drop it on the floor and trade it like that. That is nice, and we did just remove that, which is an unfortunate side effect. But we are going to be making it tradeable, so we don’t need to worry about that going forward.
+* '''Mod Ayiza:''' With the update on the 18th, Saturated Hearts will be tradeable. This also helps out for Group Ironmen in addition to that, because you can put it into your group bank and trade it between players whenever they’re doing tasks that require magic!
+
+===Question #5===
+{{Cquote2|Today’s hotfixes addressed a bug with the Phantom Muspah’s melee attack. The ‘step back’ method to mitigate damage from this phase was a fun mechanic to engage with, could the team explain why it was removed and whether or not they’d consider reverting this change?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1756s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It was a bug. Every NPC has a core combat that it calls by default, and Muspah was weirdly alternating between calling its custom combat scripts and the core one. The core one defaults to “melee-prayer is always 100% damage reduction”. It was this really weird behaviour where if you stepped back, it was calling on core combat, but if it was next to you, it was calling the custom combat.
+* '''Mod Arcane:''' So it was a bug that needed to be fixed, but I do think it was a cool quirky mechanic, and I would be interested in bringing it back properly. How that would probably look is that we code it in a way where it would respect this behaviour, but it wouldn’t show the hit-splats as I think it’s weird how it hits a zero.
+* '''Mod Arcane:''' I like the idea of dodging the melee attack, but not that it hits you but your prayer reduction is higher. It doesn’t make any sense that prayer reduction is higher just because you stepped back - it should just not hit you! That’s how I’d want to bring it back because if you step back, the boss just misses in a similar way to Nightmare’s melee attack, where if you step back or to the side, it misses. I’d rather just bring it back like that.
+
+===Question #6===
+{{Cquote2|Does the Old School team plan on making Smite relevant for future PvM? It was awesome to see this mechanic for the new boss!}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1880s Youtube Time Stamp]
+
+* '''Mod Bruno:''' When it makes sense, yeah! For this boss it made a lot of sense because leading up to Desert Treasure II, we’ve got curses and stuff like that.
+
+===Question #7===
+{{Cquote2|Venator Bow was very good in Barbarian Assault. Can we get more insight for why this area is restricted?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=1911s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We had talked to a couple of people in the BA community who had said that they didn’t want it in there for various reasons. The biggest reason was reducing the skill gap and the skill required for the attack roll. At the time we were in this position of “okay, this community really doesn’t want this bow and this is the change that affects them the most. It doesn’t affect very many people, and would only negatively affect these players, so we’ll just make them happy”.
+* '''Mod Arcane:''' It seemed like a free win there, but obviously, the last 24 hours are showing otherwise. We’ve prepared our stance on that, we do agree that the game should evolve over time and things should change - Inferno has gotten a lot easier because of this bow, so why shouldn’t other pieces of content?
+* '''Mod Arcane:''' I do think it’s a shame for the people that really care about the prestigious nature of that, but I also think it’s important that the entire game evolves and we shouldn’t hold parts of it back artificially.
+* '''Mod Ayiza:''' Just in case it was lost in the details, this was hotfixed earlier today, so it’s now useable within Barbarian Assault. That’s a change that we have already made and reverted.
+
+===Question #8===
+{{Cquote2|Mod Arcane, when designing the mechanics of the boss, did you feel limited knowing that there are meant to be four bosses in Desert Treasure II, so you had to keep some mechanics saved for those bosses rather than using them here?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=2033s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Not really, it just means there’s more to talk about. There are always more ideas, we didn’t particularly hold anything back!
+
+===Question #9===
+{{Cquote2|What player stage do you think this boss most appeals to? Does this match what you envisioned when you first tested the boss?}}
+
+[https://www.youtube.com/watch?v=-OhtpdX3pZk&t=2877s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It depends on what you mean by where it should sit. You can do the boss post-quest on an 85 combat account - base 75. It is possible, but with every boss, it’s more efficient to go train your stats up as high as you reasonably want to and make money in other reasonable pieces of content and farm it.
+* '''Mod Arcane:''' That goes for literally everything in the game! It’s more efficient to get max combat and then kill Giant Mole than it is to struggle to go dry at Mole at base 60. You can kill Mole with base 60, but I do think it’s reasonable to go there, do your 50-100 kills, maybe get the Ancient Sceptre for an upgrade and then drop it for a bit and come back when you’ve got better gear.
+* '''Mod Arcane:''' I don’t expect mid-level players to sit there for hundreds and hundreds of kills trying to farm out the Venator bow or the pet. I’d say it all depends on what you want from the boss. If you only want a couple of things, I think it’s completely reasonable for mid-to-late-game. If you want to farm the pet and multiple Venator Bows for money, then I would expect that to be more for the late-game players in a proper endgame, because the gear matters a lot there.
+* '''Mod Arcane:''' I think that’s a good thing - gear should matter a lot in every piece of content. I think it’s a shame if you’re getting the exact same kills per hour with a whip versus a scythe. The scythe should be better - it should feel good. You want to incentivize it to get better gear.
+* '''Mod Arcane:''' I think it’s completely fine to kill it earlier on, but I wouldn’t recommend farming it for hours. I would say the same for minibosses or Vorkath. Barrows is the exception because you don’t need gear there - gear just doesn’t matter. You get a trident or an Iban and you’re almost getting max kills per hour there. The difference isn’t as big a deal going from rune platebody to full ancestral - it’s 100mil for very, very little DPS in the grand scheme of things.
+* '''Mod Arcane:''' For here, the difference between Ahrim’s and a trident versus ancestral and Shadow is monumental. It’s so big, but I don’t think that’s a problem.
+* '''Mod Bruno:''' I’ve seen some players say that it’s like a mid-level boss, and I don’t really know where they got that from. I don’t think we’ve called it a mid-level boss, and I don’t think it’s fair to compare it to a mid-level boss.
+* '''Mod Bruno:''' When I hear mid-level, I see something like Barrows or Sarachnis, those sorts of bosses where you don’t really need that much to do it efficiently, whereas here you do need a little bit of skill and some good gear. I’d say it's aimed more towards high-level, but not exactly endgame or anything like that.
+* '''Mod Ayiza:''' If I remember correctly when we put it out there in terms of expected difficulty to begin with, we didn’t give any information at all. Later on we then compared it to a more mechanical version of Vorkath with lower stats. Vorkath is not exactly a mid-game boss in its own right with the requirements is has.
+* '''Mod Ayiza:''' We did also state that you could defeat the boss with 85 combat - it was listed in the blog itself as well and confirmed that you can do it. It’s as Arcane said; probably not the best thing to farm long-term if you don’t have high combat and high gear, but that’s the nature of bossing!
+* '''Mod Arcane:''' People are very divisive over what is mid-game. Some people say that Vorkath is mid-game - it comes from a grandmaster quest! Vorakth isn’t Inferno, but that doesn’t make it mid-game. The differences between early-game, mid-game, late-game and endgame is so vague and there isn’t anything official. It’s very subjective.
+* '''Mod Ayiza:''' Since Vorkath is mechanically simpler and has higher requirements to get to, the distinction gets caught up around that, but I still wouldn’t farm Vorkath with budget gear. There’s just no point. I’d wait until I got decent gear, just like I would do with Muspah.
+
+===Question #10===
+{{Cquote2|What is your reasoning behind dropping the Venator Shards more often and needing 5 to create the bow than just making the bow a drop that's 5 times as rare?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=2344s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I just wanted to try something different. Having a singular rare drop is more exciting - you have the high variants where you could complete the entire Bow in one kill. That’s exciting; the potential, the idea that you can get a T-Bow from one KC.
+* '''Mod Arcane:''' Then you have the other side of it. The chance of going three times dry on something is a 1/20. If you’re thinking about it from the entire player base, or even your friend group - if you’ve got 20 friends that play RuneScape, one of you is likely to go three times dry.
+* '''Mod Arcane:''' If you’re in the context of Lizardmen Shamans, for example, going 15k Shamans dry for a warhammer, it’s depressing. I just wanted to try something different. If you give out smaller, more frequent quantities of an item, you’re statistically more likely to complete it in an average range. You’re less likely to finish it early, but you’re less likely to finish it later. It averages out and decreases the variance.
+* '''Mod Arcane:''' That’s good and bad - it means you can’t go as dry, but you also can’t be as spooned. I wanted to try it to see what players think; do they prefer this style of drop? It’s not dropping anything crazy. It seemed like a good chance to try it out and see what people think.
+* '''Mod Arcane:''' I’m looking for feedback on that, there probably won’t be much feedback until you’ve gone dry on it, but maybe after a couple hundred KCs, give me a message. I’m genuinely curious. We’ll see how it goes. Maybe this is something we take forward to have a bit of a balance. You don’t want an entire drop table that’s all shards - that’s not very exciting - but maybe some of the rarer drops should be broken up. We’re doing an experiment, and we’ll see how it goes.
+* '''Mod Ayiza:''' The initial reaction seems relatively positive. People are saying they like it and prefer it that way!
+
+===Question #11===
+{{Cquote2|Regarding SOTN, will the boss be Slayer task eligible?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=2480s Youtube Time Stamp]
+
+* '''Mod Bruno:''' Yeah! You can get a Boss Slayer task of the Phantom Muspah, but you can’t get a Muspah task because there are no Muspahs; just one boss. If you have the Boss Slayer task unlocked, you can get it as a Slayer task.
+
+===Question #12===
+{{Cquote2|Right now in SOTN, killing the boss before the Smite phase causes it to bug out. Will this bug be addressed?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=2508s Youtube Time Stamp]
+
+* '''Mod Bruno:''' We’ve tried to fix this bug a few times, and I think we’ve done it now! Please let us know if we haven’t.
+* '''Mod Bruno:''' The way the boss works is that it goes from one phase to the next, to the next. If you try to skip one of those phases, it may not work properly and bug out in some way. We’ve tried to fix it by making it so that if the boss reaches zero HP whilst it's trying to transition to the next phase, it will regen a little HP and then carry on properly.
+
+===Question #13===
+{{Cquote2|Damage is currently nulled between phase transitions near the end of the fight. Can this be fixed?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=2549s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Damage nulling is really bad. It was really annoying at Vanguards and it was annoying at Nex - I don’t know if this still happens at Nex; we went back and forth on that for ages. Generally, damage nulling is really bad, but for this, I feel it has to null it because it’s going from regular hitpoints to Prayer hitpoints.
+* '''Mod Arcane:''' It’s a completely different health bar. These are completely different mechanics, so it has to null it here. You can just use that period where you’re transitioning or the explosion attack is just about to end to eat instead - you know exactly when it’s going to happen so you can time it. Hopefully, it’s not too frustrating - for here, it has to null the damage.
+
+===Question #14===
+{{Cquote2|Can the devs give any insight into what goes into designing drop tables for bosses? Why so many skilling supplies?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=2628s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We’ve had a lot of criticism in the past where drop tables are really boring. We only really have about three types of items we can give out - alchables, skilling resources like seeds or ore, or we can give raw GP. We don’t really have a lot of diversity.
+* '''Mod Arcane:''' We can give alchables on every drop table, but that introduces a lot of Gold into the game, and that’s really boring. So we try and put a few skilling materials in there. That can be okay, but if you really rely on skill materials, you end up really hurting the economy.
+* '''Mod Arcane:''' Say we had one boss that only dropped ranarr weeds. The ranarr weed economy would be devastated. So what we try to do now is spread it out - we get a little bit of seeds, we get a little bit of herbs and a little bit of ores. We try to hurt everything ever so slightly, because no matter what drops, it hurts the economy in some way by adding more things into the economy that we’d want to take out more than we want to put in.
+* '''Mod Arcane:''' Bosses are generally about “okay, people are going to be eating food and drinking Prayer pots and super combats. They’re the resources that are the most consuming by bossing. We want to make sure that people are consuming an adequate amount of resources, and not generating too much.
+* '''Mod Arcane:''' It’s about trying to get the balance right and not introduce too much of an individual item from any single piece of content. We want to spread it out so it doesn’t hurt anything. Sometimes we get that wrong, “oops, we gave out way too many ranarr seeds on this drop table, we need to change that”.
+* '''Mod Arcane:''' That’s what we did today. We pulled back on some of the resources slightly - it still may be giving you a bit too much; we’ll see about that, but we don’t want to have any knee-jerk reactions. We’re pulling it back a bit.
+* '''Mod Arcane:''' Most of the Muspah drop table is quite varied and spreads it out. There are some seeds on there; sure, they’re not very common, but maybe it’s giving out just a few too many of them. This is what we tweaked today. Maybe we didn’t get it right - we can pull it back a bit more, but we have to give out some things - alchables, skilling supplies or uniques.
+* '''Mod Arcane:''' We don’t want it to drop nothing, and we don’t have to have too many empty drops where you would get three pure essence. Drops that are effectively ‘dead drops’ feel really bad, so it’s a balance of making sure we give a player something that makes them feel like their time wasn’t wasted and haven’t gotten a net loss on supplies, while also making sure we’re not giving out too much of any individual resource that would hurt the economy too badly. It’s difficult, there’s not a lot of flexibility.
+* '''Mod Arcane:''' Something that we’ve been trying to do in the last two updates is introduce new resources. For example, we’ve introduced the ancient essence, where we could have used something else like blood shards instead. Generally, if we introduce a new resource, it gives us another option of something to drop for a player with a different type of desire.
+* '''Mod Arcane:''' We’re trying to introduce new resources that we can give out so that we’re not always just giving ranarr seeds and ranarr weeds. That’s also a really good idea that we’ve tried to do, but it’s obviously a little harder to introduce new things.
+* '''Mod Arcane:''' We can pull back on supplies - in the feedback we’ve seen, the general consensus is that it’s introducing a few too many resources, but we don’t want to just completely hammer the regular drop table because the uniques aren’t particularly amazing on this boss. They aren’t going to be holding 100-200mil values. If we really hammer the drop table, it’s going to look really unappealing to do for everyone. It’s difficult - drop tables are really difficult to balance. They’re very back and forth.
+* '''Mod Ayiza:''' In the four-plus years of working at Jagex in Community Management, I can certainly say that drop tables have been the bane of my life when it comes to feedback on new releases that involve PvM! But it’s just as you say - it’s the nature of the beast.
+* '''Mod Ayiza:''' I feel like we’ve done a lot better this time around than we have in previous bosses; at least it seems way more on the line of “it could be a little bit broken, it could also be a little bit okay”. I’d rather see that than “holy crap, this is broken and there are a million threads posted, everyone is rushing to the boss, everything is broken” and then we have to change it and everyone gets upset and angry because they no longer make as much money as they did before.
+* '''Mod Ayiza:''' So I think it’s okay, but we'll continue to monitor it.
+* '''Mod Arcane:''' I know people are panicking about seed prices plummeting. It’s a valid thing to panic about. There are two major things - one, you’re panicking and the market is completely player-run, so if people think that the boss is dropping a lot of seeds based on some wiki rates or their own experience. You see twelve ranarr seeds dropping and think “wow, that boss drops lots!” word will spread and people will start panic selling. That’s a big factor that makes them crash.
+* '''Mod Arcane:''' The second thing is that a lot of people are doing this particular boss right now. It isn’t like some people are doing ToA, some people are doing ToB and there are a lot of people doing various content with their own different drop tables where it’s a lot more spread out. 90% of the community just moves to one boss, so a lot of those drops are going to go down in price. There’s more of this coming in than anything else in the game now.
+* '''Mod Arcane:''' It was the same with ToA - as soon as ToA dropped, all of those resources just plummeted because so many people were doing ToA. It’s suffering from success. That will normalise after a couple of weeks. After their 50-100 KCs, people will go back to whatever grind they were doing.
+* '''Mod Arcane:''' Then the resources will go back to normal and people will stop panic selling. We will monitor it long-term to see if the boss is objectively dropping too many seeds. That isn’t the only factor, however. It’s not just about the drop table.
+* '''Mod Ayiza:''' That’s a really, really good point to make, and a really important clarification as well. That’s also part of the reason why we don’t just straight up gut the drop table immediately. We made some changes today to slightly reduce the drops because we felt that even with player levels dropping down over time, it would still be a bit too powerful.
+* '''Mod Ayiza:''' As Arcane said, if we completely gutted it now, then as player activity drops and players lose interest in the boss long-term, it could become something that is just not appealing at all and we want to avoid that.
+
+===Question #15===
+{{Cquote2|Can we get a quick start option to instantly spawn the boss, similar to Vorkath? The 30-second respawn timer feels a bit too much since this is a solo boss.}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3038s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We could, it depends on how we do it. Nightmare is really obvious; Nightmare goes back to sleep, you kill her and you wake her up again. Vorkath is really simple because he's an undead dragon and he constantly gets revived. Grotesque Guardians has a big bell in the arena that you can ring - some things are easier than that.
+* '''Mod Arcane:''' I don't really know what this one would be. We could just spawn a random item on the floor that you can just click on. That probably would suffice. I do think stuff like that is generally better so that the player can start the fight whenever they want.
+* '''Mod Arcane:''' We could look at reducing spawning time, but there was a lot of feedback in playtesting that it's a bit too quick. You have to pick up all your supplies since you kind of get quite a few things. You could get six summer pies drop and two Prayer potions and a ranging pot, that’s a lot to pick up. You have to manage your inventory, heal up and pre-prayer. It can take a lot of time, so we increased it, but the better that players get and the more comfortable they get in that whole gameplay loop, they just end up sitting around waiting.
+* '''Mod Arcane:''' You can just leave and re-enter if you want to go really quick, but it's not particularly nice either, especially if you want to leave stuff on the floor.
+* '''Mod Ayiza:''' That does remove the supplies you've saved and juggling, right? I'm just joking here, but maybe make everyone bring a spade and have to dig the ground up to bring it back out of the ground. That's where it comes from - it's an underground worm thing. That's my useful input of the day!
+
+===Question #16===
+{{Cquote2|Could we get the possibility to break down Ancient Icons into Essence? Just like the Venator Shards.}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3148s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I wouldn’t be against it.
+* '''Mod Arcane:''' I’m not overly against it. I don't think it's necessary. - there will be more purpose for ancient icons in the future. So multiple is not useless yet.
+
+===Question #17===
+{{Cquote2|Would the J-Mods be interested in adding more Item Clue steps and stashes? Maybe one with the upgraded Ancient Staff and another one where you have to equip a Sun Keris outside of ToA?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3170s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I won't mind but it would be a pain, so I'm not inclined to do it. Maybe if there was a new Clue Scroll expansion at some point, then it would make sense for us to add items that weren't out in the last Clue expansion.
+* '''Mod Arcane:''' I think it's a really good thing for us to do. I just don't know when or why we do it. Is it really random, or do we release a big update, and just add a bunch more clues and stashes? It would be good because it gives more demand for items.
+* '''Mod Ayiza:''' That’s probably one thing that we need to think about because it always falls back to internal discussions that go ‘’yeah, we'll do a Clue expansion at some point and we'll bundle it up with them”. Then we never do a Clue expansion because everything else comes out instead. I think it's probably worth thinking about when new content comes out going forward, to work out how we might be able to incorporate it.
+
+===Question #18===
+{{Cquote2|First of all, lovely work with the new boss and congratulations! However, after trying the boss, there was a missed opportunity for it to be a Tribrid fight, was this intentional, or discovered after players experimented a bit?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3242s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It was never intended to be a Tribrid. I don't think every boss should be a Tribrid - it's not like we have many of them, but it's a big ask for a lot of bosses to be a Tribrid because of how much gear you have to bring. It's not always particularly desirable. I think there is a time and a place for it, and it can be fun.
+
+===Question #19===
+{{Cquote2|You once said that once we saw the boss, we would understand why the ranged weapon had to be a bow. Could you elaborate?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3301s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I think it makes sense that it’s a bow, rather than a knife or a rune thrownaxe, because you also use arrows with this item. 
+* '''Mod Arcane:'''  I really liked the idea of an axe. I liked the idea of it being like a God of War throwing axe that came back to you and everything, but it's just a completely different design on that point.
+* '''Mod Ayiza:''' I wanted a boomerang! I remember being told that there's a reason why it's got to be a bow, but I can't remember the reason because Christmas happened!
+* '''Mod Ayiza:''' You know, boomerangs are an ancient item used by Aboriginals, thousands of years old! How old is Gielinor? It's a fantasy game! It would have been cool to have a boomerang.
+
+===Question #20===
+{{Cquote2|Can you mention if the pathing on the way to the boss can be fixed? A lot of us click the "Squeeze through fence" but get directed slightly differently.}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3381s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I guess it's bugged in some weird form?
+* '''Mod Bruno:''' I imagine the pathing is trying to make it shorter for you, but not really doing its job properly. Usually the way we fix this is to move things out of the way or add things in the way, like at banks sometimes you'll click at the banker and you run to the back of the bank, because that's apparently what the game sees as the fastest way, but it doesn't really work out.
+* '''Mod Arcane:''' People could be misclicking the stairs.
+* '''Mod Bruno:''' I have seen a few people misclick on the stairs when they meant to click on the fence. So yeah, that could be as well.
+
+===Question #21===
+{{Cquote2|Was the Muspah’s orb phase intended to have a safe spot?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3440s Youtube Time Stamp]
+
+* '''Mod Arcane:''' No.
+* '''Mod Ayiza:''' Are we going to change it? This wasn’t in our feedback.
+* '''Mod Arcane:''' No, I think we're just gonna leave it. It's nice to be able to AFK that phase. It makes you feel like a God, dodging everything around you like Neo.
+* '''Mod Bruno:''' It's also not guaranteed that you’ll have the safe spot, because what if you accidentally put a spike there and that safe spot is ruined?
+* '''Mod Arcane:''' It’s not a guaranteed safe spot, but most of the time it is.
+
+===Question #22===
+{{Cquote2|Would you consider making the Phantom Muspah weak to Salve Amulet, or possibly even to ancient magicks?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3440s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I'm probably gonna say no on the salve because that does add quite a lot of DPS. It's just a slug, it's not ghostly or deadly or anything!
+* '''Mod Bruno:''' I'm guessing they mean to make it even weaker to Ancient Magicks. We already made it slightly weak to Ancient Magicks because catching a freeze is now a little bit easier if the boss isn’t frozen. I don’t think we're going to make it even weaker to Ancient Magicks, because it's already doing its job.
+* '''Mod Arcane:''' It's a weird lore thing. It's technically - at least in the quest - not a Muspah but Jhallan has turned himself into a representation of a Muspah. So you're actually attacking a Mahjarrat in the quest, you're not attacking Muspah, and Mahjarrat wouldn't be weak to Ancient Magick. That doesn't make any sense.
+* '''Mod Arcane:''' Post-quest, maybe we can stretch it a bit because technically it’s not Jhallna at that point; it’s a manifestation of energy but it's not really a Muspah at that point either.
+* '''Mod Bruno:''' People have said ‘Phantom’, I think it's just Phantom because of lore reasons, which have valid reasons to make it weak to salve. For gameplay reasons, I don't think they'll fly.
+
+===Question #23===
+{{Cquote2|What is the point of the Frozen Cache? What does it do?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3598s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It has good loot!
+
+===Question #24===
+{{Cquote2|Will this boss get Combat Achievements?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3609s Youtube Time Stamp]
+
+* '''Mod Bruno:''' Yes, it’s a boss! You'll get achievements eventually when everything's settled and we're ready to give achievements, much like Tombs of Amascut did in December, which was around a few months after the release. That was a raid, however, so I expect this will not take as long.
+
+===Question #25===
+{{Cquote2|Can you explain Frozen Cache a bit further?}}
+
+[https://www.youtube.com/watch?v=c1w4LJiW-7I&t=3630s Youtube Time Stamp]
+
+* '''Mod Arcane:''' People are saying that it's bad - it doesn't roll on the regular drop table. It can give you uniques, so you can get Venator Shards out of it. It's like an additional role but it’s heavily biased to be good since it eliminates a lot of the bad drops of the drop table. It's a very strong roll, and it does give good loot. You can still get fire runes out of it, sure, but it generally will give you good drops.
+* '''Mod Ayiza:''' It's like an extra drop from the boss that has a chance of getting better drops from the boss than a normal drop does.
+* '''Mod Arcane:''' Yeah, it's effectively extra rolling on the unique drop table, which you wouldn't normally get.
+
+==Player Creations of the Week==
+<gallery mode="packed" heights="200" style="text-align:center">
+Q&A Summary 12-1-2023 (1).png|''@witchcraftyyt''
+Q&A Summary 12-1-2023 (2).png|''u/ajaknna''
+Q&A Summary 12-1-2023 (3).png|''OSRS Community Facebook''
+Q&A Summary 12-1-2023 (4).png|''u/44slam''
+Q&A Summary 12-1-2023 (5).png|''u/KAngeii''
+</gallery>

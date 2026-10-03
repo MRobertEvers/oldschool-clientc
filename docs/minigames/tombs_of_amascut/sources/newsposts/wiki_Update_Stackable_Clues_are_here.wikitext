@@ -1,0 +1,261 @@
+{{Update|date=02 July 2025|url=https://secure.runescape.com/m=news/stackable-clues-are-here?oldschool=1|category=game}}
+[[File:Stackable Clues are here! newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week's update brings the long-awaited Stackable Clues!''
+
+==Changelog - July 2nd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Stackable Clue Scrolls and Scroll Boxes'''
+
+* After completing the quest X Marks the Spot, traditional Clue Scroll drops are replaced by stackable Scroll Boxes, allowing you to collect and store multiple clues of the same tier in a single stack.
+* Scroll Boxes and traditional Clue Scrolls share a stack limit, which starts at 2 per tier by default and can be increased up to a maximum of 5 per tier.
+* You can raise your stack limit in two ways:
+** Consuming a new item called a Scroll Case - each one increases your scroll capacity by 1. These come in two types:
+*** Minor Scroll Cases: Earned after completing a set number of clues per tier.
+*** Major Scroll Cases: Awarded at higher number of Clue Scroll completions per tier.
+** Defeating the Mimic boss (from Master caskets) grants a special Mimic Scroll Case, which increases your scroll capacity by 1 across all clue tiers.
+* Scroll Cases turn up in your Clue Scroll reward once you’ve completed the required number of clues for a given tier. To unlock the +1 capacity, simply click the Scroll Case and consume it.
+** If you've already hit the requirement, you’ll receive the +1 capacity on login, and the Scroll Cases will be added to your Collection Log.
+** If you misplace or Bank the Scroll Case before using it, it will reappear in your next Clue Scroll reward.
+* To help avoid wasting Impling jars, opening one while at your clue cap for a tier now triggers a cap warning.
+* Clue completions earned before this update count toward your Scroll Case unlocks.
+* Dropping Scroll Boxes on the floor will not bypass stack limits, though you can still juggle individual Clue Scrolls by dropping and picking them up as before.
+* If you've hit the stack limit and can't receive the Scroll Box, you'll see a warning letting you know what happened.
+* Free-to-play players can earn and use Beginner Scroll Cases; higher-tier Scroll Cases remain members-only content.
+* Watson’s Treasure Trails board has been updated and now tracks:
+** Your clue completion totals per tier
+** Your current Scroll capacity per tier
+
+'''Other Changes'''
+
+* Rebalanced Soul Wars' Spoils of War loot table. Spoils of War now includes some Blighted supplies and the Castle Wars-specific ammo has been replaced with Pure Essence, but the overall GP value per crate has been significantly reduced.
+** The pet rate remains unchanged, so your time to obtain the Lil Creator is the same as it was before.
+* The Steel Ring now gives +24 Crush Defence bonus (up from +2) alongside +24 Stab and Slash Defence bonuses.
+* TzHaar now have a 40% weakness to water spells.
+* The Giant Roc and Black Demon in Nightmare Zone now have the same elemental weaknesses as their quest variants.
+* When spam-clicking to feed Duke Sucellus, you won't use more than two potions. No more deleting your stack while Duke's already waking up!
+* Speaking of stacks: Duke's potions and mushrooms are now stackable. Enjoy the Inventory space!
+* You can now left-click to feed Duke ground mushrooms.
+* Baboon shamans now have 40 Hitpoints and Cursed baboons now have 20 Hitpoints.
+* Thralls in the Kephri room no longer count towards the Arcane Scarab's hit count, causing it to move.
+* The Soulflame Horn can no longer be used to start a Skilling cycle.
+* The keys from Obor and Bryophyta are now more common, dropping at a rate of 1/16 instead of 1/32.
+* The newly-added cooldown for Bryophyta’s Growthling spawn should now be more consistent.
+* You can now one-shot Bryophyta's Growthlings if you have an axe or Magic Secateurs equipped.
+* Monster Inspect now requires 2 Body Runes and 2 Mind Runes to cast, instead of 2 Cosmic Runes and 2 Mind Runes.
+* Corrected grammar in The Gauntlet's lobby.
+* Removed a repeated message from Sir Tiffy's dialogue.
+* Fixed typos in the Black Knights’ Fortress quest journal.
+* Fixed typos regarding Snelms.
+* The 'Inspect' option on the Jewel of Amascut now shows a picture of the correct jewel.
+
+We also rolled out a hotfix late last week:
+
+* Fixed a bug where Magic Special Attacks weren't working correctly against 'Flying' enemies.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Stackable Clues==
+They’re finally here. Stackable. Clue. Scrolls!
+
+This long-awaited update gives all you clue-chasing adventurers more flexibility as you dig, scan, sprint, and puzzle your way across Gielinor.
+
+Let’s walk through what’s new!
+
+===The Scroll Box===
+Anyone who’s completed the quest ''X Marks the Spot'' will no longer receive traditional Clue Scroll drops. Instead, you’ll get shiny new Scroll Boxes - functionally the same as Clue Scrolls, but with one game-changing twist: they stack.
+
+No more choosing between slaying and finishing your Hard Clue. No more accidentally missing out on that Elite from TOB because some sneaky little blighter was hiding out back in the chaotic abyss of your Bank. With Scroll Boxes, you can collect now and clue later - as long as you haven’t hit your stack limit.
+
+Each box holds a scroll of the same tier and can only be opened if you don’t already have an active clue of that tier sitting in your Inventory or Bank. If you do? The box won’t open. 
+
+[[File:Stackable Clues are here! (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/noopen.jpg here]!'']]
+
+If you haven't completed X Marks the Spot, you’ll still receive regular, non-stackable Clue Scrolls - so that classic Old School treasure hunting experience remains alive and well for new or lower-level players. This includes geodes from Mining, nests from Woodcutting, bottles from Fishing, etc. Those of you who’ve completed the quest will get shiny new Scroll Boxes from wherever you usually get your Clue Scrolls.
+
+===Stack Limits and "A Sneaking Suspicion..."===
+Scroll boxes are stackable, but there are still limits! Each clue tier has a cap on how many Boxes (or scrolls) you can hold at once. This cap starts at 2 per tier by default after X Marks the Spot, and then can be further increased to a maximum of 5 by consuming new items called Scroll Cases.
+
+Scroll boxes and Clue Scrolls''' '''share this cap. For example, if you’ve got two Easy scrolls in your Bank, and you roll a drop for a third, you’ll get the familiar message:
+
+''"You have a sneaking suspicion that you would have received a Scroll Box…"''
+
+[[File:Stackable Clues are here! (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/Clue.jpg here]!'']]
+
+If you try to pick up a stack of Scroll Boxes from the floor while at your current limit, you'll be met with the following message:
+
+''"Some of your Scroll Boxes were destroyed, as you have too many of that tier."''
+
+[[File:Stackable Clues are here! (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/drop.jpg here]!'']]
+
+However, it's still possible to receive multiple Scroll Boxes at once, so long as they’re from different tiers - for example, getting both an Easy and Medium Scroll Box while Fishing.
+
+Additionally, if you're worried about wasting Impling Jars, fear not! If you're at your clue cap for a tier and you open a jar, you’ll now get a cap warning to help avoid wastage. Jar responsibly.
+
+[[File:Stackable Clues are here! (4).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/jar.jpg here]!'']]
+
+===Scroll Case Upgrades===
+Want to raise your stack limit and hoard some clues like a pro clue chaser? One way of accomplishing that is to earn yourself some Scroll Cases.
+
+There are two main types of Scroll Cases:
+
+* Minor Scroll Cases: Earned after completing a set number of clues for a tier.
+* Major Scroll Cases: Awarded at higher completion milestones.
+
+[[File:Stackable Clues are here! (5).png|thumb|422px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/scrollcase.jpg here]!'']]
+
+Each one increases your scroll cap by +1, permanently, for that specific tier.
+
+Here's a breakdown with the number of required clue completions:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Tier
+! Completions Required for Minor Scroll Case
+! Completions Required for Major Scroll Case
+|-
+| Beginner
+| 50
+| 100
+|-
+| Easy
+| 100
+| 200
+|-
+| Medium
+| 100
+| 250
+|-
+| Hard
+| 50
+| 150
+|-
+| Elite
+| 50
+| 150
+|-
+| Master
+| 25
+| 75
+|}
+
+Scroll Cases turn up in your Clue Scroll reward once you’ve completed the required number of clues for a given tier. To unlock the extra clue capacity, simply click the Scroll Case to and consume it!
+
+Already hit the required number of clues before this update? In that case, you’ll receive the +1 capacity on login, and the Scroll Cases will be added to your Collection Log.
+
+[[File:Stackable Clues are here! (6).png|thumb|300px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/ScrollCases.png here]!'']]
+
+From then on, if you receive a Scroll Case but misplace or Bank it before using it, don’t worry - it will reappear in your next Clue Scroll reward, ready to be consumed and boost your cap.
+
+Besides earning Scroll Cases, the other way of increasing your stack limit is through beating the Mimic boss, which will earn you the Mimic Scroll Case, which bumps your Clue capacity across all tiers by 1. If you've already beaten the Mimic Boss before this update, the Mimic Scroll Case will retroactively be added, similar to how clue completions retroactively are rewarded.
+
+A few extra things to note:
+
+* Clue completions from before this update count toward your Scroll Case unlocks.
+* You can’t cheese the Scroll Box cap by dropping Boxes on the floor.
+* You can still juggle Clue Scrolls by dropping them on the floor and picking up another Clue Scroll.
+* Free-to-play players can earn and use Beginner Scroll Cases, while higher-tier upgrades remain members-only content.
+
+===Watson's Board===
+With all these new Scroll caps, Boxes, and upgrades, you’re probably wondering: “How do I keep track of all this?!” Well, old reliable Watson is on the case! 
+
+If you’ve unlocked Scroll Boxes (from ''X Marks the Spot'', remember?), the Treasure Trails board in his house now shows:
+
+* Your clue completion totals per tier.
+* Your current Scroll Box capacity per tier.
+* Whether or not you've obtained the Mimic Scroll Case.
+
+[[File:Stackable Clues are here! (7).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-02/Watson.jpg here]!'']]
+
+If you haven’t unlocked the Scroll Box system yet, the board will just show completions like before.
+
+That's a wrap on the Clue Scroll update! Stack your Scrolls, raise your caps, defeat the Mimic, and show those caskets who’s boss. May your puzzles be quick, your coordinates close, and your rewards finally full of that blasted Third Age piece.
+
+==Mobile Survey==
+Earlier this week we asked for your experience of OSRS on mobile. We want to know what content is your go-to on mobile, as well as which content you avoid and why. Plus, we're asking for your thoughts on some of the community’s most-requested updates or fixes. We want to stress here that we're doing this for research purposes, and the suggestions within the survey aren't necessarily things we can do, either now or in the future. It's good for us to understand what you guys are asking for!
+
+You can still complete the [https://jagex.questionpro.eu/OSRSMobile survey] below:
+
+[[File:Stackable Clues are here! (8).png|199px|center|link=https://jagex.questionpro.eu/OSRSMobile]]
+
+Thanks so much! Remember, if you want to join in the mobile conversation you can head to the Mobile category in the [https://discord.com/channels/324132423636090880/960550250530086993 Official Old School Discord server].
+
+==Other Changes==
+Earlier this spring, we rebalanced Castle Wars crates, because minigames where players can essentially set their own reward rates just can't be allowed to remain overly profitable. A similar adjustment was overdue for Soul Wars’ Spoils of War - that change is here at last. For this, we’ve taken a similar approach with the Castle Wars update: Spoils of War now includes some Blighted supplies and the Castle Wars-specific ammo has been replaced with Pure Essence, but the overall GP value per crate has been '''significantly''' reduced. Pet hunters, fear not; the pet rate remains unchanged, so your time to obtain Lil Creator will be the same as it always has been.
+
+Other ‘Other Changes’ include:
+
+* The Steel Ring now gives +24 Crush Defence bonus (up from +2) alongside +24 Stab and Slash Defence bonuses.
+* TzHaar now have a 40% weakness to water spells.
+* The Giant Roc and Black Demon in Nightmare Zone now have the same elemental weaknesses as their quest variants.
+* When spam-clicking to feed Duke Sucellus, you won't use more than two potions. No more deleting your stack while Duke's already waking up!
+* Speaking of stacks: Duke's potions and mushrooms are now stackable. Enjoy the Inventory space!
+* You can now left-click to feed Duke ground mushrooms.
+* Baboon shamans now have 40 Hitpoints and Cursed baboons now have 20 Hitpoints.
+* Thralls in the Kephri room no longer count towards the Arcane Scarab's hit count, causing it to move.
+* The Soulflame Horn can no longer be used to start a Skilling cycle.
+* The keys from Obor and Bryophyta are now more common, dropping at a rate of 1/16 instead of 1/32.
+* The newly-added cooldown for Bryophyta’s Growthling spawn should now be more consistent.
+* You can now one-shot Bryophyta's Growthlings if you have an axe or Magic Secateurs equipped.
+* Monster Inspect now requires 2 Body Runes and 2 Mind Runes to cast, instead of 2 Cosmic Runes and 2 Mind Runes.
+* Corrected grammar in The Gauntlet's lobby.
+* Removed a repeated message from Sir Tiffy's dialogue.
+* Fixed typos in the Black Knights’ Fortress quest journal.
+* Fixed typos regarding Snelms.
+* The 'Inspect' option on the Jewel of Amascut now shows a picture of the correct jewel.
+
+We also rolled out a hotfix late last week:
+
+* Fixed a bug where Magic Special Attacks weren't working correctly against 'Flying' enemies.
+
+==Coming Next Week==
+We're aware that we've still got more to change from last week's update, so we've put together a list of what we're looking to change '''''next week''''':
+
+* Implement a handful of missing Elemental Weaknesses, including some Nightmare Zone variants of quest NPCs.
+* Adjust the TOA loot weighting changes to interpolate between the thresholds at 300, 350, 400, 450 and 500.  This means that a Raid Level of 310 will have a ''slightly ''reduced weighting for the Fang and Lightbearer when compared to a Raid Level 300 encounter.
+* Add a warning to the TOA Nexus Deposit Box to prevent players accidentally depositing their Inventory or all equipped gear.
+* Take another pass over some spots where Skulls appear to land too close to the Obelisk during Wardens P2.
+* Implement a Quick-Enter and Quick-Leave option for Obor and Bryophyta, to speed up farming if you're not using keys to open the chests.
+* Adjust the damage thresholds for the Wilderness Boss Boosting change slightly so that Irons pulling their fair share in larger groups are still able to secure loot.
+* Adjust the Nightmare's mechanic for player respawns to mirror the change to Phosani's Nightmare, where you'll be popped outside the instance on death.
+* Recolour some text in the Deranged Archaeologist's Collection Log entry from orange to white. We're sorry for any distress this one's caused.
+* Correct some outdated messaging on Herb boxes, which still state that they provide ten herbs when checked, despite only providing seven.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1lprn76/game_update_stackable_clues_are_here/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Ludo, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

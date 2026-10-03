@@ -1,0 +1,492 @@
+{{Update|date=24 August 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut?oldschool=1|category=game}}
+[[File:Tombs of Amascut newspost.png|right]]
+{{clear|right}}
+__TOC__
+==Your Feedback, Our Response==
+<table class="wikitable" style="text-align:center; width:665px;">
+<tr>
+<th>Last Updated</th>
+<th>Issues Raised</th>
+<th>Current Progress</th>
+<th>Status</th>
+</tr>
+<tr><td>14:30 BST - August 26th</td>
+<td>Tumeken's Shadow was impacting accuracy and damage for other spells in PvM scenarios.</td>
+<td>Tumeken's Magic Accuracy and Magic Damage boosting passive now correctly applies to only the in-built spell.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>17:00 BST - August 25th</td>
+<td>Bronze Pickaxe was doing higher damage than other pickaxes on the Path of Het.</td>
+<td>Pickaxe damage now scales properly with tier. Reminder: you can store a pickaxe at the statue on the Path!</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Zebak could perform special attacks upon re-entry after a wipe.</td>
+<td>This should no longer occur and the Zebak fight should restart as intended.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Armadyl armour pieces were not disassembling into the correct number of components.</td>
+<td>Disassembling Armadyl armour pieces now provides the correct number of components.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Logging out or disconnecting in a raid with no limit on the number of wipes was counted as a wipe, meaning players would have to pay to re-obtain their items.</td>
+<td>Logging out or disconnecting in a raid with no limit on the number of wipes will no longer count as a wipe.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Dying at specific points in the Wardens fight lead to some inconsistencies in boss behaviour.</td>
+<td>These inconsistencies should no longer occur following deaths at specific times.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Players were unable to pick up their Divine Rune Pouch, and would instead open the Rune Pouch interface.</td>
+<td>Players can now pick up their Divine Rune Pouch as intended.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>14:30 BST - August 26th</td>
+<td>In some rare instances, Akkha's orbs were not spawning during the Enrage phase.</td>
+<td>Akkha now enrages as intended.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>In some rare instances, Wardens were not attacking correctly during their final enrage phase.</td>
+<td>We're looking into this issue and intend to fix it on Wednesday, August 31st.</td>
+<td>INVESTIGATING</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>The Divine Rune Pouch is not able to be stored inside the Chambers of Xeric storage chest.</td>
+<td>Players can now store their Divine Rune Pouch as intended.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>The Max Infernal Cape has some clipping issues with Tumeken's Shadow.</td>
+<td>We're looking into this issue and intend to fix it on Wednesday, August 31st.</td>
+<td>INVESTIGATING</td>
+</tr>
+<tr><td>14:30 BST - August 26th</td>
+<td>Some players have found various safespots throughout the Ba-Ba encounter depending on rubble placement.</td>
+<td>Players should no longer be able to safespot Ba-Ba.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>14:30 BST - August 26th</td>
+<td>The guaranteed max hit on the Warden's core during their second phase is incorrectly affecting some Magic weapons.</td>
+<td>Players are now only guaranteed max hits with Melee weapons on the core.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>14:30 BST - August 26th</td>
+<td>The 'On A Diet' invocation is preventing Saradomin Brews from being used inside the raid.</td>
+<td>On a diet no longer restricts brews. It does however intentionally restrict Silk Dressings and Honey Locusts.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>14:30 BST - August 26th</td>
+<td>NPCs such as thralls or pets have some awkward interactions with the skulls during the Wardens' third phase.</td>
+<td>These awkward interactions should no longer occur.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Players report 1-dose 'Raid potions' (those offered by the helpful spirit!) are difficult to discern.</td>
+<td>We're looking into this issue and hope to make these more visually distinct on Wednesday, August 31st.</td>
+<td>INVESTIGATING</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Certain combinations of invocations cause the in-raid interface to jump around the screen at various points.</td>
+<td>We're looking into this issue and intend to fix it on Wednesday, August 31st.</td>
+<td>INVESTIGATING</td>
+</tr>
+<tr><td>15:00 BST - August 25th</td>
+<td>Some players weren't sure if the Ring of Life effect (also present on the Defence skillcape and Max cape) was intended to be turned on inside the raid.</td>
+<td>This is intended behaviour, we'd recommend turning off this effect on your Max cape to prevent yourself teleporting away at inopportune times.</td>
+<td>N/A</td>
+</tr>
+<tr><td>12:55 BST</td>
+<td>Rune Thrownaxes can no longer be used to break the doors to Dagannoth Kings.</td>
+<td>This issue has been resolved and you can break the doors as per normal.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>12:20 BST</td>
+<td>We've fixed an issue regarding rewards within Entry Mode.</td>
+<td>-</td>
+<td>FIXED</td>
+</tr>
+<tr><td>12:55 BST</td>
+<td>In the Path of Het (Akkha) Challenge Room, placing 2 Mirrors at the same time, on top of each other will cause you to lose a mirror.</td>
+<td>You'll now not lose your mirrors when placing 2 at once.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>12:55 BST</td>
+<td>In the Path of Het (Akkha) Challenge Room, pushing a mirror into the wall will trap the mirror you placed.</td>
+<td>This issue has been resolved.</td>
+<td>FIXED</td>
+</tr>
+<tr><td>13:20 BST</td>
+<td>The Summary Board still show party members that have left.</td>
+<td>This issue will be resolved with next week's game update.</td>
+<td>COLDFIX NEEDED</td>
+</tr>
+<tr><td>13:20 BST</td>
+<td>Playing with Fixed mode and split Private Chat cuts off the Raid Party Interface.</td>
+<td>This issue will be resolved in a future update.</td>
+<td>COLDFIX NEEDED</td>
+</tr>
+</table>
+<center>''The time has come for you to face the evil lurking within the Tombs of Amascut!''</center>
+
+==Tombs of Amascut==
+[[File:Tombs of Amascut (1).jpg|centre|600px|thumb|''Want a fancy new desktop background? Click the image for a full-sized version without the Logo!''|link=https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-08-24/ToA-KeyArt.png]]
+
+We’re finally ready to dig into one of the biggest releases of the year! Prepare yourselves for Tombs of Amascut, the most replayable and narrative-driven raid we’ve made to date!
+
+Don’t forget to pack some headphones along with the rest of your tomb-raiding gear – our fantastic audio team have created some proper bangers and some truly spine-chilling sound effects, so for the full Tombs of Amascut experience, you’ll want to give them a good listen. Big thanks to Mods Grace, Kasia, Lord, Slippers and Surma!
+
+One last note before we dive in:
+
+<center>'''YOU MUST HAVE COMPLETED BENEATH CURSED SANDS TO ACCESS TOMBS OF AMASCUT.'''</center>
+
+Everyone done that? Great. Now that you’re sitting comfortably, we’ll begin…
+
+<i>Long ago, the people of the Kharidian Desert lived prosperous, luxurious lives, under the watchful eyes of their beloved gods.
+
+All that changed when Amascut, the Goddess of Rebirth, became corrupted. She was reborn as The Devourer, intent on consuming every living soul in existence.
+
+Deep within the desert, an ancient tomb has long hidden a great power – and The Devourer is determined to harness it at any cost.
+
+If she succeeds, all hope is lost. You must traverse the tomb’s many obstacles and foil her evil plans… before it’s too late.</i>
+
+{{Collapsed section|18|Requirements - Click to Expand (SPOILER WARNING!)}}
+To take on the Tombs of Amascut you'll need to have finished the following quests:
+
+* Beneath Cursed Sands
+** Contact!
+*** Prince Ali Rescue
+*** Icthlarin's Little Helper
+**** Gertrude's Cat
+
+This means you'll need the following skill levels (in order required to complete the associated quests):
+
+* 62 Agility
+* 55 Crafting
+* 55 Firemaking
+{{Collapsed section end}}
+===Worlds===
+The following worlds will now be dedicated to Tombs of Amascut:
+
+* World 329 - US East
+* World 331 - US West
+* World 531 - Australia
+* World 333 - UK
+
+We’ve also added two Tombs of Amascut Free For All worlds:
+* World 338 - US
+* World 336 - Germany
+
+===Location===
+[[File:Tombs of Amascut (2).png|centre|600px]]
+
+Now you’ve completed Beneath Cursed Sands, you should be intimately familiar with the Necropolis. When you’re ready to take on the Raid, just go there and make a beeline for the Giant Pyramid. You can’t miss it!
+
+If you don’t fancy trekking through the desert, there are a few travel options which should make your journey to the raid less arduous:
+
+After completing Beneath Cursed Sands, bring a Pharaoh’s Sceptre to the Obelisk west of the Pyramid and commune with it to unlock the teleport. Then simply head there for the raid!
+Use the Fairy Ring code AKP to travel to a small island near the Necropolis. Make sure you have at least 62 Agility to use the stepping stones!
+Take a Magic Carpet to Sophanem and head south to the Necropolis. Be sure to bring your Circlet of Water to protect you from the desert heat!
+
+===Starting The Raid===
+[[File:Tombs of Amascut (3).png|centre|600px]]
+
+Upon entering the eponymous tomb for the first time, you’ll be met with a cutscene where Maisa will explain how you can help put a stop to Amascut’s plans.
+
+Once inside, you’ll see a few noticeable features:
+
+* '''Grouping Obelisk''' - This is where you can make a group or join one.
+* '''Bank Camel''' - This enterprising ungulate has set up shop inside the pyramid and is willing to help you access all your best gear and possessions.
+* '''Scoreboard''' - Keep track of your personal best times and just-okay attempts across different group sizes and difficulty levels.
+* Invocations Board''' - A list of all the available Invocations for you to study before heading into the Raid. You’ll also be able to see what each Invocation does on the party creation screen when you head into the raid – but we recommend brushing up on your knowledge here before jumping in.
+* '''Claim Chest''' - Should you lose your items while in the Raid, you’ll be able to claim them back here… for a reasonable fee, of course.
+* '''False Door''' - Much like the equivalent at the Theatre of Blood, you can use this handy shortcut to reclaim any loot you’ve left in the Tomb.
+
+===Creating or Joining a Party===
+[[File:Tombs of Amascut (4).png|centre|484px]]
+
+You can use the Grouping Obelisk to either create a party or join one using the relevant buttons.
+
+In the Create a Party menu, you can see an overview of your current party members and a big list of everyone waiting to join. You can also set your Invocations and see a nice summary of all the modifiers and restrictions in place for your Raid.
+
+To join a team, pick a party you like the look of and then click ‘apply’ to… apply! From there, the leader can either accept or deny your application. Easy!
+
+===The Invocation System===
+The Invocation system is one of the features that sets the Tombs of Amascut apart from our previous raids. This innovative system will let raiders customise their experience inside the tombs like never before, giving newer adventurers the chance to learn the ropes and letting veterans build on the mechanics they’ve mastered to create whole new challenges.
+
+Sounds good, right? Read on to learn some of the finer details about how Invocations work.
+
+{{Collapsed section|18|Invocations - Click to Expand (SPOILER WARNING!)}}
+When you first enter Tombs of Amascut, you’ll get the choice to start out with no Invocations (in Entry Mode) or with a set menu of Invocations that should result in a challenging and engaging first-time experience.
+
+You’ll also be able to view the Invocations tab when making or joining a raiding party. You’ll see a big list of all the Invocations, and the party leader will be able to select as many (or as few) as they like for that particular run.
+
+Each Invocation you activate will add to your Raid Level. With no Invocations, your Raid Level will be 0. The tougher the Invocation, the more Raid Level it will add. In other words, your Raid Level shows, at a glance, how difficult the raid will be – and higher risk equals higher reward.
+
+[[File:Tombs of Amascut (5).png|centre|thumb|484px|''This is the Invocations tab. Active Invocations are highlighted yellow, while inactive or lower tier Invocations are greyed out.'']]
+
+A Raid Level of 0 - 149 will count as an Entry Mode raid. Entry Mode raids are a great way for less experienced raiders to get stuck in and start practicing their skills.
+
+A Raid Level of 150 - 299 will count as a Normal Mode raid. Normal Mode raids are where players with some previous raiding experience will be able to enjoy a challenge and work their way up towards Expert Mode as they get more comfortable inside the tombs.
+
+Anything over 300 Raid Level will count as an Expert Mode raid. Expert Mode is for the best of the best. 300 Raid Level is all it takes to get there, but you can gain up to 600 Raid Level – so far... Test your limits and see how far you can go before the power of Amascut overwhelms you!
+
+As the Raid Level increases, enemies inside the tombs will hit harder and last longer. On the other hand, completing raids with a higher Raid Level will improve your rewards – not to mention your bragging rights!
+
+If you’re struggling to choose, click the button named 'Preset' to use a pre-selected set of Invocations that will count as a Normal Mode raid.
+
+[[File:Tombs of Amascut (6).png|centre|600px|thumb|''The various Raid Level thresholds, scaling from ‘Entry Mode’ at 0 Raid Level all the way to 'Probably Impossible' at 600 Raid Level.'']]
+
+Here's a quick breakdown of how Raid Level will impact your spoils while you're busy tomb-raiding:
+
+* All the untradeable rewards (the Thread of Elidinis and the Keris Partisan Jewels) can be obtained at any Raid Level.
+* As you work your way up the ranks and surpass 50 Raid Level, you'll be in with a reasonable shot at earning the Lightbearer and Osmumten's Fang if you see a unique.
+* Completing a Normal Mode (or higher!) raid will give you a decent chance to loot a piece of Masori Armour, the Ward of Elidinis or even the Shadow of Tumeken if you see a unique.
+* Any of the greyed out items can be obtained but will be extremely rare. Don't count on seeing any unique that isn't highlighted!
+
+The chance to gain a unique item, and the quantity of the normal loot you receive, is also boosted at higher Raid Level. This means there’s always an incentive to challenge yourself if you want to get your hands on that sweet, sweet loot!
+{{Collapsed section end}}
+
+If you want to find a list of all the Invocations featured within the Tombs of Amascut, then head on over to our friends at the [[Tombs of Amascut#Invocations|Official OSRS Wiki]], who have a page full of ‘em!
+
+===Choose Your Path…===
+[[File:Tombs of Amascut (7).png|centre|thumb|600px|''Where to find the bosses in order from left to right: Akkha, Zebak, Kephri and Ba-Ba'']]
+
+Invocations aren’t the only way you can customise your experience in the Tombs. Once you’re in the raid, you’ll be presented with five doors. The one in the centre will take you to the Raid’s final encounter, but before that, you’ll have to take on four uniquely challenging paths. Each path leads to a dangerous boss – a powerful creature corrupted by Amascut.
+
+It’s up to you which path you tackle in which order, so once you’ve become familiar with each one, you’ll be able to choose which order suits you best. Here are the options:
+
+* '''Path of Apmeken:''' This is the path where '''Ba-Ba''' is found
+* '''Path of Crondis:''' This is the path where '''Zebak''' is found
+* '''Path of Het:''' This is the path where '''Akkha''' is found
+* '''Path of Scabaras:''' This is the path where '''Kephri''' is found
+
+Be aware that you cannot return to the main room until the path you’re on is completed – so choose carefully!
+
+Once all four paths are complete, the last doors will unlock, and you’ll be able to take on the final encounter.
+
+Initially, 'Monster Examine' will not show the defensive bonuses of monsters with the release of Tombs of Amascut. Within a few weeks of the launch we will then change it to show the defensive bonuses... I mean, we can't let you have everything! Best of luck…
+
+===Rewards===
+If there's one thing any self-respecting ancient tomb pretty much guarantees, it's the presence of hidden treasures. Brave the Tombs of Amascut and you might just walk away with one of the many spectacular rewards on offer.
+
+{{Collapsed section|18|Rewards - Click to Expand (SPOILER WARNING!)}}
+<center>'''As always, we refer to the in-game timings as cycles. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the wider community.'''</center>
+====Masori Armour====
+{| style="margin-left:auto;margin-right:auto;"
+| [[File:Tombs of Amascut (8).png|200px]]
+| [[File:Tombs of Amascut (9).png|200px]]
+| [[File:Tombs of Amascut (10).png|200px]]
+|-
+| [[File:Tombs of Amascut (11).png|200px]]
+| [[File:Tombs of Amascut (12).png|200px]]
+| [[File:Tombs of Amascut (13).png|200px]]
+|}
+
+{{News Poll|qtext=|2=''The Masori were powerful ranged weapon wielders active during an ancient Kharidian war. They defended ordinary people from the violent thieves and murderers who sought to take advantage of the wartime chaos. This mighty clan has long since disbanded, but their weapons can still be found in the palaces of wealthy Menaphites, and among the treasures of long-dead Pharaohs.''}}
+
+Requirements:
+* 80 Ranged
+* 30 Defence (or 80 when fortified)
+
+<center>[[File:Tombs of Amascut (14).png|200px]][[File:Tombs of Amascut (15).png|200px]][[File:Tombs of Amascut (16).png|200px]]<br>''Stats for the standard Masori Armour.''</center>
+
+Grafting broken down plates from the Armadyl armour set onto your Masori Armour pieces lets you create the upgraded versions. You’ll need a chisel and 90 Crafting to do so.
+
+'''Breaking Down Values'''
+
+* Armadyl Helmet - 1 Armadyl Plate
+* Armadyl Chestplate - 4 Armadyl Plates
+* Armadyl Chainskirt - 3 Armadyl Plates
+
+Crafting Values (with 90 Crafting)
+
+* Masori Helmet (Fortified) - 1 Armadyl Plate
+* Masori Chestplate (Fortified) - 4 Armadyl Plates
+* Masori Chainskirt (Fortified) - 3 Armadyl Plates
+
+<center>[[File:Tombs of Amascut (17).png]][[File:Tombs of Amascut (18).png]][[File:Tombs of Amascut (19).png]]<br>''Stats for the fortified Masori Armour.''</center>
+
+====Shadow of Tumeken====
+[[File:Tombs of Amascut (20).png|centre|200px]]
+
+{{News Poll|qtext=|2=''When the Ruinous Powers arrived in their lands, Tumeken and his people found themselves facing an enemy unlike any other. He responded by hunting down a powerful weapon to use against this new threat – but when he found it, he decided instead to create the Shadow of Tumeken.''
+
+''This staff is powered by the sun itself, and with that brightest of lights comes the darkest of shadows…''}}
+
+Requirements:
+* 85 Magic
+
+[[File:Tombs of Amascut (21).png|centre|thumb|400px|''Stats for the Shadow of Tumeken.'']]
+
+The Shadow of Tumeken has a built-in spell with charges powered by Soul and Chaos Runes. This staff will have an attack rate of five cycles and can only be used in PvM, like other powered Magic weapons.
+
+Base max hit is calculated from the following formula: Magic Level / 3 + 1.
+
+The Shadow of Tumeken also comes with two passive effects:
+
+* Magic Strength from gear is tripled, capped at a total of 100% Magic Strength.
+* Magic Accuracy from gear is tripled.
+
+Note: the passive effects only apply to the Shadow’s built-in spell.
+
+====Elidinis' Ward====
+[[file:Tombs of Amascut (22).png|centre|200px]]
+{{News Poll|qtext=|2=''After her husband’s noble sacrifice, the goddess Elidinis fled to mourn her loss. Before she left, she entrusted Osmumten, the last true pharaoh, with the broken Ward that had defended her people for so many centuries.''}}
+
+Requirements:
+* 80 Magic
+* 80 Defence
+* 80 Prayer
+
+<center>[[File:Tombs of Amascut (23).png]][[File:Tombs of Amascut (24).png]]<br>''Stats for the uncharged Ward of Elidinis (left) and charged Ward of Elidinis (right).''</center>
+
+Elidinis' Ward will be your new best-in-slot magical shield. You'll receive the broken Ward as rare loot from the Tombs of Amascut. With 90 Prayer and 90 Smithing, you'll be able to combine the broken Ward with an Arcane Sigil and 10,000 Soul Runes to repair it.
+
+Both the broken and fully repaired Wards can be equipped. The Ward only becomes untradeable when fixed. Dismantling it will recover both the Sigil and the Ward, but the Runes will be lost. Dying in PvP will result in the Sigil and the broken Ward being dropped.
+
+====Osmumten's Fang====
+[[file:Tombs of Amascut (25).png|centre|200px]]
+{{News Poll|qtext=|2=''Known to his people as Osmumten the Hunter, this pharaoh was renowned for bringing down the land’s deadliest beasts. During his hunts, he wore armour and weapons crafted by the region's finest artisans. One such weapon was his Fang, with which he was eventually buried.''}}
+
+Requirements:
+* 82 Attack
+
+[[File:Tombs of Amascut (26).png|centre|thumb|400px|''Stats for Osmumten's Fang.'']]
+
+Osmumten’s Fang is a five-cycle weapon that packs a serious punch while on Stab. It’s decently effective against low defence NPCs, but it excels against monsters with a high defence and does full damage to the Corporeal Beast. Its special effect rolls twice for your accuracy when you attack and will take the highest roll from the two, making the weapon way more accurate!
+
+====Lightbearer====
+[[File:Tombs of Amascut (27).png|centre|200px]]
+{{News Poll|qtext=|2=''Ahmek was a formidable warrior who sought to capitalise on the political instability at the end of the war. He crafted a powerful ring, imbued with the unstable energy from Tumeken’s sacrifice. With it, he sought to bend mercenaries and thieves across the desert to his will, and overthrow Osmumten.''
+
+''His scheming proved fruitless, however, when the ring was stolen and Ahmek was murdered in his sleep. In a twist of fate, the thief was almost immediately caught and executed by the Menaphite Guards, who dutifully presented the ring to their pharaoh.''}}
+
+The Lightbearer allows its wearer to unleash a deluge of Special Attacks and can be equipped by anyone fortunate enough to keep it in their possession.
+
+When equipped, your Special Attack energy will regenerate at twice the speed it usually does. Unequipping the ring will reset the Special Attack energy restoration timer.
+
+====Thread of Elidinis====
+[[File:Tombs of Amascut (28).png|centre|200px]]
+
+{{News Poll|qtext=|2=''It is said that during a great drought, the goddess Elidinis came upon a dry, barren field. She asked the farmer what was growing there – and he replied that he and his wife once supplied all the weavers in Menaphos with flaxen thread, but that the crop needed more water than they had to spare.''
+
+''Elidinis thought for a moment, and then walked away. When she returned, the waters of the blessed Elid were at her heels. As she walked the arid field, the dead and dying plants returned to life, and then grew full and healthy.''
+
+''Gratefully, the farmer’s wife dedicated the first spool of flaxen thread to Elidinis. To the goddess’ surprise, no matter how much she used, it never ran out, and to this day it is as strong as her followers’ unwavering faith.''}}
+
+Requirements:
+* 75 Crafting
+
+The Thread of Elidinis is an '''untradeable reward''' that can be used to upgrade the Rune Pouch. Use it together with a needle to imbue your Rune Pouch with magical energy, allowing you to store an additional Rune type!
+
+Unfortunately, due to Rune polarity (we don’t know, ask your local wizard) it is impossible to have both the new and old version of the Rune Pouch at the same time – that might be a tad too powerful!
+
+Should you misplace the Thread of Elidinis, you will have to re-obtain it through the Tombs of Amascut. You will, however, be able to obtain multiple Threads, and it will be a fairly common drop compared to the other uniques. You can also de-grade the Rune Pouch to retrieve the Thread.
+
+====Keris Partisan Jewels====
+[[File:Tombs of Amascut (29).png|centre|200px]]
+
+Did you ever notice that the Keris Partisan from Beneath Cursed Sands has a jewel socket? That’s because you can stick jewels in it!
+
+These jewels are all obtainable from Tombs of Amascut. Only one can be used at a time, and they can '''ONLY''' be used within the raid.
+
+The exception is the Breach of the Scarab jewel, which passed the initial poll and can be used outside of the raid.
+
+Some example jewels include:
+
+'''Eye of the Corruptor:'''
+* Using this jewel grants the Keris Partisan a Special Attack, '''Wrath of Amascut''', which costs 75% of your Special Attack energy.
+* Wrath of Amascut has 100% increased accuracy and 25% increased damage.
+* Any enemy hit by Wrath of Amascut will receive 25% increased damage for the next 6 seconds (10 cycles).
+* The Keris Partisan's attack speed will be halved when using Wrath of Amascut. In other words, you'll have to wait 8 cycles after using this Special Attack to be able to start attacking again.
+
+'''Jewel of the Sun:'''
+* Using this jewel grants the Keris Partisan a passive ability to drain life from defeated enemies at the cost of prayer points.
+* If a killing blow is dealt to a creature within the Tombs of Amascut with a Keris Partisan sporting a Jewel of the Sun, the player will lose 5 Prayer points but gain 12 Hitpoints. This effect can overheal up to 20% over the player's Hitpoints level.
+* The Jewel of the Sun gives the Keris Partisan +25% accuracy against creatures with less than 25% health.
+* Additionally, the jewel grants a Special Attack: '''Tumeken's Light.'''
+* Tumeken's Light costs 75% of the player's Special Attack energy and 50 Prayer points in order to fully heal (and overheal) the player up to 20% above their Hitpoints level. This Special Attack also cures all poison, restores any drained stats and fully restores Run Energy.
+
+'''Breach of the Scarab:'''
+* Increases accuracy by 33% against Kalphites, Scarabs, and Beetles.
+* '''Remember, this is the only jewel that can be used outside the raid'''.
+{{Collapsed section end}}
+
+==But wait... there's more!==
+Although these are all the rewards we plan to offer at launch, we’ve noticed that a lot of you want to keep the theming of new gear consistent with existing useful items. We definitely feel like we’ve achieved that in Tombs of Amascut, especially considering the feedback on the Masori Armour set.
+But hear us out… what if there were even more rewards on the way?
+As an extra treat, the team have created Ornament Kits for the following items:
+
+* Elidinis' Ward
+* Osmumten's Fang
+* Ava's Assembler
+* Max Cape
+
+[[File:Tombs of Amascut (30).png|centre|thumb|600px|''A WIP image of the Elidinis' Ward Ornament Kit, showcasing a similar look to the Shadow of Tumeken.'']]
+[[File:Tombs of Amascut (31).gif|centre|thumb|600px|''A WIP image of the Osmumten's Fang Ornament Kit, showcasing the corruption that has taken root within the Tombs.'']]
+[[File:Tombs of Amascut (32).gif|centre|thumb|600px|''A WIP image of the Ava's Assembler & Max Cape Ornament Kits, fitting in nicely with the new best-in-slot Ranged Masori Armour.'']]
+
+We bet you can’t wait to get your hands on these – but here’s the catch: they’re currently unobtainable.
+
+We’d like to see how Tombs of Amascut settles in before promising players new ways to up their fashionscape. We want to get the lay of the land and make sure these funky new items are placed at the right difficulty level.
+
+Currently, we’re thinking of awarding them for completing the raid at specific Raid Levels above Expert mode, or for completing the Raid with a specific set of Invocations.
+
+So while they won’t be added with today’s update, there’s still lots of discussion to be had. Let us know what you think of these alternate designs and tell us how you think they should be obtained. Follow the feedback links at the end of the post to share your thoughts!
+
+==World Firsts==
+As always, we’re keeping a close eye on the competition to complete Tombs of Amascut first. This time, however, there will be two additional prizes for the first group to complete the raid on Normal and Expert mode.
+
+* Normal Mode: A Raid Level of 150 - 299 will count as a Normal Mode raid.
+* Expert Mode: Anything over 300 Raid Level will count as an Expert Mode raid.
+
+The first teams to complete these achievements will receive 12 Months of Membership each, so you can carry on raiding right through 2023!
+
+We’ll be verifying each achievement behind the scenes to ensure there’s no funny business going on.
+
+For a full list of Terms and Conditions you can head over to the [http://services.runescape.com/m=forum/forums?380,381,832,66260824 forum thread].
+
+We’ll also be looking out for any other notable achievements – keep an eye on our socials for all highlights and updates regarding Tombs of Amascut.
+
+==Last Man Standing Changes==
+* Protection prayers in Last Man Standing will once again reduce damage to 60% rather than 30% of the original value. We'd tried a bigger reduction in response to players who wished their talent for switching to be better rewarded, with less impact from lucky rolls. However, some felt that the minigame had become too unforgiving, especially for anyone still learning the ropes, so we've restored those prayer effects to the usual 60% rate, as used across the rest of the game.
+* The Tome of Fire is now accessible in Last Man Standing so that players can access the buff for the Standard Spellbook.
+* The stats of Black Dragonhide Armour in LMS now match its stats in the main game.
+* The Bow of Faerdhinen has been removed from loot crates and chests.
+* Pures are now unable to use Lunar Spells, as players with level 1 Defence cannot normally access them.
+* Restricted the use of Prayers that require a Defence level higher than the account build should permit.
+* Rune Gloves have been changed to Mithril ones for Pure builds.
+* Visible Special Attack bars have been added to the Zaryte Crossbow, Dragon Knives, and Light Ballista.
+
+==Other Changes==
+* Corrected the description of a task in the Western Provinces Achievement Diary on the Deadman World.
+* The Smiths’ Gloves can now protect you from harm while harvesting Cave Nightshade.
+* Using a Pharaoh’s Sceptre to teleport out from Pyramid Plunder to the Mummy will now end the minigame session correctly, so that players are not ejected from the Mummy’s room for no reason.
+* Werewolves are now less jittery.
+* Demonbane spells now correctly show max hits when boosted using Mark of Death.
+* MOBILE ONLY: Skill XP Tooltips now disappear correctly when switching tabs on mobile platforms.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is using '''<nowiki/>'Zerk'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,832,66260825 official forums], on the [https://www.reddit.com/r/2007scape/comments/wwefva/tombs_of_amascut_weekly_game_update_august_24th/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

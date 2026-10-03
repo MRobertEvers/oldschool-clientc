@@ -1,0 +1,169 @@
+{{Update|date=28 August 2024|rev=28 August 2024|url=https://secure.runescape.com/m=news/araxxor?oldschool=1|category=game}}
+[[File:Araxxor newspost.png|right]]
+{{clear}}
+__TOC__
+''If you head south of the Haunted Woods today you're in for a spider-y surprise...''
+==Changelog - August 28th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Araxxor'''
+
+* The new Slayer boss, Araxxor, is here at last!
+* Players with at least Level 92 Slayer can obtain an Araxyte task from Nieve or Duradel, then take Araxxor on in the Araxyte Nest between Slepe and Ver Sinhaza.
+* Various smaller Araxytes have been added for players looking for a quicker task, and have a Superior variant of their own.
+* The Araxyte Slayer Helmet, Jar of Venom, Araxxor pet, Noxious Halberd, Amulet of Rancour, Araxyte Venom Sac and some new teleport scrolls have been added as rewards from Araxxor. Aranea Boots have been added as a reward from regular Araxytes.
+
+'''Summer Summit 2024'''
+
+* Mark your calendars for '''September 7th, 8pm BST / 3pm ET / 12pm PT''' for all the exciting news this year’s Summer Summit will bring!
+
+'''Other Changes'''
+
+* Boss tasks that can only be completed solo (e.g. Zulrah, Cerberus, Kraken) now award the correct amount of points if you're on a task with a Slayer Partner.
+* Osmumten's Fang's inventory icon is no longer missing an outline pixel at the sword's tip.
+* Legacy Duels at the Emir's Arena are now restricted to specific 'Legacy Duels' worlds.
+* Players can no longer walk through Jimmy Dazzler's walls. Don't ask...
+
+'''PvP Rota'''
+
+The PvP rota has moved to Period B:
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been de-activated with this rota.
+
+World 569 (AUS) for Bounty Hunter has been de-activated with this rota.
+
+The PvP Arena is using '1 Def Pure' loadouts in Ranked Duels and Tournaments this week. 
+
+{{Collapsed section end}}
+
+==Araxxor==
+We hope you're stocked up on Slayer Points because our newest Slayer boss, Araxxor, is skittering across to Old School today!
+
+[[File:Araxxor (1).png|600px|center]]
+
+All you'll need to get started is some combat gear, a can-do attitude, and an Araxyte Slayer Task from Nieve or Duradel (requiring Level 92 Slayer). While we're not going to outright hand you a gear setup, we'd recommend bringing melee gear, runes to cast Vengeance, potentially a Ranged or Magic switch, Anti-venom Potions and a bunch of food to get you started. Araxxor can be found inside the Araxyte Nest nestled between Slepe and Ver Sinhaza in Morytania. Accessing it no longer requires you to have progressed A Night at the Theatre - anybody willing to brave this arachnid nightmare is welcome!
+
+Study up on Araxxor with this video from Maikeru and Paak! There's a lot of Araxxor footage in there which you'll be able to use to prepare yourself ahead of today's update.
+
+<center>{{Youtube|1zp1_A9fJ6c}}</center>
+<center>''If you can't see the video embedded above, ''[https://www.youtube.com/watch?v=1zp1_A9fJ6c click here]'' to watch it on our YouTube channel!''</center>
+
+Just like we said in our [https://secure.runescape.com/m=news/a=13/new-slayer-boss---the-araxyte?oldschool=1 original blog], Araxxor separates itself from other Slayer bosses by giving you the option to somewhat customise your difficulty. Throughout the fight, araxyte eggs around the room will hatch periodically and unleash acidic, explosive or mirrorback araxytes. If you're able to handle these spawns then you'll see faster kills on average. You can even manipulate some of them to make your kills faster! Alternatively, you could spend some time destroying the eggs for an easier fight, resulting in slower kills.
+
+For a quick crash course: explosive araxytes explode when they get close to you (similar to Nylocas inside the Theatre of Blood), mirrorback araxytes will absorb and reflect damage that you deal to Araxxor if they're next to you, and acidic araxytes will spit acid at you and explode to leave behind some permanent acid tiles on death.
+
+As you get more familiar, you might find a middle-ground where you'd like to break some eggs in advance for spawns you don't want to deal with (we're looking at you, mirrorbacks...) but leaving a few potential spawns around. Finding a balance that works for you should come as a natural consequence of learning the boss and we expect you'll be absolutely zooming through Tasks in no time!
+
+If you're looking to get through an Araxyte Task even faster, there are a number of spots where you can take on some smaller araxytes in multi-combat however you'd like - whether that's 'Pray and AFK', Venator Bow, Bursting/Barraging or incorporating a Dwarven Multicannon into the mix. These should make araxytes a welcome task in terms of XP per hour even if you're not in the mood to take on Araxxor itself - handy! Keep your eyes peeled though, we might have added a superior araxyte for those of you with the 'Bigger and Badder' perk unlocked...
+
+For those of you looking to optimise your block lists, Araxytes have a task weighting of 10 from Duradel and 8 from Nieve.
+
+Naturally, new enemies to fight means new rewards to obtain, so let's take a look at what you'll be able to get your hands on.
+
+===Rewards===
+We'll kick things off with the stuff you really care about: cosmetics!
+
+[[File:Araxxor (2).png|210px|center]]
+
+First up is the Araxxor Slayer Helmet. This is made using the Araxyte Head, which is the most common of the untradeable cosmetic rewards. We think it looks seriously scary, a Slayer Helmet that's sure to send your enemies scurrying for cover. You'll need to unlock this using Slayer Points, in keeping with the behaviour of other cosmetic Slayer Helmet upgrades!
+
+In the picture above, you might also spot our new favourite pet: Rax! In the real world, a waist-high spider following you around would be cause for concern. In Old School RuneScape, however, we love all kinds of pets, and after beating Araxxor you may just walk away with a buggy buddy of your own!
+
+It's worth noting that if you're fortunate enough to snag the pet for yourself, you'll receive a far less cute and honestly kind of unsettling follower: Nid. Nid can be upgraded to Rax in a similar fashion to Muphin's Charged Ice upgrade, so don't panic if you're wondering what happened to this little cutie - you'll still be able to add him to your collection.
+
+[[File:Araxxor (3).png|600px|center]]
+
+Our final untradeable is the Jar of Venom. This sits between the Araxyte Head and the pet in terms of rarity, but is the first untradeable jar we've added to Old School. Using it on the Display Case in your Player Owned House will let you flex your spider-slaying abilities to friends and family, or just brighten the place up with a lovely glowing, green ooze - sort of like a disgusting, venomous lava lamp!
+
+If you're not into your FashionScape and don't care much for cosmetics, perhaps some new consumables might tickle your fancy?
+
+From either Araxxor or the smaller araxytes, you'll be able to score an Araxyte Venom Sack. You can add these to an Anti-venom+ Potion at Level 94 Herblore to make an Extended Anti-venom+, offering a whopping six minutes of venom immunity per dose! These will help free up extra Inventory slots if you're looking for longer trips so that you can bring extra supplies and just squeeze out those extra kills before banking. On the other hand, if you can't stand the thought of making a potion but still need some venom immunity in a pinch, you can just eat the venom sack. It's disgusting and it will deal some damage to you, but it will provide 30 seconds of venom immunity - useful in a pinch, just close your eyes and pretend it's chicken...
+
+We're also throwing in some Teleport Scrolls as a reasonably common drop! These will drop you right outside the Araxyte Nest and can even be stored inside your Master Scroll Book to save on Bank clutter. We imagine that as you get more comfortable and start knocking out longer tips you'll be able to sustain yourself on these, though you can always buy them from other players while you're starting out.
+
+Now let's get to the good stuff: new gear!
+
+[[File:Araxxor (4).png|thumb|400px|center|''Pictured above are the Noxious Halberd, Amulet of Rancour and Aranea Boots - we're sure they'll look just as good paired up with your Bandos Armour and Fire Cape.'']]
+
+The Aranea Boots are a set of tribrid boots that boast some serviceable combat stats and an added ability providing occasional immunity to spider webs!
+
+[[File:Araxxor (5).png|220px|center]]
+
+Assuming you haven't negated the effects of a spider web in the last ten seconds, the Aranea Boots will grant you immunity to the next web that you walk on. This could mean avoiding a punishing mistake against Verzik Vitur, saving some Run Energy at Venenatis, or perhaps preventing Sarachnis' binding web.
+
+Note that these are now obtained as a drop from regular Araxytes and not from Araxxor. Our reasoning here was to prevent their value plummeting while they're just passively obtained by players chasing the rarer and more high-value uniques. So if you're looking to grab a pair for yourself, get those Slaughter bracelets ready and start splattering loads of little arachnids!
+
+Next up is our first competitive, 'mainhand DPS' Halberd offering: the Noxious Halberd!
+
+[[File:Araxxor (6).png|400px|center]]
+
+You'll make the Halberd using three pieces, similarly to the Abyssal Bludgeon, where you'll receive each piece sequentially until you've finished a Halberd. You'll need 72 Smithing and Crafting to create it, so we hope you've been getting those Production skills up!
+
+This particularly unique offering has similar DPS to the Blade of Saeldor. Its 5-tick attack speed means it scales worse with gear than the 4-tick blade, so it won’t be a best-in-slot contender in every conceivable setup.
+
+On top of its raw stats, you’ll have a 33% chance per swing to inflict Venom on your target (assuming it isn’t immune), which increases to 50% chance when used in conjunction with a Serpentine Helmet.
+
+All this means the Noxious Halberd packs a pretty punch, but it also sports a Special Attack! We still intend for it to be DPS focused rather than a spec weapon, but the Special will round out the Halberd’s utility and hopefully add an extra use-case or two.
+
+For 50% of your Special Attack Energy, you can cure any Poison or Venom you’re afflicted with, and increase your next Halberd attack’s minimum hit. For example, if you’re about to be hit for 20 Venom damage, you can use the Special to cure yourself and give your next Halberd swing a minimum hit of 20, rolling between 20 and your max hit.
+
+So, how valuable is the Halberd’s extra attack range? Since this is a unique feature of the weapon, it’s harder to compare than a simple Strength or Slash bonus. It could make all the difference in Verzik’s second phase, or when staying further away from a burning teammate in the Great Olm’s chamber. Get your hands on one and try it out for yourself!
+
+Last but ''definitely'' not least we've got the Amulet of Rancour, which supercedes the Amulet of Torture as the best-in-slot Melee amulet.
+
+[[File:Araxxor (7).png|220px|center]]
+
+Compared to the Amulet of Torture, the Amulet of Rancour offers +10 to Slash, Stab and Crush Accuracy and a further +2 Strength bonus, which may increase Max Hit in some setups.
+
+The only requirement to equip this nifty necklace is a hefty 90 Hitpoints, which is a stretch beyond the requirements for Zenyte jewellery.
+
+To make one for yourself, you'll need to secure an untradeable Araxyte Fang drop from Araxxor. From there, you can combine the fang with an Amulet of Torture (so long as you've got Level 86 Crafting) to create the tradeable Amulet of Rancour. The animation for crafting this might just be the coolest visual to have ever graced the Crafting skill, so make sure not to miss it!
+
+All that's left is for you to take on Araxxor and snag some of this loot for yourself. We're excited to see what all of you cook up to optimise your spider-slaying kit!
+
+One final note is that none of Araxxor's new items will be able to used on Death's Coffer, this is something we're experimenting with to prevent people stocking up on items at prices way below their Grand Exchange price and artificially inflating the value of their coffer.
+
+==Summer Summit 2024 - A Reminder!==
+Interestingly enough, Araxxor came a little out of nowhere for many of you because it wasn't something we'd mentioned at the Winter Summit earlier in the year when we shared an action-packed roadmap with all of you.
+
+[[File:Araxxor (8).jpeg|600px|center]]
+
+This is a reminder that our 2024 Summer Summit featuring a whole host of roadmap reveals that you will ''not'' want to miss is happening next weekend on Saturday, September 7th at 8pm BST / 3pm ET / 12pm PT over on our Twitch channel!
+
+Mark the date, grab your popcorn and get ready to see what's in store for Old School!
+
+==Other Changes==
+Araxxor's a sizeable addition to Old School, so we don't have much to share in terms of other changes this week! Brace yourself for an extremely digestible list:
+
+* Boss tasks that can only be completed solo (e.g. Zulrah, Cerberus, Kraken) now award the correct amount of points if you're on a task with a Slayer Partner.
+* Osmumten's Fang's inventory icon is no longer missing an outline pixel at the sword's tip.
+* Legacy Duels at the Emir's Arena are now restricted to specific 'Legacy Duels' worlds.
+* Players can no longer walk through Jimmy Dazzler's walls. Don't ask...
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been de-activated with this rota.
+
+World 569 (AUS) for Bounty Hunter has been de-activated with this rota.
+
+The PvP Arena is using '1 Def Pure' loadouts in Ranked Duels and Tournaments this week. 
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1f362id/game_update_araxxor/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

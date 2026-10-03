@@ -1,0 +1,27 @@
+{{Infobox Item
+|name = Grain
+|image = [[File:Grain (Tombs of Amascut).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = That's right! Grain!
+|value = 10
+|alchable = No
+|weight = 0.500
+|id = 27225
+}}
+[[File:Grain (Tombs of Amascut) detail.png|left|130px]]
+'''Desert-grown grain''' is an item obtained by searching the [[Sack (Tombs of Amascut)|sack]] next to the [[Bank Camel]] in the [[Tombs of Amascut]] raid lobby. According to her, the grain is specially grown in the [[Kharidian Desert]] and goes through a preparation process of several years, and as a result doesn't taste too salty with "just a hint of sweetness".
+
+Though the camel will commonly catch the player in the act while searching the sack, players who manage to obtain one can feed it to her for some [[Transcript:Bank Camel|humorous dialogue]] if wearing a [[camulet]].
+
+==Item sources==
+{{Drop sources|Grain (Tombs of Amascut)}}
+
+{{Tombs of Amascut}}

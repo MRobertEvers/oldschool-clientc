@@ -1,0 +1,101 @@
+{{Update|date=19 June 2023|link=https://secure.runescape.com/m=news/the-future-of-the-ruinous-powers?oldschool=1|category=community}}
+[[File:The Future of the Ruinous Powers newspost.png|right]]
+{{clear}}
+
+==The Future of the Ruinous Powers==
+We recently ran a second beta for the Ruinous Powers, a highly anticipated Prayer book proposed as a reward for Desert Treasure II. We intended to run this beta until Wednesday, but we've made the difficult decision to end the beta early and shelve the Ruinous Powers. Today, we'd like to cover the reasons as to why, and inform you of the future of Ruinous Powers or additions to Prayer in Old School.
+
+If you're not interested in reading the full blog, we've put together a tldr; for you, but if you'd like to see us expand on our rationale and even dive a little deeper into topics like power creep then read on!
+
+* Many players feel like the Ruinous Powers are effectively just standard prayers with some slightly tweaked numbers. We don't get the sense that many players are ''excited'' for them in the way you'd expect players to be excited about a power increase like this.
+For similar reasons, the Ruinous Powers we have now don't really match up with our initial vision for a new prayer book.
+While power creep isn't inherently bad, this iteration of the new prayers feels like power creep for the sake of it rather than anything that's solving new problems.
+* We didn't properly anticipate the volume of work required to deliver on the community's desire for new prayers properly. With all that we know now, we'd approach this subject with a similar level of attention to detail and communication as we have with Sailing and the new skill process.
+* We'd rather not risk sacrificing the quality of everything else that makes up Desert Treasure II - The Fallen Empire this close to release.
+* We're still open to suggestions of adding prayers that do things players ''were'' excited about (e.g. mixing things up significantly in PvP) to the standard prayer book, if that's something more players would like to see us explore.
+* This isn't us closing the door on new prayers, new prayer books or other additions to Prayer entirely, and we'll let you know when the time feels right to have these conversations again.
+
+[[File:The Future of the Ruinous Powers (1).png|centre|241px]]
+
+Our first mention of Old School's first ever new Prayer book came over half a year ago, alongside 2022's Winter Summit, where we said this:
+
+<div style="padding:1em; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000; margin:1em auto; width:100%; max-width:670px;">
+"Now, it’s still a bit too early to go into specifics, but we can tell you that we plan to work with the community to devise a powerful new set of Prayers. You'll have to weigh-up the familiarity of the Prayers you know and love against the thrill of tapping into forces best left forgotten…"
+</div>
+
+In the months since, we combed through hundreds of player suggestions; numerous iterations of the Ruinous Powers; added, removed and reworked Prayers; and spent somewhere in the region of 12,000 words trying to communicate them across various blogs during Community Consultation. All of this with one goal in mind - to try and create an exciting and unique set of Prayers that would compliment existing and new methods, without outright replacing the much-loved standard Prayer book.
+
+In pursuit of offering a Prayer book we believe you're happy with, we feel as though the initial vision has fallen to the wayside and that what we set out to make isn't something we've been able to achieve, despite our efforts to realise something special. We know that the idea of a new prayer book, new prayers or fresh ways to engage with combat in Old School is something players have been keen on us exploring for a long time and felt that thematically, Desert Treasure II - The Fallen Empire was the perfect time for us to start exploring these concepts.
+
+You made your opinion very clear that you wanted us to explore adding a new prayer book, with the Greenlight poll passing with flying colours. However, many players point out that the considerable overlap between the Ruinous Powers and the standard Prayers boils down what started as something intending to feel like a choice and a trade-off to 'if you're comfortable with the content, you should always use the Ruinous Powers'. In essence, we're left with what is effectively an improved version of the standard Prayer book where you gain a sizeable amount of power at the expense of taking a little extra damage from time to time.
+
+Now, why exactly is this a problem, especially if it's something you are happy with? In the interest of full transparency, we're reasonably confident that the current iteration of the Ruinous Powers would pass a poll, though we are aware that many of you out there feel like they shouldn't be added to the game in their current form. For us as a team, we're not at all confident that they're the right fit for Old School, and we'd like to explain why.
+
+==Powercreep in Old School==
+[[File:The Future of the Ruinous Powers (2).png|centre|600px]]
+
+Firstly, we need to talk about power creep. For the uninitiated, 'power creep' is a term used across a variety of games and often refers to the ways in which new content additions can increase player power over time to the point where older content becomes devalued or obsolete.
+
+In Old School terms, Torva is an example of power creep since it's objectively better than Bandos (the previous best-in-slot Melee armour) in every way. While Torva remains more expensive and harder to obtain, if you're a player who has no issues forking out the necessary cash - there's no reason for you to use Bandos if you own Torva, and that's power creep in a somewhat simplified nutshell.
+
+While it's often viewed in a negative light, we believe that power creep (to some degree) is ultimately a necessity. It matters to players that content is sufficiently rewarding - after all, would Old School players in 2023 spend time killing a boss that doesn't give them something they want? Content needs to have a purpose for players to dedicate time to beating challenges, worthwhile rewards are the reason players choose to do content, and so to make rewards worthwhile: power creep over time is necessary. Additionally, it's ''exciting!'' It can feel fun to come back to the game and chase a powerful new reward like Tumeken's Shadow and put it to use at familiar content to let you enjoy content in a new way.
+
+For the most part we try to be pretty conservative when it comes to player power and try to avoid needlessly pushing it higher. To add to that, we're generally only able to push power creep at a pace that players are happy with anyway, due to the way we poll rewards.
+
+It's worth keeping in mind that sometimes things just sound ''cool'' and many players feel inclined to vote 'Yes', even in cases where the cool thing isn't healthy for the game long term - and to some degree it's on us to keep this in check and just not offer things we feel will damage the game long-term.
+
+When it comes to taking a conservative approach, there are two things we try to bear in mind above all else:
+
+# We don't want to harm the value of equipment where possible.
+# Look to utilise 'horizontal progression' and niche weapons to fill in gaps and help players overcome obstacles that already exist.
+
+Let's dive deeper into the first of those points around the idea of 'devaluing' equipment. The prime reason we keep this in mind is that for many players - for better or for worse - power creep isn't as much of a concern as losing value on items they already own, where players can feel like they've been cheated out of wealth (or time spent) for reasons beyond their control.
+
+One approach we've taken to this in the past is 'combo' items, like the Torva example we provided earlier, or Masori. This tends to work pretty well for maintaining the value of items that have been knocked down a peg on the BiS list, but at times can feel like a band-aid fix if it's not thematically appropriate.
+
+Combo items aren't the ''only'' solution to this. Take a second to think about Torva if it ''didn't'' require Bandosian components in some way - would Bandos chestplates and tassets absolutely plummet? The answer is likely no. Bandos is much more attainable for players (mains and Irons alike) than Torva, whose increased cost and rarity gives it a power progression since players need to earn more GP to upgrade.
+
+However, relying on price alone as a means to achieve 'power progression' is tricky to get right because of the various factors at play like drop rates, the value of GP over time, or other economic concerns (i.e. has new content come out where a certain item is BiS?) and as a result is harder to balance around when designing new, powerful rewards.
+
+Outside of monetary concerns, the value of items can be affected by various other factors too. Is it an iconic item? Does it have heavy tie-ins to nostalgia? Or is it simply a status symbols? They all play a role in determining the value to players. While many items exist where the input is solely gold, items like Barrows gloves or the Inferno cape represent milestones for players, and their time spent shouldn't feel like it's been needlessly undermined. This one's more of a point around player psychology than specifically about game health, but it's still something we keep in mind since it impacts your enjoyment and journey as a player!
+
+The second point is somewhat related to the first, but focuses on the idea of horizontal progression. This means progressing 'sideways' by introducing new ways to overcome ''some'' problems, rather than introducing new ways to overcome ''all'' problems.
+
+Something like the Dragon Hunter Lance is a prime example, where rather than saying 'here's a better whip!' we say 'here's something new to use at a handful of places'. This is a way for us to give players items with utility that isn't so niche that it feels useless, while also not being so broad that it's devaluing your other gear in a major way.
+
+Arguably the best example of this is in Old School's spellbooks, where all of them have their separate niches and use-cases without one absolutely dominating all of the others in every situation.
+
+The tricky thing here is that these horizontal options still need to feel worthwhile - it can be difficult to make niche rewards feel good if you don't really care about the niche that it's filling. If Olm and Vorkath didn't exist, would it still feel worth your time to chase a Hydra claw, or worth your GP to buy a Dragon Hunter Lance?
+
+Despite all of the above, sometimes there ''is'' a need for 'vertical progression' too. While horizontal progression moves sideways and focuses on obtaining new niche items with niche functions, vertical progression is moving upwards and outright upgrading. Weapons like the Scythe of Vitur, Twisted bow, Tumeken's Shadow, Blade of Saeldor or Ghrazi Rapier are prime examples of times we've crept power upwards. The trick with vertical progression is that we need to pick when and where to proceed upwards ''very carefully'', ensuring rewards have a clear purpose and feel like a fair output for your time input.
+
+Ultimately, rewards drive people to engage with content, and power increases drive people to chase rewards. While it's easy enough for us to offer rewards that encourage people to engage with content, there are times when this is at-odds with the long-term health of the game. As an example, if Guardians of the Rift resulted in earning 1,000,000 Runecraft XP per hour then it would ''probably'' be even more popular than it already is, but would likely prove damaging to the wider game.
+
+So, how exactly do the Ruinous Powers tie in to this? At present, these prayers are extremely potent as a DPS upgrade in all styles across the board, and while the limited defensive bonuses is a drawback, their effective power is an extreme example of ''vertical progression'' since for many players these Ruinous Powers will wholly replace the Standard prayer book.
+
+Vertical progression isn't inherently bad, but it needs to done properly. Over the last 18 months we've released Torva, Masori and Tumeken's shadow to name but a few, and power has been creeping up at a higher rate than usual. We don't feel like now is the right time to be moving power upwards across the board in the way that the Ruinous Powers are, and we want to safeguard against power creep like this until more content in the game exists that really warrants raising the bar quite this much.
+
+Additionally, for a power increase like this, it doesn't feel as though many players are particularly ''excited'' by the Prayers as opposed to being unopposed to their inclusion. If power's going to increase, we'd like to deliver it in a way that actually excites players - and that's not something we feel the Ruinous Powers are doing right now.
+
+==The Future of Ruinous Powers==
+Having said all that, we know many of you will be asking 'why not just poll it and let us decide?!' and we'd like to expand further.
+
+When approaching Desert Treasure II - The Fallen Empire - in particular the Ruinous Powers - for the first time, we wanted to bring to life something with a lot of potential and that ultimately felt ''special''. We don't feel as though we properly anticipated and appreciated exactly how much time, the volume of consultation and the amount of back-and-forth required to properly deliver on our initial vision for Old School's first ever new prayer book.
+
+For us as a team, juggling everything the Ruinous Powers need to be fully realised alongside four new bosses, the other rewards, and all of the time spent writing and designing Old School's most ambitious quest to date is extremely difficult. Making any content of this scale is extremely resource-intensive, and as it stands we don't have the resource to deliver on our vision for the Ruinous Powers without the quality of the quest suffering as a result. We feel like compromising on the quality of everything else the quest entails in order to pursue the perfect prayer book isn't the right call to make, especially when many players and we as a team aren't confident in their design or how that design lines up with our goals.
+
+Moving forwards, we know that to approach a new prayer book properly, it needs to be a project all of its own with the same level of attention to detail as something like a new skill, rather than being tackled as a single part of another project which is already incredibly ambitious in scope. As such, we will not be progressing further with the Ruinous Powers Prayer book.
+
+This decision isn't an easy one to make and it's absolutely not one that we've made lightly, but it is a decision that we feel is best for Old School right now and long-term.
+
+We understand that for many of you, this likely isn't what you were hoping to read, especially with some of the things on offer that people were looking forward to like 're-solving' PvM with a new set of Prayers and adjusting setups, chasing new PBs and WRs, or perhaps the meta shake-ups in PvP in brackets with limited Defence. We fully appreciate that there were some exciting avenues offered by the Ruinous Powers, but feel that we'll be able to do a much better job at delivering the same feeling of excitement in a future project where we can pay more attention to detail, taking everything we've learned so far and putting it into practise to make something significantly better for players of all sorts.
+
+That is to say, this is by no means us shutting the door on further experimentation and additions to Prayers, instead it's us thinking back at where we started, where we've wound up, how we got here, and how we think we could do a much better jobs to serve Old School and its players properly, with longevity ''and'' excitement in mind.
+
+----
+
+You can also discuss this update on our [https://secure.runescape.com/m=forum/forums? official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [http://oldschool.runescape.wiki/ Old School Wiki].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

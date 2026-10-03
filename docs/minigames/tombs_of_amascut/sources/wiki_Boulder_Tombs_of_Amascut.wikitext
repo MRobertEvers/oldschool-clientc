@@ -1,0 +1,62 @@
+{{Infobox NPC
+|defver = 2
+|version1 = Uncracked
+|version2 = Cracked
+|name = Boulder
+|image1 = [[File:Boulder (Tombs of Amascut).png|x220px]]
+|image2 = [[File:Boulder (Tombs of Amascut, cracked).png|x220px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|size = 3
+|members = Yes
+|location = [[Tombs of Amascut]]
+|options = Attack
+|examine = I should stop examining this and get out of the way!
+|map = No
+|id1 = 11782
+|id2 = 11783
+|leagueRegion = Desert
+}}
+'''Boulders''' are NPCs that spawn during the fight with [[Ba-Ba]] in the [[Tombs of Amascut]]. When encountered, they will all have the same health, which scales depending on team size and path level, but one will be cracked. Players will always hit their [[Ranged]] max hit on the cracked version.
+
+[[File:Tombs of Amascut - Ba-Ba boulders.png|thumb|left|A player attacking a cracked boulder]]
+
+==Hitpoints scaling==
+Team size only has a 50% effect on health scaling for the boulders when compared to other NPCs found within [[Tombs of Amascut]]. For example, a 2-man raid would scale the HP of most NPCs up to 190% but the boulders only scale up to 145%.
+
+Path level also scales the boulders' HP differently. Rather than their HP increasing by 8% at path level 1 and increasing to 13%, 18% etc at path level 2 and 3 respectively, boulders have their HP increased by 10% at path levels 2 and 3. And at path levels 4 and above, the boulders have their HP increased by 25%. This is done after the team size scaling step.
+
+The below table shows [[Hitpoints]] of boulders found experimentally at various team sizes and path levels.
+{|class=wikitable style="text-align:right"
+!rowspan=2 colspan=2|
+!colspan=5|Path level
+|-
+!0!!1!!2!!3!!4
+|-
+!rowspan=10|Team<br/>size
+!1
+|25||25||27||27||31
+|-
+!2
+|36||36||39||39||45
+|-
+!3
+|47||47||51||51||58
+|-
+!4
+|55||55||60||60||68
+|-
+!5
+|62||62||68||68||77
+|-
+!6
+|70||70||77||77||87
+|-
+!7
+|77||77||84||84||96
+|-
+!8
+|85||85||93||93||106
+|}
+
+{{Tombs of Amascut}}

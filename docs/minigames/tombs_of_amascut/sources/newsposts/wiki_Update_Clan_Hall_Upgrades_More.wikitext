@@ -1,0 +1,165 @@
+{{Update|date=5 October 2022|url=https://secure.runescape.com/m=news/clan-hall-upgrades--more-?oldschool=1|category=game}}
+[[File:Clan Hall Upgrades & More newspost.png|right]]
+{{clear|right}}
+
+''This week, we’ve got content from Poll 76, a quick update on Quest Speedrunning, and some Tombs of Amascut changes!''
+__TOC__
+==Hotfixes and Our Actions - October 5th==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issue
+!Our Response
+|-
+|11:37 BST	
+|Just before the game update went live, the dev team caught a potential bug with the combat ring. Oops!
+|FIXED - Combat inside the Clan Hall combat ring should be re-enabled! If you notice any issues in-game, make sure to let us know!
+|-
+|11:53 BST
+|Unrelated to this week's update, but we've fixed an issue with the accuracy modifier on Tumeken's Shadow inside Tombs of Amascut.
+|HOTFIXED
+|}
+
+==Poll 76==
+It’s getting chilly out there, so why not get warm and cosy in the Clan Hall? This week we’ve added a Combat Ring and a Party Chest for all your celebratory needs. What's better than sparring with your friends and then getting loads of fr33 st00f afterwards?
+
+[[File:Clan Hall Upgrades & More (1).gif|centre|400px]]
+
+===Clan Hall Combat Ring===
+The Clan Hall now sports a dedicated Combat Ring for you and your buddies to duel in! It’s located in the northwest section of the Clan Hall, where you can take a shortcut up a set of stairs to reach it or walk dramatically around the edge. Your choice!
+
+[[File:Clan Hall Upgrades & More (2).png|centre|600px]]
+
+
+This Combat Ring works exactly the same as all the others – it’s a safe death, and the gloves and other Player Owned Housing items cannot be removed from the ring. Don’t try sneaking them back to Falador – it’s not gonna work this time!
+
+===Clan Hall Party Chest===
+When you’re done scrapping about, why not soothe those bruised egos with a friendly drop party? Just place your items in the Party Chest, located in the main section of the Clan Hall, and get ready to pop those balloons!
+
+There’s also an extra Party Chest near the Clan Bank for ease of use.
+
+[[File:Clan Hall Upgrades & More (3).gif|centre|600px]]
+
+
+Right-clicking the Chest will tell you its current permissions. Clan Leaders have the ability to set these permissions, which allow players to pull the lever, deposit items, and receive drops.
+
+[[File:Clan Hall Upgrades & More (4).png|centre|600px]]
+
+
+Stackable items (including any Noted ones) can be added to the Party Chest and will drop in bunches. We’ve added a stack count just like we have for Banks – and for parity, the same feature has been added to the main Party Room Chest. No need to thank us, Party Pete!
+
+To make things fair, items will remain on the ground for a full five minutes, instead of the usual two, giving you plenty of time to grab your stuff.
+
+Since Clan Halls are instances, the party will go on as long as someone from your Clan is still in the Hall. However, if everyone leaves, the instance will be deleted along with all the dropped items. If you’re planning to duck out and return later, make sure someone stays behind to keep the instance open.
+
+One more cause for celebration – that’s the last of the Poll 76 changes! Phew! Keep your eyes peeled for an upcoming blog which will tell you all the cool stuff you can vote on in Poll 77.
+
+===Leagues Accomplishment Scroll===
+[[File:Clan Hall Upgrades & More (5).png|centre|600px]]
+
+
+The Leagues Accomplishment Scroll, located in the Trophy Room of your Player Owned House, now contains all the data from our most recent League: Shattered Relics!
+
+Right-click the Scroll to see...
+* Your stats from the League (if you took part)
+* The Top 100 players from Shattered Relics
+* Shattered Relics League Firsts
+
+'''Note:''' We've been made aware that this image does not contain the correct information for Rank 1. We can't hotfix this, unfortunately, but we will ensure this is updated in next week's game update.
+
+We know you can’t wait to hear more information about the next League, and we’ll let you know as soon as we have more information to share. For now though, take a look at the latest update from our Leadership Team!
+
+==Updated Launch Date for Quest Speedrunning==
+[[File:Clan Hall Upgrades & More (6).png|centre|200px]]
+
+
+The launch date for Quest Speedrunning is now Wednesday, October 12th. We’re taking some extra time to review your feedback and update the engine to accommodate this release. Thank you for your patience!
+
+==Tombs of Amascut Changes==
+Last week, we optimised the code used for the Akkha and Wardens fights. We did not expect this to affect the functionality of the raid and so kept it silent in the Patch Notes.
+
+Unfortunately, shortly after the update we discovered that there were some player-facing side-effects we hadn’t intended. It was previously possible to skip certain attacks and mitigate damage in these boss fights, which became impossible after we made last week’s change.
+
+This week, we’ve fixed the issue. Both boss fights should now be back to normal.
+
+We apologise for the inconvenience and would like to thank everyone who submitted reports about the issue.
+
+Now, on to this week’s changes!
+
+Players are now able to drop the following potions anywhere inside Tombs of Amascut and have them show up immediately:
+* Super Combat
+* Divine Super Combat
+* Ranged
+* Divine Ranged
+* Bastion
+* Divine Bastion
+* Sanfew Serum
+* Stamina
+* Antidote++
+* Antivenom+
+
+[[File:Clan Hall Upgrades & More (7).png|centre|600px]]
+
+
+The Bank Camel's name will also now be a valid answer to the "MACHETE CLAM" Clue once you've learned it! Don’t know what this means? Get yourself a Camulet and find out!
+
+The following hotfixes were made last week:
+* Removed an unintentional safespot in the Wardens Phase 3.
+* Fixed a bug where the mid-way loot ‘Withdraw 1’ Option withdrew ‘All’ the loot instead.
+
+And here are this week’s fixes:
+* The Rewards and Loot Interfaces have been pushed around a few pixels to make them look better.
+* Fixed a bug that showed up in raids with two or more players where Energy Siphons became misaligned during the Wardens Phase 3.
+* Players can no longer stand instead of swim on a certain tile in the Zebak fight.
+* Fixed a bug where the animation on Tumeken's Shadow differed slightly between PvP and PvM.
+* Fixed a visual bug caused by swimming during the Zebak fight while wearing the Masori Armour.
+* Void tiles in the Wardens Phase 3 will no longer prevent players from clicking the Crystal and leaving the room. We've removed the ranged blocking from the tiles, which should stop people getting stuck.
+
+==Other Changes==
+===PvP Arena Changes===
+[[File:Clan Hall Upgrades & More (8).png|centre|600px]]
+
+
+It’s really important that players show up their duels when they sign up in the PvP Arena. No-shows affect the matchmaking system and cause unnecessary frustration for their opponents. To encourage players to stick around, we’ve made a change that penalises players who fail to attend their duels.
+
+Rank Points will now be automatically removed when players receive an invitation to duel. Don’t panic! They’ll be restored as soon as you enter the staging area when the fight begins.
+
+If your duel partner fails to appear, your points will still be refunded, as long as you yourself have made it to the staging area.
+
+To clarify:
+* When you find a duel, your Rank is now automatically reduced.
+* The Rank Points will be refunded when the fight starts, or if the fight expires while you are waiting in the staging area.
+
+Players should only have their Rank reduced once per duel. Additionally, you will no longer see the orange ‘in a duel’ icon next to your name until you start receiving notifications about your next match.
+
+This system is not intended to affect players who are competing in the PvP Arena normally. We understand that sometimes life gets in the way, but this change is aimed at repeat offenders, not players who have to skip duels rarely for legitimate reasons.
+
+===Miscellaneous Changes===
+[[File:Clan Hall Upgrades & More (9).png|centre|300px]]
+
+
+* A ‘Check’ option has been added to the Explorer's Ring. Use it to learn the number of Alchs, Teleports, and Run Restores left.
+* Entries in Boss and Slayer Logs are now sorted in alphabetical order.
+* Heroes' Quest has been fixed for players stuck in a broken state. Apparently, somebody managed to start the quest as a Phoenix Gang member, even though they're actually in the Black Arm Gang. What an experience that must have been!
+* You will now be reminded when you are about to be logged out 30 minutes and 10 minutes before the end of a 6-hour session, on top of the existing warnings.
+* You can now find your kingdom statistics (including approval rating and coffer value) at the bottom of the Throne of Miscellania and Royal Trouble Quest Journals.
+* The altars in the Tower of Life basement have had their dialogue boxes streamlined to reduce the clicking required to use them.
+* The Spin Flax Lunar Spell will now queue if you cast a second Spin Flax spell before the last one finishes, akin to other spells such as High Alchemy or Tan Hides.
+
+==PvP Rota Changes==
+The PvP rota has moved to '''Period A''':
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '''Zerker''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,843,66263809 official forums], on the [https://www.reddit.com/r/2007scape/comments/xw64sf/clan_hall_upgrades_more_weekly_game_update/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

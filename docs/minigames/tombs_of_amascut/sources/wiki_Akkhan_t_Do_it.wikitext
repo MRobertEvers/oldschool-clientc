@@ -1,0 +1,57 @@
+{{Infobox Combat Achievement
+|name = Akkhan't Do it
+|image = [[File:Tombs of Amascut - Fighting Akkha.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Akkha with all Akkha invocations activated and the path levelled up to at least four, without dying yourself.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 450
+|leagueRegion = Desert
+}}
+'''Akkhan't Do it''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Akkha]] with all Akkha invocations activated and the path levelled up to at least four, without dying, at raid level 300 or above. Note that dying and resetting the fight allows multiple retries of this achievement.
+
+==Strategy==
+Using the butterfly method is highly recommended for this method, since Akkha has to be fought with a raid level of 300 or higher. 
+
+In solo encounters, the player will have to handle both '''Memory Blast''' and '''Trailing Orbs''' at once, which when coupled with Akkha's level 4 path levelling results in six iterations of Memory Blast being used. Trailing Orbs can also prove to be daunting as the player will have less tiles to move around as it causes an orb to spawn in front of them after each movement, so players will need to run for the entirety of the attack; fortunately, at such a level, the trailing orbs will end around the fourth blast. '''Keep Back''' will also force the player to keep their distance from Akkha in his magic and ranged states, as a melee attack is also launched at the same time with them, which is further compounded by the fact that Akkha walks towards his target regardless of combat style.
+
+'''Walk the Path''' is required to reach path level 4. In addition, the '''Pathmaster''' invocation is strongly recommended. It is possible for Akkha to reach path level 4 with either '''Pathseeker''' or '''Pathfinder''' active, but the chances are slim.
+
+{| class="wikitable sortable sticky-header align-center-1" style="text-align:left;"
+! colspan="2" class="unsortable" style="width: 15%" | Invocation
+! class="unsortable" style="width: 70%" | Details
+|-
+|[[File:Akkha icon.png|link=]]
+|Double Trouble
+|Akkha will perform two special attacks at once.
+|-
+|[[File:Akkha icon.png|link=]]
+|Keep Back
+|Akkha's ranged and magic attacks will also deal melee damage to anyone next to him.
+|-
+|[[File:Akkha icon.png|link=]]
+|Stay Vigilant
+|Akkha will randomly switch between attack styles and protection prayers, rather than at set intervals.
+|-
+|[[File:Akkha icon.png|link=]]
+|Feeling Special?
+|
+* Akkha's Detonate attack will trigger in more directions. This is not applied in solo encounters.
+* The Memory Blast attack will only provide two [[ticks]] for players to move between safe quadrants.
+* The Trailing Orbs attack spawns an additional orb two tiles in front of the player.
+|}
+
+If possible, the achievement can be combined with obtaining the [[Remnant of Akkha]] as the two requirements overlap, provided that the player can complete the raid at a level of 450 or higher.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+==Trivia==
+*The achievement name is a pun on the term "I can't do it".
+*The achievement is the only one of the four requiring the player to defeat the boss at path level 4 without dying which is a grandmaster tier task; the other three equivalents, [[Rockin' around the croc]], [[Doesn't bug me]] and [[Ba-Bananza]] are master tier tasks.
+**While [[All Praise Zebak]] is a grandmaster achievement which requires Rockin' around the croc, it additionally requires the player to lose no prayer points, something which Akkhan't Do it doesn't require.
+
+{{Combat Achievements}}

@@ -1,0 +1,246 @@
+{{Update|date=8 September 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-ornament-kits--more?oldschool=1|category=game}}
+[[File:Tombs of Amascut- Ornament Kits & More! newspost.png|right]]
+{{Clear}}
+__TOC__
+==Hotfixes and Our Actions - September 8th==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issue
+!Our Response
+|-
+|12:10 BST
+|Existing behaviour for NPCs and the Hunter skill has been unintentionally impacted by today's game update. It appears that Chinchompas and Salamanders are not actively seeking traps placed around them.
+|We have rebooted the game to resolve this issue.
+|-
+|12:50 BST
+|Players reported Akkha's phantom in P3 changing attack styles randomly, rather than after every 3 attacks. This is intended, as it's tied to the Stay vigilant invocation.
+|This was intentional but missed from the news post. The 'Stay Vigilant' invocation now affects Akkha's phantom during Wardens P3, similar to 'Aerial Assault' affecting Kephri's phantom.
+|-
+|12:55 BST
+|We have found an issue where adrenaline potions from Tombs of Amascut aren't using the new longer duration, we are investigating and will hope to fix soon.
+|Deployed a hotfix which should return Liquid Adrenaline's duration to 150s.
+|-
+|September 9th, 14:30 BST
+|Following yesterday's game update, Ba-ba's Shadow & Boulder attacks became difficult for players to react to which resulted in unavoidable damage being taken from her.
+|We've just released a hotfix to ensure Ba-ba is now consistent with her attacks. Let us know your feedback!
+|}
+''This week, we have more Tombs of Amascut changes and an update on the Activity Advisor!''
+
+----
+
+'''Just to let you know, from this week's update onwards we'll be using a 45-minute in-game timer starting at 10:45 BST. This allows players more time to finish up longer activities (such as a Raid) before game updates. There will be about 5 minutes of downtime for maintenance.'''
+
+==Tombs of Amascut Changes==
+You’ve made it clear that the balancing changes we introduced last week missed the mark. We’ve since made a number of hotfixes, the details of which can be found in [https://secure.runescape.com/m=news/tombs-of-amascut-balance-changes-revisited?oldschool=1 this newspost]. Go check it out if you haven’t already!
+
+In today’s update, we’re following up with more fixes:
+
+===Wardens===
+* The in-raid timer now ends when the remaining Warden reaches 0HP, instead of after its death animation.
+* Fixed a bug where Monster Examine did not work on the Obelisk.
+* Fixed an issue where players could get stuck in purgatory.
+* Fixed an issue where the Warden could attack during the transition to Phase 3.
+
+===Mid-Raid Loot===
+* Ambrosia and Adrenaline now come in 2-dose variants again; however, the quantity offered has been decreased.
+* The 'Life' and 'Chaos' options have been rebalanced to be more appealing.
+* Ambrosia now has a rare chance to appear in 'Chaos' again.
+
+===Tumeken's Shadow===
+We want Tumeken's Shadow to feel like a dominant force and a huge upgrade both inside the Raid, and out. On that theme, the following stat boosts will now apply when wielding Tumeken's Shadow in Tombs of Amascut:
+* Accuracy modifier while inside the raid has increased from 3x to 4x.
+* Magic strength modifier while inside the raid has increased from 3x to 4x.
+
+===Miscellaneous Changes===
+* Fixed pathing issues caused by the rocks added to Zebak’s lair. The rocks next to Zebak will no longer block ranged attacks.
+* The time between waterfall refills on the Path of Crondis has been slightly reduced in all scales.
+* Right-click 'Quick pass' options have been added to various entrances in Tombs of Amascut.
+** Please note that the party leader must still enter first.
+* Although we were unable to reproduce a reported issue where boulders in Baba's fight were turning invisible, we have attempted to fix the problem.
+* Players are no longer able to farm Honey Locusts in Expert Mode.
+* Fixed an issue where Kephri and Baba's defence could not be reduced.
+
+===New Ornament Kits===
+[[File:Tombs of Amascut- Ornament Kits & More! (1).png|600px|centre]]
+
+Amascut’s plans have been foiled over a million times now, so we think you daring tomb-raiders deserve a reward! How about some of that fancy new FashionScape you’ve been drooling over?
+
+Three new Ornament Kits have been added to the Tombs of Amascut. You’ll be guaranteed the following items when you complete the Raid with '''no deaths''' at or above a certain Raid Level:
+
+===Ava's Assembler Ornament Kit===
+[[File:Tombs of Amascut- Ornament Kits & More! (2).gif|600px|centre]]
+
+The Ava's Assembler Ornament Kit will be unlocked when you complete the Raid with '''350 Raid Level or higher.''' You’ll notice that it perfectly complements other recent ranged gear…
+
+===Ward of Elidinis Ornament Kit===
+[[File:Tombs of Amascut- Ornament Kits & More! (3).png|600px|centre]]
+
+The Ward of Elidinis Ornament Kit will be guaranteed as an unlock when you complete the Raid with '''425 Raid Level or higher!''' The dark red look is sure to make players turn heads when you walk past!
+
+===Osmumten's Fang Ornament Kit===
+[[File:Tombs of Amascut- Ornament Kits & More! (4).gif|600px|centre]]
+
+If those weren't badass enough, the Osmumten's Fang Ornament Kit will be guaranteed as an unlock when you complete the Raid with '''500 Raid Level or higher!''' You’ll want to handle this one with care… it looks sharp!
+
+===Tumeken's Guardian Transmogs===
+And if that’s not enough, check this out: ambitious raiders will now be able to unlock various transmogs for Tumeken’s Guardian!
+
+There are eight transmogs available in total – the existing two, modelled after the Wardens, two are destroyed versions of the Wardens, and four more which correspond to each boss.
+
+And you get these fantastic beasts guaranteed after meeting certain conditions. These include:
+
+* Must be at or above level 450 raid level.
+* No deaths can occur in the run from anyone in the team.
+* You must have all the invocations on for the boss you want to get the morph for.
+* After today's changes to path levelling, you must also complete that boss at level four or higher (the exception being the Wardens).
+* You have not already obtained the item used to morph your pet already.
+
+Please note, only one morph can drop per run.
+
+If you can meet the above conditions, you will receive an item in your loot chest to use on the pet!
+
+Best of luck!
+
+===Invocation Balancing===
+As promised, we’re also making some minor changes to Invocations, to ensure they’re balanced. Because we’ve increased the reward space for the raid with this week’s update, it’s especially important that Invocations add the appropriate amount of Raid Level for their actual difficulty.
+
+Here’s what’s changing:
+
+<table class="wikitable" style="text-align:center;">
+      <tr>
+        <th>Invocation</th>
+        <th>Previous Raid Level Modifier</th>
+        <th>New Raid Level Modifier</th>
+        <th>Effect</th>
+      </tr>
+   <tr>
+        <td>Pathfinder</td>
+        <td>+25</td>
+        <td>+40</td>
+        <td>The invocation effect has been increased by 15 levels.</td>
+      </tr>
+      <tr>
+        <td>Walk the Path</td>
+        <td>+45</td>
+        <td>+50</td>
+        <td>The invocation effect has been increased by 10 levels.</td>
+      </tr>
+      <tr>
+        <td>Pathmaster</td>
+        <td>+40</td>
+        <td>+50</td>
+        <td>The invocation effect has been increased by 10 levels.</td>
+      </tr>
+      <tr>
+        <td>More Overlords</td>
+        <td>+10</td>
+        <td>+15</td>
+        <td>The invocation effect has been increased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>Arterial Spray</td>
+        <td>+5</td>
+        <td>+10</td>
+        <td>The invocation effect has been increased by 5 levels. </td>
+      </tr>
+  <tr>
+        <td>Upset Stomach</td>
+        <td>+5</td>
+        <td>+10</td>
+        <td>The invocation effect has been increased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>On a Diet</td>
+        <td>+20</td>
+        <td>+15</td>
+        <td>The invocation effect has been decreased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>Lively Larvae</td>
+        <td>+10</td>
+        <td>+5</td>
+        <td>The invocation effect has been decreased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>Acceleration</td>
+        <td>+15</td>
+        <td>+10</td>
+        <td>The invocation effect has been decreased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>Overclocked</td>
+        <td>+15</td>
+        <td>+10</td>
+        <td>The invocation effect has been decreased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>Overclocked 2</td>
+        <td>+15</td>
+        <td>+10</td>
+        <td>The invocation effect has been decreased by 5 levels. </td>
+      </tr>
+      <tr>
+        <td>Blood Thinners</td>
+        <td>+10</td>
+        <td>+5</td>
+        <td>The invocation effect has been decreased by 5 levels. </td>
+      </tr>
+</table>
+
+These balancing changes are not intended to make Tombs of Amascut unreasonably difficult. We’re proud that this is our most accessible raid yet, and we intend to keep it that way!
+
+That said, small tweaks here and there are critical to preserve the longevity and enjoyability of our content.
+
+The changes above are moderate and should not adversely affect players of general raid accessibility.
+
+As always, we welcome your constructive feedback. Are there any more Invocations you feel should be changed? Let us know! You can submit feedback through all the channels mentioned at the end of this blog.
+
+===Further Tombs of Amascut Changes===
+====Invocations====
+* The small blood clouds that appear with the ‘Blood Thinners’ Invocation now have slightly higher health.
+* Path leveling now affects mechanics at level 2 and 4, instead of 1 and 2.
+* Altered the amount of stats added from Path Leveling from 10/20/30/40/50/60 to 8/13/18/23/28/33, these modifiers only apply to hitpoints and damage; not defence.
+* Increased the speed at which boulders come out when the Boulder dash invocation is activated.
+* Path leveling now no longer affects the speed at which the Arcane Scarab charges.
+* The 'Stay Vigilant' invocation now affects Akkha's phantom during Wardens P3, similar to 'Aerial Assault' affecting Kephri's phantom.
+
+====Other Changes====
+* Players will now be prompted to claim their XP Lamp from Maisa if they haven’t yet done so.
+* HP Orbs during the Wardens fight are now at the correct height.
+
+==Activity Advisor==
+[[File:Tombs of Amascut- Ornament Kits & More! (5).png|409px|centre]]
+[[File:Tombs of Amascut- Ornament Kits & More! (6).png|409px|centre]]
+
+Some of you will have had the chance to test and provide feedback on our new Activity Advisor – and you liked it so much that it’s going live for everyone in this week’s update!
+
+The Activity Advisor is an in-game tool for new and returning players to receive bespoke recommendations for activities they might like to try. It tracks your progress, automatically tallying your skill levels, quest status, recent activity and other essential stats to figure out which new adventures you might be interested in. At the moment, the Activity Advisor only suggests quests, but we’re looking to expand the system to include skills, minigames, and other activities later.
+
+Please note that due to their unique gameplay features, Deadman Mode and (future) Quest Speedrunning Worlds will not have access to the Activity Advisor.
+
+Lastly, if you decide the Activity Advisor is not for you, you can disable it at any time via the Settings menu.
+
+We’re really interested in seeing your feedback on this one, so it’s time for a survey! Click the button below to tell us your thoughts.
+
+[[File:Tombs of Amascut- Ornament Kits & More! (7).png|centre|link=https://jagex.eu.qualtrics.com/jfe/form/SV_78nnr1fI54oLq8m]]
+==Other Changes==
+* Mobile: Skills tab tooltips no longer disappear after gaining XP.
+
+<h2>PvP Rota <br>The PvP rota has moved to Period A:</h2>
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is using 'Zerk' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+Discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,835,66261919 official forums], on the [https://www.reddit.com/r/2007scape/comments/x8w3bp/tombs_of_amascut_ornament_kits_more_plus_the/?utm_source=share&utm_medium=web2x&context=3/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

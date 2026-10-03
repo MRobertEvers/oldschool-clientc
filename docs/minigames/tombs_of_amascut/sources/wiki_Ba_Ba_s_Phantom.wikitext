@@ -1,0 +1,21 @@
+{{Infobox NPC
+|name = Ba-Ba's Phantom
+|image = [[File:Ba-Ba's Phantom.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|level = 359
+|members = Yes
+|race = Apparition
+|location = [[Tombs of Amascut]]
+|gender = Female
+|examine = A phantom of Ba-Ba.
+|map = No
+|id = 11775
+|leagueRegion = Desert
+}}
+'''Ba-Ba's Phantom''' is a monster encountered in the [[Tombs of Amascut]]. It is summoned alongside [[Zebak's Phantom]] by [[Tumeken's Warden]] in the third phase of the final battle.
+
+Ba-Ba's phantom will only attack by launching boulders at the player, which can be avoided by walking a tile away from the targeted spot.
+
+[[File:Tombs of Amascut - fighting Tumeken's Warden.png|thumb|left|Ba-Ba's Phantom in the fight's third phase.]]
+{{Tombs of Amascut}}

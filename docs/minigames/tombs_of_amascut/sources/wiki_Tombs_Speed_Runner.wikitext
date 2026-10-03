@@ -1,0 +1,87 @@
+{{Infobox Combat Achievement
+|name = Tombs Speed Runner
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut (normal) within 18 mins at any group size.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Speed
+|id = 421
+|leagueRegion = Desert
+}}
+'''Tombs Speed Runner''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid within 18 mins at any group size, at level 150 or above.
+
+==Strategy==
+When attempting to complete the combat achievement, the following are the approximate times which the player should aim for each stage of the raid:
+{| class="wikitable"
+|+
+!Room
+!Completion Time
+!Cumulative Challenge Time<ref>This would be the "Total Time" your chat box will provide you after each completed challenge. This time becomes desynced from the clock timer because it does not account for the down-time in between rooms.</ref>
+|-
+|Apmeken Puzzle
+|2:35
+|2:35
+|-
+|Baba Fight
+|1:20
+|3:55
+|-
+|Scabaras Puzzle
+|0:45
+|4:50
+|-
+|Kephri Fight
+|2:10
+|6:50
+|-
+|Het Puzzle
+|0:45
+|7:35
+|-
+|Akkha Fight
+|2:10
+|9:45
+|-
+|Crondis Puzzle
+|0:35
+|10:20
+|-
+|Zebak Fight
+|1:00
+|11:20
+|-
+|Warden Phase 1
+|0:25
+|''N/A''
+|-
+|Warden Phase 2
+|1:25
+|''N/A''
+|-
+|Warden Phase 3
+|2:10
+|''N/A''
+|-
+|Warden Enrage
+|0:35
+|15:55
+|-
+|Down Time<ref>This is time spent moving between rooms, starting challenges, boss fights, and getting supplies. On average you should plan to lose about 15 seconds per-boss.</ref>
+|~2:00
+|''N/A''
+|-
+|'''Completion'''
+|'''17:55'''
+|'''15:55'''
+|}
+{{Reflist}}
+
+Gear Recommendations, for a duo, include max armour for all 3 combat styles: Torva, Masori, and Ancestral. Twisted Bow, Dragon Arrows, Blowpipe, Zaryte Crossbow, Tumeken's Shadow, Avernic Defender, Dragon Dagger, Dragon Claws, and one player with Thralls with the other player on the Lunar Spellbook for Vengeance/Vengeance Other. Both players could also use the Lunar Spellbook and use spellbook swap to use Thralls and Vengeance.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

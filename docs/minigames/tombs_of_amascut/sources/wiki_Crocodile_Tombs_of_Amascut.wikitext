@@ -1,0 +1,77 @@
+{{Infobox Monster
+|name = Crocodile
+|image = [[File:Crocodile (Tombs of Amascut).png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 71
+|size = 2
+|examine = Never smile at a...
+|xpbonus = 
+|max hit = 18
+|aggressive = No
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 7
+|hitpoints = 30
+|att = 150
+|str = 60
+|def = 100
+|mage = 30
+|range = 1
+|attbns = 0
+|strbns = 100
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 150
+|dslash = 350
+|dcrush = 350
+|dmagic = 5
+|dlight = 150
+|dstandard = 150
+|dheavy = 150
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11705
+}}
+'''Crocodiles''' are a monster encountered in the Path of Crondis within the [[Tombs of Amascut]]. They attack the [[Palm of Resourcefulness]] and hinder its growth. 
+
+They will prioritise their attack targets in the following order:
+# Players with a [[water container]] that is not empty and is within aggro range.
+# The Palm of Resourcefulness when it has any amount of growth.
+# Players without a water container who have also attacked the crocodile.
+This means that any player who attacks a crocodile while holding an empty water container will be safe from the crocodile's attacks.
+
+When attacking a player, the crocodile will always hit a predetermined damage on successful attacks. This damage is increased based on the number of obstacles (acid pools or statue spears) that the player has been hit by in the last 30 seconds. If the player has not been hit by an obstacle, the damage is 18. For each obstacle, the crocodile's damage will increase by 3, up to a max of 36, regardless of raid level. For example, if the player has been hit by 2 obstacles in the last 30 seconds, the crocodile's damage dealt on a successful attack is 24. The damage is determined only by obstacles that hit the player. Other players in the raid do not affect this damage. In other words, if another party member is hit by an acid pool or statue spear, only the damage the crocodile does to that party member is changed. It is possible to delay the Crocodiles' advance with [[Binding spell|Binding]] or [[Ice spells|Ice Spells]]. As long as they cannot reach the Palm or a Player, the former's growth or the latter's water levels will not be drained.
+
+If the player is using [[Protect from Melee]], then successful attacks from the crocodile will drain the player's [[Prayer]] points by 12 and hit a guaranteed damage of 1/3 of its damage. If the player is holding a non-empty water container, then each successful attack from the crocodile (whether using Protect from Melee or not) will also reduce the container's water by 50% of its total amount, similarly to getting hit by the traps.
+
+A maximum of eight crocodiles can be alive at any given time.
+
+[[File:Path of Crondis - Palm of Resourcefulness.png|thumb|left|300px|Crocodiles stunting the palm's growth.]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Crocodiles now have a 40% [[elemental weakness]] to [[earth spells]].
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = The spawn pattern of crocodiles on the Path of Crondis should now be more consistent.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The examine text is a reference to the vocal version of a song from [https://en.wikipedia.org/wiki/Peter_Pan_(1953_film) Disney's Peter Pan], "Never Smile at a Crocodile".
+* Despite being a crocodile, defeating one does not count for completion of the "In a while..." elite clue step.
+
+{{Tombs of Amascut}}

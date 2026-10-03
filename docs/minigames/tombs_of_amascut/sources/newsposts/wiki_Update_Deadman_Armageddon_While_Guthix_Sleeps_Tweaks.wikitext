@@ -1,0 +1,251 @@
+{{Update|date=24 July 2024|rev=26 July 2024|url=https://secure.runescape.com/m=news/deadman-armageddon--while-guthix-sleeps-tweaks?oldschool=1|category=game}}
+[[File:Deadman- Armageddon & While Guthix Sleeps Tweaks newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Date
+! Issue
+! Latest Information
+! Current Status
+|-
+| 26th July - 11:30 BST
+| DMM Only: Overload Potions not working after dying.
+| The team has just released a hotfix to fix a bug where blighted overloads weren't working as intended after a death in dmm. Players will no longer have to relog after dying to get the effects of Blighted Overloads.
+| HOTFIXED
+|}
+
+''This week sees a few small tweaks to Deadman: Armageddon and While Guthix Sleeps!''
+
+==Changelog July 24th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Deadman: Armageddon'''
+
+* Significantly increased the rate of the Bleed effect on Morrigan’s Javelin, and increased damage per hit to 10.
+* The UI now correctly reflects the remaining time before this year's Deadman ends.
+* Removed warning messages that played when players attuned to Sigil of the Fortune Farmer interacted with Impling Jars.
+* Increased quantity of Breach NPCs at Region Breaches.
+* Updated Slayer Points required to choose a Task when using the Sigil of Slaughter from 30 to 60.
+** Players with less than 90 Slayer Points will be warned that they won’t have enough points to cancel a selected Task.
+* When attempting to log in to a Deadman world with W45 data, players will now be informed that they must reset their Permanent Deadman account with Nigel in Lumbridge.
+* Deadman Tournament accounts, specially one Defence pures, can now progress through Heroes’ Quest. Normal Deadman and other normal accounts remain unchanged.
+
+'''While Guthix Sleeps'''
+
+* Added a consumable teleport to the Guthixian Temple to the tormented demons’ loot table.
+* Updated the UI with a new multiway icon which indicates whether players can fight one, two, or three demons at a time.
+* Updated Movario's notes, restoring some details from the original RuneScape version. Please note that Old School’s lore means there are still some differences.
+* Lucien has had a makeover! He now looks far more formidable.
+* Refreshed Laidee Gnonock with updated animations and bulkier armour.
+* Updated and added extra dialogue throughout the quest to be more in-keeping with the original, though again you will still see many differences.
+* Recoloured the Balance Elemental and the fight with Surok for accessibility.
+* Added a chest to Movario’s base which contains the Runes needed for the door puzzle. They will appear there only once.
+* Thaerisk will now give out a Snapdragon Seed for free rather than charging for it. He still only gives one.
+* Sapphire Lanterns are no longer destroyed on death during the quest.
+* Akrisae will now provide a one-time teleport to Ice Mountain for the Black Knight section and will also remind you they need a disguise to enter the fortress.
+* When working on the Herblore puzzle in the Guthixian Temple, the corresponding alternate ingredients will now be returned to you. So for example, if you place a herb on a statue that already has one, the first herb will be given back.
+* You can now store your Elite Black Armour and the Dark Squall Robes in your Player Owned House.
+* Your Broav can now roam free within your Player Owned House!
+* The skeletons in Lucien’s camp will now always be aggressive once Lucien has spotted you, regardless of any disguise. They won’t be fooled twice!
+* You can now use Runes from your Rune Pouch for the Teleorb.
+* All tiles around the Guthixian symbol can now be walked on without issues.
+* The Emberlight can now be used for the Master Clue Scroll step as a stand-in for the Arclight, and can be added to your STASH unit.
+* Mark of Darkness will now last 5 times longer if the Purging Staff is equipped when cast.
+* Players can now forge the Emberlight no matter which items they combine first.
+* Elite dark warriors, rangers and mages have been given Melee, Ranged, and Magic Defence stats.
+* Updated NPC contact options have been updated to reflect new NPCs.
+* The Oneiromancer will now acknowledge a certain NPC’s tragic death.
+* Adjusted the consistency of certain NPC chat heads to reflect story progression.
+* Flames can now no longer be seen from the floor below during a certain boss fight.
+* Resolved a graphical issue affecting Emberlight.
+
+'''Other Changes'''
+
+* The ‘Attack’ option on Zuk is once again visible during the introductory cut scene.
+* The Undead Pirates’ lockers in the east of the Wilderness no longer open on non-members worlds.
+* Visiting the Trouble Brewing minigame no longer wipes the effect of 'The Stuff' from any vats you've got fermenting.
+* Fixed a bug which caused the burning effect from the Eclipse Atlatl and the Burning Claws not to clear upon leaving the Player Owned House Combat Ring. The Burn effect is also now reflected in the buff/debuff bar.
+* Akkha, Xarpus and Nylos can now all be affected by burn damage.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Deadman: Armageddon Feedback==
+Deadman Armageddon is in full swing, and we're excitedly watching your progress across social channels, YouTube, and Twitch! If you’re looking to earn some points, snag some cosmetics, and have a scary good time trying PvP, it’s not too late to jump in! We’ve seen ''loads'' of folks racking up the points this week, so you’re in good company.
+
+[[File:Deadman- Armageddon & While Guthix Sleeps Tweaks (1).jpg|600px|center]]
+
+As this is a time-limited event, we’ve been making some speedy hotfixes already:
+
+* The Infernal chef now gives Cooked Karambwan as opposed to Poisoned.
+* If the cyclops room in the Warriors’ Guild is particularly crowded, you'll see more cyclops spawn.
+* Players can no longer roll the Skilling Supply loot table while mining Rune Essence, and can no longer chop undead trees. This change is brought to you by an ''extremely ''low-effort way of mining Sigils that we felt was too strong to live.
+* The doors in the Grand Tree no longer change locations on Deadman worlds.
+* You will no longer receive Skilling Supply Loot when in an instance.
+
+This week brings a handful of other fixes:
+
+* Significantly increased the rate of the Bleed effect on Morrigan’s Javelin, and increased damage per hit to 10.
+* The UI now correctly reflects the remaining time before this year's Deadman ends.
+* Removed warning messages that played when players attuned to Sigil of the Fortune Farmer interacted with Impling Jars.
+* Increased quantity of Breach NPCs at Region Breaches.
+* Updated Slayer Points required to choose a Task when using the Sigil of Slaughter from 30 to 60.
+** Players with less than 90 Slayer Points will be warned that they won’t have enough points to cancel a selected Task.
+* When attempting to log in to a Deadman world with W45 data, players will now be informed that they must reset their Permanent Deadman account with Nigel in Lumbridge.
+* Deadman Tournament accounts, specially one Defence pures, can now progress through Heroes’ Quest. Normal Deadman and other normal accounts remain unchanged.
+
+We’re continuing to monitor Bank Keys and will work to remove (where possible) ‘junk’ items that have an inexplicably high value.
+
+Hopefully these changes will make your Deadman journey a bit smoother! We’ll be keeping an eye out throughout the tournament for any other bugs that pop up.
+
+We're also reducing the number of Deadman worlds, to ensure you're more likely to run into other players. This week we've removed:
+
+===3-50===
+
+* USW: 142, 238, 241, 242
+* USE: 172,173
+* UK: 107, 108, 203, 204
+* DE: 162, 250, 251, 256
+* AU: 293, 294
+
+===51-70===
+
+* USW: 138, 139
+* USE: 104, 170
+* DE: 158, 160
+* AU: 291
+
+Don’t forget, you have until 12:00 Noon BST on August 2nd to build up your points for the new cosmetic rewards, or to get yourself into the higher combat brackets. Good luck! There’s a slice of our massive prize pool up for grabs, as well as these exclusive winners’ medals…
+
+[[File:Deadman- Armageddon & While Guthix Sleeps Tweaks (2).jpg|thumb|600px|center|''You could win yourselves one of these medals designed by AngelsScapes!'']]
+
+Then, tune in to the Grand Finale on Saturday, August 3rd live on [https://twitch.tv/oldschoolrs Twitch] at 18:00 BST, where we'll be trying out a brand new format: five finales across five combat brackets, giving everybody an opportunity to optimise their builds and compete like never before.
+
+In the meantime, you can commemorate your Deadman experience with this official logo pin and special Armageddon edition of the Armadyl Godsword keyring from AngelsScapes. The AGS just got even more deadly - and the pin is a replica of the Winners’ Medals! 
+
+[[File:Deadman- Armageddon & While Guthix Sleeps Tweaks (3).jpg|600px|center]]
+
+The pin and keyring are available from the [https://runescape.backstreetmerch.com Official Merch Store] now.
+
+==While Guthix Sleeps Feedback==
+This week we've made some highly anticipated changes to While Guthix Sleeps!
+
+[[File:Deadman- Armageddon & While Guthix Sleeps Tweaks (4).jpg|600px|center]]
+
+First of all, a return to an idea we pitched in [https://secure.runescape.com/m=news/deadman-armageddon--while-guthix-sleeps-updates?oldschool=1 last week's newspost]. We discovered an error that gave players 100% Accuracy against tormented demons, which negatively affected weapon variety and power. To offset this effect, we suggested lowering the demons’ stats while increasing their Magic Defence bonus to compensate. We also planned to have Demonbane weapons reduce their Defence by at least 5%. However, after taking your feedback on board, we’ve decided not to make these changes. We understand that the community has already developed strategies for the existing mechanics, and that you love the unique element it adds to the combat. We’ll still look for small tweaks we can make, but for now, the tormented demons will keep their stats and we won't be fixing the accuracy bug.
+
+We do, however, have some other exciting changes this week – including the addition of a consumable teleport item to the tormented demons’ loot table, which will cut Bank runs significantly.
+
+We’ve also made it easier to see how many demons can be fought in each room with a new multiway combat icon.
+
+In the same vein, we’ve made some general additions to the items available during the quest, to reduce running back and forth to fetch new ones:
+
+* Added a chest to Movario’s base which contains the Runes needed for the door puzzle. They will appear there only once.
+* Thaerisk will now give out a Snapdragon Seed for free rather than charging for it. He still only gives one.
+* Sapphire Lanterns are no longer destroyed on death during the quest.
+* Akrisae will now provide a one-time teleport to Ice Mountain for the Black Knight section and will also remind you they need a disguise to enter the fortress.
+* When working on the Herblore puzzle in the Guthixian Temple, the corresponding alternate ingredients will now be returned to you. So, for example, if you place a herb on a statue that already has one, the first herb will be given back.
+
+We’ve also made a few changes to dialogue and text in the quest which bring it more in line with the OG version from RuneScape – although you’ll still notice a few key variations due to the ''big ''differences in our wider lore.
+
+Finally, Lucien has had a makeover! He now looks suitably menacing and has put on a bit of muscle, too – no easy feat when you’re a skeleton!
+
+Now, for this week’s smaller changes:
+
+===Combat===
+
+* The skeletons in Lucien’s camp will now always be aggressive once Lucien has spotted you, regardless of any disguise. They won’t be fooled twice!
+* All tiles around the Guthixian symbol can now be walked on without issues.
+* Mark of Darkness will now last 5 times longer if the Purging Staff is equipped when cast.
+* Elite dark warriors, rangers and mages have been given Melee, Ranged, and Magic Defence stats.
+
+===Visual===
+
+* Laidee Gnonock now has updated animations and bulkier armour.
+* Recoloured the Balance Elemental and the fight with Surok to make them more accessible for colourblind players.
+* Flames can no longer be seen from the floor below during a certain boss fight.
+* Adjusted the consistency of certain NPC chat heads to reflect the story progression.
+* Resolved a graphical issue affecting Emberlight.
+
+===Player Owned House===
+
+* Elite Black Armour and the Dark Squall Robes can now be stored in your Costume Room, if you have one.
+* Your Broav can now wander free within your Player Owned House! He isn't ''technically'' a pet, but we assure you he's perfectly happy there.
+
+===Other===
+
+* You can now use Runes from your Rune Pouch for the Teleorb to reach Lucien's camp.
+* Emberlight can now be used for the Master Clue Scroll step as a stand-in for Arclight, and can now be added to your STASH unit.
+* We've ensured that no matter which item you select to use first, you'll always be able to forge the Arclight when combining items.
+* Updated NPC contact options have been updated to reflect new NPCs.
+* The Oneiromancer will now acknowledge a certain NPC’s tragic death.
+
+===Drop Rates===
+As is tradition, we'd like to share the drop rates for the unique items you can get your hands on from the tormented demons.
+
+* Tormented Synapse: 1/500
+* Burning Claw: 1/500
+* Guthixian Temple Teleport: 1/12
+
+===Drop table order:===
+
+* Roll for a Tormented Synapse
+** If not, roll for a Burning Claw
+*** If not, roll for a unique supply drop (Smouldering items)
+**** If not, roll for regular loot
+
+==Crafted by Foxes Apparel Collection==
+The pre-sale period for the Crafted by Foxes apparel collection closed on July 22nd, and while the final production quantities for the range are set, the store made enough stock to cover all pre-orders, plus extra! This means you still have a chance to grab your own before they're sold out, but you’ll have to be quick.
+
+[[File:Deadman- Armageddon & While Guthix Sleeps Tweaks (5).jpg|600px|center]]
+
+The Crafted by Foxes apparel collection consists of a chunky super-soft Theatre of Blood hoodie, Tombs of Amascut pocket tee, Desert Treasure II tee (available in two colours), and a long-sleeved Verzik Vitur tee. All designs are exclusive to the [https://runescape.backstreetmerch.com/ official merch store] and are available in a range of sizes. A special neck label print also marks the collaboration.
+
+Some stock has already started shipping – share a photo with @mitchiefox when yours arrives so we can see your new swag!
+
+==Other Changes==
+
+* The ‘Attack’ option on Zuk is once again visible during the introductory cut scene.
+* The Undead Pirates’ lockers in the east of the Wilderness no longer open on non-members worlds.
+* Visiting the Trouble Brewing minigame no longer wipes the effect of 'The Stuff' from any vats you've got fermenting.
+* Fixed a bug which caused the burning effect from the Eclipse Atlatl and the Burning Claws not to clear upon leaving the Player Owned House Combat Ring. The Burn effect is also now reflected in the buff/debuff bar.
+* Akkha, Xarpus and Nylos can now all be affected by burn damage.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

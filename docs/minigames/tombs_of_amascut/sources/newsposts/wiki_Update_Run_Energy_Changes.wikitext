@@ -1,0 +1,259 @@
+{{Update|date=08 January 2025|url=https://secure.runescape.com/m=news/run-energy-changes?oldschool=1|category=game}}
+[[File:Run Energy Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''We're speeding into the New Year with the long-awaited Run Energy changes! Can we get them for real life?''
+
+'''PSA:''' Before we get started, please note that the Friends List and Friends Chat may be unavailable for a few minutes following today’s update. We expect this to be resolved very quickly, but content that relies on these systems (such as the Chambers of Xeric) will be impacted for a short while.
+
+Now, on with the newspost!
+
+==Changelog January 8th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Run Energy Changes'''
+
+* Considerably improved Energy regeneration at lower Agility levels while leaving it unchanged at Level 99.
+* Energy Drains more slowly in ''all ''scenarios, at every Weight and Agility level. This becomes more significant as Agility level and Weight increase.
+
+'''Leagues V'''
+
+* There are '''two more weeks''' left to enjoy Leagues V: Raging Echoes!
+* Next week, the Leagues Reward Shop will go live and you’ll be able to spend your hard-earned League Points.
+
+'''Other Changes'''
+
+<u>Miscellaneous Changes and Fixes</u>
+
+* Now that you’ve helped the stray dogs of Falador find their fur-ever homes, we’re removing the Christmas 2024 Event. The dogs will remain with their new owners. Feel free to visit and pet them any time!
+* Zahur is once again making Huasca Potion (unf) as intended.
+* To prevent megascale boosting abuse at Chambers of Xeric, we've changed how unique rewards are distributed. Now players who leave a raid in progress are ''eligible ''to receive unique items, but if they would do so, the reward is discarded instead. This ensures that leaving a CoX raid no longer transfers loot chances onto remaining participants.
+* Water jugs in the Tombs of Amascut Zebak fight can now be attacked with Magic, as intended.
+* Dharok the Wretched no longer deals his max hit on every successful attack after his health has been reduced.
+* Fixed an issue where The Whisperer’s tentacles failed to spawn under certain conditions.
+* The left-click/tap option on Runecrafting Pouches will now dynamically swap between “Fill” and “Empty”, depending on their status and what you have in your Inventory. If you were using the Menu Entry Swapper for these pouches, you may need to set "Fill" as the left-click option for the dynamic effect to start working.
+* Removed a restriction which prevented players from receiving Master Clues for 30 seconds after they last received one.
+* Increased Combat Achievement buffs when choosing how many Barrows Brothers to kill for a Boss Slayer Task, so that the maximum is always a multiple of 6.
+* The Scorching Bow now works for a range of demonbane-themed Combat Achievements.
+* Tormented Demons and Demonic Gorillas now correctly appear in the Combat Achievements monster drop-down list.
+* Fixed an issue where pieces of Barrows or Perilous Moons kits would break prematurely when attempting to drop them with the 'valuable item' warning active.
+* Fixed an issue where degraded Perilous Moon kit pieces in free-to-play would delete them.
+* The Clothes Pouch Blueprint can now be crafted with the Costume Needle without a thread, as intended.
+* You can now start the Make-X processes for creating Stamina, Anti-venom and Antifire Potions without cancelling your character's existing movement.
+* You should no longer find that a Portal Nexus to Senntisten transforms into a Portal Nexus to Ardougne (that still takes you to Senntisten) upon teleporting to your POH.
+* You should no longer be told about an elusive reward pile when withdrawing rewards from the Wintertodt reward cart.
+* When founding a clan with other players, the other founding members are now more likely to be automatically added to it successfully.
+* The confirmation warnings for the Plank Make spell can now be toggled on & off via the Settings menu.
+* You can now hold more Bonds in your Bond Pouch.
+
+<u>Wilderness Fixes</u>
+
+* Food, potions and the Phoenix Necklace no longer go to the Gravestone in the Wilderness, preventing unintended access to unlimited supply.
+* Teleporting to the Wilderness via the Player-Owned House Obelisk now includes an additional warning if the player is in a High Risk World.
+
+<u>GIM Fixes</u>
+
+* Fixed a bug where the GIM Combat Achievements were showing missing points when all duo GIM tasks were completed.
+* Fixed a bug allowing the use of Ghommal's Hilt 6, claimed in a GIM account for a completed Combat Achievement, on a regular account after conversion.
+
+<u>Visual Fixes</u>
+
+* Fixed visual glitches affecting certain basic clothing items when wielding the Cursed Banana.
+* The Cursed Banana attack animation is now properly displayed while walking.
+* Horns of the following helms now properly align on Body Type B:
+** Fremennik Helm
+** Archer Helm
+** Farseer Helm
+** Warrior Helm
+** Berserker Helm
+* Fixed an animation issue where the player character turns around while crossing the gangplanks in Corsair Cove. Showoff!
+
+<u>Have Your Say!</u>
+
+'''Every few months''' you may encounter in-game pop-up boxes asking you to rate your experience with the game. There are two kinds of questions:
+
+* A survey question about specific content which varies between scales of 1-5 and 1-10, depending on context.
+* A survey question about your overall satisfaction with the game. This question will appear more infrequently – about once every 9 months.
+
+These pop-ups will only appear while you are '''idle in a safe place''', to avoid disrupting your gameplay. If you’d rather not answer, you can disable these messages in the Settings menu.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Run Energy Changes==
+No matter what your New Year’s resolution is, we expect you to hit the ground ''running'' in 2025!
+
+Throughout 2024, we held two separate betas featuring three iterations of changes to one of Old School's hottest topics: how fast your Run Energy drains and restores. We've chatted about this ''loads ''in our beta blogs (which you can find [https://secure.runescape.com/m=news/run-energy-changes?oldschool=1 here] and [https://secure.runescape.com/m=news/a=13/run-energy-changes---open-beta-2?oldschool=1 here]) so we'll spare you from us digging too deep into the 'why' for these changes, since that's old news at this point!
+
+You’ll notice that the numbers below differ from those in our second beta, because we went away and made changes based on your feedback. We’ll also be responding to your feedback after today, in the knowledge that while some activities will be easier, this change is by no means game-breaking.  
+
+At a glance, here’s what’s changing:
+
+* Considerably improved Energy regeneration at lower Agility levels while leaving it unchanged at Level 99.
+* Energy Drains more slowly in ''all'' scenarios, at every Weight and Agility level. This becomes more significant as Agility level and Weight increase.
+
+Now let’s see the graphs!
+
+===Energy Regeneration===
+The existing formula for regenerating energy looks like this: (Agility level / 6) + 8.
+
+Keep in mind that behind the scenes, Run Energy scales between 0 and 10,000. This means that at level 1 Agility, your regen rate is (1 / 6) + 8, which gives a regen rate of 8 per tick (since we always round down). To regenerate from 0% to 100% would take 1,250 ticks, or 12 minutes and 30 seconds. At level 99 Agility, it takes 417 ticks to fully regenerate, or 4 minutes and 10 seconds.
+
+The formula which you'll be experiencing today looks like this: (Agility level / 10) + 15.
+
+[[File:Run Energy Changes (1).png|thumb|600px|center|''If you can’t see the graph above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/EnergyvsAgility.jpg here]!'']]
+
+This means that in the early stages of the game your Run Energy will regenerate noticeably faster, perfect for those taking their first steps in Gielinor. At later levels this will drop off and your Energy will restore at a similar rate to what you’re used to.
+
+Strictly speaking, this is weaker than our latest beta. It's still strong at early levels, but we've reined in the regen a little to compensate for further improvements to drain rates.
+
+Speaking of...
+
+===Energy Drain Rates===
+In our last beta, Energy Drain was ''almost'' always slower than the behaviour you're used to, where anybody above Level 54 Agility would always find themselves running longer before their energy drained to 0. A lot of you felt that drain rates were still a little too high, particularly in the early stages of the game, and that there was still a heavy reliance on passively regenerating by walking or standing still in order to really get value out of your Agility levels.
+
+With that in mind, we've adjusted drain rate further so that it is ''always'' an improvement over existing behaviour. It can be a little tricky to show these numbers off easily since both Weight ''and ''Agility level play a factor now, but we'll try our best!
+
+For comparison, here's how the behaviour you're used to stacks up against what we're implementing today:
+
+* Existing Drain Rate formula: 67 + ((67 * Weight) / 64)
+* Drain Rate formula in today's game update: (60 + (67 * Weight / 64)) * (1 - Agility/300)
+
+We've got a lower base drain rate (from 67 down to 60) and a new multiplier which will reduce your drain rate as your Agility level increases. Ultimately this means you'll ''always ''be able to run a little farther than before, but this improvement grows as your Agility level increases and will be more noticeable at higher weights.
+
+This graph illustrates the difference a bit more clearly:
+
+[[File:Run Energy Changes (2).png|thumb|600px|center|''This graph shows drain rate (Energy lost per tick) vs. Agility Level, comparing our proposed formula at various weights to the existing behaviour. Remember that lower is better for drain rate!If you can’t see the graph above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/drainvsagility.jpg here]!'']]
+
+[[File:Run Energy Changes (3).png|thumb|600px|center|''This graph shows drain rate (Energy lost per tick) vs. Weight (kg), comparing our proposed formula at various Agility levels to the existing behaviour. Just like before, lower is better! If you can’t see the graph above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/drainvsweight.jpg here]!'']]
+
+As we mentioned above, we’ll be keeping a close eye on your feedback, particularly in places where Run Energy tends to matter like Chambers of Xeric solos, God Wars Dungeon trips, and Herbiboar. We’re especially interested in hearing from newer accounts about how these changes affect early-game questing, Hunter Rumours with limited teleport options, traditional Runecraft, and anything else you’d like us to know about!
+
+Now go on – get those steps in!
+
+==Leagues V Reward Shop==
+There are just two weeks left to enjoy Leagues V: Raging Echoes! Now’s the time to check off those last few goals and scoop up the remaining League Points.
+
+On that note, the Leagues V Reward Shop will open its doors in next week’s update, so you can pick up all the snazzy rewards you’ve had your eyes on. Which ones are your favourites?
+
+We also have a small update to share regarding one of the Leagues V rewards. During testing, we noticed that the POH Portal is actually a bit too big to fit the space, and have since refined the size. In the image below, the portal on the left represents the original concept, while the middle portal reflects the adjusted version, more on par with the size of other portals. This means the middle POH portal is what you'll receive from the Rewards Shop.
+
+[[File:Run Energy Changes (4).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/Leagues_portal.jpg here]!'']]
+
+==Other Changes==
+Lastly, we have a selection of fixes and improvements coming your way!
+
+===Miscellaneous Changes and Fixes===
+* Now that you’ve helped the stray dogs of Falador find their fur-ever homes, we’re removing the Christmas 2024 Event. The dogs will remain with their new owners. Feel free to visit and pet them any time!
+* Zahur is once again making Huasca Potion (unf) as intended.
+* To prevent megascale boosting abuse at Chambers of Xeric, we've changed how unique rewards are distributed. Now players who leave a raid in progress are ''eligible ''to receive unique items, but if they would do so, the reward is discarded instead. This ensures that leaving a CoX raid no longer transfers loot chances onto remaining participants.
+* Water jugs in the Tombs of Amascut Zebak fight can now be attacked with Magic, as intended.
+* Dharok the Wretched no longer deals his max hit on every successful attack after his health has been reduced.
+* Fixed an issue where The Whisperer’s tentacles failed to spawn under certain conditions.
+* The left-click/tap option on Runecrafting Pouches will now dynamically swap between “Fill” and “Empty”, depending on their status and what you have in your Inventory. If you were using the Menu Entry Swapper for these pouches, you may need to set "Fill" as the left-click option for the dynamic effect to start working.
+* Removed a restriction which prevented players from receiving Master Clues for 30 seconds after they last received one.
+* Increased Combat Achievement buffs when choosing how many Barrows Brothers to kill for a Boss Slayer Task, so that the maximum is always a multiple of 6.
+* The Scorching Bow now works for a range of demonbane-themed Combat Achievements.
+* Tormented Demons and Demonic Gorillas now correctly appear in the Combat Achievements monster drop-down list.
+* Fixed an issue where pieces of Barrows or Perilous Moons kits would break prematurely when attempting to drop them with the 'valuable item' warning active.
+* Fixed an issue where degraded Perilous Moon kit pieces in free-to-play would delete them.
+* The Clothes Pouch Blueprint can now be crafted with the Costume Needle without a thread, as intended.
+* You can now start the Make-X processes for creating Stamina, Anti-venom and Antifire Potions without cancelling your character's existing movement.
+* You should no longer find that a Portal Nexus to Senntisten transforms into a Portal Nexus to Ardougne (that still takes you to Senntisten) upon teleporting to your POH.
+* You should no longer be told about an elusive reward pile when withdrawing rewards from the Wintertodt reward cart.
+* When founding a clan with other players, the other founding members are now more likely to be automatically added to it successfully.
+* The confirmation warnings for the Plank Make spell can now be toggled on & off via the Settings menu.
+* You can now hold more Bonds in your Bond Pouch.
+
+===Wilderness Fixes===
+* Food, potions and the Phoenix Necklace no longer go to the Gravestone in the Wilderness, preventing unintended access to unlimited supply.
+* Teleporting to the Wilderness via the Player-Owned House Obelisk now includes an additional warning if the player is in a High Risk World.
+
+===GIM Fixes===
+* Fixed a bug where the GIM Combat Achievements were showing missing points when all duo GIM tasks were completed.
+* Fixed a bug allowing the use of Ghommal's Hilt 6, claimed in a GIM account for a completed Combat Achievement, on a regular account after conversion.
+
+===Visual Fixes===
+* Fixed visual glitches affecting certain basic clothing items when wielding the Cursed Banana.
+* The Cursed Banana attack animation is now properly displayed while walking.
+* Horns of the following helms now properly align on Body Type B:
+** Fremennik Helm
+** Archer Helm
+** Farseer Helm
+** Warrior Helm
+** Berserker Helm
+* Fixed an animation issue where the player character turns around while crossing the gangplanks in Corsair Cove. Showoff!
+
+===Have Your Say!===
+Staying connected with our players is our top priority here on the Old School RuneScape team. We actively listen to your feedback and work together to shape the game we all cherish. Whether through in-game polls, surveys in newsposts, or keeping track of your thoughts on social platforms; community consultation and player sentiment are at the heart of Old School RuneScape. To further strengthen this connection, we’re adding new in-game surveys where you can have your say.
+
+'''Every few months''' you may encounter in-game pop-up boxes asking you to rate your experience with the game. There are two kinds of questions:
+
+* A survey question about specific content which varies between scales of 1-5 and 1-10, depending on context.
+* A survey question about your overall satisfaction with the game. This question will appear more infrequently – about once every 9 months.
+
+These pop-ups will only appear while you are '''idle in a safe place''', to avoid disrupting your gameplay. If you’d rather not answer, you can disable these messages in the Settings menu.
+
+==RuneFest Attendee Exclusive Collection==
+[[File:Run Energy Changes (5).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/RF-Full-Group.jpg here]!'']]
+
+Whether you’ve got your ticket or you’re watching from home, now’s your chance to get hold of the exclusive RuneFest 2025 Tee and Hoodie. Both are available for pre-order from now until January 13th, exclusively on [https://runescape.backstreetmerch.com/collections/runefest-2025 our Merch Store]!
+
+Pre-ordering secures early bird pricing, allows you to personalise your tee, and unlocks extended sizing - S to 6XL for the hoodie and unisex XS to 5XL sizing for the tee, as well as a women's cut. There will only be limited sizes available at RuneFest, so pre-order now to snag your preferred size!
+
+Note: Only order RuneFest 2025 official clothing ''if'' you have a ticket for the event and you'll be going, as orders must be collected from the IRL Merch Store at RuneFest.
+
+Check out the full collection below!
+
+===RuneFest 2025 Hoodie: Early Bird Price!===
+[[File:Run Energy Changes (6).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/RF-Mark-Ash.jpg here]!'']]
+
+We’re bringing back the fan-favourite hoodie from 2019 in an all-new dusky black. Expect the same ultra-soft, premium feel that made this hoodie so popular. Click [https://runescape.backstreetmerch.com/products/rf25-hoodie-early-bird-price here ]for the full details.
+
+===Official Tee: Personalisation Available Only by Pre-Order!===
+[[File:Run Energy Changes (7).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-08/RF-Doom-Mermaid.jpg here]!'']]
+
+Add your name or RSN to the back of this event-exclusive tee! This customisation is only available through pre-order.  Make it yours and commemorate RuneFest in style!  Full details [https://runescape.backstreetmerch.com/products/rf25-personalised-tee here]. 
+
+The tee is also available on pre-order [https://runescape.backstreetmerch.com/products/rf25-tee-early-bird-price-non-personalised here ]without personalisation at a special early bird price.
+
+Order now from the [https://runescape.backstreetmerch.com/collections/runefest-2025 Merch Store] before pre-orders close on January 13th! Don’t miss out on your preferred size, personalisation, or early bird pricing! Remember to bring a printout of your order confirmation to collect your apparel at the event.  
+
+See you there!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1hwheqr/run_energy_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

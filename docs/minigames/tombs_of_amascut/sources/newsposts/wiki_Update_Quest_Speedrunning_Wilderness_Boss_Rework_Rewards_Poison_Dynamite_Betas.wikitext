@@ -1,0 +1,267 @@
+{{Update|date=14 September 2022|link=https://secure.runescape.com/m=news/quest-speedrunning-wilderness-boss-rework-rewards--poison-dynamite-betas?oldschool=1|category=game}}
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas newspost.png|right]]
+{{Clear}}
+__TOC__
+==Hotfixes and Our Actions - September 8th==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|15:20 BST
+|Food/Potion drops do not follow you across worlds.
+|We've identified a change in QSR that caused issues outside of those worlds. The behaviour should now act as it usually does.
+|'''HOTFIXED'''
+|-
+|15:00 BST
+|The Need Less Help invocation has been unintentionally nerfed.
+|We fixed a bug in the midraid loot quantity calculations that inadvertently caused a nerf. We have undone this change so that the Invocation will act the same as it did before the update.
+|'''HOTFIXED'''
+|-
+|12:30 BST
+|The Beta Worlds for Quest Speedrunning are not working as intended.
+|We have brought the Speedrunning Beta Worlds back online.
+|'''FIXED'''
+|-
+|11:58 BST
+|Poison Dynamite does not appear to be working correctly.
+|The new Dynamite is working as intended but we are going to investigate making the process of using it a better experience.
+|'''Added for Review.'''
+|}
+''This week we’ve got a bunch of Beta worlds for you to explore, plus tweaks to Tombs of Amascut!''
+
+----
+
+==Wilderness Boss Rework Rewards and Poison Dynamite Beta==
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (1).png|thumb|600px|centre|''This is where you'll start your journey in this Beta!'']]
+
+
+What can we say, things just keep getting 'Beta' this week!
+
+We've set up a bunch of extra channels within the official Old School Discord to help you leave your feedback, so check them out here!
+
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (2).png|centre|link=http://discord.gg/OSRS]]
+
+
+First up, let’s look at the Beta for the Wilderness Boss Rework rewards and Poison Dynamite - if you're here for the Quest Speedrunning Beta, you'll need to keep scrolling.
+
+As always, participating in a Beta '''won’t affect your normal saved game profile'''. The following Beta worlds are highlighted in blue on the World Select screen:
+* World 403 (US East)
+* World 405 (Germany)
+* World 407 (UK)
+* World 410 (US West)
+
+Upon logging into a Beta world, your account is automatically set up with the new Wilderness Boss Rework Weaponry, a handful of Poison Dynamite and a trusty Tinderbox, along with most quests auto-completed. You’ll arrive in Ferox Enclave near the loadout table, which gives you a couple of options:
+* Left-click: Offers a wide selection of standard gear, preset loadouts and stats.
+* Right-click: Lets you customise your stats.
+
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (3).png|thumb|centre|''Your Inventory when you log in to a Beta World.'']]
+
+
+There's also an Altar nearby where you can switch your active Spellbook, along with some handy portals that take you to various locations around Gielinor.
+
+So, time to take some new items for a spin! You can find out more about these updates in their respective newsposts, but let’s have a quick recap:
+
+===Wilderness Boss Rework: Rewards===
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (4).png|thumb|600px|centre|''Please note these assets are placeholders and are still a WIP.'']]
+
+====Accursed Sceptre====
+The '''Skull of Vet'ion''' will be a rare, tradeable drop from – you guessed it – Vet'ion! A player with 85 Crafting can combine the skull with Thammaron's Sceptre to obtain the Accursed Sceptre. If you don't have 85 Crafting, Andros Mai in the Ferox Enclave will combine them for 500,000 GP.
+
+The Accursed Sceptre is a tradeable upgrade to the reworked Thammaron's Sceptre, with a Magic attack of 22 and a max hit that is your Magic level divided by three, minus six. This means that at 99 Magic you'll be hitting up to 27 Magic damage every four ticks/cycles.
+
+The Accursed upgrade also gains a special attack: Condemn. Condemn costs 50% Special Attack energy and gives 50% increased max hit and 50% increased accuracy. On a successful hit, the target's Defense and Magic are reduced by up to 15%.
+
+Defense and Magic reduction from Condemn cannot be lowered beyond 85% of their initial value. For a target with 80 Defence and 80 Magic, Condemn can’t reduce these stats any lower than 68.
+
+====Webweaver Bow====
+The '''Fangs of Venenatis''' will be a rare, tradeable drop from – you guessed it again! – Venenatis. A player with 85 Fletching can combine them with Craw's Bow to make a Webweaver Bow. Alternatively, Phabelle Bile in the Ferox Enclave can combine them for 500,000 GP.
+
+The Webweaver Bow is a tradeable upgrade for Craw's Bow. It requires 70 Ranged to wield, has 85 Ranged attack bonus and 65 Ranged strength (compared to Craw's Bow's 75 Ranged attack and 60 Ranged strength) and gains a special attack: Swarm.
+
+Swarm costs 50% Special Attack energy and unleashes four attacks in rapid succession with increased accuracy. Each of these attacks is capped at 40% damage, theoretically maxing out at 160% damage if every attack max hits. On top of this, successful attacks have a chance to inflict poison on hit, starting out at 4 poison damage.
+
+====Ursine Chainmace====
+The '''Claws of Callisto''' will be a rare, tradeable drop from... the Deranged Archaeologist! Just kidding, it's Callisto. A player with 85 Smithing can combine them with Viggora's Chainmace to make an Ursine Chainmace. Alternatively, head to the Ferox Enclave where Derse Venator can combine them for 500,000 GP.
+
+The Ursine Chainmace is a tradeable upgrade for Viggora's Chainmace. It requires 70 Attack to wield, has 71 Crush Attack bonus and 74 Melee strength bonus (compared to Viggora's chainmace's 67 Crush Attack bonus and 66 Melee strength bonus) and gains a special attack: Bear Down.
+
+Bear Down costs 50% special attack energy and hits with 100% improved accuracy. If Bear Down hits, it deals 15 damage over 6 seconds and drains 50% run energy over the same time. If a target has 0% run energy, the damage dealt will be doubled.
+
+====The Voidwaker====
+Some kind of a PvP weapon, with Void associations? It rings a bell, but nothing familiar is staring back at us right now...
+
+Each of the three bosses will drop a piece of the separated Voidwaker; the Blade, Hilt and Crystal. As components, these items are tradeable. An NPC beneath the Old Nite will offer to reassemble the Voidwaker for 500,000 coins. The completed Voidwaker is also tradeable, and behaves like any other item on death.
+
+The Voidwaker is a T75 Melee weapon requiring 75 Attack, 75 Strength and 60 Magic.
+
+On top of offering a best-in-slot, non-degradable option for training Strength for any 75 Attack builds, the Voidwaker has a never-before-seen special attack: Disrupt.
+
+Disrupt costs 60% Special Attack energy and deals guaranteed Magic damage between 50-150% of your Melee max hit.
+
+New special attack aside, this item may look a little familiar – it's actually Korasi's Sword with a fresh lick of paint! It should fit a little better within Old School now (and without all those pesky skilling requirements, too).
+
+You can find out more information within the [https://secure.runescape.com/m=news/wilderness-boss-rework-design-blog?oldschool=1 Wilderness Boss Rework Design Blog].
+
+===Poison Dynamite===
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (5).png|thumb|600px|centre|''Whoa! Eat veggies much?'']]
+
+
+Remember us talking about Poison Dynamite during [https://secure.runescape.com/m=news/poll-76-game-improvements-blog?oldschool=1 Poll 76]? Well, it’s nearly ready, but first we need your help! Log in to a Beta world and give it a whirl for us, would ya?
+
+In case you missed it, Poison Dynamite is a new untradable item that allows you to kill NPCs without gaining XP. This means 10 HP accounts will be able to do various types of activities that they wouldn't otherwise be able to do. Nice!
+
+Poison Dynamite can be created at 50 Firemaking with 1 Dynamite and 3 Nightshade and are lit and deployed like lighting logs, with a tinderbox etc. After 5 cycles the Poison dynamite will explode, rolling off your highest accuracy stat against the target’s appropriate defensive stat (if your ranged stat is highest, roll your ranged level vs the target's ranged defence). This will only hit the target if it is multi combat or if it's a single target and the player is in combat with it.
+
+It will then deal 0-4 damage (depending on your Firemaking level), only hit the target on the coordinate it was deployed on, and have a 25% chance to poison the target if it deals damage (unless they are immune). Only 1 Dynamite may be deployed at any one time and will give you a small amount of Firemaking XP per lit Dynamite. This is to try and replicate the now removed spawn-hitting behaviour.
+
+What do you think? Is Poison Dynamite the explosive shake-up you expected? Let us know!
+
+==Quest Speedrunning Beta==
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (6).png|thumb|600px|centre|''No glitched any% runs allowed here!'']]
+
+
+[https://secure.runescape.com/m=news/quest-speedrunning-blog?oldschool=1 Quest Speedrunning] arrives at the end of the month – you might even say it’s fast approaching. To make sure everything’s up to scratch, we want you to help us test the system!
+
+But what is Quest Speedrunning? It’s a new game mode where you can play classic quests in Old School at high speed to show off your gaming prowess and quest knowledge: we wrote an explainer blog that you can check out .
+
+For the Beta, we’ve selected a few quests that should be familiar to most players. Even if you’ve never tried speedrunning before, everyone can jump in and give it a go!
+
+Again, participating in the Beta '''won’t affect your normal saved game profile'''. The Beta worlds are highlighted in cyan on the World Select screen and are different from the WBR and Poison Dynamite Beta Worlds. They will include the following:
+* World 404 (US East)
+* World 406 (Germany)
+* World 408 (UK)
+* World 411 (US West)
+* World 412 (Australia)
+
+Upon logging on to a Speedrunning world, you’ll be prompted to select the quest you’d like to run. Once you’ve made your choice, the game will automatically adjust your stats to the recommended levels for the quest you’ve chosen, as well as provide all the relevant items. This keeps things fair and ensures that everyone starts in the same place.
+
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (7).png|thumb|600px|centre|''A look at the speedrunning setup screen.'']]
+
+
+There are a few key differences between Speedrunning worlds and normal ones:
+* No tutorial.
+* No trading – all players are considered Iron accounts.
+* No PvP.
+* No access to Castle Wars, the PvP Arena, Fight Pits, Last Man Standing, Rat Pits, Soul Wars, or Trouble Brewing.
+* Teleport cooldowns (such as the Home Teleport) are paused on logout, so players can’t log out and wait 30 minutes to regain their teleport and cheat the system.
+* Shops have a static stock and items are never sold out.
+* Items can still be sold to shops but will be immediately deleted.
+* Items picked up from the floor are player-specific, so multiple speedrunners can obtain the same item without having to worry about competition!
+* Dropped items behave as normal, but they will be deleted once the speedrun ends.
+* Death works as normal.
+
+To discourage chicanery, the following rules apply to players on Speedrunning Worlds who are not on a speedrun:
+* XP gain is disabled.
+* Deaths are safe and any items dropped on death are immediately deleted. If you die while not on a speedrun, you will respawn in Lumbridge with the items you had.
+
+So, let’s take a look at the five quests you’ll be able to test. Please note that during the Beta, trophies will not be unlocked, and any rewards you accrue will not carry over to the main game. This is for testing only!
+Let us know what you think of Quest Speedrunning before it launches at the end of this month!
+
+<table class="wikitable" style="margin-left:auto;margin-right:auto;text-align:center;">
+<tr>
+<th>Quest</th>
+<th>Unlocks</th>
+<th>Items</th>
+<th>Trophy Times (Subject to balancing changes after feedback from players)</th>
+</tr>
+<tr>
+<td>Cook's Assistant</td>
+<td>None</td>
+<td>100 Coins<br>Energy Potion</td>
+<td>Bronze: 3:30<br>Silver: 2:45<br>Gold: 2:15<br>Platinum: 2:00</td>
+</tr>
+<tr>
+<td>Ernest the Chicken</td>
+<td>None</td>
+<td>Energy Potion</td>
+<td>Bronze: 6:30<br>Silver: 5:00<br>Gold: 4:00<br>Platinum: 3:30</td>
+</tr>
+<tr>
+<td>Demon Slayer</td>
+<td>20 Agility<br>Base 20 combat stats</td>
+<td>5,000 Coins<br>4 Energy Potions<br>5 Tuna</td>
+<td>Bronze: 16:00<br>Silver: 13:00<br>Gold: 11:00<br>Platinum: 10:00</td>
+</tr>
+<tr>
+<td>Vampyre Slayer</td>
+<td>10 Agility<br>Base 25 combat stats</td>
+<td>8,000 Coins<br>2 Energy Potions<br>5 Tuna</td>
+<td>Bronze: 7:30<br>Silver: 6:00<br>Gold: 5:00<br>Platinum: 4:30</td>
+</tr>
+<tr>
+<td>Dragon Slayer I</td>
+<td>34 Smithing<br>30 Agility<br>8 Crafting<br>Base 45 combat stats<br>32 Quest Points (given via miscellaneous quests)</td>
+<td>16,000 Coins<br>3 Stamina Potions<br>28 Lobsters (20 in Bank)</td>
+<td>Bronze: 44:00<br>Silver: 38:00<br>Gold: 34:00<br>Platinum: 32:00</td>
+</tr>
+</table>
+
+==Quest Journal Changes==
+Alongside this week's Beta Bonanza, we've made some improvements to the Quest Journal so you have all the vital information you need at your fingertips. The new-and-improved Journal lists quest series, length, difficulty, and release year - and there's also a handy 'Show on Map' button to help you find your way to the start point.
+
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (8).png|centre]]
+
+Let us know what you think of Quest Speedrunning before it launches at the end of this month!
+
+==Tombs of Amascut Changes==
+We have implemented '''presets''' for Tombs of Amascut! Now you can save up to five of your favourite raid loadouts and switch quickly between them. Only the party leader can edit and choose presets. Additionally, new players entering the raid for the first time are now introduced to the Invocation system.
+
+[[File:Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas (9).png|frame|centre|''Save your favourite raid set-ups with ease!'']]
+
+
+The player will have two options when introduced. If the player states that they are '''experienced''', they will have a Normal Mode (Raid Level 150) preset saved as their first preset. Otherwise, the player will have first preset empty and will start with zero Invocations active.
+
+We've also made some changes to a few of the Invocations:
+* '''Silent Prayers''' has been replaced with '''Deadly Prayers''', a new Invocation that drains your prayer by 20% of damage taken, rounding down. This is worth 20 Raid Level.
+* '''Upset Stomach''' has gone from 10 to 15 Raid Level.
+* '''Stay Vigilant''' has gone from 10 to 15 Raid Level.
+* '''Feeling Special''' has gone from 15 to 20 Raid Level.
+* '''No Help Needed''' has changed from a 100% loot reduction to 90% loot reduction. The supplies offered cannot be reduced below one.
+
+In other changes:
+* You will no longer get duplicate drops of Keris Partisan Jewels until you have received all three at least once.
+* Elidinis' Ward (or) now correctly boosts Magic Strength by 5% rather than 3%.
+* The Max Cape version of the Ava's Assembler Ornament Kit can now be converted into a Trouver version and can be stored within your Player-Owned House.
+* The Kit itself can also be used directly on the Assembler Max Cape, instead of getting another Vorkath Head.
+* We've made some artistic tweaks to the Max Cape version of the Ava's Assembler Ornament Kit.
+* The Path of Het challenge room now has a Pickaxe Statue near the exit.
+* Fixed an issue causing Akkha's Phantom to change styles way too often when using the 'Stay Vigilant' Invocation.
+* The Arcane Scarab now plays the correct spawn animation during the Kephri encounter.
+* Interfaces can now be opened if a bomb is flying towards you as the Obelisk is defeated during the Warden encounter.
+* Fixed the issue in Phase 3 where the Warden would stop attacking for a brief moment after one of the players died.
+* Fixed a second issue in the Wardens Phase 3 where the lightning would sometimes stop unexpectedly.
+* You can now select the various difficulty levels of Tombs of Amascut as possible activities for a clan event.
+* When Akkha changes attack styles it will now stop the player from attacking, similar to the Nylocas boss in theatre of blood.
+* Fixed an issue where crocodiles were not being cleaned up in the Zebak boss fight.
+* Fixed an issue where players could sometimes walk inside of rubble in Baba's boss fight.
+
+==Other Changes==
+* Mac users rejoice! You can now access the new Steam Client, through Steam, obviously.
+* The Grand Exchange's trading rate caps for Catalytic Runes have been raised a little. They may be able to increase further if the supply of Runes into the GE can satisfy this increased outflow.
+* The Corrupted Gauntlet's unicorns no longer have a cool but ultimately superfluous triangle floating to the right of their head.
+* An unnecessarily hurtful insult has been removed from the fight against Me in Lunar Diplomacy.
+* Clan members who have temporarily left their clan's chat-channel will not trigger broadcasts to that channel about their loot or similar achievements.
+* A crate near the Lumbridge water mill has been converted back into a fence.
+* You can now cook on the fire at Port Khazard by left-clicking or tapping on it.
+* Getting hit while wearing a Torva Chestpiece now sounds suitably metallic.
+
+==PvP Rota Changes==
+The PvP rota has moved to '''Period B''':
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+The PvP Arena is using '''Max/Med''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,837,66262291 official forums], on the [https://www.reddit.com/r/2007scape/comments/xdxok2/quest_speedrunning_wilderness_boss_rework_rewards/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Hardcore Raiders
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut in a group of two or more without anyone dying.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 430
+|leagueRegion = Desert
+}}
+'''Hardcore Raiders''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid in a group of two or more without anyone dying, at raid level 150 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

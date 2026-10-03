@@ -1,0 +1,48 @@
+{{Otheruses|def=no|other types of dung|Dung (disambiguation)}}
+{{Infobox Item
+|name = Fossilised dung
+|image = [[File:Fossilised dung.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = Perhaps this was more valuable in another age?
+|value = 10
+|alchable = No
+|weight = 0.380
+|id = 27216
+}}
+[[File:Fossilised dung detail.png|left|130px]]
+'''Fossilised dung''' is an item that is received when searching the [[Chest (Tombs of Amascut)|rewards chest]] within the [[Tombs of Amascut]], only if the player has received fewer than 1,500 total reward points.{{CiteNews|url=https://secure.runescape.com/m=news/tombs-of-amascut-drop-mechanics--osmumtens-fang?oldschool=1|title=Tombs of Amascut Drop Mechanics & Osmumten's Fang|newsdate=28 October 2022|quote=You must have at least 1,500 Total points to be eligible for rewards, otherwise you get some Dung.}}
+
+Upon using the dung on the [[nest (nice)|nest]] at the top of the mill in [[Aldarin]], and hopping worlds, a [[nasty token]] can be found in its place.
+
+==Item sources==
+{{Drop sources|Fossilised dung}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=swamp_fart_2.ogg|name=swamp_fart_2|desc=Plays when fossilised dung is looted.|id=2136}}
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = Added a new sound effect when obtaining fossilised dung.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The interaction with the nest in Aldarin is a reference to “Snuggly the Crow” in ''{{WP|Dark Souls 1}}'' and the “Pickle-Pee, Pump-A-Rum” crow in ''{{Wp|Dark Souls 3}}''. If the player dropped certain items into their nests and reloaded their world, they would find their item replaced with another item, effectively “trading” with the crows.
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}

@@ -1,0 +1,188 @@
+{{Update|date=24 January 2024|rev=25 January 2024|url=https://secure.runescape.com/m=news/scurrius-the-rat-king?oldschool=1|category=game}}
+[[File:Scurrius, the Rat King newspost.jpg|right]]
+{{clear}}
+''Rodents of unusual size? I don’t think they exist. But just in case, let’s double-check the Varrock Sewers…''
+__TOC__
+
+==Changelog January 24th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Scurrius, the Rat King'''
+
+* Added Scurrius, the Rat King, a mid-level PvM boss lurking in Varrock Sewers.
+* Added Rat Bone weapons, which deal extra damage against rat-type enemies.
+** Rat Bone weapons require an '''untradeable '''Rat Spine to craft. This drop is obtainable from Scurrius.
+
+'''Other Changes'''
+    
+* Players who’ve lost Blood Runes due to last week’s Scythe changes will be able to reclaim them from the Vyre Well later this week.
+* Bank Placeholders for Coal will now be maintained when withdrawing all your Coal into your Coal Bag.
+* Arcane Scarabs now reliably render over Agile Scarabs.
+* Berry will no longer interrupt players with a chat box every time they enter the Woodcutting Guild.
+* Phoenix Necklaces, Mithril Seeds and Crushed Bird Nests can no longer be drop-traded in dangerous PvP areas like the Wilderness.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Scurrius, the [https://www.youtube.com/watch?v=tvkxupwbFLk Rat] King==
+Something utterly horrible, an abomination beyond our wildest nightmares, is lurking in Varrock Sewers. It calls itself… Scurrius, the Rat King.
+
+Got your attention? Then let’s learn a little more about this royal rodent!
+
+<center>{{Youtube|Rz883esHO-U}}</center>
+<center>''"Reading? No thanks!". If this sounds like you, check out the video above made by the wonderful OnlyTrails, or [https://www.youtube.com/watch?v=Rz883esHO-U click here] to watch it on YouTube!''</center>
+
+This hulking behemoth of a beast is unlike any rat you’ve met before. Thanks to Scurrius’ mutated form, he’s capable of attacking with all three combat styles – perfect for mid-level players still getting to grips with Old School PvM.
+
+Scurrius can be found east of the ladder in Varrock Sewers. If you’re struggling with your compass, just follow the rats – you can’t miss ‘em! Before entering the lair, you’ll be able to decide whether you’d like to go it alone or team up with friends. The boss is perfectly viable as a solo encounter, so your decision comes down to how confident you are with the mechanics!
+
+This boss is aimed at level 60 players – so if you can wear Rune Armour, Mystic Robes, or Green Dragonhide, you’re more than ready to take Scurrius on. We recommend that would-be rat splatters also have protection Prayers to defend themselves against Scurrius’ mad combat skills.  
+
+Without giving too much away, this fight is intended to familiarise players with combat mechanics. While you should expect a challenge, you should still have plenty of time to take a deep breath, pick the right Prayer, and think about your strategy.
+
+===Rewards===
+[[File:Scurrius, the Rat King (1).png|600px|center]]
+
+So, aside from space to grow your combat skills, what else is in it for you? Primarily, Scurrius offers Experience, with a capital X...P… hmm.
+
+The idea is that while you’re training your bossing skills, you’re also training your ''skills ''skills''. ''Scurrius isn’t vulnerable to any particular combat style, so if you need to knuckle down and train Ranged, Magic, or Melee… this is the place to do it!
+
+We expect training Scurrius to be one of the most effective ways to train Melee in particular, right up until the endgame. Our reasoning is that unlike traditional combat training methods like Nightmare Zone or Sand Crabs, Scurrius will require you to think on your feet and pay attention. Unlike Slayer, you’re not getting much out of the experience except for Combat XP – so it’s reasonable to boost those XP rates a little.
+
+We’ll be keeping a close eye on things, and we’re ready to make adjustments if the community feels the rates are out of line.
+
+We also have some more tangible loot on offer which will improve your combat capabilities against rats – including Scurrius himself!
+
+If you’ve obtained an '''untradeable '''Rat Spine as a drop from this boss, you can turn it into a Rat Bone Bow (with a Yew Shortbow), Rat Bone Mace (with a Rune Mace), or Rat Bone Staff (with any Battlestaff and 1,000 Chaos Runes). You’ll need 35 Fletching for the Bow, 35 Smithing for the Mace, and 35 Crafting for the Staff – so we hope you haven’t neglected your non-combat skills! Alternatively, you can bring the raw materials and 50,000 GP to Historian Aldo just outside Scurrius' lair!
+
+When used in combat against rats (including Scurrius), Rat Bone weapons will increase your max hit by 10. Wield them against Scurrius himself, and you’ll be looking at a very efficient way to train combat – unless you’d prefer to whack crabs until the logout timer hits!
+
+What if you'd like to flex your Rat Bone arsenal outside of the dark, dingy sewers? You can! Here's how their stats shake out:
+
+<center>
+[[File:Scurrius, the Rat King (2).jpg|220px]]
+[[File:Scurrius, the Rat King (3).jpg|220px]]
+[[File:Scurrius, the Rat King (4).jpg|220px]]
+</center>
+
+You’ll be able to trade excess Spines (gross!) to Historian Aldo outside Scurrius’ lair who will reward you with 5,000 XP in any Combat skill – except for Prayer, where you’ll receive 3,500 XP per Spine.
+
+Other drops include appropriately mid-level supplies of food, Runes, Arrows, and Potions. You should receive enough back to offset the cost of fighting the boss and perhaps put away a little pocket money – but the main reward is XP. Don’t expect to leave the sewers as an overnight billionaire - you'll have to get busy charging Air Orbs for that!
+
+Now, there’s one last reward you should probably know about. Make room in your menagerie, because you may well have a funny feeling while fighting Scurrius… and we’re not talking about the smell…
+
+==Winter Summit Summary Video==
+Our Winter Summit livestream was the ‘coolest’ stream of the year, with Mods Ayiza and Kieren joined by a host of J-Mods to discuss all the content coming in early 2024!
+
+Don't worry if you missed it, because we've got all the highlights right here.
+
+<center>{{Youtube|gGv0menXYl4}}</center>
+<center>''In a rush? Check out this rapidfire Winter Summit Summary video! Or ''[https://youtu.be/gGv0menXYl4 click here]'' to watch it on YouTube!''</center>
+
+Along with this epic roadmap reveal, we want to know your thoughts on the Winter Summit! We've pulled together a short survey for you to fill out. Your feedback will help us shape the future of summits and how we distribute information to you, so go on – give it a look!
+
+[[File:Scurrius, the Rat King (5).png|199px|center|link=https://osrs.game/Winter-Summit-2024-Survey]]
+
+==Join a Clan==
+Earlier this month we let you know that we’re retiring our forums. They’ll become read-only on January 25th and will be removed entirely on March 28th. You can read more about our reasons for this decision in this newspost. <!-- Unsupported tag: link -->
+
+One of the biggest points of concern you’ve raised is that the community will lose an official space to advertise or join clans.
+
+But don’t panic – we’re adding some new spaces to our Official Discord Server where you can meet like-minded players and find new friends!
+
+We've added the following spaces:
+* Clan Guidelines: to learn the best way to utilise the space.
+* Clan Central: a casual space to discuss anything Clan-related.
+* Clan Advert Board: a place to post your clan advert message.
+* A series of forum channels for recruiting to different types of clans, including social, PvM, PvP, and a channel for if your clan covers multiple types.
+* Looking for clan: post a thread here when you're looking for a clan to join, this way clans can approach you!
+* Looking for Group: for those of you looking for a group of fellow players to play different content with.
+
+To join the server, simply [https://discord.gg/osrs click this link]. You’ll be able to select which announcements you want to hear, which news you want to keep up with, and even which Old School RuneScape god you align with. After the 10-minute waiting period, you’ll be ready to go!
+
+We’re always working on new ways to use our Official Discord Server, and we’re open to your suggestions! Incidentally, we have a ‘Suggestion’ channel ''in ''the Discord, so if you have any awesome ideas, be sure to pop them in there.
+
+Finally, we want to give a huge shout out to our Discord moderators who have been an incredible help setting up our newest Clan functions, as well as keeping our Discord an inviting, engaging place. 
+
+==Other Changes==
+===A Quick Update on the great Vyre Well Blood Rune Disappearance of '24===
+'''Update - Thursday, January 25th - 17:35 GMT:''' If you're reading this and have interacted with the Vyre Well in the last 6 months, you'll be able to re-claim any lost Blood Runes by simply clicking on the Well at Ver Sinhaza. We're hoping to cover more players in a second batch of Rune Restoration so that even those who've gone longer than 6 months since last interacting with the Well will be eligible to receive any Blood runes they've lost out on in the meantime.
+
+We'll give you another update for players in this 'second batch' when we're closer to reuniting them with their runes, though we can't say exactly when that will be at this stage. Keep your eyes peeled for another update either on social media or in next week's Game Update newspost!
+
+''(End of January 25th Update text, the original newspost resumes here)''
+
+Before we get into the usual 'smaller' tweaks from this week, we wanted to keep you in the loop on what's happening with all those Blood runes that effectively disappeared following last week's improvements to the Scythe of Vitur.
+
+Last week we reduced the number of Blood Runes used by the Scythe – hurrah! While that’s great for Scythe fans, we overlooked those of you with a large number of charges stored in the Vyre Well at Ver Sinhaza. Because of this oversight, this group has been losing 100 Blood Runes per charge… not quite what we intended!
+
+We’ve been exploring whether we can restore these missing Runes and in doing so, have done an awful lot of research. We’ve identified around 16,000 players who are missing Blood Runes, and the quantity ranges from ‘not that many’ to ‘literally a million’.
+
+This week’s update has let us put some code in place to return your Blood Runes, and delivery will commence in the next few days. We’ll post on socials, update the newspost, and even consider an in-game broadcast to let you know exactly when this change is happening.
+
+When it does, you should be able to interact with the Vyre Well and receive a prompt for your Blood Runes refund – don’t forget to make Inventory space for them!
+
+Unfortunately, our tracking is more limited for charges stored within the items themselves. Consequently, we can ''only ''offer returns for Blood Runes lost in the Well.
+
+We sincerely apologise for last week's oversight and hope anybody affected finds themselves reunited with their missing Blood Runes later this week!
+
+Now, on to this week's miscellaneous tweaks and changes:
+* Bank Placeholders for Coal will now be maintained when withdrawing all your Coal into your Coal Bag.
+* Arcane Scarabs now reliably render over Agile Scarabs.
+* Berry will no longer interrupt players every time they enter the Woodcutting Guild.
+* Phoenix Necklaces, Mithril Seeds and Crushed Bird Nests can no longer be drop-traded in dangerous PvP areas like the Wilderness.
+
+==Leagues IV: Trailblazer Reloaded - Survey==
+First of all, we'd like to give a huge thank you to everyone that took part in Leagues IV: Trailblazer Reloaded!
+
+Even though Leagues is over (for now), we want to get some extra insight on how you will interacted with Trailblazer Reloaded to help us make more informed decisions about our next edition of this game mode.
+
+We really appreciate you taking the time to give us your feedback and the team is looking forward to hearing your thoughts!
+
+[[File:Scurrius, the Rat King (6).png|199px|center|link=https://forms.office.com/e/X1gzVxYKaM]]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+==Dragon Plushies: Order Now!==
+[[File:Scurrius, the Rat King (7).png|600px|center]]
+
+Old School’s most iconic dragons are now available in plushie form - no Dragonfire Shield necessary.
+
+Each critter comes with Dragon Bones (of course) and two of them have extra surprises - the Jumbo KBD has an Antifire Potion and the Jumbo Vorkath has an Elite Clue Scroll.
+
+Available to pre-order now from Makeship for a limited time only - orders close in February!
+
+This is a one-off production run, so this is your only chance to grab one of these adorable dragons. Get ‘em before they’re gone!
+
+There is a 10% discount if you buy 2 and a 15% discount for 3! [https://www.makeship.com/shop/runescape Visit the Makeship Store] for full details.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/19eeb05/game_update_scurrius_the_rat_king/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

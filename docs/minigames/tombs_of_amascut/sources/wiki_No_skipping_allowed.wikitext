@@ -1,0 +1,37 @@
+{{Infobox Combat Achievement
+|name = No skipping allowed
+|image = [[File:Tombs of Amascut - Ba-Ba boulders.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Ba-Ba after only attacking the non-weakened boulders in the rolling boulder phase, without dying yourself. The Boulderdash invocation must be activated.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Mechanical
+|id = 451
+|leagueRegion = Desert
+}}
+'''No skipping allowed''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat [[Ba-Ba]] while only destroying uncracked [[boulder (Tombs of Amascut)|boulders]], without dying, and having the Boulderdash invocation active, at raid level 150 or above.
+
+==Strategy==
+This achievement can be easily completed simultaneously along with [[I'm in a rush]].
+
+Create a 150 raid with Boulderdash active.
+
+Prepare by dying repeatedly to farm ~25 [[honey locust|honey locusts]]. This can be sped up with the help of a [[Locator orb]] or [[Dwarven rock cake|Dwarven rock cake.]] During the boulder phase, you will be tanking boulders in a corner of the room. There are seven boulders in each phase, so fourteen boulders will need to be tanked in total. Each boulder can deal 20 to 27 damage at 150 raid level. 27 damage x 14 boulders = 378 damage, 378/20 healing per [[Honey locust]] = ~19 Honey locusts to negate the incoming damage.
+
+Survive both boulder phases by taking full damage, and you will receive both combat achievements.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = Failing the task is now made more apparent.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

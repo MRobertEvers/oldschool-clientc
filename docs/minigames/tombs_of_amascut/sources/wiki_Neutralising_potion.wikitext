@@ -1,0 +1,36 @@
+{{Infobox Item
+|name = Neutralising potion
+|image = [[File:Neutralising potion.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Pour, Drop
+|examine = For neutralising toxic fumes and corruption.
+|value = 1
+|alchable = No
+|weight = 0.000
+|id = 27297
+}}
+[[File:Neutralising potion detail.png|left|130px]]
+'''Neutralising potions''' are an item obtained in the Path of Apmeken within the [[Tombs of Amascut]]. They are poured into the holes in the floor indicated by Apmeken's Sight to neutralise the dangerous fumes that can damage players if left unchecked. In groups, they are also used to cleanse a player of corruption in the challenge room.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 June 2023
+|update = Ruinous Powers Beta v2
+|change = The item's [[value]] has been decreased from 50 to 1.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = Players now take batches of 100 potions instead of 20 from the crate of neutralising potions.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

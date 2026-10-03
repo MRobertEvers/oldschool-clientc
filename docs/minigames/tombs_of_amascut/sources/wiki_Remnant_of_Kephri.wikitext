@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Remnant of Kephri
+|image = [[File:Remnant of Kephri.png]]
+|release = [[8 September]] [[2022]]
+|update = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Contains the essence of Kephri.
+|value = 10000
+|weight = 0.190
+|id = 27379
+|leagueRegion = Desert
+}}
+[[File:Remnant of Kephri detail.png|left|120px]]
+The '''Remnant of Kephri''' is an item obtained from the [[Tombs of Amascut]] raid. It is used on the [[Tumeken's guardian]] [[pet]] to allow it to [[Metamorphosis|metamorphose]] into [[Kephriti]].
+
+In order to receive one from the [[Chest (Tombs of Amascut)|reward chest]], players must complete a raid at level 450+ with zero deaths for all party members, whilst having all invocations for [[Kephri]] enabled. Furthermore, players must defeat her at path level 4 or higher.
+
+==Item sources==
+{{Drop sources|Remnant of Kephri}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Remnant of kephri" to "Remnant of Kephri".
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The item model appears to be recoloured scarab artefacts acquired from the [[Pyramid Plunder]] [[minigame]].
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

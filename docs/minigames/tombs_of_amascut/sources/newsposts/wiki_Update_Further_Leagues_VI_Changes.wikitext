@@ -1,0 +1,206 @@
+{{Update|date=06 May 2026|url=https://secure.runescape.com/m=news/further-leagues-vi-changes?oldschool=1|category=game}}
+[[File:Further Leagues VI Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+! Known Issues
+! Status
+|-
+| Some bosses (including Nightmare, Muspah and Leviathan) may face the wrong direction in certain situations and player characters may turn to face the fishing spots when they move.
+| Coldfixed.
+|-
+| The waves during the Zebak fight are going invisible and out of order.
+| Hotfixed.
+|-
+| Player characters may end up walking facing the wrong direction in certain situations.
+| To be coldfixed.
+|}
+
+''This week brings further Leagues VI changes and a bunch of Sailing improvements!''
+
+==Changelog - May 6th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Leagues VI Changes'''
+
+* Added''' an extra free Pact reset''' which will be granted when you open the Pacts interface.
+* The Dramen Staff no longer counts as a Blindbag weapon.
+* Updated the Pact descriptions of all Ranged Echoes and the 2-handed melee Echo to clarify that these can't be triggered with special attacks.
+* Thorns no longer prevent completion of Combat Achievements that require only magic damage.
+* The minion summoned from the Minion relic will now attack Sol Heredit if the player engages him in combat.
+* The prayers Piety and Chivalry now stay unlocked after picking Kandarin with the Grimoire relic.
+* The Abyssal Tentacle is now being affected by regeneration nodes, allowing it to save charges.
+* Lithic Sceptre no longer loses charges upon using the Flask of Fervour.
+* Lithic Sceptre now correctly requires 5 shatter stacks and is no longer blocked by Tombs of Amascut's "Overly Draining" invocation.
+* Flask of Fervour now properly blocks certain damage in its invulnerability phase. Upon using the Flask:
+** Status effects such as bleed, poison and venom will now get cleared.
+** Pact nodes that consume overhealed hitpoints will now take the immunity into account.
+** All PvP damage will be negated.
+* The Transmute spells Alchemic Convergence and Alchemic Divergence now correctly display as costing ''no ''runes and are highlighted to indicate they are available to use.
+* Cooking in the Gauntlet and Corrupted Gauntlet is no longer slower with the Flow State relic active.
+* Added a Zanaris bank teleport option to the Banker’s Briefcase.
+* Chopping the Redwood Tree in the Farming Guild now works with the Endless Harvest and Woodsman relics active.
+* Bones are now automatically sent to your bank alongside your other Hunter loot when checking hunter traps with the Woodsman relic active.
+* The task to complete His Faithful Servants is now auto-completed upon unlocking Morytania after the Desert. If you've already done this, the task will be retroactively completed upon opening a Leagues interface such as Areas or Pacts.
+* You're now able to complete the Yama Combat Achievement "No toppings, no drinks, thanks" with healing-related Demonic Pacts.
+* The "I was here first!" Combat Achievement now auto-completes upon joining Leagues VI for the first time. If you've already started your League journey, it will be retroactively completed upon opening a Leagues interface such as Areas or Pacts.
+* Equipping Avernic Treads made using Ranger Boots will now trigger and count toward the “Equip Ranger Boots” task. You can complete the task while wearing any of the following:
+** Ranger Boots, Avernic Treads (max), Avernic Treads (pe), Avernic Treads (pe)(et), Avernic Treads (pr)(pe) & Pegasian Boots
+* Similarly, equipping Primordial Boots or Avernic Treads made using melee boots will now trigger and count toward the tasks to equip a pair of Dragon Boots in Asgarnia and the Wilderness. The task can be completed with:
+** Dragon Boots, Dragon Boots (g), Dragon Boots (cr), Primordial Boots, Avernic Treads (max), Avernic Treads (pr)(pe), Avernic Treads (pr)(et) & Avernic Treads (pr)
+* The Rabbit Cave in Tirannwn is now instanced in Leagues worlds. The rabbit will spawn immediately upon entry, making it easier to obtain the Crystal Grail and complete the task to equip it.
+* The following items now count for the "Equip some Black Armour" task:
+** Black full helm, Black full helm (t), Black full helm (g), Black platebody, Black platebody (t), Black platebody (g), Black platelegs, Black platelegs (t) & Black platelegs (g)
+* Using the Bake Pie spell now correctly counts toward all “bake pie” tasks.
+* The 12× XP multiplier now correctly states it unlocks at Tier 4, and the 16× XP multiplier now correctly states it unlocks at Tier 6.
+* The Master Clue steps that requires access to the Obelisk of Air and is located in Catacombs of Kourend are no longer being given this Leagues, with Misthalin disabled.
+* The Morge clue step can now be completed:
+** Upon unlocking Karamja, the Pirate Pete subquest will be auto-completed. If you've already unlocked Karamja, the subquest will be retroactively completed upon opening the Relics or Area interface.
+** Murphy in Port Khazard will now give you the Diving Equipment.
+* During the orb phase of the Doom of Mokhaiotl, striking a volatile earth with double-hitting weapons (such as Infernal Tecpatl or Shadowflame Quadrant) will no longer cause the orb to spawn and despawn. Note that this change affects both the main and Leagues worlds.
+* World 581 will be removed from Leagues VI.
+
+'''Sailing Changes'''
+
+* Herb Sack, Seed Box and Rune Pouch now all work with looting Sailing creatures. Note that for this to work:
+** Herb Sack and Seed Box must be open.
+** Rune-picking behaviour toggle must be enabled in the Settings, so that the looted runes can be put inside the Rune Pouch if there's already a matching stack of that rune for them to join.
+* Added a new NPC called Isles, who can be found wandering outside the bank at Port Roberts. If you've sailed to Grimstone before, speak to Isles and invite him to accompany you there on your boat. Once you enter the Grimstone Dungeon, he'll become available at the Ancient Furnace. There, he can unnote any metal bar that's used for making cannonballs, charging 100 coins per note.
+* Casting Telekinetic Grab on defeated seaborne creatures now lets you collect their loot while remaining engaged to the cannon, or to similar facilities. For example, your character will get right back to the cannon after casting the spell without needing to re-click the cannon again.
+* The Telekinetic Grab spell now works on Lost Crates too, provided you have the required Sailing level and some space for the crates' contents.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Leagues VI Changes==
+[[File:Further Leagues VI Changes (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-14/leaguesvi.png?_gl=1 here]!'']]
+
+As Leagues VI: Demonic Pacts continues, we’re back with another round of fixes aimed at removing any major blockers that are hampering your experience. Any future fixes are being carefully prioritised to ensure tasks can be completed, address issues blocking your progression and correct any major outliers with relics.
+
+This means some of the balancing changes you'd hope to see might not make their way into this League, so we're giving everyone '''another free reset''' to ensure you can still have fun with different builds and experiment! This will be granted when you open the Pacts interface.
+
+Before we dive into today's fixes we wanted to send a quick thank you to everyone for all the feedback and participation in our most ambitious and experimental feature yet!
+
+As always, you can check out the <u>[https://secure.runescape.com/m=news/leagues-vi-demonic-pacts---fixes--issues?oldschool=1 Leagues VI: Demonic Pacts - Fixes &amp; Issues]</u> newspost to see what's already been fixed. Now, let's take a look at the latest round of fixes and improvements:
+
+* The Dramen Staff no longer counts as a Blindbag weapon, allowing you to keep it in your Inventory without triggering the effect.
+* Updated the Pact descriptions of all Ranged Echoes and the 2-handed melee Echo to clarify that these can't be triggered with special attacks.
+* Thorns no longer prevent completion of Combat Achievements that require only magic damage. The following tasks can now be completed while using both magic and thorns:
+** Kill any Barrows Brother using only magical damage.
+** Kill the Crazy Archaeologist with only magical attacks.
+* The minion summoned from the Minion relic will now attack Sol Heredit if the player engages him in combat.
+* The prayers Piety and Chivalry now stay unlocked after picking Kandarin with the Grimoire relic.
+* The Abyssal Tentacle is now being affected by regeneration nodes, allowing it to save charges.
+* Lithic Sceptre no longer loses charges upon using the Flask of Fervour.
+* Lithic Sceptre now correctly requires 5 shatter stacks and is no longer blocked by Tombs of Amascut's "Overly Draining" invocation.
+* Flask of Fervour now properly blocks certain damage in its invulnerability phase. Upon using the Flask:
+** Status effects such as bleed, poison and venom will now get cleared.
+** Pact nodes that consume overhealed hitpoints will now take the immunity into account.
+** All PvP damage will be negated.
+* Cooking in the Gauntlet and Corrupted Gauntlet is no longer slower with the Flow State relic active.
+* The Transmute spells Alchemic Convergence and Alchemic Divergence now correctly display as costing ''no ''runes and are highlighted to indicate they are available to use.
+* Added a Zanaris bank teleport option to the Banker’s Briefcase.
+* Chopping the Redwood Tree in the Farming Guild now works with the Endless Harvest and Woodsman relics active.
+* Bones are now automatically sent to your bank alongside your other Hunter loot when checking hunter traps with the Woodsman relic active.
+* The task to complete His Faithful Servants is now auto-completed upon unlocking Morytania after the Desert. If you've already done this, the task will retroactively complete upon opening a Leagues interface such as Areas or Pacts.
+* You're now able to complete the Yama Combat Achievement "No toppings, no drinks, thanks" with healing-related Demonic Pacts.
+* The "I was here first!" Combat Achievement now auto-completes upon joining Leagues VI for the first time. If you've already started your League journey, it will be retroactively completed upon opening a Leagues interface such as Areas or Pacts.
+* Equipping Avernic Treads made using Ranger Boots will now trigger and count toward the “Equip Ranger Boots” task. You can complete the task while wearing any of the following:
+** Ranger Boots, Avernic Treads (max), Avernic Treads (pe), Avernic Treads (pe)(et), Avernic Treads (pr)(pe) & Pegasian Boots
+* Similarly, equipping Primordial Boots or Avernic Treads made using melee boots will now trigger and count toward the tasks to equip a pair of Dragon Boots in Asgarnia and the Wilderness. The task can be completed with:
+** Dragon Boots, Dragon Boots (g), Dragon Boots (cr), Primordial Boots, Avernic Treads (max), Avernic Treads (pr)(pe), Avernic Treads (pr)(et) & Avernic Treads (pr)
+* The Rabbit Cave in Tirannwn is now instanced in Leagues worlds. The rabbit will spawn immediately upon entry, making it easier to obtain the Crystal Grail and complete the task to equip it.
+* The following items now count for the "Equip some Black Armour" task:
+** Black full helm, Black full helm (t), Black full helm (g), Black platebody, Black platebody (t), Black platebody (g), Black platelegs, Black platelegs (t) & Black platelegs (g)
+* Using the Bake Pie spell now correctly counts toward all “bake pie” tasks.
+* Corrected the descriptions of passive XP multipliers. The 12× XP multiplier now correctly states it unlocks at Tier 4, and the 16× XP multiplier now correctly states it unlocks at Tier 6.
+* The Master Clue steps that requires access to the Obelisk of Air and is located in Catacombs of Kourend are no longer being given this Leagues, with Misthalin disabled.
+* The Morge clue step can now be completed:
+** Upon unlocking Karamja, the Pirate Pete subquest will be auto-completed. If you've already unlocked Karamja, the subquest will be retroactively completed upon opening the Relics or Area interface.
+** Murphy in Port Khazard will now give you the Diving Equipment.
+* World 581 will be removed from Leagues VI.
+
+Additionally, we've got a change for Doom of Mokhaiotl that affects ''both'' the main and Leagues worlds: During the orb phase of the Doom of Mokhaiotl, striking a volatile earth with double-hitting weapons (such as Infernal Tecpatl or Shadowflame Quadrant) will no longer cause the orb to spawn and despawn.
+
+===Firsts in Leagues VI===
+You can now check out the GOATs of Leagues VI - players who achieved firsts and got the bragging rights! Which absolute legend was the first to get the Dragon rank? Who were the firsts to complete each raid? Who achieved 200 million XP in a skill first? Head into a Leagues world and visit the Leagues Info Board in Yama's lair to find out.
+[[File:Further Leagues VI Changes (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-05-06/infoboard.png here]!'']]
+
+===Leagues VI Community Playlist Updated===
+As League VI goes on, the community keeps delivering goated content on YouTube. We've updated our <u>[https://www.youtube.com/playlist?list=PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ Leagues VI Community Playlist]</u> with the latest content from some of your favourite creators. What builds are they going for? Who has been aiming for and achieving Rank 1? What are some useful tips and tricks for Leagues VI? Check the playlist out to find out!
+
+<center>
+{{Youtube|type=playlist|PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ}}
+''Click [https://www.youtube.com/playlist?list=PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ here] to watch the playlist in a new tab!''
+</center>
+
+You've seen a video on Leagues VI that deserves a shoutout but it's not in this playlist? Just let us know on our social platforms and we'll feature it.
+
+==Sailing Changes==
+We also have a batch of Sailing adjustments lined up for you, focused on making looting more efficient. Firstly, Herb Sack, Seed Box and Rune Pouch now all work with looting Sailing creatures. Note that for this to work:
+
+* Herb Sack and Seed Box must be open.
+* Rune-picking behaviour toggle must be enabled in the Settings, so that the looted runes can be put inside the Rune Pouch if there's already a matching stack of that rune for them to join.
+
+Additionally, to make creating cannonballs at the Ancient Furnace more convenient, we’ve added a new NPC, Isles, who can be found wandering outside the bank at Port Roberts. If you've sailed to Grimstone before, speak to Isles and invite him to accompany you there on your boat. Once you enter the Grimstone Dungeon, he'll become available at the Ancient Furnace. There, he can unnote any metal bar that's used for making cannonballs, charging 100 coins per note.
+
+[[File:Further Leagues VI Changes (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-05-06/isles.png here]!'']]
+
+Moreover, casting Telekinetic Grab on defeated seaborne creatures now lets you collect their loot while remaining engaged to the cannon, or to similar facilities on your boat such as the Salvaging Hook and Trawling Net. Your character will cast the spell and will get right back to the cannon without needing to re-click the cannon again. In a similar vein, Telekinetic Grab now works on Lost Crates too, provided you have the required Sailing level and some space for the crates' contents.
+
+[[File:Further Leagues VI Changes (4).gif|thumb|400px|center|''If you can’t see the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-05-06/tgnpc.gif here]!'']]
+
+
+[[File:Further Leagues VI Changes (5).gif|thumb|400px|center|''If you can’t see the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-05-06/tgcrate.gif here]!'']]
+
+Stay tuned for more news on usability improvements for Sailing later this month!
+
+==RuneFest 2026==
+[[File:Further Leagues VI Changes (6).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-05-06/RFOnSale.png here]!'']]
+
+RuneFest 2026 tickets are now on sale! Step through the Lumbridge gates and experience RuneScape brought to life at the Birmingham NEC on October 3rd & 4th.
+
+The tickets are selling fast, so grab them before they're gone to be part of our biggest and best RuneFest yet. For all the details on the event, check out <u>[https://www.runefest.com/ runefest.com]</u>.
+
+===RuneFest Merch===
+[[File:Further Leagues VI Changes (7).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-17/GroupApparel.jpg here]!'']]
+
+Forgot to include your RuneFest pre-order merch when buying your ticket? No worries! You can head back to <u>[https://runefest.seetickets.com/content/ticket-options runefest.seetickets.com]</u> any time to add your preferred merch. Please note that all pre-ordered merch must be collected '''at the event''', so make sure to only purchase if you have a ticket.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1t5840v/further_leagues_vi_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team.''

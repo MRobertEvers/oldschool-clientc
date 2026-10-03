@@ -1,0 +1,54 @@
+{{External|rs}}
+{{Infobox NPC
+|version1 = Freed
+|version2 = Imprisoned
+|name = Apmeken
+|image1 = [[File:Apmeken.png|180px]]
+|image2 = [[File:Apmeken (imprisoned).png|180px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Baboon
+|quest = [[Into the Tombs]]
+|location = [[Jaltevas Pyramid]]
+|gender = Female
+|options1 = Talk-to
+|options2 = None
+|examine = Tumeken's avatar of companionship.
+|map = No
+|id1 = 11655,11656
+|id2 = 11654
+|leagueRegion = Desert
+}}
+[[File:Apmeken chathead.png|left]]
+'''Apmeken''' ([[rsw:Transcript:Pronunciation_guide#A|Jagex pronunciation]]: ''AP-muh-ken'') is the lesser [[Gods|goddess]] of companionship and one of the four [[Avatars of Tumeken]], which are minor gods of the [[Menaphite Pantheon]], a collection of deities worshipped in the [[Kharidian Desert]]. According to legend from the [[Book of Light and Day]], she was created from one of the of four dreams that the main god [[Tumeken]] once had over four days.{{CiteText|text=Book of Light and Day|quote=The Book of Light and Day says that Tumeken once fell into a deep sleep and dreamt for four days and four nights. With each night, his dreams took form. Those four forms became the lesser deities of the pantheon, with Scabaras being the last of them.}}
+
+Apmeken is the most playful, unpredictable, and mischievous of all of the minor deities of the desert according to [[Jex]] Apmeken can change her appearance at will, although she always has the head of a monkey, ape, or baboon, depending on the exact nature that she is displaying. For example, the orangutan represents wisdom, while the baboon represents mischief. Her following comprises a variety of people, from liars to scholars.
+
+A [[Apparition#Apmeken|manifestation]] of her can be encountered during [[Icthlarin's Little Helper]]. If the player picks up the ape-headed [[canopic jar]] containing the intestines, the player can fight the manifestation. However, fighting her is not necessary to finish the quest.
+
+During [[Beneath Cursed Sands]] it is revealed that she, alongside [[Crondis]], [[Het]], and [[Scabaras]], were captured by Amascut. Apmeken was overwhelmed by a now-undead baboon troupe led by [[Ba-Ba]]. They have all been taken to the [[Jaltevas Pyramid]], the tomb of [[Osmumten]], where Amascut plans to use two ancient weapons against them to steal their divine energy and ascend from a demi-goddess to a true [[god]]dess. However, an adventurer would free them, and they returned to their roles as Avatars of Tumeken, promising that they will be there to help face Amascut when the time comes.
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Gallery==
+<gallery>
+File:Apmeken (monster).png|The [[Apparition#Apmeken|apparition]] of Apmeken appearing during [[Icthlarin's Little Helper]].
+File:Statue (Apmeken).png|A statue of Apmeken found in the [[Tombs of Amascut]].
+File:Apmeken statue.png|A statue of Apmeken found in the [[Uzer Mastaba]].
+File:Baboon emblem detail.png|A [[baboon emblem]] dedicated to Apmeken.
+File:Canopic jar (Apmeken) detail.png|A [[Canopic jar#Apmeken|canopic jar]] containing intestines bearing the visage of Apmeken.
+File:Menaphite Pantheon lesser gods concept art.png|Concept art of the Avatars of Tumeken, by Mod Jerv.
+File:Apmeken symbol.png|The symbol representing Apmeken as seen in the [[Tombs of Amascut]]
+</gallery>
+
+==Trivia==
+*Apmeken's gender was changed to female with the release of the [[Lores and Histories]] text {{RSL|Tumeken's Dream}} in 2008. This was also changed in ''Old School RuneScape'' with the release of [[Beneath Cursed Sands]], although the [[Apparition#Apmeken|manifestation of Apmeken]] that appears during [[Icthlarin's Little Helper]] had, up until that update, always been referred to as having a 'body of a woman'.
+
+==References==
+{{Reflist}}
+
+{{Gods}}
+{{Into the Tombs}}
+{{Tombs of Amascut}}

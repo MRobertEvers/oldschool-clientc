@@ -1,0 +1,44 @@
+{{Infobox Music
+|name = Sands of Time
+|number = 723
+|file = [[File:Sands of Time.ogg]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|hint = This track unlocks in the Tombs of Amascut.
+|quest = No
+|instruments = Standard Drum Kit, Power Drum Kit, Brass Section, Sitar, FX 5 (brightness), Choir Ohhs, Blown Bottle, String Ensemble 1, Bright Acoustic Piano, Shamisen, Tubular Bells, Distortion Guitar, Orchestra Hit
+|duration = 07:42
+|signature = 6/8
+|tempo = 132 BPM
+|album = ''[[RuneScape-_Tombs Of Amascut|RuneScape: Tombs Of Amascut]]''
+|composer = Julian Surma
+|map = {{Map|3648,5376|3648,5440|3712,5440|3712,5376|mapID=-1|mtype=polygon|bucket=yes|zoom=2}}
+|cacheid = 739
+|sortname = Sands of Time
+|unlockdetail = Unlocked during the fight with [[Akkha]] in the [[Tombs of Amascut]].
+}}
+'''Sands of Time''' is a [[music]] track that is unlocked during the fight with [[Akkha]] in the [[Tombs of Amascut]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=3
+|date=24 August 2022
+|file=[[File:Sands of Time (8-bit).ogg]]
+}}
+{{Music changes
+|version=3
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Sands of Time.ogg]]
+}}
+{{Music changes footer}}
+==Trivia==
+* Sands of Time is one of two music tracks that {{RSL|Sands of Time (music track)|share name with a ''RuneScape'' music track}}, but being completely unrelated. The other being [[The Nightmare Continues]].
+* The section at 3 minute 53 seconds bears a resemblance to the [[Al Kharid (music track)|Al Kharid]] soundtrack.
+
+{{Tombs of Amascut}}
+{{Music}}
+[[Category:Old School-exclusive music]]

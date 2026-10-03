@@ -1,0 +1,24 @@
+This is a Guide which neatly narrows down the Flow of various Minigames to a minimum.
+
+This will be expanded in the Future.
+
+== Shades of Morton ==
+This minigame is split into three diffrent Sub-Activities.
+
+=== Gathering Sacred Oil ===
+
+# Jump to World 377
+# Buy [[Olive oil]] from [[Razmire General Store.|Razimre Keelgan]]
+# Bank as much as you want to convert to [[Sacred oil|Sacred Oil.]]
+# Equip full [[Graceful outfit|Gracefu]]<nowiki/>l except Legs with [[Morytania legs 3|Morytania Legs 3]] or [[Morytania legs 4|Morytania Legs 4]]
+# Fill Inventory like this (Flamtaer Bag full of Material ([[Timber beam|Timber Beam]], [[Limestone brick|Limestone Brick]] and [[Swamp paste|Swamp Paste]])):
+{{Inventory|Saw|Flamtaer hammer|Flamtaer bag|Tinderbox|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil|Olive oil
+}}
+# Run to the [[Shades of Mort'ton (minigame)|Shades of Morton Temple]] 
+# Reinforce until ~90% Sanctity.
+# Light Flaming Fire Altar and spam click until [[Olive oil|Olive Oil]] turns to [[Sacred oil|Sacred Oil]]
+# Teleport to [[Burgh de Rott]] with [[Morytania legs 3|Morytania Legs 3]] or [[Morytania legs 4|Morytania Legs 4]]
+# Bank [[Sacred oil|Sacred Oil]] nearby and fill another 24with [[Olive oil|Olive Oil]]
+# Repeat until all [[Olive oil|Olive Oil]] is gone.
+
+[[Category:Shades of Mort'ton]]
