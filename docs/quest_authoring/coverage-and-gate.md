@@ -600,7 +600,7 @@ Meat and Greet run: the goto from the lobby is CHEAT, a click on the exit first 
 stamped outside the Colosseum is not a cheat). It reads commits 171bc81b0 and OSRS-Content 343f1b4163,
 which live on the b55 batch branch until that batch merges. On the grader before the fix it fails 2/3.
 
-### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; FIXED by `frame_entries`, see the section after the next)
+### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; FIXED by `frame_entries`, see the next section)
 
 The Eyes of Glouphrie's guide uses `enterCave` (Brimstail's cave entrance) as the default step of
 almost every stage: `ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`, and in the
