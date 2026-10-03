@@ -44,6 +44,11 @@ const tests = (args && args.tests) || []
 const authorModel = (args && args.author_model) || 'claude-sonnet-5-5'
 const relay = (args && args.relay) || {}   // { test_id: number of legs } -- from `python3 tools/quest_gate/ladder.py <id>`; a quest over ~30 guide steps is authored as a relay
 const extraContext = (args && args.context) ? `\n\nCURRENT PICTURE (from the orchestrator): ${args.context}` : ''
+// args.round: the round this launch opens (2, 3, ...). A persisted review is
+// final for its launch -- a relaunch with the same args replays it from disk --
+// so a NEW round must say so, or a quest a reviewer rejected last round is
+// replayed, not authored again (b55 round 2: two of three quests skipped).
+const round = Number((args && args.round) || 0)
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
 if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
@@ -144,6 +149,14 @@ Do, in order:
 4. Accept: run.py just published evidence under osrs239-content/server/scripts/selftest/quests/<quest_dir>/play/ (<quest_dir> is QUEUE.tsv's quest_dir column for ${id}, or quest_${id} if ${id} has no row -- run.py's own "published ... -> ..." line names the exact path). Commit that directory in the submodule first (git -C OSRS-Content add osrs239-content/server/scripts/selftest/quests/<quest_dir>/play && git -C OSRS-Content commit -m "selftest/quests: ${id} play evidence" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"), then in the parent: git add test/quests/${id}.lua OSRS-Content ; git commit -m "quests: ${id} <green|blocked|content_bug> (<rows> rows, <shots> shots)" with the same trailer. Stage only those two paths; other reviewers commit in this worktree at the same time, so never amend, reset, or add -A. Do not push. If you reject, delete any published evidence run.py left under OSRS-Content/.../selftest/quests/<quest_dir>/play/ that is not committed.
 Do NOT edit QUEUE.tsv (the Queue phase writes every row once from the review files). FINISH: write the schema JSON to ${STATE}/${id}.review.json, then return it. doc_gaps = the author's doc_gaps you judge real.`
 
+if (round) {
+  phase('State')
+  const opened = (await attempt('round', 2, () => agent(`${COMMON}
+
+YOUR JOB: open round ${round} of batch ${batch} on disk, nothing else. mkdir -p ${STATE}. Read ${STATE}/round.json ({"round": N}; a missing file is round 0). If its round is ${round} or more, change nothing and return {"round": N, "moved": []}. Otherwise, for each of these quests -- ${tests.join(' ')} -- whose ${STATE}/<id>.review.json has a verdict other than "accepted" (or that has an <id>.author.json and no <id>.review.json): move <id>.author.json, <id>.review.json and <id>.review.progress.md (those that exist) into ${STATE}/round${round - 1}/ (mkdir -p; mv, never rm; keep <id>.author.progress.md, the author's notebook, where it is). A quest whose review is accepted is left alone. Then write {"round": ${round}} to ${STATE}/round.json. Return {"round": ${round}, "moved": [the ids whose files you moved]}. No git, no edits to any other file.`, { label: 'round', model: 'claude-sonnet-5-5', effort: 'low', schema: { type: 'object', properties: { round: { type: 'number' }, moved: { type: 'array', items: { type: 'string' } } }, required: ['round', 'moved'] } }))) || { round: 0, moved: [] }
+  log(`round: ${opened.round}; moved aside for a fresh author: ${(opened.moved || []).join(', ') || 'none'}`)
+}
+
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
@@ -154,6 +167,8 @@ const keptReviews = state.reviewed.filter(r => !sentBack.has(r.test_id))
 const reviewedIds = new Set(keptReviews.map(r => r.test_id))
 const authoredById = Object.fromEntries(state.authored.filter(a => !sentBack.has(a.test_id)).map(a => [a.test_id, a]))
 log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} authored, ${sentBack.size} sent back`)
+const replayed = keptReviews.filter(r => tests.includes(r.test_id) && r.verdict !== 'accepted').map(r => `${r.test_id} (${r.verdict})`)
+if (replayed.length) log(`REPLAY: ${replayed.join(', ')} carry a persisted review from an earlier launch and will NOT be authored again. To author them again pass round: N, one more than ${STATE}/round.json (2 if that file is missing).`)
 
 phase('Claim')
 // Every launch claims what it is about to author: a relaunch re-claims rows a
@@ -264,4 +279,4 @@ if (!state.sheet_built || freshReviews.length) {
 YOUR JOB: build the contact-sheet page for batch ${batch} (quests: ${batchTests.join(' ')}) with /usr/bin/python3 tools/quest_gate/batch_sheet/build_sheet.py . ${sheetDir} ${batchTests.join(' ')} [--quality N] then /usr/bin/python3 tools/quest_gate/batch_sheet/render_page.py ${sheetDir} ${batch} "Quest Batch ${batch}". The published total (all .webp + index.html) must be under 58 MB: build at the default quality first; if over, rebuild with --quality lowered until under. Do not publish; do not edit BATCHES.tsv; never commit. FINISH: write the schema JSON to ${STATE}/sheet.json, then return it (index_html = the absolute path, files = the .webp names, bytes = total published bytes, quality used, quests included).`, { label: 'sheet', model: 'claude-sonnet-5-5', schema: SHEET_SCHEMA }))
 } else log('sheet: already built by a previous launch (read build/author_state/' + batch + '/sheet.json)')
 
-return { batch, claimed: [...claimedSet], dropped: droppedIds, reviewed, missing, sample, sheet }
+return { batch, claimed: [...claimedSet], dropped: droppedIds, replayed, reviewed, missing, sample, sheet }

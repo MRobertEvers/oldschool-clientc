@@ -298,6 +298,13 @@ never lose work like that.
   hours and its batch branch has no commits since (`git log origin/<batch>`). Run
   `claim.py release <batch> --stale`. Without `--stale`, `release` only touches this host's
   claims. Say in your report whose claim you released.
+- **A new author round passes `round: N`.** A persisted review is final for its launch, so a
+  relaunch of `author_batch.workflow.js` replays it from disk: a quest the reviewer REJECTED last
+  round is NOT authored again (the sampler's send-backs are, they are listed in `sample.json`).
+  Pass `round: 2` for the second round, `3` for the third: the workflow moves the non-accepted
+  author/review files of that launch's `tests` into `build/author_state/<batch>/round<N-1>/` and
+  authors them afresh. A launch that replays a non-accepted review says so on a `REPLAY:` line
+  and in `replayed` of its result (b55 round 2 authored one of three quests before this existed).
 - **A pass killed on its own machine:** relaunch it with the same args. It resumes from
   `build/<kind>_state/<pass>/` and, for relays, `test/quests/wip/`.
 - **Moving a batch's quests to another machine:** the old machine runs
