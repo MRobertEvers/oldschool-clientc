@@ -65,6 +65,22 @@ died to Damis's true form and to an unprayed Kamil, not only to the Magic level;
 hardened test prays Protect from Melee for both. If one of the three goes red after the
 merge, send that session the first failing row.
 
+**forgettabletale (2026-10-03, seam8):** RED on the raid branch because seam8 fixed
+`ToriRSServer_MusicEnterRegion` (it wrote a music row's variable index as a varp id). The
+test's setup `::complete quest_fishingcompo` names a dbrow with no ::complete arm (the arm
+is `quest_fishingcontest`) and was green only through that stray write to varp 11. The
+quest orchestrator was told with the one-line fix; a corrected copy ran 292/292.
+
+## 2a. The content worktree is not clean (2026-10-03, seam8)
+
+Two fixer runs without `--no-publish` rewrote published evidence in
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_cook/play` and
+`quest_druid/play` (113 PNGs deleted, 113 untracked, 2 ledgers modified, all uncommitted).
+The seam8 closer's restore was refused by the permission check and the raid loop did not
+route around it: the owner restores those two directories from HEAD (or says to). Closers
+commit by explicit path, so nothing of it is in a commit; the tree must be clean before
+the merge.
+
 ## 3. Shared tooling the raid branch changed
 
 - `tools/quest_gate/quest_list.py`, `run.py`, `gate.py`: `TORIRS_QUEST_TESTS_DIR` and
