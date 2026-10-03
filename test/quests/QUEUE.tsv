@@ -165,7 +165,7 @@ quest_tasteofhope	tasteofhope	atasteofhope		4	todo
 quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17			
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo				
-quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	green	matthew-mbp-m4-b55			
+quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo	matthew-mbp-m4-b55	REVERTED by sampler (matthew-mbp-m4-b55): two goto_tile rows teleport into Brimstail's cave past the entrance the guide names for that state -- goto-repairMachine (ledger row 76, 2359,3529,0 -> 2391,9824,0; guide fixMachine addStep(magicGlue, enterCaveAgain)) and goto-killCreature1 (row 223, 2466,3496,0 -> 2408,9818,0; guide killThemAll default enterCave), also goto-allDead (row 260); goto only to the entrance and click eyeglo_brimstails_cave_entrance as enterCaveAgain (row 44) does, with the landing tile read back. helper_coverage read FULL only because earlier rows matched enterCave/enterCaveAgain. Also enterCave.below (row 4) prints a table ('table: 0x7ffd8ea60') under a condition that cannot fail -- read t.world.tile() and check the cave z > 9000. The kill comment's '30/30' is the 30-unit health bar, not hp: eyeglo.npc hitpoints=1; the hp drop is the port's ~npc_retaliate(0). Climbs, kill numbers, hp orb and rewards were right; parked file test/quests/wip/theeyesofglouphrie/round3_rejected.lua		
 quest_thefeud	thefeud	thefeud		2	green	sonnet-b32			
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	green	vm-b1			
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
