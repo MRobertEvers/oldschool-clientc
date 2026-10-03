@@ -8,7 +8,24 @@ return {
     max_frames = 120000,
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so the food fits
-        "::give shark 7", -- guide: 14 pieces of food, three kinds (feed4Food, feed4Food2, feed6Food)
+        "::setlevel attack 99", -- combat level 85+ to start (dreammentor_cyrisus.rs2 dreammentor_start)
+        "::setlevel strength 99",
+        "::setlevel defence 99",
+        "::setlevel hitpoints 99",
+        "::setlevel ranged 99", -- ranged gear for the dream fights (melee misses the 240-defence forms)
+        "::give twisted_bow 1",
+        "::give dragon_arrow 800",
+        "::wield twisted_bow",
+        "::wield dragon_arrow", -- guide: combat gear for the dream fight, worn from the start
+        "::give rune_full_helm 1",
+        "::wield rune_full_helm",
+        "::give armadyl_chestplate 1",
+        "::wield armadyl_chestplate",
+        "::give rune_platelegs 1",
+        "::wield rune_platelegs",
+        "::give dragon_boots 1",
+        "::wield dragon_boots",
+        "::give shark 9", -- 7 fed to Cyrisus (guide food, three kinds) + 2 kept as the dream fights' food: the backpack has 28 slots and the 20 fed pieces + 6 tools leave two
         "::give lobster 7",
         "::give swordfish 6", -- 20 pieces in all: leg 1 feeds 14, leg 2 (useFood3) feeds the other 6
         "::give lunar_seal_of_passage 1", -- guide item requirement (later legs)
@@ -17,21 +34,6 @@ return {
         "::give pestle_and_mortar 1",
         "::give tinderbox 1",
         "::give hammer 1", -- guide: hammer for the astral rune (leg 3)
-        "::setlevel attack 99", -- combat level 85+ to start (dreammentor_cyrisus.rs2 dreammentor_start)
-        "::setlevel strength 99",
-        "::setlevel defence 99",
-        "::setlevel hitpoints 99",
-        "::setlevel ranged 99", -- ranged gear for the dream fights (melee misses the 240-defence forms)
-        "::give magic_shortbow 1",
-        "::give rune_arrow 800",
-        "::wield magic_shortbow",
-        "::wield rune_arrow", -- guide: combat gear for the dream fight, worn from the start
-        "::give rune_full_helm 1",
-        "::wield rune_full_helm",
-        "::give rune_chainbody 1",
-        "::wield rune_chainbody",
-        "::give rune_platelegs 1",
-        "::wield rune_platelegs",
         "::complete quest_lunardiplomacy", -- guide requirement: Lunar Diplomacy
         "::complete quest_eadgarsruse", -- guide requirement: Eadgar's Ruse
     },
@@ -100,7 +102,7 @@ return {
         end
         t.ticks(2)
         do local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("feed4Food-bars", true, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
+            t.check("feed4Food-bars", hv == 20 and sv == 0, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
         t.expect("quest.stage.stage2_feeding", t.quest.expect_stage("stage2_feeding"))
 
         -- ---- talkToCyrisus2: his first conversation (stage 6 -> 8) ----
@@ -112,7 +114,7 @@ return {
         t.exec("talkToCyrisus2-r1-tail", t.chat.drain, { max_pages = 40 })
         t.ticks(2)
         do local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("talkToCyrisus2-bars", true, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
+            t.check("talkToCyrisus2-bars", hv == 20 and sv == 8, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
         t.expect("quest.stage.feeding_second", t.quest.expect_stage("feeding_second"))
 
         -- ---- feed4Food2: four more, Health 20 -> 40 ----
@@ -128,7 +130,7 @@ return {
         end
         t.ticks(2)
         do local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("feed4Food2-bars", true, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
+            t.check("feed4Food2-bars", hv == 40 and sv == 8, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
 
         -- ---- talkToCyrisus3: rounds 2-4 until Spirit 32 (stage 8 -> 12) ----
         t.exec("talkToCyrisus3-1", t.player.talk_to, "dream_cyrisus_barely_conscious", 1)
@@ -151,7 +153,7 @@ return {
         t.exec("talkToCyrisus3-3-r4-tail", t.chat.drain, { max_pages = 40 })
         t.ticks(2)
         do local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("talkToCyrisus3-bars", true, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
+            t.check("talkToCyrisus3-bars", hv == 40 and sv == 32, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
         t.expect("quest.stage.stage3_feeding", t.quest.expect_stage("stage3_feeding"))
 
         -- ---- feed6Food: six pieces, Health 40 -> 70 (Cyrisus sits up now) ----
@@ -171,7 +173,7 @@ return {
         end
         t.ticks(2)
         do local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("feed6Food-bars", true, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
+            t.check("feed6Food-bars", hv == 70 and sv == 32, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
 
         -- ---- talkToCyrisus4: rounds 5-9 until Spirit 72 (stage 12 -> 16) ----
         t.exec("talkToCyrisus4-1", t.player.talk_to, "dream_cyrisus_sitting", 1)
@@ -206,12 +208,12 @@ return {
         t.exec("talkToCyrisus4-5-r9-tail", t.chat.drain, { max_pages = 40 })
         t.ticks(2)
         do local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("talkToCyrisus4-bars", true, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
+            t.check("talkToCyrisus4-bars", hv == 70 and sv == 72, "Cyrisus bars read from the client: Health " .. tostring(hv) .. "%, Spirit " .. tostring(sv) .. "%") end
         t.expect("quest.stage.need_gear", t.quest.expect_stage("need_gear"))
 
         do local _, tile = t.world.tile(); local _, level = t.world.level(); local _, stage = t.var.server("varb3618_dream_prog")
             local _, hv = t.var.varbit("varb3621_dream_health"); local _, sv = t.var.varbit("varb3622_dream_spirit")
-            t.check("leg.1.end", true, "quiet: tile " .. tostring(tile and (tile.x .. "," .. tile.z)) .. " level " .. tostring(level) .. ", dream_prog read from the server " .. tostring(stage) .. " (need_gear), Health " .. tostring(hv) .. " Spirit " .. tostring(sv) .. "; food all spent (14 of 14), tinderbox, pestle and mortar, astral rune, seal of passage and goutweed still carried") end
+            t.check("leg.1.end", stage == 16 and level == 2, "quiet: tile " .. tostring(tile and (tile.x .. "," .. tile.z)) .. " level " .. tostring(level) .. ", dream_prog read from the server " .. tostring(stage) .. " (need_gear), Health " .. tostring(hv) .. " Spirit " .. tostring(sv) .. "; food all spent (14 of 14), tinderbox, pestle and mortar, astral rune, seal of passage and goutweed still carried") end
         end },
         { name = "armament", run = function(t)
         -- LEG 2 of 3: leaveCave .. talkToOneiromancer. Starts at stage 16 (need_gear), Health 70, Spirit 72, Armament 0.
@@ -330,6 +332,15 @@ return {
         t.expect("quest.stage.met_oneiromancer", t.quest.expect_stage("met_oneiromancer"))
 
         -- ---- talkToOneiromancer: 'Cyrisus.' (dragonslayer2.rs2:1547 -> dreammentor_dream.rs2:23) ----
+        -- leave the cave the way leg 2 did: the wall crawl out, then the mine ladder up, then plain travel from the surface
+        t.exec("leaveCaveAgain", t.player.click_loc, "dream_cave_wall_entrance", 1, { at = { 2341, 10355 } })
+        t.ticks(3)
+        do local _, tile = t.world.tile(); local _, level = t.world.level()
+            t.check("leaveCaveAgain-landed", tile ~= nil and tile.x < 2340, "after the crawl out: tile " .. tostring(tile and (tile.x .. "," .. tile.z)) .. " level " .. tostring(level)) end
+        t.exec("goUpToSurfaceAgain", t.player.click_loc, "lunar_mine_slanty_ladder_up", 1)
+        t.ticks(3)
+        do local _, tile = t.world.tile(); local _, level = t.world.level()
+            t.check("goUpToSurfaceAgain-landed", level == 0, "after the ladder: tile " .. tostring(tile and (tile.x .. "," .. tile.z)) .. " level " .. tostring(level)) end
         t.exec("goto-talkToOneiromancer", t.player.goto_tile, 2151, 3867, 0)
         t.exec("talkToOneiromancer", t.player.talk_to, "lunar_oneiromancer", 1)
         t.exec("talkToOneiromancer-menu", t.chat.drain, { stop_at = "options", max_pages = 6 })
@@ -340,12 +351,18 @@ return {
         t.expect("talkToOneiromancer-vial", t.inv.expect_has("dream_vial_empty", 1))
 
         do local _, tile = t.world.tile(); local _, level = t.world.level(); local _, stage = t.var.server("varb3618_dream_prog")
-            t.check("leg.2.end", true, "quiet: tile " .. tostring(tile and (tile.x .. "," .. tile.z)) .. " level " .. tostring(level) .. ", dream_prog read from the server " .. tostring(stage) .. " (dream_ready), dream vial, goutweed, astral rune, pestle and mortar, tinderbox and seal of passage carried; food all spent") end
+            t.check("leg.2.end", stage == 24 and level == 0, "quiet: tile " .. tostring(tile and (tile.x .. "," .. tile.z)) .. " level " .. tostring(level) .. ", dream_prog read from the server " .. tostring(stage) .. " (dream_ready), dream vial, goutweed, astral rune, pestle and mortar, tinderbox and seal of passage carried; food all spent") end
         end },
         { name = "dream", run = function(t)
         -- LEG 3 of 3: fillVialWithWater .. returnToOneiromancer. Starts at stage 24 (dream_ready) beside the Oneiromancer.
         -- ---- fillVialWithWater: the vial on the Moon Clan sink (dreammentor_dream.rs2:237) ----
-        t.exec("goto-fillVialWithWater", t.player.goto_tile, 2091, 3922, 0)
+        -- the sink is inside the house whose door is lunar_moonclan_door at 2091,3916 (the door is in the south wall): travel to the street, open it, walk in
+        t.exec("goto-fillVialWithWater", t.player.goto_tile, 2091, 3913, 0)
+        t.exec("fillVialWithWater-door", t.player.click_loc, "lunar_moonclan_door", 1, { at = { 2091, 3916 } })
+        t.player.walk_to(2091, 3920, 12)
+        t.ticks(2)
+        do local _, tile = t.world.tile()
+            t.check("fillVialWithWater-inside", tile ~= nil and tile.z >= 3917, "inside the sink house past the door: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
         do
             local sink = t.player.by_symbol("loc", "lunar_moonclan_sink")
             t.exec("fillVialWithWater", t.player.use_on, "dream_vial_empty", sink)
@@ -370,7 +387,22 @@ return {
         t.expect("useGroundAstralOnVial-full", t.inv.await("dream_vial_full", 1, 10))
 
         -- ---- lightBrazier: the tinderbox on the brazier (dreammentor_dream.rs2:298); combat gear worn from setup ----
-        t.exec("goto-lightBrazier", t.player.goto_tile, 2073, 3913, 0)
+        -- out through the sink house door, along the street, then in through the brazier hall door (lunar_moonclan_door at 2082,3913)
+        -- walk out first: if the door still stands open this goes straight through, if it closed the player stays inside and presses it
+        t.player.walk_to(2091, 3913, 12)
+        do local _, tile = t.world.tile()
+            if tile ~= nil and tile.z >= 3917 then t.exec("lightBrazier-leave-sink-door", t.player.click_loc, "lunar_moonclan_door", 1, { at = { 2091, 3916 } }) end
+        end
+        t.player.walk_to(2091, 3913, 20)
+        t.player.walk_to(2085, 3913, 20)
+        t.ticks(2)
+        do local _, tile = t.world.tile()
+            t.check("lightBrazier-street", tile ~= nil and tile.x >= 2083 and tile.z <= 3915, "out of the sink house, on the street east of the hall door: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
+        t.exec("lightBrazier-door", t.player.click_loc, "lunar_moonclan_door", 1, { at = { 2082, 3913 } })
+        t.player.walk_to(2077, 3913, 12)
+        t.ticks(2)
+        do local _, tile = t.world.tile()
+            t.check("lightBrazier-inside", tile ~= nil and tile.x <= 2081, "inside the brazier hall past the door: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
         do
             local brazier = t.player.by_symbol("loc", "lunar_moonclan_brazier_multi")
             t.exec("lightBrazier", t.player.use_on, "tinderbox", brazier)
@@ -378,14 +410,8 @@ return {
         t.ticks(2)
         t.expect("lightBrazier-lit", t.msg.expect("You light the brazier"))
 
-        -- the fight needs food: 25 sharks (guide: combat equipment, food) given now that the earlier legs' food is spent
-        -- the spent tools go on the floor so the backpack holds more food (28 slots)
-        for _, it in ipairs({ "pestle_and_mortar", "tinderbox", "hammer" }) do
-            t.exec("drop-" .. it, t.player.drop, it)
-        end
-        t.ticks(2)
-        t.cheat("::give shark 25")
-        t.expect("fight-food", t.inv.await("shark", 25, 10))
+        -- the fight food is the two sharks carried from setup (the other 20 pieces were fed to Cyrisus)
+        t.check("fight-food", select(2, t.inv.count("shark")) == 2, "sharks carried into the dream: " .. tostring(select(2, t.inv.count("shark"))))
 
         -- ---- talkToCyrisusForDream: 'Yes, let's go!' (dreammentor_dream.rs2:225) ----
         t.exec("talkToCyrisusForDream-present", t.npc.await_present, "dream_cyrisus_outsidebraziermulti", 20, 20)
@@ -397,35 +423,14 @@ return {
         do local _, tile = t.world.tile()
             t.check("talkToCyrisusForDream-entered", tile ~= nil and tile.x > 6000, "in the dream instance: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
 
-        -- ---- the four bosses, fought for real ----
-        local names = { { "killInadaquacy", "dream_inadequacy" }, { "killEverlasting", "dream_everlasting" }, { "killUntouchable", "dream_untouchable" }, { "killIllusive", "dream_illusive" } }
-        local lowest = 99
-        for _, b in ipairs(names) do
-            t.exec(b[1] .. "-present", t.npc.await_present, b[2], 40, 40)
-            t.exec(b[1], t.player.attack, b[2], 2, 30) -- shot from the magic shortbow worn from setup
-            local _, dead_detail = t.exec(b[1] .. "-dead", t.npc.await_dead_engaged, 600, 80, { eat = { item = "shark", below = 75 } })
-            local _, hp = t.skill.read("hitpoints")
-            local _, sharks = t.inv.count("shark")
-            t.check(b[1] .. "-margin", true, "after the kill: lowest hp " .. tostring(string.match(tostring(dead_detail), "lowest hp (%d+/%d+)")) .. ", hitpoints now " .. tostring(hp and hp.level) .. "/" .. tostring(hp and hp.base_level) .. ", sharks left " .. tostring(sharks))
-            t.ticks(2)
-        end
-        t.exec("bosses-pages", t.chat.drain, { max_pages = 60 })
-        t.ticks(4)
-        t.expect("quest.stage.bosses_defeated", t.quest.expect_stage("bosses_defeated"))
-
-        -- ---- returnToOneiromancer: 'Cyrisus.' finishes (dreammentor_dream.rs2:134) ----
-        t.exec("goto-returnToOneiromancer", t.player.goto_tile, 2151, 3867, 0)
-        t.exec("returnToOneiromancer", t.player.talk_to, "lunar_oneiromancer", 1)
-        t.exec("returnToOneiromancer-menu", t.chat.drain, { stop_at = "options", max_pages = 6 })
-        t.exec("returnToOneiromancer-topic", t.chat.choose, "Cyrisus.")
-        local _, snapshot = t.skill.snapshot()
-        t.exec("returnToOneiromancer-pages", t.chat.drain, { max_pages = 60 })
-        t.ticks(3)
-        t.expect("reward.hitpoints_xp", t.skill.expect_gain("hitpoints", 15000, snapshot))
-        t.expect("reward.magic_xp", t.skill.expect_gain("magic", 10000, snapshot))
-        t.expect("reward.lamp", t.inv.expect_has("thosf_reward_lamp", 1))
-        t.quest.expect_complete()
-        t.finish(0)
+        -- ---- the four bosses: STOPPED HERE (blocked) ----
+        -- The fights were driven for real (twisted bow, dragon arrows, armadyl chestplate, 99 combat stats) and cost about 8 sharks
+        -- for The Inadequacy alone (a 25-shark run killed all four with 24 eaten). The backpack has 28 slots: 20 pieces of food fed
+        -- to Cyrisus + 6 carried tools leave two, and the guide's food is the only thing the setup may give. No verb in this driver
+        -- stocks or reads the Lunar Isle bank (no bank interface symbol, no deposit verb), so the fight food cannot be banked at
+        -- the start and withdrawn here; with two sharks the player died to The Inadequacy 242 ticks in.
+        t.blocked("driver seam: the dream fights need ~25 sharks but the backpack holds 28 slots (20 food fed to Cyrisus + 6 tools carried leave 2) and this driver has no verb to deposit into or withdraw from the Lunar Isle bank; with 2 sharks the player dies to The Inadequacy (tick 545). Legs 1-3 are driven through the brazier and the entry into the dream; the four kills, the return to the Oneiromancer and the rewards are undriven")
+        return
         end },
     },
 }
