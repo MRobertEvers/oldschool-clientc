@@ -224,3 +224,10 @@ Found and left open:
 - Selftest: no C stanza pins the `npc_face` tick-log row (extend the Hans facesquare stanza, torirs_server_world_selftest.c ~15923).
 - Tooling: `raid_coverage.parse_row` cuts a measured comma list to its first element, so a distribution row passes while later instances are out of tolerance; the sidecar vocabulary has one scope per row (no `normal+hard`, and `party` ignores the mode).
 
+
+## From the ToB room pass, second launch: tob_maiden (2026-10-03)
+
+- ToB, Maiden: spec `maiden.blood_spawn_step` measured 983 permille vs 997-1000: free slugs stall 1-4 ticks in the east entrance pocket (tob_maiden.rs2:1455-1490 slug walk).
+- ToB, Maiden: spec `maiden.death_a_len` measured 4 vs 3 and `maiden.death_total` 9 vs 7: the dying_a retype lands at the engine's corpse stage K+3 (tob.rs2 [ai_queue3]), one tick late.
+- ToB, Maiden: spec `maiden.blood_extra_splats` measured 1,2 vs 2: `[proc,tob_maiden_blood_extra]` (tob_maiden.rs2:906-913) returns false on a blocked or claimed scattered tile, so a throw can carry one extra.
+- ToB, Maiden: spec `maiden.trail_damage_entry` unmeasured (no trail hit taken); tob_maiden.rs2:1758-1767 gives a trail 10+2c against the table's 2-5 (grade D). `maiden.freeze_full_bonus` unmeasured: no verb reads equipment bonuses or casts an ice spell.
