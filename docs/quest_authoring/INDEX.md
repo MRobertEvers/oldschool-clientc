@@ -153,7 +153,8 @@ topic file with one line added here.
 - `not_found` on a worn item -> verbs-inventory-shops: `t.player.use_item_on_item`; `t.player.unequip`
 - a cheat's worn item lands in the hat slot -> seam-facts: Seam pass 27, (h)
 - `drop` FAILs on a second copy (`backpack 1 -> 0, ground 1`; FIXED b52-seam1: graded on the backpack); drops nothing with a shop open -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (a); traps-01-12: Grind debugprocs
-- the second of two identical drops on one tile is gone after you pick the first (`menu has no row for it`) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (a) (OPEN)
+- the second of two identical drops on one tile is gone after you pick the first (`menu has no row for it`) (FIXED b53-seam1: the tile is a list) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (a)
+- `drop` detail `ground on the player's tile 1 -> 2 (2 row(s))` for a second identical copy -> verbs-inventory-shops: `t.player.drop(item)`
 - `this shop was not opened through shop.open` -> verbs-inventory-shops: `t.shop.buy`
 - `stocks 0 <item>`, `You don't have enough coins.` -> verbs-inventory-shops: Read the shop's row
 - buy it or `::give` it? -> gaps-combat: Shops: only for an item
@@ -289,6 +290,7 @@ topic file with one line added here.
 - a `--script` rerun blocks on the same random roll every time -> running: `--script` runs are deterministic
 - `setup.::wield <item> FAIL`; a `::wield` that printed Usage -> seam-facts: Seam pass 29 (e)
 - prove content against HEAD without editing the shared tree -> seam-facts: Seam pass 29 (c)
+- prove a content fix FAILS on the pre-fix pack (a scratch sscompile + `TORIRSSERVER_SCRIPTS`) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (e)
 - a second `run.py` refuses -> running: The failure block
 - `sscompile` takes minutes -> running: `--no-build` still pays; gaps-combat: `sscompile` contention
 - `setup.::setlevel ...` FAIL -> running: `run.py --script` runs setup
@@ -317,6 +319,11 @@ topic file with one line added here.
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)
 - Porcine of Interest: Sourhog spit numbers (20-30, 90% drain, goggles cancel) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)
+- a drained stat back at its base after one xp drop (a drain row FAILs after a hit); the drain fix that turned Desert Treasure RED -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (f) (OPEN, patch carried)
+- the chaos talisman lands on level 3 and the altar is not in the room; `click_loc chaos_altar` `covered ... menu has no row for it` (What Lies Below) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (b) (a ladder maze, climb three laddertops)
+- The Ribbiting Tale: no Marcellus/frogs at the Locus Oasis (FIXED b53-seam1, quest-local spawn); Dave/Jane only "Hello there!" at stage 8 (OPEN) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (c)
+- an npc the spawn dump lacks entirely: quest-local `<quest>.spawn` or `gen_spawns.py`? -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (c); content-gaps: `no_row <npc>` for a world npc
+- Queen of Thieves: the tent doorway `piscquest_tentdoor` did nothing / "You should speak to Devan Rutter before going in there." (FIXED b53-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b53-seam1 (d)
 - the scroll lists XP but `t.skill.expect_gain` reads +0 at completion (Tai Bwo Wannai Trio: claimed from Tinsay/Tiadeche/Tamayu afterwards) -> seam-facts: Seam pass matthew-mbp-m4-b49-seam2 (b)
 - one karambwan vessel load emptied the raw karambwanji stack (FIXED b49-seam2: one per load) -> content-gaps: Tai Bwo Wannai Trio: loading the karambwan vessel takes ONE karambwanji
 
