@@ -7,23 +7,25 @@ loc, interface and reward the cache ships accounted for, and every wave played f
 the test driver with pictures a reviewer opened. Order of priority: **1. the Inferno,
 2. the Fortis Colosseum.** The TzHaar Fight Cave is out of scope unless the owner adds it.
 
-It is the third loop of its kind. The quest orchestrator (`docs/QUEST_ORCHESTRATOR.md`)
-and the raid orchestrator (`docs/RAID_ORCHESTRATOR.md`, `docs/minigames/raid_loop/`) came
-first; this document is the raid loop's method with its lessons already applied
-(section 10). You do not do quest work or raid work, and they do not do yours.
+It is the third loop of its kind and it is **fully independent** (owner, 2026-10-03): its
+own worktree, its own branch cut from `v3`, its own driver work, tooling, tests and
+documents. It never merges from, waits on, or messages the quest loop or the raid loop,
+and it reaches `v3` by its own pull requests whenever the owner asks. The raid loop's
+method and lessons are written into this document (sections 3, 6 and 10) so that you need
+nothing from that loop to run; its branch is reading material only (section 2).
 
-Read, in this order, before the first launch:
+Read, in this order, before the first launch (all on `v3`):
 
-1. `docs/RAID_ORCHESTRATOR.md` sections 2 (confidence grades), 3 (the spec pass, video
-   method), 6 (a played test and its tick ledger) and 8 (standing rules).
+1. `docs/RAID_ORCHESTRATOR.md` sections 2 (confidence grades), 3 (the spec pass and the
+   video method), 6 (a played test and its tick ledger) and 8 (standing rules). They are
+   the method; where they say "raid" read "wave minigame", and where they point at claims
+   or `QUEUE.tsv` ignore them: you keep no queue.
 2. `docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md` section 1: an npc acting on tick
    T sees the world as it stood at the end of tick T-1. Every prayer flick and every
    "step out one tick early" in a wave minigame is that one fact.
-3. `docs/minigames/raid_loop/README.md`, `DRIVER_NOTES.md` (the driver's raid verbs and
-   every trap the authors hit), `test/raids/README.md` (the three kinds of row, the ledger
-   row contract, the cheat policy, the lessons), `MERGE_CHECKLIST.md`.
-4. `docs/minigames/theater_of_blood/AV_INVENTORY.md`: the worked example of the asset
-   inventory you will build first for each minigame.
+3. `docs/minigames/theater_of_blood/COMMUNITY_SOURCES.md` (the source ranking) and
+   `docs/TOB_RESEARCH.md` "Provenance audit" (what a recorder observes versus asserts).
+4. `docs/QUEST_AUTHORING.md` (the test driver's contract, file shape and verb table).
 5. `CLAUDE.md` (assert rules, never mutate a shared tree, no switch in a protothread).
 
 ## 1. Where the two minigames stand (2026-10-03)
@@ -44,34 +46,44 @@ of Xeric nor Tombs of Amascut has: grade B is reachable for cadences and spawns.
 
 ## 2. Where you work
 
-- **Your own worktree and branch, never the owner's main checkout and never the raid
-  worktree.** The driver's raid verbs, the tick log and the raid tooling exist only on
-  the raid branch until it merges, so cut from it:
-  `git worktree add -b <host>-waves-b1 build/orchestrator/worktrees/waves origin/matthew-mbp-m4-raid-b1`,
-  then the content worktree **with an absolute target path**
-  (`git -C <main>/OSRS-Content worktree add -b <host>-waves-b1 <abs>/worktrees/waves/OSRS-Content origin/matthew-mbp-m4-raid-b1`;
+- **Your own worktree and branch, cut from `v3`; never the owner's main checkout and
+  never another loop's worktree.**
+  `git worktree add -b <host>-waves-b1 build/orchestrator/worktrees/waves origin/v3`, then
+  the content worktree **with an absolute target path**
+  (`git -C <main>/OSRS-Content worktree add -b <host>-waves-b1 <abs>/worktrees/waves/OSRS-Content origin/v3`;
   a relative path lands inside `OSRS-Content/build/`). Symlink `cache.osrs239` from the
   main checkout, `mkdir build`, and prove the worktree with
   `python3 tools/quest_gate/run.py cooks_assistant --no-publish` before anything else.
-- **Nothing of the quest loop**: no `QUEUE.tsv`, no claims, no `docs/quest_authoring/`,
-  no `test/quests/<quest>.lua`, nothing pushed to v3. Your branch reaches v3 by one PR per
-  repo (content first, merge commits) when the owner asks, after the raid branch.
-- **Shared files are shared with the raid orchestrator** (session `Haiku Raids`):
-  `script/plugins/quest_driver/`, `src/plugin/`, `src/torirsserver/` (the tick log, combat),
-  `tools/raid_gate/`, `tools/quest_gate/`, `test/quests/_conformance.lua`, the tree-wide
-  combat and consumption scripts. Add to them freely where a wave needs something new;
-  before changing existing behaviour, message that session with the file and the reason.
-  Take the raid branch's new commits between passes, never during one
-  (`git merge origin/matthew-mbp-m4-raid-b1`, both repos, content first).
-- **Your files**: `test/waves/` (tests; run through wrappers like `tools/raid_gate/suite.py`
-  that set `TORIRS_QUEST_TESTS_DIR`), `tools/waves_gate/` (your copies of the three cards
-  with the worktree path and the nouns changed, and the prefix map of
-  `tools/raid_gate/raid_coverage.py` extended to `inferno` and `colosseum`),
-  `docs/minigames/inferno/`, `docs/minigames/colosseum/`, `docs/minigames/waves_loop/`
-  (triage files, ledgers, content bugs, driver notes additions, merge checklist).
-- **One pass at a time in the worktree.** A seam pass, a spec pass and a test pass all
-  rebuild one script pack. Only a corpus-only pass (documents, no build) may run beside
-  another.
+- **Independent of the other loops.** No `QUEUE.tsv`, no claims, no
+  `docs/quest_authoring/` edits, no `test/quests/<quest>.lua` edits, no merges from the
+  raid branch, no messages required to any other session, nothing pushed to `v3` except
+  through your own pull requests (content repo first, then the parent, merge commits)
+  when the owner asks. If a fix of yours moves a quest test, tell the owner with the
+  first failing row and the cause; the owner decides.
+- **Everything you need, you own.** Tests in `test/waves/`; tooling in `tools/waves_gate/`
+  (the spec-table validator, the coverage grader, the frame counter, the transcript
+  converter, your three workflow cards); documents in `docs/minigames/inferno/`,
+  `docs/minigames/colosseum/` and `docs/minigames/waves_loop/` (triage files, ledgers,
+  content bugs, driver notes, merge checklist); driver verbs in your own part files under
+  `script/plugins/quest_driver/` and your own C where the driver needs it.
+- **The raid branch is a reference you may copy from once, never a dependency.** The raid
+  loop built on `origin/matthew-mbp-m4-raid-b1` the things section 5 and 6 describe: a
+  prayer verb, npc state and hazard reads, a server tick log, a step-on-tick verb, a fast
+  attack press, a tests-directory override for the run tooling, a spec validator
+  (`tools/raid_gate/spec_check.py`), a coverage grader (`raid_coverage.py`), a frame
+  counter (`frame_count.py`), a transcript converter (`vtt_to_md.py`), three workflow
+  cards, and notes (`docs/minigames/raid_loop/DRIVER_NOTES.md`, `test/raids/README.md`).
+  Read them with `git show origin/matthew-mbp-m4-raid-b1:<path>`. You may take any of
+  them as your starting point: copy the file's content **verbatim** into your branch
+  (under your own name for tools and cards; in place for driver and engine files),
+  record the raid commit you copied from in `docs/minigames/waves_loop/FORKED_FROM.md`,
+  and from then on it is yours to change. A verbatim copy merges cleanly when both
+  branches reach `v3`; what you change afterwards is reconciled by whichever branch
+  merges second, and that is the accepted cost of independence. Never cherry-pick or
+  merge the raid branch's commits: its content commits carry raid work.
+- **One building pass at a time in the worktree.** A seam pass, a spec pass and a test
+  pass all rebuild one script pack. Only a corpus-only pass (documents, no build) may run
+  beside another.
 
 ## 3. The standard
 
@@ -85,7 +97,7 @@ independent non-recorder sources; D = one source; E = a disclosed approximation 
 spec pass, not as an afterthought: every attack, special, spawn, death and transition
 names its sequence, graphic, projectile and sound, sourced from the cache's own bindings
 (a sequence's frame sounds, a graphic's or loc's `anim=`, an npc record's animations), a
-plugin constant, the wiki, or a video frame seen with `tools/raid_gate/frame_count.py`.
+plugin constant, the wiki, or a video frame seen with `tools/waves_gate/frame_count.py`.
 An asset whose purpose no source gives is `unknown_purpose` and is left alone. Never
 invent a visual; never change a mechanic to fit a presentation fix.
 
@@ -99,24 +111,28 @@ drives it by click.
 
 ## 4. The passes, in order
 
-Use the raid loop's three cards as your base (`tools/raid_gate/workflows/`): `raid_seam`
-(one Opus fixer per seam, Opus closer), `raid_spec` (a corpus phase, one Sonnet worker
-per encounter, Opus closer), `raid_author` (Sonnet author and reviewer per test, Opus
-sampler). Sonnet 5.5 (`claude-sonnet-5-5`) authors and works; Opus fixes, closes and
+Three workflow cards drive the loop, kept in `tools/waves_gate/workflows/`: a seam card
+(State, Triage read from a hand-written triage file, one Opus fixer per seam, an Opus
+closer), a spec card (State, a corpus phase, one Sonnet worker per encounter unit, an Opus
+closer) and a test card (State, a Sonnet author and a Sonnet reviewer per test, an Opus
+sampler that also lands the pass). Every step persists under `build/<kind>_state/<pass>/`
+so a killed pass relaunched with the same args continues from disk. Start from the raid
+branch's three cards (section 2) with the worktree path and the nouns changed. Sonnet 5.5 (`claude-sonnet-5-5`) authors and works; Opus fixes, closes and
 samples; the orchestrator writes triage, cards and protocol, and never does worker work
 except landing a pass a closer proved and could not commit.
 
 1. **Asset inventory** (one Opus agent per minigame, read-only, before any spec):
    every sequence, graphic, sound, loc, npc record, varbit/varp, music track and
    interface the cache ships for the minigame against where our scripts use it, with the
-   source of each asset's purpose. `docs/minigames/<game>/AV_INVENTORY.tsv` + `.md`. For
+   source of each asset's purpose. `docs/minigames/<game>/AV_INVENTORY.tsv` + `.md` (the
+   raid branch's `docs/minigames/theater_of_blood/AV_INVENTORY.md` shows the shape). For
    the Inferno read `docs/INFERNO_SOUNDS.md` first: its sounds are reused assets with no
    lineage, so the table is a reconstruction and each row says whether a source states it.
 2. **Corpus** (the spec card with `corpus_only: true`; it may run beside the inventory):
    section 9's sources, pinned with dated ledgers in `docs/minigames/<game>/SOURCES.md`.
 3. **Spec pass**: one table per encounter unit (section 7 and 8 list them),
    `docs/minigames/<game>/encounters/<unit>.tsv` with the nine columns
-   `tools/raid_gate/spec_check.py` defines, a `<unit>.scope.tsv` sidecar from the start
+   section 6 defines (your validator checks them), a `<unit>.scope.tsv` sidecar from the start
    (which rows a solo run can measure, which are statistical), and presentation and
    reward rows beside the mechanic rows. **The spec workers fight**: a measurement scratch
    attacks, eats, prays and steps, because faults hide until a player acts (the raid loop
@@ -134,30 +150,41 @@ Expect five to seven seam and test cycles per minigame. That is the loop working
 
 ## 5. The driver seam (before any wave test)
 
-The raid branch already gives the driver `t.prayer.set/read/points`, `t.npc.state`
-(animation, graphic, facing, size) and `t.npc.await_anim/await_face`,
-`t.world.hazard_at/spotanims/projectiles`, `t.tick`, the server tick log
-(`t.ticklog.start/rows/gaps/mark/slot`; kinds for npc animation, graphic, projectile,
-hits, spawn, death, retype, loc, obj, tiles, and sound/music/jingle once the raid loop's
-presentation seam lands), `t.player.step_tick`, a fast attack press (`ticks <= 2`), and
-`t.raid.enter/state/leave`. Waves add:
+On `v3` the test driver (`script/plugins/quest_driver/`, `src/plugin/`) has attack, cast,
+eat and await-dead, and nothing a wave fight needs. One seam pass, Opus fixers, each verb
+proved on an ordinary npc with a conformance row (`test/quests/_conformance.lua` and
+`tools/quest_gate/verb_list.py` are the driver's own gates, and your closer keeps them
+green). The raid branch has working versions of the first seven rows: copy them verbatim
+as section 2 allows, or write your own.
 
-| Row | What it adds | Why |
+| Row | What it adds | Why a wave cannot be played without it |
 |---|---|---|
-| `wave.enter / wave.state` | enter the minigame at a wave the way the content's own debugproc builds it (`::inferno <wave>`; the Colosseum's equivalent), settle, and read the wave number, the alive count, the pillars or modifiers, paused or not | one leg per wave group; a failed wave reruns from that wave |
-| prayer flick | switch a protection prayer on a named server tick and read back the tick it took effect; two switches inside one tick; the cost in prayer points of a one-tick flick | the Inferno is prayer switching on the attack's tick; a flick that costs a tick is a death |
-| line of sight | `t.world.los(from, to)` as the server computes it, and which npcs can see the player this tick | safespotting behind a pillar, the Zuk shield, the Colosseum's pillars are all line-of-sight facts |
-| target and pack reads | every npc in the arena with its type, attack style, target and the tick of its next attack if the content exposes it; the fast press on a chosen slot among a pack | twelve npcs attack at once; the test chooses whom to kill and what to pray |
-| supplies | drink by dose, the reward chest or shop between waves, the Colosseum's modifier choice interface read and clicked by symbol | wave tests live or die on supplies; choices are player actions |
-| pause and logout | the minigame's own pause (log out between waves and resume) driven by click | a real mechanic, and how a long run is split |
+| tests directory | the run and gate tooling reads tests from `test/waves/` through an environment override that changes nothing when unset; evidence published under `selftest/minigames/` | a wave test in `test/quests/` would be run by the quest loop's suite |
+| `prayer.set / prayer.read` | a prayer pressed by the client's own prayer-book button, settled on the server's varbit | every wave is prayer switching |
+| `npc.state / npc.await_anim` | an npc's animation, graphic, facing, size and the tick the server last sent each; an event when a sequence arrives, repeats included | a tactic reacts to what the monster is doing |
+| `world.hazard_at`, graphics and projectiles | what is on a tile and what is in flight, with ids | dodging needs the thing dodged |
+| server tick and `tick.log` | the server's tick number; a per-tick server log (npc animation, graphic, projectile, map graphic, hits on players and npcs, spawn, death, free, retype, loc, obj, player and npc tiles, facing, sound, music), written to the run directory and readable from the test with a gaps helper | the tick ledger is built from it, and it is what compares with Blert |
+| `player.step_tick` | a one-tile step issued on a tick, with the tick it resolved on | the T-1 rule |
+| fast attack press | with a deadline of one or two ticks the press lands or answers `covered` at once, naming the copies offered | twelve npcs overlap; a press that hunts for 20 ticks is a death |
+| `wave.enter / wave.state` | enter at a wave the way the content's own debugproc builds it (`::inferno <wave>`; the Colosseum's equivalent), settle, and read the wave number, the alive count, the pillars or modifiers, paused or not | one test per unit; a failed wave reruns from that wave |
+| prayer flick | switch on a named server tick and read back the tick it took effect; two switches inside one tick; the prayer-point cost of a one-tick flick | a flick that costs a tick is a death |
+| line of sight | `world.los(from, to)` as the server computes it, and which npcs can see the player this tick | pillar safespots, the Zuk shield, the Colosseum's pillars |
+| pack reads | every npc in the arena with its type, attack style and target | the test chooses whom to kill and what to pray |
+| supplies and choices | drink by dose; the Colosseum's modifier choice and reward interfaces read and clicked by symbol | choices are player actions |
+| pause and logout | the minigame's own pause driven by click, and the resume | a real mechanic, and how a long run is split |
 
-Prove each on an ordinary npc or a first wave, never on the final boss; a conformance row
-each. Engine findings are rows.
+Engine findings that come out of the seam are rows too. Four are already known from the
+raid loop's fights and are probably still true on `v3`: the default retaliation ignores
+an npc record's `retaliate=no`; a spell cast never sets the magic damage type, so a
+style check treats it as the weapon's style; an eat's `p_delay` holds every queued
+incoming hit where LostCity's `consume.rs2` never delays; a drained stat snaps back to
+base on the next xp gain where LostCity's `addXp` leaves it. Measure each on `v3` before
+relying on any timing, and fix what the sources say is wrong.
 
 ## 6. A wave test: fought for real, measured, and seen
 
 A test is `test/waves/<game>_<unit>.lua`, a quest-driver test with a tick ledger. Three
-kinds of row, all required, exactly as `test/raids/README.md` states them:
+kinds of row, all required:
 
 1. **The fight, driven.** Every kill is the player's own attacks; every mechanic is met by
    a real move: the prayer switched on the tick, the tile stepped, the pillar stood
@@ -172,7 +199,20 @@ kinds of row, all required, exactly as `test/raids/README.md` states them:
 3. **The tick ledger.** A `spec.scope` row first, then one `spec.<mechanic_id>` row per
    in-scope table row: the measured value computed from log rows named in the detail,
    the whole distribution, a bracket as a bracket, the expect the comparison itself.
-   `raid_coverage.py` must read FULL.
+   Your coverage grader must read FULL.
+
+**The spec table and the ledger row.** A table is a TSV with the columns `mechanic_id`,
+`quantity`, `spec_value`, `unit`, `tags`, `grade`, `source_ref`, `closes`, `tolerance`:
+ids are `<unit>.<name>`; a value is a number, a range `a-b`, a list, or text; tags are
+provenance tags (`[jagex] [cache] [blert] [plugin] [wiki] [guide] [video] [Mn]`); grade A
+needs `[jagex]` or `[cache]`, B needs `[blert]`, E needs an `[Mn]`; `source_ref` names a
+file and line on disk under `docs/`; tolerance is `exact`, `+-N`, `range` (a single value
+under range is a ceiling when the row says max or cap and a floor when it says min) or
+`approx` (grade E only). The test writes `t.check("spec.scope", true, "mode=<m> party=<n>")`
+first, then for each in-scope row a PASS row named `spec.<mechanic_id>` whose detail starts
+`measured <value>[, free text] (spec <value>, grade <G>, tol <tolerance>)`; a comma list
+is graded per instance; a text row matches by equality. The grader skips, and lists, rows
+the sidecar marks for another mode, another party size or `stat`.
 
 **Visual verification.** Every interaction row carries a screenshot. The reviewer opens
 every failing shot, the entry, each prayer switch, each technique row, each death
@@ -261,8 +301,7 @@ wiki's `Update:` newsposts first (they are namespace 112: search with `srnamespa
   locs, vars, interfaces, enums (the Colosseum's modifier and reward tables may be enums
   or dbtables: look).
 - **Blert**: `https://blert.io/api/v1/challenges?type=5` (Inferno) and `type=4`
-  (Colosseum) and each challenge's event stream; extend `tools/verify_tob_timings.py`'s
-  approach (or write its sibling) so recordings and our own `ticklog.tsv` are measured by
+  (Colosseum) and each challenge's event stream; write `tools/waves_gate/verify_blert.py` on the pattern of `tools/verify_tob_timings.py` so recordings and our own `ticklog.tsv` are measured by
   one tool. Clone `blert-io/blert` and `blert-io/plugin` for the event schema, the npc
   attack tables and the spawn index. Throttle to one request per three seconds; it is a
   volunteer service. Separate what Blert observes from what it asserts
@@ -276,12 +315,14 @@ wiki's `Update:` newsposts first (they are namespace 112: search with `srnamespa
 - **Reference servers** already in the tree's history (Kronos for the Inferno): ids and
   shapes only, never balance.
 - **The pinned wiki**: each monster, the wave tables, the Strategies pages, the reward
-  pages, the combat achievements, with `tools/toa_fetch_wiki.py` (it never overwrites a
-  pinned page).
+  pages, the combat achievements, with `tools/toa_fetch_wiki.py`. On `v3` that tool
+  overwrites a pinned page when a redirect title resolves to it (both raid corpus passes
+  lost a pin that way): guard it first so a different text lands beside the pin as
+  `.rev<revid>`.
 - **Strategy guides**: the wiki's, community guides, and video guides as transcripts
-  (`yt-dlp` auto-subs, `tools/raid_gate/vtt_to_md.py`), two players per unit at least.
+  (`yt-dlp` auto-subs, `tools/waves_gate/vtt_to_md.py`), two players per unit at least.
   A guide is a legitimate source for a technique and the mechanic it rests on.
-- **Videos, frame-counted**: `tools/raid_gate/frame_count.py` (yt-dlp over HLS, ffmpeg);
+- **Videos, frame-counted**: `tools/waves_gate/frame_count.py` (yt-dlp over HLS, ffmpeg);
   anchor on the animation's first frame, ten instances from two players, the
   distribution not a number. A frame count alone is grade D.
 
@@ -303,8 +344,8 @@ wiki's `Update:` newsposts first (they are namespace 112: search with `srnamespa
 6. **Mode and scaled records come from the cache.** Spawn the record the cache has for
    the variant; do not scale one record by hand.
 7. **The authors' own play fails first.** Prayer and food run out, attacks stop after an
-   eat, a death is read as a kill, a footprint is guessed. `test/raids/README.md`'s
-   lessons are yours to hand the authors on the first launch.
+   eat, a death is read as a kill, a footprint is guessed. Lesson 15 is the list to hand
+   the authors on the first launch.
 8. **Generated files are changed in their generator** (`tools/wiki_droptable.py`,
    `tools/gen_npc_combat.py`); a seam that hand-edits one is reverted.
 9. **Search discipline.** Never a recursive grep or find over the whole content tree
@@ -316,12 +357,19 @@ wiki's `Update:` newsposts first (they are namespace 112: search with `srnamespa
 11. **New var ids collide with v3's** by merge time; names carry the id. Keep a merge
     checklist from the first allocation.
 12. **A tree-wide fix can move quest tests.** The full quest suite is the closer's gate;
-    when a faithful fix reddens a quest test, the owner decides and the quest
-    orchestrator (session `Haiku Quests`) is told with the first failing row and cause.
+    when a faithful fix reddens a quest test, stop, keep the fix as a patch, and tell
+    the owner with the first failing row and the cause. The owner decides.
 13. **Never stop a running pass; never run two building passes in one worktree; never
     use `resumeFromRunId`** (the state directory is the resume).
-14. **Eating no longer holds incoming hits** on the raid branch (LostCity's behaviour):
-    tests must survive honestly.
+14. **Tests must survive honestly.** On `v3` an eat still holds incoming hits; when you
+    port LostCity's behaviour, fights get harder and every test's food and prayer plan
+    has to be real.
+15. **Authoring lessons to hand every author on the first launch**: sip a restore before
+    prayer runs out and count the backpack's slots; re-attack after every eat, dodge or
+    step; break the loop on your own death (a respawn reads as "the npc is gone"); read
+    an npc's footprint from its record's size; measure a cadence from one sequence id;
+    destructure the driver's two return values; never press into a menu an earlier press
+    left open.
 
 ## 11. Done
 
