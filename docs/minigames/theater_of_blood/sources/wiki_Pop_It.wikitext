@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Pop It
+|image = [[File:Verzik Vitur (flying).png|220px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Verzik without any Nylocas being frozen and without anyone taking damage from the Nylocas.
+|tier = Master
+|monster = Theatre of Blood
+|type = Mechanical
+|id = 241
+|leagueRegion = Morytania
+}}
+'''Pop It''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[Verzik_Vitur|Verzik]] without any [[Nylocas]] being frozen and without anyone taking damage from the Nylocas and without dying yourself.
+
+==Strategy==
+This is best completed in a duo or trio encounter, to limit the amount of nylocas that spawns during the fight.
+
+[[Nylocas Ischyros]] should be dealt with using a halberd, as it can potentially kill it without being in range for it to explode.
+
+[[Nylocas Toxobolos]] and [[Nylocas Hagios]] can be killed from a distance with any weapon.
+
+Alternatively, the player can simply avoid them by being at least four tiles away when they explode. However, this requires a bit more skill to pull off, since the AoE can be large enough to cause collateral to other players if improperly dodged.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

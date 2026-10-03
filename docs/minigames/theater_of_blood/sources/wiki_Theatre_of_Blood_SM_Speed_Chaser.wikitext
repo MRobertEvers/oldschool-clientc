@@ -1,0 +1,25 @@
+{{Infobox Combat Achievement
+|name = Theatre of Blood: SM Speed-Chaser
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood: Entry Mode in less than 17 minutes.	
+|tier = Master
+|monster = Theatre of Blood: Entry Mode
+|type = Speed
+|id = 396
+|leagueRegion = Morytania
+}}
+'''Theatre of Blood: SM Speed-Chaser''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete an Entry Mode [[Theatre of Blood]] run within 17 minutes, not including time between rooms. This can be completed with any group size.
+
+==Strategy==
+Entry mode should prove to be no problem for most players; the only issue will be the [[Nylocas]] room and it is recommended to run a trio so the room can be cleared without much hassle.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+==Trivia==
+*The task name uses the term "SM", an abbreviation for Story Mode, which is what Entry Mode was called prior to an update on [[28 July]] [[2021]].
+
+{{Combat Achievements}}

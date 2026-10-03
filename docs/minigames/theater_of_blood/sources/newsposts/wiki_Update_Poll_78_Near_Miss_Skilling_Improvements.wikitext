@@ -1,0 +1,484 @@
+{{Update|date=17 January 2023|rev=19 January 2023|url=https://secure.runescape.com/m=news/poll-78-near-miss--skilling-improvements?oldschool=1|category=community}}
+[[File:Poll 78- Near-Miss & Skilling Improvements newspost.png|right]]
+{{clear}}
+''We're kicking off 2023 with the first of the year's Quality of Life Polls!''
+----
+[[File:Poll 78- Near-Miss & Skilling Improvements (1).png|center|600px]] <!-- Mod Sarnie is the best for making top tier images of this nature. -->
+
+
+2023 is here and we’re starting as we mean to go on with the first of many QoL Polls!
+
+To refresh your memory, we implemented our new-and-improved polling system last year and are planning to host these kinds of polls every six to eight weeks. Each one will contain around 15-25 changes, both polled and unpolled.
+
+There’s also a survey at the end of this blog where you can let us know which changes you want us to prioritise.
+
+This time the focus is skilling, with changes to Herblore, Hunter, Mining, Runecraft and much more!
+
+We’ve also got a project from our most recent Game Jam and, as a special treat, some much requested ‘near misses’ from polls past.
+__TOC__
+==Feedback Update==
+''January 19th''
+
+
+After looking through and discussing your feedback, we wanted to share a quick update on some potential next steps in regard to some of your key points!
+
+
+First off, we'd like to say that there won't be any major changes to the questions or any additional questions added to the poll. Not only is this a pretty big poll already, but it will be featured alongside some questions regarding Community Consultation for the New Skill Project, and we feel the poll itself is in a good place.
+
+===Abyssal Dagger===
+Now, on to your feedback. One of the biggest pieces of feedback we've seen is about the power of the Abyssal Dagger. You noted that even with the special attack cost reduction in comparison to the DDS, it still feels really underwhelming... especially considering the price difference.
+
+So we are going to continue to offer the question as is presented in the poll and if this passes, we will look to include a question on its power in an upcoming QoL Poll!
+
+===Rune Pouch===
+With the inclusion of a question regarding player-made runes automatically entering the Rune Pouch, players have asked for thieved runes to do the same. So, going forward, we are going to look at adding this as a question in a future Qol Poll and maybe even include other areas we haven't thought about, so let us know if there are any other areas, you believe fit this change!
+
+===PvP Spell Icons===
+In terms of PvP-related questions, we know you raised issues surrounding the consistency of updates that change behaviours between safe areas and PvP zones. We've mainly made these arrangements due to previous feedback that changes of this nature can have a negative impact on the PvP playstyle and/or skill gap.
+
+With this poll, however, we've seen more voices speak up about the level of inconsistency between these two areas, both in and outside of the PvP community. So, for now, we're going to continue with the question that will only affect the safe areas across Gielinor. We'd like to continue conversations around the consistency between these two areas, with the potential for another poll in the near future to allow these changes to apply in PvP too.
+
+For now, please continue to let us know if this is the correct direction we should head in!
+
+===Cave Nightshade===
+Some players have wondered what the need for two versions of Cave Nightshade is, surely we are making it more complex? The main reason for this update was to improve farming Belladonna specifically, which we feel this does, so if we were to change the Cave Nightshade found in the Skavid Caves to also become stackable, this method would be the best alternative for gathering the plant, missing the goal of the change.
+
+===Motherlode Mine===
+Let's get the easy part out of the way and say we will be adding a Bronze Pickaxe spawn to the entrance of the Motherlode Mine as a trivial change in the near future, meaning both Treasure Hunters and forgetful individuals need to worry no more!
+
+Secondly, some players have also asked if the upper region of Motherlode Mine could be given some TLC too, referencing similarities to how the Arceuus Dark Runestones work. For those unfamiliar, these deplete per player, which means if one player's spot is finished, it wouldn't affect any others.
+
+Unfortunately, making this change would take us beyond the scope of not just this poll but a Quality of Life update in general as it is a massive job. Essentially, this means adding code that addresses each individual player for each individual vein, and with around 50 upstairs, would be a huge change to make.
+
+It's not something we have taken off the table, but unfortunately, it isn't something we would include in a QoL Poll.
+
+===Skilling Outfits===
+With the potential to sell back untradeable uniques to Kovac, we sure discussions around Skilling Outfits and potentially making them one-time unlocks instead.
+
+Just like with the Motherlode Mine feedback, it's a change beyond the scope of Poll 78, but... we do agree there's some inconsistency with the UIs for various points-based minigames which is something we are open to exploring.
+
+With this, we'll also look to include a question in a future Qol Poll addressing refunds for similar objects found in Guardians of the Rift as well as the ability to store your Abyssal Lantern in your POH.
+
+===Pyramid Plunder Scaling===
+The final unpolled change we included discussed the change to Pyramid Plunder in which swarms would stop attacking you when opening Sarcophagus inside the minigame. When delving into feedback, however, we came across a bigger problem, one that we've not looked into before.
+
+The rates for gaining a Pharaoh's Sceptre gradually increase for each room you've unlocked, which makes sense, however, when you get to Room 6 the chance to bag yourself one dramatically drops and by the time you've hit Room 8 (which requires 91 Thieving) the chance of receiving one is 4x less likely than Room 5. (~1,733 in Room 5, ~1/6,933 in Room 8)... crazy right?
+
+So we are going to explore this inconsistency and hopefully in the near future can adjust the scaling to appropriately reflect the minigame unlocks. We would however do this without a poll, as it seems like a genuine game issue we should address.
+
+
+As for your other bits of feedback we've already taken some we've seen from your comments like Slepey Tablet guarantees, Bush States, Casting Options on Thralls/Players outside of the Wilderness and even some other near-misses as well as all of those great suggestions from the survey.
+
+If you haven't left your feedback regarding job priority, ToA changes or potential future poll questions, scroll to the bottom of the newspost and have your say!
+
+==Poll 78 Questions==
+===Crystal Armour Recolours===
+[[File:Poll 78- Near-Miss & Skilling Improvements (2).png|center|600px]]
+
+
+We’ll start with something that comes up in our Q&As at least once a week… Crystal Armour recolours!
+
+For the uninitiated, both the Blade of Saeldor and the Bow of Faerdhinen can be recoloured using crystals from Lliann’s Wares in Prifddinas to match the emblems of the different Elvish clans. It only makes sense that you should be able to recolour Crystal Armour in the same way! Here's how they would look:
+[[File:Poll 78- Near-Miss & Skilling Improvements (3).png|center|600px]]
+
+
+Should this question pass, you’ll finally be able to get your Elvish FashionScape on fleek (as the kids say) by matching your Crystal Armour to your favourite clan colours. This would cost one colouring crystal per piece of armour. The armours will remain to not be corruptible, but will still degrade.
+
+And before you ask – yes, we are open to polling the same change for Crystal Tools at a later date, if that’s something players want.
+
+{{News Poll|1|Should players be able to use the Colour Crystals of the Elvish Clans on their Crystal Armour pieces?
+
+''(This would include the Crystal Helm, Crystal Body and Crystal Legs)''}}
+
+===Thieving Coin Pouches===
+We know that 28 isn’t a huge number of Pouches, and considering some of the things you shove in your Inventory it’s reasonable to expect that you could carry a lot more of them.
+
+We also understand that a lot of you don’t want to see Pouches in the game at all – but as we’ve stated before, they’re of huge benefit to our Anti-Cheating team, so we want to keep them for now.
+
+So, our proposed solution is to offer you the ability to carry more Pouches. This will take the form of a buff you can obtain through the Ardougne Achievement Diaries – as the infamous Thieving capital of Gielinor, it only makes sense!
+
+The capacity upgrade will persist across the whole of Gielinor, whether you’re pinching pockets in Ardougne Market or blackjacking in the Kharidian Desert.
+
+Here are the new Pouch capacity upgrades:
+* No diaries: 28 (unchanged)
+* Easy: 28 (unchanged)
+* Medium: 56 (100% increase)
+* Hard: 84 (200% increase)
+* Elite: 140 (400% increase)
+
+If this question passes, Two Pints will give you some extra information about the new changes when you receive your Achievement Diary rewards. You’ll still receive additional coins when you have the Rogue Outfit equipped.
+
+{{News Poll|2|Should we increase the maximum capacity of Coin Pouches a player can carry by 100%, 200% and 400% as an additional reward from the Medium, Hard and Elite Ardougne Achievement Diaries?}}
+
+===Fermenting Wine of Zamorak===
+[[File:Poll 78- Near-Miss & Skilling Improvements (4).png|center|600px]]
+
+
+Time to get a little chaotic with an exciting Wine of Zamorak change! Currently, when brewing up this beastly bev, your chance to ferment successfully goes from 49.8% at level 65 Cooking all the way up to 69% at 99 Cooking – nice, but not nice enough!
+
+We’d like to increase the success rate linearly from ~50% at level 65 to 100% at level 98, making you a fluent fermentor worthy of a Skillcape.
+
+But that’s not all! We also want to consider other ways to make this a more viable skilling method:
+* The harvest rates of Farming grapes
+* The cost/time spent obtaining Bologa's Blessings from the Tithe Farm
+* The cost/time spent obtaining Grape Seeds from the Tithe Farm
+
+Currently, growing Zamorak's Grapes using Bologa’s Blessings isn’t worth it if you’re hoping to turn them into Wines, because the crop yield is relatively low and there’s a high rate of failure. It’s much more effective to telegrab them from inside the Asgarnian Chaos Temple.
+
+Changing the success rate helps, but we’re open to making further changes to bring Wine of Zamorak production in line with player expectations. Let us know your thoughts!
+
+{{News Poll|3|Should we increase the success rate of fermenting Zamorak Wines to ~50% at level 65 Cooking and 100% at level 98 Cooking?}}
+
+===Magic Secateurs and More Benefits===
+We’re going from fermenting to Farming now, with some changes to the Magic Secateurs. These are one of the handiest and dandiest Farming tools available, as they increase the crop yield from herb allotments, Celastrus trees, Grape vines and even the Herbiboar… cor!
+
+Unfortunately, if you’re not ''actively'' holding onto them they go from secateurs to sucky-teurs. But what if things were different? What if they could work their fairy magic from your Inventory?
+
+Unsurprisingly, that’s the subject of our first poll question. Should it pass, absolutely nothing will change about the Magic Secateurs, except that they’ll now work whether you’re holding them or not. Simple!
+
+Our next question, however, looks to increase their effectiveness even more by applying the Secateur’s increased yield effect to bushes and Limpwurt plants. We’d also look to apply this change to the boost from the Farming Skillcape. That’s a ''much'' bigger harvest!
+
+{{News Poll|4|Should it be possible for the Magic Secateurs to work from your Inventory as well as when they’re equipped?}}
+
+{{News Poll|5|Should the Magic Secateurs effect and Farming Skillcape boost be improved to include all plants grown in Bush Patches and Limpwurt Plants?}}
+
+===Runecraft and the Rune Pouch===
+[[File:Poll 78- Near-Miss & Skilling Improvements (5).png|center|600px]]
+
+
+Don’t you hate it when you’re Runecrafting with your trusty Rune Pouch at your side, but every time you craft new Runes you have to manually put them in there?
+
+Well, with the recent addition of the Range and Magic Tutor’s automatic pick-up options being added to the Settings menu, we thought we’d make some further improvements. Runes you get from Barrows, the floor, and most other places already hop into your Pouch automatically – so we reckon it should be the same for Runes you craft yourself.
+
+If you have the toggle on, this change means that conventional Runes, combination Runes, and Runes created at the Ourania and Arceuus Altars will automatically be placed in your Rune Pouch – provided it isn’t already full of other Runes, of course.
+
+This will work for both the standard and Divine versions of the Rune Pouch as well as any Trouver variants.
+
+{{News Poll|6|Should all variants of the Rune Pouch automatically add player-made Runes if the 'Rune-picking behaviour' setting is toggled on?}}
+
+===Mining Improvements===
+Off to the mines we go with a selection of Mining improvements!
+
+Motherlode Mine is (unsurprisingly) one of the most popular Mining areas, helped by the useful rewards on offer at Prospector Percy’s Nugget Shop! That said, it can be a bit annoying when you’re trying to find a good spot downstairs and end up swapping worlds.
+
+We want to make the Motherload Mine experience a bit better. First, we want to reduce the respawn time, so you’ll only need to sit on a couple of veins to top up your Inventory. This will result in more downstairs spaces overall.
+
+We also want to add more veins so you have more options to choose from.
+
+Lastly, we are considering either moving, or (if the second question passes) including some of the newer vein types closer to the bucket, which means a better experience for those of you who haven’t yet unlocked the Falador Achievement Diary shortcut or the upstairs area of the mine. To clarify, though, the unlockable areas will remain the best option.
+
+{{News Poll|7|Should we reduce the spawn timers of the veins found on the lower floor of Motherlode Mine?}}
+
+{{News Poll|8|Should we add additional veins to the lower floor of Motherlode Mine?}}
+
+{{News Poll|9|Should we place some veins closer to the main area of the lower floor in Motherlode Mine?}}
+
+While we’re on the topic of Mining, we’d like to rename all Mining rocks to feature the name of the ore found there, even when they’ve been depleted. If this question is to pass, we would look to remove the prospect options from the rocks.
+
+{{News Poll|10|Should we rename the Mining rocks across Gielinor to feature the name of the ore found there?
+
+''(We would look to remove the prospect options from the rocks with this change.)''}}
+
+===Giants' Foundry Shop===
+Alright, let's take those ores and smelt them into bars ready for use at the Giants' Foundry, the new Smithing Skilling method introduced last year!
+
+We’ve seen a few… unfortunate incidents happen since this content was released, as overeager players purchased items they already owned from the shop. So, to help with any future mistakes, we’re offering the option to sell back the unique untradeable items found at the Giants’ Foundry shop for 80% of the original sell price.
+
+Note that this will not apply to Kovac’s Grog – and why would you want to hand it back? He worked so hard making it for you!
+
+{{News Poll|11|Should we allow you to re-sell unique untradeable items found in the Giants' Foundry reward shop back to Kovac for 80% of the original value?}}
+
+===Magpie Implings===
+Oh, what must it be like to be a skilling pure, pacifist by nature... unless you count the thousands of fish you’ve removed from the oceans, or the hundreds of Chinchompas you’ve imprisoned in the Bank…
+
+But there’s one thing missing from the idyllic skiller lifestyle: Rings of Recoil. While there have been multiple ways to obtain this item over the years, it’s not currently possible for skilling-only accounts to obtain one without trading. This means that the skillers of today and tomorrow have no way to obtain a previously-acquirable item!
+
+We’d like to offer a new way to obtain Rings of Recoil: from Magpie Implings!
+
+If you agree, we then need to determine whether Rings of Recoil will be a new drop on the loot table, or whether it should replace the Pineapple Seed drop. The choice is yours!
+
+{{News Poll|12|Should we allow Magpie Implings to drop Rings of Recoil?}}
+
+{{News Poll|13|If Question #13 passes, should Rings of Recoil be added to the drop table or replace the Pineapple Seed drop?
+*Added to the Drop Table
+*Replace the Pineapple Seed Drop}}
+
+===Extended Super Antifire Potions===
+[[File:Poll 78- Near-Miss & Skilling Improvements (6).png|center|600px]]
+
+
+On the back of Poll 77 we want to offer you another Herblore alternative, this time regarding Antifire Potions.
+
+Currently, you can go from an Antifire Potion to a Super Antifire Potion to an Extended Antifire Potion, but you can’t go from an Antifire Potion to an Extended Antifire Potion to an Extended Super Antifire Potion, which seems a little odd.
+
+So we’d like to make both routes available by allowing sufficiently skilled herblorists to add Crushed Superior Dragon Bones to Extended Antifire Potions, thereby turning them into Extended Super Antifire Potions.
+
+This will net you the same amount of XP as the existing method and will support Make-X and auto repeat functionality like any other potion.
+
+{{News Poll|14|Should we enable players to make Extended Super Antifire Potion by adding Crushed Superior Dragon Bones to Extended Antifire Potions?}}
+
+===Seeds for Birdhouses===
+Ahh, Fossil Island. We may not have decided what to do with those Rare Fossils, but this month we’ve been digging into Birdhouses instead.
+
+Birdhouses aren’t just a great way to train Hunter – they’re also good for getting rid of any unwanted seeds you have clogging up the Bank. Since it’s been a few years, we’d like to cautiously introduce some new food to the birds’ diet and add allotment, bush, and flower patch seeds to the mix.
+
+All of the newly introduced seeds will cost one seed per bird fed, similar to lower-level herb seeds!
+
+{{News Poll|15|Should we expand the selection of seeds that can be used on Birdhouses around Fossil Island to include allotment, bush and flower patch seeds?}}
+
+===POH Treasure Chests===
+Treasure Chests in Player Owned Houses can already hold a good chunk of coinage to reward players for completing your in-house challenges. However, due to some shenanigans these chests were nerfed to hold a maximum of 1,500 GP – far less than originally intended.
+
+We feel that since it’s been 16 years since the nerf, you should have the opportunity to stick more gold in your Treasure Chests.
+
+Here are the new values we propose:
+{|class=wikitable style="text-align:center;"
+! Chest Type
+! Games Room Chest
+! Dungeon Treasure Chest
+|-
+|Wood
+|N/A
+|10,000
+|-
+|Oak
+|20,000
+|20,000
+|-
+|Teak
+|50,000
+|50,000
+|-
+|Mahogany
+|100,000
+|75,000
+|-
+|Magic
+|N/A
+|100,000
+|}
+
+{{News Poll|16|Should we increase the value Treasure Chests in the POH can hold, as stated in the Poll 78 newspost?}}
+
+
+Let’s take a break from skilling for a moment and check out a change from our most recent Game Jam!
+
+==Theatre of Blood Entry Mode Improvements==
+[[File:Poll 78- Near-Miss & Skilling Improvements (7).png|center|600px]]
+
+
+With the recent release of Tombs of Amascut and all the learnings that came with it, Mod Ed decided to apply them to Theatre of Blood during our latest Game Jam!
+
+Before we jump in to the improvements, we just want to clarify that the amount of development time required to implement this change is now ''absolutely zero''. Thanks to Mod Ed’s hard work during the Game Jam, we don’t have to spend any additional hours on this project outside of uploading it to the game and the usual testing we do for every update.
+
+We're also aware that there are still plenty of improvements we could make to Tombs of Amascut. Fear not, that’s still on the docket – which is where you come in!
+
+You may remember that there’s a survey linked at the bottom of this page which will ask you to prioritise all the upcoming changes from this poll. At the same time, you’ll get the chance to tell us which Tombs of Amascut improvements you’d most like to see.
+
+While we wait for your responses to flood in, though, let’s get back to the topic of hand: improving Theatre of Blood Entry Mode!
+
+===Foe Hitpoint Scaling===
+In Theatre of Blood Entry Mode, your fearsome foes' hitpoints increase by 100% for each additional player. This means the raid is actually easiest with one player, which doesn't reflect how things are once you move to more advanced modes.
+
+ToA uses different hitpoint scaling, where the hitpoints increase by small amounts for each additional player. This keeps things more consistent. Along these lines, we want to change the scaling in ToB Entry Mode to:
+* 1 Player: Unchanged
+* 2 Players: +90%
+* 3 Players: +80%
+* 4 Players: +70%
+* 5 Players: +60%
+
+With the above, five players will have a hitpoint increase of 300% rather than 400%, as the percentages stack for every additional player. Three players would have a +170% increase ''(Base Hitpoints + 90% + 80%)''.
+
+For example, a foe with 100 hitpoints versus one player would have 400 hitpoints versus five players. Before, it would have had 500 hitpoints.
+
+===Number of Attempts===
+In Theatre of Blood Entry Mode, players are given three attempts at the raid. Every time the team wipes, an attempt is removed and the room they are in restarts. If all attempts are removed, you're booted from the raid and will need to restart from the beginning.
+
+By default, the Tombs of Amascut has unlimited attempts, allowing players to fail as many times as needed to complete the raid. Failing these attempts still punishes the player, as for each failure, less loot is given.
+
+We would like to update Theatre of Blood Entry Mode to also have unlimited attempts.
+
+===Supplies on Wipe===
+In Theatre of Blood Entry Mode, players are not given any supplies when the party wipes, meaning that even though they can make multiple attempts, the attempts become harder as the supplies are used.
+
+By default, the Tombs of Amascut gives supplies to everyone when the party wipes, with the number of supplies determined by what was used in the encounter.
+
+With this change, Theatre of Blood Entry Mode will be updated to also give supplies when the party wipes. As with Tombs of Amascut, the quantity of supplies will be based on what players used in the encounter, but the system will ensure that everyone will get a minimum level of supplies. The supplies in question will be the Bandages found elsewhere in the raid.
+
+===Failure Costs===
+In Theatre of Blood Entry Mode, players must pay 100,000 coins to reclaim their items if they fail – just like other modes.
+
+Tombs of Amascut, however, doesn’t charge for failed attempts, provided that unlimited attempts are enabled.
+
+We’d like to apply this rule to Theatre of Blood Entry Mode. Please note that other penalties for death, including loss of Hardcore status, won’t be changed.
+
+===Reward Quantities===
+Theatre of Blood Entry Mode gives no uniques and only gives 15% of the usual reward quantities. Even in Entry Mode, the Tombs of Amascut has a chance to give unique items and give significantly more regular loot.
+
+In a shocking twist, we actually '''don't''' plan to make uniques available in Theatre of Blood Entry Mode. It’s intended to be a practice mode, whereas Tombs of Amascut’s Invocation system means that any Raid Level is still technically the raid.
+
+That said, we think it’s fair to increase the amount of normal rewards from Entry Mode from 15% to 20% so that players are able to earn enough money to cover the supplies they used.
+
+===First-Time User Flow===
+Theatre of Blood Entry Mode has no true first-time user flow. By default, a player is set to Entry Mode, but there's nothing beyond that.
+
+The Tombs of Amascut prompts users to select their preferred mode the first time they attempt to form a party, making it clear that there are distinct difficulty modes to pick from.
+
+The final change in this batch will update the Theatre of Blood recruitment board to also have a basic prompt which appears on first use to ask players which mode they'd prefer.
+
+{{News Poll|17|Should we improve Theatre of Blood Entry Mode as described in the Poll 78 newspost?}}
+
+
+And as Osmumten might say, ''that's a wrap!'' Don’t forget to scroll down to the bottom of the newspost and leave your feedback on this and any Tombs of Amascut improvements you’d like to see.
+
+==Near Miss Questions==
+In our final set of questions, we’d like to present a few near-misses from over the years! These are all proposals that came within a hair’s width of passing the polls, and now that the polling process has changed, we’ve seen loads of you asking us to give them a second chance.
+
+This is by no means all of the near-miss questions we plan to reconsider, so keep your eyes peeled for more in future polls!
+
+One of the questions you’ll no doubt be missing regards Vesta’s Longsword. When it was originally polled it failed by just 0.4%, so we definitely want to run that question again – but we figured it would be more fitting to include it as part of the upcoming return of Bounty Hunter.
+
+In the meantime, here’s what’s on the ballot today!
+
+===PvP Special Attack Orb===
+It's only fitting we start with one of the most recent PvP near misses!
+
+As a quick recap, we’d like to enable to Special Attack Orb wherever you choose to fight other players – in the Wilderness, on PvP worlds, or inside PvP minigames like Last Man Standing.
+
+This method would still ''probably'' be slower than the classic route (unless you’re a tick-perfect osu! player), but will allow players to choose the attack method they find most comfortable.
+
+We reckon most active PvPers will stick with the OG method, as muscle memory and fast reactions are key to their style of gameplay – but we reckon having the alternative option wouldn’t hurt. Given that the original poll failed by only 0.4%, we think you all feel the same.
+
+{{News Poll|18|Should we enable the Special Attack Orb in the Wilderness, PvP Worlds and PvP minigames?}}
+
+===Prayer Filtering===
+From PvP to PvE, we'd like to repoll one of the most hotly-requested near-misses: reordering your Prayer tab. Previously, this question had a pass rate of 72.6%, which is pretty close to the mark!
+
+This change would allow you to reorder your Prayer tab so that the Prayers you use most often are in prime position. You’ll be able to filter by Prayer tier (Tier 1 being things like ‘Thick Skin’ and Tier 4 being things like ‘Piety’), healing Prayers, and locked Prayers you don’t yet have the requirements for.
+
+Please note that this change would not alter the size of the Prayer icons when filters are active.
+
+We think this change will be a much-needed QoL update – and if you feel the same, now’s your chance to make it happen!
+
+{{News Poll|19|Should players be able to filter which Prayers appear in the Prayer tab?
+
+''(Doing so would not affect the icon size)''}}
+
+===Spell Icon Sizes===
+On that topic, let’s talk spell icons. You can already filter these, but it doesn’t help a whole lot when the icons themselves are still ant-sized. On the mobile client, spell icons already change size in line with filtering, so for ✨consistency ✨, we want to make that happen on the desktop clients, too.
+
+The filtering system itself isn't changing and will still support everything that is currently available.
+
+That said, we'd like to continue to exclude PvP Worlds and PvP Areas from this change to prevent issues with Spell Swapping.
+
+{{News Poll|20|Should spell icons increase in size when you have filters enabled to better fit the Magic tab?
+
+''(This change would only affect non-PvP areas and would affect every spellbook: In PvP locations and relevant PvP worlds, spell icons will not resize and will automatically revert to the standard sized icons)''}}
+
+===Remove Hatius Cosaintus===
+[[File:Poll 78- Near-Miss & Skilling Improvements (8).png|center|600px]]
+
+
+Back in 2019 this garish little gremlin of a man was spared the chopping block by a mere 1.6% of the vote. He may have thought his worries were over, but we’ve decided otherwise.
+
+But hang on, you may say – Mr Cosaintus provides a valuable service to adventurers everywhere with his beloved Achievement Diary! Who will take on that role if he were to… ''disappear''?
+
+Well, we’ve already got a couple of applicants lined up who’ve been familiar faces around Lumbridge since the early days: Donie and Gee. These fine folk are upstanding citizens of Misthalin and they already help new adventurers along their journey – so they’re well-placed to introduce the Achievement Diary system.
+
+Whoever does succeed the unlikeable, monocle-wearing, '''[CENSORED]''' would replace Hatius in his original location.
+
+{{News Poll|21|Should Hatius Cosaintus be removed, and his role given to another NPC?
+
+''(The NPC will be based in Lumbridge)''}}
+
+{{News Poll|22|If Poll Question #21 passes, who should we give the role of Lumbridge Diary Master to?
+
+''(The chosen NPC will stand in Hatius Cosaintus’ current position)''
+*Donie
+*Gee
+*A new NPC}}
+
+===Abyssal Dagger Spec Cost===
+Onto our last near-miss for Poll 78!
+
+The Abyssal Dagger is the most powerful weapon of its kind currently in the game, but its special attack leaves much to be desired.
+
+We’d like to improve it somewhat by reducing the special attack cost from 50% to 25%, giving you a lot more bang for your buck!
+
+It’s worth pointing out that this question only failed by 0.3% last time it was polled – there’s a lot of Abyssal Dagger fans out there!
+
+{{News Poll|23|Should the special attack cost of the Abyssal Dagger be reduced from 50% to 25%?}}
+
+===Belladonna Buffs===
+[[File:Poll 78- Near-Miss & Skilling Improvements (9).png|center|600px]]
+
+
+Before we move on to the three further unpolled changes, we want to discuss one of them here.
+
+Now that Poison Dynamite is out there in the world, we've found that actually creating them is actually a bit of a pain point. As the main ingredient used is Cave Nightshade, we’d like to make sure you’ve got the means to gather more so you can get back to kickin’ ass quicker!
+
+To that end, we’re increasing the yield of Belladonna crops.
+
+Currently, you're guaranteed three to eleven Cave Nightshades (at level 90 Farming) per harvest. We’re increasing this to six Cave Nightshades at level 33 Farming, scaling up as follows:
+* Level 63 Farming: 6 - 13
+* Level 70 Farming: 6 - 14
+* Level 80 Farming: 6 - 16
+* Level 90 Farming: 6 - 17
+* Level 99 Farming: 6 – 18
+
+Note that the actual XP gained per harvest will not be changing.
+
+Now, as this will increase the amount of Inventory space needed to farm this stuff, you’re going to run out of slots very quickly. So, here’s the ''secret bonus poll question:'' should we make Cave Nightshades into a stackable, untradeable item?
+
+Weirdly this will not affect the Cave Nightshades gathered at the Skavid Caves, as that’s a different version of the crop.
+
+Also, should this question pass, you’ll only be able to poison your Dynamite using a full set of one kind of Cave Nightshade – so you can’t use two farmed and one gathered Nightshade to craft.
+
+{{News Poll|24|Should we create a stackable, untradeable version of Cave Nightshade exclusively available from Farming?}}
+
+
+Now, onto the unpolled changes!
+
+==Unpolled Changes==
+===Strength XP in Puro Puro===
+Sticking with the theme of near-misses, one we came up with earlier discussed letting players opt-out of receiving Strength XP from pushing through the walls of the magical wheat maze in Puro Puro.
+
+Although the original design failed the polls, we thought it was pretty important, so we’ve changed how it works slightly. Instead of opting ''out'' of gaining Strength XP, you’ll instead have to opt ''in'' via the Elnock Inquisitor. This means that nobody will accidentally and unexpectedly be gaining Strength XP, but everyone who wants to push that wheat extra hard can do so with impunity.
+
+The speed you push through the wheat will stay the same as always, including with Farmers’ Affinity activated. This isn’t something we’re looking to change.
+
+===Catalytic Tiaras===
+Since the launch of Guardians of the Rift players have been able to use the Catalytic Talisman obtained as a reward to skip the final section of Mourning’s End Part II, wherein Thorgel sends you on a scavenger hunt for random bits and bobs.
+
+Although this was definitely not intended, we have left it unchanged for the last nine months, so instead of suddenly reverting the change we’re leaving it in and giving you a bit more flexibility.
+
+As it works in the same way, going forward we’d like players to also be able to use the Catalytic Tiara to access the Altar during the quest, so you can bring some FashionScape to the heart of West Ardougne.
+
+===Pyramid Plunder===
+Enjoy plundering the Pyramid in Sophanem but hate those pesky swarms that stop you from looting the Sarcophagus?
+
+Although this has been how it's worked since the game was first introduced, we feel that behaviour isn't consistent with how you loot the urns. So, instead of keeping it something annoying and inconsistent, the swarms will no longer prevent you from opening the Sarcophagus if you're being attacked by them.
+
+Instead, they will pause their attack for up to 20 ticks as long as you're on the same tile you were on when you interacted with the Sarcophagus. However, if you move away from the tile, spend too long trying to open the Sarcophagus or succeed in opening it, the swarm will resume their attack!
+
+Unfortunately, this change does mean you will stop trying to open the Sarcophagus but simply click it again and you should keep going. Hopefully, this change makes your trips inside the Pyramid that little bit better!
+
+==Have Your Say! Poll 78 Survey==
+At last! The survey we promised at the top of the post is here! Your tireless scrolling is rewarded with the opportunity to tell us which of these changes we should prioritize. This will directly shape our release schedule for this Poll – although bear in mind that ‘quick win’ changes will probably be completed faster regardless, simply because they take less time.
+
+You’ll also get the chance to tell us about any future Tombs of Amascut improvements you’d like to see and prioritize them accordingly.
+
+Click the button below to get started!
+
+[[File:Poll 78- Near-Miss & Skilling Improvements (10).png|center|199px|link=https://jagex.eu.qualtrics.com/jfe/form/SV_6Wsp7XINdWoRSRM]]
+
+
+Well, that just about covers everything from Poll 78. Make sure to let us know what you think of the questions and whether or not you think we need to make any adjustments on the usual social channels.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,857,66272347 official forums], on the [https://www.reddit.com/r/2007scape/comments/10ed4dx/poll_78_nearmiss_skilling_improvements/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Stevew, Surma, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

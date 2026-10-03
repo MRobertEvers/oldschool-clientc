@@ -1,0 +1,271 @@
+{{Update|date=15 November 2019|rev=20 November 2019|link=https://secure.runescape.com/m=news/game-improvements-poll-blog?oldschool=1|category=community}}
+[[File:Game Improvements Poll Blog newspost.png|right]]
+{{clear}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Game Improvements Poll}}
+
+
+The time has come once again to chip away at the backlog and propose a list of game improvement changes!
+
+Our suggestion to amend the polling system to better represent niche communities is still being considered. Our next step is to gather community-wide opinions in our upcoming Annual Survey, and use that data alongside polling behaviour data to come to a decision. In the meantime, the questions in this poll affect the entire community, and so it will be open to everyone.
+
+Let us know what you think of the questions being polled and as always, we're happy to take further suggestions.
+
+This poll is due to open on '''November 20th''' and close on the '''25th'''. Any features that pass may not arrive until early next year.
+
+'''Changelist:'''
+*Questions #3 and #6 were added to offer extra functions to the herb and gem sacks.
+*Question #7 was added to include the Seed Box.
+*Questions #12 and #13 were changed so that only the most popular of the two will be implemented in the event that both pass.
+*The spice shakers and spice racks (if either pass) will be inaccessible to Ultiamte Ironmen.
+*Toggles were added to the offerings in questions #14, #15, and #16.
+*Question #29 was changed so that players can dig up the herb immediately rather than waiting one growth stage. However, this means moving when *the planting XP is given.
+*The number of firelighters needed to recolour the Phoenix pet (Question #10) was reduced from 1,000 to 250.
+*Option D (A combination of options B and C) was added to Question #31 regarding Dragonstone Armour.
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll Questions}}
+
+
+'''Bags & Sacks'''
+
+[[File:Game Improvements Poll Blog (1).png|center|90px]]
+
+
+The Looting Bag allows players to store items while in the Wilderness. The 'Open' option puts items from the ground straight into the bag. We would like other bags to have this functionality.
+
+{{News Poll|1|Should the Coal Bag have an 'Open/Close' option? When the bag is open, coal that you mine would go into the bag instead of your inventory.}}
+{{News Poll|2|Should the Gem Bag have an 'Open/Close' option? When the bag is open, gems that you mine would go into the bag instead of your inventory.}}
+{{News Poll|3|If Question #2 passes, should this effect apply to gems stolen from Tzhaar creatures?}}
+{{News Poll|4|Should the Herb Sack have an 'Open/Close' option? When the sack is open, grimy herbs that you pick up would go into the sack instead of your inventory.}}
+{{News Poll|5|If Question #4 passes, should this effect apply to herbs grown in farming patches?}}
+{{News Poll|6|If Question #4 passes, should this effect apply to herbs harvested from a Herbiboar?}}
+{{News Poll|7|Should the Seed Box have an 'Open/Close' option? When the box is open, seeds that you pick up would go into the box instead of your inventory.}}
+
+
+'''The Bruma Torch'''
+
+[[File:Game Improvements Poll Blog (2).png|center|100px]]
+
+
+We've had several suggestions for making the Bruma torch from the Wintertodt more useful. One of the more popular suggestions, changing it to an off-hand item, may be possible later down the line, but requires extra work as it's currently equipped in the main hand. In the meantime, we'd like to offer these two changes:
+
+{{News Poll|8|Should the Bruma Torch be able to light the braziers in Wintertodt?}}
+{{News Poll|9|Should the Bruma Torch act as a light source and be usable for smoking Hunter traps? This would bring it in line with regular torches.}}
+
+
+'''Phoenix Recolours'''
+
+[[File:Game Improvements Poll Blog (3).png|center|130px]]
+
+
+Alternate versions and recolours of existing pets are a popular request. For now, we're able to offer these recolours (which require less resources) while our graphics team work on other projects.
+
+{{News Poll|10|Should players be able to recolour their phoenix pets using 1,000 gnomish firelighters? The firelighters would all have to be the same colour. The available recolours would be red, green, blue, purple, and white.}}
+
+
+'''Charter Ships'''
+
+[[File:Game Improvements Poll Blog (4).png|center|400px]]
+
+
+{{News Poll|11|Should a right-click/long-press 'Previous Destination' option be added to charter ships? Selecting this option would take you to the last place you chartered a ship.}}
+
+
+'''Spicy Upgrades'''
+
+[[File:Game Improvements Poll Blog (5).png|center|90px]]
+
+
+The spices used to make spicy stews take up a lot of bank space, so we'd like to offer two potential ways to store them. Neither of these options would be accesible to Ultimate Ironman accounts.
+
+{{News Poll|12|Should the rat behemoths in Evil Dave's basement have a 1/3 chance to drop one of Doris' shakers? Each behemoth would drop one of four coloured shakers which could be used to store an (almost) infinite number of doses of their respective colour spice. If both this and Question #13 pass, only the one with the most Yes votes will be implemented.}}
+{{News Poll|13|Should players be able to build a Spice Rack in the Kitchen of their Player Owned Houses? It would require 60 Construction, 3 Teak Planks, 6 Soft Clay, and the 4 dose versions of each colour spice. The rack would be used to store an (almost) infinite number of doses of each spice. If both this and Question #12 pass, only the one with the most Yes votes will be implemented.}}
+
+
+'''Doing Things With the Bank Open'''
+
+[[File:Game Improvements Poll Blog (6).png|center|80px]]
+
+
+Being unable to use items while they're in the Bank means you often have to open and close the Bank interface, withdrawing and depositing items multiple times. To improve the experience of using the Bank, we'd like to offer the following:
+
+{{News Poll|14|Should a toggleable right-click/long-press 'Equip' option be added to equipable items in your inventory while the Bank interface is open? A button in the Bank interface would be added to see your equipped items should you wish to unequip them again without closing the interface.}}
+{{News Poll|15|Should a toggleable right-click/long-press 'Eat' option be added to food in your inventory while the Bank interface is open?}}
+{{News Poll|16|Should a toggleable right-click/long-press 'Drink' option be added to suitable items in your inventory while the Bank interface is open?}}
+
+
+'''The Graceful Effect'''
+
+[[File:Game Improvements Poll Blog (7).png|center|70px]]
+
+
+Currently, players don't receive any run restoration bonuses from earning pieces of the Graceful set until the whole outfit is obtained. We'd like to split the run-restore bonuses among each piece and create an additional bonus for wearing the complete set. The more expensive pieces (top and bottoms) would give 4% each and the less expensive (the rest) would give 3%.
+
+{{News Poll|17|Should the increased run restoration effect be split among the pieces of the Graceful outfit? Each piece would give 3% or 4% increased run energy restoration with a 10% bonus for wearing the full set, matching the current total of 30%.}}
+
+
+'''Clues'''
+
+[[File:Game Improvements Poll Blog (8).png|center|120px]]
+
+
+We would like to offer an emote as the milestone reward for completing 600 Beginner clues. The number 600 was chosen in line with other clue milestone rewards (100 Master, 200 Elite, 300 Hard etc). The emote would have the player 'explore' by raising a sextant and searching for the next clue!
+
+{{News Poll|18|Should a new 'explore' emote be added as a reward for completing 600 Beginner clues?}}
+{{News Poll|19|Should Air, Water, Earth, Fire, Mind and Body talismans be added to the Beginner clue loot table?}}
+{{News Poll|20|Should the Hard clue step that requires players to enter the Duel Arena be moved to outside the actual arena? This would mean they would no longer require the assistance of another player to complete this step.}}
+
+
+'''Crystal Tools'''
+
+[[File:Game Improvements Poll Blog (9).png|center|100px]]
+
+
+Currently Crystal tools cannot be used at all when they run out of charges. They also use charges in cases where the extra benefit of being a crystal item don't apply (such as using a Crystal Pickaxe to mine dense essence or fight the guardians in the Chambers of Xeric). We'd like to change these to make them fairer to use.
+
+{{News Poll|21|Should Crystal tools behave as their Dragon counterparts do rather than become unusable when they are inactive? This would be in line with Infernal tool behaviour.}}
+{{News Poll|22|Should Crystal tools be prevented from consuming charges when using them doesn't provide an additional benefit?}}
+
+
+'''New Music Notifications'''
+
+[[File:Game Improvements Poll Blog (10).png|center|90px]]
+
+
+{{News Poll|23|Should players receive a red message in the chatbox when they receive a new music track? This would come with a toggle for the feature to be enabled/disabled in the settings tab.}}
+
+
+'''The Theatre of Blood'''
+
+[[File:Game Improvements Poll Blog (11).png|center|200px]]
+
+
+Some aspects of the Maiden of Sugadinti boss fight in the Theatre of Blood are RNG dependent, which can be frustrating. We'd like to change these to be more skill based without affecting their difficulty.
+
+{{News Poll|24|If you dodge the Maiden's blood splat attack, should the chances of a blood spawn appearing be halved?}}
+{{News Poll|25|Should the blood spawns cap be lowered overall, and increase as the Maiden absorbs nylocas?}}
+{{News Poll|26|Should the chances of freezing the nylocas during the Maiden boss fight scale based on the player's effective Magic accuracy bonus (including hidden bonuses such as the Void knight set), reaching 100% at 140 and above?}}
+
+
+'''Interface Improvements'''
+
+At RuneFest we mentioned that we were working on improvements to the Puro Puro and Mage Training Arena interfaces. Here are the options:
+
+{{News Poll|27|Should the Puro Puro interface be updated to the one shown in the poll blog? It features better use of space.}}
+
+The current interface:
+
+[[File:Game Improvements Poll Blog (12).png|center]]
+
+
+The new, proposed interface:
+
+[[File:Game Improvements Poll Blog (13).png|center]]
+
+
+{{News Poll|28|Should the Mage Training Arena interface be updated to the one shown in the poll blog? It matches the style of other interfaces and features quantity buttons for easier bulk-purchasing.}}
+
+The current interface:
+
+[[File:Game Improvements Poll Blog (14).png|center]]
+
+
+The new, proposed interface:
+
+[[File:Game Improvements Poll Blog (15).png|center]]
+
+
+'''Removing Herbs'''
+
+[[File:Game Improvements Poll Blog (16).png|center|120px]]
+
+
+When you accidentally plant the wrong tree sapling, it's possible to dig it up again. We'd like to extend the same functionality to herbs.
+
+{{News Poll|29|Should players be able to dig-up herbs after planting them? If this question passes, the XP given for planting the seed will be given when the herb is cleared or harvested instead.}}
+
+
+'''The Jewellery Box'''
+
+[[File:Game Improvements Poll Blog (17).png|center|130px]]
+
+
+{{News Poll|30|Should the Jewellery Box found in Player Owned Houses receive a right-click/long-press 'Previous Location' option? This would teleport the player to the last location that the Jewellery Box was used to teleport to.}}
+
+
+'''Dragonstone Armour'''
+
+After the Song of the Elves launch we revisited the design of Dragonstone armour based on your feedback. Since then, we're reworked alternate looks even further and would like to offer the following:
+
+Unlike the other poll questions in this blog which require the standard 75% pass rate, this opinion poll will determine which version will be implemented based on which one is most popular.
+
+{{News Poll|31|Which version of Dragonstone armour do you prefer? The most popular option will become the final appearance of the set.}}
+
+
+[[File:Game Improvements Poll Blog (18).gif|center|300px]]<center>''Option A: the current design''</center><br/>
+[[File:Game Improvements Poll Blog (19).gif|center|300px]]<center>''Option B: a lower detailed version''</center><br/>
+[[File:Game Improvements Poll Blog (20).gif|center|300px]]<center>''Option C: a newer, more basic design''</center><br/>
+[[File:Game Improvements Poll Blog (21).gif|center|300px]]<center>''Option D: a combination of options B and C''</center>
+
+
+'''Prayer Re-Ordering'''
+
+[[File:Game Improvements Poll Blog (22).png|center|70px]]
+
+
+This feature would allow players to customise the order in which Prayers appear in the Prayer tab. It was polled previously, failing at just under 75%. Due to recent demand, we'd like to offer this once again.
+
+{{News Poll|32|Should players be able to re-arrange the order in which Prayers appear in the Prayer tab? Doing so would not affect the icon size.}}
+
+
+'''Re-Obtainable Quest Items'''
+
+[[File:Game Improvements Poll Blog (23).png|center|100px]]
+
+
+Some items may only be received during their related quests. Occasionally, there will be no way to recover them if they are destroyed, so we'd like to poll options for re-obtaining them in the two instances below. If there are other items that you would like the chance to re-obtain, we're open to suggestions.
+
+{{News Poll|33|Should players be able to receive a new Blurite Sword by giving Thurgo a blurite ore and 2 iron bars after completion of The Knight's Sword quest?}}
+{{News Poll|34|Should players be able to receive a new Dark Dagger from Radimus Erkle after completing Legends' Quest?}}
+
+
+'''Weiss Teleport'''
+
+[[File:Game Improvements Poll Blog (24).png|center|100px]]
+
+
+{{News Poll|35|Should the Weiss Teleport be made available via the Portal Nexus in the Player Owned House?}}
+
+
+'''Arceuus Teleports'''
+
+[[File:Game Improvements Poll Blog (25).png|center|100px]]
+
+
+{{News Poll|33|Should the teleports available on the Arceuus spellbook be made available via the Portal Nexus in the Player Owned House?}}
+
+
+'''Voting from the Account Management Tab'''
+
+The final change we'd like to implement is designed to streamline the voting process. Currently, players have to go to a Poll Booth in game to vote on polls - this popular suggestion would allow them to do it from the interface.
+
+[[File:Game Improvements Poll Blog (26).png|center]]<center>''The poll buttons as they would appear. Note: the icons next to the buttons are placeholder only.''</center>
+
+
+{{News Poll|37|Should the Account Management tab be updated to show when a poll is open, open the past poll archive, and allow players to vote?}}
+
+
+'''Fremennik Sea Boots'''
+
+[[File:Game Improvements Poll Blog (27).png|center]]
+
+
+{{News Poll|38|Should Fremennik Sea Boots (from the Fremennik Achievement Diary) have their inventory icons adjusted to point at an angle as shown in the poll blog? This should make them look more like boots.}}
+
+{{Horizontal Line}}
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Nasty, Oasis, Roq, Ry, Sween, Tide, Weath & West The Old School Team'''''

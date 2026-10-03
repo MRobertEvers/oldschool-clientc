@@ -1,0 +1,161 @@
+{{Update|date=2 August 2018|link=http://services.runescape.com/m=news/tournament-world-mobile-enhancements-and-theatre-of-blood-tweaks?oldschool=1|category=game}}
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks newspost.png|right]]
+
+{{clear}}
+{{Headline|25|Tournament World, Mobile Enhancements and Theatre of Blood Tweaks}}
+<center>''This week sees the release of a few Theatre of Blood feedback changes, some mobile enhancements and the opening of a Tournament world which will be available for the next two weeks!''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Tournament World}}
+
+Four new Tournament worlds have been added this week, giving you the freedom to select your own stats and a wide range of equipment to choose from to handcraft your perfect set up every time.
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (1).png|center]]
+
+Whether you've been playing Old School RuneScape for a week or since the release, Tournament worlds are the perfect way to develop and hone your abilities in a PvP scenario ''(or just cause some carnage in the arena)''.
+
+For those unfamiliar with Tournament worlds, logging into one will place you here: 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (2).png|center]]
+
+Once you've logged in, you'll notice a nearby table. This table allows you to quickly grab your gear and modify your stats by right-clicking it: 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (3).png|center]]
+
+Selecting "Take" from the table will open an interface which lists lots of different equipment for you to choose. These include rewards from some of the latest content including the Theatre of Blood, the latest Revenant Cave uniques and more! 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (4).png|center]]
+
+Selecting "Set-stats" from the table will open an interface that lists all of your skills and your current level beside it (in brackets). If you want to change any of these, simply select one of the skills and type the level you'd like it to be changed to. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (5).png|center]]
+
+To the west of the table, you'll notice an Altar. You can right-click this Altar to change your current spellbook! 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (6).png|center]]
+
+The Tournament world will be open for the '''next two weeks''' until the game update on Thursday the 16th August, so ready your arms, prepare your shield walls, and remember, it's not over until your opponent has fallen!
+
+''Please note that Tournament worlds will not remember what gear or stats you had from your previous session. Each time you log in you will have to select your gear and stats again.''
+
+{{Horizontal Line}}
+
+{{Headline|22|Mobile Enhancements}}
+
+The feedback we've been receiving from everyone participating in the Android open beta has been invaluable in helping us identify further improvements that can be made to ensure Old School RuneScape on mobile is the best experience possible. Remember to make use of the [http://services.runescape.com/m=forum/forums.ws?429,430 Old School Mobile Testing] forum to provide feedback and report any issues you encounter.
+
+We hope to have more information regarding the progress of mobile outside of the Android beta and for an iOS release soon, but for now, we'd like to highlight some of the most recent changes you'll see in this week's game update.
+
+'''Single Sign-on'''<br/>We're rolling out SSO to a small group of players this week, namely those involved in the May 2018 Closed Beta. We plan to include more players in SSO over the coming weeks, so don't worry if you don't see it just yet! Single Sign-on allows for you to log in on mobile without having to enter your username and password again with a simple tap, ''once it's configured of course.''
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (7).png|center]]
+
+When logging into mobile you will be prompted for your Username and Password, as usual. If you have the Authenticator active then you'll be asked for that too. It's worth noting that if you enter your Username and Password and cancel the Authenticator then the SSO token will still be present for you to be able to "Play Now", but you will continue to be asked for the Authenticator code until it is provided. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (8).png|center]]
+
+To remove SSO you can simply tap "Sign out", and you'll be asked for confirmation. Once confirmed the token is then removed and when logging in next you'll again be asked for your Username and Password (and Authenticator code, if you have it set). 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (9).png|center]]
+
+Alternatively, you can manage all active sessions via your Account Settings. Scroll to the bottom of the options and select "Update Preferences". Here you can "End Mobile Sessions", meaning that any stored SSO tokens will be removed. Additionally, changing your Password in any way will result in the SSO token being removed. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (10).png|center|600px]]
+
+We've changed the sprite used for each Function button on mobile to represent its currently selected function, and to better display whether it's toggled on or off. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (11).png|center]]
+<center>''From left to right in the above image: Keyboard, Tap to Drop & Single Tap.''</center>
+
+'''Keyboard''': Select the Function button to bring up the keyboard.
+'''Tap to Drop''': Select the Function button to activate tap to drop.
+'''Single Tap''': Select the Function button to activate single tap. Anything you select will bring up more menu options when you tap, rather than performing the default tap action. 
+
+n addition to changing the sprites used, we've added a feature that will cause your inventory to turn red when Tap to Drop mode is active. This is to help prevent players accidentally dropping items due to not realising the feature is enabled. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (12).png|center|600px]]
+<center>''The above image showcases how the inventory looks when Tap to Drop is enabled.''</center>
+
+The option to toggle tapping through the chatbox has now been added to the advanced options in the settings tab when playing on a mobile device. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (13).png|center]]
+
+''Curious about testing Old School RuneScape on your device? Read the [http://services.runescape.com/m=news/osrs-mobile-android-members-beta?oldschool=1 OSRS Mobile: Android Members Beta] newspost for more information.''
+
+{{Horizontal Line}}
+
+{{Headline|22|Theatre of Blood Tweaks}}
+
+Sotetseg's projectiles will now be more consistent and the duration they disable protection prayers for has been reduced.
+
+Nylocas Vasilias will no longer be able to instantly attack players after switching combat styles.
+
+Verzik Vitur's attacks during her final form will now calculate damage dealt as you get hit, rather than when she fires her projectiles. 
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The Teleport to House and Teleport to house tabs now have right-click options for you to teleport inside and outside of your house. The left-click option will continue to respect the option you have selected in your house settings menu. 
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (14).png|center]]
+
+Some messaging has been implemented for when members log into free to play worlds.
+
+An issue with a cutscene during the Kings Ransom quest has been fixed.
+
+It is now easier to distinguish between charged and uncharged versions of the Dragonfire ward.
+
+The sound effect used for the Teleport to house spell has been changed to an area sound effect in order to be consistent with other teleport spells.
+
+Capitalisation has been added to the Great Olm's name.
+
+A few Mammoths were spawning on top of trees. They've been asked politely to stop doing that.
+
+The Elemental Wizards south of Falador now give loot at the end of their death animation rather than the beginning.
+
+The wording displayed when trying to buy a medium gamble at Barbarian Assault without the correct requirements has been changed.
+
+A missing word in the Tourist Trap's quest journal has been added.
+
+The Scythe of Vitur has been buffed. It can now slash webs.
+
+The Ring of life now displays a message when you change your teleport option to your default spawn point.
+
+A missing space has been added to a message received during the Murder Mystery quest.
+
+Cooks Assistant, Sheep Shearer and Imp Catcher will now recognise that you have the items required to complete the quest upon starting each of them.
+
+A spelling error within Doric's quest has been fixed. 
+
+{{Horizontal Line}}
+
+[[File:Tournament World, Mobile Enhancements and Theatre of Blood Tweaks (15).png|center]]
+
+Last Summer we partnered with Twitch to deliver ''one free month of membership'' for every player with Twitch Prime, and we are absolutely delighted to announce that we'll be partnering with Twitch Prime once again. Details of the partnership can be found below! 
+
+'''Old School RuneScape and Twitch Prime'''
+
+Between '''Thursday 26th July - Thursday 19th September''' members of '''[https://www.twitch.tv/prime?ref_=SM_CM_RUNE18_MIC Twitch Prime]''' can claim '''one free month of membership''' and get access to the ''purple skin colour.'' Players without Twitch Prime will gain access to the skin colour once the partnership has ended. 
+
+'''Using Twitch Prime'''<br/>
+Getting the membership and getting the purple skin colour can be done in just four easy steps: 
+*'''Step 1:''' [https://twitch.amazon.com/prime?ref_=SM_CM_RUNE2_MS_US Claim the Twitch Prime Umbral Pack]
+*'''Step 2:''' [https://secure.runescape.com/m=twitch_integration/hop?redirto=https:runescape:main:account/linked-accounts/twitch/redeem#_ga=2.244682764.8239735.1532420115-676587761.1527680787<!--this ga hash is also in the newspost and not dynamically added - dont remove!--> Link your Twitch and RuneScape accounts]
+*'''Step 3:''' Well, you now have the free month of membership! 
+*'''Step 4:''' Visit the Makeover Mage (found just South-West of Falador) to make yourself purple! 
+
+We're delighted to tell you that Twitch offer a 30-day free trial to Twitch Prime. Those of you without Twitch Prime - '''[https://twitch.amazon.com/prime?ref_=SM_CM_RUNE2_MS_US Start your free trial today!]'''
+
+Another benefit of Twitch Prime is a free subscription to a Twitch streamer each month. Put your free subscription to good use and support one of our fantastic Old School RuneScape content creators. Head to the '''[http://osrs.game/streamers Old School RuneScape stream directory]''' to see who is live and to show some love!
+
+If there are any other questions you might have about Twitch Prime then please do visit our very handy [https://support.runescape.com/hc/en-gb/articles/360001335949 Twitch Prime FAQ]. 
+
+{{youtube|8DGuzVDUpMU|width=420|height=345}}
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,502,66031543 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

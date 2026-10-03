@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Don't Look at Me!
+|image = [[File:Xarpus.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Xarpus in the Theatre of Blood: Entry Mode without him reflecting any damage to anyone.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 392
+|leagueRegion = Morytania
+}}
+'''Don't Look at Me!''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to kill [[Xarpus]] in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] without him reflecting any damage to anyone. 
+
+
+If you fail this achievement, dying and restarting the fight will not reset it. You must begin a new raid. It may be helpful to use a slower weapon, attacking only once or twice per Xarpus's turn, to not fail. Using a blowpipe may cause accidental attacks.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+{{Combat Achievements}}

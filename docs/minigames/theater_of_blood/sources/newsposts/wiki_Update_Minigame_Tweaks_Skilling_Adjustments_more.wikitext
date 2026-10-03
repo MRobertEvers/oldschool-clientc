@@ -1,0 +1,154 @@
+{{Update|date=23 May 2024|url=https://secure.runescape.com/m=news/minigame-tweaks-skilling-adjustments--more?oldschool=1|category=game}}
+[[File:Minigame Tweaks, Skilling Adjustments & more! newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''This week’s update brings minigame improvements and some tweaks to recent Skilling changes from Project Rebalance. Note that there are a number of 'under the hood' changes this week, which may result in third-party clients such as RuneLite needing a little more time to get up-to-date.''
+
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+==Changelog==
+
+'''Project Rebalance: Skilling Tweaks'''
+
+* Expert Mining Gloves now work with Sandstone and allow players to mine one extra unit before the rock depletes.
+* HOTFIX: Increased the minimum contribution required for loot eligibility at Zalcano.
+* HOTFIX: All players must now deal some ‘armour’ damage to Zalcano to be eligible for drops.
+* HOTFIX: Applied a delay to re-entering the Brimhaven Agility Arena after teleporting out.
+* Lowered fail rates when pickpocketing gnomes, paladins and heroes.
+* Re-adjusted the fever spiders’ loot table.
+* Corrected messaging that plays when the Ore Sack at Motherlode Mine is full.
+* Efaritay’s Aid now correctly interacts with tier 1 and 2 vampyres.
+
+'''Minigame Improvements'''
+
+* Adjusted XP drops from various activities in Trouble Brewing.
+* Converted Pieces of Eight from tangible items to account variables, in-line with other minigame currencies.
+* Added a ‘Classic Free-to-Play- option to the ‘Magic’ dropdown in Clan Wars set-up. This setting makes Bind the only ‘freeze’ spell available.
+* Fully-grown plants in Tithe Farm no longer decay.
+* Tears of Guthix now shows your Personal Best while collecting tears.
+* Visually updated the entry barrier in Guardians of the Rift.
+
+'''Other Changes'''
+
+* Players may now set their own +x% and -x% buttons in the Grand Exchange. Right-click the button to alter the value.
+* Changed how Verzik scales in Theatre of Blood.
+* Added a warning message when releasing Mature Tecu Salamanders.
+* Restored the troll tunnels leading to Trollweiss to single-way combat.
+* The Staff of the Dead’s special attack is now cleared when using a Rejuvenation Pool.
+* Added a new option which allows players to choose which sound plays when they are hit by an enemy.
+* The left-click option on Elven Teleport Crystals can now be toggled between Lletya and Prifddinas.
+* Adjusted animations on wyrms to make them more accessible for players at risk of seizures.
+* Fixed a bug which allowed players to skip Vet’ion’s second phase.
+
+{{Collapsed section end}}
+
+==Project Rebalance: Skilling Tweaks==
+[[File:Minigame Tweaks, Skilling Adjustments & more! (1).jpg|600px|center]]
+
+It’s been a couple of weeks since the first part of Project Rebalance went live, and we’re happy with where most of the changes are at. Even so, we have a few more tweaks for you this week.
+
+First, an update on Expert Mining Gloves, which have been re-enabled for Sandstone with some minor balancing changes. Initially, players were able to mine a whopping three extra Sandstone before the rock depleted, which was a little stronger than we intended. As of today’s change, they’ll be able to mine ''one'' extra.
+
+Sticking with the Mining theme, we also hotfixed a couple of Zalcano changes. To deter leeching, all players must now deal some armour damage to Zalcano, regardless of how much health damage they deal over the course of the fight. Additionally, the minimum contribution required has increased.
+
+A third hotfix applies a delay when re-entering the Brimhaven Agility Dungeon after teleporting out. This prevents players using the Achievement Diary Cape to repeatedly teleport out, re-enter and tag a pillar close to the entry ladder, resulting in unexpectedly high XP rates.
+
+Last week, we reduced fail rates when pickpocketing paladins, gnomes and heroes – but many of you still feel they don’t hit the mark. This week we’re improving their fail rate ''even more''. Note that XP per hour for these NPCs does scale drastically with your Thieving level. Paladins, for example, ramp up from ~90,000 XP per hour at Level 70 to potentially over 180,000 XP per hour at Level 99.
+
+Along similar lines, we’re ''walking back'' a change we made to fever spiders loot table last week which turned them into powerful, risk-free AFK moneymakers. That’s another kind of spider altogether, so we’ve taken things down a notch by replacing the Rune Medium Helm and Battleaxe with their Adamant equivalents and swapping Water Battlestaves for Limpwurt Roots. We remain open to further changes following your feedback.
+
+To round us off, we have two tiny tweaks:
+
+* Corrected messaging that plays when the Ore Sack at Motherlode Mine is full.
+* Efaritay’s Aid now correctly interacts with tier 1 and 2 vampyres, instead of ''reducing'' damage dealt to them.
+
+==Minigame Improvements==
+[[File:Minigame Tweaks, Skilling Adjustments & more! (2).jpg|600px|center]]
+
+Today’s update also brings a selection of QoL changes to minigames all over Gielinor:
+
+* Various skilling actions in Trouble Brewing now provide XP for the associated skill:
+** Capturing a Monkey awards 15 Agility and 15 Hunter XP.
+** Increasing the Boiler pressure awards 80 Strength XP.
+** Lighting logs in the Boiler now awards 320 Firemaking XP, up from the 40 XP provided when adding logs to the Boiler.
+** Obtaining a Bitternut awards 160 Hunter XP.
+** Depositing a Bitternut into the Hopper awards 640 Cooking XP.
+** Obtaining Scrapey Tree Bark from logs awards 160 Fletching XP.
+** Depositing Scrapey Tree Bark into the Hopper awards 320 Cooking XP.
+** Obtaining Sweetgrubs awards 160 Hunter XP.
+** Depositing Sweetgrubs into the Hopper awards 320 Cooking XP.
+** Adding your team's coloured water to the Hopper awards 320 Cooking XP.
+** Figuring out how any of this results in ‘Rum’ earns you the gratitude of the entire Community Management team.
+* The reward currency from Trouble Brewing, Pieces of Eight, have been converted into a variable stored on your account rather than a physical item. This brings them in line with other Minigame currencies.
+* Added a new 'Classic F2P' option to the 'Magic' dropdown while setting up a Clan Wars game. This setting makes it so that Bind is the only 'freeze' spell available in a game with this setting enabled.
+* Fully-grown plants in Tithe Farm will no longer decay.
+* Tears of Guthix will now show your Personal Best while you're collecting tears.
+* The Guardians of the Rift entry barrier has received some visual updates. It should be even more red when you're unable to enter the minigame, and we've added a new 'Red, Eye Open' variant for scenarios where the player count has reached 200 but the game has not yet started.
+
+It's worth noting that our next QoL Poll will see us focus on more significant changes to some minigames/activities, including Wintertodt and Guardians of the Rift.
+
+==Other Changes==
+Just like all good updates, we've got a scattering of smaller updates spread throughout a variety of content that's not easy to group up with everything else. 
+
+Up first is a change to the Grand Exchange interface, allowing you to set up your own +X% and -X% buttons when buying or selling - for the trader in a serious ''rush''.
+
+You can use these buttons to enter in any custom amount you'd like to strike the perfect balance between 'less spam clicking on the 5% button' and 'paying millions of GP for one niche Quest item'! Right-clicking on the button lets you customise this value at any time.
+
+Next is a change to the Theatre of Blood, specifically to how Verzik scales to one remaining player in Normal mode Theatre of Blood. These changes were initially floated to you alongside Project Rebalance, but have been worked on by a different team - hence their slightly earlier release!
+
+* If only one player remains during Normal Mode Verzik's P2, only one Nylocas Matomenos (the red one) will spawn, as in Hard Mode.
+* If only one player remains during Normal Mode Verzik's P2, the Lightning Ball damage is capped, as in Hard Mode.
+
+To round us off, here's a list of other tweaks - we're sure your favourite part of today's update is likely to be somewhere in here, as is tradition...
+
+* A warning message has been added to prevent players from accidentally choosing to 'Release' a Mature Tecu Salamander.
+* The Troll tunnels leading up to Trollweiss, encountered during the Troll Romance quest, have been restored to Single-way combat. This is to correct an error in a recent update where they'd accidentally been made Multi-combat.
+* The Staff of the Dead's Special Attack effect is now cleared when using a Rejuvenation Pool inside your POH.
+* A new option has been added to the Settings menu that allows you to pick your 'hit sounds'. This is the sound that your character makes when they're hit by an enemy.
+* Elven Teleport Crystals now have a 'Toggle' option when right-clicked, which will allow you to set your left-click teleport to either Lletya or Prifddinas.
+* Wyrms have had their animations adjusted to make them more accessible for players who are at risk of seizures.
+* Fixed a bug where it was possible to skip Vet'ion's second phase.
+
+==This Week in Old School==
+Before we sign off, we’re trying out a new newspost feature where we summarise a selection of cool goings-on from the previous week.
+
+Yesterday, we posted a first look at Deadman: Armageddon, the thrilling sequel to last year’s Deadman: Apocalypse. We’ve made a few gameplay changes which you can read all about in [https://secure.runescape.com/m=news/a=13/deadman-armageddon---first-look?oldschool=1 this blog.] Deadman: Armageddon runs from July 19th to August 3rd, so get your holiday requests in ASAP – or you might be met with the same result we got in [https://x.com/OldSchoolRS/status/1791514127703167197 this video].
+
+In other Deadman news, don’t forget to vote for Armageddon-themed tradeable cosmetic kits in next week’s in-game poll! Should they pass, you’ll be able to spend your hard-earned Deadman Points on some seriously cool Corrupted Weapon kits – or pick them up at the Grand Exchange, if that’s more your bag.
+
+If you're looking for something to watch during your latest grind, check out [https://www.youtube.com/watch?v=D_o7gfDVw6E this ]epic piece of investigative journalism, in which star reporter[https://www.youtube.com/channel/UCqCg6nlsQdulY4W1-peSjsQ  J1mmy ]delves deep into Neypotzli to document a man driven to madness by the Moons of Peril (spoiler alert, the man is talented community artist [https://x.com/8sat_ 8sat]). That's ''two ''Golden Gnome winners working hand-in-hand - it doesn't get much better than that!
+
+<center>
+{{Youtube|D_o7gfDVw6E}}
+''If you can’t see the video above, click ''[https://www.youtube.com/watch?v=D_o7gfDVw6E here ]''to watch it.''
+</center>
+
+After all that excitement, why not wind down with a copy of ''RuneScape: The Gift of Guthix''?
+
+[[File:Minigame Tweaks, Skilling Adjustments & more! (3).jpg|600px|center]]
+This is the first of three new novels packed full of Scape-y goodness, written by Erin M Evans in partnership with Titan Books. It tells an epic tale of the origin of magic, the plight of civil war, and the crushing defeat of the Fremennik Great Invasion. If you'd like to snag a copy for yourself, you can grab one online or from local bookstores. Check out [https://titanbooks.com/71617-runescape-the-gift-of-guthix/ this handy page] on the Titan Website for a full list of retailers around the world!
+
+And that's a wrap! We'll see you next week for another action-packed Game Update. Good luck on the gains, and happy 'Scaping!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B:'''
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://reddit.com/r/2007scape/comments/1cyoy1r/minigame_tweaks_skilling_adjustments_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

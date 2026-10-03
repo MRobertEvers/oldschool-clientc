@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Theatre: HM (Trio) Speed-Runner
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood: Hard Mode (Trio) with an overall time of less than 23 minutes.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Speed
+|id = 382
+|leagueRegion = Morytania
+}}
+'''Theatre: HM (Trio) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Theatre of Blood: Hard Mode]] in a team of 3 players with an overall time of less than 23 minutes.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

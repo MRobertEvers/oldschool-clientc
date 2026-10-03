@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Two-Down
+|image = [[File:Pestilent Bloat.png|260px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Pestilent Bloat before he shuts down for the third time.
+|tier = Master
+|monster = Theatre of Blood
+|type = Mechanical
+|id = 240
+|leagueRegion = Morytania
+}}
+'''Two-Down''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill the [[Pestilent Bloat]] before he shuts down a third time.
+
+==Strategy==
+This achievement is very easy to accomplish as long as players are using the best strength gear they can afford, or elite void. Ideally some players should have the [[Scythe of Vitur]], though players should have at least a [[crystal halberd]], [[dragon claws]], and a [[salve amulet (e)]] since the Bloat is susceptible to the amulet's effects.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

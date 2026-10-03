@@ -1,0 +1,309 @@
+{{Update|date=20 November 2020|link=https://secure.runescape.com/m=news/leagues-ii---trailblazer-an-inside-look?oldschool=1|category=community}}
+[[File:Leagues II - Trailblazer- An Inside Look newspost.jpg|right]]
+{{clear}}
+
+
+
+{{Headline|22|Leagues II - Trailblazer: An Inside Look}}
+
+{{Horizontal Line}}
+
+We’ve been overwhelmed by all the support, feedback and love you have all shown throughout Leagues II – Trailblazer. We aren’t even a month in yet and already we’ve had all of the world firsts achieved, seen multiple different play styles, enjoyed competition amongst friends, welcomed returning players and, of course, all those memes (sorry Fairy Flight Gang)!
+
+Today we're taking a deeper dive into some of the key decisions made in Trailblazer's development, and responding to some of you most frequently asked questions.
+
+{{Horizontal Line}}
+
+{{Headline|22|Stats}}
+
+We know you've all been super eager to see the stats for Trailblazer. While we can't give you a breakdown of everything until the end of the League, we can share some numbers:
+
+'''Area Choice Breakdown'''
+
+[[File:Leagues II - Trailblazer- An Inside Look (1).png|center|600px]]
+
+'''Areas by Total Players'''
+
+[[File:Leagues II - Trailblazer- An Inside Look (2).png|center|600px]]
+
+*The current most popular five area path: Misthalin > Karamja > Kandarin > Morytania > Asgarnia (13,488 players).
+*Kandarin is the most picked third area (132,446 players) and Asgarnia is the most picked 4th and 5th area (46,637 and 20,150 players respectively).
+
+'''Relic Percentage Breakdown'''
+
+[[File:Leagues II - Trailblazer- An Inside Look (3).png|center|600px]]
+
+The current most popular six Relic path: Skilling Prodigy > Last Recall > Fluid Strikes > Unnatural Selection > Botanist > Weapon Specialist (4,687 players).
+
+'''Activity Stats'''
+
+*Peak concurrent players hit 55.9k on November 1st at 21:00.
+*17.6 million hours have been played in total!
+
+'''Fun Facts'''
+
+*In the first hour of the League, players chopped 339,813 normal trees.
+*So far, players have killed 7,655,928 tree spirits!
+*A total of 40,738,676 tasks have been completed!
+
+'''Boss Facts'''
+
+*The Nightmare has been killed 106,232 times.
+*Theatre of Blood has been completed 41,940 times.
+*2,246,896 Barrows Chests have been opened.
+*Commander Zilyana has been killed 2,396,685 times.
+*Kree’arra has been killed 798,816 times.
+*General Graardoor has been killed 5,209,759 times.
+*K’ril Tsutsaroth has been killed 2,426,150 times.
+
+A big thank you to [https://twitter.com/JagexDitto Mod Ditto] for pulling all these numbers for us!
+
+{{Horizontal Line}}
+
+{{Headline|22|Relics}}
+
+'''Would you ever consider giving us the option to change Relic or restart Leagues entirely if we're unhappy with the choices we made?'''
+
+''Mod Husky:'' “On paper, I'd love the ability to completely reset, but it comes with a lot of technical challenges. We currently send points to your main-save to spend as soon as you get them. This would have to change since you could theoretically just reset to get the most points/hr. We'd also need to re-write the way points are sent across, requiring engine work - without which could cause people to lose their points. Also, it would be unfortunate if your account was compromised and a hacker reset all your Leagues progress.”
+
+'''Why was the Second Inventory relic scrapped?'''
+
+''Mod Husky:'' “Second Inventory looked like it would be a simple design for a Relic, but it actually had some pretty large issues which were only spotted the week before launch. Essentially it worked like an equipable Looting Bag which you could deposit into/withdraw from without any of the normal restrictions.
+
+“Now, this is where I get a little technical so apologies. There are several places in the game where we use generic scripts to check if the player has an item on them or in any inventory, whether it be Bank, Looting Bag, Second Inventory, Death's Office etc - and all of these scripts were correctly updated to account for this new Relic.
+
+“Unfortunately these generic scripts are a common piece of code which run specific engine commands on every inventory the player has, and they are quite expensive to execute. Because of this, many developers over the years have decided not to use them, but this raises the possibility that the code might just not look inside your second inventory when looking for certain items. This potentially would allow the player to either smuggle items into content they shouldn't, smuggle items out of content they shouldn't or even cause existing content to not work as expected.
+
+
+Some examples:
+
+
+*In Theatre of Blood, there is a piece of code which executes when a player dies fighting Verzik Vitur that checks to see if they have a Dawnbringer. If they do, it removes it from the Backpack and worn inventories and drops it to the floor, allowing other players to use it in the fight. When this code was written, there was no need for it to check in the Bank, Death's Office etc.
+*When going into the Mage Training Arena graveyard room, you cannot take peaches or bananas as you are supposed to be restricted to converting bones found within into fruit. This code did not account for second inventory so would've allowed fruit smuggling!
+
+“So now I know you'll all ask: why didn't we just fix them all? Or add a white-list of items we know are safe to be used with the bag? We ran a few searches through the code and found there were thousands of instances which could be affected by this. This fix was deemed to be too much to do a week before launch without significantly impacting the release date.
+
+“As for the white-list, we felt like this severely reduced the power of the item. And even then, it would have been a lot of development work to check the code for everywhere each item on the whitelist is used to ensure it couldn't be used maliciously. Ultimately, it would've taken a huge amount of dev resource that would almost certainly be needed on other issues in the run up to release.”
+
+'''Why doesn't Production Master work with every production-based item?'''
+
+''Mod Husky:'' “This has been probably the biggest question about this Relic.
+
+“The honest answer is that when this Relic was conceived we identified that it could work with every single act of processing in the entire game. This would have taken far too much development time for one Relic, given the complexity of the effect and how many different scripts have been written over the many years of development.
+
+“At the end of the day we focused on things which had a nice centralised system and were likely to be in demand from players. But there's no reason we can't extend the range of this effect in future Leagues if this Relic comes back.
+
+“There were unfortunately always going to be examples of this which were overlooked, and the one that comes up the most is molten glass making at a furnace. Should it have been included? Yeah, probably. However, since we were very explicit on that interface with the exact interactions which worked with it, we were cautious to make any changes at all after people had already made their Relic picks.”
+
+'''Why doesn't Eternal Jeweller affect the Burning Amulet?'''
+
+''Mod Husky:'' “Honest answer? It's an oversight. We went through all the jewellery we felt should be affected, and we missed an important one for players who picked Wilderness.
+
+“Again, like Production Master, the Relic was very explicit so we felt like we shouldn't make any changes to it. That being said, we probably should've worded the effect of this Relic to state 'all jewellery' and changed it as players discovered the need.”
+
+Why doesn't Draining Strikes activate on the single-target component of Ancient Magicks splash spells?
+
+''Mod Husky:'' “We decided that draining strikes should primarily only work on single target effects. As such, it was never plugged into the ancient multi-target spells. It states that it doesn't work on them in the Relic description.
+
+“We made an exception for Scythe of Vitur, since it feels more like a single target weapon than a multi-target weapon and we were aware that the Scythe would be significantly weaker if we didn't. Again, it's hard for us to make changes to Relics after players have made their choices, so we've opted against this change.”
+
+'''In hindsight, would you design Relics differently?'''
+
+''Mod Husky:'' “I really like the changes we made to separate Relics into Skilling Relics vs Skilling Relics, Combat Relics vs Combat Relics etc. I think we'll adopt the same approach in future Leagues. However, there are a few things which stand out in the design that I don't particularly like:
+
+*Fairy's Flight/Eternal Jeweller doesn't allow you to do anything you couldn't otherwise do without Relics.
+*Treasure Seeker sells itself as making clues completable in a League where they really are not. On release this was an issue, and one we should've spotted during design. In hindsight, we should've done more to support clues before launching the game mode.
+*Botanist is a Skilling Relic which actually impacts Combat quite heavily in a tier that is supposed to be dedicated to skilling. I don't think its effects should boost stats applying to Combat potions.
+*Double Cast suffers from magic's main weakness - if bosses are resistant to magic, they're pretty resistant regardless of player accuracy. Perhaps it should've had some sort of magical defence penetration instead, similar to the Brimstone Ring effect?"
+
+''Mod Flippy:'' “I also think Relic passives were a great addition as they allow us to naturally scale experience, drop modifiers etc as they player is progressing through the League. Additionally, we aimed to make more exciting, interactive effects that would make a difference to your experience in Leagues.
+
+“While I want to say we succeeded in this, it also brought some balancing issues. Mod Husky made a perfect point regarding Eternal Jeweller and Fairy's Flight. Those two were quality of life Relics competing with a game-changing Relic. Ideally, we would have had three Last Recall-like Relics competing against each other. I also think Treasure Seeker, together with Exploding Attacks, fell into the category of 'Relics that (balance aside) did not live up to the dream they were sold as'.
+
+"Lastly, I think we underrated the degree of comfort in picking Fluid Strikes and going melee. The combat styles are, generally speaking, not balanced towards each-other in OSRS and we should have considered more than just DPS values during our design-phase.”
+
+We did make some changes to how Clue Scrolls work based on player feedback. If you missed that before, make sure to check out the [https://secure.runescape.com/m=news/leagues-ii---trailblazer-clue-scroll-changes?oldschool=1 Clue Scroll Changes]newspost.
+
+{{Horizontal Line}}
+
+{{Headline|22|Areas & Tasks}}
+
+'''Why did you decide on a five-area design?'''
+
+''Mod Husky:'' “In the early stages of the design process we had considered between 9-11 areas (depending on whether or not we included Kourend/Kebos and whether or not we split them up into more granular areas). We decided that we wanted the player to only unlock around half of the map, maybe slightly more. The key reason for this was a desire to make the choices feel really impactful, and from the feedback we've received, I think 5/9 was the correct split as opposed to 6/9.
+
+“Many of you were begging for just one more area to make the choice easier, but for me that's the position we wanted players to be in. You should face a tough choice between two or three areas for your last pick, balancing Relic synergy and the content you most enjoy doing.”
+
+'''Why are certain quests that unlock critical content requiring multiple areas not auto completed?'''
+
+''Mod Husky:'' “Our criteria for deciding what we should and shouldn't unlock was: 'Is the content significant enough that it would be considered a key piece of content for that area, and is it otherwise impossible to gain access to without unlocking other specific areas'.
+
+“For example, we never felt like Family Crest was significant enough for us to make any changes, as it simply buffs goldsmithing, makes bolt spells a little stronger and slightly buffs cooking XP/hr. None of these are considered important features. We also felt that it would be nice to leave some 'niche area combos' in for less-significant content.
+
+“Now, I can already hear you all arguing that the Myths' Guild is a significant piece of content in Kandarin. And yes, you are correct, but if we unlocked access to Dragon Slayer 2, that would've felt like a significant buff to an already incredibly powerful area. It would've also given access to the Lunar spellbook, a perk we specifically felt offered a good reason to pick Fremennik. So we left it as a Fremennik+Kandarin exclusive.
+
+“Another quest I get a lot of questions on is Making Friends With My Arm. We had wanted to grant access to this, but made the mistake of accidentally giving it to Asgarnia instead of Fremennik (the quest starts in Asgarnia). This was pointed out to you all when we presented the area interfaces for feedback.
+
+“Ultimately it was deemed too large a piece of work to add and re-test how these new quest unlocks would interact with Fremennik's many others, so we compromised so that it was technically possible to complete if the player had Kandarin, Asgarnia and Fremennik.
+
+“This one is a bit of a sore spot for us, but in the interest of getting the League to you all in time, I believe we made the right call. But I absolutely would've made it a benefit of picking Fremennik if we'd had the time.”
+
+'''Why did you decide to lock certain tasks or items which require additional areas to complete? For example, box traps not in the Wilderness or Tirannwn.'''
+
+''Mod Husky:'' “Tasks are an easy one to answer. We designed the task list really early during development essentially thinking 'let's come up with as many possible things as possible we might want award points for'. It was quantity over quality (obviously we still wanted quality tasks) and I believe this approach has been positively received by the players, many of whom prefer it to what we had in Twisted League. I've seen complaints about Weiss tasks in Fremennik but, as I mentioned above, we made last minute changes to how Weiss worked.
+
+“Items are a bit trickier. Naturally, some were a given, such as the Dramen staff for Misthalin and the Ice Gloves for the Fremennik Exiles quest (they both require Asgarnia). In hindsight, should box traps have been added to the Wilderness? Yes, they probably should, as there was a significant portion of tasks related to Black Chinchompas. Should they have been added to Tirannwn where there are no tasks? Maybe? It's certainly less of an issue there.
+
+“The unfortunate thing with Leagues is that players are making tough choices, planning out their areas accordingly and deciding what they should/shouldn't unlock. Giving box traps to the Wilderness would unfortunately benefit those who didn't plan accordingly and will hurt those who did plan well, meaning luck rather than strategy could have yielded more points.
+
+“This is true for tons of things this League, whether it be our decision to leave in the double cast bug or to nerf the 2-tick version - which, as many of you have pointed out, is incredibly inconsistent! It's tough to know exactly what to do regarding these, as some of our changes have been received positively while other haven't.
+
+“It really just comes down to what is more important for both the individual player and for the game-mode as a whole. Is competition or fun more important? The answer will be different for different people."
+
+''Mod Flippy:'' “While I don't have a problem with these tasks themselves, I do understand that they can feel unfair or misleading. A task listed under an area does not mean you only need that area to complete it, it just means you can typically find that content in that area.
+
+“In hindsight, I wish we put some of these tasks under the 'multiple areas' filter and that some of them weren't included to begin with. Bloodveld in Kandarin is one of the commonly mentioned tasks that makes little to no sense, and we completely understand why.
+
+“We created the task design back in June/July and we created the Slayer lists only a few months ago. We forgot this was a task, we didn't include it in the Slayer list and here we are. It is extremely difficult to think of every possible restriction and game rule that might affect each individual task, which has resulted in a few awkward tasks. Sorry!
+
+“So... why aren't we just fixing this? While it might seem like a no-brainer to perhaps add Bloodvelds to the Slayer list so that players can complete the task, there is a bit more depth to the problem. We tread very carefully when tweaking content mid-League. It's something we only do if there is a fundamental problem with core content or if something doesn't work the way we have stated it would.
+
+“Adding a Slayer monsters region to the Slayer lists will change the power-level of that region, especially in a region like Kandarin which doesn't have superior Slayer creatures until Abyssal Demons (from Misthalin). A bunch of small changes that make sense on first glance soon shift a region's power levels when added together and could lead to regret from those who chose them. It's our first priority that you don't regret a choice because of changes we make to regions, Relics or tasks after you've made the decision. We would rather have a few awkward tasks among the 900+ other tasks available than to risk meta changes mid League."
+
+'''In hindsight, would you design the areas differently?'''
+
+''Mod Husky:'' “I think that Kandarin particularly could've been split into two areas, although I'm not quite sure how I'd do it. Maybe Gnome as part of Tirannwn and everything else is Kandarin?
+
+“I think Desert suffered particularly hard from a lack of master tasks, but we really struggled to think of anything worth 500 points for completing in the Desert, and we were scared to just artificially make Desert better by giving it insane points/hr. But maybe we should have? It's hard to tell. Perhaps the Desert will see more content added to it in the future before we run into this problem again.”
+
+{{Horizontal Line}}
+
+{{Headline|22|Mechanics & Design}}
+
+'''Can we see a list of items which are specifically affected by the drop chance multiplier?'''
+
+''Mod Husky:'' “If you navigate to the Drops section of the Area Unlock interface you can see every item that is affected. But do note that something being in the Misthalin section doesn't mean it's restricted only to creatures in Misthalin - we just decided to add them to the areas which seemed to make sense to add them. For everybody asking, pets or jars are not affected by the drop chance multiplier.”
+
+'''Why didn't you tailor shops to individual players?'''
+
+''Mod Husky:'' “Shops currently aren't setup to have separate stocks for each player, although we can separate them on variables such as Ironman status. Our solution was to have a list of common items (currently around 160) which we were happy for all players to have equal access to and that automatically re-stocked when the store opened.
+
+“This list has been significantly expanded upon since Twisted League and I've seen far fewer complaints this time around. We were also careful not to boost items which would result in undesirable training methods, such as having infinite access to buckets of sand/soda ash or the ore shop in Keldagrim.”
+
+'''Which new ideas in Leagues II have been the most successful?'''
+
+''Mod Husky:'' “I absolutely love the idea that we've made the player pick a dominant Combat style for the League. I think it's paired really well with Trailblazer and I'd like consider doing something like that in future Leagues (if it fits this concept).”
+
+'''What are your thoughts about the current Leagues II meta?'''
+
+''Mod Husky:'' “I think the current meta is sitting fairly well. Magic is severely overlooked and performs really well if you pick areas which compliment it. Melee is very dominant, but we knew that it would be, given that it has access to Piety and that it's very strong at the Theatre of Blood and Nightmare, which are clear end-game goals for players who picked Morytania.”
+
+'''Could you add a shop in Leagues which stocks all Skill Capes? Currently some Capes are behind area locks and we want to flex our 99s!'''
+
+''Mod Husky:'' “If we did they'd have to be perkless capes, as some of those Skill Cape perks are particularly powerful. Although doing this would definitely be what we would call a 'non-MVP' or 'nice-to-have' feature for next League as I wouldn't want something like this to take precedent over more important content.”
+
+'''Could all bosses be instanced in Leagues?'''
+
+''Mod Husky:'' “Could they be? Yes. However, when it came to instancing bosses for this League we really didn't have time until very late on in development. We should've tackled this sooner than we did, in all honesty. As it was, we only really had the hours to do a few, so we settled on the ones we felt like crashing would be the most toxic for other players (which I know is subjective) - those being, Kalphite Queen, Dagannoth Kings and all of God Wars Dungeon.
+
+“Instancing a boss is no small task. In fact, I'm surprised Mod Lenny managed to pull off the God Wars Dungeon instances in time for launch. It's not as simple as 'just create the instance' - there's a lot of code (quite often legacy code) which executes on these bosses, and anything which relies on coordinates or is NPC driven needs to be re-written to use more generic systems. Nonetheless, I think this is something which we're just going to have to do if we have another League, like this, where bossing plays a large role in the future.”
+
+'''Has Leagues and its mechanics influenced your view on player behaviour?'''
+
+''Mod Husky:'' “I think the biggest thing I've seen is that people are expecting to get lucky because of the passive drop-rate increase, and genuinely think the game is bugged if they go dry on a drop. It of course didn't help that there was a small bug preventing God Wars Dungeon bodyguards from dropping unique loot, but that aside there are a lot more complaints about going dry than we normally see in the main game. I think it's just that perception of 'it's increased, so I should get it' instead of 'it's increased so I have more chance of getting it'."
+
+''Mod Flippy:'' “Perhaps perception more than behaviour. I think for many players Leagues has offered a way of testing features that would otherwise feel very alien. God Wars instances has been a hot topic both internally and within the community, but now we are seeing many players voting for instances being implemented in one way or another in the main game. I think it is much easier to see the benefits over the problems once you get to try something in practice, and that goes for both us devs and our players. It's a win-win really."
+
+'''The new interfaces look awesome and still feel Old School. Have you considered other improvements like a search task function?'''
+
+''Mod Husky:'' “Yeah, for sure! We have tons of improvements we'd like to add to the Tasks interfaces as we move on from League to League such as:
+
+*Having a search feature
+*Allowing you to pin a task to the screen to track your progress against it
+*Allowing you to scroll through tasks from the Leagues side panel
+
+'''Has Leagues and its mechanics influenced how you're designing new content?'''
+
+''Mod Flippy:'' “I wouldn't say so, no. We should think about why/if a tweak or new piece of content is needed, how it should be implemented, what problems it may solve and how it may affect the game. These questions will always differ depending on the content, and that's true whether it's for Leagues or the main game.
+
+"I'd say it's more the other way around. Leagues offers us a way to take aspects of the main game that otherwise can't or shouldn't be changed and do something temporarily crazy with it. We can make boring things feel ridiculously rewarding and give you crazy effects that you wish you had when playing the main game."
+
+Have you considered extending the duration of the League?
+
+''Mod Husky:'' “We currently have no plans to extend the league longer than it's current 10 week run-time.”
+
+{{Horizontal Line}}
+
+{{Headline|22|Beyond Trailblazer}}
+
+Can I use reward points from Leagues II to buy Twisted League rewards?
+
+Mod Husky: “Yes! The Rewards Shop is currently down, but when it's back up you'll be able to spend Trailblazer League points on Twisted League rewards.”
+
+'''Why can't we access the Leagues Reward Shop?'''
+
+''Mod Kieren:'' "Due to the sheer number of players who jumped into Trailblazer at launch, we faced some problems with the points system. We felt it was safer to keep the shop closed for now while these issues are solved."
+
+'''When will we be able to access the Leagues Reward Shop?'''
+
+''Mod Husky:'' “You should be able to access all of the rewards from Leagues II - Trailblazer as soon as the League ends, assuming that we actually finish all of the work in time (we're on track so don't worry!). You can spend all of your points earned in any League as soon as the shop opens, even if the League is still running.”
+
+'''Have you considered adding Leagues as a permanent mode?'''
+
+''Mod Husky:'' “This is a tough one, and I think it's something we've heard a lot because of the extremely high replayability Trailblazer has. Not only do people want to try different combat styles for their Tier 3 Relic, but they even want to try different areas with the same combat style. The possibilities are vast!
+
+"On the other hand, I see this the same way as people wishing it were Christmas everyday. It would be amazing at first, but at what point it would get old? Players will have tried every possible thing they can do and moved on to something else. It could even have a negative effect where it makes people less excited for the next League. To me this predicament just tells us that we did something really right about this League, and instead we should seek to incorporate elements of this into future Leagues... or even consider a re-run of this League in the future with different Relics and tasks."
+
+''Mod Flippy:'' “Officially supported replayability features and rework on some design aspects would be needed to proceed with a permanent version of Leagues. Currently the gameplay is only designed to last 1-2 months, and if we ever choose to give permanent access to Leagues in one way or another, the design has to be tailored to allow for that.”
+
+'''What are your thoughts on the idea of a Prestige option in Leagues as a way to begin again, but only allowing your best attempt to count for rewards and HiScores?'''
+
+''Mod Husky:'' “This is a popular ask as many players want the ability to reset and try a different build. I think this could be interesting for Leagues, but I'd want to flesh out the design more and have a clear list of the requirements we'd need from the engine/web teams. However, it's also susceptible to the issues raised above where players could have their account reset maliciously.”
+
+''Mod Flippy:'' “I'd like to explore the idea of Prestige, but I'd never want it to become a pointless grind of just resetting and seeing a number go up. I see the option to Prestige being added to many games because it offers replayability, yet it has zero impact or purpose in the game. Hopefully we can find a way to naturally embed it to our design to prevent that.”
+
+'''Will you bring popular Leagues II additions into the main game?'''
+
+''Mod Husky:'' “I think popular is the wrong evaluation criteria. We are allowed to have broken over the top and fun aspects in a League which would be absolutely catastrophic if we added it to the main-game - for example, the Last Recall item Crystal of Memories.
+
+“However, I'm not opposed to using Leagues as a testing ground to see if there's a new reward we can come up with in the future. In a way we already did that with the Xeric's Focus Relic in Twisted League and the Harmonised Nightmare Staff reward from The Nightmare. They gave us a good feel of how 4-tick magic with a standard spellbook felt, and made it into the main game.”
+
+'''Could you archive the Trailblazer HiScores so they're viewable forever?'''
+
+''Mod Husky:'' “We plan to immortalise the Top 100 as per the League trophy room. Unfortunately, we have no plans to archive the HiScores and I'm not sure our web team have that capacity to do that, but we can certainly ask them. However, would it feel unfair to immortalise the Trailblazer Hiscores but not the Twisted ones? Honestly, I'm not sure where I sit on this one, but I can understand why it's being asked.”
+
+'''Will you share data and stats after the League?'''
+
+''Mod Husky:'' “Of course! You know we love our stats! We plan to have a post-League livestream in 2021 to go over all sorts of interesting data including Relic pick percentages, area pick percentages, number of pets, number of task completions and loads more.
+
+'''What ideas do you have for Leagues III and beyond?'''
+
+''Mod Husky:'' “I've no clue what we do for Leagues III, but that is the exciting part to me. I can't wait to see all the crazy ideas people come up with and the Areas system we built for Trailblazer League opens up a lot of possibilities for any type of content, whether it be for a Deadman Mode, League or even the main game."
+
+{{Horizontal Line}}
+
+{{Headline|22|Extra Info}}
+
+'''Who is the top of the staff HiScores?'''
+
+Arcane is currently in the lead followed by Husky, Flippy, West, Elena, Kieren, Curse and Bruno.
+
+'''What tips would you give new Leagues players?'''
+
+''Mod Husky:'' “I'd just say to have fun! Pick areas which contain content which you like to do and pick Relics which sound the most enjoyable to you. I'd avoid niche area picks as your first area unlock if you're completely new, especially ones which contain high level content which is unsuitable for low levels, such as Tirannwn, Fremennik, Desert or Wilderness. Instead go for Kandarin, Asgarnia or Morytania.”
+
+{{Horizontal Line}}
+
+{{Headline|22|Closing Words}}
+
+Leagues II has been a wild ride so far and we are super excited to see what else players can achieve before its conclusion. We're looking forward to seeing who will top the leaderboard, while we battle it out in the office on our very own Leagues leaderboard. Again, thank you so much for all of the support you've shown this game mode and the team. Without you, none of this would be possible!
+
+{{Horizontal Line}}
+
+We'll have more stats and Leagues related content to come over the coming weeks, so stay tuned to our socials and the newsposts for the latest.
+
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, & West'''
+
+
+''The Old School Team''

@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Personal Space
+|image = [[File:Pestilent Bloat.png|260px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat the Pestilent Bloat in the Theatre of Blood: Hard Mode with at least 3 people in the room, without anyone in your team standing on top of each other.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Mechanical
+|id = 373
+|leagueRegion = Morytania
+}}
+'''Personal Space''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat the [[Pestilent Bloat]], in [[Theatre of Blood: Hard Mode|hard mode]], with at least three players in the room and without any of them standing on top of each other.
+
+==Strategy==
+Being able to damage the bloat quickly is essential for this task to avoid spending time trying to avoid standing on top of each other. Try to use the first two set of tiles surrounding the centre piece, with one player following another. In hard mode, chunks of flesh will fall from the ceiling for the entire fight, so players should be mindful of this to avoid taking unnecessary damage and stuns, which can potentially allow the Bloat to damage them. If the bloat manages to attack someone, use [[Protect from Missiles]] to reduce damage, since everyone is likely to be hit.
+
+When the bloat is inactive, be mindful to avoid death-dotting on each other, as this will disqualify the team if this occurs. 
+
+The team cannot enter after the first stomp(?), as it will fail the task saying "Player A has entered the room late."
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

@@ -1,0 +1,94 @@
+{
+  "category": "npcPhaseType",
+  "updatedAt": "2026-01-30",
+  "items": [
+    {
+      "id": "TOB_BLOAT_DOWN",
+      "status": "active",
+      "summary": "Bloat down",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the first tick of each Bloat down animation.",
+      "tags": ["tob", "bloat"]
+    },
+    {
+      "id": "TOB_BLOAT_UP",
+      "status": "active",
+      "summary": "Bloat up",
+      "introduced": "2026-01-30",
+      "details": "Occurs following the last tick of each Bloat down animation, when Bloat begins moving.",
+      "tags": ["tob", "bloat"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_MELEE",
+      "status": "active",
+      "summary": "Nylo boss melee phase",
+      "introduced": "2026-01-30",
+      "details": "Occurs on each tick Nylocas Prinkipas or Vasilias switches to melee style.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_RANGED",
+      "status": "active",
+      "summary": "Nylo boss ranged phase",
+      "introduced": "2026-01-30",
+      "details": "Occurs on each tick Nylocas Prinkipas or Vasilias switches to ranged style.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_MAGE",
+      "status": "active",
+      "summary": "Nylo boss magic phase",
+      "introduced": "2026-01-30",
+      "details": "Occurs on each tick Nylocas Prinkipas or Vasilias switches to magic style.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_XARPUS_P1",
+      "status": "active",
+      "summary": "Xarpus phase 1",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick the Xarpus room begins.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_P2",
+      "status": "active",
+      "summary": "Xarpus phase 2",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick Xarpus first becomes attackable.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_P3",
+      "status": "active",
+      "summary": "Xarpus phase 3",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick Xarpus displays its overhead screech text.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_VERZIK_P1",
+      "status": "active",
+      "summary": "Verzik phase 1",
+      "introduced": "2026-01-30",
+      "details": "Occurs when Verzik's P1 NPC first becomes attackable.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P2",
+      "status": "active",
+      "summary": "Verzik phase 2",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick Verzik's P1 NPC despawns and switches to the transition animation to P2.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3",
+      "status": "active",
+      "summary": "Verzik phase 3",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick Verzik's P2 NPC starts the transition animation to P3.",
+      "tags": ["tob", "verzik"]
+    }
+  ]
+}

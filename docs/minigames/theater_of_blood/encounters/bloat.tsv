@@ -1,0 +1,109 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+# bloat.fly_cadence measured: ticklog projectile rows, 150 rooms x 6 ticks: 1200 of 1200 gaps are 1 tick; first fly 150 of 150 rooms
+bloat.fly_cadence	flies fire at every visible player on every walking tick (attackrate)	1	ticks	[cache][wiki]	A	cache_npc_bloat.txt:23; cache_npc_attackrates.txt:2; wiki_Pestilent_Bloat.wikitext:90	-	exact
+# bloat.fly_first measured: ticklog: first projectile = begin tick + 1 in 150 of 150 rooms (::tobgo; the begin tick is the mark tick)
+bloat.fly_first	tick of the first fly after the fight begins (tick the barrier option is taken = 0)	1	ticks	[wiki]	D	wiki_Perfect_Bloat.wikitext:15	-	+-1
+# bloat.fly_damage measured: ticklog hit_player (real splats, god off), 673 flies: min 10 max 20 mean 15.1, all eleven values drawn 57-70 times
+bloat.fly_damage	fly hit on a player without Protect from Missiles	10-20	hp	[wiki]	D	wiki_Pestilent_Bloat.wikitext:90; wiki_Theatre_of_Blood_Strategies.wikitext:673	-	range
+# bloat.fly_prayer measured: same run with the prayer on, 673 flies: min 7 max 15 mean 11.0
+bloat.fly_prayer	fly hit under Protect from Missiles (25 % off, rounded down)	7-15	hp	[wiki]	D	wiki_Pestilent_Bloat.wikitext:90; wiki_Theatre_of_Blood_Strategies.wikitext:673	-	range
+# bloat.fly_flight measured: ours: 42..96 client cycles (1.4-3.2 ticks) by distance, 1600 projectile rows; no source of any kind states the real figure (Near-Reality shape only)
+bloat.fly_flight	fly projectile flight time from Bloat to the target, by distance	?	cycles	[nr][M60]	E	OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/configs/tob.constant:879	M60	approx
+# bloat.fly_los measured: ::tobbloatlos on a down Bloat, 70 rooms: a tile in the same corridor past its footprint seen 70 of 70, the mirror tile behind the tank seen 0 of 70
+bloat.fly_los	line of sight: every tile on the 5x5 side nearest the player is tried, any clear one lets the fly through; a player directly behind the tank is not seen	nearest-side-any-tile	text	[jagex]	A	wiki_Pestilent_Bloat.wikitext:94	-	exact
+# bloat.fly_spread measured: not measured; ours spreads to anybody within 3 tiles of a hit player (tob_bloat_near_burning), not by line of sight: an approximation
+bloat.fly_spread	a hit player spreads the flies to the players that player can see	?	text	[wiki][M64]	E	wiki_Pestilent_Bloat.wikitext:90	M64	approx
+# bloat.down_to_move measured: ours: first npc_tile row after the down is down+34 in 1065 of 1065 normal, 555 of 555 hard and 282 of 282 Entry downs; recorder: 33 in 111 of 111 regular and 81 of 81 hard
+bloat.down_to_move	ticks from the down animation to the first step of the next walk (first fly and first hands volley follow)	33	ticks	[blert][cache]	B	blert_api/bloat_stats.txt; cache_seq_bloat_durations.txt:5; TOB_RESEARCH.md	-	exact
+# bloat.stomp_at measured: ours: real hit_player splat at down+29 in 100 of 100 normal, 98 of 100 hard (two killed earlier), 80 of 80 entry rooms; recorder 137 of 137 regular, 94 of 94 hard
+bloat.stomp_at	stomp lands this many ticks after the down animation	29	ticks	[blert][cache]	B	blert_api/bloat_stats.txt; cache_seq_bloat_durations.txt:5; wiki_Theatre_of_Blood_Strategies.wikitext:675	-	exact
+# bloat.stomp_damage measured: ours: 278 stomp splats min 40 max 80 mean 59.7 in normal and entry; hard 54.2 mean because 2 splats clamped by remaining hitpoints
+bloat.stomp_damage	stomp hit (tick-eatable)	40-80	hp	[wiki]	D	wiki_Pestilent_Bloat.wikitext:92; wiki_Theatre_of_Blood_Strategies.wikitext:675	-	range
+# bloat.stomp_defence measured: code read only, not driven: tob_bloat.rs2 ~tob_bloat_stomp npc_statheal(defence, base)
+bloat.stomp_defence	drained Defence is restored to full at the stomp	full	text	[wiki]	D	wiki_Pestilent_Bloat.wikitext:92; wiki_Theatre_of_Blood_Strategies.wikitext:675	-	exact
+# bloat.stomp_range measured: ours 6 tiles from its south-west corner; the wiki says "the surrounding area", guides say "line of sight"; no number from any source
+bloat.stomp_range	tiles from Bloat within which the stomp hits	?	tiles	[M65]	E	OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/configs/tob.constant:896	M65	approx
+# bloat.first_walk measured: ours (::tobgo, 531 rooms, down minus begin): 524 of 531 inside 39..47, 7 past it (1.3 %; recorder 1.45 % normal); chi-square of the nine bins against blert normal 108 397 first walks = 13.7, df 8, p 0.09 (inside); hard (278 rooms) 268 inside, tail 10 (3.6 %, recorder 2.4 %), chi-square 6.2 against blert hard 17 758, p 0.62; Entry (140 rooms) 138 inside, chi-square 5.5 against blert regular, p 0.70
+bloat.first_walk	first walk length, blert walkTime (the room opens with no down behind it)	39-47	ticks	[blert][wiki]	B	TOB_RESEARCH.md; blert_api/trend_bloat_downs_1.json; wiki_Pestilent_Bloat.wikitext:92	M17	range
+# bloat.first_walk_cap measured: ours: 99 of 531 first walks end at 47 (18.6 %); recorder 13.2 % at 47 plus 1.6 % beyond it. The excess is the one bin of the chi-square that pulls p down to 0.09
+bloat.first_walk_cap	a walk that has not ended by this tick is forced down (the spike)	47	ticks	[blert]	B	TOB_RESEARCH.md; blert_api/trend_bloat_downs_1.json	M17	exact
+# bloat.walk_later measured: ours (attack runs): 100 of 112 attacked-down walks in 34..42; the 12 longer are 3 turn extensions (45,46,46) and 8 speed-change extensions below 40 % health (the script kept attacking the walking Bloat, each odd attack re-arms the 5-tick lockout); recorder 34..42 with a spike at 42
+bloat.walk_later	walk length after a down that was attacked	34-42	ticks	[blert][wiki]	B	TOB_RESEARCH.md; blert_api/trend_bloat_downs_2.json; wiki_Theatre_of_Blood_Strategies.wikitext:683	M17	range
+# bloat.walk_unattacked measured: ours (idle player): 1040 of 1055 later walks in 38..46 with the spike at 46 (178); recorder later walks show the same second window: 38 bump 7489, 43-45 tail 860/698/530, 46 spike 856
+bloat.walk_unattacked	extra ticks on the next walk when nobody attacked the down it rises from	4	ticks	[blert][wiki]	B	blert_api/trend_bloat_downs_2.json; wiki_Theatre_of_Blood_Strategies.wikitext:683	M17	exact
+# bloat.first_walk_bonus measured: ours: first walks 39..47 (531), later attacked walks 34..42; the 5 is code (tob_bloat_walk_first_bonus) and reads back in both windows
+bloat.first_walk_bonus	first-walk window minus later-walk window (not the unattacked +4: no 38 in 98 445 first walks)	5	ticks	[blert]	B	TOB_RESEARCH.md; blert_api/trend_bloat_downs_1.json	M17	exact
+# bloat.down_chance measured: recorder: per-tick hazard 21.2 % at tick 39 rising to 23.9 % at 46, pooled 21.7 % +- 0.06 (106 820 first walks); ours nominal 21, same estimator on 524 first walks 19.1 % +- 0.8 (turn lockouts censor it); first-walk shape inside blert (p 0.09)
+bloat.down_chance	per-tick chance to go down once the walk is eligible (pooled maximum-likelihood hazard)	21-24	percent	[blert][M17]	B	TOB_RESEARCH.md; blert_api/trend_bloat_downs_mode_11_downNumber_eq1.json	M17	range
+# bloat.turn_cd measured: recorder: first reversal at room tick 31 earliest (8 of 90 rooms) and min spacing 32 in 129 reversals; ours earliest reversal 32 in the same alignment (blert tick 0 = begin + 1), min spacing 31 (index rounding)
+bloat.turn_cd	walking ticks before the first turn and between turns (Normal and Entry)	32	ticks	[blert][wiki]	B	blert_api/bloat_stats.txt; wiki_Theatre_of_Blood_Strategies.wikitext:681; wiki_Guide_Advanced_Theatre_of_Blood.wikitext:152	-	+-1
+# bloat.turn_cd_hard measured: recorder hard: earliest first reversal at room tick 15 (7 of 45 rooms; 14 by the walking index), min spacing 16 in 211 reversals; ours hard min first reversal 16, min spacing 15
+bloat.turn_cd_hard	the same cooldown in Hard Mode	16	ticks	[blert][wiki]	B	blert_api/bloat_stats.txt; wiki_Pestilent_Bloat.wikitext:104	-	+-1
+# bloat.turn_rate measured: recorder: 129 reversals over 1927 eligible walking ticks (90 rooms) = 6.7 %; ours 533 over 33 663 (532 rooms) = 1.6 % (one in 64): CONTENT BUG
+bloat.turn_rate	per-tick chance to reverse once the cooldown has expired (Normal)	5.6-7.8	percent	[blert][M17]	B	blert_api/bloat_stats.txt; TOB_RESEARCH.md	M17	range
+# bloat.turn_rate_hard measured: recorder: 211 over 1234 (45 rooms) = 17.1 %; ours 658 over 20 091 (278 rooms) = 3.3 % (one in 32): CONTENT BUG
+bloat.turn_rate_hard	per-tick chance to reverse once the cooldown has expired (Hard)	15-19.2	percent	[blert][M17]	B	blert_api/bloat_stats.txt; wiki_Pestilent_Bloat.wikitext:104	M17	range
+# bloat.turn_lockout measured: recorder: min (down - reversal step) = 5 in both modes (13 of 129 regular, 17 of 211 hard sit on 5); ours min 4 (45 downs sit on it): ONE TICK SHORT
+bloat.turn_lockout	a turn or speed change blocks the down for this many ticks (observed: down minus the reversal step is never less)	5	ticks	[blert][wiki]	B	blert_api/bloat_stats.txt; wiki_Pestilent_Bloat.wikitext:92	M17	exact
+# bloat.speed_walk measured: recorder: 3842 of 3842 regular and 2152 of 2152 hard steps above 60 % are one tile; ours (Entry attack run) 1000 of 1004 steps above 60 % are one tile; the 4 two-tile steps sit at 60.x % (see speed_run_below)
+bloat.speed_walk	tiles per tick above 60 % health	1	tiles	[wiki][blert]	B	blert_api/bloat_stats.txt; wiki_Pestilent_Bloat.wikitext:96	-	exact
+# bloat.speed_run measured: recorder: 40-60 % steps 2 in 1093 / 1 in 268 (corners); highest health with a 2-tile step 59.72 % over 4239 steps; ours 2 tiles in 388 of 388 steps at 40-60 % (no one-tile corner steps in this run)
+bloat.speed_run	tiles per tick between 40 % and 60 % health (the corner step is one)	2	tiles	[wiki][blert]	B	blert_api/bloat_stats.txt; wiki_Pestilent_Bloat.wikitext:96	-	exact
+# bloat.speed_run_below measured: recorder: highest health with a 2-tile step 59.72 % over 4239 steps; ours: highest 60.94 % over 837 steps (Entry attack run), because the code compares a floored percentage with <= 60: up to one point early
+bloat.speed_run_below	health percentage below which Bloat runs	60	percent	[wiki][blert]	B	blert_api/bloat_stats.txt; wiki_Pestilent_Bloat.wikitext:96	-	exact
+# bloat.speed_alt measured: recorder below 40 %: 1 tile 1596 / 2 tiles 1100 steps regular, 452 / 1222 hard (a mix, as alternation gives); ours below 40 %: 407 one-tile and 445 two-tile steps (Entry attack run); attack-flip link read in tob_damage.rs2 and seen as the lockout extensions above
+bloat.speed_alt	below 40 % health the speed flips on every attack made on it, hit or miss	flip-per-attack	text	[wiki][blert]	D	wiki_Pestilent_Bloat.wikitext:98; wiki_Theatre_of_Blood_Strategies.wikitext:679	-	exact
+# bloat.hand_tiles measured: ours: 16 shadows per drop in 1407 of 1407 hard drops
+bloat.hand_tiles	tiles per falling-flesh drop	16	count	[blert][tmt]	B	TOB_RESEARCH.md; blert_api/bloat_events.csv; blert_api/trend_bloat_hands.json	M6	exact
+# bloat.hand_lead measured: recorder 990 of 990 regular, 1752 of 1752 hard; ours 1407 of 1407 (map_spotanim 1570-1573 then 1576)
+bloat.hand_lead	shadow appears to the splat	3	ticks	[blert][tmt][jagex]	B	blert_api/bloat_stats.txt; tobmistaketracker/BloatMistakeDetector.java:26; newsposts/wiki_Update_Theatre_of_Blood_Feedback_Tweaks.wikitext:39	M6	exact
+# bloat.hand_cadence measured: recorder: every gap at 40 %+ health is 6; ours 6 at every 5 %-bucket from 40 % to 95 % (121 gaps, Entry attack run) and 1226 of 1307 hard gaps (the rest are the clock reset at a rise, see hand_hard_clock)
+bloat.hand_cadence	drop interval at or above the threshold health	6	ticks	[blert]	B	blert_api/bloat_stats.txt; TOB_RESEARCH.md	M6	exact
+# bloat.hand_cadence_hurt measured: recorder: every gap below 40 % is 4 (908 gaps); ours 4 at every 5 %-bucket below 40 % (198 gaps, Entry attack run)
+bloat.hand_cadence_hurt	drop interval below the threshold health	4	ticks	[blert]	B	blert_api/bloat_stats.txt; TOB_RESEARCH.md	M6	exact
+# bloat.hand_threshold measured: recorder: highest health with a 4-gap 39.60 %, lowest with a 6-gap 40.23 % (908 and 688 gaps); ours highest 4-gap 39.80 %, lowest 6-gap 41.56 % (nothing sampled between), and the code compares a floored percentage with <= 40, so 40.0-40.99 % is 4 where the recorder has 6
+bloat.hand_threshold	health percentage below which the drops come every 4 ticks (strict less-than)	40	percent	[blert][M6]	B	blert_api/bloat_stats.txt; TOB_RESEARCH.md	M6	exact
+# bloat.hand_gate measured: recorder: first drop after tick 10 at health 12.4-89.89 % in 90 rooms, never above 90; ours first drop at 90.9 % in one of eight Entry rooms and 90.0 % in another (the code compares a floored percentage with <= 90, which admits up to 90.99 %)
+bloat.hand_gate	Normal and Entry: hands start once health is below this percentage	90	percent	[blert][wiki]	B	wiki_Pestilent_Bloat.wikitext:92; blert_api/bloat_stats.txt	-	exact
+# bloat.hand_after_rise measured: recorder: 87 of 111 rises drop on the rise tick itself (the rest are rises with health still above the gate or a drop already due); ours 6 (21 times) or 4 (13 times) after the rise: CONTENT BUG
+bloat.hand_after_rise	Normal: ticks from the rise (down+33) to the first drop of the next walk	0	ticks	[blert]	B	blert_api/bloat_stats.txt	M6	exact
+# bloat.hand_hard_start measured: recorder hard: first drop at room tick 0 in 41 of 45 rooms, 1 in 4; ours begin+1 in 100 of 100
+bloat.hand_hard_start	Hard: tick of the first drop after the fight begins	1	ticks	[blert][wiki]	B	wiki_Pestilent_Bloat.wikitext:102; blert_api/bloat_stats.txt	-	+-1
+# bloat.hand_hard_clock measured: recorder hard: 766 drops inside down intervals, every gap 4 or 6 including 124 spanning a down; ours drops through the down too but restarts the clock at each rise (81 of 1307 gaps are 7-11): CONTENT BUG
+bloat.hand_hard_clock	Hard: the drop clock runs on through every down and rise (gaps are only 4 or 6)	continuous	text	[blert]	B	blert_api/bloat_stats.txt	-	exact
+# bloat.hand_hard_down measured: recorder drops inside down intervals [down, down+33]: 766 hard, 122 regular (87 of the regular ones are the first drop on the rise tick down+33); ours hard drops during the down, normal none
+bloat.hand_hard_down	Hard: flesh keeps falling while Bloat is down; Normal: none until the rise	text-yes	text	[wiki][blert]	B	wiki_Pestilent_Bloat.wikitext:102; blert_api/bloat_stats.txt	-	exact
+# bloat.hand_area measured: recorder: 220 tiles hit over 5 802 952 hands (176 at ~29k, 40 at ~16k, 4 at ~24k); 256 - 36 tank tiles = 220; ours draws uniformly over 256 tiles, 13.8 % of 22 512 shadows on the tank: CONTENT BUG
+bloat.hand_area	tiles a hand can fall on (the fight area without the tank)	220	count	[blert]	B	blert_api/trend_bloat_hands.json	M6	exact
+# bloat.hand_damage measured: ours hard run: 24 hand splats 29-50 (the 29 is clamped by remaining hitpoints), seen on the splat tick every time
+bloat.hand_damage	falling-flesh hit	30-50	hp	[wiki][video]	D	wiki_Pestilent_Bloat.wikitext:92; wiki_Theatre_of_Blood_Strategies.wikitext:677; transcripts/yt_actUD0l9LSU.md:18	-	range
+# bloat.hand_stun measured: not measured; ours 5 (^tob_bloat_hand_stun_ticks). Sources: Zenyte 3, Trinity 3, Ferox 5 (reference servers); a guide narrator says "about two to three seconds" = 3.3-5 ticks
+bloat.hand_stun	stun after a hand hit (player cannot act)	3-5	ticks	[nr][video][M6]	E	TOB_RESEARCH.md; transcripts/yt_actUD0l9LSU.md:18; wiki_Pestilent_Bloat.wikitext:92	M6	approx
+# bloat.hand_live measured: ours: all 24 hand hits on the splat tick, none on the next
+bloat.hand_live	the splat tile damages on one tick only	1	ticks	[tmt]	D	tobmistaketracker/BloatMistakeDetector.java:26	-	exact
+# bloat.hp_normal measured: recorder max hitpoints in 90 regular rooms 1500/1750/2000 by scale; ours solo (scale 1): run begins after 608 damage = 40 % of ~1520 (2 rooms); 4 and 5 players need a party (code read: tob_raid.rs2 ~tob_scale_hp)
+bloat.hp_normal	hitpoints Normal at 5 / 4 / 3-or-fewer players	2000,1750,1500	hp	[cache][jagex][blert]	A	cache_npc_bloat.txt:19; newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; blert_plugin/TobNpc.java:54	-	exact
+# bloat.hp_hard measured: recorder max hitpoints in 45 hard rooms 1800/2100/2400; ours solo hard: run begins after 587 and 643 damage = ~1500 not 1800 (the ^tob_bloat_hp_hard_* constants are referenced by no script): CONTENT BUG
+bloat.hp_hard	hitpoints Hard at 5 / 4 / 3-or-fewer players	2400,2100,1800	hp	[cache][jagex][blert]	A	cache_npc_bloat.txt:93; newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; blert_plugin/TobNpc.java:56	-	exact
+# bloat.hp_scale measured: ours tabulated 1500/1750/2000 = 75/87.5/100 (code); solo 1500 measured as above
+bloat.hp_scale	Normal and Hard hitpoints at 3-or-fewer / 4 / 5 players as a share of the 5-player figure	75,87.5,100	percent	[jagex]	A	newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; wiki_Theatre_of_Blood.wikitext:63	-	exact
+# bloat.hp_entry_unit measured: ours: damage summed to the death of two Entry rooms = 320 and 320 exactly
+bloat.hp_entry_unit	Entry hitpoints for one player (cache stat4 of the story record)	320	hp	[cache]	A	cache_npc_bloat.txt:56	-	exact
+# bloat.hp_entry_scale measured: ours multiplies the unit by the party size (1,2,3,4,5; tob_raid.rs2 ~tob_scale_hp): CONTENT BUG for 2-5 players; only the solo figure is measured
+bloat.hp_entry_scale	Entry hitpoints per party size 1..5 as a multiple of the one-player figure (the percentages stack: +90, +80, +70, +60)	1,1.9,2.7,3.4,4	ratio	[jagex]	A	newsposts/wiki_Update_Theatre_of_Blood_Entry_Mode_Improvements.wikitext:59	M61	exact
+# bloat.walk_damage_pct measured: ours: 469 hits on a walking Bloat max 12 (two at 16 landed on the rise tick), 352 on a down Bloat max 24
+bloat.walk_damage_pct	damage dealt to Bloat while it is walking, as a share (rounded down)	50	percent	[wiki]	D	wiki_Pestilent_Bloat.wikitext:90; wiki_Theatre_of_Blood_Strategies.wikitext:673	-	exact
+# bloat.entry_fly_max measured: ours: Entry flies 10-20 (same script as Normal): CONTENT BUG against a D source
+bloat.entry_fly_max	Entry: fly hit (infobox max 8; "much weaker flies")	1-8	hp	[wiki][M62]	D	wiki_Pestilent_Bloat.wikitext:24; wiki_Theatre_of_Blood_Entry_Mode.wikitext:132	M62	range
+# bloat.entry_stomp_max measured: ours: Entry stomp 40-80 in 80 of 80 rooms: CONTENT BUG against a D source
+bloat.entry_stomp_max	Entry: stomp hit (infobox max 40; "heavily reduced")	1-40	hp	[wiki][M62]	D	wiki_Pestilent_Bloat.wikitext:24; wiki_Theatre_of_Blood_Entry_Mode.wikitext:134	M62	range
+# bloat.entry_hand_damage measured: ours 30-50; one narrator: "it'll stun you and do around 20 or 25 damage"
+bloat.entry_hand_damage	Entry: falling-flesh hit	20-25	hp	[video][M62]	E	transcripts/yt_B_gjVdmfOrY.md:67	M62	approx
+# bloat.entry_walk measured: ours Entry first walk 39..47 as Normal (138 of 140 rooms); Blert holds no Entry Bloat stream (mode 10 listings empty, one 404)
+bloat.entry_walk	Entry: first and later walk windows (no recording of any Entry Bloat exists)	39-47	ticks	[M63]	E	SOURCES.md	M63	approx
+# bloat.entry_turn measured: ours 32 as Normal; no recording
+bloat.entry_turn	Entry: first turn cooldown	32	ticks	[M63]	E	SOURCES.md	M63	approx
+# bloat.tech_flinch_window measured: recorder: stomp down+29, first step down+33 = 4; ours stomp down+29, first step down+34 = 5 (the same one-tick content bug as down_to_move)
+bloat.tech_flinch_window	ticks from the stomp to the first step of the rise (the flinch: click back when the hands move)	4	ticks	[blert][guide]	B	blert_api/bloat_stats.txt; transcripts/yt_oKXoj9Yxy7Q.md:31	-	exact
+# bloat.tech_flinch_tiles measured: not driven; one narrator ("99 % of the time you will click five tiles back")
+bloat.tech_flinch_tiles	tiles to click back from the down Bloat, excluding a corner	5	tiles	[guide][video]	D	transcripts/yt_oKXoj9Yxy7Q.md:31; transcripts/yt_oKXoj9Yxy7Q.md:70	-	exact

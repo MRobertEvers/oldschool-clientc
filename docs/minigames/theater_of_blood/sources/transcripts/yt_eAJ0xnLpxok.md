@@ -1,0 +1,41 @@
+# Hard Mode ToB: Nylocas Guide | HMT Nylo Guide — transcript
+
+Auto-generated captions from <https://www.youtube.com/watch?v=eAJ0xnLpxok>
+(Plank2g, *Hard Mode ToB: Nylocas Guide | HMT Nylo Guide*, uploaded 2022-01-22, 6:49, 25 fps source).
+
+Downloaded with `yt-dlp --write-auto-subs` and converted by `tools/raid_gate/vtt_to_md.py` for the Theatre of Blood source corpus. Timestamps are `H:MM:SS` and link back to the video. Machine transcription: every tick count, npc name and item name must be cross-checked against the wiki, the cache or a recording before it is encoded as a constant.
+
+## Chapter index
+
+- [0:00:00](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=0) — Hard mode mechanics
+- [0:00:32](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=32) — Wave strategy and princes
+- [0:02:38](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=158) — Common failure points
+- [0:04:49](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=289) — Nilo king strategy
+
+## Transcript
+
+*[0:00:00](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=0)* — nilos and hardmode taub tend to be the biggest brick wall players meet nylon mechanics for hard mode are updated with the following attacking with the wrong style recoil is damage including scythe barrages and chins nylo princes spawn every 10 waves nilo king's magic damage increases the farther away you are from other players nilo king's range attack fires and a cone and increases the damage for the more players it hits and nilo's king max hit is increased now the king changes form every nine ticks instead of eight nil wave strategy
+
+*[0:00:33](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=33)* — nightly wave prioritization is as follows aggros before they start attacking smalls on the pillars and then bigs on the pillars clear the waves as usual they're in the same order as normal top and the aggros are the exact same as well here's the difference and the wrench every tenth wave the nilo prince will appear for the first prince range dps needs to chin the triple nylo waves everyone else should scythe chali or claw scythe the nylo prince make sure that your piety is on as long
+
+*[0:01:06](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=66)* — as three out of four players does the scythe challie or claw scythe then the nylo prince should die immediately if it doesn't finish it off when it's melee or ranged ideally one of the melees finishes off the prince if it's still alive if the ranger decides to attack the first style appearance instead of the triple range wave then the ranger will be playing catch up for the rest of the nilo waves causing unnecessary damage to the already weakened pillars again remember to focus aggros smalls attacking the pillars and then
+
+*[0:01:38](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=98)* — bigs attacking the pillars the crabs that are walking across the room or into the room that are not aggros those aren't damaging your pillars yet so you need to save that hp the next prince spawns at wave 20. for those of us not on cheat client if you are a normal player looking south the mage the triple big mage wave followed by the range agar on the right followed by the mage aggro on the left after that mage aggro on the left that is when your prince spawns for the second prince everyone should be scythe challenging this prince again you need to have piety
+
+*[0:02:12](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=132)* — on right after the melee aggros is whenever the third prince spawns this one you will ignore you need to pray against it but you ignore this one until you clear the waves at this point everyone should be focusing the low pillars after every nilo on the towers are killed you can start killing the nilo prince this is the last one before the nilo king before moving on to the nilo king strategy let's cover some reasons why you guys fail the nilo waves reason number one too much time out of
+
+*[0:02:45](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=165)* — combat in hard mode the pillars have less hp and therefore everyone needs to pick up any slack that might be there this includes the north major camping ancestral bottoms with a swift blade and maging whenever they're not close to any crabs this also includes helping freeze the south double mages after the first prince as well as attempting to get a hit on the aggro on that same wave as well the person maging should be one of the best majors in the group and the ranger needs to be extremely good at range they need to understand
+
+*[0:03:20](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=200)* — how ticks work and to maximize the blowpipe's effectiveness the blowpipe is a two-tick weapon and therefore they need to use it as a two-tick weapon not a three or four tick reason number two is the princes stay alive for too long realistically the princes should be dead within three of their color changing cycles if they're alive longer than this then the team is [&nbsp;__&nbsp;] up too hard make sure you're super combat plotted and you have piety on whenever you attack it with melee the goal is for it to pop during that first rotation reason
+
+*[0:03:53](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=233)* — number three everyone dies at the end if you're a part of teams that keep dying at the end of nilos it usually means that a combination of the previous woes are present the north major isn't helping kill the aggros at the end the players are not protecting correctly against the prince and they're not focusing the low pillars or focusing the crabs on the pillars during the early stages of the waves i will say as a caveat every once in a while your team will get bad rng with hits and it will be difficult to clear please keep in
+
+*[0:04:25](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=265)* — mind this is not the case about 95 percent of the time if you continue to struggle making it to the nilo king and die on the waves then i highly suggest turning on the tick counter plug-in in rune light this will help keep track of how long you and your teammates are in combat generally if you are feeling the nilo waves then you are not in combat long enough and you will be at the bottom alright finally with nilo king his defense level is 50 and you use one bgs reduce his defense so melee dps this is you again but the priorities here have
+
+*[0:05:00](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=300)* — changed everyone should have a defined spot this is usually done after the nilo prince has died and before the king spawns ranged dps is always the anchor so wherever the range dps is standing that's where people are meeting for the nilo kings mage phase everyone else is going to call north east or west and this is the spot that they will go to during nilo king's ranged phase so instead of pre-switching you're going to be pre-moving so as soon as you do your two attacks on the nilo king you're
+
+*[0:05:33](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=333)* — going to pre-move like he's going to do a ranged attack if you see that it's blue you're going to click on the death dot tile on the range dps and switch your pair as you are moving the reason why you assume that it's going to be range every time is one it's better dps than mage and two for how the damage is actually calculated for the range phase it essentially says i'm attacking this person and is there anyone within three tiles of this person if so then it's going to calculate based off of that many players and hit the targeted person for the most and everyone else will get
+
+*[0:06:07](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=367)* — hit proportionally as well whereas with the mage phase the longer the ball travels the more damage it deals so it's based off of impact not when the attack is fired out like ranged because your teammate's movement directly affects how much damage you take play it safe keep a minimum of 40 hp but i do recommend 50 to 60. i recommend conducting 1 to 2a switches during the entirety just for basic dps purposes but keep in mind that moving in prayer will keep you alive and therefore your one hit
+
+*[0:06:40](https://www.youtube.com/watch?v=eAJ0xnLpxok&t=400)* — is going to do more dps than you being dead and dealing no hits or you know killing your entire team which does happen

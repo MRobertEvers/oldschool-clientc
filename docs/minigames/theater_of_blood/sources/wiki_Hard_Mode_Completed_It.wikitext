@@ -1,0 +1,41 @@
+{{Infobox Combat Achievement
+|name = Hard Mode? Completed It
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood: Hard Mode within the challenge time.
+|tier = Master
+|monster = Theatre of Blood: Hard Mode
+|type = Speed
+|id = 381
+|leagueRegion = Morytania
+}}
+'''Hard Mode? Completed It''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Theatre of Blood/Hard Mode|Theatre of Blood: Hard Mode]] within the challenge time.
+
+== Strategy ==
+Completing the raid in the challenge time is easiest in a group of 4 or 5. Time between the rooms is also counted, so players should avoid spending too much time waiting on teammates and buying supplies. 
+{| class="wikitable"
+!Players
+!Time
+|-
+|5
+|25:00
+|-
+|4
+|27:00
+|-
+|3
+|30:00
+|-
+|2
+|35:00
+|-
+|1
+|1:10:00
+|}
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

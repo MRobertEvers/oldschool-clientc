@@ -1,0 +1,134 @@
+# Sotetseg spec pass, blert analysis outputs. Generated 2026-10-02 from 22 stage-13 event streams fetched 2026-10-02 (listing: challenges?type=1&mode=<10|11|12>&scale=eq<n>&status=eq1&stage=ge13; events: raids/tob/<uuid>/events?stage=13), 3 s apart.
+# Raw streams are not committed (about 20 MB); regenerate with build/spec_state/*/fetch_blert_sote.py. Scripts beside this file.
+# Blert NPC_ATTACK ids as read from the data: 7 = TOB_SOTE_MELEE, 8 = TOB_SOTE_BALL, 9 = TOB_SOTE_DEATH_BALL (registry order, bcf npc-attack-type.json).
+# Raids: normal (mode 11) 14 raids = scale 3 x4, scale 4 x4, scale 5 x6; hard (mode 12) 7 raids = scale 3 x2, 4 x2, 5 x3; entry (mode 10) 1 raid (scale 4).
+
+## SUMMARY
+===== m11 14 raids
+first attack [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 8]
+balls before D {10: 20, 11: 3} D total 23
+gap after D (outside maze) {(10, 'no maze'): 19, (49, 'maze'): 1}
+gaps not spanning maze and not after D {5: 375}
+post-maze first attack delay from reactivation [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+sote hp at maze procs (tick,cur,max): [(47, 2017, 3000), (125, 1021, 3000), (42, 2007, 3000), (126, 1006, 3000), (52, 2007, 3000), (131, 1003, 3000), (52, 2015, 3000), (130, 1004, 3000), (69, 2334, 3500), (160, 1187, 3500), (66, 2366, 3500), (172, 1186, 3500)]
+start hp [(3000, 3000), (3000, 3000), (3000, 3000), (3000, 3000), (3500, 3500), (3500, 3500)]
+===== m10 1 raids
+first attack [7]
+balls before D {10: 2} D total 2
+gap after D (outside maze) {(10, 'no maze'): 2}
+gaps not spanning maze and not after D {5: 39}
+post-maze first attack delay from reactivation [1, 1]
+sote hp at maze procs (tick,cur,max): [(34, 1526, 2240), (171, 754, 2240)]
+start hp [(2240, 2240)]
+===== m12 7 raids
+first attack [6, 6, 6, 6, 6, 6, 6]
+balls before D {9: 1, 10: 8, 11: 1} D total 10
+gap after D (outside maze) {(10, 'no maze'): 10}
+gaps not spanning maze and not after D {5: 155, 6: 1}
+post-maze first attack delay from reactivation [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4]
+sote hp at maze procs (tick,cur,max): [(57, 2011, 3000), (128, 1006, 3000), (47, 2007, 3000), (126, 1008, 3000), (45, 2355, 3500), (121, 1195, 3500), (52, 2355, 3500), (121, 1169, 3500), (51, 2670, 4000), (132, 1343, 4000), (43, 2673, 4000), (139, 1331, 4000)]
+start hp [(3000, 3000), (3000, 3000), (3500, 3500), (3500, 3500), (4000, 4000), (4000, 4000)]
+
+## MELEE_ROLL (target adjacent at T-1 -> melee vs ball)
+first attack ticks [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 8]
+('adj', 'card', 'ball') 134
+('adj', 'card', 'death') 11
+('adj', 'card', 'melee') 122
+('adj', 'diag/none', 'melee') 3
+('far', 'diag/none', 'ball') 153
+('far', 'diag/none', 'death') 12
+('nopos', 8) 3
+
+## DEATH_BALL_FLIGHT (recorder hitpoints drop after each ball attack aimed at the recorder; (ticks after the attack, hp lost))
+m11_s3_48daf88c-6f23-4fc0-9e73 DEATH 84 4 (6, 1)
+m11_s3_48daf88c-6f23-4fc0-9e73 DEATH 164 5 (16, 10)
+m11_s4_3c159bc9-1eb9-42e3-9d59 DEATH 152 3 (16, 17)
+m11_s5_4185244a-2220-43f6-a189 DEATH 207 3 (16, 74)
+m11_s5_606916a5-07af-4d94-a93b DEATH 108 3 (16, 72)
+m11_s5_606916a5-07af-4d94-a93b DEATH 209 4 (16, 3)
+m11_s5_dadf2bb7-d448-49a3-86c8 DEATH 114 4 (3, 23)
+balls: Counter({None: 44, 6: 7, 7: 4, 21: 4, 1: 3, 20: 2, 5: 2, 13: 1, 8: 1, 23: 1, 9: 1, 12: 1, 15: 1, 18: 1, 3: 1, 22: 1, 2: 1, 19: 1})
+dist from centre 3 {21: 2, 12: 1, None: 16, 6: 2, 20: 1, 1: 1}
+dist from centre 4 {None: 25, 6: 2, 13: 1, 8: 1, 20: 1, 5: 1, 23: 1, 9: 1, 7: 1, 15: 1, 18: 1, 3: 1, 22: 1, 21: 1, 1: 1, 2: 1}
+dist from centre 5 {21: 1, 6: 1, 5: 1}
+dist from centre 6 {6: 1}
+dist from centre 7 {6: 1}
+dist from centre 8 {7: 1}
+dist from centre 10 {1: 1}
+dist from centre 12 {None: 3, 7: 2, 19: 1}
+
+## CHIP (shadow realm chip damage, recorder in plane-3 region)
+m11_s4_5b2de055-9847-4818-8bc3 under 151 183 len 33 drops [(156, 2), (163, 2), (170, 1), (177, 1)]
+m11_s4_fc867823-f19e-4bc7-b5d3 under 62 86 len 25 drops [(71, 2), (78, 1), (85, 2)]
+m11_s5_2aa4c89b-1c69-4fcc-8a3c under 120 151 len 32 drops [(126, 3), (133, 2), (140, 2), (147, 3)]
+m11_s5_4185244a-2220-43f6-a189 under 55 78 len 24 drops [(61, 3), (68, 1), (75, 3)]
+m12_s3_2d77f535-28c7-4a1f-bba8 under 60 81 len 22 drops [(64, 3), (71, 2), (76, 19), (77, 18), (79, 17)]
+m12_s3_2d77f535-28c7-4a1f-bba8 under 131 159 len 29 drops [(134, 3), (141, 2), (148, 3), (155, 1)]
+m12_s4_54f2c13f-3f47-4c70-8965 under 48 76 len 29 drops [(51, 3), (58, 1), (65, 1), (72, 2)]
+m12_s4_e011cdd1-ef36-4799-8eeb under 55 80 len 26 drops [(60, 2), (67, 3), (74, 3)]
+m12_s5_4dea5b4d-53c2-4ad7-8346 under 54 90 len 37 drops [(59, 1), (66, 1), (73, 1), (80, 1), (87, 2), (88, 20)]
+m12_s5_d6550d0e-d361-4eea-992e under 46 77 len 32 drops [(51, 3), (58, 3), (65, 3), (72, 3), (74, 20), (75, 19)]
+m12_s5_f3404e97-0bad-4a1d-a1db under 117 154 len 38 drops [(126, 2), (133, 2), (140, 3), (147, 3)]
+gaps {1: 3, 2: 2, 5: 1, 7: 29}
+dmg {1: 11, 2: 13, 3: 16, 17: 1, 18: 1, 19: 2, 20: 2}
+---- first chip relative to maze proc / arrival
+m11_s4_5b2de055-9847-4818-8bc3 proc 148 arrive 151 (+3) first chip 156 (+8 from proc, +5 from arrival)
+m11_s4_fc867823-f19e-4bc7-b5d3 proc 59 arrive 62 (+3) first chip 71 (+12 from proc, +9 from arrival)
+m11_s5_2aa4c89b-1c69-4fcc-8a3c proc 117 arrive 120 (+3) first chip 126 (+9 from proc, +6 from arrival)
+m11_s5_4185244a-2220-43f6-a189 proc 52 arrive 55 (+3) first chip 61 (+9 from proc, +6 from arrival)
+m12_s3_2d77f535-28c7-4a1f-bba8 proc 57 arrive 60 (+3) first chip 64 (+7 from proc, +4 from arrival)
+m12_s3_2d77f535-28c7-4a1f-bba8 proc 128 arrive 131 (+3) first chip 134 (+6 from proc, +3 from arrival)
+m12_s4_54f2c13f-3f47-4c70-8965 proc 45 arrive 48 (+3) first chip 51 (+6 from proc, +3 from arrival)
+m12_s4_e011cdd1-ef36-4799-8eeb proc 52 arrive 55 (+3) first chip 60 (+8 from proc, +5 from arrival)
+m12_s5_4dea5b4d-53c2-4ad7-8346 proc 51 arrive 54 (+3) first chip 59 (+8 from proc, +5 from arrival)
+m12_s5_d6550d0e-d361-4eea-992e proc 43 arrive 46 (+3) first chip 51 (+8 from proc, +5 from arrival)
+m12_s5_f3404e97-0bad-4a1d-a1db proc 114 arrive 117 (+3) first chip 126 (+12 from proc, +9 from arrival)
+
+## STALL (teleport and first movement relative to the maze proc event)
+arrival offsets {3: 34} first move after arrival {2: 13, 3: 10, 4: 5, 6: 3, 7: 1, 5: 2}
+
+## MISC
+attacks total 670 strictly inside idle->active windows 2
+melee on recorder: ticks until first hp drop {'none': 19, 1: 8}
+prayerSet values [(0, 432), (65536, 366), (262144, 260), (67174400, 125), (131072, 84), (67108864, 80), (67371008, 36), (67239936, 29)]
+
+== MELEE_DELAY: ticks from a Sotetseg melee attack (TOB_SOTE_MELEE) to the recorder's first hitpoints drop
+{'no drop (prayed/blocked/missed)': 19, 1: 8}
+
+== RAG_FORMULA: recorder hitpoints drop inside a maze window vs 15 + floor(hp_before*67/1000)  (exact matches marked =)
+m11_s3_48daf88 tick 56 hp before 41 drop 17 predicted 17 =
+m11_s3_48daf88 tick 84 hp before 24 drop 14 predicted 16 
+m11_s3_71c56a7 tick 74 hp before 99 drop 14 predicted 21 
+m11_s3_71c56a7 tick 76 hp before 85 drop 20 predicted 20 =
+m11_s3_71c56a7 tick 100 hp before 17 drop 17 predicted 16 
+m11_s4_3c159bc tick 87 hp before 83 drop 14 predicted 20 
+m11_s4_3c159bc tick 110 hp before 56 drop 18 predicted 18 =
+m11_s5_4185244 tick 169 hp before 93 drop 14 predicted 21 
+m11_s5_7cc5d13 tick 129 hp before 22 drop 16 predicted 16 =
+m12_s3_2d77f53 tick 76 hp before 64 drop 19 predicted 19 =
+m12_s3_2d77f53 tick 77 hp before 45 drop 18 predicted 18 =
+m12_s3_2d77f53 tick 79 hp before 39 drop 17 predicted 17 =
+m12_s3_843e8d1 tick 65 hp before 99 drop 21 predicted 21 =
+m12_s3_843e8d1 tick 66 hp before 78 drop 20 predicted 20 =
+m12_s3_843e8d1 tick 157 hp before 40 drop 17 predicted 17 =
+m12_s4_e011cdd tick 110 hp before 65 drop 20 predicted 19 
+m12_s4_e011cdd tick 174 hp before 60 drop 20 predicted 19 
+m12_s5_4dea5b4 tick 88 hp before 85 drop 20 predicted 20 =
+m12_s5_4dea5b4 tick 132 hp before 65 drop 21 predicted 19 
+m12_s5_4dea5b4 tick 170 hp before 55 drop 18 predicted 18 =
+m12_s5_d6550d0 tick 74 hp before 88 drop 20 predicted 20 =
+m12_s5_d6550d0 tick 75 hp before 68 drop 19 predicted 19 =
+m12_s5_f3404e9 tick 114 hp before 81 drop 21 predicted 20 
+rows 23 exact 14
+
+== CYCLE_PHASE: reactivation tick (npc idle->active) mod 4, both mazes of one raid
+differs: m11_s5_2aa4c89 [83, 152] [3, 0] gap mod 4 = 1
+differs: m12_s5_4dea5b4 [91, 170] [3, 2] gap mod 4 = 3
+differs: m12_s5_f3404e9 [72, 155] [0, 3] gap mod 4 = 3
+same residue 19 differ 3
+
+== ATTACKS_DURING_MAZE and FIRST_MOVE: see sote_misc / sote_stall outputs
+
+## DEATH_AFTER_MAZE
+type of the first attack after each re-activation (44 mazes, normal and hard): {'M': 11, 'B': 33} (M melee, B ball, D death ball)
+attack number (1 = the very first) of the first death ball after a re-activation: {2: 4, 3: 7, 4: 7, 5: 1, 6: 4, 7: 1, 8: 3, 9: 3, 10: 1, 11: 3, 13: 2, 15: 1, 16: 1}

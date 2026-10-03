@@ -1,0 +1,179 @@
+# Theatre of Blood Plugins
+
+_Note: This list of plugins is incomplete and will be updated over time._
+
+## General
+
+### Party / Hub Party Panel
+
+While not ToB-specific, the Party plugin is perhaps the most essential
+plugin to have when doing any group PvM. At its core, it shares basic
+information about your character with your teammates, such as your
+current hitpoints, prayer points, and special attack energy. More
+importantly, it provides a mechanism for other plugins to share
+information, enabling many features which greatly improve your raid
+experience.
+
+One such plugin that builds on Party is the
+[Hub Party Panel](https://runelite.net/plugin-hub/show/party-panel).
+This extends the shared party data to include your stats, gear,
+inventory, and prayers.
+
+### Special Attack Counter
+
+Special Attack Counter is a builtin Runelite plugin which tracks how
+many defence-reducing special attacks you've landed on a boss. It
+integrates with the Party plugin to share this information with your
+teammates.
+
+### Party Defence Tracker
+
+[Party Defence Tracker](https://runelite.net/plugin-hub/show/party-defence-tracker)
+builds on top of the Special Attack Counter plugin to automatically
+calculate the Defence level of a boss as your team hits special attacks
+and display it in an infobox, removing the need for you to remember
+special attack counts.
+
+### ToB QoL
+
+[ToB QoL](https://runelite.net/plugin-hub/show/tobqol) offers a variety
+of quality of life features throughout every room of the Theatre of Blood.
+There are too many to list here; we encourage you to try them out to see
+which you find useful. A selection of the most notable features include:
+
+- **Instance Timers**. This is an essential toggle for both the Nylocas
+  and Xarpus. It displays the game's internal instance timer on which
+  these rooms operate, allowing you to time your entry to start the room
+  as quickly as possible.
+
+  When you enter the Nylocas or Xarpus instance, a tick counter from 0-3
+  will appear over your head. If you are the player starting the room,
+  click the barrier to bring up the start menu, then click to enter when
+  the displayed tick is 0.
+
+- **Maiden & Verzik crab health**. These options display the hitpoints of
+  red crabs at Maiden and Verzik as a number, allowing you to know when
+  to stop attacking them.
+
+- **Object hiders**. You can hide the ceiling chains at Bloat, along with
+  various objects in the Nylocas room, reducing visual clutter.
+
+- **Room timers**. Displays live timers in each room, showing important
+  splits.
+
+## The Pestilent Bloat
+
+### Ground Object Hider
+
+It can be difficult to see shadows on Bloat's floor through its default
+texture, leading to embarrassing deaths. The
+[Ground Object Hider](https://runelite.net/plugin-hub/show/object-hider)
+plugin allows you to remove this floor texture. To achieve this, list
+the following object IDs in the plugin's settings:
+
+```plaintext
+32941, 32942, 32943, 32944, 32945, 32946, 32947, 32948
+```
+
+However, this alone isn't enough, since the floor otherwise appears as a
+black void. To change this, use the builtin Skybox plugin to set both
+the Overworld and Cave skyboxes to a color of your choice.
+
+<Notice type="warning">
+
+You must set _both_ the Overworld and Cave skyboxes, or the floor will
+still occasionally appear black.
+
+</Notice>
+
+<Image
+  src="/images/guides/tob/plugins/skybox.png"
+  alt="Skybox plugin settings"
+  width={236}
+  height={95}
+  unoptimized
+  style={{ borderRadius: 0 }}
+/>
+
+## The Nylocas
+
+### Nyloer
+
+[Nyloer](https://runelite.net/plugin-hub/show/nyloer) offers several
+helpful tools for the Nylocas room.
+
+#### Wave numbers [#nyloer-wave-numbers]
+
+Nyloer's most useful feature is its wave indicators, which display the
+wave number over every Nylo that spawns, as well as whether the Nylo is
+a split. This makes it easy to prioritize Nylos which are newer,
+avoiding killing those which will expire soon.
+
+To enable wave numbers, tick the _Show Nylocas Wave_ option in the
+plugin's _General Settings_:
+
+<Image
+  src="/images/guides/tob/plugins/nyloer-wave.webp"
+  alt="Nyloer wave number setting"
+  width={229}
+  height={270}
+  unoptimized
+  style={{ borderRadius: 0 }}
+/>
+
+#### Dimming [#nyloer-dimming]
+
+A related feature is the ability to visually darken the wave numbers of
+any Nylos currently in the room ("dimming"). Doing so provides a visual
+indicator of which Nylos to avoid targeting, as they will expire
+naturally before a key threshold.
+
+Most commonly, players will set a _Darker Wave_ (and sometimes _Darker
+Wave Offset_) under Nyloer's _Font Settings_ before starting the room.
+Nyloer will then automatically dim Nylos as soon as the specified wave
+and tick offsets are reached. The specific wave and tick offsets are
+determined based on the boss spawn time a team is targeting. The most
+common configurations are listed below.
+
+| Boss spawn time | Darker wave | Tick offset |
+| :-------------: | :---------: | :---------: |
+|     2:48.0      |     26      |      0      |
+|     2:50.4      |     27      |      0      |
+|     2:52.8      |     27      |      4      |
+|     2:55.2      |     28      |      0      |
+
+Nyloer also allows setting a _Make Darker Hotkey_ to manually dim Nylos
+on demand. This is more advanced, requiring an understanding of the
+Nylocas room cycle, but can be invaluable to experienced players.
+
+<Image
+  src="/images/guides/tob/plugins/nyloer-dim.png"
+  alt="Nyloer darken hotkey setting"
+  width={226}
+  height={82}
+  unoptimized
+  style={{ borderRadius: 0 }}
+/>
+
+#### Role menu swaps [#nyloer-role-menu-swaps]
+
+Nyloer also allows you to configure menu priorities for your role,
+prioritizing its relevant Nylo style(s), allowing you to simply left
+click on a stack of Nylos to attack the one you want. This replaces the
+need for the Custom Menu Swaps plugin which players previously used for
+this purpose.
+
+Nyloer comes with default menu swaps for the Mage, Ranger, and Melee
+roles, which you can quickly switch between by clicking a button in the
+plugin's sidebar panel. You can also customize these menu swaps to your
+preference in the plugin's settings.
+
+### Nylo Death Indicators
+
+[Nylo Death Indicators](https://runelite.net/plugin-hub/show/nylo-death-indicators)
+tracks your experience drops as you attack Nylos and immediately hides
+Nylos that will die to your attacks, before the client visually
+registers their death. Better yet, it integrates with the Party plugin,
+also removing the dead Nylo from your teammates' screens. This is
+incredibly useful to avoid doubling up on Nylos that your teammates have
+already killed.

@@ -1,0 +1,107 @@
+{{Update|date=6 September 2018|link=http://services.runescape.com/m=news/making-friends-with-my-arm-deadman-autumn-finals-and-full-mobile-launch-?oldschool=1|category=game}}
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch newspost.png|right]]
+
+{{clear}}
+<center>''This week sees the release of Mod Ash’s troll quest sequel, Making Friends with My Arm as well as Deadman changes for the Autumn finals and Winter Season, and the official release date of OSRS Mobile.''</center>
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Making Friends with My Arm}}
+
+Today's new quest revisits some older lore. My Arm, the troll from ''My Arm's Big Adventure'', must embark on another journey of discovery. This time you'll be escorting him to Weiss, a newly discovered troll town in the far north of the world, so he can share his wisdom ''*cough*'' with the inhabitants, in exchange for learning about their inventions.
+
+Life's journeys can take us to some strange places, but My Arm is about to face the greatest adventure of all - true love. Plus they'd like him to kill the Wise Old Man of Draynor Village, which doesn't sound like a clever move. Can you help My Arm get a grip on the situation and woo the fair Snowflake over the objections of her father, Mother? Or will My Arm be left to a loveless life of loneliness?
+
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch (1).png|center|500px]]
+
+You can start ''Making Friends with My Arm'' by returning to '''Burntmeat''' in the Troll Stronghold kitchen. This quest has the following requirements: 
+
+*''My Arm's Big Adventure''
+*''Swan Song''
+*''Cold War''
+*''Romeo & Juliet''
+*Level 68 Agility
+*Level 72 Mining
+*Level 35 Construction
+*Level 66 Firemaking
+
+The trolls won't let you start the quest unless your ''unboosted'' Firemaking level is adequate. The other three stat requirements are checked only where they're needed in the quest and accept stat-boosts.
+
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch (2).png|center]]
+
+If you can support My Arm to a happy ending, the trolls will build you another disease-free herb patch, as well as teaching you advanced Firemaking techniques invented by the Weiss trolls, letting you create permanent fires in designated fire pit sites across RuneScape.
+
+*''Fire of Eternal Light'' - perpetual light shines to dispel the darkness of the Mole Hole, Lumbridge Swamp cave and Mos Le'Harmless horror cave.
+*''Fire of Nourishment'' - unlocks a new disease-free herb patch.
+*''Fire of Unseasonal Warmth'' - renders you permanently immune to the cold weather effects around the God Wars Dungeon. Also requires '''level 60 Construction'''.
+*''Fire of Dehumidification'' - prevents swamp damage and ghast attacks in the main areas of Mort Myre. Also requires '''level 50 Construction'''.
+*Glowing Basalt teleport tablets can teleport you back to Weiss, and also to the Troll Stronghold for easier access to My Arm's original herb patches.
+
+These fires will require different salts in order to be created. The salts can be mined from the mine underneath Weiss that can be accessed after completing the quest. Level 72 Mining is required to mine the salts with a higher mining level providing more salt on a successful action.
+
+You can build a Troll Stronghold portal in your player-owned house portal room too.
+
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch (3).png|center|500px]]
+
+{{Horizontal Line}}
+
+{{Headline|22|Deadman Autumn Finals & Winter Season}}
+
+The Deadman Autumn Finals kick off at '''3pm BST on Saturday 8th September'''. The top players from the Autumn Season will spend the week preparing for the frenzy of the Permadeath stage, where they’ll be fighting for a share of the '''$32,000''' prizemoney. The Autumn Finals culminates on 15th September. We’ll be broadcasting the action live from ESL in Leicester, set a reminder to watch the event on twitch or join us in person – [https://www.eventbrite.co.uk/e/deadman-autumn-finals-2018-tickets-49165227519 there are just a handful of tickets left]!
+
+The Winter Season begins with the end of the Permadeath stage, and there are some wildly exciting changes in store. Learn about the Winter Season [https://www.runescape.com/oldschool/deadman/season here].
+
+One notable change is the addition of the PvP sets. For the first time in Old School RuneScape you’ll be able to see Vesta’s, Statius’, Morrigan’s, and Zuriel’s!
+
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch (4).png|center|700px]]
+
+<center>''A big thanks to Mod West for his faithful recreation of the iconic sets.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|&#35;OSRS Mobile: Coming October 30th!}}
+
+Yesterday we announced the official release date for the ''full launch of Old School Mobile''! This will take place on '''October 30th'''. The mobile version of Old School RuneScape offers full cross-platform play with PC, meaning when you're out and about you can pick up from where you left off at home and is completely free! The full version will be open to free players and members alike.
+
+To play the full mobile version '''the moment it's released''', make sure to pre-order on the [https://osrs.game/MobilePreRegistrationNP App Store] or pre-register on [https://osrs.game/MobilePreRegistrationNP Google Play] to be notified the second it goes live! Check out our [http://services.runescape.com/m=news/old-school-mobile-release-date-announcement?oldschool=1 dedicated news post] for full details and what will happen if you already have access to mobile through the beta. 
+
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch (5).png|center|600px]]
+
+Chat options have been optimised to be a more similar size, overall this has increased the size of most options.
+
+{{Horizontal Line}}
+
+{{Headline|22|New Angel Scapes Merch}}
+
+We’re delighted to announce that a new range of pins and keyrings from Angels Scapes is now available on the RuneScape store!
+
+The selection includes pin badges of draconic boss-monster Vorkath and one-hit menace Jad, along with keyrings depicting Chambers of Xeric’s Great Olm and Inferno boss Zuk. We’re also pleased to confirm that many popular Angels Scapes items are now back in stock, including the Armadyl and Saradomin Godsword and the Infernal Max Cape keyrings.
+
+[[File:Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch (6).png|center|375px]]
+
+Check out everything on offer over at the [https://runescape.backstreetmerch.com/en-gb/tag/angels-scapes official store].
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*The PvP rota is switching over to [https://www.runescape.com/oldschool/pvpworldrota Period B].
+*An issue where players were unable to perform a special attack on a player in multi that had recently been hit by another player's special attack has been fixed.
+*The Wilderness level information has been re-positioned to avoid overlapping interfaces on mobile.
+*When interfaces such as the poll booth would overlap with tabs such as the inventory, the tabs are closed automatically by default but can be opened again.
+*Mirrors are now correctly displayed when looking into them during the Desert Treasure quest on mobile.
+*Spirit trees now use the correct chathead when attempting to travel to a location that you're already at.
+*The drop rate for elite clues from Theatre of Blood has been adjusted.
+*A grammar error in Kolodion's dialogue for Mage Arena II has been fixed.
+
+The following fixes have been made for issues with the chatbox resulting from last week's changes:
+*All functionality to sections of the chat box options have been restored.
+*The configure filter can now once again be toggled.
+*Auto-chat can once again be paused.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/c=AIAjWLxEt94/forums.ws?380,381,510,66042092 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Gambit, Ghost, Jed, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

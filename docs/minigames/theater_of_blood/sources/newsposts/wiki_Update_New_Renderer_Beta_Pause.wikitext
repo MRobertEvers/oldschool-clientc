@@ -1,0 +1,224 @@
+{{Update|date=29 October 2025|rev=30 October 2025|url=https://secure.runescape.com/m=news/new-renderer-beta-pause?oldschool=1|category=game}}
+[[File:New Renderer Beta Pause newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==A quick update on the 'RoboSpear' hotfix - Thursday, October 30th==
+Hello! If you've been looking at OSRS content or talking about it with your friends in the past 12 hours, you'll undoubtedly have stumbled across the 'RoboSpear', a strategy for Yama developed by jeremiah855 and Muffyn. If you have absolutely no idea what we're talking about, then check out [https://youtu.be/a2NqCpXz-QU this absolutely wonderful video] that highlights just how far OSRS has come from 'medieval clicking simulator' and watch how talented players embarked on a full-blown data science project to optimise combat against the Master of Pacts.
+
+<center>
+{{Youtube|a2NqCpXz-QU}}
+</center>
+
+In essence, this method makes use of the Blue Moon Spear's special attack - which increases accuracy and damage for every tick of 'binding' removed from an enemy - to deal a huge hit of up to 200 damage to Yama in his third phase, with the added benefit of him moving around the arena once this bind is 'consumed' by the spear, enabling a brand new kiting method.
+
+Late last night we deployed a hotfix to cap this damage, which has understandably ruffled a few feathers, so we're here to explain ourselves!
+
+We'd like to make clear that Yama is not the only NPC in game that has a 'bind' applied this way, last night's hotfix was a quick fix to give us assurances that the team wouldn't wake up tomorrow and find bosses all over the game being absolutely obliterated by the Blue Moon Spear and armour set.
+
+This morning, we spent some time discussing the 'RoboSpear' as a team and want to share our thoughts:
+
+* As we said above, other NPCs are 'bound' in the same way. While we think this interaction is very cool and love what it does for Yama, we don't want to risk other NPCs being effectively one-shottable by a mid-game armour set. Similarly, we'll take a safety pass at other NPCs that are bound in this way to make sure there aren't scenarios where thing like Verzik P2 suddenly starts walking around.
+* The existing cap of 200 is a global damage cap as a guardrail for the whole game. There's a chance that future bosses might have unique mechanics that allow players to deal astronomical damage where we might like to increase this cap, which would buff these Blue Moon interactions further.
+* In general, hitting 200s with mid-game gear that isn't tailored towards a specific weakness (e.g. the Keris Partisan) just doesn't feel right. Particularly when this large damage nuke is very accessible, and shaves time off of the toughest and most engaging phase of the fight in particular.
+
+Having said all of that, we think the RoboSpear and the work that's gone into developing the method is really cool, so rather than removing emergent gameplay - we'd like to balance it, similar to the Araxxor step-under from release.
+
+That means we'd like to raise the 'cap' on how many ticks of binding we use to calculate the Blue Moon Spear's bonus Special Attack damage up to 75, which should leave its max hit at around 100. We'll also be keeping the 'unbind' functionality of the attack, so the lossless cycle enabled by releasing Yama from his own programming will still be doable, meaning it should still be 'meta' for anybody looking for the fastest runs on average. Finally, we'll be separating the accuracy boost from the damage boost on the Blue Moon Spear special attack, this was something of an oversight in our initial fix but due to Yama's high Crush defence, the capping of the Spear's Special Attack also resulted in 0s being almost guaranteed - which was never our intent.
+
+Note that we'll keep this damage cap in place at other NPCs in case new and weird stuff starts to pop up, but we're always eager to encourage experimentation with gear setups and strategies: emergent gameplay is a huge part of what makes OSRS special and we never want to clip the wings of players looking to make new discoveries or discourage people from sharing cool finds!
+
+We appreciate your understanding and hope that you can accept why the 'better safe than sorry' approach that we took with last night's hotfix was a tad sudden, and our willingness to maintain this cool interaction but tweak to make it more appropriate. We'll also be taking a look at making necessary changes behind the scenes to make sure similar interactions can't break other NPCs around the game in damaging ways, but we're more than fine with Yama getting some extra steps in during P3!
+
+Now it's time for you to get out there, mark a bunch of crazy tiles spit out by computing wizardry, panic-buy Blue Moon gear and shave some ticks off of your Yama PB - he doesn't mind, he's just happy to <s>claim your soul for all eternity</s> see you!
+
+----
+
+<center>'''PSA:''' With the introduction of Z-buffered rendering on the Official Clients today, you may notice some graphical bugs such as missing model details, flickering visuals, or interactive objects that are hidden but still clickable. We'll be actively monitoring these throughout the week to resolve asap. Some issues may require a game reboot (Coldfix), and we will prioritise addressing any major bugs. In the meantime, we recommend Hardcore players take caution with any dangerous activities. Thanks for your patience.</center>
+
+{| class="wikitable" style="text-align: center;"
+|-
+! High Prio Known Issues
+! Status
+|-
+| We're aware that the stairs become invisible after completing ToB. This is just a visual bug and the stairs are still clickable.
+| To be coldfixed.
+|-
+| We're aware of an issue with the visibility of the trapdoor in the Darkness of Hallowvale quest.
+| Investigating.
+|}
+
+----
+
+''This week, we say a temporary goodbye to the new renderer beta so the team can work on preparing for the future!''
+
+==Changelog - October 29th==
+{{Collapsed section|18|Click Here To Show}}
+'''New Renderer Beta Pause'''
+* The New Renderer Beta has been temporarily taken offline as we roll out a major backend upgrade - introducing z-buffered rendering, a complete overhaul of how the Official Clients render 3D graphics.
+** This update modernises how the game handles visual depth and paves the way for future improvements like Sailing and the HD rollout.
+
+'''Other Changes'''
+* Players who've achieved 1 or more Threads of Elidinis from Tombs of Amascut can now repurchase them from Perdu for 350,000 coins.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B'''
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==A Quieter Update==
+You may have noticed things are a little quieter than usual this week, and that’s no accident! The team is full steam ahead, preparing for one of Old School’s biggest milestones yet: the launch of Sailing on November 19th. If you missed the announcement, you can catch all the details in our Sailing launch blog [https://secure.runescape.com/m=news/sailing-launches-on-november-19th?oldschool=1 here.]
+
+In the run-up to launch, you can expect a few lighter weeks on the content front while we focus on polishing every plank and sail for Old School’s very first new skill. That doesn’t mean things have gone quiet behind the scenes though - far from it!
+
+This week, we’ve been hard at work taking the New Renderer Beta offline to integrate your feedback, as well as fine-tuning the new Poll System that launched last week. Both are big steps toward improving the long-term player experience, and they’ll set the stage nicely for everything that comes after Sailing’s maiden voyage.
+
+==Preparing for the Future: New Renderer Beta Pause==
+As of today, the New Renderer Beta has been temporarily taken offline while we put your incredible feedback into action and focus on a major round of improvements behind the scenes.
+
+This pause lets us make large-scale changes safely, without risking stability during the busy run-up to Sailing’s launch and the end of the year.
+
+Development is continuing full steam ahead, and we’re using this opportunity to refine key areas before bringing the Beta back:
+
+* Client stability - particularly across mobile devices.
+* Performance consistency - so all devices see the improvements we’re aiming for.
+* Character rendering - to ensure your hard-earned gear and Skill Capes look as sharp as they should.
+
+You may also notice a "Force disable new renderer?" option on the login screen for a short while - this is intentional, and it’ll be removed in a future client update once testing is complete.
+
+We’re still on track to bring the New Renderer Beta back stronger than ever in the new year.
+
+Thank you once again for testing, reporting, and supporting us as we chart the next generation of Old School visuals - we're keeping the same style you know and love, just with a bit of polish!
+
+==Z-Buffered Rendering Arrives on Official Clients==
+Alongside the Renderer Beta Pause, we’ve rolled out z-buffered rendering across all Official Clients - a major technical milestone that modernises how Old School handles 3D depth.
+
+Originally written to run in a Java applet on low-spec computers back in 2004, Old School’s renderer had to cut a few corners when it came to depth-sorting - the process of deciding which surfaces appear in front of others. Those shortcuts sometimes caused small bits of visual 'jankiness', like objects clipping or flickering against the ground.
+
+With z-buffering enabled, the game now performs true 3D depth calculations, meaning surfaces render in the correct order. You shouldn’t notice much difference moment to moment, but this change fixes long-standing visual quirks and lays the groundwork for future improvements, including Sailing and the eventual HD rollout on the Official Client.
+
+We've gone to great lengths to make this update as seamless as possible, but changing how the game handles depth is a big shift. With changes this large, some jankiness is to be expected. You may notice some graphical bugs in certain areas - such as missing model details, flickering visuals, or interactive objects that are hidden but still clickable... We'll be actively monitoring these throughout the week and working hard to resolve as soon as we can. So please let us know any issues you encounter through the in-game bug report feature and our socials! Some issues may require a game reboot (Coldfix) to resolve, and we will prioritise addressing any major, game-breaking bugs as needed. In the meantime, we recommend Hardcore players take caution with any dangerous activities.
+
+We’ll be monitoring feedback closely, so if you see anything unusual, please let us know!
+
+==Poll System Road Test==
+Our brand-new Poll System has now been live for nearly a week, and we’ve already seen almost 68,000 members take part in the Road Test poll!
+
+This initial poll was designed purely to test the new system in a live environment, making sure everything runs well before we use it for real game-impacting questions.
+
+A huge thank you to everyone who’s taken the time to vote so far. Your participation helps us ensure future polls are accurate, reliable, and ready to shape the future of Old School.
+
+We’ll be opening our first true gameplay polls soon, so stay tuned!
+
+==Merch Update - New OSRS Logo Pins!==
+[[File:New Renderer Beta Pause (1).jpg|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-29/logo.jpg here]!'']]
+
+New OSRS logo pins from Angels Scapes – these have been much requested so now you can grab  not one but 2 pins to celebrate your favourite game!    There is a smaller version you can wear and a supersized version that is double the size and comes with a matt black and gold foil presentation box. Perfect for gifting (maybe add it to your Xmas list now!)
+
+[[File:New Renderer Beta Pause (2).jpg|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-29/logo1.jpg here]!'']]
+
+Both feature coloured enamel, jelly enamel, and 2.5D shiny gold and antique nickel double plating.
+
+In stock and ready to ship now from the [https://runescape.backstreetmerch.com official merch store.]
+
+Also, a reminder for our American Scapers that the US Merch Store is back!
+
+Our merch partner had to temporarily close the store after changes to US customs rules came into effect on August 29th, but we’re pleased to confirm that orders can now be placed again. There are a few changes to be aware of if you’re shopping from the States:
+
+* U.S. Customs now requires duties to be prepaid, which means these are now automatically calculated on the store and the shipping price quoted at checkout now includes all duties and tariffs owed.
+* All US orders will be sent via DHL tracked. The team are still working with Royal Mail and hopes to bring back a cheaper, non-tracked option in the future.
+
+We know shipping from the UK isn’t ideal. Work is already underway on a proper long-term solution that would see US orders fulfilled from a warehouse closer to home.
+
+To help ease the string of these new duties and shipping changes, we've put together some special bundles and offers on popular items where possible – that includes Pins and Keyrings!
+
+==Other Changes==
+* Players who've achieved 1 or more Threads of Elidinis from Tombs of Amascut can now repurchase them from Perdu for 350,000 coins.
+
+==Next Week: Sailing Technical Pre-Release Update==
+Sailing will release on '''November 19th at 10:00 UTC'''! To make sure everything runs smoothly on launch day, we're slightly adjusting our usual release process with a technical pre-release update two weeks early.
+
+On '''November 5th''', our weekly Game Update will include some of the content for Sailing. This content will stay locked and inaccessible until the official launch and helps us identify and fix any potential issues before Sailing goes live. During this period, our team will be monitoring the content closely and testing it on a staff-only beta world.
+
+While Sailing is inaccessible in this update, the update on November 5th is one of the largest updates we've ever done behind-the-scenes. While we are doing everything we can do make sure it runs smoothly, we would recommend avoiding any dangerous in-game activities right after the update, in case of any unexpected game world instability.
+
+===Timeline===
+* November 5th: Sailing technical pre-release update. Most Sailing content will be added to the game (but won’t be accessible yet).
+* November 5th – 18th: The team will monitor and address any technical issues to ensure everything runs smoothly.
+* November 19th: The game update will launch earlier than usual, but Sailing will remain inaccessible until approximately 10:00am UTC.
+
+Next week, we'll be releasing a more detailed "how to prepare for Sailing" blog, so you can look forward to that!
+
+==Community Discord Event==
+===Into the Pit with Mods Manked & Rach===
+[[File:New Renderer Beta Pause (3).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-29/fp.jpg here]!'']]
+
+Think you’ve got what it takes to be the last one standing?
+
+We’re heating things up with a community Fight Pits Showdown. It’s time to show the TzHaar what last man standing really means.
+
+====When?====
+* Friday, 07 November 2025
+* 15:30 UTC (Massing from 15:15 UTC – be ready! 15.15 GMT / 10.15 ET / 07:15 PT / 02:15 AET)
+
+====Where?====
+* The Official OSRS Discord - Streamed on a Stage for anyone who can’t join but wants to watch the action.
+* World 520, TzHaar Fight Pit
+
+====What?====
+* Round 1: warm-up round - a chance to practice and get a feel for the action.
+* Rounds 2-4: The official competition rounds.
+* The last player standing at the end of each official round will walk away with '''3 OSRS Bonds.'''
+* T&Cs [https://osrs.game/Fight-Pits-Comp here]!
+
+Team up, betray your mates, or go hide in a corner all game with nothing but full Justi, a Dinny B, and a dream! Just make sure you embrace the carnage - because there can only be one champion at the end.
+
+See you in the Pit, and don’t forget your phoenix necklace. You’re going to need it...
+
+==Community Update==
+===CreatorCrafted – New Designs from the Community!===
+There’s a fresh update from [https://creatorcrafted.com/?ref=BLOG006 CreatorCrafted] whose LED signs and desk mats are designed in collaboration with members of the OSRS art community, and produced under license from Jagex.
+
+This time, seven new LED signs join the lineup, iconic items every adventurer will recognise. From the Rune scimitar to the mighty Dragon claws, Dragon hunter crossbow to the Magic shortbow, these designs capture the essence of some of RuneScape's most iconic gear. And it’s not just weapons: you’ll also find a Dragon defender, Lobster, and even a Skilling Icon to light up your setup.
+
+[[File:New Renderer Beta Pause (4).jpg|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-29/cc.jpg here]!'']]
+
+Alongside the signs comes a brand-new desk mat: the Slayer Desk Mat, created in collaboration with [https://www.youtube.com/@Theoatrix Theoatrix] and [https://www.instagram.com/rune.crafted/ Runecrafted]. Showcasing one of RuneScape’s most beloved skills, this design highlights all the bosses you’ll face across Gielinor on your path to mastery.
+
+[[File:New Renderer Beta Pause (5).jpg|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-29/cc1.jpg here]!'']]
+
+Want to see the full collection or pick up one of the latest designs? Click [https://creatorcrafted.com/?ref=BLOG006 here] to explore everything on offer, and use code '''‘THERMY’''' at checkout for 10% off your order!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [http://osrs.wiki Old School Wiki].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

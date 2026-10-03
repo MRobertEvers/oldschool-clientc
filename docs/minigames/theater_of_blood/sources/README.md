@@ -224,6 +224,101 @@ movement instruction in ticks, which no plugin can express.
 | Verzik P3 | `yt_oGPT3sZMnd8.md` | 07samsquanches, *P3 Verzik Guide — Learner, Tanking, Pogtank* (18:37) |
 | Verzik P3 | `yt_3lQjrLeuvHo.md` | Granddad Jad, *Phase 3 Verzik Tanking Guide (1:1 and 2:1:1)* |
 
+## 4a. Added 2026-10-02 (spec-pass corpus) — more guide videos, per room
+
+Downloaded 2026-10-02 with `yt-dlp --skip-download --write-auto-subs --sub-langs en-orig --sub-format vtt --write-info-json` (3 s apart; a 429 burst on four ids was retried after a minute-scale wait) and converted by `tools/raid_gate/vtt_to_md.py`. Transcripts are `transcripts/yt_<id>.md`.
+
+**Overlay column.** *Not watched*: this worker read titles, descriptions, chapters and captions only. `stated` means the title, description or the spoken captions name a tick counter / visual metronome / attack timer plugin; blank means nothing in the text says so and the spec worker must open the video (frame_count.py) to know. A named overlay is a lead, not a measurement.
+**Tick-talk timestamps** are paragraphs where the speaker says an N-tick figure or cycle (`mm:ss`, from the captions; useful anchors for the room's attacks); chapters are the uploader's own.
+
+| Room | Channel | Title / url | Length | fps | Overlay | Chapters (uploader) | Tick-talk timestamps |
+|---|---|---|---|---|---|---|---|
+| Bloat | The Academy | Premier OSRS Guides | [PESTILENT BLOAT - Team Guide](https://www.youtube.com/watch?v=l57Jlt1wbnA) `yt_l57Jlt1wbnA.md` | 3:29 | 60 |  | 0:00 Intro; 0:06 Bloat Mechanics; 0:09 Line of Sight; 1:41 Stomp; 2:13 Mutilated Flesh; 2:33 Player Movement; 2:59 Reward Chest; 3:21 Outro | none |
+| Bloat | Plank2g | [TOB Made Easy: The Pestilent Bloat / Bloat Guide 2020/2021](https://www.youtube.com/watch?v=actUD0l9LSU) `yt_actUD0l9LSU.md` | 3:37 | 60 |  | 0:00 Intro; 0:05 Mechanics; 1:09 Walkthrough | 1:38, 2:12 |
+| Bloat | SuppCarriesU | [Pestilent Bloat](https://www.youtube.com/watch?v=3IGhBM2vsQE) `yt_3IGhBM2vsQE.md` | 7:29 | 60 |  | none | none |
+| Entry mode | RuneWraith | [Entry Mode Theatre of Blood Guide / Fast / Easy](https://www.youtube.com/watch?v=B_gjVdmfOrY) `yt_B_gjVdmfOrY.md` | 32:28 | 60 |  | 0:00 Intro; 1:04 Skills Stats; 1:47 Gear; 3:22 Inventory; 7:18 Disclaimer; 7:52 Maiden; 9:45 Pestilent Bloat; 12:39 Night Locust; 16:29 Sodaseg; 19:21 zarpus; 22:28 verzik; 24:52 verzik phase 2 | 6:36, 8:47, 24:46, 27:00, 28:42 |
+| Entry mode (budget) | Help Me RNG | [OSRS budget & low skill Night at the Theatre Guide (TOB entry mode)](https://www.youtube.com/watch?v=9MPHZy4sjmM) `yt_9MPHZy4sjmM.md` | 35:00 | 30 |  | 0:00 <Untitled Chapter 1>; 0:26 Gear; 1:10 Maiden; 2:56 Bloat; 6:20 Nylocas room; 12:55 Nylocas boss; 14:35 Soteseg; 18:15 Xarpus; 23:00 P1 verzik; 25:15 P2 verzik; 29:35 P3 verzik | none |
+| Entry mode (solo ranged) | Cudabear | [Night at the Theatre Low Level Ranged Guide / How to Easily Solo Theatre of Bloo](https://www.youtube.com/watch?v=PjoiEMcrREc) `yt_PjoiEMcrREc.md` | 16:51 | 30 |  | 0:00 Intro; 0:38 Equipment Inventory; 2:35 Maiden; 3:31 Bloat; 4:44 nilo; 7:30 Sodag; 8:38 The Maze; 11:35 Verzik; 12:10 Phase 1 2; 13:14 Phase 2 3 | none |
+| Entry mode / first KC, whole raid | 10Boot OSRS | [The ONLY ToB Guide You NEED (2026) - Simple first KC](https://www.youtube.com/watch?v=4i4lv-srJkw) `yt_4i4lv-srJkw.md` | 35:58 | 30.0 |  | 0:00 <Untitled Chapter 1>; 1:45 What you ACTUALLY need!; 2:51 Stats, Gear, Inventory, Information; 6:21 Maiden; 9:35 Bloat; 12:27 First Chest; 12:55 Like / Subscribe / Creator Crafted; 13:25 Nylo Room; 15:05 Nylo Boss; 16:10 Sotetseg; 19:05 Second Chest; 19:52 Xarpus | none |
+| Entry mode, whole raid | NoBS OSRS | [Theatre of Blood Entry Mode Guide  /  July 2026](https://www.youtube.com/watch?v=M1t2qWMbzEs) `yt_M1t2qWMbzEs.md` | 23:03 | 60 |  | 0:00 Introduction; 1:50 Gear & Inventory; 2:36 Maiden; 4:39 Bloat; 7:14 Nylocas; 11:50 Sotetseg; 14:03 Xarpus; 16:39 Verzik | none |
+| Entry mode, whole raid | 10Boot OSRS | [OSRS The only TOB entry mode guide you need (FOR NOOOBS)](https://www.youtube.com/watch?v=bCkpMm0ZDHE) `yt_bCkpMm0ZDHE.md` | 10:43 | 24.0 |  | 0:00 Intro; 0:31 Gear; 1:24 Maiden; 2:35 Bloat; 3:23 Nyo; 5:10 Maze; 5:37 Zarus; 7:12 Phase II; 8:21 Phase III; 9:44 TLDR | 0:34 |
+| Maiden | The Academy | Premier OSRS Guides | [MAIDEN OF SUGADINTI - Team Guide](https://www.youtube.com/watch?v=vnf1QWKReLY) `yt_vnf1QWKReLY.md` | 10:12 | 60 |  | 0:00 Intro; 0:06 Maiden Mechanics; 0:13 Auto Attacks; 0:57 Blood Spawn; 1:15 Blood Spiders; 1:39 Roles; 1:50 Freezer; 3:50 DPS; 4:03 Role Perspective; 4:55 N123; 6:53 S124; 9:02 DPS | none |
+| Maiden (perfect, solo) | QCS OSRS | [Guide to Perfect Maiden Solo / Master Achievement / OSRS / QCS](https://www.youtube.com/watch?v=dLT7jalJLdw) `yt_dLT7jalJLdw.md` | 6:02 | 30 |  | 0:00 Preparation and gear; 0:32 Managing blood spawns; 1:56 Combat mechanics and flow; 3:24 Final phase and conclusion | none |
+| Nylocas | Indarkment | [Grandmaster Explains Nylos in 3 Levels of Difficulty](https://www.youtube.com/watch?v=6soXuRA77JU) `yt_6soXuRA77JU.md` | 22:20 | 60 |  | 0:00 Intro; 0:30 Beginner; 3:15 Intermediate; 7:25 Advanced | 4:57, 6:02, 7:40, 9:19, 11:34, 12:07, 14:24, 14:57, 17:12, 17:45 |
+| Nylocas (HM) | Plank2g | [Hard Mode ToB: Nylocas Guide / HMT Nylo Guide](https://www.youtube.com/watch?v=eAJ0xnLpxok) `yt_eAJ0xnLpxok.md` | 6:49 | 25 | stated: tick counter | 0:00 Hard mode mechanics; 0:32 Wave strategy and princes; 2:38 Common failure points; 4:49 Nilo king strategy | 0:00, 3:20 |
+| Nylocas (spec weapon) | S2L OSRS | [Make nylos EASY with this spec weapon](https://www.youtube.com/watch?v=2MnpEu6cbG0) `yt_2MnpEu6cbG0.md` | 5:01 | 60 |  | 0:00 Setting up the plugin; 0:55 First dins usage; 2:22 Second dins usage; 3:10 Third dins usage; 3:51 Final boss and wrap up | none |
+| Pathfinding / scan rule (all rooms) | PurpleGod | [Pathfinding in OSRS applied to ToB](https://www.youtube.com/watch?v=DX8lN3r3ALw) `yt_DX8lN3r3ALw.md` | 13:05 | 30 |  | 0:00 Introduction; 0:10 Understanding server ticks; 1:18 Movement mechanics; 2:11 Pathing shapes; 3:57 Advanced tick packing; 4:46 Weapon range and animations; 5:41 Blood maiden tactics; 6:49 Bloat fight strategies; 8:16 Soldiers leg maze; 9:14 Sotetseg mechanics; 10:42 Verzik and conclusion | 0:32, 1:05, 1:37, 2:13, 3:55, 4:31, 5:42, 6:15, 6:48, 7:22 |
+| Sotetseg | Evse | [Sotetseg Maze - Diagonals and L moves Guide - Theatre of blood](https://www.youtube.com/watch?v=KDTlRVi6YTY) `yt_KDTlRVi6YTY.md` | 7:56 | 30 |  | 0:00 Introduction to movement; 0:19 Mastering diagonal moves; 3:05 Understanding L-moves; 6:14 In-game application; 7:11 Summary and tips | none |
+| Sotetseg | Plank2g | [ToB Made Easy: Sotetseg / How to Sotetseg 2022](https://www.youtube.com/watch?v=90957FaXfjM) `yt_90957FaXfjM.md` | 4:00 | 25 |  | none | 2:19 |
+| Sotetseg (1-tick maze, short) | Taran | [1 tick Sote Maze W/ Learners](https://www.youtube.com/watch?v=apFSOD8yZNw) `yt_apFSOD8yZNw.md` | 30 | 60 |  | none | none |
+| Sotetseg (maze skip) | Horselord | [Sotetseg Maze Skip Guide](https://www.youtube.com/watch?v=EntowMeBPNg) `yt_EntowMeBPNg.md` | 9:34 | 30 |  | 0:00 1. Intro; 0:18 2. Maze Mechanics; 2:15 3. Damage Control; 3:03 4. Skip Procedure; 7:55 5. Not a Perfect Method; 8:45 6. Not a Bug; 8:57 7. Credits | 0:33, 1:08, 1:43, 3:58, 5:37 |
+| Sotetseg (tick-eat, short) | Taran | [How not to tickeat at Sotetseg](https://www.youtube.com/watch?v=o-zdMHT_rsc) `yt_o-zdMHT_rsc.md` | 23 | 60 |  | none | none |
+| Verzik P2 | RS Mina | [Tob Verzik P2 Advanced Scythe Walk Guide - OSRS](https://www.youtube.com/watch?v=Blx1bKQbed8) `yt_Blx1bKQbed8.md` | 1:43 | 24 |  | none | 0:00, 0:32 |
+| Verzik P3 (tank) | Youthful | [Learn to Tank Verzik in 1 Minute [OSRS]](https://www.youtube.com/watch?v=9KyriOtJJEk) `yt_9KyriOtJJEk.md` | 1:12 | 60 | stated: metronome, plugin | none | 0:00, 0:32 |
+| Verzik P3 (tank, pogtank) | Fill2 | [Quick guide how to tank verzik and easy pogtank setup](https://www.youtube.com/watch?v=BVfwJSSSemo) `yt_BVfwJSSSemo.md` | 2:26 | 30 | stated: metronome | none | 0:02, 1:06, 1:41 |
+| Verzik P3 (tornado) | Plank2g | [ToB Made Easy: Tornado DPS Guide for P3 Verzik](https://www.youtube.com/watch?v=sDaQ2qsU8AQ) `yt_sDaQ2qsU8AQ.md` | 2:45 | 60 |  | 0:00 <Untitled Chapter 1>; 0:07 Don't heal Verzik, ever.; 0:39 ID Your Tornado.; 1:23 Don't Stop Moving.; 1:34 Dump Special Attacks.; 1:46 Rectangles.; 1:59 Run Webs, Always.; 2:13 Other DPS Guide applies!; 2:21 Get 10 Gauntlet KC. | none |
+| Whole HM raid | Indarkment | [Hard Mode ToB for Impatient People (OSRS)](https://www.youtube.com/watch?v=9coCVByPHCw) `yt_9coCVByPHCw.md` | 10:31 | 60 |  | 0:00 Intro; 0:15 Inventories; 0:26 Maiden; 1:38 Bloat; 2:28 Nylos; 4:38 Sotetseg; 5:49 Xarpus; 6:44 Verzik | 0:33, 7:12 |
+| Whole raid, learner POV | aatykon | [Learn ToB - Range Learner Perspective Walkthrough 1/3](https://www.youtube.com/watch?v=D2DRddtC5H8) `yt_D2DRddtC5H8.md` | 26:48 | 60 | stated: plugin | 0:00 Intro; 1:55 Setup; 7:30 Nylo; 12:30 Hammer; 16:37 Office | none |
+| Whole raid, perfect theatre | S2L OSRS | [Perfect Theatre is EASY / Full guide 2025 updated / all roles](https://www.youtube.com/watch?v=H-e-xe1yaAw) `yt_H-e-xe1yaAw.md` | 26:39 | 60 | stated: metronome | 0:00 intro; 0:30 Gear and Inventories; 0:44 plug-ins, custom menu swaps; 1:11 The Maiden of Sugadinti; 5:39 The Pestilent Bloat; 7:09 The Nylocas; 10:09 Sotetseg; 14:49 Xarpus; 18:54 The Final Challenge, Verzik Vitur; 25:29 Outro | 7:15, 10:16, 12:34, 21:12, 21:48, 22:53 |
+| Xarpus | Okirra | [Scythe Walking Xarpus guide TOB (Quick Easy)](https://www.youtube.com/watch?v=i_XMP9pV7YE) `yt_i_XMP9pV7YE.md` | 1:29 | 60 |  | 0:00 Introduction to guide; 0:14 Basic attack steps; 0:27 Rhythmic scythe technique; 1:15 Alternative safe spot | 0:34, 1:06 |
+| Xarpus | Kuji OSRS | [OSRS Quick Guide - How to Xarpus Scythe Walk THE EASY WAY](https://www.youtube.com/watch?v=NoOtA-adhEg) `yt_NoOtA-adhEg.md` | 1:32 | 60 |  | 0:00 Intro; 0:14 Guide; 1:19 Outro | none |
+| Xarpus (solo) | myaahhh_osrs | [SOLO XARPUS FOR NOOBS (explained by a noob)](https://www.youtube.com/watch?v=PWfCL1ECiWM) `yt_PWfCL1ECiWM.md` | 5:49 | 60 | stated: metronome | 0:00 Introduction and goals; 0:54 Preparation and plugins; 2:30 Executing the rhythm; 3:50 Troubleshooting and recovery; 5:08 Conclusion and final tips | 5:09 |
+
+### 4a.1 Overlay and tick-talk notes for the 19 videos already held (§4)
+
+From the already-converted transcripts only (nothing re-downloaded); same caveat.
+
+| File | Overlay named in captions | Tick-talk timestamps |
+|---|---|---|
+| `yt_1ldGvUsOx2M.md` | (none named) | 0:00, 0:48, 1:44 |
+| `yt_3lQjrLeuvHo.md` | (none named) | 0:00, 2:38 |
+| `yt_3yAP8lsyBcE.md` | (none named) | 3:42, 4:16, 7:35, 11:52, 15:57, 19:23, 20:02, 21:57 |
+| `yt_D1b4eWwnOHU.md` | metronome | 0:51, 2:24, 2:59, 3:30, 3:59, 4:30, 5:50, 6:21, 7:08, 7:36 |
+| `yt_G9jx6OUnaws.md` | (none named) | none |
+| `yt_JdtL9UI5uy0.md` | (none named) | none |
+| `yt_KF9y2GYTJ-A.md` | (none named) | 11:47, 12:17, 15:45, 26:40, 27:12, 28:14 |
+| `yt_KiaFwopnnEI.md` | (none named) | 0:34 |
+| `yt_Lt-iZwJUKmc.md` | (none named) | none |
+| `yt_VEqiIF9EbcM.md` | (none named) | 6:42 |
+| `yt_VU4WQ1ghn4E.md` | (none named) | 3:59, 12:42, 19:49 |
+| `yt__QXdNAZh7Yo.md` | (none named) | 14:07 |
+| `yt_eswoo8D364c.md` | (none named) | 0:00 |
+| `yt_fPpIRjQWtlE.md` | attack timer, metronome | 0:06, 1:42, 2:47, 4:51, 5:01, 8:36, 9:48, 12:55 |
+| `yt_oGPT3sZMnd8.md` | tick timer | 4:39, 6:18, 6:48, 9:42, 10:45, 11:28, 12:00, 12:31, 13:25, 15:06 |
+| `yt_oKXoj9Yxy7Q.md` | (none named) | 3:34, 6:19 |
+| `yt_uQzR4iIuv6s.md` | (none named) | 0:01, 0:42, 2:25, 3:02, 3:48 |
+| `yt_yAi5A52J32E.md` | (none named) | 4:09 |
+| `yt_yNZZQNAdQAM.md` | (none named) | 1:12, 5:36, 10:00, 13:15, 14:52, 17:46, 20:04, 23:22, 29:12, 32:35 |
+
+### 4a.2 Per-room coverage after this pass (two guide videos by different players, minimum)
+
+| Room | Players |
+|---|---|
+| Maiden | Indarkment, The Academy, QCS OSRS (perfect solo) |
+| Bloat | BillNylo, Horselord, The Academy, Plank2g, SuppCarriesU |
+| Nylocas | Deflne Alive, The Academy, Indarkment, Plank2g (HM), S2L OSRS |
+| Sotetseg | cBold, Evse, Plank2g, Horselord, Taran |
+| Xarpus | Crusher, Plank2g, Lone Gym Rat, Okirra, myaahhh_osrs, Kuji OSRS |
+| Verzik P2 | Rob, Plank2g, RS Mina |
+| Verzik P3 | S2L OSRS, 07samsquanches, Granddad Jad, Plank2g, Youthful, Fill2 |
+| Entry mode (whole raid) | NoBS OSRS (July 2026), 10Boot OSRS (x2), Cudabear, Help Me RNG, RuneWraith |
+| Pathfinding / scan rule | PurpleGod (`yt_DX8lN3r3ALw.md`) — bears on the T-1 scan in ENCOUNTER_TIMING.md section 1 |
+
+Could not fetch: none after retries. Not downloaded on purpose: 15-60 s clips of unknown provenance (Killegend, maybe jessi, Tiger with the Bars) and the xzact one-minute guides.
+
+## 4b. Added 2026-10-02 (spec-pass corpus) — other folders
+
+Every fetch is recorded, with date, url and revision or commit, in [`../SOURCES.md`](../SOURCES.md).
+
+| Folder / file | What it is |
+|---|---|
+| `newsposts/` | 77 raw `Update:` pages (Jagex newsposts as the wiki keeps them), pinned in `newsposts/manifest.tsv` (title, revid, date, file). The figures are indexed in `build/spec_state/<pass>/corpus.newsposts.md`. |
+| `manifest.tsv` | revids of the wiki pages added on 2026-10-02 (the 48 Combat Achievement pages, `Theatre of Blood/Story Mode`, `Verzik Vitur - Patient Record`, `Verzik's Defeat`, `Monumental chest`, `Tobias`, ...). Pages held since 17 Aug 2026 keep their pins in §1 and were not re-fetched. |
+| `wiki_combat_achievements_tob.tsv` | id, name, tier, monster, type, description of every ToB Combat Achievement (46), built from the pinned pages. |
+| `blert_repo/`, `blert_guides/tob_*` | blert-io/blert at commit 7c7750cf, rules and constants plus every ToB guide page (see `blert_repo/README.md`). |
+| `advancedraidtracker/`, `party_hits/`, `nylo_death_indicators/`, `nylo_stats/`, `xarpus_exhumed_counter/`, `theatreofbloodstats/` | RuneLite hub plugin mechanics files (see `PLUGIN_HUB_README.md` for repo, commits and what each encodes). |
+| `wdr/` | We Do Raids public pages; they contain no mechanics (guides are Discord-only). |
+
 ## 5. Sources deliberately not used
 
 - **Fandom mirrors** of the OSRS Wiki (`oldschoolrunescape.fandom.com`) — stale

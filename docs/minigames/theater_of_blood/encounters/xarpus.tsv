@@ -1,0 +1,62 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+xarpus.hp.normal_5	boss hitpoints, Normal, 5-scale	5000	hp	[cache][wiki]	A	cache_npc_xarpus.txt:53; wiki_Xarpus.wikitext:122	-	exact
+xarpus.hp.normal_4	boss hitpoints, Normal, 4-scale (87.5%)	4375	hp	[jagex][cache]	A	newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; cache_npc_xarpus.txt:53	-	exact
+xarpus.hp.normal_3	boss hitpoints, Normal, 3-scale and below (75%)	3750	hp	[jagex][cache]	A	newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; cache_npc_xarpus.txt:53	-	exact
+xarpus.hp.hard_5	boss hitpoints, Hard, 5-scale	6000	hp	[cache][wiki]	A	cache_npc_xarpus.txt:215; wiki_Xarpus.wikitext:204	-	exact
+xarpus.hp.hard_4	boss hitpoints, Hard, 4-scale	5250	hp	[jagex][cache][blert]	A	newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; cache_npc_xarpus.txt:215; xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.hp.hard_3	boss hitpoints, Hard, 3-scale and below	4500	hp	[jagex][cache][blert]	A	newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28; cache_npc_xarpus.txt:215; xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.hp.entry_per_player	boss hitpoints, Entry, per player (scales up)	520	hp	[cache]	A	cache_npc_xarpus.txt:134; TOB_RESEARCH.md:484	M19	exact
+xarpus.defence.normal	Defence level, Normal	250	count	[cache][wiki]	A	cache_npc_xarpus.txt:52; wiki_Xarpus.wikitext:126	-	exact
+xarpus.defence.hard	Defence level, Hard (lowered at the start of the fight)	200	count	[cache][wiki]	A	cache_npc_xarpus.txt:214; wiki_Xarpus.wikitext:208	-	exact
+xarpus.defence.entry	Defence level, Entry (story record)	100	count	[cache][wiki]	A	cache_npc_xarpus.txt:133; wiki_Xarpus.wikitext:44	-	exact
+xarpus.size.p1_p2	npc size in tiles, phase 1 then phases 2-3	3,5	tiles	[cache]	A	cache_npc_xarpus.txt:21; cache_npc_xarpus.txt:41	-	exact
+xarpus.p1.start_hp_pct	health at the start of phase 1, percent of his pool (closer 2026-10-02: downgraded C->D -- both sentences are the same wiki, and blert's 79.7-86.0 % at the P2 start includes the P1 heals, so it bounds the figure without stating 75)	75	percent	[wiki][blert]	D	wiki_Theatre_of_Blood_Strategies.wikitext:829; wiki_Xarpus.wikitext:256; xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.first_exhumed_tick	first exhumed rises, ticks after the fight starts	8-12	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv; blert_api/xarpus_exhumeds.csv	-	range
+xarpus.p1.exhumed_count.normal	exhumed in phase 1 by party size 1..5, Normal	7,9,12,15,18	count	[blert][oosrs]	B	TOB_RESEARCH.md:266; openosrs_theatre/XarpusHandler.java:165; xarpus_blert_2026-10-03.tsv	M12	exact
+xarpus.p1.exhumed_count.hard_solo	exhumed in phase 1, Hard, solo	9	count	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.exhumed_count.hard_3_5	exhumed in phase 1, Hard, party 3,4,5	16,20,24	count	[blert]	B	xarpus_blert_2026-10-03.tsv; TOB_RESEARCH.md:267	M12	exact
+xarpus.p1.exhumed_count.entry	exhumed in phase 1, Entry, party 1 and 4	7,15	count	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.spawn_gap.normal	ticks between exhumed rises by party size 1..5, Normal	12,8,8,4,4	ticks	[blert]	B	TOB_RESEARCH.md:281; xarpus_blert_2026-10-03.tsv	M13	exact
+xarpus.p1.spawn_gap.hard_solo	ticks between exhumed rises, Hard, solo	12	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.spawn_gap.hard_3_5	ticks between exhumed rises, Hard, party 3-5	4	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv; TOB_RESEARCH.md:268	M13	exact
+xarpus.p1.spawn_gap.entry	ticks between exhumed rises, Entry, party 1 and 4	12,4	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.open_ticks.normal	exhumed lifetime, Normal	11	ticks	[blert][oosrs]	B	TOB_RESEARCH.md:311; openosrs_theatre/XarpusHandler.java:225; blert_api/xarpus_exhumeds.csv	M15	exact
+xarpus.p1.open_ticks.hard	exhumed lifetime, Hard	9	ticks	[blert]	B	TOB_RESEARCH.md:316; xarpus_blert_2026-10-03.tsv	M15	exact
+xarpus.p1.open_ticks.entry	exhumed lifetime, Entry	11	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.heal_delay	ticks from an exhumed rising to its first heal orb	3	ticks	[blert][guide]	B	TOB_RESEARCH.md:296; TOB_RESEARCH.md:1184; blert_api/xarpus_exhumeds.csv	M14	exact
+xarpus.p1.heal_gap	ticks between heal orbs of one uncovered exhumed	1	ticks	[blert]	B	TOB_RESEARCH.md:296; blert_api/xarpus_exhumeds.csv	M14	exact
+xarpus.p1.heal_amount.normal	hitpoints per heal orb by party size 1..5, Normal	20,16,12,9,8	hp	[blert]	B	TOB_RESEARCH.md:300; xarpus_blert_2026-10-03.tsv	M14	exact
+xarpus.p1.heal_amount.hard_solo	hitpoints per heal orb, Hard, solo	21	hp	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.heal_amount.hard_3_5	hitpoints per heal orb, Hard, party 3,4,5	12,9,8	hp	[blert]	B	xarpus_blert_2026-10-03.tsv; TOB_RESEARCH.md:300	M14	exact
+xarpus.p1.heal_amount.entry	hitpoints per heal orb, Entry, party 1 and 4	6	hp	[blert]	B	xarpus_blert_2026-10-03.tsv	-	exact
+xarpus.p1.cover_stops_heal	heal orbs fired by an exhumed while a player stands on it	0	count	[blert][wiki]	B	wiki_Theatre_of_Blood_Strategies.wikitext:831; blert_api/xarpus_exhumeds.csv; TOB_RESEARCH.md:296	-	exact
+xarpus.p1.handoff.normal	ticks from the last exhumed closing to phase 2, Normal and Entry	9	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv; blert_api/xarpus_exhumeds.csv; TOB_RESEARCH.md:325	-	+-1
+xarpus.p1.handoff.hard	ticks from the last exhumed closing to phase 2, Hard (7 of 11 raids; 6 twice; solo 11)	7	ticks	[blert]	B	xarpus_blert_2026-10-03.tsv; blert_api/xarpus_exhumeds.csv	-	+-1
+xarpus.p1.flyup_anim	transform animation 8061 length at the phase 2 stand-up	3	ticks	[cache]	A	cache_seq_xarpus.txt:6	-	exact
+xarpus.hard.ring_tiles	poison tiles laid by Xarpus at the start of a Hard fight	98	count	[blert][wiki]	B	xarpus_blert_2026-10-03.tsv; wiki_Theatre_of_Blood_Hard_Mode.wikitext:352; wiki_Xarpus.wikitext:261	-	exact
+xarpus.hard.ring_tick	tick the Hard ring lands, from the fight start	3	ticks	[blert][wiki]	B	xarpus_blert_2026-10-03.tsv; wiki_Theatre_of_Blood_Hard_Mode.wikitext:352	-	+-1
+xarpus.p2.first_spit	first spit, ticks after the phase 2 transform	7	ticks	[plugin][blert][oosrs]	C	blert_plugin/XarpusDataTracker.java:50; openosrs_theatre/XarpusHandler.java:94	-	+-1
+xarpus.p2.cadence	spit cadence, all modes and party sizes	4	ticks	[cache][jagex]	A	cache_npc_xarpus.txt:57; cache_npc_xarpus.txt:139; newsposts/wiki_Update_Theatre_of_Blood_New_Modes.wikitext:44	M31	exact
+xarpus.p2.spit_anim	spit animation 8059 length	2	ticks	[cache]	A	cache_seq_xarpus.txt:4	-	exact
+xarpus.p2.spit_release	projectile release, cycles after the animation starts (chirp 3290 on frame 10)	27	cycles	[cache]	A	cache_seq_xarpus.txt:4; cache_seq_xarpus.txt:15	-	exact
+xarpus.p2.spit_landing	ticks from the spit tick to the splat landing (any distance)	2	ticks	[blert][M71]	E	xarpus_blert_2026-10-03.tsv; TOB_RESEARCH.md:758	M71	approx
+xarpus.p2.scan_lag	ticks the target tile is read behind the spit tick (T-1 scan)	1	ticks	[wiki][guide]	C	wiki_Theatre_of_Blood_Strategies.wikitext:844; wiki_Guide_Advanced_Theatre_of_Blood.wikitext:214; ENCOUNTER_TIMING.md:43	-	exact
+xarpus.p2.splat_radius	splat damage radius around the landing tile (3x3)	1	tiles	[wiki]	D	wiki_Xarpus.wikitext:257; wiki_Theatre_of_Blood_Strategies.wikitext:836; wiki_Theatre_of_Blood_Entry_Mode.wikitext:207	-	exact
+xarpus.p2.splat_lifetime	a landed splat stays for the rest of the fight	never	text	[wiki]	D	wiki_Xarpus.wikitext:257; wiki_Theatre_of_Blood_Entry_Mode.wikitext:207	-	exact
+xarpus.p2.chain_count	splats chained after a spit: first spit, later spits	1,2	count	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:836	-	exact
+xarpus.p2.poison_base	splat or tile damage before the absorption buff	4-8	hp	[jagex]	A	wiki_Xarpus.wikitext:257	-	range
+xarpus.p2.poison_buff	buff to poison damage per exhumed absorbed (percent formula unpublished)	?	percent	[jagex][M70]	E	wiki_Xarpus.wikitext:257; newsposts/wiki_Update_Farming_Improvements_and_Rebalancing_Existing_Content.wikitext:126	M70	approx
+xarpus.p2.max_hit.normal	poison max hit shown for Normal	11	hp	[wiki]	D	wiki_Xarpus.wikitext:116	-	range
+xarpus.p2.max_hit.entry	poison max hit shown for Entry	6	hp	[wiki]	D	wiki_Xarpus.wikitext:34	-	range
+xarpus.p2.stomp_max	pebble stomp damage per tick, upper bound	9	hp	[wiki][M40]	D	wiki_Theatre_of_Blood_Strategies.wikitext:838	M40	range
+xarpus.p2.stomp_interrupts	spits lost while a player stands under him (the spit is skipped)	1	count	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:838	-	exact
+xarpus.p3.screech_pct	screech threshold, Normal and Hard, percent of pool	25	percent	[wiki]	D	wiki_Xarpus.wikitext:258; wiki_Perfect_Xarpus.wikitext:21	-	+-1
+xarpus.p3.screech_pct_entry	screech threshold, Entry, percent of pool	22.5	percent	[wiki]	D	wiki_Theatre_of_Blood_Entry_Mode.wikitext:212	-	+-1
+xarpus.p3.turn_cadence	ticks between turns of his gaze, Normal and Entry	8	ticks	[plugin][blert][oosrs][wiki][guide]	C	blert_plugin/XarpusDataTracker.java:52; openosrs_theatre/XarpusHandler.java:281; wiki_Theatre_of_Blood_Strategies.wikitext:851; wiki_Guide_Advanced_Theatre_of_Blood.wikitext:225	-	exact
+xarpus.p3.first_turn	ticks from the screech to the first turn	8	ticks	[plugin][blert]	D	blert_plugin/XarpusDataTracker.java:124	-	+-1
+xarpus.p3.repeat_quadrant	consecutive turns to the same quadrant	0	count	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:853; wiki_Perfect_Xarpus.wikitext:21	-	exact
+xarpus.p3.retaliate_base	retaliation base damage per hitsplat, Normal	50-75	hp	[jagex]	A	wiki_Xarpus.wikitext:258	-	range
+xarpus.p3.retaliate_min_entry	retaliation damage shown for Entry (38+)	38	hp	[wiki]	D	wiki_Xarpus.wikitext:34	-	range
+xarpus.p3.retaliate_uplift	share of the exhumed stat uplift added to retaliation	40	percent	[jagex]	A	wiki_Xarpus.wikitext:258	-	exact
+xarpus.p3.hard_gaze_rule	Hard: he faces the quadrant he was last hit from, no timed rotation	1	count	[wiki][blert][plugin]	C	wiki_Theatre_of_Blood_Hard_Mode.wikitext:354; wiki_Xarpus.wikitext:265; blert_plugin/XarpusDataTracker.java:135	-	exact
+xarpus.death.collapse	collapse animation 8063 length	2	ticks	[cache]	A	cache_seq_xarpus.txt:8	-	exact

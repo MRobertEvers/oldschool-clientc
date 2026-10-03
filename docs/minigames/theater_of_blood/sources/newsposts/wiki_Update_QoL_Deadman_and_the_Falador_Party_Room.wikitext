@@ -1,0 +1,71 @@
+{{Update|date=15 March 2018|link=http://services.runescape.com/m=news/qol-deadman-and-the-falador-party-room?oldschool=1|category=game}}
+[[File:QoL, Deadman and the Falador Party Room newspost.png|right]]
+{{clear}}
+{{Headline|25|QoL, Deadman and the Falador Party Room}}<br/>
+<center>''This week sees the release of more outstanding updates that were polled during QoL Month, your usual round of bugfixes, updates to the proposed Theatre of Blood Tournament world rewards and a whole host of changes in preparation for the upcoming Deadman Summer Seasonal!''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Deadman Summer Seasonal}}
+
+This Deadman Summer Seasonal is going to see some of the biggest and most drastic changes we've ever made. Whether you're a Deadman veteran or first time player, you'll want to make sure you've read up on all of the changes we're making in [http://services.runescape.com/m=news/deadman-summer-content-clarification?oldschool=1 this news post].
+
+[[File:QoL, Deadman and the Falador Party Room (1).jpg|center|700px]]
+
+The Deadman Summer Season kicks off at about 10pm GMT on Saturday 17th March, just after the '''#DeadmanSpring''' Finals conclude! Get involved on Twitter using '''#DeadmanSummer''' and don't forget to watch all the action unfold on Saturday on [http://osrs.game/DMMSpring18NP13Mar Twitch]. 
+
+[[File:QoL, Deadman and the Falador Party Room (2).png|250px|center|link=http://osrs.game/DMMSpring18NPChangeLog]]
+
+{{Horizontal Line}}
+
+{{Headline|22|Tournament World Reward Tweaks}}
+
+We've been spending our time collating your feedback regarding the proposed Theatre of Blood rewards that are currently on offer in the Tournament worlds. If you missed it, you can catch up on all of the proposed changes in [http://services.runescape.com/m=news/theatre-of-blood-rewards-tournament-world-feedback-tweaks?oldschool=1 this news post]. With today's game update, all changes highlighted in the linked post are now live! 
+
+As always, we'll be monitoring your feedback very closely. Further changes may be made where necessary and will be highlighted at the top of [http://services.runescape.com/m=news/theatre-of-blood-rewards-tournament-world-feedback-tweaks?oldschool=1 this news post] within a changelog list. We encourage you to log into worlds 408 and 409 to test the rewards and provide any feedback in this [http://services.runescape.com/m=forum/forums.ws?380,381,468,65997065 forum post], Reddit ([https://www.reddit.com/r/2007scape/ /r/2007scape] and [https://www.reddit.com/r/oldschoolrs/ /r/oldschoolrs]) or [https://twitter.com/OldSchoolRS Twitter] using '''#TheatreOfBlood'''.
+
+{{Horizontal Line}}
+
+{{Headline|22|QoL & Birthday Event}}
+
+Today we say goodbye to the 5th Birthday event we recently released in celebration of our, well, 5th Birthday. However, the fun doesn't end there! We heard how much you loved the museum and all of the content showcases on display, and so you'll now find that you're able to climb down the staircase within the Falador Party room to revisit it whenever you like! 
+
+The alch price of the Imbued heart has been raised to 200k when using Low Alchemy and 300k when using High Alchemy. This is to reduce the risk of accidentally alching such a high value item. 
+
+The Bank settings page now has the ability for players to add bank fillers in quantities of 1, 10, 50, X or All. Simply select the option needed and select "Fill".
+
+[[File:QoL, Deadman and the Falador Party Room (3).png|center]]
+
+The Skull sceptre now notifies you of the amount of charges it has left in the chatbox when using a charge to teleport. You can also check the remaining number of charges it holds whilst it's worn with a right-click. 
+
+The Karamja gloves 4 now has individual right clicks to each of its teleport locations whilst it is in the inventory. 
+
+[[File:QoL, Deadman and the Falador Party Room (4).png|center]]
+
+Players may now purchase additional Grand Tree Pods from King Narnode after the completion of Monkey Madness II. 
+
+Players may now reclaim the Bear head after killing The Kendal, even if they have not completed the Mountain Daughter quest. Return to the cave where The Kendal resides and search in the middle of the room to get a new one! 
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*A graphical issue on the trimmed Music cape when worn by a female has been fixed.
+*A stretching issue when wielding the Staff of light and the Fire max cape as a male character has been fixed.
+*Some blocking beside the stairs leading to the central Abyssal demons in the Kourend Catacombs has been added to stop players from standing in the floor.
+*Jal-ImKot can no longer deal damage during its dig animation in the Inferno.
+*The Ancestral Glyph used to hide from TzKal-Zuk in the Inferno now remembers which way it will begin travelling, and will no longer change direction when logging back in.
+*You can no longer log out at the start of a wave during the Inferno.
+*Jal-Zek can no longer move when resurrecting another monster within the Inferno.
+*A graphical issue on the trimmed Herblore cape when worn by a female has been fixed.
+*Players can no longer enter Rantz's cave from above.
+*XP drops can now remain visible even if you choose to hide the orb that controls them. You will still need to show data orbs in order to disable or enable XP drops, but they will remain enabled even when data orbs are turned off.
+*The 'Click here to play' button on the MOTW screen now has a highlight when you hover your mouse over it, it goes beep when pressed, and redundant tooltips on that screen have been tidied up.
+*Bob the Cat can no longer be contacted through NPC Contact for those who have witnessed the events in Dragon Slayer II. Rest well, good friend.
+*The dialogue when speaking to Juna about the Tail of Two Cats is now different if the player has sufficiently progressed through Dragon Slayer II.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,469,65997715 forums].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

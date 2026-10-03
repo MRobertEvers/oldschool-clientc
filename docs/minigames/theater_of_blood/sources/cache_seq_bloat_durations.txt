@@ -1,0 +1,18 @@
+# Pestilent Bloat sequence durations, from the rev239 cache (OSRS-Content/osrs239-content/configs/all.seq).
+# Generated 2026-10-02 by the bloat spec pass. One client cycle (20 ms) per frame-duration unit; 30 cycles per game tick.
+# symbol | all.seq line | frames | total cycles | game ticks | sound frames (frame index -> cumulative cycle -> tick)
+tob_bloat_ready | all.seq:181469 | 16 frames | 58 cycles | 1.933 ticks | 
+tob_bloat_walk | all.seq:181490 | 16 frames | 60 cycles | 2.000 ticks | f7->27cyc->0.90t(snd 3931); f16->60cyc->2.00t(snd 3998)
+tob_bloat_sleep | all.seq:181512 | 124 frames | 990 cycles | 33.000 ticks | f7->28cyc->0.93t(snd 3998); f26->104cyc->3.47t(snd 3976); f30->168cyc->5.60t(snd 3976); f34->232cyc->7.73t(snd 3976); f38->296cyc->9.87t(snd 3976); f42->360cyc->12.00t(snd 3976); f46->424cyc->14.13t(snd 3976); f50->488cyc->16.27t(snd 3976); f54->552cyc->18.40t(snd 3976); f58->616cyc->20.53t(snd 3976); f62->670cyc->22.33t(snd 3976); f66->724cyc->24.13t(snd 3976); f89->839cyc->27.97t(snd 3935); f101->888cyc->29.60t(snd 3545); f103->896cyc->29.87t(snd 3931)
+tob_bloat_flies_large | all.seq:181657 | 16 frames | 60 cycles | 2.000 ticks | 
+tob_bloat_flies_small | all.seq:181676 | 16 frames | 60 cycles | 2.000 ticks | 
+tob_bloat_death | all.seq:181695 | 25 frames | 90 cycles | 3.000 ticks | 
+tob_bloat_chamber_idle | all.seq:181725 | 16 frames | 64 cycles | 2.133 ticks | 
+tob_bloat_swinging_chain | all.seq:181744 | 19 frames | 152 cycles | 5.067 ticks | 
+tob_bloat_falling_flesh | all.seq:181766 | 28 frames | 168 cycles | 5.600 ticks | 
+tob_bloat_stunned_short | all.seq:181797 | 23 frames | 92 cycles | 3.067 ticks | 
+tob_bloat_walk_pet | all.seq:208862 | 16 frames | 32 cycles | 1.067 ticks | 
+
+# tob_bloat_sleep (8082) is the whole down sequence: 990 cycles = 33.000 game ticks exactly. Its stomp/shout sound (3545, frame 101) sits at 888 cycles = 29.6 ticks; the rise pose starts at frame 96, 867 cycles = 28.9 ticks.
+# spotanims (all.spotanim): tob_bloat_flies_large line 10045 model=35393,anim=tob_bloat_flies_large; tob_bloat_flies_small line 10049 model=35393,anim=tob_bloat_flies_small; tob_bloat_falling_flesh1 line 10053 model=35578,anim=tob_bloat_falling_flesh; tob_bloat_falling_flesh2 line 10057 model=35577,anim=tob_bloat_falling_flesh; tob_bloat_falling_flesh3 line 10061 model=35576,anim=tob_bloat_falling_flesh; tob_bloat_falling_flesh4 line 10065 model=35579,anim=tob_bloat_falling_flesh; tob_bloat_stunned line 10076 model=3070,anim=tob_bloat_stunned_short,ambient=40,contrast=40; tob_bloat_blood_splat line 10082 model=3080,recol1s=61,recol1d=929,anim=failedspell,ambient=50,contrast=50
+# falling flesh spotanim anim=tob_bloat_falling_flesh = 168 cycles = 5.6 ticks (the shadow 1570-1573 outlives the 3-tick fall).

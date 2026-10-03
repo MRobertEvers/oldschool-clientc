@@ -1,0 +1,23 @@
+{{Infobox Combat Achievement
+|name = Theatre (5-Scale) Speed-Runner
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood (5-scale) in less than 14 minutes and 15 seconds.
+|tier = Grandmaster
+|monster = Theatre of Blood
+|type = Speed
+|id = 260
+|leagueRegion = Morytania
+}}
+'''Theatre (5-Scale) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Theatre of Blood]] in a team of 5 players in less than 14 minutes and 15 seconds.
+
+Unlike [[Tombs of Amascut]], speed-based achievements for the Theatre of Blood count the challenge time rather than the overall time.
+
+Like other tasks requiring a specific number of players, this combat achievement is not required for [[Group Ironman Mode|Group Ironmen]] with a smaller group size.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

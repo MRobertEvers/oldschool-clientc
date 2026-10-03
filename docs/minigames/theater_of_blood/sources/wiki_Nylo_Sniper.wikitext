@@ -1,0 +1,30 @@
+{{Infobox Combat Achievement
+|name = Nylo Sniper
+|image = [[File:Nylocas Ischyros.png|150px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat Verzik Vitur's in the Theatre of Blood: Hard Mode without anyone in your team causing a Nylocas to explode by getting too close.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Mechanical
+|id = 377
+|leagueRegion = Morytania
+}}
+'''Nylo Sniper''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Verzik Vitur]] in a [[Theatre of Blood: Hard Mode]] run without letting a [[nylocas]] explode during the fight.
+
+==Strategy==
+Nylocas will spawn in phase 2 and 3 of the fight. Up to three nylocas may spawn, consisting of a mix of [[Nylocas Hagios]], [[Nylocas Ischyros]] or [[Nylocas Toxobolos]]. The nylocas change styles in hard mode, looping from melee, ranged, and magic every 3 ticks, always in that order. The nylocas will pursue a random player upon spawning, though it is possible for them to focus on one player instead. Use the respective weapon against each nylocas to kill them. Binding the nylocas can make it easier for players to take them down without needing to run a lot.
+
+An effective strategy is to equip an [[Eye of Ayak]] and be prepared to attack ranged nylocas as soon as they change. Without any additional magic damage bonus, this will always kill the nylocas in one hit as long as your current Magic level is at least 93.
+
+In phase 2, these are always accompanied by a [[Nylocas Athanatos]]. It is recommended to keep the Athanatos alive, as its presence will prevent any additional nylocas from spawning until 35.0% or less health, where two [[Nylocas Matomenos]] begin to periodically spawn. The healing that the Athanatos provides can generally be outpaced by the team.
+
+In phase 3, they appear as Verzik's first special attack (after 4 auto attacks), and will not be used until 16 auto-attacks later when she loops her special attack rotation again. These should be killed off as soon as they spawn.
+
+Even though it's not specifically stated, you cannot die yourself during this task. If you die during Verzik the task will not complete for you, but it will for the rest of the team.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

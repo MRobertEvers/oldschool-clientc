@@ -1,0 +1,32 @@
+raids: 13 modes/scales: [(11, 3), (11, 4), (11, 5), (12, 1), (12, 1), (12, 2), (12, 2), (12, 3), (12, 3), (12, 4), (12, 4), (12, 5), (12, 5)]
+
+== transmog: hitpoints before/after the id change (first three changes per raid)
+transmogs 39 at or under the threshold 39 over 0 hitpoints higher than the tick before 0
+
+== hitpoints at spawn by party size (mode, scale): maiden max, crab max, slug max
+12 1 [2625] [75] [90]
+12 2 [2625] [75] [90]
+11 3 [2625] [75] [90]
+12 3 [2625] [75] [90]
+11 4 [3062] [87] [105]
+12 5 [3500] [100] [120]
+12 4 [3062] [87] [105]
+11 5 [3500] [100] [120]
+12 3 [2625] [75] [90]
+12 2 [2625] [75] [90]
+12 5 [3500] [100] [120]
+12 4 [3062] [87] []
+12 1 [2625] [75] [90]
+
+== T-1 aim: new splat tiles that sit under a player at T-1 only / T only / both (T = throw tick)
+{'T-1T': 76, 'neither': 324, 'T-1': 72, 'T': 3}
+
+== extras: who gets the two extra splats (throws with 2+ players and a unique 5x5 owner)
+throws 21 owner furthest from her hitbox 16 owner northernmost 11
+
+== blood spawn movement: Chebyshev displacement between consecutive ticks
+{1: 1043, 0: 2053} moved fraction 0.337
+
+== blood roll over the new raids (eligible = two attacks since the last throw)
+mode 11 eligible 34 throws 11 violations 0
+mode 12 eligible 188 throws 50 violations 0

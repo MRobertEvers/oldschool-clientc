@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = A Timely Snack
+|image = [[File:Sotetseg.png|290px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Sotetseg after surviving at least 3 ball attacks without sharing the damage and without anyone dying throughout the fight.
+|tier = Master
+|monster = Theatre of Blood
+|type = Mechanical
+|id = 242
+|leagueRegion = Morytania
+}}
+'''A Timely Snack''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[Sotetseg]] after taking at least 3 ball attacks without sharing the damage and without anyone dying in the fight.
+
+{{bug|The combat achievement can be received by a player even if their teammates die, so long as the player meets the 3 ball attack requirement and does not die during the fight.}}
+
+==Strategy==
+The large red ball attack deals 121 damage if the damage is not shared, and is launched after every 10 direct magic attacks Sotetseg makes on the team. Simply tank the damage via tick-eating, though players should be wary of incoming projectiles to avoid being killed in the process.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

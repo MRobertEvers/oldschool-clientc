@@ -1,0 +1,265 @@
+{{Update|date=08 July 2026|url=https://secure.runescape.com/m=news/the-blood-moon-rises-tweaks--fixes?oldschool=1|category=game}}
+[[File:The Blood Moon Rises Tweaks & Fixes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week's update brings the first round of post-launch tweaks and fixes for The Blood Moon Rises, alongside a handful of improvements to the Trouver System!''
+
+==Changelog - July 8th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+====The Blood Moon Rises Tweaks & Fixes====
+====Maggot King Changes====
+
+* Fixed an issue where ammunition fired at the Maggot King could drop in an inaccessible area of the boss's lair. It will now drop in the player arena.
+* Improved the visual distinction between the Maggot King's projectile attacks and floor hazards.
+* Added Elite Clue Scrolls to the Maggot King's drop table.
+* Improved the Maggot King's regular drop table by replacing some lower-value rewards with more valuable alternatives.
+* The Maggot King now places harvested loot directly into your inventory instead of dropping it on the ground.
+* The Aranei Scout outside Castle Drakan can now use coins from Death's Coffer or your bank when retrieving gravestones.
+
+====Weapon Changes====
+
+* Following on from the feedback we mentioned last week, we've updated the Crimson kisten's standard attack animation. After seeing that some players enjoyed the original animation and felt it gave the weapon more character, we've kept it in for the Stab attack style. Other attack styles now use heavier animation, while the Special Attack retains its full ground-smash effect to remain visually distinct.
+* The Crimson kisten is now correctly classified as a spiked weapon, and its special attack now now correctly rolls against an npcs crush defence.
+* Increased the Ranged Defence of Vyrewatch sentinels and Venators to better balance Blisterwood stakes against other Blisterwood weapons.
+** These should now be positioned as still a strong and viable option, depending on your gear, but no longer significantly better than the melee alternatives.
+* The Sunspear now gains 25% increased accuracy (up from 0) and 50% increased damage (up from 25%) against Vampyres.
+* Fixed an issue where Seeker Arrows provided their +20 Ranged Attack bonus regardless of the weapon equipped; this bonus now only applies when using bows.
+
+====Vampyrium & Skilling Changes====
+
+* Stymphikes now drop 15 Feathers instead of 5.
+* Dire Bats can no longer be lured to the Bank in Sangvesti.
+* Venator drops now appear in the Slayer section of the Collection Log.
+* Improved Venator drop tables, increasing the drop rates of Venator teeth and fangs while reducing the frequency of less valuable drops.
+* Increased the chance of receiving a Blood sac from cutting Leechfin by around 20%.
+* Leechfin now grant 33.2 Fishing XP per catch (up from 31.5), while cutting them into Blood sacs now grants 20 Cooking XP per cut (up from 2).
+** Our goal here is for highly active training methods to feel appropriately rewarding relative to other top-end skilling options. We felt Leechfin fell a little short of that, so we've given it a modest boost to better reflect the effort involved.
+* The Angler's outfit now correctly increases Fishing XP when catching Leechfin.
+* Removed the one-click Fletch option from Sap-treated Logs to remove the unintended impact on tick manipulation methods, as discussed in last week's <u>[https://secure.runescape.com/m=news/the-blood-moon-rises---known-issues--fixes?oldschool=true Known Issues &amp; Feedback blog]</u>.
+* The alchemy value of Makeshift spears has been adjusted.
+* The Tarnished bracelet is no longer labelled as a necklace.
+
+====Quest Fixes====
+
+* Players who completed the quest with a full inventory can now claim a free Sunspear from Efaritay.
+* Reduced the number of misleading trees in the Softa Forest encounter to make the section quicker to navigate.
+* Fixed a bug where you could not take an axe from the log stumps if you had a Zombie Axe or Battleaxe on your character or in your inventory.
+* Lowered the defence slightly of Venators encountered in Castle Drakan during the quest.
+* Maxilla Beasts can no longer be defeated using recoil damage.
+* Locked doors on the Castle Drakan map now display tooltips indicating which key is required.
+* Fixed a rare issue where Drakan could become stuck after his interlude attacks.
+* Fixed visual issues affecting the bridge cutscene.
+* The unlock hint for ''Lord of the Larvae'' has been corrected.
+
+====Trouver System Tweaks====
+
+* Fixed an issue where trouver-protected Ancient sceptres could be lost on PvP death.
+** We're aiming to restore any Ancient Sceptres with Trouver protection that were lost as a result of this bug back to affected players today.
+* Void Knight Gloves can now be applied a Trouver Parchment via Perdu.
+** They will continue to function the same as the other Trouvered items.
+* Storage containers like the Seed Box or Fish Barrel (and all their variants) won't be lost on death in the Wilderness.
+* Equipped items that become mangled and are kept on death will no longer remain worn. Instead, they will now go to your Inventory.
+* Items kept on death that become mangled will now be moved to your inventory instead of remaining equipped.
+
+====Other Changes====
+
+* Spelling mistakes have been corrected in the Crafting skill guide, The Blood Moon Rises quest and Vampyrium-related content.
+* The special attack description tooltip for the Rosewood blowpipe has been corrected.
+* Fixed a bug where Cave Goblins could walk in the wrong direction in Dorgesh-Kaan.
+* Fixed a bug where Nylocas waves could disappear at higher levels.
+* Fixed a bug with aggro ranges in TzHaar Fight Pits.
+
+====PvP Rota====
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Thank You==
+Before we jump into this week's fixes and tweaks, we just wanted to say a huge thank you to everyone who's played The Blood Moon Rises so far.
+
+Over the past week, it's been incredible watching so many of you experience the finale to the Myreque storyline for the first time. From seeing your reactions to the cutscenes and story reveals, to watching streams full of players slowly piecing together puzzles, we've loved following your journey through Vampyrium.
+
+One of the biggest highlights for the team has been watching players take on Lowerniel Drakan. Seeing so many of you refuse to give up, gradually master the mechanics, celebrate hard-earned victories, and then encourage others to stick with it has been so special. 
+
+In the words of Ivan Strom!
+{{Collapsed section|18|*Spoiler! Click to see*}}
+
+[[File:The Blood Moon Rises Tweaks & Fixes (1).png|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/fight7.png here]!'']]
+
+
+[[File:The Blood Moon Rises Tweaks & Fixes (2).png|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/fight8.png here]!'']]
+
+{{Collapsed section end}}
+We've been reading as much of it as we can, and this week's changes are just the first step. We'll keep listening, keep iterating, and keep working to make The Blood Moon Rises and the wider Vampyrium experience as good as we can. 
+
+Thank you for taking the time to be part of it.
+[[File:The Blood Moon Rises Tweaks & Fixes (3).mp4|thumb|450px|center|''If you can't see the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/flythrough243.mp4 here]!'']]
+
+==Blood Moon Rises Tweaks & Fixes==
+===Maggot King Changes===
+[[File:The Blood Moon Rises Tweaks & Fixes (4).png|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/mk123.jpg here]!'']]
+
+* Fixed an issue where ammunition fired at the Maggot King could drop in an inaccessible area of the boss's lair. It will now drop in the player arena.
+* Improved the visual distinction between the Maggot King's projectile attacks and floor hazards.
+* Added Elite Clue Scrolls to the Maggot King's drop table.
+* Improved the Maggot King's regular drop table by replacing some of the less desirable rewards with more valuable alternatives.
+* The Maggot King now places harvested loot directly into your inventory instead of dropping it on the ground.
+* The Aranei Scout outside Castle Drakan can now use coins from Death's Coffer or your bank when retrieving gravestones.
+
+===Weapon Changes===
+[[File:The Blood Moon Rises Tweaks & Fixes (5).gif|thumb|450px|center|''Crimson Kisten standard attack animation
+If you can't see the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/kistenhq.gif here]!'']]
+
+* Following on from the feedback we mentioned last week, we've updated the Crimson kisten's standard attack animation. After seeing that some players enjoyed the original animation and felt it gave the weapon more character, we've kept it in for the Stab attack style. Other attack styles now use a heavier animation, while the Special Attack retains its full ground-smash effect to remain visually distinct.
+* The Crimson kisten is now correctly classified as a spiked weapon, and its special attack now uses Crush.
+* The Sunspear now gains 25% increased accuracy (up from 0) and 50% increased damage (up from 25%) against Vampyres.
+* Increased the Ranged Defence of Vyrewatch sentinels and Venators to better balance Blisterwood stakes against other Blisterwood weapons.
+* Fixed an issue where Seeker Arrows provided their +20 Ranged Attack bonus regardless of the weapon equipped; this bonus now only applies when using bows.
+
+===Vampyrium & Skilling Changes===
+
+* Stymphikes now drop 15 Feathers instead of 5.
+* Dire Bats can no longer be lured to the Bank in Sangvesti.
+* Venator drops now appear in the Slayer section of the Collection Log, rather than their own.
+* Improved Venator drop tables, increasing the drop rates of Venator teeth and fangs while reducing the frequency of less valuable drops.
+* Increased the chance of receiving a Blood sac from cutting Leechfin by around 20%.
+* Leechfin now grant 33.2 Fishing XP per catch (up from 31.5), while cutting them into Blood sacs now grants 20 Cooking XP per cut (up from 2).
+** Our goal here is for highly active training methods to feel appropriately rewarding relative to other top-end skilling options. We felt Leechfin fell a little short of that, so we've given it a modest boost to better reflect the effort involved.
+* The Angler's outfit now correctly increases Fishing XP when catching Leechfin.
+* Removed the one-click Fletch option from Sap-treated Logs to remove the unintended impact on tick manipulation methods, as discussed in last week's <u>[https://secure.runescape.com/m=news/the-blood-moon-rises---known-issues--fixes?oldschool=true Known Issues &amp; Feedback]</u> blog.
+* The alchemy value of Makeshift spears has been adjusted.
+* The Tarnished bracelet is no longer labelled as a necklace.
+
+===Quest Fixes===
+[[File:The Blood Moon Rises Tweaks & Fixes (6).png|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/2.jpg here]!'']]
+
+* Players who completed the quest with a full inventory can now claim a free Sunspear from Efaritay.
+* Reduced the number of misleading trees during the Softa Forest encounter to improve readability.
+* Fixed a bug where you could not take an axe from the log stumps if you had a Zombie Axe or Battleaxe on your character or in your inventory.
+* Lowered the defence slightly of Venators encountered in Castle Drakan during the quest.
+* Maxilla Beasts can no longer be defeated using recoil damage.
+* Locked doors on the Castle Drakan map now display tooltips indicating which key is required.
+* Fixed a rare issue where Drakan could become stuck after his interlude attacks.
+* Fixed visual issues affecting the bridge cutscene.
+* The unlock hint for ''Lord of the Larvae'' has been corrected.
+
+===Other Fixes & What's Next===
+We've managed to incorporate a lot of your feedback into this week's update, but there are still a handful of topics we're working through. Where fixes need a little more time, we'd rather make sure we're getting them right than push anything out half-baked.
+
+If you'd like to follow along with our progress between game updates, you can always check our <u>[https://secure.runescape.com/m=news/the-blood-moon-rises---known-issues--fixes?oldschool=true Known Issues &amp; Feedback blog]</u> for the latest.
+
+For now, here are some of the priorities we're still working through:
+
+====Seeker Arrow Conversion====
+Last week, we mentioned that we were looking at improving how existing arrows are converted into Seeker arrows. While we originally hoped to have this ready for this update, we've decided to spend a little more time on it. As we worked through the implementation, we found an approach that we think is much cleaner and more intuitive than simply increasing the current conversion rate. Rather than rushing that out, we'd prefer to get it right.
+
+Our recommendation remains the same: if you're planning on making Seeker arrows, we'd suggest holding onto your buckets of Bloodwood sap for now so you can get the most out of them once the new system is ready. We'll share more details once we've finalised the implementation, and we're aiming to have one out and ready as soon as possible.
+
+====Maggot King Death Fees====
+We've seen feedback that the Maggot King's death fees can feel a little punishing while you're learning the encounter. To help with this, we're planning on introducing reduced item recovery fees at 25% of the usual cost while you're getting to grips with the fight. Rather than limiting this to brand-new players, everyone's next five Maggot King kills after this update will qualify for these reduced death fees, regardless of how many kills they've already completed.
+
+====Bloodwood Trees====
+[[File:The Blood Moon Rises Tweaks & Fixes (7).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-3X/tree.jpg here]!'']]
+
+We've seen a lot of feedback around Bloodwood Trees, and it's clear we missed the mark here. Many of you expected them to offer a lower-intensity, more AFK Woodcutting method based on our earlier blogs. In their current state, they don't deliver on that expectation, and that's on us. Rather than rushing out a quick fix, we're taking a little more time to make sure the solution properly delivers on what we originally intended. Our current goal is to have these improvements ready for next week's update, if all goes to plan.
+
+Just to reassure those of you who are enjoying the current method: we're not looking to replace or significantly change existing gameplay here. Instead, the plan is to introduce a more AFK alternative alongside the current method, giving players the choice between a higher-intensity approach and a more relaxed one.
+
+====Venators====
+Alongside today's improvements to the Venator drop table, we'll continue keeping a close eye on Blood shard acquisition before deciding whether any further adjustments are needed. One thing we've seen become clearer over the last few days is the role of Superior Venators. As more players have discovered, these have a 1 in 5 chance of dropping a Blood shard, making them a significant part of the intended reward loop and overall acquisition rate for the activity. Now that more players are engaging with Superiors and the wider Venator gameplay loop, we'd like to let things settle a little before deciding whether any further changes to Blood shard rates are necessary.
+
+==Trouver System Tweaks==
+We're picking up where we left off with the <u>[https://secure.runescape.com/m=news/a=13/bank-tags-trouver-system-rework--more?oldschool=1#Trouver Trouver System Rework]</u>!
+
+First of all, we'd like to note that the last blog post may have been a bit confusing. This is because we always aim to provide as much information as possible so you have the full picture. However, in this case, that level of detail made a straightforward system seem more complicated than it is.
+
+Essentially, the TLDR for the adjusted Trouver parchment system is: If there's potential for an untradeable item that isn't easily re-obtainable to be lost on death, you will be notified when attempting to enter the Wilderness. Otherwise, it is safe to assume that you will keep that item protected on death. 
+
+That's all you really need to keep in mind! Everything else in the blog is simply additional detail for those who want a deeper understanding of how the system works. And you can see the list of high-tier items <u>[https://secure.runescape.com/m=news/a=13/bank-tags-trouver-system-rework--more?oldschool=1#Trouver here]</u>.
+
+This also means the change that didn't make into that week's game update is now here: Attempting to enter the Wilderness with any untradeable item that requires a Trouver Parchment to be protected will now display a warning to make sure you're aware that you're risking an untradeable. 
+
+====Update on the Ancient Sceptres with Trouver Protection====
+Previously, we've <u>[https://x.com/OldSchoolRS/status/2069069681625890874 let you know]</u> that the team are working to fix the bug where Ancient Sceptres with Trouver Parchment protection were being lost to deaths in the Wilderness.
+
+We've now resolved this issue. Ancient Sceptres protected by a Trouver Parchment will no longer be lost to PvP deaths. As a high-tier item with Trouver Parchment applied, it will be kept upon PvP death, and you'll be able to repair it with the required cost. We're aiming to restore any Ancient Sceptres with Trouver protection that were lost as a result of this bug back to affected players today. Apologies for the inconvenience and thank you for your patience while we worked to resolve this.
+
+====Unique Item Behaviour====
+
+* Void Knight Gloves can now be applied a Trouver Parchment via Perdu.
+** They will continue to function the same as the other Trouvered items.
+* Storage containers like the Seed Box or Fish Barrel (and all their variants) won't be lost on death in the Wilderness.
+
+We also have an additional Trouver system-related fix:
+
+* Equipped items that become mangled and are kept on death will no longer remain worn. Instead, they will now go to your Inventory.
+
+==Merch==
+===Makeship===
+[[File:The Blood Moon Rises Tweaks & Fixes (8).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-07-08/jumbo.jpg here]!'']]
+
+Some of Gielinor’s most iconic bosses have traded combat for cuddles! From the fiery depths with TzTok-Jad, to the tunnels beneath Falador with the Giant Mole, even the Guardian of the River of Souls can't resist escaping her post to join your collection.
+
+====Last chance====
+==Other Changes==
+
+* Spelling mistakes have been corrected in the Crafting skill guide, The Blood Moon Rises quest and Vampyrium-related content.
+* The special attack description tooltip for the Rosewood blowpipe has been corrected.
+* Fixed a bug where Cave Goblins could walk in the wrong direction in Dorgesh-Kaan.
+* Fixed a bug where Nylocas waves could disappear at higher levels.
+* Fixed a bug with aggro ranges in TzHaar Fight Pits.
+
+==Survey Winners==
+Congratulations to the prize winners from one of our recent research surveys!
+
+For context, this survey was shared through a limited research campaign rather than our usual Old School channels, so many players may not have come across it. Thank you to everyone who took part.
+
+* D. Smith - United States
+* J. Elliott - United Kingdom
+* R. Ahmed - United Kingdom
+* K. Perry - Canada
+* A. Patterson - Canada
+* T. Capes - United Kingdom
+* E. Walker - United Kingdom
+* C. Heath - Canada
+* C. Wahrman - United States
+* P. Robertson - United States
+* D. Woolnough - United Kingdom
+* A. Stephen - United Kingdom
+* M. Hughes-Williams - United Kingdom
+* M. Cook - Canada
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1ulnmly/the_blood_moon_rises_known_issues_fixes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team.''

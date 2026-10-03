@@ -1,0 +1,277 @@
+{{Update|date=10 December 2024|url=https://secure.runescape.com/m=news/christmas-2024?oldschool=1|category=game}}
+[[File:Christmas 2024 newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+<b>PSA: UIMs affected by a recent bug are still waiting for their lost items to be returned. Multiple teams have been working to identify and restore them. Affected players will be contacted - no need to reach out to us. Apologies for the delay in updates, and thank you for your patience!</b>
+
+{| class="wikitable" style="text-align: center;"
+|-
+! KNOWN ISSUES
+! STATUS
+|-
+| When attempting to replace Surok during the WGS quest, players are unable to enter the jail cell and be teleported back by Akrisae.
+| HOTFIXED
+|-
+| Brutally Murder Conrad King and Garden of the Death tasks can't be retroactively completed.
+| HOTFIXED
+|-
+| Echo Axe looks like Dragon Axe (or) when chopping trees.
+| TO BE COLDFIXED
+|-
+| Lucy is trapped behind the bar and players can't get to her in the Falador Party Room for the Easy Clue Step.
+| HOTFIXED
+|-
+| Players who obtained Quetzin prior to the "Obtain a skilling pet" task fix can't retroactively complete the task.
+| HOTFIXED. For players who have already unlocked the Quetzin pet, the task will retroactively complete upon opening the Areas/Relics/Masteries interface.
+
+|}
+
+''Jingle your way to Falador for the Christmas 2024 event!''
+
+We’re wrapping up nice and cozy for the holiday season, so this festive update will be the last one until January 8th.
+
+Accordingly, we’ve crammed in as many Leagues V fixes as we can! Unless major issues arise, you won’t hear a peep from us until we emerge from our Christmas dinner comas next year.
+
+Oh, one last thing -
+
+''Happy Holidays from the Old School team!''
+
+==Changelog December 10th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Christmas 2024 Event'''
+
+* The 2024 Christmas event is here! Speak to Cecilia at the Falador Park to start this year's (p)awesome event!
+* Added suitably festive rewards for completing the event.
+
+'''Leagues V Fixes'''
+
+'''Task Fixes'''
+
+* The "Activate an Arcane or Dexterous Scroll" task has been fixed for players without the Grimoire. You can now complete it by simply reading an Arcane or Dexterous Scroll.
+* The chatbox closing prematurely no longer blocks the "Activate the Statue of Ates" task. If you've already met the requirements but the task wasn't registered, the task will be retroactively completed for you when opening the Areas/Relics/Masteries interface from the Leagues V Menu.
+* Obtaining the Quetzin now completes the task "Obtain a skilling pet", as intended.
+* The "Equip a Full God Dragonhide Set" task can now be completed with Zamorakian Dragonhide Armour.
+* The "Brutally Murder Conrad King" task will now be auto-completed when you unlock Kourend and Kebos. If you've already unlocked Kourend and Kebos, the task will retroactively complete upon opening the Areas/Relics/Masteries interface.
+* The "Garden of Death" task will now be auto-completed when you unlock the Desert. If you've already unlocked the Desert, the task will be retroactively completed for you when opening the Areas/Relics/Masteries interface from the Leagues V Menu.
+* Echo boss kills now count towards the Kill Count tasks of Combat Achievements.
+* Echoes from the melee mastery no longer fail the tasks to kill bosses with specific weapons. Additionally, echoes no longer affect non-melee Nylocas in Theatre of Blood.
+* Corrected the text on the “Have Elsie tell you a story” task description to state that she lives in Varrock, not Falador.
+* Corrected the description of the "Steal 15 Artefacts" task.
+
+'''Clue Step Fixes'''
+
+You can now complete the following clue steps without issue if you have Treasure Arbiter unlocked:
+
+* Talk to Robin with 180+ Ranged Attack.
+* Talk to Ghommal with 100+ Strength bonus.
+* Talk to Juna whilst wearing three Guthix items.
+* Anger emote at the Saradomin statue in Varrock with a Zamorak Godsword.
+* Do a jig at the Barrows chest whilst wearing a set of Barrows.
+* Yawn at Pyramid Plunder whilst wearing a Pharaoh's Sceptre.
+* Dance in Iban's temple whilst wearing an Iban's Staff, Mystic Robe Top, and Mystic Robe Bottom.
+
+Other clue step fixes:
+
+* The "Equip Iban's Staff" clue step will now only appear if you have Tirannwn, Kandarin and Morytania areas unlocked.
+* Fixed a bug where the elite clue step "Panic at the area flowers meet snow" was showing up despite not having Kandarin unlocked.
+* Using the anger emote with the Treasure Arbiter Relic unlocked now correctly makes the Double Agent appear.
+
+'''Relic Fixes:'''
+
+* Production Master now works when crafting with Amethyst.
+* Checking XP is now correctly given when a fruit tree is replanted with Overgrown.
+* Big Shark, Big Swordfish and Big Bass can no longer be auto-cooked with the Animal Wrangler Relic.
+* Specialist Relic fix: Special Attack Energy now restores when killing a lost soul during the Whisperer fight.
+* Fixed an issue where the Clue Compass teleport to Keldagrim required completing ''The Giant Dwarf'' quest, when it should only require starting it.
+* Corrected the spelling of Canifis on the Clue Compass teleport menu.
+
+'''Miscellaneous Fixes'''
+
+* Fixed a bug where Tormented Demons teleport couldn't be used without the quest requirements.
+* Gabooty now properly shows up in Karamja as intended.
+* The League Summary page now tracks and displays "Players Killed". Additionally, "Time Played" has been updated to "Account Age" for better clarity.
+* Veliaf Hurtz from the Sins of the Father quest is now in the right location.
+* Slayer Helmets can now be properly recoloured.
+* Tombs of Amascut can no longer be accessed early by using the Banker's Briefcase from the Bank Heist Relic.
+* Echo Hunllef no longer stretches during its death animation.
+* Golden Tench now has a chance to be dropped as intended both in Leagues and main game worlds.
+
+Other fixes done over the last week:
+
+* The "Obtain 100% support from your kingdom subjects" Fremennik clue step is no longer blocked if you have Pocket Kingdom unlocked.
+* Fixed a bug where Bone Dagger's first attack wasn't guaranteed.
+* The Dragon Axe (or) now displays the correct model of the axe while Woodcutting.
+* Players can now get hydra and araxyte Tasks with the correct quantities from a Slayer Master.
+
+'''Other Changes'''
+
+We’ve also snuck in a few stocking-fillers…
+
+* Corrected the chathead graphics for a messenger used by quest characters like Maisa.
+* Certain combat NPCs in Desert Treasure II and Secrets of the North are no longer vulnerable to being shoved around:
+** The assassin from Desert Treasure II
+** Ketla
+** Persten
+** Ancient Guardian
+** Jhallan
+** The assassin from Secrets of the North
+* Replaced the thumbs-up and  down buttons on the Logout panel with a 1-5 star rating. Now you can give a wider range of answers, if you like.
+
+'''PvP Rota'''
+
+Over the Christmas period, all worlds will be open, regardless of the region. The PvP rota will begin again next year on January 8th!
+
+The PvP Arena will be using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week, starting today. The following weeks will rotate automatically, with '<b>1 Def Pure</b>' loadouts on December 18th, '<b>Max/Med</b>' loadouts on December 25th and '<b>Zerker</b>' loadouts again on January 1st.
+
+{{Collapsed section end}}
+
+==Christmas 2024 Event==
+[[File:Christmas 2024 (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/Christmas_Keyart.jpg here].'']]
+
+This holiday season in Gielinor is as heartwarming as it is festive! Get ready for an event that en-tails the true essence of Christmas: companionship, goodwill and cheer!
+
+===Getting Started===
+[[File:Christmas 2024 (2).png|thumb|600px|center|''Start the event by talking to Cecilia in Falador Park! If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/start.jpg here].'']]
+
+Citizens of Falador woke up this morning to find that their city has become a sparkling winter wonderland! Cecilia has decided that now’s the perfect time to put up some festive decorations, but the stray dogs of Falador have other plans.
+
+If only there was a way for these five furry friends to find loving homes in time for Christmas… Perhaps that’s something you could help with?
+
+[[File:Christmas 2024 (3).png|thumb|600px|center|''Falador isn't the only thing getting an adorable festive makeover! If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/All_pets.jpg here].'']]
+
+===Rewards===
+Festive FashionScape awaits anyone who helps match the stray dogs of Falador to their new owners.
+
+[[File:Christmas 2024 (4).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/Outfits.jpg here].'']]
+
+Here's a list of the rewards on offer:
+
+* Dog Disguise consisting of dog ears and nose (disguise effectiveness may vary)
+* Festive Dog Boots
+* Festive Scarf
+* Present Box Hat with four variations to choose from
+
+[[File:Christmas 2024 (5).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/Hats01.jpg here].'']]
+
+Don’t forget, you can claim rewards from previous Christmas events by speaking with Diango in Draynor – although you’ll need to complete this year’s event first!
+
+==Christmas 2024 Parade and Livestream==
+===Parade Details===
+[[File:Christmas 2024 (6).png|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/christmas_discord_cover.jpg here].'']]
+
+Christmas in Gielinor isn't complete without the parade tradition bringing all 'Scapers together! This year’s parade is hosted by our Discord community, attended by J-Mods streamed live on Twitch and YouTube!
+
+You can register your interest and keep up to date with any news [https://discord.com/events/324132423636090880/1315978306813693993 here]. Basically, we'll meet '''in Falador Park on Monday, December 16th, at 16:00 GMT'''. Make sure to put on your most festive FashionScape and meet us there!
+
+Here's a look at the route we'll be taking:
+
+[[File:Christmas 2024 (7).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/Christmas_parade_route.jpg here].'']]
+
+===Livestream Details===
+The Christmas 2024 livestream will kick off at the same time as the Christmas Parade: '''Monday, December 16th, at 16:00 GMT'''. Be sure to mark your calendars and join us on [https://www.twitch.tv/oldschoolrs our Twitch Channel] on the day for a cheerful and cosy time full of surprises!
+
+===Christmas-ify Your IRL Pets===
+Up next in our "J-Mods Draw" series on Discord: J-Mods Draw Your Pets - Christmas Edition!
+
+Share a photo of your IRL pet [https://discord.com/channels/324132423636090880/1314548312485134428 here], and Mod Skylark will sprinkle some Christmas magic on your furry best friend! Photos will be chosen at random, and festive mock-ups will be created as time permits.
+
+The final designs will be revealed during our Christmas livestream on '''December 16th'''!
+
+==Leagues V Fixes==
+It’s been absolutely wonderful to see you all progressing towards your League goals, whether you’re accumulating Points, obtaining Echo Boss drops, or just having fun! Over the last week, the team was hard at work blasting through the remaining bugs, to make your Leagues V grind smoother ahead of the Christmas break. Let's take a look at what's been fixed...
+
+===Task Fixes===
+
+* The "Activate an Arcane or Dexterous Scroll" task has been fixed for players without the Grimoire. You can now complete it by simply reading an Arcane or Dexterous Scroll.
+* The chatbox closing prematurely no longer blocks the "Activate the Statue of Ates" task. If you've already met the requirements but the task wasn't registered, the task will be retroactively completed for you when opening the Areas/Relics/Masteries interface from the Leagues V Menu.
+* Obtaining the Quetzin now completes the task "Obtain a skilling pet", as intended.
+* The "Equip a Full God Dragonhide Set" task can now be completed with Zamorakian Dragonhide Armour.
+* The "Brutally Murder Conrad King" task will now be auto-completed when you unlock Kourend and Kebos. If you've already unlocked Kourend and Kebos, the task will retroactively complete upon opening the Areas/Relics/Masteries interface.
+* The "Garden of Death" task will now be auto-completed when you unlock the Desert. If you've already unlocked the Desert, the task will be retroactively completed for you when opening the Areas/Relics/Masteries interface from the Leagues V Menu.
+* Echo boss kills now count towards the Kill Count tasks of Combat Achievements.
+* Echoes from the melee mastery no longer fail the tasks to kill bosses with specific weapons. Additionally, echoes no longer affect non-melee Nylocas in Theatre of Blood.
+* Corrected the text on the “Have Elsie tell you a story” task description to state that she lives in Varrock, not Falador.
+* Corrected the description of the "Steal 15 Artefacts" task.
+
+===Clue Step Fixes===
+You can now complete the following clue steps without issue if you have Treasure Arbiter unlocked:
+
+* Talk to Robin with 180+ Ranged Attack.
+* Talk to Ghommal with 100+ Strength bonus.
+* Talk to Juna whilst wearing three Guthix items.
+* Anger emote at the Saradomin statue in Varrock with a Zamorak Godsword.
+* Do a jig at the Barrows chest whilst wearing a set of Barrows.
+* Yawn at Pyramid Plunder whilst wearing a Pharaoh's Sceptre.
+* Dance in Iban's temple whilst wearing an Iban's Staff, Mystic Robe Top, and Mystic Robe Bottom.
+
+Other clue step fixes:
+
+* The "Equip Iban's Staff" clue step will now only appear if you have Tirannwn, Kandarin and Morytania areas unlocked.
+* Fixed a bug where the elite clue step "Panic at the area flowers meet snow" was showing up despite not having Kandarin unlocked.
+* Using the anger emote with the Treasure Arbiter Relic unlocked now correctly makes the Double Agent appear.
+
+===Relic Fixes:===
+
+* Production Master now works when crafting with Amethyst.
+* Checking XP is now correctly given when a fruit tree is replanted with Overgrown.
+* Big Shark, Big Swordfish and Big Bass can no longer be auto-cooked with the Animal Wrangler Relic.
+* Specialist Relic fix: Special Attack Energy now restores when killing a lost soul during the Whisperer fight.
+* Fixed an issue where the Clue Compass teleport to Keldagrim required completing ''The Giant Dwarf'' quest, when it should only require starting it.
+* Corrected the spelling of Canifis on the Clue Compass teleport menu.
+
+===Miscellaneous Fixes===
+
+* Fixed a bug where Tormented Demons teleport couldn't be used without the quest requirements.
+* Gabooty now properly shows up in Karamja as intended.
+* The League Summary page now tracks and displays "Players Killed". Additionally, "Time Played" has been updated to "Account Age" for better clarity.
+* Veliaf Hurtz from the Sins of the Father quest is now in the right location.
+* Slayer Helmets can now be properly recoloured.
+* Tombs of Amascut can no longer be accessed early by using the Banker's Briefcase from the Bank Heist Relic.
+* Echo Hunllef no longer stretches during its death animation.
+* Golden Tench now has a chance to be dropped as intended both in Leagues and main game worlds.
+
+Other fixes done over the last week:
+
+* The "Obtain 100% support from your kingdom subjects" Fremennik clue step is no longer blocked if you have Pocket Kingdom unlocked.
+* Fixed a bug where Bone Dagger's first attack wasn't guaranteed.
+* The Dragon Axe (or) now displays the correct model of the axe while Woodcutting.
+* Players can now get hydra and araxyte Tasks with the correct quantities from a Slayer Master.
+
+As it stands, Leagues will remain as it is over the Christmas break period unless there’s anything major that needs addressing. Please continue to report your bugs and issues via the in-game Bug Report feature, and we'll pick up from where we left off on January 8th!
+
+===Leagues So Far===
+<center>{{Youtube|WzICasjn8Vk}}</center>
+<center>''If you can't see the video above, click [https://www.youtube.com/watch?v=WzICasjn8Vk here]!''</center>
+
+With every League comes the burning questions about collective stats: Who's the deadliest NPC in Leagues? Is your favourite creator Rank 1 on Points? How many Karambwan have you wrangled? [https://www.youtube.com/@SoupRS ‪SoupRS] has brought you the lowdown on all of the stats you could possibly want from Leagues V: Raging Echoes.
+
+Additionally, let's take another peek at our official Discord server Leagues V leaderboard! Remember you can check this yourself, or join the ranks and battle it out for top spot on the [https://discord.com/channels/324132423636090880/1309479543131869235 Leagues-leaderboard Discord channel]'''.'''
+
+[[File:Christmas 2024 (8).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-10/Leagues-Discord-Hiscores2.jpg here].'']]
+
+==Other Changes==
+We’ve also snuck in a few stocking-fillers…
+
+* Corrected the chathead graphics for a messenger used by quest characters like Maisa.
+* Certain combat NPCs in Desert Treasure II and Secrets of the North are no longer vulnerable to being shoved around:
+** The assassin from Desert Treasure II
+** Ketla
+** Persten
+** Ancient Guardian
+** Jhallan
+** The assassin from Secrets of the North
+* Replaced the thumbs-up and  down buttons on the Logout panel with a 1-5 star rating. Now you can give a wider range of answers, if you like.
+
+==PvP World Rota==
+Over the Christmas period, all worlds will be open, regardless of the region. The PvP rota will begin again next year on January 8th!
+
+The PvP Arena will be using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week, starting today. The following weeks will rotate automatically, with '<b>1 Def Pure</b>' loadouts on December 18th, '<b>Max/Med</b>' loadouts on December 25th and '<b>Zerker</b>' loadouts again on January 1st.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1haz3go/christmas_2024/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

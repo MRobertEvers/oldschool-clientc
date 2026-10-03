@@ -74,7 +74,7 @@ def main():
     vf = "select=not(mod(n\\,%d))" % a.every if a.every > 1 else "copy"
     cmd = ["ffmpeg", "-v", "quiet", "-y", "-i", clip]
     if a.every > 1:
-        cmd += ["-vf", vf, "-vsync", "vfr"]
+        cmd += ["-vf", vf, "-fps_mode", "vfr"]
     cmd += [os.path.join(out, "f%06d.png")]
     subprocess.run(cmd, check=True)
     count = len([f for f in os.listdir(out) if f.endswith(".png")])

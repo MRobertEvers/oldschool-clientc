@@ -1,0 +1,45 @@
+{{Update|date=12 June 2018|link=http://services.runescape.com/m=news/theatre-of-blood-feedback-tweaks?oldschool=1|category=website}}
+[[File:Theatre of Blood- Feedback Tweaks newspost.png|right]]
+{{clear}}
+{{Headline|25|Theatre of Blood: Feedback Tweaks}}
+
+
+<center>Since the launch of the Theatre of Blood, we've been keeping a close eye on all of your feedback coming in. Today, we'd like to propose a few changes based on that feedback that we intend to release with next week's game update on the '''21st of June'''. Your feedback on these changes is, as always, very much appreciated.</center>
+
+{{Horizontal Line}}
+
+Before we discuss any potential changes, we'd like to take a moment to say thank you all for your feedback and comments. We've had a huge amount of fun watching you work your way through the Theatre alongside hordes of spectators. More importantly, it seems many of you have been thoroughly enjoying battling through to Lady Verzik!
+
+As for the changes, we'd like to propose '''the following''':
+
+We'd like to improve the viewing experience for both spectators and those held in Purgatory. We intend to implement something similar to the 'lean' feature at the Duel Arena. This will allow you to click on certain areas to automatically move your camera do a different viewing angle.
+
+Currently, the mid-way chests are heavily RNG based. There is no clear correlation between your performance within the Theatre and the quality of supplies you receive. We'd like to propose a change the way these chests work by implementing a 'shop' system, where players have a certain number of points to spend on whichever potions or food they require the most.
+
+Finding a group of 5 players can be a little daunting at times, especially for those not already integrated into a Clan. We'd like to add a Theatre of Blood Clan Chat Channel to help you find the right members for your group.
+
+In addition to assisting with finding a group for the Theatre, we'd also like to explore making it more accessible. We initially intended for the Theatre of Blood to be aimed towards groups of 3-5 players, where 5 players would be optimal, but 3 very good players could at least complete the full raid. Looking back, we may have missed the mark a little for smaller team sizes. As such, we'd like to explore scaling down the health of the creatures inside the Theatre based on team size. We're proposing a reduction to 75% of their current health for a group of 3 players. The damage creatures deal and their mechanics would remain the same, but this should help to make the lower team sizes have a chance of success.
+
+We've noticed many of your comments regarding how great the individual rooms are, but we've also highlighted some areas of concern. Most notably is the Nylocas room, which ramps up in difficulty as the encounter progresses. We agree with the majority in that the early stage of the encounter is a little slow, and the room overall suffers because of that making it too long. We intend to remove a bunch of the early waves, so you're straight into the action. To ensure we're not just making the room categorically easier, we'll also lower the pillar health, increase the HP of the final Nylocas boss and make it more punishing when you attack with the wrong attack style by increasing the healing and damage reflect it does to 100% of your damage dealt, rather than 50%.
+
+Competition is rife within the Theatre, and many teams are constantly pushing for the fastest completion times. Currently, we're only displaying the actual time you spend completing each room. We also want to provide an overall completion time, so that players have an incentive to optimise their time spent between each room.
+
+Everyone loves more data, so we're looking to add a 'noticeboard' of sorts to the treasure room accessed after defeating Lady Verzik which will display some additional information about the raid. Ideally we'd like to be able show the number of deaths for each player, the time spent in each room, and an MVP for the entire raid.
+
+We've seen some complaints of how multiple Sotetseg's core prayer projectiles can hit a player simultaneously. Whilst we want the Theatre to be challenging, we don't want to introduce mechanics that you cannot avoid regardless of how skilled you are. We'll be looking to change the way these work slightly to prevent this from happening.
+
+Another frustration with Sotetseg is his special 'sharing' projectile (the red orb!) and how it has a fairly short travel duration if the player is near Sotetseg. We'd like to increase the minimum time it takes before it damages you so your team has a fair chance of avoiding the attack.
+
+A common complaint we've seen is the area you click to enter the next challenge room is rather large and can often be misclicked when you've left supplies on the floor. We'll be looking into ways of making it more difficult to go through the doors by accident without impacting the fantastic environment used throughout the Theatre.
+
+Some bosses inside the Theatre use game messages to help signpost what attacks are being used at the time. These can be difficult to distinguish between other messages. We'll highlight these in different colours to help emphasise their importance.
+
+Mod Ry will be looking at improving the Ghrazi rapier stab animation and Mod West will be investigating the Justiciar legguards model as they have some odd stretching between the legs.
+
+'''[Added 13/06/18]''' - We'll also be making the shadows appear one cycle earlier at the Bloat encounter. This is to give players more warning over where things will fall, giving a slightly better chance to avoid the damage in the times that currently feel impossible to do so. 
+
+{{Horizontal Line}}
+
+Discuss these feedback tweaks on our [http://services.runescape.com/m=forum/forums.ws?380,381,489,66019101 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [https://discordapp.com/invite/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''
