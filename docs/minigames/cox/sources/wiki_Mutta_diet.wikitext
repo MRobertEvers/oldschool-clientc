@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Mutta-diet
+|image = [[File:Fighting_Muttadile.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Muttadile without letting her or her baby recover hitpoints from the meat tree.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 307
+|leagueRegion = Kourend
+}}
+'''Mutta-diet''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to kill the [[muttadile]]s without letting them heal from the [[meat tree]].
+
+==Strategy==
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.''' 
+
+It is possible to complete the achievement without cutting the tree. By using ice spells, or a [[Zamorak godsword]] the muttadiles can be frozen when they reach 50% hp. This stops them from reaching the tree if they can be killed quickly. 
+
+If chopping the tree instead, pray accordingly to the smaller muttadile's attacks as it will navigate around the tree to melee the player. Ensure the tree is completely chopped before the small muttadile reaches 50% hp.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

@@ -1,0 +1,168 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Ice demon
+|image = [[File:Ice demon.png|170px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 2
+|examine = Lord of the Icefiends.
+|attributes = demon,xerician
+|xpbonus1 = 2.5
+|xpbonus2 = 7.5
+|max hit = Varies
+|aggressive = No
+|poisonous = No
+|attack style = [[Ranged]], [[Magic]]
+|attack speed = 3
+|hitpoints1 = 140
+|hitpoints2 = 210
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def1 = 160
+|def2 = 240
+|mage1 = 390
+|mage2 = 585
+|range1 = 390
+|range2 = 585
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 70
+|dslash = 70
+|dcrush = 110
+|dmagic = 40
+|dlight = 140
+|dstandard = 140
+|dheavy = 140
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 150
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 7584
+|id2 = 7585
+}}
+The '''Ice demon''' is one of the bosses encountered in the [[Chambers of Xeric]].
+
+==Strategy==
+The demon is initially standing in place protected by an ice storm, blocking the way deeper into the chambers. In order to dispel the ice storm, the [[brazier (Chambers of Xeric)|braziers]] surrounding it must be lit, and [[Kindling (Chambers of Xeric)|kindling]] fuels them. There are plenty of [[sapling (Chambers of Xeric)|trees]] outside the chamber it resides in to chop for tinder. Having a deposit chest built will greatly help for managing inventory space. Alternatively, players may drop some of their items and pick them up later, although it is recommended to only drop expendable items in the event the raid instance is closed (through a disconnection, for example).
+
+Kindling is obtained through chopping trees in the corridor preceding ice demon. The amount of kindling received per swing is determined by the player's [[Woodcutting]] level, with every 12 levels granting the ability to receive another kindling: at level 1 Woodcutting, only one kindling can be received per swing, and at level 96 Woodcutting or higher, one to eight kindling can be received per swing.{{CiteTwitter|author=Mod Bruno|url=https://twitter.com/JagexBruno/status/1101073823355621376|date=28 February 2019|archiveurl=https://reldo.runescape.wiki/i/96430|archivedate=28 May 2020|quote=Breakdown of how your Woodcutting level affects the amount of kindling and XP received.}} The [[experience]] gained from chopping scales to the amount of kindling chopped.
+
+{|class="wikitable"
+! rowspan="2" |{{SCP|Woodcutting}}<br/>Level
+! colspan="2" |{{SCP|Woodcutting}} Experience{{CiteTwitter|author=Mod Bruno|url=https://twitter.com/JagexBruno/status/1101073823355621376|date=28 February 2019|archiveurl=https://reldo.runescape.wiki/i/96430|archivedate=28 May 2020|quote=Breakdown of how your Woodcutting level affects the amount of kindling and XP recieved:}}
+! colspan="2" |{{plink|Kindling (Chambers of Xeric)|txt=Kindling}}{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1405439588861153287|date=17 June 2021|archiveurl=https://reldo.runescape.wiki/i/27964242|archivedate=28 July 2026|quote=In the ice demon room, the max is your visible Woodcutting level divided by 12. (Boosts are respected.) At level 96 that'd be 8.The game picks a random number 0-max inclusive, with equal chance of each integer. If it rolls 0, it treats it as 1.}}
+|-
+!Max
+!Avg
+!Max
+!Avg
+|-
+|1||30||30.0000
+|1||1.0000
+|-
+|24||45||35.0000
+|2||1.3333
+|-
+|36||55||40.0000
+|3||1.7500
+|-
+|48||62.5||44.5000
+|4||2.2000
+|-
+|60||68.5||48.5000
+|5||2.6667
+|-
+|72||73.5||52.0714
+|6||3.1429
+|-
+|84||77.7||55.2750
+|7||3.6250
+|-
+|96||81.5||58.1889
+|8||4.1111
+|}
+
+The depletion chance of a tree falling when cut is rolled as 1/X, where X is the greater value between: 2x number of players at the start of the raid, OR 3. In the ice demon room, multiply that value by 5. For example, in a raid that had 5 players, 2x number of players at the start of the raid is 2x5, i.e. 10. That's at least 3. So normally the chance of depletion is 1/10, but in the ice demon room it'd be 1/50. In a solo raid, 2x number of players at the start of the raid is 2x1, i.e. 2. We'd use 3 because that's greater. So normally the chance of depletion is 1/3, but in the ice demon room it'd be 1/15.{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1277201627997515778|date=28 June 2020|archiveurl=https://reldo.runescape.wiki/i/27964243|archivedate=28 July 2026|quote=The depletion chance normally is 1/X where X is: 3, or Party size x 2 whichever is higher. In the Ice Demon room, X is multiplied by 5 to make depletion rarer.}}
+
+There are four [[brazier (Chambers of Xeric)|braziers]] surrounding the demon. [[Kindling (Chambers of Xeric)|Kindling]] can be used to light these braziers to slowly dispel the ice storm. A player's [[Firemaking]] level affects their chance of successfully lighting a brazier, using the standard Firemaking skill roll with an 8% success chance at level 1, scaling to 78% at level 99.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1527317975521300510|date=16 July 2026|archiveurl=https://reldo.runescape.wiki/i/27964244#chat-messages-434286997360738305-1527317975521300510|archivedate=28 July 2026|quote=Yes - it's a normal skill-roll, using 8% success at level 1 and scaling up linearly to 78% at level 99.}}
+
+Additionally, an [[icefiend]] occupies each brazier (one icefiend for each player in the team, capping at four icefiends). They do not move, but if the brazier next to them is lit, they will attempt to remove a charge from it every 3 to 4 ticks, with a 1/6 chance of succeeding.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1526211486844715088|date=13 July 2026|archiveurl=https://reldo.runescape.wiki/i/27964245#chat-messages-434286997360738305-1526211486844715088|archivedate=28 July 2026|quote=Correct. Regardless of whether the fiend decided to wait 3 ticks or 4 ticks before it next executed its action, the action contains a 1/6 deduction chance. It's like having a weapon with an attack rate that's either 3 or 4, randomly, and that has a 1/6 chance of succeeding when it attacks.}}
+
+Once the ice storm is dispelled, the icefiends will disappear and the demon will emerge from the storm to engage the team. It has two attacks; a snow boulder and Ice Burst. The demon will take overhead prayers into account when fighting them; if the target is using [[Protect from Missiles]], it will only use the snow boulder attack. If [[Protect from Magic]] is used instead, it will only use Ice Burst. Both attacks are AoE with a 3x3 radius, so one can avoid attacks completely by moving a few spaces away from their spot. It is recommended to use Protect from Missiles, as the ice burst projectile is nearly impossible to spot and is much faster than the boulder.
+
+The demon has low health compared to other monster puzzles, but compensates for this with high Defence and a damage reduction effect.
+
+All damage dealt to the demon is reduced by 67%, except for [[fire spells]] (which deal 250% damage) and [[demonbane weapons]] (in which all demonbane modifiers are increased by 15%). Magic attacks are effective due to the demon's magic defence being calculated from its Defence level rather than Magic, unlike most monsters.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1101198072300875778|date=28 February 2019|archiveurl=https://reldo.runescape.wiki/i/103722|archivedate=28 May 2020|quote=Most NPCs calculate magical defence from the Magic stat. Some, now including this one, calculate it from the Defence stat - and for this demon, the Defence stat is much lower. (Monster Examine?) So magic will be more accurate there. Fire spells have always done + damage to it.}}
+
+The ice demon regenerates its stats at the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|archiveurl=https://reldo.runescape.wiki/i/27964246#chat-messages-434286997360738305-1524701424460628080|archivedate=28 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+It is recommended to use [[dragon warhammer]] or [[Bandos godsword]] special attacks to lower the demon's defences, unless using them in the following room is more advantageous (for example, against [[Tekton]]). The [[twisted bow]] hits well against the ice demon due to its high Magic level, but fire spells are still superior if the player can afford to bring it, but both are outclassed by [[Emberlight]] if the player is not using [[Fire Surge]] with a [[Harmonised Nightmare staff]].
+
+==Drops==
+===100%===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Fiendish ashes|quantity=1|rarity=Always}}
+{{DropsLine|name=Stinkhorn mushroom|quantity=7|rarity=Always}}
+{{DropsLine|name=Endarkened juice|quantity=7|rarity=Always}}
+{{DropsLine|name=Cicely|quantity=5|rarity=Always}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|update = Summer Sweep-Up Gear & PvM Changes
+|date = 22 July 2026
+|change = Increased the demonbane vulnerability from 100% to 115%.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The ice demon is now vulnerable to [[Demonbane weapons|demonbane weaponry]].
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The ice demon now has a 150% weakness to [[Fire spells|fire spells]].
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change =
+* The ice demon now drops [[stinkhorn mushroom]]s, [[endarkened juice]], and [[cicely]] to each player when defeated.
+* Reduced the ice demon's [[Magic defence]] from 60 to 40.
+}}
+{{Subject changes
+|date = 28 February 2019
+|update = QoL and CoX Changes
+|change = 
+*Trees found within the ice demon room in Chambers of Xeric are now less likely to fall
+*Players will now receive more wood than before when successfully chopping trees within the room based on Woodcutting level
+*As saplings can now give more wood than before, the Woodcutting XP gained per item of kindling has been reduced slightly
+*The ice demon's defences are now lower than before and its magic defence is now calculated from its defence level rather than magic, making it weaker to spells overall, including its additional weakness to fire spells
+}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = Adding wood to a lit brazier is now as effective as adding wood to an unlit brazier.
+}}
+{{Subject changes
+|change = The kindlings are now extinguished more slowly and they defrost the ice demon more effectively.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+{{Chambers of Xeric}}
+{{Demons}}
+[[Category:Bosses]]

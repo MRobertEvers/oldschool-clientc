@@ -1,0 +1,215 @@
+{{Update|date=5 January 2017|link=http://services.runescape.com/m=news/chambers-of-xeric?oldschool=1|category=game}}
+[[File:Chambers of Xeric newspost.png|right]]
+{{clear}}
+
+{{Headline|25|The Chambers of Xeric}}
+
+<center>'''Rally your comrades, muster your courage and take on the greatest challenge in Old School!'''</center>
+
+
+[[File:Chambers of Xeric (1).png|center|500px]]
+
+----
+
+
+{{Headline|25|Xeric's Might}}
+<center>'''The perils within.'''</center>
+
+
+Contained within the Chambers of Xeric are his mightiest commanders, fallen from grace. Among others, you'll face disgraced generals, master artisans, and a megalomaniac former high priest. These bosses will put your skills to the test, and prove a challenge for even the most experienced PvMers.
+
+[[File:Chambers of Xeric (2).png|left|250px]]
+Your performance in battle will earn you points towards your end rewards with both individual score & team score mattering. Every combatant must pull their weight for the greater good. Beware though, deaths will deduct from your individual score, so exercise caution in the Chambers.
+
+You'll need more than fighting talent to best the labyrinth though, with skill challenges, chances to restore your supplies, and even some devilish crabs to deal with. You'll need multiple skills at your disposal to fully utilise the Chambers environments to survive, including mixing potions & gathering food. 
+
+These items will be tradeable between team mates, so don't worry if you're the novice chef of your friends, as you can rely on them for food. In fact, to promote teamwork & helping others out, providing supplies for use in combat will actually earn you points towards rewards at the end of the dungeon. Points are awarded when the items are used, not made, so make sure you and your allies make use of everything available to you.
+
+[[File:Chambers of Xeric (3).png|right|400px]]
+
+In the deepest level of the Chambers waits the Great Olm, Xeric's greatest adversary. This fearsome encounter stands between you and reaping the rewards of your efforts. You'll need your wits about you and preferably some dependable allies to reap the rewards that lay beyond.
+
+In addition to brand new weapons & armour, there'll be a chance for those lore fiends among you to learn where such abominations came from. Each boss will drop a unique tome, explaining their origins & motives. Additionally, to learn more about the tragic story of Xeric & the history of Kourend, you may now visit the historical archives, via Arceuus Library.
+[[File:Chambers of Xeric (4).png|right|250px]]
+----
+
+{{Headline|22|Dynamic Scaling}}
+<center>'''A fitting challenge.'''</center>
+
+The Chambers will dynamically scale to provide a challenge suitable for your party. Not only will they scale based upon the size of your party, but also adjust themselves to ensure they provide a challenging & engaging battle, suitable for the skill of your party. 
+
+With up to 100 members in a party supported, you can take on the Chambers with all your allies, but the scaling means that you'll face a fierce fight whether there are 5 of you, or 50.
+
+[[File:Chambers of Xeric (5).png|center]]
+
+You can use the recruitment board to form your own party, advertise it to others and manage its members. The board will also list parties that other players are hosting, so you can see their members and join the team. 
+
+In order to make finding allies a little easier, we've implemented a Raiding Party Finder. To use this, use the message board near the entrance on the top of Mount Quidamortem. You can see it on your minimap indicated via the brown party finder icon on your minimap.
+
+[[File:Chambers of Xeric (6).png|center]]
+
+Lovakengj House has set up a minecart track up to Mount Quidamortem to service the expedition there. If you collect a control scroll off Miriam, near the Lovakengj bank, and deliver it to Stuliette on the mountain, you’ll be able to travel there much more conveniently on future trips.
+
+----
+
+
+{{Headline|22|Rewards}}
+<center>'''To the victors, the spoils.'''</center>
+
+Speaking of Rewards however, if you'd like to remind yourself of the full list, check out the drop down below for a complete list. There is the return of the iconic Dragon Claws, as well as all new weapons & armour including the brand new two-handed shield, Dinh's Bulwark.
+
+{{Collapsed section plain|13|<center>Click here to see raids rewards details</center>}}
+
+{{Headline|22|Dragon Claws}}
+
+Dragon Claws '''require level 60 Attack''' and provide the following stats and special attack:
+
+[[File:Chambers of Xeric (7).png|center]]
+
+
+{{Headline|22|Ancestral Robes}}
+
+Ancestral Robes offer a superb offensive option for high level Magic users. Requiring 75 Magic & 65 Defence to use, they act as a '''non-degradable''' set aimed at boosting Magic Damage.
+
+To achieve this, they trade off some of the Defensive stats of Ahrim's for additional Magic Attack Bonus, as well as '''2% Magic Damage increase per piece worn'''.
+
+[[File:Chambers of Xeric (8).png|center]]
+
+The non-degradeable nature of the Robes will provide a Magic alternative to the Bandos and Armadyl armours.
+
+
+{{Headline|22|Twisted Bow}}
+
+The Twisted Bow is a slow, hard-hitting and accurate longbow which requires level 75 Range to use. The bow '''changes in strength and accuracy when used against magical opponents'''. Arrows all the way up to and including dragon arrows can be fired by this weapon.
+
+[[File:Chambers of Xeric (9).png|center]]
+
+While the Twisted Bow has strong base stats, it can become stronger or weaker against opponents depending on their magic level or magic attack bonus.
+
+The following graph shows the buff % at different magic levels:
+
+[[File:Chambers of Xeric (10).png|center]]
+
+As an example of the Twisted Bow's strength, Dagannoth Prime is one monster where this bow is likely to be useful. The boss has a Magic level of 255, which would provide a Ranged strength buff of '''217'''% and a Ranged accuracy buff of '''142'''%.
+
+While the Twisted Bow will be strong against some monsters, it will also be '''very weak against others'''. If a monster or player has a Magic level and bonus of 1, the bow only provides 54% of its base damage and 40% of its base accuracy.
+
+There is a cap of 250% on the damage buff of the bow, and a cap of 150% on the accuracy buff.
+
+If a player's Magic accuracy bonus is higher than their Magic level, the bow will base the damage and accuracy modifier on their accuracy bonus instead.
+
+
+{{Headline|22|Twisted Buckler}}
+
+The Twisted Buckler is a shield requiring level 75 Range and Defence. It provides best-in-slot range accuracy bonus, as well as noteworthy defensive stats.
+
+[[File:Chambers of Xeric (11).png|center]]
+
+The Twisted Buckler is the the spiritual successor of the Odium Ward, providing similar uses and value at a higher level.
+
+
+{{Headline|22|Dinh's Bulwark}}
+
+Dinh's Bulwark is a two-handed shield which requires level 75 Defence and Attack to equip. The bulwark is unlike any other shield or weapon currently in game, and offers some interesting advantages to its users.
+
+[[File:Chambers of Xeric (12).png|center]]
+
+Dinh's Bulwark has two attack options: '''block''' and '''pummel'''. Unlike attack styles on other weapons, these options change the nature of the shield in a big way.
+
+When using '''block''', you are '''unable to attack'''. However, all incoming damage is reduced by 20%.
+
+When using '''pummel''', you can attack with the shield but lose the damage reduction.
+
+To prevent the advantages of each style being used at the same time, there is a short delay when switching from block to pummel during which you cannot attack. This also applies when switching from the bulwark to other weapons. The length of this delay is 8 ticks, which is slightly more time than a slow hitting boss might take to attack.
+
+Dinh's Bulwark does not work in PvP combat. The block option simply acts as a standard defensive attack style.
+
+It is not possible to cast offensive spells with the Dinh's Bulwark equipped.
+
+
+{{Headline|22|Dragon Hunter Crossbow}}
+
+The Dragon Hunter Crossbow is a unique range weapon with increased power when fighting Dragons.
+
+Requiring 65 Ranged, the Dragon Hunter Crossbow offers a base bonus of 95 Ranged Attack. Fighting Dragons empowers the weapon, increasing both accuracy and damage by 10%. This stacks additively with Void, not multiplicatively.
+
+[[File:Chambers of Xeric (13).png|center]]
+
+
+{{Headline|22|Dragon & Infernal Harpoon}}
+
+The Dragon Harpoon is an equippable tool used for fishing. When used for fishing, the Dragon Harpoon increases the likelihood of catching fish by 20%.
+
+[[File:Chambers of Xeric (14).png|center]]
+
+The Dragon Harpoon requires level 60 Attack to equip and level 75 Fishing to use. It can be used from the inventory and does not need to be equipped.
+
+<center>'''Infernal Harpoon'''</center>
+
+The Infernal Harpoon can be created by combining a Smouldering Stone and a Dragon Harpoon. It is very similar to both the Infernal Pickaxe and Axe in nature.
+
+Whilst Fishing, the Infernal Harpoon has a 1/3 chance of consuming a fish when caught. You will receive a small amount of cooking experience for the fish which was consumed, with the experience gained being dependent on the type of fish.
+
+After consuming 5,000 fish, the Infernal Harpoon becomes uncharged. It can continue to be used as a Dragon Harpoon in this state, or it can be recharged. To recharge the Infernal Harpoon, use a Smouldering Stone or Dragon Harpoon on it. This will give it another 5,000 charges.
+
+
+{{Headline|22|Elder maul}}
+
+The Elder maul is a slow, hard-hitting and accurate crush weapon. It requires level 75 Attack and Strength to use. The Elder maul does not have a special attack and hits at the same rate as a godsword.
+
+[[File:Chambers of Xeric (15).png|center]]
+
+
+{{Headline|22|Kodai wand}}
+
+The Kodai wand is a high level magic weapon. The Kodai wand requires level 75 Magic to equip.
+
+[[File:Chambers of Xeric (16).png|center]]
+
+In addition to the stats shown above, the Kodai wand both acts as a water staff and provides a 15% chance of negating rune costs when casting a spell. It can be used to autocast ancient magicks.
+
+
+{{Headline|22|Dragon thrownaxe}}
+
+Dragon thrownaxes provide +36 Ranged attack and +47 Ranged strength.
+
+<center>'''Special attack'''</center>
+
+The special attack of the dragon thrownaxe improves accuracy by 25% and guarantees that you will attack on the next game tick. This special attack costs 25% special attack energy.
+
+The special attack could be used to attack several times in quick succession with improved accuracy. Unlike the granite maul special attack, it is not be possible to use all of these special attack hits at once. You would have to correctly time your use of the special attacks, and would only be able to hit once per game tick.
+
+Dragon thrownaxes are consumed when they are thrown using the special attack.
+
+
+{{Headline|22|Dragon sword}}
+
+The dragon sword requires level 60 Attack to equip. It attacks at the same rate as a scimitar and provides the following bonuses:
+
+[[File:Chambers of Xeric (17).png|center]]
+
+<center>'''Special attack'''</center>
+
+The special attack of the dragon sword has one of two effects. If your target is protecting from melee, the special attack ignores this for one attack. If they are not, it hits with 25% increased accuracy and damage.
+
+The special attack costs 40% special attack energy.
+
+
+{{Headline|22|Forgotten prayers}}
+
+The forgotten prayers are unlocked with a tradeable scroll dropped as a reward from raids. When the scroll is read, you will be given a choice of learning one of '''three prayers'''. After one prayer is learnt, the scroll crumbles to dust.
+
+The three prayers have the following requirements and effects:
+
+[[File:Chambers of Xeric (18).png|center|575px]]
+{{Collapsed section end}}
+
+'''In other news'''
+
+*The Deadman Mode anti-PJ timer has been reverted to a previous version whereby players cannot be attacked in single-way areas if they have recently been attacking another player. This applies to the seasonal worlds and also the permanent one.
+*The number of seasonal Deadman worlds has been reduced.
+*The Christmas event has closed. Reward items that you unlocked can be retrieved from Diango if you lose them. For players who didn’t unlock them, they’ll be made available again in the next Christmas event.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,353,65866796 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

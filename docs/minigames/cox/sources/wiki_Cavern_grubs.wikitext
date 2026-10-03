@@ -1,0 +1,34 @@
+{{Infobox Item
+|name = Cavern grubs
+|image = [[File:Cavern grubs.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Freshly hatched. They smell utterly revolting, but they're quite juicy.
+|value = 1
+|weight = 0.000
+|id = 20885
+}}
+[[File:Cavern grubs detail.png|left|130px]]
+'''Cavern grubs''' are obtained from opening [[Chest (Chambers of Xeric)|chests]] in the [[creature keeper]]'s room within the [[Chambers of Xeric]]. They are used to feed the [[corrupted scavenger]], done so by placing them within the [[trough (Chambers of Xeric)|trough]]. Cavern grubs are stackable, but players may only have up to 28 at a time.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = 
+* Cavern grubs are now stackable up to a cap of 28.
+* The item's weight was reduced from 0.01 kg to 0 kg.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}
+[[Category:Needs skilling success chart]]

@@ -1,0 +1,35 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric (Solo) Speed-Runner
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric (Solo) in less than 17 minutes.
+|tier = Grandmaster
+|monster = Chambers of Xeric
+|type = Speed
+|id = 323
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric (Solo) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a solo Chambers of Xeric run in under 17 minutes.
+
+==Strategy==
+Pick a raid with very fast to clear rooms while minimising supply usage, as the player is expected to no-prep Olm.
+
+Layouts with fast rooms, at least 1 overload and some supplies are ideal. 3 combats and 2 puzzles is the smallest possible layout, Tightrope and crabs are the fastest puzzle rooms allowing 3 combat rooms for the other supplies. Commonly wanted combat rooms are: Vasa (2 Xeric's aid+ and an Overload+) and Vespula (2 Xeric's aid+, Revitalisation+, Prayer enhance+ and an Overload+). Tekton and Muttadile (Need to freeze both muttadiles) can still be used but are usually slower and are substituted for Shamans since the changes that allows Vasa and Vespula to drop overloads. 
+
+A (Vasa, Tekton, Vespula, Tightrope, Crabs) layout will provide the player with four brews, two restores, prayer enhances and overload, which should be more than enough for the player to use at Olm. A (Vasa, Shamans, Vespula, Tightrope, Crabs) is a slightly faster layout but results in 1 less restore. Make sure to make the most of your inventory to fit all the supplies, since it is more important to finish the raid than trying to organise in the chest. Tightrope skipping is highly encouraged to save additional time, as it significantly cuts the room's completion time and uses minimal supplies. Tightrope can be substituted for guardians if possible, which saves some supplies but will result in a slightly slower room.
+
+The player should initiate the fight with Olm before 7 minutes as the half of the time needed completing this achievement will come from fighting Olm. Using thralls are highly recommended to deal additional damage.
+
+==Tips==
+Raid layouts that start with Vasa the player can start with the [[vengeance]] spell active. Someone else can use [[vengeance other]] on you inside or outside the raid (ironman can use the magic skillcape to cast vengeance on themselves and swap back to the Arceuus spellbook afterwards). When combining this with pre-eating an anglerfish and a [[phoenix necklace]] causes Vasa to take 115 damage immediately and the player will have 32 health so it's not in danger of getting trampled on if Vasa moves in their direction. Swap back to the [[Necklace of anguish]] afterwards.
+
+Tightrope skipping is a method where the player completely ignores the [[deathly ranger]]s and [[deathly mage]]s. This is commonly done by prayer [[protect from missiles]] and [[augury]] and bringing 2 [[phoenix necklaces]], one for the crossing towards the [[keystone crystal]] and one for the return crossing. The phoenix necklaces will nullify all incoming damage, but make sure to equip the phoenix necklace and cross the rope in the same tick for the return (otherwise your phoenix necklace will proc before you start crossing the tightrope). This method has a very low chance of failure when the player is 24 health or above and becomes increasingly unreliable if the player is below that threshold.
+
+These methods are not required to get the grandmaster time but can massively help you in getting fast times into Olm, compensating for the lack of gear/skill.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

@@ -1,0 +1,306 @@
+{{Update|date=2 September 2026|rev=3 September 2026|url=https://secure.runescape.com/m=news/summer-sweep-up-miscellaneous?oldschool=1|category=game}}
+[[File:Summer Sweep Up Miscellaneous newspost.png|right]]
+__TOC__{{clear}}
+
+==Blog Update - September 3rd==
+===Elemental Amulets===
+To say that these elemental amulets shone particularly brightly in this week's game update would be the understatement of the year!
+
+We've been reading everything that you've shared about these so far, and wanted to put our thoughts in front of you now that we've had the chance to talk through things as a team.
+
+Before we get into the nitty gritty, it's great to see so much interest in elemental spells and the Standard spellbook receiving some love, since it gives us renewed confidence in exploring this space more heavily in the future so that we might give you more reasons to use spellbooks that aren't primarily there for 'Thrall delivery'.
+
+That said, we do resonate with many comments centered around these amulets' strength in endgame scenarios despite them being low-level unlocks - while we'd expected they might see some endgame use in very niche scenarios, that niche currently feels a touch too wide for jewellery that's so easy to obtain. The key aim here was to give players in the early game some actually interesting and useful jewellery options for Magic, since there are effectively no noteworthy options beyond the Occult Necklace.
+
+In our initial Sweep Up blog, we said: "Each of these amulets provides +2 to its elemental max hit, alongside +10 Magic Accuracy", which lead to many players assuming the +2 would be added after other damage calculations as opposed to the spell's base damage (similar to how Elemental Weakness bonus damage doesn't multiply with Magic Damage % from your gear).
+
+We'd like to tweak these amulets next week so that the additional +2 is added after bonuses from Elemental Weaknesses and Magic Damage %. This means there may still be some scenarios where this beats out other options in the endgame, but it should taper off more reliably and better deliver on its goals - noticeable power increases for Magic in the earlier stages of the game, since a flat +2 is more impactful when you're hitting 12s as opposed to 40s. With Elemental Fragments also on the way as untradeable rewards from The Fractured Archive, we think it's important to make sure these amulets are appropriately positioned - even though we appreciate that many of you love the thematic of them and the power that they offer.
+
+Naturally in the long-term, the Occult Necklace is bound to receive an upgrade at some point, which should help to more clearly cement late game gear obtained from late game content as the go-to rather than having situationally late game gear obtained from early game content. Making this change now also lets us recognise the desire for better balance between spellbooks and start to consider ways to offer power increases for them from appropriately tiered content throughout 2027 (which is set to be jam-packed, make sure you tune in to the RuneFest Summit to see what's coming!) We could even explore higher-level version of these amulets down the line if it's something that you're interested in, but think we'd need to evaluate how elemental weaknesses fit in the end-game with a Harmonised orb-shaped elephant in the room before we could commit to something like this.
+
+There's still time for us to change course here ahead of next week, so we'll be reading all of your thoughts and feedback on the lookout for any diamonds in the rough, but we do firmly believe that this is the healthier long-term approach to allow us more room to make the Standard spellbook shine in the future with powerful rewards obtained from appropriate content!
+
+===Clarification on the Shark Lures Buff===
+We've also seen some confusion around whether the Shark Lures buff to harpoon fishing has been implemented. To clarify, yes, it has. The confusion stems from a miscommunication in the blog, where the wrong tick numbers were mentioned. The intended change has always been to increase the rate at which you fish with a harpoon by 1 tick per roll, and rest assured that this buff has indeed been applied.
+
+{{Horizontal Line}}
+
+{| class="wikitable alternating-rows" style="text-align:center; width:665px;"
+! Known Issues
+! Status
+|-
+|The pillar health bars during Phosani’s Nightmare may display incorrect HP values in certain situations.
+|To be coldfixed next week
+|}
+
+{{Horizontal Line}}
+
+''Summer Sweep Up continues with new Slayer rewards, stackable Unsireds, elemental magic upgrades, and a mix of other improvements and fixes.''
+
+==Changelog - September 2nd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''Summer Sweep Up Miscellaneous'''
+* Unsireds from the Abyssal Sire are now stackable in the bank.
+* Added a 'Create Last' option to all player-owned house lecterns, which remembers your last tablet and quantity when using the same type of lectern.
+** The lectern interface will now also remember and display the last option selected, provided you use the same type of lectern as before.
+* Ghommal’s Lucky Penny can now be consumed to unlock its charge-saving effect, without needing it to be worn anymore.
+** The penny's effect will now also apply to the Blood Fury and automatically deactivate/reactivate post-consumption if Master-tier CA completion is lost or regained.
+* Added the Necklace of Fangs to the Turoth drop table. This necklace provides +1 Ranged Strength and +12 Ranged Accuracy.
+* Added 4 elemental amulets crafted from new Slayer drops that provide +10 Magic Accuracy and +2 max hit to their respective elemental spells.
+** Combining all 4 creates the Elemental amulet, which applies this bonus across all elemental spells.
+* Shark Lures now reduce harpoon fishing delays based on how many lures you’re using.
+** 1 lure: 50% chance to reduce the action delay from 5 ticks to 4.
+** 3 lures: Always reduces the action delay from 5 ticks to 4.
+** 5 lures: Always reduces the action delay from 5 ticks to 4, with an additional 50% chance to reduce it further from 4 ticks to 3.
+* Dying during a Chambers of Xeric raid will no longer reset your Surge potion cooldown.
+* The Seed Vault now supports inventory locking. You can enable inventory locks from the Seed Vault interface, then select the slots you want to lock.
+* Players who own multiple Fishing Sacks can now reclaim 500 Molch pearls for each additional sack they have by talking to Alry the Angler.
+* Abyssal Lanterns can now be stored in Magic Wardrobes, by popular request.
+
+'''Permanent Deadman Changes'''
+* Players who have recently been in combat can no longer deposit items worth 20,000 GP or more for 24 seconds, except when using a bank in a safe zone.
+* Players must now risk at least 100,000 GP in alch value to attack other players.
+* Players must risk at least 500,000 GP in alch value to attack other players within a certain distance of the Deadman chest.
+* Players must risk at least 1,000,000 GP in alch value and have no Deadman protection remaining to enter raid areas.
+* Ancient Warrior armour can now be traded on the Grand Exchange.
+* The Desert Treasure quest lamp now sets your Herblore level to 3.
+* The Nimbleness charm now works from inside a looting bag when bypassing Agility requirements for shortcuts.
+* One Deadman chest location that could cause players to get trapped and safely open the chest has been removed. Some new locations have been added.
+* Zemouregal’s summoned minions now have a significantly lower wander range from their spawn point.
+
+'''Other Changes'''
+* We've resolved the sound effect issues that emerged following last week's game update, affecting various bosses and NPCs including Duke Sucellus, Phantom Muspah, the Whisperer, Vardorvis, Yama, Olm, Blue Moon, and the Wardens.
+* Fixed a bug where Doom of Mokhaiotl's hitpoints bar wouldn't update when it took damage from explosions caused by nearby Demonic Larvae.
+* We've fixed a bug where the Aquanite hopper looked for the wrong kind of ammunition when its extra hit triggered. This issue could lead it to fire the wrong kind of bolt, or to claim you couldn't fire that bolt with your current crossbow.
+* Loot sacks have been removed from Bounty task rewards and are now only awarded for completing Courier tasks.
+* The Loot Tracker now correctly displays the rewards gained from the Courier Task Loot Sacks.
+* A malfunctioning colour code has been fixed in the shopping list from Mourning's End Pt II.
+* Fixed a visual bug with the Mahogany tree top when planted in the Anglers' Retreat hardwood patch.
+* The game selection menu used by the Burthorpe Games Room no longer has overlapping options.
+* We're changing identifiable bugged Personal Best times at Nex to previous values.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using <b>'Zerker'</b> loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Summer Sweep Up Miscellaneous==
+This year's Summer Sweep Up changes continue! We've already released three batches of changes which you can check out [https://secure.runescape.com/m=news/a=13/summer-sweep-up-gear--pvm-changes?oldschool=1 here], [https://secure.runescape.com/m=news/a=97/summer-sweep-up---agility--chambers-of-xeric-changes?oldschool=1 here] and [https://secure.runescape.com/m=news/a=97/summer-sweep-up---hunter--skilling?oldschool=1 here]. This week, we're bringing the remaining changes into the game, with one exception: the pet changes - allowing pets to follow you into content like the Gauntlet, Fossil Island's Underwater area, various minigames, and respawn with you on death. While the pet changes didn't make it in this time around, they're planned for release in the next two weeks. Now without further ado, let's dive in!
+
+===Unsireds===
+Unsireds from the Abyssal Sire can now be stacked in the bank! Previously, their loot was rolled when the Unsired dropped, which meant each one had to retain separate information about its potential reward and prevented them from stacking. However, we've now changed that! Unsireds will now roll their loot when they’re used on the Font of Consumption instead. They’ll still drop from the Abyssal Sire as normal, and the existing protection against receiving duplicate bludgeon pieces remains unchanged.
+
+===Necklace of Fangs===
+Ranged jewellery is fairly limited for players progressing through Slayer, with few upgrades prior to the Anguish coming into play. To help fill that gap, we’ve added the Necklace of Fangs to the Turoth drop table.
+
+[[File:Summer Sweep Up Miscellaneous (1).png|centre|650px]]
+
+The Necklace of Fangs provides +12 Ranged Accuracy and +1 Ranged Strength and drops from Turoths at a rate of 1/128. You can also obtain the necklace from Spiked Turoths.
+
+===New Magic Amulets===
+[[File:Summer Sweep Up Miscellaneous (2).png|centre|650px]]
+
+Magic jewellery is similarly lacking in upgrades for elemental spellcasters, so we’ve introduced a set of amulets focused on Air, Water, Earth and Fire spells:
+
+<u>Amulet of Air</u>
+
+* Made combining an Amulet of magic, Air diamond, 100 air runes
+* Requires Level 18 Runecraft
+
+<u>Amulet of Water</u>
+
+* Made combining an Amulet of magic, Water sapphire, 100 water runes
+* Requires Level 19 Runecraft
+
+<u>Amulet of Earth</u>
+
+* Made combining an Amulet of magic, Earth emerald, 100 earth runes
+* Requires Level 20 Runecraft
+
+<u>Amulet of Fire</u>
+
+* Made combining an Amulet of magic, Fire ruby, 100 fire runes
+* Requires Level 21 Runecraft
+
+<u>Elemental Amulet</u>
+
+* Made combining Amulets of Air, Water, Earth, Fire and 500 of matching runes for each element
+* Requires Level 30 Runecraft
+
+In a nutshell, each elemental amulet is created by combining an Amulet of magic, the relevant elemental jewel and 100 of matching runes at their respective elemental rune altar. Elemental Amulet can be created at any of the elemental rune altars.
+
+[[File:Summer Sweep Up Miscellaneous (3).png|centre|203px]]
+
+These elemental jewels are available as new drops from Slayer creatures at a rate of 1/64:
+
+* '''Air diamond:''' Dropped by Killerwatts.
+* '''Water sapphire:''' Dropped by Sea Snake Hatchlings.
+* '''Earth emerald:''' Dropped by Molanisks.
+* '''Fire ruby:''' Dropped by Infernal Mages.
+
+Each individual amulet provides +10 Magic Accuracy and increases the maximum hit of its corresponding elemental spells by 2. Plus, the Elemental Amulet provides +10 Magic Accuracy and increases the maximum hit of all elemental spells by 2, giving players a single useful option when switching between elemental spell types.
+
+===Shark Lure Improvements===
+Shark Lures have received a small buff to make them a more worthwhile way of speeding up harpoon fishing.
+
+The effect depends on how many lures you’re using:
+
+* '''1 lure:''' 50% chance to reduce the action delay from 5 ticks to 4.
+* '''3 lures:''' Always reduces the action delay from 5 ticks to 4.
+* '''5 lures:''' Always reduces the action delay from 5 ticks to 4, with an additional 50% chance to reduce it further from 4 ticks to 3. 
+
+===Ghommal’s Lucky Penny===
+Ghommal’s Lucky Penny can now be consumed to unlock its charge-saving effect, meaning the penny no longer needs to be worn. The penny's effect now also applies to the Amulet of Blood Fury.
+
+As with other Combat Achievement rewards, the effect will deactivate if you lose Master-tier completion and will become active once more when that tier is regained.
+
+===Seed Vault Locking===
+The Seed Vault now supports inventory locking, allowing you to choose which of your inventory slots should be left untouched when depositing seeds and saplings. You can enable inventory locks from the Seed Vault interface, then select the slots you want to protect.
+
+[[File:Summer Sweep Up Miscellaneous (4).png|centre|650px]]
+
+===Surge potion cooldown===
+Dying during a Chambers of Xeric raid will no longer reset your Surge potion cooldown. This brings Chambers in line with the Theatre of Blood and Tombs of Amascut, where the cooldown is preserved when you die during a raid.
+
+===Player-Owned House Lecterns===
+All Player-Owned House lecterns now have a 'Create-Last' option which remembers the last tablet and quantity selected when using the same type of lectern. The lectern interface will now also remember and display the last option selected, provided you use the same type of lectern as before.
+
+===Additional Summer Sweep Up Tweaks===
+* Players who own multiple Fishing Sacks can now reclaim 500 Molch pearls for each additional sack they have by talking to Alry the Angler.
+* Abyssal Lanterns can now be stored in Magic Wardrobes, by popular request.
+
+==Permanent Deadman Changes==
+We’ve made some small tweaks to Permanent Deadman Mode to strengthen its risk-based mechanics and address a few problem areas!
+
+* Players who have recently been in combat can no longer deposit items worth 20,000 GP or more for 24 seconds, except when using a bank in a safe zone.
+* Players must now risk at least 100,000 GP in alch value to attack other players.
+* Players must risk at least 500,000 GP in alch value to attack other players within a certain distance of the Deadman chest.
+* Players must risk at least 1,000,000 GP in alch value and have no Deadman protection remaining to enter raid areas.
+* Ancient Warrior armour can now be traded on the Grand Exchange.
+* The Desert Treasure quest lamp now sets your Herblore level to 3.
+* The Nimbleness charm now works from inside a looting bag when bypassing Agility requirements for shortcuts.
+* One Deadman chest location that could cause players to get trapped and safely open the chest has been removed. Some new locations have been added.
+* Zemouregal’s summoned minions now have a significantly lower wander range from their spawn point.
+
+==Other Changes==
+* We've resolved the sound effect issues that emerged following last week's game update, affecting various bosses and NPCs including Duke Sucellus, Phantom Muspah, the Whisperer, Vardorvis, Yama, Olm, Blue Moon, and the Wardens.
+* Fixed a bug where Doom of Mokhaiotl's hitpoints bar wouldn't update when it took damage from explosions caused by nearby Demonic Larvae.
+* Fixed a bug where the totems/pillars at Phosani's Nightmare were not showing their health accurately.
+* Loot sacks have been removed from Bounty task rewards and are now only awarded for completing Courier tasks.
+* The Loot Tracker now correctly displays the rewards gained from the Courier Task Loot Sacks.
+* A malfunctioning colour code has been fixed in the shopping list from Mourning's End Pt II.
+* We've fixed a bug where the Aquanite hopper looked for the wrong kind of ammunition when its extra hit triggered. This issue could lead it to fire the wrong kind of bolt, or to claim you couldn't fire that bolt with your current crossbow.
+* Fixed a visual bug with the Mahogany tree top when planted in the Anglers' Retreat hardwood patch.
+* The game selection menu used by the Burthorpe Games Room no longer has overlapping options.
+
+==Nex Personal Best Times==
+Last week, a bug involving the Mad Angel Combat Achievements had unintended effects on how NPC damage was calculated across parts of the game, including at bosses such as Nex. As a result, players were able to achieve kill times that were clearly outside the intended limits of the fight, including times as low as 4.2 seconds.
+
+Following this, players also highlighted that the previous fastest Nex PB was itself the result of an older bug from 2025, where Verac's could be used to kill Nex's minions in an unintended way.
+
+We recognise that leaving bugged PBs in the game can create an expectation that those records will remain and should continue to be treated as legitimate. In some cases, however, we may not identify an issue quickly enough to act at the time, or we may only become aware of the full impact later. Our data team also has to balance investigations like this alongside a wide range of other work, so unfortunately some cases can be missed.
+
+To make sure we’re applying the same standard consistently, we’ve gone back through the available Nex data and reviewed both incidents that we're aware of.
+
+* Our initial review identified 83 extremely fast PBs from last week. After looking more closely at the data, we widened the review to include any PB below 70 ticks that was set during the relevant bug window. This brings the number of affected players from last week to 154.
+* We also revisited the 2025 Nex bug and identified a further 489 PBs from that period which should have been addressed at the time.
+* As a result, we will be changing 643 Nex PBs in total across the two incidents to their values pre-bug abuse.
+
+The Nex record should therefore sit at 42 seconds. Based on the data available to us, we feel confident that the remaining PBs are achievable without relying on bugs.
+
+Our aim is to ensure that PBs and world-record times remain meaningfully competitive and achievable through intended gameplay. Leaving records that rely on bugs in place risks creating an incentive for players to take advantage of similar issues whenever they arise in order to remain competitive, which isn't something we want to encourage.
+
+If you're aware of other areas of the game where you believe similarly unrealistic PBs may have been set as a result of bugs, we're happy to take a look. Moving forward, we'll aim to apply this standard consistently where a bug has resulted in an unrealistic Personal Best. The speed at which we're able to investigate and action individual cases may vary depending on the data available and the resources required.
+
+Thanks for your patience while we investigated this. These changes should be in effect within the next 24 hours, approximately.
+
+==Old School LANscape is This Saturday!==
+[[File:Summer Sweep Up Miscellaneous (5).png|centre|650px]]
+
+12 Old School content creators, 4 teams and far too much power in the Twitch chat... Join us this Saturday for Old School LANscape, made in collaboration with and to be hosted by [https://x.com/SoupRS Soup] and [https://x.com/J1mmyRS J1mmy]! We'll be bringing some of your favourite Old School creators and J-Mods together for a live creator LAN party, where Twitch chat will decide the fate of the teams.
+
+LANscape will include in-game competitions, IRL challenges, and you watching at home with the voting power to make everything considerably more chaotic! For more information about LANscape, you can check out its [https://secure.runescape.com/m=news/a=97/introducing-old-school-lanscape?oldschool=1 dedicated blog].
+
+{|
+|
+{| class="wikitable"
+! style="background-color:#78ddeb;color:#000000" colspan="4" | Team Saradomin
+|-
+|Purpp || Potatohime || Mr Mammal
+|}
+
+|
+{| class="wikitable"
+! style="background-color:#e05858;color:#000000" colspan="4" | Team Zamorak
+|-
+|SoloMission || Tastylife || Sardaco
+|}
+|}
+
+{|
+|
+{| class="wikitable"
+! style="background-color:#e9e19b;color:#000000" colspan="4" | Team Bandos
+|-
+|Skill Specs || Katerena || Sick Nerd
+|}
+
+|
+{| class="wikitable"
+! style="background-color:#6aec7b;color:#000000" colspan="4" | Team Guthix
+|-
+|B0aty || Megan || MMORPG
+|}
+|}
+
+===Saturday, September 5th | 05:30 PM - 11:00 PM===
+===[https://twitch.tv/oldschoolrs Official OSRS Twitch Channel]===
+
+Make sure to check out the Old School RuneScape category on Twitch as some of the content creators will also be streaming from the event!
+
+Throughout the livestream, we'll also be running giveaways with exciting prizes up for grabs. To celebrate the launch of RuneScape: Dragonwilds' 1.0 version on Consoles and PCs on '''September 15th''', we'll be giving away:
+
+* A PlayStation 5
+* An XBOX Series X
+* A Nintendo Switch 2
+* 10 x standard Steam codes for RuneScape: Dragonwilds on PC
+* 10 x one month of OSRS membership
+
+[[File:Summer Sweep Up Miscellaneous (6).png|centre|650px]]
+
+See you this Saturday!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using <b>'Zerker'</b> loadouts in Ranked Duels and Tournaments this week.
+
+{{Horizontal Line}}
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [https://oldschool.runescape.wiki/ Old School Wiki].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''

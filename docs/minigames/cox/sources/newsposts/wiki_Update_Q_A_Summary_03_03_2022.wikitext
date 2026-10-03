@@ -1,0 +1,181 @@
+{{Update|date=7 March 2022|link=https://secure.runescape.com/m=news/qa-summary-03032022?oldschool=1|category=community}}
+[[File:Q&A Summary 03-03-2022 newspost.png|right]]
+{{Clear|right}}
+
+This week's livestream focussed on the Tombs of Amascut rewards! We answered your burning questions on all the updated rewards, including:
+* [[#Question #1|The possibility for Rune Pouches with four slots as a reward]]
+* [[#Question #4|The reasoning behind breaking down the Armadyl Set for the Masori Armour]]
+* [[#Question #8|The Heka of Tumeken's power level vs. other raids' rewards]]
+* [[#Question #11|The Ward of Elidinis' defensive stats]]
+* [[#Question #13|The future of Overloads in Old School RuneScape]]
+
+Thanks to Mod Sarnie (Community Manager) and Mod Ayiza (Lead Community Manager) for their insight!
+
+Missed the livestream? Check out the full transcript below!
+{{ToC}}
+==Question #1==
+{{Cquote2|So there still isn't a consumable, generic, common drop upgrade along the lines of Avernic, raids prayers. Is it too late to ask for an upgrade for a rune pouch of 4 rune slots?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=2360s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Well, I guess they just asked, so no it's never too late, you can always ask. Is it too late to add it? I also don't think it is. It's never too late for feedback and if there's obviously a large amount of demand for it, then we can consider potentially looking at that as a reward either from Tombs of Amascut or other pieces of content as an example.
+* '''Mod Sarnie:''' It is never too late for feedback, like even if the content was coming out tomorrow. That feedback loop is – especially in CM – the core of our job. You know, it's important to us and we're always looking. We're always keeping an eye out. So yeah, whenever you got feedback, just let us know. We are always listening and we are watching.
+* '''Mod Ayiza:''' On that question though, like for me especially, when I think about it: Does the rune pay pouch really need upgrading?
+* '''Mod Ayiza:''' It's already saving multiple inventory slots and putting in an extra four rune slots in there. Where's the majority of the benefit coming from if we were to do that? I think that's what I'd want to understand. Yeah, it saves two inventory slots right now, because obviously you have one slot for the rune pouch and then the rune pouch holds three. What extra functionality do you get by adding in four slots, and how much content does that actually change? Because that's an entirely separate question on its own right.
+* '''Mod Ayiza:''' So I am assuming the most common reason it is asked now is because of the introduction of the reworked Arceuus spell book with thralls. But then there are considerations, as well when it comes to PvP. Maybe that's not a bad thing and it can benefit both PvM and PvPers, so the standard spellbook becomes stronger because you're not taking up as much inventory space anymore. You've got more food, so you can survive longer. Is that a problem that we have to consider as part of it? So yeah, it's not just a simple case of, "Oh can we do it?" Yeah, we can. It's "what impact would it have?"
+* '''Mod Sarnie:''' I think especially combining something like alchs and teles, that would make it a lot easier. There's probably a lot of things that extra slot would do. But yeah, as of this second, there's no plans to introduce a fourth slot in there. Again if that's something you guys really want (we'd consider it). And if it's not with this, maybe with some other piece of content we have out in the near future might be able to (do it). But if it's something the players really want, it's definitely something to discuss with the team.
+
+==Question #2==
+{{Cquote2|Will the non-combat skills needed to make potions, etc. within the raid be the same as Raids 1/2?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=2587s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' Maybe. Honestly, it's just too early to say. The team is still going through the creation of the raid, so at this stage, I honestly can't tell you. We will have more information once we've confirmed things and tested them. Everything will be coming out in a future blog. But as it stands right now, you're gonna have to wait and see I'm afraid.
+* '''Mod Ayiza:''' Who knows, we might not even tell you until the content releases. Wouldn't it be such a travesty if some things were left to the element of surprise? I guess I kind of understand why though, right? People want to get ready, and in case they need to get skill levels. They might want to prepare for it. But it's not really that big of an excitement, like "What level do I need to train to?"
+
+==Question #3==
+{{Cquote2|With Masori coming out, does this mean Pernix isn’t in the pipeline?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=2658s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' The next question is easier for you, these are all harder for me.
+* '''Mod Ayiza:''' Because I've not worked directly on the project, I'm going to lean more on what I know from conversations with the devs in the team, and those that have left some notes for us. From what I understand, Masori kind of fits the exact same bill as what Pernix would. So it's not to say that Pernix wouldn't come out in the future. It could. But maybe it would be better as a cosmetic alternative or different ranged armour entirely. So it just serves a different purpose for range as opposed to what Pernix did before, you know. So it's not just straight-up bringing out the next round of new best in range armour over Masori.
+* '''Mod Ayiza:''' Maybe there's a utility niche that we could fill or a specific area that isn't currently covered. We're really leaning on the players here. What do you think? Is there really a need for Pernix now, if we've got Masori? At least in the immediate future, it doesn't seem like it. Other than the fact that it'll look cool. But then the Masori can also look really cool.
+* '''Mod Sarnie:''' If I'm right, we have yet to sort of tease what Masori is going to look like? So who knows, who knows. I imagine it will look how they all look – like a nice piece of armour, to be honest.
+* '''Mod Ayiza:''' It's gonna look awesome. Our art team is awesome. So, I'd imagine it's gonna look fantastic, and people will forget about Pernix entirely a few years from now.
+
+==Question #4==
+{{Cquote2|Is there a lore reason for the breakdown of Armadyl like we have with Nex/Bandos and Torva?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=2787s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' So, I saw this quite a lot during when the blog's v2 came out and I actually went to the team and Mod Ed, as he knows a lot about the lore and deals with a lot of that. He said while Nex made more sense because they were God Wars related, there's no connection between these two pieces. Instead it's the player taking them on themselves to combine the two pieces together to make something better.
+* '''Mod Sarnie:''' There is no lore reason specifically and I don't believe there will be. It is just the player being like "Oh you know what might be good? if I put this bit on this bit and I'll make a cooler piece of armour",
+* '''Mod Sarnie:''' I know it's not the most amazing bit. It would be cool to have some lore reason but if it doesn't make sense then it doesn't make sense and we don't want to just force lore into it just for the sake of it.
+* '''Mod Ayiza:''' I think it's all right to have some parts where you know you as the character (and gamer at least) are highly intelligent. It makes a difference from, at least in my instance, the real world... in-game I can at least pretend to be a very intelligent inventor, combining two pieces to make something even better!
+* '''Mod Sarnie:''' I mean players generally, as player stories go, we're quite gullible but that doesn't necessarily mean we're not smart or savvy. Just very gullible like "Yeah I'll do that for you, no worries, that sounds great I'll do that."
+* '''Mod Ayiza:''' It does seem like a very much an off-the-cuff kind of thing your character might think of, "Oh this is a powerful piece of equipment and this seems like it could work what if I combine the two?" It's like putting beans on toast. It just makes the toast even better.
+* '''Mod Ayiza:''' I'm waiting for the stream chat comments.
+==Question #5==
+{{Cquote2|Can we get a spot to build a mount for the sceptre that gives it unlimited charges in our POH?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=2944s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' No, you can't, because the POH already has enough and there are already enough unlimited charged things. I don't like the POH. I think as a collective the team might not be against it, but it's probably not necessary, given the fact that the sceptre isn't really used as frequently as it is for other teleports.
+* '''Mod Sarnie:''' I think it's the same thing, right? There's some people out there that automatically ask after releasing a new armour set: "Is it gonna be POH storable?" Not everything has to necessarily revolve around the POH because as Ayiza said, there's a lot you can do in there already. It's got a lot of utility in it, so we don't need to chuck everything that comes out into there to make the POH more overpowered.
+* '''Mod Ayiza:''' I understand why you might think about it because it is extra convenient. But for me when I just think how many teleports we have in the game that are already infinite, it just seems like so many. I don't know. It's just a bit of a moot point for me. I'm just grumpy in regards to it, so probably the worst person to have had on the stream answering the question in all fairness.
+
+==Question #6==
+{{Cquote2|Is there a planned release date for Tombs of Amascut? I'd like to schedule some time off work for when it comes out.}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=3039s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' In terms of release date, this year. That's all I can tell you. I wish I could tell you more, but that's it I'm afraid.
+
+==Question #7==
+{{Cquote2|With the removal of the 50 damage cap and that this update might still be some time away, would it be possible this part of the update could happen sooner?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=3075s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' I have no idea. Maybe!
+* '''Mod Sarnie:''' I'm not sure when this is meant to come out. I would hope it would be before. Because releasing the raid along with this on the side, we'd probably want to focus on the raid specifically. So I imagine this would come before. I can't give you a time when it would come out. I'll speak to the team about this and confirm it, if it's going to be before how long before it's going to be.
+* '''Mod Ayiza:''' I think the confusion that's probably there for most people is that it doesn't reference Corp in the question and the 50 damage cap is on Corp. And it'll be removed from the Corporeal Beast.
+* '''Mod Sarnie:''' That will be all weapons, as well. It's not just the Fang. Every single weapon will have the damage cap removed.
+* '''Mod Ayiza:''' It's a massive change to the Corp meta. Just to confirm again that it's likely that will happen before Tombs comes out, so yeah you can look forward to that. But we can't give you a date as to when exactly it will be.
+
+==Question #8==
+{{Cquote2|Heka's spellbook effects. Historically tridents never cared about your spellbook and it's being said that Heka is meant to be the Twisted Bow/Scythe of ToA. Why does it not hit as hard as the previous then? The previous weapons can hit 80 in a 5t cycle but Heka can't hit 160 in its 10 tick cycle. Raw damage is more appealing than 4 spellbook interactions on which 2 will never be used.}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=3214s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' For its worth, I don't think we've specifically stated it as that, but I can see why the comparison is drawn.
+* '''Mod Sarnie:''' I know I mentioned in the rewards vlog how there is this sort of idea, I think now especially after two raids, that there is a quote on quote "chase item", right? Like the T-bow.
+* '''Mod Ayiza:''' Oh so this came from you did it Sarnie?
+* '''Mod Sarnie:''' I'm trying to find the actual quote so I can tell it right. So the quote says "If you look at previous raid rewards like the Twisted Bow and the Scythe of Vitur, they were unique and powerful, and most importantly had that 'wow' factor that made them worth the grind." So yes and no. I can see the comparison 100%. So that might be on me, if that was pushing you towards the raw DPS output that potentially stuff like the Scythe and the Bow can get to.
+* '''Mod Sarnie:''' But with this weapon, particularly, it's a lot more interesting than "this does damage, okay I'm gonna do it." It's hard to say because, especially from your guys' perspective, it's hard for anyone to justify how good or bad the weapon can be without actually getting their hands on it. While the calculations you can do and how accurate they could be is one thing, but actually using the weapon (and not just how it will act against monsters), but how it feels to wield the weapon and to use it, is also something that should be taken into consideration.
+* '''Mod Sarnie:''' For this, it was more of a case of not essentially just doing raw DPS output, but something that maybe was a bit more interesting. Which is where the Low Life came from originally with Masori. Obviously, that was removed. But this does give a bit more utility to the weapon. I know that there are players out there that said that shouldn't be the case. But I think it's hard to judge – especially from your guy's perspective – how good it's going to be with the information we've provided.
+* '''Mod Ayiza:''' There was what, one rewards beta? It's obviously changed since then slightly, and now what I've seen especially is just a lot of mixed opinions on the weapon. I think there's a clear vocal crowd that think it's just not powerful enough. I'm not gonna pretend that I haven't seen that, because I definitely have. But at the same time, I've not really seen any counter-arguments as to what would make it better than what it is currently, other than just straight up adding more damage to it. Which is something that we could do. But then what happens to every single other item out there that is used for magic? Do you want us to just kill off all other magic weapons in place of this?
+* '''Mod Ayiza:''' I know to some degree that other items have done that. But there are still instances where you wouldn't use the scythe where you would use a different melee weapon for example. And the same with ranged, where you would use a crossbow over the twisted bow. If we just straight up added flat pure damage onto the Heka, it would then just be the go-to default, just like the blowpipe was for ranged for so long.
+* '''Mod Ayiza:''' I'd be really interested to see some actual suggestions on how the Heka could be changed. One of the ideas that I threw out randomly was that the last hit of the Heka (the slower, more powerful hit), what if that just had a chance to entirely ignore defence calculations? Then it could be used against monsters that currently you can't use magic against. And then ones that you knew for a fact melee or range was always going to be better, you would still use melee or range. But there was a chance that you could use the Heka. Maybe that could give it that extra bit of utility and excitement and a change that it doesn't currently have.
+* '''Mod Ayiza:''' Or the last hit had a certain damage range that it was going to hit, but it was always a guaranteed hit. Then you could use the Heka as consistent damage, as opposed to higher damage and healing that the Sanguinesti staff offers.
+* '''Mod Ayiza:''' Those are the kind of things that we'd be looking for. If you have those kinds of suggestions, then definitely try and get them sent our way so that we can see them. We do appreciate that it's not exactly what you've been expecting, but we also don't know what you are expecting outside of just pure damage.
+* '''Mod Sarnie:''' I mentioned the best feedback for us, and this goes throughout everything, the more detailed the better. If you're just saying "Oh, this is bad," that's a fair opinion to have. But the more details you give us in terms of feedback, the better it's going to be for us to understand where you're coming from, and what you'd like something to move to.
+
+==Question #9==
+{{Cquote2|When can we expect to see concept art for Masori armour and the other rewards?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=3594s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' I can't give you a date, unfortunately. A lot of these questions are asking for dates and things. It would be nice to give you some more concrete information. Unfortunately, I can't. But the art team have had a lot on their plate recently. They are coming out of it now, so they are not having to spread themselves so thin. With the inclusion of our newest member of the art team, Mod Soffan, they should make that a little bit easier. Hopefully I will be able to share some concept art for it very soon. I can't say when, of course, but soon. I'm sorry I can't give you anything more than that!
+* '''Mod Ayiza:''' Talking about concept art – it's not about the Masori – but if anyone is interested in PvP arena, I saw some very early concept art for the Calamity set alongside the headgear pieces. It looks pretty pogging, I must say so myself. I'm so excited to see how that continues to develop. We've got work that we still need to do on the armour sets and the bonuses that they offer, but fingers crossed we'll be able to show you those as well in the next iteration of feedback that we put out. And don't forget that we will be having a beta for all of the rewards on the 16th of March, so keep an eye out!
+* '''Mod Sarnie:''' I was halfway expecting you to drop the image in just now.
+* '''Mod Ayiza:''' I haven't asked so I don't want to just do that. I want to just make sure that it's all okay, just thought I'd give a little teaser there!
+
+==Question #10==
+{{Cquote2|With the mage shield requiring a sigil, can you rework Corps drops to be similar to Nex, allowing for ironmen to kill Corp with groups?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=3709s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' We probably can but I don't think we're going to.
+* '''Mod Ayiza:''' I'm probably the worst person to have asked this question because I'm Mr. Grumpy Boomer over here now. But that's kind of similar to saying, "I don't like having to farm for resources on my ironman. Can I just buy them from the Grand Exchange?" A little bit more of a drastic opinion, but Corp wasn't introduced as a group boss when Ironman was added. Whereas something like Nex was originally a group-based activity, and it was a back port. So we honoured the fact that it would be completable in groups, which means that you can do it as ironmen. Chambers of Xeric and Theatre of Blood, they're group-based pieces of content, so you're able to do them in groups.
+* '''Mod Ayiza:''' For Corp, it's not. It's a solo boss. I mean sorry, no it's a group boss. But you don't need to be in a group to be able to do it, right? It's been that way for too long now to go back and change it. If anything, we should have made Corp groupable from day one, as opposed to going back when ironman was first introduced. Going back on that now I think is just a mistake. It's just a case of if you want to get those items and have the prestige of having them on an ironman, then you should respect the rules that are currently in place for ironmen.
+* '''Mod Ayiza:''' I'm sorry if people hate me. If there are issues in terms of ironman availability for Corp that we've tried to address over time, then that's something that I'm way more lenient with changing and looking into. Because if you're not able to actually go and attempt to fight Corp solo, then obviously there's a problem there right and we can continue to look to address that.
+* '''Mod Ayiza:''' In terms of straight-up changing it now, I think we're just too far gone. There's an image, isn't there? The image of the train and it's like "Oh would you let all of these people suffer just, because everyone else had to suffer too?" There are so many instances where I think to that and I'm like, "You know what that actually is so true. Why does everyone else have to suffer just because others did in the past?" But I don't really think it applies to Corp here. Solo Corp now has an established meta, it is possible. It's got a number of grinds associated with it to be able to get to that point with the key items that you need to unlock. So there is that level of prestige.
+* '''Mod Ayiza:''' If you were to make that available as a group with ironmen, it just completely removes that. It's not even a trade-off for something where, okay you can do it as a group but you have to now be more skilled – it just removes it entirely. Then you punish everyone else who has done that grind already and had to put in that effort and work.
+* '''Mod Ayiza:''' It's too much of a considerable change, I think. So for me, I would say no. If it was a huge demand for it though, obviously at the end of the day, you are the players that pay to play the game. You have a voice and we can make changes based on that voice. But if you're asking me personally, I'll tell you no.
+
+==Question #11==
+{{Cquote2|Why does the Ward still have the same defensive stats as a blessed spirit shield? Isn’t the whole concept of this item sacrificing the spirit shield in exchange for more offensive power?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=3943s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' First off yes, the concept for the item is essentially the new best in slot mage offhand, which it does regardless of if it has the same defensive capabilities as arcane spirit shield. You could say it doesn't exactly make 100% sense to have it exactly the same. But especially the fact it gives you this offensive capability, it was never meant to be a trade-off of defence for offence. It was just meant to be an improvement on what's already there, which is exactly why combining the two gives you the charge version. This then comes up to give you that offensive power that the spirit shield is lacking.
+* '''Mod Sarnie:''' We've seen some more feedback from you guys on both versions of the blog that was about the base version not being very usable and it wasn't that great. So we've had a discussion over the last couple of days that we potentially are going to tweak it. I want to know what your guys' opinions are of this: In terms of the offensive bonus, we want to cut the magic accuracy in half (go from 10 to 5). But instead, the base version would give you the 5% magic damage bonus that is on the upgraded version. With that said, we would tweak the defensive capabilities of it, so it is at least usable as a base item. And then you combine it with the sigil, it gives you the defensive capabilities that the spirit shield would have had. So now you have the new best in slot mage off hand.
+* '''Mod Sarnie:''' Please let us know what you think of that. If it's too much, if it's not enough, if you don't like it, whatever it is, just let us know. We feel like that might mitigate some things around the ward, so yeah let us know.
+* '''Mod Ayiza:''' That's interesting. That's fresh news just coming out now. Wonder how people will react to that now, because it's probably going to change a fair amount of opinions on the ward, on changes to Corp, and everything else that goes alongside that. So essentially as you said, just the base item that comes from Tombs of Amascut compared to the current blog form, it would have half of the magic accuracy but it would gain five percent magic damage bonus. And then you would have a slight amount of defensive bonuses, but if you wanted the full defence bonuses of the ward, you'd then get that with the spirit shield combination.
+* '''Mod Sarnie:''' Exactly.
+* '''Mod Ayiza:''' I think it makes way more sense because then you essentially avoid the issue of having a ward that you just have no real reason to use until you've got the spirit shield at the same time. Especially for ironmen now in this case, if you are unfortunate enough to not have got yourself a spirit shield you could potentially be sat on this item that you've got from Tombs of Amascut for months that does absolutely nothing for you compared to other items. With this change at least it gives you some damage bonus, and based on feedback, we can always look at tweaking the numbers.
+* '''Mod Ayiza:''' So maybe it's not five percent that it gives you, maybe it's a bigger upgrade in terms of damage percent when you upgrade it to the charge version of the spirit shield. But at least making the ward a viable item to be used and to have a reason for you to equip it compared to existing items already, I think is a good change.
+* '''Mod Sarnie:''' I believe I touched on it in the last blog, but forgive me if I didn't. It was never about making the base a fully viable option. It was always about just having it there and just giving it something so you could equip it and you could use it, not to make it actually viable. This at least gives a bit more purpose to the base version to allow people to (if they haven't got the defensive capabilities like an iron and they haven't got the sigil) at least benefit from the offensive capabilities that the uncharged ward can offer.
+* '''Mod Ayiza:''' Even without the consideration of being an iron account, this is a benefit then, too, for mains right? You now get a drop that has more value because you may have mid-to-end game players that want to have a magic upgrade for when they're off doing their slayer tasks or bossing that is now worth a considerable amount more. Because it gives them a max hit that they didn't have before, but they don't have to go to the extent of having to buy both the ward and the sigil in order to be able to afford it. It could likely end up making the ward more valuable as a base item as a result.
+* '''Mod Ayiza:''' I don't think we would have ever had the same extent of issue that we do with for example Pegasians with the ranger boots. You know the Pegasian Crystal is a fraction of the cost in comparison to primordials because that's pretty much tied to the rangers, but with the base item being useful in its own right avoids that entirely, regardless of the fact so.
+* '''Mod Ayiza:''' I just saw a comment from one person on here commenting about how the base scythe isn't very good compared to the charge, so I don't get why this mage offhand needs to change. I think it's completely different. It's like comparing an apple to an orange, because to charge the scythe you only need to get a resource that comes quite commonly from the content that you get the scythe from anyway, and then some blood runes.
+* '''Mod Ayiza:''' It's not like you are having to hunt for a separate drop that comes from an entirely different area of the game. It's very likely on your grind towards getting the scythe, you'll have accumulated some blood vials. You'll have some blood runes that you could buy from a shop or craft yourself. It's a big difference when you're looking at a rare reward coming from a raid which requires another rare reward from an entirely separate piece of content. So hopefully, that kind of explains why I feel that the base item should have a little bit more power than what it currently did.
+
+==Question #12==
+{{Cquote2|Stat renewal potion seems ok, but what about a prayer renewal potion? This could introduce a new seed drop.}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=4390s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' A new seed drop hmm... You know that's actually something that we've not seen for so long now apart from with the Hosidius and Kourend work that we did right when we brought out the Kebos Lowlands, that introduced a few new tree seeds. But we haven't had a new herb seed for a very long time. It could be interesting I think to some degree. I wouldn't mind seeing how they would work and the kind of things that they would require at least.
+
+==Question #13==
+{{Cquote2|I still don't really understand what the potion is for. Why not just introduce overloads all at once if you're keen on doing so eventually?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=4471s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' So I just want to premise that overloads are very, very powerful, like extremely powerful, and if we introduce them now it would probably change how most PvM is done in the game. Something that we potentially could have explained a bit better in the latest vlog was that base was meant to be the sort of the beginning of us slowly introducing an overload-type potion. Not to say we do it exactly how it is in something like Chambers of Xeric, but this was meant to be one of the components for that.
+* '''Mod Sarnie:''' It's not that we don't want overloads in the game. It's just right now we feel like it would change a lot if we introduce them, and is that something we're okay with? We have to go back to that discussion if it's okay, but I think when we originally put this out it was a case of we didn't want to just jump in and say "Here's an overload type thing, go ham."
+* '''Mod Sarnie:''' Maybe we look back at that conversation, because I know there's been a lot of feedback around the stat renewal potion. Specifically how there's not a lot of use for it. It was meant to be a niche case use, just to throw that out there. It wasn't meant to be this over-the-top powerhouse potion, it was meant to be something that was the building blocks for something else.
+* '''Mod Ayiza:''' I think that's an important distinction to make, as well. At the end of the day, power creep is a real thing, right? We've just done a fair bit of work last year to try and curb power creep with the blowpipe, and we're looking at tier balancing still. I kind of understand why a lot of people are out there asking for overloads, just because there hasn't been this huge influx recently of new PvM based items (aside from the new introduction of Nex). But none of it has been massively game-changing, right? It's just been upgrades to existing things that are available. A bit more melee strength, a little bit more range strength and accuracy.
+* '''Mod Ayiza:''' If we were to just bring out all the new armours that we have from Tombs of Amascut and then suddenly add in overloads, too... We are looking at changing the entire dynamic of how PvM works and every aspect of combat in Old School works with one update, and that might not be a healthy change to make.
+* '''Mod Ayiza:''' To re-echo what Sarnie said as well, it's not like we're against it. It's just we don't feel like doing it all at once is a good idea, and introducing it slowly is probably a safer option for us.
+* '''Mod Ayiza:''' I think as a player I never really want to hear that you have a reward that's coming out that's not really meant to be great. It's just a reward that's a little bit underwhelming so to speak. At the same time, not everything that comes out has to be absolute best in slot all the time and replace what exists already. They can fill niches, and I do think there will be instances where stat renewal potions get used. We'll just have to see what they are.
+* '''Mod Ayiza:''' We might want to make changes to them before Tombs of Amascut comes out, as well. So we'll still be seeing feedback, but I think the introduction of overloads is probably a conversation that we will avoid for the immediate future. We'll probably look towards something like it in the future, but it will be a slow progress rather than in one update.
+* '''Mod Ayiza:''' I just don't think we need them honestly. We've got divines now which act a little bit differently. I remember a lot of people commented about divines when they first came out. They said that they were useless and they wouldn't be utilized because they don't boost you higher. What's the point in them? Now everyone uses divines.
+* '''Mod Ayiza:''' It also offers the opportunity to introduce content that can then be balanced around the fact that things like stat potions exist. I fully appreciate that that also sounds a little bit lame, that we bring out a reward that might not have a huge use now but might have a use in the future, but the alternative is to bring that out with that content anyway. And what's to say that Tombs of Amascut might need you to have stat renewal potions? Who knows.
+
+==Question #14==
+{{Cquote2|How do you feel about the current state of the Harmonized Orb? With the upcoming mage offhand and staff, it will essentially become obsolete since the orb needs a tome of fire to be useful. Are there any plans to buff or make adjustments to this item considering it’s the rarest item from an upper-end boss?}}
+
+[https://www.youtube.com/watch?v=ySRkQD1547I&t=4844s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' This is a very popular topic, right? It's been brought up since the very first blog that we released for Tombs of Amascut.
+* '''Mod Ayiza:''' I think that we probably do need to consider looking at the Harmonized Orb and how that could be made a little bit better. It's not because of the fact that we're bringing out the Heka as a potential reward (if it passes) - but just as a baseline, anyway.
+* '''Mod Ayiza:''' I think for how rare it is and how expensive the item is – it's just not reflective in terms of its strength in some situations.
+* '''Mod Ayiza:''' There was a suggestion that came in from one of the devs so I'll read out what their thoughts were in terms of how they might look at buffing the Orb. Their suggestion is making it so that we introduce Elemental type weaknesses to our NPCs. So essentially evolving the game, so that NPCs have weaknesses to different elements. Then having the Harmonized Orb as one of those ways introduce strength without just you know, straight up having to buff it.
+* '''Mod Ayiza:''' Then just some other words that I've got here from the devs, as well. They mentioned the Harmonised Orb isn't exactly a stat stick that's becoming worse. It's just what it offers is very unique and distinct, which just doesn't feel overly useful in the game right now.
+* '''Mod Ayiza:''' The other part of it is, should we constantly buff items (old items especially) to keep them in relevancy? Or is it okay to just let some things not be as good, and the items can die off as the game evolves and changes?
+* '''Mod Ayiza:''' Then finally the other suggestion is it could be changed to make the spells cast with the staff one tick faster.
+* '''Mod Ayiza:''' That could be an idea, but then would we have to consider limiting that to only the standard Spell Book. Because a four tick barrage sounds ungodly powerful in so many instances. I don't know, it worries me a little bit to just think of the potential for it. But we could look at giving it utility or as we mentioned elemental weaknesses.
+* '''Mod Sarnie:''' It's something that magic has always been better at than the other combat types: utility. I think utility would be a good way to go, but the Harmonized Orb is in such a weird and unique place. It's definitely a bigger conversation to be had. It's difficult to know where we go with it, but it's worth having that discussion.

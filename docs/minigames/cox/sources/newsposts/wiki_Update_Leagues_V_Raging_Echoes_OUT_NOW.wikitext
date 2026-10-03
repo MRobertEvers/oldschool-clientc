@@ -1,0 +1,490 @@
+{{Update|date=27 November 2024|url=https://secure.runescape.com/m=news/leagues-v-raging-echoes-out-now?oldschool=1|category=game}}
+[[File:Leagues V- Raging Echoes OUT NOW! newspost.jpg|right]]
+{{clear}}
+__TOC__
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+|Players reported unusual behaviour with loading Karambwanji into a Karambwan vessel if an Echo Harpoon was present in their inventory.	
+|HOTFIXED (sort of). You'll need a Karambwan vessel with you to fish Karambwan for the time being, until we're able to work on a more long-lasting fix for the Echo Harpoon's 'Vessel' functionality.
+|-
+|Players reported receiving Dark Kebbit Hunter Rumours despite not being able to access any area where they're found.
+|HOTFIXED. Players who currently have a Dark Kebbit rumour will need to reset it at the Hunter Guild, then should only be able to receive rumours that they're able to complete.
+|-
+|Players reported no longer being able to left-click teleport to some Treasure Trail locations using the Clue Compass.
+|HOTFIXED.
+|-
+|Some players are finding themselves stuck on the Region menu and unable to select an area for their first unlock.	
+|Your first unlock will always be Karamja, so if this is your first unlock, please try selecting Karamja!
+|-
+|We've seen reports of some player character models missing their jaws.
+|HOTFIXED
+|-
+|When you switch to a Leagues V: Raging Echoes world, the text mentions Leagues IV: Trailblazer Reloaded instead.
+|HOTFIXED
+|-
+|Some items had been incorrectly appearing on the ground in League Worlds. Unfortunately, the fix to wipe those has affected some other ground items.	
+|We're currently looking into it. We're sorry for the inconvenience, and will reach out to those impacted to resolve the issue.
+|-
+|Corner Cutter's Relic description incorrectly lists 100% Success Rate on Thieving checks
+|Due to be coldfixed with next Wednesday's Game Update.
+|-
+|We're aware that some players in main game worlds have lost dropped items.
+|We're investigating the fix and will work to return lost items to players affected. You won't need to reach out to us, our systems are able to identify those impacted.
+|-
+|Players in main game worlds reported bank interfaces closing automatically every 15 seconds or so.
+|HOTFIXED
+|-
+|Alchemy spells were completing too quickly in main game Worlds.
+|HOTFIXED
+|-
+|Players reported the Rune Thrownaxe Special Attack wasn't functioning as intended within the Waterbirth Island Dungeon.
+|HOTFIXED
+|-
+|Players reported a bug with the Rock Cake stall that was preventing progress on the Watchtower Quest in main game worlds.
+|HOTFIXED
+|-
+|Players reported that Power Miner + Echo Axe was not providing Crafting XP when cutting gems obtained while mining regular rocks.
+|HOTFIXED
+|-
+|Players report issues getting stuck in certain locations (e.g. Upstairs at Varrock East) when using Clue Compass teleports
+|HOTFIXED
+|-
+|Lumberjack Relic users can't chop trees without a free Inventory slot, even if not required.
+|ACKNOWLEDGED
+|-
+|A DMM rug tile has mysteriously appeared in Lumbridge Castle.
+|HOTFIXING
+|-
+|Players with the Corner Cutter Relic reported that lap-based tasks weren't completing correctly.
+|HOTFIXED
+|}
+''Leagues V: Raging Echoes begins today!''
+
+==Changelog November 27th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Leagues V: Raging Echoes'''
+
+Leagues V: Raging Echoes worlds will go online today at '''12:00 noon GMT. '''In typical fashion, this year’s League shakes up the formula with some new features:
+
+* '''Echo Bosses:''' Nine fearsome new takes on familiar foes. There’s one Echo Boss in each region, although you won’t encounter them in the starting zones.
+* '''Combat Masteries:''' Earn League Points by completing Combat Mastery Tasks! Each style has six tiers, with a maximum of 10 Points available.
+* QoL, new Relics, and more!
+
+'''Other Changes'''
+
+* The loot tracker in the Official Client now records logs that went directly into a Log Basket.
+* Raised the death protection value of Zealot Robes to reliably keep them above Superior Dragon Bones.
+* When an upgraded Granite Maul turns to coins after a PvP death, the game now gives enough coins to reflect the values of both the Maul and the Ornate Handle.
+* Updated in-game menus that previously referred to the Hard Leather Shield as a generic “Leather Shield”.
+* Fixed a bug where NPC Prayer styles were not mitigating damage properly.
+* Updated old Farming code.
+* Refactored some Managing Miscellania code.
+* Fixed a bug where a Sunfire Armour Clue Step did not appear in Varlamore.
+* Ultimate Iron accounts can now talk to Death to toggle their death animations, if they have unlocked any.
+* On special worlds such as Leagues and DMM, the Stronghold of Security will now always let you through the doors without a prompt.
+* Added the missing 16 Magic Defence to the Dragonhunter Wand.
+* Araxxor's kickout mechanic has been refined to prevent players from getting stuck under its corpse.
+
+'''Last Week'''
+
+Last week we had a small engine update which didn't warrant its own newspost, so in case you missed them, here are the changes already in-game:
+
+* Fixed an issue where certain overhead chat messages failed to appear.
+* Fixed an issue where yellow clicks were registered 4 pixels away from where they should be when playing with the fixed interface layout.
+* Fixed invisible clan cloaks and vexillums.
+* Fixed the missing "Walk here" option when there is no terrain under the mouse.
+* Fixed Ctrl-Click walking incorrectly playing a run animation at the end of the movement cycle.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Leagues V: Raging Echoes==
+The wait is almost over! Leagues V: Raging Echoes worlds will go online at '''12:00 noon GMT today, Wednesday November 27th'''!
+
+[[File:Leagues V- Raging Echoes OUT NOW! (1).png|600px|center]]
+We’ve made the decision to stagger the worlds coming back online after today’s game update as a precaution against the increased numbers of players logging in to play Leagues.
+
+While you wait, why not have a read through this blog and start planning your strategy?
+
+If you've kept up with our [https://secure.runescape.com/m=news/leagues-v-teasers--faqs---releasing-november-27th?oldschool=1 reveals] so far, then you may be familiar with some of this information already – but we still have a few surprises up our sleeves.
+
+First up, let’s take another look at the official Leagues V trailer, created by [https://x.com/_Amentos AmentosOSRS].
+<center>
+{{Youtube|UoZIL-HVfQs}}
+If you can't view the video above, click [https://youtu.be/UoZIL-HVfQs here].
+</center>
+
+===Getting Started===
+To begin your Raging Echoes journey, you’ll need to log into an account with active membership. From there, head to one of the worlds marked in green on the World Select page.
+
+At launch, there’ll be 124 Leagues worlds to choose from. Some of them have specific themes, to help players group up more easily. You may also notice that we've converted more worlds this year, including some non-members worlds that you may be accustomed to playing on. Sorry for the inconvenience – but Leagues stops for no-one!
+
+{{Collapsed section|18|US East (Click to expand world list)}}
+'''Worlds:''' 402, 403, 404, 417, 470, 471, 475, 476, 482, 484, 485, 486, 488, 489, 490, 492, 573, 574, 575, 581
+
+'''Activity Worlds:'''
+
+* 400 - Raids
+* 401 - Forestry
+{{Collapsed section end}}
+
+{{Collapsed section|18|US West (Click to expand world list)}}
+'''Worlds:''' 324, 339, 340, 347, 394, 411, 418, 430, 431, 433, 435, 436, 437, 438, 439, 440, 441, 442, 443, 472, 473, 538, 541, 542, 543,  544, 545, 546, 547
+
+'''Activity Worlds:'''
+
+* 409 - Wintertodt
+* 410 - Barbarian Assault
+{{Collapsed section end}}
+
+{{Collapsed section|18|UK (Click to expand world list)}}
+'''Worlds:'''  317, 325, 371, 380, 382, 498, 499, 500, 501, 503, 504, 507, 509, 511, 517, 518, 519, 520, 521, 524, 525, 562, 563, 564, 566, 567
+
+'''Activity Worlds:'''
+
+* 407 - Barbarian Assault
+* 408 - Wintertodt
+
+{{Collapsed section end}}
+
+{{Collapsed section|18|EU (Click to expand world list)}}
+'''Worlds:'''   303, 328, 335, 343, 351, 359, 360 ,367, 368, 384, 451, 452, 453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 550, 551, 552, 553, 554, 555, 556, 557, 582  
+'''Activity Worlds:'''
+
+* 405 - Raids
+* 406 - Forestry
+{{Collapsed section end}}
+
+{{Collapsed section|18|AU (Click to expand world list)}}
+'''Worlds:''' 412, 425, 536, 537, 590, 591, 592, 593, 594, 595 
+
+{{Collapsed section end}}
+
+===The Basics===
+Everything you'll see in these drop downs was shared in our [https://secure.runescape.com/m=news/leagues-v-raging-echoes---summer-summit-2024?oldschool=1 Leagues V Summer Summit blog], so if you don't need the refresher, keep on scrolling!
+
+{{Collapsed section|18|Overview - Click here to expand}}
+Here's all you need to know about the Leagues game mode:
+
+* You start on a completely fresh account, separate from your main account.
+* Your journey begins in Lumbridge, and until you get some completed Tasks under your belt, you'll be locked to Misthalin and Karamja.
+* You'll be able to unlock other areas after completing Tasks and accumulating Points - you can only unlock three additional Regions, so make those choices count!
+** These unlockable areas are the Wilderness, the Fremennik Isles, Asgarnia, Morytania, the Kharidian Desert, Kandarin, Tirannwn, Kourend and Kebos, and our newest area: Varlamore.
+* The more regions you have available, the more Tasks you'll be able to complete. Tick Tasks off to rack up Points and unlock powerful Relics to switch up your gameplay.
+** The number of Points provided by the Tasks do not matter, only the number of Tasks.
+* This game mode is temporary. You’ll have eight weeks to build your power and see just how far you can get!
+
+Some points to note when it comes to the area locking system:
+
+
+* Death's Office, the Player Owned House, Random Events and the Essence Mines will be accessible from all areas.
+* Slayer Tasks will be limited to creatures found in the areas you have unlocked.
+* Treasure Trail steps will be limited to the areas you have unlocked.
+
+{{Collapsed section end}}
+
+{{Collapsed section|18|Rules - Click here to expand}}
+Area-locking is one of the most interesting things about Leagues, so much so that we've decided to make it a core part of Leagues going forward. If you’ve played Leagues before you’ll be very familiar with this ruleset, but just in case, let’s break it down.
+
+'''Iron Mode with Accelerated XP Rates'''
+
+Everyone will play as an Iron character, meaning:
+
+* There will be no trading between players.
+* Everybody will start with a 5x accelerated XP rate.
+** This multiplier increases further at specific Relic tiers.
+
+'''Starting Stats'''
+
+Your fresh Iron character will have the basic stats from Tutorial Island, as well as:
+
+* Level 3 Herblore
+* Level 5 Runecraft
+
+These starting stats will let you access low-level Herblore and Runecraft training methods.
+
+'''Run Energy'''
+
+Leagues is all about exploring Gielinor and progressing quickly, so your Run Energy will not deplete in this game mode.
+
+'''Quest and Diary Unlocks'''
+
+Some quests or diary tasks that require access to inaccessible areas will be automatically unlocked. Most notably:
+
+* Druidic Ritual, to unlock Herblore.
+* Lost City, to unlock access to Zanaris.
+
+You’ll also get a free Dramen Staff from the League Tutor, which will allow you to access Zanaris.
+
+'''Tasks'''
+
+Tasks are a collection of goals and achievements for you to complete during the League, and they could be anything!
+
+Completing Tasks nets you those all-important League Points, which you can use to unlock Relics and other rewards. The more difficult the Task, the more points you'll get. 
+
+It's super easy to pick out your next goal, as the Task interface handily sorts all Tasks into tiers ranging from Easy to Master.
+
+Once again, Regions will be unlocked based on how many Tasks you've completed, not the number of points you earn.
+
+Some Tasks will be area specific, but each area has its fair share of challenges - and don't forget those new bosses!
+
+Examples of area-specific Tasks include:
+
+* Eat an Onion.
+* Complete the Easy Varrock Diary.
+* Defeat Scurrius.
+* Mine 25 Pure Essence.
+
+Examples of general Tasks, which can be completed in any Region, include:
+
+* Bury some bones.
+* Complete a rooftop Agility Course.
+* Equip a Maple Shortbow.
+* Defeat a Guard.
+
+We’ve balanced the areas such that each one has about the same amount of Points (with less than 10-20% variation) so that no matter which areas you choose, you still have plenty of chances to get your hands on the Trophies.
+
+'''Relics'''
+
+Leagues is your opportunity to gain power at exponential levels, which means you could end up facing ferocious foes in a fraction of the time it took you in the main game, and some of you may take on quests that you haven't even reached on your main. This is all thanks to Relics!
+
+Relics give you buffs to customise your gameplay, meaning you can really lean into your strategy. Unlocked with League Points, they offer XP boosts, combat buffs, improved luck and more! 
+
+As you start your journey, you'll be given your first choice between three Tier 1 Relics. Then it's up to you to complete Tasks and gaining Points to unlock more.
+
+We shared plenty of Relic information in our [https://secure.runescape.com/m=news/leagues-v-teasers--faqs---releasing-november-27th?oldschool=1 Teasers and FAQ blog], so check that out for a head start!
+
+'''League-to-League Rewards'''
+
+When you earn certain rewards during your Leagues journey, you'll have them in future Leagues, too. 
+
+Pets are one such reward. As long as you found your new follower during the League and insured them, your pets will be waiting for you next time a League comes a-knockin’. If you lose them in any other circumstance, you can reclaim them from the League Tutor. Plus, if you've netted yourself a transmog for your buddy, that'll carry over from League to League, too! Carrying over a pet from a previous League will not complete any pet-specific tasks. Your main game pets will remain where they are, and your Leagues pets will not follow you back to the main game. 
+
+Right-click icons are automatically obtained and will show everyone who right-clicks you how well you performed in the previous League, with a unique symbol appropriate to your tier. Nice!
+
+{{Collapsed section end}}
+
+==What's New?==
+From new Relics to Combat Masteries and Echo bosses, Leagues V has plenty in store. We shared these in our [https://secure.runescape.com/m=news/leagues-v-teasers--faqs---releasing-november-27th Leagues V Teasers and FAQs blog], filled with videos and infographics to feast your eyes on. You can also check the [https://docs.google.com/spreadsheets/d/e/2PACX-1vTbJpzuP14-l5KH-yuZdF7hG2lwk_x3gcT7XV1UFtF3DkN3vI67lvJd1u3wXtAC4FXhD10ElthigIt8/pubhtml?gid=0&single=true FAQ spreadsheet]!
+
+===Echo Bosses===
+Leagues V introduced nine fearsome, yet familiar foes. You may think you know how to beat these beasts, but you’re in for a shock – the Echo Bosses have some real surprises in store for you.
+
+There’s an Echo Boss in every unlockable region, but not in the two starting zones. 
+
+These encounters bring game-changing unique rewards that you might want to consider when planning your region picks. Check out this video from [https://www.youtube.com/@ScriticRS Scritic] to find out more about them!
+<center>
+{{Youtube|xVVScpoJWeM}}
+''If you can't view the video above, click ''[https://youtu.be/xVVScpoJWeM here]'' to watch it!''
+</center>
+
+===Combat Masteries===
+Another huge new feature is Combat Masteries. Complete Combat Mastery Tasks and you’ll earn yourself points to spend on style-focused abilities. Each style has six Tiers, and with a maximum of 10 Points available you'll need to carefully decide where to spend them. As with other Leagues choices, there's no backsies! Check out the video or infographic below for more information.
+<center>
+{{Youtube|RXZUx6GRHls}}
+''If you can't view the video above, click ''[https://www.youtube.com/watch?v=RXZUx6GRHls here]'' to watch it!''
+</center>
+
+There's so much to get into when it comes to Combat Masteries, so check out the handy infographic for the full breakdown.
+
+[[File:Leagues V- Raging Echoes OUT NOW! (2).jpg|600px|center]]
+Click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-29-U921gr9/cbm-chart.jpg here][https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-29-U921gr9/cbm-chart.jpg ] to view the above image in a larger size!
+
+===QoL Updates===
+The newest League also brings some Quality of Life changes:
+
+* Re-enabled the Blast Furnace shop.
+* Removed the blacklist for locations where Bankers’ Note could not be used.
+* Marks of Grace, Hallowed Marks, Agility vouchers and Stardust now benefit from the minigame multiplier.
+* Tripled the quantity of Nihil Shard drops.
+* Points are only transferred over to your main save every 500 Points accrued, to reduce server load. If you notice a discrepancy in Points between your main and League profile, this is why!
+* Disabled the ability to purchase XP in Pest Control and Soul Wars. A flat 2x combat XP multiplier has been added as a Relic passive to compensate.
+** The hope here is that nobody will feel confined to minigames, when they could be out exploring all the League has to offer.
+** The increased combat power plus another 2x XP rates (so this is 32x combat XP at max rates) will mean you can train your stats very quickly.
+* Rocks, trees, respawnable items, and main-world NPCs will respawn faster than in the main game.
+* Production Master now works with:
+** Making darts and arrows by using feathers on them. This is capped at making up to 10x at a time.
+** Fletching Achey Logs.
+** Making pizza and pies.
+* Removed the auto-completed Chompy Tasks for interacting with the Ogre Bow.
+* Hunter Rumours will be area locked, like Slayer Tasks and Mahogany Homes.
+* Players will no longer start at level 10 Agility, as Draynor is now a level 1 Agility course.
+* Added instances for Cerberus, Sarachnis, and the Thermonuclear Smoke Devil.
+* Awakener's Orbs, Twisted Kits, And ToB:HM Kits now benefit from the drop rate multiplier.
+* You can access the tormented demon area without completing While Guthix Sleeps.
+* Scythe of Vitur can be recharged by using Blood Runes on it, and does not require Vials of Blood.
+* Players can now purchase a Max Cape from the Sage once they are max level.
+* Cosmetic unlocks based on your previous Leagues rank are now added to your Bank rather than your Inventory on login.
+* Pet transmogs are now carried over to subsequent Leagues.
+* Duke won't clear potions or herbs after a kill.
+* Equilibrium now displays the amount of XP it has granted.
+* Swapped the minigame boosting effect at Guardians of the Rift to boost your points earned in the minigame, rather than the number of pearls obtained.
+
+===Area Unlocks===
+We know you’ve been clamouring to unlock a fourth area, but we believe this would diminish what makes the area unlock system so exciting to build around.
+
+Instead, we’ve made some changes to address your biggest pain points:
+
+* Items dropped from bosses that require more than one region to become useable now drop as the finished component.
+** This includes the Venator Vestige and the Hydra Claw.
+** Masori Armour and Ward of Elidinis will not drop as finished items, as they are usable when dropped.
+* All players will have Desert Treasure II, without pre-requisites, unlocked by default to enable access to the Desert Treasure II bosses without requiring the Desert.
+* Whenever you would obtain a Twisted Bow, Scythe of Vitur, or Tumeken's Shadow, you will instead receive the "Megarare Voucher", which can be handed in to the Sage for the weapon of your choice.
+* If one player gets a purple in Hard Mode ToB or High invocation ToA (500+), then all the players in the raid will receive a purple too.
+** To compensate for the increase in purples, we’ve decreased the drop rates for these modes specifically from 3x to 2x. This means you’ll get less purples per hour solo, but greatly increased purples per hour with friends.
+** CoX remains untouched from last League.
+
+==Leagues Firsts==
+As always there are a number of Leagues firsts up for grabs, for those daring enough to take on this additional challenge.
+
+This year we’re tracking the following achievements:
+
+* Complete Inferno
+* Unlock a Tier 8 Relic
+* Unlock a 5th Region
+* Achieve a level 99
+* Achieve total level 2277
+* Complete Tombs of Amascut''' '''(solo)
+* Complete Theatre of Blood (solo)
+* Complete Chambers of Xeric (solo)
+* Finish a Combat Mastery Path
+* Defeat an Echo Boss
+
+==Rewards==
+Every League brings a new Banner, Home Teleport Animation, and Leagues Outfit, so you can show off your progress wherever you go. Plus, we have a range of new rewards to get your mitts on, including ornament kits, animations and some new decor for your POH. Check them all out in the [https://secure.runescape.com/m=news/leagues-v-raging-echoes---rewards?oldschool=1 dedicated Rewards blog]. You’ll also be able to get your hands on a series of Trophies, depending on where you place in the final ranking.
+
+Note: Rewards will be released ''after'' the League ends.
+
+==Leagues Membership Package==
+To take part in Leagues, you need to use an account with an active membership. Following your feedback from last year, we know that some of you want access to a Membership package that will last you the span of the League – the last thing you should be worrying about is how much time is left on your account!
+
+This year we’re introducing a Membership Package that will last 57 days – the full length of the League. 
+
+This is a time-limited offer, so make sure to grab yours before it's too late! This offer is available to purchase right now and will be only available until December 3rd. Both new and returning members can partake, including those who’ve bought membership with Bonds while the promotion is active.  
+
+You can find the deal here at [https://payments.jagex.com/store/oldschool/membership this link], taking you to the Store page and prompting you to login to your game account.
+
+==Leagues Merch==
+[[File:Leagues V- Raging Echoes OUT NOW! (3).jpg|600px|center]]
+Commemorate your Leagues V achievements with this on-theme pin from AnglesScapes, featuring details in coloured enamel, "stained glass" enamel, and antique nickel!
+
+This commemorative pin is only available until the end of the League, exclusively on the [https://runescape.backstreetmerch.com/ Official Merch Store].
+
+===New Deskmats & Wallart===
+[[File:Leagues V- Raging Echoes OUT NOW! (4).gif|255px|center]]
+We're delighted to bring you some incredible new merch in partnership with StarForge Systems! Late next week we'll be launching a new range of wallart and mousemats. This range will include the Leagues IV and Leagues V art, as well as brand new pieces from some of your favourite artists in the community! Keep your eyes open on our News and Socials next week to get your battlestations kitted out!
+
+==Leagues in the Community==
+There's so much more to Leagues than purely the in-game grind and getting your hands on trophies and cosmetics. The community that surrounds Leagues astounds us every year. 
+
+First up, we recommend visiting the [https://www.discord.gg/vbhPUHU Leagues Community Discord server]. This community-created server is overflowing with information, tips and discussion, so if you have a question, you'll likely find your answer in there.
+
+==Official OSRS Discord==
+When it comes to our [http://discord.gg/OSRS Official Discord server], our incredible volunteer moderation team have you covered with ways to get involved.
+
+===Discord Leaderboard===
+Who in the Official Discord can gain the most Leagues points in Leagues V? Compare yourself to your fellow players by taking part in our Discord Leagues Leaderboard! To sign up, visit the [https://discord.com/channels/324132423636090880/1309479543131869235 #Leagues-Leaderboard] channel and click the green 'Join Leaderboard!' button. There's a full rundown of instructions and information in the channel so make sure to give it a read. We'll be checking in each week and sharing the top 10 - will you see your name on the list?
+
+===Server Events===
+Our mod team are hosting loads of in-game events on the server, so if you find yourself without a group to do any of the following activities, consider joining in!
+
+===Upcoming Events:===
+
+* Dec 1st: Forestry
+** Willows | World 382
+** 7pm GMT / 2pm EST
+* Dec 7th: Tempoross
+** World 382
+** 6pm GMT / 1pm EST
+* Dec 8th: Karambwan Fishing
+** World 382
+** 6pm GMT / 1pm EST
+* Dec 11th: Server Voice Chat - Leagues V special
+* Dec 14th: Sq'irk n Chill
+** World 382 8pm GMT / 2pm EST
+* Dec 26th: Server Voice Chat - Leagues V special
+
+===New channels===
+To make sharing your Leagues V: Raging Echoes experience as easy as possible, we've set up a whole category dedicated to it! Here are the new channels:
+
+* '''#Leagues-leaderboard:''' This is where you join the leaderboard and keep up on progress!
+* '''#Leagues-this-or-that:''' This channel will be updated with Leagues-themed polls for you to share your opinions throughout the event.
+* '''#Leagues-General:''' A general chat for all things Leagues!
+* '''#Leagues-screenshots:''' Share screenshots of your adventures, shout about your achievements and share the pain of your fails. Each week we’ll pick a couple of screenshots at random and display them in the server banner for all to see!
+* '''#Leagues-clip-share:''' Drop links to the best Leagues YouTube clips from your favourite content creators and they might get added to our community playlist!
+* '''#Leagues-lfg:''' Find new friends to run raids, play mini games or simply chill and skill.
+
+==Youtube==
+<center>
+{{Youtube|type=playlist|PLRs68iqW7gYuNxBQ8Tzr0_LqhzwFMXADB}}
+If you can't view the playlist above, click [https://www.youtube.com/playlist?list=PLRs68iqW7gYuNxBQ8Tzr0_LqhzwFMXADB here].
+</center>
+
+We’ll be keeping our community playlist up to date, so make sure to share your favourite content creators' clips on our Discord server. You never know, they might find their way to the playlist!
+
+==Official Merch Update==
+===New AngelsScapes Lines and Merch Store Holiday Offers===
+[[File:Leagues V- Raging Echoes OUT NOW! (5).jpg|600px|center]]
+Someone’s clearly been leaving out milk and cookies, because for this Christmas, AngelsScapes is delivering all your most wanted gifts: Christmas Nieve, Scythe of Vitur, Baron and Sanguine Torva pins! If you want to treat yourself or a friend with these, move fast, as they’re all limited edition. There’s also a Sanguinesti Staff, Osmumten’s Fang and Tumeken’s Shadow Keyring to keep your keys safe.  
+
+Spend $60/£46/£57 on these or any of the merch on the [https://runescape.backstreetmerch.com/ Official Store] and you’ll receive a free Black Connection Lost Keyring – while stocks last!
+
+Can’t decide? Get yourself a Mystery Bag packed with a selection of pins and keyrings – including some sold-out and unreleased designs!
+
+Keep an eye on the store for more offers as we get closer to the holiday season.
+
+==Other Changes==
+
+* The loot tracker in the Official Client now records logs that went directly into a Log Basket.
+* Raised the death protection value of Zealot Robes to reliably keep them above Superior Dragon Bones.
+* When an upgraded Granite Maul turns to coins after a PvP death, the game now gives enough coins to reflect the values of both the Maul and the Ornate Handle.
+* Updated in-game menus that previously referred to the Hard Leather Shield as a generic “Leather Shield”.
+* Fixed a bug where NPC Prayer styles were not mitigating damage properly.
+* Updated old Farming code.
+* Refactored some Managing Miscellania code.
+* Fixed a bug where a Sunfire Armour Clue Step did not appear in Varlamore.
+* Ultimate Iron accounts can now talk to Death to toggle their death animations, if they have unlocked any.
+* On special worlds such as Leagues and DMM, the Stronghold of Security will now always let you through the doors without a prompt.
+* Added the missing 16 Magic Defence to the Dragonhunter Wand.
+* Araxxor's kickout mechanic has been refined to prevent players from getting stuck under its corpse.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '''<nowiki/>'1 Def Pure'<nowiki/>''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric (Trio) Speed-Runner
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric (Trio) in less than 14 minutes and 30 seconds.
+|tier = Grandmaster
+|monster = Chambers of Xeric
+|type = Speed
+|id = 327
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric (Trio) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a Chambers of Xeric (Trio) in under 14:30.
+
+
+Any raid layout with enough overload is doable by no-prepping, minimizing tick loss, staying overloaded, and using offensive prayers. Two overloads can be enough with a maximum of one iron: Everyone sips the first overload. One player, the iron if there is one, should pick up a Twisted(+) from Vanguards or Vasa for Olm head. Everyone sips the second overload. The players without Twisted(+) split the remaining two sips of overload. You can easily make time with layouts that include more overload. 
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

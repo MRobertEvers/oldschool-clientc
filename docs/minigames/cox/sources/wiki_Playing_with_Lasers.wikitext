@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Playing with Lasers
+|image = [[File:Jewelled Crab.png|150px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Clear the [[Jewelled_Crab|Crystal Crabs]] room without wasting an orb after the first crystal has been activated.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 315
+|leagueRegion = Kourend
+}}
+'''Playing with Lasers''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to clear the [[Jewelled_Crab|Crystal Crabs]] without wasting a single orb after activating the first crystal.
+
+This task is best completed in a group as solo encounters require the player to bind the crabs in place repeatedly with a [[hammer]] and the layout of the room may be unfeasible for completing it.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

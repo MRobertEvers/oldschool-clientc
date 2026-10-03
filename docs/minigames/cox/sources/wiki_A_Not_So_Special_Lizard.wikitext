@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = A Not So Special Lizard
+|image = [[File:Great Olm.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Great Olm in a solo raid without letting him use any of the following special attacks in his second to last phase: Crystal Burst, Lightning Walls, Teleportation Portals or left-hand autohealing.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 306
+|leagueRegion = Kourend
+}}
+'''A Not So Special Lizard''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill the [[Great Olm]] in a solo [[Chambers of Xeric|raid]] without letting him use any of the following special attacks in his second-to-last phase: [[Great_Olm#Special_Attacks|Crystal Burst]], [[Great_Olm#Special_Attacks|Lightning Walls]], [[Great_Olm#Special_Attacks|Teleportation Portals]] or [[Great_Olm#Special_Attacks|left-hand autohealing]].
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

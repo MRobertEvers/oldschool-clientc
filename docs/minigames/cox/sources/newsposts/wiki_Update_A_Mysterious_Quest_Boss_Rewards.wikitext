@@ -1,0 +1,274 @@
+{{Update|date=10 November 2022|rev=17 November 2022|link=https://secure.runescape.com/m=news/a-mysterious-quest-boss-rewards?oldschool=1|category=community}}
+[[File:A Mysterious Quest- Boss Rewards newspost.png|right]]
+{{clear}}
+__TOC__
+
+''The Mysterious Quest is back and ready to get the ball rolling!''
+
+==Your feedback and what's next==
+<center>''Added November 17th''</center>
+
+We’d like to thank you all once more for your feedback on the Phantom Boss rewards. Today we’d like to address some of the main points that have been raised since this blog was last updated.
+
+First of all, we’d like to talk about how your feedback has been handled. We’ve seen many comments around how we’ve not made any changes, even though it seems like there are some obvious ones we could have chosen to proceed with.
+
+We feel like this is a twofold issue. On one hand, we’ve done a poor job of setting the scene for the Phantom Boss and its expected difficulty, so gauging how powerful the rewards should be just hasn’t been possible. This has caused a fair amount of confusion and something we’re most certainly keeping in mind for future content pitches.
+
+On the other hand, we’re still transitioning from our previous polling approach to our newly announced way of handling content. As mentioned already in this blog, this is the first reward poll we've done since the [https://secure.runescape.com/m=news/a=97/polling-changes?oldschool=1 Polling Changes] went live. Admittedly, we did already have designs in mind so we're not following the new process exactly as we'd intend to in the future. Rest assured that our approach will be much more in line with the new Polling Changes for content we’re announcing during the Winter Summit!
+
+So, what should you expect from this Phantom Boss? Given it’s coming from a Master level quest, we’re not looking at Inferno level of difficulty! We think a fair comparison is a slightly more mechanical version of Vorkath, but with lower stats. You might have to focus a little more, but you’ll be able to shred through the boss much easier than you can against the beasty blue boi.
+
+For the quest variant of the Phantom Boss, we’re aiming for it to be bested by players with a Combat level of around 85. As for the post-quest version, you’ll likely want to have at least 95 Combat, though the higher level you are the better time you’re going to have!
+
+
+;Bloodletter Bow
+
+We hope the above detail helps clarify why the bow has changed slightly in power level since a similar version was offered from Nex, and why we’re not looking to introduce unnecessary power creep given it comes from what will be a relatively accessible and farmable boss.
+
+The bow is not meant to be competing with the likes of the Twisted bow or Zaryte crossbow. It is intended to fill a niche of being able to hit multiple targets with heightened accuracy whilst offering a different approach from Chinchompas. We hope you’ll find it to be a really fun weapon to use!
+
+Aside from the perceived power level of the bow, we'd like to touch back on the "why bow though?" point many of you raised. Whilst we feel like a bow is better suited to this specific content, we understand how it doesn't feel overly community centric for us to be dictating that. As a result, we're going to be offering a variety of alternative Ranged options for you to choose from in the form of a few poll question. Let us know what you'd prefer to see!
+
+
+;Soulblight Sceptre
+
+Many of the comments we’ve seen surrounding the sceptre are that the effects seem too weak and almost pointless to be offering. Again, with the above detail in mind, we hope this explains our reasoning for not wanting to make it too strong! Whilst increasing the effects of all Ancient Magicks by 10% might not seem so powerful on its own, its important to remember the sceptre also offers a hefty '''+5% Magic strength''' bonus. This makes it a direct upgrade from the Ancient staff and the new best-in-slot Magic weapon for autocasting Ancient Magicks before obtaining a Kodai wand or Nightmare staff.
+
+Should it pass the polls, it's important to note that this isn't the last you'll hear about the Soulblight sceptre... we know we're being overly elusive with this one, but we'll have more to share on this during the Winter Summit on December 10th!
+
+
+;Saturated Heart
+
+We’ve seen your desire for the Saturated Heart to have a Divine Potion effect. Whilst we’d prefer it come from other content in the future, we feel like we can make it work with this update. As such, we’ll be offering it as an additional poll question.
+
+That’s all we’d like to cover for now. We hope this has helped quash some of the concerns you’ve raised. As always, please let us know what you think by leaving your feedback in one of the refreshed links at the bottom of this blog!
+
+----
+
+<center>''Added November 15th''</center>
+
+Thanks for all your feedback regarding the rewards we're offering from the Phantom Boss in our mysterious upcoming quest.
+
+First up, we hear your comments about the Saturated Heart and the Magister's Brew offering the same buffs, which doesn't make a whole lot of sense. In response, we've reduced the effect of the Magister's Brew to 3+8% of the player's Magic level, down from the original 4+10%.
+
+We also considered giving the Saturated Heart the Divine Potion effect, but we believe it doesn't quite suit the content. That's not to say we won't do anything similar in future!
+
+Although this is the only major content change, we do want to discuss some of the other concerns you've raised before we launch the poll for this content on Wednesday, November 16th. Please note that alongside these rewards we'll also poll changes to the availability of Revenant weapons, as discussed [https://secure.runescape.com/m=news/a=97/wilderness-boss-rework---revenant-weapons-poll-blog?oldschool=1 here].
+
+
+;Why another Ranged weapon and why is it another bow?
+As you know we already have plenty of Ranged gear in the game, including the recently-released Bow of Faerdhinen and the Masori Armour set from Tombs of Amascut.
+
+We understand that this looks like we're focussing on Ranged combat, but in reality we've released a variety of gear over the past year or so - the Torva Armour, Ancient Godsword, Keris Partisan, Tumeken's Shadow, Elidinis' Ward... the list goes on!
+
+When you look at the full picture, Melee combat has actually had the most updates - and with the release of the new BIS Magic weapon, Magic is getting plenty of love too. Ultimately we only have three combat styles, which means we're somewhat limited to the kinds of weapons we can offer!
+
+We've loved seeing your alternative designs for the Bloodletter Bow, and we're definitely keen to try new approaches to weapon design in future - but for this specific content, we want to stick with the bow. It's an effective, recognisable weapon type, and we like that the damage scales with your choice of arrows, which would be difficult to replicate with a ranged weapon that didn't need ammo.
+
+
+;Why is this going to be another charged weapon?
+We totally see where players are coming from here. We've got plenty of charged weapons in the game already, and sometimes the timesink to maintain them isn't the fun experience we aim for.
+
+Sometimes the potential timesink created to maintain the weapon doesn't create a fun experience for players. Let's take the Scythe of Vitur for example, spending an hour creating Blood Runes doesn't equate to one hour's worth of charges for the Scythe, far less in fact. The maintenance becomes more of a chore than is potentially necessary.
+
+On the flip side, look at the Bow of Faerdhinen. Once you're done grinding, you've already got more than enough Crystal Shards to power it, which creates a feeling of accomplishment and makes maintenance basically irrelevant.
+
+As you can see, there's a fine balance when it comes to charged weapons. We want to hit the sweet spot between 'tedious grind' and 'I forgot you even had to charge this'.
+
+For the Bloodletter Bow, in particular, we feel that it's only fair to have to maintain its charges to access its super-powerful weapon effect. Obviously we want to compensate you fairly for the time spent collecting the charges, so please give us the chance to create a fair and balanced charging system. This will be top of our list should this weapon pass the poll.
+
+
+;How does the Bloodletter Bow's 'Bounce' effect select targets?
+The way this works is a bit unusual, so if you have a scroll to the end of the Bloodletter Bow section, you can view some helpful (if aesthetically displeasing) diagrams.
+
+If you'd rather shield your eyes (we don't blame you), here's a quick summary:
+* The arrow checks for other NPCs within '''three tiles''' of the main target's centre tile - that's the exact middle for 'odd sized' NPCs (3x3, 5x5) but for 'even-sized' NPCs (2x2, 4x4) the centre is the tile '''north-east''' of the middle of the grid. If you wrote the numbers one through sixteen in a 4x4 grid, with one at the top left and sixteen at the bottom right, the centre tile would be number seven.
+* If the arrow finds another NPC within range, it will then double-check that that NPC's centre tile is within two tiles of the main target's centre tile. If that check passes, the arrow will bounce.
+
+We do recommend having a look at the diagrams further down for a more visual representation of this mechanic.
+
+
+;Once a target is selected, how is damage rolled on the Bloodletter Bow's 'Bounce' effect?
+Assuming the above conditions are met and you've got a bouncing arrow, the game performs an accuracy roll - your accuracy versus the target's defence - for each bounce.
+
+If the bounced arrow hits, damage is rolled between 0 and 66% of your max hit. Effectively, this means that every hit beyond the first has a lower max hit but bear in mind that it could still deal more damage than the first hit if your initial damage roll was especially low.
+
+Note that even if the arrow misses on the first bounce, it will still aim to bounce a second time, and roll both accuracy and damage (from 0 to 66% of your max hit) again.
+
+For example, if your max hit is 40:
+* You hit a 40 on Target A.
+* Arrow bounces to Target B but misses.
+* Arrow bounces to Target C and hits, dealing 26 damage. (Since damage for these rolls is capped at 66% of 40, this is a max hit!)
+* If Target B had been hit instead of missed, Target B would also have been dealt damage, rolled between 0-26.
+
+We've added some more examples in the Bloodletter Bow and Soulblight Sceptre sections so you can get a full picture of how they work ahead of the polls. This new info is marked with an asterisk (*).
+
+Any new content will be marked with an * to indicate new pieces of information.
+
+----
+
+[[File:A Mysterious Quest- Boss Rewards (1).png|center|600px]]
+
+
+As you no doubt remember, we recently released our first poll under the new polling strategy, and we're pleased to announce that everything passed!
+
+From your feedback, it's clear that you liked the more mysterious approach, but still wanted to hear all the juicy details about rewards and the like, once the initial poll has passed.
+
+Well, that time has arrived - so let's take a peek at the rewards you can obtain from the mysterious phantom boss you'll unlock at the end of <span style="color: black; background: black;">An Even Smaller Favour</span>.
+
+This is the first reward poll we've done since the [https://secure.runescape.com/m=news/a=97/polling-changes?oldschool=1 Polling changes] went live. Admittedly, we did already have designs in mind so we're not following the new process exactly as we'd intend to in the future.
+
+It's going to take us a bit of time to adjust to the new process ourselves internally, but the aim is to involve you, the community, much sooner in the design process. This will mean you can have more say on what type of rewards are offered.
+
+For now though, we'd like to know how you feel about the following rewards. Take a look and let us know!
+
+Be aware that to keep the identity of our mysterious quest a secret, we've made some small tweaks to the thematics of the reward items we're offering below.
+
+==Phantom Essence==
+This tradeable, magical energy is left behind when the phantom boss is defeated and will be used to upgrade existing items into something more powerful.
+
+Essence-tially this is the core of the boss, so it'll drop consistently every time you defeat it - so you'll always have an ample supply to spend on new goodies!
+
+==Bloodletter Shards and Bow==
+The Bloodletter Shards are tradeable, broken fragments of a forgotten weapon left behind by a powerful individual. You can break these down into Phantom Essence or combine them to rebuild the epic Bloodletter Bow, a new, tradeable weapon.
+
+These bows were used by the Bloodletters - hunters and scouts from Gielinor's far history, who wielded ranged weapons imbued with powerful magic.
+
+Requirements:
+* 80 Ranged
+[[File:A Mysterious Quest- Boss Rewards (2).png|frame|center|''Stats for the Bloodletter Bow'']]
+
+
+The cool thing about the Bloodletter Bow is that it can hit up to three targets with a single shot. Once the initial attack hits an NPC, the bow will try to fire another arrow into a nearby target, dealing 66% of the original damage. Then, the attack can bounce again, either to the original target or a third one nearby.
+
+<nowiki>*</nowiki>Remember that numbers in Old School almost always round down. Meaning if you hit a 30 on your initial target, any bounces will deal 19 damage. 66% of 30 is 19.8, which we round down to 19.
+
+'Bouncing' arrows will only hit targets in a range of two squares from the target's centre tile (more on this in just a second!). Compare this to Chinchompas, which only hit a 3x3 area around the position of their target's south-west coordinate, and only hit NPCs within the same range.
+
+For example: If an arrow hits '''Target A''' it will fire an arrow and attempt to damage a secondary NPC ('''Target B''') within the area defined. If that hits the arrow will bounce back to '''Target A''' and will attempt to damage it.
+
+This is of course assuming you are in multi-combat and you can attack the other NPCs in that area.
+
+<nowiki>*</nowiki>Let's dig a little deeper into how the targeting works.
+
+<nowiki>*</nowiki>First up, we'll cover the basics. An arrow that hits '''Target A''', will only attempt to hit '''Target B''' if '''Target B's''' centre tile is within '''2 tiles''' of '''Target A'''. For even-sized NPCs (e.g. 2x2s), the centre tile is the '''north-east''' tile.
+
+<nowiki>*</nowiki>We've created these grids to help illustrate what's going on. Here's what each coloured square means:
+* The blue square indicates the initial target, which we'll refer to as '''Target A'''.
+* The purple squares indicate potential '''Target Bs''', which are any NPC that is a valid 'bounce' target from '''Target A'''.
+* The orange squares indicate potential '''Target Cs''', which are any NPC that is a valid 'bounce' target from '''Target B'''.
+* The black square represents an NPC out of range for any potential bounces.
+
+<nowiki>*</nowiki>With the above in mind, we can work through a few NPC sizes, starting at 1x1.
+
+[[File:A Mysterious Quest- Boss Rewards (3).png|center|600px]]
+
+
+<nowiki>*</nowiki>For the Bloodvelds shown above, you can see the significance of the centre tile being the north-eastern tile, since both the southern and western Bloodveld are '''3 tiles''' from the centre tile of the middle Bloodveld and therefore out of range.
+
+<nowiki>*</nowiki>It's worth bearing in mind that arrows in the above diagram ''could'' bounce from one '''Target B''' to another, or even back to '''Target A'''. All that we're trying to illustrate is the range at which bounces can occur.
+
+[[File:A Mysterious Quest- Boss Rewards (4).png|center|600px]]
+
+
+<nowiki>*</nowiki>In the image above, the left visualises how the bow would work for 3x3 NPCs (Lizardman Shamans in this case. Don't worry, the 1/5,000 can't hurt you here...) which are ''just'' large enough to prevent any bounces to other 3x3s. Of course with some crafty movement you could probably stack some of these NPCs on top of each other, enabling a cheeky bounce or two, but this is how it would work if they were stood next to each other under normal circumstances.
+
+<nowiki>*</nowiki>Finally we threw together NPCs of various sizes to show off how the bow could interact in case you ever find yourself in a multi-combat situation battling Lizardman Shamans, Bloodvelds and Goblins simultaneously. We're not sure when this would ever happen to you, but hopefully the whole bounce targeting thing is a little clearer!
+
+The Bow can be charged with the Phantom Essence we mentioned earlier and will require those charges to fire the additional arrows. If you're all out of Essence, you can still use it uncharged to fire a normal number of arrows.
+
+Shall we check out the comparison charts?
+
+[[File:A Mysterious Quest- Boss Rewards (5).png|thumb|center|600px|''A comparison chart for the Bloodletter Bow vs Ranged weapons.'']]
+
+
+The Bloodletter Bow's damage is comparable to the Toxic Blowpipe with Dragon Darts or the Twisted Bow with Dragon Arrows and 250 Magic DPS, if you hit your primary target twice. This comparison doesn't factor in the additional DPS you deal to the second NPC in the equation.
+
+If you do factor in that extra DPS, the Bloodletter Bow becomes a significant update in terms of raw damage, although it's mitigated by the inconsistency of that damage output.
+
+<nowiki>**</nowiki>This chart gives an approximate average on the targets shown. As explained previously, the rolls incorporate the defence of each target individually so it can vary a lot more than other weapons depending on which targets the bow selects.
+
+{{News Poll|1|Should the Bloodletter Bow, a ranged weapon that excels at damaging multiple targets, be added as a drop from the mysterious new solo boss?}}
+
+{{News Poll|2|If the Bloodletter Bow is added to the game, should it be in the form of a different Ranged weapon? The highest voted option will win and be added to the game.
+
+Option 1: Keep it as a bow
+Option 2: Change it to a thrown weapon
+Option 3: Change it to a Ballista}}
+
+==Soulblight Icon and Sceptre==
+On to our next deadly duo - the Soulblight Icon and Sceptre!
+
+The Soulblight Icon is an untradeable magical artefact that's absolutely brimming with potential power. Take it to a specific NPC, and you'll be able to combine it with the Ancient Staff to create the Soulblight Sceptre!
+
+This is an untradeable weapon that is designed to sit between the Ancient Staff and the Kodai Wand. It not only provides a +5% magic strength bonus, but also buffs the effects of all Ancient Magicks by 10%, this means the following:
+<nowiki>*</nowiki>Blood Magick:
+* Healing from these spells becomes 10% more effective.
+* This means that all spells will heal the caster with a base of 27.5% of the damage dealt (a 2.5% increase).
+* The effect from the staff also stacks multiplicatively with Bloodbark Armour: (25% + (Bloodbark Armour)) x 1.1 = 32.5% x 1.1 = 35.75% Increased healing when wearing Bloodbark Armour and wielding the Soulblight Sceptre.
+
+<nowiki>*</nowiki>Ice Magick:
+* The freeze duration from these spells becomes 10% longer.
+** Ice Rush - Does not benefit. Ice Rush is an 8 tick (4.8 seconds) freeze, a 10% increase would take this to 8.8 ticks and Old School always rounds down, so we're right back where we started!
+** Ice Burst - 16 ticks (9.6 seconds) → 17 ticks (10.2 seconds)
+** Ice Blitz - 24 ticks (14.4 seconds) → 26 ticks (15.6 seconds)
+** Ice Barrage - 32 ticks (19.2 seconds) → 35 ticks (21 seconds)
+
+<nowiki>*</nowiki>Shadow Magick:
+* The stat drain effects from these spells are 10% more effective.
+** Shadow Rush & Shadow Burst will reduce your opponent's Attack by 11%.
+** Shadow Blitz & Shadow Barrage will reduce your opponent's Attack by 16%.
+
+<nowiki>*</nowiki>Smoke Magick:
+* Increases the 'Poison Value' of these spells' Poison effect by 10%
+** Poison Damage will be dealt 11 times before fading, instead of 10 when casting Smoke Rush & Smoke Burst.
+** Poison Damage will be dealt 22 times before fading, instead of 20 when casting Smoke Blitz & Barrage.
+
+<nowiki>*</nowiki>All of these effects will be enabled in PvP situations, so they will be usable across the full range of content in-game.
+
+Requirements:
+* 70 Magic
+* 60 Strength
+[[File:A Mysterious Quest- Boss Rewards (6).png|frame|center|''Stats for the Soulblight Sceptre'']]
+
+{{News Poll|2|Should the Soulblight Icon and Sceptre be added to the game? The Icon can be combined with the Ancient Staff to upgrade it into the more powerful Soulblight Sceptre.}}
+
+==Saturated Heart==
+Some rewards make your heart leap out of your chest. This reward is someone else's heart. Delightful!
+
+Using a number of Phantom Essence on an Imbued Heart will transform it into the Saturated Heart, absolutely dripping with magical energy.
+
+Aside from being super gross, the Saturated Heart buffs Magic by 4 + 10% of the player's base Magic level (rounded down). Although, a Saturated Heart will share a cooldown with the Imbued Heart, so you won't be able to use them both at the same time!.
+
+{{News Poll|4|Should the Saturated Heart, an upgraded version of the Imbued Heart created by combining it with Phantom Essence, be added to the game?}}
+
+{{News Poll|5|If the Saturated Heart is added to the game, should it also be given the Divine potion effect? This would prevent natural stat drain during the duration of the Saturated Heart's buff effect.}}
+
+==Magister's Brew==
+Just like the Saturated Heart, the Magister's Brew is created by adding Phantom Essence to an [[Ancient_brew#4_dose|Ancient Brew]].
+
+This new upgraded version of the Ancient Brew boosts the Magic Level higher than the Ancient Brew. Here's by how much:
+* Ancient Brew = Boosts the player's Magic level by '''2 + 5% of their base Magic level''', as well as restoring prayer points equal to 2 + 10% of their base Prayer level (with the ability to restore up to 5% over the player's base Prayer level)
+* <nowiki>*</nowiki>Magister's Brew = Boosts the player's Magic level by '''3 + 8% of their base Magic level''', as well as restoring prayer points equal to 2 + 10% of their base Prayer level (with the ability to restore up to 5% over the player's base Prayer level)
+
+''Both potions will still drain the player's Attack, Strength and Defence levels by 2 + 10% of their current levels so drink responsibly!''
+
+To cook up the Brew yourself, you'll need 91 Herblore. You'll get 145 Herblore XP per Brew. Mmm... good soup!
+
+{{News Poll|6|Should Magister's Brews, an upgraded version of Ancient Brews created by combining them with Phantom Essence, be added to the game?}}
+
+That's all that this mysterious entity has to offer, so now we want to hear from you! Tell us what you think of the new rewards and whether you'd like to see them in the game.
+
+We would also like to add that due to Mod Sarnie's 'disappearance', Question #6 from the previous [https://secure.runescape.com/m=news/a=97/combat-achievements-expansion-rewards?oldschool=1 Combat Achievements Expansion: Rewards newspost] was missed.
+
+We'll be adding the question to the same poll as the above questions and Sarnie is back from his unexpected trip... <span style="color: black; background: black;">even though he's been acting a bit strange.</span>
+
+{{News Poll|5|Should we improve the 'Like A Boss' bonuses and God Wars Kill Count Reduction rewards currently offered from Combat Achievements?}}
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,851,66266353 official forums], on the [https://www.reddit.com/r/2007scape/comments/yrdt69/a_mysterious_quest_boss_rewards/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

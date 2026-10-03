@@ -1,0 +1,1232 @@
+[
+ {
+  "id": 7533,
+  "name": "Abyssal portal",
+  "version": "Normal",
+  "image": "Abyssal portal.png",
+  "level": 0,
+  "speed": 2,
+  "style": [
+   "None"
+  ],
+  "size": 4,
+  "max_hit": "0",
+  "skills": {
+   "atk": 1,
+   "def": 176,
+   "hp": 250,
+   "magic": 176,
+   "ranged": 1,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 60,
+   "heavy": 110,
+   "standard": 140,
+   "light": 140,
+   "slash": 0,
+   "stab": 0
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "fire",
+   "severity": 50
+  }
+ },
+ {
+  "id": 7560,
+  "name": "Deathly mage",
+  "version": "Normal",
+  "image": "Deathly mage.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Magic"
+  ],
+  "size": 1,
+  "max_hit": "22",
+  "skills": {
+   "atk": 1,
+   "def": 155,
+   "hp": 120,
+   "magic": 210,
+   "ranged": 1,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 120,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 0,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 0,
+   "stab": 0
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7559,
+  "name": "Deathly ranger",
+  "version": "Normal",
+  "image": "Deathly ranger.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Ranged"
+  ],
+  "size": 1,
+  "max_hit": "70",
+  "skills": {
+   "atk": 1,
+   "def": 155,
+   "hp": 120,
+   "magic": 155,
+   "ranged": 210,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 120,
+   "ranged_str": 70,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 0,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 0,
+   "stab": 0
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7568,
+  "name": "Glowing crystal",
+  "version": "Normal",
+  "image": "Glowing crystal.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "None"
+  ],
+  "size": 4,
+  "max_hit": "0",
+  "skills": {
+   "atk": 1,
+   "def": 100,
+   "hp": 120,
+   "magic": 100,
+   "ranged": 1,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 180,
+   "magic": 0,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 180,
+   "stab": -5
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7551,
+  "name": "Great Olm",
+  "version": "Head (Normal)",
+  "image": "Great Olm.png",
+  "level": 1043,
+  "speed": 4,
+  "style": [
+   "Magic",
+   "Ranged"
+  ],
+  "size": 5,
+  "max_hit": "27 <br/> 28 <br/> 29 (phase 4)",
+  "skills": {
+   "atk": 250,
+   "def": 150,
+   "hp": 800,
+   "magic": 250,
+   "ranged": 250,
+   "str": 250
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 60,
+   "magic_str": 0,
+   "ranged": 60,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 200,
+   "magic": 200,
+   "heavy": 50,
+   "standard": 50,
+   "light": 50,
+   "slash": 200,
+   "stab": 200
+  },
+  "attributes": [
+   "dragon",
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 50
+  }
+ },
+ {
+  "id": 7552,
+  "name": "Great Olm",
+  "version": "Left claw (Normal)",
+  "image": "Great Olm.png",
+  "level": 750,
+  "speed": -1,
+  "style": [
+   "None"
+  ],
+  "size": 5,
+  "max_hit": "0",
+  "skills": {
+   "atk": 250,
+   "def": 175,
+   "hp": 600,
+   "magic": 175,
+   "ranged": 250,
+   "str": 250
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 60,
+   "magic_str": 0,
+   "ranged": 60,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 50,
+   "magic": 200,
+   "heavy": 200,
+   "standard": 200,
+   "light": 200,
+   "slash": 50,
+   "stab": 50
+  },
+  "attributes": [
+   "dragon",
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 50
+  }
+ },
+ {
+  "id": 7550,
+  "name": "Great Olm",
+  "version": "Right claw (Normal)",
+  "image": "Great Olm.png",
+  "level": 549,
+  "speed": -1,
+  "style": [
+   "None"
+  ],
+  "size": 5,
+  "max_hit": "0",
+  "skills": {
+   "atk": 250,
+   "def": 175,
+   "hp": 600,
+   "magic": 87,
+   "ranged": 250,
+   "str": 250
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 60,
+   "magic_str": 0,
+   "ranged": 60,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 200,
+   "magic": 50,
+   "heavy": 200,
+   "standard": 200,
+   "light": 200,
+   "slash": 200,
+   "stab": 200
+  },
+  "attributes": [
+   "dragon",
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 50
+  }
+ },
+ {
+  "id": 7584,
+  "name": "Ice demon",
+  "version": "Normal",
+  "image": "Ice demon.png",
+  "level": 0,
+  "speed": 3,
+  "style": [
+   "Ranged",
+   "Magic"
+  ],
+  "size": 2,
+  "max_hit": "Varies",
+  "skills": {
+   "atk": 1,
+   "def": 160,
+   "hp": 140,
+   "magic": 390,
+   "ranged": 390,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 110,
+   "magic": 40,
+   "heavy": 140,
+   "standard": 140,
+   "light": 140,
+   "slash": 70,
+   "stab": 70
+  },
+  "attributes": [
+   "demon",
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "fire",
+   "severity": 150
+  }
+ },
+ {
+  "id": 8565,
+  "name": "Lizardman shaman",
+  "version": "Lizardman Temple",
+  "image": "Lizardman shaman (Lizardman Temple).png",
+  "level": 150,
+  "speed": 4,
+  "style": [
+   "Crush",
+   "Ranged"
+  ],
+  "size": 2,
+  "max_hit": "31 (Melee)",
+  "skills": {
+   "atk": 120,
+   "def": 140,
+   "hp": 150,
+   "magic": 130,
+   "ranged": 120,
+   "str": 120
+  },
+  "offensive": {
+   "atk": 45,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 45,
+   "ranged_str": 38,
+   "str": 38
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 30,
+   "magic": 50,
+   "heavy": 0,
+   "standard": 0,
+   "light": -10,
+   "slash": 40,
+   "stab": -20
+  },
+  "attributes": [],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": true,
+  "weakness": null
+ },
+ {
+  "id": 6766,
+  "name": "Lizardman shaman",
+  "version": "Standard",
+  "image": "Lizardman shaman (1).png",
+  "level": 150,
+  "speed": 4,
+  "style": [
+   "Crush",
+   "Ranged"
+  ],
+  "size": 3,
+  "max_hit": "31 (Melee)",
+  "skills": {
+   "atk": 120,
+   "def": 140,
+   "hp": 150,
+   "magic": 130,
+   "ranged": 120,
+   "str": 120
+  },
+  "offensive": {
+   "atk": 45,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 45,
+   "ranged_str": 38,
+   "str": 38
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 30,
+   "magic": 50,
+   "heavy": 0,
+   "standard": 0,
+   "light": -10,
+   "slash": 40,
+   "stab": -20
+  },
+  "attributes": [],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": true,
+  "weakness": null
+ },
+ {
+  "id": 7561,
+  "name": "Muttadile",
+  "version": "Large",
+  "image": "Muttadile.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Melee",
+   "Ranged",
+   "Magic"
+  ],
+  "size": 5,
+  "max_hit": "72 (Stomp)",
+  "skills": {
+   "atk": 250,
+   "def": 220,
+   "hp": 250,
+   "magic": 250,
+   "ranged": 250,
+   "str": 250
+  },
+  "offensive": {
+   "atk": 88,
+   "magic": 0,
+   "magic_str": -8,
+   "ranged": 82,
+   "ranged_str": 47,
+   "str": 55
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 60,
+   "magic": 75,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 82,
+   "stab": -5
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 40
+  }
+ },
+ {
+  "id": 7562,
+  "name": "Muttadile",
+  "version": "Small",
+  "image": "Muttadile.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Melee",
+   "Ranged"
+  ],
+  "size": 3,
+  "max_hit": "28 (Melee)",
+  "skills": {
+   "atk": 150,
+   "def": 138,
+   "hp": 250,
+   "magic": 1,
+   "ranged": 150,
+   "str": 150
+  },
+  "offensive": {
+   "atk": 71,
+   "magic": 0,
+   "magic_str": -8,
+   "ranged": 83,
+   "ranged_str": 56,
+   "str": 48
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 50,
+   "magic": 60,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 72,
+   "stab": -5
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 40
+  }
+ },
+ {
+  "id": 7548,
+  "name": "Scavenger beast",
+  "version": "Normal",
+  "image": "Corrupted scavenger.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Crush"
+  ],
+  "size": 2,
+  "max_hit": "13",
+  "skills": {
+   "atk": 120,
+   "def": 45,
+   "hp": 30,
+   "magic": 1,
+   "ranged": 1,
+   "str": 120
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 0,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 0,
+   "stab": 0
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7604,
+  "name": "Skeletal Mystic",
+  "version": "Normal",
+  "image": "Skeletal mystic (1).png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Magic",
+   "Melee"
+  ],
+  "size": 2,
+  "max_hit": "Varies",
+  "skills": {
+   "atk": 140,
+   "def": 187,
+   "hp": 160,
+   "magic": 140,
+   "ranged": 1,
+   "str": 140
+  },
+  "offensive": {
+   "atk": 85,
+   "magic": 40,
+   "magic_str": 38,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 50
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 75,
+   "magic": 140,
+   "heavy": 75,
+   "standard": 115,
+   "light": 115,
+   "slash": 155,
+   "stab": 155
+  },
+  "attributes": [
+   "undead",
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": true,
+  "weakness": null
+ },
+ {
+  "id": 8066,
+  "name": "Stone Guardian",
+  "version": "Magic",
+  "image": "Stone Guardian (magic).png",
+  "level": 124,
+  "speed": 5,
+  "style": [
+   "Magic"
+  ],
+  "size": 1,
+  "max_hit": "16",
+  "skills": {
+   "atk": 1,
+   "def": 138,
+   "hp": 62,
+   "magic": 128,
+   "ranged": 1,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 10,
+   "magic_str": 10,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 35,
+   "magic": 35,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 40,
+   "stab": 40
+  },
+  "attributes": [
+   "golem"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 40
+  }
+ },
+ {
+  "id": 8064,
+  "name": "Stone Guardian",
+  "version": "Melee",
+  "image": "Stone Guardian (melee).png",
+  "level": 124,
+  "speed": 5,
+  "style": [
+   "Crush"
+  ],
+  "size": 1,
+  "max_hit": "16",
+  "skills": {
+   "atk": 150,
+   "def": 138,
+   "hp": 62,
+   "magic": 118,
+   "ranged": 1,
+   "str": 148
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 10,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 15,
+   "magic": 10,
+   "heavy": 40,
+   "standard": 40,
+   "light": 40,
+   "slash": 25,
+   "stab": 25
+  },
+  "attributes": [
+   "golem"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 40
+  }
+ },
+ {
+  "id": 8065,
+  "name": "Stone Guardian",
+  "version": "Ranged",
+  "image": "Stone Guardian (ranged).png",
+  "level": 124,
+  "speed": 5,
+  "style": [
+   "Ranged"
+  ],
+  "size": 1,
+  "max_hit": "16",
+  "skills": {
+   "atk": 1,
+   "def": 138,
+   "hp": 62,
+   "magic": 118,
+   "ranged": 128,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 10,
+   "ranged": 10,
+   "ranged_str": 10,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 55,
+   "heavy": 25,
+   "standard": 25,
+   "light": 25,
+   "slash": 10,
+   "stab": 10
+  },
+  "attributes": [
+   "golem"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "earth",
+   "severity": 40
+  }
+ },
+ {
+  "id": 7543,
+  "name": "Tekton",
+  "version": "Enraged",
+  "image": "Tekton (enraged).png",
+  "level": 0,
+  "speed": 3,
+  "style": [
+   "Stab",
+   "Slash",
+   "Crush"
+  ],
+  "size": 4,
+  "max_hit": "59",
+  "skills": {
+   "atk": 390,
+   "def": 205,
+   "hp": 300,
+   "magic": 205,
+   "ranged": 1,
+   "str": 390
+  },
+  "offensive": {
+   "atk": 64,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 30
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 180,
+   "magic": 0,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 290,
+   "stab": 280
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "water",
+   "severity": 20
+  }
+ },
+ {
+  "id": 7540,
+  "name": "Tekton",
+  "version": "Normal",
+  "image": "Tekton.png",
+  "level": 0,
+  "speed": 3,
+  "style": [
+   "Stab",
+   "Slash",
+   "Crush"
+  ],
+  "size": 4,
+  "max_hit": "52",
+  "skills": {
+   "atk": 390,
+   "def": 205,
+   "hp": 300,
+   "magic": 205,
+   "ranged": 1,
+   "str": 390
+  },
+  "offensive": {
+   "atk": 64,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 20
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 105,
+   "magic": 0,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 165,
+   "stab": 155
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "water",
+   "severity": 20
+  }
+ },
+ {
+  "id": 7529,
+  "name": "Vanguard",
+  "version": "Magic",
+  "image": "Vanguard (magic).png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Magic"
+  ],
+  "size": 3,
+  "max_hit": "22",
+  "skills": {
+   "atk": 150,
+   "def": 160,
+   "hp": 180,
+   "magic": 150,
+   "ranged": 150,
+   "str": 150
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 40,
+   "magic_str": 25,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 400,
+   "magic": 110,
+   "heavy": 50,
+   "standard": 50,
+   "light": 50,
+   "slash": 340,
+   "stab": 315
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7527,
+  "name": "Vanguard",
+  "version": "Melee",
+  "image": "Vanguard (melee).png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Melee"
+  ],
+  "size": 3,
+  "max_hit": "18",
+  "skills": {
+   "atk": 150,
+   "def": 160,
+   "hp": 180,
+   "magic": 150,
+   "ranged": 150,
+   "str": 150
+  },
+  "offensive": {
+   "atk": 20,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": 0,
+   "str": 10
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 150,
+   "magic": 20,
+   "heavy": 400,
+   "standard": 400,
+   "light": 400,
+   "slash": 150,
+   "stab": 150
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7528,
+  "name": "Vanguard",
+  "version": "Ranged",
+  "image": "Vanguard (ranged).png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Ranged"
+  ],
+  "size": 3,
+  "max_hit": "22",
+  "skills": {
+   "atk": 150,
+   "def": 160,
+   "hp": 180,
+   "magic": 150,
+   "ranged": 150,
+   "str": 150
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 40,
+   "ranged_str": 25,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 100,
+   "magic": 400,
+   "heavy": 300,
+   "standard": 300,
+   "light": 300,
+   "slash": 60,
+   "stab": 55
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7566,
+  "name": "Vasa Nistirio",
+  "version": "Normal",
+  "image": "Vasa Nistirio.png",
+  "level": 0,
+  "speed": 3,
+  "style": [
+   "Magic",
+   "Ranged"
+  ],
+  "size": 5,
+  "max_hit": "Varies",
+  "skills": {
+   "atk": 1,
+   "def": 175,
+   "hp": 300,
+   "magic": 230,
+   "ranged": 230,
+   "str": 1
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 100,
+   "ranged_str": 0,
+   "str": 0
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 40,
+   "magic": 400,
+   "heavy": 30,
+   "standard": 40,
+   "light": 40,
+   "slash": 190,
+   "stab": 170
+  },
+  "attributes": [
+   "xerician"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7538,
+  "name": "Vespine soldier",
+  "version": "Normal",
+  "image": "Vespine soldier.png",
+  "level": 0,
+  "speed": 4,
+  "style": [
+   "Crush"
+  ],
+  "size": 3,
+  "max_hit": "14",
+  "skills": {
+   "atk": 150,
+   "def": 40,
+   "hp": 100,
+   "magic": 40,
+   "ranged": 1,
+   "str": 150
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": -8,
+   "str": -8
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 30,
+   "heavy": 0,
+   "standard": 0,
+   "light": 0,
+   "slash": 0,
+   "stab": 0
+  },
+  "attributes": [
+   "xerician",
+   "flying"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": null
+ },
+ {
+  "id": 7530,
+  "name": "Vespula",
+  "version": "Normal",
+  "image": "Vespula.png",
+  "level": 0,
+  "speed": 3,
+  "style": [
+   "Ranged <br/> Typeless"
+  ],
+  "size": 5,
+  "max_hit": "14 (Ranged)",
+  "skills": {
+   "atk": 150,
+   "def": 88,
+   "hp": 200,
+   "magic": 88,
+   "ranged": 150,
+   "str": 150
+  },
+  "offensive": {
+   "atk": 0,
+   "magic": 0,
+   "magic_str": 0,
+   "ranged": 0,
+   "ranged_str": -8,
+   "str": -8
+  },
+  "defensive": {
+   "flat_armour": 0,
+   "crush": 0,
+   "magic": 70,
+   "heavy": 60,
+   "standard": 60,
+   "light": 20,
+   "slash": 0,
+   "stab": 0
+  },
+  "attributes": [
+   "xerician",
+   "flying"
+  ],
+  "immunities": {
+   "burn": null
+  },
+  "is_slayer_monster": false,
+  "weakness": {
+   "element": "fire",
+   "severity": 50
+  }
+ }
+]

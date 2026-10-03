@@ -1,0 +1,43 @@
+{{Infobox Combat Achievement
+|name = Perfect Olm (Solo)
+|image = [[File:Great Olm.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Great Olm in a solo raid without taking damage from any of the following: Teleport portals, Fire Walls, Healing pools, Crystal Bombs, Crystal Burst or Prayer Orbs. You also cannot let his claws regenerate or take damage from the same acid pool back to back.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 317
+|leagueRegion = Kourend
+}}
+'''Perfect Olm (Solo)''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill the [[Great Olm]] without taking damage from his crystal burst, teleport, fire wall, healing pool, crystal bomb and prayer orb attacks. The player must also not let his hands regenerate during phase 3 and not take consecutive damage from the same acid pool.
+
+==Strategy==
+[[File:Great Olm safespots.png|thumb|Safespot locations]]
+Olm starts off each phase beginning with two auto-attacks before performing its first special attack, '''Crystal Burst'''. The most dangerous threat for this achievement are the fire walls and teleport portals; if the player is on the [[Arceuus spellbook]], they won't have any ideal means of dispelling the fire walls apart from carrying a water source (e.g [[watering can]]s) on them. Teleport portals can also have a range of 10 tiles from the player, which when focused on Olm may make them hard to spot in time.
+
+In order to successfully pull off the achievement, the player must utilise the safespots as shown by the picture to the right. These spots will always force the head to turn accordingly based on its location:
+
+*Spots 1 and 8 always force the head to turn right.
+*Spots 4 and 5 always force the head to turn left.
+*When running from spot 4, running to spot 2 will ensure the head turns right as long as the right hand has been damaged. If the right hand is not damaged, it will turn to the middle.
+**Due to this, the player can then run from spot 2 to spot 3 to land an additional attack and force Olm's head to the middle after it turns right.
+***The same also applies when running from spot 5 to 7.
+*Running from spot 1 to spot 3 forces the head to turn to the middle.
+*The same also applies when running from spot 8 to 6.
+
+When Olm is forced to turn his head around to find the player, he will skip an attack in the process. However this shouldn't be much of an issue with a smooth run. 
+
+A proper 4:1 (with a 4-tick weapon) or 3:1 (with a 5-tick weapon) should avoid all attacks outside of the flame walls and acid pools for the melee hand. The magic hand can still be dealt with using normal methods. Crystal bombs should not be an issue unless one is within proximity of the running tiles. If the player wants to take no chances, the much slower 1:0 method (with any weapon) may be used, as this guarantees Olm will never be able to attack the player.
+
+During phase 4, the teleport attack and crystal bombs are no longer used, but the flame wall and acid pools will still persist. A player can still safely attack Olm with ranged using a crossbow or twisted bow without fear of retaliation by the head. The falling crystals during this phase will not disqualify players from the achievement, though they can prove to be a problem if low on supplies.
+
+Dying to Olm will not disqualify players from the task, as long as they died to a standard attack.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+== Tiles ==
+ [{"regionId":12889,"regionX":28,"regionY":50,"z":0,"color":"#FFFFFF00","label":"4"},{"regionId":12889,"regionX":28,"regionY":46,"z":0,"color":"#FFFFFF00","label":"3"},{"regionId":12889,"regionX":28,"regionY":43,"z":0,"color":"#FFFFFF00","label":"2"},{"regionId":12889,"regionX":28,"regionY":38,"z":0,"color":"#FFFFFF00","label":"1"},{"regionId":12889,"regionX":37,"regionY":38,"z":0,"color":"#FFFFFF00","label":"5"},{"regionId":12889,"regionX":37,"regionY":42,"z":0,"color":"#FFFFFF00","label":"6"},{"regionId":12889,"regionX":37,"regionY":45,"z":0,"color":"#FFFFFF00","label":"7"},{"regionId":12889,"regionX":37,"regionY":50,"z":0,"color":"#FFFFFF00","label":"8"},{"regionId":13139,"regionX":41,"regionY":41,"z":2,"color":"#FFFFFF00"}]
+{{Combat Achievements}}

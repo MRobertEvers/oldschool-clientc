@@ -1,0 +1,114 @@
+{{Update|date=26 January 2017|link=http://services.runescape.com/m=news/prayers-scrolls-qol--a-quest?oldschool=1|category=game}}
+[[File:Prayers Scrolls, QoL & a Quest newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Prayers Scrolls, QoL & a Quest</font></center>
+
+
+<center>'''This week sees the release of Misthalin Mystery - the 2016 Halloween event adapted into a quest! We've also made some changes to the drop rate and nature of the Rigour and Augury prayer scroll, and have made a bunch of graphical quality of life updates.'''</center>
+
+{{Horizontal Line}}
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Misthalin Mystery</font></center>
+
+Both free-to-play players and members alike can help solve the Misthalin Mystery. This quest, based on the 2016 Halloween event, can be started in the south-eastern corner of Lumbridge Swamp by talking to Hewey or Abigail.
+
+[[File:Prayers Scrolls, QoL & a Quest (1).png|center]]
+
+
+{{Horizontal Line}}
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Graphics Quality of Life Tweaks</font></center>
+
+'''Dark Blue Graceful'''
+
+Pirate Jackie the Fruit, found at the Brimhaven Agility Arena, now offers a Graceful recolour to match the Agility skillcape. This can only be applied to a plain Graceful set and costs 250 tickets.
+
+[[File:Prayers Scrolls, QoL & a Quest (2).png|center]]
+
+If you wish to revert your dark blue Graceful, you can use it on Pirate Jackie the Fruit. Beware, you will '''not''' get your tickets back when doing this.
+
+'''Male Armadyl Tweaks'''
+
+When male characters wear Armadyl equipment, much less skin is visible.
+
+[[File:Prayers Scrolls, QoL & a Quest (3).png|center]]
+
+'''Max Fire Cape Tweaks'''
+
+The Max Fire Cape now features an unmoving version of the texture found on the Fire Cape.
+
+[[File:Prayers Scrolls, QoL & a Quest (4).png|center]]
+
+'''Smoother Piscarilius Sand'''
+
+The sand found within the Piscarilius area in Great Kourend had been playing with some people's eyes a little bit. We've now smoothed it out so this is no longer the case.
+
+[[File:Prayers Scrolls, QoL & a Quest (5).png|center]]
+
+'''Battlestaves Lengthened'''
+
+Previously, the Steam (or), Mist and Dust Battlestaves were unusually short for staves in Old School. We've now added to their length. 
+
+[[File:Prayers Scrolls, QoL & a Quest (6).png|center]]
+
+
+{{Horizontal Line}}
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Prayer Scroll Changes</font></center>
+
+'''Splitting the Scroll'''
+
+We have now split the unlocking of Rigour and Augury into two separate Prayer Scrolls. The Dexterous scroll unlocks Rigour, and the Arcane scroll unlocks Augury. All existing Prayer Scrolls have become a Dexterous scroll.
+
+Given that Rigour is considered substantially more useful by a large majority of players, the price of Augury being tied to it made the cost outweigh the benefit for an overwhelming majority of players.
+
+With this split, Augury will be more accesible to those players who would like to make use of the prayer and the cost will be more representative of the actual value of the prayer.
+
+'''Increased Prayer Scroll Drop Rate'''
+
+Since the release of Raids we have seen continued concerns regarding the very high cost of the Prayer Scroll reward. The extremely high cost has led to a very small number of players being able to unlock either Rigour or Augury.
+
+With the comparison to Piety being made, and Piety being a free unlock, a large portion of the community are not happy with the high cost of these prayers.
+
+To address this, we have now made '''both Prayer Scroll rewards''' from Raids '''twice as common'''.
+
+We've also slightly increased the chance of receiving a unique reward from Raids to account for the shift in the unique table caused by this change.
+
+We'll be '''closely monitoring''' both the prices of the scrolls and the earnings from Raids to ensure these changes have had the desired impact.
+
+
+{{Horizontal Line}}
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Untradeables in PvP</font></center>
+
+A rare circumstance in PvP would occasionally lead to untradeable items disappearing quickly when on the ground. In order to prevent this issue occurring, we've made a change to how broken items act in PvP scenarios.
+
+Below level 20 Wilderness, broken items which would have been lost on death will now remain in your inventory. This does '''not''' protect your untradeable items from breaking, and it has '''no effect''' on the loot your opponent receives.
+
+This change also applies to PvP worlds.
+
+
+{{Horizontal Line}}
+
+'''In other news'''
+
+*The damage cap on the Twisted Bow has been removed within the Chambers of Xeric.
+*The costume room found in player-owned houses can now store all 8 Graceful sets.
+*Yohnus, owner of the Shilo Village furnace, now has a coffer from which he can take his payments.
+*The login screen has been reverted to normal.
+*The Khazard Warlord in the battlegrounds will now spawn individually for players.
+*Maniacal monkeys no longer drop the Zombie champion scroll, as they are not zombies.
+*The Behemoth Rat instance is no longer accessible while skulled in Deadman Mode.
+*When a raids floor is completed, a timer will be displayed to update players as they go.
+*The Private storage unit on Quidamortem now requires bank pin entry to use.
+*Olms Barrier inside Chambers of Xeric now has a quickpass option
+*It is now possible to pick a full inventory of Gourd vials simultaneously
+*The Leave chat option in the clan chat tab is now a right click option inside a raiding dungeon.
+*If you leave a raid before collecting your reward, they are now sent to your raids private storage, providing there is space. If not they are still dropped on the floor.
+*A tile in the Vespula room that was found to have accidental blocking has been fixed.
+*The Player-Owned House armour case can now hold the Ancestral robes and the Corrupted armour.
+*The Tithe Farm now remembers your session score if you log out in there, though it cannot protect the crops you've planted
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,359,65873681 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

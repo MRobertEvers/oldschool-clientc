@@ -1,0 +1,268 @@
+{{Update|date=9 November 2023|rev=13 November 2023|url=https://secure.runescape.com/m=news/varlamore-activities--kourend-changes?oldschool=1|category=devblog}}
+[[File:Varlamore Activities & Kourend Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''Today we’re talking about the final parts of Varlamore: Part One and some upcoming changes to Kourend...''
+
+==Feedback Changes - November 13th==
+We’re back to discuss the changes we’ve made to Varlamore Activities and Kourend Changes based on your feedback. Huge thanks to everyone taking part in the discussion! Let’s get into it.
+
+{{Collapsed section|18|SUMMARY - CLICK HERE TO SHOW}}
+
+* The Varlamore Agility Course will now be accessible from Level 50 Agility.
+* The course will now offer a way to get Amylase Crystals. By grinding down the Termites with a Pestle and Mortar you can change them into Bug Jelly, which can be traded in along with some GP for Amylase Crystals.
+* Blast Mine can be accessed with the required Mining level.
+* Tithe Farm can be accessed with the required Farming level.
+* Blood and Soul Altars can be accessed with the required Runecraft level.
+* Stealing Artefacts can be accessed with the required Thieving level.
+* The Farming Patch protection will be unlocked with the completion of the Kourend and Kebos Easy Achievement Diary.
+* The Hosidius Kitchen will be unlocked with the completion of the Kourend and Kebos Easy Achievement Diary.
+* Lizardman Shamans will now be unlocked by default.
+* The Arceuus Spellbook can now be unlocked by speaking to Tyss at the Dark Altar. No other requirements are necessary.
+* Clarification that players with the following items will have them removed or converted:
+** Supply Crates will be removed from the game.
+** Supply Armour will be converted to the equivalent Armour Set.
+** Bandaids will be removed from the game.
+* The clue step to hand in a box of Shayzien Supply Armour now allows players to use a Tier 2 Shayzien Platebody or higher
+{{Collapsed section end}}
+
+===Varlamore Agility Course===
+Feedback about the upcoming Varlamore Agility Course largely centred on its place in the game. Many of you pointed out that compared to similar-level rooftop courses, which help players work towards Graceful, this course doesn’t offer much in the way of utility.
+
+We’ve approached this problem in two ways. Firstly, we’ve lowered the Agility level requirement from 55 to 50, which means this course now slots in nicely between the Canifis and Seers’ Village rooftop courses.
+
+Secondly, we’ve introduced a bit of utility with a new use for those pesky termites! Players will now be able to grind them up into some lovely Bug Jelly. Trade that to an NPC (along with a bit of coin to sweeten the deal) and you’ll get one of the most valuable Agility resources out there – Amylase Crystals. This method will be ''significantly'' faster than obtaining them on Rooftops, ''and'' more in-theme with the content. We’re really keen to hear your thoughts on this change, so send ‘em over!
+
+===Varlamore Activity Requirements===
+While we’re on the topic, we want to address a piece of general feedback we’ve seen about Varlamore Activities. A lot of you feel as though the relatively low-level requirements mean there’s nothing here for late-game players. While we would say that the variety of options means there’s something here for everyone, we understand that high-level players want something specifically for them.
+
+While the current level requirements for all the activities we’ve spoken about are in line with our goals for Part One, we still have Parts Two and Three to go – which means there’s plenty of room to add higher-level activities for all you pro players out there. Watch this space!
+
+===Kourend Changes and Restricted Account Builds===
+From new to old, let’s take a look at the changes we’re making to our proposal to do away with Kourend Favour.
+
+The majority of feedback was concern that certain account types would no longer be able to access content with some of our changes in place. While we generally agree with the statement that we call them ‘restricted accounts’ for a reason, this content has been available for more than six years – it’s unfair for us to remove it now.
+
+Therefore, we’ll be tweaking some of the new requirements for certain content:
+
+* Blast Mine can be accessed with the required Mining level.
+* Tithe Farm can be accessed with the required Farming level.
+* Blood and Soul Altars can be accessed with the required Runecraft level.
+* Stealing Artefacts can be accessed with the required Thieving level.
+* The Farming Patch protection will be unlocked with the completion of the Kourend and Kebos Easy Achievement Diary.
+* The Hosidius Kitchen will be unlocked with the completion of the Kourend and Kebos Easy Achievement Diary.
+* Lizardman Shamans will now be unlocked by default.
+* The Arceuus Spellbook can now be unlocked by speaking to Tyss at the Dark Altar, with no other requirements.
+
+We also wanted to clarify that some items which no longer have purpose will be changed or removed:
+
+* Supply Crates will be removed from the game.
+* Supply Armour will be converted in the equivalent Armour Set.
+* Bandaids will be removed from the game.
+
+Lastly, some of you weren’t happy about how the new ‘hand in a box of Shayzien Supply Armour’ clue step only allowed players to hand in ''specifically'' Tier 2 Platebodies. We’ve made things less restrictive, and players can now hand in any Platebody of Tier 2 ''and above''.
+
+===The Audio Read===
+''Please note this Audio Read might have some details that differ due to our feedback changes above.''
+
+[[File:Varlamore Activities & Kourend Changes narration.mp3]]
+
+Welcome to the final part of our consultation on Part One of Varlamore! Today’s blog will take you through some smaller activities in the first release for our shiny (and Shining) new region. We’ll be looking at Agility, Mining, Prayer and Thieving activities and giving you a sense of how you’ll be regularly interacting with this exciting new environment. This is just a taster, of course - rest assured, there’ll be plenty of surprises left for you to discover in Part One and across the rest of Varlamore’s releases. And remember, this is ''your'' consultation, so make sure you let us know what you think ahead of the Thursday livestream - more details at the end!
+
+Today’s post doesn’t only cover Varlamore. We'll be filling you in on improvements elsewhere on the continent too! In the second part of the blog we’ll head for Kourend, where the Favour system has been much-discussed since its release. The short version? We want to remove that system completely. However, we ''don’t'' want you to lose the content you unlocked through it. That’s why nearly everything has been re-assigned to work in conjunction with other features across Kourend and Kebos! Keep reading and we’ll explain how.
+
+For now, though, let's take you across the Shining Kingdom and see what you’ll be getting up to when Part One releases next year!
+
+==Varlamore: Part One - Activities==
+The rich new environments we’re creating will offer plenty of opportunities to skill, and today we’re going to discuss Agility, Mining, Prayer and Thieving activities.
+
+Please note that none of these new activities will bring in the best XP/HR within the game, but they will be competitive against current methods elsewhere. Plus, they’ll offer you some variety for your training and generally bring Varlamore alive as you interact with the alluring environments and colourful characters of this exciting new region. First up, Agility…
+
+===Agility Course===
+When we debuted the Varlamore map at this year’s Summer Summit, a few eagle-eyed players wondered what the giant skeleton down the bottom-right corner was all about. Well, it's known to Varlamorians as the Colossal Wyrm, and it’s a boastworthy landmark for sure! Sadly, though, the underside is now absolutely crawling with termites, jeopardising the integrity and structure of the mighty beast. The Grand Museum has appointed Worm Tongue to tackle the infestation and preserve the majestic Wyrm from further harm, but age is creeping up on him and he needs your assistance.
+
+Aimed at players between '''50-70 Agility''' (with 50 as the minimum requirement) this course will see you exploring the caves underneath the skeleton, gathering up those pesky termites. Worm Tongue will be on hand to instruct you on how the course works, and provide you with an empty jar to collect your critters. Catch the termites and then trade them in for rewards at Worm Tongue's Store, namely:
+
+* Bone Shards: a stackable item used in Prayer training.
+* Basic Teleport Crystals: allow you to teleport out of the Agility Dungeon and back to your Agility guide once.
+* Advanced Teleport Crystal: allows you to teleport out of the Agility Dungeon and back to your Agility guide multiple times.
+* Graceful Sewing Kit: can be used to recolour an item of Graceful Kit to the Varlamore Graceful Kit.
+
+[[File:Varlamore Activities & Kourend Changes (1).png|thumb|600px|center|''Concept art for the Varlamore Graceful Kit'']]
+
+The Course will also offer a way to get Amylase Crystals. By grinding down the termites with a Pestle and Mortar you can change them into Bug Jelly, which can be traded in along with some GP for Amylase Crystals. Alternatively, you can opt to rescue the termites and gift them to the Hunter Guild, in exchange for Hunter XP!
+
+We want the new Agility Course to feel like a successor to the Shayzien Agility Course and allow you to naturally progress, if you so choose, across Kourend, Kebos and Varlamore. We're looking over the current Agility methods throughout the game and aiming to take inspiration from the strongest parts of the skill, for a course that feels good to tackle on repeat.
+
+===Mining Activity===
+Even before all the conversations around Mining started, we’d already spoken about including a new method for you to mine to your heart's content in Varlamore! Here’s what we're planning.
+
+Requiring '''40 Mining''', the new method will be low intensity, a bit like a combination of Camdozaal Mining and Tears of Guthix. With the veins, you'll be able to mine Bone Shards, which, as we’ve previously mentioned, are items used across Varlamore for worship  - and a stackable resource! Every so often, water will trickle down one of the veins, and mining those veins doubles the mining success rate.
+
+Occasionally, players will receive Calcified Deposits. These can be smashed with a hammer at an anvil for either a stack of Bone Shards, Cobalt that can be traded into someone at Civitas Illa Fortis for GP, ''and'' a one time use, tradeable Cam-Torum teleport.
+
+Much like the alternative use for Termites, you'll be able to take the Bone Shards to our next activity in exchange for Prayer XP. For those of you who are curious about Mining as a whole, we've got some other plans for current Mining activities that we'll talk more about very soon. Stay tuned!
+
+===Prayer Activity===
+Head on over to Ralos' Rise and get ready to pray to the God of the Sun in our next activity! You'll need a minimum of '''30 Prayer''' to participate in this worship, but it offers a very simple gameplay loop:
+
+<center>'''Bring Bones → Bless Bones → Chip into Shards → Offer to Ralos'''</center>
+
+The only thing you'll need to bring other than bones is a Jug of Wine, which will be used to fill the Libation Pool for a successful offering. Bone Shards can be crafted from most existing bones, and each shard, no matter what bone they are made from, will give the same amount of experience when offered. The tier of bone determines the amount of Bone shards you receive (with higher being better), and some bones also offer a chance for bonus shards!
+
+Wine can be used for up to 1,000 Shards and you'll be able to use Sunfire Dust found at the Fortis Colosseum to change your wine into Libation Wine, which results in a little bit more experience for each Bone Shard offered. However, it also reduces your maximum Shards - we’re currently thinking to between 500 and 750.
+
+We'll also be offering you a way to un-note your bones so that you won't have to spend loads of time going to and from a Bank and can instead commit to uninterrupted worship. Amen!
+
+Overall, we're looking to set the XP of each bone slightly higher than the Gilded Altar, but be aware that XP per hour will be lower if you’re not bringing Bone Shards gathered from elsewhere.
+
+===Thieving Activity===
+Our final activity requires a little sneakery and trickery! Within the walls of Civitas Illa Fortis, a dodgy character lurks around the more affluent households of the city. Chat to them and they’ll instruct you to rob houses in the area and hand over the stolen valuables to their associate waiting nearby. Probably best not to ask questions - just focus on all the lovely the riches and experience to be gained…
+
+Once you've reached '''50 Thieving''', you’ll have to enter the houses without being detected - and each house has a different entry method. Once inside, stand next to a shelf to search it, much like you do with Fishing. Rummaging around the shelves will give a small amount of XP, but handing items to the fence will earn you a bigger hit.
+
+Talking of a bigger hit… at any one time, a single house in the district will be marked with a chalked symbol. This indicates a high-value target! These will be different for each player, so keep an eye out for your unique opportunity. The high-value household will have a chance for double loot drops, and you might even find a Handkerchief or Ivory Figurines. We'll touch on the use of Handkerchiefs in a second, but Ivory is actually banned in the kingdom, so you should take these Figurines to the Hunter's Guild for a reward pack, or just chip them into Bone Shards for use at Ralos' Rise.
+
+On top of your, er, ‘house calls’, you can also pickpocket wealthy citizens in the Bazaar as long as you have '''50 Thieving''', but this has extremely high failure rates under normal conditions. This is where those Handkerchiefs come in! If you trade the Street Urchins a Handkerchief, they’ll temporarily distract your mark, giving you a 100% success rate for the duration. This will be the main source of GP/HR, and you can use multiple Handkerchiefs for a longer pickpocketing session. We also want players to be able to leech off other player’s Urchin sessions for social fun!
+
+We're looking to have rates lower than Stealing Artefacts, but you should get a decent amount of GP/HR, which slightly increases with higher levels.
+Alright, those are your activities - hopefully this has you even more excited to explore Varlamore on launch! Now let’s head for another part of the continent and talk Kourend improvements.
+
+==Kourend: Favour & More==
+With the release of a whole new area, we’ve decided to throw some changes to Kourend in the mix, especially since there are two contentious issues there that we’ve been discussing for a long time: Favour and Transport.
+
+===Kourend Favour===
+First of all, let’s talk about the Favour system - or more accurately, herald its demise! Kourend is now in a much healthier place than it was on first release, and the Favour system just doesn't add much anymore. Prior to the release of Varlamore - early 2024 if all goes well - we want to completely remove it.
+
+As we mentioned further up, content that was previously unlocked through the Favour system will be mostly redistributed to fit around existing quests, the Achievement Diary and so on. So, if you’re wondering what goes where - well, here’s your answer!
+
+{{Collapsed section|18|Arceuus}}
+'''Earning Favour Changes'''
+
+* Searching for books in the library will only reward Books of Arcane Knowledge. These books will be given a small XP buff to counteract the loss of favour.
+** Magic XP increases from 11x level to 15x level.
+** Runecraft XP increases from 4x level to 5x level.
+* You’ll no longer find manuscripts in the library as finding books serves the same purpose.
+* Players will no longer be able to hand in Dense Essence blocks to Clerris for favour.
+* Mining Dense Essence will no longer require favour.
+* Reanimating Ensouled Heads will no longer give favour.
+
+'''Favour Reward Changes'''
+
+* The ability to use the Arceuus spellbook can now be unlocked by speaking to Tyss at the Dark Altar, no other requirements are necessary.
+* The ability to use the Blood and Soul altars will now be accessed with required Runecraft level.
+* The ability to claim the Arceuus Signet will now be locked behind completion of The Ascent of Arceuus.
+* Access to Thyria's Wares and Filamina's Wares will now be given by default.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Hosidius}}
+'''Earning Favour Changes'''
+
+* Ploughing fields will be removed from the game.
+** The fields themselves will remain and will be repurposed into crop fields like the ones found around them.
+* Players will no longer be able to hand in Sulphurous Fertiliser to the Hosidius Clerk for favour (the Clerk will be removed).
+* Sulphurous Fertiliser will be removed, with any existing sulphurous fertiliser converted into supercompost.
+* The process used to make Sulphurous Fertiliser will instead make Supercompost - three Saltpetre is needed to make one bucket.
+** We're also slightly lowering the quantity of saltpetre drops from CoX as it now has less of a use.
+* Cooking in the Hosidius Mess can be done once on Kourend - cooking there will no longer give favour.
+* Planting Grape Seeds at the Vinery will no longer give favour and the favour requirement to use the Vinery will be removed.
+
+'''Favour Reward Changes'''
+
+* The ability to steal from Hosidius fruit stalls will now simply require the Thieving level.
+* The ability to plant spirit trees in Hosidius will now simply require the Farming level.
+* The Hosidius farming patches being protected from disease will be granted as a reward for completing the Easy Achievement Diary.
+* Access to the Farming Guild and Woodcutting Guild will now simply require the relevant skill levels.
+* The Tithe Farm can be accessed with the required Farming level.
+* Access to the Hosidius kitchen will now be accessible with the completion of the Kourend & Kebos Easy Achievement Diary.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Lovakengj}}
+'''Earning Favour Changes'''
+
+* Favour has been removed from mining Volcanic Sulphur and the Mining XP will be increased from 25 to 35.
+** In addition, the damage taken from the sulphur clouds will be reduced, as will the overall number of sulphur clouds.
+* Creating Dynamite will no longer give favour.
+* It will no longer be possible to smith Shayzien Supply Armour. Instead, the armour smithed will simply be normal Shayzien armour.
+** This will act as an alternate way of obtaining the armour.
+** To counteract the reward loss from handing in armour, the Mining XP given for mining Lovakite will be increased from 10 to 60 and the Smithing XP per Lovakite Bar will be increased from 10 to 60.
+** The clue step to hand in a box of Shayzien Supply Armour will now require the player to smith a Tier 2 Shayzien Platebody or higher.
+* The Lovakengj Minecart Network will no longer need setting up (more changes discussed below).
+
+'''Favour Reward Changes'''
+
+* Access to Thirus Urkar's Fine Dynamite Store will now simply be given by default.
+* The ability to mine Lovakite will now simply require the Mining level.
+** As noted above, the Mining XP given for mining Lovakite will be increased from 10 to 60.
+* The Lovakengj Minecart Network will no longer need favour to access (more changes discussed below).
+* Blast Mine can be accessed with the required Mining level.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Piscarilius}}
+'''Earning Favour Changes'''
+* The Crafting XP from repairing fishing cranes will be increased from 3x level to 4x level.
+** In addition, repairing cranes will now also give 4x level Construction XP.
+** The process of repairing a crane will now also be slightly faster.
+* You can no longer bring fish to Frankie.
+* Players will no longer be able to hand in buckets of sandworms to Tynan for favour, and there will be no requirement.
+* Stealing artefacts will no longer give favour.
+
+'''Favour Reward Changes'''
+
+* Access to Kenelme's Wares and Frankie's Fishing Emporium will now be given by default.
+* The ability to catch Anglerfish will now simply require the Fishing level.
+* The ability to steal artefacts will now be accessed with the required Thieving level.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Shayzien}}
+'''Earning Favour Changes'''
+
+* The ability to heal wounded soldiers will be removed from the game (the soldiers will remain).
+** The diary task to heal a soldier will be replaced with a task asking the player to do a lap of the low level Shayzien Agility Course.
+* Killing Lizardmen will no longer give favour.
+* Tackling organised crime will no longer give favour. You can still receive Training Manuals and this will become the sole reward from this activity.
+** These manuals will be given around a 25% XP buff to counteract the loss of favour.
+** You may tackle organised crime by default.
+* Challenging soldiers in the Shayzien Combat Ring will no longer give favour. The favour requirement to challenge soldiers will be removed.
+
+'''Favour Reward Changes'''
+
+* Access to Briget's Weapons and Blair's Armour will now simply be given by default.
+* The ability to kill Lizardman Shamans will now be unlocked by default.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Other changes}}
+* The Favour Side Panel will be removed.
+* Favour requirements and rewards from the various Kourend quests will be removed.
+* Dyeing Graceful will now be locked behind completion of the relevant house quest. Any players who no longer have the requirement will not have their Graceful removed.
+* Architectural Alliance will be removed from the game, and the XP Lamp will become a reward for A Kingdom Divided. Players who have already completed Architectural Alliance but hadn't claimed the XP Lamp will still be able to do so.
+{{Collapsed section end}}
+
+==Transport Changes==
+We also think it's time to change some of the ways you access Kourend and its environments - here’s what we’re thinking.
+
+Minecarts will no longer need unlocking, and will no longer have any requirements. Players will simply be able to take a minecart for a cost of 20 Coins (down from 50). You can still unlock the ability to use the minecarts for free, but this will now be locked behind The Forsaken Tower, and any players who previously purchased the unlock will be refunded. In addition, new minecart stations will be added to Kingstown, the Farming Guild, Kourend Woodland, the Wintertodt Camp, the Shayzien Wall and near the Tithe Farm.
+
+Various changes will be made to the Kourend Castle Teleport:
+
+* The teleport will be unlocked by completing Client of Kourend rather than being unlocked in the library.
+* The Magic requirement of the spell will be reduced from 69 to 48.
+* The runes needed for the spell will be changed from 5 fire, 4 water, 2 law and 2 soul to 2 law, 1 fire and 1 water.
+* Teleport Tablets for the spell will be added - they can be made in your Player-Owned House and will work like other Teleport Tablets.
+
+Various changes will be made to Kharedst's Memoirs:
+
+* The maximum number of charges will be increased from 8 per page to 20 per page (for 100 in total).
+* Completing A Kingdom Divided and obtaining the Book of the Dead will grant an extra 150 charges rather than an extra 20 (for 250 in total).
+
+Additionally, Charter ships will be added to Port Piscarilius/Land's End and you’ll no longer need to fix the Fairy Ring in Arceuus to use it (we'll also be refunding players who have already fixed it). Oh, and we’ll add an extra Fairy Ring near the Hosidius Vinery!
+Ok, that's a wrap on our proposal for the Varlamore: Part One Activities and Kourend Changes. Make sure to let us know what you think about these changes, especially those based on your feedback!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,896,66290007 official forums], on the [https://new.reddit.com/r/2007scape/comments/17udqxb/feedback_varlamore_activities_kourend_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

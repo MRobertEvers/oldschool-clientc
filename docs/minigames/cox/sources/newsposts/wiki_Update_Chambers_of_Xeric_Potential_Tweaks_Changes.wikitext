@@ -1,0 +1,206 @@
+{{Update|date=10 October 2023|url=https://secure.runescape.com/m=news/chambers-of-xeric-potential-tweaks--changes?oldschool=1|category=devblog}}
+[[File:Chambers of Xeric- Potential Tweaks & Changes newspost.png|right]]
+{{clear}}
+__TOC__
+We have a fun-sized blog for you today, with a stacked survey to compensate! If you're actively clearing or interested in the Chambers of Xeric, please read on because we'd love to hear from you!
+
+==Chambers of Xeric Scouting & Scaling==
+Let's not waste any time, our proposal for changes to scouting and scaling missed the mark for many of you last week. Beyond the nitty-gritty of 'what cost feels appropriate' and tweaking specific numbers, the feedback that stuck out to us the most was around tackling the root cause of the problem we're trying to solve.
+
+We've spoken before about the desire to offer a number of proposed tweaks to the Chambers of Xeric to address common complaints over the years, which might ultimately reduce how ''necessary ''it feels to scout in the first place, and last week we said that we'd look to deliver those changes after we'd gotten a handle on scouting. You pointed out that it feels a little backwards to do things in this order, suggesting that we instead make changes to the rooms themselves first and then explore a system for custom layouts afterwards once the dust has settled on the changes.
+
+So we're going to be changing our approach and doing exactly that, while still looking to deliver as much as possible within the same timeframe we'd projected for our original plans.. Part of the reason for this is that by making scouting feel less necessary, it's likely that players are still going to be content with a variety of layouts that suit their personal preferences, which makes it more palatable for us to reduce associated costs or take a more 'lightweight' approach to raid generation in the future.
+
+Ultimately, we want to deliver meaningful improvements to Chambers of Xeric before 2023 is out (ideally in time for you to enjoy them in the latter part of Leagues IV - Trailblazer Reloaded), but the team working on these changes cannot realistically deliver a full scouting overhaul ''and ''improvements to the various rooms within the timeframe. Waiting to deploy both at once would mean delaying things even longer and we think both you and us would rather see something than nothing.
+
+Before we jump into all of the potential changes and a hefty survey, you might be wondering what we're doing for scaling since many of you weren't happy with the costs associated, instead pointing out that the difficulty ''is ''the cost in the same way that increasing your Raid Level at Tombs of Amascut doesn't charge you a flat fee. With that in mind: scaling your raids up will be free, though we ''will ''be keeping an eye on this one whenever we roll the change out.
+
+==Chambers of Xeric Tweaks & Changes==
+With this new approach, our plan is effectively to survey you on a number of changes both from our backlog and more recent player suggestions, figure out what's well-received, poll the changes properly, and then roll them out in an order of priority that's supported by this survey.
+
+While our course of action now is to try and touch up the 'bad' parts of Chambers rather than allowing you to circumvent them with custom layouts, we still want to explore custom layouts in the future since there are some needs that can't be met with any of these changes (speedrun layouts, for example), so we've included a question in the survey to gauge your thoughts on alternate approaches for a raid generation system in the future.
+
+All of our proposed tweaks are detailed in the survey, which you can take either using the embedded version below ''or'' by clicking [https://forms.office.com/e/AidqCaaK3a here] if you can't see the embed. '''Note:''' the survey is entirely multiple choice, but includes a ''lot'' of questions, it should take around 10 minutes to complete, so be warned!
+
+<center><big><big>[https://forms.office.com/Pages/ResponsePage.aspx?id=cHKPuw2LyU2JAOl_a-ccwtb_OQamD6xIoi2LFQV6FrhUN1QxVDRaVDBESDdGOUVXQU8zS1JGQjFDUC4u Chambers of Xeric Room Rebalancing]</big></big></center>
+
+Maybe you're not in the mood to fill out a survey but still want to see what's on the table? We've got you covered!
+
+{| class="wikitable" style="text-align: center;"
+|-
+!Category/Room
+!Proposed Change(s)
+!Our Notes
+|-
+|General - Energy
+|Add Energy pools more frequently throughout the raid.
+|Energy can often be a pain point in Chambers, rooms and paths between them can be large. Offering more pools is in-keeping with the current thematic, and still maintains one of the prime use cases for Stamina potions (for solo players taking on Olm) without opening up extra inventory spaces and making solo Olm fights easier.
+|-
+|General - Prep
+|Speed up growth time for Buchu, Golpar and Noxifer plants.
+|We all have that one Iron friend we raid with who clears the Golpar too early and has to plant another while you're left to tap your watch and tut disappointedly. We could pretty easily cut down on these downtime periods if it's something you'd like.
+|-
+|General - Supply drops
+|Let ''all'' non-Irons see supply drops from bosses if another non-Iron dealt the most damage.
+|Irons get this already, non-Irons have to pick the drops up and then drop them again, let's make them consistent!
+|-
+|General - Supply Drops
+|Have 'regular' supplies appear for other accounts when dropped.
+|Similar to being able to easily drop supplies to teammates inside the Theatre of Blood, we'd like to make the same change to Chambers of Xeric since it has neat applications for going ''fast'' in teams and also can come in handy in a pinch, like when you're an Iron with no choice but to watch your teammate slowly succumb to the Shaman's poison since they're unable to perceive the antidote you've dropped for them.
+
+The kinds of supplies we'd look to include are:
+* Saradomin brews
+* Super restores
+* Sanfew serums
+* Prayer potions
+* (Divine) Super combat potions
+* (Divine) Ranging potions
+* (Divine) Bastion potions
+* (Divine) Battlemage potions
+* (Divine) Magic potions
+* Ancient/Forgotten brews
+* Guthix rests
+* Anglerfish, and other 'hard' food like Sharks, Manta rays, Karambwan, etc.
+* Stamina potions
+* Phoenix necklaces
+* Antidote(++) potions, and other poison-curing potions
+
+|-
+|Scavs - Drops
+|Adjust Scavs to ''always'' drop 2 Cicely, 4 Stinkhorn mushroom and 8 Endarkened juice on death, rather than dropping these secondaries at random.
+|Scav randomness ''can'' be a pain, so we'd like to propose making them super consistent. The downside here is that your chances to just loot 40+ Endarkened juice at once are reduced, so this might work out a little less exciting if you're prepping for a large group, though we think the consistency would still be a welcome change.
+|-
+|Scavs - Drops
+|Make Mallignum root planks stackable.
+|We'd all like to make prep a little smoother and spend less time weighing up which of our supplies to part with or decant just to make space, so why not cut down on some of the extra inventory management and streamline your prep a little!
+|-
+|Scavs - Shortcuts
+|Speed up the Mining and Woodcutting shortcuts to bring them a little more in line with Boulder shortcuts.
+|As it stands, Boulder shortcuts are the only ones we see teams doing very often, the points offered by these isn't worth the time it takes, so we'd like to speed them up for those scenarios where you've got a pickaxe/axe on you.
+|-
+|Tekton
+|Reduce the defensive capabilities of Tekton in both regular and CM raids.
+|We have a number of avenues to explore for this, which is arguably one of the most long-standing pain points about CoX. We're surveying all of the following for your feedback:
+
+* Elder Maul hits reduce Tekton's Defence by 5% of its current value. For context, 7 Elder Maul hits would lead to a Defence reduction greater than a Dragon Warhammer special attack, which adds up pretty quickly in groups.
+* Artificially guarantee the first Dragon Warhammer special attack against Tekton to hit.
+* Reduce Tekton's Crush defence in his 'enraged' form (the red one).
+* Prevent Tekton's Defence from resetting when healing at the anvil.
+
+|-
+|Crabs
+|Prevent 'splashing' on Crabs.
+|While niche, those rare scenarios where you fire a Magic projectile at a crab on the last possible tick, waiting for the approval of your teammates, only for you to splash and watch the white orb slowly float along until something interrupts it can be pretty frustrating. So, no more splashing.
+|-
+|Crabs
+|Remove attack delay after hitting a Crab.
+|Removing this delay (similar to jugs at Zebak or pillars at the Path of Scabaras inside Tombs of Amascut) makes it easier to gather up crabs, correct your mistakes, or to make some last-minute colour changes for a clutch solve or two.
+|-
+|Ice Demon
+|Make kindling stackable, up to a cap of 28.
+|Same reasoning as the planks!  Less banking, more chopping.
+|-
+|Ice Demon
+|Reduce Ice Demon's Magic defence.
+|Particularly in CMs, even Fire spells can prove pretty inaccurate vs. Ice Demon. We'd like to reduce this frosty fellow's Magic defence (which is also one of the only instances in Old School of an NPC using its Defence level for its Magic defence roll, neat!) to improve the potency of bringing the 'correct' equipment. 
+|-
+|Ice Demon
+|Add herblore secondaries (Endarkened juice, Stinkhorn mushroom, Cicely) in significant quantities as a drop from Ice Demon.
+|This one's perhaps a little out of left-field and we'd absolutely be open to making other changes to Ice Demon, but we wanted to experiment with an alternate means of making the room a little more appealing and giving it its own identity. So, just as Vanguards is ''the'' no-prep room, perhaps making Ice Demon ''the'' prep room might give groups and learners some extra incentive to run layouts with Ice Demon in them!
+|-
+|Thieving
+|Make grubs stackable, up to a cap of 28.
+|You know the drill, cut down on inventory management on the way in and get straight into picking locks and looting grubs.
+|-
+|Thieving
+|Guarantee a minimum of 1 grub obtained on successful chest open, with the aim of speeding the room up.
+|Lockpick success rates can feel pretty hit-or-miss at times in the Thieving room, and this feeling gets worse when you're looting a whole lotta nothing on every chest. So, why not guarantee ''something'' and improve the room's consistency and speed. 
+|-
+|Vanguards
+|Standardise & adjust the supply drops offered by Vanguards.
+|We gave Vanguards a guaranteed Overload(+) drop a while ago, but the room still has a good bit of variance and can be the difference between a deathless run or a dead run for people just getting into 'no prep' raids. Our current proposal is to adjust their drops to be static, and look something like this:
+
+''(1x Guaranteed Overload and chance for more Overloads as random drops still applies)''
+
+'''Melee Vanguard:'''
+
+- 2 Xeric's Aid, Elder(+)
+
+'''Ranged Vanguard:'''
+
+- 1 Xeric's Aid, 2 Revitalisation, Twisted(+)
+
+'''Magic Vanguard:'''
+
+- 1 Xeric's Aid, 1 Prayer Enhance, Kodai(+)
+|-
+|Vasa Nistirio
+|Add a guaranteed Overload(+) drop.
+|This is a fairly common suggestion, it makes Vasa more appealing to learn for those who are newer to the raid, gives experienced players more viable choices of 'first' rooms when scouting for speedy money layouts, and provides more Overloads as drops throughout the raid for small groups.
+|-
+|Vasa Nistirio
+|Adjust Vasa's defensive capabilities.
+|Similar to Tekton, we've a couple of options here, two that stand out the most, which we're asking you about in the survey:
+
+* Reduce the Ranged defence of both regular and CM Vasa.
+* Adjusting Vasa's healing mechanic so that he only heals if you don't destroy a crystal in time.
+
+The reason for this change is that ever since changes to the Toxic Blowpipe in 2021, Vasa's felt a little bit like a 'gear check' in both regular and CM raids, we'd like to take him down a notch so that more learners might give this rock-slinging room a go!
+|-
+|Muttadiles
+|Reduce the variance of chopping the meat tree (Dimitri) at Muttadiles.
+|We can't exactly talk about Chambers of Xeric changes without addressing the tribridding, one-shotting, prayer-disrespecting, brew destorying crocodiles in the room...
+
+This change in particular focuses on tree chopping. While the chop success rate scales pretty neatly with Woodcutting levels, the 'damage' dealt to the tree rolls between 0 and your Woodcutting level, leading to extremely high variance. We'd instead like for the damage dealt when Woodcutting to roll within a small range of half of your Woodcutting level.
+
+For example, at 90 Woodcutting you'd roll between 40-50 damage, rather than between 0-90.
+|-
+|Muttadiles
+|Remove Muttadiles' damage immunity when eating from the tree, this includes the immunity gained when frozen just before eating from the tree.
+|Perhaps an unusual change! We think a change like this might make DPS rushing feel slightly better but primarily will make well-timed freezes feel really impactful. Currently it's possible to freeze both of the Muttadiles just as they're about to head to the tree, resulting in them nulling all damage for a short while. Even though they won't go back to the tree, being rewarded with a bunch of 0s doesn't ''feel'' good, and this change means you'd be properly rewarded for bringing the right kit while also giving you an avenue to speed up the room.
+|-
+|Muttadiles
+|Reduce the damage taken by players at Muttadiles.
+|You can stop wondering where this one is now! Ultimately, Muttadiles hitting like a train carrying other trains and depriving you of all Saradomin brews or Xeric's aid doesn't feel great either. We've a number of potential approaches to take:
+
+* Reduce their attack speed
+* Lower their max hits
+* Increase the damage reduction offered by correct Protection prayers
+* Our personal favourite, make the Muttadiles' attacks more ''predictable'', e.g. only letting them change style after ''X'' attacks with the previous style, increasing how likely they are to use the previous style, etc.
+
+|-
+|Vespula
+|Add a guaranteed Overload(+) drop.
+|This is a fairly common suggestion, it makes Vespula more appealing to learn for those who are newer to the raid, gives experienced players more viable choices of 'first' rooms when scouting for speedy money layouts, and provides more Overloads as drops throughout the raid for small groups.
+|-
+|Vespula
+|Tweak Vespula's mechanics without impacting the Redemption method.
+|We asked 100 raiders how to do Vespula without using Redemption. 76 said they didn't know, 22 said they'd never seen Vespula and added that their mentor won't let them into the Crabs room, and 2 people said they knew how, but were probably lying.
+
+Ultimately, we'd like to make some adjustments to Vespula that might make taking it on in a more 'conventional' sense feel a little better, but also add a little leniency to the current Redemption meta:
+* Reduce damage from Vespula's regular attacks/poison.
+* Reduce the speed at which Vespine Soldiers heal the Abyssal portal.
+* Increase the time taken for Vespine Soldiers to grow.
+
+|-
+|The Great Olm
+|Add a cooldown between Healing Pool attacks during Olm's final phase.
+|Simple enough! It can get a little annoying running from pool to pool to pool when you're just trying to get into a nice rhythm, so we'd like to add a little timer between them.
+|-
+|The Great Olm
+|Limit the distance away from the player at which a portal can spawn during Olm's Portals special when soloing.
+|A little wordy, but hopefully you get the gist. If you're solo, Olm's portal special places a portal somewhere in the room for you to get to. Occasionally this portal spawns too far away for you to reach in time and can really throw you off if you're hit with one while trying to get into the iconic 4:1 cycle as a learner. We'd like to limit the distance a little so that it spawns within a more reasonable range of you, but you'll still have to be paying attention to make it in time!
+|}
+There's our table of everything that's on the table for Chambers changes. The aim of these is to make some less popular rooms feel like more of a ''choice ''than a chore, so that when we come back to visiting custom raid layouts, it feels a little less like we're offering you a way to circumvent the 'bad' bits of the raid and instead like you're being given agency over a whole range of actual choices.
+
+We say it every blog but we mean it when we say that we really value your feedback. We don't always get things bang-on the first time around, and we know you'd been waiting for changes to Chambers of Xeric for some time. Please share your thoughts with us, let us know if you agree with our change in approach, and help steer us in the right direction.
+
+Until next time, good luck on the gains and happy 'scaping!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

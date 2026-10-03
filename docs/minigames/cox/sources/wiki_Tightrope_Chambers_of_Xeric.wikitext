@@ -1,0 +1,33 @@
+{{Infobox Scenery
+|name = Tightrope
+|image = [[File:Tightrope (Chambers of Xeric).png|250x250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = Cross
+|examine = One foot after another...
+|map = No
+|id = 29750, 29834, 29835
+|leagueRegion = Kourend
+}}
+A '''tightrope''' can be found within the [[Chambers of Xeric/Strategies#Tightrope)|tightrope room]] during a [[Chambers of Xeric]] raid. The tightrope is being guarded by [[deathly ranger]]s and [[deathly mage|mages]], and must be successfully crossed to obtain a [[keystone crystal]], used to dispel a [[shimmering barrier|barrier]] blocking the path to the next room. Crossing the tightrope requires an [[Agility]] level randomly chosen based on the Agility levels of the players participating in the raid.
+
+Whilst typically unaggressive, attempting to cross the tightrope will cause the mages and rangers to automatically attack the crossing player, likely dealing lethal damage due to the monsters' ability to hit through [[protection prayers]] and the tightrope's ability to stall damage. Therefore it is recommended to kill all or most of the rangers and mages protecting the tightrope. Some advanced strategies exist where none of the monsters need to be killed in order for the crossing player to cross the tightrope and dispel the barrier.
+
+==Locations==
+{{ObjectTableHead}}
+{{ObjectLocLine
+|name = Shimmering barrier
+|location = [[Chambers of Xeric]] - [[Chambers of Xeric/Strategies#Tightrope)|tightrope room]]
+|members = Yes
+|mapID = -1
+|plane = 1
+|3270,5361|3270,5360|3309,5368|3310,5368|3355,5360|3355,5359
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{ObjectTableBottom}}
+
+{{Chambers of Xeric}}

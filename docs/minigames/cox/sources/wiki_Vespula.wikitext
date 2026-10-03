@@ -1,0 +1,120 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Vespula
+|image = [[File:Vespula.png|280px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 5
+|examine = Queen of the Abyssal Vespine. Her lifeforce is sustained by her connection to the Abyss.
+|attributes = xerician, flying
+|xpbonus = 0
+|max hit1 = 14 ([[Ranged]]), 8 (Stomp), 20 (Sting)
+|max hit2 = 
+|aggressive = No
+|poisonous = Yes (20)
+|attack style = [[Ranged]] <br/> Typeless
+|attack speed = 3
+|hitpoints1 = 200
+|hitpoints2 = 288
+|scaledhp = Yes
+|att1 = 150
+|att2 = 225
+|str1 = 150
+|str2 = 225
+|def1 = 88
+|def2 = 132
+|mage1 = 88
+|mage2 = 132
+|range1 = 150
+|range2 = 225
+|attbns = 0
+|strbns = -8
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = -8
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 70
+|dlight = 20
+|dstandard = 60
+|dheavy = 60
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7530,7531,7532
+|leagueRegion = Kourend
+}}
+'''Vespula''' is one of the [[bosses]] encountered in the [[Chambers of Xeric]]. She is a parasitic wasp from the [[Abyss]] that [[Xeric]] and his followers stumbled upon when attempting to open a new dimensional tear.{{CiteText|text=Transdimensional notes|quote=It is known, of course, that the Dark Altar can connect to other planes of existence. That is how it sustains our runic altars, by linking Kourend to whatever far-off realms contain the true Blood and Soul Altars. However, it still surprised us to find that the same power was available here. Naturally our lord sought to tap into this power - after all, it's what brought us to this cursed mountain in the first place. Unfortunately, our lord's attempt to rupture space and time was only too successful! [...] Suddenly a vast form squeezed its way through the portal towards us. I have no words for it, but if a demon were to mate with a wasp, this creature would surely be the ungodly fruit of the union. We sought to drive it back with our magicks, but it seemed well protected from such attacks, and eventually our lord bade us retreat.}}
+
+==Mechanics==
+Vespula will spawn alongside four [[lux grub]]s and an [[abyssal portal]] when the encounter begins. Vespula is not aggressive towards players when they enter the chamber, but will retaliate back when attacked with rapid ranged attacks, which can inflict [[poison]] starting at 20 damage, the highest possible amount while also stinging grubs at the same time. 
+
+As Vespula stings the lux grubs, their health will deplete. If their health is allowed to fully deplete, they will transform into [[vespine soldier]]s, who also attack with melee and inflict poison starting at 15 damage. These soldiers will additionally heal her and the abyssal portal while alive, so it is important not to let them appear. The grubs' health can be restored by feeding them [[Medivaemia blossom]]s.
+
+Upon reaching 20% of her health, Vespula has a chance to land each time she is attacked, with her being guaranteed to land if she reaches 1 [[hitpoint]] before landing. She will remain on the ground for ~20 seconds. At this point, the abyssal portal can be safely attacked, and destroying it will end the encounter. If the portal is not destroyed in time, Vespula will take flight again and restore her health.
+
+If the portal is attacked while Vespula is flying, she will enter an enraged state, rapidly flying back and forth in the area in front of the portal, stinging anyone in melee range for 5-20 typeless damage. Anyone standing underneath her is instead stomped for 2-8 damage every tick. She will remain in this state until the portal is no longer attacked, after which she resumes normal behaviour.
+
+Vespula regenerates its stats at a rate of 1 per 10 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==Drops==
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Transdimensional notes|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>|gemw=No}}
+{{DropsLine|name=Xeric's aid (+)(4)|quantity=2|rarity=Always|gemw=No}}
+{{DropsLine|name=Revitalisation (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsLine|name=Prayer enhance (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsLine|name=Overload (+)(4)|quantity=1|rarity=Always|gemw=no}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|date = 6 August 2025
+|change = [[Halberd]]s can now do damage to Vespula when flying.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = Vespula now has a 50% weakness to [[Fire spells|fire spells]].
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|change =
+* Vespula's ranged strength slightly lowered.
+* Vespula now guarantees an overload upon clearing the room.
+}}
+{{Subject changes
+|date = 16 July 2020
+|update = Ferox Enclave
+|change = Fixed issue where players would be hit by Vespula's melee attack if the Abyssal Portal died
+}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change =
+*Previously, Vespula could start unhatching the grubs if the room was loaded while the party was completing a previous room. This was changed to where she does not start until a player enters her chamber, much like other bosses in the raid.
+*The [[abyssal portal]] was made to regenerate health less quickly, and it rewards more points per damage dealt.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Vespula's name originates from a {{wp|Vespula|genus of wasps}}.
+*Vespula’s eye turn red when enraged.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Bosses}}
+[[Category:Monsters with no combat level]]

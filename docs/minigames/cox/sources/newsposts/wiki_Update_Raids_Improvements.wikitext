@@ -1,0 +1,107 @@
+{{Update|date=12 January 2017|link=http://services.runescape.com/m=news/raids-improvements?oldschool=1|category=game}}
+[[File:Raids Improvements newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Improvements</font></center>
+
+<center>'''Over the past week we've continued reading your feedback on the Chambers of Xeric. This week's update includes a number of changes to address what you have had to say.'''</center>
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Changes</font>
+
+'''Storage Units'''
+
+Specific rooms within the Raid now have Storage chests to share items between party members.
+
+[[File:Raids Improvements (1).png|center]]
+
+These storage chests are built using '''mallignum planks''' which can be obtained by killing monsters within Raids. They require level 30, 60 or 90 Construction to build the small, medium and large variants.
+
+The storage chests offer the following item capacities:
+
+*Small - 250 items
+*Medium - 500 items
+*Large - 1,000 items
+
+[[File:Raids Improvements (2).png|center]]
+
+It is possible to upgrade the small and medium chests to a higher tier. 
+
+100 points are awarded to the builder of the chest, as well as 10 points to the players who obtained the planks used.
+
+Ironmen are able to deposit items into storage chests but are '''not''' able to withdraw.
+
+'''Preserve Prayer Scroll'''
+
+A second, much more common, prayer scroll used to unlock the Preserve prayer can now be obtained from Raids.
+
+[[File:Raids Improvements (3).png|center]]
+
+It is no longer possible to unlock Preserve using existing prayer scrolls.
+
+'''Chambers of Xeric Teleport'''
+
+To help you get back to the Chambers of Xeric a bit quicker, it is now possible to unlock a Chambers of Xeric Teleport using an '''Ancient Tablet'''.
+
+[[File:Raids Improvements (4).png|center]]
+
+Ancient tablets are a common, untradeable reward from Raids. When using on a Xeric's talisman, a Chambers of Xeric Teleport is permanently unlocked.
+
+Once you've unlocked the Chambers of Xeric teleport using the Ancient tablet, you'll no longer receive them as a reward from Raids.
+
+[[File:Raids Improvements (5).png|center]]
+
+'''Second Farming Patch'''
+
+A second herb patch has been added to skilling rooms within Raids. This will help speed up the process of growing a large number of herbs.
+
+[[File:Raids Improvements (6).png|center]]
+
+'''Kodai Insignia & Wand Changes'''
+
+Previously, the Kodai Wand was simply received as a drop from Raids. With today's update, this is no longer the case.
+
+Players will now receive a Kodai Insignia from Raids instead of a Kodai Wand. The Kodai Insignia must then be used on a Master Wand in order to create the Kodai Wand.
+
+[[File:Raids Improvements (7).png|center]]
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Smite Change</font>
+
+Prior to today's update, if your prayer was drained to 0 by smite at the same time you died, your prayers would remain active and protect item would still take effect.
+
+[[File:Raids Improvements (8).png|center]]
+
+This is no longer the case. '''Prayers will now deactivate the moment your prayer points are smited to 0'''.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Boss & Slayer Log Improvements</font>
+
+The boss and slayer logs have been given an overhaul to make them more useful and a little nicer to look at.
+
+[[File:Raids Improvements (9).png|center]]
+
+A streak count has also been added to help you track your individual kill streak, which can be manually reset using the button on the right.
+
+In addition to this, the boss and slayer kill count can now '''track beyond 65535'''!
+
+The Chambers of Xeric are now also being tracked in the boss log.
+
+----
+
+'''In other news'''
+
+*The Great Olm has received some balancing changes.
+*Altered the colours of the prayer icons for Preserve, Rigour and Augury.
+*Fixed the 'Destroy' option on Christmas 2016 rewards.
+*Fixed ear colour on the green slayer helm.
+*Fixed an issue for female characters with max cape and mystic dust staff.
+*Fixed a head snapping issue when changing direction while wielding godswords.
+*The Pyromancer robe bottoms no longer stretch when fishing.
+*Small tweaks made to the ingame messages during the Olm fight.
+*Cannons can no longer be placed within the swamps of Kourend.
+*The number of Lizardmen around the swamps have increased.
+*Fixed a typo on the Master Crafter’s dialogue.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,354,65869200 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

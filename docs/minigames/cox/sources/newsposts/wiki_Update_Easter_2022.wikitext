@@ -1,0 +1,442 @@
+{{Update|date=13 April 2022|link=https://secure.runescape.com/m=news/easter-2022?oldschool=1|category=game}}
+[[File:Easter 2022 newspost.png|right]]
+{{clear}}
+
+__TOC__
+==Issues and Hotfixes==
+{|class=wikitable style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|11:45 BST - April 13th
+|We are seeing reports of some players Combat Achievements are not updating.
+|A hotfix has been deployed to resolve this issue. If you were logged in before 11:45 BST, relogging should now automatically apply unlock the new KC changes.
+|'''Resolved'''
+|-
+|12:10 BST - April 13th
+|We are seeing reports of some players Phosani's Nightmare Combat Achievements aren't completing.
+|We deployed a hotfix. Opening the Combat Achievements interface should resolve this issue.
+|'''Resolved'''
+|}
+
+<center>''We’re back! This week, the Easter bunny needs your help (again!), so get ready for a choco-tastic adventure!''</center>
+
+==Easter Event 2022==
+It’s nearly Easter and our favourite Bunny has once again got himself in a bit of a sticky situation! Is anyone surprised?
+
+[[File:Easter 2022 (1).png|600px|centre|thumb|''Easter Bunny hanging around next to a bunch of junk.'']]
+
+This time, he’s decided to deliver chocolate to the increasing number of adventurers hanging out in the desert. There’s just one problem: chocolate and heat are not good bedfellows!
+
+In search of an answer he’s come to Al Kharid, the hottest place he can stand, to seek advice. Unfortunately, giant pink rabbits aren’t exactly commonplace in this neck of the woods, and he’s frightened off their best and brightest! Can YOU, as a slightly less weird-looking adventurer, ask around on his behalf?
+
+Help out, and you’ll be rewarded with two eggciting bits of headgear! One is bursting with spring fashion, and the other, while technically a ring, does land you with something on your head once equipped. Eggstraordinary!
+
+[[File:Easter 2022 (2).png|600px|centre|thumb|''An Eggcellent new piece of FashionScape.'']]
+
+==Revenant Caves Changes==
+We’ve made an important change to the Revenant Caves: the entrances are now all one-way, meaning you can no longer exit the same way you entered.
+
+[[File:Easter 2022 (3).png|600px|centre|thumb|''One of the Rev Caves entrances & new exit.'']]
+
+Instead, there are now two new exits a few tiles away from each entrance. Using these exits will place you neatly on the surface, outside a one-way trapdoor.
+
+[[File:Easter 2022 (4).png|600px|centre|thumb|''Colapsed rubble now surrounds the entrance and new stairs have appeared.'']]
+
+Visually, the entrances look the same and all other functionality, including entrance fees, remains the same.
+
+==Poll 76 Changes==
+This week, we’ve made a bunch of changes to Combat Achievements!
+
+<gallery mode="slideshow">
+File:Easter 2022 (5).png|''Combat Achievements - Name Changes''
+File:Easter 2022 (6).png|''Combat Achievements - Kill Count Changes #1''
+File:Easter 2022 (7).png|''Combat Achievements - Kill Count Changes #2''
+File:Easter 2022 (8).png|''Combat Achievements - Kill Count Changes #3''
+</gallery>
+<center>''Click on each image to enlarge them.''</center>
+
+{{Collapsed section|18|Task Renaming - Click here to expand...}}
+* Alchemical Master became '''Alchemical Veteran'''
+* Alchemical Grandmaster became '''Alchemical Master'''
+* Gauntlet Adept became '''Gauntlet Veteran'''
+* Mimic Adept became '''Mimic Veteran'''
+* Nightmare Champion became '''Nightmare Adept'''
+* Nightmare Adept became '''Nightmare Veteran'''
+* Nightmare Veteran became '''Nightmare Master'''
+* Phosani's Champion became '''Phosani's Veteran'''
+* Phosani's Adept became '''Phosani's Master'''
+* Phosani's Veteran became '''Phosani's Grandmaster'''
+* Skotizo Adept became '''Skotizo Champion'''
+* Skotizo Veteran became '''Skotizo Adept'''
+* Thermonuclear Adept became '''Thermonuclear Veteran'''
+{{Collapsed section end}}
+{{Collapsed section|18|Killcount Requirements - Click here to expand...}}
+{| class="wikitable" style="margin:0 auto;"
+!Task Title
+!Old Count
+!New Count
+|-
+|Abyssal Adept
+|100
+|20
+|-
+|Abyssal Veteran
+|250
+|50
+|-
+|Alchemical Veteran
+|150
+|75
+|-
+|Alchemical Master
+|250
+|150
+|-
+|Barrows Champion
+|50
+|25
+|-
+|Callisto Adept
+|50
+|10
+|-
+|Callisto Veteran
+|100
+|20
+|-
+|Cerberus Veteran
+|150
+|75
+|-
+|Cerberus Master
+|250
+|150
+|-
+|Chaos Elemental Adept
+|50
+|10
+|-
+|Chaos Elemental Veteran
+|150
+|25
+|-
+|Chaos Fanatic Adept
+|50
+|25
+|-
+|Chambers of Xeric: CM Master
+|50
+|10
+|-
+|Chambers of Xeric: CM Grandmaster
+|150
+|25
+|-
+|Chambers of Xeric Veteran
+|75
+|25
+|-
+|Chambers of Xeric Master
+|150
+|75
+|-
+|Chambers of Xeric Grandmaster
+|250
+|150
+|-
+|Corporeal Beast Veteran
+|50
+|25
+|-
+|Corporeal Beast Master
+|150
+|50
+|-
+|Corrupted Gauntlet Veteran
+|10
+|5
+|-
+|Corrupted Gauntlet Master
+|50
+|10
+|-
+|Corrupted Gauntlet Grandmaster
+|150
+|50
+|-
+|Commander Zilyana Veteran
+|250
+|100
+|-
+|Crazy Archaeologist Adept
+|50
+|25
+|-
+|Dagannoth Prime Champion
+|50
+|10
+|-
+|Dagannoth Prime Adept
+|150
+|25
+|-
+|Dagannoth Rex Champion
+|50
+|10
+|-
+|Dagannoth Rex Adept
+|150
+|25
+|-
+|Dagannoth Supreme Champion
+|50
+|10
+|-
+|Dagannoth Supreme Adept
+|150
+|25
+|-
+|Deranged Archaeologist Champion
+|50
+|25
+|-
+|Fight Caves Master
+|10
+|5
+|-
+|Gauntlet Veteran
+|10
+|5
+|-
+|Gauntlet Master
+|100
+|20
+|-
+|General Graardor Veteran
+|250
+|100
+|-
+|Giant Mole Champion
+|50
+|25
+|-
+|Grotesque Guardians Adept
+|100
+|25
+|-
+|Grotesque Guardians Veteran
+|250
+|50
+|-
+|Hespori Adept
+|10
+|5
+|-
+|Inferno Grandmaster
+|10
+|5
+|-
+|K'ril Tsutsaroth Veteran
+|250
+|100
+|-
+|Kalphite Queen Adept
+|50
+|25
+|-
+|Kalphite Queen Veteran
+|250
+|50
+|-
+|King Black Dragon Champion
+|50
+|25
+|-
+|Kree'arra Veteran
+|250
+|100
+|-
+|Kraken Adept
+|100
+|20
+|-
+|Nex Master
+|100
+|25
+|-
+|Nightmare Veteran
+|100
+|25
+|-
+|Nightmare Master
+|250
+|50
+|-
+|Phosani's Master
+|25
+|5
+|-
+|Phosani's Grandmaster
+|100
+|25
+|-
+|Sarachnis Champion
+|50
+|25
+|-
+|Scorpia Adept
+|50
+|10
+|-
+|Scorpia Veteran
+|150
+|25
+|-
+|Skotizo Adept
+|10
+|5
+|-
+|Tempoross Novice
+|10
+|5
+|-
+|Tempoross Champion
+|50
+|10
+|-
+|Theatre of Blood: HM Grandmaster
+|100
+|50
+|-
+|Theatre of Blood Veteran
+|75
+|25
+|-
+|Theatre of Blood Master
+|150
+|75
+|-
+|Theatre of Blood Grandmaster
+|250
+|150
+|-
+|Thermonuclear Veteran
+|100
+|20
+|-
+|Venenatis Adept
+|50
+|10
+|-
+|Venenatis Veteran
+|100
+|20
+|-
+|Vet'ion Adept
+|50
+|10
+|-
+|Vet'eran
+|100
+|20
+|-
+|Vorkath Master
+|250
+|100
+|-
+|Wintertodt Novice
+|10
+|5
+|-
+|Wintertodt Champion
+|50
+|10
+|-
+|Zalcano Veteran
+|150
+|25
+|-
+|Zulrah Adept
+|100
+|25
+|-
+|Zulrah Veteran
+|150
+|75
+|-
+|Zulrah Master
+|250
+|150
+|}
+{{Collapsed section end}}
+
+==Guardians of the Rift==
+Before we move on to this week’s changes, a quick PSA. We recently added two more activity worlds for Guardians of the Rift. Unfortunately, the worlds selected are free-to-play and therefore cannot access the minigame. The correct worlds will be available from Monday 18th. Apologies for the delay!
+
+Now, here’s what’s changed this week:
+
+* Players will now gain Polyelemental Guardian Stones when crafting Combination Runes during Guardians of the Rift. They will award 3 Elemental Contribution Points instead of the 2 awarded by an Elemental Guardian Stone.
+* The Raiments of the Eye will no longer provide additional Guardian Stones while crafting Combination Runes.
+* Players may now sell their excess Abyssal Lanterns and Dyes for 100 Abyssal Pearls and 50 Abyssal Pearls, respectively.
+* Increased points awarded for building the first barrier and repairing a cell tile.
+* Weaker Guardian Cells can now be upgraded at more powerful altars without having to destroy the weaker Cell.
+* Swapped the options on the Deposit Pool so that ‘Deposit Runes’ is now the default left-click option. Maybe keep your entity swapper off for this one!
+* Confirm-on-destroy options have been added to Guardian Fragments and all types of Guardian Stones.
+* Guardians of the Rift completions have been added to the HiScores.
+* The Abyssal Lantern no longer attaches to the Robe Bottoms of the Eye on male characters. Fire hazard averted!
+* Wizard Traiborn will now have two dialogue options for players working on Demon Slayer and Temple of the Eye at the same time.
+* Fixed a graphical issue that made portals look active at the start of a game.
+
+And here's the issues we hotfixed before today's update:
+* The Ring of the Elements may now only be uncharged at a Bank area.
+* Players can no longer receive any other Essence Pouches while in possession of a Colossal Pouch. Upon your next login, any extra Pouches will be removed if you have a Colossal Pouch.
+* Players with reduced Agility levels can no longer get trapped in side areas of the Temple of the Eye.
+
+In a future update we plan to let you recolour the Lost Bag and Amulet of the Eye, so hang on to your spare dyes if you'd like to recolour these!
+
+==Android Beta Client and Steam Client Fixes==
+===Android Beta Only===
+* Fixed various login issues, including failure to connect to Google when making a new account via Google log-in.
+* Fixed an issue that caused the World Map not to pan correctly.
+* Fixed a crash on Huawei devices when opening from the Home Screen.
+* Fixed an issue causing the app to become unresponsive when using certain gesture controls.
+* Fixed an issue causing zoom to stop working when the Minimap was collapsed.
+* Fixed a UI issue in the World Switcher menu.
+* Fixed an issue that caused the app to become unresponsive when in split-screen mode.
+
+===Steam Only===
+* A red X should now appear when clicking on NPC's/Players with ‘Always Right Click’ enabled.
+
+===Android Beta & Steam===
+* The PvP option ‘Right Click for Clanmates’ should now work as expected.
+* Fixed an issue with camera shake effects.
+* Fixed a transparency issue appearing in various places.
+
+The iOS Client Closed Beta starts next week! So don't miss out your chance to take part by [https://jagex.eu.qualtrics.com/jfe/form/SV_ebKYVOS1llIOoyW registering your interest today]!
+
+==Deadman Finale Re-Run==
+We recently announced in [https://secure.runescape.com/m=news/gielinor-gazette---march-2022?oldschool=1 March's Edition] of the Gielinor Gazette that we'll be hosting the Open Beta on April 20th. Unfortunately you'll have to wait an extra day to participate in the Open Beta as we are moving it to '''Thursday, April 21st'''. We'll be sharing more details shortly and we are still committed to hosting the final you deserve. Thank you for your continued patience.
+
+==Other Changes==
+* Equipping the Dragonhunter Crossbow and Crystal Platelegs will no longer cause stretching.
+* The ‘Chop’ option on the dead trees adjacent to the Death Altar’s exit portal no longer obstruct its ‘Use’ option.
+* Bosses now spawn with reduced delays in endurance fights in the Nightmare Zone.
+* The ‘Back to Bank’ button on the Group Storage screen is now removed properly when not required.
+* Using artefacts on the Pyramid Plunder Mummy will now prompt relevant dialogue.
+* Nex now consistently spawns a Blood Reaver in duo scale.
+* Fixed an animation glitch with the Home Teleport.
+* Grammar fixes.
+
+==PvP World Rota==
+Our team is now performing maintenance on our world deployment systems. To ensure this work goes smoothly we'll be removing the PvP World Rota for the foreseeable future to reduce the number of world changes. This means all target PvP worlds are now available.
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,801,66250744 official forums], on the [https://www.reddit.com/r/2007scape/comments/u2mu7s/easter_2022_weekly_game_update_april_13th_2022/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdatechannel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

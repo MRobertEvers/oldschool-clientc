@@ -1,0 +1,163 @@
+{{Update|date=20 January 2024|url=https://secure.runescape.com/m=news/sailing---winter-summit-update?oldschool=1|category=devblog}}
+[[File:Sailing - Winter Summit Update newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+'''The Audio Read'''
+
+[[File:Sailing - Winter Summit Update narration.mp3]]
+
+<center>{{Youtube|Gb4fAyTAwVM}}</center>
+
+''If this video doesn't load on your browser, click ''[https://youtu.be/Gb4fAyTAwVM?si=RDo7NH8YZMWoNxhx here]'' to watch!''
+
+Anchors are aweigh on the development of Sailing, Old School RuneScape’s first new skill. In our Winter Summit update, we’re showing off our progress so far and giving you a glimpse at what awaits as we sail on to 2024.
+
+Sailing is an open-world utility skill that introduces a whole new area to Old School RuneScape - the ocean! It's the Gielinor you know and love, except you'll be able interact with it in a brand-new way. As you progress, you'll become captain of your very own ship, explore new islands filled with exciting activities, and command a crew of loyal NPCs. You can customise and upgrade your ship and fill it with useful Facilities. Eventually, you’ll be able to explore the deepest and most dangerous parts of the ocean. And that's just the beginning…
+
+In our result''' '''[https://secure.runescape.com/m=news/sailing-poll-results-summary?oldschool=1 summary blog], we made a commitment to collaborate with everyone, including those who voted against the skill, to make Sailing the best it can be. A new skill isn’t just a single content release, it’s an intricate network of new systems, offering endless opportunities for enjoyment long after launch. Sailing has always been a community-driven project, and we want to keep it that way. This incredible journey would not have been possible without your support!
+
+Behind the scenes, we’ve been discussing timelines, resources, and various other factors that impact development. A project of this scale involves many considerations around staffing, community wants and needs, alpha/beta testing, and more.
+
+Although we plan to keep the community involved at every stage, we’re also trying to figure out which parts of the skill, if any, should remain shrouded in mystery until launch day.
+
+Today, we have something very exciting to show you – our development roadmap! On the below diagram we’ve included several milestones so you can see what we’ll be working on. Please note that dates have not been provided as they are open to change, but this should provide a baseline expectation of what to expect in which order.
+
+==Sailing Development Roadmap==
+[[File:Sailing - Winter Summit Update (1).png|600px|center]]
+
+'''The first iteration of our Sailing roadmap. Remember, this is subject to change based on resource availability, technical dependencies, and the results of community consultation.'''
+
+===Tech Alphas, Open Betas and Playtests===
+Open betas play a crucial role in our development process, allowing players like you to get hands-on experience of the content and give us even more valuable feedback.
+
+We’re thrilled to reveal that you’ll have multiple opportunities to playtest Sailing in 2024. We're not able to provide dates just yet as these beta tests will be highly dependent on our engine updates and internal acceptance criteria.
+
+The '''first tech alpha '''will launch as soon as our engine can handle it, and will focus on refining the navigation experience. We want to ensure players are comfortable and engaged while maneuvering around the sea. If development goes well, we may also have some early-game content for players to try too.
+
+Our '''first open beta '''will take place a little further along in development. This beta will address Ship Customisation, Crew Management, Capsizing and Ship Combat, offering a comprehensive preview of all four features.
+
+A '''second open beta '''is currently planned as a ‘Sailing demo’, offering all of the above as well as new gameplay mechanics, secondary gameplay, and some islands and points of interest to explore. This beta will take place very close to launch and will heavily influence our launch date expectations.
+
+Your participation in these betas is absolutely invaluable. Keep an eye out for more information about exact dates – we won’t be announcing any until we’re 100% confident they’re ready to proceed. To do so, all three public playtests must pass our internal acceptance criteria, which includes feedback from invite-only playtests. As a result, we’re staying flexible!
+
+On that note, we’re not ruling out ''additional ''betas if we feel they are required. As much of the work hasn’t yet been developed, we have plenty of opportunities to amend our schedule if further playtests are needed.
+
+===Sailing Development Milestones===
+As you can see on the Roadmap above, Sailing has been split into nine core milestones. With the exception of Islands and Points of Interest, each milestone will be worked on in chronological order. At the moment, we’re not certain how long each milestone will take – optimistically, we’re aiming for 1-2 months work on each, although some milestones will take more or less time depending on how much work they encompass. For example, the first milestone is the biggest by far, as it lays the groundwork for the rest of the skill. 
+
+Excitingly, this means that the [https://discord.gg/t8y9cKYyKS New Skill Discord] will have new topics to discuss at a regular cadence! This is great for the team, as it means we can get focused feedback throughout development.
+
+Now that Sailing has passed lock-in, we’re able to scale up our development resources. ''Two ''dev teams will now be responsible for Sailing.
+
+The Vanguard has already begun work on '''Milestone 1:'''
+
+* Core Gameplay
+* Navigation
+* Designing the Sea Layout
+* Boarding, Moving, and Using a Ship
+
+Later in development, the Vanguard will also be responsible for primary gameplay and secondary gameplay.
+
+Another group of developers will join the project in early 2024 and will start working on '''Islands and Points of Interest'''. This includes:
+
+* Islands and Points of Interest at Sea
+* New Training Methods for Existing Skills
+* Island Content and Resources
+* Quests
+
+As many of these elements still require community consultation, they will be polled and discussed before development begins.
+
+Our recent [https://secure.runescape.com/m=news/game-jam-iv-overview---october-2023?oldschool=1 Game Jam blog] contained some of the preliminary ideas we’ve had in these areas – we’d really like to hear which ones resonated with you the most, so please fill out the [https://forms.office.com/pages/responsepage.aspx?id=cHKPuw2LyU2JAOl_a-ccwkuFydxi__NAhv4a-l6BSp1UMDlETzZKS05FSTFPT1NKQVNFTTVJREVRWS4u Game Jam survey] if you haven’t already!
+
+Each team will also deal with different forms of feedback. The Vanguard will initially focus on feedback from our playtests, whereas the Island Development team will probably have a larger focus on design feedback from blogs and polls.  
+
+We’ll keep you up to date with all the latest news with blogs, videos, and discussion on the [https://discord.gg/t8y9cKYyKS New Skill Discord]. We also plan to create a ‘master blog’ for Sailing with links to all the latest information when we're a little further along with development.
+
+==Community-Led Design==
+We’d like to reiterate – Sailing simply wouldn’t be possible without our community, so it’s only right that we get you involved in shaping the content as much as we can. Excitingly, our roadmap already has a few opportunities for you to get stuck in!
+
+We’ll be running several community contests to design the Sailing skill icon and Skill Cape. To inspire you, check out the placeholder icon we’ll be using on interfaces during development – it’s inspired by one designed by ace community creator GentleTractor!
+
+[[File:Sailing - Winter Summit Update (2).png|211px|center]]
+
+We’ll also be running a player-designed island competition. If you’ve always wanted your own desert island getaway, this is the next best thing!
+
+We’ll let you know more details when we have them, so keep your eyes peeled!
+
+==Milestone 1 Progress==
+Milestone 1 is focusing on navigation and other core mechanics.
+
+The work we’ve completed so far includes:
+
+===Core Infrastructure===
+* There is now a Sailing skill in the game that can be assigned XP.
+* All interfaces such as the skill interfaces and lamps have been updated.
+* All Max Cape functionality has been re-worked to account for Sailing's introduction.
+* Sailing has a skill guide and level up message system.
+
+===Ship Infrastructure===
+* Players can generate ships and ‘own’ ships from a collection of presets.
+* Players can board other players’ ships.
+* Players who own the ship are considered the captain and automatically have navigator permissions.
+* Players can assign another player the navigator role.
+
+===Gameplay===
+* Players can trim the sails of a ship to earn Sailing XP.
+* Players can experience different ship speeds based on various conditions at sea.
+* Advanced tracking and userflow to allow players to more seamlessly board and alight from a ship.
+
+===Design===
+* In-depth design for primary gameplay, such that it can be implemented.
+* Designed a functional starting Sea Map.
+* Created structure to allow content at sea to be designed.
+* Design the player journey from level 1-99.
+* Design ship customisation systems, both functional and cosmetic.
+
+As you can see, we’ve made significant progress with the gargantuan tech work involved in getting Navigation working. We can’t underestimate how important this work is for the skill, so we’re excited to get going!
+
+Here are some screenshots to show you how development’s going:
+
+[[File:Sailing - Winter Summit Update (3).gif|600px|center|''Own, board, and navigate your very own ship!'']]
+
+
+[[File:Sailing - Winter Summit Update (4).gif|600px|center|''Multiple players can board a ship.'']]
+
+
+[[File:Sailing - Winter Summit Update (5).gif|600px|center|''Ship ahoy! Players can now see other ships and the people onboard!'']]
+
+
+The graphics shown above are placeholders, of course. We hope to have our Art Team polish things up before we share more progress down the line!
+
+The rest of Milestone 1 includes:
+
+===Content===
+* Handle logging in and out at sea as the captain.
+* Handle logging in and out at sea as a crewmate.
+* Playtesting the content so far and enacting feedback.
+
+===Engine===
+* Implementing a turning radius on ships.
+* Mark the players’ location at sea when the World Map is open.
+* Have ships appear on the Minimap.
+* Look into ship collision between land and other ships.
+* Add functionality to interact with things that are not on the ship.
+* Implement automatic and manual clean-up of owned boats.
+* Miscellaneous bug fixes.
+
+Once all that’s complete, we’ll be in a healthy place to run our first navigation tech alpha.
+
+==How To Stay Involved==
+We’ll continue to communicate via the [https://discord.gg/t8y9cKYyKS New Skill Discord], which will see a refresh once we're able to share more progress on our development journey. Each month, we hope to open a new channel for targeted feedback on certain Sailing topics. We also plan to continue holding Stages calls when we can do so, allowing developers to engage with you on your questions.
+
+The Community Team will also be running events to get players involved in development, including competitions to design the Sailing icon, the Skill Cape, and islands!
+
+As we mentioned at the start of this blog, we’re invested in making Sailing appeal to everyone – so we’re especially interested to hear feedback from those of you who voted ‘no’ to the skill. In line with this, we’ll be expanding our NDA’d group of players and general contributors soon! Please do continue to tell us your thoughts on all the usual channels.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the community-led [http://discord.gg/OSRS OSRS Discord] or the [https://steamcommunity.com/app/1343370/discussions/ Steam forums]. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

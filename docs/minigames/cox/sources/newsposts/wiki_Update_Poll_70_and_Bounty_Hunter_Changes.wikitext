@@ -1,0 +1,135 @@
+{{Update|date=30 April 2020|link=https://secure.runescape.com/m=news/poll-70-and-bounty-hunter-changes?oldschool=1|category=game}}
+[[File:Poll 70 and Bounty Hunter Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week brings the last of the changes from Poll #70, plus some further improvements to Bounty Hunter.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll #70}}
+
+
+[[File:Poll 70 and Bounty Hunter Changes (1).png|center|75px]]
+
+
+The final batch of game improvements from Poll #70 has arrived! Here’s what you can look forward to in today’s update:
+
+'''Divine Potions'''
+
+[[File:Poll 70 and Bounty Hunter Changes (2).png|center|100px]]
+
+
+You can now create Divine Battlemage and Divine Bastion potions at level 86 Herblore. To mix the potions, simply add crystal dust to the regular versions. The Divine potions will provide all the same buffs as the original Battlemage and Bastion potions, but their effect will act similar to other divine potions.
+
+'''Chambers of Xeric'''
+
+[[File:Poll 70 and Bounty Hunter Changes (3).png|center|75px]]
+
+
+Crab rooms in Chambers of Xeric will now include a hammer near the entrance. Hope you brought a bib!
+
+'''Lunar Isle'''
+
+[[File:Poll 70 and Bounty Hunter Changes (4).png|center|75px]]
+
+
+Players who’ve completed the Elite Fremennik Diary will find that a crystal ball has appeared in the Lunar Isle Bank. When clicked or tapped, it will act as a Rellekka teleport.
+
+'''Krystilia's Slayer Task List'''
+
+[[File:Poll 70 and Bounty Hunter Changes (5).png|center|75px]]
+
+
+Krystilia has added bloodvelds, hill giants, moss giants, black knights, pirates and zombies to her list of Slayer targets.
+
+'''Iorwerth Dungeon'''
+
+[[File:Poll 70 and Bounty Hunter Changes (6).png|center|150px]]
+
+
+Superior monsters in the Iorwerth Dungeon are now guaranteed to drop crystal shards.
+
+'''Perdu's Reward Retrieval'''
+
+[[File:Poll 70 and Bounty Hunter Changes (7).png|center|100px]]
+
+
+Perdu has expanded his repertoire and can now retrieve the Keris from Contact! and the Bearhead from Mountain Daughter for anyone who has completed the quests.
+
+{{Horizontal Line}}
+
+{{Headline|22|Bounty Hunter Feedback Changes}}
+
+[[File:Poll 70 and Bounty Hunter Changes (8).png|center|150px]]
+
+
+We’ve been paying close attention to the feedback from last week’s Bounty Hunter update, and we’re pleased to announce the following changes:
+
+'''Blighted Rewards'''
+
+[[File:Poll 70 and Bounty Hunter Changes (9).png|center|75px]]
+
+
+The cost of blighted food and potions in the Bounty Hunter Reward Shop has been significantly reduced:
+*Blighted manta ray will now cost 1,100 points
+*Blighted anglerfish will now cost 1,300 points
+*Blighted karambwan will now cost 1,300 points
+*Blighted Super Restore potions will now cost 1,500 points
+
+In addition, the Ice Barrage sack has become an Ancient Ice Sack, that can be used to cast any of the four Ice spells. A new sack has been created for the Vengeance spell.
+
+'''Bounty Hunter Coffer'''
+
+[[File:Poll 70 and Bounty Hunter Changes (10).png|center|75px]]
+
+
+Rather than carrying coins into the Wilderness to satisfy the risk requirement, the Emblem Trader in Edgeville now has a Bounty Coffer where you can put the coins before entering the Wilderness.
+
+The game will assign you targets only if you have 20k coins in your coffer, or if you are carrying an emblem.
+
+If you are PK'd in the Wilderness on a Bounty world, whether that's by your target or by another player, and you aren't dropping any Antique Emblems to them, you will instead lose up to 20k coins from your Bounty Coffer.
+
+'''Looting Bags'''
+
+[[File:Poll 70 and Bounty Hunter Changes (11).png|center|75px]]
+
+
+There is now a greater chance to receive a looting bag at the end of a PvM encounter.
+
+'''Emblem Chances'''
+
+[[File:Poll 70 and Bounty Hunter Changes (12).png|center|75px]]
+
+
+The base chance of receiving an Antique Emblem, or of having your existing emblem upgraded, when you kill your target, has been rebalanced. It now looks at your opponent's stats rather than their combat level, so that you can still be rewarded for killing pures.
+
+'''Promissory Notes'''
+
+[[File:Poll 70 and Bounty Hunter Changes (13).png|center|75px]]
+
+
+Older versions of the Bounty Hunter store, including the one on W45 DMM, now stock promissory notes for Looting Bags and Rune Pouches – an excellent use of any old points you’ve got kicking around.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The PvP world rota has moved to '''Period A'''. On the east of the Atlantic, the host for the '''High Risk PvP''' world will be W343, Germany and the '''Bounty Hunter''' world will be W318, UK. On the west of the Atlantic, the host for the '''Standard PvP''' world will be W324, USA, for the '''F2P PvP''' world, W417, USA and the '''Bounty Hunter''' world will be W319, USA. The members-only '''LMS''' world will be W333, UK, and the '''F2P LMS''' world will be W469, US.
+
+In addition, we will be trialing opening '''Bounty Hunter''' world W533, AUS.
+
+*The Cooking, Crafting, Prayer and Smithing tutors have been updated to better suit their intended purpose.
+*Reward XP can now trigger a fake XP drop if you’ve already got 200,000,000 XP in that skill.
+*A typo has been fixed in the description of the Graardor pet.
+*A world map icon has been added for bird house sites.
+*Players may now start diving at Fossil Island without emptying their hands.
+*Some Hydra messages have been added to the chat spam filter.
+*A projectile used by the Olm has become a lighter shade of green to assist players with certain forms of colour-blindness.
+*The poll booth in the Warrior's Guild has been removed.
+*On Deadman worlds, the PJ timer will no longer apply to a player who’s in a single-way area if the player they’re attacking is in a multi-way area.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,638,66156823 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gee, Halo, Husky, John C, Kieren, Lenny, Lottie, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

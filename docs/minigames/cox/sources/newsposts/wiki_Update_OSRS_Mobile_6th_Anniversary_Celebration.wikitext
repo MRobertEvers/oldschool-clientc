@@ -1,0 +1,435 @@
+{{Update|date=06 November 2024|url=https://secure.runescape.com/m=news/osrs-mobile---6th-anniversary-celebration?oldschool=1|category=devblog}}
+[[File:OSRS Mobile - 6th Anniversary Celebration newspost.png|right]]
+{{Clear}}__NOTOC__
+<center><b><i>[LAST UPDATED: 06/11 - 12:55 GMT]</i><br>Please note that Menu Entry Swapper is not working for some players and the issue needs to be coldfixed.<br><br>
+
+Currently if you turn ON NPC Tags or Tap-to-Drop you will not be able see Menu Entry Swapper. For some players, turning those features off for now should have the Menu Entry Swapper button visible.</b></center>
+
+We can’t believe it’s been six whole years since the release of Old School on Mobile. Winter 2017 seems so long ago! But now we’re here, and we’re ready to party. We’re kicking off the festivities with some exciting new updates, as well as a quick run-down of all the awesome features you can already experience on Mobile.
+
+Of course, our biggest announcement is that today the new Mobile UI is live for everyone! Improve your on-the-go adventures with fantastic new features, including Hotkeys.
+
+Check out this video by '''FullyOSRS''', a Mobile veteran. It’s got all you need to know about all things Mobile.
+
+{{Youtube|BjFAPjA_tcE}}
+''If you can't see the video above, [https://youtu.be/BjFAPjA_tcE click here] to watch.''
+
+==MOBILE FEATURES & UPDATES==
+<center>'''New Mobile UI and Features'''<br>
+
+[[#Sidestones|Side Stones]] | [[#Hotkeys|Hotkeys]] | [[#Popout|Popout Panel]] | [[#Newchat|New Chat]] | [[#UpdateMES|Menu Entry Swapper]] | [[#UpdateHiScores|HiScores]]</center>
+
+<center>'''Combat & PvM Enhancements'''<br>
+
+[[#PvMAttack|Attack Styles UI]] | [[#PvMBuff|Buff Bar]] | [[#PvMCannon|Cannon HUD]] | [[#PvMCoX|CoX Helper]] | [[#PvMEnemy|Enemy Info]]<br> [[#PvMSlayer|Slayer Helper]] | [[#PvMStat|Stat Boosts]]</center>
+
+<center>'''Visual Aids & UI Improvements'''<br>
+
+[[#UIChat|Chat Timestamps]] | [[#UIMinimap|Collapsible Minimap]] | [[#UIZoom|Minimap Zoom]] | [[#UIIndicators|Tile Indicators]] | [[#UIMarkers|Tile Markers]] | [[#UIView|View Distance]]</center>
+
+<center>'''Quality of Life Tools'''<br>
+
+[[#QoLKeys|F-Keys on External Keyboards]] | [[#QoLFishing|Fishing Spot Indicators]] | [[#QoLGround|Ground Item Indicators]] | [[#QoLHaptic|Haptic Feedback]]<br> [[#QoLDelay|Long Tap Delay]] | [[#QoLLoot|Loot Tracker]] | [[#QoLOre|Ore Respawen Timer]] | [[#QoLRegen|Regeneration Indicator]] | [[#QoLXP|XP Tracker]]</center>
+
+<center>'''Skill Helpers'''<br>
+
+[[#SkillHelper|Agility Helper]] | [[#SkillHighlights|Agility Highlights]] | [[#SkillBlast|Blast Furnace Helper]] | [[#SkillClue|Clue Scroll Helper]]<br> [[#SkillHerbi|Herbiboar Helper]] | [[#SkillHunter|Hunter Trap Timers]] | [[#SkillTears|Tears of Guthix Timers]]</center>
+
+<center>'''NPC and Environment Interactions'''<br>
+
+[[#NPCEntity|Entity Highlights]] | [[#NPCHighlights|NPC Highlights]]</center>
+
+==<span id="UpdateUI"></span> NEW MOBILE UI AND FEATURES==
+Today’s update brings the long-awaited Mobile UI changes. We won’t waste any more time – let’s jump in!
+
+===<span id="Sidestones"></span> Side Stones===
+[[File:OSRS Mobile - 6th Anniversary Celebration (1).gif|thumb|85px|center|''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-06/SideStones.gif click here].'']]
+
+The first and most obvious change with the new UI sees all your familiar stones on the right-hand side, in two separate columns. The first column contains panels you’ll use in high-intensity gameplay, while the second column holds all the features you use in more laid-back moments.
+
+To prevent misclicks – and give you a bit more room – we’ve added a handy button to collapse and hide the second column, letting you truly focus on the task at hand. When collapsed, the click area of the side panels is wider than in the current UI, for more accurate tapping.
+
+You’ll notice that the Logout button has moved to the top-left corner to make room for the new Collapse button.
+
+===<span id="Hotkeys"></span> Hotkeys===
+[[File:OSRS Mobile - 6th Anniversary Celebration (2).gif|thumb|58px|center|''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-06/Hotkeys.gif click here].'']]
+
+Most players would have used or at least seen the small 'Function' button on the current UI. While this had some very nifty features, we needed greater flexibility to achieve that parity we keep yapping about.
+
+Instead, we’re using the free space from that button and the old Side Stones on the left-hand side to give you five custom Hotkeys which can be assigned to a vast array of settings and actions. They’re similar to the F-Keys you’ll find on your regular Desktop client, except with more configurable options that allows us to add more features in the future – woohoo!
+
+Hotkeys can be set to open any panel (such as the Inventory) on either side of the screen, but you'll need to enable the “Hotkeys open side panels on the left” option in the Settings menu, first. It’s '''off''' by default, as opening these interfaces could cause overlap issues with other elements on the left-hand side.
+
+You can set up to five Hotkeys on this menu and aside from the Side Stone usages, most will work by enabling, disabling or customising the selected feature by either tapping on the button or via a long press (depending on the feature). Here's a full list of features you can assign to Hotkeys:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Inventory
+! Combat
+! Stats
+! Friends
+! Tap-to-drop
+! Cure Poison
+! Entity Interactions
+|-
+| Equipment
+| Journal
+| Emotes
+| Account
+| Single tap
+| Quick Prayers
+| NPC Highlights
+|-
+| Prayer Tab
+| Logout
+| Music
+| Ground Items
+| Tile Highlighting
+| Run Mode
+| 
+|-
+| Spellbook
+| Settings
+| Socials
+| Edit Ground Items
+| Toggle Run
+| Special Attack
+| 
+|}
+
+If you want to really up your game, you can create entire custom layouts, making it easy to swap between unique interfaces for PvM and Skilling... or any other activity you can imagine! You’ll be able to store up to three loadouts and make edits to the active set of hotkeys. We’ve also added long-tap options to the hotkey button which will let you swap between layouts with ease.
+
+===<span id="Popout"></span> Popout Panel===
+[[File:OSRS Mobile - 6th Anniversary Celebration (3).gif|thumb|336px|center|''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2023/newsposts/2023-08-04/MobileTLI-Sidebar.gif click here].'']]
+
+Current Mobile players will be intimately familiar with the new Popout Panel already! Much like the RuneLite Panel, this nifty inclusion gives you loads of features and options, including XP Tracking, settings for Ground Item Indicators, and all the future additions we plan to make!
+
+Unlike the current placement of the popout panel, which disrupts your use of the Inventory and other right-hand side panels, the new area sits in the bottom left-hand corner. It also has three separate modes: Hidden, Compact and Full.
+
+* Hidden: Just a small button to be expanded.
+* Compact: Only showcases one of the panel features in a minimal style; useful to keep track of one specific piece of information without taking up a lot of the screen.
+* Full: A full version that will give you as much information and options as we can fit into that screen.
+
+===<span id="Newchat"></span> New Chat===
+[[File:OSRS Mobile - 6th Anniversary Celebration (4).gif|thumb|517px|center|''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-06/Chat.gif click here].'']]
+
+The entire chat interface can now be collapsed using the brand-new toggle button, meaning you've got more space to play if you're going it solo!
+
+However, some of you might have noticed that the Chat Filters are no longer visible. Instead, to give you more space, you can long tap on the 'Speech Bubble' button to set which chat filter you have active!
+
+We've also replaced the tiny speech bubble with a bigger and easier-to-use keyboard button and to compensate for the horizontal space taken up by the new buttons, the chat area itself has been made slightly narrower.
+
+As for that glaring Report button, we've tucked it into a long-press option on the chat toggle, so it is not as much of a focus as it was before.
+
+===<span id="UpdateMES"></span> Menu Entry Swapper===
+[[File:OSRS Mobile - 6th Anniversary Celebration (5).png|thumb|600px|center|''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-06/Screenshot-MES.png click here].'']]
+
+For those unfamiliar with one of the biggest QoL features in recent years, we're bringing Menu Entry Swapper to Mobile and the Official Client with this update! MES allows you to swap around the default right-click/single-tap options with any other available. So, for example, if you want to start your pickpocketing journey on the citizens of Lumbridge, you can simply swap the default 'Attack' option with the 'Pickpocket' option of the minimenu, allowing you to simply click/tap to pickpocket.
+
+Not only are you able to swap around interactable elements of NPCs and other entities, but you can also remove menu options that aren’t used as much. This includes Examine, Use, Cancel, and more! Plus, you can expand the gap between options to give your fingers a bit more wiggle room.
+
+===<span id="UpdateHiScores"></span> HiScores===
+Finally, we know how important the HiScores are for most players, so we're giving you the ability to look up players on the HiScores within the game client! While not as impactful as MES, it'll be important for cross-checking players climbing past you on the Agility Shortcut of Mount Karuulm. This feature will be in the side panel just like the XP Tracker.
+
+==HOTKEY PROFILES==
+[[File:OSRS Mobile - 6th Anniversary Celebration (6).png|thumb|600px|center|''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-06/Screenshot-Combat.png click here].'']]
+
+Hotkeys can save up to three profiles which you can easily switch between using a long-tap on the Hotkeys Button. If you don’t yet know the best set-ups for your Hotkeys, we have a few suggestions:
+
+===Big Bosses & Raids===
+[[File:OSRS Mobile - 6th Anniversary Celebration (7).png|thumb|600px|center|''Recommended loadout for Bossing'']]
+
+If you want to take on the toughest enemies in Gielinor, you’ll need as many features as possible at your disposal. While the Prayer and Spellbook menus are obvious choices, for more advanced bossing, Toggle Run and Special Attack are key.
+
+This setup ensures that your Prayer and Spellbook hotkeys are lined up nicely with their right-side counterparts – perfect for training that muscle memory.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Hotkey #1
+! Hotkey #2
+! Hotkey #3
+! Hotkey #4
+! Hotkey #5
+|-
+| Toggle Run
+| Special Attack
+| Prayer
+| Spellbook
+| Quick Prayers
+|}
+
+===Prepared PvM===
+[[File:OSRS Mobile - 6th Anniversary Celebration (8).png|thumb|600px|center|''Recommended loadout for PvM'']]
+
+For more chilled-out experiences, Slayer Tasks, and everyday grinds, this layout provides everything you need in one handy package.
+
+Although three of the options mimic the previous layout, you'll also want quick access to turn off reoccurring drops you don't care about, and quickly remove any unwanted drops from your Inventory!
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Hotkey #1
+! Hotkey #2
+! Hotkey #3
+! Hotkey #4
+! Hotkey #5
+|-
+| Edit Ground Items
+| Special Attack
+| Prayer
+| Spellbook
+| Tap to Drop
+|}
+
+===Skill 'n Chill===
+[[File:OSRS Mobile - 6th Anniversary Celebration (9).png|thumb|600px|center|''Recommended loadout for Shilling'']]
+
+Aah, nothing like a nice relaxing skilling session, is there? This layout prioritises your Inventory and the Tap to Drop feature. You also have access to Socials for chatting with friends, and your Spellbook so you can get around easily. Finally, we’ve included Edit Ground Items so you can keep your training area nice and tidy.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Hotkey #1
+! Hotkey #2
+! Hotkey #3
+! Hotkey #4
+! Hotkey #5
+|-
+| Inventory
+| Tap to Drop
+| Socials
+| Spellbook
+| Edit Ground Items
+|}
+
+==CURRENT FEATURES==
+If you’re new to Mobile, you might have missed out on some of the updates we’ve brought to the client over the years. No worries – here’s a handy list.
+
+===<span id="PvMAttack"></span><span id="PvMBuff"></span><span id="PvMCannon"></span><span id="PvMCoX"></span><span id="PvMEnemy"></span><span id="PvMSlayer"></span><span id="PvMStat"></span> Combat & PvM Enhancements===
+{| class="wikitable" style="text-align: center;"
+|-
+! Feature
+! Description
+! Settings Area
+! Default
+|-
+| Attack Styles UI
+| Displays the current attack style on the UI (Defensive, Aggressive, etc.)
+| Interfaces
+| OFF
+|-
+| Buff Bar
+| Shows various buffs and debuffs and their time remaining (i.e. Ammo, Potion Effects)
+| Interfaces
+| ON
+|-
+| Cannon HUD
+| Displays number of cannonballs remaining in the cannon is shown above the cannon and decay timer.
+Notifications can be enabled when the cannon is getting low on balls.
+| Activities
+| ON / (Notifications OFF)
+|-
+| CoX Helper
+| Showcase information for the current Chambers of Xeric layout.
+| Activities
+| ON
+|-
+| Enemy Info
+| Displays a Health Bar and Name of NPC while in combat.
+| Activities
+| ON
+|-
+| Slayer Helper
+| When on a Slayer Task, the helper will indicate what you're slaying, how many are left, and in which area (if applicable).
+| Activities
+| OFF
+|-
+| Stat Boosts
+| Up to six boosted or drained stats will be displayed on the screen.
+| Interfaces
+| ON
+|}
+
+===<span id="UIChat"></span><span id="UIMinimap"></span><span id="UIZoom"></span><span id="UIIndicators"></span><span id="UIMarkers"></span><span id="UIView"></span> Visual Aids & UI Improvements===
+{| class="wikitable" style="text-align: center;"
+|-
+! Feature
+! Description
+! Settings Area
+! Default
+|-
+| Chat Timestamps
+| Displays the time a message was sent or received in the Chatbox.
+| Chat
+| ON
+|-
+| Collapsible Minimap
+| Ability to minimise the Minimap via a long tap. Other icons around the Minimap will still be shown.
+| -
+| -
+|-
+| Minimap Zoom
+| Players can zoom in or out on the Minimap. Zoom is reset upon logout.
+| Display
+| ON
+|-
+| Tile Indicators
+| Current and destination tiles will be highlighted to indicate which tile the player is on and where they are going. Colour can be customised.
+| Activities
+| OFF
+|-
+| Tile Markers
+| Once activated, the player can mark tiles in the world by tapping on them. Turn it off again to return to normal.
+| Activities
+| HOTKEY
+|-
+| View Distance
+| Allows the player to extend or reduce how much of the game world they can see.
+| Interfaces
+| MIN.
+|}
+
+===<span id="QoLKeys"></span><span id="QoLFishing"></span><span id="QoLGround"></span><span id="QoLHaptic"></span><span id="QoLDelay"></span><span id="QoLLoot"></span><span id="QoLOre"></span><span id="QoLRegen"></span><span id="QoLXP"></span> Quality of Life Tools===
+{| class="wikitable" style="text-align: center;"
+|-
+! Feature
+! Description
+! Settings Area
+! Default
+|-
+| F-Keys on External Keyboards
+| When using external keyboards with mobile, players can use the F-keys as they would on desktop.
+They should be the same for mobile and desktop logins.
+| Controls
+| -
+|-
+| Fishing Spot Indicators
+| Highlights Fishing spots and shows which fish live there. Can be always on, off or on if you have the correct Fishing tool for the spot.
+| Activities
+| ON (with correct tool)
+|-
+| Ground Item Indicators
+| Ability to hide and colour code the items dropping on the floor.
+Can adjust information in the Side Panel.
+| Popout
+| HOTKEY
+|-
+| Haptic Feedback
+| Have the phone create haptic feedback when you tap on the screen or open the long tap menu.
+The intensity of the vibration can be tweaked via Settings.
+| Controls
+| ON (Low Vibration)
+|-
+| Long Tap Delay
+| Adjust how long you need to hold your finger on the screen for a minimenu to open. 
+| Controls
+| 300 MS
+|-
+| Loot Tracker
+| Track the loot that you have earned from skilling or killing!
+Appears in the Side Panel.
+| Popout
+| ON
+|-
+| Ore Respawn Timer
+| When mining, if an ore is depleted then a timer will appear to indicate how long until it respawns.
+| Activities
+| ON (with Pickaxe)
+|-
+| Regeneration Indicator
+| After using a special attack or taking damage, a timer will appear to indicate the time until the next restore.
+| Activities
+| ON
+|-
+| XP Tracker
+| Track how much XP you've earned and get different insights on gathering XP and next-level insights.
+Appears in the Side Panel.
+| Popout
+| ON
+|}
+
+===<span id="SkillHelper"></span><span id="SkillHighlights"></span> <span id="SkillBlast"></span><span id="SkillClue"></span><span id="SkillHerbi"></span><span id="SkillHunter"></span><span id="SkillTears"></span>  Skill Helpers===
+{| class="wikitable" style="text-align: center;"
+|-
+! Feature
+! Description
+! Settings Area
+! Default
+|-
+| Agility Helper
+| Tracks your laps per hour, laps completed and XP to the next level.
+| Activities
+| ON
+|-
+| Agility Highlights
+| Highlights the clickzones for Agility obstacles, shortcuts and Marks of Grace.
+| Activities
+| OFF
+|-
+| Blast Furnace Helper
+| An infobox shows how many Coins are in the coffers, and highlights on clickable aspects of the conveyor belt, bar dispenser and broken parts.
+| Activities
+| ON
+|-
+| Clue Scroll Helper
+| When solving clues, the helper will show information on the current step.
+Puzzle steps are not showcased within this helper.
+| Activities
+| OFF
+|-
+| Herbiboar Helper
+| Starting location, hiding spots and the trail are highlighted when interacting with Herbi.
+| Activities
+| ON
+|-
+| Hunter Trap Timers
+| Timers display when using traps in Hunter. Timers turn green or red based on success or failure!
+| Activities
+| ON
+|-
+| Tears of Guthix Timers
+| Timers will display on each of the wells in either green or blue for the respective type of well.
+| Activities
+| ON
+|}
+
+===<span id="NPCEntity"></span><span id="NPCHighlights"></span> NPC and Environment Interactions===
+{| class="wikitable" style="text-align: center;"
+|-
+! Feature
+! Description
+! Settings Area
+! Default
+|-
+| Entity Highlights
+| When interacting with something in the game world, a highlight will appear around it's silhouette.
+NPCs - Yellow
+Environment asset - Blue
+Items and Loot - Orange
+Other players - White
+| Activities
+| OFF
+|-
+| NPC Highlights
+| Highlight NPCs across the game showcasing their name, their tile and their outline as well as all copies of them if there are multiple.
+Colour can be customised (not per NPC).
+| Activities
+| HOTKEY
+|}
+
+==Looking Forward==
+Thank you everyone for your patience, we'll be keeping an eye on all the feedback coming in for the Mobile Client over the next few weeks.
+
+Updates to our mobile experience impact nearly every function across the Old School client and achieving a perfect launch is challenging without extensive player feedback over time. We're committed to the long-term success of the mobile Old School client, ensuring a high quality user experience.
+
+Don’t worry – we’re not stopping here, and we’re already planning the next batch of Official Client Features. We hope to update you on them all very soon. In the meantime, fill in the survey below so we can hear directly from you about the latest updates to Mobile and the Official Client.
+
+<center>''If you can't see the survey below or are having trouble completing it, [https://jagex.questionpro.eu/NewMobileUI click here] to take part.''</center>
+<i>
+<center><big>[https://jagex.questionpro.eu/NewMobileUI Mobile UI & Official Client Feedback]</big></center>
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1gkvqym/osrs_mobile_6th_anniversary_celebration/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, & Wolfy '''
+
+''The Old School Team.''

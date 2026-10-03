@@ -1,0 +1,62 @@
+{{Update|date=31 May 2018|link=http://services.runescape.com/m=news/fixes-to-slepe-and-a-taste-of-hope?oldschool=1|category=game}}
+[[File:Fixes to Slepe and A Taste of Hope newspost.png|right]]
+{{clear}}
+
+<center>''With the release of the Theatre of Blood next week, and a Taste of Hope last week, this week's release is a quiet one.''</center>
+
+{{Horizontal Line}}<br/>{{Headline|25|Game Update}}
+
+This week's release doesn't have much in the way of player-facing content for you. We've been busy adding some final polishing touches to the Theatre of Blood, ahead of its release on Thursday 7th June ('''next week!'''). As such here are a number of small fixes to Slepe and A Taste of Hope, a few changes for #OSRSMobile, and we've also added in some tools to help with a secret stream we have planned for Saturday June 16th:
+
+
+'''OSRS Mobile''': A small ''safe-zone'' has been added around the minimap to prevent accidental misclicks.
+
+'''OSRS Mobile''': Tapping on your stats in the Stats menu now brings up the XP tooltip instead of the skill guide. The skill guide is now accessed from a long click.
+
+'''OSRS Mobile''': You may now cap your FPS to 15, 20, or 30. This is found via the Game controls menu in Settings, and then navigating to Mobile options.
+
+The tower bell found in Slepe now has examine text.
+
+A typo in the Jester's dialogue beneath Slepe has been corrected.
+
+Falo the Bard will now accept the Ivandis flail as well as the Rod of ivandis following his singing ballad.
+
+Some misleading examine text with some doors found in Slepe has been fixed.
+
+The graveyard in Slepe is now accessible.
+
+The bartender in Slepe can no longer be spoken to from a distance. His voice became rather hoarse from shouting to players outside his pub all day and night.
+
+Missing water source icons for the sinks in Slepe have been added.
+
+You can no longer stand on the same tile as Damien Leucurte in Slepe.
+
+The Morytania task ''Obtain some bark from a hollow tree'' now works when chopping the hollow trees in Slepe.
+
+Emerald sickles can now be enchanted using the Enchant emerald or jade tablet.
+
+The price of Seaweed spores sold by Mairin's Market has been reduced from 50 Mermaid tears to 20.
+
+Jewelled crabs in Challenge Mode now give the correct amount of points
+
+We've added in a secret new JMod tool which we'll be using in our [https://www.twitch.tv/events/pQtLf7mrT7aaa8ZxWRKC9g Super Secret Stream] which begins at 8pm BST/3pm EST on Saturday June 16th.
+
+The PvP World assignment will be returning to '''Period A''' for the next two weeks. Consult the [https://www.runescape.com/oldschool/pvpworldrota PvP World Rota] page for more information.
+
+The [https://www.runescape.com/oldschool/chambers-leaderboard Chambers of Xeric: Challenge Mode Leaderboards] has been updated to reflect last week's times.
+
+{{Horizontal Line}}<br/>{{Headline|25|Theatre of Blood: Playtest}}
+
+Recently we had a large playervisit in which we saw the likes of Boaty, Woox, DedWilson, MMORPGRS, Cloud Badass, Lake, Mr Mammal, Dalek Cookie, Lucid Dream, Reed, and Zulu get to grips with the Theatre of Blood. The feedback we received was that the mechanics were enjoyable, interesting, unique, but ultimately they were ''not punishing enough''. Well, that's what playtests are for! We went away and re-balanced content to ensure it was appropriately challenging. To make sure the changes we were making were the right ones we called upon the five players we invited to playtest the Chambers of Xeric: Challenge Mode.
+
+We'd like to extend a special thanks to: [https://twitter.com/124426rs 124426], [https://twitter.com/realauntmabel Auntie Mabel], [https://twitter.com/ClassixOnly Classix], [https://twitter.com/JonWilSenze DedWilson], and [https://twitter.com/LatiasRS Latias] for their hard work in playtesting the Theatre of Blood this week. Their feedback has been invaluable, and we're confident that with the two playtests under our belt, the level of challenge offered in the Theatre is precisely where it should be.
+
+[[File:Fixes to Slepe and A Taste of Hope (1).jpg|500px|center]]<br/>'''Ahead of next week's Theatre of Blood release we'd like to remind you that anybody who wants quick access should complete A Taste of Hope to unlock the teleport which is rewarded upon its completion.'''
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,487,66016270 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''
+
+''The Old School Team''

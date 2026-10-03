@@ -1,0 +1,105 @@
+{{Update|date=19 August 2023|url=https://secure.runescape.com/m=news/chambers-of-xeric-changes-path-of-glouphrie--more?oldschool=1|category=community}}
+[[File:Chambers of Xeric Changes, Path of Glouphrie & More newspost.png|right]]
+{{clear}}
+__TOC__
+This year’s Summer Summit is chock-full of massive projects to look forward to, but there’s a bunch of smaller bits 'n' pieces we'd love to introduce to Old School over the rest of the year too!
+
+Let's dive right in with a quest that some of you may already be familiar with…
+
+==Path of Glouphrie==
+Originally released in late 2007, The Path of Glouphrie continues the popular Gnome storyline. Investigations into Glouphrie's plans escalate when you discover that King Bolren has a new pet... has Glouphrie been watching the Tree Gnome Village, too?Despite launching after Old School's backup, we were surprised to find that a mostly-complete version of Path of Glouphrie survives. This year we hope to share it with you once more! Much of the quest will be released as it once was, with some polish to meet the standards of modern Old School RuneScape.
+
+Originally, completing the Path of Glouphire granted access to two new Slayer creatures, found in the Poison Waste Dungeon, Warped Terrorbirds and Warped Tortoises. This didn't feel very rewarding back in 2007 and we don't think that a simple backport of those creatures would fit today's standards either.To make the new Slayer creatures feel more rewarding, we hope to make some improvements, including:
+* Rebalanced stats
+* Rebalanced drop tables
+* Quality of Life changes, eg:
+** Rather than needing to use a Crystal Chime on them in a fight, you'll simply need to have the Chime in your Inventory.
+** The Chime will be made using a separate Crystal seed, rather than using the same seed as a Crystal Saw. This means you won't need to swap back and forth between the Chime and the Saw.
+** The creatures will also share a single Warped Creatures Slayer Task, rather than having one of each.
+*** This Slayer Task isn't unlocked by default so it will not impact existing Slayer metas. You can choose to unlock it using Slayer Reward Points in the usual way.
+* New unique item drop from both creatures: you have the chance to gain a mid-level, self-powered staff called The Warped Sceptre.
+The Warped Sceptre '''will sit somewhere in power between the Trident of the Seas and Iban's Blast.''' We’re looking to fill a small gap within the meta, but since the quest is aimed at mid-level players, we won't be looking to powercreep any rewards beyond a mid-level range. Note: the Warped Sceptre is being polled as part of 'greenlight' for the Path of Glouphrie.
+
+So, whether you want to see what's next in the Gnome storyline, fancy a bit more variation with your Slayer routine, or you'd just like to get your hands on a new mid-level magic item - make sure to cast your vote! The Path of Glouphrie quest could launch''' as early as next month if it passes greenlight.'''
+
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - click to expand}}
+Being an Experienced-level quest, there are naturally a few '''requirements:'''
+
+* Completion of ''The Eyes of Glouphrie, Waterfall Quest ''and'' Tree Gnome Village''
+* 60 Strength
+* 56 Slayer
+* 56 Thieving
+* 47 Ranged
+* 45 Agility
+
+Upon completion you'll be '''rewarded with:'''
+* 2 Quest Points
+* Poison Waste Dungeon Access
+* 30,000 Strength XP, 20,000 Slayer XP, 5,000 Thieving XP and 5,000 Magic XP{{Collapsed section end}}
+
+{{News Poll|7|Should Path of Glouphrie be added to the game? Path of Glouphrie is an Experienced-level quest which advances the Gnome storyline. The quest will include access to two new Slayer creatures which have the ability to drop the Warped Sceptre (a mid-level self-powered staff) that sits somewhere in power between the Trident of the Seas and Iban's Blast}}
+
+==Mid-level PvM Update==
+From something you've seen before to something brand new… and actually, something without much detail to share at this stage. Something we'd like to greenlight nevertheless! Let’s talk Mid-level PvM…
+
+We've been thinking a lot lately about the 'player journey' - the steps players take from their first moments in Misthalin all the way up to lofty accomplishments like the Max cape, Infernal cape, or Grandmaster Combat achievements. We believe there are some gaps and breaks in this journey for many players- we also believe we can fill them in! 
+
+At the moment, there's a bit of a jump for players moving from 'simpler' activities like Bryophyta and Obor to much more complicated content like the Fight Caves, Grandmaster Quest bosses or even Entry-mode raids. We want to find a mid-point between the two. This is something we tried to do already with Sarachnis, which gets players practising some aspects of Prayer switching, controlling additional enemies and movement. However, the boss’s place in a player's progression isn't necessarily clear. 
+
+We want to develop an encounter that serves to give Old School's budding brawlers confidence to get to grips with PvM and experience more of what the game has to offer. Exactly what this encounter might look like, and what rewards it might provide, are still to be decided - and we’ll need your help, of course! However, our initial thoughts are around making this encounter feel like a viable alternative to Nightmare Zone or various Crabs when it comes to earning combat XP and progressing your account.
+
+It's not a whole lot to go off but hopefully you get the gist of what we’re aiming to do. Let us know if you’re interested!
+
+{{News Poll|8|Should we add a new boss encounter, aimed at bridging the gap between low- and mid-level bosses? The exact details of the encounter will be determined at a later date.}}
+
+==Chambers of Xeric: Scouting & Scaling==
+[[File:Chambers of Xeric Changes, Path of Glouphrie & More (1).png|600px|center]]
+
+
+Chambers of Xeric - Old School's first ever raid - is nearly seven years old! The mark that it has left on Old School cannot be understated. It remains some of the most popular PvM action in the game, even after all these years.
+
+All those years of enjoyment and experience have given us ample time to figure out what we love about it, and also what could stand to be improved a little. There are two topics we see time and time again: scouting and scaling. We'll tackle these topics and poll them individually, so read on to get up to speed.
+
+===Scouting===
+
+Unlike the Theatre of Blood or Tombs of Amascut, Chambers of Xeric doesn't have a fixed layout (excluding Challenge Mode). Instead, raid instances are generated upon entry, giving players a variety of unique encounter combinations. As such, it's unlikely that you'll run the exact same route back-to-back, and it keeps things fresh and allows you to make meaningful choices. However, a system like this isn't without its downsides too.
+
+For example, some rooms prove more demanding than others mechanically or in terms of gear requirements, and players learning the content for the first time might have a couple of rooms (e.g. Vespula, Vasa, Vanguards, Tekton) they tend to avoid scouting while they get to grips with the other possible encounters, and the Great Olm. On the opposite end of the spectrum, players who are ''extremely'' confident inside the Chambers might want to push themselves to compete for record-breaking speedrun times, but can't reliably scout a layout that lends itself well to speed.
+
+We'd like to work towards a healthy middle-ground that gives players a little more control over their scouted layouts, without totally removing the variety that gives the Chambers so much of their charm. We don't have a great deal of detail on exactly how this would work yet, but we do have a pretty clear sense of the things we'd like to keep in mind should you give us the greenlight, and in turn the things you should keep in mind if you'd like to make any suggestions. So, what are our early thoughts?
+
+* Tying in 'chosen' layouts with raid completions. For example, completing a raid might reward players with a token. Alternatively, players could buy these tokens at Mount Quidamortem for some amount of GP.
+* Players could use a number of these tokens to customise a raid layout to some degree.
+** It's not clear at this stage exactly how ''much'' we'd be able to let players customise, but initial ideas include things like filtering out certain rooms, or perhaps providing a handful of presets to choose from. These presets could encompass common choices for learners, speedrunners, high points etc.
+* We expect that the more customisation you'd like to do, the higher the cost.
+Ultimately we want to make sure that there's some cost associated and that players aren't able to remove scouting in its entirety, since we feel it's important to incentivise learning all of the rooms and getting comfortable in a variety of layouts over time. But we also appreciate that giving players more agency and reducing some of the tedium involved in scouting for that one ''perfect'' layout is important.
+
+None of the specifics are set in stone - we simply wanted to share some of our initial thoughts to give you a 'jumping off point' for further discussions. We’ll need your seal of approval before working to improve scouting at the Chambers of Xeric!
+
+{{News Poll|9|Should we develop a system to improve scouting favourable layouts at the Chambers of Xeric? The exact details of the system will be determined at a later date.}}
+
+Perhaps scouting isn't an issue for you - maybe you're already comfortable with everything the Chambers can throw at you and now you're looking to challenge yourself (in exchange for improved rewards_? If that sounds like you, let's talk about scaling.
+
+===Scaling===
+
+If you've spent a lot of time in the Chambers of Xeric, you might have seen other players throw out terms like '1+1', '2+3', '3+6', or even 'megascale'. These terms refer to the number of players actively participating in the raid relative to the number of people in the raid. The stats of the monsters inside the Chambers increases as group size increases, meaning there are more points up for grabs, which skilled players can make use of to increase the number of points available overall, without needing to share those points out. As an example, a '1+3' scale would mean a solo player using three other accounts to scale up the raid, then clearing the raid by themselves to increase the number of points they earn - assuming they're good enough to complete the raid, that is!
+
+While point scaling's initial intent was to make group raiding feel worthwhile, more and more players are making the raid more challenging in exchange for a better chance at unique rewards. We love to see players push themselves like this, but feel like it could be made a little more approachable for a wider variety of players.
+
+The main drawback at present is that in order to scale up a raid, you'll need to have membership on a number of accounts, get them over to Mount Quidamortem, and make sure they're in the raid instance when you start. Understandably, upkeeping membership on so many accounts can prove costly, whether you're paying a subscription or using in-game bonds, which puts it out of reach for a number of players who are skilled enough to complete scaled raids but don't have the resources to get started.
+
+To address this, and improve the approachability of scaling as a mechanic, we'd like to give players the option to scale up a raid entirely by themselves. As with scouting changes, we don't have any specifics for a system ironed out. We've had some initial conversations around whether or not scaling should be free or paid-for, perhaps with a cost that scales up as the number of additional players increases.
+
+{{News Poll|10|Should we develop a system to allow players to set their own 'scales' at the Chambers of Xeric? The exact details of the system will be determined at a later date.}}
+
+That's all we've got for you to greenlight on the Chambers of Xeric front at this stage, though we do have a backlog of other potential balancing and QOL changes in mind too. More details when we have them!
+
+There you have it - an h2 2023 amuse-bouche for you to snack on in between the main courses from this year's Summer Summit. Share your thoughts, have your say at the poll booth in the near future, and keep in mind that this isn't an exhaustive list of everything on the horizon - just a little something tasty to whet your appetite. Let us know what you think!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

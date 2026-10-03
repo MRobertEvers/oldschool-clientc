@@ -1,0 +1,88 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric: CM (Solo) Speed-Runner
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric: Challenge Mode (Solo) in less than 38 minutes and 30 seconds.
+|tier = Grandmaster
+|monster = Chambers of Xeric: Challenge Mode
+|type = Speed
+|id = 294
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric: CM (Solo) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a Chambers of Xeric: Challenge Mode (Solo) in under 38:30.
+
+==Strategy==
+As with the [[Chambers of Xeric (Solo) Speed-Runner|normal mode]] variant of this achievement, the player must have extremely good gear in order to make the time required for this achievement.
+
+While possible to obtain with no prep, this will require large amounts of [[purple sweets]] to consist of healing and run energy restore. It is possible to make the time with prep.
+
+If you are on Arceuus, summon a thrall in every combat room and constantly use [[Death Charge]]. Tekton and Melee hand are only vulnerable to melee(zombie) thralls, Vasa and magic hand to magic(ghost) thralls, and head to ranged(skeleton) thralls. If you are on Lunars, Vengeance when you can.
+
+Staying fully boosted through Overload and offensive prayers is vital in making time. Anytime you are attacking, post Tekton, be sure to be overloaded. 
+
+Overload boosts your stats every 15 seconds. Only brewing right before the 15 second intervals will ensure you are fully boosted throughout the raid. If you are in lethal range from unavoidable damage, such as the average muttadiles, and need to spam heal, try to restore back to full stats in time so you are fully boosted again on the interval. Combat potions dropped from Vanguards and the Twisted from Vasa can help boost stats back up when you are forced to heal.
+
+===First level===
+Prepot a dose of [[divine super combat potion]] and start Tekton with two [[elder maul]] or [[dragon warhammer]] specials. Ideally, both should hit. Oathplate with a scythe will generally outperform Torva with Inquisitor's. Tekton should be defeated before the second cycle ends, if not, it may be beneficial to reset. Pick up an overload.
+
+Crabs should be handled with care, as any mistake will set back time. If an orb is going to take a fair amount of time to despawn, run into it if nearby so a fresh orb is sent.
+
+Killing [[scavenger beast]]s are optional, but one should be killed if needed for planks to create a chest. If prepping, light ~2 loads and scav. If not, the player should have enough time to get ~2.5 loads (70 kindling) before the ice demon thaws out. On the ice demon, use [[Demonbane weapons]], [[Dark Demonbane]], or [[Fire spells]] and [[Magic cape]] to afterwards swap to Lunars or Arceuus (runes required for Arceuus spells also allow you to cast [[Fire Wave]] without any extra slots on runes). Having higher [[Woodcutting]] levels will reduce the time needed to "pop" the demon out.
+
+Stick near the edges. Letting a shaman jump will set the time back a few seconds if you are not attacking the other one.
+
+If prepping, pick up the [[buchu seed]]s dropped by the shamans and grow them in the next room. Try to keep prep as minimal and as efficient as possible. Clean herbs in-between picking them, always be making potions when you are moving.
+
+===Second level===
+Kill the [[Vanguard]]s quickly. It is not worth it to chance resets for the purpose of making this time.
+
+Loot [[cavern grubs]] from the chests in a manner that minimizes time waste. Dump grubs upon reaching 10-20 grubs to ensure it is always eating, depending on thieving level. Having higher [[Thieving]] levels will increase the rate of grubs per chest, resulting in an overall speed up.
+
+Use the [[Redemption]] method on [[Vespula]]. If the player dies, reset the raid, as the [[abyssal portal]] will likely be healed back to full from the freshly hatched [[vespine soldier]]s.
+
+Players can clear tightrope room as normal or use the skip method. If skipping, [[phoenix necklace|phoenix necklace(s)]] are required to survive.
+
+'''Kirby skip, utilizing a single phoenix necklace:'''
+
+Skipping is '''not''' required to make time, but would significantly help, consistently shaving off at least a minute through the room time alone, and resulting in less prep needed.
+
+* Move to the safe tile that you drag from when fighting Vespula with redemption. 
+* Turn on [[Rapid Heal]] and click the passage, do not miss or stall any ticks getting to the tightrope.
+* On the way there:
+** Get as close to 1 hp as possible, a locator orb or purple sweets combined with an overload can achieve this.
+** If you are 1 or 3 hp, switch to low defence armour such as mage robes, [[Inquisitor's armour]], or no armour.
+** If you are 2 hp, switch to your armour with the highest tank stats.
+** Turn on redemption.
+* Cross rope. Rapid heal will tick heal the first wave of attacks and proc redemption.
+* When you can move, click next to the crystal.
+** Optionally, to slightly improve success rate:
+*** if you started at 2hp, eat a sweet on this tick
+*** if you started at 3hp, use a brew instead
+* Click crystal, wait a tick to finish grabbing it.
+* Click to tile next to rope (or rope itself), equip phoenix necklace and eat the lowest healing food you have access to, typically a purple sweet or a brew. The food will tick eat the first wave of attacks, proccing the phoenix necklace to null the rest.
+* Click rope.
+* Clear barrier, leave room.
+** If you wish to incorporate, practice by clearing the first two floors with minimal gear and lots of phoenix necklaces. You can pick up multiple keystone crystals in a single raid, don't dissolve the barrier when practicing. Success is indicated by not dying immediately (and being able to move for a few ticks) when you cross back.
+
+Grab a [[Zamorak godsword]] and the pickaxe brought into the raid.
+
+===Last level===
+Kill [[Guardian (Chambers of Xeric)|guardians]] with the step-back method to avoid damage from rockfalls. Having higher [[Mining]] levels will increase your max hit, reducing the time needed to kill them.
+
+If the player is on Lunars, heal to full and cast [[Vengeance]]. Otherwise, health will not be a concern when entering the next room.
+
+Fight [[Vasa Nistirio]] as normal. Set the Inquisitor's mace/Voidwaker to stab and destroy the glowing crystals as they appear. Players should be able to attack Vasa 3-5 times with the twisted bow on rapid before needing to attack the crystal. Pick up Vasa's two brews before leaving the room.
+
+Try to have one [[Skeletal Mystic]] attack at a time and force them into using melee to help conserve supplies.
+
+[[Muttadile]]s can be a do-or-die situation depending on the player's overall luck. Kill the small muttadile with magic by the entrance and freeze it with the Zamorak godsword when it nears the 55% health threshold. Swap back to magic after it is bound and kill it as quickly as possible before it heals off the [[meat tree]]. For the large muttadile, use the safespot in normal mode and try to freeze it when it reaches 55% health. If the special misses, simply finish it off with ranged, as the twisted bow generally keeps up with the healing provided from the meat tree, though the room will be delayed as a result. Dying here is a significantly worse time sink than during Olm's first two phases. Large Muttadile's range attacks can hit in the high 30's through prayer.
+
+===Great Olm===
+Try to clear the first three phases within 2 minutes and 30 seconds or less. This will be dependent on if the [[elder maul]]/[[dragon warhammer]] lands, but a [[Lightbearer]] will be enough to restore special attack energy back to full if they miss. An ideal Olm kill should take around 9 minutes or less. If supplies are low, dying directly after either of the first two phases ends will result in minimal or no time loss and will allow you to bank.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Combat Achievements}}

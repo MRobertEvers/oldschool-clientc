@@ -1,0 +1,85 @@
+{{Redirect|Guardians|Guardian (disambiguation)}}
+{{Otheruses|the statue located in the [[Chambers of Xeric]]|the statue used in the [[Mage Training Arena]]|Guardian statue}}
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Guardian
+|image = [[File:Guardian (Chambers of Xeric, female).png|130px]] [[File:Guardian (Chambers of Xeric, male).png|130px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 
+|examine = {{*}}A guardian statue carved from the rock. <br/>{{*}}A demolished statue.
+|attributes = xerician
+|xpbonus1 = 7.5
+|xpbonus2 = 10
+|max hit1 = 20
+|max hit2 = 33
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 4
+|hitpoints1 = 250
+|hitpoints2 = 375
+|scaledhp = Yes
+|att1 = 140
+|att2 = 210
+|str1 = 140
+|str2 = 210
+|def1 = 100
+|def2 = 150
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 20
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 80
+|dslash = 180
+|dcrush = -10
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 0
+|venomresistance = 0
+|immunethrall = Yes
+|id1 = 7569,7571
+|id2 = 7570,7572
+}}
+'''Guardians''' are statues which appear in groups of two as a combat encounter in the [[Chambers of Xeric]]. These statues must be destroyed in order to pass the room and can only be harmed with [[pickaxe]]s; all other sources of damage will not count. The [[dragon warhammer]]'s special attack applies '''before''' the attack's damage roll is reduced to zero.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/984712294939717632|date=13 April 2018|archiveurl=https://reldo.runescape.wiki/i/105417|archivedate=3 September 2021|quote=It should apply its special effect before the roll gets changed to zero.}} Damage done to the guardians is multiplied by a factor as shown in fig.1.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1007600220358742021|date=15 June 2018|archiveurl=https://reldo.runescape.wiki/i/103380|archivedate=28 May 2020|quote=The damage modifier is ((50 + Mining level + pickaxes's level req) / 150).
+That's applied to whatever damage you rolled; Void would have been factored in before this calculation occurs.|name=dmgmodifierguardians}} The formula is capped to ensure the [[Crystal pickaxe]] deals the same damage as the [[Dragon pickaxe]], despite having a higher mining level requirement.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1155820855076802560|date=29 July 2019|archiveurl=https://reldo.runescape.wiki/i/106068|archivedate=28 May 2020|quote=The code was changed to cap it so that no new pick will be better than dragon ones.|name=dmgcapguardians}} Attempting to enter the passage they are guarding will result in the guardian knocking the player back for moderate damage.
+
+[[File:Chambers of Xeric - Guardian statue.png|thumb|left|250px|Players attacking the guardian statues.]]
+The guardians attack with [[Melee]] and can occasionally stomp the ground, dealing moderate to heavy damage in a 3x3 area. Due to the guardians' stomping attack, it is highly recommended to [[flinch]] them to reduce the amount of damage taken. This can be done by attacking the guardian and immediately running two spaces away from it. The health bar does not need to disappear before they can be attacked again, since the stomp attack is easily avoided and their standard melee attack is not particularly damaging.
+
+The strengths and hit points of the guardian is dependent on the party size. The Hp formula is shown in fig.2.
+
+<math>\begin{align}
+D &= \frac{(50 + M + P)}{150} && (1) \\
+H &= 151 \times (1 + \lfloor T \times \frac{1}{2} \rfloor) + \lfloor \overline{M} \rfloor \times T && (2)
+\end{align}</math>
+
+Where D is the damage multiplier, H is the guardian's hitpoints, P is the pickaxe's level requirement, M is mining level, <span style="text-decoration:overline;">M</span> is the average mining level and T is team size.
+
+Guardians regenerate their stats at a rate of 1 per 8 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==Drops==
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Buchu seed|quantity=3-5|rarity=Always|gemw=No}}
+{{DropsLine|name=Golpar seed|quantity=3-5|rarity=Always|gemw=No}}
+{{DropsLine|name=Noxifer seed|quantity=3-5|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+==Trivia==
+*Despite having a yellow dot on the minimap that would signify them as NPCs, the statues have cyan-coloured text that would technically classify them as objects. The dots remain even after they are destroyed.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

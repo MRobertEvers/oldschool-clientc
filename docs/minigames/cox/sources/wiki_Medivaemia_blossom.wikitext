@@ -1,0 +1,32 @@
+{{Infobox Item
+|name = Medivaemia blossom
+|image = [[File:Medivaemia blossom.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = The flower of the Medivaemia root.
+|value = 1
+|weight = 0.015
+|id = 20892
+}}
+[[File:Medivaemia blossom detail.png|left|160px]]
+'''Medivaemia blossom''' are obtained from picking the [[medivaemia root]]s in [[Vespula]]'s lair within the [[Chambers of Xeric]]. They are used to feed the [[lux grub]]s so that their health does not reach zero.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = The amount of [[hitpoints]] that the medivaemia blossoms heal [[lux grub]]s has been increased from 20 to 35.
+}}
+{{Subject changes footer}}
+
+{{Flowers}}
+{{Chambers of Xeric}}

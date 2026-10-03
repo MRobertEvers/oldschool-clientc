@@ -1,0 +1,168 @@
+{{Update|date=07 May 2025|url=https://secure.runescape.com/m=news/more-poll-84--yama-prep?oldschool=1|category=game}}
+[[File:More Poll 84 & Yama Prep newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''This week focuses on Easter's removal and some Poll 84 updates as we prepare for Yama's release next week!''
+
+==Changelog - May 7th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''More from Poll 84'''
+
+* You can now deal Melee damage to Zulrah via Halberd attacks.
+* In the Giant's Foundry, if you're quick on the clicks and hit the bonus action shortly after it appears, you'll now recover a portion of any missed quality (given any was missing).
+
+'''Easter Removal'''
+
+* The Easter Event has concluded and has been removed from the game.
+
+'''Mobile & Client Updates'''
+
+Yesterday, we pushed out a Client update featuring a fix to Loot Tracker!
+
+* Fixed rendering issues with long submenus
+* Fixed a bug where Loot Tracker databases could become corrupted and cause stutters/crashes, and added a new command for you to fix any pre-existing issues.
+** For those already affected, there's a manual step to fix your current Loot Tracker:
+*** In chat, type ::repairlt
+*** If you've entered this correctly, a message will appear in chat saying: "Attempting to repair LootTracker save"
+*** Once the repair is finished, you'll get a message informing whether a repair was made, or whether it completed the check and there was nothing to fix
+*** All done!
+
+'''Bank Interface Feedback'''
+
+We've taken another stab at the updated Bank Interface and we want your feedback!
+
+'''Other Changes'''
+
+* Slayer ring (1) no longer gets duplicated while teleporting if the teleport cannot be completed.
+* The rabbit in Civitas illa Fortis now drops rabbit bone during the Rag and Bone Man II quest, as intended.
+* Killing hellhounds in Wilderness now correctly completes the "A Demon's Best Friend" task in Combat Achievements.
+* Snakeskin bandanas now use the correct graphic for chatheads.
+* You will now get a message indicating what size of raid layout you embark on when starting a Chambers of Xeric raid.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==More from Poll 84==
+Poll 84 updates keep coming in, and this week brings one of the most-anticipated updates from the poll, as well as a minigame QoL. Let's dive right in...
+
+===Melee at Zulrah===
+[[File:More Poll 84 & Yama Prep (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-08/Zulrah.jpg here]!'']]
+
+Today is the day for those who were eagerly waiting for the Zulrah update from Poll 84: the ability to deal Melee damage to Zulrah is here!
+
+To provide some context, contrary to the main game, it was possible to engage Zulrah with Melee directly in Leagues: Raging Echoes. The interesting results we saw in Leagues led to this specific update - you can now use '''Halberd''' attacks to damage Zulrah.
+
+That said, Melee does ''not'' replace your traditional Mage or Range strategies at Zulrah; it's a fun alternative if you want to experiment with different play styles. We’ve tested the best mainhand Halberd available (the Noxious Halberd), paired with high-tier gear like Torva and Oathplate, and while Melee offers some benefits, it doesn’t outcompete the current best-in-slot setups for Mage or Range. 
+
+'''So when might Melee come in handy?'''
+
+* Melee could be useful in specific situations, especially if your Melee gear is significantly stronger than your Mage or Range setup.
+** For example, during the Crimson (red) phase, Melee can outperform some Magic setups. This means that depending on your gear, Melee could be a viable alternative in this phase. If you're considering incorporating Melee into your strategy, it might be worth checking your setups and running the numbers to see if it fits your playstyle.
+* The Crystal Halberd’s special attack could also help in finishing off phases, but it’s not a game-changer overall.
+
+In other words, this update offers a fresh option for those who want to switch things up, without drastically altering the core mechanics of Zulrah fights. Most importantly, the big snake is ''right there'', it only makes sense that a slightly longer weapon should be able to hit it!
+
+===Giant's Foundry Bonus Action Ticks===
+One for the Giant's Foundry enjoyers: If you're quick on the clicks and hit the bonus action shortly after it appears, you'll not only finish your sword faster - you'll now also recover a portion of any missed quality (given any was missing). This should make your bonus actions even more rewarding, giving you a little extra for your precision. If you weren't speedy enough for your sword to recover quality though, don't worry - you'll still gain the usual progress on your sword. 
+
+==The Bunny Has Left the Building==
+One moment you’re performing interpretive carrot dances for a disillusioned bunny in a dingy underground pub, and the next… it’s time to sweep up the chocolate, pack away the eggs, and say goodbye to Easter.
+
+Yup, the 2025 Easter event has officially hopped off into the sunset. If you didn’t get a chance to play it, there’s always next year! Assuming the Easter Bunny doesn’t unionise.
+
+[[File:More Poll 84 & Yama Prep (2).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-07/mole.jpg here]!'']]
+
+This week's game update has packed away the vegetables, cleared out the pub, and returned the bunny to his natural state: unconscious until 2026.
+
+...
+
+“Hang on, that’s it this week?”
+
+Yup. That’s the blog...
+
+Okay, fine - there’s a bit more context to add.
+
+==Blame Yama==
+We know this week’s update is a small one, but that lets us make sure we'll be prepped and ready for the launch of our brand new, endgame duo boss, Yama - coming next week, on May 14th!
+
+Therefore, we’re putting all our energy into making sure Yama’s debut is as easy as possible. So, if you're wondering why this week's update is a small one then, blame Yama - just do it quietly; there's no telling how he might react if he hears you...
+
+But let us be clear: Yama is not messing around. This lad has near unlimited power and could wipe you from existence whenever he felt like it.
+
+Make sure that you are prepared, because one week today, you'll be able to face the Master of Pacts! And in the meantime, you can find a duo to take on the challenge together, unless you plan to brave the fight solo. You and who?
+
+[[File:More Poll 84 & Yama Prep (3).gif|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-30/yama.gif here]!'']]
+
+==Mobile & Client Updates==
+Yesterday, we pushed out a Client update, which brought with it a long-awaited fix to Loot Tracker!
+
+* Fixed rendering issues with long submenus
+* Fixed a bug where Loot Tracker databases could become corrupted and cause stutters/crashes, and added a new command for you to fix any pre-existing issues. Keep reading for more info...
+
+===Loot Tracker Bug Fix===
+We've fixed a long standing bug where Loot Tracker databases can become corrupted, manifesting in game with noticeable stutters when ground items spawn, and in worst case scenarios, may have resulted in a crash. The fix addresses this moving forwards; however, for anyone already affected, there's a manual step to fix your current Loot Tracker.
+
+This process may take up to a minute and may slow your game while running, so we recommend finding a safe area before running these steps.
+
+* In chat, type ::repairlt
+* If you've entered this correctly, a message will appear in chat saying: "Attempting to repair LootTracker save"
+* Once the repair is finished, you'll get a message informing whether a repair was made, or whether it completed the check and there was nothing to fix
+* All done!
+
+To chat more about mobile updates, remember we have a dedicated [https://discord.com/channels/324132423636090880/960550250530086993 mobile section] in our [http://discord.gg/OSRS official Discord server].
+
+==Bank Interface Feedback==
+[[File:More Poll 84 & Yama Prep (4).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-05-07/BankInterface-Feedback.png here]!'']]
+
+Another little update for you, before we look to improve the Bank interface, we've taken your feedback regarding the work that we mentioned in Poll 84. As a result we've come up with a second version after we discussed the following feedback:
+
+* Some of you mentioned it would make more sense to have the Potion Storage closer to the tabs, as it functions similarly - so this button has been moved to the upper row
+* We've seen you share concerns about misclicking the Tutorial button in its current position - so we've moved both the Settings and Tutorial Button to the opposite side
+* You didn't like that some buttons hadn't been changed to fit the newer style - so the Potion Storage and Incinerator have been update, with the latter reduced in size slightly
+
+Hopefully this provides you with a look that's both cleaner and more practical. Make sure to let us know what you think of these changes for the well beloved bank!
+
+==Other Changes==
+* Slayer ring (1) no longer gets duplicated while teleporting if the teleport cannot be completed.
+* The rabbit in Civitas illa Fortis now drops rabbit bone during the Rag and Bone Man II quest, as intended.
+* Killing hellhounds in Wilderness now correctly completes the "A Demon's Best Friend" task in Combat Achievements.
+* Snakeskin bandanas now use the correct graphic for chatheads.
+* You will now get a message indicating what size of raid layout you embark on when starting a Chambers of Xeric raid.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1kgtcpl/more_poll_84_yama_prep/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Dylan, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Ludo, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

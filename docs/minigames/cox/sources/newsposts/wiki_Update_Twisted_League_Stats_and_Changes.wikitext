@@ -1,0 +1,146 @@
+{{Update|date=21 November 2019|link=https://secure.runescape.com/m=news/twisted-league-stats-and-changes?oldschool=1|category=game}}
+[[File:Twisted League Stats and Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week sees changes to the Twisted League and Bounty Hunter.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Twisted League Stats & Changes}}
+
+
+Last week saw the launch of the [https://secure.runescape.com/m=news/the-twisted-league?oldschool=1 Twisted League]! Since then hundreds of players have explored every corner of Kourend and Kebos, killed thousands of cows, ploughed across Hosidius, and ultimately slain the mighty Olm.
+
+For those of you that haven't dipped your feet into Old School RuneScape’s newest game mode, it's not too late to get started and earn your rewards!
+
+{{Horizontal Line}}
+
+{{Headline|22|Twisted Data}}
+
+[[File:Twisted League Stats and Changes (1).png|center|115px]]
+
+
+With help from the Data Team, we've gathered some stats to share with you:
+*The most completed task of the League is '''Level 20 Thieving''' with over '''67,344''' completions
+*The average player in the League has '''830''' points
+*'''69,993''' Slayer Tasks have been completed
+*'''93,994''' Farming Contracts have been completed
+*'''7''' people have defeated The Great Olm in the Chambers of Xeric
+
+'''Relics'''
+
+Relic choices have been a hot topic since launch, so here's a breakdown of how many players have chosen each one thus far:
+*'''Tier 1'''
+**Abyssal Accumulator: '''14.72%'''
+**Endless Endurance: '''69.44%'''
+**Dark Altar Devotion: '''15.84%'''
+
+*'''Tier 2'''
+**Hardcore Harvester: '''33.94%'''
+**Arcane Courier: '''16.59%'''
+**Unnatural Selection: '''49.47%'''
+
+*'''Tier 3'''
+**Eye of the Artisan: '''54.93%'''
+**Gift of the Gatherer: '''20.38%'''
+**Way of the Warrior: '''24.69%'''
+
+*'''Tier 4'''
+**Spirit of Dinh: '''6.36%'''
+**Konar's Blessing: '''41.89%'''
+**Treasure Seeker: '''51.75%'''
+
+*'''Tier 5'''
+**Xeric's Focus: '''27.95%'''
+**Xeric's Resilience: '''0.26%'''
+**Xeric's Wisdom: '''71.79%'''
+
+<center>''Note: all stats are correct as of the morning of Wednesday 20th Novermber 2019.''</center>
+
+'''Rank Bandings'''<br/>
+The current points thresholds for each rank are as follows:
+
+Dragon: '''5170'''
+
+Rune: '''3410'''
+
+Adamant: '''1810'''
+
+Mithril: '''880'''
+
+Steel: '''400'''
+
+Iron: '''80'''
+
+{{Horizontal Line}}
+
+Following feedback from the first week of the League, we've made the following changes:
+
+'''Arcane Courier'''
+
+[[File:Twisted League Stats and Changes (2).png|center|80px]]
+
+
+Players will now be notified how many resources exist in the Bank when the Arcane Courier Relic sends those same resources to the Bank.
+
+Geodes, bottles and nests containing clue scrolls are no longer automatically banked by the Arcane Courier Relic.
+
+'''Relic and Task Information'''
+
+[[File:Twisted League Stats and Changes (3).png|center|80px]]
+
+
+The message from the Hardcore Harvester relic that tells the player they cannot receive triple resources because their inventory is full has been added to the game filter.
+
+The tasks to serve 20 stews and 20 pizzas now specify that 30% or higher appreciation is required to complete the task.
+
+The description of the Unnatural Selection Relic has been updated to state that the same Farming Contract may not be chosen back to back, unlike Slayer Tasks.
+
+Thanks for all of your feedback! We're still open to suggestions so let us know how your Twisted League experience is going via the normal channels.
+
+'''Bugfixes'''
+*Fixed an issue where some Farming Contracts tasks were not successfully completing. They will now complete upon selection of a new Contract.
+*Fixed an issue where players could get assigned the wrong Farming Contract if they were boosted.
+*Fixed an issue where cactus, potato cactus and celastrus trees were not selectable by Unnatural Selection.
+*Fixed an issue that prevented players in the Endless Endurance gang from restoring Hitpoints while Prayer flicking.
+
+{{Horizontal Line}}
+
+{{Headline|22|Bounty Hunter}}
+
+
+'''Bounty Crates'''
+
+[[File:Twisted League Stats and Changes (4).png|center|80px]]
+
+
+Ironmen can now buy Bounty Crates from the shop. The version they will receive contains limited supplies based on the items players can obtain for themselves after skilling up or completing requisite Quests.
+
+For example, if you are an Ironman and the crate rolls anglerfish, but you only have the Fishing and Cooking levels to catch and cook a swordfish, the crate will give swordfish instead. Similarly, if the crate chose karambwan, but you hadn't done Tai Bwo Wannai Trio, it would instead give a fish that you could have obtained for yourself.
+
+The same applies to potions, by the way; if the crate rolled for a Super Restore potion, but your Herblore level was too low, it would substitute a lower-level potion instead.
+
+The crates will still contain Death and Blood runes (which can always be obtained via shops) but will not contain Mysterious Emblems which would create easy access to large amounts of gold.
+
+'''Trouver Parchment & the Rune Pouch'''
+
+[[File:Twisted League Stats and Changes (5).png|center|80px]]
+
+
+Trouver Parchment may now be used to protect the Rune Pouch.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+*An unnecessary message has been removed from player owned house storage.
+*The LMS 'broadcast' that states the location of the final safe zone has been recoloured to make the location easier to see.
+*The message given when you get a Bounty Hunter kill without carrying a Mysterious Emblem has been shortened.
+*There is no longer a double-length delay when attempting to teleport via spirit trees or fairy rings in Deadman worlds.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,610,66130590 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Kristy, Lenny, Lottie, Nasty, Oasis, Roq, Ry, Sween, Tide, Weath & West'''''<br/>''The Old School Team''

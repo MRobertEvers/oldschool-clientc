@@ -1,0 +1,180 @@
+There are multiple potions that exist solely within the [[Chambers of Xeric]]. These potions are made from herbs obtained from within this [[raid]].
+
+== Making Potions ==
+There are three components required to make raid potions. A [[water-filled gourd vial]] is obtained by picking an [[empty gourd vial]] from gourd trees in farming rooms, and using it on the nearby water spring. Herbs are obtained from farming seeds, which are dropped by certain mini-bosses. Lastly, secondary ingredients such as [[endarkened juice]] are dropped by [[Scavenger]]s.
+
+These three components can be combined to make a potion. The potion has three variants: weak, standard and strong. The weak and strong potions are indicated by (-) and (+) in their name, respectively. The strong variant provides the strongest boost while weak variant provides the weakest boost. The type of potion made depends on the player's Herblore level. Potions can be traded to other players.
+
+An example of how to make a potion is provided below.
+
+{| class="wikitable" |
+|-
+|Gourd tree (farming room)
+|→
+|{{plink|Empty gourd vial}}
+|→
+|colspan=3|{{plink|Water-filled gourd vial}}
+|rowspan=3|→
+|rowspan=3|
+{{SCP|Herblore|52}}<br/>
+{{plink|Xeric's aid (-)}}
+
+{{SCP|Herblore|65}}<br/>
+{{plink|Xeric's aid}}
+
+{{SCP|Herblore|78}}<br/>
+{{plink|Xeric's aid (+)}}
+|-
+|[[File:Guardian (Chambers of Xeric, female).png|x50px]] [[Guardian (Chambers of Xeric)|Guardian]]
+[[File:Lizardman shaman (1).png|x50px]] [[Lizardman shaman (Chambers of Xeric)|Lizardman shaman]]
+
+[[File:Skeletal mystic (1).png|x50px]] [[Skeletal mystic]]
+|→
+|{{plink|Buchu seed}}
+|→
+|{{plink|Grimy buchu leaf}}
+|→
+|{{plink|Buchu leaf}}
+|-
+|[[File:Corrupted scavenger.png|x50px]] [[Scavenger]]
+|→
+|colspan=5|{{plink|Endarkened juice}}
+|}
+
+== Seeds and Herbs==
+There are three types of seeds. These three seeds are always dropped together by the following minibosses: [[Guardian (Chambers of Xeric)|Guardians]], [[Lizardman shaman (Chambers of Xeric)|Lizardman shamans]], and [[Skeletal mystic]]s. They may also be found by raking the weeds at the end of each floor of the raid.
+
+Buchu herbs are used to make utility potions, golpar herbs are used to make combat potions, and noxifer herbs are used to combine combat potions into overloads.
+
+Each farming room contains two plots from which to farm grimy herbs. The number of herbs obtained per seed scales with the harvesting player's Farming level.
+
+{| class="wikitable" |
+|-
+!Seed
+!Farming level
+!Planting XP
+!Harvesting XP
+!Grimy Herb
+!Cleaning XP
+!Herb
+!Produces
+|-
+|{{plink|Golpar seed}}
+|27
+|4
+|10
+|{{plink|Grimy golpar}}
+|1
+|{{plink|Golpar}}
+|
+{{plink|Elder potion}}
+
+{{plink|Kodai potion}}
+
+{{plink|Twisted potion}}
+|-
+|{{plink|Buchu seed}}
+|39
+|6
+|15
+|{{plink|Grimy buchu leaf}}
+|2
+|{{plink|Buchu leaf}}
+|
+{{plink|Revitalisation potion}}
+
+{{plink|Xeric's aid}}
+
+{{plink|Prayer enhance}}
+|-
+|{{plink|Noxifer seed}}
+|55
+|12
+|30
+|{{plink|Grimy noxifer}}
+|3
+|{{plink|Noxifer}}
+|{{plink|Overload (Chambers of Xeric)|txt=Overload}}
+
+{{plink|Antipoison potion (4)|txt=Antipoison}}
+|}
+
+==Secondary ingredients==
+There are three types of secondaries. They are mostly dropped by [[Scavenger runt]]s and [[Scavenger beast]]s which are found in Scavenger rooms. Some other monsters may also drop small quantities of secondaries.
+{| class="align-center-2"
+|{{*}}||{{plinkt|Stinkhorn mushroom}}
+|-
+|{{*}}||{{plinkt|Endarkened juice}}
+|-
+|{{*}}||{{plinkt|Cicely}}
+|}
+
+== Potion Recipes ==
+Refer to this table to know which herb and secondary ingredient you must use to make each type of potion. The required Herblore level for the weak, normal and strong variant are also displayed in the table. Noxifer herbs must be combined with an Elder, Kodai and Twisted potion to make an Overload.
+
+{| class="wikitable" |
+|-
+!Herb
+!Weak (-)
+!Standard
+!Strong (+)
+!{{plink|Stinkhorn mushroom}}
+!{{plink|Endarkened juice}}
+!{{plink|Cicely}}
+|-
+!{{plink|Golpar}}
+|{{SCP|Herblore|47}}
+|{{SCP|Herblore|59}}
+|{{SCP|Herblore|70}}
+|{{plink|Elder potion}}
+|{{plink|Kodai potion}}
+|{{plink|Twisted potion}}
+|-
+!{{plink|Buchu leaf}}
+|{{SCP|Herblore|52}}
+|{{SCP|Herblore|65}}
+|{{SCP|Herblore|78}}
+|{{plink|Revitalisation potion}}
+|{{plink|Xeric's aid}}
+|{{plink|Prayer enhance}}
+|-
+!{{plink|Noxifer}}
+|{{SCP|Herblore|60}}
+|{{SCP|Herblore|75}}
+|{{SCP|Herblore|90}}
+|colspan=2|{{plinkp|Elder potion}} {{plinkp|Kodai potion}} {{plinkp|Twisted potion}} + {{plinkp|Noxifer}} → {{plink|Overload (Chambers of Xeric)|txt=Overload}}
+|{{plink|Antipoison potion (4)|txt=Antipoison}}
+|}
+
+== Potions ==
+{| class="wikitable" |
+|-
+!Potion
+!Effect
+|-
+|{{plink|Elder potion}}<sup>[[Elder (-)|(-)]][[Elder (+)|(+)]]</sup>
+|Boosts {{SCP|Attack}} {{SCP|Strength}} {{SCP|Defence}} (similarly to [[super combat potion]]).
+|-
+|{{plink|Kodai potion}}<sup>[[Kodai (-)|(-)]][[Kodai (+)|(+)]]</sup>
+|Boosts {{SCP|Magic}} {{SCP|Defence}} (similarly to [[battlemage potion]]).
+|-
+|{{plink|Twisted potion}}<sup>[[Twisted (-)|(-)]][[Twisted (+)|(+)]]</sup>
+|Boosts {{SCP|Ranged}} {{SCP|Defence}} (similarly to [[bastion potion]]).
+|-
+|{{plink|Revitalisation potion}}<sup>[[Revitalisation (-)|(-)]][[Revitalisation (+)|(+)]]</sup>
+|Restores all stats including prayer, except for hitpoints (similarly to [[super restore]]).
+|-
+|{{plink|Xeric's aid}}<sup>[[Xeric's aid (-)|(-)]][[Xeric's aid (+)|(+)]]</sup>
+|Boosts {{SCP|Hitpoints}} {{SCP|Defence}}, but lowers {{SCP|Attack}} {{SCP|Strength}} {{SCP|Ranged}} {{SCP|Magic}} (similarly to [[Saradomin brew]]).
+|-
+|{{plink|Prayer enhance}}<sup>[[Prayer enhance (-)|(-)]][[Prayer enhance (+)|(+)]]</sup>
+|Restores 1 prayer point every few seconds.
+|-
+|{{plink|Overload (Chambers of Xeric)|txt=Overload}}<sup>[[Overload (-)|(-)]][[Overload (+)|(+)]]</sup>
+|Applies a boost every 15 seconds to {{SCP|Attack}} {{SCP|Strength}} {{SCP|Defence}} {{SCP|Magic}} {{SCP|Ranged}}. Deals 50 damage when used (hits 10 five times), and heals 50 Hitpoints when it expires.
+|-
+|{{plink|Antipoison potion (4)|txt=Antipoison}}<sup>[[Antipoison (-)|(-)]][[Antipoison (+)|(+)]]</sup>
+|Cures poison and provides immunity to it for a duration.
+|}
+
+{{Chambers of Xeric}}

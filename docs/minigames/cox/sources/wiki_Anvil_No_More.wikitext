@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Anvil No More
+|image = [[File:Tekton.png|220px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tekton before he returns to his anvil for a second time after the fight begins.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 310
+|leagueRegion = Kourend
+}}
+'''Anvil No More''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[Tekton]] before he is able to use the anvil a second time.
+
+==Strategy==
+[[Defence]]-draining weapons such as the [[bandos godsword]] or [[dragon warhammer]] are recommended for this achievement due to their accuracy and ability to hit high. Tekton will automatically return to the anvil if no one is in range when he scans or after attacking for a while, restoring some of his health and drained stats in the process. Try to avoid forcing Tekton returning to the anvil as it will reduce the amount of hits the team can land.
+
+Tekton is weakest to crush attacks so using an [[elder maul]], or [[inquisitor mace]] is recommended, with a [[zamorakian hasta]]/[[dragon hunter lance]] as last-ditch alternatives. [[Inquisitor's armour]] helps complement the crush-based style with accuracy and damage bonuses, which should help deal plenty of damage to Tekton if he has been successfully debuffed.
+
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

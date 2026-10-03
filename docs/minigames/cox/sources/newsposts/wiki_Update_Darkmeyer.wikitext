@@ -1,0 +1,481 @@
+{{Update|date=4 June 2020|link=https://secure.runescape.com/m=news/darkmeyer?oldschool=1|category=game}}
+[[File:Darkmeyer newspost.png|right]]
+{{clear}}
+
+<center>''This week’s update introduces the Sins of the Father quest, the city of Darkmeyer, and the Hallowed Sepulchre.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Sins of the Father Quest}}
+
+[[File:Darkmeyer (1).png|center|600px]]
+
+'''Game Update 10:32 BST'''
+
+We'd like to apologise for any inconvenience, due to a problem with players' save games we're turning the game off temporarily.
+
+We're just as excited for Darkmeyer as you are, and we're working to bring the game back online as soon as possible.
+
+'''Game Update 10:51 BST'''
+
+We're going to rollback the game which will mean it remains offline for a few hours. We'll keep you updated throughout.
+
+We'd like to apologise again, and we greatly appreciate your patience whilst we resolve this issue.
+
+'''Game Update 11:17 BST'''
+
+As the rollback process begins, our aim is to rollback the game as close to the game update as we possibly can.
+
+'''Game Update 12:47 BST'''
+
+The rollback process is still progressing as planned. We'll communicate any updates as soon they're available.
+
+'''Game Update 14:18 BST'''
+
+The team is continuing to test the game worlds since the update has been rolled back. Thank you for your patience whilst we continue to do essential testing.
+
+'''Game Update 14:42 BST'''
+
+We're slowly re-opening the game worlds. We'd like to thank everybody for your patience.
+
+We're excited to finally show you Darkmeyer.
+
+'''Game Update 14:50 BST'''
+
+The Ring of Endurance (uncharged) currently cannot be traded on the Grand Exchange but can be traded between players manually. We will look to hotfix this after we know the game update is stable.
+
+'''Game Update 15:10 BST'''
+
+A small number of players are being presented with a 'Error loading your profile' message when trying to log in. This is related to the game rollback. We're trying to fix this issue as soon as possible, but we're not able to offer an exact timeframe.
+
+'''Game Update 16:35 BST'''
+
+We're aware of an issue that's causing players in the Hallowed Sepulchre to teleport to the lobby upon floor completion. We're working to resolve this as quickly as we can.
+
+'''Game Update 16:53 BST'''
+
+This should now be resolved. If you come across any bugs please report them in-game using the "Report" button located in the bottom right of your chat box. Thank you for your patience.
+
+
+In 'A Taste of Hope', you showed the vampyres that they bit off more than they could chew when they attacked the Myreque. Now, you and your revolutionary friends must take the fight to them, by infiltrating the vampyre city of Darkmeyer and facing Lord Lowernial Drakan on his own turf...
+
+Are you prepared to walk the bloodstained path?
+
+Sins of the Father is a new quest with the following requirements:
+<div class="mw-collapsible mw-collapsed">
+''Click here to see quest requirements''
+<div class="mw-collapsible-content">
+'''Quest Completion'''
+
+*A Taste of Hope
+*Vampyre Slayer
+
+
+'''Skills'''
+
+*62 Woodcutting
+*60 Fletching
+*56 Crafting
+*52 Agility
+*50 Attack
+*50 Slayer
+*49 Magic
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to see the quest starting point''
+<div class="mw-collapsible-content">
+'''Quest Start'''
+
+*Speak to Veliaf Hurtz outside Slepe
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to see quest rewards''
+<div class="mw-collapsible-content">
+'''Quest Rewards'''
+
+*2 Quest Points
+*Access to Darkmeyer
+*Improved Ivandis Flail
+*The ability to teleport to Darkmeyer with Drakan's Medallion
+*A Tome of Experience (3 x 15,000 XP)
+</div></div>
+
+<center>{{Youtube|f8H3VjqXR3Y}}</center>
+
+<center>''Darkmeyer Release Trailer.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Darkmeyer}}
+
+[[File:Darkmeyer (2).png|center|500px]]
+
+<center>''Inside Darkmeyer.''</center>
+
+Like its ghoulish inhabitants, the vampyre stronghold of Darkmeyer is both beautiful and dangerous. Before you step through the gates, you should read our traveller’s guide to the region:
+
+'''Vyrelords and Vyreladies'''
+
+[[File:Darkmeyer (3).png|center|500px]]
+
+<center>''Vyrelords and Vyreladies at an auction.''</center>
+
+The vampyre aristocracy are laden with luxuries – luxuries which a deft thief might easily take for themselves. At 82 Thieving you can pickpocket vyrelords and vyreladies, whose unique loot table includes the Blood Shard, a rare attachment for the Amulet of Fury that will transform it into a Blood Fury Amulet. This remarkable little artefact will allow you to try and sap your opponent’s life force, with a 10% chance to heal you for 10% of the damage you deal. 
+
+'''Vyrewatch Sentinels'''
+
+[[File:Darkmeyer (4).png|center|500px]]
+
+<center>''Vyrewatch Sentinels.''</center>
+
+Members of Drakan’s disciplinary force, the Vyrewatch Sentinels, can always be found prowling the streets in search of unruly humans to snack on – but there are many rewards for an adventurer brave enough to face them down.
+
+After Darkmeyer’s release, you can pay to have Konar, Duradel, Chaeldar and Nieve/Steve start assigning vampyres as Slayer Tasks – the Vyrewatch sentinels will count towards those. You can also use Slayer Points to purchase a vampyre task extension, if you're feeling particularly bloodthirsty.
+
+The Vyrewatch Sentinels all have a rare chance to drop the Blood Shard.
+
+'''Daeyalt Essence Mine'''
+
+[[File:Darkmeyer (5).png|center|500px]]
+
+<center>''Daeyalt Essence Mine.''</center>
+
+For many years, Darkmeyer was home to a mysterious power. Its presence caused the mineral deposits in the area to change, creating daeyalt and pure essence.
+
+With 60 Mining, you can mine daeyalt for yourself. The mine’s mysterious power means that only one daeyalt deposit will be active at any one time – so you’ll have to keep on your toes. The untradeable daeyalt shards you get from this activity can be traded in to an NPC in the mine for untradeable daeyalt essence, which will get you 50% more Runecraft XP when used as a basis for runes.
+
+'''Other Amenities'''
+
+[[File:Darkmeyer (6).png|center|500px]]
+
+<center>''The Crypt.''</center>
+
+If Slaying and Mining seem a bit too lowbrow for your taste, you can indulge in a bit of retail therapy. The clothing store in Darkmeyer sports a range of vampyric fashions, so you can strut your stuff about town in style.
+
+There’s also a general store, which stock the usual range of practical items, and a food shop, which sells the local delicacy known as ‘mystery meat’. Good luck with... whatever that is.
+
+Need something to wash that down with? Then head on over to The Crypt, where you can get yourself a nice warm Bloody Pint.
+
+And now that you’ve got a good meal in you, why not work out your Smithing muscles down at the forge? You’ll find a furnace and an anvil waiting for you. Chop chop! Those bars won’t smith themselves!
+
+Of course, if you’re looking for a more intense activity, you could always visit...
+
+{{Horizontal Line}}
+
+{{Headline|22|The Hallowed Sepulchre}}
+
+[[File:Darkmeyer (7).png|center|500px]]
+
+<center>''Entrance to the Hallowed Sepulchre.''</center>
+
+Before the vampyres came to Morytania, the region was occupied by the icyene, an ancient race of winged beings who followed Saradomin. Their queen was the legendary Efaritay Hallow, and their capital city was known as Hallowvale. Now, the royals might have had their own sacred burial plot, but most citizens of Hallowvale were laid to rest in a great crypt known as the Hallowed Sepulchre – along with all their worldly goods, of course.
+
+Plenty of adventurers have tried – and failed – to obtain those ancient treasures for themselves. The Sepulchre’s traps are not to be taken lightly. You’ll need all your skills, and a little bit of wit, to progress through the tomb and claim the treasure. Such bravery will be well rewarded. A mysterious group of unknown individuals will exchange a number of exciting goods for Hallowed Marks, the currency of the icyene.
+
+Will you be the first to uncover the Hallowed Sepulchre’s mysteries?
+
+<div class="mw-collapsible mw-collapsed">
+''Click here to see the requirements''
+<div class="mw-collapsible-content">
+'''Requirements'''
+
+*Level 1: 52 Agility
+*Level 2: 62 Agility
+*Level 3: 72 Agility
+*Level 4: 82 Agility
+*Level 5: 92 Agility
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to see the rewards''
+<div class="mw-collapsible-content">
+'''The Rewards'''
+
+'''Treasure Loot'''
+<br />
+If you're willing to sacrifice both time and Agility experience, while inside the Hallowed Sepulchre you can track down some treasure chests. These are protected by various traps, but they contain loot that may be worth your while, including the Ring of Endurance and the Strange Old Lockpick.
+
+{| class="wikitable" style="width:500px; margin: auto; text-align: center"
+!Reward
+!Image
+!Description
+|-
+|Ring of Endurance
+|[[File:Darkmeyer (8).png|center]]
+|This ring requires 70 Agility to equip. You charge it with up to 1000 doses of Stamina Potion (1 dose = 1 charge). A charge is consumed when you drink a Stamina Potion, which will double its effects.
+
+While the ring has at least 500 charges and you are not under the effect of a Stamina Potion, your run energy drain rate is reduced by 15%.
+
+The charged ring is untradeable.
+|-
+|Strange Old Lockpick
+|[[File:Darkmeyer (9).png|center]]
+|When placed in your inventory, this lockpick will allow you to bypass all Barrows doors. It is tradeable when it has its full 50 charges. A charge is consumed when you use the lockpick to open a door which was previously impassable to you. Once a charge has been lost, it becomes untradeable. When all charges are lost, the Strange Old Lockpick will disappear. How mysterious!
+|}
+
+'''The Reward Shop'''
+<br />
+Certain individuals will offer a number of interesting items in exchange for the Hallowed Marks you can find within the Sepulchre. For example, the one stood just outside the entrance carries the following useful items:
+
+{| class="wikitable" style="width:500px; margin: auto; text-align: center"
+!Reward	
+!Image
+!Description
+|-
+|Hallowed Token
+|[[File:Darkmeyer (10).png|center]]
+|This token, when consumed within the Hallowed Sepulchre, will add an extra minute to the remaining time.
+|-
+|Hallowed Grapple
+|[[File:Darkmeyer (11).png|center]]
+|This new grapple, when equipped in the ammo slot, will halve the failure rate when attempting a Ranged-related treasure challenge in the Hallowed Sepulchre. This grapple cannot be used anywhere outside of the crypt.
+|-
+|Hallowed Focus
+|[[File:Darkmeyer (12).png|center]]
+|When equipped in the off-hand slot, this focus will halve the failure rate of the Magic treasure challenges in the Hallowed Sepulchre.
+|-
+|Hallowed Symbol
+|[[File:Darkmeyer (13).png|center]]
+|This symbol, when equipped in the necklace slot, will halve the number of sacrifices required to get past the Prayer treasure challenges in the Hallowed Sepulchre.
+|-
+|Hallowed Hammer
+|[[File:Darkmeyer (14).png|center]]
+|This hammer will halve the chance of breaking a nail during Construction challenges in the Hallowed Sepulchre. It cannot be equipped.
+|-
+|Hallowed Ring
+|[[File:Darkmeyer (15).png|center]]
+|When equipped in the ring slot, this ring will prevent the user from taking damage when they fail an obstacle. It will teleport them back to the start of the obstacle “in the nick of time”, avoiding the penalty.
+|-
+|}
+
+'''Other Rewards'''
+<br />
+The same mysterious stranger also has some cosmetic rewards in stock, for those of you who want to show off your tomb-raiding skills in the wider world:
+
+{| class="wikitable" style="width:500px; margin: auto; text-align: center"
+!Reward	
+!Image
+!Description
+|-
+|Dark Dye
+|[[File:Darkmeyer (16).png|center]]
+|This dye can be used on any piece of Graceful clothing to recolour it into Dark Graceful.
+|-
+|Dark Acorn
+|[[File:Darkmeyer (17).png|center]]
+|When used on the Giant Squirrel pet, this acorn will turn it into a black and red version to match the Dark Graceful set. It is a permanent unlock, but don’t worry – you can choose to swap your furry friend back to its original colour at any time.
+|}
+</div></div>
+
+{{Horizontal Line}}
+
+{{Headline|22|Words from the J-Mods}}
+
+[[File:Darkmeyer (18).png|center|500px]]
+
+<center>''Team photo.''</center>
+
+Darkmeyer is one of the biggest content releases of the year, and the J-Mods have been dying to talk about it with you.Now that it’s here at last, we can finally lift the curtain and see what they have to say!
+
+But before you take a look, be aware that this section contains '''spoilers for the Myreque quest line'''. You’ve been warned!
+
+<div class="mw-collapsible mw-collapsed">
+''Click here to read words from Mod Ed''
+<div class="mw-collapsible-content">
+'''Mod Ed: Content Developer on ‘Sins of the Father’'''
+
+[[File:Darkmeyer (19).png|center|500px]]
+
+<center>''Sins of the Father quest start point.''</center>
+
+This is the fifth main quest in the Myreque storyline, but only the second we've released in Old School (after A Taste of Hope two years ago). While not on the scale of a Grandmaster quest like Dragon Slayer II, Sins of the Father is still much bigger than the previous quests in the series – so come prepared!
+
+We finally get to explore the aftermath of Ranis Drakan's death in A Taste of Hope. We also dive deeper into the mysteries of Safalaan Hallow and his strange powers. On top of all that, you’ll face the Myreque’s greatest threat yet, as Lord Lowernial Drakan finally enters the fray.
+
+A big challenge for the entire team was the sudden move to working from home mid-way through development. Our development tools were never designed to be used remotely so there was quite a bit of experimentation going on as we adapted to the situation. Inevitably, these challenges did result in a slight delay to Darkmeyer. However, the team have adapted brilliantly to the new circumstances and the delay is much smaller than originally feared. Well done, everyone!
+
+This is the update where everything changes for the Myreque. For 15 years, Drakan has been the faceless villain hidden in the shadows. With Sins of the Father, the Myreque – and you, the player – will find themselves confronting one of the most powerful beings on Gielinor.
+
+Good luck.
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to read words from Mod Husky''
+<div class="mw-collapsible-content">
+'''Mod Husky: Content Developer'''
+
+[[File:Darkmeyer (20).png|center|500px]]
+
+<center>''Hallowed Sepulchre Lobby.''</center>
+
+It was my job to come up with the majority of the Hallowed Sepulchre’s trap mechanics, rewards and systems. Most of the traps utilised new engine commands which had previously only been used for The Nightmare of Ashihama – so when I encountered problems, there weren’t any existing pieces of content I could look at for clues. Essentially, I was paving the way for introducing and creating new mechanics for future content.
+
+The fire traps in particular caused a lot of headaches – every time we thought we’d solved the issue, QA would come back with another exception that meant players could essentially skip the trap if they ran through in a certain way. The lightning traps were also tricky to get right – for a long time, they felt a bit too random, which we didn’t think was an enjoyable gameplay experience. After three whole iterations and countless playtests, we were finally truly happy with it.
+
+I’d like to thank Mod Flippy for supporting me throughout development, Mod West for helping me to flesh out the story (and adding a few surprises!), Mod Gee for bringing the statues to life, Mods Ian and Surma for creating a barrage of sound effects to use and, of course, Mod Bruno, for making sure that the Hallowed Sepulchre… actually works. I’d also like to thank Mod Ed who was there the whole time, providing guidance. I know I’ll be using the skills he’s taught me for even more awesome content in the future.
+
+It’s been great seeing the simple Agility concept I came up with nearly a year ago grow into this awesome piece of content. I can’t wait to see what you’ll all think of it on launch. I know I’ll have a little smile on my face every time I see someone run past me in Dark Graceful.
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to read words from Mod Flippy''
+<div class="mw-collapsible-content">
+'''Mod Flippy: Content Developer'''
+
+[[File:Darkmeyer (21).png|center|500px]]
+
+<center>''Daeyalt Essence Mine.''</center>
+
+My main work for this project has been on the Hallowed Sepulchre’s treasure encounters. I created a loot table for the chests, some helpful rewards, and, of course, some challenges to overcome.
+
+I also worked on the daeyalt mine – a new, relaxed way of training Runecraft. Although implementing the content itself wasn’t too difficult, the balancing was a bit tough to figure out. Runecraft is such an iconic skill and we didn’t want the traditional training methods to be overshadowed by this new one. For that reason, you’ll see that the daeyalt mine has slower experience rates – but it’s less intensive, and actually, it’s closer to the original design for Runecraft.
+
+Lastly, I got to work on a puzzle for Sins of the Father. Also, once you reach Darkmeyer, keep your eyes peeled for some of the easter eggs I’ve implemented. I challenge you to find them all!
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to read words from Mod Gee''
+<div class="mw-collapsible-content">
+'''Mod Gee: Character Artist'''
+
+<center>[[File:Darkmeyer (22).png|300px]][[File:Darkmeyer (23).png|300px]]</center>
+
+<center>''Concept art of Vampyres.''</center>
+
+I was responsible for the character work for this update, including the citizens of Darkmeyer, the Elite Vyrewatch and the new player kit.
+
+One of the biggest challenges I encountered was with the original vampyre base, which was very clunky and difficult to work with. I overcame this by recreating the base with more flexibility to the rig, which also meant I had to go through the entire library of vampyre animations and update them. This was preferable to manipulating the old rig, as I didn’t want to change any of the existing vampyre and vyrewatch animations. It was especially fun to recreate all of my favourite animations from the previous base and know that the old and the new will remain side-by-side in the game!
+
+I especially enjoyed creating the vyreladies, who can be found in the highest tiers of Darkmeyer society. I imagined them to be very elegant and wealthy and I tried to reflect that in their designs.
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to read words from Mod West''
+<div class="mw-collapsible-content">
+'''Mod West: Environment Artist'''
+
+[[File:Darkmeyer (24).png|center|500px]]
+
+<center>''The Icyene Graveyard.''</center>
+
+Initially I spent my time working with Mod Ed on a few of the new areas the players will be exploring in the early stages of the quest. These were environments some of you may already be familiar with - the icyene graveyard and the Meiyerditch labs which featured in the same questline on RuneScape 3. I wanted these environments to be as similar to the originals as possible, but with slight variations here and there. The icyene tomb, for instance, has a coat of ivy placed over it to help ground it into the world.
+
+[[File:Darkmeyer (25).png|center|500px]]
+
+<center>''Concept of one of the final floors of the Hallowed Sepulchre.''</center>
+
+Then I moved onto the Hallowed Sepulchre. The initial step was to figure out the aesthetics. For this we spoke with one of our concept artists, Mod Neil. After much discussion we had come to a good vision of our top and bottom floors as well as a breakdown of the various assets that will be populating the Sepulchre.
+
+While this was happening, Mod Husky and I spent some time working out a greybox of the environment and how we’d go about creating the path through the floors. After these were built, I made a pass of each one, shifting and moving certain paths around, either to make them more symmetrical or to integrate them better into the greater structure.
+
+[[File:Darkmeyer (26).gif|center|500px]]
+
+<center>''Hallowed Sepulchre Fire and Bolt Traps.''</center>
+
+A strange issue I bumped into early in the greyboxing stage was a peculiar graphical bug where scenery from the floor below was rendering through the floors above. Not good! After much playing around and speaking with a member of the engine team, the problem was still unresolved! I was getting quite worried as it meant that the overall layout I wanted wasn’t going to work. I ended up putting together a scene to try and discover the cause of the bug. As it happens, what was needed for the scene to render properly was some invisible terrain connecting the walkways together. Madness.
+
+From here, the rest of the work was polishing the basic layout with various props and set decoration. This was when I was joined by Mod Gee, who masterfully created all the magical statues seen setting fires and throwing swords - very cool.
+
+[[File:Darkmeyer (27).gif|center|500px]]
+
+<center>''Hallowed Sepulchre Floor 5.''</center>
+
+The Hallowed Sepulchre is some of my best work and I had a blast making it. My favourite part was during the final stages, when I started playing through the minigame to try and complete it. This was a great exercise as it got me looking at how the environment can be improved from a gameplay perspective. Can the bolts still be seen as they fly through both streams of fire and a field of lightning? Do the floor tiles make navigating tedious? Did I hide the grid too much? Hammering out these issues from a visual perspective was incredibly rewarding and I look forward to seeing players take on the Sepulchre.
+
+P.S. The final traps are hard, but I managed to get past them - so you’ve got no excuses!
+</div></div>
+<div class="mw-collapsible mw-collapsed">
+''Click here to read words from Mod Bruno''
+<div class="mw-collapsible-content">
+'''Mod Bruno: QA Analyst'''
+
+[[File:Darkmeyer (28).png|center|500px]]
+
+<center>''Inside Darkmeyer.''</center>
+
+I was the lead QA Analyst on the Darkmeyer project. My job was to make sure that the content being released has no bugs, is enjoyable to play and fits the game in terms of balancing, graphics and gameplay.
+
+Old School RuneScape has never had a piece of skilling content like the Hallowed Sepulchre, so one challenge I faced was ensuring that the difficulty of the minigame was appropriate. In the initial playtests, we found that it was a little too hard to complete and so we spent a lot of time rebalancing.
+
+One of my favourite things about Old School RuneScape is how it tells stories in quests, and it was really enjoyable to see how the plot unfolds in Sins of the Father. It’s been a really fun quest to play through, and I’m sure you’ll all enjoy it too!
+</div></div>
+
+We'd also like to give a special thanks to Mods Ian, Surma, and Slippers, who composed the music for everything in this update. To hear their musical stylings for yourselves, you can tune in to Spotify, where the Darkmeyer soundtrack has just launched.
+
+{{Horizontal Line}}
+
+{{Headline|22|Competition Winners}}
+
+To celebrate the release of Darkmeyer and Sins of the Father, we held not one, but two player competitions to show off Old School RuneScape’s dark side. So, without further ado... let’s see who won!
+
+'''Login Screen'''
+
+[[File:Darkmeyer (29).png|center|500px]]
+
+<center>''Player submitted login screens.''</center>
+
+We asked you to design an extra-spooky variant on Old School RuneScape’s iconic login screen. We received loads of entries, and after a lot of deliberation, we chose just four finalists. Well, the votes have been counted, and we’re proud to announce that the winner is...
+
+Nancyy! Congratulations! Your ghoulish log in screen (B in the image above) wowed the judges and your fellow players, and for that you’ll receive a £200 Amazon voucher and 12 months of membership.
+
+In second place is image C, which was created by SOFKAVODKA. They’ll win a £100 Amazon voucher and 6 months of membership.
+
+And in third place is DryDoctorEgg, with image A. They’ll win a £50 Amazon voucher and 3 months of membership.
+
+Special shout-out to God of Onion, with image D, who placed fourth.
+
+We’d like to thank everyone who submitted a login screen to the competition. There were some frighteningly good entries, and it was tough to choose just four for the final vote!
+
+'''The Story So Far'''
+<br />
+We also called upon budding filmmakers everywhere to create a video summary of the Myreque storyline. We’ve seen entries that could give John Carpenter a run for their money, but in the end, we had to select just three winners. So here they are!
+
+<center>{{Youtube|dUjPkOG8hcU}}</center>
+
+<center>''<nowiki/>'Morytania Explained' by DiedAlready.''</center>
+
+In first place is DiedAlready, with their video ‘Morytania Explained’. For their Wurtzian efforts, they’ll take away a £200 Amazon voucher and 12 months of membership.
+
+<center>{{Youtube|MgfSWXN33_Y}}</center>
+
+<center>''<nowiki/>'A Story of Vampyres' by Doctor Blunt''</center>
+
+In second place is Doctor Blunt with ‘A Story of Vampyres’. They win a £100 Amazon voucher and 6 months of membership.
+
+<center>{{Youtube|-NC_H5Pkuaw}}</center>
+
+<center>''<nowiki/>'The Myreque Story (More or Less)' by MediumDalton''</center>
+
+Finally, in third place is MediumDalton with ‘The Myreque Story (More or Less)’. They’ve won a £50 Amazon voucher and 3 months of membership.
+
+Congratulations to all of you!
+
+{{Horizontal Line}}
+
+{{Headline|22|New Official Merchandise}}
+
+[[File:Darkmeyer (30).png|center|500px]]
+
+Why not show off your new allegiance to the city of Darkmeyer with a new range of related merch, available now in the '''[http://osrs.game/merch official store?]'''
+
+Flesh out your Angels Scapes collection with all-new items including the Mark of Grace, Graceful, and Dark Graceful pins and the Trimmed Agility Cape keyring – perfect for when you need to protect some treasures of your own!
+
+Meanwhile, get in the spooky mood with the Darkmeyer Digital Soundtrack, available now on '''[https://osrs.game/DarkmeyerSoundtrack Spotify]''' and all major music streaming platforms. It features 17 tracks from Darkmeyer and the surrounding environs, as painstakingly created in the labs of the Old School Audio team.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+*Fixed a missing tile on the pier at Piscarilius.
+*Fixed the jagged coastline north of Prifddinas.
+*Fixed a blank tile in the Molch area.
+*The villagers of Draynor have become better educated in recent times, and will now spell 'vampyre' correctly - including in the quest text for Vampyre Slayer.
+*Three new music tracks, Vampyre Assault, Domain of the Vampyres and Morytanian Mystery, which previously only played in cutscenes during the Myreque questline, are now unlockable. Players who have already completed the relevant quests will find that the tracks have been unlocked automatically.
+*The 2019 Easter Dance emote will no longer stall combat damage.
+*If your friends or ignore list is empty, there will now be some text displayed rather than showing a blank space.
+*The talking in: and owner: fields of the clan chat panel are now grey when you're not in a chat channel.
+*The enraged Tektiny no longer throws a loud tantrum when walking.
+*Both walking and flying versions of Vespula should now perform the correct animations while on display in the player owned house.
+*The massive storage unit in the Chambers of Xeric has been added to the Construction Skill Guide and level up messages.
+
+{{Horizontal Line}}
+
+Discuss this game update on our '''[http://services.runescape.com/m=forum/forums.ws?380,381,643,66163927 official forums]''', the community-led '''[https://www.reddit.com/r/2007scape/ 2007Scape Reddit]''', or the community-led '''[http://discord.gg/OSRS OSRS Discord]''' in the '''#gameupdate''' channel. For reference on the above content, check out the official '''[[osrsw:|Wiki]]'''.
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''
