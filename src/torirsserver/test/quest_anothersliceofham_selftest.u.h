@@ -459,7 +459,9 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
             slice_pass("tegdak-tools", "OPNPC1", "slice_quest=2 tools");
     }
 
-    /* ---- Six digs (QH hotspot map 1,5,3,2,4,6) ---- */
+    /* ---- Six digs: trowel on the artefact, hotspot N unearths artefact N
+     * (slice_tegdak.rs2 [oplocu,slice_artifact_hotspot_0N]; the cache locs
+     * carry no op) ---- */
     {
         struct
         {
@@ -470,10 +472,10 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
             int vb;
         } digs[6] = {
             { loc_hot1, 2513, 5563, obj_dirty1, vb_art1 },
-            { loc_hot2, 2511, 5561, obj_dirty5, vb_art5 },
+            { loc_hot2, 2511, 5561, obj_dirty2, vb_art2 },
             { loc_hot3, 2513, 5550, obj_dirty3, vb_art3 },
-            { loc_hot4, 2511, 5547, obj_dirty2, vb_art2 },
-            { loc_hot5, 2512, 5544, obj_dirty4, vb_art4 },
+            { loc_hot4, 2511, 5547, obj_dirty4, vb_art4 },
+            { loc_hot5, 2512, 5544, obj_dirty5, vb_art5 },
             { loc_hot6, 2513, 5539, obj_dirty6, vb_art6 },
         };
 
@@ -490,13 +492,14 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
                 continue;
             }
             slice_release(srv, player);
-            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, digs[i].loc_id, -1, loc_slot);
+            player->last_useitem = obj_trowel;
+            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, digs[i].loc_id, -1, loc_slot);
             slice_drain(srv, player, 0);
             slice_release(srv, player);
             SELFTEST_CHECK(slice_inv_total(player, digs[i].dirty) >= 1,
                            "hotspot %d should grant a dirty artefact", i + 1);
         }
-        slice_pass("excavation", "OPLOC1", "six hotspots");
+        slice_pass("excavation", "OPLOCU", "six hotspots");
     }
 
     /* If a hotspot was missing from the scene, seed the remaining dirty pieces. */
