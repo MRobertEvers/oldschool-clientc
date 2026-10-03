@@ -240,3 +240,58 @@ baseline set); ::tobrun OK 56.
   open: she is attackable through the fall; the first Athanatos roll has no ceiling (18
   against 0-12 in one run); she wears the Normal forms in Entry; tob_verzik's pool rows
   must read ::tobboss phase_hp.
+
+## matthew-mbp-m4-raid-b1-seam7 (2026-10-03): presentation
+
+Triage `SEAM_TRIAGE_2026-10-03e.md`; parent cf5694e9f, OSRS-Content a006110486. No verb
+changed; conformance 275/275 (162 verbs + 113 seam rows, eight new). Suite 116 green +
+deserttreasure, regicide and troll RED (the baseline, nothing moved); C selftest 11
+failures, the baseline set; ::tobrun OK 56.
+
+- `ticklog_sound_and_music_rows`: LANDED. `sound`/`music`/`jingle` tick log rows (the
+  world.c and combat.c hooks kept); seq_frame_sounds.py; rows seam.ticklog_sound_rows and
+  seam.ticklog_music_row PASS. Still open: the jingle row and the `distance` source are
+  undriven; area sounds send loops 0 and are silent (sound.rs2); no player spotanim/anim
+  kind.
+- `tob_maiden_presentation`: LANDED (the blackstorm double removed; row
+  seam.maiden_blackstorm_sound_once). Still open: 32972/32973 and 3989 unsourced;
+  maiden_spawn re-graded a later quest's asset.
+- `tob_bloat_presentation`: LANDED (stun graphic 1575, two doubles removed; row
+  seam.bloat_down_sounds_in_band). Still open: fly variants 1/4/6 and three locs
+  unsourced; the stun graphic has no tick log row.
+- `tob_nylocas_presentation`: LANDED (small death graphics, sizemid projectile, Vasilias
+  and Prinkipas land with 9030, five doubles removed; row seam.nylocas_presentation).
+  Still open: 7990/8001 and 3982/3993/3946/3959 unsourced; the small's 'turn' seq.
+- `tob_sotetseg_presentation`: LANDED (death-ball sound and message, sharer impacts, rag
+  graphic, tornado sounds, maze-proc seq, plain/dark floor, the melee double). Still
+  open: the floor turns plain at fight start, not on entry (tob_raid.rs2 one line); the
+  tornado stalls when the runner stands; Hard Mode's divided maze (a mechanic); 1603,
+  3970, 8141, 33036 unsourced; the area sounds are silent until sound.rs2 sends loops 1.
+- `tob_xarpus_presentation`: LANDED (acid pools dissolve at collapse +4..+7 with
+  1551-1554; [M124] in the plan). Still open: 3231/3944/3949 need a recording's audio;
+  the tob_xarpus attempt's splat-lifetime row must be bounded before the collapse.
+- `tob_verzik_presentation`: LANDED (zap shock, death bat, throne transform and trapdoor
+  at +5, Athanatos spawn and globules, yellows, P3-death sound and eight doubles; the
+  closer's final-tree run 27/27). Still open: the zap and the Athanatos heal land before
+  their projectiles (mechanics); 1596 as a projectile; the Hard debris graphic, 1599,
+  3028, 3988, 4008 unsourced.
+- `tob_boss_hit_and_defend_sounds`: LANDED (seven hit sounds; row seam.tob_boss_hit_sound).
+  Still open: 3977 unsourced; the 12-tile carry is from the south-west tile; generator
+  drift (516 ledgers, 420 blocks).
+- `tob_treasure_vault`: LANDED (trapdoor, vault, five chests, tob_chests, crystal, Ver
+  Sinhaza claim; the roll unchanged). Still open: the common table and unique roll are
+  not the wiki's; the stairs, Discard-all confirmation and side-chest ownership; the war
+  table is inside the spectator enclosure; varbit 11958's carrier is server-only.
+- `tob_death_spectate_and_lobby_services`: LANDED (cage, rejoin, Entry restart, Normal/Hard
+  wipe, tob_midway_stores, gravestone chest, deposit box, orators; row
+  seam.tob_death_cage_then_entry_restart). Still open: bosses target the cage (every room's
+  hunt); varp1746 undeclared; ~tob_orator_place uncalled; the death line in state.lua;
+  the Mysterious Stranger and escape crystal.
+- `tob_party_board_and_scoreboard_interfaces`: LANDED (party list and details fed, the door
+  needs a party, infoboard and scoreboard; row seam.tob_party_board_forms_a_party). Still
+  open: varps 1740/3052/1746 undeclared; sub-0 button latch (engine); the first-push
+  GOSUB stall (client); t.chat.count under a modal; apply/accept/kick unproved with one
+  client.
+- `tob_music_and_title_card`: LANDED (unlocks where played, the vault track, jingle 250
+  on every boss death, card sound 3952). Still open: the engine's region unlock writes the
+  wrong varp (556 never unlocks; the vault prints two unlock lines).
