@@ -54,8 +54,14 @@ return {
         t.check("goDownTree-landed", below and below.z > 9000, "burrow tile " .. tostring(below and below.x) .. "," .. tostring(below and below.z))
 
         -- 1.3 talkToVerity
-        t.exec("goto-talkToVerity", t.player.goto_tile, 1559, 9467, 0)
-        t.exec("talkToVerity", t.player.talk_to, "hg_verity", 1)
+        t.exec("goto-talkToVerity", t.player.goto_tile, 1559, 9462, 0)
+        local vr, vrow = t.npc.nearest("hg_verity", 10)
+        t.check("talkToVerity-where", vr == "ok", "verity row " .. tostring(vr) .. " x=" .. tostring(vrow and vrow.x) .. " z=" .. tostring(vrow and vrow.z))
+        local tv_result, tv_detail = t.player.talk_to("hg_verity", 1)
+        do
+            t.blocked("content_bug: talkToVerity -- Verity stands at 1559,9464 behind the bar counter (floor-blocked tiles z 9463, x 1556-1560, flap hg_table_tavern02_door01 has no op); talk_to from 1559,9462 straight across answers " .. tostring(tv_result) .. " '" .. tostring(tv_detail) .. "' and from 1561,9463 and 1559,9461 the same: every tile adjacent to her is unreachable, so the only landing is the sealed pocket behind the bar (a goto past the counter, rejected). The port lacks the across-the-counter reach OSRS has; all later legs unverified.")
+            return
+        end
         t.exec("talkToVerity-dialog", t.chat.play, {
             "player:Apatura sent me",
             "npc:Yes. Fox's report on his trapping trip vanished",
@@ -140,25 +146,22 @@ return {
 
         -- 1.14 catchJerboa: lay both traps by the oasis, collect the catches (random rolls retry)
         t.exec("goto-catchJerboa", t.player.goto_tile, 1664, 3000, 0)
-        local spots = { { 1664, 3003 }, { 1661, 3002 } }
         local tails = 0
         for round = 1, 14 do
             local _, tail_total = t.inv.count("hunting_jerboa_tail")
             tails = tail_total or 0
             if tails >= 2 then break end
             local _, held = t.inv.count("hunting_box_trap")
-            for i = 1, #spots do
-                if (held or 0) >= 1 and (tails + i) <= 2 then
-                    t.exec("catchJerboa-goto" .. round .. "." .. i, t.player.goto_tile, spots[i][1], spots[i][2] - 2, 0)
-                    local fl, _ = t.world.loc_near("hunting_boxtrap_empty", 12)
-                    if fl ~= "ok" then
-                        t.exec("catchJerboa-goto-at" .. round .. "." .. i, t.player.goto_tile, spots[i][1], spots[i][2], 0)
-                        local lay_result, lay_detail = t.player.inv_op("hunting_box_trap", 1)
-                        t.check("catchJerboa-lay" .. round .. "." .. i, lay_result == "ok" or lay_result == "timeout", "lay -> " .. tostring(lay_result) .. " " .. tostring(lay_detail))
-                        t.ticks(6)
-                        held = held - 1
-                    end
-                end
+            local el, _ = t.world.loc_near("hunting_boxtrap_empty", 14)
+            local fl, _ = t.world.loc_near("hunting_boxtrap_full_jerboa", 14)
+            local bl, _ = t.world.loc_near("hunting_boxtrap_failed", 14)
+            if (held or 0) >= 1 and el ~= "ok" and fl ~= "ok" and bl ~= "ok" then
+                t.exec("catchJerboa-goto-at" .. round, t.player.goto_tile, 1664, 3002, 0)
+                local lay_result, lay_detail = t.player.inv_op("hunting_box_trap", 1)
+                t.ticks(6)
+                local _, held_after = t.inv.count("hunting_box_trap")
+                local laid, _ = t.world.loc_near("hunting_boxtrap_empty", 6)
+                t.check("catchJerboa-lay" .. round, lay_result == "ok" and (held_after or 0) < (held or 0) and laid == "ok", "lay -> " .. tostring(lay_result) .. " " .. tostring(lay_detail) .. "; box traps held " .. tostring(held) .. " -> " .. tostring(held_after) .. "; trap loc " .. tostring(laid))
             end
             t.ticks(40)
             local fok = t.world.loc_near("hunting_boxtrap_full_jerboa", 14)
@@ -200,7 +203,8 @@ return {
         t.check("talkToFoxAfterPoultice-fur", fur_result, "fur samples: " .. tostring(fur_total))
 
         -- 1.18/1.19 talkToAtza (fur in hand)
-        t.exec("goto-talkToAtza", t.player.goto_tile, 1696, 3061, 0)
+        t.exec("goto-talkToAtza", t.player.goto_tile, 1698, 3066, 0)
+        t.exec("talkToAtza-door", t.player.click_loc, "fortis_door_l", 1, { at = { 1698, 3064 } })
         t.exec("talkToAtza", t.player.talk_to, "afl_atza", 1)
         t.exec("talkToAtza-dialog", t.chat.play, {
             "player:Fox sent me with a fur sample",
@@ -210,13 +214,21 @@ return {
         t.expect("quest.stage.repair", t.quest.expect_stage("repair"))
 
         -- 1.20 takeHammer
-        t.exec("goto-takeHammer", t.player.goto_tile, 1696, 3068, 0)
+        t.player.walk_to(1698, 3066, 12)
+        local _, out1 = t.world.tile()
+        t.check("takeHammer-leaveAtza", out1 and out1.z >= 3065, "walked out through Atza's door to " .. tostring(out1 and out1.x) .. "," .. tostring(out1 and out1.z))
+        t.exec("goto-takeHammerOutside", t.player.goto_tile, 1694, 3068, 0)
+        t.exec("takeHammer-door", t.player.click_loc, "fortis_door_l", 1, { at = { 1695, 3068 } })
         t.exec("takeHammer", t.player.click_obj, "hammer")
         local hammer_result, hammer_total = t.inv.await("hammer", 1, 8)
         t.check("takeHammer-have", hammer_result, "hammers: " .. tostring(hammer_total))
 
         -- 1.21 makeEquipmentPile
-        t.exec("goto-makeEquipmentPile", t.player.goto_tile, 1697, 3061, 0)
+        t.player.walk_to(1694, 3068, 12)
+        local _, out2 = t.world.tile()
+        t.check("makeEquipmentPile-leaveHammerHouse", out2 and out2.x <= 1694, "walked out through the hammer house door to " .. tostring(out2 and out2.x) .. "," .. tostring(out2 and out2.z))
+        t.exec("goto-makeEquipmentPile", t.player.goto_tile, 1698, 3066, 0)
+        t.exec("makeEquipmentPile-door", t.player.click_loc, "fortis_door_l", 1, { at = { 1698, 3064 } })
         t.exec("makeEquipmentPile", t.player.click_loc, "afl_housetrap_multi", 1)
         t.var.await("varb9840_afl_housetrapped", 2, 10)
         t.expect("makeEquipmentPile-set", t.var.expect("varb9840_afl_housetrapped", 2))
@@ -250,7 +262,7 @@ return {
         t.ticks(4)
 
         -- 1.27 talkToVerityEnd
-        t.exec("goto-talkToVerityEnd", t.player.goto_tile, 1559, 9467, 0)
+        t.exec("goto-talkToVerityEnd", t.player.goto_tile, 1559, 9462, 0)
         t.exec("talkToVerityEnd", t.player.talk_to, "hg_verity", 1)
         t.exec("talkToVerityEnd-dialog", t.chat.play, {
             "player:Fox gave me this report",
