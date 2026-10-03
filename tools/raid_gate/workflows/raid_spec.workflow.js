@@ -11,7 +11,8 @@ export const meta = {
 // The raid spec pass (docs/RAID_ORCHESTRATOR.md section 3). Paste this file to
 // the Workflow tool with args:
 //   { pass: "<branch>-spec-tob", raid: "tob" | "toa" | "cox",
-//     encounters: ["maiden", "bloat", ...], context: "<one paragraph>" }
+//     encounters: ["maiden", "bloat", ...], context: "<one paragraph>",
+//     corpus_only: true (optional: run the Corpus phase and stop; nothing is committed) }
 // State under build/spec_state/<pass>/ (corpus.json, <room>.spec.json,
 // <room>.spec.progress.md, close.json); relaunch with the SAME args to continue
 // from disk. Never resumeFromRunId. Never run it alongside a seam pass or a
@@ -29,7 +30,8 @@ const raid = args && args.raid
 const encounters = (args && args.encounters) || []
 if (!pass) throw new Error('args.pass is required (e.g. "matthew-mbp-m4-raid-b1-spec-tob")')
 if (!['tob', 'toa', 'cox'].includes(raid)) throw new Error('args.raid must be tob, toa or cox')
-if (!encounters.length) throw new Error('args.encounters is empty')
+const corpusOnly = !!(args && args.corpus_only)
+if (!encounters.length && !corpusOnly) throw new Error('args.encounters is empty')
 const STATE = `${WT}/build/spec_state/${pass}`
 const extraContext = (args && args.context) ? `\n\nCURRENT PICTURE: ${args.context}` : ''
 
@@ -87,6 +89,8 @@ YOUR JOB: gather and pin the source corpus for ${RAID.name} under ${RAID.docs}/s
 FINISH: write the schema JSON to ${STATE}/corpus.json (added = new files relative to ${WT}; refreshed = README/SOURCES rows added; unavailable = each source you could not get, with why; sources_md = the path you updated), then return it.`, { label: `corpus:${raid}`, phase: 'Corpus', model: 'claude-sonnet-5-5', schema: CORPUS_SCHEMA }))
   if (!corpus) throw new Error('the corpus phase produced no result after two tries; relaunch with the same args')
 }
+
+if (corpusOnly) { log('corpus_only: the corpus phase is done; relaunch without it (same pass) to build the tables'); return { pass, corpus, reports: [], failed: [], land: null } }
 
 phase('Spec')
 const fresh = await parallel(todo.map(room => () => attempt(`spec:${room}`, 2, () => agent(`${COMMON}
