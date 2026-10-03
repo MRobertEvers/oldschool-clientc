@@ -949,3 +949,75 @@ examples; the measured text, the `(spec ...)` group, grade and tol are exact.
   T-1 text, grade C, tol exact)`
 
 The ledger detail is one line: the wrapping above is this page's, not the string's.
+
+# What the second ToB room pass tripped on (matthew-mbp-m4-raid-b1-rooms-tob)
+
+Folded from the reviewers' doc gaps of the second launch of the ToB room pass. Each line
+is a fact about a verb, the tick log, the grader or a room that the sections above lack.
+
+## In a boss fight, press attack with ticks=1
+
+- `t.player.attack(sym, op, ticks)`: `ticks` is the settle deadline (default 10). With a
+  deadline above 1 the verb keeps re-aiming at the boss's pixels until a hit lands, and on
+  a covered or moving boss that hunted up to 20 ticks (tob_maiden), long enough to miss
+  every dodge in the loop. Press with `ticks=1` and read the fight from the tick log's
+  `hit_npc` rows, not from the verb's answer.
+- A pool decal (Xarpus) lying over the boss pixel can make the press answer covered and
+  then spend 3 to 20 ticks of camera settling. Step so the boss is clear of the decal, or
+  press with `{ slot = n }` after the step.
+- `t.player.inv_op` (eating) costs about 3 server ticks from press to settle. Budget it
+  in a dodge loop: an eat started on T-2 of a hit is not finished on T.
+- Re-attack after every eat, dodge or step (README lessons); an eat drops the engagement.
+
+## Rows inside a timed loop
+
+- A `t.check` row costs server ticks (its screenshot settles). Inside a per-tick dodge or
+  attack loop, collect the readings in a Lua table and emit the `t.check` rows after the
+  loop ends.
+- A player death aborts the run with `player.died`; every row not yet written is lost.
+  Break the loop on low hitpoints (eat first, then leave the loop) and write the rows.
+- `t.player.alive()` returns `("ok", detail)` or `("refused", detail)`, both strings: it
+  is never false, so `if t.player.alive() then` is always taken. Compare to `"ok"`.
+
+## Specials and stats the driver cannot read
+
+- A special attack is pressed as the player would: `t.ui.tab('combat')` then
+  `t.ui.widget('combat_interface:special_attack')`, then the attack press (Dragon
+  warhammer, seen landing its floor). On Entry Bloat two warhammer specials and Curse
+  drained nothing (Defence read 80 of 80; mage defence 600), so `bloat.stomp_defence`
+  could not be driven through a drain there: report it open, not as a pass.
+- No verb reads equipment bonuses and no verb casts an ice spell, so
+  `maiden.freeze_full_bonus` is unreachable from a room test (open driver row).
+- `::tobboss` prints hp and Defence but no Attack level, so `sotetseg.attack_level` has
+  no read-only readout (open row; do not reach for a write cheat).
+- `t.npc.state` and `t.npc.nearest` rows carry no `size` (the pool row, struct
+  DriveNpcRow, has none). A footprint row (`xarpus.size.p1_p2`) is the cache record's
+  `size`, read from the content `.npc` file, plus the south-west tile from the row; the
+  player side cannot measure it (open driver row).
+
+## Bloat walks before the barrier click
+
+- In tob_bloat's tick log Bloat's `npc_tile` rows start on server tick 15, the room
+  landing, while the author's `room start` mark (the barrier click) was tick 59. So
+  `bloat.fly_first` / `bloat.first_walk` measured from a mark at the click are short by
+  the gap: measure them from the room's own start (the first `npc_tile` row of the boss),
+  and state which origin the row used.
+
+## The grader's number parsing
+
+- `raid_coverage.py` reads a measured range only as `lo-hi`. `38.4..38.4` passes the
+  number test and then crashes `float()`; write one value, or `lo-hi`.
+- Tolerance `range` against a single spec value demands equality (lo = hi), so a table
+  row whose prose means a ceiling or floor (xarpus `max_hit.entry` 6, `stomp_max` 9,
+  `retaliate_min_entry` 38) is graded exact. Report the measured figure honestly; a
+  ceiling met below the spec reads as a failure until the table says `0-6` (open grader
+  or table row).
+
+## Xarpus retaliation solo
+
+- The P3 retaliation scales with the share of exhumeds absorbed, not orbs: a solo run
+  always reaches 100 percent (a late cover still lets one orb through), and the hit
+  reached 103-105. Survive the probe on a Saradomin brew's boost (hp 115).
+- The room-exit item `tob_skeleton_with_weapon` at 6435,109 answered "I can't reach
+  that!" to `click_loc` from 6434..6436,106 (the arena's north edge); the route to it is
+  undocumented (open).
