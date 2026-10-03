@@ -18,10 +18,13 @@ return {
         "::setlevel attack 60", -- melee style
         "::setlevel strength 70",
         "::setlevel defence 60",
-        "::setlevel magic 40", -- second style: Wind Strike
+        "::setlevel magic 54", -- second style: Wind Strike; 54 is the Civitas illa Fortis Teleport level (magic_spells.dbrow:256)
         "::give rune_scimitar 1",
         "::give air_rune 200",
         "::give mind_rune 200",
+        "::give earth_rune 1", -- Fortis Teleport runes (magic_spells.dbrow:257)
+        "::give fire_rune 1",
+        "::give law_rune 2",
         "::give shark 12", -- food for Mezan (lvl 81, max 8)
         "::give rune_full_helm 1",
         "::give rune_chainbody 1",
@@ -209,7 +212,7 @@ return {
                 t.ticks(2)
                 local _, lx = t.world.tile()
                 local _, stage = t.var.server("varb9649_vmq2")
-                t.check("leg.1.state", lx ~= nil, "tile " .. tostring(lx and (lx.x .. "," .. lx.z .. "," .. lx.level))
+                t.check("leg.1.state", lx ~= nil and lx.z > 3000 and lx.z < 9000 and stage == 14, "tile " .. tostring(lx and (lx.x .. "," .. lx.z .. "," .. lx.level))
                     .. " stage=" .. tostring(stage))
             end,
         },
@@ -361,7 +364,7 @@ return {
                 t.exec("wield-helm", t.player.equip, "rune_full_helm")
                 t.exec("wield-chainbody", t.player.equip, "rune_chainbody")
                 t.exec("wield-platelegs", t.player.equip, "rune_platelegs")
-                t.exec("goto-enterColosseum", t.player.goto_tile, 1797, 3106, 0)
+                t.exec("goto-enterColosseum", t.player.goto_tile, 1795, 3106, 0)
                 t.exec("enterColosseum", t.player.click_loc, "colosseum_entrance_outside", 1)
                 t.ticks(3)
                 local _, lobby = t.world.tile()
@@ -390,7 +393,7 @@ return {
                 })
                 t.ticks(4)
                 local _, arena = t.world.tile()
-                t.check("talkToColosseumKnight.arena", arena ~= nil, "in the arena copy at " .. tostring(arena and (arena.x .. "," .. arena.z .. "," .. arena.level)))
+                t.check("talkToColosseumKnight.arena", arena ~= nil and arena.x > 6000 and arena.x ~= lobby.x, "in the arena copy at " .. tostring(arena and (arena.x .. "," .. arena.z .. "," .. arena.level)))
 
                 -- Mezan prays against a style used four swings in a row (colosseum.rs2:102): never more than three
                 -- melee swings before one Wind Strike, so the streak never reaches four.
@@ -410,7 +413,7 @@ return {
                 end
                 local _, food1 = t.inv.count("shark")
                 t.check("defeatColosseumKnight.dead", dead, "Mezan beaten (loop of 3 melee swings then one Wind Strike), lowest hp " .. tostring(lowest) .. "/80")
-                t.check("defeatColosseumKnight.dead.margin", (food1 or 0) >= 2 or lowest > 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: left >= 2 or lowest > 25)")
+                t.check("defeatColosseumKnight.dead.margin", (food1 or 0) >= 1 and lowest >= 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: food left >= 1 AND lowest hp >= 25)")
                 t.ticks(10)
                 t.msg.expect("You leave the battle")
                 t.expect("colosseum.beaten", t.var.expect("varb9832_vmq2_colosseum_knight", 2))
@@ -428,7 +431,7 @@ return {
                 t.ticks(2)
                 local _, ex = t.world.tile()
                 local _, stage2 = t.var.server("varb9649_vmq2")
-                t.check("leg.2.end", ex ~= nil, "tile " .. tostring(ex and (ex.x .. "," .. ex.z .. "," .. ex.level))
+                t.check("leg.2.end", ex ~= nil and stage2 == 22 and ex.z > 9000, "tile " .. tostring(ex and (ex.x .. "," .. ex.z .. "," .. ex.level))
                     .. " stage=" .. tostring(stage2) .. "; carrying crest, sharks, runes, scimitar worn")
             end,
         },
@@ -457,10 +460,11 @@ return {
                 t.ticks(2)
                 t.expect("quest.stage.letter", t.quest.expect_stage(24))
 
-                t.exec("goto-enterHQ", t.player.goto_tile, 1660, 3150, 0)
-                -- The HQ's east-wall door (1657,3150, loc fortis_door_l_reverse) is plain travel, not a guide step.
-                t.exec("open-hq-door", t.player.click_loc, "fortis_door_l_reverse", 1)
-                t.ticks(2)
+                -- Walk from the palace square to the HQ's open arches at x 1652 (no door, no teleport inside).
+                t.player.walk_to(1660, 3155, 30)
+                t.ticks(10)
+                t.player.walk_to(1652, 3155, 20)
+                t.ticks(8)
                 t.player.walk_to(1645, 3155, 12)
                 t.ticks(8)
                 local _, inside = t.world.tile()
@@ -601,7 +605,7 @@ return {
                 local _, kfin = t.var.server("varp7291_tp_battle_kills")
                 local _, food1 = t.inv.count("shark")
                 t.check("defeat8Cultists.kills", tonumber(kfin) == 8, "cultists felled " .. tostring(kfin) .. " of 8 (varp7291_tp_battle_kills)")
-                t.check("defeat8Cultists.margin", (food1 or 0) >= 2 or lowest > 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: left >= 2 or lowest > 25)")
+                t.check("defeat8Cultists.margin", (food1 or 0) >= 1 and lowest >= 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: food left >= 1 AND lowest hp >= 25)")
                 t.ticks(8)
                 t.msg.expect("You leave the battle")
                 t.exec("defeat8Cultists-aftermath", t.chat.drain, { max_pages = 30 })
@@ -619,6 +623,15 @@ return {
                 t.check("reward.thieving", tr == "ok", "thieving +3000 xp documented: " .. tostring(tr) .. " " .. tostring(td))
                 local _, ft = t.var.server("varb9652_vmq2_first_travel")
                 t.check("reward.quetzal", ft == 3, "Quetzal Transport System unlocked (varb9652_vmq2_first_travel " .. tostring(ft) .. " == 3, twilightspromise.rs2:86)")
+                t.ticks(2)
+                local _, vmq2 = t.var.server("varb9649_vmq2")
+                t.check("reward.teleport.unlocked", vmq2 >= 1, "varb9649_vmq2 " .. tostring(vmq2) .. " (tp_complete gate, teleport.rs2:37)")
+                t.exec("reward.teleport", t.player.cast, "fortis_teleport")
+                t.ticks(8)
+                local _, at = t.world.tile()
+                local tx, tz = tonumber(at.x) or 0, tonumber(at.z) or 0
+                local tile = tx .. "," .. tz
+                t.check("reward.teleport.landing", math.abs(tx - 1735) <= 8 and math.abs(tz - 2965) <= 8, "landed at " .. tile .. ", expected near 1735,2965 (tele_coord 0_27_46_7_21)")
                 -- LEG 4 END
                 t.finish(0)
             end,
