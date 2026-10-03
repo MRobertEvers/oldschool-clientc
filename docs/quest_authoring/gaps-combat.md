@@ -549,3 +549,27 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
   a trap 16 cheat. This is an open staging and map seam. Do not paper over it in the test.
 - Her bar is 80 units wide, so read the server: `t.cheat("::swansong_queen_hp")` then
   `t.msg.expect("Sea Troll Queen hitpoints 200/200")` (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a)).
+
+## Fewer sharks at the boss than the setup gave; the food runs out and the kill still passes at 1 hp (Swan Song round 5, b54 sampler)
+
+*Origin: the matthew-mbp-m4-b54 round-5 author and reviewer doc_gaps, and the sampler's send-back.*
+
+- **`::wield` in setup frees the slot, so wear the gear before the food is given.** A `::give X` then
+  `::wield X` pair leaves the backpack empty of X. Give and wield the bow, arrows and armour first,
+  then `::give shark N` last. Round 5's first run gave 14 sharks while the gear was still in the pack,
+  and only 11 fit.
+- **`::give` truncates and the setup still passes.** The server prints "Gave 4 x Shark, 12 did not fit",
+  but no row fails. Read the food you really carry at the fight (`t.inv.count("shark")` in a
+  `killQueen-food` row). The ledger is the only place that shows it.
+- **There is no bank verb, so the food is capped by the leg where the pack peaks.** Count the slots
+  there, not at the boss. Swan Song peaks on the fishing leg: 4 bones, 2 soft clay, the hammer, the net
+  and 5 raw monkfish leave room for 15 sharks, and with 16 the fifth cast failed (`inv.await` 4 -> 4).
+  Drop each tool once its step is done (tinderbox and logs after the firebox, the net after Arnold,
+  the hammer after the walls) with `t.player.drop` and an `expect_absent` row.
+- **A kill that ate every shark is not a green.** `await_dead_engaged`'s detail saying `OUT OF shark`,
+  or a death shot whose hitpoints orb reads 1, means the next run can die. The sampler sent round 5
+  back for that: 15 sharks eaten, the Queen at 4/80 when they ran out, the player at 1 hp at the scroll.
+  Lower her hit chance with gear before you add food. `black_dragonhide_body` (magic defence +45) is
+  not quest-gated: `levelrequire.rs2:178` gates only the green `dragonhide_body`. With the coif, chaps
+  and vambraces that takes magic defence from 35 to 80. Eat to full before the first Attack, too
+  (round 5 opened the fight at 72/99 because 72 was above `below=60`).

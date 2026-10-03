@@ -235,6 +235,7 @@ topic file with one line added here.
 - a quest boss dies to one spell, or a level-79 troll reads 21/30 after one hit of 3 (Swan Song's Sea Troll Queen and sea trolls) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a) (read the server: `::swansong_queen_hp`, `::swansong_troll_hp`)
 - `I'm already under attack.` on every Attack after the first, against several aggressive npcs at once (Swan Song colony ambush) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (b) (`forcemulti=yes` where the wiki says multicombat)
 - prayer falls about 21 a swing with no damage at range; `I can't reach that!` attacking a boss in the sea; the character dies after 23 sharks (Swan Song's Sea Troll Queen) -> gaps-combat: A boss you cannot reach on foot drains 21 Prayer a swing
+- fewer sharks at the boss than `::give shark N` said ("N did not fit", no row fails); a boss kill whose detail says `OUT OF shark` or ends at 1 hp; no bank verb to restock (Swan Song round 5) -> gaps-combat: Fewer sharks at the boss than the setup gave
 - how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
 
 ## Completion and rewards
