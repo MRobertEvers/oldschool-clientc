@@ -67,6 +67,11 @@ Summary. ENG-16, ENG-17, ENG-18 (and ENG-4's third item), measured in seam pass 
 `p_delay(2)` holds a queued PROJECTILE hit until the delay ends (cast 30, hit 33 instead of
 31); an eat costs 0, 1 or 2 ticks of the next swing depending on where in the swing it
 lands; a drink ends in `p_stopaction` and wipes an Attack pressed during it. Sources: the modern rule on the pinned wiki. Pin the Food page (its delay section), the Potion page, Tick eating and Combo eating with `tools/toa_fetch_wiki.py` into `docs/minigames/inferno/sources/wiki/` and quote the sentences that state: what an eat delays (the player's next attack, by how many ticks), whether a potion delays an attack, what combines in one tick, and whether an incoming hit lands on its own tick while the player eats (tick eating rests on that). The existing rows cite 2004 code: that is not a source; re-source each from these pages. A behaviour no modern source states is left as it is and reported UNSOURCED.
+To be plain about what is NOT in doubt (owner, 2026-10-03): the eating delay and tick eating
+are OSRS behaviour today. An eat delays the player's next attack, and an incoming hit
+lands on its own tick whether or not the player eats, which is what tick eating is. Our
+server holding a projectile hit behind an eat is therefore a defect to FIX in this seam;
+the only thing that changes is that the citation is the OSRS page, not 2004 code.
 The raid loop ported this on the owner's decision as content commit `7936c59bf9`: bring that port over as the opening rules say, then check every behaviour it changes against the modern sources above yourself: a part of the port that rests only on 2004 code and that no modern source supports is left out and listed. Restore the selftest stanza seam pass 1 left out
 (`torirs_server_world_selftest.c`, the raid tip's eat-delay loop at 19625-19652 of parent
 commit `94f55b306`) and write the two conformance rows it left out
