@@ -390,30 +390,37 @@ selftest 11 failures, the baseline set; ::tobrun OK 56; cheats 23/23.
 
 ## matthew-mbp-m4-raid-b1-seam10 (2026-10-03): the rows the sixth ToB room launch lost (triage SEAM_TRIAGE_2026-10-03h.md)
 
-No fixer of this pass left a report, a progress note, a conformance snippet or an edit:
-the state dir held only triage.json when the closer ran, and none of the four seams'
-content files differ from HEAD. Nothing landed; the triage document is committed so the
-next launch starts from it. Gates on the unchanged tree: scripts compile (42416),
-spec_check clean, check-quest-verbs (162 verbs, 141 seam rows), check-drive-abi,
-check-pt-switch, test-quest-cheats, test-plugin-lua, lint 127 clean, conformance 303/303
-PASS, quest suite 115 green plus the four baseline REDs (deserttreasure, forgettabletale,
-regicide, troll), nothing moved.
+First launch (9817cf668): no fixer reported, nothing landed. SECOND LAUNCH: four fixers
+reported and all four seams landed, in OSRS-Content 0bc66408fc and parent 55ab5edc8. No verb
+changed; conformance 308/308 (162 verbs + 146 seam rows, five new); scripts compile (42416);
+spec_check clean; quest suite 115 green plus the four baseline REDs (deserttreasure,
+forgettabletale, regicide, troll), nothing moved; C selftest 11 FAIL (the baseline set),
+tobrun OK 56; cheats, verbs, drive-abi, pt-switch, plugin-lua pass; lint 127 clean.
+conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<=N.
 
-- `tob_nylocas_vasilias_entry_rows`: NOT LANDED (no fixer report). Still open, all of it:
-  vasilias_switch_entry (measured 9/10 vs 15), vasilias_attacks_entry (2 vs 3-4),
-  pillar_collapse_entry_min (3/15/27 hp vs 30+) and explosion_radius (1 vs 2) unsettled
-  from their source lines; vasilias_reflect, entry_recoil_cap and av.vasilias_death.seq
-  unconfirmed; no recipe; the text-row detail format question unanswered.
-- `tob_verzik_purple_globule_and_yellow_blast`: NOT LANDED (no fixer report). Still open:
-  av.p2_purple.poison_globule (1588 never seen after an Athanatos landing),
-  av.p3_yellows.gfx_blast (1597 never seen; a yellow pool placed under her footprint at
-  6423,99), the weapon-swap hit attribution for tech.p1_cap_melee_ranged, and the exact
-  reads for throne_seq, jingle, map_locs, death_cage and barrier.
-- `tob_xarpus_entry_solo_survival`: NOT LANDED (no fixer report). Still open: the room
-  copy dies in phase 2 near tick 205 (spit and pool damage per tick not yet measured
-  against the Entry rows), spit_landing 3 vs spec 2 after seam9's queue move, no
-  surviving recipe proved under two run names, and why the author's pass did not
-  reproduce for the reviewer.
-- `tob_bloat_stomp_defence`: NOT LANDED (no fixer report). Still open: the Dragon
-  warhammer drain is intermittent (80 of 80 in most runs, 80 to 56 in one), cause not
-  found, no deterministic recipe for bloat.stomp_defence.
+- `tob_nylocas_vasilias_entry_rows`: LANDED. Content fixed from the source lines (no spec
+  row loosened): Entry windows 14 then 15 (blert m10, wiki Vasilias:92), 3-4 attacks per
+  window, collapse 30-50 in Entry (Entry Mode :179), detonation reach from the footprint
+  (Entry Mode :176), Vasilias reflected and healed but never nulled (wiki Vasilias:82,
+  Strategies:754, Jagex DSF:52). Row seam.vasilias_entry_window_and_reflect PASS. Still
+  open: entry_recoil_cap stays E [M97] (no figure); pillar_collapse_max could be promoted
+  E -> D on Strategies:726 (not applied: M95 open-table rework); the room copy dies after
+  three supports fall (the author's tactics).
+- `tob_verzik_purple_globule_and_yellow_blast`: LANDED. A poisoned hit bursts the
+  Athanatos (wiki Athanatos:54, Strategies:923); yellow pools only on walkable tiles (Entry
+  Mode :251, Strategies:968; the pool was on the wall row, never under her). Rows
+  seam.verzik_athanatos_poison_bursts and seam.verzik_yellow_pool_walkable PASS; spec rows
+  poison_globule and p3_death.jingle reworded. Still open: the author's file brings no
+  poisoned ammo; death_cage needs a verb that counts every copy of a loc; room runs are not
+  reproducible across run names.
+- `tob_xarpus_entry_solo_survival`: LANDED. Standing acid hurts only the puddle's own tile
+  (Entry Mode :207, wiki Xarpus:257, Strategies:844); the wiki strategy killed him under four
+  names; recipe in DRIVER_NOTES. Row seam.tob_xarpus_acid_is_the_puddle_tile PASS; spec row
+  xarpus.p2.pool_reach added. Still open: tob_xarpus.lua's planner must mark only the
+  puddle's tile (author's); spit_landing stays E at 3 (M71); a mid-run crossing costs
+  nothing (unsourced).
+- `tob_bloat_stomp_defence`: LANDED as a recipe (no content bug). The drain is
+  deterministic (30 % of current Defence on a special that deals damage; the stomp restores
+  it on T+29); the misses were the probe's. Row seam.special_attack_spent PASS. Still open:
+  tob_bloat.lua still carries the faulty probe; spec.bloat.fly_first reads 3 against 1 and
+  tech_flinch_tiles comes and goes (the author's).
