@@ -132,7 +132,141 @@ return {
         t.check("enterChaosAltar.inside", altar_tile ~= nil and altar_tile.x > 2200 and altar_tile.x < 2300,
             "tile " .. tostring(altar_tile and altar_tile.x) .. "," .. tostring(altar_tile and altar_tile.z) .. " level " .. tostring(altar_tile and altar_tile.level))
 
-        t.blocked("content_bug: talisman on chaostemple_ruined lands at 3_35_75_35_47 = LEVEL 3 (OSRS-Content/osrs239-content/server/scripts/skill_runecraft/configs/runecraft.dbrow:149 runecraft_chaos enter_coord); chaos_altar (34769) is placed only at level 0, 2270,4841 (maps/m35_75.jl2:2601), so the Chaos Altar is not in the room the player lands in and useWandOnAltar (whatliesbelow_surok.rs2:123) can never be driven; every other altar enter_coord starts 0_")
-        return
+        -- ------------------------------------------------------------ enterChaosAltar (the maze)
+        -- The ruins land you on the TOP floor of a four-level maze (runecraft.dbrow runecraft_chaos
+        -- enter_coord 3_35_75_35_47 = LostCity runecraft.dbrow:113); the altar is on level 0
+        -- (m35_75.jl2 `0 30 41: 34769` = LostCity m35_75.jm2 `0 30 41: 2487`). OSRS wiki Chaos Altar
+        -- oldid 15350445: "players must navigate four levels of a chaotic maze to reach the altar".
+        -- Plain ladders, no quest var: travel (section 2).
+        t.exec("enterChaosAltar.L3-down", t.player.click_loc, "laddertop", 1, { at = { 2255, 4829, 3 } })
+        t.ticks(4)
+        local _, l2 = t.world.tile()
+        t.check("enterChaosAltar.L2", l2 ~= nil and l2.level == 2, "tile " .. tostring(l2 and l2.x) .. "," .. tostring(l2 and l2.z) .. " level " .. tostring(l2 and l2.level))
+        t.exec("enterChaosAltar.L2-down", t.player.click_loc, "laddertop", 1, { at = { 2275, 4834, 2 } })
+        t.ticks(4)
+        local _, l1 = t.world.tile()
+        t.check("enterChaosAltar.L1", l1 ~= nil and l1.level == 1, "tile " .. tostring(l1 and l1.x) .. "," .. tostring(l1 and l1.z) .. " level " .. tostring(l1 and l1.level))
+        t.exec("enterChaosAltar.L1-down", t.player.click_loc, "laddertop", 1, { at = { 2259, 4845, 1 } })
+        t.ticks(4)
+        local _, l0 = t.world.tile()
+        t.check("enterChaosAltar.L0", l0 ~= nil and l0.level == 0, "tile " .. tostring(l0 and l0.x) .. "," .. tostring(l0 and l0.z) .. " level " .. tostring(l0 and l0.level))
+
+        -- ------------------------------------------------------------ useWandOnAltar
+        local altar = t.player.by_symbol("loc", "chaos_altar")
+        t.exec("useWandOnAltar", t.player.use_on, "surok_metalwand", altar)
+        t.exec("useWandOnAltar.glowing", t.inv.await, "surok_glowingwand", 1, 8)
+        local _, runes = t.inv.count("chaosrune")
+        t.check("useWandOnAltar.runes_spent", runes == 0, "chaosrune now " .. tostring(runes))
+        t.chat.continue_()
+        t.ticks(2)
+
+        -- ------------------------------------------------------------ bringWandToSurok
+        -- leave the maze by plain travel (the exit portal is plain travel, section 2)
+        t.exec("goto-bringWandToSurok", t.player.goto_tile, 3208, 3494, 0)
+        t.exec("bringWandToSurok", t.player.talk_to, "surok_surok", 1)
+        t.exec("bringWandToSurok.dialog", t.chat.play, {
+            "npc:Ah! You're back",
+            "player:I have the things you wanted",
+            "npc:Excellent! Well done",
+            "player:So...about this gold",
+            "npc:All in good time",
+            "player:Okay, but I'll be back",
+            "npc:Yes, yes, yes",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.letter_to_rat", t.quest.expect_stage("letter_to_rat"))
+        t.exec("bringWandToSurok.letter", t.inv.await, "surok_letter2", 1, 6)
+
+        -- ------------------------------------------------------------ talkToRatAfterSurok
+        t.exec("goto-talkToRatAfterSurok", t.player.goto_tile, 3267, 3333, 0)
+        t.exec("talkToRatAfterSurok", t.player.talk_to, "surok_rat", 1)
+        t.exec("talkToRatAfterSurok.dialog", t.chat.play, {
+            "npc:Ah! You've returned",
+            "choose:Yes! I have a letter for you.",
+            "player:Yes! I have a letter",
+            "npc:A letter for me",
+            "npc:This letter is treasonous",
+            "player:Okay. Go on",
+            "npc:I am not really a trader",
+            "npc:A short while ago",
+            "npc:Okay, here's what I need",
+            "npc:His name is Zaff",
+            "player:Yes, sir",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.see_zaff", t.quest.expect_stage("see_zaff"))
+
+        -- ------------------------------------------------------------ talkToZaff
+        t.exec("goto-talkToZaff", t.player.goto_tile, 3202, 3435, 0)
+        t.exec("talkToZaff", t.player.talk_to, "zaff", 1)
+        t.exec("talkToZaff.dialog", t.chat.play, {
+            "player:Rat Burgiss sent me",
+            "npc:Ah, yes. Rat sent word",
+            "player:Okay, so what's the plan",
+            "npc:Listen carefully",
+            "npc:Then and ONLY then",
+            "npc:Take this beacon ring",
+            "npc:Once you have read",
+            "player:Won't he refuse",
+            "npc:I very much expect so",
+            "player:Okay, thanks, Zaff",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.arrest", t.quest.expect_stage("arrest"))
+        t.exec("talkToZaff.ring", t.inv.await, "surok_ring", 1, 6)
+
+        -- ------------------------------------------------------------ talkToSurokToFight
+        t.exec("goto-talkToSurokToFight", t.player.goto_tile, 3208, 3494, 0)
+        t.exec("talkToSurokToFight", t.player.talk_to, "surok_surok", 1)
+        t.exec("talkToSurokToFight.dialog", t.chat.play, {
+            "player:Surok!! Your plans",
+            "npc:So! You're with the Secret Guard",
+            "player:Give yourself up",
+            "npc:Never!",
+            "player:The place is surrounded",
+            "npc:Do you really wish to die",
+            "choose:Bring it on!",
+            "player:Bring it on!",
+            "npc:I am a Dagon'hai",
+            "mesbox:The room grows dark",
+        })
+        t.ticks(2)
+
+        -- ------------------------------------------------------------ fightRoald
+        t.exec("fightRoald", t.player.attack, "surok_king", 2, 20)
+        t.exec("fightRoald.weakened", t.var.await, "varb3526_surok_spoken", 1, 120)
+        t.exec("fightRoald.ring", t.player.inv_op, "surok_ring", 3)
+        t.ticks(2)
+        t.exec("fightRoald.dialog", t.chat.play, {
+            "mesbox:You summon Zaff",
+            "npc:The king's mind has been restored",
+            "npc:Your teleport spell has been corrupted",
+            "npc:You will remain here",
+            "npc:Thank you for your help",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.report_rat", t.quest.expect_stage("report_rat"))
+
+        -- ------------------------------------------------------------ talkToRatToFinish
+        t.exec("goto-talkToRatToFinish", t.player.goto_tile, 3267, 3333, 0)
+        local snap_result, snap = t.skill.snapshot()
+        t.check("talkToRatToFinish-snapshot", snap_result == "ok", "skill.snapshot before hand-in -> " .. tostring(snap_result))
+        t.exec("talkToRatToFinish", t.player.talk_to, "surok_rat", 1)
+        t.exec("talkToRatToFinish.dialog", t.chat.play, {
+            "npc:Well, how did it go",
+            "player:The mission was accomplished",
+            "npc:I take it that it went alright",
+            "npc:Zaff has already briefed me",
+            "npc:You've done very well",
+            "mesbox:Continuing and completing",
+            "choose:Yes, give me the experience.",
+        })
+        t.ticks(3)
+        local rc_result, rc_detail = t.skill.expect_gain("runecraft", 8000, snap)
+        t.check("reward.runecraft_xp", rc_result == "ok", "runecraft +8000 -> " .. tostring(rc_result) .. " " .. tostring(rc_detail))
+        local df_result, df_detail = t.skill.expect_gain("defence", 2000, snap)
+        t.check("reward.defence_xp", df_result == "ok", "defence +2000 -> " .. tostring(df_result) .. " " .. tostring(df_detail))
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }
