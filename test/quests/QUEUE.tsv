@@ -122,7 +122,7 @@ quest_priest	priest	therestlessghost		1	green	sonnet-b2
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
-quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo	matthew-mbp-m4-b53	REVERTED by sampler (matthew-mbp-m4-b53): goto_tile teleports into the Queen of Thieves' tent (1764,10157 from Devan at 1766,10147, 0 ticks) and back out to the ladder, past piscquest_tentdoor 'Doorway' (1765,10149, op1 Go-through) -- the tent's only entrance; the doorway has no [oploc1,piscquest_tentdoor] script, so content must script it (gated on Devan's go-ahead) and the test click it in and out for talkToQueenOfThieves and talkToShauna		
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo	matthew-mbp-m4-b53	RETRY after 5f37f7d87: piscquest_tentdoor is scripted (OSRS-Content 0e5db56def, open from ^qot_queen). Restore test/quests/wip/queenofthieves/sent_back_b53.lua and replace its three tent goto_tiles (goto-talkToQueenOfThieves, goto-exitWarrens2, goto-talkToShauna) with click_loc piscquest_tentdoor in/out rows asserting 1765,10150 / 1765,10149, per wip/queenofthieves/relay.md (a copy ran 78/78)		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
@@ -138,7 +138,7 @@ quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
 quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
-quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	content_bug	matthew-mbp-m4-b53	no spawn rows for frog_quest_marcellus_normal/gary_unnamed/yellow frogs anywhere in server/ (only ribbit_bmp.rs2 debugprocs npc_add them); quest cannot be started by click (ribbitingtale.rs2:45)		
+quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo	matthew-mbp-m4-b53	RETRY after 5f37f7d87: Marcellus and the frogs are placed (quest-local ribbitingtale.spawn, OSRS-Content 0e5db56def); rewrite the marcellus.spawn/gary.spawn repro rows (they assert absence and now FAIL) into talk_to frog_quest_marcellus_normal / frog_quest_gary_unnamed / frog_quest_dave_named; a copy reaches stage 8. Next stop is still content: [label,ribbit_yellow_talk] has no stage-8 branch (Dave/Jane only 'Hello there!'; only debugproc ribbitrun writes ^ribbit_chop 10) -- block there with that reason		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
@@ -182,7 +182,7 @@ quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
-quest_whatliesbelow	whatliesbelow	whatliesbelow		4	content_bug	matthew-mbp-m4-b53	talisman on chaostemple_ruined lands at 3_35_75_35_47 = level 3 (runecraft.dbrow:149); chaos_altar placed only at level 0 (2270,4841, m35_75.jl2:2601), so useWandOnAltar (whatliesbelow_surok.rs2:123) cannot be driven		
+quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo	matthew-mbp-m4-b53	RETRY after 5f37f7d87: no content bug -- the Chaos Altar is a four-level ladder maze (LostCity runecraft.dbrow:113 + m35_75.jm2; wiki oldid 15350445). Replace the t.blocked with three laddertop click_locs (2255,4829,3 -> 2275,4834,2 -> 2259,4845,1, assert t.world.tile().level each) and useWandOnAltar on level 0 per test/quests/wip/whatliesbelow/relay.md, then author bringWandToSurok onward		
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	green	matthew-mbp-m4-b52			
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
