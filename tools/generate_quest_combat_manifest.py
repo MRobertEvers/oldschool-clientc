@@ -1864,6 +1864,45 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "The Stalker Den is not multi-combat flagged and the full juvenile custodian stalker drop table is not ported.",
         ],
     },
+    "Swan Song": {
+        "source_audits": [
+            {"url": "https://oldschool.runescape.wiki/w/Sea_Troll_Queen?oldid=15215925", "revision": 15215925, "retrieved": "2026-10-03"},
+            {"url": "https://oldschool.runescape.wiki/w/Sea_troll?oldid=15329222", "revision": 15329222, "retrieved": "2026-10-03"},
+            {"url": "https://oldschool.runescape.wiki/w/Swan_Song?oldid=15359363", "revision": 15359363, "retrieved": "2026-10-03"},
+        ],
+        "npc_gamevals": [
+            "swan_seatroll_queen: level-170 Sea Troll Queen (id 4315), 200 hitpoints, 100/70/100 attack/strength/defence, 150 magic, crush + Water Wave, max hit 16 melee / 37 magic, holds her spot in the water (wanderrange 0; configs/swansong.npc)",
+            "swan_troll_ambush: level-79 Sea troll (id 4308), 100 hitpoints, 60/60/60, crush, speed 3, max hit 7, Bones; the entrance ambush and the fishing-spot troll (configs/swansong.npc)",
+        ],
+        "item_gamevals": [
+            "bones: each level-79 sea troll drops Bones (wiki Sea_troll: Always)",
+        ],
+        "loc_gamevals": [
+            "swan_hole: the colony entrance; at stage 40 it puts back the ambush trolls still owed",
+            "swan_fish: the fishing spot that spawns one sea troll on the first cast; it stays until killed",
+        ],
+        "trigger_handlers": [
+            "oploc1:swan_hole -> ~ssq_spawn_entrance_ambush (stage 40, trolls owed, none standing; swansong_colony.rs2)",
+            "opnpc2:swan_troll_ambush and swan_seatroll_queen (trap 31 @player_combat_start)",
+            "ai_queue3:swan_troll_ambush counts %varb2107_swansong_trolls, writes stage 50 at 3",
+            "ai_opplayer2:swan_seatroll_queen melee or Water Wave in reach, Water Wave or the prayer drain out of reach (swansong_finale.rs2)",
+            "ai_queue3:swan_seatroll_queen writes stage 190",
+            "opnpc1:swan_herman stage 170 -> ~ssq_queen_ensure puts a missing Queen back",
+        ],
+        "loot_contract": "The Sea Troll Queen drops nothing (her page lists no drops). Each level-79 sea troll drops Bones, which the player keeps toward Malignius's seven.",
+        "test_ids": [
+            "quest-combat-contract:swan-song",
+            "quest:swansong",
+        ],
+        "known_gaps": [
+            "The entrance ambush is three level-79 trolls (^ssq_trolls_needed; varb2107 is 2 bits); the wiki says eight, with the Wise Old Man casting Saradomin Strike beside the player.",
+            "The fishing spot spawns one level-79 troll; the wiki's fishing trolls are the level 65, 87 and 101 versions (ids 4309-4311), one after another.",
+            "In melee distance the Queen swings melee 1 time in 3; the pages say only that magic is 'more often'. The map gives no walking route to a tile next to her, so the fight is at range.",
+            "The prayer drain takes 21 points: the page says 'over 20 Prayer points at once' and gives no exact number, message or graphic.",
+            "The siege cutscene (skeleton army, Sea Troll General, the Wise Old Man knocked out) before the Queen is not ported.",
+            "The page's 15% earth weakness (25 June 2025) is not stated: the revision-239 cache carries no weakness param for either npc.",
+        ],
+    },
 }
 
 # The two inventory rows share one physical encounter and one continuous item/

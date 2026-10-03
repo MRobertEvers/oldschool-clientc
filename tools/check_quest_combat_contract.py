@@ -118,6 +118,10 @@ OSF_DWARF_SPAWN = CONTENT / "areas/world/configs/m46_153.spawn"
 CONTACT_NPC = CONTENT / "quests/quest_contact/configs/contact.npc"
 CONTACT_SCARAB = CONTENT / "quests/quest_contact/scripts/contact_scarab.rs2"
 CONTACT_DUNGEON = CONTENT / "quests/quest_contact/scripts/contact_dungeon.rs2"
+SWANSONG_NPC = CONTENT / "quests/quest_swansong/configs/swansong.npc"
+SWANSONG_CONSTANT = CONTENT / "quests/quest_swansong/configs/quest_swansong.constant"
+SWANSONG_COLONY = CONTENT / "quests/quest_swansong/scripts/swansong_colony.rs2"
+SWANSONG_FINALE = CONTENT / "quests/quest_swansong/scripts/swansong_finale.rs2"
 PLAYER_HIT_FUNNEL = CONTENT / "skill_combat/scripts/player/player_hit_npc_prepare.rs2"
 ELEM1_CORE = CONTENT / "quests/quest_elemental_workshop/scripts/quest_elemental_workshop.rs2"
 ELEM1_BOOK = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_workshop_shield_book.rs2"
@@ -617,6 +621,16 @@ def check_manifest() -> None:
     revisions = {audit["revision"] for audit in contact[0]["source_audits"]}
     require({15328051, 15327950, 15233716, 15281959, 15281960, 15200671} <= revisions,
             "Contact!: pinned Wiki audit set drifted")
+    swan = [row for row in rows if row["id"] == "quest-swan-song"]
+    require(len(swan) == 1, "manifest: expected exactly one Swan Song row")
+    require(swan[0]["implementation_status"] == "implementation-in-progress",
+            "Swan Song: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(swan[0][key]), f"Swan Song: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in swan[0]["source_audits"]}
+    require({15215925, 15329222, 15359363} <= revisions,
+            "Swan Song: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -3706,6 +3720,73 @@ def check_contact() -> None:
     )
 
 
+def check_swansong() -> None:
+    """Swan Song's Sea Troll Queen and level-79 sea trolls are real fights
+    (sampler matthew-mbp-m4-b54 round 4: with no block they fought on
+    npc_default.npc's 10 hp and the Queen died to one Fire Blast). Wiki
+    Sea_Troll_Queen oldid 15215925, Sea_troll oldid 15329222 (Level 79, id
+    4308); Swan_Song oldid 15359363 for the untimed ambush and the fixed Queen."""
+    npc = SWANSONG_NPC.read_text()
+    queen = _npc_block(npc, "swan_seatroll_queen")
+    for line in ("hitpoints=200", "attack=100", "strength=70", "defence=100", "magic=150",
+                 "ranged=1", "huntmode=aggressive", "wanderrange=0",
+                 "param=attackrange,10", "param=attackrate,4",
+                 "param=damagetype,^crush_style", "param=crushattack,100",
+                 "param=strengthbonus,40", "param=magic_maxhit,37",
+                 "param=stabdefence,20", "param=slashdefence,40", "param=crushdefence,40",
+                 "param=magicdefence,40", "param=rangedefence,0",
+                 "param=proj_travel,waterwave_travel", "param=death_drop,null"):
+        require(line in queen, f"Swan Song: [swan_seatroll_queen] lacks `{line}`")
+    troll = _npc_block(npc, "swan_troll_ambush")
+    for line in ("hitpoints=100", "attack=60", "strength=60", "defence=60",
+                 "huntmode=aggressive", "param=attackrate,3", "param=damagetype,^crush_style",
+                 "param=strengthbonus,0", "param=death_drop,bones"):
+        require(line in troll, f"Swan Song: [swan_troll_ambush] lacks `{line}`")
+    require_text(
+        SWANSONG_CONSTANT.read_text(),
+        ("^ssq_fight_duration = 3000", "^ssq_queen_melee_maxhit = 16",
+         "^ssq_queen_prayer_drain = 21", "^ssq_trolls_needed = 3"),
+        "Swan Song constants",
+    )
+    colony = SWANSONG_COLONY.read_text()
+    require_text(
+        colony,
+        ("if (%varb2098_swansong = ^ssq_ready_to_fight) {\n    ~ssq_spawn_entrance_ambush;",
+         "[proc,ssq_spawn_entrance_ambush]",
+         "if (npc_find(^ssq_entrance_ambush_coord, swan_troll_ambush, 10, 0) = true) {",
+         "def_int $owed = calc(^ssq_trolls_needed - %varb2107_swansong_trolls);",
+         "npc_add(^ssq_entrance_ambush_coord, swan_troll_ambush, ^ssq_fight_duration);",
+         "npc_add(movecoord(^ssq_entrance_ambush_coord, 2, 0, 1), swan_troll_ambush, ^ssq_fight_duration);",
+         "npc_add(movecoord(^ssq_entrance_ambush_coord, -1, 0, 2), swan_troll_ambush, ^ssq_fight_duration);",
+         "[opnpc2,swan_troll_ambush]", "[ai_queue3,swan_troll_ambush]",
+         "%varb2098_swansong = ^ssq_trolls_beaten;",
+         "npc_add(^ssq_fish_coord, swan_troll_ambush, ^ssq_fight_duration);",
+         "~ssq_queen_ensure;"),
+        "Swan Song entrance ambush",
+    )
+    require("swan_troll_ambush, 50);" not in colony,
+            "Swan Song: a sea troll is added for 50 ticks again (wiki: the ambush and the fishing troll stay until killed)")
+    require("%varb2111_swansong_ambush = 0) {" not in colony,
+            "Swan Song: the one-shot ambush flag gates the spawn again (a despawned ambush soft-locks stage 40)")
+    finale = SWANSONG_FINALE.read_text()
+    require_text(
+        finale,
+        ("[proc,ssq_queen_ensure]",
+         "npc_add(^ssq_queen_coord, swan_seatroll_queen, ^ssq_fight_duration);",
+         "[opnpc2,swan_seatroll_queen]", "[ai_opplayer2,swan_seatroll_queen]",
+         "if (npc_range(coord) <= 1) {", "~ssq_queen_melee;", "~ssq_queen_water_wave;",
+         "~ssq_queen_prayer_drain;", "[proc,ssq_queen_overhead_prayer]()(boolean)",
+         "~playerhit_n_melee(^crush_style, randominc(^ssq_queen_melee_maxhit));",
+         "~npc_generic_magicattack;", "npc_anim(swan_queen_spellcast, 0);",
+         "stat_sub(prayer, min(^ssq_queen_prayer_drain, stat(prayer)), 0);",
+         "[ai_queue3,swan_seatroll_queen]", "%varb2098_swansong = ^ssq_queen_dead;",
+         "[debugproc,swansong_queen_hp]", "[debugproc,swansong_troll_hp]"),
+        "Swan Song Sea Troll Queen",
+    )
+    require("swan_seatroll_queen, 100);" not in finale,
+            "Swan Song: the Queen is added for 100 ticks again (a despawn soft-locks stage 170)")
+
+
 def check_creature_of_fenkenstrain() -> None:
     require_text(
         FENK_CONSTANT.read_text(),
@@ -4635,13 +4716,14 @@ def main() -> int:
         check_ghosts_ahoy()
         check_one_small_favour()
         check_contact()
+        check_swansong()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour and Contact!, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact! and Swan Song, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

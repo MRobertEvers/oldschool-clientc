@@ -455,7 +455,7 @@ quest BACK. Commit 920156338 is reverted (95a3d480a), and so is the evidence com
 fae051f140, reverted by 1940a57b00). The round-4 rows are kept in
 `test/quests/wip/swansong/round4_rejected.lua`.*
 
-(a) THE SEA TROLL QUEEN FIGHT IS NOT A FIGHT. `swan_seatroll_queen` and `swan_troll_ambush` have no
+(a) THE SEA TROLL QUEEN FIGHT IS NOT A FIGHT (FIXED OSRS-Content 1ef7c1e7b9: seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a), (b), (c); the fight now costs real food: gaps-combat: A boss you cannot reach on foot). `swan_seatroll_queen` and `swan_troll_ambush` have no
 block in any server `.npc` file. The only entry is `npc_anims.generated.npc`, which holds
 animations. They spawn at `init_defaults`' 10 hitpoints and attack/strength/defence 1
 (`torirs_server_content.c:4615`). The cache gives the Queen level 170 and 200 hitpoints

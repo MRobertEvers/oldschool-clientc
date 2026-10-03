@@ -203,7 +203,9 @@ yet known: whether `npc_add` drops the two offset spawns or their tiles are bloc
 the server first (the spawn tiles in the map's collision, and a server-side npc count after the
 proc). Do not work around it in the test.
 
-## Swan Song's entrance ambush: 3 trolls where the wiki has 8, and they despawn 50 ticks after entry (matthew-mbp-m4-b54)
+## Swan Song's entrance ambush: 3 trolls where the wiki has 8, and they despawn 50 ticks after entry (matthew-mbp-m4-b54; despawn FIXED OSRS-Content 1ef7c1e7b9)
+
+*The 50-tick despawn and the one-shot flag are FIXED (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (c)): the trolls stay until killed, and a re-entry puts back the ones still owed. The 3-of-8 gap below stands.*
 
 This is a parity gap; the test does not need to work around it. The wiki says that inside
 the Colony grounds "you will be attacked by eight (8) level 79 Sea trolls" (Swan_Song revid
@@ -220,7 +222,9 @@ test header; do not invent five more kills. Two things follow from the port's ve
   trolls. Only one later troll exists (the one the first fishing cast wakes), so the trolls
   leave 4 bones; see the next section for the other 3.
 
-## Swan Song: Franklin gives no hammer, and the trolls leave 4 of Malignius's 7 bones (matthew-mbp-m4-b54)
+## Swan Song: Franklin gives no hammer, and the trolls leave 4 of Malignius's 7 bones (matthew-mbp-m4-b54; hammer FIXED OSRS-Content 1ef7c1e7b9)
+
+*The hammer half is FIXED (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (d)): the hole no longer asks for one, and Franklin hands his over when you talk to him after lighting the firebox. Drop the general-store leg. The bones paragraph below stands.*
 
 *Origin: the matthew-mbp-m4-b54 round-4 review.*
 

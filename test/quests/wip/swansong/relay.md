@@ -69,3 +69,77 @@
 - **Not fixed, outside this seam:** `ladder_from_cellar` in the basement (`m40_148.jl2` `0 34 13: 17385 10 2`) climbs to
   2594,9486 **level 1** (plane default). LostCity `loc_1755` uses `movecoord(coord(), 0, 0, -6400)` (`ladders.rs2:87-94`).
   Leave the basement with `goto_tile`.
+
+## killQueen / kill79Trolls: the Sea Troll Queen and the sea trolls are real fights now (seam matthew-mbp-m4-b54-seam3 swansong_queen_and_trolls_combat_blocks)
+
+- **Why round 4 was sent back.** Neither npc had a server `.npc` combat block, so both fought on the engine default
+  (10 hp, attack/strength/defence 1): the Queen died to one Fire Blast. They now have their wiki blocks in
+  `quest_swansong/configs/swansong.npc`, cross-checked with the cache's `stat1..6` in `configs/all.npc`:
+  - `swan_seatroll_queen` (wiki Sea_Troll_Queen oldid 15215925, id 4315): level 170, **200 hp**, attack 100, strength 70,
+    defence 100, **magic 150**, crush + **Water Wave (max 37)**, melee max 16, speed 4, aggressive, no drops. She holds her
+    spot in the sea (`wanderrange=0`).
+  - `swan_troll_ambush` (wiki Sea_troll oldid 15329222, "Level 79", id 4308): **100 hp**, 60/60/60, crush, speed 3, max 7,
+    aggressive, drops Bones. This npc is both the entrance ambush and the fishing-spot troll.
+  - Both are `forcemulti=yes`: the colony is a multicombat area (wiki Multicombat_area oldid 15307059). Without it the
+    three aggressive trolls attack at once and every Attack on a second one answers "I'm already under attack."
+- **No more despawn clocks.** The ambush, the fishing troll and the Queen used to be `npc_add`ed for 50/50/100 ticks with a
+  one-shot flag, so a real fight soft-locked stage 40 or 170. They now stay until killed (wiki Swan_Song oldid 15359363).
+  Re-entering `swan_hole` at stage 40 puts back the trolls still owed. Talking to Herman at stage 170 puts the Queen back.
+- **Server reads** (the 30-unit bar cannot tell 200 hp from 10): `t.cheat("::swansong_queen_hp")` answers
+  `Sea Troll Queen hitpoints 200/200 attack 100 strength 70 defence 100 magic 150`. `t.cheat("::swansong_troll_hp")`
+  answers `Sea trolls 3: 100/100 100/100 100/100` (count, then each troll within 25 tiles). Read them with `t.msg.expect`.
+- **Her swing** (`swansong_finale.rs2` `[ai_opplayer2,swan_seatroll_queen]`): Water Wave at range. In melee distance it is
+  melee 1 swing in 3, otherwise Water Wave. **With any overhead protection prayer on and out of melee distance, every swing
+  drains 21 Prayer and does no damage** (page: "drains over 20 Prayer points at once"). Measured in `b54s3_queen_rcb_a`:
+  Protect from Magic on, prayer 99 -> 34 in 9 ticks, hitpoints 99 unchanged.
+- **You cannot melee her.** No route reaches a tile beside her: `b54s3_queen_melee_a` answered `I can't reach that!`, and
+  `m36_57` blocks the shore at z 3702/3703. Fight from the beach at `goto_tile(2347, 3701, 0)`, an open tile. 3702 is a
+  blocked tile, and only `::goto` can stand you on it. The wiki's advice (melee + Protect from Magic) is therefore not
+  available, and at range she hits hard (Water Wave hits of 30+ every 4 ticks).
+- **Measured staging** (full restaged round-4 copy `build/seam_state/matthew-mbp-m4-b54-seam3/scratch/swansong_round4_copy.lua`,
+  run `b54s3_round4_copy_a`: **211/0**, reaches the scroll):
+  - Setup: round 4's quest items (no lobsters, no fire-blast runes), plus `magic_shortbow` + `rune_arrow 400`, `coif`,
+    `dragonhide_chaps`, `dragon_vambraces` and `shark 10`. Levels: ranged 99, magic 94, defence 80, attack and strength 80,
+    hitpoints 99. That is exactly 28 slots. Wear the bow/arrows/armour in the first rows (not `dragonhide_body`: "You need
+    to complete the Dragon Slayer quest first").
+  - Trolls (eat `shark` below 50): 72 / 60 / 51 ticks, 1 shark. Fishing troll: 83 ticks, 1 shark. Keep the bones.
+  - Queen: `t.player.attack("swan_seatroll_queen", 2, 20)`, then `t.npc.await_dead_engaged(400, 40, {eat={item="shark", below=60}})`.
+    Dead after 128 ticks with 8 re-engagements: **16 sharks eaten**, lowest hp 23/99, stage 190.
+  - **The open problem for the author is food.** The setup holds only 10 sharks beside the quest's own items, and 8 were
+    left at the Queen with 15 free slots. The proof copy topped the food up with a mid-run `::give shark 16` (row
+    `killQueen-food-staged`), which a test may NOT do (trap 16). The queen-only scratch `b54s3_queen_kit_b` (same kit,
+    22 sharks) needed all 22, lowest hp 13. With 10 sharks the character dies with a bow, a rune crossbow or a twisted bow:
+    eating every few ticks keeps interrupting the attack.
+  - Prayer potions cannot replace the food. At range with Protect from Magic she drains 21 every 4 ticks, a dose restores
+    31, and `t.player.inv_op` on a potion takes 14-18 ticks to settle (`b54s3_queen_pray_d`: died at Queen 85/200).
+  - Toggle a prayer this way: `t.ui.tab("prayer")`, `t.ticks(1)`, `t.ui.widget("prayerbook:prayer13")` (Protect from Magic;
+    prayer14 Missiles, prayer15 Melee), `t.ui.invoke(w, 1)`, `t.ticks(2)`, then read `varb4116_prayer_protectfrommagic`.
+  - For the trolls, the wiki recommends Protect from Melee: "The trolls only attack with melee".
+- **Committed file** `test/quests/swansong.lua` with its `t.blocked` removed (`b54s3_committed_copy_a`, 30/0): the round-1 kit
+  (rune scimitar, 80/80/70, 6 lobsters) kills all three trolls (68 / 59 / 74 ticks, all 6 lobsters eaten, lowest 40/99) and
+  reaches `quest.stage.trolls_beaten` 50. The file ends there.
+- **Parity gaps left open** (also in `docs/bosses/quest_combat_manifest.json` known_gaps):
+  - eight entrance trolls in the real game (the port keeps 3);
+  - the level 65/87/101 fishing trolls (the port spawns one level-79);
+  - the melee/magic ratio in reach;
+  - the exact drain;
+  - the siege cutscene;
+  - the earth weakness;
+  - no tile beside the Queen (a map/pathing question, outside this seam).
+
+## talkToFranklin (hammer): Franklin hands over his hammer now (seam matthew-mbp-m4-b54-seam3 swansong_franklin_hammer)
+
+- **The hole no longer asks for a hammer.** `swan_hole` still wants logs, a tinderbox and 5 iron bars, but the
+  hammer is "(obtainable during the quest)" (wiki Swan_Song oldid 15359363). Drop round 4's general-store leg
+  (`goto-hammerShop` .. `hammerShop-hammer`) and the coins it needed.
+- **Talk to Franklin once the firebox is lit, before you fix the wall** (`varb2099_swansong_franklin` = 3, fewer than
+  five sections fixed). The dialogue follows wiki Transcript:Swan_Song oldid 15263341 (`swansong_franklin.rs2`). With
+  the five sheets pressed:
+  `npc:How are you getting on?`, `player:the press is working now`, `npc:At least you've got enough iron sheets`,
+  `player:Also I think I need a hammer`, `npc:Hammer? Not a problem`, then `t.inv.await("hammer", 1, 10)`. With a
+  hammer already held he skips the last two pages. With a full pack, the player asks and gets
+  "You don't have enough inventory space."
+- Proved: closer scratch `b54s3c_full_franklin` (the restaged round-4 copy with the store leg removed and this talk
+  added after `flattenBar-5`). The player entered the colony with no hammer, `talkToFranklinHammer-hammer` read
+  `hammer 1 -> 1`, and the walls went to `quest.stage.tasks_done` 80 and on to `quest.stage.queen_fight` 170.
+  At the Queen that run died (23 sharks eaten, her bar 28/80): the food problem above is real and varies run to run.
