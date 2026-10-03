@@ -126,3 +126,94 @@ Hygiene, none of it new in 50d90d513 (carry item 18 material):
   remove dice failures.
 - regicide 555: the "Tyras guard" chathead is a plain bald head (cache
   chathead id not checked). 619: mostly black viewport on a floor change.
+
+# b56 round 1: the five greens the batch sampler did not open
+
+The batch sampler opened three of eight (kept anothersliceofham and
+gardenofdeath, sent taleoftherighteous back for a goto through Phileas's house
+door the grader read as driven). Two more read-only Opus samplers judged every
+goto of the other five.
+
+## sleepinggiants: KEEP
+295 shots: 10 opened singly, 285 by montage. The foundry is really played:
+heat 0 -> 826 at the lava, trip hammer at 747 (completion 0 -> 340), grindstone
+at 571 (-> 670), polishing wheel at 224 (-> 1000), quality 31 throughout. Both
+gotos are open-air travel. Rewards literal (6000 Smithing, 1 qp).
+Minor: constant-true note rows (lua:56, 60, 67, 119, 127, 144, 228, 274, 286);
+three details print "table: 0x..." (lua:56, 67, 179); the foundry hud stays on
+screen outside the foundry (shots 248/249, 274-293).
+
+## dreammentor: SEND BACK
+511 shots: 22 opened singly (all goto shots, every boss shot, the scroll), 489
+by montage. Fights are real (lowest hp 61, 52, 61, 93 of 99). Verified in the
+file:
+- Four gotos past obstacles: `goto-talkToOneiromancer` (lua:333) out of the
+  Cyrisus cave past the wall crawl and lunar_mine_slanty_ladder_up;
+  `goto-fillVialWithWater` (:348) into the sink house past its closed door at
+  2091,3916; `goto-lightBrazier` (:373) out of that door and in through the
+  brazier hall's at 2082,3913; `goto-returnToOneiromancer` (:417) out of the
+  hall. The test never clicks lunar_moonclan_door (0 occurrences).
+- The four fight margin rows are `t.check(name, true, ...)` (:409).
+- `::give shark 25` mid-run (:387) after dropping the pestle, tinderbox and
+  hammer to make room; the pack holds 1 shark from the third fight on.
+Minor: constant-true "bars" rows (:103, 115, 131, 154, 174, 209); the comment
+at :242 names the wrong kit; 4-5 line dialogue pages crowd "Click here to
+continue" (shots 195, 234, 365, 373, 407, 410, 413).
+
+## atfirstlight: SEND BACK
+126 shots, all by montage, 9 opened singly; 117 rows PASS, coverage FULL, no
+fights; rewards literal (4500 Hunter, 800 Construction, 500 Herblore).
+- `goto-talkToVerity` (lua:57) and `goto-talkToVerityEnd` (:253) land at
+  1559,9467 in the sealed pocket BEHIND the bar (counter at z 9463, flap
+  hg_table_tavern02_door01 at 1556,9463 has no op). Talk across the counter
+  from about 1559,9461. The parity note "talk from 1559,9467"
+  (atfirstlight.notes.md:6) is wrong and must be corrected.
+- `goto-talkToAtza` (:203), `goto-takeHammer` (:213), `goto-makeEquipmentPile`
+  (:219) land inside Atza's house and the hammer house past fortis_door_l at
+  1698,3064 and 1695,3068; the test never clicks a fortis door (verified: 0).
+- `catchJerboa-lay<r>.<i>` (:157) passes on `ok` OR `timeout` (verified); in
+  this run the second trap was not laid (shot 060: "You can't lay a trap
+  here.").
+
+## twilightspromise: SEND BACK (smaller faults)
+413 shots, all by montage, 10 opened singly; 155 rows PASS, coverage FULL.
+Mezan lowest hp 74/80, cultists 75/80, 12 of 12 sharks left.
+- `goto-enterHQ` (lua:460) lands on the staircase at 1660,3150 inside the
+  side room whose only exit is fortis_door_l_reverse at 1657,3150, then opens
+  that door from the inside. The HQ ground floor is walked into through the
+  open arches at x 1652; the note "door on the EAST wall"
+  (twilightspromise.notes.md:17) has it backwards.
+- `goto-enterColosseum` (:364) lands on a blocked tile (1797,3106); the
+  walkable approach is 1795,3106.
+- Margin rows pass on `food >= 2 OR lowest > 25` (:413 verified, :604).
+- Presence-only checks (`x ~= nil`) at :212, :393, :431. No shot shows a live
+  cultist. The Civitas illa Fortis Teleport reward is not asserted.
+
+## wanted: SEND BACK (the fixed branch and most older gotos)
+236 shots, all by montage, 8 opened singly; 112 rows PASS, coverage FULL. This
+run drew position 4 = the Lumbridge Swamp Caves, so the changed branch ran.
+- The cave entrance is now a real click, but `pos4.goto` (lua:334) then
+  teleports from 3169,9571 to 3227,9547 past the stepping stone
+  swamp_cave_steppingstone_b at 3221,9554
+  (skill_agility/configs/maplink_agility.dbrow:854-866); no light source or
+  spiny helmet is brought.
+- `::setlevel hitpoints 99` mid-run (:359, verified) after Flames of Zamorak
+  took hp to 9, with five sharks uneaten.
+- `t.check("huntDownSolus", true, ...)` (:462, verified) is the grader's only
+  DRIVEN evidence for that guide step.
+- Older gotos past guide steps: the White Knights' Castle stairs (amik1,
+  amik2, amik3, tiffy2, tiffy3), the Taverley Dungeon ladder and the Black
+  Knights' base door (daquarius1), the Varrock chapel door (mage), the Castle
+  Wars lobby door (pos2), the Champions' Guild door (cg), the Lumbridge cellar
+  trapdoor (dk), McGrubor's Wood railing (pos6), the essence mine teleport
+  (mine).
+
+## What this says about the grader
+Five of the eight round-1 tests had a goto into an enclosed space that
+helper_coverage read as FULL (taleoftherighteous, dreammentor, atfirstlight,
+twilightspromise, wanted). The grader merges a guide ObjectStep for a door or
+stair as TRAVEL into the step it leads to. The third sampler's static
+walkability search (floor flags + walls from the map files) is saved beside
+this report in `sample_tools/` (reach.py, locs_near.py, comp.py,
+goto_table.py); it does not know stair links, script-spawned locs or door
+states.

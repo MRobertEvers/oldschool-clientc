@@ -14,7 +14,7 @@ Where things really stand and how you reach them
   inside it too; talk to him from 1699,3141.
 - Pub: the bar counter runs along z 3076; stand south of it (1723,3074).
 - Colosseum entrance: click it from 1797,3106. Mezan is in the lobby at 1805,9522.
-- Kualti HQ: ground-floor door on the EAST wall (1657,3150); stairs inside at 1638,3155,
+- Kualti HQ: the ground floor is walked into through the open arches at x 1652 (no door). The door at 1657,3150 (fortis_door_l_reverse) is the only exit of a small SIDE ROOM (dummies, staircase loc at 1660,3150), not the way in: a goto to 1660,3150 lands inside that room past its door (b56 sampler, from the map files). Stairs inside at 1638,3155,
   then 1650,3155 on floor 1. North of z 3156 is outside the building.
 - Teomat: the flight lands at 1437,3171; the altar room (Itzla) is 1452,3173; Metzli
   is in the north building at 1448,3196.
