@@ -83,8 +83,10 @@ def parse_row(detail, text_row=False):
         measured = head.split(";")[0].rstrip(", ").strip()
         spec_value = re.sub(r"\s+text$", "", spec.group("s").strip())
     else:
-        measured = head.split(",")[0].split(";")[0].strip().split(" ")[0]
-        spec_value = spec.group("s").strip().split(" ")[0]
+        # The measured value is the first whitespace-delimited token, so a
+        # comma list ("1,4") is kept whole and every instance is graded.
+        measured = head.split(";")[0].strip().split(" ")[0].rstrip(",")
+        spec_value = spec.group("s").strip().split(" ")[0].rstrip(",")
         if not NUM_RE.match(measured) and measured != "?":
             return None
     return {"m": measured, "s": spec_value, "g": spec.group("g"), "t": spec.group("t")}

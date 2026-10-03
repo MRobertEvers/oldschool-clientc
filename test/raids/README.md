@@ -137,3 +137,22 @@ Five of six rooms were rejected, mostly for the author's own play. Do not repeat
   115 ticks stops at wave 8. `max_frames` from a measured run.
 - **Scope row first.** `spec.scope` with `mode=entry party=1`; the grader prints which
   rows it skips -- measure the rest, all of them.
+
+## A spec row is a measurement, not a restatement (sampler, third ToB room pass)
+
+Two rooms reached full coverage and were sent back because a passing spec row said
+something the tick log did not support. The rules the sampler holds a row to:
+
+- **The measured value is computed from log rows named in the detail**, never copied from
+  the content's constant or the table. A row whose measured value is a literal that equals
+  the spec, or a formula that can only produce the spec, cannot fail and is rejected
+  (`xarpus.p3.retaliate_uplift` wrote "40" from any base that fit one hit).
+- **Report the whole distribution.** `measured 1,4` is graded on both values; a row that
+  passes only because a later instance was ignored is a finding (`sotetseg.melee_hit_delay`).
+- **Report a bracket as a bracket.** If the log only narrows a threshold to 19.6-23.1 %,
+  write `measured 19.6-23.1`; if that is wider than the tolerance, measure more finely
+  (hit on the exact thresholds) rather than writing the spec's figure.
+- **The row's expect is the comparison**, never a constant `ok`: `t.check("spec.x", within, detail)`.
+- **The scope row is required**: without `spec.scope` the gate grades every row of the table.
+- A bring-along may include the spellbook (a setup cheat that sets the spellbook var, with a
+  comment naming the spec row that needs it); it is not a raid var.
