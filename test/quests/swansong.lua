@@ -1,3 +1,5 @@
+-- ROUND 6 (matthew-mbp-m4-b54): black d'hide body worn (magic defence 35 -> 80), the hammer dropped after the fifth
+-- wall, 16 sharks (the sampler measured the fit), killQueen-margin records the food and the lowest hp of the fight.
 -- ROUND 5 (matthew-mbp-m4-b54), sent back by the sampler: green 208/0 with every guide step driven (Franklin's hammer,
 -- trolls 52/60/52 ticks and the fishing troll 60 with the bow, Queen 200/200 read off the server), but killQueen-dead
 -- ate ALL 15 sharks ("OUT OF shark", her bar 4/80 at t+147) and the player reached the scroll at 1 hp (shots 228, 236).
@@ -73,7 +75,9 @@ return {
         -- ROUND 6: black d'hide body (magic defence +45; levelrequire.rs2:178 gates only the green one), worn before the food
         "::give black_dragonhide_body 1",
         "::wield black_dragonhide_body",
-        "::give shark 15",
+        -- 16 sharks: with the hammer dropped after the fifth wall the fishing-leg peak is 4 bones + 2 soft clay +
+        -- net + 5 raw monkfish + 16 sharks = 28 slots (sampler b54 scratch sample_b54_s16: fish-cast-5-raw 4 -> 5)
+        "::give shark 16",
     },
 
     run = function(t)
@@ -420,12 +424,17 @@ return {
         local _, food_after_topup = t.inv.count("shark")
         t.check("killQueen-eat-to-full", hp_full ~= nil and hp_full >= 80, "hp before the first Attack: " .. tostring(hp_full) .. "/99 after eating " .. eaten_before .. " shark(s); sharks left " .. tostring(food_after_topup))
         t.exec("killQueen-attack", t.player.attack, "swan_seatroll_queen", 2, 20)
-        t.exec("killQueen-dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 60 } })
+        local _, queen_detail = t.exec("killQueen-dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 60 } })
+        local lowest_fight = tonumber(tostring(queen_detail):match("lowest hp (%d+)/"))
+        local queen_ticks = tostring(queen_detail):match("dead after (%d+) tick")
         local _, sharks_left = t.inv.count("shark")
         local _, hp_end = t.skill.read("hitpoints")
         local hp_now = hp_end and (hp_end.current or hp_end.level or hp_end.boosted)
-        t.check("killQueen-margin", (sharks_left or 0) >= 2 or (hp_now or 0) > 25,
-            "sharks staged 15, at the Queen " .. tostring(food_at_queen) .. ", eaten before attack " .. eaten_before .. ", left " .. tostring(sharks_left) .. ", hp after the kill " .. tostring(hp_now) .. "/99 (margin: sharks left >= 2 or hp > 25)")
+        t.check("killQueen-margin", (sharks_left or 0) >= 2 or (lowest_fight or 0) > 25,
+            "sharks staged 16, at the Queen " .. tostring(food_at_queen) .. ", eaten before attack " .. eaten_before
+            .. ", eaten in the fight " .. tostring((food_after_topup or 0) - (sharks_left or 0)) .. ", left " .. tostring(sharks_left)
+            .. ", lowest hp in the fight " .. tostring(lowest_fight) .. "/99, hp after the kill " .. tostring(hp_now)
+            .. "/99, Queen dead after " .. tostring(queen_ticks) .. " ticks (margin: sharks left >= 2 or lowest hp > 25)")
         t.check("killQueen-stage", t.var.await("varb2098_swansong", 190, 20))
         t.ticks(3)
         t.expect("quest.stage.queen_dead", t.quest.expect_stage("queen_dead"))
