@@ -4197,14 +4197,13 @@ function QD.player.equip(item)
 end
 
 -- How much of obj `obj_id` the client shows on the player's OWN tile:
--- (total, rows).  Every pool row of the obj on that tile is summed.  That is
--- NOT a count of the copies the server holds there: the client keeps ONE
--- pool row per (tile, obj id) and an OBJ_ADD for an id already on the tile
--- overwrites that row's count rather than adding a row
--- (App_WorldObjStackAdd, src/app/app_world_rebuild.c:172-180), so two
--- non-stackable logs dropped on one tile read 1 (1 row) for as long as both
--- lie there (build/quest_gate/dropseam_probe rows 2 and 4: `1/1` every tick
--- for six ticks after the second drop).  x/z only, like QD.world.obj_near:
+-- (total, rows).  Every pool row of the obj on that tile is summed.  Each
+-- OBJ_ADD is a row of its own (App_WorldObjStackAdd, as LostCity's client and
+-- the rev-239 deob keep a tile's objs as a list), so two non-stackable logs
+-- dropped on one tile read 2 (2 rows).  Until seam pass
+-- matthew-mbp-m4-b53-seam1 the client kept ONE row per (tile, obj id) and an
+-- OBJ_ADD overwrote its count, so they read 1 (1 row)
+-- (build/quest_gate/dropseam_probe rows 2 and 4).  x/z only, like QD.world.obj_near:
 -- the row's level is the grid level the obj was added on, which a bridge
 -- tile need not share with the player's.  (0, 0) when the player's tile
 -- cannot be read.
@@ -4237,8 +4236,8 @@ end
 -- rising.  Until seam pass matthew-mbp-m4-b52-seam1 the second half was "the
 -- nearest ground stack's count rose" (QD.world.obj_near(item, 1).count), and a
 -- second identical NON-STACKABLE item dropped on a tile that already holds one
--- does not raise anything the client shows (_ground_on_tile's banner: one
--- pool row per tile and id, its count overwritten), so a real drop read
+-- did not raise anything the client showed then (_ground_on_tile's banner: one
+-- pool row per tile and id, its count overwritten, until b53-seam1), so a real drop read
 -- `timeout ... backpack 1 -> 0, ground 1` (legends b51
 -- makeBowl.drop-spare-bar-2; build/quest_gate/dropseam_before row 3).  A
 -- ground count cannot grade that drop at all, so the backpack does.  The

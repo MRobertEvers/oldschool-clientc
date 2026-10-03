@@ -366,7 +366,8 @@ zone, and check that every rock tile appears in some `from x .. to ..` detail.
 *Origin: the sampler checked forsakentower (526039ca5) and queenofthieves (1420d9ba2). It passed The
 Forsaken Tower (all 160 shots matched their names) and sent The Queen of Thieves back.*
 
-(a) A DOORWAY NO GUIDE STEP NAMES IS STILL THE ONLY WAY INTO THE ROOM. The Queen of Thieves sits in
+(a) A DOORWAY NO GUIDE STEP NAMES IS STILL THE ONLY WAY INTO THE ROOM. (Content half FIXED in seam
+pass matthew-mbp-m4-b53-seam1 (d): the doorway is scripted; click it both ways.) The Queen of Thieves sits in
 a tent at the end of the Warrens. The tent walls (`qip_digsite_tent_wall`, x 1761-1769, z
 10149-10160) close it on every side except `piscquest_tentdoor` ("Doorway", op1 Go-through) at
 1765,10149. Quest Helper's `talkToQueenOfThieves` and `talkToShauna` give only the Queen's
