@@ -986,11 +986,13 @@ is a fact about a verb, the tick log, the grader or a room that the sections abo
 
 ## Specials and stats the driver cannot read
 
-- A special attack is pressed as the player would: `t.ui.tab('combat')` then
-  `t.ui.widget('combat_interface:special_attack')`, then the attack press (Dragon
-  warhammer, seen landing its floor). On Entry Bloat two warhammer specials and Curse
-  drained nothing (Defence read 80 of 80; mage defence 600), so `bloat.stomp_defence`
-  could not be driven through a drain there: report it open, not as a pass.
+- A special attack is armed with `t.ui.widget('orbs:specbutton')` (the minimap orb;
+  `varp301_sa_attack` reads back 1), then the attack press. Pressing
+  `combat_interface:special_attack` does NOT arm it (sixth room pass, Xarpus claws). On
+  Entry Bloat warhammer specials and Curse usually drained nothing (Defence read 80 of
+  80; mage defence 600), but one run read Defence 80 -> 56: the drain is intermittent, so
+  `bloat.stomp_defence` needs a deterministic probe before it can pass. Until then report
+  it open, not as a pass.
 - `maiden.freeze_full_bonus` is reachable since seam5: Ancients as a setup bring-along
   and a +140 magic set (seam5 section, "Maiden: the freeze curve").
 - `::tobboss` now prints att/str/rng/mag and `size=` (seam4, "::tobboss levels and
@@ -2396,3 +2398,57 @@ under `build/seam_state/matthew-mbp-m4-raid-b1-seam9/`.
   from earlier ledgers from the first landing on. Re-measure instead of comparing with a
   pre-seam9 tick log.
 - Row: `seam.tob_xarpus_landing_ignores_a_dying_target`.
+
+# What the sixth ToB room pass tripped on (matthew-mbp-m4-raid-b1-rooms-tob)
+
+The sampler sent back tob_maiden and tob_sotetseg (both "green, coverage FULL"). The
+reasons, and the small facts the reviewers reported, follow.
+
+## "Record-driven, so no row" is not a measurement: read pose_anim
+
+- `tob_maiden.lua` wrote `measured 8090` for `maiden.av.idle.seq` because `anim_id` read
+  -1 and no npc_anim row carried 8090. It wrote `measured 8101,8102` for the blood
+  spawn's walk/idle the same way. Both are the spec value written from an absence.
+- Since seam9 the npc row carries `pose_anim` / `pose_kind` / `ready_anim` / `walk_anim`
+  (seam9, "An npc standing or walking reads anim_id -1"). Measure a stand from a read
+  with `pose_kind == 'ready'` and a walk from `pose_kind == 'walk'`. Write the value the
+  row returned, even when it disagrees.
+
+## Two rows that each assume the other's spec value measure neither
+
+- Sotetseg's wrong-tile damage is `floor(p * hp) + f`. `rag_flat_entry` computed f by
+  fixing p at the spec's 6.7 percent, and `rag_percent` bracketed p by fixing f at the
+  spec's 11, then wrote "66.7" because the bracket held it. Two splats (16 and 15, one
+  tick apart) also fit f = 10 with p = 8 percent and f = 13 with p = 4 percent.
+- To pin both, collect splats at clearly different hitpoints (for example a stay on a
+  wrong tile at high hitpoints and another at low), solve for every (p, f) pair that
+  fits all of them, and write that set. If more than one pair fits, the row is open.
+- The same goes for a max-hit row from one sample. `sotetseg.ball_max_entry` passed on a
+  single unprayed 4 against a 22 max. A max row needs enough samples to reach the max,
+  or a stated reason that it cannot reach it.
+
+## A technique shot is taken at the technique, not at the end
+
+- Maiden's `tech.*` shots (104-107) were all the corridor after the exit, and
+  Sotetseg's `fight.over` plus five `technique.*` shots (056-061) were one frame with the
+  boss alive at 36 of 560. The rows were evaluated from the log after the fight, so the
+  shot was whatever the screen showed then.
+- Take the frame at the moment (`t.shot` inside the loop on the tick it happens: the
+  sidestep, the prayer lighting, the off-on-3 step, the tornado chase, the kill), keep
+  its name, and let the end-of-test row reference it. The kill shot must show the death
+  or the wave-complete line, not a living boss.
+
+## loc_near rows use tile_x / tile_z
+
+- `t.world.loc_near` (and its obj answer) returns `tile_x`, `tile_z`, `level`, not `x` /
+  `z` (`script/plugins/quest_driver/world.lua`). Reading `.x` gives nil, and a
+  comparison with nil fails silently in a filter.
+
+## Nylocas Entry figures that differ from grade D spec rows
+
+- Measured on our server, solo Entry: `nylocas.pillar_collapse_entry_min` 3, 15 and 27 hp
+  (spec 30+); `nylocas.explosion_radius` the farthest hurt tile was 1 (spec 2; no sample
+  at distance 2 yet); `nylocas.vasilias_attacks_entry` 2 (spec 3-4);
+  `nylocas.vasilias_switch_entry` 9 and 10 ticks (spec 15, in CONTENT_BUGS).
+- Report these as doc_gap or content_bug with both figures. Never bend the measured value
+  to the spec. Get a distance-2 sample before calling the explosion radius 1.
