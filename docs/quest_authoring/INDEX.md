@@ -9,6 +9,7 @@ topic file with one line added here.
 
 - `talk_to` walks around or answers "I can't reach that!" after a goto beside an npc behind a counter or wall -> start-and-travel: An npc behind a counter or wall
 - the guide says "Charter at a cost of 3000 coins" and no verb opens the charter map -> start-and-travel: No charter verb
+- a `walk_to`/`click_loc` stops at a building's wall and the guide names no door (Swan Song's stove, 2316,3668); tempted to `goto_tile` inside -> start-and-travel: A loc inside a walled building
 - "I can't reach that!" right after a fence squeeze; pulled back to the fence after a goto -> gaps-world: A fence squeeze pulls you back
 - a trap door landing never reads `z > 6400` (Mourner HQ basement 2044,4628) -> gaps-world: The Mourner HQ basement is an instance region
 - "Nothing interesting happens." on a wall into a boss lair (FIXED seam31); the Crandor hole refuses from one side -> gaps-world: Crandor
@@ -329,6 +330,7 @@ topic file with one line added here.
 
 ## Content-side facts (content_bug reports, reviewers)
 - two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls (FIXED OSRS-Content f2902a94dd: `movecoord`'s middle argument is the level; seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a))
+- the wiki says 8 Sea trolls at the Swan Song colony entrance and the port spawns 3; the ambush trolls vanish mid-fight and stage 40 never moves -> content-gaps: Swan Song's entrance ambush: 3 trolls
 - Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c); the client one tile short of the server (FIXED b52-seam1 (b))
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)

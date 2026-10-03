@@ -202,3 +202,19 @@ reaches 3 and stage 50 cannot be reached. The test stops at `t.blocked` with `co
 yet known: whether `npc_add` drops the two offset spawns or their tiles are blocked. Check that on
 the server first (the spawn tiles in the map's collision, and a server-side npc count after the
 proc). Do not work around it in the test.
+
+## Swan Song's entrance ambush: 3 trolls where the wiki has 8, and they despawn 50 ticks after entry (matthew-mbp-m4-b54)
+
+This is a parity gap; the test does not need to work around it. The wiki says that inside
+the Colony grounds "you will be attacked by eight (8) level 79 Sea trolls" (Swan_Song revid
+15359363, "Battle at the Colony"). The port spawns three. `^ssq_trolls_needed` is 3, and the
+counter `%varb2107_swansong_trolls` has only 2 bits, so it cannot count to 8 without a wider
+varbit. Assert the port's 3 (`varb2107` reads 1, 2, 3, then stage 50). Note the gap in the
+test header; do not invent five more kills. Two things follow from the port's version:
+
+- `[proc,ssq_spawn_entrance_ambush]` calls `npc_add(..., 50)`, so each troll despawns 50 ticks
+  after it spawns. `varb2111_swansong_ambush=1` stops a second spawn, so a fight that runs past
+  about 50 ticks soft-locks stage 40. Kill the three without pausing; the measured run took
+  about 34 ticks (`test/quests/wip/swansong/relay.md`).
+- Malignius later wants 7 bones. With 3 ambush trolls, the rest have to come from later
+  trolls.
