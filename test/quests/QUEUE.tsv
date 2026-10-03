@@ -180,7 +180,7 @@ quest_twilightspromise	twilightspromise	twilightspromise		4	claimed	matthew-mbp-
 quest_upass	upass	undergroundpass		3	green	matthew-mbp-m4-b52			
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28			
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
-quest_wanted	wanted	wanted		2	todo	sonnet-b29	REOPENED 2026-10-03 (matthew-mbp-m4-b56 parity closer's gate.py --all): helper_coverage TEST_GAP -- ledger row 64 'pos4.goto' lands at 3227,9547,0 (Lumbridge Swamp Caves) from 3191,3357,0 without pressing goblin_cave_entrance (guide step goDownToLumbridgeSwampCaves); the frame_entries rule (ca6b4cba5) grades it CHEAT when Solus's position-4 draw is the caves. Drive the cave entrance on that branch (rope, light source); to be fixed in batch matthew-mbp-m4-b56		
+quest_wanted	wanted	wanted		2	claimed	matthew-mbp-m4-b56@matthew-mbp-m4	REOPENED 2026-10-03 (matthew-mbp-m4-b56 parity closer's gate.py --all): helper_coverage TEST_GAP -- ledger row 64 'pos4.goto' lands at 3227,9547,0 (Lumbridge Swamp Caves) from 3191,3357,0 without pressing goblin_cave_entrance (guide step goDownToLumbridgeSwampCaves); the frame_entries rule (ca6b4cba5) grades it CHEAT when Solus's position-4 draw is the caves. Drive the cave entrance on that branch (rope, light source); to be fixed in batch matthew-mbp-m4-b56	2026-10-03T20:10:52Z	todo|sonnet-b29
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	green	matthew-mbp-m4-b53			
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
