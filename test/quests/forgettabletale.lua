@@ -11,7 +11,7 @@ return {
         -- Quest Helper requirements: The Giant Dwarf + Fishing Contest (forget_meets_quest_reqs),
         -- Cooking 22 and Farming 17 (Veldaban's mesbox)
         "::complete quest_giantdwarf",
-        "::complete quest_fishingcompo",
+        "::complete quest_fishingcontest",
         "::setlevel cooking 22",
         "::setlevel farming 17",
         -- Quest Helper items brought along: 2 barley malt, 2 buckets of water, dibber, rake,

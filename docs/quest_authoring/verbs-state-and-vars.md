@@ -152,3 +152,16 @@ refuses both shapes. Write instead:
 A status from a verb that can refuse (`t.var.await`, `t.inv.expect_has`, `t.msg.expect`, ...) is the
 designed use and is not flagged. `t.check(name, true, detail)` is still accepted as a note row; a row
 that claims to assert something must not use it (reviewers and samplers send it back).
+
+### lint: "quest_cheat.rs2 has no arm for <row>" on a setup `::complete` (matthew-mbp-m4-b56)
+
+`::complete <row>` only works for a row `quest_cheat.rs2` has an arm for. Any other name is answered
+"::complete has no arm for that quest." and setup carries on with the prerequisite unset, so the run
+proves less than its setup says. Four committed greens had one: Forgettable Tale staged
+`quest_fishingcompo` (the arm is `quest_fishingcontest`) and was green only because an engine bug wrote
+that varp by accident (the raid loop's fix to region music exposed it); Ghosts Ahoy and Shades of
+Mort'ton staged `quest_priestperil` (`quest_priestinperil`); Mourning's End Part II staged
+`quest_mourningsendparti` (`quest_mourningsendpart1`). `lint_quest.py` now reads the arms from
+`quest_cheat.rs2` and refuses a setup row that names none, suggesting the near names. The arm's name
+is the dbrow's, which is not always the quest directory's or the varp's: grep `quest_cheat.rs2` for
+`$row = ` before staging a prerequisite.

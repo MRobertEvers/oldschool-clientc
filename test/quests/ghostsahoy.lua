@@ -44,8 +44,7 @@ return {
         "::setlevel strength 40",
         "::setlevel defence 40",
         "::setlevel hitpoints 40",
-        "::complete quest_priestperil",
-        "::complete quest_priest",
+        "::complete quest_priestinperil", -- quest_cheat.rs2's arm is quest_priestinperil; quest_priestperil / quest_priest had no arm and did nothing
     },
 
     run = function(t)

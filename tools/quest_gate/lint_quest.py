@@ -692,6 +692,50 @@ def check_complete_own_row(text):
     return findings
 
 
+QUEST_CHEAT_RS2 = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "quests",
+                               "scripts", "quest_cheat.rs2")
+_CHEAT_ARM_RE = re.compile(r'\$row\s*=\s*(?:~quest_cheat_row\(\s*)?([A-Za-z_]\w*)')
+_cheat_arms_cache = None
+
+
+def load_cheat_arms():
+    """The rows `::complete` has an arm for, read from quest_cheat.rs2
+    (`if ($row = quest_x)` and `if ($row = ~quest_cheat_row(quest_x))`).
+    None when the content tree is not checked out (lint still runs)."""
+    global _cheat_arms_cache
+    if _cheat_arms_cache is None:
+        try:
+            with open(QUEST_CHEAT_RS2, "r", encoding="utf-8", errors="replace") as handle:
+                _cheat_arms_cache = set(_CHEAT_ARM_RE.findall(handle.read()))
+        except OSError:
+            _cheat_arms_cache = False
+    return _cheat_arms_cache or None
+
+
+def check_complete_has_arm(text):
+    """A setup `::complete <row>` naming a row quest_cheat.rs2 has no arm for
+    does NOTHING: the server answers "::complete has no arm for that quest."
+    and setup carries on with the prerequisite unset. Forgettable Tale staged
+    `quest_fishingcompo` (the arm is quest_fishingcontest) and was green only
+    because an engine bug wrote the varp by accident; Ghosts Ahoy and Shades
+    of Mort'ton staged `quest_priestperil` (quest_priestinperil), Mourning's
+    End Part II `quest_mourningsendparti` (quest_mourningsendpart1)."""
+    arms = load_cheat_arms()
+    if not arms:
+        return []
+    findings = []
+    for open_idx, cheat in _find_setup_cheats(text):
+        match = COMPLETE_CHEAT_RE.match(cheat.strip())
+        if match and match.group(1) not in arms:
+            near = sorted(a for a in arms if a[:10] == match.group(1)[:10])[:4]
+            findings.append((_line_of(text, open_idx),
+                              "setup contains \"%s\", but quest_cheat.rs2 has no arm for %s: the server "
+                              "answers \"::complete has no arm for that quest.\" and the prerequisite stays "
+                              "unset%s" % (cheat, match.group(1),
+                                           (" -- did you mean %s?" % " / ".join(near)) if near else "")))
+    return findings
+
+
 def check_step_pass_literal(text):
     findings = []
     for match in T_STEP_OPEN_RE.finditer(text):
@@ -1035,6 +1079,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     code = _blank_comments(text)
     findings.extend(check_numeric_ids_and_symbols(code, packs))
     findings.extend(check_complete_own_row(code))
+    findings.extend(check_complete_has_arm(code))
     findings.extend(check_step_pass_literal(code))
     findings.extend(check_step_verdict_type(code))
     findings.extend(check_vacuous_check_condition(code))
