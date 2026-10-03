@@ -14,7 +14,9 @@ resolved through `action=query&redirects=1`, then re-read with
 
 Etiquette, matching tools/wiki_fetch.py: one request per second, a descriptive
 User-Agent with a contact address, no parallelism. A missing page is reported on
-stderr and recorded as MISSING rather than being retried.
+stderr and recorded as MISSING rather than being retried. A page whose file already
+exists with different text is never overwritten: the fetch lands as
+`wiki_<title>.rev<revid>.wikitext` beside the pinned one.
 """
 import json, sys, time, urllib.parse, urllib.request, pathlib, re
 
@@ -101,6 +103,12 @@ for i in range(0, len(TITLES), 20):
                  "format": "json", "formatversion": "2"})
         text = c["parse"]["wikitext"]
         fn = "wiki_" + re.sub(r"[^A-Za-z0-9]+", "_", title).strip("_") + ".wikitext"
+        if (OUT / fn).exists() and (OUT / fn).read_text(encoding="utf-8") != text:
+            # A pinned page is a citation target: never overwrite it. A redirect
+            # title (Nylocas King -> Nylocas Vasilias) or a newer revision lands
+            # beside it as wiki_<title>.rev<revid>.wikitext; re-pin by hand.
+            fn = fn[:-len(".wikitext")] + ".rev%d.wikitext" % revid
+            print("KEPT the pinned file; newer revision written as", fn, file=sys.stderr)
         (OUT / fn).write_text(text, encoding="utf-8")
         src = [k for k, v in redirects.items() if v == title]
         manifest.append((title, str(revid), ts[:10], fn))
