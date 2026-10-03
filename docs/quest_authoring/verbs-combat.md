@@ -312,3 +312,14 @@ and 30 ranged); LostCity's 2004 Arrg is weaker and the port took the OSRS form o
 scimitar, a rune full helm, chainbody, platelegs and kiteshield worn from the start (the rune
 platebody needs Dragon Slayer) and 16 sharks eaten below 50, Arrg died in 108-123 ticks after 6-9
 sharks (matthew-mbp-m4-b49-seam1: `tlseam_arrg_kit`, `tlseam_copy_after`, `closer_tl_shared`).
+
+## Turning on a protection prayer: there is no verb, use the tab, the widget and `invoke`
+
+No `t.player.*` verb prays. Open the prayer tab, wait a tick, then invoke the prayer's widget with op 1:
+`t.ui.tab("prayer")`, `t.ticks(1)`, `local _, w = t.ui.widget("prayerbook:prayer13")`, `t.ui.invoke(w, 1)`,
+`t.ticks(2)`. Then read the prayer's varbit and write it into a `t.check` detail. The widgets are
+`prayer13` Protect from Magic (`varb4116_prayer_protectfrommagic`), `prayer14` Protect from Missiles,
+`prayer15` Protect from Melee (`varb4118_prayer_protectfrommelee`). Without the tick after the tab switch,
+the invoke did nothing and the varbit stayed 0 (seam scratch `b54s3_queen_pray_b`). A green example is
+`test/quests/thefremennikisles.lua` (`killTrolls-protectMelee`). `t.ui.invoke` answers a bare `ok`, so
+the varbit read is the evidence.

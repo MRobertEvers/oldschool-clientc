@@ -528,3 +528,24 @@ A ranged hit that poisons is queued. If the player dies before it lands, it land
 respawn: `b53s4_scarab_fight_b` printed "You have been poisoned!" in Lumbridge. Death does not clear
 the queue (`skill_combat/scripts/poison.rs2`, engine/shared). If a row after a death reads poison or
 hp, expect it. The fix is an engine/shared seam.
+
+## A boss you cannot reach on foot drains 21 Prayer a swing at range, and outlasts the food (Swan Song's Sea Troll Queen, b54-seam3)
+
+The Sea Troll Queen stands in the sea at 2347,3704. No route reaches a tile beside her: an Attack from
+melee answered `I can't reach that!` (`b54s3_queen_melee_a`), and `m36_57` blocks the shore at z 3702
+and 3703. So the wiki's strategy, melee with Protect from Magic, cannot be used, and the fight is at
+range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
+
+- **With any overhead protection prayer on, at range, every swing drains 21 Prayer and does no damage**
+  (wiki Sea_Troll_Queen oldid 15215925: "drains over 20 Prayer points at once"). Measured: Protect from
+  Magic on, prayer 99 -> 34 in 9 ticks, hitpoints unchanged (`b54s3_queen_rcb_a`). Prayer potions cannot
+  keep up. A dose restores 31, she drains 21 every 4 ticks, and `t.player.inv_op` on a potion took
+  14-18 ticks to settle (`b54s3_queen_pray_d` died with the Queen at 85/200).
+- **Without prayer she hits Water Wave for 30+ every 4 ticks.** With 99 Ranged, a magic shortbow and rune
+  arrows, a coif, d'hide chaps and vambraces, and Defence 80, the kill ate 16 sharks
+  (`b54s3_round4_copy_a`, lowest hp 23/99) and 22 sharks (`b54s3_queen_kit_b`, lowest 13/99). One run
+  died after 23 sharks with her bar at 28/80 (`b54s3c_full_franklin`). That is more food than the setup
+  can hold beside the quest's own items, and the driver has no bank verb. A mid-run `::give` of food is
+  a trap 16 cheat. This is an open staging and map seam. Do not paper over it in the test.
+- Her bar is 80 units wide, so read the server: `t.cheat("::swansong_queen_hp")` then
+  `t.msg.expect("Sea Troll Queen hitpoints 200/200")` (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a)).

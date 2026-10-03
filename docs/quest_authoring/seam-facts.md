@@ -1573,3 +1573,55 @@ mapsquare arrives a tick after the tile does. Put `t.exec("<npc>-present", t.npc
 "<npc>", 15, 10)` between the ladder's `-tile` row and the `talk_to`. Swan Song's round-2 file went
 from row 122 FAIL to 152/12 (`quest.stage.queen_fight` 170) with that one row added
 (`b54s2_round2_await`).
+
+## Seam pass matthew-mbp-m4-b54-seam3 (2026-10-03, batch matthew-mbp-m4-b54)
+
+(a) **A level-170 boss dies to one spell; a level-79 troll reads 21/30 after one hit of 3 (Swan Song's
+Sea Troll Queen and sea trolls).** Neither npc had a server `.npc` block, so both fought on
+`npc_default.npc`'s 10 hitpoints and 1/1/1. Fixed in OSRS-Content 1ef7c1e7b9: the new
+`quest_swansong/configs/swansong.npc` comes from wiki Sea_Troll_Queen oldid 15215925 and Sea_troll
+oldid 15329222 (version "Level 79", id 4308), and the cache's `stat1..6` in `configs/all.npc` agree.
+The Queen has 200 hp, 100/70/100, magic 150, Water Wave max 37, melee max 16 and speed 4. Each troll has
+100 hp, 60/60/60, crush, speed 3, max hit 7 and drops Bones. Her swing is
+`[ai_opplayer2,swan_seatroll_queen]` in `swansong_finale.rs2`; gaps-combat has how the fight goes
+("A boss you cannot reach on foot"). The bars cannot tell 200 from 10, so the content has two server
+reads. `::swansong_queen_hp` answers `Sea Troll Queen hitpoints 200/200 attack 100 strength 70 defence
+100 magic 150`. `::swansong_troll_hp` answers `Sea trolls 3: 100/100 100/100 100/100`: the count, then
+each troll within 25 tiles. Proof: `b54s3_trolls_b` 27/0 (kills of 86/81/106 ticks). The restaged
+round-4 copy `b54s3_round4_copy_a` went 211/0 to the scroll, the Queen dead after 128 ticks. Swan Song
+is in `docs/bosses/quest_combat_manifest.json` with three pinned oldids and six known_gaps, and
+`check_swansong` is in `tools/check_quest_combat_contract.py`.
+
+(b) **"I'm already under attack." on every Attack after the first, against several aggressive npcs
+at once.** The port's `maps/multiway.csv` is LostCity's 2004 list, so a later multicombat area is
+single-way here, and the npcs that attacked first claim the player. Check the wiki's Multicombat_area
+list. If the place is on it, give the npc records `forcemulti=yes` (the per-record escape God Wars and
+the Dagannoth lair use). Swan Song's colony is on the list (oldid 15307059). Before the fix,
+`b54s3_fights_a` got three refusals. After it, all three trolls died (`b54s3_trolls_b`).
+
+(c) **An `npc_add`ed ambush or boss vanishes mid-fight and the stage never moves.** Swan Song added the
+ambush and the fishing troll for 50 ticks and the Queen for 100, behind a one-shot spawn flag. A real
+fight outlasted them and soft-locked stages 40 and 170. The wiki has no timer (Swan_Song oldid
+15359363). They now last `^ssq_fight_duration` 3000. Re-entering `swan_hole` at stage 40 puts back
+the trolls still owed, and Herman at stage 170 puts back a missing Queen (`~ssq_queen_ensure`). In this
+engine an `npc_add` duration of 0 or less means the npc never despawns (`torirs_server_scripts.c`
+despawn_tick -1), unlike LostCity. Swan Song uses the finite duration and the put-back instead of
+relying on that.
+
+(d) **The guide says an npc gives you a tool, but a gate before him demands it (Swan Song's Franklin
+and the hammer).** Fixed in OSRS-Content 1ef7c1e7b9. `swan_hole` no longer asks for a hammer: it is
+"(obtainable during the quest)" (Swan_Song oldid 15359363). Franklin's talk after the firebox is lit,
+before the wall is whole, follows wiki Transcript:Swan_Song oldid 15263341 (`swansong_franklin.rs2`).
+If the player holds no hammer: "Also I think I need a hammer." / "Hammer? Not a problem - here's
+mine.", and a hammer lands in the pack. With a hammer already held there is no second one. With a full
+pack the player gets "You don't have enough inventory space." Proof: closer scratch
+`b54s3c_franklin_hammer` 13/0 (`live.hammer`: `hammer count after the live lit-stage talk = 1`).
+`b54s3c_full_franklin` entered the colony with no hammer (shot 033). Its `talkToFranklinHammer-hammer`
+read `hammer 1 -> 1` (shot 083), and the run went on to `quest.stage.queen_fight` 170. OPEN, same
+source: the transcript also has Franklin hand out a tinderbox at the intro, and the wiki says the bars
+and logs can be gathered inside the colony. The hole still demands logs, a tinderbox and 5 iron bars.
+
+(e) **Triage: give each file to one seam only.** The hammer seam's two edit sites were in
+`swansong_colony.rs2`, which this pass gave to the combat seam. Its fixer could not edit them, and the
+closer had to wire them in. When two seams must edit one file, give the file to one seam and list the
+other's edits as its work.
