@@ -316,6 +316,7 @@ topic file with one line added here.
 - vm-b1 (2): gate RED `step 'leg.N.end' ... has no shot` on the last leg; `kickBoard` UNMATCHED on a Search press -> coverage-and-gate: Gate RED on the last leg's; Meiyerditch ladder op 1 does nothing, Drakan wall shortcut lands on 3595,3309,2 -> gaps-world: Meiyerditch; no ladder step for rope (yak hair), the window tax Enter amount, stage 275 never seen, Bork gives nothing, runts kill you -> gaps-world: The Fremennik Isles
 - CONTENT_GAP "only <other quest>.rs2, another quest's" then ALTERNATIVE on an exit loc the guide names, and a `goto_tile` past it reads FULL -> coverage-and-gate: CONTENT_GAP "only <other quest>.rs2"
 - a quest draws random branches (Wanted! pool stops) and only the drawn ones ran; `reach.py` dies on a missing `locs.pickle`; `locs_near.py` prints `''` for a multiloc wall -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (e), (f)
+- helper_coverage FULL though a goto leaves the room the setup cheat stood you in, lands in a building bigger than the enclosure flood (Arceuus Library), leaves an archive or the essence mine, or leaves a random draw's last stop (Wanted!! pos6) -> sampler-findings: Sample matthew-mbp-m4-b56, round 3
 
 ## Harness and runs
 

@@ -656,3 +656,35 @@ beside the script, else `build/orchestrator/sample_b56/locs.pickle`, and builds 
 `locs_near.py` when it is missing. `locs_near.py` prints `''` for a multiloc's base record, for
 example `lost_tribe_cellar_wall`. Read its `multiloc<N>` records in `configs/all.loc` for the name
 and op a player sees.
+
+## Sample matthew-mbp-m4-b56, round 3 (2026-10-03)
+
+*The sampler checked taleoftherighteous (bc780e5d5, 110/0), twilightspromise (1e42352dd, 155/0) and
+wanted (d97a04eac, 168/0). It kept twilightspromise. It SENT BACK taleoftherighteous and wanted:
+the parent commits are reverted (cb3e3c3c5, 964fa96e5), the evidence too (OSRS-Content 4fec39c3f8,
+14989465c4), and the round-3 files are parked in `test/quests/wip/<id>/parked.lua`.*
+
+(a) A GOTO OUT OF THE ROOM THE SETUP CHEAT PUT YOU IN. `::taleoftherighteous` stands the player
+inside Phileas's house, behind its closed door. The first goto teleported out of the house without
+opening that door. The rule about leaving a closed space applies from the first row: open the door
+and walk out, even when no row walked you in.
+
+(b) A BIG BUILDING IS STILL A CLOSED SPACE. The Arceuus Library is closed by four double doors, but
+its floor is bigger than the 400 tiles `enclosure_entries` floods, so the grader stays FULL on a
+goto that lands beside Archeio. Run `reach.py` from the landing to a street tile. NEEDS-DOOR means
+you click the door.
+
+(c) AN INSTANCE OR TELEPORT AREA HAS ITS OWN WAY OUT. The Library Historical Archive is left through
+Istoria's Leave (`tor_archive.rs2:163-168`), and the Rune Essence mine through its exit portal. A
+goto from inside either skips that exit. Use the exit, then goto from where it lands.
+
+(d) THE LAST STOP OF A RANDOM DRAW. In Wanted!!, Solus's script moves you away after the pool stops
+at positions 2 and 4 (Camelot, Falador). Position 6 does not move you, so the next goto leaves from
+inside whatever pos6 drew: McGrubor's Wood (railing), the Grand Tree, the Yanille pub or the swamp
+caves. Every branch needs its own way out, and that includes the branches this run did not draw.
+The Champions' Guild door (`championdoor`) closes behind you as well: walk out through it.
+
+(e) TWILIGHT'S PROMISE, A CONTENT NOTE. The Fortis Teleport reward is now proved by a real cast that
+gains magic xp and lands on the spell's `tele_coord`. That coordinate, 1735,2965, is marked as an
+ESTIMATE in `skill_magic/configs/magic_spells.dbrow:245-250`. Shot 412 shows a hut in grassland,
+not the Sunrise Palace. It is a skill_magic content gap, not a defect in the quest test.
