@@ -110,6 +110,18 @@ round-1 test did `goto_tile 2317,3668` because it had not found the door. The do
 `swan_building_door` (id 12657, `0 18 19: 12657 0`), on the west edge of 2322,3667 in
 the east wall. Walk to 2322,3667, then `click_loc("swan_building_door", 1)`.
 
+**The grader now catches the goto inside (matthew-mbp-m4-b56-seam1, `enclosure_entries`).** A
+`goto_tile` that lands in a room the map walls in, with a closed door in its perimeter, from a tile
+outside that room, is CHEAT whether or not the guide names the door. A PASS row that pressed that
+door in the 500 ticks before (an opened door re-closes after 500) makes it a walk. The detail
+names the door and the map square: `lands at 1542,3570,0 in a room the map walls in (11 tiles ...
+door wallkit_shayzien_door01_l_reverse at 1540,3570,0: maps/m24_55.jl2) from ... it went past the
+closed door (enclosure_entries)`. Fix it with the route above: goto to the street,
+`t.player.click_loc(<door>, 1)`, then `walk_to` the tile inside. The first goto of a run is not
+judged. Not judged either: a building with a climb down from level 0, a room over 400 tiles, a loc
+content adds at run time, a sealed room with no door. Bone Voyage's sawmill tile 3303,3493 in the
+section above is inside such a room: open the sawmill door first.
+
 ### No charter verb: reach a charter port with `goto_tile` when the guide allows any route (matthew-mbp-m4-b54)
 
 No driver verb works Trader Stan's charter map (`transport_charter/scripts/charter_npc.rs2`

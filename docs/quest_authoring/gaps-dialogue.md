@@ -400,3 +400,17 @@ for a dash, as LostCity dialogue does (LostCity_Content2 `quest_hero/scripts/npc
 `quest_grail/scripts/sir_percival.rs2:42`). OPEN: about 174 other port-authored chat lines in
 OSRS-Content still carry U+2014 (for example `quest_ethicallyacquiredantiquities`); a test whose
 `chat.play` entry spans one copies the dash byte for byte until the content is swept.
+
+## A `<p,happy>` tag drawn as text, and a page that runs over the speaker's name (FIXED matthew-mbp-m4-b56-seam1)
+
+Shades of Mort'ton's lines are written LostCity's way, `~chatnpc("<p,angry>Those disgusting ...")`,
+and the port's chat procs used to hand the tag to the client as text. The splitter measures a
+`<...>` tag as zero width, so the page also drew five rows over the name and "Click here to
+continue" (quest_mortton/play 053, 100). Now `~chat_mood` (interface_chat/scripts/chat.rs2) reads
+ONE leading `<p,name>` the way LostCity's SPLIT_INIT does (LostCity_Server StringOps.ts:82-89):
+the tag picks the `^chat_*` head (chat.constant's table, `<p,short>` = neutral) for every page of
+the string and is not drawn. `~chatnpc`, `~chatnpc_specific`, `~chatplayer` and their `_anim` forms
+all call it. So `chat.play`/`expect_text` see the line WITHOUT the tag: match the words, never
+`<p,`. An unknown name aborts the script with `chat_mood: no ^chat_* expression`. Untagged lines
+are unchanged (cooks_assistant's IF packets identical between packs). Not ported: LostCity's
+len1..len4 head variant by row count; one seq per expression here.

@@ -1741,3 +1741,35 @@ port lands you at 2447,5417,2 on the far side of the cover crates: `click_loc
 "slice_goblin_ladder_top" 1` answers `reach_failed: I can't reach that!` (`b55s2_slice_ladder`).
 In the game you arrive at the ladder with the crates as cover (wiki oldid 15292360). No guide step
 climbs down, so no test is blocked.
+
+## Seam pass matthew-mbp-m4-b56-seam1 (2026-10-03, batch matthew-mbp-m4-b56)
+
+Content in OSRS-Content 83c8fa8b73; grader in v3 e0d2cdfcc.
+
+(a) **`<p,mood>` tags printed in dialogue** -- FIXED, `~chat_mood` reads one leading tag
+(gaps-dialogue: "A `<p,happy>` tag drawn as text").
+
+(b) **Content trap: an rs2 string literal with an unclosed `<` swallows the rest of the file.**
+`ssc_lex.c` read_string counts bracket depth to find the closing quote, so `"<p,"` eats every line
+after it, and the error surfaces as `no proc named <x>` in some OTHER file (border_gate.rs2:51
+`no proc named chatplayer_anim`). Compare against `substring("<p,>", 0, 3)` instead.
+
+(c) **Swan Song: the firebox kept the log** -- FIXED, `[oplocu,swan_firebox]` deletes it (wiki
+Transcript:Firebox oldid 14859233, Swan_Song oldid 15359363, Quest Helper SwanSong.java:160-162: only
+the tinderbox is not consumed). A test no longer has to drop a spare log. OPEN: the firebox's
+lines differ from the transcript ("The firebox of the press is now filled with wood.") and the loc
+does not change to its Logs/Lit versions (wiki Firebox oldid 14859274, ids 13594-13596).
+
+(d) **"You have completed Contact!!"** -- FIXED: the shared `~quest_scroll_paint` appends `!` to
+the display name (questscroll.rs2:73). The real title is per quest: Contact!'s scroll has one `!`
+(wiki File:Contact! reward scroll.png revid 14120361) and `contact_shared.rs2` re-sets it after
+`~quest_complete_rewards`; Wanted!'s real scroll IS "Wanted!!" (revid 14226730), so never strip the
+bang in the painter. `quest.scroll_title` is a CONTAINS check and cannot see a doubled bang; only
+the scroll PNG can. Not checked against their wiki images: H.A.M.!, Between a Rock...!,
+Forgettable Tale...!.
+
+(e) **Ghosts Ahoy's giant lobster swung once** -- FIXED (gaps-combat: "A melee quest npc hits once").
+
+(f) **The grader missed a goto past a house door the guide does not name** -- FIXED for gotos INTO a
+walled room (coverage-and-gate: `enclosure_entries`; start-and-travel: "The grader now catches the
+goto inside").

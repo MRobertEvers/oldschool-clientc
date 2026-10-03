@@ -627,3 +627,19 @@ What an author does: stage hitpoints and a little food, and record the measured 
 kill row (ticks to death, and hp before and after from `t.skill.read`). Expect the orb to fall by
 a point or two on the slower kills. Do not write "30 hp" in a comment. Do not write "hp untouched"
 or "they never retaliate" either.
+
+## A melee quest npc hits once and then stands still: applayer2 with no `[ai_applayer2]` handler (Ghosts Ahoy giant lobster, FIXED matthew-mbp-m4-b56-seam1)
+
+The hp orb stays flat for the whole fight after one hit (quest_ghostsahoy/play 885-896, 23/40).
+`ahoy_book.rs2` put the melee giant lobster in `applayer2`, the ranged/magic AP mode ("mostly used
+for ranged and magic npc's", LostCity skill_combat/scripts/npc/npc_combat.rs2:22), from its spawn
+proc, `[ai_spawn]` and `[ai_queue1]`, with no `[ai_applayer2,giant_lobster]` and no
+`[ai_applayer2,_]`: every hit the player landed re-armed a mode with no swing. Fixed in
+OSRS-Content 83c8fa8b73: the spawn sets `npc_setmode(opplayer2)` (LostCity
+quest_ball/scripts/witches_experiement.rs2:8-9) and the default `[ai_queue1,_]` rung answers
+retaliation; `check_quest_combat_contract.py` now refuses applayer2 for it. The lobster hits now
+(wiki oldid 15272821: max hit 4): ghostsahoy took the player 23 -> 14 hp, and from about 17 hp
+without food a probe ended at 3, so a test should carry food for it. OPEN: One Small Favour's
+slagilith has the same shape (`onesmallfavour_relay.rs2:632-636`, contract pins applayer2);
+other `npc_add` quest npcs in applayer2 (kendal, thrantax, dreammentor, mm_demon, dayth, ...) are
+not audited for a missing handler.
