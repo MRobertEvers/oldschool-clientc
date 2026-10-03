@@ -1,0 +1,737 @@
+# npc records -- 30 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.npc (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[7674] poh_inferno_pet    (configs/all.npc:210233)
+  why= name: poh_inferno_pet, name=Jal-Nib-Rek
+  name=Jal-Nib-Rek
+  model1=33005
+  head1=33136
+  readyanim=jalnib_ready
+  walkanim=jalnib_walk
+  op1=Talk-to
+  op3=Pick-up
+  minimap=no
+  vislevel=0
+  ambient=30
+  contrast=150
+  category=764
+
+[7675] inferno_pet    (configs/all.npc:210247)
+  why= name: inferno_pet, name=Jal-Nib-Rek
+  name=Jal-Nib-Rek
+  model1=33005
+  head1=33136
+  readyanim=jalnib_ready
+  walkanim=jalnib_walk
+  op1=Talk-to
+  op3=Pick-up
+  op4=Metamorphosis
+  minimap=no
+  vislevel=0
+  ambient=30
+  contrast=150
+  pet=yes
+  lowpriorityops=yes
+
+[7690] inferno_master    (configs/all.npc:210586)
+  why= name: inferno_master; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:306 (+1)
+  size=2
+  readyanim=thzaar_staff_ready
+  walkanim=thzaar_staff_walk
+  vislevel=1
+  multivarp=varp1585_total_zuk_kills
+  multinpc1=inferno_master_1op
+  multinpc2=inferno_master_2op
+  footprintsize=102
+
+[7691] inferno_nibbler    (configs/all.npc:210596)
+  why= name: inferno_nibbler, name=Jal-Nib; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:783 (+6)
+  name=Jal-Nib
+  model1=33005
+  readyanim=jalnib_ready
+  walkanim=jalnib_walk
+  op2=Attack
+  vislevel=32
+  ambient=-10
+  category=1132
+  stat2=15
+  stat4=10
+  stat6=15
+  param=stabdefence,int,-20
+  param=slashdefence,int,-20
+  param=crushdefence,int,-20
+  param=magicdefence,int,-20
+  param=param_26,int,2
+  param=param_46,int,-1
+  param=param_50,int,96
+
+[7692] inferno_creature_harpie    (configs/all.npc:210616)
+  why= name: inferno_creature_harpie, name=Jal-MejRah; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:634 (+7)
+  name=Jal-MejRah
+  model1=33018
+  size=2
+  readyanim=jalmejrah_ready
+  walkanim=jalmejrah_ready
+  op2=Attack
+  vislevel=85
+  ambient=-10
+  category=1132
+  stat1=0
+  stat2=55
+  stat3=0
+  stat4=25
+  stat5=120
+  stat6=120
+  footprintsize=102
+  param=param_46,int,-1
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=stabattack,int,0
+  param=slashattack,int,0
+  param=crushattack,int,0
+  param=strengthbonus,int,0
+  param=rangeattack,int,30
+  param=rangebonus_ammo,int,30
+  param=stabdefence,int,30
+  param=slashdefence,int,30
+  param=crushdefence,int,30
+  param=magicdefence,int,-20
+  param=attackrate,int,3
+  param=param_50,int,96
+
+[7693] inferno_creature_splitter    (configs/all.npc:210649)
+  why= name: inferno_creature_splitter, name=Jal-Ak; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:661 (+8)
+  name=Jal-Ak
+  model1=33001
+  size=3
+  readyanim=jalak_ready
+  walkanim=jalak_walk
+  op2=Attack
+  vislevel=165
+  ambient=-10
+  category=1132
+  stat1=160
+  stat2=95
+  stat3=160
+  stat4=40
+  stat5=160
+  stat6=160
+  footprintsize=153
+  param=param_46,int,-1
+  param=magicattack,int,45
+  param=param_65,int,45
+  param=stabattack,int,45
+  param=slashattack,int,45
+  param=crushattack,int,45
+  param=strengthbonus,int,45
+  param=rangeattack,int,45
+  param=rangebonus_ammo,int,45
+  param=stabdefence,int,25
+  param=slashdefence,int,25
+  param=crushdefence,int,25
+  param=magicdefence,int,25
+  param=attackrate,int,6
+  param=param_50,int,96
+
+[7694] inferno_creature_splitter_mage    (configs/all.npc:210682)
+  why= name: inferno_creature_splitter_mage, name=Jal-AkRek-Mej; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:714 (+6)
+  name=Jal-AkRek-Mej
+  model1=33002
+  readyanim=jalak_ready
+  walkanim=jalak_walk
+  op2=Attack
+  vislevel=70
+  ambient=-10
+  category=1132
+  stat2=95
+  stat4=15
+  stat6=120
+  param=param_46,int,-1
+  param=magicattack,int,25
+  param=param_65,int,25
+  param=magicdefence,int,25
+  param=param_50,int,96
+
+[7695] inferno_creature_splitter_range    (configs/all.npc:210700)
+  why= name: inferno_creature_splitter_range, name=Jal-AkRek-Xil; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:740 (+6)
+  name=Jal-AkRek-Xil
+  model1=33004
+  readyanim=jalak_ready
+  walkanim=jalak_walk
+  op2=Attack
+  vislevel=70
+  ambient=-10
+  category=1132
+  stat2=95
+  stat4=15
+  stat5=120
+  param=param_46,int,-1
+  param=rangeattack,int,25
+  param=rangebonus_ammo,int,25
+  param=param_50,int,96
+
+[7696] inferno_creature_splitter_melee    (configs/all.npc:210717)
+  why= name: inferno_creature_splitter_melee, name=Jal-AkRek-Ket; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:692 (+6)
+  name=Jal-AkRek-Ket
+  model1=33003
+  readyanim=jalak_ready
+  walkanim=jalak_walk
+  op2=Attack
+  vislevel=70
+  ambient=-10
+  category=1132
+  stat1=120
+  stat2=95
+  stat3=120
+  stat4=15
+  param=param_46,int,-1
+  param=stabattack,int,25
+  param=slashattack,int,25
+  param=crushattack,int,25
+  param=strengthbonus,int,25
+  param=stabdefence,int,25
+  param=slashdefence,int,25
+  param=crushdefence,int,25
+  param=param_50,int,96
+
+[7697] inferno_creature_melee    (configs/all.npc:210740)
+  why= name: inferno_creature_melee, name=Jal-ImKot; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:590 (+6)
+  name=Jal-ImKot
+  model1=33010
+  size=4
+  readyanim=jalimkot_ready
+  walkanim=jalimkot_walk
+  op2=Attack
+  vislevel=240
+  ambient=-10
+  category=1132
+  stat1=210
+  stat2=120
+  stat3=290
+  stat4=75
+  stat5=220
+  stat6=120
+  footprintsize=204
+  param=param_46,int,-1
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=stabattack,int,40
+  param=slashattack,int,40
+  param=crushattack,int,40
+  param=strengthbonus,int,40
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,65
+  param=slashdefence,int,65
+  param=crushdefence,int,65
+  param=magicdefence,int,30
+  param=param_26,int,1
+  param=param_50,int,96
+
+[7698] inferno_creature_ranger    (configs/all.npc:210773)
+  why= name: inferno_creature_ranger, name=Jal-Xil; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:497 (+7)
+  name=Jal-Xil
+  model1=33014
+  size=3
+  readyanim=jalxil_ready
+  walkanim=jalxil_walk
+  op2=Attack
+  vislevel=370
+  ambient=-10
+  category=1132
+  stat1=140
+  stat2=60
+  stat3=180
+  stat4=125
+  stat5=250
+  stat6=90
+  footprintsize=153
+  param=param_46,int,-1
+  param=param_26,int,2
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=stabattack,int,0
+  param=slashattack,int,0
+  param=crushattack,int,0
+  param=strengthbonus,int,0
+  param=rangeattack,int,40
+  param=rangebonus_ammo,int,50
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_50,int,96
+
+[7699] inferno_creature_mager    (configs/all.npc:210806)
+  why= name: inferno_creature_mager, name=Jal-Zek; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:518 (+7)
+  name=Jal-Zek
+  model1=33000
+  size=4
+  readyanim=jalakxil_ready
+  walkanim=jalakxil_walk
+  walkanim_b=jalakxil_ready
+  walkanim_l=jalakxil_ready
+  walkanim_r=jalakxil_ready
+  op2=Attack
+  vislevel=490
+  ambient=-10
+  category=1132
+  stat1=370
+  stat2=260
+  stat3=510
+  stat4=220
+  stat5=510
+  stat6=300
+  footprintsize=204
+  param=param_46,int,-1
+  param=param_26,int,0
+  param=magicattack,int,80
+  param=param_65,int,80
+  param=stabattack,int,0
+  param=strengthbonus,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_50,int,96
+
+[7700] inferno_jad    (configs/all.npc:210840)
+  why= name: inferno_jad, name=JalTok-Jad; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:544 (+13)
+  name=JalTok-Jad
+  model1=33012
+  size=5
+  readyanim=jaltokjad_ready
+  walkanim=jaltokjad_walk
+  op2=Attack
+  vislevel=900
+  resizeh=110
+  resizev=110
+  ambient=-10
+  category=1132
+  stat1=750
+  stat2=480
+  stat3=1020
+  stat4=350
+  stat5=1020
+  stat6=510
+  footprintsize=256
+  param=param_26,int,0
+  param=param_46,int,-1
+  param=stabattack,int,80
+  param=crushattack,int,80
+  param=slashattack,int,80
+  param=strengthbonus,int,0
+  param=magicattack,int,100
+  param=param_65,int,75
+  param=rangeattack,int,80
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_50,int,96
+
+[7701] inferno_jad_healer    (configs/all.npc:210875)
+  why= name: inferno_jad_healer, name=Yt-HurKot; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:564 (+11)
+  name=Yt-HurKot
+  model1=9326
+  model2=9328
+  model3=9327
+  recol1s=908
+  recol1d=148
+  readyanim=lizard_cleric_ready
+  walkanim=lizard_cleric_walk
+  op2=Attack
+  vislevel=141
+  resizeh=35
+  resizev=35
+  ambient=30
+  contrast=150
+  stat1=165
+  stat2=100
+  stat3=125
+  stat4=90
+  stat5=150
+  stat6=150
+  param=stabattack,int,0
+  param=crushattack,int,0
+  param=slashattack,int,0
+  param=strengthbonus,int,0
+  param=magicattack,int,100
+  param=param_65,int,10
+  param=rangeattack,int,80
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,130
+  param=param_26,int,2
+  param=param_50,int,96
+
+[7702] inferno_ranger_finalwave    (configs/all.npc:210911)
+  why= name: inferno_ranger_finalwave, name=Jal-Xil; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:287 (+10)
+  name=Jal-Xil
+  model1=33014
+  size=3
+  readyanim=jalxil_ready
+  walkanim=jalxil_walk
+  op2=Attack
+  vislevel=370
+  ambient=-10
+  category=1133
+  stat1=140
+  stat2=60
+  stat3=180
+  stat4=125
+  stat5=250
+  stat6=90
+  footprintsize=153
+  param=param_46,int,-1
+  param=param_26,int,2
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=crushattack,int,0
+  param=strengthbonus,int,0
+  param=rangeattack,int,40
+  param=rangebonus_ammo,int,50
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_50,int,96
+
+[7703] inferno_mager_finalwave    (configs/all.npc:210942)
+  why= name: inferno_mager_finalwave, name=Jal-Zek; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:320 (+10)
+  name=Jal-Zek
+  model1=33000
+  size=4
+  readyanim=jalakxil_ready
+  walkanim=jalakxil_walk
+  walkanim_b=jalakxil_ready
+  walkanim_l=jalakxil_ready
+  walkanim_r=jalakxil_ready
+  op2=Attack
+  vislevel=490
+  ambient=-10
+  category=1133
+  stat1=370
+  stat2=260
+  stat3=510
+  stat4=220
+  stat5=510
+  stat6=300
+  footprintsize=204
+  param=param_46,int,-1
+  param=param_26,int,0
+  param=magicattack,int,80
+  param=param_65,int,80
+  param=stabattack,int,0
+  param=strengthbonus,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_50,int,96
+
+[7704] inferno_jad_finalwave    (configs/all.npc:210976)
+  why= name: inferno_jad_finalwave, name=JalTok-Jad; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:364 (+10)
+  name=JalTok-Jad
+  model1=33012
+  size=5
+  readyanim=jaltokjad_ready
+  walkanim=jaltokjad_walk
+  op2=Attack
+  vislevel=900
+  resizeh=110
+  resizev=110
+  ambient=-10
+  category=1133
+  stat1=750
+  stat2=480
+  stat3=1020
+  stat4=350
+  stat5=1020
+  stat6=510
+  footprintsize=256
+  param=param_26,int,0
+  param=param_46,int,-1
+  param=stabattack,int,80
+  param=strengthbonus,int,0
+  param=magicattack,int,100
+  param=param_65,int,75
+  param=rangeattack,int,80
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_50,int,96
+
+[7705] inferno_jad_healer_finalwave    (configs/all.npc:211009)
+  why= name: inferno_jad_healer_finalwave, name=Yt-HurKot; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:402 (+9)
+  name=Yt-HurKot
+  model1=9326
+  model2=9328
+  model3=9327
+  recol1s=908
+  recol1d=148
+  readyanim=lizard_cleric_ready
+  walkanim=lizard_cleric_walk
+  op2=Attack
+  vislevel=141
+  resizeh=35
+  resizev=35
+  stat1=165
+  stat2=100
+  stat3=125
+  stat4=90
+  stat5=150
+  stat6=150
+  param=stabattack,int,0
+  param=crushattack,int,0
+  param=slashattack,int,0
+  param=strengthbonus,int,0
+  param=magicattack,int,100
+  param=param_65,int,10
+  param=rangeattack,int,80
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,130
+  param=param_26,int,2
+  param=param_50,int,96
+
+[7706] inferno_tzkalzuk_placeholder    (configs/all.npc:211043)
+  why= name: inferno_tzkalzuk_placeholder, name=TzKal-Zuk; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:70 (+17)
+  name=TzKal-Zuk
+  model1=33011
+  size=7
+  readyanim=zuk_idle
+  op2=Attack
+  vislevel=1400
+  stat1=350
+  stat2=260
+  stat3=600
+  stat4=1200
+  stat5=400
+  stat6=150
+  footprintsize=358
+  param=crushattack,int,300
+  param=param_26,int,2
+  param=strengthbonus,int,200
+  param=magicattack,int,550
+  param=param_65,int,450
+  param=rangeattack,int,550
+  param=rangebonus_ammo,int,200
+  param=magicdefence,int,350
+  param=param_50,int,96
+  param=param_1361,int,2
+
+[7707] inferno_moving_safespot    (configs/all.npc:211068)
+  why= name: inferno_moving_safespot, name=Ancestral Glyph; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:38 (+14)
+  name=<col=00ffff>Ancestral Glyph</col>
+  model1=33036
+  size=3
+  readyanim=moving_safe_spot_ready
+  walkanim=moving_safe_spot_ready
+  minimap=no
+  vislevel=0
+  turnspeed=0
+  rotationflag=no
+  stat2=50
+  stat4=600
+  stat6=0
+  footprintsize=153
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+
+[7708] inferno_zuk_healer    (configs/all.npc:211087)
+  why= name: inferno_zuk_healer, name=Jal-MejJak; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:436 (+11)
+  name=Jal-MejJak
+  model1=33099
+  readyanim=dagannoth_water_creature_ready
+  walkanim=dagannoth_water_creature_walk
+  op2=Attack
+  vislevel=250
+  category=258
+  stat2=100
+  stat4=75
+  param=magicdefence,int,0
+  param=attackrate,int,3
+  param=param_50,int,96
+
+[7709] inferno_invisible_3x3    (configs/all.npc:211101)
+  why= name: inferno_invisible_3x3, name=Rocky support; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:805 (+8)
+  name=<col=00ffff>Rocky support</col>
+  model1=32999
+  size=3
+  minimap=no
+  vislevel=1
+  resizeh=1
+  resizev=90
+  footprintsize=153
+
+[7710] inferno_safespot_dying    (configs/all.npc:211111)
+  why= name: inferno_safespot_dying, name=Rocky support; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_waves.rs2:177
+  name=<col=00ffff>Rocky support</col>
+  model1=33046
+  size=3
+  minimap=no
+  vislevel=0
+  footprintsize=153
+
+[8009] poh_zuk_pet    (configs/all.npc:219474)
+  why= name: poh_zuk_pet, name=TzRek-Zuk
+  name=TzRek-Zuk
+  model1=34586
+  head1=34587
+  readyanim=zukrek_idle
+  walkanim=zukrek_walk
+  op1=Talk-to
+  op3=Pick-up
+  minimap=no
+  vislevel=0
+  resizeh=18
+  resizev=18
+  ambient=30
+  contrast=150
+  category=764
+
+[8011] zuk_pet    (configs/all.npc:219508)
+  why= name: zuk_pet, name=TzRek-Zuk
+  name=TzRek-Zuk
+  model1=34586
+  head1=34587
+  readyanim=zukrek_idle
+  walkanim=zukrek_walk
+  op1=Talk-to
+  op3=Pick-up
+  op4=Metamorphosis
+  minimap=no
+  vislevel=0
+  resizeh=18
+  resizev=18
+  ambient=30
+  contrast=150
+  pet=yes
+  lowpriorityops=yes
+
+[10620] poh_jadpet_inferno    (configs/all.npc:354083)
+  why= name: poh_jadpet_inferno, name=JalRek-Jad
+  name=JalRek-Jad
+  model1=33012
+  head1=41568
+  readyanim=jaltokjad_ready
+  walkanim=jaltokjad_walk_pet
+  op1=Talk-to
+  op3=Pick-up
+  minimap=no
+  vislevel=0
+  resizeh=20
+  resizev=20
+  ambient=-10
+  category=764
+
+[10625] jadpet_inferno    (configs/all.npc:354196)
+  why= name: jadpet_inferno, name=JalRek-Jad
+  name=JalRek-Jad
+  model1=33012
+  head1=41568
+  readyanim=jaltokjad_ready
+  walkanim=jaltokjad_walk_pet
+  op1=Talk-to
+  op3=Metamorphosis
+  op4=Pick-up
+  minimap=no
+  vislevel=0
+  resizeh=20
+  resizev=20
+  ambient=-10
+  pet=yes
+  lowpriorityops=yes
+
+[11247] inferno_master_1op    (configs/all.npc:374568)
+  why= name: inferno_master_1op, name=TzHaar-Ket-Keh; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:309; bind: multinpc1 (value 0) of npc inferno_master
+  name=TzHaar-Ket-Keh
+  model1=33124
+  model2=33123
+  model3=33122
+  model4=33125
+  model5=9316
+  model6=9308
+  head1=33139
+  size=2
+  readyanim=thzaar_staff_ready
+  walkanim=thzaar_staff_walk
+  op1=Talk-to
+  vislevel=0
+  resizeh=192
+  resizev=192
+  ambient=10
+  footprintsize=102
+
+[11248] inferno_master_2op    (configs/all.npc:374587)
+  why= name: inferno_master_2op, name=TzHaar-Ket-Keh; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:312 (+1); bind: multinpc2 (value 1) of npc inferno_master
+  name=TzHaar-Ket-Keh
+  model1=33124
+  model2=33123
+  model3=33122
+  model4=33125
+  model5=9316
+  model6=9308
+  head1=33139
+  size=2
+  readyanim=thzaar_staff_ready
+  walkanim=thzaar_staff_walk
+  op1=Talk-to
+  op3=Exchange
+  vislevel=0
+  resizeh=192
+  resizev=192
+  ambient=10
+  footprintsize=102
+
+[12594] inferno_creature_melee_small    (configs/all.npc:410022)
+  why= name: inferno_creature_melee_small, name=Jal-ImKot; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:613 (+3)
+  name=Jal-ImKot
+  model1=33010
+  size=2
+  readyanim=jalimkot_ready
+  walkanim=jalimkot_walk
+  op2=Attack
+  vislevel=240
+  resizeh=64
+  resizev=64
+  ambient=-10
+  category=1132
+  stat1=210
+  stat2=120
+  stat3=290
+  stat4=75
+  stat5=220
+  stat6=120
+  footprintsize=102
+  param=param_46,int,-1
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=stabattack,int,40
+  param=slashattack,int,40
+  param=crushattack,int,40
+  param=strengthbonus,int,40
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,65
+  param=slashdefence,int,65
+  param=crushdefence,int,65
+  param=magicdefence,int,30
+  param=param_26,int,1
+  param=param_50,int,96
+
