@@ -597,3 +597,23 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
   three with 16) all read 144 ticks, 12 eaten and lowest hp 24. The same 16-shark kit run through
   `--script` read 130 ticks and 11 eaten. Two identical greens are one data point, so a quarter more
   food than the worst run is still the rule.
+
+## An Evil Creature's bar reads `30/30` and the hp orb falls: it is 1 hp, and the port hits back (The Eyes of Glouphrie, matthew-mbp-m4-b55)
+
+*Origin: the round-3 reviewers and sampler of matthew-mbp-m4-b55.*
+
+The reviewers wrote that Evil Creatures are 30 hp here, against the wiki's 1 hp. Half of that is
+wrong. `30/30` is the health bar, which is 30 units wide whatever the npc's hitpoints (see "A
+boss's first bar reading" above). All twelve blocks in `quest_theeyesofglouphrie/configs/eyeglo.npc`
+say `hitpoints=1`. The fights took 4 to 24 ticks only because the staged player had Strength 1:
+a bronze sword's max hit is then 1, and half the rolls are 0.
+
+The other half is true. The port makes the creatures hit back. Each `[opnpc2,eyeglo_fluffie_N]`
+(`eyeglo_quest.rs2:821-843`) runs `~npc_retaliate(0)` before `@player_combat_start`. In the
+round-3 run the player went from 40 to 35 hp over the six fights, with no food eaten. The wiki
+(Evil_Creature, oldid 15349482) says they do not fight back, so this is a content parity question
+for a seam pass, not something the test should work around.
+
+What an author does: stage hitpoints and a little food, and record the measured numbers in each
+kill row (ticks to death, and hp before and after from `t.skill.read`). Do not write "30 hp" in a
+comment, and do not write the literal "hp untouched".

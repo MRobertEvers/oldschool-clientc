@@ -512,3 +512,38 @@ and jatoba logs (480 Construction). The Gryphon (69 ticks) and Shellbane (394 ti
 Melee, Blunn's shield worn) are real fights, with 8 of 8 sharks left. The rewards are the literal
 8000 Slayer, 10000 Sailing and 1 qp. Nits: `list.has` PASSes with detail `false`, and the
 `sailOut.legN` rows `t.check(..., true, ...)` assert nothing.
+
+## Sample matthew-mbp-m4-b55, round 3 (2026-10-03)
+
+*The sampler checked ascentofarceuus (33d1bcebd, 105/0, 251 shots) and theeyesofglouphrie
+(9813e5044, 276/0, 456 shots). It opened every shot, in contact sheets. It passed
+ascentofarceuus and SENT theeyesofglouphrie BACK. Commit 9813e5044 is reverted (65805d323), and
+so is its evidence commit (OSRS-Content 30d5622731, reverted by 8fbb36460e). The file is kept in
+`test/quests/wip/theeyesofglouphrie/round3_rejected.lua`.*
+
+(a) THE EYES OF GLOUPHRIE TELEPORTS INTO BRIMSTAIL'S CAVE PAST THE ENTRANCE THE GUIDE NAMES.
+Ledger row 76 `goto-repairMachine` goes from 2359,3529,0 to 2391,9824,0 (shot 287's chatbox shows
+the teleport), and row 223 `goto-killCreature1` goes from 2466,3496,0 to 2408,9818,0. Row 260
+`goto-allDead` does the same. The guide's steps for those states are `enterCaveAgain` and
+`enterCave`. helper_coverage read FULL (coverage-and-gate: A goto back into a cave reads FULL).
+
+(b) `enterCave.below` (row 4) prints `table: 0x7ffd8ea60`. Its condition is
+`t.world.tile ~= nil`, which tests the function, so it can never fail. Read `t.world.tile()` and
+check the cave's z.
+
+(c) The kill comment says the bar "reads 30/30". That is the health bar's width, not hitpoints
+(gaps-combat: An Evil Creature's bar reads `30/30`).
+
+Not findings (theeyesofglouphrie): the three Grand Tree climbs are clicked, with level 1, 2 and
+3 read back (rows 244-249). Each kill row records ticks, hp before and after, and lobsters, and
+the orb matches. The disc puzzle is earned from Brimstail and the exchanger (23 rounds). The
+rewards are the literal 12000 Magic, 6000 Runecraft, 2500 Woodcutting, 250 Construction, the
+crystal seed and 2 qp. `::eyesofglouphrie` in setup only resets the quest and sets The Grand Tree
+done.
+
+Not findings (ascentofarceuus): 24/24 steps are driven, from Mori's accept to the hand-in to Lord
+Trobin. `fight.margin` reads 27/40, which matches the orb and the stats tab in shots 247 and 250.
+Hitpoints were staged at 40 with 8 sharks, none eaten, and the six fights took 16 to 52 ticks. The
+rewards are literal: 2000 coins (0 to 2000), one `veos_memoirs_arc_page`, 1500 Hunter, 500
+Runecraft and 1 qp. Nit: the four `searchRocks-N` rows are `t.check(true, ...)`. The stage check
+after them is the real gate.

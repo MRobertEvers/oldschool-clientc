@@ -599,3 +599,25 @@ Fixture: `python3 tools/quest_gate/helper_coverage_departure_cross_test.py` (3 c
 Meat and Greet run: the goto from the lobby is CHEAT, a click on the exit first is DRIVEN, the same goto
 stamped outside the Colosseum is not a cheat). It reads commits 171bc81b0 and OSRS-Content 343f1b4163,
 which live on the b55 batch branch until that batch merges. On the grader before the fix it fails 2/3.
+
+### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; OPEN)
+
+The Eyes of Glouphrie's guide uses `enterCave` (Brimstail's cave entrance) as the default step of
+almost every stage: `ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`, and in the
+repair stage `fixMachine.addStep(magicGlue, enterCaveAgain)`. The round-3 test clicked the entrance
+twice (rows 3 and 44). After that it went back into the cave three times with `goto_tile`:
+
+- `goto-repairMachine`, from the evergreen at 2359,3529,0;
+- `goto-killCreature1`, from Narnode at 2466,3496,0;
+- `goto-allDead`, from the Grand Tree.
+
+helper_coverage still read FULL 23/23. `enterCave` and `enterCaveAgain` are panel steps, matched to
+their first PASS row, and the crossing checks (`zone_crossing` for branch-only steps,
+`teleported_across` for promoted sub-steps) never look at the stages after that. The sampler sent
+the quest back.
+
+What an author does: when you are outside a place and the guide's step for that state is its way
+in, goto only to the entrance, click it, and read back the landing tile. Do this every time, not
+just the first. What a sampler does: check every goto row's `at <landing> from <departure>` against
+the guide's zones. A departure outside and a landing inside, with no click on the way in since the
+last goto, is a teleport past it.
