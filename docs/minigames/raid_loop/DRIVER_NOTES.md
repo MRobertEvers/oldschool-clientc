@@ -429,8 +429,9 @@ asserts after it. Each was measured with a scratch script that entered the room 
   (`tob_bloat_story`/`_hard`, `tob_sotetseg_combat_story`/`_hard` and their maze
   forms 10865/10864 and 10868/10867, `tob_xarpus_*_story`/`_hard`). Filter tick-log
   `npc_retype`/`npc_anim` rows on all three families.
-- Maiden (and her crabs and blood spawns) and Verzik stay the Normal ids in every mode;
-  their triggers exist only for the Normal ids.
+- Maiden, her crabs and her blood spawns are their mode's records from seam5 (see
+  "Entry and Hard Maiden are their mode's records" in the seam5 section).
+- Verzik stays the Normal ids in every mode; seam5 sets her Entry levels on those ids.
 - `t.raid.enter('tob', 'sotetseg', {mode='entry'|'hard'})` lists the mode records since
   seam2; before, its detail read `boss unspawned` there while answering ok.
 
@@ -987,8 +988,8 @@ is a fact about a verb, the tick log, the grader or a room that the sections abo
   warhammer, seen landing its floor). On Entry Bloat two warhammer specials and Curse
   drained nothing (Defence read 80 of 80; mage defence 600), so `bloat.stomp_defence`
   could not be driven through a drain there: report it open, not as a pass.
-- No verb reads equipment bonuses and no verb casts an ice spell, so
-  `maiden.freeze_full_bonus` is unreachable from a room test (open driver row).
+- `maiden.freeze_full_bonus` is reachable since seam5: Ancients as a setup bring-along
+  and a +140 magic set (seam5 section, "Maiden: the freeze curve").
 - `::tobboss` now prints att/str/rng/mag and `size=` (seam4, "::tobboss levels and
   size" below); `sotetseg.attack_level` reads from it.
 - Every npc pool row now carries `size` (seam4, "t.npc rows carry size" below), so
@@ -1101,11 +1102,8 @@ retaliation floor and exit. The fixers' reports are under
 - Its Defence and Magic are lowered with `npc_statsub`, so the base stays 50. If the
   engine restores npc stats over time they could climb back during a long P2 (not
   measured).
-- Entry Verzik and Entry Maiden still fight as their NORMAL records: `::tobboss` reads
-  Verzik's att/str/rng/mag as 400 in P1 and P2 (open; only Defence and the pool are set
-  by script).
-- Entry P2 lightning still rolls the Normal figure (41 measured against a solo player at
-  99 hp), and the P3 pool is still 400 of 1100 against spec 600. Both are open.
+- Seam5 fixed the levels of Entry Verzik and Entry Maiden and the Entry P3 pool (600).
+  The Entry P2 lightning has no Entry figure in any source (seam5 section).
 
 ## Maiden after seam4
 
@@ -1213,6 +1211,8 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
   When it is covered (a pool decal, another npc, the boss moving), the verb's cover
   recovery and `walk_near` spent 22 to 53 ticks before it answered. In a timed loop
   step to a tile with a clear line to the boss first, or press with `{ slot = n }`.
+- Seam5: `ticks` <= 2 (or `opts.quick = true`) now takes the fast press, which answers
+  `covered` within a tick or two instead (seam5 section, "The fast press").
 
 ## Hitpoints after an eat, and what an eat holds
 
@@ -1224,6 +1224,9 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
   excuses a late splat by an eat must look for the eat in the ticks AFTER the swing
   (swing+1 .. splat-1), not only before it, and must `t.check` every instance; an
   unexplained late splat is a FAIL (or a content_bug), never a PASS.
+- Seam5 found the cause: our eat calls `p_delay`, LostCity's does not (seam5 section,
+  "An eat holds every queued npc hit"). It is open; until it lands, count eaten-through
+  hits separately.
 
 ## Exact-tick actions
 
@@ -1243,9 +1246,8 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
 
 ## Maiden: the Ancients spellbook
 
-- There is no verb and no in-room route to the Ancients spellbook, so no ice spell can be
-  cast and `maiden.freeze_full_bonus` stays an open driver row (see "Specials and stats
-  the driver cannot read").
+- Seam5: bring Ancients in `setup` with `::setvar varb4070_spellbook 1` and cast Ice
+  Barrage or Ice Burst with `t.player.cast` (seam5 section, "Maiden: the freeze curve").
 
 ## A measured value must come from the log, not from the spec
 
@@ -1263,3 +1265,189 @@ Folded from the reviewers' doc gaps and the sampler's send-backs of the third la
 - The grader still reads only the first element of a measured list (above), so a list
   row such as `measured 1,4 ticks` against an exact 1 is graded as 1. Grade every
   instance in the test.
+
+# Seam pass 5: the third room pass's residue
+
+Seam pass 5 (`matthew-mbp-m4-raid-b1-seam5`, triage `SEAM_TRIAGE_2026-10-03c.md`) added a
+fast press to `t.player.attack`, `t.player.cast` and `t.npc.await_dead_engaged` (seam row
+`seam.attack_fast_path`), made Entry and Hard Maiden fight as their mode's records, set
+Entry Verzik's levels, pillar and P3 pool, and gave three Normal add records their cache
+levels (OSRS-Content d2134f89f5). The Sotetseg hit-delay seam found its cause in the eat,
+outside its files, and changed nothing. The fixers' reports are under
+`build/seam_state/matthew-mbp-m4-raid-b1-seam5/`.
+
+## The fast press: t.player.attack / t.player.cast with ticks <= 2 or opts.quick
+
+- `t.player.attack(sym, op, ticks, opts)` and `t.player.cast(spell, sym, ticks, op, opts)`
+  take the fast press when `ticks` <= 2 or `opts.quick = true`. The press aims once at the
+  named copy and presses once. On `covered` it makes exactly one re-aim and presses again.
+  The re-aim is the copy's new tile if it stepped, else a line hunt through the missed
+  pixel, else a camera nudge (pose 4 within 3 tiles, pose 1 beyond).
+- It never runs the cover recovery, never `walk_near`, and never hunts longer than one
+  tick per aim. Every goblin press took 0-1 tick. The worst Nylocas press took 3 ticks
+  over 76 presses, where the quest press took 19 and 22.
+- `opts` carries `quick` beside the selector: `{ slot = n }` (fast because ticks <= 2),
+  `{ slot = n, quick = true }`, `{ quick = true }` (the nearest copy), and
+  `{ slot = n, quick = false }` (the quest press even at ticks=1).
+- The detail of a fast press contains `fast path: aim ...; press 1 at x,y (...): covered;
+  re-aim: ...; press 2 ...; N tick(s) spent`.
+- Default ticks (10), or ticks >= 3 without `quick`, take the quest press exactly as
+  before. cooks_assistant, druid, hauntedmine, childrenofthesun and thefeud were
+  tick-identical. chompybird's three `attack(..., 5, 1)` refusal probes now press fast
+  and stay green (600 -> 586 ticks).
+
+## A fast `covered` answers at once and names other copies
+
+- The detail ends `... N tick(s) spent; the menus offered this op on slot S (element E
+  'Attack Nylocas ...') -- press one of those instead`, or `on no other copy`.
+- Pick another target from those slots rather than pressing the same copy again.
+
+## The kill wait remembers a fast fight
+
+- The engagement stamp records a fast attack or cast, so `t.npc.await_dead_engaged`
+  re-presses (or re-casts) that fight with the fast press too.
+- Its detail then says `N re-engagement(s) (fast path re-presses)`, and each
+  re-engagement note carries that press's own `fast path: ...` account.
+- Pass `opts.quick` to the wait to choose otherwise.
+
+## A fast cast and its settle
+
+- The cast still settles for `ticks`. With ticks=1, a cast at a copy several tiles away
+  answers `timeout` before the Magic XP lands.
+- When the XP was paid, the detail says `CAST (Magic XP paid; the stamp is written), but
+  the 6-tick flight window outlasts ticks=1`. When it was not paid yet, read Magic XP
+  yourself over the next few ticks.
+- The quest cast's timeout still says `the cast never ran` even when XP was paid (left
+  as it was, so the quest path stays byte-identical).
+- One far named copy (8 tiles across the Lumbridge goblin field) was pressed fast and the
+  server never cast on it: no XP and no refusal line for 10 ticks. The cause is not known.
+  The seam row stands two tiles off first. Watch for a raid cast at range that is silently
+  dropped.
+
+## The kill rate now follows the loop, not the verb
+
+- In the Nylocas copy, press ticks fell from 103 to 81 over 300 ticks, but wait ticks
+  rose from 130 to 149, because the loop held each target 3-5 ticks after a landed
+  press. A raid loop's hold and eat policy now sets its kill rate.
+- tob_nylocas with the fast press: 0 presses took six ticks or more, and 37 of 96
+  nylocas were killed in 368 ticks. With the 300-tick cap lifted it ate all 22 sharks and
+  left at hp 4 at click+448. Vasilias and the collapse rows were not reached. The aggro
+  forms swing unconditionally (tob_nylocas.rs2:1072), so the next step is tactics.
+
+## Entry and Hard Maiden are their mode's records
+
+- From her first tick, Maiden in Entry is `tob_maiden_100_story` / `_70_story` /
+  `_50_story` / `_30_story` (ids 10814-10817), and in Hard the `_hard` forms (10822-10825).
+  `~tob_maiden_mode_form` in tob_maiden.rs2 retypes her before the barrier and keeps her
+  pool.
+- Her crabs are `maiden_elemental_story` (10820; Hard `_hard` 10828), and her blood
+  spawns are `maiden_blood_slug_story` (10821; Hard 10829).
+- In Entry, `t.npc.nearest('tob_maiden_100')` and the Normal crab and slug symbols answer
+  `no_row`. Address her by her mode symbols. `t.raid.enter` lists all twelve bodies (the
+  closer added them to raid.lua).
+- Entry levels: `::tobboss` before the barrier reads `record=entry ... hp=500 of 500 def=80
+  of 80 att=140 str=140 rng=140 mag=140` (was `record=normal def=200 att=350`). Defence
+  stays 80 through the 70 and 30 bodies.
+- After a transmog, `::tobboss` says `record=normal`, because its classifier knows only
+  the 100% bodies. The levels it prints are still Entry's.
+- Her death in Entry is 10817 -> 10818 (dying_a, K+3) -> 10819 (dying_b, K+5), then
+  `npc_free` at K+9. The room clears.
+- The `::tobcrab*` debugprocs and the slug debug readout match only the Normal records,
+  so in Entry they find nothing (open, tob_selftest.rs2).
+- Every Normal Maiden past 70% used to fight at Defence 1: `tob_maiden_70/50/30` had no
+  levels. They now have the cache's 350/200/350/350/350. When a Maiden record changes,
+  check `::tobboss` after `::tobmaidenpct 60`.
+
+## maiden.blood_spawn_dodged_cap is a cap
+
+- Measure the most blood spawns from any one throw that no player stood in. "Stood in"
+  means the player's previous-tick tile was a live pool tile. Pass when the maximum is
+  <= 1, and state N.
+- A solo throw has 3 pools at 5 % each (the 10 % halved), so the chance of no spawn in N
+  dodged throws is 0.857^N (20 throws: 4.6 %; 30 throws: 1 %). A maximum of 0 over a small
+  N is consistent with the cap, not a failure.
+- Measured on our server: 61 dodged throws gave {0: 51, 1: 10}, max 1 (s5m4_after2). The
+  content was right and was not changed.
+- To dodge every throw, move only on the 8091 edge (`t.npc.state` seq_tick), between two
+  tiles at least 5 apart. Moving on every attack walks back onto the last throw's pools:
+  42 of 47 throws stood, max 2 (the 1 + stood cap).
+
+## Maiden: the freeze curve
+
+- The curve is in tob_maiden.rs2: `~tob_matomenos_hit_roll` and
+  `~tob_matomenos_freeze_chance`, with `^tob_maiden_freeze_bonus_full` 140
+  (tob.constant:238). The chance is `(lvl_now * (bonus + 64) - lvl_base * 64) /
+  (lvl_base * 140)`, which is 100 % at +140 unboosted.
+- Only Ice BARRAGE and Ice BURST use it (`~pvm_barrage_spell` -> `~player_npc_hit_roll`).
+  Ice Rush and Ice Blitz roll ordinary accuracy. The curve counts equipment magic attack
+  only; prayer and Void are not counted (open).
+- Bring Ancients in `setup`: `::setvar varb4070_spellbook 1`.
+- A +152 set in the pack: ancestral_hat, ancestral_robe_top, ancestral_robe_bottom,
+  kodai_wand, occult_necklace, eternal_boots, magus_ring, arcane (spirit shield). With it
+  3 of 3 barrages hit (spotanim 369) and the crab stood still until killed. At +0 a
+  barrage splashed (spotanim 85) (s5m4_freeze1).
+
+## Entry Verzik: levels, pillars, P3 pool
+
+- `::tobboss` levels per phase in Entry: P1 att 180, str 150, rng 180, mag 180, def 10;
+  P2 200/150/180/180, def 120; P3 180/200/180/180, def 120. `of 400` is the Normal
+  record's base, which the content lowers (`~tob_verzik_entry_levels`, constants from the
+  cache `_story` records in tob_verzik.constant).
+- Entry pillars read `tobpillars N hp=200` (`::tobpillars 0`). Normal and Hard stay 185.
+- Measure the Entry P3 pool from the pool growth, not from her hitpoints on the P3 form.
+  `::tobboss` reads `of 1100` before the fight (P1 300 + P2 400 + P2 400) and `of 1300`
+  from the tick she starts to fall (`~tob_verzik_p3_restate` adds 200), so P3 = 1300 - 300
+  - 400 = 600.
+- Her hitpoints on the P3 form are 600 less any P2 overkill and any hit taken during the
+  6-tick fall (one run read 535). P2 overkill carries into P3 in every mode.
+- The Entry P2 lightning has no Entry figure in any source. Keep `verzik.p2_zap_max`
+  scoped to normal. A solo Entry zap measured 8 and 3 under Protect from Magic.
+- An Entry red reads `red hp=20 def=30 mag=30`.
+
+## ::tobaddlevels
+
+- Read-only (tob_verzik.rs2). It prints hp/att/str/def/rng/mag for every Verzik red and
+  every NORMAL Maiden crab or blood spawn in the room. It does not match the Entry/Hard
+  crab and slug records.
+- The reply is one `mes` line that grows by about 45 characters per add. With more than
+  five adds alive it passes the 252 characters that desync a session (trap 27), so use it
+  with few adds alive (open).
+
+## An eat holds every queued npc hit
+
+- general/scripts/food.rs2 eats with `p_delay(^eat_delay)` (2 ticks). A delayed player
+  runs no queue of any kind (torirs_server_scripts.c:938 and :1540, the same canAccess
+  gate as LostCity).
+- So a hit due at +1 lands at +3 when the eat lands on the swing tick, and at +4 when the
+  eat lands the tick after. This covers Sotetseg's melee and balls, every raid projectile
+  impact, and an ordinary dark wizard's spell.
+- An ordinary npc's melee (a goblin) is not held, because it lands in the npc's own turn.
+- LostCity's eat (consume.rs2:101-110) never calls `p_delay`: it sets an eat-delay clock
+  and adds to the action delay. The fix is a port of that into food.rs2 (and the other
+  consumption scripts that `p_delay`). It is open after seam5.
+- Until it lands, count eaten-through hits separately in any hit-delay row.
+
+## Measuring
+
+- Ticklog pairing for an npc's hit delay: learn the cast seq as the latest `npc_anim` of
+  the npc's slot before its first `hit_player` row. Then pair each cast with the first
+  `hit_player` of that slot within 8 ticks.
+- A cast that deals no splat of its own (a dark wizard's weaken or confuse) shows up as a
+  +5 that is really the next cast's hit.
+- Filter rows by slot in the call (`slot = ws`). A `where` function over unfiltered
+  `npc_anim` rows ran out of the 400,000-instruction budget in 200 ticks.
+- A Dragon warhammer special drains 30 % Defence and an Elder maul 35 %. Name the weapon
+  the test really swings.
+
+## Proving a content change without the shared tree
+
+- Make a scratchpad copy of osrs239-content as a symlink farm, with configs/, pack/,
+  server/pack and server/scripts (minus build* and selftest) copied, so ss_allocate's
+  writes stay private.
+- Build its pack with `make -C src torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES=
+  TORIRSSERVER_CONTENT_DIR=<copy> TORIRSSERVER_SCRIPT_OUT=<copy>/server/scripts/build`.
+- Run with `TORIRSSERVER_CONTENT=<copy> python3 tools/quest_gate/run.py ...
+  --no-publish`. Damage rolls are the same in both trees, so a before/after diff shows
+  only the timing.
+- Run seam-pass regression quests with `--no-publish`. Without it, run.py rewrites
+  OSRS-Content's tracked selftest/quests/<quest>/play evidence.

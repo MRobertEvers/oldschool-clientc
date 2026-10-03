@@ -53,7 +53,12 @@
 -- form first; the pool is searched for any of them.
 QD.raid._ROOMS = {
     tob = {
-        maiden = { id = 1, boss = { "tob_maiden_100", "tob_maiden_70", "tob_maiden_50", "tob_maiden_30" } },
+        -- Entry/Hard Maiden is her mode's record from her first tick (raid seam5,
+        -- tob_maiden.rs2 ~tob_maiden_mode_form), so her _story/_hard bodies too.
+        maiden = { id = 1, boss = { "tob_maiden_100", "tob_maiden_100_hard", "tob_maiden_100_story",
+            "tob_maiden_70", "tob_maiden_70_hard", "tob_maiden_70_story",
+            "tob_maiden_50", "tob_maiden_50_hard", "tob_maiden_50_story",
+            "tob_maiden_30", "tob_maiden_30_hard", "tob_maiden_30_story" } },
         bloat = { id = 2, boss = { "tob_bloat", "tob_bloat_hard", "tob_bloat_story" } },
         -- No boss until the waves are done: ~tob_spawn_boss returns early.
         nylocas = { id = 3 },

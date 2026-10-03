@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 101
+-- @seam-count 102
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 162
-local SEAM_COUNT = 101
+local SEAM_COUNT = 102
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -8760,6 +8760,250 @@ return {
                     return "hollow", table.concat(text, "; ") .. " -- state_text does not name 'size " .. size .. "'"
                 end
             end
+            teardown()
+            return "ok", table.concat(text, "; ")
+        end)
+
+        -- ===================================================================
+        -- raid seam5 attack_fast_path.
+        --
+        -- NO step row changes: t.player.attack, t.player.cast and
+        -- t.npc.await_dead* keep their signatures, and every existing call in
+        -- _conformance.lua passes the default ticks (or 20/40) and no
+        -- opts.quick, so it takes the quest press exactly as before -- the
+        -- rows step("player.attack"), step("npc.await_dead"),
+        -- step("npc.await_dead_engaged"), step("player.cast"),
+        -- seam("seam.attack_presses_the_watched_slot"),
+        -- seam("seam.cast_presses_the_named_copy") and
+        -- seam("seam.attack_exact_copy_on_one_tile") are unchanged (they ran
+        -- PASS in the fixer's run of _conformance.lua with this snippet inserted,
+        -- under conformance.py's own client environment,
+        -- build/quest_gate/s5fp_conf_rows3).
+        --
+        -- (1) NEW SEAM ROW. PLACE: in _conformance.lua's PLAN directly AFTER
+        -- seam("seam.npc_state_size", ...) (the raid seam4 row; it leaves the
+        -- character in the Lumbridge goblin field at 3225,3233 with the
+        -- stage's kit and ::god on, and kills its own npcs on every exit).
+        -- SEAM row: SEAM_COUNT +1, @seam-count +1.
+        --
+        -- A PRESS THAT LANDS IN A TICK OR TWO, OR ANSWERS (raid seam5
+        -- attack_fast_path).  t.player.attack / t.player.cast with ticks <= 2
+        -- (or opts.quick = true) press through QD.drive._press_quick
+        -- (pointer.lua, end of file): one aim, one press, on `covered`
+        -- exactly one re-aim (the copy's new tile, a line hunt through the
+        -- missed pixel, or a camera nudge) and one more press -- never the
+        -- cover recovery, never walk_near, no hunt past one tick an aim --
+        -- and npc.await_dead_engaged re-presses a fast fight the same way.
+        -- Graded on three goblins spawned in the field, each fought BY SLOT:
+        --   A  attack(ticks=1), the player walks off, and await_dead_engaged
+        --      re-presses it: its detail says "N re-engagement(s) (fast path
+        --      re-presses)" with N >= 1 (and the re-engagement note carries
+        --      the press's own "fast path: ..." account);
+        --   B  killed by repeated attack(ticks=1, {slot}): every press says
+        --      "fast path:", answers ok/timeout/covered, and spends at most
+        --      QUICK_MAX ticks; and one attack with the default ticks on the
+        --      same copy does NOT say it (the quest press is untouched);
+        --   C  one cast(wind_strike, ticks=1, {slot}) with exactly one air
+        --      and one mind rune given for it (the cast spends them): "fast
+        --      path:", and Magic XP paid inside 10 ticks (the copy can stand
+        --      several tiles off, so the payment can trail the one-tick
+        --      settle), then killed by attack(ticks=1).
+        -- Scratch proof: build/quest_gate/s5fp_conf_rows3 (this row PASS
+        -- beside the unchanged attack/cast/await rows), s5fp_gob_quick6
+        -- (8/8), the Nylocas copies s5fp_copy_nylo_quick*/slow*.
+        seam("seam.attack_fast_path", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local cast = verb("player", "cast")
+            local engaged = verb("npc", "await_dead_engaged")
+            local tiles = verb("npc", "tiles")
+            local walk_to = verb("player", "walk_to")
+            local tile = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not cast then return missing("player", "cast") end
+            if not engaged then return missing("npc", "await_dead_engaged") end
+            if not tiles then return missing("npc", "tiles") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not tile then return missing("world", "tile") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            -- The most server ticks one fast press may spend: aim + press,
+            -- the one re-aim (<= 1 tick of hunting) + press, the menu
+            -- dismissals.  Measured max 3 (s5fp_copy_nylo_quick1, 72 presses
+            -- in the Nylocas room; every goblin press 0-1).
+            local QUICK_MAX = 4
+            -- As seam.attack_exact_copy_on_one_tile: a fight several hits long.
+            setup_cheat("::setlevel ranged 1")
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::setlevel ranged 99")
+                settle(2)
+            end
+            local spots = { { 3229, 3233 }, { 3226, 3236 }, { 3232, 3236 } }
+            for i = 1, #spots do
+                local goto_result = goto_tile(spots[i][1], spots[i][2], 0)
+                if goto_result ~= "ok" then
+                    teardown()
+                    return "no_subject", "goto " .. spots[i][1] .. "," .. spots[i][2] .. " -> "
+                        .. describe(goto_result)
+                end
+                setup_cheat("::spawn " .. GOBLIN)
+            end
+            setup_cheat("::passive " .. GOBLIN)
+            goto_tile(3229, 3235, 0)
+            settle(3)
+            local r0, _, rows = tiles(GOBLIN, 4)
+            if r0 ~= "ok" or not is_table(rows) or #rows < 3 then
+                teardown()
+                return "no_subject", "fewer than three goblins within 4 (" .. describe(rows and #rows) .. ")"
+            end
+            local slots = { rows[1].slot, rows[2].slot, rows[3].slot }
+            local function alive(slot)
+                local _, _, now = tiles(GOBLIN, 0)
+                for _, row in ipairs(now or {}) do
+                    if row.slot == slot then return true end
+                end
+                return false
+            end
+            local function server_tick()
+                local _, tick_now = t.tick()
+                return tick_now or 0
+            end
+            local text = {}
+            -- A: open fast, walk off, await_dead_engaged re-presses fast.
+            local ra, da = attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[1] })
+            if (ra ~= "ok" and ra ~= "timeout") or not string.find(tostring(da), "fast path:", 1, true) then
+                teardown()
+                return ra == "ok" and "hollow" or ra, "A: attack(ticks=1) -> " .. describe(ra) .. " " .. describe(da)
+            end
+            local _, here = tile()
+            if is_table(here) then
+                walk_to(here.x - 4, here.z, 8)
+            end
+            local re, de = engaged(80, 8)
+            if re ~= "ok" then
+                teardown()
+                return re, "A: await_dead_engaged after walking off -> " .. describe(de)
+            end
+            if string.find(tostring(de), " 0 re-engagement(s)", 1, true)
+                or not string.find(tostring(de), "re-engagement(s) (fast path re-presses)", 1, true) then
+                teardown()
+                return "hollow", "A: killed, but no fast re-engagement named: " .. describe(de)
+            end
+            text[#text + 1] = "A slot " .. slots[1] .. " re-pressed fast and killed"
+            -- B: the quest press on the default ticks says nothing of a fast path.
+            local rs, ds = attack(GOBLIN, COMBAT_ATTACK_OP, nil, { slot = slots[2] })
+            if string.find(tostring(ds), "fast path:", 1, true) then
+                teardown()
+                return "refused", "B: attack with the default ticks took the fast path: " .. describe(ds)
+            end
+            text[#text + 1] = "B default-ticks press " .. describe(rs) .. " (quest press)"
+            -- B: killed by fast presses by slot.
+            local presses, worst, results = 0, 0, {}
+            local start = server_tick()
+            while alive(slots[2]) and server_tick() - start < 60 do
+                local before = server_tick()
+                local rb, db = attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[2] })
+                local spent = server_tick() - before
+                presses = presses + 1
+                if spent > worst then worst = spent end
+                results[#results + 1] = describe(rb) .. ":" .. spent
+                if rb ~= "ok" and rb ~= "timeout" and rb ~= "covered" then
+                    if not alive(slots[2]) then break end
+                    teardown()
+                    return rb, "B: press " .. presses .. " -> " .. describe(db)
+                end
+                if not string.find(tostring(db), "fast path:", 1, true) then
+                    if not alive(slots[2]) then break end
+                    teardown()
+                    return "hollow", "B: press " .. presses .. " does not name the fast path: " .. describe(db)
+                end
+                if spent > QUICK_MAX then
+                    teardown()
+                    return "refused", "B: press " .. presses .. " spent " .. spent .. " ticks (max "
+                        .. QUICK_MAX .. "): " .. describe(db)
+                end
+                t.ticks(2)
+            end
+            if alive(slots[2]) then
+                teardown()
+                return "timeout", "B: slot " .. slots[2] .. " alive after 60 ticks of fast presses ("
+                    .. table.concat(results, " ") .. ")"
+            end
+            text[#text + 1] = "B slot " .. slots[2] .. " killed in " .. presses .. " fast press(es), worst "
+                .. worst .. " tick(s) [" .. table.concat(results, " ") .. "]"
+            -- C: one fast cast with exactly the runes it spends, then fast presses.
+            setup_cheat("::give airrune 1")
+            setup_cheat("::give mindrune 1")
+            settle(2)
+            -- Stand two tiles from C first, as a test would: a passive goblin
+            -- wanders, and C stood 8 tiles off across the field when A and B
+            -- were done (s5fp_conf_rows4..6), where the press landed and the
+            -- server never cast -- reach and line of sight are the world's
+            -- business, not the press's.
+            local c_where = "?"
+            do
+                local _, _, now_rows = tiles(GOBLIN, 0)
+                for _, row in ipairs(now_rows or {}) do
+                    if row.slot == slots[3] then
+                        goto_tile(row.x - 2, row.z, 0)
+                        settle(2)
+                    end
+                end
+                local _, _, again = tiles(GOBLIN, 0)
+                local _, me = tile()
+                for _, row in ipairs(again or {}) do
+                    if row.slot == slots[3] and is_table(me) then
+                        c_where = me.x .. "," .. me.z .. " with slot " .. slots[3] .. " at " .. row.x
+                            .. "," .. row.z
+                    end
+                end
+            end
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if not read then
+                teardown()
+                return missing("skill", "read")
+            end
+            local _, xp_before = read("magic")
+            local before_cast = server_tick()
+            local rc, dc = cast("wind_strike", GOBLIN, 1, COMBAT_ATTACK_OP, { slot = slots[3] })
+            local cast_spent = server_tick() - before_cast
+            if (rc ~= "ok" and rc ~= "timeout") or not string.find(tostring(dc), "fast path:", 1, true) then
+                teardown()
+                return rc == "ok" and "hollow" or rc, "C: cast(ticks=1) from " .. c_where .. " -> "
+                    .. describe(rc) .. " " .. string.sub(tostring(dc), 1, 1800)
+            end
+            -- ticks=1 settles before a copy several tiles off is in range and
+            -- paid for, so the PAYMENT is awaited here: Magic XP up (one air
+            -- and one mind rune spent with it, ~pvm_spell_cast).
+            local paid = t.await({
+                level = function()
+                    local _, xp_now = read("magic")
+                    return is_table(xp_now) and is_table(xp_before)
+                        and xp_now.experience > xp_before.experience
+                end,
+                note = "seam.attack_fast_path: the fast cast paid",
+            }, 10)
+            if paid ~= "ok" then
+                teardown()
+                return "timeout", "C: the fast cast from " .. c_where .. " pressed but no Magic XP inside"
+                    .. " 10 ticks -- " .. string.sub(tostring(dc), 1, 1500)
+            end
+            text[#text + 1] = "C cast " .. describe(rc) .. " pressed in " .. cast_spent
+                .. " tick(s) from " .. c_where .. ", Magic XP paid"
+            start = server_tick()
+            while alive(slots[3]) and server_tick() - start < 60 do
+                attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[3] })
+                t.ticks(2)
+            end
+            if alive(slots[3]) then
+                teardown()
+                return "timeout", "C: slot " .. slots[3] .. " alive after 60 ticks of fast presses"
+            end
+            text[#text + 1] = "C slot " .. slots[3] .. " killed"
             teardown()
             return "ok", table.concat(text, "; ")
         end)
