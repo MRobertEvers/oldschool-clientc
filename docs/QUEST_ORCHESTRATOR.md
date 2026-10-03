@@ -337,3 +337,11 @@ never lose work like that.
   `lint_quest.py` refuses a bare name.
 - **Never use `resumeFromRunId`.** Relaunch with the same args; the state directory is the
   resume.
+
+## Raids are another orchestrator's
+
+Theatre of Blood, Chambers of Xeric and Tombs of Amascut belong to a separate raid
+orchestrator ([`RAID_ORCHESTRATOR.md`](RAID_ORCHESTRATOR.md)), which uses these same claim
+and branch mechanics with a measured encounter spec in place of the quest guide. Its rows
+are tier 6 in `QUEUE.tsv`. **A quest orchestrator never claims a tier 6 row**, and the raid
+orchestrator never claims tiers 1-5; the shared file is what keeps the two exclusive.
