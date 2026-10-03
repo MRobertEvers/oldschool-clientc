@@ -2059,9 +2059,8 @@ sounds. Nineteen seam rows prove them. The fixers' reports and scratches are und
   `::tobjail` until `jailed=1` and count rows from that tick. A scratch can force the
   flag with `::setvar varp6840_tob_died_in 1` plus `::tobmate`. All of these are
   measurement cheats, never in a room test.
-- In the Xarpus room a caged raider is not released when the room is won (`cleared=1,
-  jailed=1` for 30+ ticks after the kill; CONTENT_BUGS.md). A room test that dies in
-  Xarpus cannot rejoin the raid until that is fixed.
+- Since seam9 every room releases a caged raider when the room is won (seam pass 9, "A
+  caged raider comes out when the room is won").
 - Rows: `seam.tob_maiden_cage_and_one_death_anim`, `seam.bloat_hand_sound_and_cage`,
   `seam.nylocas_cage_skipped_support_unanimated`, `seam.tob_sotetseg_cage_not_targeted`,
   `seam.verzik_entry_forms_cage_and_death`.
@@ -2070,18 +2069,12 @@ sounds. Nineteen seam rows prove them. The fixers' reports and scratches are und
 
 - The killing blow is K. `maiden_death_a` 8093 plays ONCE at K+1 (the engine's
   `npc_death_step` plays the body's death_anim), and it carries sounds 3942/3955/3958 in
-  band. The dying_a retype is at K+3, dying_b with 8094 at K+5, and npc_free at K+9.
-- The K+3 retype is an engine limit, not content: `[ai_queue3]` runs at the CORPSE stage
-  (K+1+death_delay) and no timer or queue runs on an npc holding death_tick. Blert holds
-  dying_a four ticks from K+1 (CONTENT_BUGS.md engine row).
+  band. Since seam9 the dying_a retype is at K+1 (it was K+3), dying_b with 8094 at K+5,
+  and npc_free at K+9 (seam pass 9, "Maiden's death forms are on the recorded ticks").
 - A solo bow cannot finish her from 1%: the leaks out-heal it. Use `::tobmaidenpct 0` for
   a measurement; a room test kills her for real.
-- Thrown pools vs trails: the real game draws a thrown pool with graphic 1579 alone and
-  only a blood spawn's trail with loc 32984. Ours still places 32984 under every pool
-  because the C world selftest counts that loc. A ready patch
-  (`build/seam_state/matthew-mbp-m4-raid-b1-seam8/scratch_maiden/pool_loc_change.diff`)
-  lands with the selftest and `tob_maiden.lua`'s pool_life row keyed to map_spotanim 1579.
-  Until then a test that counts 32984 tiles counts pools as trails.
+- Thrown pools vs trails: since seam9 a thrown pool is graphic 1579 alone and loc 32984 is
+  a blood spawn's trail only (seam pass 9, "Maiden's thrown pools are a graphic").
 - `test/raids/tob_maiden.lua` must name the Entry records (`tob_maiden_100_story` ...
   `_30_story`) since seam5. With those four symbols the committed file drives the whole
   Entry room 64/64.
@@ -2102,9 +2095,9 @@ sounds. Nineteen seam rows prove them. The fixers' reports and scratches are und
 ## Nylocas: death timings and the support npc
 
 - Measure a death offset with REAL hits, never `::kill`: `::kill` lands on the npc's own
-  step tick (arrive delay 2). With real hits bigs read +1/+6 standing and +2/+7 walking,
-  smalls +1/+2 standing and +2/+3 after a step on hp0-1 (the engine arrive-delay row,
-  CONTENT_BUGS.md).
+  step tick (arrive delay 2). With real hits bigs read +1/+6 standing and +2/+7 walking.
+  Since seam9 smalls read +1/+2 walking or standing (seam pass 9, "A small Nylocas dies on
+  a fixed two ticks").
 - Sound 4020 `tob_nylocas_hit` is the defend sound on every hit, lethal or not. A `::kill`
   log shows it only on death ticks because the kill is the only hit: read sound rows
   against `hit_npc`, not `npc_death`.
@@ -2127,9 +2120,9 @@ sounds. Nineteen seam rows prove them. The fixers' reports and scratches are und
 
 - The death screech 3549 is now only the frame sound of seq 8063. Assert it through the
   npc_anim 8063 row on the collapse tick, never through a sound row.
-- A spit lands at spit +3 on a LIVING target (the grade E spec says 2, M71). The landing
-  is a normal player queue on its target, so it waits while the target is dying (113 ->
-  119 measured): measure it on a living target.
+- A spit lands at spit + floor(end_cycle / 30) (3 or 4 by distance; the grade E spec says
+  2, M71). Since seam9 the landing is Xarpus's own queue and does not wait on a dying
+  target (seam pass 9, "Xarpus's spits and orbs land on their own tick").
 - With a `::tobmate` stand-in a solo raider takes every spit (a stand-in is never a
   target); before, about half were lost on the stand-in's slot.
 
@@ -2259,3 +2252,147 @@ sounds. Nineteen seam rows prove them. The fixers' reports and scratches are und
   the change (`strings <bin> | grep player_anim`) before trusting a selftest count.
 - Every regression run of a quest passes `--no-publish`. Two seam8 runs without it
   rewrote OSRS-Content's selftest/quests/quest_cook and quest_druid evidence.
+
+# Seam pass 9: what the client draws, the death stages, the cage on a win
+
+Seam pass 9 (`matthew-mbp-m4-raid-b1-seam9`, triage `SEAM_TRIAGE_2026-10-03g.md`) adds the
+reads the fifth room pass could not take: the pose an npc draws while it stands or walks,
+the sequence a graphic or a loc plays, and a loc's looping sound. The engine seam fixes
+Maiden's death forms, the small Nylocas death, and the pool loc, and adds an `npc_heal`
+tick log row. The content seam releases a caged raider when any room is won and lands
+Xarpus's spits on his own clock (OSRS-Content 24198b54ed). No driver verb changed: the new reads are fields on rows
+the verbs already return. Nine seam rows prove them. The fixers' reports and scratches are
+under `build/seam_state/matthew-mbp-m4-raid-b1-seam9/`.
+
+## An npc standing or walking reads anim_id -1: read pose_anim
+
+- Every npc row (`t.npc.state`, `t.npc.nearest`, raid.lua's boss read) carries
+  `pose_anim` / `pose_frame`. That is the client's secondary (locomotion) track as it is
+  drawn. `pose_kind` says which slot of the npc's idle set it is: `ready`, `walk`,
+  `walk_back`, `walk_left`, `walk_right`, `run`, `turn`, `other` or `none`.
+- The row also carries `ready_anim`, `walk_anim`, `turn_anim` and `run_anim`: the idle set
+  the client holds for that entity now. -1 means an empty track or slot. `pose_kind`
+  `none` means `pose_anim` is -1.
+- Trap: `anim_id` is the ACTION track only. It reads -1 the whole time an npc stands or
+  walks, because the server sends no SEQUENCE op for a ready or walk loop. A test that
+  reads `anim_id` for an idle or walk row measures nothing.
+- Filter on `pose_kind`, not on "the tile did not change". Between ticks a walking npc's
+  tile does not change either. Bloat walks almost all the time: ready 8080 was drawn on 1
+  of about 770 reads, and a tile-unchanged filter read his walk 8081.
+- After `npc_changetype` the idle set is the NEW type's (`World_NpcSetType`). A cache
+  lookup of the spawn symbol answers the old type forever. Vasilias reads ready 8002 /
+  walk 8003 in her first form and ready 7988 / walk 7987 after the retype to 10788.
+- A standing npc with no turnanim turns in its walkanim. That reads `pose_kind` `turn`
+  (canafis_man1: turn = walk 819).
+- The pose track keeps stepping under an action seq. Whether it shows depends on the
+  action seq's walkmerge and priority, so `pose_anim` with `anim_id` >= 0 does not prove
+  the pose is visible.
+- Rows: `seam.npc_pose_reads_the_drawn_track`, `seam.npc_pose_follows_a_retype`.
+
+## A graphic's own sequence: seq on projectile and spotanim rows
+
+- `t.world.projectiles` and `t.world.spotanims` rows carry `seq` / `seq_frame`: the
+  sequence the graphic's scene element is playing. Wind strike projectile 91 plays 659.
+  Bloat's falling flesh 1570-1573 plays 8088.
+- They read -1 / -1 while the seq is loading and before the element exists. Wait for
+  `seq >= 0` instead of reading the first row.
+- Row: `seam.element_seq_projectile_and_static_loc`.
+
+## A loc's animation and looping sound: seq and ambient_* on loc rows
+
+- Every loc row (`api_drive.locs`, and `t.world.hazard_at(x, z, level).locs`) carries
+  `seq` / `seq_frame`: the sequence the loc's element plays. It reads the same for a
+  map-placed loc whose record has an anim and for a server `loc_anim`. It is -1 for a
+  static loc, and -1 again once a one-shot loc anim has run out.
+- The row also carries `ambient_sound`, `ambient_range` (inaudible distance in tiles),
+  `ambient_inner` (full-volume radius) and `ambient_random` (number of random
+  alternatives): the looping area sound the client REGISTERED for that placement. They
+  read -1 (random 0) when the client registered nothing.
+- Bloat's room reads: tob_bloat_chamber seq 8086, ambient 3288 range 5; tob_arena_barrier
+  seq 7929, ambient 3139 range 1; the chain hooks seq 8087 and silent. A Lumbridge tree
+  reads seq -1 and no ambient.
+- Trap: `t.world.loc_near` returns the pointer's own row (id, tile, level) without these
+  fields. Take the tile from it, read `hazard_at(tile).locs` and match on `loc_id`.
+- Row: `seam.loc_and_graphic_seq_in_bloat_room`.
+
+## npc rows do carry size
+
+- `t.npc.state` rows carry `size` (raid seam4, still true). The Xarpus author's report
+  that it is missing came from reading the wrong row. Xarpus reads 3 in his static form
+  and 5 in his fighting form.
+
+## The tick log's npc_heal row
+
+- `t.ticklog.rows({ kind = "npc_heal" })` returns { slot, type, amount, hitpoints, base,
+  source }. A row is written by `npc_statheal` or `npc_statadd` on hitpoints, and only
+  when the level actually rose. `source` is the healing script's name.
+- ToB sources: `[proc,tob_maiden_heal_found]` (+10..+22 a tick as blood spawns reach her),
+  `[proc,tob_verzik_athanatos_tick]` (+10 every 5 ticks while an Athanatos stands, for
+  example spawn t239 then heals t244/249/254), `[proc,tob_verzik_blood_spell]` and
+  `[proc,tob_verzik_absorb_reds]`.
+- Room setup writes heal rows too (`[proc,tob_boss_set_hp]`,
+  `[proc,tob_verzik_spawn_pillars]`). Filter by `source`, or by slot and the window you
+  measure.
+- Ordinary npc: a Slayer Tower banshee writes +1 `[proc,slayer_after_player_hit]` on
+  every landed hit, and takes damage only while slayer_earmuffs are worn.
+- Row: `seam.ticklog_npc_heal_row`.
+
+## Maiden's death forms are on the recorded ticks
+
+- K is her `npc_death` row. The retype to dying_a (Entry 10818) is at K+1, the fade
+  (10819) at K+5, and `npc_free` at K+9. `maiden_death_a` 8093 is sent once, at K+1. A
+  ledger row for `maiden.av.death.dying_a_form_ticks` reads 4 (it read 2 before seam9).
+- How: her living records state `death_delay=0`, and the engine runs `[ai_queue3]` on the
+  death animation's tick for that value. No other npc record states 0.
+- To get a death on cue in a measurement scratch, use `::tobmaidenpct 0`. With
+  `::tobmaidenpct 2` and arrows, her blood spawns heal an Entry Maiden back faster than the
+  arrows chip. A room test still kills her with its own hits.
+- Row: `seam.maiden_death_forms_on_recorded_ticks`.
+
+## Maiden's thrown pools are a graphic, not a loc
+
+- A thrown blood pool is a `map_spotanim` row with spotanim 1579 on its landing tick. No
+  loc 32984 is placed under it. A test that finds pools through `loc_set` 32984 or
+  `hazard_at`'s loc rows sees none ("0 splats from loc add to loc removal").
+- Key pool rows on map_spotanim 1579. Loc 32984 rows are blood-spawn trails only.
+- `test/raids/tob_maiden.lua`'s `spec.maiden.pool_life` row still keys on loc 32984; the
+  next maiden author re-keys it.
+
+## A small Nylocas dies on a fixed two ticks
+
+- A small the player kills plays its death animation at `npc_death` + 1 and is freed at
+  + 2, walking or standing (blert's table). A ledger no longer sets walking smalls aside.
+- A big that was walking still stops first: anim + 2, free + 7 (standing + 1 / + 6).
+- How: the engine skips the arrive delay for a record stating `death_delay` under 2. Only
+  the 18 small records (1) and Maiden's living records (0) do.
+- Row: `seam.small_nylocas_dies_without_arrive_wait`.
+
+## A caged raider comes out when the room is won, in every room
+
+- A raider who dies with a living party member (`::tobmate` in a scratch) is caged. When
+  the boss dies they are back at the room entry within about 6 ticks, and `::tobjail`
+  reads `jailed=0 ... cleared=1 tile=<room entry>`. Before seam9 only the Maiden's room
+  did this. Source: wiki Theatre of Blood/Strategies, "If the room is successfully cleared
+  by the remaining players, those who have died will be reunited with the rest of their
+  team."
+- Row: `seam.tob_cage_released_on_room_win`.
+
+## Xarpus's spits and orbs land on their own tick
+
+- A spit lands (map_spotanim 1556, loc 32744 and sound 4005 on its tile) on spit tick +
+  floor(end_cycle / 30). A thrown orb lands on throw tick + floor(end_cycle / 30). Read
+  end_cycle from the projectile tick log row: do not assume +3. A spit's end_cycle depends
+  on distance (107 is 3 ticks, 122 is 4).
+- A target who is dying or caged no longer delays a landing. Landings still in flight when
+  Xarpus dies are dropped.
+- Orb timing moved from mostly throw + f + 1 to throw + f (the ENCOUNTER_TIMING 1.2/1.4
+  rule). A spec row written against the old orb timing moves by one tick.
+- To pair a splat with its spit, match the exact due tick. For a stationary target every
+  spit hits the same tile, so "the first 1556 on the aimed tile" misattributes.
+- Tell a spit from an orb by its source tile (his mouth is the source of the fight's first
+  spit), not by "a 1555 projectile on an npc_anim 8059 tick". Orbs are often thrown on a
+  spit tick.
+- The landings now run in the npc phase, so a deterministic run's random stream differs
+  from earlier ledgers from the first landing on. Re-measure instead of comparing with a
+  pre-seam9 tick log.
+- Row: `seam.tob_xarpus_landing_ignores_a_dying_target`.

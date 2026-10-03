@@ -7739,12 +7739,19 @@ ToriRSServer_ScriptCommand(
         }
         if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
         {
+            int const before = npc->hitpoints;
+
             step = values[1] + (npc->base_hitpoints * values[2]) / 100;
             npc->hitpoints += step;
             if( npc->hitpoints > TORIRSSERVER_NPC_STAT_MAX )
                 npc->hitpoints = TORIRSSERVER_NPC_STAT_MAX;
             if( npc->hitpoints < 0 )
                 npc->hitpoints = 0;
+            /* The tick log's npc_heal row (raid loop seam9): only a real gain. */
+            assert(state->script);
+            if( npc->hitpoints > before )
+                ToriRSServer_TicklogNpcHeal(npc, npc->hitpoints - before, npc->hitpoints,
+                                            npc->base_hitpoints, state->script->name);
             return 1;
         }
         step = values[1] + (npc_base_stat(npc, values[0]) * values[2]) / 100;
@@ -7843,7 +7850,20 @@ ToriRSServer_ScriptCommand(
         if( healed < 0 )
             healed = 0;
         if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
+        {
             npc->hitpoints = healed;
+            /*
+             * The tick log's npc_heal row (raid loop seam9), the HIT_NPC row's
+             * mirror: only when the level rose, so a heal the base clamp ate
+             * (a full npc) is no row. Labelled with this script's name -- the
+             * Maiden's blood-spawn absorb and Verzik's Athanatos heal both
+             * arrive here and a ledger has to tell them apart.
+             */
+            assert(state->script);
+            if( healed > current )
+                ToriRSServer_TicklogNpcHeal(npc, healed - current, healed, base,
+                                            state->script->name);
+        }
         else
             npc->stat_drain[values[0]] = base - healed;
         return 1;

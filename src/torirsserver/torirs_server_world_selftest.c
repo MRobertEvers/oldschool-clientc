@@ -21512,6 +21512,94 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a walking npc stops before it dies, a small "
+                    "Nylocas does not\n");
+    {
+        /*
+         * The arrive delay, from both sides (raid loop seam9).
+         *
+         * A goblin that stepped on the blow's tick waits out `npc_arrivedelay`
+         * before its death animation (two ticks: "stop on t+1, anim t+2" is
+         * blert's walking BIG Nylocas too). A small Nylocas -- `death_delay=1`,
+         * a death shorter than the reference's -- does not: "stop and 'turn'
+         * anim occur on the same tick t+1, despawn t+2" (blert guide
+         * tob_nylocas_mechanics_page.tsx:483-493). Both halves, so the gate in
+         * `npc_death_step` cannot be deleted or widened to every npc without a
+         * failure here.
+         *
+         * 10774 is a small Nylocas record (tob.npc's 18 `death_delay=1` smalls,
+         * the id set tools' nylocas analysis reads); spawned well away from
+         * the player, killed by a blow struck the way `ToriRSServer_CombatHitNpc`
+         * strikes one, and `last_movement` set to "moved on this tick" (the
+         * moving tick plus one).
+         */
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int small = npc_spawn(srv, 10774, g_home_x - 9, g_home_z - 9, 0);
+
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
+        SELFTEST_CHECK(small >= 0, "a small Nylocas (10774) should spawn");
+        if( goblin >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[goblin];
+            int blow;
+
+            SELFTEST_CHECK(npc->def->death_delay >= 2,
+                           "the goblin keeps the reference's corpse wait, got %d",
+                           npc->def->death_delay);
+            selftest_park_player(srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            npc->death_tick = -1;
+            npc->hitpoints = npc->max_hitpoints;
+            npc->anim_id = -1;
+            blow = srv->tick;
+            npc->last_movement = blow + 1;
+            ToriRSServer_CombatHitNpc(srv, goblin, 0, npc->hitpoints);
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->death_stage == TORIRSSERVER_DEATH_ARRIVE,
+                           "a goblin that moved on the blow's tick waits to arrive, "
+                           "stage %d", npc->death_stage);
+            SELFTEST_CHECK(!npc->death_seq_sent,
+                           "and has not started its death animation a tick after "
+                           "the blow (sent on tick %d, blow %d)", npc->death_seq_tick,
+                           blow);
+            for( int i = 0; i < npc->def->death_delay + 6 && npc->active; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(!npc->active, "the walking goblin's corpse despawns");
+            for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(npc->active, "and the goblin respawns afterwards");
+        }
+        if( small >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[small];
+            int blow;
+
+            SELFTEST_CHECK(npc->def->death_delay == 1,
+                           "10774 is a small: death_delay 1, got %d",
+                           npc->def->death_delay);
+            npc->anim_id = -1;
+            blow = srv->tick;
+            npc->last_movement = blow + 1;
+            ToriRSServer_CombatHitNpc(srv, small, 0, npc->hitpoints);
+            SELFTEST_CHECK(!npc->death_seq_sent,
+                           "the small's death animation is not sent on the blow's tick");
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->death_stage == TORIRSSERVER_DEATH_CORPSE,
+                           "a small that moved on the blow's tick dies without the "
+                           "arrive wait, stage %d", npc->death_stage);
+            SELFTEST_CHECK(npc->death_seq_sent,
+                           "and its death animation (seq %d) is sent at blow + 1 "
+                           "(tick %d, blow %d)", npc->death_seq, srv->tick, blow);
+            selftest_tick(srv);
+            SELFTEST_CHECK(!npc->active,
+                           "and it despawns at blow + 2 (tick %d, blow %d)", srv->tick,
+                           blow);
+            /* On a failure above, let the engine finish the death rather than
+             * freeing a corpse whose animation never reached the wire. */
+            for( int i = 0; i < 6 && npc->active; i++ )
+                selftest_tick(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: ::god absorbs damage at the funnel\n");
     {
         /*
@@ -32638,6 +32726,25 @@ ToriRSServer_WorldSelftest(void)
                 int victim_seq = 0;
                 int victim_corpse = 0;
                 int victim_alive_ticks = 0;
+                int pool_on_body = 0;
+                int pool_with_loc = 0;
+                /*
+                 * HER POOLS ARE GRAPHICS, read off the tick log (raid loop
+                 * seam9). A thrown pool is `maiden_lingering_blood` 1579 alone
+                 * -- `~tob_maiden_pool_land` places no loc since the seam8 pool
+                 * finding (CONTENT_BUGS, spec row maiden.av.blood_throw.pool_loc
+                 * = 0); the loc 32984 is a blood spawn's trail. A map graphic
+                 * is a packet, not scene state, so the scene scan this used to
+                 * do cannot see it; the log's MAP_SPOTANIM row is the server
+                 * saying where it put one, on the tick it did.
+                 */
+                int const k_pool_spotanim = 1579;
+                int const pool_log_here = !ToriRSServer_TicklogEnabled(srv);
+                uint32_t pool_serial;
+
+                if( pool_log_here )
+                    ToriRSServer_TicklogEnable(srv, NULL);
+                pool_serial = ToriRSServer_TicklogCount();
 
                 /*
                  * Drop her under 70 % from here rather than by swinging at her.
@@ -32783,29 +32890,11 @@ ToriRSServer_WorldSelftest(void)
                      * standing on can only ever be wrong, and nothing else in
                      * the suite asks the question from the player's side.
                      */
-                    {
-                        /*
-                         * SHAPE 22, not 10. `~tob_maiden_pool_land` adds the
-                         * pool as `grounddecor` and states why in as many
-                         * words: shape 22 is the tile's exclusive decor slot
-                         * and is emitted in the tile's base step, while a
-                         * `centrepiece_straight` joins the tile's scenery chain
-                         * and sorts against the player standing on it — a pool
-                         * nearer the camera than his anchor drew OVER him.
-                         * Looking for a centrepiece here found nothing, every
-                         * run, and reported it as "she never threw".
-                         */
-                        int slot = ToriRSServer_SceneFindLocExact(
-                            player->x, player->z, player->level, 22 /* grounddecor */);
-                        struct ToriRSServerSceneLoc* l =
-                            slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
-                        if( l && l->active && l->loc_id == 32984 )
-                            pool_under_player++;
-                    }
                     /*
-                     * ...AND HOW MANY SHE THREW AT ALL.
+                     * ...AND HOW MANY SHE THREW AT ALL, and whether one landed
+                     * on her own body.
                      *
-                     * Without this the failure above says only "not on the
+                     * Without the count the failure above says only "not on the
                      * player's tile", which reads as a targeting bug and is the
                      * same message whether she threw ten pools at the wrong
                      * tiles or threw none. Those are opposite defects — one is
@@ -32813,23 +32902,57 @@ ToriRSServer_WorldSelftest(void)
                      * that decides whether a blood attack happens — and the
                      * suite has to be able to say which.
                      *
-                     * Counted over her whole arena, once per tick, so the
-                     * number is "pool-tiles seen" rather than "throws": a pool
-                     * lives ^tob_maiden_blood_trail_ticks and this samples it
-                     * every tick it is open.
+                     * One reading per LANDING (the tick `~tob_maiden_pools_tick`
+                     * sends the graphic), where the scene scan this replaced
+                     * counted a pool loc once per tick it stood. The player
+                     * stands still (`tobstand`), so "on his tile" is his tile
+                     * on the landing tick.
                      */
-                    for( int px = -12; px <= 12; px++ )
+                    for( ;; )
                     {
-                        for( int pz = -12; pz <= 12; pz++ )
+                        struct ToriRSServerTicklogRow rows[64];
+                        uint32_t scanned = pool_serial;
+                        int got = ToriRSServer_TicklogReadFiltered(
+                            pool_serial, TORIRSSERVER_TICKLOG_MAP_SPOTANIM, -1, rows, 64,
+                            &scanned);
+                        int const at_player =
+                            ToriRSServer_CoordPack(player->level, player->x, player->z);
+                        int const bsize =
+                            srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
+
+                        for( int r = 0; r < got; r++ )
                         {
-                            int slot = ToriRSServer_SceneFindLocExact(
-                                srv->npcs[boss].x + px, srv->npcs[boss].z + pz,
-                                srv->npcs[boss].level, 22 /* grounddecor */);
-                            struct ToriRSServerSceneLoc* l =
-                                slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
-                            if( l && l->active && l->loc_id == 32984 )
-                                pool_any++;
+                            int const px = (rows[r].a >> 14) & 0x3fff;
+                            int const pz = rows[r].a & 0x3fff;
+
+                            if( rows[r].b != k_pool_spotanim )
+                                continue;
+                            pool_any++;
+                            if( rows[r].a == at_player )
+                                pool_under_player++;
+                            if( px >= srv->npcs[boss].x && px < srv->npcs[boss].x + bsize &&
+                                pz >= srv->npcs[boss].z && pz < srv->npcs[boss].z + bsize )
+                                pool_on_body++;
+                            /*
+                             * AND NO POOL LEAVES A LOC. 32984 is a blood
+                             * spawn's trail; a thrown pool is the graphic
+                             * alone. Read on the landing tick, when a
+                             * `loc_add` beside the `spotanim_map` (what the
+                             * content did before seam9) would be standing.
+                             */
+                            {
+                                int const lslot = ToriRSServer_SceneFindLocExact(
+                                    px, pz, srv->npcs[boss].level, 22 /* grounddecor */);
+                                struct ToriRSServerSceneLoc* const l =
+                                    lslot >= 0 ? ToriRSServer_SceneLoc(lslot) : NULL;
+
+                                if( l && l->active && l->loc_id == 32984 )
+                                    pool_with_loc++;
+                            }
                         }
+                        if( scanned == pool_serial )
+                            break;
+                        pool_serial = scanned;
                     }
                     /*
                      * A CRAB KILLED SHORT OF HER STILL PLAYS ITS DEATH
@@ -32975,6 +33098,9 @@ ToriRSServer_WorldSelftest(void)
                     const int k_dying_b = 8365;
                     int saw_a = 0;
                     int saw_b = 0;
+                    int first_a = -1;
+                    int first_b = -1;
+                    int kill_tick;
 
                     /*
                      * Zeroing hitpoints is not a death - the combat path is
@@ -32986,27 +33112,58 @@ ToriRSServer_WorldSelftest(void)
                     srv->npcs[boss].hitpoints = 0;
                     srv->npcs[boss].death_stage = TORIRSSERVER_DEATH_QUEUED;
                     srv->npcs[boss].death_tick = srv->tick + 1;
+                    kill_tick = srv->tick;
                     for( int t = 0; t < 14; t++ )
                     {
                         selftest_tick(srv);
                         if( srv->npcs[boss].active )
                         {
                             if( srv->npcs[boss].type == k_dying_a )
+                            {
                                 saw_a++;
+                                if( first_a < 0 )
+                                    first_a = srv->tick - kill_tick;
+                            }
                             if( srv->npcs[boss].type == k_dying_b )
+                            {
                                 saw_b++;
+                                if( first_b < 0 )
+                                    first_b = srv->tick - kill_tick;
+                            }
                         }
                     }
                     fprintf(stderr,
-                            "  Maiden death: dying_a on %d ticks, dying_b (the fade) "
-                            "on %d\n",
-                            saw_a, saw_b);
+                            "  Maiden death: dying_a on %d ticks from K+%d, dying_b "
+                            "(the fade) on %d from K+%d\n",
+                            saw_a, first_a, saw_b, first_b);
                     SELFTEST_CHECK(saw_a > 0,
                                    "her death must transmog to 8364 and play "
                                    "maiden_death_a, saw it on %d ticks", saw_a);
                     SELFTEST_CHECK(saw_b > 0,
                                    "and then to 8365 for the fade, saw it on %d ticks",
                                    saw_b);
+                    /*
+                     * AND EACH FORM FOR AS LONG AS THE RECORDINGS HOLD IT (raid
+                     * loop seam9): dying_a four ticks from K+1 and the fade
+                     * four, 13 of 13 blert rooms (spec row
+                     * maiden.av.death.dying_a_form_ticks). dying_a on 2 was the
+                     * engine running her `[ai_queue3]` at its CORPSE stage
+                     * (K+3); her records state `death_delay=0` and
+                     * `npc_death_step` runs it on the animation's tick.
+                     */
+                    SELFTEST_CHECK(saw_a == 4,
+                                   "her dying_a form (8364) holds four ticks, saw %d",
+                                   saw_a);
+                    SELFTEST_CHECK(saw_b == 4,
+                                   "and the fade (8365) four, saw %d", saw_b);
+                    /* Durations alone cannot see the whole sequence slide a
+                     * tick: the marks are blert's, K+1 and K+5 from the
+                     * killing blow K. */
+                    SELFTEST_CHECK(first_a == 1,
+                                   "she takes the dying_a form at K+1, the death "
+                                   "animation's tick, saw K+%d", first_a);
+                    SELFTEST_CHECK(first_b == 5,
+                                   "and the fade at K+5, saw K+%d", first_b);
                 }
                 leaks = ToriRSServer_MapInstanceVarGet(handle, k_var_leaks);
                 /*
@@ -33113,19 +33270,30 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_MapInstanceVarGet(handle, 77));
                     fprintf(stderr,
                             "  Maiden crabs: seen %d crab-ticks, gap %d -> %d (min %d), "
-                            "leaks %d, blood-on-platform %d, pool-under-player %d, "
-                            "pool-tiles-anywhere %d, hud %d\n",
+                            "leaks %d, trail-on-platform %d, pool-on-platform %d, "
+                            "pool-under-player %d, pools-landed %d, hud %d\n",
                             spawned, first_gap, last_gap, min_gap, leaks, on_body,
-                            pool_under_player, pool_any, hud);
+                            pool_on_body, pool_under_player, pool_any, hud);
                     SELFTEST_CHECK(on_body == 0,
-                                   "no blood pool may land on the Maiden's platform, "
+                                   "no blood trail may lie on the Maiden's platform, "
                                    "found %d",
                                    on_body);
+                    SELFTEST_CHECK(pool_on_body == 0,
+                                   "no blood pool may land on the Maiden's platform, "
+                                   "found %d of %d landings",
+                                   pool_on_body, pool_any);
                     SELFTEST_CHECK(pool_under_player > 0,
-                                   "she must throw a blood pool at the player's own "
-                                   "tile, saw it on %d of %d ticks (she put %d "
-                                   "pool-tile-ticks down anywhere in the arena)",
-                                   pool_under_player, 60, pool_any);
+                                   "she must throw a blood pool (graphic %d) at the "
+                                   "player's own tile, saw %d of %d landings in %d "
+                                   "ticks",
+                                   k_pool_spotanim, pool_under_player, pool_any, 60);
+                    SELFTEST_CHECK(pool_with_loc == 0,
+                                   "a thrown pool is graphic %d alone and places no "
+                                   "loc (32984 is a blood spawn's trail), found the "
+                                   "loc under %d of %d landings",
+                                   k_pool_spotanim, pool_with_loc, pool_any);
+                    if( pool_log_here )
+                        ToriRSServer_TicklogDisable();
                     /*
                      * And the top bar is showing her, with real numbers.
                      *

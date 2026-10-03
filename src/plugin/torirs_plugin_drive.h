@@ -970,7 +970,7 @@ struct DriveNpcRow
      *
      * `anim_id` / `anim_frame` are the primary (action) track as it is being
      * DRAWN -- -1 / 0 when no action seq plays (the idle and walk loops are
-     * the secondary track and are not reported). `spotanim_id` is the
+     * the secondary track: `pose_anim` below). `spotanim_id` is the
      * attached graphic being drawn, -1 when none or once its one loop ended.
      *
      * `seq_id` / `seq_tick` are the newest SEQUENCE op the server SENT and
@@ -1014,6 +1014,44 @@ struct DriveNpcRow
      * [tile_z, tile_z + size). (raid seam4 npc_state_size_and_stale_menu.)
      */
     int size;
+    /**
+     * The POSE the npc is drawing under (or instead of) the action track:
+     * the client's secondary / locomotion track (WorldEntity_NPC.animation.
+     * secondary), which world_cycle.c sets every cycle from the npc's own
+     * idle set -- the readyanim standing, a walk/run variant while a route is
+     * being walked (World_UpdateMoverMovementAndAnimation), the turnanim (or
+     * the walkanim when the type has none) while a standing npc turns
+     * (World_EntityFace). The server never sends these: a ready or walk loop
+     * has no SEQUENCE op, so `anim_id` above is -1 the whole time an npc
+     * stands or walks, and this is the only reading of what it plays.
+     *
+     * `pose_anim` / `pose_frame` are the track as drawn (-1 / -1 when the
+     * track is empty: an idle set whose readyanim is -1, or an entity that
+     * has not cycled yet). `pose_kind` names which slot of the npc's idle
+     * set `pose_anim` is: "ready", "walk", "walk_back", "walk_left",
+     * "walk_right", "run", "turn", "other" (a seq that matches no slot -- a
+     * retype left the old pose on the track for the cycle before the next
+     * pick) or "none". A standing npc is matched ready-first and a walking
+     * one walk-first, because many types reuse one seq for two slots.
+     *
+     * The track keeps stepping underneath an action seq; whether it SHOWS
+     * is the action seq's own business (its walkmerge / priority), so a row
+     * with `anim_id` >= 0 is not evidence the pose is visible.
+     *
+     * `ready_anim` / `walk_anim` / `turn_anim` / `run_anim` are the idle set
+     * the client resolved FOR THIS ENTITY now (WorldEntity_NPC.
+     * idle_animations): World_NpcSetType rewrites them on every retype and
+     * the BAS-change mask on NPC_INFO overrides single slots, so after
+     * npc_changetype they are the new type's -- unlike a cache lookup of the
+     * symbol, which answers the old type forever. -1 = the slot is empty.
+     */
+    int pose_anim;
+    int pose_frame;
+    char const* pose_kind; /* a string literal; never NULL in a filled row */
+    int ready_anim;
+    int walk_anim;
+    int turn_anim;
+    int run_anim;
 };
 
 struct DriveLocRow
@@ -1043,6 +1081,34 @@ struct DriveLocRow
      *  same tile -- the row carried no shape before, and a shape-blind count
      *  of locs cannot. */
     int shape;
+    /**
+     * The sequence the client is PLAYING on this loc's scene element now
+     * (ToriDraw_SceneElement.anim_seq_id / anim_frame), and -1 / -1 when it
+     * draws static. One reading for both ways a loc animates: a map-placed
+     * loc whose record carries an anim (bound at scene build,
+     * world_scenery.u.c scenery_load_animation) and a LOC_ANIM the server
+     * sent (app_world_apply_seq). A seq that is still loading reads -1 --
+     * the element is not drawing it yet -- and a one-shot loc anim reads -1
+     * again once it has run out (a DynamicObject drops its seq, it does not
+     * hold the last frame unless the seq's frameStep says so).
+     */
+    int seq;
+    int seq_frame;
+    /**
+     * The looping area sound the client REGISTERED for this placement
+     * (world->area_sounds: the emitter list the scene builder gathers from
+     * the placed loc's resolved record, map-placed and server-placed alike,
+     * and that the audio layer turns into looping voices). Matched on the
+     * placement's tile and its id (base or resolved multiloc child).
+     * `ambient_sound` is the continuous sound id, `ambient_range` the
+     * inaudible distance in tiles, `ambient_inner` the full-volume radius,
+     * `ambient_random` how many random alternatives the emitter also plays.
+     * All -1 (ambient_random 0) when the client registered nothing for it.
+     */
+    int ambient_sound;
+    int ambient_range;
+    int ambient_inner;
+    int ambient_random;
 };
 
 struct DriveObjRow
@@ -1070,6 +1136,13 @@ struct DriveSpotanimRow
     int active;
     int cycles_left;
     int element_id;
+    /** The sequence the client is playing for this graphic on its scene
+     *  element (anim_seq_id / anim_frame; the spotanimtype's own seq, bound
+     *  by app_world_apply_seq at spawn and looped, anim_loop). -1 / -1 while
+     *  the seq is still loading or the record names none: what the element
+     *  draws, not what the record says. */
+    int seq;
+    int seq_frame;
 };
 
 /**
@@ -1093,6 +1166,10 @@ struct DriveProjectileRow
     int launched;
     int cycles_left;
     int element_id;
+    /** As DriveSpotanimRow.seq / seq_frame: the projectile graphic's own
+     *  sequence as its scene element plays it, -1 / -1 when none is bound. */
+    int seq;
+    int seq_frame;
 };
 
 /** Pool walks in the shape of content_test.c's npc_json / scenery_json,

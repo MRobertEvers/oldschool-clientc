@@ -85,6 +85,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM] = "player_spotanim",
     [TORIRSSERVER_TICKLOG_LOC_ANIM] = "loc_anim",
     [TORIRSSERVER_TICKLOG_NPC_SAY] = "npc_say",
+    [TORIRSSERVER_TICKLOG_NPC_HEAL] = "npc_heal",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -331,6 +332,7 @@ ticklog_row_npc_slot(const struct ToriRSServerTicklogRow* row)
     case TORIRSSERVER_TICKLOG_NPC_TILE:
     case TORIRSSERVER_TICKLOG_NPC_FACE:
     case TORIRSSERVER_TICKLOG_NPC_SAY:
+    case TORIRSSERVER_TICKLOG_NPC_HEAL:
         return row->a;
     case TORIRSSERVER_TICKLOG_HIT_PLAYER:
         return row->b;
@@ -745,6 +747,34 @@ ToriRSServer_TicklogNpcSay(
         return;
     ticklog_push(TORIRSSERVER_TICKLOG_NPC_SAY, slot, npc->type,
                  ToriRSServer_CoordPack(npc->level, npc->x, npc->z), 0, 0, 0, text);
+}
+
+/*
+ * An npc GAINED hitpoints (raid loop seam9): `npc_statheal` or `npc_statadd`
+ * on hitpoints, recorded only when the level actually rose, so a heal that a
+ * full npc's clamp ate is no row. The HIT_NPC row's mirror -- a hit is damage
+ * dealt, this is damage taken back -- and the label names the script whose
+ * opcode did it (the Maiden's blood-spawn absorb, Verzik's Athanatos), which is
+ * the "source" a tick ledger needs to tell one heal from another.
+ */
+void
+ToriRSServer_TicklogNpcHeal(
+    const struct ToriRSServerNpc* npc,
+    int gained,
+    int after,
+    int base,
+    char const* source)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    assert(source);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_HEAL, slot, npc->type, gained, after, base, 0, source);
 }
 
 /* NPC_TILE rows are for the encounter, not the world: the roster stands a

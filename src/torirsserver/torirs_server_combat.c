@@ -2829,8 +2829,22 @@ npc_death_step(
          * all. Deliberately not routed through `delayed_until`: that field
          * parks a *script*, and phase 4 offering a resume to an npc that has
          * none would be a second owner of the same clock.
+         *
+         * NOT FOR A DEATH SHORTER THAN THE REFERENCE'S (raid loop seam9). A
+         * record whose `death_delay` is under the reference's two ticks states
+         * a death of its own rather than `[proc,npc_death]`'s, and the arrive
+         * delay is a line of that proc. The ToB small Nylocas (`death_delay=1`)
+         * are the measured case: blert's death table has a walking small "stop
+         * and 'turn' anim occur on the same tick t+1, despawn t+2", where a
+         * walking BIG "stop on t+1, anim starts t+2" -- the big keeps the
+         * default and the wait (blert guide tob_nylocas_mechanics_page.tsx
+         * :440-493). With the wait a small that stepped on or just before its
+         * killing tick animated at +2 / +3 and despawned a tick later than
+         * every recording. The Maiden (`death_delay=0`) never moves. No other
+         * record states less than two (npc_default.npc), so no other npc's
+         * death moves.
          */
-        if( npc->last_movement >= srv->tick - 1 )
+        if( npc_def(npc)->death_delay >= 2 && npc->last_movement >= srv->tick - 1 )
         {
             npc->death_stage = TORIRSSERVER_DEATH_ARRIVE;
             npc->death_tick =
@@ -2871,7 +2885,30 @@ npc_death_step(
                     npc->death_seq);
         npc->death_stage = TORIRSSERVER_DEATH_CORPSE;
         npc->death_tick = srv->tick + npc_def(npc)->death_delay;
-        return;
+        /*
+         * `death_delay=0`: NO CORPSE WAIT, so `[ai_queue3]` runs on the tick of
+         * the death animation rather than a tick later (raid loop seam9).
+         *
+         * The reference runs `[ai_queue3]` on the tick after the blow for every
+         * npc -- `npc_queue(3, 0, 0)` -- and an ordinary npc's script spends its
+         * first ticks inside `gosub(npc_death)` (arrivedelay, anim,
+         * `npc_delay(1)`, `npc_del`) before its drop table, which is the order
+         * this engine reproduces by running the trigger at the CORPSE stage. A
+         * boss whose death IS its script (the Maiden: `npc_changetype` to her
+         * dying form on the death animation's tick, blert 13 of 13 rooms) never
+         * calls `npc_death`, so for her the corpse wait is two ticks the game
+         * does not have. Her records state `death_delay=0` and the trigger runs
+         * here, still after the sound and the animation above.
+         *
+         * Without the fall-through 0 meant "next tick" (the `death_tick` above
+         * returns to `advance_npcs`, which steps it no sooner than tick + 1), so
+         * no value of the field could reach the animation's own tick. No record
+         * in the tree stated 0 before this (npc_default.npc 2, the 18 small
+         * Nylocas 1), so no other npc's death moves.
+         */
+        if( npc_def(npc)->death_delay > 0 )
+            return;
+        /* FALLTHROUGH */
 
     case TORIRSSERVER_DEATH_CORPSE:
         /*

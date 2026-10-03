@@ -44,6 +44,8 @@
 -- gate, so a refused emote is no row; `player_spotanim` is `spotanim_pl`;
 -- `loc_anim` is `loc_anim` on the active loc (coord = the loc's south-west
 -- tile); `npc_say` is the overhead line (`text`, whole, up to 79 characters).
+-- `npc_heal` is an npc gaining hitpoints (amount, hitpoints after, base,
+-- `source` = the healing script's name); the hit_npc row's mirror.
 --
 -- SOUNDS. A `sound` row is one SYNTH_SOUND packet the SERVER sent one player:
 -- `source` is "synth" (a plain sound_synth), "area" ([proc,sound_area]: coord
@@ -89,6 +91,11 @@ QD.ticklog.FIELDS = {
     loc_anim = { "coord", "loc", "shape", "angle", "seq" },
     -- `text` (the row's label) is added by _name.
     npc_say = { "slot", "type", "coord" },
+    -- An npc GAINED hitpoints (`npc_statheal` / `npc_statadd` on hitpoints,
+    -- only when the level rose): `amount` gained, `hitpoints` after, `base`
+    -- its base; `source` (the row's label, the healing script's name, e.g.
+    -- "[proc,tob_maiden_absorb]") is added by _name.
+    npc_heal = { "slot", "type", "amount", "hitpoints", "base" },
 }
 
 -- The kinds whose label is their source rather than a test's mark text.
@@ -123,6 +130,9 @@ function QD.ticklog._name(raw)
     end
     if raw.kind == "npc_say" then
         row.text = raw.label or ""
+    end
+    if raw.kind == "npc_heal" then
+        row.source = raw.label or ""
     end
     if row.src ~= nil then
         row.src_x, row.src_z, row.src_level = QD.ticklog._unpack(row.src)

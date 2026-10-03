@@ -5248,6 +5248,11 @@ enum ToriRSServerTicklogKind
                                          * (`loc_anim`, the active loc) */
     TORIRSSERVER_TICKLOG_NPC_SAY,       /* a=slot b=npc type c=coord; label=the text
                                          * (`npc_say`, the overhead line) */
+    TORIRSSERVER_TICKLOG_NPC_HEAL,      /* a=slot b=npc type c=hitpoints gained
+                                         * d=hitpoints after e=base hitpoints;
+                                         * label=the script that healed it
+                                         * (`npc_statheal` / `npc_statadd` on
+                                         * hitpoints, only when it gained some) */
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5292,8 +5297,9 @@ int
 ToriRSServer_TicklogKindFromName(char const* name);
 
 /* One recorded event. `label` is set on a MARK row (the test's text), on
- * SOUND / MUSIC / JINGLE rows (the source) and on an NPC_SAY row (the line the
- * npc said); empty on every other kind. 80 is `ToriRSServerNpc.say`'s size, so
+ * SOUND / MUSIC / JINGLE rows (the source), on an NPC_SAY row (the line the
+ * npc said) and on an NPC_HEAL row (the healing script's name); empty on every
+ * other kind. 80 is `ToriRSServerNpc.say`'s size, so
  * an NPC_SAY row carries the whole line the client was sent. */
 #define TORIRSSERVER_TICKLOG_LABEL_MAX 80
 struct ToriRSServerTicklogRow
@@ -5419,6 +5425,8 @@ void ToriRSServer_TicklogPlayerSpotanim(const struct ToriRSServer* srv,
 void ToriRSServer_TicklogLocAnim(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
                                  int angle, int seq_id);
 void ToriRSServer_TicklogNpcSay(const struct ToriRSServerNpc* npc, char const* text);
+void ToriRSServer_TicklogNpcHeal(const struct ToriRSServerNpc* npc, int gained, int after,
+                                 int base, char const* source);
 /** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */

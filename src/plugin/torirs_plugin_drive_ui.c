@@ -436,6 +436,98 @@ drive_ui_fill_npc_combat(
 }
 
 /*
+ * Which slot of the entity's idle set `seq` is (DriveNpcRow.pose_kind).
+ *
+ * The order follows who put the seq on the track. A walking entity's
+ * secondary was chosen by World_UpdateMoverMovementAndAnimation from the walk
+ * family (walk, then its back/left/right variants, run on a speed-8 step) --
+ * or it is still the readyanim because an action seq holds the route; a
+ * standing entity's was the readyanim, or World_EntityFace's turnanim, or the
+ * walkanim World_EntityFace falls back to when the type has no turnanim. Many
+ * types reuse one seq for two slots (Bloat's turn is its walk), so the slot is
+ * matched in the order the mover that is running would have picked it.
+ */
+static char const*
+drive_ui_pose_kind(struct WorldEntityFacet_IdleAnimations const* idle, int seq, int moving)
+{
+    assert(idle);
+
+    if( seq < 0 )
+        return "none";
+    if( moving )
+    {
+        if( seq == idle->walkanim )
+            return "walk";
+        if( seq == idle->runanim )
+            return "run";
+        if( seq == idle->walkanim_b )
+            return "walk_back";
+        if( seq == idle->walkanim_l )
+            return "walk_left";
+        if( seq == idle->walkanim_r )
+            return "walk_right";
+        if( seq == idle->readyanim )
+            return "ready";
+        if( seq == idle->turnanim )
+            return "turn";
+        return "other";
+    }
+    if( seq == idle->readyanim )
+        return "ready";
+    if( seq == idle->turnanim )
+        return "turn";
+    /* World_EntityFace's fallback: no turnanim, so a standing turn plays the
+     * walkanim. With a turnanim, a standing walkanim is the last cycle of a
+     * route the mover has not yet swapped back to ready. */
+    if( seq == idle->walkanim )
+        return idle->turnanim == -1 ? "turn" : "walk";
+    if( seq == idle->runanim )
+        return "run";
+    if( seq == idle->walkanim_b )
+        return "walk_back";
+    if( seq == idle->walkanim_l )
+        return "walk_left";
+    if( seq == idle->walkanim_r )
+        return "walk_right";
+    return "other";
+}
+
+/*
+ * The pose half of a row (DriveNpcRow.pose_anim's banner): the secondary
+ * (locomotion) track as world_cycle.c last set it, and the idle set the
+ * client holds for this entity now.
+ */
+static void
+drive_ui_fill_npc_pose(struct WorldEntity_NPC const* npc, struct DriveNpcRow* out)
+{
+    struct WorldEntityFacet_IdleAnimations const* idle;
+    int seq;
+
+    assert(npc);
+    assert(out);
+
+    idle = &npc->idle_animations;
+    /* The same "no track" pair anim_step_active and World_ApplySecondaryAnim
+     * use: 0xFFFF is cleared, 0 is a fresh entity's zeroed track. */
+    if( npc->animation.secondary.anim_id == (uint16_t)-1 || npc->animation.secondary.anim_id == 0 )
+    {
+        seq = -1;
+        out->pose_frame = -1;
+    }
+    else
+    {
+        seq = npc->animation.secondary.anim_id;
+        out->pose_frame = npc->animation.secondary.frame;
+    }
+    out->pose_anim = seq;
+    out->pose_kind = drive_ui_pose_kind(idle, seq, npc->pathing.route_length > 0);
+    out->ready_anim = idle->readyanim;
+    out->walk_anim = idle->walkanim;
+    out->turn_anim = idle->turnanim;
+    out->run_anim = idle->runanim;
+}
+
+/*
  * The state half of a row (struct DriveNpcRow's banner): the action track and
  * graphic being drawn, and the newest SEQUENCE / SPOTANIM op the server sent
  * with the server tick it arrived on. The tick is the cycle stamp divided
@@ -483,6 +575,7 @@ drive_ui_fill_npc_state(struct WorldEntity_NPC const* npc, struct DriveNpcRow* o
         out->face_z = -1;
         out->face_tick = -1;
     }
+    drive_ui_fill_npc_pose(npc, out);
 }
 
 enum DriveResult
@@ -631,6 +724,143 @@ drive_ui_loc_resolved(struct App* app, int loc_id)
         cfg->transform_varp);
 }
 
+/*
+ * The sequence a scene element is PLAYING now (DriveLocRow.seq,
+ * DriveSpotanimRow.seq, DriveProjectileRow.seq): `anim_seq_id` is set only
+ * once a seq is bound and playable (app_world_try_bind_seq,
+ * scenery_load_animation) and reset to -1 when a one-shot runs out
+ * (ToriDraw_SceneElementSetAnimation(NULL)), so it is the element's own answer
+ * to "what is it drawing", never the record's. An entity with no element yet
+ * (-1, a body still loading) or an element already released is a legitimate
+ * state of the pool, not a caller error: -1 / -1.
+ */
+static void
+drive_ui_element_seq(struct App* app, int element_id, int* out_seq, int* out_frame)
+{
+    struct ToriDraw_SceneElement const* element;
+
+    assert(app);
+    assert(out_seq);
+    assert(out_frame);
+
+    *out_seq = -1;
+    *out_frame = -1;
+    if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return;
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    assert(element);
+    if( element->anim_seq_id < 0 )
+        return;
+    *out_seq = element->anim_seq_id;
+    *out_frame = element->anim_frame;
+}
+
+/*
+ * Attach each row's registered area sound (DriveLocRow.ambient_*).
+ *
+ * world->area_sounds is keyed by the emitter's scene south-west tile, which is
+ * the placement's own grid position (world_builder_add_loc_area_sound is
+ * handed the same scene_x/scene_z the scenery is placed at, on the map build
+ * and on a LOC_ADD_CHANGE). A row pool can be the whole scenery pool (8,000+)
+ * and an emitter list hundreds, so the emitters are bucketed by tile once per
+ * read rather than searched per row: one pass over each, never rows x
+ * emitters.
+ */
+static void
+drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int count)
+{
+    static int* s_head;     /* (level, z, x) -> emitter index + 1, 0 = none */
+    static int s_head_cap;
+    static int* s_next;     /* emitter index -> next emitter index + 1 on its tile */
+    static int s_next_cap;
+    struct World* world;
+    int size;
+    int tiles;
+    int i;
+
+    assert(app);
+    assert(app->world);
+    assert(rows);
+
+    world = app->world;
+    for( i = 0; i < count; i++ )
+    {
+        rows[i].ambient_sound = -1;
+        rows[i].ambient_range = -1;
+        rows[i].ambient_inner = -1;
+        rows[i].ambient_random = 0;
+    }
+    if( world->area_sound_count <= 0 || count <= 0 )
+        return;
+    assert(world->area_sounds);
+
+    size = world->_scene_size;
+    tiles = size * size * COLLISION_LEVELS;
+    if( tiles <= 0 )
+        return;
+    if( s_head_cap < tiles )
+    {
+        s_head = realloc(s_head, (size_t)tiles * sizeof(*s_head));
+        assert(s_head);
+        s_head_cap = tiles;
+    }
+    if( s_next_cap < world->area_sound_count )
+    {
+        s_next = realloc(s_next, (size_t)world->area_sound_count * sizeof(*s_next));
+        assert(s_next);
+        s_next_cap = world->area_sound_count;
+    }
+    memset(s_head, 0, (size_t)tiles * sizeof(*s_head));
+    for( i = 0; i < world->area_sound_count; i++ )
+    {
+        struct World_AreaSound const* emitter = &world->area_sounds[i];
+        int key;
+
+        s_next[i] = 0;
+        if( emitter->x < 0 || emitter->z < 0 || emitter->x >= size || emitter->z >= size ||
+            emitter->level < 0 || emitter->level >= COLLISION_LEVELS )
+            continue;
+        key = emitter->x + emitter->z * size + emitter->level * size * size;
+        s_next[i] = s_head[key];
+        s_head[key] = i + 1;
+    }
+
+    for( i = 0; i < count; i++ )
+    {
+        struct World_AreaSound const* found = NULL;
+        int scene_x = rows[i].tile_x - world->_base_tile_x;
+        int scene_z = rows[i].tile_z - world->_base_tile_z;
+        int level;
+
+        if( scene_x < 0 || scene_z < 0 || scene_x >= size || scene_z >= size )
+            continue;
+        /* The row's own level first; then the others, because the emitter
+         * keeps the level the loc stream stored while the scenery entity
+         * holds the one a bridge pushed it down to. */
+        for( level = -1; level < COLLISION_LEVELS && !found; level++ )
+        {
+            int at = level < 0 ? rows[i].level : level;
+            int link;
+
+            if( at < 0 || at >= COLLISION_LEVELS || (level >= 0 && level == rows[i].level) )
+                continue;
+            link = s_head[scene_x + scene_z * size + at * size * size];
+            for( ; link != 0 && !found; link = s_next[link - 1] )
+            {
+                struct World_AreaSound const* emitter = &world->area_sounds[link - 1];
+                if( emitter->loc_id == rows[i].loc_id || emitter->loc_id == rows[i].resolved_loc_id )
+                    found = emitter;
+            }
+        }
+        if( !found )
+            continue;
+        rows[i].ambient_sound = found->sound_id;
+        rows[i].ambient_range = found->distance;
+        rows[i].ambient_inner = found->inner;
+        rows[i].ambient_random = found->sound_id_count > 0 ? found->sound_id_count : 0;
+    }
+}
+
 enum DriveResult
 DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count)
 {
@@ -713,9 +943,11 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
         out[j].level = sc->grid_position.level;
         out[j].element_id = sc->element_id;
         out[j].shape = sc->shape;
+        drive_ui_element_seq(app, sc->element_id, &out[j].seq, &out[j].seq_frame);
         if( count < cap )
             count++;
     }
+    drive_ui_locs_attach_ambient(app, out, count);
     *out_count = count;
     return DRIVE_OK;
 }
@@ -987,6 +1219,7 @@ DriveUi_Spotanims(
         out[j].cycles_left = spot->active ? spot->lifetime - spot->active_cycle
                                           : spot->idle_cycles + spot->lifetime;
         out[j].element_id = spot->element_id;
+        drive_ui_element_seq(app, spot->element_id, &out[j].seq, &out[j].seq_frame);
     }
     *out_count = count;
     return DRIVE_OK;
@@ -1045,6 +1278,7 @@ DriveUi_Projectiles(
         /* World_CycleUpdateProjectiles despawns once cycle passes t2. */
         out[j].cycles_left = proj->t2 - proj->cycle;
         out[j].element_id = proj->element_id;
+        drive_ui_element_seq(app, proj->element_id, &out[j].seq, &out[j].seq_frame);
     }
     *out_count = count;
     return DRIVE_OK;
@@ -1642,6 +1876,25 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
      * binary built before raid seam4 npc_state_size_and_stale_menu. */
     lua_pushinteger(L, row->size);
     lua_setfield(L, -2, "size");
+    /* The pose half (DriveNpcRow.pose_anim): the locomotion track the client
+     * plays under the action track, which slot of the idle set it is, and
+     * that idle set as the client resolved it for this entity. A `nil`
+     * pose_anim means a binary built before raid seam9
+     * client_played_anim_reads. */
+    lua_pushinteger(L, row->pose_anim);
+    lua_setfield(L, -2, "pose_anim");
+    lua_pushinteger(L, row->pose_frame);
+    lua_setfield(L, -2, "pose_frame");
+    lua_pushstring(L, row->pose_kind);
+    lua_setfield(L, -2, "pose_kind");
+    lua_pushinteger(L, row->ready_anim);
+    lua_setfield(L, -2, "ready_anim");
+    lua_pushinteger(L, row->walk_anim);
+    lua_setfield(L, -2, "walk_anim");
+    lua_pushinteger(L, row->turn_anim);
+    lua_setfield(L, -2, "turn_anim");
+    lua_pushinteger(L, row->run_anim);
+    lua_setfield(L, -2, "run_anim");
 }
 
 static int
@@ -1719,6 +1972,22 @@ lua_drive_locs(struct lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_pushinteger(L, rows[i].shape);
         lua_setfield(L, -2, "shape");
+        /* What the client plays on the placement (DriveLocRow.seq) and the
+         * area sound it registered for it (DriveLocRow.ambient_*); -1 when
+         * static / silent. A `nil` seq means a binary built before raid
+         * seam9 client_played_anim_reads. */
+        lua_pushinteger(L, rows[i].seq);
+        lua_setfield(L, -2, "seq");
+        lua_pushinteger(L, rows[i].seq_frame);
+        lua_setfield(L, -2, "seq_frame");
+        lua_pushinteger(L, rows[i].ambient_sound);
+        lua_setfield(L, -2, "ambient_sound");
+        lua_pushinteger(L, rows[i].ambient_range);
+        lua_setfield(L, -2, "ambient_range");
+        lua_pushinteger(L, rows[i].ambient_inner);
+        lua_setfield(L, -2, "ambient_inner");
+        lua_pushinteger(L, rows[i].ambient_random);
+        lua_setfield(L, -2, "ambient_random");
         lua_rawseti(L, -2, i + 1);
     }
     return 2;
@@ -1912,7 +2181,8 @@ lua_drive_shot(struct lua_State* L)
 
 
 /* api_drive.spotanims(radius) -> result, { {spotanim_id, x, z, level, active,
- * cycles_left, element_id}, ... } nearest first (struct DriveSpotanimRow). */
+ * cycles_left, element_id, seq, seq_frame}, ... } nearest first (struct
+ * DriveSpotanimRow). */
 static int
 lua_drive_spotanims(struct lua_State* L)
 {
@@ -1929,7 +2199,11 @@ lua_drive_spotanims(struct lua_State* L)
     lua_createtable(L, count, 0);
     for( i = 0; i < count; i++ )
     {
-        lua_createtable(L, 0, 7);
+        lua_createtable(L, 0, 9);
+        lua_pushinteger(L, rows[i].seq);
+        lua_setfield(L, -2, "seq");
+        lua_pushinteger(L, rows[i].seq_frame);
+        lua_setfield(L, -2, "seq_frame");
         lua_pushinteger(L, rows[i].spotanim_id);
         lua_setfield(L, -2, "spotanim_id");
         lua_pushinteger(L, rows[i].tile_x);
@@ -1951,7 +2225,8 @@ lua_drive_spotanims(struct lua_State* L)
 
 /* api_drive.projectiles(radius) -> result, { {spotanim_id, src_x, src_z,
  * dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left,
- * element_id}, ... } nearest DESTINATION first (struct DriveProjectileRow). */
+ * element_id, seq, seq_frame}, ... } nearest DESTINATION first (struct
+ * DriveProjectileRow). */
 static int
 lua_drive_projectiles(struct lua_State* L)
 {
@@ -1968,7 +2243,11 @@ lua_drive_projectiles(struct lua_State* L)
     lua_createtable(L, count, 0);
     for( i = 0; i < count; i++ )
     {
-        lua_createtable(L, 0, 11);
+        lua_createtable(L, 0, 13);
+        lua_pushinteger(L, rows[i].seq);
+        lua_setfield(L, -2, "seq");
+        lua_pushinteger(L, rows[i].seq_frame);
+        lua_setfield(L, -2, "seq_frame");
         lua_pushinteger(L, rows[i].spotanim_id);
         lua_setfield(L, -2, "spotanim_id");
         lua_pushinteger(L, rows[i].src_tile_x);
