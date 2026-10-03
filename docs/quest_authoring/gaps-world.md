@@ -843,6 +843,17 @@ is `~maplink_transition;`, so the cave lands at 2803,10187 and the crevice at 27
 row `seam.trollweiss_cave_maplink_not_shadowed`). Before blaming `maplink.dbrow`, grep the loc symbol
 across `server/scripts/` for a name-specific `[oploc<N>,<loc>]`.
 
+## Talk-to answers "I can't reach that!" for an npc across a chasm, river or bars: it needs an `[apnpc1]`
+
+*Origin: seam pass matthew-mbp-m4-b53-seam3 (Contact!'s Maisa).*
+
+An npc the real game has you talk to over an obstacle (Maisa across the Sophanem chasm, Hudon across
+the river in Waterfall) is reached through an approach trigger: `[apnpc1,<npc>]`, which the engine
+fires within ap range 10 with line of sight (a floor-blocked chasm does not block the line). If
+`talk_to` answers `I can't reach that!` for such an npc, grep its `.rs2` for an `apnpc1` before you
+suspect the map, and report the missing trigger as a content seam. The walk is never the fix: do
+not `goto_tile` past the obstacle. Detail: seam-facts: Seam pass matthew-mbp-m4-b53-seam3 (a).
+
 ## Underground Pass: the fall pocket is left over five rockslides and a rock pile (matthew-mbp-m4-b49-seam1)
 
 Symptom: after the swamp (`upass_swampbubbles1`) or a failed rope swing you stand at 2485,9649, and
