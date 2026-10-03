@@ -321,7 +321,13 @@ never lose work like that.
 
 - **The guide is the spec.** Every Quest Helper step is driven by a real row, or the file
   stops at `t.blocked` with a `content_bug` naming the leg. All of these are rejected:
-  - `goto_tile` past a gated door, stair or puzzle;
+  - `goto_tile` into or out of a closed space. A goto lands only on an open, walkable tile
+    OUTSIDE: every door (a plain one-click house door too, not only a locked or quest-gated
+    one), bar counter, stair, gate or puzzle between the player and the target is clicked, on
+    every visit, going in and coming out (owner, 2026-10-03). `helper_coverage` reads the
+    map's walls for this but does not grade plain climbs, rooms over 400 tiles or exits over
+    24 tiles: reviewers and samplers judge every goto against the walls
+    (`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/reach.py`);
   - `::give` of an item the guide has you obtain;
   - a debugproc doing quest work;
   - `::setvar` on a quest var mid-run;
