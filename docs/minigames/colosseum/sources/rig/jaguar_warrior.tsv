@@ -1,0 +1,13 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+colosseum_jaguar_warrior	12810	0	seq	808	human_ready	12	8.4		ready	bound	npc record readyanim
+colosseum_jaguar_warrior	12810	0	seq	819	human_walk_f	8	1.6		walk	bound	npc record walkanim
+colosseum_jaguar_warrior	12810	0	seq	820	human_walk_b	8	1.6		walk	bound	npc record walkanim_b (walk backward)
+colosseum_jaguar_warrior	12810	0	seq	821	human_walk_l	4	0.8		walk	bound	npc record walkanim_l (strafe left)
+colosseum_jaguar_warrior	12810	0	seq	822	human_walk_r	4	0.8		walk	bound	npc record walkanim_r (strafe right)
+colosseum_jaguar_warrior	12810	0	seq	10847	npc_jaguar_ranger_claws_attack	32	2.1	4:varlamore_jaguar_warrior_spear_swipe_01;13:varlamore_jaguar_warrior_shield_swipe_01;21:varlamore_jaguar_warrior_spear_swipe_02	attack1	name	rig 0 is shared (3905 seqs) so name words only; name says jaguar claws attack, sounds say jaguar warrior swipes; [forcedpriority=6]. Ranger vs warrior not stated
+colosseum_jaguar_warrior	12810	0	seq	10848	npc_jaguar_human_unarmed_def	8	2.1	1:human_hit	defend	name	name says jaguar human unarmed def; sound human_hit
+colosseum_jaguar_warrior	12810	0	seq	10849	npc_jaguar_human_death	10	1.57	1:human_death	death	name	name says jaguar human death; last frame holds 20000 ticks (cache length 20047); play length to the hold is 47 client ticks; [forcedpriority=10]
+colosseum_jaguar_warrior	12810	1969	seq	12498	npc_jaguar_combat_melee	12	2.0	4:synth_10483	other	name	OFF-RIG (framemap 1969, quadruped jaguar family); name only; not this npc
+colosseum_jaguar_warrior	12810	1969	seq	12499	npc_jaguar_combat_death	23	4.0	1:synth_10489	other	name	OFF-RIG (framemap 1969, quadruped jaguar); name only; not this npc
+colosseum_jaguar_warrior	12810	1969	seq	12491	blood_jaguar_combat_melee	12	2.0	1:varl_pm_blood_panther_melee_attack_03	other	name	OFF-RIG (framemap 1969); blood jaguar creature; not this npc
+colosseum_jaguar_warrior	12810	1969	seq	12492	blood_jaguar_combat_death	23			other	name	OFF-RIG (framemap 1969); blood jaguar creature; length not read; not this npc
