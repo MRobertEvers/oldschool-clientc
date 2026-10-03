@@ -208,3 +208,32 @@ failures (the baseline set); ::tobrun OK 56 (fixers).
   never p_delays; engine and raid queues already match LostCity. Proved in a scratch content
   copy (+1 x8 with an eat, arena 77/77). Open: a food.rs2 port (new server-only varp) plus
   the other consumption and potion `p_delay`s, as its own seam with an eat-heavy quest set.
+
+## matthew-mbp-m4-raid-b1-seam6 (2026-10-03; parent 6049cf9bd, OSRS-Content 2cddff56d5)
+
+Triage `SEAM_TRIAGE_2026-10-03d.md`. Conformance 265/265 (162 verbs + 103 seam rows);
+suite 118 green + deserttreasure RED (the seam1 baseline; troll and regicide moved RED
+with the eat port in and are green again without it); C selftest 11 failures (the
+baseline set); ::tobrun OK 56.
+
+- `eat_delay_port`: NOT LANDED. The LostCity consume.rs2 clock port (consume_shared.rs2,
+  no p_delay or p_stopaction in any consume script, +3 on a running weapon delay) passed
+  its two seam rows in the closer's conformance run (wizard +1 with eats; goblin 4,4 and
+  eaten 7,7). The full suite then moved troll (every shark eaten at the generals, its
+  eat-below-90 costs 3 attack ticks an eat) and regicide (0 hp after leg 4) from green to
+  RED. Still open: land the port together with a quest-loop retune of those two tests
+  (patch, files and rows in build/seam_state/matthew-mbp-m4-raid-b1-seam6/close/); the
+  ToA supply drinks' p_delay(1); the unported fast-food data. An eat still holds every
+  queued hit.
+- `tob_nylocas_prayer_and_damage`: LANDED. A wave nylocas's swing is 0 under the matching
+  protection prayer (0 of 52 matched swings landed); Vasilias's prayed melee writes a 0
+  row; row seam.nylocas_protect_blocks_wave_hit PASS. Still open: spec rows
+  nylocas.prayer_reduction and vasilias_prayed_max for the spec pass; the Entry/Hard
+  prayed max 17 is unsourced; no accuracy roll; magic-style gear reduction; tob_nylocas
+  must pray during the waves.
+- `tob_verzik_room5`: LANDED. Three pools end to end (1300 solo Entry, 6750 Normal),
+  overkill dropped and heals clamped at each phase, thresholds compared whole (120/600
+  enrages, 121 does not; reds 140/400), every-mode readouts and ::tobboss phase_hp. Still
+  open: she is attackable through the fall; the first Athanatos roll has no ceiling (18
+  against 0-12 in one run); she wears the Normal forms in Entry; tob_verzik's pool rows
+  must read ::tobboss phase_hp.
