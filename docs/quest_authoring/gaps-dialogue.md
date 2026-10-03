@@ -277,6 +277,22 @@ already granted a doctor's hat, so the completion actually grants a NURSES hat -
 `reward.doctors_hat` row written from the wiki's "doctor's or nurse's hat" would fail on a correct
 run.
 
+### A brief names skill XP that the content pays as a lamp; "1 Quest Point" twice on the scroll
+
+*Origin: reviewer and sampler matthew-mbp-m4-b53, round 3 (Contact!).*
+
+An orchestrator brief asked for "7000 Strength + 7000 Magic literal". Contact! pays 7,000 Thieving
+XP and a Combat lamp with two wishes of 7,000 XP in a combat skill (wiki Combat_lamp oldid
+15185818; Quest Helper lists the same reward as two 7,000 XP combat lamps). The Strength and Magic
+in the brief were an earlier test's lamp picks. They are not documented reward amounts. Take the
+reward rows from the wiki and Quest Helper, not from a brief. Assert the fixed XP with
+`skill.expect_gain`. For a lamp, rub it, pick a skill, and assert the documented amount gained in
+the skill you picked. Name the picked skill in the row (`lamp.strength_xp_7000`).
+
+`~quest_complete_rewards` writes the quest point line itself. Contact!'s reward string started with
+`1 Quest Point|` (`contact_shared.rs2:22`), so its scroll showed "1 Quest Point" twice. No other
+quest in the tree passes it. Check the scroll shot for a doubled first line.
+
 ### `t.scroll.rewards()` returns wrapped lines
 
 `t.scroll.rewards()` hands back the scroll's lines as the SCROLL wrapped them, not as the quest

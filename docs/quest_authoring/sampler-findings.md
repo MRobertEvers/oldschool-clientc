@@ -424,3 +424,25 @@ the line follows Transcript:The_Queen_of_Thieves oldid 14962997, which names no 
 `goto-goToKingstown` hop into the house is plain travel. To check a hop like this, list every
 shape 0-3/9 loc that has an `op` between the departure and the landing (`maps/m<x>_<z>.jl2`
 joined to `configs/all.loc`). A door with no op is not a step.
+
+## Sample matthew-mbp-m4-b53, round 3 (2026-10-02)
+
+*The sampler checked contact (964621432, 240/0, 108 shots). It SENT the quest BACK. Commit
+964621432 is reverted (0af96bd10), and so is the evidence commit (OSRS-Content d24d8d14d2). The
+round-3 rows are kept in `test/quests/wip/contact/round3_rejected.lua`.*
+
+(a) THE BOSS FIGHT IS NOT A FIGHT. `contact_scarab_boss` has no `.npc` combat block, so it fights
+with the engine's default stats: 10 hitpoints and attack/strength/defence 1. It died 7 ticks after
+the first swing and dealt no damage (shots 080-081). The wiki gives it 130 hitpoints. See
+gaps-combat: A level-191 boss dies in seven ticks.
+
+(b) The completion scroll lists "1 Quest Point" twice (shot 098). See gaps-dialogue: A brief names
+skill XP that the content pays as a lamp.
+
+Not findings: the maze is walked on foot with the trap presses, both times. Maisa is talked to
+across the chasm through the `[apnpc1]` trigger. The instance is left by its ladder. The goto from
+the chasm to Al Kharid matches the glory teleport that Quest Helper recommends ("Amulet of glory
+for getting to Osman"). The seam relay sanctioned it. Nit: `mazeUp` is defined and never used.
+Maisa's two questions are split across two talks, which is a port parity leg the relay already
+names.
+
