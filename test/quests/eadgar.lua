@@ -147,17 +147,22 @@ return {
         -- itself is silent-but-real. Called directly (not t.exec) and
         -- graded on the read-back tile actually changing, per the doc's own
         -- "record what you read back" rule for a verb with no settle signal.
-        local stile_before_result, stile_before_tile = t.world.tile()
-        t.check("lookup.stileBefore", stile_before_result == "ok",
-            "world.tile() -> " .. tostring(stile_before_result) .. " " .. tostring(stile_before_tile))
+        -- The stile spans 2817,3562-3563 (length 2, crossed along z,
+        -- stiles.rs2 stile_crossing): click_loc steps off to 2817,3561 and
+        -- the crossing lands one past the far end, 2817,3564 (the tile
+        -- goto-rocks departs from), so the row asserts that north-side
+        -- tile, which only the crossing itself reaches.
         t.exec("goto-stile", t.player.goto_tile, 2817, 3562, 0)
+        local stile_before_result, stile_before_tile = t.world.tile()
         local stile_click, stile_detail = t.player.click_loc("death_fullstyle", 1)
         t.ticks(5) -- let the silent ~agility_exactmove crossing finish
         local stile_after_result, stile_after_tile = t.world.tile()
         t.check("climbStile", stile_after_result == "ok" and stile_after_tile ~= nil
-                and (stile_after_tile.x ~= stile_before_tile.x or stile_after_tile.z ~= stile_before_tile.z),
+                and stile_after_tile.level == 0 and math.abs(stile_after_tile.x - 2817) <= 1 and stile_after_tile.z >= 3564,
             "click_loc(death_fullstyle) -> " .. tostring(stile_click) .. " " .. tostring(stile_detail)
-                .. "; world.tile() -> " .. tostring(stile_after_result) .. " " .. tostring(stile_after_tile))
+                .. "; tile before " .. tostring(stile_before_tile and stile_before_tile.x) .. "," .. tostring(stile_before_tile and stile_before_tile.z)
+                .. ", after " .. tostring(stile_after_tile and stile_after_tile.x) .. "," .. tostring(stile_after_tile and stile_after_tile.z)
+                .. "," .. tostring(stile_after_tile and stile_after_tile.level) .. " (want 2817,>=3564,0: north of the stile)")
 
         t.exec("goto-rocks", t.player.goto_tile, 2856, 3611, 0)
         t.exec("climbRocks", t.player.click_loc, "troll_climbingrocks", 1)
@@ -192,7 +197,8 @@ return {
         t.check("enterSecretDoor", secretdoor_after_result == "ok" and secretdoor_after_tile ~= nil
                 and secretdoor_after_tile.z >= 10000,
             "drive.op(troll_stronghold_entrance) -> " .. tostring(secretdoor_op) .. " " .. tostring(secretdoor_detail)
-                .. "; world.tile() -> " .. tostring(secretdoor_after_result) .. " " .. tostring(secretdoor_after_tile))
+                .. "; tile " .. tostring(secretdoor_after_tile and secretdoor_after_tile.x) .. "," .. tostring(secretdoor_after_tile and secretdoor_after_tile.z)
+                .. "," .. tostring(secretdoor_after_tile and secretdoor_after_tile.level) .. " (want z >= 10000: the secret door's p_teleport(0_44_157_7_2))")
 
         t.exec("goto-eadgarcaveentrance", t.player.goto_tile, 2892, 3672, 0)
         t.exec("enterEadgarsCave", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
@@ -883,9 +889,7 @@ return {
         --     ~quest_complete_rewards(quest_eadgarsruse,
         --     "11000 Herblore XP|Trollheim Teleport spell|..."), sanfew.rs2:190.
         -- ---------------------------------------------------------------
-        local herblore_snap_result, herblore_snap = t.skill.snapshot()
-        t.check("reward.snapshot", herblore_snap_result == "ok",
-            "skill.snapshot() -> " .. tostring(herblore_snap_result))
+        local _, herblore_snap = t.skill.snapshot() -- read only; reward.herblore_xp below is the assertion
 
         local _, qp_before = t.var.varp("varp101_qp")
         t.exec("goto-sanfew-2", t.player.goto_tile, 2897, 3426, 1)
