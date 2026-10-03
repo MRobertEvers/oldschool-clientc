@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 97
+-- @seam-count 98
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 97
+local SEAM_COUNT = 98
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -8582,6 +8582,60 @@ return {
             end
             if held_two ~= 2 or gone_result == "ok" then
                 return "refused", text .. " -- the second log could not be taken"
+            end
+            return "ok", text
+        end)
+
+        -- A DRAINED STAT STAYS DRAINED THROUGH AN XP GRANT
+        -- (matthew-mbp-m4-b53-seam2 stat_drain_survives_xp_gain).
+        -- ToriRSServer_CombatAddXp (src/torirsserver/torirs_server_combat.c)
+        -- snapped any current level below its base straight back to the base
+        -- on the next grant, so one hit cancelled every content drain (the Ice
+        -- Path's cold, the Sourhog's spit, a stat_sub).  LostCity Player.ts:
+        -- 1841-1851 (addXp) moves the current level with the base only while
+        -- they are equal.  Graded: Attack 60 drained 90% reads 6/60, and a
+        -- 10 xp `::xp` grant (stat_advance) leaves it 6/60 with the xp up.
+        -- The row puts Attack back where it found it.
+        seam("seam.drain_survives_xp_gain", function()
+            local read = verb("skill", "read")
+            if not read then return missing("skill", "read") end
+            local function reading()
+                local state, value = read("attack")
+                if state ~= "ok" or type(value) ~= "table" then
+                    return nil
+                end
+                return value
+            end
+            local start = reading()
+            if start == nil then
+                return "no_subject", "skill.read attack gave no reading"
+            end
+            setup_cheat("::setlevel attack 60")
+            setup_cheat("::drain attack 0 90")
+            settle(2)
+            local drained = reading()
+            setup_cheat("::xp attack 100")
+            settle(2)
+            local after = reading()
+            setup_cheat("::setlevel attack " .. tostring(start.base_level))
+            settle(2)
+            local restored = reading()
+            local function show(value)
+                if value == nil then
+                    return "nil"
+                end
+                return tostring(value.level) .. "/" .. tostring(value.base_level) .. " xp " .. tostring(value.experience)
+            end
+            local text = "attack " .. show(start) .. "; ::setlevel 60 + ::drain 90% -> " .. show(drained)
+                .. "; ::xp attack 100 -> " .. show(after) .. "; put back -> " .. show(restored)
+            if drained == nil or drained.level ~= 6 or drained.base_level ~= 60 then
+                return "no_subject", text .. " -- the drain did not stage 6/60"
+            end
+            if after == nil or after.experience <= drained.experience then
+                return "no_subject", text .. " -- the grant moved no xp"
+            end
+            if after.level ~= 6 then
+                return "refused", text .. " -- the xp grant undid the drain"
             end
             return "ok", text
         end)

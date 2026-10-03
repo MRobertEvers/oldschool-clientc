@@ -1154,12 +1154,31 @@ ToriRSServer_CombatAddXp(
     }
     if( stat != TORIRSSERVER_STAT_HITPOINTS && stat != TORIRSSERVER_STAT_SUMMONING )
     {
-        /* Boosted follows base upward so a level-up is usable at once, and back
+        /* The current level follows the base only while no boost or drain is
+         * active, and a level-up replenishes a DRAINED stat by the levels
+         * gained, never back to the base. LostCity Player.ts:1841-1851 (addXp):
+         *
+         *     if (this.levels[stat] === this.baseLevels[stat]) {
+         *         // only update if no buff/debuff is active
+         *         this.levels[stat] = getLevelByExp(this.stats[stat]);
+         *     }
+         *     ...
+         *     if (this.baseLevels[stat] > before) {
+         *         if (this.levels[stat] < before) {
+         *             // replenish stat
+         *             this.levels[stat] += this.baseLevels[stat] - before;
+         *
+         * This used to snap any current level below the base straight up to
+         * the base on every grant, so the first xp drop after a drain (the
+         * Sourhog's spit, a darkness spell, any `stat_sub`) cancelled it.
+         *
+         * A boost above the base is left alone by a grant, and is taken back
          * down only when the base actually fell beneath it — a boost above a
          * base the player no longer has is power the experience no longer pays
          * for, but clamping unconditionally would cancel a potion on every xp
-         * drop. Hitpoints is exempt because its boosted slot is current
-         * hitpoints, which `sync_hitpoints` owns.
+         * drop. (LostCity never removes xp, so that last direction is ours.)
+         * Hitpoints is exempt because its boosted slot is current hitpoints,
+         * which `sync_hitpoints` owns.
          *
          * Summoning is exempt for the same reason hitpoints is: its boosted slot
          * is not a boost, it is the *points pool*. Summoning experience is earned
@@ -1171,11 +1190,14 @@ ToriRSServer_CombatAddXp(
          * (the obelisk's op2, `::summoning_points`); a level-up raises the
          * ceiling and leaves the current pool where it stands, which is what
          * the live game does. */
-        if( player->stat_boosted[stat] < player->stat_level[stat] )
-            player->stat_boosted[stat] = player->stat_level[stat];
-        else if( player->stat_level[stat] < before &&
-                 player->stat_boosted[stat] > player->stat_level[stat] )
-            player->stat_boosted[stat] = player->stat_level[stat];
+        int after = player->stat_level[stat];
+
+        if( player->stat_boosted[stat] == before )
+            player->stat_boosted[stat] = after;
+        else if( after > before && player->stat_boosted[stat] < before )
+            player->stat_boosted[stat] += after - before;
+        else if( after < before && player->stat_boosted[stat] > after )
+            player->stat_boosted[stat] = after;
     }
     else if( stat == TORIRSSERVER_STAT_SUMMONING &&
              player->stat_boosted[stat] > player->stat_level[stat] )

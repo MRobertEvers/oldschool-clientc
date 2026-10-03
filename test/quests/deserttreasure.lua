@@ -599,10 +599,52 @@ return {
             return tostring(type(tile) == "table" and (tostring(tile.x) .. "," .. tostring(tile.z)) or tile) .. " level " .. tostring(level)
         end
         local function count(sym) return select(2, t.inv.count(sym)) end
-        -- Brought-along gear (Quest Helper: fire spells, spiked boots) and food for the Ice Path.
+        -- The Ice Path's cold drains Attack, Strength, Defence, Ranged and Magic a level per ten ticks past the gate
+        -- (deserttreasure.rs2:1225 [softtimer,dt_ice_cold], ^dt_cold_interval = 10), and an xp drop no longer undoes it
+        -- (LostCity Player.ts:1841-1851 addXp). Quest Helper's Ice diamond panel brings restore potions for it
+        -- (quest-helper DesertTreasure.java:685 restorePotions = ItemCollections.RESTORE_POTIONS, which lists
+        -- _4DOSESTATRESTORE); a dose heals the five combat stats by 10 + 30% (restore_potion.rs2:35
+        -- [label,consume_effect_restore_potion]). Partial potions are drunk first; a dose swaps the obj, so the
+        -- verb's own settle is not the evidence (verbs-inventory-shops: sack Fill) -- the stat reading is.
+        local cold_stats = { "attack", "strength", "defence", "magic" }
+        local restore_doses = { "1dosestatrestore", "2dosestatrestore", "3dosestatrestore", "4dosestatrestore" }
+        local function stat_reading()
+            local parts = {}
+            for _, s in ipairs(cold_stats) do
+                local _, v = t.skill.read(s)
+                parts[#parts + 1] = s .. " " .. tostring(type(v) == "table" and v.level) .. "/" .. tostring(type(v) == "table" and v.base_level)
+            end
+            return table.concat(parts, ", ")
+        end
+        local function cold_deficit()
+            local worst = 0
+            for _, s in ipairs(cold_stats) do
+                local _, v = t.skill.read(s)
+                if type(v) == "table" and v.base_level - v.level > worst then worst = v.base_level - v.level end
+            end
+            return worst
+        end
+        local function drink_restores(name)
+            local before = stat_reading()
+            local drunk = {}
+            for _ = 1, 3 do
+                if cold_deficit() < 10 then break end
+                local dose = nil
+                for _, d in ipairs(restore_doses) do
+                    if (count(d) or 0) > 0 then dose = d break end
+                end
+                if dose == nil then break end
+                local result = t.player.inv_op(dose, 1)
+                t.ticks(2)
+                drunk[#drunk + 1] = dose .. " (" .. tostring(result) .. ")"
+            end
+            t.check(name, cold_deficit() < 10, "drank " .. #drunk .. " restore dose(s) [" .. table.concat(drunk, ", ") .. "]: "
+                .. before .. " -> " .. stat_reading())
+        end
+        -- Brought-along gear (Quest Helper: fire spells, spiked boots, restore potions) and food for the Ice Path.
         t.check("leg5.kit", t.cheat("::give death_spikedboots 1") == "ok" and t.cheat("::give firerune 400") == "ok" and t.cheat("::give deathrune 100") == "ok"
-            and t.cheat("::give abyssal_whip 1") == "ok" and t.cheat("::setlevel magic 99") == "ok",
-            "spiked boots, 400 fire runes and 100 death runes (fire blast), and an abyssal whip for the ice trolls given as brought-along items, magic set to 99 (the Ice Path's cold drains a level per ten ticks); sharks " .. tostring(count("shark")))
+            and t.cheat("::give abyssal_whip 1") == "ok" and t.cheat("::give 4dosestatrestore 2") == "ok" and t.cheat("::setlevel magic 99") == "ok",
+            "spiked boots, 400 fire runes and 100 death runes (fire blast), an abyssal whip for the ice trolls and two restore potions given as brought-along items, magic set to 99 (the Ice Path's cold drains a level per ten ticks); sharks " .. tostring(count("shark")))
         t.ticks(2)
         t.exec("wear-whip", t.player.equip, "abyssal_whip")
         t.check("leg5.food", t.cheat("::give shark 16") == "ok", "sharks filled into the free slots after the whip swap; sharks " .. tostring(count("shark")))
@@ -640,6 +682,8 @@ return {
         t.check("enterTrollCave-in", true, "inside the cave: " .. reading())
         t.check("leg5.food-kamil", t.cheat("::give shark 16") == "ok", "sharks topped up for Kamil (the ice-troll swarm ate the earlier stock); sharks " .. tostring(count("shark")))
         t.ticks(2)
+        -- Fire blast needs 59 Magic, and the walk and the troll fights have left it in the fifties.
+        drink_restores("drinkRestore-killKamil")
         t.exec("goto-killKamil", t.player.goto_tile, 2863, 3753, 0)
         t.exec("killKamil-engage", t.player.cast, "fire_blast", "icediamond_icewarrior", 8)
         local kamil_result, kamil_detail = "timeout", ""
@@ -666,6 +710,8 @@ return {
         t.exec("goThroughPathGate", t.player.click_loc, "icegate_right_small", 1)
         t.ticks(4)
         t.check("goThroughPathGate-bridge", true, "on the ice bridge: " .. reading())
+        -- The long walk to the blocks drains again; drink only if the cold has taken twenty levels since Kamil.
+        if cold_deficit() >= 20 then drink_restores("drinkRestore-breakIce") end
         t.exec("goto-breakIce1", t.player.goto_tile, 2828, 3808, 2)
         t.exec("breakIce1", t.player.cast, "fire_blast", "troll_block_1", 8)
         t.exec("breakIce1-dead", t.npc.await_dead_engaged, 60, 3, { eat = { item = "shark", below = 60 } })
@@ -700,6 +746,13 @@ return {
             "npc:Let's get out",
         })
         t.ticks(2)
+        -- The child hands the ice diamond over only into a free slot (deserttreasure.rs2:1163, `inv_freespace(inv) < 1`:
+        -- "Your hands are full, mister!"); the sharks topped up for the ice blocks filled the pack, so one is eaten first.
+        local sharks_before = count("shark")
+        local eat_result = t.player.inv_op("shark", 1)
+        t.ticks(3)
+        t.check("freeSlot-eatShark", count("shark") == sharks_before - 1,
+            "ate a shark to free a slot for the diamond: inv_op " .. tostring(eat_result) .. ", sharks " .. tostring(sharks_before) .. " -> " .. tostring(count("shark")))
         t.exec("talkToChildTrollAfterFreeing", t.player.talk_to, "fourdiamonds_troll_child_okay", 1)
         t.exec("talkToChildTrollAfterFreeing-dialog", t.chat.play, {
             "npc:Mommy",
