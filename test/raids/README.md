@@ -101,3 +101,39 @@ must dodge an attack lands the tick BEFORE the scan. Loop on the boss's state,
 never on a fixed tick count (`TORIRS_EMBED_CLOCK_MS=20` fixes the clock, the
 rolls are per-entity streams). Set `max_frames` per leg from a measured run,
 under `quest_list.MAX_FRAMES_CEILING`.
+
+## Lessons from the first ToB room pass (2026-10-02, entry mode, solo)
+
+Five of six rooms were rejected, mostly for the author's own play. Do not repeat these:
+
+- **Prayer and food run out.** Maiden's pools drained 29 prayer points and Protect from
+  Magic lapsed at tick 470; the unprotected 25s then killed the player. Sip a restore
+  when prayer points fall under 30 (`t.prayer.points()`), eat on the await's `opts.eat`,
+  and count the slots: 26 sharks were given to a backpack with room for 21.
+- **Re-attack after every eat, dodge or step.** Each one clears the attack; a fight with
+  idle gaps of 50 ticks heals the boss (Maiden healed 88 from leaked crabs and 58 from
+  pools). Xarpus P2: 13 dodges in 45 ticks produced 4 attack presses and 23 damage --
+  stand and fire, and sidestep once on the spit tick (the spit aims at your T-1 tile).
+- **Detect your own death.** A respawn at Lumbridge (tile 3222,3218, hitpoints back to
+  full) read as "npc_free, boss dead" because the instance was torn down 100 ticks
+  after the player left. Break the loop on `t.player.alive()` false or a tile outside the
+  instance; `fight.done` must be an `npc_death` row for the boss's slot.
+- **Read the boss's footprint from the cache, not from a guess.** Verzik P2 (8372) is
+  size 3, south-west 6431,89: tiles 6431..6433 x 89..91. A "walk under and out" at
+  Chebyshev distance 2 is neither under nor adjacent. The footprint is `t.npc.state`'s
+  tile plus the record's size.
+- **Measure a cadence from one seq.** `t.ticklog.gaps(slot, "npc_anim", {seq = <the attack
+  seq>})`. Sotetseg's 8139 clock was a flat 5; the 2 and 3 in the ledger were one 8138
+  melee mixed in.
+- **Leaked crabs are not kills.** A Matomenos arriving at Maiden absorbs its remaining
+  hitpoints as an `hit_npc` row with no player hit on that tick; `npc_death` the same
+  tick with no player damage is a leak.
+- **The driver's return shapes:** `t.msg.last(n)` returns `(status, list)`;
+  `t.ticklog.rows(opts)` returns `(ok, list)`; destructure both.
+- **Instance coordinates** are the room's region moved by whole 64-tile blocks (for
+  region 13122: x - 3136, z + 4160); read tiles from `t.world.tile()` and the tick log,
+  never from the wiki's world coordinates.
+- **Budget the fight to the whole room.** The flicker rows need wave 16; a run capped at
+  115 ticks stops at wave 8. `max_frames` from a measured run.
+- **Scope row first.** `spec.scope` with `mode=entry party=1`; the grader prints which
+  rows it skips -- measure the rest, all of them.

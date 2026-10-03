@@ -35,8 +35,13 @@ trio, 4p, 5p, team, per_player) unless it also says solo/_1. Without a scope row
 every row counts (mode all).
 
 TEXT ROWS. A spec row whose unit is `text` is graded by equality: the detail reads
-`measured <text> (spec <text>, grade <G>, tol exact)` and the two texts must match
-after trimming and case-folding.
+`measured <text>[; free text] (spec <text>[ text], grade <G>, tol exact)` -- the
+measured text runs to the first `;`, the spec text to `, grade` -- and the two texts
+must match after trimming and case-folding.
+
+SIDECAR. `<room>.scope.tsv` beside the table (mechanic_id, scope, note) states a row's
+scope outright -- all, entry, normal, hard, party (two or more players), stat (a
+distribution no single room settles) -- and overrides the name heuristic.
 
 Verdict per test: FULL (every in-scope spec row measured and within tolerance) or a list of
 findings: `unmeasured <id>`, `out of tolerance <id>: measured .. vs spec ..`,
@@ -53,7 +58,7 @@ import ledger  # noqa: E402
 
 RAID_DOCS = {"tob": "theater_of_blood", "toa": "tombs_of_amascut", "cox": "cox"}
 FULL_RAID_ROOMS = {"entry", "solo", "150"}
-SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?)(?:\s+[a-z_]+)?,\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx)\)")
+SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?),\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx)\)")
 NUM_RE = re.compile(r"^-?[\d.]+(?:-[\d.]+)?(?:,-?[\d.]+)*$")
 SCOPE_RE = re.compile(r"mode=(?P<mode>entry|normal|hard|all)\s+party=(?P<party>\d)")
 
@@ -70,8 +75,10 @@ def parse_row(detail, text_row=False):
     spec = hits[-1]
     head = detail[len("measured "):spec.start()].strip()
     if text_row:
-        measured = head.rstrip(",; ").strip()
-        spec_value = spec.group("s").strip()
+        # The measured text runs to the first ';' (free text follows it); the
+        # spec text runs to ', grade' and may end with the word 'text'.
+        measured = head.split(";")[0].rstrip(", ").strip()
+        spec_value = re.sub(r"\s+text$", "", spec.group("s").strip())
     else:
         measured = head.split(",")[0].split(";")[0].strip().split(" ")[0]
         spec_value = spec.group("s").strip().split(" ")[0]
@@ -85,12 +92,45 @@ PARTY_WORDS = ("party", "scale", "_3_5", "3_5", "2_5", "duo", "trio", "4p", "5p"
 SOLO_WORDS = ("solo", "_1", "1p")
 
 
-def row_scope(spec, mode, party, ids):
+SIDECAR_SCOPES = {"all", "entry", "normal", "hard", "party", "stat"}
+
+
+def read_sidecar(table):
+    """docs/minigames/<raid>/encounters/<room>.scope.tsv: mechanic_id <TAB> scope
+    [<TAB> note]. scope is all | entry | normal | hard (the mode the row belongs
+    to) | party (needs two or more players) | stat (a distribution no single room
+    settles). An entry here overrides the name heuristic in row_scope."""
+    path = table[:-len(".tsv")] + ".scope.tsv"
+    out = {}
+    if not os.path.isfile(path):
+        return out
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if not line.strip() or line.startswith("#") or line.startswith("mechanic_id\t"):
+                continue
+            cells = line.rstrip("\n").split("\t")
+            assert cells[1] in SIDECAR_SCOPES, "%s: bad scope %r for %s" % (path, cells[1], cells[0])
+            out[cells[0]] = cells[1]
+    return out
+
+
+def row_scope(spec, mode, party, ids, sidecar=None):
     """None when the row is in scope, else the reason it is skipped."""
     if mode == "all":
         return None
+    scope = (sidecar or {}).get(spec["mechanic_id"])
+    if scope:
+        if scope == "all" or scope == mode:
+            return None
+        if scope in ("entry", "normal", "hard"):
+            return "sidecar: %s" % scope
+        if scope == "party":
+            return None if party >= 2 else "sidecar: party"
+        return "sidecar: stat"
     text = ("%s %s" % (spec["mechanic_id"], spec["quantity"])).lower()
     tokens = re.split(r"[^a-z0-9]+", text)
+    if any(w in tokens for w in MODE_WORDS[mode]):
+        return None  # a row that names the test's own mode is in scope
     for other, words in MODE_WORDS.items():
         if other != mode and any(w in tokens for w in words):
             return "names %s" % other
@@ -184,9 +224,10 @@ def grade(test_id, ledger_path=None, mode=None, party=None):
     for table in tables:
         specs = read_spec(table)
         ids = {sp["mechanic_id"] for sp in specs}
+        sidecar = read_sidecar(table)
         for spec in specs:
             mid = spec["mechanic_id"]
-            why = row_scope(spec, mode, party or 0, ids)
+            why = row_scope(spec, mode, party or 0, ids, sidecar)
             if why:
                 skipped.append("%s (%s)" % (mid, why))
                 continue
