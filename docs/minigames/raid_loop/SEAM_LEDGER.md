@@ -92,3 +92,56 @@ baseline), C selftest 11 failures (the pre-existing non-ToB set), `::tobrun` OK 
   new blert checks, `--ticklog` over our ticklog.tsv with `--start-tick/--start-mark`.
   Still open: no room-start row in the tick log; the Xarpus spawn gap is a note on blert
   streams (no party scale); a stale `--strict` mention in the docstring.
+
+## matthew-mbp-m4-raid-b1-seam3 (2026-10-03, what the first ToB room pass exposed)
+
+Content OSRS-Content 93707f5d60, parent 4767f8589. Conformance 262/262 (162 verbs + 100 seam rows); suite 118 green + deserttreasure RED (the baseline); C selftest 11, the baseline set; ::tobrun OK 56.
+
+- `tob_shared_combat_scripts`: LANDED. tob_retaliate.rs2 (93 no-op `[ai_queue1]`
+  bindings: Sotetseg's attacks all on his 5-tick clock, every 8138 +1), a cast is a magic
+  hit and recomputes the combat varps (12 Fire Bolts: 10 damaging, 6 Hagios killed), the
+  raids' personal hit queues cleared at death (no hit after the respawn). Still open: the
+  ENGINE retaliate=no row for CoX/ToA/Zulrah, combat varps never recomputed on a stat
+  change, powered staves and magic specials still the weapon's style, the doubled death
+  message.
+- `tob_sotetseg_room2`: LANDED. First attack 6, Entry maxima 20 melee / 22 ball, hp kept
+  across both maze retypes, path lit on the runner's first realm tick, off on 3 = 1, the
+  maze waits for a late runner; closer moved the ::tobrun pin to 6. Still open: an eat on
+  proc+2 lands the runner at proc+5, Entry prayed melee 10 derived, the HUD bar at 17 %
+  on the death tick, melee_roll_adjacent / death_ball_hit_entry_solo not re-measured,
+  tob.constant's maze_seen comment stale.
+- `tob_maiden_room2`: LANDED. Blackstorm rows name her world slot; no throw at or landing
+  on a dead or departed raider; Entry pool 10 + 2c disclosed as E [M121] (divisor 1).
+  Still open: the HIT_NPC tick-log row has no dealer (engine), Entry pool unsourced.
+- `tob_nylocas_room2`: LANDED. Entry explosions 1-8 (wiki), killed standing small +2
+  (death_delay=1). Still open: walking small +3/+4 (engine arrive delay,
+  torirs_server_combat.c:2830-2836), protection prayer vs wave nylocas (spec gap), Entry
+  Vasilias plays the Normal 10-tick / 2-attack windows against the Entry rows, [M93]
+  promotable to D.
+- `tob_verzik_room2`: LANDED. Entry P1 60 (30 prayed), urnbomb 16, slam 16, stomp ~34, P3
+  melee 36, P3 auto 20; the P2 stomp is rolled in every mode; P2 footprint and bounce
+  measured (adjacent slam 75 %, under her the stomp). Still open: Entry gaps (lightning,
+  crab blasts, Athanatos landing, blood spell, power blast, web snap), P1 bolt rows
+  unattributed (npc_slot -1), P3 melee also hits under her (unverified).
+- `tob_xarpus_room2`: LANDED. Poison capped at 11 (Entry halved, max 6), stomp pair
+  capped at 9 per tick (Entry 5). Still open: the buff formula [M70] under the cap, Entry
+  P3 retaliation 50-75 vs "38+", a proposed `xarpus.p2.stomp_max_entry` row.
+- `tob_bloat_room2`: LANDED. Later walks 34..42 (down-to-down 68), Entry hand 20-25
+  [M62], supply chests placed after Bloat (wiki pin) and Sotetseg, reward once, Entry 10
+  bandages, one stamina per chest. Still open: bandages have no Heal script, the
+  Sotetseg chest flank unsourced, the chest never shows open, points are shared by the
+  party.
+- `npc_facing_read`: LANDED. `t.npc.state` face_x/face_z/face_tick, `t.npc.await_face`,
+  tick-log kind `npc_face`; rows npc.await_face and seam.npc_facing_read PASS (Hans);
+  Xarpus P2/P3 gaze read in face_xarpus2. Still open: no C selftest stanza pins npc_face;
+  a `::tele` on a run's first tick can crash the client.
+- `attack_exact_copy`: LANDED IN PART. A failed attack on another slot drops the
+  engagement stamp, a covered press names the copies the menu offered, row
+  seam.attack_exact_copy_on_one_tile PASS. REVERTED by the closer: closing a stale menu
+  before every press (its tick moved hauntedmine, childrenofthesun and thefeud green ->
+  RED; each green again without it). Still open: a press inside a stale menu can take
+  another copy's row (CONTENT_BUGS.md); neither tob_nylocas nor tob_verzik is unblocked.
+- `coverage_scope_sidecars`: LANDED. Six `<room>.scope.tsv` sidecars, every row
+  classified; closer skipped `.scope.tsv` in spec_check.py and raid_coverage.py's
+  whole-raid glob. Still open: `parse_row` grades only the first element of a measured
+  list; one scope per row (no normal+hard, party ignores the mode).
