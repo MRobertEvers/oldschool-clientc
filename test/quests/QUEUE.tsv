@@ -21,7 +21,7 @@ quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
-quest_contact	contact	contact		4	green	matthew-mbp-m4-b53			
+quest_contact	contact	contact		4	todo	matthew-mbp-m4-b53	REVERTED by sampler (matthew-mbp-m4-b53): the Giant Scarab fight is not real -- contact_scarab_boss has no combat block, so the engine default (10 hp, att/str/def 1) applies; it died 7 ticks after the first swing and dealt 0 damage (ledger killGiantScarab 21/30 after a 3 splat). Wiki Giant_Scarab_(Contact!) oldid 15328051: level 191, 130 hp, att 169, str 190, def 169, ranged 190, max hit 20 -- author a .npc combat block (and its minions'). Also the completion scroll lists '1 Quest Point' twice (contact_shared.rs2:22 passes it in the reward string; no other quest does). Round-3 rows to reuse: test/quests/wip/contact/round3_rejected.lua		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
