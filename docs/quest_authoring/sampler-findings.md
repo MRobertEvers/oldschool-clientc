@@ -360,3 +360,91 @@ an unrelated line that names the same trap symbol. A shared loc symbol is not a 
 tile. When a step's sub-steps are zones (`jumpIsland1..3`), stand in the zone that asks for the
 first step (path2p2, 2549,10288) and plank each rock in order. Do not `goto_tile` into a later
 zone, and check that every rock tile appears in some `from x .. to ..` detail.
+
+## Sample matthew-mbp-m4-b53 (2026-10-02)
+
+*Origin: the sampler checked forsakentower (526039ca5) and queenofthieves (1420d9ba2). It passed The
+Forsaken Tower (all 160 shots matched their names) and sent The Queen of Thieves back.*
+
+(a) A DOORWAY NO GUIDE STEP NAMES IS STILL THE ONLY WAY INTO THE ROOM. (Content half FIXED in seam
+pass matthew-mbp-m4-b53-seam1 (d): the doorway is scripted; click it both ways.) The Queen of Thieves sits in
+a tent at the end of the Warrens. The tent walls (`qip_digsite_tent_wall`, x 1761-1769, z
+10149-10160) close it on every side except `piscquest_tentdoor` ("Doorway", op1 Go-through) at
+1765,10149. Quest Helper's `talkToQueenOfThieves` and `talkToShauna` give only the Queen's
+WorldPoint (1764,10158), and Devan says "The Queen will see you now in the tent at the end of the
+tunnels". The test ran `goto_tile` from Devan (1766,10147) to 1764,10157 in 0 ticks, twice. It
+also ran `goto_tile` out of the tent to the ladder. helper_coverage read FULL 18/18 because the
+grader cannot read the map's walls (seam-facts: Seam pass matthew-mbp-m4-b51-seam1 (a)). The
+doorway has no `[oploc1,piscquest_tentdoor]` script, so clicking it does nothing. That is a
+content gap. Content must script the door (gated on Devan's go-ahead), and then the test must
+click through it both ways. To find such a wall before you goto: the map square is
+`maps/m<x>>6>_<z>>6>.jl2`. Each line is `level lx lz: id shape rot`, and
+`configs/all.loc.compack` maps the id to a name. Shapes 0-3 and 9 are walls. A shape-0 loc with
+an op (a door, a doorway, a gate) on the line between you and the step's tile is a step, so click
+it.
+
+(b) A PORT PUZZLE CAN HAVE TWO ANSWERS. The Forsaken Tower's refinery note (`ft_puzzles.rs2`
+`[opheld1,lovaquest_fluid_note]`) prints three clues, and each set of clues fits two vial
+positions. For example, "Acidic is directly left of Cleansing; Cleansing is next to Caustic; Inert
+is directly right of Volatile" fits both vial 2 and vial 4. The test picks the vial by matching the
+note's line template, which is the generator's own order, so it always picks right. That is not a
+cheat, because the table and the refinery are still clicked. But a player has a 50% chance, so
+name it if a reviewer asks for content parity with the real note.
+
+## Sample matthew-mbp-m4-b53, round 2 (2026-10-02)
+
+*Origin: the sampler checked whatliesbelow (38ed22f0e, 89/0, 169 shots) and queenofthieves
+(e09df54ad, 78/0, 88 shots) and opened every shot. It passed both quests. None of the findings
+below sent a quest back.*
+
+(a) AN NPC'S LINES ARE TITLED WITH ANOTHER NPC'S NAME, AND THE CHATHEAD IS MISSING. (FIXED
+b53-seam3, OSRS-Content fd1bf2f29f: the spawn runs after the last line; `.npc_add` is no fix in
+this engine, see seam-facts: Seam pass matthew-mbp-m4-b53-seam3 (b).) In What
+Lies Below, Rat Burgiss's `bringFolderToRat` lines (shots 052-062) are headed "Outlaw".
+`whatliesbelow.rs2:83` calls `~wlb_spawn_outlaws` before `~chatnpc("Hello again! ...")` at :84.
+That proc (`whatliesbelow_papers.rs2:11-20`) runs `npc_find`/`npc_add` on `surok_outlaw1..3`.
+Both commands rebind the ACTIVE npc, so every later `~chatnpc` in the branch speaks as the last
+outlaw found or added. `t.chat.play` matches the text and not the title, so the row PASSes, and
+only a shot shows the problem. This is a different cause from the "Someone" header (Sample
+matthew-mbp-m4-b52 (a)), where a var write hides the speaker. The content fix is to call the spawn
+after the branch's last `~chatnpc`, or to look the npcs up on the secondary pointer (`.npc_find`,
+as `death_thin_npcs.rs2:57` does). The accept branch at :38 already spawns after its last line.
+
+(b) A GAP WHERE AN EM DASH SHOULD BE. (FIXED b53-seam3 for this quest, OSRS-Content fd1bf2f29f;
+the rest of the tree: gaps-dialogue: A gap where an em dash should be.) The Queen of Thieves writes a real `—` in four `~chatnpc`
+lines (`queenofthieves.rs2:60, 81, 145, 218`). The dialogue font has no glyph for it, so Devan's
+line draws as "see you now    tent at the end of the tunnels" (shot 048). `chat.play` fragments
+that stop short of the dash still match. Content should write `-` or rephrase the line.
+
+(c) A LINE THAT NAMES A DOOR THE MAP DOES NOT HAVE. (FIXED b53-seam3, OSRS-Content fd1bf2f29f:
+the line follows Transcript:The_Queen_of_Thieves oldid 14962997, which names no door or lock.) The Queen says "The door will need picking"
+(`queenofthieves.rs2:225`), but Councillor Hughes' house has no wall loc with an op. Its doors are
+`kr_bankdoor_l/r_inactive`, which have no ops in `configs/all.loc`. The wiki Quick guide (oldid
+15013569) says "enter the house ... and climb the stairs" and names no lock. So the
+`goto-goToKingstown` hop into the house is plain travel. To check a hop like this, list every
+shape 0-3/9 loc that has an `op` between the departure and the landing (`maps/m<x>_<z>.jl2`
+joined to `configs/all.loc`). A door with no op is not a step.
+
+## Sample matthew-mbp-m4-b53, round 3 (2026-10-02)
+
+*The sampler checked contact (964621432, 240/0, 108 shots). It SENT the quest BACK. Commit
+964621432 is reverted (0af96bd10), and so is the evidence commit (OSRS-Content d24d8d14d2). The
+round-3 rows are kept in `test/quests/wip/contact/round3_rejected.lua`.*
+
+(a) THE BOSS FIGHT IS NOT A FIGHT. `contact_scarab_boss` has no `.npc` combat block, so it fights
+with the engine's default stats: 10 hitpoints and attack/strength/defence 1. It died 7 ticks after
+the first swing and dealt no damage (shots 080-081). The wiki gives it 130 hitpoints. See
+gaps-combat: A level-191 boss dies in seven ticks. FIXED seam pass matthew-mbp-m4-b53-seam4
+(OSRS-Content 4fa2748185).
+
+(b) The completion scroll lists "1 Quest Point" twice (shot 098). See gaps-dialogue: A brief names
+skill XP that the content pays as a lamp. FIXED seam pass matthew-mbp-m4-b53-seam4 (OSRS-Content
+4fa2748185).
+
+Not findings: the maze is walked on foot with the trap presses, both times. Maisa is talked to
+across the chasm through the `[apnpc1]` trigger. The instance is left by its ladder. The goto from
+the chasm to Al Kharid matches the glory teleport that Quest Helper recommends ("Amulet of glory
+for getting to Osman"). The seam relay sanctioned it. Nit: `mazeUp` is defined and never used.
+Maisa's two questions are split across two talks, which is a port parity leg the relay already
+names.
+

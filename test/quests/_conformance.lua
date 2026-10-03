@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 96
+-- @seam-count 98
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 96
+local SEAM_COUNT = 98
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -8463,7 +8463,10 @@ return {
         -- second of two non-stackable logs dropped where the player stands
         -- read `timeout ... backpack 1 -> 0, ground 1` though it left the
         -- backpack (legends b51 makeBowl.drop-spare-bar-2;
-        -- build/quest_gate/dropseam_before row 3).  Graded: both drops answer
+        -- build/quest_gate/dropseam_before row 3).  The client merge itself is
+        -- gone since b53-seam1 (seam.two_copies_one_tile_both_takeable below):
+        -- the second drop now reads `ground ... 1 -> 2 (2 row(s))`, and this
+        -- row still holds the backpack grading.  Graded: both drops answer
         -- ok, the backpack goes 2 -> 1 -> 0, and the tile still shows logs.
         seam("seam.drop_second_copy_on_one_tile", function()
             local drop = verb("player", "drop")
@@ -8496,6 +8499,143 @@ return {
                 or string.find(second_detail, "backpack 1 -> 0", 1, true) == nil
                 or string.find(second_detail, "-> 0 (", 1, true) ~= nil then
                 return "hollow", text .. " -- the second drop's ok did not name backpack 1 -> 0 with logs on the tile"
+            end
+            return "ok", text
+        end)
+
+        -- TWO COPIES OF ONE OBJ ON ONE TILE ARE TWO GROUND ROWS
+        -- (matthew-mbp-m4-b53-seam1 drop_verb_followups_and_grip_lure).  The
+        -- client used to find the tile's stack of an obj id and overwrite its
+        -- count on every OBJ_ADD (App_WorldObjStackAdd,
+        -- src/app/app_world_rebuild.c), so two logs dropped on one tile were
+        -- ONE row, and the first Take's OBJ_DEL removed it while the server
+        -- still held the second log: the tile drew nothing and no menu row
+        -- could take it (build/quest_gate/b53s1_pick2_before: `total 1 in 1
+        -- row(s)`, then `pick.two ... menu has no row for it`).  The tile is a
+        -- list in both references: LostCity_JavaClient Client.java:8206-8228
+        -- (OBJ_ADD pushes a new ClientObj, OBJ_DEL unlinks the first of the id)
+        -- and the rev-239 deob (Statics.method1385 appends a TileItem,
+        -- method6879 unlinks one).  Graded on the private pool reading (two
+        -- rows, total 2), then on each Take landing one log and the second
+        -- still being on the ground between them.  The drops are made on a
+        -- tile of their own, 3241,3245 (open field two south of CAST_TILE, the
+        -- seam21 goblin stand), so the logs the row above left on its tile are
+        -- not counted.
+        seam("seam.two_copies_one_tile_both_takeable", function()
+            local goto_tile = verb("player", "goto_tile")
+            local drop = verb("player", "drop")
+            local by_symbol = verb("player", "by_symbol")
+            local ground_on_tile = verb("player", "_ground_on_tile")
+            local click_obj = verb("player", "click_obj")
+            local obj_near = verb("world", "obj_near")
+            local count = verb("inv", "count")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not drop then return missing("player", "drop") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not ground_on_tile then return missing("player", "_ground_on_tile") end
+            if not click_obj then return missing("player", "click_obj") end
+            if not obj_near then return missing("world", "obj_near") end
+            if not count then return missing("inv", "count") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give logs 2")
+            settle(2)
+            goto_tile(CAST_TILE_X, CAST_TILE_Z - 2, 0)
+            local target = by_symbol("obj", "logs")
+            local obj_id = type(target) == "table" and target.id or nil
+            if obj_id == nil then
+                setup_cheat("::clearinv")
+                return "no_subject", "player.by_symbol(obj, logs) named no obj id"
+            end
+            local first_result = drop("logs")
+            settle(1)
+            local second_result = drop("logs")
+            settle(2)
+            local total, rows = ground_on_tile(obj_id)
+            local trail = { "drops -> " .. describe(first_result) .. "/" .. describe(second_result)
+                .. ", ground on the tile: total " .. describe(total) .. " in " .. describe(rows) .. " row(s)" }
+            local take_one = click_obj("logs", 3)
+            settle(3)
+            local _, held_one = count("logs")
+            local left_result = obj_near("logs", 1)
+            trail[#trail + 1] = "take 1 -> " .. describe(take_one) .. ", held " .. describe(held_one)
+                .. ", ground -> " .. describe(left_result)
+            local take_two = "not_run"
+            if left_result == "ok" then
+                take_two = click_obj("logs", 3)
+                settle(3)
+            end
+            local _, held_two = count("logs")
+            local gone_result = obj_near("logs", 1)
+            trail[#trail + 1] = "take 2 -> " .. describe(take_two) .. ", held " .. describe(held_two)
+                .. ", ground -> " .. describe(gone_result)
+            setup_cheat("::clearinv")
+            settle(1)
+            local text = table.concat(trail, "; ")
+            if first_result ~= "ok" or second_result ~= "ok" then
+                return "no_subject", text .. " -- the two logs were not both dropped"
+            end
+            if rows ~= 2 or total ~= 2 then
+                return "refused", text .. " -- two identical drops on one tile must read two ground rows"
+            end
+            if held_one ~= 1 or left_result ~= "ok" then
+                return "refused", text .. " -- the first Take left no second log on the ground"
+            end
+            if held_two ~= 2 or gone_result == "ok" then
+                return "refused", text .. " -- the second log could not be taken"
+            end
+            return "ok", text
+        end)
+
+        -- A DRAINED STAT STAYS DRAINED THROUGH AN XP GRANT
+        -- (matthew-mbp-m4-b53-seam2 stat_drain_survives_xp_gain).
+        -- ToriRSServer_CombatAddXp (src/torirsserver/torirs_server_combat.c)
+        -- snapped any current level below its base straight back to the base
+        -- on the next grant, so one hit cancelled every content drain (the Ice
+        -- Path's cold, the Sourhog's spit, a stat_sub).  LostCity Player.ts:
+        -- 1841-1851 (addXp) moves the current level with the base only while
+        -- they are equal.  Graded: Attack 60 drained 90% reads 6/60, and a
+        -- 10 xp `::xp` grant (stat_advance) leaves it 6/60 with the xp up.
+        -- The row puts Attack back where it found it.
+        seam("seam.drain_survives_xp_gain", function()
+            local read = verb("skill", "read")
+            if not read then return missing("skill", "read") end
+            local function reading()
+                local state, value = read("attack")
+                if state ~= "ok" or type(value) ~= "table" then
+                    return nil
+                end
+                return value
+            end
+            local start = reading()
+            if start == nil then
+                return "no_subject", "skill.read attack gave no reading"
+            end
+            setup_cheat("::setlevel attack 60")
+            setup_cheat("::drain attack 0 90")
+            settle(2)
+            local drained = reading()
+            setup_cheat("::xp attack 100")
+            settle(2)
+            local after = reading()
+            setup_cheat("::setlevel attack " .. tostring(start.base_level))
+            settle(2)
+            local restored = reading()
+            local function show(value)
+                if value == nil then
+                    return "nil"
+                end
+                return tostring(value.level) .. "/" .. tostring(value.base_level) .. " xp " .. tostring(value.experience)
+            end
+            local text = "attack " .. show(start) .. "; ::setlevel 60 + ::drain 90% -> " .. show(drained)
+                .. "; ::xp attack 100 -> " .. show(after) .. "; put back -> " .. show(restored)
+            if drained == nil or drained.level ~= 6 or drained.base_level ~= 60 then
+                return "no_subject", text .. " -- the drain did not stage 6/60"
+            end
+            if after == nil or after.experience <= drained.experience then
+                return "no_subject", text .. " -- the grant moved no xp"
+            end
+            if after.level ~= 6 then
+                return "refused", text .. " -- the xp grant undid the drain"
             end
             return "ok", text
         end)

@@ -238,6 +238,7 @@ topic file with one line added here.
 - completion not readable after the last page -> gaps-dialogue: Completion, reopened dialogues; `t.msg.await` never sees
 - the reward differs from the wiki; split scroll lines -> gaps-dialogue: `~quest_complete_rewards`; `t.scroll.rewards()`
 - which rewards need a row -> coverage-and-gate: A reward row; gaps-dialogue: Rewards and steps
+- a boss dies in a few ticks and never hits you; "1 Quest Point" twice on the scroll; a brief's skill XP the content pays as a lamp -> gaps-combat: A level-191 boss dies in seven ticks; gaps-dialogue: A brief names skill XP; sampler-findings: Sample matthew-mbp-m4-b53, round 3 (Contact!'s boss and doubled line FIXED seam pass matthew-mbp-m4-b53-seam4)
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 - `reward.*` shot shows the Quest List tab; `reward tab ... not selected`; `10,500 Magic XP` read as 500 -> verbs-root-and-quest: Reward rows photograph the tab; `t.scroll.reward_xp`
 
@@ -399,6 +400,8 @@ topic file with one line added here.
 - matthew-mbp-m4-b52: FULL over `-- GUIDE-GAP:` + `::give` of drop items (tattered pages); an npc line titled "Someone" with no head; `t.exec` of `t.player.emote` FAILs `timeout` (Flex); a deferred blackout cutscene (Pig Thing) -> coverage-and-gate: A `-- GUIDE-GAP:` over a `::give`; sampler-findings: Sample matthew-mbp-m4-b52; verbs-inventory-shops: `t.exec(..., t.player.emote`; verbs-cutscene: A cutscene the port narrates as a blackout
 
 - vm-b1 round 3: FULL while a `goto_tile` lands on the first island of a trap chain (Royal Trouble `plankRock1` at 2548,10288 never planked, graded by a line that only names `royal_invisible_puddletrap`) -> sampler-findings: Sample vm-b1, round 3
+- matthew-mbp-m4-b53: FULL while a `goto_tile` lands inside a tent/room whose only doorway the guide never names (Queen of Thieves `piscquest_tentdoor`, scripted since b53-seam1 (d)); a refinery note whose clues fit two vials; "You can't cook that." on an uncooked stew; a `goto-bossladder` across Contact!'s trapped maze; no `cutscene:` rows for a `ported=no` scene -> sampler-findings: Sample matthew-mbp-m4-b53; content-gaps: The Queen of Thieves: an uncooked stew; gaps-world: Contact!: the Sophanem dungeon maze; verbs-cutscene: A cutscene the port narrates as a blackout
+- an npc's lines headed with ANOTHER npc's name and no chathead (Rat Burgiss as "Outlaw"); a gap where a `—` should be; a line naming a door that has no op -> sampler-findings: Sample matthew-mbp-m4-b53, round 2
 - Ava refuses "You need to complete Priest in Peril first." after `::complete quest_priestinperil` (writes 60; Animal Magnetism gates on 61) -> gaps-combat: `::complete` writes the prerequisite's `^*_complete` stage
 - no source for `willow_branch` (Enlightened Journey `talkToAugusteWithBranches`); a `::give` of a hand-in item whose source you did not grep -> content-gaps: Enlightened Journey: no willow branch source (FIXED b50-seam1: willow patch + secateurs, sack Fill; routes in `wip/enlightenedjourney/relay.md`)
 - `walk_to 2874,9846 ... stalled at 2882,9843` below the Taverley ladder; "This gate is locked." on `deepdungeondoor` -> gaps-world: Taverley Dungeon deep area

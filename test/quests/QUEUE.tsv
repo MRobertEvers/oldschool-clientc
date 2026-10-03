@@ -21,7 +21,7 @@ quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
-quest_contact	contact	contact		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	PR #107 (matthew-mbp-m4-b53 -> v3)	2026-10-02T21:04:57Z	todo|
+quest_contact	contact	contact		4	green	matthew-mbp-m4-b53			
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
@@ -59,7 +59,7 @@ quest_finaldawn	finaldawn	thefinaldawn		4	todo
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25			
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5			
 quest_forgettabletale	forgettabletale	forgettabletale		3	green	sonnet-b42			
-quest_forsakentower	forsakentower	theforsakentower		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	PR #107 (matthew-mbp-m4-b53 -> v3)	2026-10-02T21:04:57Z	todo|
+quest_forsakentower	forsakentower	theforsakentower		4	green	matthew-mbp-m4-b53			
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo				
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo				
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42			
@@ -112,7 +112,7 @@ quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-
 quest_murder	murder	murdermystery		1	green	sonnet-b15			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
-quest_olafsquest	olafsquest	olafsquest		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	PR #107 (matthew-mbp-m4-b53 -> v3)	2026-10-02T21:04:57Z	todo|
+quest_olafsquest	olafsquest	olafsquest		4	green	matthew-mbp-m4-b53			
 quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b47			
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
@@ -122,7 +122,7 @@ quest_priest	priest	therestlessghost		1	green	sonnet-b2
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
-quest_queenofthieves	queenofthieves	thequeenofthieves		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	PR #107 (matthew-mbp-m4-b53 -> v3)	2026-10-02T21:04:57Z	todo|
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	green	matthew-mbp-m4-b53			
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
@@ -138,7 +138,7 @@ quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
 quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
-quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	PR #107 (matthew-mbp-m4-b53 -> v3)	2026-10-02T21:04:57Z	todo|
+quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	green	matthew-mbp-m4-b53			
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
@@ -182,7 +182,7 @@ quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
-quest_whatliesbelow	whatliesbelow	whatliesbelow		4	claimed	matthew-mbp-m4-b53@matthew-mbp-m4	PR #107 (matthew-mbp-m4-b53 -> v3)	2026-10-02T21:04:57Z	todo|
+quest_whatliesbelow	whatliesbelow	whatliesbelow		4	green	matthew-mbp-m4-b53			
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	green	matthew-mbp-m4-b52			
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			

@@ -1,0 +1,18 @@
+# ladder forsakentower quest_dir=quest_forsakentower guide=src/main/java/com/questhelper/helpers/quests/theforsakentower/TheForsakenTower.java steps=15 legs=1:1-15@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToVulcana	NpcStep	npc:vulcana_lovakengj_vis	1483,3747,0	Talk to Lady Vulcana Lovakengj in the south of Lovakengj.			Yes. | I'm looking for a quest. | I'll get going.	quests/quest_forsakentower/scripts/forsakentower.rs2:108 opnpc1; +1
+1	2	2	talkToUndor	NpcStep	npc:wint_master_smith_normal	1624,3942,0	Talk to Undor at the entrance to Wintertodt. If you've never talked to Ignisia before, you'll need to talk to her first. She is just north east of Undor. You c…			I've been sent to help you.	quests/quest_forsakentower/scripts/forsakentower.rs2:141 opnpc1; +1
+1	3	3	enterTheForsakenTower	ObjectStep	loc:lovaquest_tower_entry_door	1382,3817,0	Enter the Forsaken Tower, west of Lovakengj.				quests/quest_forsakentower/scripts/forsakentower.rs2:203 oploc1
+1	4	4	inspectDisplayCase	ObjectStep	loc:lovaquest_tower_display_case	1382,3821,0	Inspect the display case in the Forsaken Tower.				quests/quest_forsakentower/scripts/forsakentower.rs2:239 oploc1
+1	5	4	goDownLadderToBasement	ObjectStep	loc:lovaquest_tower_dungeon_entry	1382,3825,0	Climb down the ladder into the tower's basement.				quests/quest_forsakentower/scripts/forsakentower.rs2:247 oploc1
+1	6	4	goDownToFirstFloor	ObjectStep<powerPuzzle[inSecondFloor]	loc:lovaquest_tower_ladder_down	1382,3827,2	Go down from the top floor.				quests/quest_forsakentower/scripts/forsakentower.rs2:271 oploc1
+1	7	4	goDownToGroundFloor	ObjectStep<powerPuzzle[inFirstFloor]	loc:lovaquest_spiral_stairs_top_m	1378,3825,1	Go down to the ground floor.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+1	8	4	searchCrate	ObjectStep	loc:lovaquest_tower_crate_crank	1387,10228,0	Search a crate in the north eastern cell for a generator crank				quests/quest_forsakentower/scripts/ft_puzzles.rs2:337 oploc1
+1	9	4	inspectGenerator	ObjectStep	loc:lovaquest_tower_generator	1382,10219,0	Inspect the steam generator in the south of the room		Generator crank	Start the generator.	quests/quest_forsakentower/scripts/ft_puzzles.rs2:359 oploc1
+1	10	4	inspectPowerGrid	ObjectStep	loc:lovaquest_power_grid	1382,10225,0	Inspect the power grid.			Yes.	quests/quest_forsakentower/scripts/ft_puzzles.rs2:420 oploc1
+1	11	4	doPowerPuzzle	PowerPuzzle			Solve the power puzzle.				
+1	12	8	getHammer	ObjectStep	loc:lovaquest_tower_display_case	1382,3821,0	Get the hammer from the display case in the Forsaken Tower.				quests/quest_forsakentower/scripts/forsakentower.rs2:239 oploc1
+1	13	8	goUpToGroundFloor	ObjectStep<gettingHammer[inBasement]	loc:lovaquest_tower_dungeon_exit	1382,10229,0	Leave the tower's basement.				quests/quest_forsakentower/scripts/forsakentower.rs2:255 oploc1
+1	14	8	returnToUndor	NpcStep	npc:wint_master_smith_normal	1624,3942,0	Return Dinh's Hammer to Undor at the entrance to Wintertodt.		Dinh's hammer	Let's talk about my quest. | Yes.	quests/quest_forsakentower/scripts/forsakentower.rs2:141 opnpc1; +1
+1	15	10	returnToVulcana	NpcStep	npc:vulcana_lovakengj_vis	1483,3747,0	Return to Lady Vulcana in south Lovakengj to finish the quest.				quests/quest_forsakentower/scripts/forsakentower.rs2:108 opnpc1; +1

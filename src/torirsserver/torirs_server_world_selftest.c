@@ -23559,6 +23559,47 @@ ToriRSServer_WorldSelftest(void)
                        "a removal at 0 should stay at 0, got %d",
                        player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK]);
 
+        /*
+         * A drained stat stays drained through an xp grant. LostCity
+         * Player.ts:1841-1851 (addXp) moves the current level with the base only
+         * while `levels === baseLevels`, and a level-up replenishes a drained
+         * stat by the levels gained. The engine used to snap any drained level
+         * straight back to its base on the next grant, so the Sourhog's 90%
+         * spit drain (porcineofinterest) lasted until the player's next hit.
+         * 273,742 xp is level 60, 302,288 is 61, 333,804 is 62.
+         */
+        player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] = 2737420;
+        player->stat_level[TORIRSSERVER_STAT_ATTACK] = 60;
+        player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 6; /* drained 90% (6/60) */
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, 1000);
+        SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 60,
+                       "100 xp past 273,742 is still level 60, got %d",
+                       player->stat_level[TORIRSSERVER_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 6,
+                       "a drained stat (6/60) must stay drained after an xp grant, got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, (302288 - 273842) * 10);
+        SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 61,
+                       "302,288 xp is level 61, got %d",
+                       player->stat_level[TORIRSSERVER_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 7,
+                       "a level-up replenishes a drained stat by the levels gained (6 -> 7), "
+                       "not to the base, got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+        player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 66; /* boosted 66/61 */
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, 10);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 66,
+                       "a boost (66/61) survives an xp grant, got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+        player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 61; /* at its base */
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, (333804 - 302289) * 10);
+        SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 62,
+                       "333,804 xp is level 62, got %d",
+                       player->stat_level[TORIRSSERVER_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 62,
+                       "a stat at its base follows a level-up (61 -> 62), got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+
         /* Put attack back where the checks above left it — 83 xp, level 2 — so
          * this stanza costs the ones after it nothing. */
         player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] = 830;
@@ -28766,6 +28807,22 @@ ToriRSServer_WorldSelftest(void)
             memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
             memcpy(xp_before, who->stat_xp_tenths, sizeof(xp_before));
 
+            /* Undrained first. `::maxstats` is stat_advance, and an xp grant
+             * leaves a drained stat drained by the same deficit (LostCity
+             * Player.ts:1841-1851; LostCity's own `::maxme`,
+             * _test/scripts/cheats/cheat_maxme.rs2, is the same bare
+             * stat_advance list). This stanza used to lean on the engine
+             * snapping every drained stat back to its base -- the prayer the
+             * sections above spent read 92/99 once that snap was gone. What it
+             * guards is a skill missing from the list, which an undrained
+             * account still shows. */
+            for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
+            {
+                if( i == TORIRSSERVER_STAT_HITPOINTS || i == TORIRSSERVER_STAT_SUMMONING )
+                    continue;
+                if( who->stat_boosted[i] < who->stat_level[i] )
+                    who->stat_boosted[i] = who->stat_level[i];
+            }
             handle_cheat(srv, cmd_maxstats, (int)sizeof(cmd_maxstats) - 1);
             for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
             {

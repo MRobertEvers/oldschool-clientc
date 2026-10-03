@@ -1014,3 +1014,16 @@ left alone.
 - The ice troll runts (level 74) out-trade a melee fighter who has to eat. The green run set
   Attack/Strength 90, Defence 80, Hitpoints 90 and Prayer 99, prayed Protect from Melee for the ten
   kills, and switched to Protect from Magic for the King.
+
+## Contact!: the Sophanem dungeon maze is walked, never crossed with `goto_tile` (matthew-mbp-m4-b53)
+
+Contact!'s guide steps 1.5 and 1.13 go from the dungeon's entry ladder through the trapped maze to
+the south-west ladder (`contact_ug_boss_ladder`, 2116,4364,2). A `goto-bossladder` hop to that
+ladder skips the maze, so it reads CHEAT and sent the draft back. Walk it in short `walk_to` hops.
+The traps are cache ops that roll and hurt: `contact_spiketrap_floor` Evade is an Agility roll,
+and `contact_speartrap` Disable is a Thieving roll. A failure costs a tenth of max hitpoints
+(`contact_dungeon.rs2` `[oploc1,contact_spiketrap_floor]` / `[oploc1,contact_speartrap]`). The
+formulas are the port's own and they gate nothing, so carry food rather than relying on a roll.
+The same review sent back two more hops: the chasm west side to Al Kharid (`goto-osman`), and out
+of the private scarab instance to Sophanem (`goto-priest`). Each of them needs the climb or walk
+that the guide names.

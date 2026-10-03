@@ -387,6 +387,31 @@ defence params (configs/all.npc [elvarg]; OSRS wiki Elvarg). The proof run read 
 52/60 after a 10 hitsplat and killed her in 68 ticks with five lobsters eaten. A quest boss whose
 spawn is a multinpc parent needs its stats on the parent; the client only draws the child.
 
+## A level-191 boss dies in seven ticks and never hits back: it has no `.npc` block at all (Contact!)
+
+*Origin: sampler matthew-mbp-m4-b53, round 3 (contact sent back).*
+
+**FIXED for Contact! by seam pass matthew-mbp-m4-b53-seam4 (OSRS-Content 4fa2748185).** The new
+`quest_contact/configs/contact.npc` carries the wiki block (oldid 15328051) and the Contact!
+summons (`_b`, levels 66/68). Proof: `b53s4_scarab_fight_e` read 130/130 from the server, 108/130
+after 8 ticks, dead after 131 ticks with 13 sharks eaten. The check below still applies to any other
+`npc_add` boss. How to stage the fight now: "A real level-191 boss beats a whip" (end of this file).
+
+Contact!'s Giant Scarab (`contact_scarab_boss`) has no block in any server `.npc` file. The only
+entry is `npc_anims.generated.npc`, which holds animations and no stats. The engine does not seed
+combat stats from the cache's `stat1..stat5` (`npc_def_seed_from_cache` copies only the bonuses), so
+the boss spawns with `init_defaults`' 10 hitpoints and attack/strength/defence 1. Its minions
+(`contact_insectoid_mage`, `contact_locust_lance`, `contact_locust_bow`) have the same defaults. The
+run read the bar at 21/30 after one 3 hitsplat. The boss died 7 ticks after the first swing, and the
+player stayed at 99/99. The wiki (Giant_Scarab_(Contact!) oldid 15328051) gives level 191, 130
+hitpoints, attack 169, strength 190, defence 169, ranged 190 and a max hit of 20.
+
+The pack report prints `hp` beside `vislevel` for every SPAWNED npc. An npc added by `npc_add` in a
+script is not in that report, so grep the server `.npc` files for its `hitpoints=` line. If there is
+none, the fight is not real. Author the block, or a `quest_<x>.npc` block for the multinpc parent,
+before you write the kill rows. Elvarg (above) had a block without `hitpoints=`. This boss has no
+block at all.
+
 ## Troll Stronghold: Dad's surrender page is closed by a pending attack click
 
 *Origin: the Troll Stronghold author (sonnet-b36).*

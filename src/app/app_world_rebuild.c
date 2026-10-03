@@ -161,7 +161,6 @@ App_WorldObjStackAdd(
     int world_z = scene_z * 128 + 64;
     int world_y;
     int element_id;
-    int existing;
     struct World* world;
 
     assert(app);
@@ -169,16 +168,32 @@ App_WorldObjStackAdd(
      * root scene or a boat — never on app->world directly. See app.h
      * `active_world`. */
     world = App_ActiveWorldview(app)->world;
-    existing = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
-    if( existing >= 0 )
-    {
-        app_obj_stack_refresh_model(app, world, existing, count);
-        World_ObjStackSetCount(world, existing, count);
-        app_plugin_obj_notify(app, existing, APP_PLUGIN_ITEM_CHANGE);
-        app_ground_items_mark(app, world, scene_x, scene_z, level);
-        app->need_redraw = 1;
-        return existing;
-    }
+    /*
+     * Rev 239 has no classic OBJ_REVEAL: osrs239_parse.c hands ObjEnabledOps
+     * through as one with count 0, and that names a stack ALREADY on the tile
+     * (the deob's ObjEnabledOps handler, Statics.method3127, finds the first
+     * TileItem of the id and only changes its ops). It never adds one. The old
+     * merge below used to answer it by overwriting that stack's count with 0.
+     */
+    if( count <= 0 )
+        return World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
+    /*
+     * Every OBJ_ADD is a NEW stack, even for an obj id the tile already holds:
+     * the tile is a list. LostCity's client (LostCity_JavaClient
+     * Client.java:8206-8213) pushes a fresh ClientObj onto
+     * objStacks[level][x][z] for every OBJ_ADD, and OBJ_DEL (:8222-8228)
+     * unlinks the FIRST one of that id; the rev-239 deob does the same
+     * (Statics.method1385 appends a new TileItem, method6879 unlinks one).
+     * A count that changes in place is OBJ_COUNT's job, not OBJ_ADD's.
+     *
+     * This used to find the tile's stack of the id and overwrite its count, so
+     * two identical non-stackable drops became one row with count 1, and the
+     * first pickup's OBJ_DEL took that row away while the server still held
+     * the second copy: the tile drew nothing and no menu row could take it.
+     * The server never relies on the merge -- a private pile turning public
+     * is sent as OBJ_DEL then OBJ_ADD (ground_tick, torirs_server_world.c),
+     * and a zone's state replay follows a FULL_FOLLOWS that clears the tile.
+     */
 
     /* The BASE objtype carries the name and the ground ops the minimenu reads;
      * the model comes from whichever count variant `count` selects. */
@@ -251,6 +266,46 @@ App_WorldObjStackAdd(
     }
 }
 
+/*
+ * A tile can hold several stacks of one obj id (App_WorldObjStackAdd), and the
+ * placeholder that lands a model looks its stack up by tile and id, so it only
+ * ever reaches the FIRST copy. Two copies of an obj whose model was not
+ * resident yet would leave the second without a model or a menu name for good.
+ * Whatever just landed one copy can land the others the same way.
+ */
+static void
+app_obj_stack_land_copies(
+    struct App* app,
+    struct World* world,
+    int landed_idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack const* landed;
+
+    assert(app);
+    assert(world);
+    pool = &world->entities.obj_stack;
+    landed = World_EntityPoolGet(pool, landed_idx);
+    assert(landed);
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* copy = World_EntityPoolGet(pool, i);
+
+        if( !copy || i == landed_idx || copy->element_id >= 0 )
+            continue;
+        if( copy->obj_id != landed->obj_id ||
+            copy->grid_position.x != landed->grid_position.x ||
+            copy->grid_position.z != landed->grid_position.z ||
+            copy->grid_position.level != landed->grid_position.level )
+            continue;
+        /* Lands it and, through this, any copy after it; a copy whose count
+         * selects a model that is still loading stays for its own retry. */
+        if( app_obj_stack_land(app, world, i) )
+            return;
+    }
+}
+
 int
 app_obj_stack_land(
     struct App* app,
@@ -305,6 +360,7 @@ app_obj_stack_land(
     app_ground_items_mark(
         app, world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
     app->need_redraw = 1;
+    app_obj_stack_land_copies(app, world, idx);
     return 1;
 }
 

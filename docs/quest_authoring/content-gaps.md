@@ -175,3 +175,13 @@ and no map square places locs 19980-19984. So the game stands it up server-side,
 faithful mechanism; `bronze_room.rs2` now says so. Check the pristine cache before proposing a map
 row. Quest runs and JS5 read the pristine `cache.osrs239` (run.py `write_manifest`), never the
 `make torirsserver-cache` bake (`cache.osrs239.baked`), so a map row would be inert in a run anyway.
+
+## The Queen of Thieves: an uncooked stew cannot be cooked, so the stew is bought (matthew-mbp-m4-b53)
+
+O'Reilly wants a bowl of stew (Quest Helper `talkToOReilly`, item "Stew"). Making one gets as far
+as `uncooked_stew` (`skill_cooking/scripts/cooking_inv/scripts/stew.rs2`). But
+`skill_cooking/configs/cooking_generic.dbrow` has no row for it, so a range answers "You can't cook
+that." (`cooking.rs2` `[proc,attempt_cook]`, the `db_find(cooking_generic:uncooked, ...)` miss).
+The stew is a bring-along, so buying it is allowed: the Shayzien barman (`shayzien_barman`, op 3,
+shop `shayzien_pub`, The Cloak and Stagger, 1550,3560) sells one for 20 coins. The only setup
+`::give` is the coins. Once a `cooking_generic` row exists, cook the stew instead.
