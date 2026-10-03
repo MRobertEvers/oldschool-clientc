@@ -143,10 +143,12 @@ CARRIED to reload.
 `t.player.drop(item)` -> `ok` `timeout`. It is graded on the BACKPACK falling, with at least one of
 the item on the player's own tile; a ground count rising is not required. The detail is
 `drop <item>: backpack B -> A, ground on the player's tile G0 -> G1 (N row(s))`. A second identical
-non-stackable copy dropped on its twin's tile is `ok`, and its G1 equals G0. The client keeps one
-ground row per (tile, obj id) and overwrites its count, so the total cannot rise (seam-facts: Seam
-pass matthew-mbp-m4-b52-seam1 (a)). Do not plan to pick the second of two identical drops back up
-from one tile: the client shows none after the first pick (same entry, OPEN).
+non-stackable copy dropped on its twin's tile is `ok`, and since seam pass matthew-mbp-m4-b53-seam1
+its ground half rises too: `ground on the player's tile 1 -> 2 (2 row(s))`. The client keeps a LIST
+of ground rows per tile, one per OBJ_ADD, so two identical drops are two rows with a Take each, and
+picking one up leaves the other drawn and takeable (seam-facts: Seam pass matthew-mbp-m4-b53-seam1
+(a); conformance `seam.two_copies_one_tile_both_takeable`). Before b53-seam1 the client merged them
+into one row and the second copy vanished after the first pick (b52-seam1 (a), FIXED).
 
 #### A rake fills the backpack with weeds; dropping a second weeds copy FAILs (FIXED b52-seam1)
 

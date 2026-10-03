@@ -1271,10 +1271,11 @@ row per (tile, obj id), and an OBJ_ADD for an id already on the tile overwrites 
 copy dropped on its twin's tile never raised anything the client shows, and a real drop read
 `timeout ... backpack 1 -> 0, ground 1` (legends b51 `makeBowl.drop-spare-bar-2`). The detail is
 now `drop <item>: backpack B -> A, ground on the player's tile G0 -> G1 (N row(s))`, and G1 can equal
-G0 on a second copy. Conformance `seam.drop_second_copy_on_one_tile`. OPEN (client engine): the same
-merge means that after two logs land on one tile and you pick one up, the client shows NO log there
-and a second pick finds no menu row (`dropseam_pickone` rows 4-5). The server still holds the
-second log. Do not plan a test on picking up the second of two identical drops from one tile.
+G0 on a second copy. Conformance `seam.drop_second_copy_on_one_tile`. FIXED in seam pass
+matthew-mbp-m4-b53-seam1 (a), which removed the client merge: after two logs land on one tile and you
+pick one up, the second is still drawn and takeable, and G1 now rises on a second copy. (Before
+that, the client showed NO log after the first pick and a second pick found no menu row,
+`dropseam_pickone` rows 4-5.)
 
 (b) `npc_setmode(none|null)` no longer clears `step_dir` (torirs_server_scripts.c SS_OP_NPC_SETMODE).
 LostCity never touches the step there either: `null` is `resetDefaults()` (NpcOps.ts:216-218,
@@ -1308,7 +1309,8 @@ proving it, and both bite any scratch row:
 - ANY xp gain snaps a drained stat back to its base level (torirs_server_combat.c:1174
   `stat_boosted < stat_level`), which LostCity's `addXp` does not do (Player.ts:1840-1851). An Attack-xp
   hit cancels the Sourhog drain. Keep xp off the stat a drain row asserts (aggressive style pays
-  Strength only).
+  Strength only). STILL OPEN after b53-seam1: a fix exists but was not landed (seam pass
+  matthew-mbp-m4-b53-seam1 (f)).
 - A boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`) does not walk
   to an idle owner. Engage it with `t.player.attack` before waiting on its attacks.
 Also: a 1-tick `t.msg.await` loop interleaved with skill reads can miss a line that lands between
@@ -1346,3 +1348,77 @@ leg's pickups. An RNG shift upstream changes how much food an earlier leg eats. 
 leg 7 then ended on 19 items, leg 8's `::give lobster 15` filled the pack, and Klank's gauntlets were
 lost to "Your inventory is full." Count free slots with `t.inv.slot` (an empty slot reads name `""`)
 and give `min(15, free - 3)`.
+
+## Seam pass matthew-mbp-m4-b53-seam1 (2026-10-02, batch matthew-mbp-m4-b53)
+
+(a) The client keeps a LIST of ground objs per tile. Every OBJ_ADD is a new row, even for an obj id
+the tile already holds, and OBJ_DEL removes the FIRST row of that id. That is what both references
+do: LostCity_JavaClient `Client.java:8206-8213` pushes a new ClientObj per OBJ_ADD and `:8222-8228`
+unlinks the first one of the id; the rev-239 deob appends a TileItem (`Statics.method1385`) and
+unlinks one (`method6879`). `App_WorldObjStackAdd` (src/app/app_world_rebuild.c) used to find the
+tile's row of the id and overwrite its count, so two identical drops were one row, and the first
+Take removed it while the server still held the second copy. Now two logs dropped on one tile are
+two rows with two Takes (`build/quest_gate/b53s1_pick2_before` 4 FAIL -> `b53s1_pick2_after` 7/0;
+conformance `seam.two_copies_one_tile_both_takeable`). A count-0 add (rev 239's ObjEnabledOps,
+passed through as OBJ_REVEAL) names the existing row and adds nothing. OPEN (client): OBJ_DEL
+carries no count, so with two stacks of one STACKABLE id with different counts on one tile, the
+deob (which matches id and quantity) and ours can remove different stacks.
+
+(b) The Chaos Altar is a four-level ladder maze, not a misplaced altar. The chaos talisman/tiara
+lands you on level 3 (2275,4847) and the altar is on level 0 (2270,4841). LostCity agrees on both
+(`runecraft.dbrow:113` `enter_coord,3_35_75_35_47`; `maps/m35_75.jm2` LOC `0 30 41: 2487 10`, 2487 =
+chaos_altar), and the OSRS wiki says so (Chaos Altar oldid 15350445: "players must navigate four
+levels of a chaotic maze"). Route: three `laddertop` Climb-downs, plain travel:
+`click_loc("laddertop", 1, { at = { 2255, 4829, 3 } })` -> 2255,4830,2; `{ 2275, 4834, 2 }` ->
+2274,4834,1; `{ 2259, 4845, 1 }` -> 2258,4845,0. From level 3, `click_loc("chaos_altar")` answers
+`covered ... menu has no row for it`, and `t.world.loc_near("chaos_altar", r)` answers ok because
+it ignores the plane (Trap 29), so assert the floor with `t.world.tile().level`. Proof:
+`build/quest_gate/wlb_altar_route_s3` 13/13 (chaos runes crafted) and a What Lies Below copy 57/0
+through `useWandOnAltar`. Route rows: `test/quests/wip/whatliesbelow/relay.md`.
+
+(c) The Ribbiting Tale's Marcellus and frogs (Locus Oasis) are placed by a quest-local
+`quest_ribbitingtale/configs/ribbitingtale.spawn`, not by `gen_spawns.py`. The xrsps dump has no
+npc anywhere near (x 1660-1720, z 2960-3010), so there was no dump row to correct. Rule: an npc the
+dump lacks ENTIRELY goes in a quest-local `<quest>.spawn` with cited tiles (idesofmilk,
+bearyoursoul, ribbitingtale); `NPC_SPAWN_ADDITIONS`/`NPC_SPAWN_ID_CORRECTIONS` are for world
+npcs whose dump row drifted. The rows name the op-carrying CHILD records, not the cache's multinpc
+shells (13401-13405), because ribbitingtale.rs2 binds its ops on the children (Trap 19):
+`frog_quest_marcellus_normal` 1683,2973, `frog_quest_gary_unnamed` 1695,2996,
+`frog_quest_sue_unnamed` 1695,2995, `frog_quest_dave_named` 1697,2984, `frog_quest_jane_named`
+1696,2983 (Quest Helper TheRibbitingTaleOfALilyPadLabourDispute.java :117/:120/:126; wiki
+Marcellus oldid 15319067, Gary 15197135, Sue 15197137, Dave 15197136, Jane 15197139). Cuthbert is
+not placed. Consequences: the blue frogs always read "Frog" and Dave/Jane always their names (the
+shells' stage forms do not show). A copy of the test starts the quest by click and reaches stage 8
+(`build/quest_gate/seam1_ribbit_copy` 21/0). OPEN (content): at stage 8 Dave and Jane only say
+"Hello there!": `[label,ribbit_yellow_talk]` guards the election talk on `>= ^ribbit_chop` (10)
+and nothing but `[debugproc,ribbitrun]` writes 10.
+
+(d) The Queen of Thieves' tent doorway `piscquest_tentdoor` (1765,10149, a wall on the tile's north
+edge) is scripted: `[oploc1,piscquest_tentdoor]` in `queenofthieves_locs.rs2` walks you through with
+the shared `@door_walkthrough_try`. Going in is refused before Devan's go-ahead (stage <
+`^qot_queen` = 8); going out is never refused. Sources for the gate: wiki
+Transcript:The_Queen_of_Thieves oldid 14962997 ("You should head on in and speak to her"),
+The_Queen_of_Thieves oldid 15352295, Quest Helper TheQueenOfThieves.java:104-107. The refusal line
+"You should speak to Devan Rutter before going in there." is port wording (no source records it).
+Drive it with `t.exec("enterTent", t.player.click_loc, "piscquest_tentdoor", 1)` from outside, then
+assert 1765,10150; the same click from inside lands on 1765,10149. Proof: pre-fix pack
+`qot_tentdoor_pre` "I can't reach that!" at the Queen; fixed `qot_tentdoor_post` 14/0; the
+reverted test with its tent `goto_tile`s replaced by doorway clicks ran 78/78. Rows:
+`test/quests/wip/queenofthieves/relay.md`. This resolves Sample matthew-mbp-m4-b53 (a).
+
+(e) To prove a content failure on the PRE-fix pack without mutating the shared tree: rsync
+`server/scripts` to the scratchpad (leave out png/bmp/build/selftest and the lane `.rs2` files,
+keep the lane `.constant` files), put HEAD's version of the changed file there, run
+`src/build_opt/sscompile --src <copy> --out <dir> --content-root <content> --pack <content>/pack
+--pack <content>/configs`, then run the scratch test with `TORIRSSERVER_SCRIPTS=<dir>`.
+`client.log` names the pack it loaded.
+
+(f) NOT LANDED: the xp-grant drain snap (seam pass matthew-mbp-m4-b52-seam1 (d)). A fix that
+follows LostCity `Player.ts:1841-1851` (a drained stat stays drained through an xp grant; a
+level-up replenishes it by the levels gained) was written and selftested, but it turned committed
+green Desert Treasure RED: the Ice Path cold (deserttreasure.rs2:1222-1247) then really drains
+Magic to 57/99 before Kamil, under Fire Blast's 59 ("Your Magic level is not high enough for this
+spell."). The closer reverted it. It must land in one pass together with a deserttreasure.lua leg-5
+restore (restore potions as a bring-along) and a free backpack slot before the child troll. The
+patch and the evidence are in `build/seam_state/matthew-mbp-m4-b53-seam1/drain_fix_carried.patch`
+and `build/seam_state/next-seam-carry.md` item 4.
