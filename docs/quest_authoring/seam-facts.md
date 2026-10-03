@@ -1625,3 +1625,78 @@ and logs can be gathered inside the colony. The hole still demands logs, a tinde
 `swansong_colony.rs2`, which this pass gave to the combat seam. Its fixer could not edit them, and the
 closer had to wire them in. When two seams must edit one file, give the file to one seam and list the
 other's edits as its work.
+
+## Seam pass matthew-mbp-m4-b55-seam1 (2026-10-03, batch matthew-mbp-m4-b55)
+
+(a) **An artefact or a table offers only Examine, and its `[oploc1]` never fires (Another Slice of
+H.A.M.'s dig sites and specimen table).** The cache gives `slice_artifact_hotspot_0N_1`/`_2`
+("Artefact"/"Hole") and `slice_table_01` no op at all (`configs/all.loc:256904ff`, `257038`). In the
+real game both are USES: wiki Another_Slice_of_H.A.M./Quick_guide oldid 14458352 #Excavation "Dig up
+artefacts from the ground with the trowel", "Use artefacts on the specimen table to clean them";
+Quest Helper's dig1..dig6 are trowel-highlighted ObjectSteps. Fixed in OSRS-Content f97d2dcd59: the
+digs are `[oplocu,slice_artifact_hotspot_0N]` (anything but the trowel: "You need a trowel to
+excavate this site."; a dug site: "You've already excavated this site."), and the dead `[oploc1]`
+bindings are gone. Hotspot N writes `varb355(0+N)_slice_artifact_N` (the hotspot's own cache
+`multivarbit`, so the dug site turns into its Hole) and gives `slice_artifact_N_dirty`; before,
+hotspot 2 wrote artefact 5's varbit (turning hotspot 5 into a Hole), 4 wrote 2 and 5 wrote 4. Quest
+Helper's `artefact1..6` labels run 1,5,3,2,4,6 only because that is the objs' id order. Proof:
+`b55s1_dig_before` "Nothing interesting happens.", 0 items, varbit 0 -> `b55s1_slice_b` 146/0 to
+the scroll (six `dig<N>` rows each `gained slice_artifact_<N>_dirty`, `varb355<N> = 1`). A loc
+with no op in the cache is a `use_on` target, never a `click_loc`.
+
+(b) **The route into a city needs a quest the guide does not list (Another Slice of H.A.M. needs
+The Lost Tribe's varb532).** `::complete` writes only the named quest's own var. Quest Helper lists
+Death to the Dorgeshuun, not The Lost Tribe, but the cellar hole (`lost_tribe_cellar_wall`'s
+multiloc child `lost_tribe_cavewall_hole_walldecor`, values 4..12), Kazgar (`lost_tribe_guide`,
+9..12) and `cave_goblin_city_doorr` (refuses below `^lt_complete`, `lotg_intro.rs2:67`) all read
+`varb532_lost_tribe_quest`. Without `::complete quest_losttribe` the three are absent from the
+client (`b55s1_route_noLT`: `no loc 6905 ... in the client's entity pool`). The scaffold's
+`ROUTE_PREREQS` (`tools/quest_gate/new_quest.py`, batch matthew-mbp-m4-b55) stages it before DTTD.
+With it the route clicks end to end (`b55s1_route_b` 18/0): trapdoor, hole (3221,9618,0), Kazgar
+"Can you show me the way to the mines?" (lands beside Mistag, 3319,9615,0), the city door
+(2704,5365,0). The Lost Tribe is NOT in LostCity (grep of all five LostCity trees is empty).
+
+(c) **helper_coverage "no [op*] trigger on <loc> serves this quest" on a multiloc PARENT.** The
+trigger sits on the multiloc CHILD (`[oploc1,lost_tribe_cavewall_hole_walldecor]`,
+`losttribe.rs2:245`). The finding clears once a row named after the guide step clicks the child.
+
+(d) **`talk_to dorgesh_urtaq` answers "I can't reach that!" (Dorgesh-Kaan council room).** Ur-tag
+(2730,5365,1) stands in a walled room whose only entrance is `dorgesh_inner_door_posh_closed` at
+2733,5363,1. A `goto_tile 2729,5365,1` lands inside the room past that door; click the door
+(`click_loc ... { at = { 2733, 5363 } }`) and talk.
+
+(e) **OPEN (content): after a REAL Death to the Dorgeshuun completion, Kazgar, Mistag and the
+cellar hole vanish.** `dttd_shared.rs2:65` writes `varb532_lost_tribe_quest = 13`; the cache maps 13
+to -1 for `lost_tribe_guide`, `lost_tribe_mistag` and `lost_tribe_cellar_wall` (multinpc14 /
+multiloc14; multinpc is indexed by value). The value its own comment means is 12, the `_3ops`
+Talk-to/Mines/Watermill Kazgar (wiki Kazgar revid 15196282). `b55s1_route_dttd13` loses the hole;
+`b55s1_route_dttd12` passes 18/0. A test is not hit: `::complete quest_deathtothedorgeshuun` leaves
+532 at the Lost Tribe's 11.
+
+(f) **OPEN (tools): helper_coverage "X never reads %var" on a talk whose trigger header is stacked
+over another.** `script_body()` (`helper_coverage.py`) stops at the next line starting `[`, so the
+first of `[opnpc1,a]` / `[opnpc1,b]` written back to back has an empty body. Another Slice of
+H.A.M.'s generals were graded this way and do advance 5->6 and 7->8; the content now gives each
+header its own `@slice_generals_talk` jump. Other quests with stacked headers can be misgraded the
+same way.
+
+(g) **Quest Helper's `NpcID.LOTG_OLDAK_CUTSCENE` has no op.** It is the pre-gameval `NpcID.OLDAK`,
+renamed. The talkable Oldak is `dorgesh_oldak_there` (2704,5365,0), the id the Land of the Goblins
+helper uses; Another Slice of H.A.M. stage 4 goes through it (`lotg_yubiusk.rs2:12`).
+
+(h) **The Eyes of Glouphrie's Evil Creatures hit back, at most 1 a swing; that is the real game.**
+Wiki Evil_Creature oldid 15349482's infobox: `max hit = 1`, Crush, attack speed 4, aggressive No,
+1 hitpoint, plus an "Attacking" sound effect; nothing on the page says they do not fight back. The
+cache ships the swing (`all.seq [eyeglo_fluffie_attack]`). The engine latches retaliation on every
+hit (`torirs_server_combat.c` `ToriRSServer_CombatHitNpc`; only `retaliate=no` opts out), so
+`~npc_retaliate(0)` in the `[opnpc2]` bindings only starts the fight on the click. Max hit 1 is
+`strength=1` + `strengthbonus 0` through `[proc,npc_melee_maxhit]`: (1 + 9) * 64 = 640, (640 + 320)
+/ 640 = 1. `check_theeyesofglouphrie` now refuses `retaliate=no` or another strength. Any earlier
+note that they "never retaliate" is wrong. Proof: `b55s1_eyeglo_c` `creatures.hit_back` "hp 40 ->
+39 over 6 kills ... worst single tick 1".
+
+(i) **One fight's hp delta does not prove an npc never hits.** Each npc has its own seeded
+java.util.Random stream (`torirs_server_scripts.c`, `srv->npcs[slot].random`), so a scratch fight
+replays the same rolls even when its timing shifts: `b55s1_eyeglo_a`/`_b` read 40 -> 40 over 13
+creature swings, all 0. Prove "it hits back" or "it never hits" with several fights or a swing
+count (`[ai_opplayer2,<npc>]` lines under `TORIRSSERVER_VERBOSE=1`).

@@ -441,6 +441,13 @@ topic file with one line added here.
 - the guide says an npc gives a tool but a gate before him demands it ("You'll want a hammer before heading in", Swan Song's Franklin) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (d)
 - a seam fixer refused an edit because another seam owns the file -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (e)
 - matthew-mbp-m4-b55: no Entrana boat; Emelio's Trade opens nothing; Brimstail has no disc line after the unlock; Asteros where the guide says Trobin; Slice of H.A.M.'s Artefact offers only Examine; "The passage beyond is unfamiliar to you." at Dorgesh-Kaan; a margin row `hp after table: 0x...` -> content-gaps: Content gaps reviewers named in matthew-mbp-m4-b55; sampler-findings: Sample matthew-mbp-m4-b55
+- an artefact/table offers only Examine and its `[oploc1]` never fires (Another Slice of H.A.M. dig sites, specimen table) (FIXED b55-seam1: trowel/artefact USED on them) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (a)
+- the cellar hole, Kazgar or the Dorgesh-Kaan city door missing (`no loc 6905 ... in the client's entity pool`) after `::complete quest_deathtothedorgeshuun` -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (b) (`::complete quest_losttribe` too); Kazgar/Mistag gone after a REAL DTTD completion (OPEN) -> (e)
+- helper_coverage "no [op*] trigger on <loc> serves this quest" on a multiloc parent (`lost_tribe_cellar_wall`) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (c) (click the child)
+- `talk_to dorgesh_urtaq` answers "I can't reach that!" (Ur-tag's council room) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (d) (click `dorgesh_inner_door_posh_closed` at 2733,5363)
+- helper_coverage "X never reads %var" on a talk whose `[op*]` header sits directly over another (OPEN grader false positive) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (f)
+- Quest Helper names `LOTG_OLDAK_CUTSCENE` and `talk_to` finds no op on it -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (g) (`dorgesh_oldak_there`)
+- an Evil Creature (Eyes of Glouphrie) or any 1-max-hit npc takes your hp down a point; one fight read 40 -> 40 and another 40 -> 35 -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (h) (they hit back, wiki max hit 1) and (i) (per-npc seeded rolls; count swings)
 
 ## Citations: resolving a number or a name
 
