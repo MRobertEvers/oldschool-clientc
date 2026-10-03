@@ -241,7 +241,11 @@ const missing = batchTests.filter(id => !reviewed.some(r => r.test_id === id))
 log(`${reviewed.filter(r => r.verdict === 'accepted').length} accepted, ${reviewed.filter(r => r.verdict === 'blocked').length} blocked, ${reviewed.filter(r => r.verdict === 'content_bug').length} content bugs, ${reviewed.filter(r => r.verdict === 'rejected').length} rejected; ${missing.length ? 'NO REVIEW for ' + missing.join(', ') + ' (relaunch with the same args)' : 'every quest reviewed'}`)
 
 phase('Queue')
-const writtenIds = new Set(state.queue_written_ids || [])
+// A review made by THIS launch is always written: queue.json lists every id an
+// earlier launch wrote, and a quest authored again in a later round is in it
+// (b55 round 6: both re-reviewed rows were skipped and stayed `todo`).
+const freshIds = new Set(freshReviews.map(r => r.test_id))
+const writtenIds = new Set((state.queue_written_ids || []).filter(id => !freshIds.has(id)))
 const toWrite = reviewed.filter(r => !writtenIds.has(r.test_id))
 if (toWrite.length) {
   await attempt('queue', 3, () => agent(`${COMMON}
