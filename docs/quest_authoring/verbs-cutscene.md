@@ -261,3 +261,6 @@ review as spec-pending. Porting it is work for the cutscene session, not for the
 the port adds a `cam_*` op the gate rule applies to the quest.
 The same holds for every `ported=no` row in `CUTSCENES.tsv`: Contact! (3 scenes), Ribbiting Tale (1)
 and What Lies Below (2) were spec-pending in matthew-mbp-m4-b53, so they had no `cutscene:` rows.
+In matthew-mbp-m4-b54 the same held for Ethically Acquired Antiquities (2 scenes; the port speaks
+Haig's confession as plain dialogue, `eaa_haig_confront`, drained by the `watchCutscene` row),
+A Soul's Bane (7) and Swan Song (2).

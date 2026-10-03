@@ -288,6 +288,11 @@ within five tiles) has to find its subject, not assume it.
 nothing -- a prerequisite cheat that silently does nothing leaves the whole downstream cascade
 looking like a content bug (Heroes' Quest lost its entire Herblore leg to it).
 
+The Dig Site is the same trap: its folder is `quest_itexam` and its dbrow is `quest_digsite`.
+Bone Voyage's first run (matthew-mbp-m4-b54) staged `::complete quest_itexam`, got no line back,
+and the dig-site gate stayed shut; `::complete quest_digsite` works. The arm list in
+`quests/scripts/quest_cheat.rs2` names every dbrow that has one.
+
 ## `::complete has no arm for that quest.`: Tourist Trap, Temple of Ikov, Troll Stronghold and Wanted! have arms now
 
 *Origin: sampler sonnet-b40 (deserttreasure and deviousminds reviews); fixed by seam33
@@ -544,3 +549,51 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
   a trap 16 cheat. This is an open staging and map seam. Do not paper over it in the test.
 - Her bar is 80 units wide, so read the server: `t.cheat("::swansong_queen_hp")` then
   `t.msg.expect("Sea Troll Queen hitpoints 200/200")` (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a)).
+
+## Fewer sharks at the boss than the setup gave; the food runs out and the kill still passes at 1 hp (Swan Song round 5, b54 sampler)
+
+*Origin: the matthew-mbp-m4-b54 round-5 author and reviewer doc_gaps, and the sampler's send-back.*
+
+- **`::wield` in setup frees the slot, so wear the gear before the food is given.** A `::give X` then
+  `::wield X` pair leaves the backpack empty of X. Give and wield the bow, arrows and armour first,
+  then `::give shark N` last. Round 5's first run gave 14 sharks while the gear was still in the pack,
+  and only 11 fit.
+- **`::give` truncates and the setup still passes.** The server prints "Gave 4 x Shark, 12 did not fit",
+  but no row fails. Read the food you really carry at the fight (`t.inv.count("shark")` in a
+  `killQueen-food` row). The ledger is the only place that shows it.
+- **There is no bank verb, so the food is capped by the leg where the pack peaks.** Count the slots
+  there, not at the boss. Swan Song peaks on the fishing leg: 4 bones, 2 soft clay, the hammer, the net
+  and 5 raw monkfish leave room for 15 sharks, and with 16 the fifth cast failed (`inv.await` 4 -> 4).
+  Drop each tool once its step is done (tinderbox and logs after the firebox, the net after Arnold,
+  the hammer after the walls) with `t.player.drop` and an `expect_absent` row.
+- **A kill that ate every shark is not a green.** `await_dead_engaged`'s detail saying `OUT OF shark`,
+  or a death shot whose hitpoints orb reads 1, means the next run can die. The sampler sent round 5
+  back for that: 15 sharks eaten, the Queen at 4/80 when they ran out, the player at 1 hp at the scroll.
+  Lower her hit chance with gear before you add food. `black_dragonhide_body` (magic defence +45) is
+  not quest-gated: `levelrequire.rs2:178` gates only the green `dragonhide_body`. With the coif, chaps
+  and vambraces that takes magic defence from 35 to 80. Eat to full before the first Attack, too
+  (round 5 opened the fight at 72/99 because 72 was above `below=60`).
+
+## A note says one more food item cannot fit: count the pack leg by leg first (Swan Song round 6, b54 sampler)
+
+*Origin: the matthew-mbp-m4-b54 sampler's check of round 6.*
+
+- **Round 6 kept 15 sharks** and noted that a 16th was impossible because of the hammer slot at Franklin.
+  Counted leg by leg, 16 fits:
+  - setup: 3 rune stacks, 5 bars, 2 soft clay, logs, tinderbox and 16 sharks make 28 slots;
+  - entrance: the runes are gone and 3 bones are added, so 28;
+  - Franklin: the log is burned, the tinderbox dropped and the hammer added, so 27;
+  - fishing: the sheets are used and the hammer dropped; 4 bones, 2 clay, the net, 5 raw monkfish and
+    16 sharks make 28.
+  The sampler's scratch copy proved it (`fish-cast-5-raw` 4 -> 5), and the fight ended with 4 sharks
+  left instead of 3.
+- **Prove a slot claim with a scratch copy, not a note.** Run
+  `run.py --script <copy.lua> --name <name> --no-build --no-publish`; Swan Song takes 18 seconds.
+- **Put the margin in the margin row.** `t.exec` returns the verb's detail. Read the lowest hp and the
+  ticks from it: `local _, d = t.exec("killQueen-dead", t.npc.await_dead_engaged, ...)`, then
+  `d:match("lowest hp (%d+)/")` and `d:match("dead after (%d+) tick")`. Record the food staged, eaten
+  and left beside them.
+- **A rerun of the same file is not a variance sample here.** Five quest-mode runs (two with 15 sharks,
+  three with 16) all read 144 ticks, 12 eaten and lowest hp 24. The same 16-shark kit run through
+  `--script` read 130 ticks and 11 eaten. Two identical greens are one data point, so a quarter more
+  food than the worst run is still the rule.

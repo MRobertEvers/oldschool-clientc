@@ -185,3 +185,58 @@ that." (`cooking.rs2` `[proc,attempt_cook]`, the `db_find(cooking_generic:uncook
 The stew is a bring-along, so buying it is allowed: the Shayzien barman (`shayzien_barman`, op 3,
 shop `shayzien_pub`, The Cloak and Stagger, 1550,3560) sells one for 20 coins. The only setup
 `::give` is the coins. Once a `cooking_generic` row exists, cook the stew instead.
+
+## Only one of three `npc_add` ambush trolls appears (Swan Song, matthew-mbp-m4-b54; FIXED OSRS-Content f2902a94dd)
+
+FIXED by seam pass matthew-mbp-m4-b54-seam1: the offsets were written as `movecoord(coord, 2, 1, 0)`
+and `(-1, 2, 0)`, and `movecoord`'s middle argument is the LEVEL (LostCity ServerOps.ts:103-107),
+so trolls 2 and 3 stood on levels 1 and 2. Neither `npc_add` nor the map was the cause. See
+seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a); the rows are in `test/quests/wip/swansong/relay.md`.
+The original finding:
+
+
+`swansong_colony.rs2` `[proc,ssq_spawn_entrance_ambush]` (lines 119-123) calls `npc_add` three
+times for `swan_troll_ambush`: on `^ssq_entrance_ambush_coord`, at +2,+1 and at -1,+2. The client
+shows one troll (shots 030 and 032, and `t.npc.tiles` lists one copy), so `%varb2107` never
+reaches 3 and stage 50 cannot be reached. The test stops at `t.blocked` with `content_bug`. Not
+yet known: whether `npc_add` drops the two offset spawns or their tiles are blocked. Check that on
+the server first (the spawn tiles in the map's collision, and a server-side npc count after the
+proc). Do not work around it in the test.
+
+## Swan Song's entrance ambush: 3 trolls where the wiki has 8, and they despawn 50 ticks after entry (matthew-mbp-m4-b54; despawn FIXED OSRS-Content 1ef7c1e7b9)
+
+*The 50-tick despawn and the one-shot flag are FIXED (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (c)): the trolls stay until killed, and a re-entry puts back the ones still owed. The 3-of-8 gap below stands.*
+
+This is a parity gap; the test does not need to work around it. The wiki says that inside
+the Colony grounds "you will be attacked by eight (8) level 79 Sea trolls" (Swan_Song revid
+15359363, "Battle at the Colony"). The port spawns three. `^ssq_trolls_needed` is 3, and the
+counter `%varb2107_swansong_trolls` has only 2 bits, so it cannot count to 8 without a wider
+varbit. Assert the port's 3 (`varb2107` reads 1, 2, 3, then stage 50). Note the gap in the
+test header; do not invent five more kills. Two things follow from the port's version:
+
+- `[proc,ssq_spawn_entrance_ambush]` calls `npc_add(..., 50)`, so each troll despawns 50 ticks
+  after it spawns. `varb2111_swansong_ambush=1` stops a second spawn, so a fight that runs past
+  about 50 ticks soft-locks stage 40. Kill the three without pausing; the measured run took
+  about 34 ticks (`test/quests/wip/swansong/relay.md`).
+- Malignius later wants 7 bones. With 3 ambush trolls, the rest have to come from later
+  trolls. Only one later troll exists (the one the first fishing cast wakes), so the trolls
+  leave 4 bones; see the next section for the other 3.
+
+## Swan Song: Franklin gives no hammer, and the trolls leave 4 of Malignius's 7 bones (matthew-mbp-m4-b54; hammer FIXED OSRS-Content 1ef7c1e7b9)
+
+*The hammer half is FIXED (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (d)): the hole no longer asks for one, and Franklin hands his over when you talk to him after lighting the firebox. Drop the general-store leg. The bones paragraph below stands.*
+
+*Origin: the matthew-mbp-m4-b54 round-4 review.*
+
+Quest Helper's hammer tooltip says "Franklin will give you one" (SwanSong.java:188). In the port
+nobody gives a hammer: no Swan Song script has an `inv_add` for one. The colony hole also refuses
+entry without it ("You'll want a hammer before heading in", `swansong_colony.rs2:109`), before you
+can reach Franklin. Quest Helper lists the hammer on `enterColony` too. So the hammer is bought in
+game, not given in setup: the Lumbridge general store (`generalshopkeeper1`, op 3, shop
+`generalshop1`) sells one for 1 coin. Setup gives only the coins.
+
+The bones tooltip says to pick them up from the sea trolls (SwanSong.java:154). The port has four
+sea trolls before Malignius: the three ambush trolls and the one the first fishing cast wakes. Each
+drops one `bones`, so three more are needed. Malignius asks for "the normal sort you get from
+people and small monsters", so kill three chickens (Lumbridge farm, `chicken_brown`) and pick up
+their bones. Do not `::give` bones.

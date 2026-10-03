@@ -14,7 +14,7 @@ quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25			
 quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b51			
-quest_bonevoyage	bonevoyage	bonevoyage		4	claimed	matthew-mbp-m4-b54@matthew-mbp-m4	PR #108 (matthew-mbp-m4-b54 -> v3)	2026-10-03T03:50:55Z	todo|
+quest_bonevoyage	bonevoyage	bonevoyage		4	green	matthew-mbp-m4-b54			
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	green	matthew-mbp-m4-b52			
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35			
@@ -53,7 +53,7 @@ quest_elena	elena	plaguecity		3	green	sonnet-b34
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo				
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	green	matthew-mbp-m4-b50			
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15			
-quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	claimed	matthew-mbp-m4-b54@matthew-mbp-m4	PR #108 (matthew-mbp-m4-b54 -> v3)	2026-10-03T03:50:55Z	todo|
+quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	green	matthew-mbp-m4-b54			
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27			
 quest_finaldawn	finaldawn	thefinaldawn		4	todo				
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25			
@@ -123,7 +123,7 @@ quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	green	matthew-mbp-m4-b53			
-quest_ragandboneman	ragandboneman	ragandboneman		4	claimed	matthew-mbp-m4-b54@matthew-mbp-m4	PR #108 (matthew-mbp-m4-b54 -> v3)	2026-10-03T03:50:55Z	todo|
+quest_ragandboneman	ragandboneman	ragandboneman		4	green	matthew-mbp-m4-b54			
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo				
@@ -149,17 +149,17 @@ quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15
 quest_scrambled	scrambled	scrambled		4	todo				
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11			
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo				
-quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	claimed	matthew-mbp-m4-b54@matthew-mbp-m4	PR #108 (matthew-mbp-m4-b54 -> v3)	2026-10-03T03:50:55Z	todo|
+quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	green	matthew-mbp-m4-b54			
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	green	sonnet-b31	green after 75a234743 (seam26 closer): exit portal to the ruin, Evil Dave's clothing check/escort, recruit vars, golem implement, second ritual and Darklight worn ported (OSRS-Content 2ea9f6b7eb); shadowstorm.lua extended to the completion scroll, 129/129, helper_coverage FULL 31/31		
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1			
 quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b22			
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo				
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo				
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo				
-quest_soulsbane	soulsbane	asoulsbane		4	claimed	matthew-mbp-m4-b54@matthew-mbp-m4	PR #108 (matthew-mbp-m4-b54 -> v3)	2026-10-03T03:50:55Z	todo|
+quest_soulsbane	soulsbane	asoulsbane		4	green	matthew-mbp-m4-b54			
 quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	green	sonnet-b28			
 quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, batch haiku-b2): the author never returned a report; its file 'fixed' the sampler's cheated-hand-in finding by adding MORE cheats -- ::setvar squire 3/4/5 for the pie, Thurgo and portrait stages and ::give knights_portrait -- so every quest objective after the accept was cheated. Drive the Squire/Reldo/Thurgo/Vyvin/mining steps through clicks; ::give only for redberry_pie and the two iron bars.		
-quest_swansong	swansong	swansong		4	claimed	matthew-mbp-m4-b54@matthew-mbp-m4	PR #108 (matthew-mbp-m4-b54 -> v3)	2026-10-03T03:50:55Z	todo|
+quest_swansong	swansong	swansong		4	green	matthew-mbp-m4-b54			
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo				
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo				
 quest_tbwt	tbwt	taibwowannaitrio		3	green	matthew-mbp-m4-b49			

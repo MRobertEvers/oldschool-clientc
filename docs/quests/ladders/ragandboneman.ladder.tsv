@@ -1,0 +1,25 @@
+# ladder ragandboneman quest_dir=quest_ragandboneman guide=src/main/java/com/questhelper/helpers/quests/ragandboneman/RagAndBoneManI.java steps=22 legs=1:1-22@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToOddOldMan	NpcStep	npc:rag_odd_old_man	3362,3502,0	Talk to the Odd Old Man east of Varrock.			Anything I can do to help? | Yes.	quests/quest_ragandboneman/scripts/ragandboneman.rs2:6 opnpc1
+1	2	0	killGiantRat	NpcStep	npc:giantrat	3289,3373,0	Kill a giant rat south east of Varrock.				drop_tables/scripts/giant_rat.rs2:11 ai_queue3
+1	3	0	killUnicorn	NpcStep	npc:unicorn	3285,3351,0	Kill the unicorn south east of Varrock.				drop_tables/scripts/unicorn.rs2:5 ai_queue3
+1	4	0	killBear	NpcStep	npc:darkbear	3295,3354,0	Kill the bear south east of Varrock.				drop_tables/scripts/bear.rs2:5 ai_queue3
+1	5	0	killRam	NpcStep	npc:ramsheered	3253,3350,0	Kill a ram south of Varrock.				quests/quest_ragandboneman/scripts/ragandboneman_drops.rs2:33 ai_queue3
+1	6	0	killGoblin	NpcStep	npc:goblin_red_soldier_2	3252,3251,0	Kill a goblin east of Lumbridge.				
+1	7	0	killFrog	NpcStep	npc:medium_frog_nodrops	3216,3182,0	Kill a big frog in the Lumbridge Swamp.				quests/quest_ragandboneman/scripts/ragandboneman_drops.rs2:60 ai_queue3
+1	8	0	killMonkey	NpcStep	npc:monkey	2886,3167,0	Kill a monkey on Karamja.				quests/quest_tbwt/scripts/tbwt_monkey.rs2:43 ai_queue1; +2
+1	9	0	enterKaramjaDungeon	ObjectStep	loc:volcano_entrance	2857,3169,0	Kill a giant bat in the Karamja Volcano Dungeon.				areas/area_karamja/scripts/volcano.rs2:8 oploc1; +3
+1	10	0	killBat	NpcStep	npc:small_bat loc:volcano_entrance	2858,9572,0	Kill a giant bat in the Karamja Volcano Dungeon.	enterKaramjaDungeon			areas/area_karamja/scripts/volcano.rs2:8 oploc1; +3
+1	11	2	pickupBone	ItemStep			Pickup the bone.				
+1	12	2	talkToFortunato	NpcStep	npc:rag_wine_merchant	3085,3251,0	Talk to Fortunato in Draynor Village, and then buy 8 jugs of vinegar from him.		Coins		quests/quest_ragandboneman/scripts/ragandboneman_fortunato.rs2:9 opnpc1; +1
+1	13	2	makePotOfVinegar	DetailedQuestStep			Use the vinegar on pots for 8 pots of vinegar.		Jug of vinegar; Pot		
+1	14	2	useBonesOnVinegar	DetailedQuestStep			Use the bones on the pots of vinegar.		Pot of vinegar		
+1	15	2	placeLogs	ObjectStep	loc:rag_multi_potboiler	3360,3505,0	Place logs under the pot-boiler near the Odd Old Man. If you've already polished all the bones, hand them in to the Odd Old Man.		Logs		quests/quest_ragandboneman/scripts/ragandboneman_vinegar.rs2:241 oploc1; +1
+1	16	2	useBoneOnBoiler	ObjectStep	loc:rag_multi_potboiler	3360,3505,0	Add a bone to the pot boiler.				quests/quest_ragandboneman/scripts/ragandboneman_vinegar.rs2:241 oploc1; +1
+1	17	2	lightLogs	ObjectStep	loc:rag_multi_potboiler	3360,3505,0	Light the logs under the pot-boiler.		Tinderbox		quests/quest_ragandboneman/scripts/ragandboneman_vinegar.rs2:241 oploc1; +1
+1	18	2	waitForCooking	DetailedQuestStep			Wait for the bones to be cleaned. You can hop worlds to make this happen instantly.				
+1	19	2	removePot	ObjectStep	loc:rag_multi_potboiler	3360,3505,0	Take the pot from the pot-boiler.				quests/quest_ragandboneman/scripts/ragandboneman_vinegar.rs2:241 oploc1; +1
+1	20	2	repeatSteps	DetailedQuestStep			Repeat the steps until all the bones are cleaned.				
+1	21	3	talkToFinish	NpcStep	npc:rag_odd_old_man	3362,3502,0	Talk to the Odd Old Man to finish.				quests/quest_ragandboneman/scripts/ragandboneman.rs2:6 opnpc1
+1	22	2	giveBones	NpcStep	npc:rag_odd_old_man	3362,3502,0	Give the Odd Old Man the bones.	talkToFinish			quests/quest_ragandboneman/scripts/ragandboneman.rs2:6 opnpc1

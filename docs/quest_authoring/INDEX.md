@@ -7,6 +7,9 @@ topic file with one line added here.
 
 ## Travel and finding things
 
+- `talk_to` walks around or answers "I can't reach that!" after a goto beside an npc behind a counter or wall -> start-and-travel: An npc behind a counter or wall
+- the guide says "Charter at a cost of 3000 coins" and no verb opens the charter map -> start-and-travel: No charter verb
+- a `walk_to`/`click_loc` stops at a building's wall and the guide names no door (Swan Song's stove, 2316,3668); tempted to `goto_tile` inside -> start-and-travel: A loc inside a walled building
 - "I can't reach that!" right after a fence squeeze; pulled back to the fence after a goto -> gaps-world: A fence squeeze pulls you back
 - a trap door landing never reads `z > 6400` (Mourner HQ basement 2044,4628) -> gaps-world: The Mourner HQ basement is an instance region
 - "Nothing interesting happens." on a wall into a boss lair (FIXED seam31); the Crandor hole refuses from one side -> gaps-world: Crandor
@@ -165,6 +168,8 @@ topic file with one line added here.
 - a floor obj on a deck, `ground 0` -> seam-facts: Seam pass 18, (b)
 - a private ground drop is not there yet -> gaps-combat: Three world facts
 - an xpreward lamp; a make-X menu -> seam-facts: Seam pass 25, (e); verbs-ui-and-npc: Skill-multi menus
+- a second `use_on softclay` on a potter's wheel answers `timeout ... settle_after_click` though `skillmulti` opens (Swan Song throwLid) -> verbs-ui-and-npc: Skill-multi menus
+- the guide says an npc gives the hammer (Swan Song's Franklin) but the colony hole refuses without one; Malignius wants 7 bones and the trolls drop 4 -> content-gaps: Swan Song: Franklin gives no hammer (hammer FIXED b54-seam3, OSRS-Content 1ef7c1e7b9)
 - `use_item_on_item(a, b)` says `Nothing interesting happens.` but the reverse order works; which of `[opheldu,a]`/`[opheldu,b]` fires -> gaps-combat: `use_item_on_item` order (`[opheldu,b]`, the clicked item, first; corrected matthew-mbp-m4-b49-seam1)
 - `no_row zembo` at Musa Point; Karamjan rum for Tai Bwo Wannai Trio -> content-gaps: `no_row <npc>` for a world npc the guide names
 
@@ -214,6 +219,7 @@ topic file with one line added here.
 - `every press's menu held only Cancel` -> verbs-combat: A spell on a ground obj or a loc
 - `TELEPORTED to x,z,l`, `no teleport` -> verbs-combat: A spell with no target
 - a boss dies in one hit -> seam-facts: Seam pass 24, (a)
+- a level-170 boss dies to ONE spell, `the npc left the pool inside the settle` (Swan Song's Sea Troll Queen, no `.npc` block) -> sampler-findings: Sample matthew-mbp-m4-b54 (a) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9)
 - died to a prayer-bypass roll -> gaps-combat: Three world facts
 - fever spiders; hitting through a door -> verbs-combat: Fever spiders
 - a claim survives a loc teleport -> seam-facts: Seam pass 25, (f)
@@ -229,6 +235,8 @@ topic file with one line added here.
 - a quest boss dies to one spell, or a level-79 troll reads 21/30 after one hit of 3 (Swan Song's Sea Troll Queen and sea trolls) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a) (read the server: `::swansong_queen_hp`, `::swansong_troll_hp`)
 - `I'm already under attack.` on every Attack after the first, against several aggressive npcs at once (Swan Song colony ambush) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (b) (`forcemulti=yes` where the wiki says multicombat)
 - prayer falls about 21 a swing with no damage at range; `I can't reach that!` attacking a boss in the sea; the character dies after 23 sharks (Swan Song's Sea Troll Queen) -> gaps-combat: A boss you cannot reach on foot drains 21 Prayer a swing
+- fewer sharks at the boss than `::give shark N` said ("N did not fit", no row fails); a boss kill whose detail says `OUT OF shark` or ends at 1 hp; no bank verb to restock (Swan Song round 5) -> gaps-combat: Fewer sharks at the boss than the setup gave
+- a note says one more shark "cannot fit"; every rerun of a boss fight reads the same ticks and food; the margin row has no lowest hp (Swan Song round 6) -> gaps-combat: A note says one more food item cannot fit
 - how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
 
 ## Completion and rewards
@@ -330,6 +338,8 @@ topic file with one line added here.
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
 
 ## Content-side facts (content_bug reports, reviewers)
+- two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls (FIXED OSRS-Content f2902a94dd: `movecoord`'s middle argument is the level; seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a))
+- the wiki says 8 Sea trolls at the Swan Song colony entrance and the port spawns 3; the ambush trolls vanish mid-fight and stage 40 never moves -> content-gaps: Swan Song's entrance ambush: 3 trolls (despawn FIXED b54-seam3, OSRS-Content 1ef7c1e7b9)
 - Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c); the client one tile short of the server (FIXED b52-seam1 (b))
 - Heroes' Quest `useKeyOnSideDoor` walks you OUT to the garden (2780,3197 -> 2781,3196) -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (b)
 - Below Ice Mountain: the hall's pillars never rise (`no loc 41458 (bim_boss_rock)`); a `::spawn bim_golem_boss` deleted by the entrance (FIXED: owner test) -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (c)
@@ -372,7 +382,7 @@ topic file with one line added here.
 - `last_item` vs `last_useitem` -> gaps-combat: `use_item_on_item` order; seam-facts: Seam pass 21, (c)
 - named content gaps (The Feud, One Small Favour, Shadow of the Storm) -> content-gaps
 - place facts (Watchtower, Tourist Trap, Death's Coffer, Witchaven, Ghosts Ahoy, Hazeel Cult) -> seam-facts: passes 23-28
-- `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
+- `::complete quest_druid` or `::complete quest_itexam` does nothing (dbrows `quest_druidicritual`, `quest_digsite`) -> gaps-combat: `::complete` takes a DBROW name
 - `::complete has no arm for that quest.`; `::complete quest_wanted` leaves `wanted_main` 0 (arms for touristtrap, templeofikov, trollstronghold, wanted exist since seam33) -> gaps-combat: `::complete has no arm for that quest.`; QUEST_SERVER_CHEATS.md: `::complete <quest row>`
 - a `$row = <name>` compare that never matches; a name that is both a dbrow and a varp (`quest_wanted`) -> seam-facts: Seam pass 33 (d)
 - a quest stage moves BACK after re-asking an npc (Oracle, Oziach) -> seam-facts: Seam pass 33 (f); Seam pass 32 (f)

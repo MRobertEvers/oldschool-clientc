@@ -82,6 +82,45 @@ message survives only as `target shares the player's tile and the step off it di
 means every one of the eight neighbours refused the walk (a walled-in loc), not that the camera is
 pointed elsewhere.
 
+### An npc behind a counter or wall: goto an ORTHOGONAL tile, not a diagonal one (matthew-mbp-m4-b54)
+
+An npc that stands behind a counter, a bar or a wall corner is reached only from a tile that
+shares its row or column across the gap. A goto to a tile diagonal to it lands, and then
+`talk_to` walks around or answers "I can't reach that!", because the diagonal crosses a wall
+corner. Put the goto on the open side, straight across from the npc. Tiles that work: Bone
+Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator from
+1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
+is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+
+### A loc inside a walled building, and the guide names no door: find the door in the map square (matthew-mbp-m4-b54)
+
+A `walk_to` or `click_loc` from outside stops at the wall, and the easy fix is a `goto_tile`
+inside. Find the building's door first and use it; a goto inside is the last resort. The
+map square file lists every placed loc: `OSRS-Content/osrs239-content/maps/m<X>_<Z>.jl2`,
+where X = x / 64 and Z = z / 64. Each line reads `level lx lz: id shape [rot]`, with
+lx = x - 64*X and lz = z - 64*Z. Shape 0 is a straight wall, shape 3 a wall corner. Rot is
+the tile edge the wall sits on: 0 west, 1 north, 2 east, 3 south. The id is named in
+`configs/all.loc.compack` (`id=name`). A door is an id whose `configs/all.loc` record has
+`op1=Open`, with a row in `server/scripts/doors/configs/doors.loc`. Stand on the tile outside
+it and `click_loc` it with op 1, then walk in.
+
+Example: Swan Song's stove (2316,3668) is in a building whose walls in `m36_57.jl2` are
+`deal_wall`/`deal_wall_window` (ids 10109/10108), inside x 2316-2321, z 3666-3672. The
+round-1 test did `goto_tile 2317,3668` because it had not found the door. The door is
+`swan_building_door` (id 12657, `0 18 19: 12657 0`), on the west edge of 2322,3667 in
+the east wall. Walk to 2322,3667, then `click_loc("swan_building_door", 1)`.
+
+### No charter verb: reach a charter port with `goto_tile` when the guide allows any route (matthew-mbp-m4-b54)
+
+No driver verb works Trader Stan's charter map (`transport_charter/scripts/charter_npc.rs2`
+`[label,charter_op]` opens `~charter_map_open`). Ethically Acquired Antiquities' guide step
+`talkToTraderStan` says "Charter at a cost of 3000 coins", but the wiki says the 3,000 coins are
+only one recommended way to get there and the player may reach Port Sarim by any route
+(`docs/quests/ethically_acquired_antiquities.md:50-52`). So `goto-stan` from the Fortis Cothon to
+3039,3193 is plain travel, and the coins are not a bring-along to `::give`. If the voyage itself
+is the guide's step (the quest's state changes on arrival), a goto is not enough: report the
+missing verb as a gap.
+
 ### `walk_near` takes the `{kind=, id=}` table
 
 `walk_near(target, ticks, minimum)` takes the `{kind=, id=}` table `player.by_symbol` returns:

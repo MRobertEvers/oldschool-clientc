@@ -57,6 +57,10 @@ gems were moved out of the setup). Count the slots before adding a later leg's i
 A later leg's bulky items are given INSIDE that leg, after it drops the earlier legs' spent items,
 and a `leg.K.pack` `t.check` counts both what was dropped and what was given
 (`test/quests/legends.lua` leg 2: drop papyrus and charcoal, then the seven gems).
+Rag and Bone Man I hit the same wall inside one leg: 8 jugs of vinegar plus 8 pots, then the
+bones and the boiler's logs. The last boiler cycle had no log. The fix was to drop each empty jug
+after making its pot of vinegar, and to give one log per boiler cycle instead of all of them at
+setup (`test/quests/ragandboneman.lua`, `dropEmptyJug`).
 
 The overview prints each leg's step range, stage range, and first and last step. Many guides file
 most of the quest under one stage (Dragon Slayer: stage 2 from the Oracle to boarding the ship), so a
