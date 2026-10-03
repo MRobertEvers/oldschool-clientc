@@ -21,7 +21,7 @@ quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
-quest_contact	contact	contact		4	todo	matthew-mbp-m4-b53	REJECTED (matthew-mbp-m4-b53): run/gate/lint green and helper_coverage FULL 17/17, but goto_tile skips the dungeon maze the guide names (goto-bossladder and goto-bossladder2, 2166,4409 -> 2116,4364, traps/path breaks 'disarm traps') and goto-osman teleports from the chasm (2257,4317) to Al Kharid (3287,3177) with no exit walked; goto-boss and goto-priest likewise teleport out of the instance.		
+quest_contact	contact	contact		4	content_bug	matthew-mbp-m4-b53	Maisa (contact_maisa_multi, contact.spawn:8, 2258,4317,0) is in a pocket of m35_67 sealed from the chasm floor by blocked land (jm2 flag 1 at x2259..2263, z4311..4325); walk_to stalls at 2263,4316, talk_to says I can't reach that. Guide step talkToMaisa cannot be walked.		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
@@ -112,7 +112,7 @@ quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-
 quest_murder	murder	murdermystery		1	green	sonnet-b15			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
-quest_olafsquest	olafsquest	olafsquest		4	todo	matthew-mbp-m4-b53	REJECTED (matthew-mbp-m4-b53): file stops at an intentional t.blocked 'WIP: walkway next' (not a content blocker); no useBarrel/openGate/searchChest/killUlfric/quest completion/reward rows; gate RED (blocked row), lint 3 CHECK markers (lines 3,6,75), run.py did not publish. Resume from test/quests/olafsquest.lua (65 PASS through pickUpItems2-ropes).		
+quest_olafsquest	olafsquest	olafsquest		4	green	matthew-mbp-m4-b53			
 quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b47			
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
@@ -122,7 +122,7 @@ quest_priest	priest	therestlessghost		1	green	sonnet-b2
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
-quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo	matthew-mbp-m4-b53	RETRY after 56ddfd4c7: nothing changed for the test (doorway refusal text stays port wording, comment only, OSRS-Content f12c454f5a). Same rewrite as before: restore test/quests/wip/queenofthieves/sent_back_b53.lua and replace its three tent goto_tiles (goto-talkToQueenOfThieves, goto-exitWarrens2, goto-talkToShauna) with click_loc piscquest_tentdoor in/out rows asserting 1765,10150 / 1765,10149 per wip/queenofthieves/relay.md (copy 79/0 on the current pack)		
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	green	matthew-mbp-m4-b53			
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
@@ -138,7 +138,7 @@ quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
 quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
-quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo	matthew-mbp-m4-b53	RETRY after 56ddfd4c7: the npcs are the multinpc SHELLS now and stage 8 talks (OSRS-Content f12c454f5a). Delete the t.blocked and the absence-asserting marcellus.spawn/gary.spawn rows; target the shell symbols frog_quest_marcellus / frog_quest_gary / frog_quest_dave|jane (a child symbol stops resolving once the varbit picks another child); drive talkToYellowFrogs at stage 8 -> ^ribbit_chop 10 and on to the scroll per test/quests/wip/ribbitingtale/relay.md (copy 97/0); setup needs Cuthbert gear (att/str/def/hp 40, mithril_scimitar wielded, 5 lobsters, eat below 20)		
+quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	green	matthew-mbp-m4-b53			
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
@@ -182,7 +182,7 @@ quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b47			
 quest_wanted	wanted	wanted		2	green	sonnet-b29			
 quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40			
-quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo	matthew-mbp-m4-b53	RETRY after 5f37f7d87: no content bug -- the Chaos Altar is a four-level ladder maze (LostCity runecraft.dbrow:113 + m35_75.jm2; wiki oldid 15350445). Replace the t.blocked with three laddertop click_locs (2255,4829,3 -> 2275,4834,2 -> 2259,4845,1, assert t.world.tile().level each) and useWandOnAltar on level 0 per test/quests/wip/whatliesbelow/relay.md, then author bringWandToSurok onward		
+quest_whatliesbelow	whatliesbelow	whatliesbelow		4	green	matthew-mbp-m4-b53			
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	green	matthew-mbp-m4-b52			
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
