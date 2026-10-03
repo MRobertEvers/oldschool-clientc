@@ -1,6 +1,6 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b50			
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo	matthew-mbp-m4-b55	RETRY after 4d8701a71: the rangers' return now runs as a queued player script (OSRS-Content 2ca4e77a52) and moves you to the generals at 2957,3512,0 in both kill orders; resume from wip/anothersliceofham/round6_rejected.lua plus relay.md (seam1 dig = use trowel on hotspot; seam2 items 1-6): drop goto-generals2, add the killHam-box chat.play + killHam.returned tile comparison, defeatSigmund.chat as chat.play npc:Someday, turn zanik.at_dig/special.armed/special.energy into real comparisons, and every t.world.tile row compares h.x/h.z/h.level (lint)		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo	matthew-mbp-m4-b55	REVIEW BLOCKED (matthew-mbp-m4-b55): run.py green, gate green, lint clean, helper_coverage FULL, fail.py no failing row, no npc_findhero line, guide walk and rewards fine; but the Read tool's PreToolUse hook timed out on every screenshot so no shot could be opened. Not committed; re-run the reviewer to open shots and commit. Published evidence left uncommitted under OSRS-Content/.../quest_anothersliceofham/play.		
 quest_arena	arena	fightarena		3	green	sonnet-b33			
 quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33			
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b55			
