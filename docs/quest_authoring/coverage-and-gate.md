@@ -356,7 +356,7 @@ Not judged: a hop further than 24 tiles or to another level (a player may telepo
 hop back to the door's side, a hop with an unknown start, and a room whose step is not driven after
 the hop.
 
-**Known gap: a sealed room the guide does not door-guard.** `room_exits` knows a room is closed only
+**Known gap: a sealed room the guide does not door-guard** (HALF FIXED matthew-mbp-m4-b56-seam1, e0d2cdfcc: `MapWalls` now reads the `.jl2` walls and `enclosure_entries` grades a goto INTO a walled room past its closed door, see below; a goto OUT through a wall still needs a guide obstacle step). `room_exits` knows a room is closed only
 because an obstacle step's door opens on it. A room enclosed by walls the guide never names (no
 obstacle step points into it), or a goto through a wall between two zones that the guide joins with no
 step, cannot be judged without the map's walls. `walkable_probe` (src/torirsserver/test/) reads
@@ -669,3 +669,20 @@ entrance step.
 Fixture: `python3 tools/quest_gate/helper_coverage_frame_entry_test.py` (3 cases on the reverted Eyes
 of Glouphrie run, commits 9813e5044 and OSRS-Content 30d5622731 on the b55 batch branch until it
 merges). 3/3 on the rule, 1/3 on the grader before it.
+
+### `enclosure_entries`: a goto into a walled room past its closed door (matthew-mbp-m4-b56-seam1)
+
+The b56 sampler sent Tale of the Righteous back for a goto past Phileas's house door that
+`door_entries` graded DRIVEN: that rule needs a guide `ObjectStep` on the door, and the guide has
+none. `MapWalls` (helper_coverage.py) parses `maps/m<x>_<z>.jl2` walls and the `.jm2`
+blocked/bridge flags with the server's stamp rules (`torirs_server_scene.c`), `blockwalk` from
+`configs/all.loc`. A door is a wall loc with an Open op or a door/gate name (an open leaf with only
+Close never closes a room). `Grader.enclosure_entries` floods the landing (at most 400 tiles,
+following the room's own climbs to their floors) and charges the goto's step CHEAT when the room has
+a closed door in its perimeter, the departure is outside it, and no PASS row pressed that door in
+the 500 ticks before. Proof: the reverted Tale ledger FULL 30/30 -> TEST_GAP (rows 36, 93);
+`tools/quest_gate/helper_coverage_enclosure_entry_test.py` 6/6, 1/6 with the rule stubbed out.
+Landing it moved 70 committed greens plus bonevoyage, every one on this rule alone (Hetty's house,
+Juliet's room, the Duke's room, Phileas ...); their rows were reopened. Conservative misses: a
+building with a climb down from level 0 (the Champions' Guild), a room over 400 tiles, run-time
+locs, a door-less sealed room reached by a ladder.

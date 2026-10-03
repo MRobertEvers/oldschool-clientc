@@ -38,8 +38,9 @@ index is keyed by what you SEE, so a failure is one lookup away.
 - **No cheats past the guide's own work** (trap 16). An item, kill, craft, search or fetch the quest's
   own `.rs2` makes you do is driven through clicks. `goto_tile` is a `::goto` teleport: plain travel
   only (a plain ladder or stair is travel, section 2; one whose trigger reads or writes a quest var
-  is not), never past a door, gate, puzzle or loc the guide names. A step the guide does with a
-  spell or tool is done with that spell or tool.
+  is not), never past a door, gate, puzzle or loc the guide names, and never INTO a walled room
+  past its closed door even when the guide does not name it (open it first: start-and-travel,
+  `enclosure_entries`). A step the guide does with a spell or tool is done with that spell or tool.
 - **Setup cheats are for prerequisites only.** `::give`/`::setlevel`/`::setvar`/`::complete <other
   quest>` stage what Quest Helper lists as brought along or required. Never `::complete` your own
   quest (trap 8); `::complete` takes the DBROW name.
