@@ -179,3 +179,32 @@ failures (the baseline set); ::tobrun OK 56.
   not asked for; the three seam3 regressions stay green and tick-identical). Still open:
   a press on a stale menu's Walk here / Examine / Cancel row or title bar behaves as
   before, because three green quest timelines depend on it.
+
+## matthew-mbp-m4-raid-b1-seam5 (2026-10-03; parent 40fa35e49, OSRS-Content d2134f89f5)
+
+Triage `SEAM_TRIAGE_2026-10-03c.md`. Conformance 264/264 (162 verbs + 102 seam rows);
+suite 118 green + deserttreasure RED (the seam1 baseline, nothing moved); C selftest 11
+failures (the baseline set); ::tobrun OK 56 (fixers).
+
+- `attack_fast_path`: LANDED. ticks <= 2 or `opts.quick` presses fast (one aim, one press,
+  one re-aim, one more press; a covered answer names the offered copies by slot); the kill
+  wait re-presses a fast fight fast; row seam.attack_fast_path PASS; the quest press is
+  tick-identical (chompybird's three ticks=1 probes now press fast, green). Still open:
+  tob_nylocas is a tactics problem (out of food at click+448 with the cap lifted); a far
+  named-copy cast silently not cast; the slow cast's "never ran" detail when XP was paid.
+- `tob_verzik_room4_and_entry_records`: LANDED. Entry pillar 200, Entry levels per phase,
+  P3 pool 600, cache levels on maiden_elemental, the blood slugs and the reds, the Maiden
+  record lines applied. Still open: Entry P2 lightning unsourced (kept Normal 48); barrier
+  pool still P1 + 2 x P2; P2 overkill and the Athanatos heal carry into P3; the tob_verzik
+  attempt must drop its 1100-total rows (out of food in P3 at 626).
+- `tob_maiden_room4`: LANDED. Entry/Hard Maiden, crabs and blood spawns are their mode's
+  records (Entry def 80, 140s; raid.lua lists them); Normal 70/50/30 had Defence 1 (fixed);
+  the dodged-throw cap is right (61 throws, max 1); the freeze curve named and driven with
+  Ancients. Still open: `::tobboss` and the `::tobcrab*` debugprocs know only Normal/100 %
+  forms; `~tob_spawn_boss` still adds the Normal body; Rush/Blitz skip the curve; the
+  committed tob_maiden test must use the `_story` symbols.
+- `tob_sotetseg_hit_delay`: NOT LANDED (no file changed). The cause is the eat:
+  food.rs2 `p_delay(^eat_delay)` holds every queued npc hit, where LostCity's consume.rs2
+  never p_delays; engine and raid queues already match LostCity. Proved in a scratch content
+  copy (+1 x8 with an eat, arena 77/77). Open: a food.rs2 port (new server-only varp) plus
+  the other consumption and potion `p_delay`s, as its own seam with an eat-heavy quest set.
