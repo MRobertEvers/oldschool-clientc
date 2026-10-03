@@ -122,7 +122,7 @@ quest_priest	priest	therestlessghost		1	green	sonnet-b2
 quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36			
 quest_prince	prince	princealirescue		1	green	sonnet-b16			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
-quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo	matthew-mbp-m4-b53	RETRY after 5f37f7d87: piscquest_tentdoor is scripted (OSRS-Content 0e5db56def, open from ^qot_queen). Restore test/quests/wip/queenofthieves/sent_back_b53.lua and replace its three tent goto_tiles (goto-talkToQueenOfThieves, goto-exitWarrens2, goto-talkToShauna) with click_loc piscquest_tentdoor in/out rows asserting 1765,10150 / 1765,10149, per wip/queenofthieves/relay.md (a copy ran 78/78)		
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo	matthew-mbp-m4-b53	RETRY after 56ddfd4c7: nothing changed for the test (doorway refusal text stays port wording, comment only, OSRS-Content f12c454f5a). Same rewrite as before: restore test/quests/wip/queenofthieves/sent_back_b53.lua and replace its three tent goto_tiles (goto-talkToQueenOfThieves, goto-exitWarrens2, goto-talkToShauna) with click_loc piscquest_tentdoor in/out rows asserting 1765,10150 / 1765,10149 per wip/queenofthieves/relay.md (copy 79/0 on the current pack)		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b49			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
@@ -138,7 +138,7 @@ quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	matthew-mbp-m4-b51			
 quest_redreef	redreef	theredreef		3	green	sonnet-b44			
 quest_regicide	regicide	regicide		3	green	matthew-mbp-m4-b48			
-quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo	matthew-mbp-m4-b53	RETRY after 5f37f7d87: Marcellus and the frogs are placed (quest-local ribbitingtale.spawn, OSRS-Content 0e5db56def); rewrite the marcellus.spawn/gary.spawn repro rows (they assert absence and now FAIL) into talk_to frog_quest_marcellus_normal / frog_quest_gary_unnamed / frog_quest_dave_named; a copy reaches stage 8. Next stop is still content: [label,ribbit_yellow_talk] has no stage-8 branch (Dave/Jane only 'Hello there!'; only debugproc ribbitrun writes ^ribbit_chop 10) -- block there with that reason		
+quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo	matthew-mbp-m4-b53	RETRY after 56ddfd4c7: the npcs are the multinpc SHELLS now and stage 8 talks (OSRS-Content f12c454f5a). Delete the t.blocked and the absence-asserting marcellus.spawn/gary.spawn rows; target the shell symbols frog_quest_marcellus / frog_quest_gary / frog_quest_dave|jane (a child symbol stops resolving once the varbit picks another child); drive talkToYellowFrogs at stage 8 -> ^ribbit_chop 10 and on to the scroll per test/quests/wip/ribbitingtale/relay.md (copy 97/0); setup needs Cuthbert gear (att/str/def/hp 40, mithril_scimitar wielded, 5 lobsters, eat below 20)		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2			
 quest_routequest	routequest	insearchofthemyreque		3	green	sonnet-b44			
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17			
