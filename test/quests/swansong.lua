@@ -143,7 +143,7 @@ return {
 
         t.exec("enterColony", t.player.click_loc, "swan_hole", 1)
         t.ticks(4)
-        t.check("enterColony-tile", t.world.tile())
+        do local tr, th = t.world.tile(); t.check("enterColony-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2343) <= 2 and math.abs(th.z - 3657) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2343,3657,0)") or tostring(th)) end
 
         -- kill79Trolls: the three ambush trolls at the entrance (50 tick despawn: no pauses)
         t.ticks(2)
@@ -160,8 +160,8 @@ return {
         t.exec("pickUpBones-1", t.player.click_obj, "bones", 3)
         t.exec("pickUpBones-2", t.player.click_obj, "bones", 3)
         t.exec("pickUpBones-3", t.player.click_obj, "bones", 3)
-        t.check("pickUpBones-3-count", t.inv.count("bones"))
-        t.check("kill79Trolls-count", t.var.varbit("varb2107_swansong_trolls"))
+        t.check("pickUpBones-3-count", t.inv.expect_has("bones", 3))
+        t.check("kill79Trolls-count", t.var.expect("varb2107_swansong_trolls", 3))
         t.expect("quest.stage.trolls_beaten", t.quest.expect_stage("trolls_beaten"))
 
         t.exec("openColonyGate", t.player.click_loc, "swan_door_l", 1)
@@ -182,17 +182,17 @@ return {
             "npc:The trolls managed to smash",
         })
         t.ticks(2)
-        t.check("talkToFranklin-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("talkToFranklin-var", t.var.expect("varb2099_swansong_franklin", 1))
 
         local firebox = t.player.by_symbol("loc", "swan_firebox")
         t.check("firebox.found", firebox ~= nil, "swan_firebox resolved: " .. tostring(firebox and firebox.id))
         t.exec("goto-useLog", t.player.goto_tile, 2344, 3675, 0)
         t.exec("useLog", t.player.use_on, "logs", firebox)
         t.ticks(2)
-        t.check("useLog-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("useLog-var", t.var.expect("varb2099_swansong_franklin", 2))
         t.exec("useTinderbox", t.player.use_on, "tinderbox", firebox)
         t.ticks(2)
-        t.check("useTinderbox-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("useTinderbox-var", t.var.expect("varb2099_swansong_franklin", 3))
         -- the firebox is lit: the leftover tinderbox and log only take backpack slots the Queen's food needs
         t.player.drop("tinderbox")
         t.player.drop("logs")
@@ -233,7 +233,7 @@ return {
             "npc:Excellent work",
         })
         t.ticks(2)
-        t.check("talkToFranklinAgain-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("talkToFranklinAgain-var", t.var.expect("varb2099_swansong_franklin", 4))
 
         t.exec("goto-talkToArnold", t.player.goto_tile, 2329, 3687, 0)
         t.exec("talkToArnold", t.player.talk_to, "swan_arnold", 1)
@@ -243,7 +243,7 @@ return {
             "npc:Here, take this net",
         })
         t.ticks(2)
-        t.check("talkToArnold-net", t.inv.has("net"))
+        t.check("talkToArnold-net", t.inv.expect_has("net", 1))
 
         -- catch 5 monkfish at the fishing spot (the first cast wakes a troll), cook at the stove
         t.check("fishSpot", t.world.loc_near("swan_fish", 80))
@@ -254,7 +254,7 @@ return {
         t.exec("fish-troll-attack", t.player.attack, "swan_troll_ambush", 2, 20)
         t.exec("fish-troll-dead", t.npc.await_dead_engaged, 120, 20, { eat = { item = "shark", below = 50 } })
         t.exec("pickUpBones-4", t.player.click_obj, "bones", 3)
-        t.check("pickUpBones-4-count", t.inv.count("bones"))
+        t.check("pickUpBones-4-count", t.inv.expect_has("bones", 4))
         t.ticks(2)
         for i = 1, 5 do
             t.exec("fish-cast-" .. i, t.player.click_loc, "swan_fish", 1)
@@ -275,7 +275,7 @@ return {
             "npc:That's five now",
         })
         t.ticks(2)
-        t.check("talkToArnoldFish-var", t.var.varbit("varb2105_swansong_arnold"))
+        t.check("talkToArnoldFish-var", t.var.expect("varb2105_swansong_arnold", 6))
         t.player.drop("net")
         t.ticks(3)
         t.check("dropNet-slots", t.inv.expect_absent("net"), "fishing net dropped after the five monkfish to keep slots for food")
@@ -296,10 +296,10 @@ return {
         t.exec("goto-wizardsGuildDoor", t.player.goto_tile, 2583, 3088, 0)
         t.exec("wizardsGuildDoor", t.player.click_loc, "magicguild_door_l", 1)
         t.ticks(3)
-        t.check("wizardsGuildDoor-tile", t.world.tile())
+        do local tr, th = t.world.tile(); t.check("wizardsGuildDoor-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2585) <= 2 and math.abs(th.z - 3088) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2585,3088,0)") or tostring(th)) end
         t.exec("enterWizardsBasement", t.player.click_loc, "ladder_cellar", 1, { at = { 2594, 3085 } })
         t.ticks(3)
-        t.check("enterWizardsBasement-tile", t.world.tile())
+        do local tr, th = t.world.tile(); t.check("enterWizardsBasement-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2594) <= 2 and math.abs(th.z - 9486) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2594,9486,0)") or tostring(th)) end
         t.exec("frumscone-present", t.npc.await_present, "wizard_frumscone", 15, 10)
         t.exec("talkToFruscone", t.player.talk_to, "wizard_frumscone", 1)
         t.exec("talkToFruscone-dialog", t.chat.play, {
@@ -326,7 +326,7 @@ return {
             t.exec("chicken-dead-" .. i, t.npc.await_dead_engaged, 80, 20)
             t.exec("chicken-bones-" .. i, t.player.click_obj, "bones", 3)
         end
-        t.check("bones-total", t.inv.count("bones"))
+        t.check("bones-total", t.inv.expect_has("bones", 7))
         t.exec("goto-talkToMalignius", t.player.goto_tile, 2993, 3270, 0)
         t.exec("talkToMalignius", t.player.talk_to, "elemental_wizard_boss", 1)
         t.exec("talkToMalignius-dialog", t.chat.play, {
@@ -342,7 +342,7 @@ return {
         t.exec("goto-craftingGuildDoor", t.player.goto_tile, 2932, 3289, 0)
         t.exec("craftingGuildDoor", t.player.click_loc, "craftingguilddoor", 1)
         t.ticks(3)
-        t.check("craftingGuildDoor-tile", t.world.tile())
+        do local tr, th = t.world.tile(); t.check("craftingGuildDoor-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2933) <= 2 and math.abs(th.z - 3288) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2933,3288,0)") or tostring(th)) end
         t.exec("talkToCrafter", t.player.talk_to, "master_crafter_3", 1)
         t.exec("talkToCrafter-dialog", t.chat.play, {
             "player:Swan Song",
