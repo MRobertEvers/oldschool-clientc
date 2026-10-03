@@ -21,7 +21,7 @@ quest_chompybird	chompybird	bigchompybirdhunting		3	green	sonnet-b35
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b50			
 quest_cog	cog	clocktower		1	green	sonnet-b18			
 quest_coldwar	coldwar	coldwar		4	green	vm-b1			
-quest_contact	contact	contact		4	todo	matthew-mbp-m4-b53	RETRY after 7f6d25c97: the Giant Scarab is a real level-191 fight now (OSRS-Content 4fa2748185 contact.npc from wiki oldid 15328051: 130 hp, max hit 20, ranged + mystic poison, level-66/68 _b summons) and the scroll's doubled '1 Quest Point' is gone; rewrite contact.lua from wip/contact/round3_rejected.lua + relay.md: restage the fight (rune helm/chainbody/legs + zamorak_spear + 25 sharks, eat below 50; the whip/no-armour/10-lobster kit dies), assert the boss with ::contact_scarab_hp (130/130), walk_to 6442,70 before leaveChasm, and the scroll rows expect ONE quest-point line plus 'and bank'		
+quest_contact	contact	contact		4	green	matthew-mbp-m4-b53			
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15			
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo				
 quest_crest	crest	familycrest		2	green	sonnet-b32			
