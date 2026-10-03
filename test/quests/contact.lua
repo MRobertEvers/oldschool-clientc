@@ -233,7 +233,7 @@ return {
         t.chat.continue_(true)
         t.ticks(3)
         t.inv.await("contact_kaleef_scroll", 1, 10)
-        t.check("parchment.in_inv", t.inv.count("contact_kaleef_scroll"))
+        t.check("parchment.in_inv", t.inv.expect_has("contact_kaleef_scroll", 1))
         t.exec("readParchment", t.player.inv_op, "contact_kaleef_scroll", 1)
         t.chat.continue_(true)
         t.ticks(2)
@@ -337,7 +337,7 @@ return {
 
         t.exec("pickUpKeris", t.player.click_obj, "contact_keris", 3)
         t.inv.await("contact_keris", 1, 10)
-        t.check("keris.in_inv", t.inv.count("contact_keris"))
+        t.check("keris.in_inv", t.inv.expect_has("contact_keris", 1))
         t.exec("talkToOsmanChasm", t.player.talk_to, "contact_osman_cave_instance", 1)
         t.exec("talkToOsmanChasm-dialog", t.chat.play, {
             "npc:Told you I had it under control",
@@ -366,8 +366,8 @@ return {
         t.ticks(4)
         t.quest.expect_complete()
         t.expect("contact.thieving_xp_7000", t.skill.expect_gain("thieving", 7000, snap))
-        t.check("contact.keris_kept", t.inv.count("contact_keris"))
-        t.check("contact.lamp_given", t.inv.count("contact_lantern"))
+        t.check("contact.keris_kept", t.inv.expect_has("contact_keris", 1))
+        t.check("contact.lamp_given", t.inv.expect_has("contact_lantern", 1))
 
         local str_result, str_snap = t.skill.snapshot()
         t.check("lamp.snapshot", str_result, "skill.snapshot before wish 1 -> " .. tostring(str_result))

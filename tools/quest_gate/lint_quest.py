@@ -969,6 +969,59 @@ def check_equivalent_markers(text, test_id=None):
     return findings
 
 
+T_CHECK_OPEN_RE = re.compile(r'(?<![\w.])t\s*\.\s*check\s*\(')
+# Verbs that only READ: their status is "ok" whatever they read (0 of an
+# item, any tile), so as a t.check condition they can never fail.
+READ_VERBS = ("world.tile", "world.level", "world.camera", "inv.count", "inv.has", "inv.slot",
+              "skill.read", "skill.snapshot", "var.varp", "var.varbit", "var.server")
+_READ_CALL_RE = re.compile(r'^t\.(%s)\s*\(' % "|".join(re.escape(v) for v in READ_VERBS))
+_BARE_VERB_RE = re.compile(r'^t(\s*\.\s*[A-Za-z_]\w*)+$')
+READ_FIX = {
+    "inv.count": "t.inv.expect_has(name, n) / t.inv.expect_absent(name), or compare the count it returns",
+    "inv.has": "t.inv.expect_has(name) / t.inv.expect_absent(name)",
+    "world.tile": "local r, h = t.world.tile(), then compare h.x, h.z and h.level",
+    "world.level": "local r, level = t.world.level(), then compare the level",
+    "skill.read": "local r, s = t.skill.read(name), then compare s.current / s.level",
+    "var.varp": "t.var.expect(name, value)", "var.varbit": "t.var.expect(name, value)",
+    "var.server": "t.var.await_server(name, value, ticks)",
+}
+
+
+def check_vacuous_check_condition(text):
+    """t.check(name, <condition>, detail) passes on `true` or "ok". A pure
+    read returns "ok" for anything it read, and a verb written without its
+    call parentheses is a function value: both make a row that cannot fail
+    (b53-b55: `t.check("keris.in_inv", t.inv.count("contact_keris"))` passed
+    with 0 keris; `t.check("enterCave.below", t.world.tile)` printed a table).
+    A status from a verb that CAN refuse (t.var.await, t.inv.expect_has,
+    t.msg.expect, ...) is the designed use and is not flagged."""
+    findings = []
+    for match in T_CHECK_OPEN_RE.finditer(text):
+        inner, _ = _extract_balanced(text, match.end() - 1)
+        args = _split_top_level(inner)
+        if len(args) < 2:
+            continue
+        condition = _one_line(args[1]).strip()
+        line = _line_of(text, match.start())
+        read = _READ_CALL_RE.match(condition)
+        whole_call = False
+        if read:
+            # the condition is that one call and nothing else (no `== 2`,
+            # no `and`, no select(2, ...) around it)
+            _, close = _extract_balanced(condition, read.end() - 1)
+            whole_call = condition[close:].strip() == ""
+        if whole_call:
+            verb = read.group(1)
+            findings.append((line,
+                              "t.check(..., t.%s(...)): a read's status is \"ok\" whatever it read, so this "
+                              "row cannot fail -- %s" % (verb, READ_FIX.get(verb, "compare the value it returns")))) 
+        elif _BARE_VERB_RE.match(condition) and condition not in ("true", "false"):
+            findings.append((line,
+                              "t.check(..., %s): a verb without its call is a function value, not a "
+                              "result -- call it and compare what it returns" % condition))
+    return findings
+
+
 def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings = []
     # Every rule below that looks for a CALL gets the file with its comments
@@ -984,6 +1037,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings.extend(check_complete_own_row(code))
     findings.extend(check_step_pass_literal(code))
     findings.extend(check_step_verdict_type(code))
+    findings.extend(check_vacuous_check_condition(code))
     findings.extend(check_duplicate_exec_names(code))
     findings.extend(check_max_frames(code))
     findings.extend(check_var_names(code, packs.get(PACK_VAR_BARE) if packs else None, test_id))

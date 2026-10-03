@@ -16,8 +16,14 @@ return {
         "::setlevel strength 99",
         "::setlevel defence 99",
         "::setlevel hitpoints 99",
-        "::setlevel agility 40",
+        -- Agility 70, not 40: the rocks are upass_obstacles.rs2 [label,rockslide_obstacle] stat_random(agility, 160, 300),
+        -- which slips back ~16% of the time at 40 (climbOverRocks FAILed in run hp_troll_2) and never at 68+.
+        "::setlevel agility 70",
         "::setlevel thieving 60",
+        -- Protect from Melee for the Troll General (needs Prayer 43; wiki Protect from Melee). Since the eat-delay port
+        -- (raid branch, OSRS-Content 7936c59bf9) an eat no longer holds his hits: 26 sharks ran out with him at 1/30.
+        -- 99 points cover ~495 ticks of the prayer's 1 point / 5 ticks drain at +0 prayer bonus (wiki Prayer).
+        "::setlevel prayer 99",
         "::give rune_scimitar 1",
         "::wield rune_scimitar",
         "::give shark 26",
@@ -231,18 +237,37 @@ return {
         -- killGeneral: the prison key is a ground drop
         ------------------------------------------------------------------
         t.ticks(8) -- the scene the door teleport built settles before any npc slot is trusted
+        -- Protect from Melee before the generals' hall (recipe: verbs-combat.md "Turning on a protection prayer"): the
+        -- three generals are aggressive slash fighters (troll_general*: damagetype 1, attackrate 4, strength 140 +
+        -- strengthbonus 100, combat_stats.generated.npc), and a prayed npc melee hit is 0 (combat_stats.rs2 playerhit_n_melee_apply).
+        do
+            local tab_result = t.ui.tab("prayer")
+            t.ticks(2)
+            local wr, w = t.ui.widget("prayerbook:prayer15")
+            t.ui.invoke(w, 1)
+            t.ticks(2)
+            local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local _, pr = t.skill.read("prayer")
+            t.check("killGeneral-protectMelee", tab_result == "ok" and wr == "ok" and on == 1, "varb4118_prayer_protectfrommelee " .. tostring(on) .. "; prayer skill " .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
+        end
+        local _, sharks_at_general = t.inv.count("shark")
         t.exec("goto-killGeneral", t.player.goto_tile, 2835, 10088, 2)
         t.ticks(4)
         local have_prison_key = false
         local general_symbols = { "troll_general", "troll_general2", "troll_general3" }
         local general_tries = 0
         local general_notes = {}
+        local general_lowest, general_ticks = nil, 0 -- margin row below: lowest hp and ticks over every general fought
         while (not have_prison_key) and general_tries < 6 do
             general_tries = general_tries + 1
             local sym = general_symbols[((general_tries - 1) % 3) + 1]
             local attack_result = t.player.attack(sym, 2, 4)
             if attack_result == "ok" then
-                local dead_result = t.npc.await_dead_engaged(240, 40, { eat = { item = "shark", below = 90 } })
+                -- eat below 75, not 90: a shark heals 20, so below 90 spent food on hits the prayer already stops
+                local dead_result, dead_detail = t.npc.await_dead_engaged(240, 40, { eat = { item = "shark", below = 75 } })
+                local lowest_here = tonumber(tostring(dead_detail):match("lowest hp (%d+)/"))
+                if lowest_here and (general_lowest == nil or lowest_here < general_lowest) then general_lowest = lowest_here end
+                general_ticks = general_ticks + (tonumber(tostring(dead_detail):match("dead after (%d+) tick")) or 0)
                 general_notes[#general_notes + 1] = sym .. " attack=" .. tostring(attack_result) .. " dead=" .. tostring(dead_result)
                 if dead_result == "ok" then
                     t.ticks(4)
@@ -257,6 +282,14 @@ return {
         end
         t.check("killGeneral", have_prison_key, "troll_key_prison in the backpack after " .. general_tries
             .. " general(s): " .. table.concat(general_notes, "; "))
+        local _, sharks_after_general = t.inv.count("shark")
+        local _, hp_after_general = t.skill.read("hitpoints")
+        t.check("killGeneral-margin", (sharks_after_general or 0) >= 2 or (general_lowest or 0) > 25,
+            "sharks staged 26, at the generals " .. tostring(sharks_at_general) .. ", eaten in the fight "
+            .. tostring((sharks_at_general or 0) - (sharks_after_general or 0)) .. ", left " .. tostring(sharks_after_general)
+            .. ", lowest hp in the fight " .. tostring(general_lowest) .. "/99, hp after "
+            .. tostring(type(hp_after_general) == "table" and (hp_after_general.current or hp_after_general.level) or hp_after_general)
+            .. ", " .. general_ticks .. " tick(s) of general fighting (margin: sharks left >= 2 or lowest hp > 25)")
 
         ------------------------------------------------------------------
         -- goDownInStronghold, goThroughPrisonDoor, goDownToPrison

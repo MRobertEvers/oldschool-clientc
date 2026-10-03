@@ -597,3 +597,33 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
   three with 16) all read 144 ticks, 12 eaten and lowest hp 24. The same 16-shark kit run through
   `--script` read 130 ticks and 11 eaten. Two identical greens are one data point, so a quarter more
   food than the worst run is still the rule.
+
+## An Evil Creature's bar reads `30/30` and the hp orb falls: it is 1 hp, and it hits back for at most 1 (The Eyes of Glouphrie, matthew-mbp-m4-b55)
+
+*Origin: the round-3 reviewers and sampler of matthew-mbp-m4-b55.*
+
+The reviewers wrote that Evil Creatures are 30 hp here, against the wiki's 1 hp. Half of that is
+wrong. `30/30` is the health bar, which is 30 units wide whatever the npc's hitpoints (see "A
+boss's first bar reading" above). All twelve blocks in `quest_theeyesofglouphrie/configs/eyeglo.npc`
+say `hitpoints=1`. The fights took 4 to 24 ticks only because the staged player had Strength 1:
+a bronze sword's max hit is then 1, and half the rolls are 0.
+
+The other half is true, and it is the real game. The creatures hit back, at most 1 a swing. In
+the round-3 run the player went from 40 to 35 hp over the six fights, with no food eaten.
+Settled by seam matthew-mbp-m4-b55-seam1 from the source: wiki Evil_Creature oldid 15349482's
+infobox gives `max hit = 1`, Crush, attack speed 4, and an "Attacking" sound effect, and nothing on
+the page says they do not fight back. The cache ships the swing (`all.seq [eyeglo_fluffie_attack]`).
+An earlier version of this note, and the parity manifest ("retaliate off", "never swings back"),
+said the opposite; both were wrong.
+
+`~npc_retaliate(0)` in each `[opnpc2,eyeglo_fluffie_N]` is not what makes them swing. The engine
+starts retaliation on every hit (`torirs_server_combat.c` `ToriRSServer_CombatHitNpc`, opted out
+only by `retaliate=no`). The proc only starts the fight on the Attack click instead of on the
+first splat. Their max hit is 1 because of `strength=1` and `param=strengthbonus,0` in
+`configs/eyeglo.npc`: `[proc,npc_melee_maxhit]` gives (1 + 9) * 64 = 640, then (640 + 320) / 640
+= 1. `check_theeyesofglouphrie` refuses a `retaliate=no` or any strength other than 1.
+
+What an author does: stage hitpoints and a little food, and record the measured numbers in each
+kill row (ticks to death, and hp before and after from `t.skill.read`). Expect the orb to fall by
+a point or two on the slower kills. Do not write "30 hp" in a comment. Do not write "hp untouched"
+or "they never retaliate" either.

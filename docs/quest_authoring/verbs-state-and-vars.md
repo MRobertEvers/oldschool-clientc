@@ -132,3 +132,23 @@ level is `.level`.
 
 `t.skill.expect_gain(name, xp, snapshot)` -> `ok` `refused` `no_row`. Accepts `xp` or `xp*10`, names
 the unit matched.
+
+### lint: "a read's status is "ok" whatever it read, so this row cannot fail" (matthew-mbp-m4-b55)
+
+`t.check(name, condition, detail)` passes when the condition is `true` or `"ok"`. A verb that only
+READS (`t.world.tile`, `t.world.level`, `t.inv.count`, `t.inv.has`, `t.inv.slot`, `t.skill.read`,
+`t.skill.snapshot`, `t.var.varp`, `t.var.varbit`, `t.var.server`) returns `"ok"` for anything it read,
+so used whole as the condition it makes a row that can never fail:
+`t.check("keris.in_inv", t.inv.count("contact_keris"))` passed with no keris in the pack, and
+`t.check("enterCave.below", t.world.tile)` (no call) printed `table: 0x...`. `lint_quest.py` now
+refuses both shapes. Write instead:
+
+- an item: `t.check(name, t.inv.expect_has("contact_keris", 1))` or `t.inv.expect_absent(...)`;
+- a tile: `local r, h = t.world.tile()` then
+  `t.check(name, r == "ok" and h.x == X and h.z == Z and h.level == L, h.x .. "," .. h.z .. "," .. h.level)`;
+- a stat: `local r, s = t.skill.read("hitpoints")` then compare `s.current`;
+- a var: `t.check(name, t.var.expect("varb...", value))`.
+
+A status from a verb that can refuse (`t.var.await`, `t.inv.expect_has`, `t.msg.expect`, ...) is the
+designed use and is not flagged. `t.check(name, true, detail)` is still accepted as a note row; a row
+that claims to assert something must not use it (reviewers and samplers send it back).

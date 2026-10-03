@@ -472,3 +472,138 @@ the bones are picked up from the four trolls and three chickens, and the pot and
 the wheel and fired in the oven. See content-gaps: Swan Song: Franklin gives no hammer. Casting at
 the Queen from the beach tile is Quest Helper's own `killQueen` (`combatGearRanged`,
 SwanSong.java:285). The rewards are the literal 15000/10000/50000 xp and 25000 coins.
+
+## Sample matthew-mbp-m4-b55 (2026-10-03)
+
+*The sampler checked handinthesand (54fd4819d, 171/0, 254 shots), meatandgreet (171bc81b0, 118/0,
+308 shots) and troubledtortugans (b35d2e59c, 198/0, 329 shots). It opened every shot. It passed
+handinthesand and troubledtortugans and SENT meatandgreet BACK. Commit 171bc81b0 is reverted, and
+so is its evidence commit (OSRS-Content 343f1b4163). The file is kept in
+`test/quests/wip/meatandgreet/parked.lua`.*
+
+(a) MEAT AND GREET USES A TELEPORT TO SKIP AN EXIT THE GUIDE NAMES. Guide step 24
+`leaveColosseumToReturnToEmelio` is `colosseum_exit_lobby`, and its `[oploc1]`
+(`twilightspromise.rs2:367`) is an unconditional `p_teleport` out. The test went from Lelia
+(1819,9485) to Emelio with one `goto_tile` (ledger row 113, shot 296). helper_coverage graded it
+ALTERNATIVE because of a false CONTENT_GAP (coverage-and-gate: CONTENT_GAP "only <other quest>.rs2").
+To fix it, click the exit, then travel.
+
+(b) THERE IS NO QUEST-POINT REWARD ROW. The file removes `expect_complete` by hand, so the scroll's
+"1 Quest Point" (shot 307) is never asserted. Add a qp delta row. The 8000 Cooking row is literal.
+
+(c) The two margin rows print `hp after table: 0x...`. That is `t.skill.read`'s reading table,
+not a number. Read `.level` (verbs-state-and-vars: `t.skill.read(name)`). The reviewer of The
+Ascent of Arceuus found the same kind of empty hp read (hp_low stayed 99 while the orb showed
+27/40).
+
+Not findings (meatandgreet): the spice pad is driven by widget, wrong code first. The alpha and
+the Minotaur are real fights with Protect from Melee read from its varbit (29 and 103 ticks, 2
+sharks eaten, lowest hp 52). The den exit and the Colosseum entrance are clicked. `::meatandgreet`
+in setup only resets the quest at stage 0 and stands you by Emelio.
+
+Not findings (handinthesand): 24/24 steps are driven, with Bert as the real accept and Rarve's bell
+as the hand-in. The lens is used from the doorway tile, which the content itself checks
+(verbs-inventory-shops: `use_on` walks off the tile). The rewards are the literal 1000 Thieving,
+9000 Crafting and 1 qp. Nit: the `doorway.tile` row checks only that the read worked, not the tile.
+
+Not findings (troubledtortugans): 29/29 steps are driven. Every sea leg is sailed, including the
+Remote Island board and the reverse out of each berth. The six repairs use gathered shells, scutes
+and jatoba logs (480 Construction). The Gryphon (69 ticks) and Shellbane (394 ticks, Protect from
+Melee, Blunn's shield worn) are real fights, with 8 of 8 sharks left. The rewards are the literal
+8000 Slayer, 10000 Sailing and 1 qp. Nits: `list.has` PASSes with detail `false`, and the
+`sailOut.legN` rows `t.check(..., true, ...)` assert nothing.
+
+## Sample matthew-mbp-m4-b55, round 3 (2026-10-03)
+
+*The sampler checked ascentofarceuus (33d1bcebd, 105/0, 251 shots) and theeyesofglouphrie
+(9813e5044, 276/0, 456 shots). It opened every shot, in contact sheets. It passed
+ascentofarceuus and SENT theeyesofglouphrie BACK. Commit 9813e5044 is reverted (65805d323), and
+so is its evidence commit (OSRS-Content 30d5622731, reverted by 8fbb36460e). The file is kept in
+`test/quests/wip/theeyesofglouphrie/round3_rejected.lua`.*
+
+(a) THE EYES OF GLOUPHRIE TELEPORTS INTO BRIMSTAIL'S CAVE PAST THE ENTRANCE THE GUIDE NAMES.
+Ledger row 76 `goto-repairMachine` goes from 2359,3529,0 to 2391,9824,0 (shot 287's chatbox shows
+the teleport), and row 223 `goto-killCreature1` goes from 2466,3496,0 to 2408,9818,0. Row 260
+`goto-allDead` does the same. The guide's steps for those states are `enterCaveAgain` and
+`enterCave`. helper_coverage read FULL (coverage-and-gate: A goto back into a cave reads FULL).
+
+(b) `enterCave.below` (row 4) prints `table: 0x7ffd8ea60`. Its condition is
+`t.world.tile ~= nil`, which tests the function, so it can never fail. Read `t.world.tile()` and
+check the cave's z.
+
+(c) The kill comment says the bar "reads 30/30". That is the health bar's width, not hitpoints
+(gaps-combat: An Evil Creature's bar reads `30/30`).
+
+Not findings (theeyesofglouphrie): the three Grand Tree climbs are clicked, with level 1, 2 and
+3 read back (rows 244-249). Each kill row records ticks, hp before and after, and lobsters, and
+the orb matches. The disc puzzle is earned from Brimstail and the exchanger (23 rounds). The
+rewards are the literal 12000 Magic, 6000 Runecraft, 2500 Woodcutting, 250 Construction, the
+crystal seed and 2 qp. `::eyesofglouphrie` in setup only resets the quest and sets The Grand Tree
+done.
+
+Not findings (ascentofarceuus): 24/24 steps are driven, from Mori's accept to the hand-in to Lord
+Trobin. `fight.margin` reads 27/40, which matches the orb and the stats tab in shots 247 and 250.
+Hitpoints were staged at 40 with 8 sharks, none eaten, and the six fights took 16 to 52 ticks. The
+rewards are literal: 2000 coins (0 to 2000), one `veos_memoirs_arc_page`, 1500 Hunter, 500
+Runecraft and 1 qp. Nit: the four `searchRocks-N` rows are `t.check(true, ...)`. The stage check
+after them is the real gate.
+
+## Sample matthew-mbp-m4-b55, round 4 (2026-10-03)
+
+*The sampler checked theeyesofglouphrie (0759d793e, 298/0, 466 shots) and eadgar (42f93acac,
+158/0, 233 shots). It passed The Eyes of Glouphrie and SENT Eadgar's Ruse BACK. Commit 42f93acac
+is reverted (42e21b756), and so is its evidence commit (OSRS-Content 8f936a7800, reverted by
+f52b8c7aec). The file is kept in `test/quests/wip/eadgar/round4_rejected.lua`.*
+
+(a) EADGAR'S RUSE GOES FROM EADGAR'S CAVE INTO THE TROLL STRONGHOLD BY GOTO. The six entries into
+Eadgar's cave were fixed: each one clicks `troll_mad_eadgar_entrance` and reads back 2893,10074.
+But three gotos still start inside the cave (2890,10085,2) and land inside the stronghold:
+`goto-rack-1` (row 53, to the prison rack at 2829,10097,0), `goto-rack-2` (row 124, same tile) and
+`goto-burntmeat-2` (row 135, to the kitchen at 2844,10057,1). The real route is the cave exit, the
+surface, `troll_stronghold_door`, and then one or two flights of stairs. The guide names every one
+of these for that state: `leaveEadgarsCave*`, `enterStronghold*`, `goDownNorthStairs*`,
+`goDownToPrison*`, `goDownSouthStairsWithScarecrow` (stages 50, 85 and 87). helper_coverage read
+FULL (coverage-and-gate: A goto from one cave into another reads FULL). The file's header comment
+says it drops every stronghold door and stairs click on purpose. That rule is wrong now.
+
+(b) `goto-burntmeat-1` (row 27, down the south stairs) and `goto-storeroomdoor` (row 142, down to
+the storeroom, the guide's `goDownToStoreroom` at 2852,10061,1) also go down guide-named stairs by
+goto. The grader calls these TRAVEL, but the batch rule covers stairs too.
+
+Not findings (theeyesofglouphrie): all five cave entries (rows 3, 44, 78, 240, 280) click
+`eyeglo_brimstails_cave_entrance` and check z > 9000 on the landing. Shots 002/003, 187/188,
+289/290, 397/398 and 435/436 show the cave after the click. The guide names no cave exit, so
+leaving by goto is travel. The kill comment now says 1 hp and max hit 1. Rewards and qp are
+literal and match the scroll (shot 466). The batch's queue commit (7a00d57e6) had left the row at
+`todo` with the round-3 failure, so the sampler set it to green.
+
+## Sample matthew-mbp-m4-b55, round 6 (2026-10-03)
+
+*The sampler checked anothersliceofham (d84fd096c, 148/0, 178 shots) and eadgar (f0ca475f0, 197/0,
+260 shots). It SENT Another Slice of H.A.M. BACK and passed Eadgar's Ruse after fixing two rows
+itself. Commit d84fd096c is reverted (632cd5e13), and so is its evidence commit (OSRS-Content
+82ebb21d96, reverted by c4fc42005c). The file is kept in
+`test/quests/wip/anothersliceofham/round6_rejected.lua`.*
+
+(a) ANOTHER SLICE OF H.A.M. HIDES A RETURN TELEPORT THAT NEVER FIRES. `goto-generals2` (row 102)
+departs from the watchtower top, 2447,5416,2, after the archer's death mesbox. The content should
+have moved the player to the Generals at that point. Details are in content-gaps: "A goto right
+after a fight hides a return teleport that never fired". The quest goes back to a content seam.
+The t.exec rows `zanik.at_dig`, `special.armed` and `special.energy` are pure reads.
+
+(b) EADGAR'S RUSE: TWO ROWS STILL GRADED THE STATUS OF A READ. These were `lookup.stileBefore`
+(`world.tile()`'s `"ok"`, whose detail printed `table: 0x...`) and `reward.snapshot`.
+`climbStile`'s condition ("the tile differs from the one read before goto-stile") was already
+true after the goto alone. The lint rule misses `x == "ok"` on a read's status, so a reviewer has
+to look for it. The sampler dropped both rows. climbStile now asserts the north-side landing
+2817,>=3564,0, which only the crossing reaches (`stiles.rs2` stile_crossing). It was rerun twice
+at 195/0, gate green, FULL 63.
+
+Not findings (eadgar): the gotos from the prison or the kitchen back to the surface pass
+`troll_stronghold_stairs` and `troll_stronghold_top_exit_*`, which read no quest var
+(`quest_troll.rs2:177-198`). They grade TRAVEL/ALTERNATIVE, and stage 86's
+`leavePrisonWithParrot`/`goUpToTopFloorWithParrot`/`leaveStrongholdWithParrot` are the same locs.
+Every stronghold entry, stairs down and storeroom stairs is clicked and has an exact landing read.
+The rewards are literal: 11000 Herblore and qp 4 to 5, matching the scroll in shot 257. The batch
+queue writer skipped both round-6 rows, because queue.json listed them from round 5. So the
+sampler set eadgar to green.

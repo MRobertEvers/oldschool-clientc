@@ -240,3 +240,69 @@ sea trolls before Malignius: the three ambush trolls and the one the first fishi
 drops one `bones`, so three more are needed. Malignius asks for "the normal sort you get from
 people and small monsters", so kill three chickens (Lumbridge farm, `chicken_brown`) and pick up
 their bones. Do not `::give` bones.
+
+## Content gaps reviewers named in matthew-mbp-m4-b55
+
+*Origin: the matthew-mbp-m4-b55 reviews. Each line is a gap in the port, not in the test. Write it
+in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
+
+- **The Hand in the Sand.** Rarve's sandpit cutscene is not ported. Entrana has no boat crossing and
+  no check that bans weapons, so Mazion is reached by `goto_tile` (parity notes).
+- **Meat and Greet.** Emelio's "Trade" and the Spice Merchant's "Let's trade" open nothing, because
+  the shop stock files are not generated (PARITY.tsv row, `wiki_shop_owners.csv` regen).
+- **The Eyes of Glouphrie.** Brimstail hands out discs only while the stage is below
+  `^eyeglo_machine_ready` 35 (`eyeglo_quest.rs2:121-123`). He gives three random discs from an
+  18-disc pool (`random(18)`, `eyeglo_quest.rs2:403`), and none while you carry six or more. After
+  the front-panel unlock he has no disc line. So hold every disc the control panel needs BEFORE you
+  unlock it, using the exchanger to swap leftovers. Check the wiki before you report this as a bug.
+- **The Ascent of Arceuus.** Guide step `talkToArceuus` names Lord Trobin, but the content sends
+  you to Asteros (`[opnpc1,asteros_arceuus_vis]`, `ascentofarceuus.rs2:220`). Trobin talks only
+  at stage 13. The Favour reward and the Graceful recolour interface are not authored
+  (`aoa_leftover_*`). The Karuulm elevator lands at 1311,10188, not at the guide's 1312,10211
+  (Kaal's footprint).
+- **Another Slice of H.A.M.** (FIXED b55-seam1, OSRS-Content f97d2dcd59: the digs are the trowel USED
+  on the artefact and the cleaning an artefact used on the table; the route clicks end to end with
+  `::complete quest_losttribe`, whose trigger is on the hole's multiloc child -> seam-facts: Seam
+  pass matthew-mbp-m4-b55-seam1 (a)-(c).) `slice_artifact_hotspot_0N_1` (`configs/all.loc:256904`, "Artefact")
+  has no op1, so the menu offers only Examine. `[oploc1,slice_artifact_hotspot_0N]`
+  (`slice_tegdak.rs2:103-143`) never fires, and there is no `[oplocu]` for the trowel. Stage 2 to 3
+  cannot be driven (content_bug), and the stage 3-11 tail is still to be driven after the fix.
+  `[oploc1,cave_goblin_city_doorr]` refuses until Lost Tribe is complete
+  (`lotg_intro.rs2:67-71`), so setup needs `::complete quest_losttribe`, which the scaffold
+  leaves out. Nothing has a trigger on `lost_tribe_cellar_wall`. Guide steps 1.3 (Kazgar) and 1.4
+  (`climbThroughHole`) are therefore travelled with `goto_tile` and graded as content gaps.
+
+## A goto right after a fight hides a return teleport that never fired (H.A.M. watchtower, matthew-mbp-m4-b55 round 6; FIXED matthew-mbp-m4-b55-seam2)
+
+*Symptom: the stage advances after a kill and a mesbox says you head back, but the next row's
+`goto_tile` detail reads `from <the fight's tile>`. The content's own teleport did not run.*
+
+- **Another Slice of H.A.M.** When both H.A.M. rangers die, `slice_ham_rangers_check`
+  (`slice_hammage.rs2:110-115`) runs inside `[ai_queue3,slice_ham_archer]`. It shows "With both
+  ambushers down, you make your way back to report to the Generals." and sets stage 7, but
+  `p_teleport(^slice_generals_coord)` leaves the player on the tower top at 2447,5416,2. client.log
+  then prints `npc_findhero with no active npc` at `[proc,npc_default_death]` from
+  `slice_hammage.rs2:108`. The tower has no ladder down, so a real player is stranded there. The
+  committed test hid this with `goto-generals2`. The fix belongs in content: `queue()` a player
+  script for the mesbox, the teleport and the stage write, as seam-facts says for a `p_delay` in
+  an npc script (seam pass 21 (b), seam 37 (d)).
+- **For authors:** after a fight whose content should move you, read `t.world.tile()` and compare it
+  with the destination before any goto. A goto there is only travel when the content never meant
+  to move you.
+
+**FIXED (matthew-mbp-m4-b55-seam2, OSRS-Content 2ca4e77a52; seam-facts: Seam pass matthew-mbp-m4-b55-seam2).** `slice_hammage.rs2`: the death handlers do the npc's half only
+(flag, line, `~npc_default_death` with the npc still active) and `queue(slice_ham_rangers_return)` once
+both are dead at stage 6; that player script shows the mesbox, teleports to 2957,3512,0 and writes
+stage 7, and `slice_ham_combat_login` queues it again after a logout during the mesbox. The teleport
+is sourced: the second kill starts the kidnap cutscene, which ends at the generals (wiki
+Another_Slice_of_H.A.M. oldid 15292360; Transcript oldid 15263379 "Upon defeating the two H.A.M.
+members"; Quest Helper `talkToGeneralsAgain` at 2957,3512,0 straight after `killHamMageAndArcher`).
+Sigmund's death handler (`slice_sigmund.rs2`) had the same shape and now queues his parting line.
+Measured: `b55s2_slice_a` (mage first) and `b55s2_slice_b` (archer first) 148/0, `killHam.returned`
+`2957,3512,0` with no goto, no `npc_findhero with no active npc` in client.log.
+
+- **The shape to grep for in any quest:** a `[ai_queue<n>,...]` that binds `npc_findhero` and then
+  reaches `~mesbox`/`~chatnpc*`/`~chatplayer`/`p_delay` BEFORE `~npc_default_death`.
+  `tools/check_npc_script_player_suspend.py` does not catch it (it flags only a suspend with no
+  player bound). Queue the player's half; write any stage the kill decides in the npc's half or
+  in the queued script, never after a page.

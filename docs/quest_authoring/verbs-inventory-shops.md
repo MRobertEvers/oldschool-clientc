@@ -208,6 +208,21 @@ yourself (Sheep Herder's pen feed loop).
 Each retry presses from wherever that walk actually landed, not the approach tile it was aimed at,
 and a second candidate whose walk ends on a tile already tried is not pressed again.
 
+#### `use_on` walks off the tile the content checks: Betty's doorway (matthew-mbp-m4-b55)
+
+*Origin: author batch matthew-mbp-m4-b55 (handinthesand, accepted).*
+
+The Hand in the Sand's lens is used on Betty's counter from her doorway, 3016,3259. The counter is
+three tiles away. `[aplocu,handsand_counter_multiloc]` accepts the press from up to four tiles
+(`p_aprange(4)`, `handsand_betty.rs2:243`), and `handsand_counter_focus` then requires
+`coord = ^handsand_doorway_coord`. Otherwise it answers the mesbox "You need to stand in Betty's
+open doorway to focus the light on the vial." `t.player.use_on` walks into `walk_near` range 2 of
+the loc before it presses, so it leaves the doorway and gets that mesbox. `handinthesand.lua`
+(`useLensOnCounter`) does it like this. It runs `goto_tile 3016,3259`, then
+`t.player._arm_held(item, cell)`, then `t.drive.click_minimenu(loc, "select")`. The aplocu's own
+range holds the tile, and a `doorway.tile` row records where the player stood. The two helpers
+are private. Asking `use_on` to press without walking is a driver seam.
+
 ### `t.player.use_item_on_item(item_a, item_b)`
 
 `t.player.use_item_on_item(item_a, item_b)` -> `ok` `not_found` `refused` `no_row` `timeout`

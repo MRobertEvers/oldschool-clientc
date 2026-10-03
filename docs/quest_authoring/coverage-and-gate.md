@@ -561,6 +561,19 @@ names a guide step (or alias) is graded as the step's action. It stays travel on
 line is itself a `goto_tile`, `::goto`, `::tele` or `player.teleport` call (Fenkenstrain's
 `goToMonsterFloor1`). Name the row after the guide step, as usual; no GUIDE-GAP is needed.
 
+### CONTENT_GAP "only <other quest>.rs2, another quest's" for a trigger that serves every quest (matthew-mbp-m4-b55)
+
+Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. `helper_coverage`
+said "no [op*]/[ap*] trigger on colosseum_exit_lobby serves this quest (only
+twilightspromise.rs2:367, another quest's)" and then graded the step ALTERNATIVE, a sub-step of
+`returnToEmelioWithNewsOfYourAdvertisingSuccess`. But `[oploc1,colosseum_exit_lobby]` is an
+unconditional `p_teleport` out of the lobby, so it works for every quest. The test used
+`goto_tile` from 1819,9485 to Emelio and skipped the exit the guide names, while the grader read
+FULL. The sampler sent the quest back (sampler-findings: Sample matthew-mbp-m4-b55). When the
+grader cites another quest's file, open that trigger. If it reads no quest var, click it. The
+failure-path legs (`leaveColosseumToGetAnotherKebabFromEmelio`, `enterArenaAfterFailing`) are a
+real ALTERNATIVE when the first fight is won. The grader half is FIXED: see the next section.
+
 ### A goto out of a place whose exit the guide names reads FULL through "no trigger ... serves this quest" (Meat and Greet, matthew-mbp-m4-b55; FIXED)
 
 Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. The test left the lobby
@@ -586,6 +599,49 @@ Fixture: `python3 tools/quest_gate/helper_coverage_departure_cross_test.py` (3 c
 Meat and Greet run: the goto from the lobby is CHEAT, a click on the exit first is DRIVEN, the same goto
 stamped outside the Colosseum is not a cheat). It reads commits 171bc81b0 and OSRS-Content 343f1b4163,
 which live on the b55 batch branch until that batch merges. On the grader before the fix it fails 2/3.
+
+### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; FIXED by `frame_entries`, see the next section)
+
+The Eyes of Glouphrie's guide uses `enterCave` (Brimstail's cave entrance) as the default step of
+almost every stage: `ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`, and in the
+repair stage `fixMachine.addStep(magicGlue, enterCaveAgain)`. The round-3 test clicked the entrance
+twice (rows 3 and 44). After that it went back into the cave three times with `goto_tile`:
+
+- `goto-repairMachine`, from the evergreen at 2359,3529,0;
+- `goto-killCreature1`, from Narnode at 2466,3496,0;
+- `goto-allDead`, from the Grand Tree.
+
+helper_coverage still read FULL 23/23. `enterCave` and `enterCaveAgain` are panel steps, matched to
+their first PASS row, and the crossing checks (`zone_crossing` for branch-only steps,
+`teleported_across` for promoted sub-steps) never look at the stages after that. The sampler sent
+the quest back.
+
+What an author does: when you are outside a place and the guide's step for that state is its way
+in, goto only to the entrance, click it, and read back the landing tile. Do this every time, not
+just the first. What a sampler does: check every goto row's `at <landing> from <departure>` against
+the guide's zones. A departure outside and a landing inside, with no click on the way in since the
+last goto, is a teleport past it.
+### A goto from one cave into another reads FULL (Eadgar's Ruse, matthew-mbp-m4-b55 round 4; OPEN)
+
+`frame_entries` only judges a goto that LEAVES from the surface. A goto that starts in one
+underground place and lands in another is not judged, even when the real route goes up to the
+surface and back down through a door the guide names. Eadgar's Ruse round 4 went from Eadgar's
+cave (2890,10085,2) straight to the Troll Stronghold prison rack (2829,10097,0) and to Burntmeat's
+kitchen (2844,10057,1). On the way it skipped `troll_mad_eadgar_exit`, `troll_stronghold_door` and
+the stairs. The guide names all of them for that state (`leaveEadgarsCaveWithParrot`,
+`enterStrongholdWithParrot`, `goDownNorthStairsWithParrot`, `goDownToPrisonWithParrot`, and the
+same for stages 85 and 87). The steps still read DRIVEN, because helper_coverage matched them to
+other rows: an earlier `catchParrot` row, and the first visit's door click at line 271.
+
+- What an author does: leaving one cave for another place underground is two trips. Click the
+  exit, goto the next entrance on the surface, click it, then click each flight of stairs. Read back
+  the landing tile (and level) after each click.
+- What a sampler does: list every goto row whose departure AND landing are both above z 6400. If
+  the two tiles are in different places (a different dungeon, building or floor), find the guide's
+  steps for that state. A goto that skips any exit, door or stairs the guide names there is a
+  teleport.
+- Grader gap (OPEN): judge an underground-to-underground hop the same way as a surface-to-cave one
+  when the landing zone is a step's zone and the departure is outside every zone of that step.
 
 ### "lands at ... from ..., another map frame, without pressing the entrance <step> names ... on every visit" (`frame_entries`, matthew-mbp-m4-b55)
 
