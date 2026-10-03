@@ -560,3 +560,16 @@ rows never counted, and the step fell through to a weak narration match. Now a r
 names a guide step (or alias) is graded as the step's action. It stays travel only when its source
 line is itself a `goto_tile`, `::goto`, `::tele` or `player.teleport` call (Fenkenstrain's
 `goToMonsterFloor1`). Name the row after the guide step, as usual; no GUIDE-GAP is needed.
+
+### CONTENT_GAP "only <other quest>.rs2, another quest's" for a trigger that serves every quest (matthew-mbp-m4-b55)
+
+Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. `helper_coverage`
+said "no [op*]/[ap*] trigger on colosseum_exit_lobby serves this quest (only
+twilightspromise.rs2:367, another quest's)" and then graded the step ALTERNATIVE, a sub-step of
+`returnToEmelioWithNewsOfYourAdvertisingSuccess`. But `[oploc1,colosseum_exit_lobby]` is an
+unconditional `p_teleport` out of the lobby, so it works for every quest. The test used
+`goto_tile` from 1819,9485 to Emelio and skipped the exit the guide names, while the grader read
+FULL. The sampler sent the quest back (sampler-findings: Sample matthew-mbp-m4-b55). When the
+grader cites another quest's file, open that trigger. If it reads no quest var, click it. The
+failure-path legs (`leaveColosseumToGetAnotherKebabFromEmelio`, `enterArenaAfterFailing`) are a
+real ALTERNATIVE when the first fight is won.

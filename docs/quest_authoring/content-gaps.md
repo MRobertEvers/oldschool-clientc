@@ -240,3 +240,31 @@ sea trolls before Malignius: the three ambush trolls and the one the first fishi
 drops one `bones`, so three more are needed. Malignius asks for "the normal sort you get from
 people and small monsters", so kill three chickens (Lumbridge farm, `chicken_brown`) and pick up
 their bones. Do not `::give` bones.
+
+## Content gaps reviewers named in matthew-mbp-m4-b55
+
+*Origin: the matthew-mbp-m4-b55 reviews. Each line is a gap in the port, not in the test. Write it
+in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
+
+- **The Hand in the Sand.** Rarve's sandpit cutscene is not ported. Entrana has no boat crossing and
+  no check that bans weapons, so Mazion is reached by `goto_tile` (parity notes).
+- **Meat and Greet.** Emelio's "Trade" and the Spice Merchant's "Let's trade" open nothing, because
+  the shop stock files are not generated (PARITY.tsv row, `wiki_shop_owners.csv` regen).
+- **The Eyes of Glouphrie.** Brimstail hands out discs only while the stage is below
+  `^eyeglo_machine_ready` 35 (`eyeglo_quest.rs2:121-123`). He gives three random discs from an
+  18-disc pool (`random(18)`, `eyeglo_quest.rs2:403`), and none while you carry six or more. After
+  the front-panel unlock he has no disc line. So hold every disc the control panel needs BEFORE you
+  unlock it, using the exchanger to swap leftovers. Check the wiki before you report this as a bug.
+- **The Ascent of Arceuus.** Guide step `talkToArceuus` names Lord Trobin, but the content sends
+  you to Asteros (`[opnpc1,asteros_arceuus_vis]`, `ascentofarceuus.rs2:220`). Trobin talks only
+  at stage 13. The Favour reward and the Graceful recolour interface are not authored
+  (`aoa_leftover_*`). The Karuulm elevator lands at 1311,10188, not at the guide's 1312,10211
+  (Kaal's footprint).
+- **Another Slice of H.A.M.** `slice_artifact_hotspot_0N_1` (`configs/all.loc:256904`, "Artefact")
+  has no op1, so the menu offers only Examine. `[oploc1,slice_artifact_hotspot_0N]`
+  (`slice_tegdak.rs2:103-143`) never fires, and there is no `[oplocu]` for the trowel. Stage 2 to 3
+  cannot be driven (content_bug), and the stage 3-11 tail is still to be driven after the fix.
+  `[oploc1,cave_goblin_city_doorr]` refuses until Lost Tribe is complete
+  (`lotg_intro.rs2:67-71`), so setup needs `::complete quest_losttribe`, which the scaffold
+  leaves out. Nothing has a trigger on `lost_tribe_cellar_wall`. Guide steps 1.3 (Kazgar) and 1.4
+  (`climbThroughHole`) are therefore travelled with `goto_tile` and graded as content gaps.

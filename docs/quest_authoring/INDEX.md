@@ -101,6 +101,7 @@ topic file with one line added here.
 - `click_loc` on a cave mouth, crevice or tunnel answers `chat_message` (`A snowy cave.`) and the tile is unchanged; `Ride` says `You cannot use that here!` after it -> gaps-world: A cave or tunnel click answers a chat line ... a name binding shadows the maplink
 - `t.ui.invoke(w, 0)` on an IF1 button does nothing and the `.rs2` binds `[if_button1,...]`; `t.ui.invoke(w, 1)` answers on one button but a real click would not -> traps-23-33: Trap 33 (the IF1 dispatch, FIXED for Ratcatchers, then Dwarf Cannon and Grim Tales' piano in b49-seam2); seam-facts: Seam pass matthew-mbp-m4-b49-seam1 (a)
 
+- `use_on` leaves the tile the content checks ("You need to stand in Betty's open doorway"); a loc used from three tiles off -> verbs-inventory-shops: `use_on` walks off the tile
 ## Dialogue and chat
 
 - a `|` drawn inside a line (`find the|helmet`); `chat.play` meets an extra page (`npc:together.`) -> verbs-chat: A long line is more than one page
@@ -305,6 +306,7 @@ topic file with one line added here.
 - `helper_coverage.py --ledger`, `--lua <copy>` -> seam-facts: Seam pass 27, (p); traps-23-33: Refused markers
 - sonnet-b41: `teleportAway` UNMATCHED with its row PASS -> coverage-and-gate: A step named `teleportAway`; next mesbox missing after an objbox -> verbs-chat: The next script's mesbox; `is_modal() == true` never holds -> verbs-ui-and-npc: `t.ui.is_modal() == true`; stage row reads the old value after a goto out of a zone -> gaps-world: A stage a zone exit writes
 - vm-b1 (2): gate RED `step 'leg.N.end' ... has no shot` on the last leg; `kickBoard` UNMATCHED on a Search press -> coverage-and-gate: Gate RED on the last leg's; Meiyerditch ladder op 1 does nothing, Drakan wall shortcut lands on 3595,3309,2 -> gaps-world: Meiyerditch; no ladder step for rope (yak hair), the window tax Enter amount, stage 275 never seen, Bork gives nothing, runts kill you -> gaps-world: The Fremennik Isles
+- CONTENT_GAP "only <other quest>.rs2, another quest's" then ALTERNATIVE on an exit loc the guide names, and a `goto_tile` past it reads FULL -> coverage-and-gate: CONTENT_GAP "only <other quest>.rs2"
 
 ## Harness and runs
 
@@ -336,6 +338,7 @@ topic file with one line added here.
 - `await_gone` passes hollowly aboard -> seam-facts: Seam pass 18, (a)
 - running aground; the Catherby setup -> verbs-sail-session: `t.sail.*`
 - `reply=173`; a relog lost spawned npcs -> verbs-sail-session: `t.session.logout`
+- a mooring op 1 moves the stage but opens the Board Boat window instead of boarding; the stage stays put with the hull far off; aground leaving a berth -> verbs-sail-session: A mooring that moves the stage; Aground on every heading
 
 ## Content-side facts (content_bug reports, reviewers)
 - two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls (FIXED OSRS-Content f2902a94dd: `movecoord`'s middle argument is the level; seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a))
@@ -437,6 +440,7 @@ topic file with one line added here.
 - an `npc_add`ed ambush or boss vanishes mid-fight and the stage never moves (Swan Song's trolls and Queen) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (c)
 - the guide says an npc gives a tool but a gate before him demands it ("You'll want a hammer before heading in", Swan Song's Franklin) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (d)
 - a seam fixer refused an edit because another seam owns the file -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (e)
+- matthew-mbp-m4-b55: no Entrana boat; Emelio's Trade opens nothing; Brimstail has no disc line after the unlock; Asteros where the guide says Trobin; Slice of H.A.M.'s Artefact offers only Examine; "The passage beyond is unfamiliar to you." at Dorgesh-Kaan; a margin row `hp after table: 0x...` -> content-gaps: Content gaps reviewers named in matthew-mbp-m4-b55; sampler-findings: Sample matthew-mbp-m4-b55
 
 ## Citations: resolving a number or a name
 

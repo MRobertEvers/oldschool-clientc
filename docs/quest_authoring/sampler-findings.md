@@ -472,3 +472,43 @@ the bones are picked up from the four trolls and three chickens, and the pot and
 the wheel and fired in the oven. See content-gaps: Swan Song: Franklin gives no hammer. Casting at
 the Queen from the beach tile is Quest Helper's own `killQueen` (`combatGearRanged`,
 SwanSong.java:285). The rewards are the literal 15000/10000/50000 xp and 25000 coins.
+
+## Sample matthew-mbp-m4-b55 (2026-10-03)
+
+*The sampler checked handinthesand (54fd4819d, 171/0, 254 shots), meatandgreet (171bc81b0, 118/0,
+308 shots) and troubledtortugans (b35d2e59c, 198/0, 329 shots). It opened every shot. It passed
+handinthesand and troubledtortugans and SENT meatandgreet BACK. Commit 171bc81b0 is reverted, and
+so is its evidence commit (OSRS-Content 343f1b4163). The file is kept in
+`test/quests/wip/meatandgreet/parked.lua`.*
+
+(a) MEAT AND GREET USES A TELEPORT TO SKIP AN EXIT THE GUIDE NAMES. Guide step 24
+`leaveColosseumToReturnToEmelio` is `colosseum_exit_lobby`, and its `[oploc1]`
+(`twilightspromise.rs2:367`) is an unconditional `p_teleport` out. The test went from Lelia
+(1819,9485) to Emelio with one `goto_tile` (ledger row 113, shot 296). helper_coverage graded it
+ALTERNATIVE because of a false CONTENT_GAP (coverage-and-gate: CONTENT_GAP "only <other quest>.rs2").
+To fix it, click the exit, then travel.
+
+(b) THERE IS NO QUEST-POINT REWARD ROW. The file removes `expect_complete` by hand, so the scroll's
+"1 Quest Point" (shot 307) is never asserted. Add a qp delta row. The 8000 Cooking row is literal.
+
+(c) The two margin rows print `hp after table: 0x...`. That is `t.skill.read`'s reading table,
+not a number. Read `.level` (verbs-state-and-vars: `t.skill.read(name)`). The reviewer of The
+Ascent of Arceuus found the same kind of empty hp read (hp_low stayed 99 while the orb showed
+27/40).
+
+Not findings (meatandgreet): the spice pad is driven by widget, wrong code first. The alpha and
+the Minotaur are real fights with Protect from Melee read from its varbit (29 and 103 ticks, 2
+sharks eaten, lowest hp 52). The den exit and the Colosseum entrance are clicked. `::meatandgreet`
+in setup only resets the quest at stage 0 and stands you by Emelio.
+
+Not findings (handinthesand): 24/24 steps are driven, with Bert as the real accept and Rarve's bell
+as the hand-in. The lens is used from the doorway tile, which the content itself checks
+(verbs-inventory-shops: `use_on` walks off the tile). The rewards are the literal 1000 Thieving,
+9000 Crafting and 1 qp. Nit: the `doorway.tile` row checks only that the read worked, not the tile.
+
+Not findings (troubledtortugans): 29/29 steps are driven. Every sea leg is sailed, including the
+Remote Island board and the reverse out of each berth. The six repairs use gathered shells, scutes
+and jatoba logs (480 Construction). The Gryphon (69 ticks) and Shellbane (394 ticks, Protect from
+Melee, Blunn's shield worn) are real fights, with 8 of 8 sharks left. The rewards are the literal
+8000 Slayer, 10000 Sailing and 1 qp. Nits: `list.has` PASSes with detail `false`, and the
+`sailOut.legN` rows `t.check(..., true, ...)` assert nothing.
