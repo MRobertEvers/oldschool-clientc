@@ -63,7 +63,7 @@ import ledger  # noqa: E402
 
 RAID_DOCS = {"tob": "theater_of_blood", "toa": "tombs_of_amascut", "cox": "cox"}
 FULL_RAID_ROOMS = {"entry", "solo", "150"}
-SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?),\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx)\)")
+SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?),\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx|bracket<=\d+(?:\.\d+)?)\)")
 NUM_RE = re.compile(r"^-?[\d.]+(?:-[\d.]+)?(?:,-?[\d.]+)*$")
 SCOPE_RE = re.compile(r"mode=(?P<mode>entry|normal|hard|all)\s+party=(?P<party>\d)")
 

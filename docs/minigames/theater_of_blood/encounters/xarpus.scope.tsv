@@ -45,6 +45,7 @@ xarpus.p2.spit_release	all	applies in every mode; a solo room measures it
 xarpus.p2.spit_landing	all	applies in every mode; a solo room measures it
 xarpus.p2.scan_lag	all	applies in every mode; a solo room measures it
 xarpus.p2.splat_radius	all	applies in every mode; a solo room measures it
+xarpus.p2.pool_reach	all	applies in every mode; a solo room measures it (seam10 row)
 xarpus.p2.splat_lifetime	all	applies in every mode; a solo room measures it
 xarpus.p2.chain_count	all	applies in every mode; a solo room measures it
 xarpus.p2.poison_base	normal	Normal base 4-8 (max 11 with the buff, xarpus.p2.max_hit.normal); Entry's poison is xarpus.p2.max_hit.entry (6), below this base's ceiling

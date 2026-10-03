@@ -990,9 +990,10 @@ is a fact about a verb, the tick log, the grader or a room that the sections abo
   `varp301_sa_attack` reads back 1), then the attack press. Pressing
   `combat_interface:special_attack` does NOT arm it (sixth room pass, Xarpus claws). On
   Entry Bloat warhammer specials and Curse usually drained nothing (Defence read 80 of
-  80; mage defence 600), but one run read Defence 80 -> 56: the drain is intermittent, so
-  `bloat.stomp_defence` needs a deterministic probe before it can pass. Until then report
-  it open, not as a pass.
+  80; mage defence 600), but one run read Defence 80 -> 56. STALE since seam10: the drain
+  is deterministic and the misses were the probe's (combat-tab press, a 1-tick attack
+  timeout, an unguarded read). The recipe is in the seam10 section, "Bloat: Defence reads
+  80 of 80 after a Dragon warhammer special".
 - `maiden.freeze_full_bonus` is reachable since seam5: Ancients as a setup bring-along
   and a +140 magic set (seam5 section, "Maiden: the freeze curve").
 - `::tobboss` now prints att/str/rng/mag and `size=` (seam4, "::tobboss levels and
@@ -2446,9 +2447,266 @@ reasons, and the small facts the reviewers reported, follow.
 
 ## Nylocas Entry figures that differ from grade D spec rows
 
+STALE since seam10 (OSRS-Content 0bc66408fc): all four now match their rows. See the seam10
+section, "Nylocas Vasilias in Entry". What follows is the content as it was.
+
 - Measured on our server, solo Entry: `nylocas.pillar_collapse_entry_min` 3, 15 and 27 hp
   (spec 30+); `nylocas.explosion_radius` the farthest hurt tile was 1 (spec 2; no sample
   at distance 2 yet); `nylocas.vasilias_attacks_entry` 2 (spec 3-4);
   `nylocas.vasilias_switch_entry` 9 and 10 ticks (spec 15, in CONTENT_BUGS).
 - Report these as doc_gap or content_bug with both figures. Never bend the measured value
   to the spec. Get a distance-2 sample before calling the explosion radius 1.
+
+# Seam pass 10: the four stuck rooms (Bloat, Nylocas, Xarpus, Verzik)
+
+Seam pass 10 (`matthew-mbp-m4-raid-b1-seam10`, triage `SEAM_TRIAGE_2026-10-03h.md`) settles
+the rows the sixth ToB room pass could not finish. Three content fixes landed in OSRS-Content
+0bc66408fc (Nylocas, Verzik, Xarpus); the Bloat row was not a content bug. No driver verb
+changed. Five seam rows prove the fixes and one recipe: `seam.special_attack_spent`,
+`seam.vasilias_entry_window_and_reflect`, `seam.verzik_athanatos_poison_bursts`,
+`seam.verzik_yellow_pool_walkable` and `seam.tob_xarpus_acid_is_the_puddle_tile`. The fixers'
+reports, scratch scripts and kept tick logs are under
+`build/seam_state/matthew-mbp-m4-raid-b1-seam10/`.
+
+## Bloat: Defence reads 80 of 80 after a Dragon warhammer special (bloat.stomp_defence)
+
+- The drain is deterministic. If Defence reads undrained, the special never fired or it
+  dealt 0. `specs/pvm_dragon_warhammer.rs2` drains 30 % of CURRENT Defence only when the
+  prepared damage is above 0. On Entry Bloat (Defence 80) one special gives 56 of 80. A 0
+  splat drains nothing: try again in the next down while energy is 500 or more.
+- Arm it from the minimap orb: `t.ui.widget('orbs:specbutton')`, `t.ui.invoke(wid, 1)`,
+  `t.ticks(1)`, then `varp301_sa_attack` reads 1. Never press
+  `combat_interface:special_attack`. Pressed while idle it does nothing. Pressed while
+  engaged it arms and fires inside one tick, so varp301 reads 0 either way.
+- Prove a special by the energy it SPENDS. Do not use varp301 (the firing swing clears it)
+  or the first hitsplat (the first swing after the press can be a plain one: seam10 probe2,
+  a plain 21 on t131 and the special on t137). Read `varp300_sa_energy` before the press,
+  call `t.player.attack(boss, 2, 8)`, then poll varp300 once a tick until it falls by 500
+  (DWH). That tick is the special swing. The `hit_npc` row on the boss's world slot within
+  +-1 tick of it is the special's splat. Keep the hammer worn until then: equipping the
+  scythe earlier throws the special away. Generic row: `seam.special_attack_spent` (it
+  spawns a passive Man beside the player, because Lumbridge's own Men wander off).
+- Swing in the down (age 1-6), where damage is not halved. A walking Bloat halves a 1 to
+  0, and a 0 drains nothing.
+- Read Defence with `::tobboss` guarded by the message serial. Take
+  `m0 = t.msg.last(1)[1].serial`, send the cheat, `t.ticks(1)`, then accept only a
+  `t.msg.last(8)` line whose serial is above m0 and that matches `def=(%d+) of (%d+)`. An
+  unguarded `t.msg.last(4)` can return the previous read.
+- The stomp restores Defence on exactly T+29, where T is the boss's `npc_anim` 8082 row
+  (server tick). A read sent on T+28 reads drained and one sent on T+29 reads full. The
+  stomp's own `hit_player` row (10 or more damage inside the down) is on T+29 too (probe3:
+  T=59, t87 56/80, t88 80/80, stomp hit t88; T=127, t155 56, t156 80, stomp hit t156). For
+  the row, read once at age 21-28 and once at age 30-44.
+- The Dragon warhammer needs Attack 60 AND Strength 60 here. The two are refused one at a
+  time ('You need to have a Strength level of 60.', then Attack).
+- Still open for the room (author's, not a seam): `spec.bloat.fly_first` measures 3 against
+  1 in the unmodified committed file too (the room start mark moved from tick 60 to 81), and
+  `tech_flinch_tiles` comes and goes between runs.
+
+## Nylocas Vasilias in Entry: 15-tick colours, a reflect that heals, collapses of 30+
+
+- Since seam10 her windows are 14 ticks, then 15 every time (blert m10; wiki Vasilias:92).
+  She attacks 3 or 4 times per window at gap 4: (2,6,10,14) or (3,7,11) after a turn, and
+  (1,5,9,13) or (4,8,12) in the opening melee form. She never attacks on the turn tick.
+- Measure `spec.nylocas.vasilias_switch_entry` from `npc_retype` rows on her world slot,
+  counting from the spawning->melee retype (`to_type` 10787/10788/10789). The first gap is
+  14, inside +-1. Measure `vasilias_attacks_entry` from `npc_anim` seq 8004/7989/7999
+  between consecutive retypes.
+- Read her form from the tick log, not from `t.npc.nearest`. The three story records share
+  one name, so `nearest()` by symbol can answer ok for a form she is not in. Read the last
+  `npc_retype` row's `to_type` on her slot.
+- Reflect recipe (`spec.nylocas.vasilias_reflect`): in a magic (10788) or ranged (10789)
+  form, press the melee weapon (abyssal whip) once, then step one tile to drop the auto
+  attack. Probe only after she has taken damage, because `npc_heal` is written only when
+  her level rises. A missed roll reflects 0 and heals nothing, so press again until an
+  `npc_heal` row appears. The proof is three rows: `npc_heal` X on her slot on tick T,
+  `hit_player` X on the raider on T with `npc_slot` = her slot, and her 0 `hit_npc` splat
+  on T+1. Detail: 'measured 100 percent, N wrong-style hits: tick T heal X = reflect X ...
+  (spec 100 percent, grade A, tol exact)'. Under `::god` the reflect is absorbed (hitsplat
+  26, damage 0), so a room test probes without it.
+- One wrong-style hit no longer nulls you on her (tob_damage.rs2; the waves still null).
+  Switch back to the right style and keep killing.
+- Surviving her solo in Entry: Protect from Melee makes her melee 0, but magic and ranged
+  still hit 1-17 under the right prayer every 4 ticks. Eat at 75 or under (25 sharks killed
+  her in s10ny_vas4, 24 of them eaten). Press attack again after every eat and on every
+  retype, because she cancels your attack on the turn.
+- `spec.nylocas.entry_recoil_cap`: write 'measured <largest reflected X> hp, <n>
+  wrong-style hits (spec ? hp, grade E, tol approx); approximation, M97'. The content
+  reflects the full rolled hit, capped at her hitpoints. Jagex's story-mode reduction has no
+  figure.
+- Support collapse (`spec.nylocas.pillar_collapse_entry_min` 30): each fall hits the raider
+  for 30-50. It is a `hit_player` row with `npc_slot` -1 and `npc_type` -1, three ticks after
+  the support's `npc_death` (type 10790), so on D+3. A dead thrower's projectile can land
+  slotless on the same tick (a 5 on t501 in s10ny_room1): drop any slotless hit that a
+  projectile row from an npc freed before it lands explains. Three falls deal 90-150, so eat
+  to full before a support's hitpoints run out. The room copy died at t504 after three
+  supports fell; keeping supports standing is the author's job.
+- Explosion reach (`spec.nylocas.explosion_radius` 2): measure footprint distance, the
+  Chebyshev distance from the raider's T-1 tile to the nearest tile of the nylocas' body (a
+  big is 2x2 from its south-west `npc_tile`). The content now uses the same measure. For a
+  distance-2 sample, stand still two tiles off a support's chew tiles. In Entry solo the
+  chewers on the south-west support stand at 6426-6427,85 and 6428,83-84, so standing at
+  6429,86 gives samples at 2 and 3. Leave out detonations of a fighting nylocas
+  (10780-10785) that swung in the 6 ticks before, because its own hit can land on T.
+  Incoming chewers (10774-10779) bite only the support.
+- A text spec row's measured text runs to the first ';', not the first comma
+  (`raid_coverage.py` `parse_row`). Write 'measured melee; 1 instance, the type of her
+  npc_spawn row (spec melee, grade B, tol exact)'. 'measured melee, 1 instances, ...' is
+  graded as the whole string and mismatches.
+- `spec.nylocas.av.vasilias_death.seq` is per form (8005 melee, 7991 magic, 7998 ranged;
+  npc_anims.generated.npc). It is the `npc_anim` on her slot within 3 ticks of her
+  `npc_death` row, and a run sees only the form she dies in. Its scope is now `stat`
+  (nylocas.scope.tsv), so one room is not required to show all three.
+- The section "Nylocas Entry figures that differ from grade D spec rows" above described the
+  content before this pass. All four figures now match their rows.
+
+## Xarpus phase 2: you die standing BESIDE acid, or the arena fills with poison by the tenth spit
+
+- Since seam10 a puddle (loc 32744) hurts only a player standing on its own tile: a hit
+  every tick you stay on it, and a delayed hit on the tick after you step onto it. The 3x3
+  around it is the LANDING hit only, once, when the 1556 graphic lands. New spec row
+  `xarpus.p2.pool_reach` (0 tiles, grade D).
+- Track puddles as one tile each, from `loc_set` rows. Track landings in flight from
+  projectile 1555 rows (land = tick + end_cycle // 30: spits 3 ticks, orbs 2 or 3). A
+  planner that marks the 3x3 around each puddle as bad finds no clean tile by about spit 9
+  and ends up standing on a puddle. That was tob_xarpus.lua's death (copy run
+  s10x_copy_xarpus, tick 195). With only the puddle's own tile marked, the same copy kills
+  him (collapse 255, 110 of 112 rows).
+- Proof row: `seam.tob_xarpus_acid_is_the_puddle_tile` (Hard phase 1 ring: 0 hits one tile
+  from it in 6 ticks, 4 hits in 5 ticks on it).
+- Crossing a puddle in the middle of a 2-tile run step still costs nothing: the ground sweep
+  sees only the tile at the end of each tick. The wiki's 'run over it' is not modelled
+  (unsourced as to how).
+
+## RECIPE: Entry solo Xarpus, melee
+
+Scratch `build/seam_state/matthew-mbp-m4-raid-b1-seam10/x/s10x_wiki.lua` killed him under
+four run names (collapse 214, 232, 256, 242).
+
+- Kit: 99 Attack, Strength, Defence, Hitpoints and Prayer; scythe_of_vitur, Torva helm,
+  chest and legs, ferocious gloves, primordial boots, infernal cape, berserker ring,
+  zenyte_amulet_enchanted, 18 sharks and a 4-dose super combat (28 slots before you equip).
+  In phase 1: the inventory tab and `t.drive.camera(0,383,1100)` on the 2nd cover, Piety on
+  the 3rd, the potion on the 4th.
+- Spit tick S: the stand-up (`npc_retype` to 10768) + 7, then each `npc_anim` 8059 row + 4.
+  His 5x5 is 6432..6436 x 97..101 for all of phases 2 and 3.
+- Each spit: at server tick S-2, `step_tick` OUT to a ring-2 tile next to you (prefer one
+  with no puddle), then `step_tick` back IN to a side melee tile next to it. Pick an IN
+  tile with no puddle and no landing in flight on it. The steps resolve on S-1 and S, so the
+  scan reads the OUT tile. Then `attack(sym, 2, 2)`. The puddle lands on the OUT tile. Its
+  splash (at most 6 in Entry) reaches you, and you accept it, as the wiki does.
+- Eat (an `inv_op` shark costs about 3 ticks) right after the step back in, when hitpoints
+  are under 62. The eat costs you the next S-2 step. So at S-1 of that spit, with no step
+  made, step twice along the ring to a tile 2 from where you stand (they resolve on S and
+  S+1). The scan reads your old tile, the landing at S+3 misses you, and the old melee tile
+  becomes a puddle.
+- Any other landing in flight within 1 of you with 2 or more ticks left: leave its 3x3 (one
+  step to a side tile 2 from its centre, else two steps). If your tile has a puddle and it
+  is S-3 or earlier, step to the nearest side tile with no puddle.
+- Phase 3 (`npc_say` 'Screeeech!'): stand on a side tile with no puddle and read `npc_face`
+  rows after the screech (quadrant: z>99 north, x>6434 east). Press attack once when he
+  faces another quadrant, then `step_tick` to a neighbouring clean side tile in your
+  quadrant to stop. If the press answers `covered` (from 6434,96 the boss pixel sits under
+  the HUD), never use that tile again.
+- Measured (j2): phase 2 from tick 133 to 215, 13 step-backs, 2 lost to eats, 3 sharks.
+  Damage: 12 splash hits (sum 62), 5 delayed puddle hits (sum 27), stomp 0. Every hit was at
+  or under `xarpus.p2.max_hit.entry` 6.
+- Still the author's in tob_xarpus.lua: `spec.xarpus.p3.screech_pct_entry` brackets
+  20.8-27.3, wider than its `bracket<=5`; `technique.spit_dodge` counts 1 landing within one
+  tile. `xarpus.p2.spit_landing` stays grade E at measured 3 (M71).
+
+## Two runs of one room test disagree: the run name seeds the player's rolls
+
+- Under ONE `--name` a run is byte-identical (s10x_wiki_j2 twice: 943 tick log rows equal).
+  The account name is the run name, and it seeds the PLAYER's rolls. Different names first
+  diverge at the player's first hit on the boss (tick 135: 0, 11 or 15 damage), while the
+  boss and orb rolls match until then. A different name changes how long phase 2 lasts,
+  and so the spit count. Prove a room under two names.
+- tob_xarpus's 60/61 author pass and the reviewer's death at tick 205 ran on different
+  content: seam9 (OSRS-Content 24198b54ed, 16:24) moved the landings onto Xarpus's own
+  queues between them, which changes the random stream from the first landing on.
+- Verzik runs likewise split early on a player hit roll (vz10_after and vz10_after2 on
+  t42, 0 against 8). A pass or fail of a late P3 row in one run proves little: loop on
+  state, or run it under several names.
+
+## Verzik P2: no 1588 projectile after an Athanatos landing (verzik.av.p2_purple.poison_globule)
+
+- The globule is not a landing event. It flies only when the Athanatos is hit with poison:
+  a poisoned weapon or ammo (rune_arrow_p in a twisted bow's quiver, any `*_p` dagger,
+  spear or dart, poison_bolt) or a charged serpentine helm (tob_damage.rs2
+  `~tob_hit_is_poisonous`).
+- On that hit tick the log shows `npc_spotanim` 1590 (height 92) on the Athanatos slot
+  (Entry type 10844), projectile 1588 (from the Athanatos to her), `hit_npc` on her of up to
+  70, and `npc_death` of the Athanatos. Its death anim 8078 plays one tick later. Since
+  seam10 the poisoned hit bursts it (wiki_Nylocas_Athanatos:54), so a burst Athanatos sends
+  no more 1587 heals. Proof row: `seam.verzik_athanatos_poison_bursts`.
+- Anchor the row on your `hit_npc` on type 10844, not on the 1589 landing. Read
+  `t.ticklog.rows{since=<the Athanatos npc_spawn serial>, kind={'npc_spotanim',
+  'projectile','npc_death'}}`.
+- The heal rows (p2_purple_heal, heal_period, heal_proj) need an Athanatos that lives at
+  least two beats. Let it heal twice (`npc_heal` rows with source
+  `[proc,tob_verzik_athanatos_tick]`, +5 and +10 after spawn), then shoot it.
+- Rune arrows hit weaker than dragon arrows in a food-limited fight. The other choice is to
+  keep dragon arrows and wear serpentine_helm_charged in place of the Armadyl helmet, which
+  makes every hit poisonous.
+
+## Verzik P3: the yellow pool is on a wall, or 1600 while standing next to the pool (verzik.av.p3_yellows.gfx_blast)
+
+- The pool was never under her body. It was drawn on the wall row z=99 next to the throne
+  (x<=6417 on the west edge is wall too). Since seam10 every pool is on a tile you can stand
+  on, within 2 tiles of you and never your own tile. Proof row:
+  `seam.verzik_yellow_pool_walkable`.
+- Recipe: read `map_spotanim` 1595 (`t.ticklog.rows{kind='map_spotanim', spotanim=1595}`:
+  `row.x` / `row.z`), walk to it at once (from 2 tiles away you reach it the next tick) and
+  stay on it 14 ticks.
+- At pool tick +14 every raider who is a target gets `player_spotanim` 1596. A raider ALONE
+  on a pool then gets 1597 and 'The power resonating here protects you from the blast.' A
+  raider off the pool (or sharing it) gets 1600 at height 96 plus the hit (up to 80).
+  Nothing plays on an empty pool: its 1595 copies just end at the blast. Walking under her
+  to reach a pool is fine (players stand under her in P3).
+
+## Verzik P1: a shield hit over the cap right after a weapon swap (tech.p1_cap_melee_ranged)
+
+- Match each `hit_npc` on the P1 form (Entry 10831) to the `player_anim` that launched it,
+  not to the swap tick. Bare fists (422) land +1 tick. Dawnbringer (1167) lands +4 (68->72
+  ... 84->88 in vz10_base). The twisted bow (426) landed +3 at that range (88->91); the
+  bow's delay grows with distance.
+- The tick-88 14 was the Dawnbringer cast from t84; the author's 'two ticks after the swap'
+  rule called it a bow hit. Safe rule: after a Dawnbringer to bow swap, a hit belongs to the
+  bow only if it lands 5 or more ticks after the last 1167 anim (2 or more after the last
+  422 punch). The Dawnbringer is exempt from the cap (tob_damage.rs2:299).
+- A fist cap of 10 shows only if a fist roll reaches 10: four punches maxed at 6 in
+  vz10_base.
+
+## Verzik room rows the author left unmeasured: the exact reads
+
+Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
+
+- throne_seq: tick log `loc_anim` with loc 32737 and seq 8108, three ticks after her
+  `npc_death` (t121 -> t124), on the same tick as `loc_set` 32737. The client row reads it
+  too: `t.world.loc_near('tob_dungeon_verzik_throne_transforming', 60)`, then
+  `t.world.hazard_at(tile)` loc row seq 8108 at 6431,100. 8053 is that loc's cache `anim=`
+  and has no row.
+- jingle: tick log kind `jingle` with jingle 250 at throne +1 (t125). The spec row's quantity
+  now says one tick after the throne (it said two; no source states an offset).
+- barrier: `t.world.loc_near('tob_walkway_verzik_barrier', 60)` gives id 33028 at 6432,78,
+  and the `hazard_at` loc row seq is 7929 (ds2_lithkren_barrier_glow, the same seq Bloat's
+  `tob_arena_barrier` plays).
+- door: 32738 by `loc_set` at throne +5 (t129).
+- map_locs: `loc_near(sym, 0)` finds 41 of the 42. `tob_dungeon_verzik_throne_empty` is a
+  varbit-6400 multiloc that stays hidden until `loc_set` 32686 at fight start (t42 in
+  vz10_room3); count it from that row.
+- death_cage: cannot be counted from the client. `hazard_at` over the 24 map tiles of
+  m49_67.jl2:255-278 finds 32717 on 10; the other 14 show other wall locs. Measuring it
+  needs a verb that returns every copy (like `t.npc.tiles`), or the row measured from the
+  map. The template 49_67's instance origin is (6401,64): local (lx,lz) -> (6401+lx, 64+lz).
+- Scratch only, never in a test: in P2, `::tobvzleft 0` loses to a live Athanatos heal
+  whenever she is the higher npc slot (a second instance in one session). She then reads
+  about 10, crosses 35 % and summons the reds. `::tobvzleft -60` (an overkill past the
+  floor) reaches P3 every time.
+
+## The bracket tolerance now parses
+
+- `raid_coverage.py`'s `SPEC_RE` accepted only exact, +-N, range and approx, so a row
+  written `tol bracket<=N` (4d4331ae2) read as malformed although `within()` already graded
+  it. It now parses (seam10 closer).

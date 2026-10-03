@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 141
+-- @seam-count 146
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 162
-local SEAM_COUNT = 141
+local SEAM_COUNT = 146
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11695,6 +11695,160 @@ return {
             return "ok", reading
         end)
 
+-- seam10 tob_nylocas_vasilias_entry_rows -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_nylocas.constant
+-- ^tob_vasilias_entry_window_ticks / ^tob_nylo_pillar_collapse_min_entry; tob_nylocas_boss.rs2
+-- ~tob_vasilias_switch_ticks / ~tob_vasilias_first_switch; tob_nylocas.rs2 ~tob_nylo_detonate
+-- (footprint reach) and ~tob_nylo_pillar_fell (Entry floor); tob_damage.rs2 wrong-style branch
+-- (Vasilias reflected and healed, never nulled)). This one seam row pins the Vasilias half
+-- through verbs that already have rows (raid.enter, raid.start_tile, player.walk_to,
+-- player.click_loc, chat.play, ticklog.start/rows, player.equip, player.attack, world.tile).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.nylocas_presentation") (the seam7
+-- Nylocas row, itself after seam("seam.nylocas_protect_blocks_wave_hit")): it enters the same
+-- room the same way and tears down with ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- What it reads (server tick log): Entry Vasilias' colour windows are 14 then 15 (npc_retype
+-- rows on her slot), a whip into her non-melee form heals her (npc_heal) with a reflect
+-- hit_player row from her slot on that tick (absorbed under ::god: hitsplat 26, damage 0 --
+-- the reflect's SIZE is the scratch's job, s10ny_vas4), and the same whip damages her in a
+-- later melee form (one wrong hit no longer nulls the raider on her). ::tobnyloskip and
+-- ::god are measurement cheats: fine in a seam row, never in a room test.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam10/scratch_nylo/s10ny_row.lua (the same
+-- body under the seam7 shims): build/quest_gate/s10ny_row3/ledger.tsv PASS "retype gaps after
+-- the melee form [14,15,15,15]; probe tick 65, heal 5 on tick 65, reflect row hitsplat 26
+-- damage 0, right-style hit after it 10 on tick 112". Its first two runs (row1, row2) failed on
+-- a probe whose one roll missed (0 reflected, 0 healed): the row now presses up to four times.
+        seam("seam.vasilias_entry_window_and_reflect", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local nearest = verb("npc", "nearest")
+            local equip = verb("player", "equip")
+            local attack = verb("player", "attack")
+            local tile = verb("world", "tile")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not nearest then return missing("npc", "nearest") end
+            if not equip then return missing("player", "equip") end
+            if not attack then return missing("player", "attack") end
+            if not tile then return missing("world", "tile") end
+            local FORM = { [10787] = "melee", [10788] = "magic", [10789] = "ranged" }
+            local SYMBOL = { melee = "nylocas_boss_melee_story", magic = "nylocas_boss_magic_story", ranged = "nylocas_boss_ranged_story" }
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                setup_cheat("::clearinv")
+            end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give abyssal_whip 1")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            t.ticklog.mark("seam.vasilias_entry_window_and_reflect")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- typed before wave 1 (room tick 4): every wave is marked out and she lands alone (tob_nylocas.rs2 ::tobnyloskip).
+            -- ::god keeps the raider up; the reflect is then an absorbed hit_player row, so this row pins the reflect's
+            -- presence and the heal, and the scratch with real hitpoints pins its size (seam10 s10ny_vas4).
+            setup_cheat("::tobnyloskip")
+            setup_cheat("::god 1")
+            equip("abyssal_whip")
+            local boss = nil
+            for _ = 1, 120 do
+                settle(1)
+                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
+                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+            end
+            if boss == nil then teardown() return "timeout", "Vasilias never landed after ::tobnyloskip" end
+            -- the whip is right only in her melee form: hit her there, probe once in the first other form, then wait for
+            -- a melee form again and hit her with the same whip
+            local form, probe_tick, probed, later_hit, presses, last_press = nil, nil, false, nil, 0, -100
+            for _ = 1, 110 do
+                -- her form from the server's own retype rows (the three records share one name, so a lookup by
+                -- symbol cannot tell them apart)
+                local now_form = nil
+                local _, forms = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
+                for _, r in ipairs(forms or {}) do if FORM[r.to_type] ~= nil then now_form = FORM[r.to_type] end end
+                local changed = now_form ~= nil and now_form ~= form
+                if now_form ~= nil then form = now_form end
+                if changed and form == "melee" then attack(SYMBOL.melee, 2, 2) end
+                -- the probe: whip presses into her first non-melee form after she has taken damage, until one roll
+                -- lands (a missed roll reflects 0 and heals nothing), at most four presses, then step off
+                if form ~= nil and form ~= "melee" and not probed then
+                    local _, before = log_rows({ kind = "hit_npc", slot = boss.slot, since = base })
+                    local dealt = 0
+                    for _, h in ipairs(before or {}) do dealt = dealt + h.damage end
+                    local _, now = t.tick()
+                    if dealt > 0 and presses < 4 and now - last_press >= 4 then
+                        attack(SYMBOL[form], 2, 2)
+                        presses = presses + 1
+                        last_press = now
+                        if probe_tick == nil then probe_tick = now end
+                    end
+                    local _, healed = log_rows({ kind = "npc_heal", slot = boss.slot, since = base })
+                    if (is_table(healed) and healed[1] ~= nil) or presses >= 4 then
+                        probed = true
+                        local _, here = tile()
+                        if is_table(here) then walk_to(here.x, here.z - 1, 3) end
+                    end
+                end
+                if probed then
+                    local _, hits = log_rows({ kind = "hit_npc", slot = boss.slot, since = base })
+                    for _, h in ipairs(hits or {}) do if h.tick > last_press + 4 and h.damage > 0 then later_hit = h end end
+                    if later_hit ~= nil then break end
+                end
+                settle(1)
+            end
+            local _, retypes = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
+            local gaps, last = {}, nil
+            for _, r in ipairs(retypes or {}) do
+                if FORM[r.to_type] ~= nil then
+                    if last ~= nil then gaps[#gaps + 1] = r.tick - last end
+                    last = r.tick
+                end
+            end
+            local _, heals = log_rows({ kind = "npc_heal", slot = boss.slot, since = base })
+            local _, reflects = log_rows({ kind = "hit_player", since = base })
+            local heal, reflect = nil, nil
+            for _, h in ipairs(heals or {}) do if heal == nil and probe_tick ~= nil and h.tick >= probe_tick then heal = h end end
+            if heal ~= nil then
+                for _, r in ipairs(reflects or {}) do if r.tick == heal.tick and r.npc_slot == boss.slot then reflect = r end end
+            end
+            teardown()
+            local reading = "retype gaps after the melee form [" .. table.concat(gaps, ",") .. "]; probe tick " .. tostring(probe_tick)
+                .. ", heal " .. (heal and (heal.amount .. " on tick " .. heal.tick) or "none")
+                .. ", reflect row " .. (reflect and ("hitsplat " .. reflect.hitsplat .. " damage " .. reflect.damage) or "none")
+                .. ", right-style hit after it " .. (later_hit and (later_hit.damage .. " on tick " .. later_hit.tick) or "none")
+            if #gaps < 2 or probe_tick == nil or later_hit == nil then return "timeout", reading end
+            if gaps[1] ~= 14 then return "refused", reading .. " -- the first Entry window is 14 (tob_nylocas_boss.rs2 ~tob_vasilias_first_switch)" end
+            for k = 2, #gaps do if gaps[k] ~= 15 then return "refused", reading .. " -- Entry windows are 15 (^tob_vasilias_entry_window_ticks)" end end
+            if heal == nil or reflect == nil then return "refused", reading .. " -- a wrong-style hit on Vasilias reflects and heals (tob_damage.rs2)" end
+            return "ok", reading
+        end)
+
 -- seam7 tob_boss_hit_and_defend_sounds -- conformance snippet for the closer.
 --
 -- NO driver verb was added or changed by this seam (content only: tob.npc's
@@ -13287,6 +13441,207 @@ return {
             return "ok", reading
         end)
 
+-- seam10 tob_verzik_purple_globule_and_yellow_blast: two content seam rows, no new or changed verb.
+--
+-- PLACE: in _conformance.lua's PLAN directly AFTER
+--   seam("seam.verzik_entry_forms_cage_and_death", ...)
+-- and BEFORE the "Row C" seam("seam.loc_and_graphic_seq_in_bloat_room", ...) (keep that row's
+-- own "right BEFORE step(\"finish\")" placement). Both rows leave the raid (::tobout) on every exit.
+-- Each counts as one seam row: SEAM_COUNT / @seam-count + 2.
+--
+-- Row 1: A POISONED HIT BURSTS THE ATHANATOS (OSRS-Content tob_verzik.rs2
+-- ~tob_verzik_athanatos_poisoned). Rune arrows (p) from a twisted bow are poisonous to
+-- ~tob_hit_is_poisonous (tob_damage.rs2: the quiver's ~weapon_unpoisoned_obj). On the poisoned
+-- hit the Athanatos shows 1590 at height 92, sends projectile 1588 to her (she takes up to 70),
+-- and dies on the SAME tick (npc_death) with no 1587 heal ever flying from it
+-- (wiki_Nylocas_Athanatos.wikitext:54 "will instead burst"; Strategies.wikitext:923).
+-- Measured (scratch vz10_glob_poison2): Athanatos 10844 spawn t78, 1590 + 1588 + 52 on her +
+-- npc_death t79, death anim 8078 t80, npc_free t82; second Athanatos the same at t167.
+        seam("seam.verzik_athanatos_poison_bursts", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local attack = verb("player", "attack")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not attack then return missing("player", "attack") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::tobout")
+                ticks(2)
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give twisted_bow 1")
+            setup_cheat("::wield twisted_bow")
+            setup_cheat("::give rune_arrow_p 100")
+            setup_cheat("::wield rune_arrow_p")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_athanatos_poison_bursts")
+            local _, marks = log_rows({ kind = "mark" })
+            local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(25)
+            setup_cheat("::tobvzleft 0")    -- the P1 shield: this row is about P2's Athanatos
+            local shot, attack_detail = nil, ""
+            for _ = 1, 160 do
+                local found = nearest("tob_verzik_phase2_armourednylocas_story", 30)
+                if found == "ok" then
+                    shot, attack_detail = attack("tob_verzik_phase2_armourednylocas_story", 2, 6)
+                    break
+                end
+                ticks(1)
+            end
+            if shot == nil then teardown() return "refused", "no Entry Athanatos landed within 160 ticks of P2" end
+            ticks(4)
+            local _, rows = log_rows({ since = base, kind = { "npc_spawn", "npc_spotanim", "projectile", "npc_death" } })
+            teardown()
+            if not is_table(rows) then return "refused", "ticklog.rows answered no table" end
+            local slot, spawn_tick, aura_tick, globule_tick, death_tick, heals = nil, nil, nil, nil, nil, 0
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_spawn" and row.type == 10844 and slot == nil then slot, spawn_tick = row.slot, row.tick end
+            end
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_spotanim" and row.slot == slot and row.spotanim == 1590 and aura_tick == nil then aura_tick = row.tick end
+                if row.kind == "projectile" and row.spotanim == 1588 and globule_tick == nil then globule_tick = row.tick end
+                if row.kind == "projectile" and row.spotanim == 1587 then heals = heals + 1 end
+                if row.kind == "npc_death" and row.slot == slot and death_tick == nil then death_tick = row.tick end
+            end
+            local detail = string.format("Athanatos 10844 slot %s spawned t%s; shot %s (%s); aura 1590 t%s, globule 1588 t%s, npc_death t%s, heals 1587 x%d",
+                tostring(slot), tostring(spawn_tick), tostring(shot), describe(attack_detail), tostring(aura_tick), tostring(globule_tick), tostring(death_tick), heals)
+            if aura_tick == nil or globule_tick == nil or death_tick == nil then return "refused", detail end
+            if aura_tick ~= globule_tick or death_tick ~= globule_tick then return "refused", "not one tick: " .. detail end
+            if heals ~= 0 then return "refused", "a burst Athanatos still healed her: " .. detail end
+            return "ok", detail
+        end)
+
+-- Row 2: A YELLOW POOL IS ALWAYS ON A TILE A RAIDER CAN STAND ON (tob_verzik.rs2
+-- ~tob_verzik_pool_near: map_blocked; a blocked draw takes the next open tile of the 5x5 from
+-- the drawn offset). The raider waits in the arena's north-west corner 6418,98 (x <= 6417 and
+-- z >= 99 are wall: 16 of the 25 tiles of the draw), walks onto the pool and must get 1597
+-- "protected" on the blast, 14 ticks after the pool. Before the fix the room test's run 10 drew
+-- 6423,99 (wall) for a raider on 6423,98: 1596 + 1600 + the hit. Measured (scratch
+-- vz10_yellow_nw): four pools from 6418,98 (t238 6418,96; t449 6418,96; t660 6420,98;
+-- t871 6420,97), each reached the next tick, each blast 1597. ~260 ticks.
+        seam("seam.verzik_yellow_pool_walkable", function()
+            local enter = verb("raid", "enter")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local walk_to = verb("player", "walk_to")
+            local tile = verb("world", "tile")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            local tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not tile then return missing("world", "tile") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            if not tick then return missing("tick") end
+            local function teardown()
+                setup_cheat("::tobout")
+                ticks(2)
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_yellow_pool_walkable")
+            local _, marks = log_rows({ kind = "mark" })
+            local since = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(25)
+            setup_cheat("::tobvzleft 0")    -- P1 shield
+            ticks(40)
+            -- P2 to P3: her P2 pool 60 PAST its floor (::tobvzleft's negative n is an overkill the
+            -- phase change does not carry), again until the P3 form (Entry 10835) is in the log.
+            -- `0` is not enough when she is the higher npc slot (this row's second instance): a
+            -- live Athanatos's heal (+9-10, [proc,tob_verzik_athanatos_tick]) runs before her
+            -- [proc,tob_verzik_p2_tick] reads phase_hp <= 0, so she reads 10, crosses 35% and
+            -- summons the reds instead (shim run 1: 400 at t158, heal + reds 10845 at t159).
+            local p3 = false
+            for _ = 1, 10 do
+                setup_cheat("::tobvzleft -60")
+                ticks(15)
+                local _, retypes = log_rows({ since = since, kind = "npc_retype" })
+                for _, row in ipairs(is_table(retypes) and retypes or {}) do
+                    if row.to_type == 10835 then p3 = true end
+                end
+                if p3 then break end
+            end
+            if not p3 then teardown() return "refused", "her P3 form 10835 never came: ten ::tobvzleft -60 in P2" end
+            local CX, CZ = 6418, 98
+            local _, t0 = tick()
+            local pool, blast, reached = nil, nil, nil
+            while blast == nil do
+                local _, now = tick()
+                if now > t0 + 330 then break end
+                local _, rows = log_rows({ since = since, kind = { "map_spotanim", "player_spotanim" } })
+                for _, row in ipairs(is_table(rows) and rows or {}) do
+                    if row.serial > since then since = row.serial end
+                    if row.kind == "map_spotanim" and row.spotanim == 1595 and pool == nil then
+                        local _, me = tile()
+                        pool = { tick = row.tick, x = row.x, z = row.z, from = me and (me.x .. "," .. me.z) or "?" }
+                    elseif row.kind == "player_spotanim" and pool and (row.spotanim == 1597 or row.spotanim == 1600) then
+                        blast = row
+                    end
+                end
+                local _, me = tile()
+                if me and pool and blast == nil then
+                    if me.x ~= pool.x or me.z ~= pool.z then
+                        walk_to(pool.x, pool.z, 4)
+                    elseif reached == nil then
+                        local _, r_now = tick()
+                        reached = r_now
+                    end
+                elseif me and pool == nil and (me.x ~= CX or me.z ~= CZ) then
+                    walk_to(CX, CZ, 6)
+                end
+                if blast == nil then ticks(1) end
+            end
+            teardown()
+            if pool == nil then return "refused", "no yellow pool (1595) within 330 ticks of P3" end
+            local detail = string.format("pool 1595 t%d at %d,%d for a raider on %s; on it t%s; blast %s t%s",
+                pool.tick, pool.x, pool.z, pool.from, tostring(reached), tostring(blast and blast.spotanim), tostring(blast and blast.tick))
+            if blast == nil or blast.spotanim ~= 1597 then return "refused", detail end
+            if blast.tick ~= pool.tick + 14 then return "refused", "blast not on pool + 14: " .. detail end
+            return "ok", detail
+        end)
+
 -- seam9 tob_cage_release_on_room_win -- conformance snippet for the closer.
 --
 -- NO driver verb was added or changed (content only: minigame_tob/scripts/tob_spectate.rs2
@@ -13529,6 +13884,121 @@ return {
             if died == nil or dying == nil then return "refused", "no death: " .. detail end
             if spits < 3 or spits_on ~= spits or orbs < 1 or orbs_on ~= orbs then return "refused", detail end
             if in_death < 1 then return "refused", "no spit was in flight across the death: " .. detail end
+            return "ok", detail
+        end)
+
+-- seam10 tob_xarpus_entry_solo_survival -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed (content only: minigame_tob/scripts/tob_xarpus.rs2,
+-- ~tob_xarpus_on_acid). One seam row, through verbs that already have rows (raid.enter,
+-- raid.start_tile, player.walk_to, player.click_loc, chat.play, player.step_tick, world.tile,
+-- ticklog.start/rows/mark, ticks):
+--
+--   seam.tob_xarpus_acid_is_the_puddle_tile -- a Xarpus puddle costs only the player standing
+--     on it, its 3x3 is the landing hit alone: "create a permanent 1-tile puddle of poison ...
+--     dealing some damage if you stand or run over it" (sources/wiki_Theatre_of_Blood_Entry_
+--     Mode.wikitext:207); "occupies that tile ... each tick a player stands on or crosses over
+--     it" (sources/wiki_Xarpus.wikitext:257); Near-Reality Xarpus.kt processMechanics
+--     `player.location == poisonSplat`. Measured in Hard Mode's phase 1, where the only damage
+--     is the 98-puddle opening ring (wiki_Xarpus.wikitext:261) and he never spits: 6 ticks on
+--     the third layer (6429,99, one tile from the ring) take 0 hits, 5 ticks on the ring
+--     (6428,99) take at least 4.
+--
+-- `::tobout` is the teardown (as every raid row).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.tob_xarpus_landing_ignores_a_dying_target")
+-- (seam9's last raid row, ~line 13413). SEAM_COUNT / @seam-count +1; verb_list.py needs nothing.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam10/x/s10x_conf_rows.lua (this body
+-- byte-identical, under the seam9 shims verb/missing/describe/is_table/setup_cheat/seam):
+--   s10x_conf_after (tree content):  seam.tob_xarpus_acid_is_the_puddle_tile PASS "ok: 98 ring
+--     puddles; 6 ticks at 6429,99 (one tile from the ring): 0 hit(s); step ok step 6428,99 issued
+--     at tick 24, resolved at tick 25 (+1); 5 ticks at 6428,99 (on the ring): 4 hit(s), max 8"
+--   s10x_conf_before (HEAD tob_xarpus.rs2, symlink-farm pack, TORIRSSERVER_CONTENT/SCRIPTS):
+--     FAIL "refused: a puddle hurt the tile beside it: ... 6 ticks at 6429,99 ...: 6 hit(s) ...
+--     5 ticks at 6428,99 (on the ring): 4 hit(s), max 7"
+        seam("seam.tob_xarpus_acid_is_the_puddle_tile", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local step_tick = verb("player", "step_tick")
+            local tile = verb("world", "tile")
+            local tl_start = verb("ticklog", "start")
+            local tl_rows = verb("ticklog", "rows")
+            local tl_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not step_tick then return missing("player", "step_tick") end
+            if not tile then return missing("world", "tile") end
+            if not tl_start then return missing("ticklog", "start") end
+            if not tl_rows then return missing("ticklog", "rows") end
+            if not tl_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            tl_start()
+            -- Hard Mode's opening paints the two outer layers of his arena with acid on fight
+            -- tick 3 (wiki_Xarpus.wikitext:261), in phase 1, where he never spits: the only
+            -- damage in the room is the acid itself. The third layer is one tile from a puddle.
+            local entered, entered_detail = enter("tob", "xarpus", { mode = "hard" })
+            if entered ~= "ok" then return entered, "tob xarpus hard -> " .. describe(entered_detail) end
+            local _, fight = start_tile()
+            if not is_table(fight) then
+                setup_cheat("::tobout")
+                return "refused", "no fight tile"
+            end
+            walk_to(fight.x, fight.z - 3, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local pools, guard = 0, 0
+            while pools < 98 and guard < 15 do
+                ticks(1)
+                local _, ls = tl_rows({ kind = "loc_set", loc = 32744 })
+                pools = is_table(ls) and #ls or 0
+                guard = guard + 1
+            end
+            -- inside the clean middle, then onto the third layer beside the west ring
+            walk_to(6434, 95, 8)
+            walk_to(6429, 99, 10)
+            ticks(3)
+            local _, beside = tile()
+            local _, md1 = tl_mark("beside a puddle")
+            local m1 = tonumber(tostring(md1):match("serial (%d+)")) or 0
+            ticks(6)
+            local _, h1 = tl_rows({ kind = "hit_player", since = m1 })
+            local n_beside = is_table(h1) and #h1 or -1
+            local stepped, step_detail = step_tick(6428, 99)
+            local _, md2 = tl_mark("on a puddle")
+            local m2 = tonumber(tostring(md2):match("serial (%d+)")) or 0
+            ticks(5)
+            local _, on = tile()
+            local _, h2 = tl_rows({ kind = "hit_player", since = m2 })
+            local n_on, max_on = 0, 0
+            for i = 1, (is_table(h2) and #h2 or 0) do
+                n_on = n_on + 1
+                if h2[i].damage > max_on then max_on = h2[i].damage end
+            end
+            step_tick(6429, 99)
+            setup_cheat("::tobout")
+            ticks(3)
+            local detail = pools .. " ring puddles; 6 ticks at "
+                .. (is_table(beside) and (beside.x .. "," .. beside.z) or "?") .. " (one tile from the ring): "
+                .. n_beside .. " hit(s); step " .. tostring(stepped) .. " " .. describe(step_detail)
+                .. "; 5 ticks at " .. (is_table(on) and (on.x .. "," .. on.z) or "?") .. " (on the ring): "
+                .. n_on .. " hit(s), max " .. max_on
+            if pools < 98 then return "refused", "the Hard ring never opened: " .. detail end
+            if not is_table(beside) or beside.x ~= 6429 or beside.z ~= 99 then return "refused", "never reached the third layer: " .. detail end
+            if n_beside ~= 0 then return "refused", "a puddle hurt the tile beside it: " .. detail end
+            if not is_table(on) or on.x ~= 6428 or on.z ~= 99 then return "refused", "never stood on the ring: " .. detail end
+            if n_on < 4 then return "refused", "standing on a puddle cost too little: " .. detail end
             return "ok", detail
         end)
 
@@ -13785,6 +14255,122 @@ return {
             return "ok", reading .. "; npc_retype " .. tostring(retype.from_type) .. " -> " .. retype.to_type .. " @" .. tostring(retype.tick) .. " -> row id "
                 .. after.npc_id .. " ready " .. after.ready_anim .. " walk " .. after.walk_anim .. ", standing pose ready="
                 .. after.pose_anim
+        end)
+
+        -- seam10 tob_bloat_stomp_defence -- the LAST row before step("finish").
+        -- The fixer placed it after prayer.points; there the backpack is full (the ::runes
+        -- and phase 7b items), so `::give dragon_warhammer` landed nothing and equip answered
+        -- not_found (closer run, 2026-10-03). Every raid row above clears the backpack anyway,
+        -- so it runs here from a cleared backpack at the ::tele lumbridge landing, on a Man
+        -- there, and nothing after it reads the inventory or the levels it moves.
+        --
+        -- A special attack is armed from the MINIMAP ORB and proved by the ENERGY IT SPENDS.
+        -- Neither of the two readings an author reaches for first says it fired:
+        --  * varp301_sa_attack is cleared by the swing that fires it, so a 0 read after a press
+        --    can hide a special that already fired (seam10 probe3, Bloat: the combat-tab button
+        --    armed and fired inside one tick, 600 -> 100 energy, varp301 read 0 -> 0);
+        --  * the first hitsplat after the press can be a PLAIN swing (seam10 probe2, Bloat: a 21
+        --    on tick 131 with varp301 still 1, the special on the next swing, tick 137).
+        -- Content: specs/pvm_dragon_warhammer.rs2 drains only when the prepared damage is > 0,
+        -- so the splat of the spending swing says whether a Defence drain can have happened.
+        seam("seam.special_attack_spent", function()
+            local nearest = verb("npc", "nearest")
+            local attack = verb("player", "attack")
+            local equip = verb("player", "equip")
+            if not nearest or not attack or not equip or not t.ui or not t.var or not t.ticklog then
+                return "unsupported", "npc.nearest / player.attack / player.equip / ui / var / ticklog missing"
+            end
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            setup_cheat("::tele lumbridge")
+            settle(6)
+            local _, before_att = t.skill.read("attack")
+            local _, before_str = t.skill.read("strength")
+            local att_level = is_table(before_att) and before_att.base or nil
+            local str_level = is_table(before_str) and before_str.base or nil
+            -- the warhammer's wield requirement here: Attack 60 and Strength 60 (refused one at a time)
+            t.cheat("::setlevel attack 60")
+            t.cheat("::setlevel strength 60")
+            t.cheat("::give dragon_warhammer 1")
+            t.ticks(2)
+            local er, ed = equip("dragon_warhammer")
+            if er ~= "ok" then
+                return er, "equip dragon_warhammer: " .. describe(ed)
+            end
+            local _, e0 = t.var.varp("varp300_sa_energy")
+            if not is_number(e0) or e0 < 500 then
+                return "no_subject", "special energy " .. describe(e0) .. " of 1000, a warhammer special costs 500"
+            end
+            -- The subject is SPAWNED beside the player (::spawn lands at the player's tile + 1)
+            -- and made passive, as the cast rows' goblin is: Lumbridge's own Men wander, the
+            -- fight rows killed one, and the closer's runs of this row found none within eight
+            -- tiles of the landing, then pressed one at 3233,3207 the player never reached.
+            setup_cheat("::spawn " .. NPC_SYMBOL)
+            setup_cheat("::passive " .. NPC_SYMBOL)
+            settle(2)
+            local nr, row = nearest(NPC_SYMBOL, 8)
+            if nr ~= "ok" or not is_table(row) then
+                return "no_subject", NPC_SYMBOL .. " is not within eight tiles after ::spawn (" .. describe(nr) .. ")"
+            end
+            local _, world = t.ticklog.slot(row)
+            local wr, wid = t.ui.widget("orbs:specbutton")
+            if wr ~= "ok" then
+                return wr, "orbs:specbutton: " .. describe(wid)
+            end
+            local ir, idetail = t.ui.invoke(wid, 1)
+            t.ticks(1)
+            local _, armed = t.var.varp("varp301_sa_attack")
+            if armed ~= 1 then
+                return "refused", "the orb press answered " .. describe(ir) .. " " .. describe(idetail)
+                    .. " but varp301_sa_attack reads " .. describe(armed)
+            end
+            local ar, ad = attack(NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
+            local spent_tick, waited = nil, 0
+            while waited <= 12 do
+                local _, en = t.var.varp("varp300_sa_energy")
+                if is_number(en) and en <= e0 - 500 then
+                    local _, tk = t.tick()
+                    spent_tick = tk
+                    break
+                end
+                waited = waited + 1
+                t.ticks(1)
+            end
+            local splat = "none"
+            if spent_tick ~= nil then
+                -- the watched copy's slot first; the bare-symbol press can take another Man
+                -- (seam.attack_presses_the_watched_slot), and the raider's swing is the only
+                -- hit_npc in Lumbridge, so any slot within a tick of the spend is the special's
+                t.ticks(1)
+                local _, hits = t.ticklog.rows({ kind = "hit_npc" })
+                local other = nil
+                for k = #(hits or {}), 1, -1 do
+                    if hits[k].tick >= spent_tick - 1 and hits[k].tick <= spent_tick + 1 then
+                        local text = tostring(hits[k].damage) .. " on tick " .. hits[k].tick .. " (slot " .. tostring(hits[k].slot) .. ")"
+                        if world ~= nil and hits[k].slot == world then
+                            splat = text
+                            break
+                        end
+                        if other == nil then other = text end
+                    end
+                end
+                if splat == "none" and other ~= nil then splat = other end
+            end
+            local ue = verb("player", "unequip")
+            if ue then ue("dragon_warhammer") end
+            if is_number(att_level) then t.cheat("::setlevel attack " .. att_level) end
+            if is_number(str_level) then t.cheat("::setlevel strength " .. str_level) end
+            if spent_tick == nil then
+                return "hollow", "armed (varp301 1) and attack answered " .. describe(ar) .. " " .. describe(ad)
+                    .. ", but special energy never fell from " .. describe(e0) .. " in 12 ticks"
+            end
+            if splat == "none" then
+                return "hollow", "energy fell on tick " .. spent_tick .. " but no hit_npc row on world slot "
+                    .. describe(world) .. " within a tick of it"
+            end
+            return "ok", "orb armed (varp301 1), energy " .. e0 .. " -> spent on server tick " .. spent_tick
+                .. " after " .. waited .. " tick(s) past the attack's answer, the special's splat " .. splat
+                .. " (attack " .. describe(ar) .. ")"
         end)
 
         step("finish", function()

@@ -116,7 +116,7 @@ nylocas.av.big_kill.anim_offset	all	presentation row; a solo Entry scratch reads
 nylocas.av.wrong_style.gfx	all	presentation row; a solo Entry scratch reads it (tick log)
 nylocas.av.vasilias_land.seq	all	presentation row; a solo Entry scratch reads it (tick log)
 nylocas.av.vasilias_land.anim_cycles	all	presentation row; a solo Entry scratch reads it (tick log)
-nylocas.av.vasilias_death.seq	all	presentation row; a solo Entry scratch reads it (tick log)
+nylocas.av.vasilias_death.seq	stat	one form dies per room; each form's seq is read in the run that kills her in it (melee 8005 and ranged 7998 measured in seam10, magic 7991 by npc_anims.generated.npc)
 nylocas.av.boss_defeated.jingle	all	presentation row; a solo Entry scratch reads it (tick log)
 nylocas.av.music_room	all	presentation row; a solo Entry scratch reads it (tick log)
 nylocas.av.music_fight	all	presentation row; a solo Entry scratch reads it (tick log)

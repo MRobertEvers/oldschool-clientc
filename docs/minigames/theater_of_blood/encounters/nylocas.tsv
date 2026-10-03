@@ -44,7 +44,7 @@ nylocas.max_hit_small	small nylocas attack roll, Normal and Hard	1-17	hp	[wiki]	
 nylocas.max_hit_big	big nylocas attack roll, Normal and Hard	1-24	hp	[wiki]	D	wiki_Nylocas_Ischyros.wikitext:22	-	range
 nylocas.max_hit_small_entry	small nylocas attack roll, Entry	1-5	hp	[wiki]	D	wiki_Nylocas_Ischyros.wikitext:23	-	range
 nylocas.max_hit_big_entry	big nylocas attack roll, Entry	1-10	hp	[wiki]	D	wiki_Nylocas_Ischyros.wikitext:24	-	range
-nylocas.explosion_radius	self-destruct reach	2	tiles	[wiki]	D	wiki_Theatre_of_Blood_Entry_Mode.wikitext:176	-	exact
+nylocas.explosion_radius	self-destruct reach, Chebyshev distance from the nylocas footprint (a big's 2x2 from its south-west tile) to the raider: "Nylocas will explode, dealing damage within two tiles" (Entry Mode :176); the same page's "avoided by being at least two tiles away" (:162) disagrees, 2 kept with :176	2	tiles	[wiki]	D	wiki_Theatre_of_Blood_Entry_Mode.wikitext:176; wiki_Theatre_of_Blood_Entry_Mode.wikitext:162	-	exact
 nylocas.explosion_max	self-destruct damage, small then big (no pinned quote)	18,21	hp	[wiki][M93]	E	OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/configs/tob.constant:950; minigames/theater_of_blood/THEATRE_OF_BLOOD_PLAN.md:2385	M93	approx
 nylocas.explosion_entry	self-destruct damage in Entry (the pinned Entry page says about 8)	1-8	hp	[wiki]	D	wiki_Theatre_of_Blood_Entry_Mode.wikitext:162	-	range
 nylocas.pillar_hp_5	pillar hitpoints, five players, Normal	130	hp	[jagex][cache]	A	newsposts/wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:50; cache_npc_nylocas.txt:405	-	exact
