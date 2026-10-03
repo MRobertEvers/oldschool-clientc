@@ -573,3 +573,27 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
   not quest-gated: `levelrequire.rs2:178` gates only the green `dragonhide_body`. With the coif, chaps
   and vambraces that takes magic defence from 35 to 80. Eat to full before the first Attack, too
   (round 5 opened the fight at 72/99 because 72 was above `below=60`).
+
+## A note says one more food item cannot fit: count the pack leg by leg first (Swan Song round 6, b54 sampler)
+
+*Origin: the matthew-mbp-m4-b54 sampler's check of round 6.*
+
+- **Round 6 kept 15 sharks** and noted that a 16th was impossible because of the hammer slot at Franklin.
+  Counted leg by leg, 16 fits:
+  - setup: 3 rune stacks, 5 bars, 2 soft clay, logs, tinderbox and 16 sharks make 28 slots;
+  - entrance: the runes are gone and 3 bones are added, so 28;
+  - Franklin: the log is burned, the tinderbox dropped and the hammer added, so 27;
+  - fishing: the sheets are used and the hammer dropped; 4 bones, 2 clay, the net, 5 raw monkfish and
+    16 sharks make 28.
+  The sampler's scratch copy proved it (`fish-cast-5-raw` 4 -> 5), and the fight ended with 4 sharks
+  left instead of 3.
+- **Prove a slot claim with a scratch copy, not a note.** Run
+  `run.py --script <copy.lua> --name <name> --no-build --no-publish`; Swan Song takes 18 seconds.
+- **Put the margin in the margin row.** `t.exec` returns the verb's detail. Read the lowest hp and the
+  ticks from it: `local _, d = t.exec("killQueen-dead", t.npc.await_dead_engaged, ...)`, then
+  `d:match("lowest hp (%d+)/")` and `d:match("dead after (%d+) tick")`. Record the food staged, eaten
+  and left beside them.
+- **A rerun of the same file is not a variance sample here.** Five quest-mode runs (two with 15 sharks,
+  three with 16) all read 144 ticks, 12 eaten and lowest hp 24. The same 16-shark kit run through
+  `--script` read 130 ticks and 11 eaten. Two identical greens are one data point, so a quarter more
+  food than the worst run is still the rule.
