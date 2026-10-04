@@ -545,10 +545,37 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
   arrows, a coif, d'hide chaps and vambraces, and Defence 80, the kill ate 16 sharks
   (`b54s3_round4_copy_a`, lowest hp 23/99) and 22 sharks (`b54s3_queen_kit_b`, lowest 13/99). One run
   died after 23 sharks with her bar at 28/80 (`b54s3c_full_franklin`). That is more food than the setup
-  can hold beside the quest's own items, and the driver has no bank verb. A mid-run `::give` of food is
-  a trap 16 cheat. This is an open staging and map seam. Do not paper over it in the test.
+  can hold beside the quest's own items. A mid-run `::give` of food is a trap 16 cheat. The driver now
+  has bank verbs (below, "Bank the fight food"), so the food can wait in a bank; the reach from the
+  beach is still an open map seam. Do not paper over it in the test.
 - Her bar is 80 units wide, so read the server: `t.cheat("::swansong_queen_hp")` then
   `t.msg.expect("Sea Troll Queen hitpoints 200/200")` (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a)).
+
+## Bank the fight food: `::bankgive` in setup, `t.bank.withdraw` before the fight (b56-seam2)
+
+*Origin: seam bank_withdraw_and_deposit_verbs, matthew-mbp-m4-b56-seam2, for Dream Mentor (ecd69a678).
+The verbs live on batch branch matthew-mbp-m4-b56 and reach v3 with its PR.*
+
+- **Stock the bank in `setup`, never in `run()`.** `::bankgive <obj> <n>`
+  (`general/scripts/misc/cheat_bank.rs2`) puts objs straight into the bank and replies `Banked N x
+  Shark; the bank holds N.` It is the bank-side twin of a setup `::give`: only what the guide lists as
+  brought along. `t.cheat("::bankgive ...")` after `t.quest.bind` answers `refused ... SETUP cheat`
+  and sends nothing (core.lua `QD.cheat`).
+- **Open the bank by its booth, walked to.** `t.bank.open("lunar_moonclan_bankbooth", 2, { at = {
+  2099, 3920 } })` presses the booth's own Bank op (op 2 on 60 of the 78 booth records, op 1 on
+  chests, `bank_booths.rs2`) and waits for `bankmain` and the bank container. Walk into the bank room;
+  never `goto_tile` past its door. The Lunar Isle bank's south doorway at x 2099 has no door loc.
+- **Free slots first, then withdraw.** Deposit the tools whose steps are done
+  (`t.bank.deposit("hammer", 1)`), then `t.bank.withdraw("shark", n)`. Leave a slot for a reward item.
+  `ok` means both counts moved: `bank.withdraw: shark backpack 2 -> 24 (+22), bank 24 -> 2 (-22)`
+  (build/quest_gate/s2dm_bank3 row 213). A full backpack is `refused backpack full -- ... the server
+  said: You don't have enough inventory space.`; an obj the bank does not hold is `not_found` with no
+  press. `n` may be `"all"`.
+- **Close it with `t.check("x-bank-close", t.bank.close())`.** `t.exec(name, t.bank.close)` is `bad
+  verb/target`, because close takes no argument. `t.bank.count(item)` reads only an OPEN bank and is
+  `closed` otherwise.
+- **The fixture's bank is not empty.** `fresh_lumbridge.ini` carries ten bank slots, 250000 coins
+  among them (`s2bank_probe1` row 9). Do not assume a fresh bank holds nothing.
 
 ## Fewer sharks at the boss than the setup gave; the food runs out and the kill still passes at 1 hp (Swan Song round 5, b54 sampler)
 
@@ -561,8 +588,8 @@ range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
 - **`::give` truncates and the setup still passes.** The server prints "Gave 4 x Shark, 12 did not fit",
   but no row fails. Read the food you really carry at the fight (`t.inv.count("shark")` in a
   `killQueen-food` row). The ledger is the only place that shows it.
-- **There is no bank verb, so the food is capped by the leg where the pack peaks.** Count the slots
-  there, not at the boss. Swan Song peaks on the fishing leg: 4 bones, 2 soft clay, the hammer, the net
+- **The food is capped by the leg where the pack peaks, unless you bank it** (next section: the bank
+  verbs landed in matthew-mbp-m4-b56-seam2). Without a bank, count the slots there, not at the boss. Swan Song peaks on the fishing leg: 4 bones, 2 soft clay, the hammer, the net
   and 5 raw monkfish leave room for 15 sharks, and with 16 the fifth cast failed (`inv.await` 4 -> 4).
   Drop each tool once its step is done (tinderbox and logs after the firebox, the net after Arnold,
   the hammer after the walls) with `t.player.drop` and an `expect_absent` row.
@@ -658,7 +685,38 @@ OSRS-Content 83c8fa8b73: the spawn sets `npc_setmode(opplayer2)` (LostCity
 quest_ball/scripts/witches_experiement.rs2:8-9) and the default `[ai_queue1,_]` rung answers
 retaliation; `check_quest_combat_contract.py` now refuses applayer2 for it. The lobster hits now
 (wiki oldid 15272821: max hit 4): ghostsahoy took the player 23 -> 14 hp, and from about 17 hp
-without food a probe ended at 3, so a test should carry food for it. OPEN: One Small Favour's
-slagilith has the same shape (`onesmallfavour_relay.rs2:632-636`, contract pins applayer2);
-other `npc_add` quest npcs in applayer2 (kendal, thrantax, dreammentor, mm_demon, dayth, ...) are
-not audited for a missing handler.
+without food a probe ended at 3, so a test should carry food for it. The OPEN rest of this
+entry is FIXED in matthew-mbp-m4-b56-seam2 (next section).
+
+## Three more quest monsters never swung: the Slagilith, the Kendal and the Skeleton Hellhound (FIXED matthew-mbp-m4-b56-seam2)
+
+*Origin: seam applayer2_npcs_that_never_swing, matthew-mbp-m4-b56-seam2. All 66
+`npc_setmode(applayer2)` calls under `quests/` were audited.*
+
+- **The symptom.** The fight passes, but the hp orb never moves and no health bar shows over the
+  player. A Defence 1 probe took 0 hp drops in 60 ticks from each of One Small Favour's Slagilith,
+  Mountain Daughter's Kendal (`mdaughter_bearman_fighter`) and In Search of the Myreque's Skeleton
+  Hellhound. The hound's own `[ai_opplayer2]` only re-set applayer2, so every swing on its attack
+  clock was spent on a mode change.
+- **The fix**, the lobster's: the spawn proc sets `npc_setmode(opplayer2)` and the applayer2
+  `[ai_spawn]`/`[ai_queue1]`/`[ai_opplayer2]` overrides are gone, so the default melee rungs answer
+  (`[ai_queue1,_]`, `[ai_opplayer2,_]`; LostCity skill_combat/scripts/npc/npc_combat.rs2:1-4).
+  After it the probe read 10 / 7 / 10 drops with largest steps 13 / 9 / 12, the wiki max hits
+  (Slagilith oldid 15258101, The_Kendal 15199460, Skeleton_Hellhound 15199509).
+  `check_quest_combat_contract.py` pins opplayer2 and refuses applayer2 for all three.
+- **What a test sees now.** These fights cost hp: routequest's hound took the player to 41-50/80,
+  onesmallfavour's Slagilith to 70, mountaindaughter's Kendal to 49. All three committed tests stay
+  fail=0, but carry food and write a margin row.
+- **The rest swing.** thrantax, bim_golem_boss, ga_beast (its own `[ai_opplayer2]`) and
+  hauntedmine_boss_ghost (it swings from `[ai_timer]`) hit the probe player; every other applayer2
+  quest npc has its own or a category `[ai_applayer2]`. The 218 calls outside `quests/` are not
+  audited.
+- **Rule for content.** A quest monster that attacks the player is spawned in `opplayer2`.
+  `applayer2` is only for an npc with an `[ai_applayer2,<npc>]` handler; with none the engine fires
+  nothing (`torirs_server_world.c:5249`, `torirs_server_combat.c:3013`).
+- **Probe recipe.** `::spawn <npc>` fires `[ai_spawn]` (`world.c:15056`), so "stand beside it at
+  Defence 1, attack, count the hp drops over 60 ticks" tests any quest monster's swing without
+  staging the quest; only the varps its `[opnpc2]` gate reads need `::setvar`
+  (`build/seam_state/matthew-mbp-m4-b56-seam2/a2probe/`).
+- **Not fixed:** `aggressive_melee` huntmode never aggroes (`torirs_server_content.c:1851` maps
+  only `aggressive`), and the Slagilith's and Kendal's attackrate is 6 where the wiki says 4.

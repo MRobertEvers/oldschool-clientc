@@ -8,7 +8,7 @@ topic file with one line added here.
 ## Travel and finding things
 
 - `talk_to` walks around or answers "I can't reach that!" after a goto beside an npc behind a counter or wall -> start-and-travel: An npc behind a counter or wall
-- `talk_to` answers "I can't reach that!" from every tile in front of a bar whose counter tiles are floor-blocked, npc two tiles back (At First Light, Verity) -> start-and-travel: A counter whose tiles are floor-blocked
+- `talk_to` answers "I can't reach that!" from every tile in front of a bar, the npc two tiles back (At First Light's Verity, FIXED b56-seam2 by `[apnpc1,hg_verity]`; talk from 1559,9462) -> start-and-travel: An npc TWO tiles behind a counter
 - the guide says "Charter at a cost of 3000 coins" and no verb opens the charter map -> start-and-travel: No charter verb
 - a `walk_to`/`click_loc` stops at a building's wall and the guide names no door (Swan Song's stove, 2316,3668); tempted to `goto_tile` inside -> start-and-travel: A loc inside a walled building
 - "I can't reach that!" right after a fence squeeze; pulled back to the fence after a goto -> gaps-world: A fence squeeze pulls you back
@@ -242,7 +242,9 @@ topic file with one line added here.
 - a quest boss dies to one spell, or a level-79 troll reads 21/30 after one hit of 3 (Swan Song's Sea Troll Queen and sea trolls) (FIXED b54-seam3, OSRS-Content 1ef7c1e7b9) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a) (read the server: `::swansong_queen_hp`, `::swansong_troll_hp`)
 - `I'm already under attack.` on every Attack after the first, against several aggressive npcs at once (Swan Song colony ambush) -> seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (b) (`forcemulti=yes` where the wiki says multicombat)
 - prayer falls about 21 a swing with no damage at range; `I can't reach that!` attacking a boss in the sea; the character dies after 23 sharks (Swan Song's Sea Troll Queen) -> gaps-combat: A boss you cannot reach on foot drains 21 Prayer a swing
-- fewer sharks at the boss than `::give shark N` said ("N did not fit", no row fails); a boss kill whose detail says `OUT OF shark` or ends at 1 hp; no bank verb to restock (Swan Song round 5) -> gaps-combat: Fewer sharks at the boss than the setup gave
+- fewer sharks at the boss than `::give shark N` said ("N did not fit", no row fails); a boss kill whose detail says `OUT OF shark` or ends at 1 hp; no bank verb to restock (Swan Song round 5; bank verbs FIXED b56-seam2) -> gaps-combat: Fewer sharks at the boss than the setup gave
+- more fight food than the backpack holds beside the quest's items; a mid-run `::give` of food; `t.bank.*` answers `closed` / `not_found` / `refused backpack full`; `::bankgive ... refused ... SETUP cheat` -> gaps-combat: Bank the fight food; verbs-inventory-shops: `bank`
+- `t.exec(name, t.bank.close)` FAILs `bad verb/target` -> verbs-inventory-shops: `t.bank.count(item)` and `t.bank.close()`
 - a note says one more shark "cannot fit"; every rerun of a boss fight reads the same ticks and food; the margin row has no lowest hp (Swan Song round 6) -> gaps-combat: A note says one more food item cannot fit
 - how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
 - setup says the guide's light source or helmet "does not fit in 28 slots" while the run equips and spends items before the step that needs them -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (c)
@@ -505,6 +507,7 @@ topic file with one line added here.
 - client.log `chat_mood: no ^chat_* expression for the leading tag ...` (a `<p,name>` not in chat.constant) -> gaps-dialogue: A `<p,happy>` tag drawn as text
 - sscompile `no proc named <x>` in a file you did not touch, after adding a string with `<` in it (an unclosed `<` in a literal swallows the rest of the file) -> seam-facts: Seam pass matthew-mbp-m4-b56-seam1 (b)
 - a melee quest npc hits once and then stands still; the hp orb stays flat through the fight (applayer2 with no `[ai_applayer2]`; Ghosts Ahoy lobster FIXED b56-seam1) -> gaps-combat: A melee quest npc hits once and then stands still
+- a quest monster never hits: no health bar over the player, the hp orb flat (One Small Favour's Slagilith, Mountain Daughter's Kendal, the Myreque's Skeleton Hellhound; FIXED b56-seam2, these fights now cost hp) -> gaps-combat: Three more quest monsters never swung
 - the quest scroll reads "You have completed X!!" / doubled punctuation (per quest in the real game; Contact! FIXED b56-seam1, Wanted!! is real) -> seam-facts: Seam pass matthew-mbp-m4-b56-seam1 (d)
 - Swan Song's log stays in the pack after "You add some logs to the firebox." (FIXED b56-seam1: consumed; drop no spare log) -> seam-facts: Seam pass matthew-mbp-m4-b56-seam1 (c)
 - helper_coverage CHEAT "lands at ... in a room the map walls in (... door <sym> at x,z,l: maps/mX_Z.jl2) ... it went past the closed door (enclosure_entries)"; a goto_tile inside a house whose door the guide never names -> start-and-travel: The grader now catches the goto inside; coverage-and-gate: `enclosure_entries`

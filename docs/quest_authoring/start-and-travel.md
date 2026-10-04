@@ -92,14 +92,21 @@ Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator
 1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
 is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
 
-### A counter whose tiles are floor-blocked, with the npc two tiles away: the talk is refused (At First Light, matthew-mbp-m4-b56)
+### An npc TWO tiles behind a counter: the talk needs an `[apnpcN]` twin (At First Light's Verity, FIXED matthew-mbp-m4-b56-seam2)
 
-The rule above needs the npc to stand straight across a ONE-tile gap. Verity (1559,9464) stands
-behind a bar whose counter row, z 9463 x 1556-1560, is floor-blocked in the map flags. There is no
-counter loc there, and the flap `hg_table_tavern02_door01` has no op. `talk_to` from 1559,9462,
-1561,9463 and 1559,9461 all answered "I can't reach that!". The tiles behind the bar are a sealed
-pocket, so a goto there is a teleport past the bar. The row is a content_bug, not a goto. Name the
-counter tiles and the refused tiles in the row.
+The rule above needs the npc straight across a ONE-tile gap. An op talk (`[opnpc1,...]`) reaches
+only from an adjacent tile (LostCity's reachedEntity), so an npc standing two tiles back behind a
+counter row answers "I can't reach that!" from every tile in front. The real game binds such an npc
+with an approach trigger at range 2: `[apnpc1,_bank_teller] if (npc_range(coord) > 2) {
+p_aprange(2); return; }` (LostCity interface_bank/scripts/banker.rs2:4-9; `death_barman.rs2:1-5`
+uses 3). Verity (1559,9464) stands behind the Hunter Guild bar, whose counter row z 9463 is
+`hg_table_tavern02_*` locs (blockrange=0, `maps/m24_147.jl2`). `atfirstlight.rs2` now has
+`[apnpc1,hg_verity]`, and `talk_to("hg_verity")` from 1559,9462 opens her page (run
+`s2_afl_verity_after`, stage 1 -> 2). If such an npc has only `[opnpcN]`, the row is a content seam
+asking for the ap twin. It is never a goto behind the counter: that is a sealed pocket. Still
+without a twin: `hg_gilman` (1556,9464), and Verity's rumour ops `[opnpc3]`/`[opnpcu]`
+(`hunter_rumours.rs2`); this pack's bankers are `[opnpc1,banker1]` only (`bank.rs2:37`), so a
+banker two tiles back may refuse too; a booth op is not affected.
 
 ### A loc inside a walled building, and the guide names no door: find the door in the map square (matthew-mbp-m4-b54)
 

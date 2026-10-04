@@ -1,6 +1,6 @@
 # Verbs: shops and held items (section 3)
 
-`t.shop.*` and the backpack/worn-item verbs of `t.player`. The shop's purpose (buy only what the
+`t.shop.*`, `t.bank.*` and the backpack/worn-item verbs of `t.player`. The shop's purpose (buy only what the
 quest's own script makes you buy) is in `gaps-combat.md`.
 
 ## `shop` (`ui.lua`)
@@ -74,6 +74,47 @@ slot numbers three buys later.
 `t.shop.close()` -> `ok` `timeout`. Interface 300 has no close button, so this is the ESC path
 (`close_modal`), which runs `[if_close,shopmain]` server-side. Idempotent. Takes no argument, so
 record it with `t.check`/`t.step` -- `t.exec` grades a zero-argument call `bad verb/target`.
+
+## `bank` (`ui.lua`, matthew-mbp-m4-b56-seam2)
+
+The bank driven the way a player drives it. When to bank and the Dream Mentor recipe:
+`gaps-combat.md`, "Bank the fight food". The verbs reach v3 with batch matthew-mbp-m4-b56's PR.
+
+### `t.bank.open(booth_or_banker, op=2, opts)`
+
+`-> ok no_row not_visible timeout` / click_minimenu's own results. Presses the loc's or npc's
+numbered Bank op through `click_minimenu` (op 2 on 60 of the 78 booth records, op 1 on chests,
+`bank_booths.rs2`) and returns once `bankmain` AND the bank container have landed (two server
+messages). `opts.at = {x, z[, level]}` names the booth copy, as `click_loc` does; `opts.kind =
+"loc"|"npc"` when a symbol is both. A bank already on screen is closed first. The `ok` detail names
+the bank's used slots and the backpack's free slots.
+
+### `t.bank.withdraw(item, n|"all")` and `t.bank.deposit(item, n|"all")`
+
+`-> ok closed not_found refused no_row`. Withdraw presses `bankmain:items` cell <bank slot> with the
+fixed rungs (op 4 Withdraw-10, op 3 Withdraw-5, op 2 Withdraw-1, op 7 Withdraw-All; `bank.rs2`);
+deposit presses `bankside:items` cell <backpack slot> (op 5 Deposit-10, op 4 Deposit-5, op 3
+Deposit-1, op 8 Deposit-All; `bank_deposit.rs2`). `ok` only when the backpack AND the bank both moved
+by `n`, read back from the client's containers: `bank.withdraw: shark backpack 0 -> 12 (+12), bank 30
+-> 18 (-12), 12 asked; backpack free slots 28 -> 16 [Withdraw-10@8, ...]` (conformance row
+`bank.withdraw`). `closed` = no bank on
+screen; `not_found` = the source holds none and nothing was pressed; `refused` = the server moved
+less than asked, led by `backpack full --` and ending in the server's own sentence (`You don't have
+enough inventory space.`). The bank verbs assume every item is in the main tab; bank tabs are
+unproven.
+
+### `t.bank.count(item)` and `t.bank.close()`
+
+`count` -> `(ok, n)` from the OPEN bank, `closed` otherwise (the client keeps a closed bank's last
+copy, which is not a reading). `close` -> `ok timeout`, the ESC path, idempotent; it takes no
+argument, so record it with `t.check(name, t.bank.close())`.
+
+### `::bankgive <obj> <n>` -- SETUP only
+
+Stocks the bank (`general/scripts/misc/cheat_bank.rs2`, stored uncerted; replies `Banked N x <name>;
+the bank holds M.`). `t.cheat("::bankgive ...")` after `t.quest.bind` answers `refused ... SETUP
+cheat` and sends nothing (core.lua `QD.cheat`). `fresh_lumbridge.ini`'s bank already holds ten
+slots.
 
 ## Held-item verbs (section 3, `world` / `drive` / `player`)
 
