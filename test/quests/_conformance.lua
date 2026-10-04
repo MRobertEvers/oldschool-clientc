@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 162
+-- @verb-count 163
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 146
+-- @seam-count 151
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 162
-local SEAM_COUNT = 146
+local VERB_COUNT = 163
+local SEAM_COUNT = 151
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -935,6 +935,57 @@ return {
             local result, detail = fn(LOC_SYMBOL, 60)
             return answered(result, detail, LOC_SYMBOL .. " r=60 -> ",
                 field("id", is_number), "the row carried no loc id")
+        end)
+
+        -- seam11 ticklog_raw_damage_and_loc_count: VERB_COUNT +1 (world.loc_copies).
+        step("world.loc_copies", function()
+            local fn = verb("world", "loc_copies")
+            if not fn then return missing("world", "loc_copies") end
+            local near = verb("world", "loc_near")
+            if not near then return missing("world", "loc_near") end
+            local result, summary, rows = fn(LOC_SYMBOL, 60)
+            local text = LOC_SYMBOL .. " r=60 -> " .. describe(summary)
+            if result ~= "ok" then return result, text end
+            if not is_table(rows) or type(rows.total) ~= "number" or #rows == 0 then
+                return "hollow", "answered ok without rows or a total: " .. text
+            end
+            -- every row is the symbol's own placement, nearest first, and the count is
+            -- the rows (60 tiles of Lumbridge hold far fewer than the 1024 cap)
+            local nr, nrow = near(LOC_SYMBOL, 60)
+            if nr ~= "ok" or not is_table(nrow) then
+                return "no_subject", "world.loc_near found no " .. LOC_SYMBOL .. ": " .. describe(nrow)
+            end
+            local tile = verb("world", "tile")
+            if not tile then return missing("world", "tile") end
+            local here_ok, here = tile()
+            if here_ok ~= "ok" or not is_table(here) then
+                return "no_subject", "world.tile -> " .. describe(here_ok) .. ": " .. text
+            end
+            local function d2(r) return (r.x - here.x) ^ 2 + (r.z - here.z) ^ 2 end
+            for i, r in ipairs(rows) do
+                if r.loc_id ~= nrow.id then
+                    return "refused", "row " .. i .. " is loc " .. describe(r.loc_id) .. ", not "
+                        .. describe(nrow.id) .. ": " .. text
+                end
+                if i > 1 and d2(r) < d2(rows[i - 1]) then
+                    return "refused", "row " .. i .. " is nearer than row " .. (i - 1) .. ": " .. text
+                end
+            end
+            if rows.total ~= #rows then
+                return "refused", "total " .. rows.total .. " is not the " .. #rows .. " rows: " .. text
+            end
+            if d2(rows[1]) ~= (nrow.tile_x - here.x) ^ 2 + (nrow.tile_z - here.z) ^ 2 then
+                return "refused", "the nearest copy " .. rows[1].x .. "," .. rows[1].z
+                    .. " is not as near as world.loc_near's " .. nrow.tile_x .. "," .. nrow.tile_z
+                    .. ": " .. text
+            end
+            local _, _, small = fn(LOC_SYMBOL, 5)
+            local small_total = is_table(small) and small.total or 0
+            if small_total > rows.total then
+                return "refused", "radius 5 found " .. small_total .. " > radius 60's " .. rows.total
+            end
+            local _, absent_summary = fn(LOC_SYMBOL, 1)
+            return "ok", text .. " [r=5: " .. small_total .. "; r=1: " .. describe(absent_summary) .. "]"
         end)
 
         step("world.obj_near", function()
@@ -10921,6 +10972,138 @@ return {
             return "ok", text
         end)
 
+        -- seam11 ticklog_raw_damage_and_loc_count (seam row 1 of 2). SEAM_COUNT +1.
+        -- (1) seam.ticklog_hit_raw -- the tick log's hit rows carry the hit as dealt
+        --     beside the splat as shown. Under `::god 1` every landed swing a Man makes
+        --     on the player is a hit_player row with damage 0 and raw = his roll (>0 on
+        --     a landed swing); then at strength 99 the killing blow on a 7-hitpoint Man
+        --     overkills: hit_npc damage = the hitpoints he had, raw = the swing. Every
+        --     other hit_npc row has raw = damage. Before (shared binary, tree Lua): rows
+        --     carry no `raw` (nil).
+        seam("seam.ticklog_hit_raw", function()
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local goto_tile = verb("player", "goto_tile")
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            -- The stages before this row leave a magic shortbow worn (see
+            -- seam.attack_fast_path's neighbour above): at ranged 99 it kills a
+            -- 7-hitpoint Man with its first arrow, so he never swings back (closer's
+            -- first full run: 2 hit_npc rows of 7, 0 hit_player rows). It comes off
+            -- for this row, after the ::clearinv that would delete it, and goes
+            -- back on at the teardown.
+            local BOW = "magic_shortbow"
+            local bow_off = false
+            local function restore()
+                setup_cheat("::god 0")
+                setup_cheat("::setlevel strength 99")
+                if verb("player", "unequip") then t.player.unequip("abyssal_whip") end
+                if bow_off and verb("player", "equip") then t.player.equip(BOW) end
+                setup_cheat("::clearinv")
+            end
+            setup_cheat("::clearinv")
+            if verb("player", "unequip") and t.player.unequip(BOW) == "ok" then bow_off = true end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::god 1")
+            goto_tile(3222, 3218, 0)
+            settle(2)
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_hit_raw")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            -- phase 1: strength 1, ::god 1 -- he lives long enough to swing back
+            local god_rows, slots, presses = {}, {}, {}
+            for i = 1, 10 do
+                local nr, row = nearest(NPC_SYMBOL, 10)
+                if nr ~= "ok" or not is_table(row) then break end
+                local sr, wslot = t.ticklog.slot(row)
+                if sr == "ok" then slots[wslot] = true end
+                presses[#presses + 1] = describe((attack(NPC_SYMBOL, 2, 6, { slot = row.slot })))
+                local _, hp = t.ticklog.rows({ kind = "hit_player", since = since })
+                god_rows = {}
+                for _, h in ipairs(hp) do
+                    if h.raw ~= nil and h.raw > 0 then god_rows[#god_rows + 1] = h end
+                end
+                if #god_rows >= 2 then break end
+            end
+            -- phase 2: strength 99 and a whip -- kill a Man or two (a killing blow
+            -- overkills only when the engine's clamp bites; see the end of the row)
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::give abyssal_whip 1")
+            setup_cheat("::wield abyssal_whip")
+            settle(1)
+            local over = nil
+            for i = 1, 2 do
+                local nr, row = nearest(NPC_SYMBOL, 15)
+                if nr ~= "ok" or not is_table(row) then break end
+                local sr, wslot = t.ticklog.slot(row)
+                if sr == "ok" then slots[wslot] = true end
+                attack(NPC_SYMBOL, 2, 8, { slot = row.slot })
+                t.npc.await_dead(NPC_SYMBOL, 20)
+                local _, hn = t.ticklog.rows({ kind = "hit_npc", since = since })
+                for _, h in ipairs(hn) do
+                    if slots[h.slot] and h.raw ~= nil and h.raw > h.damage then over = h end
+                end
+                if over then break end
+            end
+            local _, all_hp = t.ticklog.rows({ kind = "hit_player", since = since })
+            local _, all_hn = t.ticklog.rows({ kind = "hit_npc", since = since })
+            restore()
+            goto_tile(3222, 3218, 0)
+            local bad, nil_raw = {}, 0
+            for _, h in ipairs(all_hp) do
+                if h.raw == nil then nil_raw = nil_raw + 1
+                elseif h.damage ~= 0 then bad[#bad + 1] = "hit_player t" .. h.tick .. " damage "
+                    .. h.damage .. " under ::god"
+                end
+            end
+            -- raw > damage only where the clamp bit: a killing blow, which
+            -- ToriRSServer_CombatHitNpc logs as an npc_death row on the same slot and
+            -- tick straight after the hit row (a Man respawns into his old slot, so
+            -- "the slot's last hit" would not do)
+            local ours, deaths = 0, {}
+            local _, dr = t.ticklog.rows({ kind = "npc_death", since = since })
+            for _, d in ipairs(dr) do deaths[d.slot .. ":" .. d.tick] = true end
+            for _, h in ipairs(all_hn) do
+                if slots[h.slot] then
+                    ours = ours + 1
+                    if h.raw == nil then nil_raw = nil_raw + 1
+                    elseif h.raw < h.damage then bad[#bad + 1] = "hit_npc t" .. h.tick .. " raw "
+                        .. h.raw .. " < damage " .. h.damage
+                    elseif h.raw > h.damage and not deaths[h.slot .. ":" .. h.tick] then
+                        bad[#bad + 1] = "hit_npc t" .. h.tick .. " raw " .. h.raw .. " > damage "
+                            .. h.damage .. " on a hit that killed nothing"
+                    end
+                end
+            end
+            local gparts = {}
+            for i = 1, math.min(#god_rows, 4) do
+                local h = god_rows[i]
+                gparts[#gparts + 1] = string.format("t%d npc slot %s dmg %d raw %d", h.tick,
+                    describe(h.npc_slot), h.damage, h.raw)
+            end
+            local text = #all_hp .. " hit_player row(s) under ::god (" .. table.concat(gparts, "; ")
+                .. "), " .. ours .. " hit_npc row(s) on the Men fought; killing blow "
+                .. (over and string.format("t%d slot %d damage %d raw %d", over.tick, over.slot,
+                    over.damage, over.raw) or "none overkilled")
+                .. " (presses " .. table.concat(presses, ",") .. ")"
+            if nil_raw > 0 then return "refused", nil_raw .. " hit row(s) carry no raw (binary before seam11): " .. text end
+            if #bad > 0 then return "refused", table.concat(bad, "; ", 1, math.min(#bad, 4)) .. " -- " .. text end
+            if #god_rows == 0 then return "no_subject", "no Man swing landed under ::god: " .. text end
+            if ours == 0 then return "no_subject", "no hit_npc row on the Men fought: " .. text end
+            -- An overkill is NOT required: content clamps a player's hit to the npc's
+            -- hitpoints when it is prepared (player_hit_npc_prepare.rs2:230), so the
+            -- engine's clamp only bites when the hitpoints fell between the swing and
+            -- the landing. The row requires raw on every hit row and raw > damage
+            -- nowhere but a killing blow; the ::god rows are the divergence.
+            return "ok", text
+        end)
+
         seam("seam.music_region_unlocks_its_musicmulti", function()
             local goto_tile = verb("player", "goto_tile")
             if not goto_tile then return missing("player", "goto_tile") end
@@ -12281,6 +12464,61 @@ return {
             return "ok", detail
         end)
 
+-- seam11 tob_rig_ledger_faults (2 of 2): a Matomenos plays elemental_spawn 8098 on
+-- the tick it spawns. Leaves the raid on every exit. SEAM_COUNT +1.
+        seam("seam.matomenos_spawn_seq_on_spawn_tick", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not ticks then return missing("ticks") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local CRAB, SPAWN_SEQ = 10820, 8098
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                settle(2)
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            setup_cheat("::god 1")
+            t.ticklog.start()
+            t.ticklog.mark("seam.matomenos_spawn_seq_on_spawn_tick")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local base = marks[#marks].serial
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. describe(clicked) .. " " .. describe(click_detail)
+                    .. ", confirm " .. describe(played) .. " " .. describe(play_detail)
+            end
+            ticks(4)
+            setup_cheat("::tobmaidenpct 69")
+            ticks(6)
+            local _, spawns = t.ticklog.rows({ kind = "npc_spawn", type = CRAB, since = base })
+            local _, anims = t.ticklog.rows({ kind = "npc_anim", type = CRAB, since = base })
+            teardown()
+            local at = {}
+            for _, a in ipairs(anims) do at[a.slot .. ":" .. a.tick] = a.seq end
+            local same, parts = 0, {}
+            for _, s in ipairs(spawns) do
+                local seq = at[s.slot .. ":" .. s.tick]
+                if seq == SPAWN_SEQ then same = same + 1 end
+                parts[#parts + 1] = "slot " .. s.slot .. " tick " .. s.tick .. " seq " .. describe(seq)
+            end
+            local detail = #spawns .. " Matomenos spawn(s), " .. same .. " with npc_anim 8098 on the spawn tick ("
+                .. table.concat(parts, "; ") .. ")"
+            if #spawns == 0 then return "no_subject", detail .. " -- she called no crabs at 69 %" end
+            if same ~= #spawns then return "refused", detail end
+            return "ok", detail
+        end)
+
 -- seam8 tob_nylocas_deaths_and_cage -- conformance snippet for the closer.
 --
 -- NO driver verb was added or changed by this seam (content only: tob_nylocas.rs2,
@@ -13535,6 +13773,121 @@ return {
             return "ok", detail
         end)
 
+-- seam11 tob_verzik_webs_and_unmeasured_rows: one content seam row. SEAM_COUNT +1.
+--
+-- THE ENRAGE TORNADO TOUCHES A RAIDER WHO STANDS STILL (OSRS-Content tob_verzik.rs2
+-- ~tob_verzik_tornado_tick: contact at npc_range 1, was 0). The engine keeps an npc off a tile a
+-- player stands on (torirs_server_world.c npc_travel_extra: player occupancy), so a walker can
+-- never reach range 0: before the fix the tornado stopped beside a standing raider and never hit
+-- (scratch vz11_meas2: it reached 6430,85 beside 6430,84 at t170, no touch in 200 ticks).
+-- Also proves the tornado's own rig seqs (CONTENT_BUGS U10): 9004 tob_shadow_projectile_spawn on
+-- its spawn tick, 9005 _despawn on the touch tick, removed (npc_free) one tick later, and the touch
+-- itself: half my hitpoints, 1602 on me, a [proc,tob_verzik_tornado_heal] npc_heal of three times
+-- the touch (wiki_Theatre_of_Blood_Strategies.wikitext:981).
+-- Measured (scratch vz11_min2): spawn 61 (9004), touch 65: 49 of 99, heal 147, 1602, 9005, free 66.
+        seam("seam.verzik_tornado_touches_a_standing_raider", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local walk = verb("player", "walk_to")
+            local pray = verb("prayer", "set")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not walk then return missing("player", "walk_to") end
+            if not pray then return missing("prayer", "set") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::god 1")
+                setup_cheat("::setlevel hitpoints 99")
+                setup_cheat("::tobout")
+                ticks(2)
+                setup_cheat("::god 0")
+            end
+            local function await_npc(sym, limit)
+                for _ = 1, limit do
+                    if nearest(sym, 40) == "ok" then return true end
+                    ticks(1)
+                end
+                return false
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_tornado_touches_a_standing_raider")
+            local _, marks = log_rows({ kind = "mark" })
+            local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- P1 and P2 are not this row: skipped with the scratch damage cheat
+            if not await_npc("verzik_phase1_story", 40) then teardown() return "refused", "no P1 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -20")
+            if not await_npc("verzik_phase2_story", 40) then teardown() return "refused", "no P2 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -60")
+            if not await_npc("verzik_phase3_story", 40) then teardown() return "refused", "no P3 form" end
+            walk(6430, 84, 8)       -- open floor five tiles south of her: nothing between me and the tornado
+            ticks(4)
+            pray("protectfrommagic", true)
+            setup_cheat("::god 0")  -- the touch is half my REAL hitpoints
+            setup_cheat("::tobvzleft 120")
+            local touched = false
+            for _ = 1, 40 do
+                local _, seen = log_rows({ since = base, kind = "player_spotanim", spotanim = 1602 })
+                if is_table(seen) and #seen > 0 then touched = true break end
+                ticks(1)
+            end
+            ticks(2)
+            local _, rows = log_rows({ since = base, kind = { "npc_spawn", "npc_anim", "hit_player", "player_spotanim", "npc_heal", "npc_free" } })
+            pray("protectfrommagic", false)
+            teardown()
+            if not is_table(rows) then return "refused", "ticklog.rows answered no table" end
+            local spawn, spawn_seq, touch, gfx, desp, heal, freed
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_spawn" and row.type == 10846 and spawn == nil then spawn = row end
+            end
+            if spawn == nil then return "refused", "no Entry tornado (npc 10846) spawned after ::tobvzleft 120" end
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_anim" and row.slot == spawn.slot and row.tick == spawn.tick and row.seq == 9004 then spawn_seq = row.tick end
+                if row.kind == "hit_player" and row.npc_type == 10846 and touch == nil then touch = row end
+            end
+            if not touched or touch == nil then
+                return "refused", "a raider standing on 6430,84 was never touched in 40 ticks (tornado spawned " .. spawn.tick .. " at " .. spawn.x .. "," .. spawn.z .. ")"
+            end
+            for _, row in ipairs(rows) do
+                if row.kind == "player_spotanim" and row.spotanim == 1602 and row.tick == touch.tick then gfx = row.tick end
+                if row.kind == "npc_anim" and row.slot == spawn.slot and row.seq == 9005 and row.tick == touch.tick then desp = row.tick end
+                if row.kind == "npc_heal" and row.source == "[proc,tob_verzik_tornado_heal]" and row.tick == touch.tick then heal = row.amount end
+                if row.kind == "npc_free" and row.slot == spawn.slot and row.tick > touch.tick and freed == nil then freed = row.tick end
+            end
+            local detail = string.format("tornado spawn %d at %d,%d (9004 %s), touch %d for %d (1602 %s, 9005 %s), heal %s, npc_free %s",
+                spawn.tick, spawn.x, spawn.z, tostring(spawn_seq), touch.tick, touch.damage, tostring(gfx), tostring(desp), tostring(heal), tostring(freed))
+            if spawn_seq == nil or gfx == nil or desp == nil then return "refused", detail .. " -- a seq or graphic is missing" end
+            if heal ~= 3 * touch.damage then return "refused", detail .. " -- the heal is not three times the touch" end
+            if touch.damage < 40 or touch.damage > 50 then return "refused", detail .. " -- the touch is not half of 80..99 hitpoints" end
+            if freed ~= touch.tick + 1 then return "refused", detail .. " -- not removed one tick after its despawn seq" end
+            return "ok", detail
+        end)
+
 -- Row 2: A YELLOW POOL IS ALWAYS ON A TILE A RAIDER CAN STAND ON (tob_verzik.rs2
 -- ~tob_verzik_pool_near: map_blocked; a blocked draw takes the next open tile of the 5x5 from
 -- the drawn offset). The raider waits in the arena's north-west corner 6418,98 (x <= 6417 and
@@ -13640,6 +13993,57 @@ return {
             if blast == nil or blast.spotanim ~= 1597 then return "refused", detail end
             if blast.tick ~= pool.tick + 14 then return "refused", "blast not on pool + 14: " .. detail end
             return "ok", detail
+        end)
+
+-- seam11 ticklog_raw_damage_and_loc_count (seam row 2 of 2): every copy of a loc.
+-- SEAM_COUNT +1.
+        -- (2) seam.loc_copies_verzik_death_cage -- the Verzik room's spectator cages:
+        --     the cache map places `tob_dungeon_verzik_death_cage` 32717 twenty-four
+        --     times (OSRS-Content/osrs239-content/maps/m49_67.jl2:255-278, AV_INVENTORY
+        --     .tsv:375 "map 49_67 x24") on local tiles x 21..26 and 39..44, z 36..38. The
+        --     instance copy must stand all 24, on the same pattern (each copy's offset
+        --     from the south-west-most copy equals the map's). Before: t.world.loc_copies
+        --     is not a function; t.world.loc_near answers one copy.
+        seam("seam.loc_copies_verzik_death_cage", function()
+            local fn = verb("world", "loc_copies")
+            if not fn then return missing("world", "loc_copies") end
+            if type(t.raid) ~= "table" or not t.raid.enter then return missing("raid", "enter") end
+            local MAP = { -- m49_67.jl2:255-278, local x,z
+                {21,36},{21,37},{21,38},{22,37},{23,36},{23,37},{23,38},{24,37},
+                {25,36},{25,37},{25,38},{26,37},{39,36},{39,37},{39,38},{40,37},
+                {41,36},{41,37},{41,38},{42,37},{43,36},{43,37},{43,38},{44,37} }
+            local er, ed = t.raid.enter("tob", "verzik", { mode = "entry" })
+            if er ~= "ok" then
+                setup_cheat("::tobout")
+                return "no_subject", "raid.enter tob verzik -> " .. describe(er) .. " " .. describe(ed)
+            end
+            settle(2)
+            local result, summary, rows = fn("tob_dungeon_verzik_death_cage", 0)
+            setup_cheat("::tobout")
+            settle(2)
+            if result ~= "ok" then return result, describe(summary) end
+            local min_x, min_z = math.huge, math.huge
+            for _, r in ipairs(rows) do
+                if r.x < min_x then min_x = r.x end
+                if r.z < min_z then min_z = r.z end
+            end
+            local want, have, extra = {}, {}, {}
+            for _, p in ipairs(MAP) do want[(p[1] - 21) .. "," .. (p[2] - 36)] = true end
+            for _, r in ipairs(rows) do
+                local key = (r.x - min_x) .. "," .. (r.z - min_z)
+                have[key] = true
+                if not want[key] then extra[#extra + 1] = r.x .. "," .. r.z end
+            end
+            local miss = {}
+            for key in pairs(want) do if not have[key] then miss[#miss + 1] = key end end
+            local text = describe(summary) .. " [south-west copy " .. min_x .. "," .. min_z
+                .. "; map m49_67 places 24]"
+            if rows.total ~= 24 or #extra > 0 or #miss > 0 then
+                return "refused", "total " .. describe(rows.total) .. ", off-pattern "
+                    .. table.concat(extra, " ") .. ", missing offsets " .. table.concat(miss, " ")
+                    .. " -- " .. text
+            end
+            return "ok", text
         end)
 
 -- seam9 tob_cage_release_on_room_win -- conformance snippet for the closer.
@@ -14255,6 +14659,59 @@ return {
             return "ok", reading .. "; npc_retype " .. tostring(retype.from_type) .. " -> " .. retype.to_type .. " @" .. tostring(retype.tick) .. " -> row id "
                 .. after.npc_id .. " ready " .. after.ready_anim .. " walk " .. after.walk_anim .. ", standing pose ready="
                 .. after.pose_anim
+        end)
+
+-- seam11 tob_rig_ledger_faults (1 of 2): an authored attack_anim null holds in the
+-- running server over the generated record (::tobnpcanim, a measurement debugproc).
+-- SEAM_COUNT +1.
+        seam("seam.authored_null_attack_anim_holds", function()
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            local function read(sym)
+                local _, before = last(1)
+                local floor = (is_table(before) and before[1] and before[1].serial) or -1
+                setup_cheat("::tobnpcanim " .. sym)
+                ticks(1)
+                local _, lines = last(20)
+                if not is_table(lines) then return nil end
+                local key = "tobnpcanim " .. sym .. " "
+                for l = 1, #lines do
+                    if lines[l].serial > floor and string.find(lines[l].text, key, 1, true) ~= nil then
+                        return lines[l].text
+                    end
+                end
+                return nil
+            end
+            -- { npc, attack, death or nil }: the control, the record that was
+            -- already authored null before seam11 (the rig pass said it was
+            -- overlaid; it was not), a record seam11 authored, and the bat whose
+            -- one seq was ledgered as both its attack and its death.
+            local want = {
+                { "tob_maiden_100", "set", "set" },
+                { "tob_verzik_phase2_armourednylocas", "null", nil },
+                { "tob_bloat", "null", nil },
+                { "maiden_elemental_story", "null", nil },
+                { "verzik_death_bat", "null", "null" },
+            }
+            local text = {}
+            for _, w in ipairs(want) do
+                local line = read(w[1])
+                if line == nil then
+                    return "no_reply", table.concat(text, "; ") .. "; no ::tobnpcanim reply for " .. w[1]
+                end
+                text[#text + 1] = line
+                local ok = string.find(line, "attack_anim=" .. w[2], 1, true) ~= nil
+                if ok and w[3] ~= nil then
+                    ok = string.find(line, "death_anim=" .. w[3], 1, true) ~= nil
+                end
+                if not ok then
+                    return "refused", table.concat(text, "; ") .. " -- wanted " .. w[1] .. " attack " .. w[2]
+                        .. (w[3] and (" death " .. w[3]) or "")
+                end
+            end
+            return "ok", table.concat(text, "; ")
         end)
 
         -- seam10 tob_bloat_stomp_defence -- the LAST row before step("finish").

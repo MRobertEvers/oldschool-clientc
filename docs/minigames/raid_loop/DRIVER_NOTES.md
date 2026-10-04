@@ -2696,10 +2696,9 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
 - map_locs: `loc_near(sym, 0)` finds 41 of the 42. `tob_dungeon_verzik_throne_empty` is a
   varbit-6400 multiloc that stays hidden until `loc_set` 32686 at fight start (t42 in
   vz10_room3); count it from that row.
-- death_cage: cannot be counted from the client. `hazard_at` over the 24 map tiles of
-  m49_67.jl2:255-278 finds 32717 on 10; the other 14 show other wall locs. Measuring it
-  needs a verb that returns every copy (like `t.npc.tiles`), or the row measured from the
-  map. The template 49_67's instance origin is (6401,64): local (lx,lz) -> (6401+lx, 64+lz).
+- death_cage: STALE since seam11, use `t.world.loc_copies` (seam11 section below, "Counting
+  every copy of a loc"). Before it: `hazard_at` over the 24 map tiles of
+  m49_67.jl2:255-278 finds 32717 on 10; the other 14 show other wall locs. The template 49_67's instance origin is (6401,64): local (lx,lz) -> (6401+lx, 64+lz).
 - Scratch only, never in a test: in P2, `::tobvzleft 0` loses to a live Athanatos heal
   whenever she is the higher npc slot (a second instance in one session). She then reads
   about 10, crosses 35 % and summons the reds. `::tobvzleft -60` (an overkill past the
@@ -2731,9 +2730,14 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
   prayed hits. Take the samples unprayed (eat for it), or read the heal against the
   unprayed hits only, and say which. (Reported by the verzik reviewer of
   matthew-mbp-m4-raid-b1-rooms-tob.)
+- Since seam11 every hit row also carries `raw`, the hit as the caller dealt it (seam11
+  section below, "A hit's real size"). A hit content zeroed for prayer still reads raw 0:
+  the engine never sees the script's roll.
 
-## Sotetseg: a ball cast on the maze proc tick (reported, not yet checked)
+## Sotetseg: a ball cast on the maze proc tick (SETTLED by seam11, see below)
 
+- STALE: seam11 settled it. He plays no 8142 at the proc, and a proc-tick ball is thrown
+  but not counted (the seam11 Sotetseg headings below). The old report, for the record:
 - The sotetseg reviewer saw the attack on a maze proc tick go uncounted in the ten-ball
   counter, or log `npc_anim` 8139 (attack_ranged) where `av.maze.boss_seq` expects 8142
   (shadow_portal); the counter is `tob_sotetseg.rs2` around lines 226-250. This is
@@ -2763,3 +2767,272 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
   `technique.stomp_skip` (standing under him on a scan tick). Shoot each technique row
   on the tick it happens and give the frame the row's name. A log-proved row with no
   frame is a gap that the sampler records.
+
+<!-- seam11 (matthew-mbp-m4-raid-b1-seam11): the headings below, one per fact. -->
+
+## A hit's real size: `raw` on hit_player and hit_npc rows (seam11)
+
+- `damage` is the splat as shown: after `::god`, the absorption pool and the clamp to the
+  hitpoints left. `raw` is the hit the caller dealt, before those three.
+- Anything content does before it calls `damage` is already inside `raw`: a protection
+  prayer zeroing or halving the hit, Justiciar, slayer caps. A prayed-off hit reads raw 0.
+- `raw` is read before `::god`, so a scratch can keep the player alive with `::god 1` and
+  still read every hit's size (damage 0, raw 40).
+- A killing blow that overkills reads damage = the hitpoints left, raw = the hit. On a
+  player's own swings content clamps at preparation (player_hit_npc_prepare.rs2:230), so
+  expect raw = damage there.
+- In ticklog.tsv, hit_player's raw is the column AFTER the label (`g`), so readers that
+  index the label as column 9 are unchanged. hit_npc's raw is column `e`.
+- Conformance: `seam.ticklog_hit_raw`.
+
+## Measuring Verzik's blood-spell heal (verzik.p2_heal_spell_fraction)
+
+- Each cast is an npc_heal row on her slot with source `[proc,tob_verzik_blood_spell]` on
+  the cast tick T, beside a projectile row (spotanim 1591, start_cycle 20, end_cycle 120).
+- The hit lands as a hit_player row with npc_slot = her slot on
+  T + (end_cycle - start_cycle) // 30 + 1, which is T+4. Pair on that landing tick, not on
+  "the next hit", because her urnbomb also hits from her slot.
+- Unprayed, heal = floor(raw * 50 / 100): 11 of 11 casts in build/quest_gate/s11_heal2
+  (raw 7..44). Assert the fraction on unprayed casts.
+- Under Protect from Magic the current content deals 0 (raw 0) and still heals on the
+  roll. Mod Ash (Strategies:930) says the prayer halves the hit and the heal is half of
+  what was dealt. Report the prayed casts as what the content does; it is an open content
+  row (CONTENT_BUGS.md, seam11), not a driver gap.
+
+## Counting every copy of a loc: t.world.loc_copies(sym, radius) (seam11)
+
+- `t.world.loc_near` answers the nearest copy. `t.world.loc_copies(sym, radius)` answers
+  (result, summary, rows) like `t.npc.tiles`: `rows.total` is the count, rows are nearest
+  first ({loc_id, resolved_loc_id, x, z, level, element_id, shape, seq, ...}).
+- radius 0 is the whole loaded scene, map-placed and server-placed alike. `no_row` when
+  none is placed.
+- It matches the PLACED id (for a multiloc, the wrapper the map names), with no multiloc
+  swap, because that swap walks the whole pool.
+- Do not count with api-level loc lists: they keep the nearest 8192 placements of every
+  id, and a Lumbridge scene has 8,515.
+- The Verzik room's spectator cages: `t.world.loc_copies("tob_dungeon_verzik_death_cage", 0)`
+  gives 24 copies on the m49_67.jl2:255-278 pattern (south-west copy 6421,100 in the
+  Entry instance). Conformance: `world.loc_copies`, `seam.loc_copies_verzik_death_cage`.
+
+## An npc whose generated record names an attack it never makes (seam11)
+
+- Author `param=attack_anim,null` in the area's .npc. The server applies every
+  `*.generated.npc` block first and every authored .npc block second
+  (torirs_server_content.c `load_npc_generated_config`, then `load_npc_authored_config`),
+  and cachepack ranks generated 1 and authored 2, so an authored value, null included,
+  always wins.
+- RIG_AUDIT.md's "directory order" claim was stale: the Athanatos' authored null held in
+  all three modes before any seam11 edit.
+- Seam11 authored the null for the blood spawn, both Matomenos families, Bloat, both
+  tornado families and the Verzik death bat (which also gets death null), all modes.
+  Conformance: `seam.authored_null_attack_anim_holds`.
+
+## ::tobnpcanim <npc>: what attack_anim / death_anim the running server holds
+
+- It adds a copy of the type on your tile, reads `npc_param` (the call
+  skill_combat/combat.rs2 swings with), deletes it, and prints
+  `tobnpcanim <npc> attack_anim=null|set death_anim=null|set cache_attack=null|set`.
+- `set` means some seq: the script language has no seq-to-int. Read it with
+  `t.msg.last` after `t.ticks(1)`.
+- `cache_attack=` is `nc_param`, which reads only the cache's param table and never the
+  overlay, so it says `set` even where the record is null. Never use `nc_param` to read an
+  overlay param (an engine row, CONTENT_BUGS.md seam11).
+- A measurement debugproc: fine in scratch and conformance, never in a room test.
+
+## Adding the first authored block for an npc: restate its generated rows
+
+- `gen_npc_combat.py --write` stops compiling any npc that an authored block names
+  (`load_authored_blocks`), so on the next regeneration that npc's generated death_anim,
+  defend_anim and attackrate disappear.
+- The seam11 blocks for tob_sotetseg_creeper_story/_hard and the three death bats state all
+  three anim rows for this reason. Before any `--write`, every ToB npc whose death_anim
+  lives only in a generated file (tob_bloat, the Matomenos, the blood spawn) needs it
+  restated in tob.npc. The generator was NOT re-run by seam11.
+
+## gen_npc_combat.py refuses spawn, sleep and stance sequences as attacks (seam11)
+
+- a4 ("the rig's only forcedpriority 6-8 seq") now refuses a seq whose name states a role
+  (spawn, despawn, emerge, sleep, ready, idle, walk, death, transform, ...), and any
+  inferred slot equal to the npc's own readyanim is refused (`drop_own_stance`). Both
+  refusals are written into the ledger note.
+- `--validate` grades are unchanged. The 54 slots the next `--write` will change are in
+  build/seam_state/matthew-mbp-m4-raid-b1-seam11/rigledger/decide_diff.txt.
+
+## A Matomenos plays elemental_spawn 8098 on the tick it spawns (seam11)
+
+- The tick log has an npc_anim 8098 row on the same slot and tick as each Matomenos'
+  npc_spawn row (2 of 2 in rigledger_crab; 6 of 6 in a full tob_maiden run). Pair the rows
+  with `{ kind = 'npc_anim', type = 10820 }` (Entry Maiden) and `type = 10845` (Entry
+  Verzik). Spec rows `maiden.av.crab_spawn.seq`, `verzik.av.reds.spawn_seq`.
+- It changed none of tob_maiden's measured numbers. Conformance:
+  `seam.matomenos_spawn_seq_on_spawn_tick`.
+
+## Xarpus dies in two animations: 8062 then 8063
+
+- On the killing blow (npc_death tick K) the combat form 10768 plays tob_xarpus_death_a 8062
+  at K+1; its frame-1 sound 4014 tob_xarpus_death_wingflap is the client's and has no row.
+- At K+3 the retype to the dead form 10769 plays death_b 8063.
+- Measured 3 of 3 (K=205, 174, 281). Spec row `xarpus.av.death_a.seq` (new in seam11: the
+  committed tob_xarpus test does not measure it yet; SEAM_LEDGER.md).
+
+## Sotetseg does not animate at the maze proc (no 8142 on him)
+
+- On a proc tick he plays nothing of his own. If his attack fell due on that tick, you see
+  that attack's seq (8139 or 8138): he attacks first, then the maze opens.
+- Detect the proc with the npc_retype row on his slot (combat -> noncombat form), or with
+  the runner's player_anim 1816 row. Both are on the same tick
+  (`sotetseg.maze_boss_idle_at_proc` = 0).
+- Never look for 8142 on him: it belongs to the exit portal loc 33037
+  (`sotetseg.av.maze.exit_portal`). Spec row `sotetseg.av.maze.boss_seq` is now 0.
+
+## A ball he throws on the proc tick does not count toward the death ball
+
+- It is thrown, logged (npc_anim 8139 plus projectile 1606 on the retype tick) and seen,
+  but a death-ball run that holds it has 11 ordinary balls, not 10 (blert 2 of 2;
+  sote11_a/b 4 of 4).
+- Mark a run as proc-tick if any ball tick equals an npc_retype tick of his slot. Assert
+  `sotetseg.magic_per_ball` (10) on the other runs and `sotetseg.magic_per_ball_proc_tick`
+  (11) on these.
+- A run where the counter was already at 10 when the maze opened also measures 11 (the
+  post-maze hold): that is `sotetseg.death_ball_after_maze`.
+
+## The Sotetseg tornado rises and sinks (npc_anim 9004 / 9005 on its slot)
+
+- On its npc_spawn tick the tornado plays 9004; its first npc_tile step comes on a later
+  tick.
+- When it leaves (you step back to row 3, it runs out of path, or the maze ends) it plays
+  9005 on tick D, takes no more steps, deals no more hits, and its npc_free row is on D+1
+  (`sotetseg.tornado_despawn_ticks` = 1).
+- The step back is seen one tick late, like every maze rule, because the hook reads the
+  tile you stood on at the end of the previous tick: back on row 3 at T, 9005 at T+1,
+  free at T+2 (sote11_a: 126, 127, 128).
+- A realm tornado still alive when the runner leaves goes with the realm (npc_free on the
+  re-activation tick, no 9005).
+- Known stall (open, CONTENT_BUGS.md seam11): when the path starts at column 12 or 13 the
+  size-3 tornado never moves. If your runner walks back to it, that is the stall.
+
+## Sotetseg: taking two rag samples safely, solo Entry (rag_percent, rag_flat_entry)
+
+- In maze 1, step one tile north from the start (row 2, below the tornado's row 4). Eat
+  to 99 first and wait 2 ticks so `t.skill.read('hitpoints')` is current, then note the
+  tick.
+- `t.player.step_tick` onto an off-path tile beside you that has a darktile
+  (`t.world.hazard_at(x, z, 3).locs` non-empty and not in the lit path). Wait
+  `t.ticks(5)`, then `step_tick` back onto the path tile.
+- That stay lands 5 splats on consecutive ticks: issue tick I, splats at I+2..I+6.
+  Measured from 99: 17, 16, 15, 14, 13 at 99, 79, 63, 48, 34, ending at 21 (sote11_b). The
+  boss deals no damage in the maze and there is no tornado below row 4, so 21 is safe.
+  Eat back above 80 before stepping onto row 4.
+- The solve gives f 11-12 and p 50.6-70.7, inside bracket<=6 and bracket<=60. Three or four
+  splats pass too; five meets the table's 60-apart note.
+- The splats are hit_player rows on your pid with npc_slot -1, damage 8..29 and hitsplat
+  not 26, one per tick of the stay; each tick also has a map_spotanim 505 and a sound
+  3985 row.
+- Work out the hitpoints before each splat from the reading minus EVERY hit_player row on
+  your pid since the reading's tick, in serial order. That includes the realm chip
+  (damage 1-3, npc_slot -1, player_spotanim 1608 on its tick), every 7 ticks, which can
+  fall inside the stay (sote11_b: chip of 3 at 104). The chip comes before the rag within
+  a tick, so subtract it first.
+
+## Verzik P3 webs: a solo raider gets one web per cast
+
+- Strategies:953 "three at a time if they are not on the same tile": the webs aim at
+  TILES. Solo you are one tile, so each 8127 sends one 1601 projectile and one web npc
+  8376 lands on the tile you stood on, +3 ticks. Count with
+  `t.ticklog.rows({kind='projectile', spotanim=1601})` on the 8127 tick.
+  `verzik.p3_webs_per_cast` is scoped party since seam11.
+- Web lifetime: npc_spawn 8376 to npc_free is 20 (M81, our constant). Stepping off does
+  not change it. To avoid the bind, walk 3 tiles off on the 8127 tick (the walk must
+  start by cast +2).
+
+## Verzik enrage: the tornado touches you where you stand (seam11)
+
+- Contact is the tile next to you (npc_range 1, tob_verzik.rs2 ~tob_verzik_tornado_tick).
+  Before seam11 a standing raider was never touched. This is an open approximation: no
+  source says whether contact is the shared tile or the one beside it.
+- The tornado walks 1 tile a tick from her south-west tile and spawns with npc_anim 9004.
+  On the touch tick: hit_player with npc_type 10846 (Entry), player_spotanim 1602 on you,
+  npc_anim 9005 on it, and npc_heal source `[proc,tob_verzik_tornado_heal]` of exactly 3x
+  the touch. npc_free follows the next tick, and npc_spawn 10846 comes again 16 ticks
+  after the touch. Spec row `verzik.av.tornado.seqs`; conformance
+  `seam.verzik_tornado_touches_a_standing_raider`.
+- `t.npc.nearest` never sees the tornado (cache interactable=no). Read its tile from
+  t.ticklog npc_tile rows (type 10846).
+- Recipe for pct, heal_mult, respawn and av.p3_enrage.tornado: stand on open floor south
+  of her (6430,84 in Entry), let the first tornado touch you, then outrun the rest. When
+  an npc_tile row puts it 4 tiles away or closer, walk 6 tiles directly away, clamped to
+  x 6421..6443 and z 81..97.
+- Do not eat in the tick before the touch: the pct row reads your hitpoints the tick
+  before. A brew in that tick made a 47 look like half of 79 (kill5). Safer:
+  hp_after = before - floor(before/2), and check the touch equals hp_after or
+  hp_after - 1, using the hp read the tick after.
+- Never take a touch while the green ball (projectile 1598) is in flight: the ball (66)
+  landing on a 49-hp touch killed kill6. Keep hp at 90 or more from the yellows until
+  launch + 13.
+- The floor of 5 (`p3_tornado_min`) needs 9 hitpoints or fewer at the touch: scratch only
+  (`::setlevel hitpoints 8` gives a touch of 5 and a heal of 15); scoped stat.
+
+## Verzik P1: measuring the shield cap per style (p1_cap 10,3,3)
+
+- Classify each hit_npc on the P1 form (Entry 10831) by your last player_anim before it:
+  1658 whip (melee), 426 bow (ranged), 1162 a cast (magic). Dawnbringer hits (1167) are
+  uncapped in our content, so leave them out.
+- Recipe (vz11_kill7): one Dawnbringer special first (combat_interface:special_attack,
+  then attack: about 100-145). Then abyssal_whip x6 (most hits are 10), twisted_bow x3
+  (3 each), then staff_of_fire with `t.player.cast('fire_blast', 'verzik_phase1_story', 1)`
+  until one cast lands DAMAGE over 0 (stop on damage, not on a hit row). Finish with the
+  whip.
+- In armadyl, fire blast splashes often (0 of 8 in kill5). Bring runes for 10 or more
+  casts (airrune and deathrune), or free two slots so armour can come off.
+- Tank the bolts under Protect from Magic (Entry prayed max 30), eat below 55; P1 costs
+  about 150 hp over about 150 ticks.
+
+## Verzik P2: the first crab kited until it dies of age (p2_crab_lifetime 25)
+
+- The crab spawns 6 tiles out from you, on the side AWAY from her
+  (~tob_verzik_crab_tile). Stand south-west at 6427,86 when she casts (no crab if the wall
+  is behind you, e.g. north of her at 6432,98).
+- Kite on a ring round her 3x3 body with corners 6427,85 / 6427,95 / 6437,95 / 6437,85.
+  Head for the corner opposite the crab's nearest corner, one corner at a time, and keep
+  the corner you chose until you reach it (re-picking each tick walked into the crab).
+- Never path next to her body: a body slam knocks you 3 tiles, into the crab. Her body
+  blocks the crab, which gets stuck on her face.
+- Read npc_spawn of 10841/10842/10843 to its npc_death: 25 when you are 4 or more tiles
+  away.
+- `p2_zap_bounces` and `p2_zap_self_damage` need a second raider (scoped party, seam11).
+
+## Verzik P2: dodge the Athanatos landing; the bombs are cheap under Protect from Missiles
+
+- Projectile 1586 (the Athanatos) lands on its dst tile 6 ticks later for up to 78 (the
+  Normal figure, in Entry). Step 2 tiles off any 1586 whose dst is your tile, and let this
+  dodge win over shooting crabs.
+- Urnbomb 1583: prayed max 8. Stepping to the next tile when dst is yours works, but
+  tanking is fine. The zap (1585, up to 48, every 5th attack) cannot be dodged solo; eat
+  at 62 or below.
+
+## Verzik reds: measuring the absorb window (reds_absorb_window 5)
+
+- The heal is judged at your ATTACK tick, not the landing. An attack on summon s+0..s+4
+  (s is the npc_anim 8117 tick) writes npc_heal source `[proc,tob_prepare_player_hit]` on
+  the attack tick and lands 0 (hitsplat 26). An attack on s+5 lands as damage. A roll of
+  0 heals nothing and proves nothing, so retry on the next summon.
+- Nothing may be in flight at the summon. Near 35% (740 of the 1000 bar; track it from
+  npc_heal `hitpoints` minus hit_npc), fire single shots and cancel each with a one-tile
+  walk. Hold once she reads 742 or below, and poll the log every tick.
+- Summon 1: press attack at s+4. Summons come every 36 ticks: hold from s+30 and press at
+  s2+5. After both probes, hold fire on s..s+4 of every later summon (otherwise your
+  auto-attacks heal her).
+
+## Verzik P3 that a solo bow survives (vz11_kill7, no god)
+
+- Kit: armadyl worn, Dawnbringer wielded at the start; twisted_bow, abyssal_whip,
+  staff_of_fire, airrune 60, deathrune 15, ranging potion, 6 saradomin brews
+  (br_4dosepotionofsaradomin), 4 restores (br_4dose2restore), 13 anglerfish. Eat brew,
+  brew, restore. P2 starts with rigour and Protect from Missiles; switch to Protect from
+  Magic on projectile 1591.
+- In P3 switch prayer on her npc_anim: 8124 magic, 8125 ranged. Keep at least 2 tiles from
+  her 7x7 body. Shoot P3 crabs (3 hp) at once. For the yellows, walk onto the
+  map_spotanim 1595 tile and hold until pool tick + 15. For the webs, walk 3 tiles off on
+  the 8127 tick.
+- Two kills under two run names: t741 (kill7, 15 of 15 rows) and t748 (kill7b). The plan
+  is run-name fragile (the run name seeds the player's rolls).

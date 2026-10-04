@@ -1179,6 +1179,33 @@ enum DriveResult DriveUi_Npcs(
     struct App* app, int radius, struct DriveNpcRow* out, int cap, int* out_count);
 enum DriveResult DriveUi_Locs(
     struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count);
+/**
+ * Every placed copy of ONE loc id in the loaded scene (the root worldview's
+ * scenery pool -- the same pool DriveUi_Locs walks, so map-placed and
+ * server-placed locs alike), nearest first, filtered on the id BEFORE the
+ * nearest-K window rather than after it.
+ *
+ * Why it is not DriveUi_Locs plus a filter (raid seam11
+ * ticklog_raw_damage_and_loc_count): the Verzik room's map places
+ * `tob_dungeon_verzik_death_cage` 32717 twenty-four times (m49_67.jl2:255-278)
+ * and the AV spec counts them. DriveUi_Locs keeps the nearest 8192 rows of
+ * every id; a scene with more scenery than that drops the far copies without
+ * saying so, and a count read off its rows is a lower bound that looks like a
+ * count. Here only the matching rows are sorted, and `*out_total` is every
+ * match inside `radius` even when more than `cap` matched, so a caller can
+ * tell "24" from "the first 24 of more".
+ *
+ * `loc_id` is the PLACED id (DriveLocRow.loc_id: for a multiloc, the
+ * wrapper the map names). `radius` <= 0 means the whole scene. Rows carry
+ * everything a DriveUi_Locs row does.
+ */
+enum DriveResult DriveUi_LocCopies(struct App* app,
+                                   int loc_id,
+                                   int radius,
+                                   struct DriveLocRow* out,
+                                   int cap,
+                                   int* out_count,
+                                   int* out_total);
 enum DriveResult DriveUi_Objs(
     struct App* app, int radius, struct DriveObjRow* out, int cap, int* out_count);
 /** Every map graphic and every projectile, nearest first like the readers

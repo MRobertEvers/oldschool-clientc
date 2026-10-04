@@ -66,8 +66,13 @@ QD.ticklog.FIELDS = {
     npc_spotanim = { "slot", "type", "spotanim", "height", "delay" },
     projectile = { "src", "dst", "target", "spotanim", "start_cycle", "end_cycle" },
     map_spotanim = { "coord", "spotanim", "height", "delay" },
-    hit_player = { "pid", "npc_slot", "damage", "hitsplat", "dealer_pid", "npc_type" },
-    hit_npc = { "slot", "type", "damage", "hitsplat" },
+    -- `damage` is the splat as shown; `raw` the hit as the caller dealt it,
+    -- before `::god`, absorption and the clamp to the hitpoints left (raid
+    -- seam11; torirs_server.h RAW DAMAGE). Content's own mitigation (a
+    -- protection prayer, gear) is applied BEFORE the call and is inside
+    -- `raw`. nil on a binary built before seam11.
+    hit_player = { "pid", "npc_slot", "damage", "hitsplat", "dealer_pid", "npc_type", "raw" },
+    hit_npc = { "slot", "type", "damage", "hitsplat", "raw" },
     npc_spawn = { "slot", "type", "coord" },
     npc_death = { "slot", "type", "coord" },
     npc_free = { "slot", "type", "coord" },
@@ -101,7 +106,8 @@ QD.ticklog.FIELDS = {
 -- The kinds whose label is their source rather than a test's mark text.
 QD.ticklog._SOURCED = { sound = true, music = true, jingle = true }
 
-QD.ticklog._RAW = { "a", "b", "c", "d", "e", "f" }
+-- `g` is the seventh field (torirs_server.h): only hit_player fills it.
+QD.ticklog._RAW = { "a", "b", "c", "d", "e", "f", "g" }
 
 -- ToriRSServer_CoordPack: level << 28 | x << 14 | z.
 function QD.ticklog._unpack(coord)

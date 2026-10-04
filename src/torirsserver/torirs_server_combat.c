@@ -1311,6 +1311,7 @@ ToriRSServer_CombatHitNpc(
 {
     struct ToriRSServerNpc* npc;
     int immutable_target;
+    int requested;
 
     if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
@@ -1361,6 +1362,9 @@ ToriRSServer_CombatHitNpc(
                        ToriRSServer_NpcCategory(npc->type) == 298 ||
                        ToriRSServer_NpcCategory(npc->type) == 610;
 
+    /* The tick log's `raw` (torirs_server.h, RAW DAMAGE): the hit before the
+     * clamp to the hitpoints left, so an overkill reads as the number dealt. */
+    requested = amount;
     if( amount > npc->hitpoints )
         amount = npc->hitpoints;
     if( !immutable_target )
@@ -1387,7 +1391,7 @@ ToriRSServer_CombatHitNpc(
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv));
-    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block());
+    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested);
 
     /* Warn every ironman fighting this npc, not just the one who swung: the
      * player who is about to lose the drop is the one who got there FIRST, and
@@ -1760,6 +1764,10 @@ ToriRSServer_CombatHitPlayerFrom(
     int dealer_slot)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
+    /* The tick log's `raw` (torirs_server.h, RAW DAMAGE): the hit as the
+     * caller dealt it, before `::god`, absorption and the hitpoints clamp
+     * below rewrite `amount` into the splat. */
+    int const requested = amount;
 
     /*
      * `::god` absorbs the hit here rather than at any call site, because this
@@ -1800,7 +1808,8 @@ ToriRSServer_CombatHitPlayerFrom(
      * hitpoints left, which is the number a recorder reads off the client. */
     ToriRSServer_TicklogHitPlayer(
         srv, player, amount,
-        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()), dealer_slot);
+        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()), dealer_slot,
+        requested);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;

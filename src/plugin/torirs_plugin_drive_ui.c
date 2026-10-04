@@ -952,6 +952,95 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
     return DRIVE_OK;
 }
 
+enum DriveResult
+DriveUi_LocCopies(
+    struct App* app,
+    int loc_id,
+    int radius,
+    struct DriveLocRow* out,
+    int cap,
+    int* out_count,
+    int* out_total)
+{
+    int px = 0, pz = 0, plevel, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+    int have_player;
+    int base_x, base_z;
+    int count = 0;
+    int total = 0;
+    struct World_EntityPool* pool;
+    int i;
+
+    assert(app);
+    assert(out);
+    assert(cap > 0);
+    assert(out_count);
+    assert(out_total);
+
+    *out_count = 0;
+    *out_total = 0;
+    if( !app->world )
+        return DRIVE_OK;
+
+    have_player = App_LocalPlayerTiles(
+        app, &px, &pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+
+    /* Root worldview only, as DriveUi_Locs (its note says why). One pass over
+     * the pool; the id test comes first, so the 8,000 rows of other scenery
+     * cost one compare each and only the copies are ranked. */
+    pool = &app->world->entities.scenery;
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        int tile_x, tile_z;
+        long distance;
+        int j, insert_at;
+
+        if( !sc || sc->loc_id != loc_id )
+            continue;
+        tile_x = base_x + sc->grid_position.x;
+        tile_z = base_z + sc->grid_position.z;
+        if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
+            continue;
+        total++;
+
+        distance = have_player ? drive_ui_distance2(tile_x, tile_z, px, pz) : 0;
+        insert_at = count < cap ? count : cap - 1;
+        if( count >= cap )
+        {
+            long worst = have_player
+                ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz)
+                : 0;
+            if( !have_player || distance >= worst )
+                continue;
+        }
+        for( j = insert_at; j > 0; j-- )
+        {
+            long prev_distance = have_player
+                ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz)
+                : 0;
+            if( !have_player || prev_distance <= distance )
+                break;
+            out[j] = out[j - 1];
+        }
+        out[j].loc_id = sc->loc_id;
+        out[j].resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
+        out[j].tile_x = tile_x;
+        out[j].tile_z = tile_z;
+        out[j].level = sc->grid_position.level;
+        out[j].element_id = sc->element_id;
+        out[j].shape = sc->shape;
+        drive_ui_element_seq(app, sc->element_id, &out[j].seq, &out[j].seq_frame);
+        if( count < cap )
+            count++;
+    }
+    drive_ui_locs_attach_ambient(app, out, count);
+    *out_count = count;
+    *out_total = total;
+    return DRIVE_OK;
+}
+
 /* The one loc def DriveUi_LocVariants is currently fetching, and how many
  * times it has been asked since -- see the retry note in the body. */
 static int g_drive_ui_loc_load_id = -1;
@@ -1923,6 +2012,44 @@ lua_drive_npcs(struct lua_State* L)
     return 2;
 }
 
+/* One DriveLocRow as the Lua table api_drive.locs / api_drive.loc_copies
+ * hand back (tile_x/tile_z spelled x/z, world.lua's banner). */
+static void
+drive_ui_push_loc_row(struct lua_State* L, const struct DriveLocRow* row)
+{
+    lua_newtable(L);
+    lua_pushinteger(L, row->loc_id);
+    lua_setfield(L, -2, "loc_id");
+    lua_pushinteger(L, row->resolved_loc_id);
+    lua_setfield(L, -2, "resolved_loc_id");
+    lua_pushinteger(L, row->tile_x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, row->tile_z);
+    lua_setfield(L, -2, "z");
+    lua_pushinteger(L, row->level);
+    lua_setfield(L, -2, "level");
+    lua_pushinteger(L, row->element_id);
+    lua_setfield(L, -2, "element_id");
+    lua_pushinteger(L, row->shape);
+    lua_setfield(L, -2, "shape");
+    /* What the client plays on the placement (DriveLocRow.seq) and the
+     * area sound it registered for it (DriveLocRow.ambient_*); -1 when
+     * static / silent. A `nil` seq means a binary built before raid
+     * seam9 client_played_anim_reads. */
+    lua_pushinteger(L, row->seq);
+    lua_setfield(L, -2, "seq");
+    lua_pushinteger(L, row->seq_frame);
+    lua_setfield(L, -2, "seq_frame");
+    lua_pushinteger(L, row->ambient_sound);
+    lua_setfield(L, -2, "ambient_sound");
+    lua_pushinteger(L, row->ambient_range);
+    lua_setfield(L, -2, "ambient_range");
+    lua_pushinteger(L, row->ambient_inner);
+    lua_setfield(L, -2, "ambient_inner");
+    lua_pushinteger(L, row->ambient_random);
+    lua_setfield(L, -2, "ambient_random");
+}
+
 static int
 lua_drive_locs(struct lua_State* L)
 {
@@ -1957,39 +2084,45 @@ lua_drive_locs(struct lua_State* L)
     lua_newtable(L);
     for( i = 0; i < count; i++ )
     {
-        lua_newtable(L);
-        lua_pushinteger(L, rows[i].loc_id);
-        lua_setfield(L, -2, "loc_id");
-        lua_pushinteger(L, rows[i].resolved_loc_id);
-        lua_setfield(L, -2, "resolved_loc_id");
-        lua_pushinteger(L, rows[i].tile_x);
-        lua_setfield(L, -2, "x");
-        lua_pushinteger(L, rows[i].tile_z);
-        lua_setfield(L, -2, "z");
-        lua_pushinteger(L, rows[i].level);
-        lua_setfield(L, -2, "level");
-        lua_pushinteger(L, rows[i].element_id);
-        lua_setfield(L, -2, "element_id");
-        lua_pushinteger(L, rows[i].shape);
-        lua_setfield(L, -2, "shape");
-        /* What the client plays on the placement (DriveLocRow.seq) and the
-         * area sound it registered for it (DriveLocRow.ambient_*); -1 when
-         * static / silent. A `nil` seq means a binary built before raid
-         * seam9 client_played_anim_reads. */
-        lua_pushinteger(L, rows[i].seq);
-        lua_setfield(L, -2, "seq");
-        lua_pushinteger(L, rows[i].seq_frame);
-        lua_setfield(L, -2, "seq_frame");
-        lua_pushinteger(L, rows[i].ambient_sound);
-        lua_setfield(L, -2, "ambient_sound");
-        lua_pushinteger(L, rows[i].ambient_range);
-        lua_setfield(L, -2, "ambient_range");
-        lua_pushinteger(L, rows[i].ambient_inner);
-        lua_setfield(L, -2, "ambient_inner");
-        lua_pushinteger(L, rows[i].ambient_random);
-        lua_setfield(L, -2, "ambient_random");
+        drive_ui_push_loc_row(L, &rows[i]);
         lua_rawseti(L, -2, i + 1);
     }
+    return 2;
+}
+
+/* api.drive.loc_copies(loc_id, [radius]) -> "ok", {row, ..., total = N}.
+ * Every placed copy of `loc_id` (the PLACED id, DriveLocRow.loc_id) in the
+ * loaded scene, nearest first, rows shaped as api_drive.locs's; `total` is
+ * every copy inside `radius` (0 = the whole scene), which exceeds #rows only
+ * when more than DRIVE_UI_COPIES_CAP matched. DriveUi_LocCopies says why
+ * this is not api_drive.locs(0) plus a filter. */
+static int
+lua_drive_loc_copies(struct lua_State* L)
+{
+    enum
+    {
+        DRIVE_UI_COPIES_CAP = 1024
+    };
+    struct App* app = PluginDrive_App();
+    int loc_id = PluginDrive_ArgInt(L, 1);
+    int radius = PluginDrive_ArgOptInt(L, 2, 0);
+    static struct DriveLocRow rows[DRIVE_UI_COPIES_CAP];
+    int count = 0;
+    int total = 0;
+    enum DriveResult result;
+    int i;
+
+    assert(app);
+    result = DriveUi_LocCopies(app, loc_id, radius, rows, DRIVE_UI_COPIES_CAP, &count, &total);
+    lua_pushstring(L, DriveResultName(result));
+    lua_newtable(L);
+    for( i = 0; i < count; i++ )
+    {
+        drive_ui_push_loc_row(L, &rows[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_pushinteger(L, total);
+    lua_setfield(L, -2, "total");
     return 2;
 }
 
@@ -2286,6 +2419,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"menu_rect", lua_drive_menu_rect},
     {"npcs", lua_drive_npcs},
     {"locs", lua_drive_locs},
+    {"loc_copies", lua_drive_loc_copies},
     {"loc_variants", lua_drive_loc_variants},
     {"objs", lua_drive_objs},
     {"spotanims", lua_drive_spotanims},

@@ -61,6 +61,10 @@ sotetseg.rag_range	all	applies in every mode; a solo room measures it
 sotetseg.tornado_row	all	the tornado chases a SOLO runner in every mode (tob_sotetseg.rs2: party size 1 or Hard); the name heuristic skipped it for 'Hard Mode: also ...'
 sotetseg.tornado_speed	all	the solo runner's tornado, every mode
 sotetseg.tornado_damage	all	the solo runner's tornado, every mode
+sotetseg.magic_per_ball_proc_tick	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+sotetseg.av.tornado.spawn_seq	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+sotetseg.av.tornado.despawn_seq	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+sotetseg.tornado_despawn_ticks	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
 # heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
 # sotetseg.melee_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.melee_max_entry)
 # sotetseg.ball_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.ball_max_entry)

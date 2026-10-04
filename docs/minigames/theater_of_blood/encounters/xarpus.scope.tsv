@@ -91,6 +91,7 @@ xarpus.av.death.npc_type	all	retype at the collapse
 xarpus.av.death.sound_script	all	tob_xarpus.rs2:1414 sound_synth(tob_xarpus_death_screech)
 xarpus.av.death_pools.window	all	video B_gjVdmfOrY 60 fps by seam7; no recorder reads it
 xarpus.av.death_pools.gfx	all	spotanim anim= and angle= binding
+xarpus.av.death_a.seq	all	generated death_anim on the combat form, seam11
 # heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
 # xarpus.p1.handoff.normal	normal+entry	the quantity says 'Normal and Entry'; skipped in Hard (xarpus.p1.handoff.hard)
 # xarpus.p3.screech_pct	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (xarpus.p3.screech_pct_entry)

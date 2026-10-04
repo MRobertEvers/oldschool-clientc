@@ -5201,12 +5201,27 @@ ToriRSServer_CoxSimRun(struct ToriRSServer* srv);
  * hooks that only hold an npc pointer -- the animation funnel, the type
  * change -- find their slot and their tick.
  *
- * Every row is {serial, tick, kind, a..f, label}; `tick` is `srv->tick` as
+ * Every row is {serial, tick, kind, a..f, label, g}; `tick` is `srv->tick` as
  * it stood when the event happened, `serial` counts from 1 in recording
  * order. Coordinates are packed the content way, ToriRSServer_CoordPack. The
  * fields per kind are listed beside the enum. When a path is given, each row
  * is also appended to it as it is recorded (TSV, header `ticklog-v1`), so a
- * python tool and the test read the same rows.
+ * python tool and the test read the same rows. `g` is the seventh field, for
+ * the one kind that fills all six others (HIT_PLAYER); the TSV writes it as
+ * the LAST column, after the label, so a reader that indexes the label as
+ * column 9 reads the same file it read before `g` existed. 0 on every other
+ * kind.
+ *
+ * RAW DAMAGE (raid seam11 ticklog_raw_damage_and_loc_count). A hit row's
+ * `damage` is the splat as shown: after `::god`, the absorption pool and the
+ * clamp to the hitpoints the target had left. Its `raw` is the amount the
+ * caller asked to deal, before those three -- the number the script handed
+ * `damage` / `p_overhit` / `npc_damage`, or the engine's own swing. Every
+ * mitigation CONTENT applies (protection prayers, `~gear_reduce_damage`,
+ * `~slayer_on_npc_hit_player`) runs before the call and is inside `raw`:
+ * the engine never sees a script's local roll, so a hit a script zeroed for
+ * prayer reads raw 0. A killing blow of 30 on 12 hitpoints reads damage 12,
+ * raw 30.
  */
 enum ToriRSServerTicklogKind
 {
@@ -5218,8 +5233,10 @@ enum ToriRSServerTicklogKind
                                          * d=spotanim e=start cycle f=end cycle */
     TORIRSSERVER_TICKLOG_MAP_SPOTANIM,  /* a=coord b=spotanim c=height d=delay */
     TORIRSSERVER_TICKLOG_HIT_PLAYER,    /* a=pid b=dealer npc slot or -1 c=damage d=hitsplat
-                                         * e=dealer pid or -1 f=dealer npc type or -1 */
-    TORIRSSERVER_TICKLOG_HIT_NPC,       /* a=slot b=npc type c=damage d=hitsplat */
+                                         * e=dealer pid or -1 f=dealer npc type or -1
+                                         * g=raw (see RAW DAMAGE above) */
+    TORIRSSERVER_TICKLOG_HIT_NPC,       /* a=slot b=npc type c=damage d=hitsplat
+                                         * e=raw (see RAW DAMAGE above) */
     TORIRSSERVER_TICKLOG_NPC_SPAWN,     /* a=slot b=npc type c=coord */
     TORIRSSERVER_TICKLOG_NPC_DEATH,     /* a=slot b=npc type c=coord (the killing blow) */
     TORIRSSERVER_TICKLOG_NPC_FREE,      /* a=slot b=npc type c=coord */
@@ -5308,6 +5325,9 @@ struct ToriRSServerTicklogRow
     int tick;
     int kind;
     int a, b, c, d, e, f;
+    /* The seventh field (HIT_PLAYER's raw); 0 on every kind that does not
+     * name it. Written after `label` in the TSV -- see the banner above. */
+    int g;
     char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
 };
 
@@ -5384,10 +5404,13 @@ void ToriRSServer_TicklogProjectile(const struct ToriRSServer* srv, int src_coor
                                     int target, int spotanim, int start_cycle, int end_cycle);
 void ToriRSServer_TicklogMapSpotanim(const struct ToriRSServer* srv, int coord, int spotanim,
                                      int height, int delay);
+/* `damage` is the splat as shown, `raw` the amount the caller asked to deal
+ * (RAW DAMAGE in the banner above the kinds). */
 void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,
                                    const struct ToriRSServerPlayer* player, int damage,
-                                   int hitsplat, int dealer_pid);
-void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int damage, int hitsplat);
+                                   int hitsplat, int dealer_pid, int raw);
+void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int damage, int hitsplat,
+                                int raw);
 void ToriRSServer_TicklogNpcSpawn(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcDeath(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);

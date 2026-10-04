@@ -108,3 +108,4 @@ maiden.av.death.dying_a_form_ticks	all	presentation row
 maiden.av.hit_sound	all	presentation row
 maiden.av.room_music	all	presentation row
 maiden.av.fight_music	all	presentation row
+maiden.av.crab_spawn.seq	all	presentation row, seam11

@@ -9,6 +9,8 @@ Paths below are short forms:
 - `gen.npc` means `OSRS-Content/osrs239-content/server/scripts/npc/configs/npc_anims.generated.npc`.
 - `tob.npc` and the `.rs2` files are under `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/`.
 
+**STALE (seam11): the paragraph below is wrong.** The server loads every `*.generated.npc` first and every authored `.npc` second (`torirs_server_content.c` `load_npc_generated_config`, then `load_npc_authored_config`; cachepack ranks generated 1 and authored 2), so an authored value, `null` included, always wins; lines 2030-2041 are the per-header seed. The Athanatos null held in all three modes before any edit. The L rows were real for a different reason: `tob.npc` never stated an attack for those records. Seam11 authored the nulls (CONTENT_BUGS.md, seam11).
+
 **Why a generated row reaches the game.** The server reads every `[gameval]` block for an npc and lays each one over the same record, in directory order (`src/torirsserver/torirs_server_content.c:2030-2041`). `minigames/` sorts before `npc/`, so `gen.npc` is applied after `tob.npc`. A generated `attack_anim` therefore replaces anything `tob.npc` states, including an authored `null`. The `NOT COMPILED` banner on `tob_bloat.combat:13` describes an older loader.
 
 The three lists:

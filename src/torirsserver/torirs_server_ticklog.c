@@ -148,13 +148,18 @@ ticklog_write_row(const struct ToriRSServerTicklogRow* row)
 {
     if( !g_ticklog.out )
         return;
-    fprintf(g_ticklog.out, "%u\t%d\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", (unsigned)row->serial,
-            row->tick, k_kind_names[row->kind], row->a, row->b, row->c, row->d, row->e, row->f,
-            row->label);
+    /* `g` LAST, after the label: tools/verify_tob_timings.py read_ticklog
+     * indexes the label as column 9, and a column inserted before it would
+     * have turned every label into a number there. */
+    fprintf(g_ticklog.out, "%u\t%d\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n",
+            (unsigned)row->serial, row->tick, k_kind_names[row->kind], row->a, row->b, row->c,
+            row->d, row->e, row->f, row->label, row->g);
 }
 
+/* Every row goes through here; `g` is the seventh field, which only
+ * HIT_PLAYER fills (ticklog_push below passes 0 for every other kind). */
 static uint32_t
-ticklog_push(
+ticklog_push_row(
     int kind,
     int a,
     int b,
@@ -162,6 +167,7 @@ ticklog_push(
     int d,
     int e,
     int f,
+    int g,
     char const* label)
 {
     struct ToriRSServerTicklogRow* row;
@@ -188,6 +194,7 @@ ticklog_push(
     row->d = d;
     row->e = e;
     row->f = f;
+    row->g = g;
     if( label )
     {
         /* Tabs and newlines would split the TSV row; a label is a test's
@@ -204,6 +211,20 @@ ticklog_push(
     }
     ticklog_write_row(row);
     return row->serial;
+}
+
+static uint32_t
+ticklog_push(
+    int kind,
+    int a,
+    int b,
+    int c,
+    int d,
+    int e,
+    int f,
+    char const* label)
+{
+    return ticklog_push_row(kind, a, b, c, d, e, f, 0, label);
 }
 
 static void
@@ -248,7 +269,7 @@ ToriRSServer_TicklogEnable(
                     path);
         else
             fprintf(g_ticklog.out,
-                    "ticklog-v1\tserial\ttick\tkind\ta\tb\tc\td\te\tf\tlabel\n");
+                    "ticklog-v1\tserial\ttick\tkind\ta\tb\tc\td\te\tf\tlabel\tg\n");
     }
     ticklog_snapshot_npc_tiles();
     ticklog_push(TORIRSSERVER_TICKLOG_START, srv->tick, 0, 0, 0, 0, 0, NULL);
@@ -462,7 +483,8 @@ ToriRSServer_TicklogHitPlayer(
     const struct ToriRSServerPlayer* player,
     int damage,
     int hitsplat,
-    int dealer_pid)
+    int dealer_pid,
+    int raw)
 {
     int npc_slot;
     int npc_type = -1;
@@ -481,8 +503,8 @@ ToriRSServer_TicklogHitPlayer(
      * the npc. */
     if( npc_slot >= 0 && dealer_pid == player->pid )
         dealer_pid = -1;
-    ticklog_push(TORIRSSERVER_TICKLOG_HIT_PLAYER, player->pid, npc_slot, damage, hitsplat,
-                 dealer_pid, npc_type, NULL);
+    ticklog_push_row(TORIRSSERVER_TICKLOG_HIT_PLAYER, player->pid, npc_slot, damage, hitsplat,
+                     dealer_pid, npc_type, raw, NULL);
 }
 
 void
@@ -490,13 +512,14 @@ ToriRSServer_TicklogHitNpc(
     const struct ToriRSServer* srv,
     int slot,
     int damage,
-    int hitsplat)
+    int hitsplat,
+    int raw)
 {
     if( !ticklog_on_for(srv) )
         return;
     assert(slot >= 0);
     assert(slot < TORIRSSERVER_NPC_MAX);
-    ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, 0, 0,
+    ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, raw, 0,
                  NULL);
 }
 

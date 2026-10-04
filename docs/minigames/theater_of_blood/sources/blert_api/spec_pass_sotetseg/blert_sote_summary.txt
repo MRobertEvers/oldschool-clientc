@@ -132,3 +132,19 @@ same residue 19 differ 3
 ## DEATH_AFTER_MAZE
 type of the first attack after each re-activation (44 mazes, normal and hard): {'M': 11, 'B': 33} (M melee, B ball, D death ball)
 attack number (1 = the very first) of the first death ball after a re-activation: {2: 4, 3: 7, 4: 7, 5: 1, 6: 4, 7: 1, 8: 3, 9: 3, 10: 1, 11: 3, 13: 2, 15: 1, 16: 1}
+
+
+## PROC_TICK_BALL (seam11 tob_sotetseg_maze_proc_and_creeper, 2026-10-03: the same 22 stage-13 streams, build/spec_state/matthew-mbp-m4-raid-b1-spec-tob/blert_sote_raw; scripts build/seam_state/matthew-mbp-m4-raid-b1-seam11/sote11_blert_proc_ball_runs.py and sote11_blert_ball_index_at_proc.py)
+ball attacks (NPC_ATTACK 8) ON a maze proc tick (type 130): 3 (m11 x2, m12 x1) - the recorder saw his 8139 on the proc tick, so no seq of his replaced it there
+death-ball runs by ordinary-ball count, with a proc inside and a proc-tick ball inside:
+('m10', 10, 'maze', '') 2
+('m11', 10, 'maze', '') 19
+('m11', 10, 'nomaze', '') 1
+('m11', 11, 'maze', '') 2
+('m11', 11, 'maze', 'ballOnProc') 1
+('m12', 9, 'maze', '') 1
+('m12', 10, 'maze', '') 8
+('m12', 11, 'maze', 'ballOnProc') 1
+attacks ON proc tick {('m11', 'B'): 2, ('m12', 'B'): 1}
+the two 11-ball runs holding a proc-tick ball: m11_s4_3c159 proc 66 with ball 8 on tick 66, death ball after ball 11 at 152; m12_s5_4dea5 proc 51 with ball 8 on tick 51, death ball after ball 11 at 116 -> the proc-tick ball is thrown but not counted
+the other two 11-ball Normal runs: counter at 10 when the maze opened (m11_s5_2aa4c proc 117 after ball 10; m11_s5_649da proc 146 after ball 10) -> the post-maze hold (sotetseg.death_ball_after_maze)
