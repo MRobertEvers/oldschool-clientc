@@ -611,3 +611,56 @@ Open:
   "crab / web: the tick it dies"; seam15's tornado fade also keeps the tick its despawn began
   there. Suggested comment: "crab / web: the tick it dies; tornado: the tick its despawn began".
   Documentation only.
+
+## From seam16 (matthew-mbp-m4-raid-b1-seam16, 2026-10-04)
+
+- **FIXED seam16** ToB, Bloat: the stomp hit a raider out of Bloat's sight. `~tob_bloat_stomp`
+  was `huntall` over 6 tiles with no sight test; s15k1 ticks 438 and 510 stomped a raider
+  standing behind the tank for 26 and 33. Entry Mode :134 "This can be avoided by moving out
+  of his line of sight" and :145 "Run away and out of his line of sight to avoid it" (grade C
+  with transcripts yt_B_gjVdmfOrY.md:69 and yt_KF9y2GYTJ-A.md:125). The stomp now also asks
+  `~tob_bloat_sees`, the flies' test. The 6-tile reach stays [M65]. Conformance
+  seam.bloat_stomp_needs_sight.
+- **FIXED seam16** ToB, Bloat: a falling-flesh tile rolled twice in one volley was drawn twice
+  and landed twice (s15k1 tick 681: 22 + 22; 15 of 32 volleys repeated a tile).
+  blert_api/bloat_events.csv (B): 16 hand graphics in 740 of 1 050 recorded drops, 15 in 271,
+  14 in 39. `~tob_bloat_hand_repeat` skips the repeat where it is drawn and where it lands;
+  every shadow is still rolled, so the room's roll stream does not move. Spec bloat.hand_tiles
+  is now 14-16 range.
+- **FIXED seam16** ToB, Verzik P3: her ranged, magic and melee attacks never missed. Each dealt
+  `add(1, random(max))` with no roll: 28 of 29 landed in s15k1, and the HEAD scratch landed
+  16 of 16 autos and 17 of 17 melee unprayed. Sources: cache verzik_phase3_story
+  (cache_npc_verzik.txt:537, Ranged and Magic 180, +20 ranged and magic attack, A);
+  Strategies:942 "As her attacks are very accurate"; Entry Mode :243 "damage is calculated
+  upon impact" and :245 "a crush based melee attack"; LostCity npc_combat_melee.rs2:27-28 for
+  the roll itself (C). The autos are now rolled at the landing, the melee against crush.
+  Spec verzik.p3_auto_miss_entry (C). Conformance seam.verzik_p3_attacks_roll_accuracy.
+- Not a bug, sourced: Maiden's blackstorm has no accuracy roll. Strategies:590 "The attack
+  always lands as a [[successful hit]] and deals damage equal to 36.5 + (3.5 * c) ... This can
+  be halved by activating [[Protect from Magic]]". A prayed Entry hit above 9 is the leak term
+  c, not a failed prayer (61 of 61 hits matched at their launch-tick c). Entry Mode :111 says
+  only "Magic; preventable with [[Prayer]]"; that is grade D against grade D, so the halving
+  stays. Conformance seam.maiden_blackstorm_always_lands_entry; spec maiden.auto_land_rate_entry
+  and maiden.auto_prayed_entry (D).
+- Open (grade D, one source), potions, Saradomin brew: `sara_brew.rs2:30`
+  `stat_drain(defence, 2, 10)` lowers Defence by 10% + 2 per dose. Wiki Saradomin_brew :56
+  says a dose "raises [[Hitpoints]] by 15% + 2 and [[Defence]] by 20% + 2 of their base
+  levels", and :89 gives "floor((Defence Level) * 1/5) + 2" (pinned at
+  build/seam_state/matthew-mbp-m4-raid-b1-seam16/trj/wiki_Saradomin_brew.wikitext; copy it to
+  sources/ with a manifest row). Every brew a raider drinks makes each accuracy-rolled hit
+  land more often. Engine-wide: the quest suite must be re-run after the fix. Found by the
+  tob_relay_wiki_kit fixer.
+- Open, ToB, Xarpus [M70]: the poison buff counts an exhumed as fully absorbed when one orb
+  reaches him. s15k1 leaked 1-4 orbs from 6 of 7 exhumeds, giving +85% and Entry poison hits of
+  4-6. Mod Kieren's "buffed by a percentage based upon how many exhumed absorbs you missed"
+  (wiki_Xarpus.wikitext:257) may count orbs (16 of 56 = 29% here). No source settles it; left E.
+- Open, ToB, Verzik P2: her stomp on a raider under her and the urnbomb still deal
+  `add(1, random(max))` with no roll. The bomb is a tile AoE ("avoided by standing one tile
+  away", Entry Mode :226), so no roll is plausible there; the stomp has no source either way.
+- Open, ToB, Verzik green ball in Entry: 74 (75% of the Hitpoints level, the Normal figure).
+  The Entry page gives no figure ("be prepared to take unavoidable damage", :250).
+- Open, ToB, configs/tob.constant line citations in the spec tables have drifted (bloat.tsv
+  cited :896 for `^tob_bloat_stomp_range`, which was at :949 before seam16 and is at :960
+  after it). seam16 re-pointed that one row. Its maiden comments add 11 lines to
+  tob.constant between lines 240 and 285, so every other spec citation past line 240 is off by
+  5-11 more lines; they were not re-pointed. Documentation only.

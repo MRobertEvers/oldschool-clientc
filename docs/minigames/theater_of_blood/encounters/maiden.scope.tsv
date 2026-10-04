@@ -37,6 +37,8 @@ maiden.auto_damage_base	normal	Normal figure (36.5); Entry's is maiden.auto_max_
 maiden.auto_damage_per_leak	normal	Normal figure (+3.5 per leak); Entry's ceiling is maiden.auto_max_entry
 maiden.auto_protect_ratio	all	Protect from Magic halves in every mode (tob_maiden.rs2 tob_maiden_hit_damage); compare protected and unprotected hits at one leak count
 maiden.auto_max_entry	entry	Entry figure
+maiden.auto_land_rate_entry	entry	Entry figure (seam16)
+maiden.auto_prayed_entry	entry	Entry figure (seam16)
 maiden.drain_chance	stat	50 % drain chance per blackstorm: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (a solo room has ~40 blackstorms) and with a cox_sim-style measurement loop over many of our rooms
 maiden.drain_stat	all	bow flick between the target tick and the impact; a solo room measures it
 maiden.target_rule	party	closest-then-orb needs two or more players to rank

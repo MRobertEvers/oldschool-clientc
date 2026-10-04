@@ -110,6 +110,7 @@ verzik.p3_auto_max	normal	Normal figure; Entry has its own records (verzik.entry
 verzik.entry_p3_auto_max	entry	Entry figure
 verzik.p3_melee_max	normal	Normal figure; Entry has its own records (verzik.entry_p3_melee_max)
 verzik.entry_p3_melee_max	entry	Entry figure
+verzik.p3_auto_miss_entry	entry	Entry figure (seam16): unprayed misses of the P3 regular attacks
 verzik.hard_yellow_pool_lifetime	hard	Hard Mode only
 verzik.hard_yellow_pools	hard	Hard Mode only
 verzik.p3_yellow_max	normal	Normal damage figure; no source gives Entry's power blast (spec gap)

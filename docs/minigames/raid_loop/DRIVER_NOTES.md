@@ -3896,3 +3896,141 @@ yet a test (SEAM_LEDGER.md, seam15).
   detail quotes. Do not look for the moment in the PNG. Rows before `fight.loop_end` are still
   frames from the fight: P1 and P2 at their phase's end, and `p3_proj_flight` mid-P3.
 - Sampled at launch 13 (tob_verzik d1b4ccf00).
+
+## Maiden's blackstorm always lands; a prayed Entry hit above 9 means crabs leaked (seam16)
+
+- The blackstorm has no accuracy roll: "The attack always lands as a [[successful hit]]"
+  (wiki Theatre_of_Blood/Strategies:590). Protect from Magic halves it. Under the prayer in
+  Entry a hit is floor(floor(floor(36.5 + 3.5c) / 2) / 2): 9, 10, 10, 11, 12, 13, 14 for
+  c = 0..6 Matomenos that reached her.
+- A prayed hit above 9 does not mean the prayer failed. Measure c from the tick log: an
+  npc_heal on her slot on the same tick as a crab's npc_death is a leak.
+- Spec rows maiden.auto_land_rate_entry and maiden.auto_prayed_entry (D). Row:
+  seam.maiden_blackstorm_always_lands_entry.
+
+## Maiden's blood: a hit with npc_slot -1 and dealer 0 is a pool, and it costs prayer (seam16)
+
+- In the Maiden room a hit_player row with npc_slot -1 and dealer 0 is a blood pool or trail.
+  A blackstorm carries her slot. s15k1's "18 before the prayer" was a pool at c = 4 (10 + 2c).
+- Every pool hit also takes half its damage from your prayer (tob_maiden.rs2
+  `stat_sub(prayer, ...)`). A raider left standing in a pool takes 10 a tick and loses 5
+  prayer a tick, so Protect from Magic goes out within about 20 ticks. The conformance row
+  tops prayer up every 5 ticks for that reason; a room test must step off the pool.
+- Entry Maiden's own prayer cost is Protect from Magic's drain: 0.153-0.169 points a tick
+  measured, prayer never below 80 over 230-250 ticks when the raider is off the blood.
+
+## Restore presses are not doses
+
+- A press inside the potion delay is refused, so a "restores 13" counter can mean 6 doses.
+  Count doses from the backpack (the sum of dose x count) before and after a fight, as
+  build/seam_state/matthew-mbp-m4-raid-b1-seam16/m16/analysis.lua does.
+- On a brews-only kit, a relay that restores on Strength < 85 spends its restore doses on the
+  brews' drain, not on prayer (6 doses at Maiden in m16a-c, prayer never below 80).
+
+## Bloat's stomp needs line of sight (seam16)
+
+- The stomp hits only a raider within 6 tiles of Bloat's south-west tile whom `~tob_bloat_sees`
+  admits (the flies' near-side test). Standing behind the tank during a down is safe from it.
+  Source: Entry Mode :134 and :145 ("out of his line of sight"). Row:
+  seam.bloat_stomp_needs_sight.
+- `::tobbloatlos <lx> <lz>` prints Bloat's own answer for a local tile (1 seen, 0 hidden, -1 no
+  Bloat), and `::tobwarp <lx> <lz>` stands you there. Both are for scratches and conformance
+  only, never inside a room test. The fight square is local 24..39 and the tank 29..34; the
+  instance is the template moved by whole 64-tile blocks, so local = world - floor(world/64)*64.
+
+## Bloat's hands: 14-16 per volley, one per tile (seam16)
+
+- A volley rolls 16 tiles. A tile rolled twice is drawn once (one 1570-1573 shadow) and lands
+  once (one 1576 splat), so a volley shows 14-16 graphics, as blert's drops do. Count hands by
+  distinct tiles per tick, never by 16.
+- `~tob_bloat_show_hands` still rolls the shadow look for every one of the 16, so a room run
+  under its own id keeps its old tick log.
+- Spec bloat.hand_tiles is 14-16 range. tob_bloat's own spec row still carries "16 ... exact",
+  so the raid gate reports a spec and tolerance mismatch until it is re-authored.
+
+## Verzik's P3 attacks can miss (seam16)
+
+- Her ranged and magic autos and her melee are accuracy-rolled. The autos take her
+  (level + 9) x (bonus + 64) roll (Entry 180, +20) against your defence roll at the landing
+  ("damage is calculated upon impact", Entry Mode :243). The melee rolls against crush (:245).
+- A raw 0 hit_player row from her slot is a miss. Under the matching prayer a landed 1 is
+  halved to 0 too, so test misses unprayed.
+- Measured: a void raider with Rigour is hit by roughly 65-80% of autos (tob_verzik copies:
+  23 of 35, 14 of 24); the conformance row in rune armour at Defence 99: 8 of 17 autos and 2 of
+  3 melee at 0. Spec verzik.p3_auto_miss_entry (C); verzik.tsv is 145 rows in Entry solo scope
+  now, not 144. Row: seam.verzik_p3_attacks_roll_accuracy.
+
+## The tick log is one log per session
+
+- `t.ticklog.start()` is idempotent: a second call keeps the rows and answers the same start.
+  A row that reads `t.ticklog.rows()` after an earlier row also fought the same boss sees that
+  boss's old anims, retypes and sounds too (and the boss slot can be reused).
+- Take `local _, from = t.tick()` right after the start and keep only rows with
+  `tick >= from` (`since` takes a log serial, not a tick). seam16's new Maiden and Verzik
+  conformance rows failed in the full harness until they did.
+
+## Content A/B between two packs
+
+- Build a private HEAD pack: `git -C OSRS-Content archive HEAD -- osrs239-content/server/scripts
+  | tar -x -C <dir> --exclude='osrs239-content/server/scripts/build*' --exclude='*/selftest/*'`.
+  Symlink every other osrs239-content entry and server/pack into it, then run
+  `src/build_opt/sscompile --src <dir>/osrs239-content/server/scripts --out
+  <dir>/osrs239-content/server/scripts/build --content-root <dir>/osrs239-content`. Do NOT run
+  ss_allocate.py on it: it writes through the symlinks.
+- Run with TORIRSSERVER_CONTENT and TORIRSSERVER_SCRIPTS set. Compare before and after under
+  the SAME --name: the name is the seed, so a different name is a different fight.
+
+## A fix that adds or skips a roll moves the whole room
+
+- A content fix that adds or skips a `random()` call shifts every later roll of that entity's
+  stream, and the room diverges after it. In seam16 a skipped random(4) shadow changed tob_bloat
+  from tick 138 and killed its raider.
+- Where the skipped call has no gameplay meaning, keep consuming it. Where it does (an accuracy
+  roll), expect the kept room to need re-authoring.
+
+## Reading a room's cost from its tick log
+
+- Group hit_player rows by npc_type (column f), then by the seq that npc_slot played within 4
+  ticks before the hit (npc_anim rows).
+- Nylocas swing seqs are 8004 melee, 7999 ranged and 7989 magic; their detonations are 8006,
+  8000 and 7992. Verzik's P3 regular attacks are 8123 melee and 8124/8125 autos. Bloat's stomp
+  is the hit on down (8082) + 29.
+- In the Nylocas room a dealer -1 row on a tick with loc_set 32864/32863 is a support collapse.
+  In the Xarpus room, dealer pid 0 with npc_type -1 is the delayed crossing-acid hit, and
+  npc_type 10768 is the splash or standing on acid.
+- Scripts: build/seam_state/matthew-mbp-m4-raid-b1-seam16/s16r/hits.py, nylo.py, bloat.py,
+  vzsum.py.
+
+## Xarpus's absorbed share decides his poison
+
+- Count npc_heal rows on him in phase 1 by the exhumed that sent them (rise tick from loc_set
+  32743). An exhumed whose first orb (rise + 3) gets through counts as fully absorbed, and every
+  later poison hit scales by (100 + absorbed%) / 100 before the Entry halving.
+- Standing on each exhumed within 3 ticks of its rise keeps P2 and P3 poison at 2-4 in Entry.
+  s15k1's late covering made it 4-6.
+
+## The whole raid with the wiki's kit: 0 of 5 survive (seam16)
+
+- Plan 17 in build/seam_state/matthew-mbp-m4-raid-b1-seam16/trj/plan.py is the wiki's kit
+  (`--seam15-kit` gives R.KIT back byte for byte). Carried: scythe, void melee helm, staff of
+  fire, air and mind runes, dragon dagger(p), insulated boots, super combat(4), ranging(4),
+  stamina(4), 2 super restore(4), 6 Saradomin brew(4) and 10 sharks (Entry Mode :29-31, :33,
+  inventory table :42-69).
+- 0 of 5 names survive (w16alpha to w16echo): three die in Xarpus phase 2 before the screech
+  and two in the Nylocas. Raiders who reach Sotetseg's entrance hold 9-11 brew doses and 0-1
+  restore doses.
+- `trj/digest.py <names...>` prints, per run name, the death room and tick, damage by room
+  (hit_player rows split at the boss-death jingles) and the kill rows' eats and restores. The
+  second half's used counts in sote.kill, xarpus.kill and verzik.kill are cumulative over the
+  half: subtract to get one room.
+
+## Brews drain Magic and Ranged: count restores against brews room by room
+
+- A brew drains Magic and Ranged by 10% + 2 of the current level (wiki Saradomin_brew :56). With
+  no restores left, about 12 brew doses put Magic under Fire Strike's 13: w16delta's Nylocas
+  boss phase ended in eight "Your Magic level is not high enough for this spell" and a death
+  with Vasilias at 17%.
+- Our sara_brew.rs2:30 also drains Defence by 10% + 2, where the wiki says a brew raises it by
+  20% + 2 of base (open content row, CONTENT_BUGS seam16). Until that is fixed every brew makes
+  accuracy-rolled hits land more often, and the note "Taking a raider under base Hitpoints
+  without a cheat" above describes our brew, not the game's.
