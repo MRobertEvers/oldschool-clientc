@@ -745,3 +745,24 @@ reviewer read only the rows named `*-margin` and reported "sharks left".
 
 To check a test, grep the ledger for `OUT OF` and for every `*-dead` row that has no `*-margin`
 row after it. Read the `lowest hp` and the food count from the `-dead` row's detail.
+
+## Sample matthew-mbp-m4-b59 (2026-10-04)
+
+Making History passed. Pirate's Treasure (hunt) went back.
+
+(a) A GATE BETWEEN TWO LARGE OPEN REGIONS IS STILL CLICKED. Pirate's Treasure buys its rum in
+Brimhaven, so it crosses Karamja's `membergatel` (2816,3182) twice: `goto-bartender` (2956,3146
+to 2796,3158) and `goto-luthas` (back). `goto_table.py` printed `NEEDS-DOOR ... via
+membergatel@2816,3182`, and `reach.py` still said so at margin 80 and 160. On foot, the gate is
+the only way between the two sides. The file called this an exempt gate because both sides are
+large (`comp.py` floods 4,380 and 18,718 tiles). There is no such exemption. The door rule says
+every gate between the player and the target is clicked on every visit, and the Trollheim finding
+(b58 round 2) already says size does not matter. Hero, in the same batch, clicks this exact gate
+(`karamjaGate.cross`). The fix: goto 2817,3182, `click_loc` the gate, then goto, and do the same
+on the way back.
+
+(b) A REDIRECT ROW MUST CHECK SOMETHING THE PRESS CAUSED. Hunt's `dig-treasure` row accepted a
+`timeout` click answer together with "the gardener is within 10 tiles". That was already true
+before the press (the row's own pre-press read), so the row passes even when the press does
+nothing. `dig.rs2`'s redirect, `[label,pirate_irate_gardener_attack]`, makes the gardener say
+"Hey, leave off my flowers!" and attack. Assert that line or the gardener engaging you.
