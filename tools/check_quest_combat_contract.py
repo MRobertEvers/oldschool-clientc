@@ -258,6 +258,7 @@ TROLLLOVE_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
 ROUTEQUEST_ROUTE = CONTENT / "quests/quest_routequest/scripts/routequest_start_and_route.rs2"
 ROUTEQUEST_HIDEOUT = CONTENT / "quests/quest_routequest/scripts/routequest_hideout.rs2"
 ROUTEQUEST_HOUND = CONTENT / "quests/quest_routequest/scripts/routequest_hound.rs2"
+MDQ_KENDAL = CONTENT / "quests/quest_mountaindaughter/scripts/mountaindaughter_kendal.rs2"
 ROUTEQUEST_NPC = CONTENT / "quests/quest_routequest/configs/quest_routequest.npc"
 ROUTEQUEST_VARP = CONTENT / "quests/quest_routequest/configs/quest_routequest.varp"
 ROUTEQUEST_CONSTANT = CONTENT / "quests/quest_routequest/configs/quest_routequest.constant"
@@ -3626,7 +3627,7 @@ def check_in_search_of_the_myreque() -> None:
          "inv_del(inv, steel_mace, 1);", "inv_del(inv, steel_warhammer, 1);",
          "inv_del(inv, steel_dagger, 1);", "%varp387_routequest = ^routequest_ambush;",
          "%varb396_thsfm_vanstrom_hide = 1;", "npc_add(^routequest_hound_spawn, skeleton_hellhound",
-         "npc_setowner;", "npc_setmode(applayer2);", "[ai_queue3,skeleton_hellhound]",
+         "npc_setowner;", "npc_setmode(opplayer2);", "[ai_queue3,skeleton_hellhound]",
          "%varp387_routequest = ^routequest_saved_myreque;", "It drops nothing",
          "[timer,routequest_hound_monitor]", "[proc,routequest_hound_cleanup]",
          "[proc,routequest_on_death]", "%varp6817_routequest_hound_death = 1;",
@@ -3641,6 +3642,15 @@ def check_in_search_of_the_myreque() -> None:
     )
     require("obj_add" not in hideout,
             "In Search of the Myreque: Skeleton Hellhound must have no loot path")
+    # The hound is a melee monster (wiki Skeleton_Hellhound oldid 15199509: crush,
+    # speed 4, max hit 12): it swings through the default [ai_opplayer2,_]. Its own
+    # [ai_opplayer2] that only set applayer2 (no [ai_applayer2] handler) spent every
+    # swing on a mode change (seam applayer2_npcs_that_never_swing, b56).
+    hound = ROUTEQUEST_HOUND.read_text()
+    require("[ai_opplayer2,skeleton_hellhound]" not in hound
+            and "[ai_spawn,skeleton_hellhound]" not in hound
+            and "npc_setmode(applayer2);" not in hound,
+            "In Search of the Myreque: the Skeleton Hellhound must not be put in the ranged applayer2 mode")
     require_text(
         ROUTEQUEST_MYREQUE2.read_text(),
         ("%varp387_routequest < ^routequest_complete", "~routequest_veliaf;",
@@ -4370,6 +4380,21 @@ def check_ghosts_ahoy() -> None:
     require("[ai_queue1,giant_lobster]" not in book and "[ai_spawn,giant_lobster]" not in book
             and "npc_setmode(applayer2);" not in book,
             "Ghosts Ahoy: the giant lobster must not be put in the ranged applayer2 mode")
+    # The Kendal is a melee monster (wiki The_Kendal oldid 15199460: crush, max hit
+    # 9): spawned in opplayer2 and retaliating through the default [ai_queue1,_].
+    # The applayer2 overrides with no [ai_applayer2] handler kept it from ever
+    # swinging (seam applayer2_npcs_that_never_swing, b56).
+    kendal = MDQ_KENDAL.read_text()
+    require_text(
+        kendal,
+        ("npc_add(^mdq_kendal_coord, mdaughter_bearman_fighter, ^mdq_kendal_lifetime);",
+         "npc_setowner;", "npc_setmode(opplayer2);"),
+        "Mountain Daughter private Kendal spawn",
+    )
+    require("[ai_queue1,mdaughter_bearman_fighter]" not in kendal
+            and "[ai_spawn,mdaughter_bearman_fighter]" not in kendal
+            and "npc_setmode(applayer2);" not in kendal,
+            "Mountain Daughter: the Kendal must not be put in the ranged applayer2 mode")
     require("@wiki_lobster_drop" not in book and "@lobster_drop" not in book,
             "Ghosts Ahoy: quest lobster must not leak a generic lobster table")
     require_text(
@@ -4514,7 +4539,7 @@ def check_one_small_favour() -> None:
         relay,
         (
             "npc_add(^osf_slagilith_coord, slagilith, ^osf_slagilith_lifetime);",
-            "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
+            "npc_setowner;", "npc_setmode(opplayer2);", "hint_npc;",
             "[opnpc2,slagilith]", "[apnpc2,slagilith]",
             "[ai_queue3,slagilith]", "npc_findhero", "p_finduid(uid)",
             "%varp416_onesmallfavour = ^osf_slagilith_defeated;",
@@ -4529,6 +4554,13 @@ def check_one_small_favour() -> None:
         ),
         "One Small Favour private Slagilith lifecycle, weakness and loot",
     )
+    # The Slagilith is a melee monster (wiki Slagilith oldid 15258101: crush, max
+    # hit 13): it retaliates through the default [ai_queue1,_] opplayer2 rung. An
+    # applayer2 override with no [ai_applayer2] handler kept it from ever swinging
+    # (seam applayer2_npcs_that_never_swing, b56).
+    require("[ai_queue1,slagilith]" not in relay and "[ai_spawn,slagilith]" not in relay
+            and "npc_setmode(applayer2);" not in relay,
+            "One Small Favour: the Slagilith must not be put in the ranged applayer2 mode")
     require_text(
         PLAYER_HIT_FUNNEL.read_text(),
         (

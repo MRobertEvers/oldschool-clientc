@@ -3,7 +3,7 @@
 Source: OSRS wiki + Quest Helper (no LostCity quest). Driven end to end by scratch drivers.
 
 Where things really stand
-- Verity (1559,9464) is behind the bar. Talk to her ACROSS the counter from in front of it (about 1559,9461); the tiles behind the bar (1559,9467, 1558,9466) are a sealed pocket (counter at z 9463, flap hg_table_tavern02_door01 at 1556,9463 has no op) and a goto there is a teleport past the bar (b56 sampler, from the map files; the across-the-counter talk tile is not yet proved by a run).
+- Verity (1559,9464) is behind the bar. Talk to her ACROSS the counter from 1559,9462 (goto 1559,9462, then talk_to hg_verity op 1). The talk is [apnpc1,hg_verity] at range 2 (atfirstlight.rs2, seam matthew-mbp-m4-b56-seam2): the counter row z 9463 (hg_table_tavern02_*, blockrange=0) blocks the walk, so the op's adjacency is never met. Proved by run s2_afl_verity_after (talkToVerity PASS from 1559,9462; stage 1 -> 2) and s2_afl_unblocked (talkToVerityEnd PASS from 1559,9462). The tiles behind the bar (1559,9467, 1558,9466) are a sealed pocket (flap hg_table_tavern02_door01 at 1556,9463 has no op); a goto there is a teleport past the bar.
 - Wolf (1554,9462): talk from 1554,9459 or 1556,9462.
 - Kiko WANDERS near the bed (spawn 1553,9460). Read her tile first, stand
   orthogonal to it; a diagonal tile answers "I can't reach that!".

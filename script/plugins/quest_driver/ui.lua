@@ -1584,6 +1584,488 @@ function QD.shop.close()
 end
 
 -- ---------------------------------------------------------------------------
+-- SEAM bank_withdraw_and_deposit_verbs (matthew-mbp-m4-b56-seam2, 2026-10-03)
+-- -- THE BANK, DRIVEN THE WAY A PLAYER DRIVES IT.
+--
+-- WHAT WAS MISSING.  No verb could use a bank, so a test's supplies were
+-- capped by the 28-slot backpack at the leg where it peaks
+-- (docs/quest_authoring/gaps-combat.md, "There is no bank verb"), and the
+-- one way past that cap an author could reach was a mid-run `::give` -- a
+-- trap 16 cheat.  Dream Mentor stopped on exactly this (ecd69a678): twenty
+-- food fed to Cyrisus and six tools leave two slots, and the guide then has
+-- the player bank for the dream fight's food (Quest Helper DreamMentor.java,
+-- the BankSlotIcons food requirements and the lookingAtBank step).
+--
+-- THE FOUR VERBS (and a reading):
+--   t.bank.open(booth_or_banker [, op=2] [, opts])
+--       Presses the loc's (or npc's) numbered Bank op with the same
+--       click_minimenu a player's right-click is, and waits for bankmain AND
+--       the bank container.  `op` 2 is "Bank" on 60 of the 78 booth records
+--       (bank_booths.rs2's own count; chests are op 1, banker1 is op 1 or 2).
+--       opts: { at = {x, z[, level]} } names the booth copy (click_loc's loc
+--       selector); { kind = "loc"|"npc" } when a symbol is both.
+--   t.bank.withdraw(item, n | "all")
+--       Presses `bankmain:items` cell <bank slot> with the fixed sparse ops
+--       (bank.rs2 / CS2 script_5272): op 4 Withdraw-10, op 3 Withdraw-5,
+--       op 2 Withdraw-1, op 7 Withdraw-All -- composed greedily, as shop.buy
+--       composes its rungs.  `ok` ONLY when the backpack gained exactly n AND
+--       the bank lost exactly n, both read back from the client's containers.
+--   t.bank.deposit(item, n | "all")
+--       The mirror, on `bankside:items` cell <backpack slot>
+--       (bank_deposit.rs2): op 5 Deposit-10, op 4 Deposit-5, op 3 Deposit-1,
+--       op 8 Deposit-All.  `ok` only when the backpack lost n and the bank
+--       gained n.
+--   t.bank.close()         -- the ESC path, as shop.close; idempotent.
+--   t.bank.count(item)     -- (ok, n): the OPEN bank's count of `item`.
+--
+-- REFUSALS ARE NAMED.  `closed` when no bank is on screen; `not_found` when
+-- the bank (withdraw) or the backpack (deposit) holds none of the item -- no
+-- press is made; `refused` when the server moved less than was asked, with
+-- the server's own sentence ("You don't have enough inventory space.") and a
+-- leading `backpack full` / `bank holds N` naming which wall it hit.
+--
+-- WHY THE CELL'S SUB IS THE SLOT.  bank.rs2's `[if_button<N>,bankmain:items]`
+-- withdraws `inv_getobj(bank, last_slot)` and bank_deposit.rs2's
+-- `[if_button<N>,bankside:items]` deposits `inv_getobj(inv, last_slot)`; the
+-- server arms the two grids over exactly those ranges
+-- (torirs_server_bank.c bank_set_events: bankmain:items 0..size-1,
+-- bankside:items 0..27).  So the sub is the slot, read here from the client's
+-- own copy of each container -- never from the caller.
+--
+-- STOCKING THE BANK is a SETUP action: `::bankgive <obj> <n>` (content,
+-- general/scripts/misc/cheat_bank.rs2).  QD.cheat refuses it once the quest
+-- is bound (core.lua), because after that it is a mid-run `::give`.
+-- ---------------------------------------------------------------------------
+
+QD.bank = {}
+
+QD.bank._interface = "bankmain"
+QD.bank._grid = "bankmain:items"
+QD.bank._side = "bankside:items"
+-- { how many one press moves, its op number }, biggest first.
+QD.bank._withdraw_rungs = { { 10, 4 }, { 5, 3 }, { 1, 2 } }
+QD.bank._withdraw_all_op = 7
+QD.bank._deposit_rungs = { { 10, 5 }, { 5, 4 }, { 1, 3 } }
+QD.bank._deposit_all_op = 8
+QD.bank._backpack_slots = 28
+-- One press is one server tick out and one container update back; six is
+-- shop.buy's own budget for the same round trip.
+QD.bank._press_ticks = 6
+
+function QD.bank._present()
+    local sym_result, interface_id = api_drive.symbol("interface", QD.bank._interface)
+    if sym_result ~= "ok" then
+        return false
+    end
+    local present_result, present = api_drive.group_present(interface_id)
+    return present_result == "ok" and present == true
+end
+
+-- (ok, inv_id) of the bank container, or (result, detail).
+function QD.bank._inv()
+    local inv_result, inv_id = api_drive.symbol("inv", "bank")
+    if inv_result ~= "ok" then
+        return "no_row", "bank: no inv named bank in this pack"
+    end
+    return "ok", inv_id
+end
+
+-- The bank's count of obj_id, from the client's copy: (ok, n) or (result,
+-- detail).  An empty bank is transmitted as a zero-slot container
+-- (torirs_server_bank.c bank_transmit sends only the used prefix), so a
+-- resident container with no such obj is an honest 0.
+function QD.bank._held(obj_id)
+    local inv_result, inv_id = QD.bank._inv()
+    if inv_result ~= "ok" then
+        return inv_result, inv_id
+    end
+    local count_result, total = api_drive.inv_count(inv_id, obj_id)
+    if count_result ~= "ok" then
+        return count_result, "bank: the bank container is not in this client's inv "
+            .. "manager (" .. tostring(count_result) .. ")"
+    end
+    return "ok", total
+end
+
+-- The first slot of container `inv_id` holding obj_id, or nil; plus a short
+-- list of what the first few slots DO hold, for a not_found detail.
+function QD.bank._slot_of(inv_id, obj_id, limit)
+    local capacity_result, capacity = api_drive.inv_capacity(inv_id)
+    if capacity_result ~= "ok" then
+        return nil, "no container"
+    end
+    if limit ~= nil and capacity > limit then
+        capacity = limit
+    end
+    local held = {}
+    for slot = 0, capacity - 1 do
+        local slot_result, cell = api_drive.inv_slot(inv_id, slot)
+        -- empty is obj -1; obj 0 is a real item (QD.inv.slot's banner)
+        if slot_result == "ok" and cell.obj_id == obj_id then
+            return slot, nil
+        end
+        if slot_result == "ok" and cell.obj_id >= 0 and #held < 6 then
+            local name_result, name = api_drive.symbol_name("obj", cell.obj_id)
+            held[#held + 1] = (name_result == "ok" and name or tostring(cell.obj_id))
+                .. "x" .. tostring(cell.count)
+        end
+    end
+    return nil, (#held > 0 and table.concat(held, " ") or "nothing")
+end
+
+-- Free backpack slots, or -1 when the backpack cannot be read.
+function QD.bank._pack_free()
+    local inv_result, inv_id = QD._inv_container()
+    if inv_result ~= "ok" then
+        return -1
+    end
+    local free = 0
+    for slot = 0, QD.bank._backpack_slots - 1 do
+        local slot_result, cell = api_drive.inv_slot(inv_id, slot)
+        if slot_result ~= "ok" or cell.obj_id < 0 then
+            free = free + 1
+        end
+    end
+    return free
+end
+
+-- How many item slots the client's bank copy holds, or -1.
+function QD.bank._slots_used()
+    local inv_result, inv_id = QD.bank._inv()
+    if inv_result ~= "ok" then
+        return -1
+    end
+    local capacity_result, capacity = api_drive.inv_capacity(inv_id)
+    if capacity_result ~= "ok" then
+        return -1
+    end
+    local used = 0
+    for slot = 0, capacity - 1 do
+        local slot_result, cell = api_drive.inv_slot(inv_id, slot)
+        if slot_result == "ok" and cell.obj_id >= 0 then
+            used = used + 1
+        end
+    end
+    return used
+end
+
+function QD.bank.open(target_symbol, op, opts)
+    if type(op) == "table" and opts == nil then
+        opts = op
+        op = nil
+    end
+    op = op or 2
+    opts = opts or {}
+    if type(target_symbol) ~= "string" then
+        return "no_row", "bank.open: name the bank booth/chest loc or the banker npc by its "
+            .. "content symbol (e.g. lunar_moonclan_bankbooth, aide_bankbooth, banker1)"
+    end
+    local kind = opts.kind
+    if kind == nil then
+        if api_drive.symbol("loc", target_symbol) == "ok" then
+            kind = "loc"
+        elseif api_drive.symbol("npc", target_symbol) == "ok" then
+            kind = "npc"
+        end
+    end
+    if kind ~= "loc" and kind ~= "npc" then
+        return "no_row", "bank.open: " .. target_symbol .. " is neither a loc nor an npc symbol"
+    end
+    local inv_result, inv_id = QD.bank._inv()
+    if inv_result ~= "ok" then
+        return inv_result, inv_id
+    end
+
+    -- A bank already on screen is not this press's evidence (shop.open's
+    -- reasoning: one interface, reused by every booth).
+    if QD.bank._present() then
+        local closed_result, closed_detail = QD.bank.close()
+        if closed_result ~= "ok" then
+            return closed_result, "bank.open: a bank was already open and would not close -- "
+                .. tostring(closed_detail)
+        end
+    end
+
+    local target, sym_result, sym_name = QD.player.by_symbol(kind, target_symbol)
+    if not target then
+        return sym_result, "bank.open: " .. tostring(sym_name)
+    end
+    local copy_note = ""
+    if kind == "loc" and opts.at ~= nil then
+        local copy_result, copy_detail = QD.player._loc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, "bank.open " .. target_symbol .. ": " .. tostring(copy_detail)
+        end
+        copy_note = " (" .. tostring(copy_detail) .. ")"
+    end
+    -- A loc is pressed from beside it, as click_loc presses one: the nearer
+    -- the player, the fewer other models stand between the camera and it.
+    if kind == "loc" then
+        QD.player.walk_near(target, nil, QD.player._loc_standoff)
+    end
+
+    local since = 0
+    local serial_result, serial = api_drive.message_serial()
+    if serial_result == "ok" then
+        since = serial
+    end
+    local click_result, click = QD.drive.click_minimenu(target, op)
+    if click_result ~= "ok" then
+        return click_result, string.format("bank.open: op %d on %s%s -- %s",
+            op, target_symbol, copy_note, tostring(click))
+    end
+    local pressed = type(click) == "table" and tostring(click.row_text) or tostring(click)
+
+    -- The press walks the player to the booth first (the server routes an
+    -- oploc), so the wait is a walk plus a mount.
+    local open_result = QD.ui.await_open(QD.bank._interface, 30)
+    if open_result ~= "ok" then
+        local said = QD.shop._lines_since(since)
+        return "not_visible", string.format(
+            "bank.open: op %d on %s%s pressed %q but no bankmain within 30 tick(s)%s",
+            op, target_symbol, copy_note, pressed,
+            said and (" -- the server said: " .. said) or "")
+    end
+    -- The frame and the container are two messages (bank_transmit follows
+    -- the two IF_OPENSUBs): wait for the container before any press reads it.
+    local landed = await({
+        level = function()
+            return api_drive.inv_capacity(inv_id) == "ok"
+        end,
+        note = "bank.open container",
+    }, 10)
+    if landed ~= "ok" then
+        return "timeout", "bank.open: bankmain is up but the bank container never "
+            .. "arrived within 10 tick(s)"
+    end
+    return "ok", string.format(
+        "bank.open: op %d (%q) on %s%s opened bankmain -- the bank holds %d item slot(s); "
+            .. "the backpack has %d free slot(s)",
+        op, pressed, target_symbol, copy_note, QD.bank._slots_used(), QD.bank._pack_free())
+end
+
+-- One press on `component` cell `sub` with `op`, then wait until `reached()`.
+function QD.bank._press(verb, component, sub, op, reached)
+    local cell_result, cell_id = api_drive.component(component, sub)
+    if cell_result ~= "ok" then
+        return "not_visible", string.format("%s: cell %d of %s is not mounted (%s)",
+            verb, sub, component, tostring(cell_result))
+    end
+    local click_result, click_detail = api_drive.if_click(cell_id, op)
+    if click_result ~= "ok" then
+        return click_result, string.format("%s: op %d on cell %d of %s was refused -- %s",
+            verb, op, sub, component, tostring(click_detail))
+    end
+    return await({
+        event = "server_tick",
+        match = reached,
+        note = verb .. " press",
+    }, QD.bank._press_ticks)
+end
+
+-- The shared body of withdraw and deposit.  `from_bank` true = withdraw.
+function QD.bank._move(from_bank, item, count)
+    local verb = from_bank and "bank.withdraw" or "bank.deposit"
+    if not QD.bank._present() then
+        return "closed", verb .. ": no bank is open -- open one with bank.open(booth_or_banker)"
+    end
+    local all = count == "all"
+    if not all then
+        count = count or 1
+        if type(count) ~= "number" or count < 1 then
+            return "no_row", verb .. ": " .. tostring(count) .. " is not a quantity (a number, or \"all\")"
+        end
+    end
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return "no_row", verb .. ": " .. tostring(item) .. " is not an obj symbol"
+    end
+    local bank_inv_result, bank_inv = QD.bank._inv()
+    if bank_inv_result ~= "ok" then
+        return bank_inv_result, bank_inv
+    end
+    local pack_inv_result, pack_inv = QD._inv_container()
+    if pack_inv_result ~= "ok" then
+        return pack_inv_result, verb .. ": no backpack container"
+    end
+
+    local bank_before_result, bank_before = QD.bank._held(obj_id)
+    if bank_before_result ~= "ok" then
+        return bank_before_result, verb .. ": " .. tostring(bank_before)
+    end
+    local pack_before_result, pack_before = api_drive.inv_count(pack_inv, obj_id)
+    if pack_before_result ~= "ok" then
+        return pack_before_result, verb .. ": cannot read the backpack's " .. tostring(item)
+    end
+    local source_holds = from_bank and bank_before or pack_before
+    local source_name = from_bank and "the bank" or "the backpack"
+    if source_holds <= 0 then
+        local _, holding = QD.bank._slot_of(from_bank and bank_inv or pack_inv, obj_id,
+            from_bank and nil or QD.bank._backpack_slots)
+        return "not_found", string.format("%s: %s holds no %s -- nothing pressed (it holds: %s)",
+            verb, source_name, tostring(item), tostring(holding))
+    end
+    if all then
+        count = source_holds
+    end
+    if source_holds < count then
+        return "refused", string.format("%s: %s holds %d %s, %d asked for -- nothing pressed",
+            verb, source_name, source_holds, tostring(item), count)
+    end
+
+    local free_before = QD.bank._pack_free()
+    local since = 0
+    local serial_result, serial = api_drive.message_serial()
+    if serial_result == "ok" then
+        since = serial
+    end
+
+    -- Each press re-reads the slot: a stack that empties closes its gap
+    -- (bank.rs2's withdraw banner), so the slot is never cached.
+    local moved = 0
+    local presses = {}
+    local stalled = nil
+    local function press(amount, op, label)
+        local slot, holding = QD.bank._slot_of(from_bank and bank_inv or pack_inv, obj_id,
+            from_bank and nil or QD.bank._backpack_slots)
+        if slot == nil then
+            stalled = label .. ": " .. source_name .. " no longer holds " .. tostring(item)
+                .. " (it holds: " .. tostring(holding) .. ")"
+            return false
+        end
+        local want = from_bank and (pack_before + moved + amount) or (pack_before - moved - amount)
+        local press_result, press_detail = QD.bank._press(verb,
+            from_bank and QD.bank._grid or QD.bank._side, slot, op, function()
+                local read_result, total = api_drive.inv_count(pack_inv, obj_id)
+                if read_result ~= "ok" then
+                    return false
+                end
+                if from_bank then
+                    return total >= want
+                end
+                return total <= want
+            end)
+        if press_result ~= "ok" then
+            -- A press that moved SOME of its amount still landed: the ladder
+            -- names it, and the deltas in the detail say how much it moved.
+            presses[#presses + 1] = label .. "@" .. tostring(slot) .. " (" .. tostring(press_result) .. ")"
+            stalled = label .. " on slot " .. tostring(slot) .. " answered "
+                .. tostring(press_result)
+                .. (press_detail and (" -- " .. tostring(press_detail)) or "")
+            return false
+        end
+        moved = moved + amount
+        presses[#presses + 1] = label .. "@" .. tostring(slot)
+        return true
+    end
+    if all then
+        press(count, from_bank and QD.bank._withdraw_all_op or QD.bank._deposit_all_op,
+            from_bank and "Withdraw-All" or "Deposit-All")
+    else
+        local rungs = from_bank and QD.bank._withdraw_rungs or QD.bank._deposit_rungs
+        for i = 1, #rungs do
+            local rung = rungs[i][1]
+            local op = rungs[i][2]
+            while stalled == nil and count - moved >= rung do
+                press(rung, op, (from_bank and "Withdraw-" or "Deposit-") .. tostring(rung))
+            end
+        end
+    end
+
+    -- The bank's copy is re-sent by the same flush as the backpack's
+    -- (ToriRSServer_BankFlush), but read it on a wait anyway: the grading is
+    -- that BOTH containers moved, and a bank that did not move is the
+    -- difference between banking and conjuring.
+    local bank_want = from_bank and (bank_before - count) or (bank_before + count)
+    local bank_after = bank_before
+    await({
+        level = function()
+            local read_result, total = QD.bank._held(obj_id)
+            if read_result == "ok" then
+                bank_after = total
+            end
+            return read_result == "ok" and total == bank_want
+        end,
+        note = verb .. " bank read-back",
+    }, 3)
+    local pack_after_result, pack_after = api_drive.inv_count(pack_inv, obj_id)
+    local pack_delta = pack_after_result == "ok" and (pack_after - pack_before) or 0
+    local bank_delta = bank_after - bank_before
+    local free_after = QD.bank._pack_free()
+    local said = QD.shop._lines_since(since)
+    local ladder = #presses > 0 and table.concat(presses, ", ") or "no press landed"
+    local detail = string.format(
+        "%s: %s backpack %d -> %s (%+d), bank %d -> %d (%+d), %d asked; backpack free slots "
+            .. "%d -> %d [%s]",
+        verb, tostring(item), pack_before,
+        pack_after_result == "ok" and tostring(pack_after) or tostring(pack_after_result),
+        pack_delta, bank_before, bank_after, bank_delta, count, free_before, free_after, ladder)
+    if stalled ~= nil then
+        detail = detail .. " -- " .. stalled
+    end
+    if said ~= nil then
+        detail = detail .. " -- the server said: " .. said
+    end
+    local want_pack = from_bank and count or -count
+    local want_bank = from_bank and -count or count
+    if pack_delta ~= want_pack or bank_delta ~= want_bank then
+        local wall = ""
+        if from_bank and free_after == 0 then
+            wall = "backpack full -- "
+        end
+        return "refused", wall .. detail
+    end
+    return "ok", detail
+end
+
+function QD.bank.withdraw(item, count)
+    return QD.bank._move(true, item, count)
+end
+
+function QD.bank.deposit(item, count)
+    return QD.bank._move(false, item, count)
+end
+
+-- (ok, n): the OPEN bank's count of `item`.  `closed` when no bank is on
+-- screen: the client keeps the last bank it was sent after the close, and a
+-- script can move objs in and out of a closed bank without a transmit
+-- (ToriRSServer_BankFlush sends only while open), so a closed bank's copy is
+-- not a reading of the bank.
+function QD.bank.count(item)
+    if not QD.bank._present() then
+        return "closed", "bank.count: no bank is open -- the client's copy of a closed bank "
+            .. "is not a reading"
+    end
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return "no_row", "bank.count: " .. tostring(item) .. " is not an obj symbol"
+    end
+    return QD.bank._held(obj_id)
+end
+
+-- Shut the bank: the ESC path every modal takes (shop.close's banner), which
+-- the server drains into `[if_close,bankmain]` (bank.rs2 @closebank).
+function QD.bank.close()
+    if not QD.bank._present() then
+        return "ok", "bank.close: no bank was open"
+    end
+    local close_result, close_detail = api_drive.close_modal()
+    if close_result ~= "ok" then
+        return close_result, "bank.close: close_modal -- " .. tostring(close_detail)
+    end
+    local gone = await({
+        level = function()
+            return not QD.bank._present()
+        end,
+        note = "bank.close",
+    }, 10)
+    if gone ~= "ok" then
+        return "timeout", "bank.close: bankmain stayed on screen for 10 tick(s)"
+    end
+    return "ok", "bank.close: closed bankmain"
+end
+
+-- ---------------------------------------------------------------------------
 -- SEAM setup_wield_text_read_and_reach_honesty (seam29, 2026-09-29) -- A
 -- COMPONENT'S TEXT, READ INTO THE LEDGER.
 --
