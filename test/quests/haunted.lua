@@ -13,16 +13,15 @@
 -- for the can. Every one of them is driven with a real click, and so is
 -- every door, stair, ladder and maze gate between them.
 --
--- BLOCKED (content_bug, 2026-10-04): the basement maze cannot be walked.
--- Each of its nine gates is a shape-10 tile with a blankwall_no_blockrange
--- on its south/west neighbour's edge (OSRS-Content/osrs239-content/maps/
--- m48_152.jl2:3-11, :998-1006), so it can only be pressed from its north/
--- east side; the guide's solved order needs the 4to7 gate from the ladder
--- room's (south) side first. The run pulls levers A and B, is refused at
--- 4to7 ("I can't reach that!"), and ends on that BLOCKED row
--- (gate_from_walled_side below). Run 1 of the b58 fixer walked the rest:
--- the way out (8to9 refused the same way from the oil-can side, then
--- puzzle_ladder up, hauntedleverup, both staircases) all PASSed.
+-- The basement maze is walked end to end. Each of its nine gates is a
+-- shape-10 tile with a blankwall_no_blockrange on its south/west edge
+-- (OSRS-Content/osrs239-content/maps/m48_152.jl2:3-11, :998-1006); seam
+-- matthew-mbp-m4-b58-seam1 (c) gave every gate an [aploc1] in
+-- quest_haunted.rs2 (label ernest_approach_maze_door, p_aprange(1)), so a
+-- gate is pressed from EITHER side, from the tile in line with it on its
+-- own axis, and lands the player on the mirror tile two across. Every
+-- crossing is its own graded row (hop): the stand tile before, the press,
+-- the mirror tile after.
 --
 -- THE WHOLE MANOR IS WALKED (owner rule 2026-10-03, docs/QUEST_ORCHESTRATOR.md:
 -- a goto into or out of any closed space is a cheat). goto_tile is used only
@@ -187,41 +186,13 @@ return {
                 "click_loc(" .. sym .. ") -> " .. tostring(cr) .. " " .. tostring(cd) .. "; " .. how .. "('" .. want .. "') -> " .. tostring(mr) .. " " .. tostring(md))
         end
 
-        -- A maze gate crossed from its SOUTH or WEST side. Every one of the
-        -- nine gates is placed as a shape-10 scenery tile
-        -- (OSRS-Content/osrs239-content/maps/m48_152.jl2:3-11) with a
-        -- blankwall_no_blockrange wall on the edge of its south/west
-        -- neighbour (m48_152.jl2:998-1006), so a press from that side is
-        -- refused "I can't reach that!" (run 1: gate4to7 from 3108,9757 and
-        -- from both other approach tiles). LostCity places the same doors as
-        -- wall doors (shape 0) that open from either side (LostCity_Server/
-        -- content/maps/m48_152.jm2:4783 `0 36 30: 144 0 3`, no blankwall at
-        -- 0 36 29), and ~ernest_walk_through_door's own gate branch
-        -- (quest_haunted.rs2:438-451) expects a press from either orthogonal
-        -- side. The guide's solved order needs four such crossings (4to7,
-        -- 5to8, 3to6 and 2to3/1to2 from the west, 8to9 back), so the maze
-        -- cannot be walked: the first refused crossing ends the run on a
-        -- content_bug BLOCKED row that carries the press's own answer. If the
-        -- crossing lands, the row is graded like any other hop.
-        local function gate_from_walled_side(name, sym, gate_x, gate_z, stand_x, stand_z, want_x, want_z)
-            t.player.walk_to(stand_x, stand_z, 60)
-            local br, bt = t.world.tile()
-            local cr, cd = t.player.click_loc(sym, 1, { at = { gate_x, gate_z, 0 } })
-            await_tile(function(tt) return tt.x == want_x and tt.z == want_z and tt.level == 0 end, 12, name)
-            local wr, wt = t.world.tile()
-            local detail = "from " .. tile_text(br, bt) .. " (stand tile " .. stand_x .. "," .. stand_z .. ",0) click_loc(" .. sym
-                .. " at " .. gate_x .. "," .. gate_z .. ",0) -> " .. tostring(cr) .. " " .. string.sub(tostring(cd), 1, 200)
-                .. "; landed " .. tile_text(wr, wt) .. " (want " .. want_x .. "," .. want_z .. ",0)"
-            if not (wr == "ok" and wt.x == want_x and wt.z == want_z and wt.level == 0) then
-                t.blocked("content_bug: " .. name .. " -- the basement maze gates are one-sided: " .. sym .. " at " .. gate_x .. "," .. gate_z
-                    .. " is placed shape 10 (OSRS-Content/osrs239-content/maps/m48_152.jl2:3-11) behind a blankwall_no_blockrange on its"
-                    .. " south/west neighbour's edge (m48_152.jl2:998-1006), so it cannot be reached from this side; LostCity places it as a"
-                    .. " shape-0 wall door crossable both ways (LostCity_Server/content/maps/m48_152.jm2:4783) and quest_haunted.rs2:438-451"
-                    .. " expects a press from either side. " .. detail)
-                return false
-            end
-            t.check(name, (cr == "ok" or cr == "timeout") and br == "ok" and bt.x == stand_x and bt.z == stand_z, detail)
-            return true
+        -- A maze gate: walk to the tile in line with it on the side the maze
+        -- has reached, press it there, and land on the mirror tile two
+        -- across (quest_haunted.rs2 [aploc1] -> ernest_approach_maze_door ->
+        -- ernest_open_maze_door / ~ernest_walk_through_door). One graded row
+        -- per crossing: the stand tile before, the mirror tile after.
+        local function gate(name, sym, gate_x, gate_z, stand_x, stand_z, want_x, want_z)
+            hop(name, sym, gate_x, gate_z, 0, stand_x, stand_z, want_x, want_z, 0)
         end
 
         local function count_of(item)
@@ -459,29 +430,33 @@ return {
         -- x3100-3104 z9763-9767; room 5 x3101-3104 z9758-9762; room 6
         -- x3096-3099 z9758-9762; room 3 (E, F) x3096-3099 z9763-9767; the oil
         -- can's room x3090-3099 z9753-9757.
+        -- The guide's lever order (ladder.py haunted steps 2.16-3.26):
+        -- pullUpLeverD and pullUpLeverC are its recovery branches (only when
+        -- the player got D up with E,F down, or C down in room C/D) and are
+        -- never reached on the solved order.
         lever("pullDownLeverA", "levera", "A", "down")
         lever("pullDownLeverB", "leverb", "B", "down")
-        if not gate_from_walled_side("gate4to7.north", "4to7", 3108, 9758, 3108, 9757, 3108, 9759) then return end
+        gate("gate4to7.north", "4to7", 3108, 9758, 3108, 9757, 3108, 9759) -- ladder room -> room C
         lever("pullDownLeverD", "leverd", "D", "down")
-        hop("gate4to5.west", "4to5", 3105, 9760, 0, 3106, 9760, 3104, 9760, 0)
-        hop("gate5to8.south", "5to8", 3102, 9758, 0, 3102, 9759, 3102, 9757, 0)
+        gate("gate4to5.west", "4to5", 3105, 9760, 3106, 9760, 3104, 9760) -- room C -> room 5
+        gate("gate5to8.south", "5to8", 3102, 9758, 3102, 9759, 3102, 9757) -- room 5 -> ladder room
         lever("pullUpLeverB", "leverb", "B", "up")
         lever("pullUpLeverA", "levera", "A", "up")
-        if not gate_from_walled_side("gate5to8.north", "5to8", 3102, 9758, 3102, 9757, 3102, 9759) then return end
-        hop("gate5to6.west", "5to6", 3100, 9760, 0, 3101, 9760, 3099, 9760, 0)
-        if not gate_from_walled_side("gate3to6.north", "3to6", 3097, 9763, 3097, 9762, 3097, 9764) then return end
+        gate("gate5to8.north", "5to8", 3102, 9758, 3102, 9757, 3102, 9759) -- ladder room -> room 5
+        gate("gate5to6.west", "5to6", 3100, 9760, 3101, 9760, 3099, 9760) -- room 5 -> room 6
+        gate("gate3to6.north", "3to6", 3097, 9763, 3097, 9762, 3097, 9764) -- room 6 -> room 3 (levers E, F)
         lever("pullDownLeverF", "leverf", "F", "down")
         lever("pullDownLeverE", "levere", "E", "down")
-        if not gate_from_walled_side("gate2to3.east", "2to3", 3100, 9765, 3099, 9765, 3101, 9765) then return end
-        if not gate_from_walled_side("gate1to2.east", "1to2", 3105, 9765, 3104, 9765, 3106, 9765) then return end
+        gate("gate2to3.east", "2to3", 3100, 9765, 3099, 9765, 3101, 9765) -- room 3 -> room 2
+        gate("gate1to2.east", "1to2", 3105, 9765, 3104, 9765, 3106, 9765) -- room 2 -> room C (lever C)
         lever("pullDownLeverC", "leverc", "C", "down")
-        hop("gate1to2.west", "1to2", 3105, 9765, 0, 3106, 9765, 3104, 9765, 0)
-        hop("gate2to3.west", "2to3", 3100, 9765, 0, 3101, 9765, 3099, 9765, 0)
+        gate("gate1to2.west", "1to2", 3105, 9765, 3106, 9765, 3104, 9765) -- room C -> room 2
+        gate("gate2to3.west", "2to3", 3100, 9765, 3101, 9765, 3099, 9765) -- room 2 -> room 3
         lever("pullUpLeverE", "levere", "E", "up")
-        if not gate_from_walled_side("gate2to3.east2", "2to3", 3100, 9765, 3099, 9765, 3101, 9765) then return end
-        hop("gate2to5.south", "2to5", 3102, 9763, 0, 3102, 9764, 3102, 9762, 0)
-        hop("gate5to8.south2", "5to8", 3102, 9758, 0, 3102, 9759, 3102, 9757, 0)
-        hop("gate8to9.west", "8to9", 3100, 9755, 0, 3101, 9755, 3099, 9755, 0)
+        gate("gate2to3.east2", "2to3", 3100, 9765, 3099, 9765, 3101, 9765) -- room 3 -> room 2
+        gate("gate2to5.south", "2to5", 3102, 9763, 3102, 9764, 3102, 9762) -- room 2 -> room 5
+        gate("gate5to8.south2", "5to8", 3102, 9758, 3102, 9759, 3102, 9757) -- room 5 -> ladder room
+        gate("gate8to9.west", "8to9", 3100, 9755, 3101, 9755, 3099, 9755) -- ladder room -> the oil can's room
 
         -- oil_can is a plain ground item in the last room (areas/world/
         -- configs/m48_152.spawn), the tile [debugproc,hauntedbmp_oil] shows.
@@ -497,7 +472,7 @@ return {
         -- 3092,3361 in the secret room), out by the lever (hauntedleverup,
         -- :186-194: a tile north, then two east through the bookcase, to
         -- 3098,3358), and up both staircases to Oddenstein.
-        if not gate_from_walled_side("gate8to9.east", "8to9", 3100, 9755, 3099, 9755, 3101, 9755) then return end
+        gate("gate8to9.east", "8to9", 3100, 9755, 3099, 9755, 3101, 9755) -- the oil can's room -> ladder room
         hop("goUpFromBasement", "puzzle_ladder", 3117, 9754, 0, nil, nil, 3092, 3361, 0)
         hop("pullLeverToLeave", "hauntedleverup", 3096, 3357, 0, 3096, 3357, 3098, 3358, 0)
         t_to_f("bookcaseRoomOut")
@@ -505,6 +480,14 @@ return {
         stairs_up("goToFirstFloorToFinish")
         spiral_up("goToSecondFloorToFinish")
         lab_in("labDoorIn2")
+
+        -- All three parts must reach the lab (an earlier probe arrived
+        -- without the oil can): read each count before the talk, so a part
+        -- lost on the way out fails here, not as a dialogue mismatch.
+        local held_gauge, held_oil, held_tube = count_of("pressure_gauge"), count_of("oil_can"), count_of("rubber_tube")
+        t.check("handin.parts_held", held_gauge == 1 and held_oil == 1 and held_tube == 1,
+            string.format("before the hand-in: pressure_gauge=%s oil_can=%s rubber_tube=%s (want 1 each)",
+                tostring(held_gauge), tostring(held_oil), tostring(held_tube)))
 
         local reward_coins_before_result, reward_coins_before = t.inv.count("coins")
         t.exec("talkToOddenteinAgain", t.player.talk_to, "professor_oddenstein", 1)
