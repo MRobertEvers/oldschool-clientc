@@ -148,3 +148,22 @@ Two rows that concern this loop's own work:
   asserting the hit's landing tick), in the next seam pass that touches conformance.
 - `tools/check_gauntlet_contract.py` pins the old Gauntlet eat lines and is red on the
   waves branch until its pin is updated (the waves loop's ENG-56); not this loop's file.
+
+## v3 after quest batch b56 (noted 2026-10-04): parent f2e91ffaa, content 4b277a1d8a
+
+From the quest session, for the day this branch meets v3:
+- `pack/varp.alloc` will conflict: b56 added varps 7240-7243, 7270-7272, 7290-7291 and
+  7330-7335. This branch's three colliding varps take the waves branch's 7223-7225 for the
+  eat port; any other new raid varp is renumbered above v3's highest at merge time.
+- New quest-gate rules on v3 that the raid tests run under (they use the quest gate): the
+  coverage grader reads the map's walls and grades a goto into or out of a closed space as
+  a cheat, and lint refuses a mid-run `::bankgive` or an unmarked mid-run `::give`. The raid
+  room tests arrive by the bring-along `t.raid.enter` (an instance teleport): after the
+  merge run `tools/raid_gate/suite.py` and, if the wall grader flags the arrival, declare
+  `t.raid.enter` to the grader as the raid's bring-along (a tooling row on this side) --
+  never rewrite the tests to dodge it.
+- The driver gained bank verbs on v3 (`t.bank.open / withdraw / deposit / count / close`):
+  `test/quests/_conformance.lua` and `verb_list.py` conflicts keep both sides' rows.
+- Fight-heavy quests new on v3 and not yet run under the eat port: `dreammentor` and the
+  reworked `contact`. If either is red after this branch merges, send the quest session the
+  first failing row; it fixes them on its side.
