@@ -19622,15 +19622,19 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
 
             /*
-             * `~eat_food` ends in `p_delay(^eat_delay)`, so the script above is
-             * still parked and a second one sent this tick would be *dropped* —
-             * which used to make this check pass for the wrong reason. It read
-             * "hitpoints are still 10" off a script that never ran, and no
-             * amount of breaking `stat_heal`'s clamp could have turned it red.
-             * Run the delay out first, then assert on the food as well: an
-             * eaten item is the evidence the heal was the clamped one.
+             * A bite sets the food timer (`%varp7224_consume_food_delay` =
+             * map_clock + ^eat_delay, consume_shared.rs2; wiki Food/Fast
+             * foods: "Standard food, when eaten, adds a 3 tick penalty to when
+             * a player may eat again"), so a second bite inside it is *refused* —
+             * which, with the old `p_delay(^eat_delay)` park, used to make this
+             * check pass for the wrong reason: it read "hitpoints are still 10"
+             * off a script that never ran, and no amount of breaking
+             * `stat_heal`'s clamp could have turned it red. Run the food delay
+             * out first (3 ticks: refused while the timer >= map_clock), then
+             * assert on the food as well: an eaten item is the evidence the
+             * heal was the clamped one.
              */
-            for( int i = 0; i < 4 && player->active_script; i++ )
+            for( int i = 0; i < 3; i++ )
                 selftest_tick(srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the eat delay should have run out before the next bite");
@@ -19643,9 +19647,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
-            /* That bite parked `~eat_food` on its p_delay again, and a delayed
-             * player's OPHELD is refused and his OPNPC only latches (LostCity's
-             * `player.delayed`, OpHeldHandler.ts:16; seam24). Run it out so the
+            /* An eat no longer parks the player (the food timer replaced the
+             * p_delay), but a delayed player's OPHELD is refused and his OPNPC
+             * only latches (this engine's rule, torirs_server_world.c's
+             * delayed-OPHELD refusal; seam24), so any script still running is
+             * run out here and the
              * sections below are asked of an idle player. */
             for( int i = 0; i < 4 && player->active_script; i++ )
                 selftest_tick(srv);

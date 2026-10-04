@@ -12,7 +12,10 @@ t.world.los, t.npc.pack, t.player.drink and t.inv.doses (171 verbs). Seam pass 3
 (`matthew-mbp-m4-waves-b1-seam3`) added no verb; it changed what the fights underneath
 them do (Inferno waves spawn once, the combat logout delay, a cast is a magic hit) and
 added one seam row (103). Its eat-delay port and its prayer regeneration and drain fix
-moved green quest tests and are held as patches (see "Held as patches" below). The
+moved green quest tests and were held as patches; seam pass 4
+(`matthew-mbp-m4-waves-b1-seam4`) landed both on the owner's decision, closed the
+three prayer rows pass 3 left open, made wave 67 spawn its Jad, and made the engine
+honour `retaliate=no` (no verb; 108 seam rows; see "Seam pass 4" below). The
 contract for every other verb is `docs/QUEST_AUTHORING.md`. Add a heading here for
 each new verb or fact a later seam pass lands.
 
@@ -190,8 +193,8 @@ other name every row after the relog runs on a fresh tutorial account.
 
 `[timer,stat_restore]` (`player/scripts/stat_restore.rs2:34`) moves a drained or
 boosted stat one level every 100 ticks counted from login. A row that reads a drain
-must account for that window (`CONTENT_BUGS.md` ENG-2). The timer also restores
-drained prayer (ENG-10, the fix held as a patch).
+must account for that window (`CONTENT_BUGS.md` ENG-2). It no longer restores
+drained prayer (ENG-10, landed in seam pass 4): prayer points never regenerate.
 
 ## t.wave.state / enter / await_wave / await_clear
 
@@ -273,8 +276,8 @@ the client's stat read at once.
 Measured: 20 back-to-back flicks of Protect from Melee cost 0 points; holding it
 for 20 npc phases cost 4. T-1: a city guard hit 0/6 times with the prayer pressed on
 A-1 against 4/6 pressed on A; the Inferno bat 0/3 against 3/3 (pf_a_final,
-pf_b_final). Prayer still regenerates on this branch (ENG-10): the fix is held as a
-patch (see "Held as patches" below).
+pf_b_final). Prayer no longer regenerates (ENG-10, landed in seam pass 4), and the
+cost of a flick or a hold is what "Prayer drain since seam pass 4" below says.
 
 ## t.world.los -- line of sight as the server computes it
 
@@ -309,14 +312,15 @@ before/after, presses, pressed/landed tick); not_found when none is carried; no_
 for an unknown family. A drink lands +1 tick after the press; a press inside the last
 drink's or eat's delay is dropped by the server, so the verb re-presses every 2 ticks.
 `opts.then_attack` (npc symbol, row, or true) re-attacks one tick after landing: never
-on the landing tick, the drink's trailing `p_stopaction` wipes it (ENG-18; the fix is
-held as a patch). `t.exec`
+on the landing tick before seam pass 4; since the eat delay landed (ENG-18) no drink
+ends in a `p_stopaction`, so an Attack pressed during a drink swings, and a re-attack
+at once (`attack_after` 0) gives a swing gap of 4. `t.exec`
 passes only two returns, so call drink directly and write the row with `t.check`.
 
 `t.inv.doses(family)` returns ok, a text and `{doses, free, capacity, items}`;
-carrying none is ok with 0. On this branch an eat holds a projectile hit until its
-delay ends (+2/+3 ticks) while melee lands at once (ENG-16; the fix is held as a
-patch): plan eats off the projectile-impact tick.
+carrying none is ok with 0. Since seam pass 4 an eat no longer holds a queued hit
+(ENG-16): a spell eaten through lands +1 like an uneaten one, so a tick eat on the
+impact tick is a real heal and not a delay.
 
 ## gate.py in this worktree needs QUEST_HELPER_ROOT
 
@@ -373,13 +377,14 @@ outside it (`build/seam_state/matthew-mbp-m4-waves-b1-seam3/npa_probe_summary.py
 Near a crowd the server's npc view radius grows from 15 to 24 tiles while fewer than
 64 npcs are in view, so a pool can be FULL at Lumbridge.
 
-## Held as patches (seam pass 3)
+## Held as patches (seam pass 3), landed in seam pass 4
 
-Two seams of pass 3 reddened green quest tests and are NOT on the branch; the owner
-decides. Their patches are `docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.*.patch`
-and their conformance rows wait in `build/seam_state/matthew-mbp-m4-waves-b1-seam3/held/`.
-What a test author would see once they land (measured by the fixers with the patches
-applied; none of it is true on the branch today):
+Two seams of pass 3 reddened green quest tests and were held; the owner decided
+(2026-10-03, night) that both land, and seam pass 4 landed them. The text below is
+kept as it was written; it is now true on the branch. The patches stay in
+`docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.*.patch` as the record;
+their conformance rows are in `test/quests/_conformance.lua`. What a test author sees
+(measured by the fixers with the patches applied):
 
 - `eat_delay_port` (ENG-16, ENG-17, ENG-18): an eat is two clocks, never a park. A food
   sets a 3-tick food timer; an eat while the weapon delay runs adds 3 (karambwan and
@@ -395,3 +400,92 @@ applied; none of it is true on the branch today):
   free, so one-tick flicking costs 0); the drain counter survives turning prayers off,
   running out and a potion. Protect from Melee for 20 phases = 228 units (3 points +
   counter 48).
+
+## Seam pass 4: the eat delay (eat_delay_land)
+
+No verb added or changed. Two seam rows came back:
+`seam.eat_does_not_hold_queued_hit` and `seam.eat_delay_clocks`, after
+`seam.attack_fast_path`. What a test sees:
+
+- An eat no longer holds a queued hit: a spell eaten through lands +1, as an uneaten
+  one does. Food is a 3-tick gap. An eat inside a running weapon delay adds 3 (a combo
+  food 2); with the weapon ready it adds nothing.
+- On one tick, food then combo food and food then potion both work. Food after food,
+  combo after combo and combo then food are refused, and the server says nothing.
+- An eat that lands ON the swing tick is applied after that swing (gap 4, then 7).
+  No source states this order; it is ENG-44.
+- The Gauntlet: the paddlefish and the crystal paddlefish use the shared food timers,
+  so a shark straight after a paddlefish is refused. Egniol sips are 3 ticks apart.
+- `QD.SUPPLY_REATTACK_AFTER=1` relied on the old `p_stopaction` wipe. A drink with
+  `attack_after` 0 now gives a swing gap of 4 (it was 5, and the attack timed out).
+- Read-only readouts: `::eatdelay` (the three timers) and `::eatgate` (the gate's
+  answers). Press two items in one Lua resume to put both on one server tick.
+
+## Seam pass 4: prayer drain (prayer_land)
+
+No verb. Two seam rows: `seam.prayer_drain_activation_tick` (after `prayer.flick`) and
+`seam.prayer_drain_fresh_per_prayer` (at the end of the plan; see "Conformance row
+order" below). The drain rule now:
+
+- Each prayer is free on its own activation tick, even one lit over a prayer that is
+  already draining. A prayer pressed on tick T is first charged by T+2's drain.
+- Prayer points never regenerate. Chivalry drains 12 (1 point per 3 s), not 24.
+- The cost of a window is points lost x (60 + 2 x prayer bonus), plus the change in
+  `t.var.server('varp6296_prayer_drain_counter')`. The counter survives turning
+  prayers off, running out of points and drinking a potion. A death zeroes it.
+- Measured with `t.prayer.switch`, `set_on_tick` and `flick` (all equal the wiki):
+  hold 20 = 228, 20 flicks = 0, two prayers held 20 = 456, one lit over another = 396,
+  3 flicks over a hold = 228, on and off in one tick = 228, Chivalry for 60 = 708.
+- A death scratch can die for real (`::setlevel hitpoints 2`, `::spawn city_guard`,
+  attack it) and still read vars and messages afterwards. Only click verbs hit the
+  death fence.
+
+## Seam pass 4: wave 67 and a real run at wave N (inferno_jad_wave_spawn)
+
+No verb. The collapse at the start of wave 67 now brings down every remaining pillar
+and spawns the Jad: 1 Jad on wave 67, 3 on wave 68.
+
+- To start a real (not practice) run at wave N, set up with `::setvar varb5646 2`,
+  `varp6056 1`, `varp6065 N`, goto 2495,5123, then `t.wave.resume()`. The pillars
+  come back at 255 hitpoints.
+- Wave 67 begins 8 ticks after the last `npc_free` of wave 66. The three pillar frees
+  and the Jad's spawn are on that tick, and the Jad fires on the next.
+- Do not read a pillar's tile from its npc: the pillar npcs wander (ENG-45). Use
+  `wave_table.pillar_tiles` and `t.wave.state().pillars`.
+- `t.ticklog.rows{kind='sound'}` is refused: the tick log has no sound kind.
+- Wave 66 by real attacks took about 350 ticks with a twisted bow, rune arrows and
+  Protect from Magic. Walk away when a Jal-Zek's `gap_player` is 1 or less: in
+  reach, it melees.
+
+## Seam pass 4: retaliate=no (retaliate_no)
+
+No verb. One seam row, `seam.retaliate_no`, after `wave.resume`. The engine now skips
+the default `[ai_queue1,_]` retaliation rung for an npc whose record says
+`retaliate=no`. A type's own `[ai_queue1,<type>]` binding still runs. The Jal-Nib
+record says `retaliate=no` (wiki Jal-Nib:50).
+
+- `t.ticklog.rows{since=}` takes a SERIAL (ticklog.lua:30), not a tick. Filter on
+  `row.tick` yourself.
+- A projectile row's target is the world slot + 1: the slug at slot 1079 is target
+  1080.
+- Count casts from projectile rows (the Wind Strike spotanim is 91). A splash writes
+  no `hit_npc` row, but it still provokes.
+- The rung still ignores `::passive` and the categories the C latch refuses
+  (ENG-49). A goblin hit by a spell takes the player even when its type is passive.
+- Inferno wave 1 needs Protect from Missiles for any measurement longer than 60
+  ticks: the bat killed an unprayed 99 Hitpoints, 99 Defence player in 40 ticks.
+
+## Conformance row order is part of the harness
+
+The conformance file runs as one session in one world, and its rows read live npcs.
+More ticks before a row changes the world's rolls for every row after it. In seam
+pass 4, putting `seam.prayer_drain_fresh_per_prayer` next to the other prayer row
+made `seam.attack_presses_the_watched_slot` fail: a goblin hit earlier by
+`player.cast` was still retaliating and swung at the player, so the Attack answered
+"I'm already under attack." The same row order on HEAD's C and content failed the
+same way, so the seams did not cause it. Killing that goblin in setup then broke
+`seam.npc_facing_read` further on, because Hans had walked out of range. A new row
+whose setup does not depend on what came before goes at the end of the plan, before
+`finish`, as `seam.retaliate_no` and `seam.prayer_drain_fresh_per_prayer` do (ENG-50).
+A C change is measured with a private client (`PLATFORM_OBJ_BASE`,
+`PLATFORM_TARGET`, passed as `QUEST_BINARY`) and the scratch recipe at the top.

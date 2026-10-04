@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 103
+-- @seam-count 108
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 171
-local SEAM_COUNT = 103
+local SEAM_COUNT = 108
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -3246,6 +3246,53 @@ return {
             if info.points_before ~= info.points_after then
                 return "hollow", "a one-tick flick cost points " .. describe(info.points_before) .. " -> "
                     .. describe(info.points_after) .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- PRAYER DRAIN SKIPS THE ACTIVATION TICK AND KEEPS ITS COUNTER (waves seam3
+        -- prayer_regen_and_drain).  No verb changed; one SEAM row.
+        -- Protect from Melee (drain 12) in force for 5 npc phases is charged for
+        -- 4 ticks -- "the game does not drain prayer for prayers on the tick they
+        -- are activated" (wiki Prayer:528, docs/minigames/inferno/sources/wiki/
+        -- wiki_Prayer.wikitext) -- and the off press leaves the drain counter where it
+        -- was: it is reset only by "a rejuvenation pool, the Falador shield prayer
+        -- recharge, or dying" (Prayer:35).  Before the seam: charged 5 ticks and the
+        -- counter zeroed on the off press (build/quest_gate/prd_a_before vs prd_a_after).
+        seam("seam.prayer_drain_activation_tick", function()
+            local set_on_tick = verb("prayer", "set_on_tick")
+            if not set_on_tick then return missing("prayer", "set_on_tick") end
+            local points_fn = verb("prayer", "points")
+            if not points_fn then return missing("prayer", "points") end
+            local tick_fn = verb("tick")
+            if not tick_fn then return missing("tick") end
+            local server = verb("var", "server")
+            if not server then return missing("var", "server") end
+            local function reading()
+                settle(2)
+                local _, _, r = points_fn()
+                local cr, counter = server("varp6296_prayer_drain_counter")
+                if type(r) ~= "table" or cr ~= "ok" or type(counter) ~= "number" then
+                    return nil, "points " .. describe(r and r.level) .. ", counter " .. describe(cr) .. " " .. describe(counter)
+                end
+                return { points = r.level, counter = counter }
+            end
+            local before, why = reading()
+            if not before then return "hollow", "no reading before: " .. why end
+            local _, now = tick_fn()
+            local h0 = now + 3
+            local r1, d1 = set_on_tick("protectfrommelee", true, h0 - 1)
+            if r1 ~= "ok" then return r1, "on: " .. describe(d1) end
+            local r2, d2 = set_on_tick("protectfrommelee", false, h0 + 4)
+            if r2 ~= "ok" then return r2, "off: " .. describe(d2) end
+            local after, why2 = reading()
+            if not after then return "hollow", "no reading after: " .. why2 end
+            local charged = (before.points - after.points) * 60 + (after.counter - before.counter)
+            local text = string.format("Protect from Melee in force ticks %d..%d: points %d -> %d, counter %d -> %d, "
+                .. "charged %d (wiki Prayer:528 + Prayer:35: 4 ticks x 12 = 48, counter kept)",
+                h0, h0 + 4, before.points, after.points, before.counter, after.counter, charged)
+            if charged ~= 48 then
+                return "hollow", text
             end
             return "ok", text
         end)
@@ -10038,6 +10085,228 @@ return {
             return "ok", table.concat(text, "; ")
         end)
 
+        -- AN EAT IS TWO CLOCKS, NEVER A PARK (waves seam3 eat_delay_port, the
+        -- raid's content 7936c59bf9 brought over).  Two SEAM rows for the port
+        -- (consume_shared.rs2 + food.rs2 + every consumption script).
+        -- (1) seam.eat_does_not_hold_queued_hit: a young dark wizard's spell lands
+        --     on its own tick through an eat.  RED on the old content (an eat
+        --     held the spell: eat3_before cast 36 hit 38, cast 52 hit 55), GREEN
+        --     with the port (eat3_after: +1,+1,+1,+1 = the uneaten +1).  Wiki
+        --     Tick eating: "eating a piece of food between the time a monster's
+        --     attack calculates its damage and when it hits the player".
+        -- (2) seam.eat_delay_clocks: ::eatgate's one-tick answers (food after
+        --     food refused, combo after food allowed, combo after combo refused,
+        --     potion after food allowed, potion after potion refused, both
+        --     refused through +2 = a 3-tick gap, a ready weapon +0, a running
+        --     one +3 then +2), then an unarmed goblin fight with a shark eaten
+        --     after every second swing: uneaten gaps 4, eaten gaps 7 (wiki
+        --     Food/Fast foods: an eat while the weapon delay runs adds 3).
+        --     Old content: no ::eatgate (no_row).
+        seam("seam.eat_does_not_hold_queued_hit", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local WIZ = "young_dark_wizard"
+            local function teardown()
+                setup_cheat("::kill " .. WIZ .. " 10")
+                settle(2)
+            end
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 12")
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. WIZ .. " 1")
+            settle(3)
+            t.ticklog.start()
+            t.ticklog.mark("seam.eat_does_not_hold_queued_hit")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local ws, cast_seq, last_anim = nil, nil, nil
+            local acur, hcur, n, guard, engaged = since, since, 0, 0, false
+            local casts, eats = {}, {}
+            while guard < 160 and n < 10 do
+                local nr, nrow = by_symbol(WIZ)
+                if nr ~= "ok" then
+                    setup_cheat("::spawn " .. WIZ .. " 1")
+                    settle(2)
+                    engaged, ws = false, nil
+                else
+                    if ws == nil then ws = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(WIZ, 2, 20) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if ws ~= nil then
+                    local _, hp = t.ticklog.rows({ kind = "hit_player", since = hcur, slot = ws })
+                    for _, h in ipairs(hp) do
+                        hcur = math.max(hcur, h.serial)
+                        if cast_seq == nil and last_anim ~= nil then cast_seq = last_anim.seq end
+                    end
+                    local _, an = t.ticklog.rows({ kind = "npc_anim", since = acur, slot = ws })
+                    for _, r in ipairs(an) do
+                        acur = math.max(acur, r.serial)
+                        last_anim = r
+                        if cast_seq ~= nil and r.seq == cast_seq then
+                            n = n + 1
+                            casts[#casts + 1] = { tick = r.tick, slot = ws }
+                            if n % 2 == 0 then
+                                inv_op("shark", 1)
+                                eats[r.tick] = true
+                            end
+                        end
+                    end
+                end
+            end
+            local plain, eaten, seen = {}, {}, {}
+            for _, c in ipairs(casts) do
+                local _, hs = t.ticklog.rows({ kind = "hit_player", since = since, slot = c.slot })
+                for _, h in ipairs(hs) do
+                    if h.tick > c.tick and h.tick <= c.tick + 8 then
+                        local d = h.tick - c.tick
+                        if eats[c.tick] then eaten[#eaten + 1] = d else plain[#plain + 1] = d end
+                        break
+                    end
+                end
+            end
+            teardown()
+            local text = "cast seq " .. describe(cast_seq) .. "; no eat +" .. table.concat(plain, ",+")
+                .. "; eat on the cast tick +" .. table.concat(eaten, ",+")
+            if #plain < 2 or #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two casts of each kind"
+            end
+            for _, d in ipairs(plain) do seen[d] = true end
+            for _, d in ipairs(eaten) do
+                if not seen[d] then
+                    return "refused", text .. " -- an eat moved a queued npc hit to +" .. d
+                        .. " (a delay no uneaten cast showed): the eat's p_delay held the player's queue"
+                end
+            end
+            return "ok", text
+        end)
+
+        seam("seam.eat_delay_clocks", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local GOB = "goblin_unarmed_melee_1"
+            -- The stage before seam.attack_fast_path wields a magic shortbow
+            -- (ranged 99), which kills a 5-hp goblin with its first arrow and
+            -- leaves no swing gap to measure (closer's first full run: 0 gaps
+            -- in 166 ticks).  The gap under test is an UNARMED 4, so the bow
+            -- comes off for this row and goes back on at its teardown.
+            local BOW = "magic_shortbow"
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local bow_off = false
+            local function line(prefix)
+                local _, list = t.msg.last(20)
+                for _, m in ipairs(list or {}) do
+                    if string.sub(m.text, 1, #prefix) == prefix then return m.text end
+                end
+                return nil
+            end
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+                if bow_off and equip then equip(BOW) end
+            end
+            -- (a) the gate procs in one tick (consume_shared.rs2 ::eatgate)
+            setup_cheat("::eatgate")
+            local g1, g2 = line("eatgate:"), line("eatgate+:")
+            local want1 = "food 1 food-after-food 0 combo-after-food 1 combo-after-combo 0 potion-after-food 1 potion-after-potion 0"
+            local want2 = "food-refused-through +2 potion-refused-through +2 attack-ready +0 attack-running-2 +7"
+            if g1 == nil or g2 == nil then
+                return "refused", "no ::eatgate reply (" .. describe(g1) .. " / " .. describe(g2) .. "): consume_shared.rs2 is not in the pack"
+            end
+            if not string.find(g1, want1, 1, true) or not string.find(g2, want2, 1, true) then
+                return "refused", g1 .. " | " .. g2 .. " -- want " .. want1 .. " | " .. want2
+            end
+            -- (b) an eat while the weapon delay runs adds 3: unarmed (4) swing
+            -- gaps, measured hit_npc to hit_npc, with a shark eaten the tick a
+            -- swing's hit lands on every second swing
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 6")
+            -- not_found when no bow is worn (the row run on its own): unarmed already
+            if unequip and unequip(BOW) == "ok" then bow_off = true end
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOB .. " 1")
+            settle(3)
+            t.ticklog.start()
+            t.ticklog.mark("seam.eat_delay_clocks")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local gs, hcur, guard, engaged, last_hit, ate = nil, since, 0, false, nil, false
+            local plain, eaten = {}, {}
+            while guard < 160 and #eaten < 2 do
+                local nr, nrow = by_symbol(GOB)
+                if nr ~= "ok" then
+                    setup_cheat("::spawn " .. GOB .. " 1")
+                    settle(2)
+                    gs, engaged, last_hit, ate = nil, false, nil, false
+                else
+                    if gs == nil then gs = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(GOB, 2, 10) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if gs ~= nil then
+                    local _, hn = t.ticklog.rows({ kind = "hit_npc", since = hcur, slot = gs })
+                    for i, h in ipairs(hn) do
+                        hcur = math.max(hcur, h.serial)
+                        if last_hit ~= nil then
+                            if ate then eaten[#eaten + 1] = h.tick - last_hit else plain[#plain + 1] = h.tick - last_hit end
+                        end
+                        last_hit, ate = h.tick, false
+                        if i == #hn and (#plain + #eaten) % 2 == 1 then
+                            inv_op("shark", 1)
+                            ate = true
+                        end
+                    end
+                end
+            end
+            teardown()
+            local text = "eatgate ok; unarmed swing gaps: no eat " .. table.concat(plain, ",")
+                .. "; a shark eaten after the swing " .. table.concat(eaten, ",")
+            if #plain < 2 or #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two gaps of each kind"
+            end
+            for _, d in ipairs(plain) do
+                if d ~= 4 then return "refused", text .. " -- an uneaten unarmed gap of " .. d end
+            end
+            for _, d in ipairs(eaten) do
+                if d ~= 7 then
+                    return "refused", text .. " -- an eat while the weapon delay ran gave " .. d
+                        .. ", not 4 + 3 (wiki Food/Fast foods)"
+                end
+            end
+            return "ok", text
+        end)
+
         -- A GROWN WILLOW GIVES BRANCHES TO SECATEURS (matthew-mbp-m4-b50-seam1
         -- enlightenedjourney_gather_sources).  farming_trees held only oak, so
         -- nothing in the pack gave out willow_branch.  Wiki Willow branch
@@ -10351,6 +10620,79 @@ return {
             return "ok", text
         end)
 
+        -- RETALIATE=NO REFUSES THE DEFAULT RETALIATION (waves seam pass 4
+        -- retaliate_no, torirs_server_scripts.c rung_is_refused_retaliation).
+        -- No verb changed; one SEAM row.
+        -- What it proves: a `retaliate=no` npc with no `[ai_queue1,<type>]` binding of its
+        -- own (maiden_blood_slug_hard, tob.npc) hit by a SPELL does not swing back. The
+        -- spell goes through `~npc_retaliate` -> `npc_queue(1)`, whose `_` default is
+        -- `npc_setmode(opplayer2)` (skill_combat/npc_combat.rs2:67); melee never reaches
+        -- that rung (ENG-27), so a melee version of this row would pass on either binary.
+        -- Measured: ret4_a_before2 c.retaliation hit_player 90:0 105:0; ret4_a_final none.
+        -- Harness runs of this row: ret4_before_conf2 (HEAD C) and ret4_after_conf2 (seam C).
+        seam("seam.retaliate_no", function()
+            local go = verb("player", "goto_tile")
+            local equip = verb("player", "equip")
+            local cast = verb("player", "cast")
+            local nearest = verb("npc", "nearest")
+            local rows = verb("ticklog", "rows")
+            local slotof = verb("ticklog", "slot")
+            local start = verb("ticklog", "start")
+            if not go then return missing("player", "goto_tile") end
+            if not equip then return missing("player", "equip") end
+            if not cast then return missing("player", "cast") end
+            if not nearest then return missing("npc", "nearest") end
+            if not rows then return missing("ticklog", "rows") end
+            if not slotof then return missing("ticklog", "slot") end
+            if not start then return missing("ticklog", "start") end
+            local SLUG = "maiden_blood_slug_hard"
+            -- bring-alongs and the subject (a setup ladder, as a quest's setup list)
+            t.cheat("::setlevel magic 99")
+            t.cheat("::give staff_of_air")
+            t.cheat("::give airrune 20")
+            t.cheat("::give mindrune 10")
+            start()
+            go(3226, 3216, 0)
+            equip("staff_of_air")
+            t.cheat("::spawn " .. SLUG)
+            t.ticks(3)
+            local rn, slug = nearest(SLUG, 6)
+            if rn ~= "ok" or not is_table(slug) then
+                return "hollow", "no " .. SLUG .. " after ::spawn -- " .. describe(rn)
+            end
+            local _, wslot = slotof(slug)
+            local _, from = t.tick()
+            for _ = 1, 2 do
+                cast("wind_strike", SLUG, 8, 2, { slot = slug.slot })
+                t.ticks(5)
+            end
+            t.ticks(8)
+            -- `since` on rows is a serial, so the tick filter is done here
+            -- a SPLASH writes no hit_npc row but still provokes (ret4_before_conf: wind
+            -- strike projectile at 6, no hit_npc, the slug swung at 8), so the casts are
+            -- counted from their projectiles (spotanim 91 = wind strike)
+            local landed, swung = {}, {}
+            local _, shots = rows({ kind = "projectile", spotanim = 91 })
+            for i = 1, #(shots or {}) do
+                if shots[i].tick >= from then landed[#landed + 1] = tostring(shots[i].tick) end
+            end
+            local _, back = rows({ kind = "hit_player" })
+            for i = 1, #(back or {}) do
+                if back[i].npc_slot == wslot and back[i].tick >= from then
+                    swung[#swung + 1] = string.format("%d:%d", back[i].tick, back[i].damage)
+                end
+            end
+            if #landed == 0 then
+                return "hollow", "no wind strike was cast at the slug (world slot " .. tostring(wslot) .. ") since tick " .. tostring(from)
+            end
+            if #swung > 0 then
+                return "refused", "the retaliate=no slug swung back: hit_player " .. table.concat(swung, " ")
+                    .. " (casts fired " .. table.concat(landed, ",") .. ")"
+            end
+            return "ok", string.format("slug world slot %s cast at %s; hit_player from it: none",
+                tostring(wslot), table.concat(landed, ","))
+        end)
+
         -- prayer out, backpack tab back, and the player back on the Lumbridge
         -- landing (3222,3218), so `finish` ends the run where the rows before
         -- this block left it
@@ -10367,6 +10709,74 @@ return {
             if go then
                 go(3222, 3218, 0)
             end
+        end)
+
+        -- seam.prayer_drain_fresh_per_prayer sits HERE, at the end, and not
+        -- beside seam.prayer_drain_activation_tick: twenty more ticks before
+        -- the goblin rows moved the world's rolls, and the goblin player.cast
+        -- hits retaliated onto the player on seam.attack_presses_the_watched_slot's
+        -- N tile ("I'm already under attack."; waves seam pass 4 close, the
+        -- same on HEAD's C and content).  Its own setup: Prayer 43 (Ultimate
+        -- Strength needs 31), nothing lit (the stage above put Protect from
+        -- Missiles out), the staff of air worn gives no prayer bonus.
+        stage(function()
+            setup_cheat("::setlevel prayer 43")                    -- setup
+            local tab = verb("ui", "tab")
+            if tab then
+                tab("prayer")
+            end
+            settle(2)
+        end)
+
+        -- A PRAYER LIT OVER A DRAINING ONE IS FREE ON ITS OWN ACTIVATION TICK
+        -- (waves seam4 prayer_land).  No verb changed; one SEAM row.
+        -- Protect from Melee (12) in force 5 npc phases, Ultimate Strength (12)
+        -- lit over it for the last 3: "the game does not drain prayer for
+        -- prayers on the tick they are activated" (wiki Prayer:528) is per
+        -- prayer, so 4 x 12 + 2 x 12 = 72.  Before the seam: 84 (Ultimate
+        -- Strength charged on its activation tick; seam pass 3 measured 264
+        -- against 228 for three flicks).  The long form is scratch_prl_a.lua's
+        -- "over" row: build/quest_gate/s4prl_a_after measured 396 = wiki.
+        seam("seam.prayer_drain_fresh_per_prayer", function()
+            local set_on_tick = verb("prayer", "set_on_tick")
+            if not set_on_tick then return missing("prayer", "set_on_tick") end
+            local switch = verb("prayer", "switch")
+            if not switch then return missing("prayer", "switch") end
+            local points_fn = verb("prayer", "points")
+            if not points_fn then return missing("prayer", "points") end
+            local tick_fn = verb("tick")
+            if not tick_fn then return missing("tick") end
+            local server = verb("var", "server")
+            if not server then return missing("var", "server") end
+            local function reading()
+                settle(2)
+                local _, _, r = points_fn()
+                local cr, counter = server("varp6296_prayer_drain_counter")
+                if type(r) ~= "table" or cr ~= "ok" or type(counter) ~= "number" then
+                    return nil, "points " .. describe(r and r.level) .. ", counter " .. describe(cr) .. " " .. describe(counter)
+                end
+                return { points = r.level, counter = counter }
+            end
+            local before, why = reading()
+            if not before then return "hollow", "no reading before: " .. why end
+            local _, now = tick_fn()
+            local h0 = now + 3
+            local r1, d1 = set_on_tick("protectfrommelee", true, h0 - 1)
+            if r1 ~= "ok" then return r1, "melee on: " .. describe(d1) end
+            local r2, d2 = set_on_tick("ultimatestrength", true, h0 + 1)
+            if r2 ~= "ok" then return r2, "strength on: " .. describe(d2) end
+            local r3, d3 = switch({ { "protectfrommelee", false }, { "ultimatestrength", false } }, { tick = h0 + 4 })
+            if r3 ~= "ok" then return r3, "both off: " .. describe(d3) end
+            local after, why2 = reading()
+            if not after then return "hollow", "no reading after: " .. why2 end
+            local charged = (before.points - after.points) * 60 + (after.counter - before.counter)
+            local text = string.format("Protect from Melee in force ticks %d..%d, Ultimate Strength %d..%d: points %d -> %d, "
+                .. "counter %d -> %d, charged %d (wiki Prayer:528 per prayer: 4 x 12 + 2 x 12 = 72)",
+                h0, h0 + 4, h0 + 2, h0 + 4, before.points, after.points, before.counter, after.counter, charged)
+            if charged ~= 72 then
+                return "hollow", text
+            end
+            return "ok", text
         end)
 
         step("finish", function()

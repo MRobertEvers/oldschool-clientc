@@ -85,6 +85,8 @@ quest tests (troll, contact, regicide: deaths in fights that eat), so its files 
 The rows below say what the patch copies; none of these copies is on the branch until the owner
 lands it. The `player_magic.rs2` row at the end belongs to `shared_combat_rules` and IS on the branch.
 
+**Landed (waves seam pass 4 `eat_delay_land`, 2026-10-04), on the owner's decision of 2026-10-03 night ("Eat delay should follow osrs rules."):** both patches applied with `git apply --3way`, every hunk clean (no file had moved since the patch was cut), so every row below is now on the branch exactly as it says. One change on top of the patch: the selftest stanza's second comment no longer cites the 2004 source (`OpHeldHandler.ts:16` -> this engine's delayed-OPHELD refusal). The two conformance rows go back into `_conformance.lua` through the seam pass 4 closer (`build/seam_state/matthew-mbp-m4-waves-b1-seam4/conformance.eat_delay_land.lua`). Not a copy, so no row: `minigame_gauntlet/scripts/gauntlet_craft.rs2`'s paddlefish eat was brought to the same shared rule by seam pass 4 itself (waves code, not raid code).
+
 Raid CONTENT commit `7936c59bf9` (OSRS-Content, raid seam6 `eat_delay_port`, parent `2cddff56d5`), content merge base with `v3` `315ffdff00`. Since that base neither side had touched any of these files except `pack/varp.alloc` (`v3`: `a9aefa1206`, `28793800be`), so every other file was written byte-for-byte from `git show 7936c59bf9:<path>` (cmp-checked) and only then changed where the last column says. The behaviours were re-checked against the pinned modern wiki (`docs/minigames/inferno/sources/LEDGER_wiki.md`, eat-delay rows); nothing was left out. Not cherry-picked.
 
 | Date | Raid commit | Path (same in both) | Kind | Changed since the copy |
@@ -134,4 +136,4 @@ The two conformance rows that go with it (`seam.eat_does_not_hold_queued_hit`, `
 
 | Date | Raid commit | Path (same in both) | Kind | Changed since the copy |
 |---|---|---|---|---|
-| 2026-10-03 | `94f55b306` | `test/quests/_conformance.lua` (rows `seam.eat_does_not_hold_queued_hit` and `seam.eat_delay_clocks`; on the raid tip `origin/matthew-mbp-m4-raid-b1` they sit at lines 9253-9456) | driver gate, two seam rows, verbatim; HELD with the patch in `build/seam_state/matthew-mbp-m4-waves-b1-seam3/held/conformance_rows.eat_delay_port.lua` (not in `_conformance.lua` on the branch) | no |
+| 2026-10-03 | `94f55b306` | `test/quests/_conformance.lua` (rows `seam.eat_does_not_hold_queued_hit` and `seam.eat_delay_clocks`; on the raid tip `origin/matthew-mbp-m4-raid-b1` they sit at lines 9253-9456) | driver gate, two seam rows, verbatim; held with the patch in seam pass 3 (`build/seam_state/matthew-mbp-m4-waves-b1-seam3/held/conformance_rows.eat_delay_port.lua`), landed by seam pass 4 (`build/seam_state/matthew-mbp-m4-waves-b1-seam4/conformance.eat_delay_land.lua`, merged by its closer after `seam.attack_fast_path`) | no |

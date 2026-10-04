@@ -2266,6 +2266,50 @@ trigger_requires_active_npc(int trigger)
            (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5);
 }
 
+/*
+ * Whether this rung is the DEFAULT retaliation and the npc's record refuses it.
+ *
+ * `[ai_queue1,_]` is the engine-wide retaliation rung (see RESERVED QUEUE SLOTS
+ * in ToriRSServer_ScriptsLoad): `~npc_retaliate` arms `npc_queue(1, …)` on the
+ * tick a cast, an arrow or a special lands, and the wildcard body is
+ * `npc_setmode(opplayer2)` — the npc takes the player and walks over to hit
+ * him. `retaliate=no` on the record says "being hit does not give this npc a
+ * target" (torirs_server_content.h), and the engine's own latch already obeys
+ * it (combat.c, the `npc_def(npc)->retaliate` test on the landing). The rung
+ * did not: a Jal-Nib or a Maiden blood spawn hit by a spell turned and swung
+ * at the caster while the same npc whipped stood still (seam pass 3
+ * scr_b_before2: hit_player 21:0 31:0 from a retaliate=no slug; ENG-25).
+ *
+ * Only the `_` rung is withheld. A `[ai_queue1,<type>]` binding is the type's
+ * own authored answer to being hit (the Inferno nibbler's "never while a pillar
+ * stands", the Glyph's `npc_setmode(none)`, every queue-1 timer a quest arms on
+ * its own npc) and still runs whatever the record says.
+ *
+ * The caller has already proved the slot live (trigger_requires_active_npc
+ * covers every [ai_queue*]), so a dead or out-of-range slot here is a bug.
+ */
+static int
+rung_is_refused_retaliation(
+    struct ToriRSServer* srv,
+    int trigger,
+    int rung_type,
+    int rung_category,
+    int npc_slot)
+{
+    const struct ToriRSServerNpc* npc;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(srv);
+    if( trigger != SS_TRIGGER_AI_QUEUE1 || rung_type != -1 || rung_category != -1 )
+        return 0;
+    assert(npc_slot >= 0);
+    assert(npc_slot < TORIRSSERVER_NPC_MAX);
+    npc = &srv->npcs[npc_slot];
+    assert(npc->active);
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    return !def->retaliate;
+}
+
 /** Engine-driven npc triggers run in their owned player's context when one is
  * bound. This is intentionally narrower than `trigger_requires_active_npc`:
  * an ordinary player click already has the correct active player. */
@@ -2629,6 +2673,13 @@ run_trigger_impl(
                 return TORIRSSERVER_TRIGGER_FAILED;
             }
         }
+
+        /* `retaliate=no`: the default retaliation rung is not this npc's to
+         * run. Skipped, not declined — nothing was offered and refused, the
+         * record simply has no default answer to being hit. */
+        if( chain && rung_is_refused_retaliation(srv, trigger, rungs[i].type, rungs[i].category,
+                                                 npc_slot) )
+            continue;
 
         context_player = srv->active_player;
         if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX &&
