@@ -388,6 +388,9 @@ D-rows are `SOURCES.md` section 10 in table order; the plan gives no verdict on 
 | D33 | arena bounds (bop's box vs SOLSIM's local span) | arena_and_spawn_tiles | different quantities; read the cache map |
 | D34 | wave-12 Fremennik under Quartet | wave_table, sol_heredit_attacks | M49 |
 | D35 | handicap id schemes | modifier_system | settled by this plan: Blert `Handicap.java:29-43` indices equal enum_5312's (section 1.4) |
+| D43 | wiki: minotaurs "immediately move" "unlike other reinforcements" vs Blert: jaguar and shaman also change tile one tick after spawning (jaguar 68 of 68, shaman 63 of 74 on tick 1, 11 on tick 2) | wave_reinforcements | `encounters/wave_reinforcements.queries.py:q_movement` (B); the wiki sentence may mean the others stand still when their target is far; the row ships the observed 1 tick |
+| D44 | Fremennik cadence: cache `attackrate` param 5 on all three records (`sources/cache_npc.txt:244,281,318`, also 5 on the jaguar, shaman, minotaur, colossi) vs Blert gaps 6 (230 archer, 94 seer, 34 berserker attacks, every one on its own phase) and wiki 'attack speed 6', 'fixed 6 tick cycle'; the manticore's param 10 agrees with its observed 10 | fremennik_trio | settled for the build by the observed 6 (B); the param is not the cadence for this trio |
+| D45 | Fremennik seer's side: wiki 'seer to their east' vs Blert 37 south, 27 east, 7 west of 94 attacks (`encounters/fremennik_trio.queries.py:q_side`) | fremennik_trio | M58 |
 | N1 | glory for completing wave 12: cache 4956 adds 1000 (`sources/cache_interfaces.txt` 4956 lines 20-23 of `torirs_colosseum_wave_complete.cs2`) vs the wiki's 1,200 (`W:Glory:87-88`) | glory | M31 |
 | N2 | modifier glory: 4956 adds `param_1903` once; 4943/4930 multiply by rank; the wiki's per-level values are base x level (`LW:359-394`) | glory, modifier_system | M31 |
 | N3 | minotaur heal radius: "within 6 tiles" (`W:Minotaur_Fortis_Colosseum:43`) vs "no more than 7 tiles" (`:52`) and SUPA 7 (`CC:E`) | minotaur | M15 |
@@ -775,6 +778,14 @@ tolerance `approx`.
 | M48 | modifier_system | what adds a Doom stack; the scorpion's role | Blert `COLOSSEUM_DOOM_APPLIED` per wave (2-37 per wave in the sample) against hits |
 | M49 | wave_table | wave 12 Fremennik under Quartet (D34) | Blert query: wave-12 spawns in Quartet runs (one Fremennik seer on tick 9 in one run) |
 | M50 | minotaur, modifier_system | 12813 `routefind`: Red Flag's minotaur or something else (D31) | Blert query: 12813 spawns against the run's handicaps (5 events, one run, wave 11) |
+| M51 | wave_table | what the player sees when each wave monster first appears: the Fremennik trio, Jaguar warrior, Serpent shaman and Shockwave colossus have no spawn sequence on their rigs; the javelin colossus (10891), manticore (10870/10871) and minotaur (10845) are rig candidates only | frame count or a driver picture of one arrival per kind (added by the wave_table spec pass) |
+| M52 | arena_and_spawn_tiles | the twelfth default spawn tile, the draw weights (x=1811 tiles under-drawn), the minimum distance kept from the player (observed 4), the paired Colossus tile under Dynamic Duo | Blert query over a larger sample: tick-0 tiles per kind against the player tile, with and without Dynamic Duo |
+| M53 | arena_and_spawn_tiles | the walkable-tile mask of the arena floor | read the engine collision flags of the instanced m28_48 in seam S3 and compare with the sampled player tiles |
+| M54 | arena_and_spawn_tiles | where the game places the player on entry and at each wave start (modal tile 1815,3110) | a solo test reading the tile after entry and after Start-wave; Blert wave-start tile query |
+| M55 | arena_and_spawn_tiles | the purpose of npc 12820 colosseum_safespot_dying (Pillar) | a named source; nothing is built on it until then |
+| M56 | fremennik_trio | the berserker's attack-to-damage tick, and the tick a protection prayer is read on for all three members | none recorded (Blert sees no hit); a frame count or a solo test against a stationary player; added by the fremennik_trio spec pass |
+| M57 | fremennik_trio | trio hit chance against a player (wiki: 'very accurate', no number) | none recorded; many solo hits at a fixed defence; added by the fremennik_trio spec pass |
+| M58 | fremennik_trio | the rule that picks each member's standing side (D45) | Blert query over a larger sample restricted to a stationary player; added by the fremennik_trio spec pass |
 
 **The five that matter most** (they gate the first seams or a whole unit): **M3**
 (spawn tiles: wave 1 cannot be built without them), **M30** (the offer rule: every
@@ -858,3 +869,31 @@ Colosseum seams follow, and the test row that proves it.
 | ENG-12: one monster's hit flight changed between attacks | one rule per monster for attack tick to hit tick (M10) | `<unit>.hit_delay` row, a distribution, not one sample |
 | ENG-19: the client's npc pool kept the arena's npcs after leaving | every exit (cash-out, death, logout, teleport) despawns the instance's npcs and frees the handle | `t.npc.pack` empty after each exit |
 | The Inferno's `wave.enter` started a one-wave practice run that left after the wave | `::colosseum <wave>` places the player at the wave and the run continues to the end | the full-run test enters wave 1 by the debugproc only, as orchestrator section 6 allows |
+
+## Orchestrator rulings on source disagreements (2026-10-03)
+
+The owner was asked to rule on the disagreements below and delegated them ("Use your best
+judgement"). These are the waves orchestrator's rulings. Each says what would overturn it.
+A spec table or a build seam follows the ruling and cites this section; it does not
+re-open the question unless it holds the evidence named.
+
+**The rule behind all of them.** The target is the game as our cache has it (rev 239).
+1. What the cache itself states or computes (a struct's text, an enum, a client script's
+   arithmetic) is the game at that revision and outranks a wiki page, which describes
+   today's game and may post-date a change. 2. A Jagex newspost outranks the wiki; where two
+   posts differ, the later one wins; a post older than the cache that the cache contradicts
+   is superseded by the cache. 3. Where two cache scripts disagree with each other, the one
+   that computes the value the SERVER-facing interface shows (the summary or reward
+   screen) outranks one that draws a tooltip or preview. 4. A ruling made on ranking alone
+   is graded no higher than its best source and keeps an open row naming the observation
+   that would confirm it.
+
+| Id | Question | Ruling | Why | Overturned by |
+|---|---|---|---|---|
+| R1 (N1) | Glory for completing wave 12: +1,000 bonus (cache client script) or 1,200 with no bonus (wiki) | Follow the cache client script | Rule 1: it is the game's own arithmetic for what the player is shown | A frame of a real run's end screen whose total fits only the wiki's figure |
+| R2 (N2) | Is a modifier's glory multiplied by its level (two client scripts disagree) | Follow the script that computes the run's total on the summary or reward screen; the glory unit's table names which script that is | Rule 3 | The same frame as R1, taken from a run with a modifier above level 1 |
+| R3 (D2, N5) | Which wave the unique roll and the pet roll belong to: the wave just completed (Jagex posts) or the reward wave (wiki) | Write every roll as "rolled when wave N is completed", N taken from the latest Jagex post; if the wiki's numbering is the same event counted one wave later, say so in the row and close the disagreement | Rule 2, and the two may be one event under two numberings | A later Jagex post, or the cache's reward interface text stating the wave |
+| R4 (N6) | Relentless: "minimum hits" (post) or max hits (wiki) | Use the modifier's own description text from the cache struct (enum 5312's entry for Relentless, each level's text); if that text is silent, the post | Rule 1: the struct text is what the game tells the player | Nothing short of a measured hit distribution from a recording |
+
+Not built because no source states them, and to stay that way until one does: an entry
+fee, and a pause. Logging out forfeits the run's loot (the plan's reading of the sources).
