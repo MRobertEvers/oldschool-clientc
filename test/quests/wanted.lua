@@ -780,7 +780,9 @@ return {
         elseif pos6_id == 19 then
             t.exec("pos6.recrossSteppingStone", t.player.click_loc, "swamp_cave_steppingstone_b", 1)
             t.ticks(6)
-            walk_route("pos6.caveWalkBack", {{3221, 9556}, {3212, 9559}, {3203, 9556}, {3194, 9553}, {3186, 9557}, {3174, 9557}, {3169, 9564}})
+            -- the entry route reversed: the rope is reached only by the west detour round the
+            -- cave-wall block at 3168-3170,9563-9565 (reach.py, every leg closed-door reachable)
+            walk_route("pos6.caveWalkBack", {{3221, 9556}, {3212, 9559}, {3203, 9556}, {3194, 9553}, {3186, 9557}, {3174, 9557}, {3164, 9555}, {3157, 9560}, {3149, 9564}, {3146, 9573}, {3158, 9573}})
             t.exec("pos6.climbRopeOut", t.player.click_loc, "swamp_cave_climbing_rope", 1)
             t.ticks(4)
         end
