@@ -2471,6 +2471,7 @@ def stand_ons(rows):
 def ledger_path(test_id, quest_dir):
     candidates = [
         os.path.join(REPO_ROOT, "build", "quest_gate", test_id, "ledger.tsv"),
+        os.path.join(CONTENT_ROOT, "selftest", "quests", quest_dir, "play-%s" % test_id, "ledger.tsv"),
         os.path.join(CONTENT_ROOT, "selftest", "quests", quest_dir, "play", "ledger.tsv"),
         os.path.join(CONTENT_ROOT, "selftest", "quest_tests", test_id, "ledger.tsv"),
     ]
