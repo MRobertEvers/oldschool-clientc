@@ -3036,3 +3036,68 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
   the 8127 tick.
 - Two kills under two run names: t741 (kill7, 15 of 15 rows) and t748 (kill7b). The plan
   is run-name fragile (the run name seeds the player's rolls).
+
+<!-- rooms-tob sampler, eighth launch (2026-10-03): the headings below. -->
+
+## Bloat: a 7 among your "protected" fly hits means the prayer was off when it was thrown
+
+- The server rolls a fly's damage when it launches the fly (`queue*(combat_damage_player,
+  flight)(npc_uid, ~tob_bloat_fly_damage)`, tob_bloat.rs2:431). It reads the target's
+  prayer at that moment, not at the splat.
+- Entry flies roll 4-8 (`~tob_bloat_entry_hit`, tob_bloat.rs2:792-794: max/2 to max).
+  Protect from Missiles keeps 75 percent, rounded down (tob_bloat.rs2:487-489,
+  tob.constant:741-742). So a prayed fly is 3, 3, 4, 5 or 6, and never more than 6.
+- The rooms-tob launch-8 tob_bloat run agrees: 95 prayed hits, 3-6, of which 46 are 3s
+  (4 and 5 both round to 3). The 5 hits before the prayer was first lit were 4,6,7,7,4.
+- So if a 7 shows up among hits you count as protected, your classification is wrong:
+  the prayer was off on the server when that fly launched. The usual cause is the
+  piety/protect swap on a down or rise, or prayer points at 0. It is not a content bug.
+  Do not raise the 6 to let the 7 through. Count a hit as protected only when the
+  prayer was on from the launch tick (splat tick minus the flight) through the splat.
+
+## Sotetseg: putting a ball on the maze proc tick (magic_per_ball_proc_tick)
+
+- His timer attacks first and checks the maze second, on the same tick
+  (tob_sotetseg.rs2:104-109). The check reads his hitpoints against the scaled pool in
+  tenths of a percent (tob_sotetseg.rs2:959-985, tob.constant:1530-1531). In solo Entry
+  (560) the first maze procs at 373 or below and the second at 187 or below.
+- In the log the proc (his npc_retype) is the tick AFTER the crossing hit_npc. The
+  rooms-tob launch-8 tob_sotetseg run shows this twice: hit t103, retype t104; hit
+  t359, retype t360. His balls come every 5 ticks (npc_anim 8139: t91, 96, 101, ...).
+- To get a proc-tick ball, bring him to a few points above the threshold and stop
+  attacking. Read his next ball tick B from the 8139 rows. Then deliver one hit whose
+  hit_npc lands on B-1 and is big enough to cross. A 0 or a short hit just means you
+  wait 5 ticks and try again. Measure your own weapon's swing-to-splat delay first.
+- Do not try to get there by shifting the start tick (ticks 2..9). The proc tick follows
+  whichever hit happens to cross, so a tick shift only moves the gamble.
+
+## Verzik P3: she picks the style and reads your prayer on the tick she animates
+
+- `~tob_verzik_p3_regular` rolls the style with `random(2)` (tob_verzik.rs2:2900). It plays
+  8125 (ranged) or 8124 (magic) at :2903-2908. On that same tick it checks the protection
+  prayer and halves the hit (:2934, :2939).
+- So a prayer you switch when you see her npc_anim row is one tick late for that hit. It
+  only helps the next auto, and only if she picks the same style again (half the time).
+  The line "switch prayer on her npc_anim" in 'Verzik P3 that a solo bow survives' works
+  because the bow kit can absorb the hits, not because the prayer blocks them.
+- The green ball's pose is also 8125 or 8124 at random (tob_verzik.rs2:3021-3025). It
+  throws projectile 1598 and no auto hit. A switch keyed on 8125 therefore drops Protect
+  from Magic on a ball tick for no reason. Tell the ball by its 1598 projectile on the
+  same tick, not by the pose.
+- To protect a P3 auto you need the prayer up before the attack tick. That means a
+  prediction (pick one style and hold it), not a reaction.
+
+## Verzik P3: after a tornado heal she attacks every 7 ticks again (content_bug candidate)
+
+- The enrage line and the tornadoes are a one-time latch (bit 70 of tob_var_spawned,
+  tob_verzik.rs2:2752-2761). The attack clock does not read that latch. It reads
+  `~tob_verzik_enraged`, which recomputes "at or below 20 percent" from her current
+  hitpoints on every attack (tob_verzik.rs2:2735, 2745-2749, clock at :2744). The Normal
+  auto max does the same (:2917).
+- A tornado that reaches you heals her by its damage times the multiplier
+  (`~tob_verzik_tornado_heal`, tob_verzik.rs2:3590-3594). Once that lifts her over 20
+  percent, her cadence goes back to 7 while the tornadoes keep coming. The real enrage
+  is permanent (tob_timing.rs2:153-165 calls it a drop from 7 to 5).
+- If your cadence row measures a 7 after the enrage line, that is this bug. End the row
+  content_bug with these file:line references; do not drop the 7s from the gaps. Not yet
+  in CONTENT_BUGS.md.
