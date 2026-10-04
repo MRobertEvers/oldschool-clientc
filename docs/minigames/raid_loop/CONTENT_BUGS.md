@@ -575,3 +575,39 @@ Open:
 - Closed as stale, ToB, Verzik: tob.constant's "25 with insulated boots" comment is the
   Strategies page's figure, not stale; the 60 percent is now ^tob_verzik_p2_zap_boots_pct with
   both quotes (behaviour unchanged).
+
+## From seam15 (matthew-mbp-m4-raid-b1-seam15, 2026-10-04)
+
+- **FIXED seam15** Potions, super restore: `[proc,super_restore_effect]` (prayer_potion.rs2)
+  healed Hitpoints 8 + 25% of base, 32 a dose at 99, through the super restore, its br_ supply
+  copy (br_potion.rs2:74) and the Castlewars brew. Wiki [Super restore] oldid 15183989 line 53:
+  "restores all player stats that have been lowered, including Prayer, but not Hitpoints". The
+  Hitpoints line is gone. Conformance seam.super_restore_no_hitpoints.
+- **FIXED seam15** ToB, Verzik: her tornado outlived her and touched a raider 17 ticks after
+  her npc_death (rooms-tob launch 12, tick 841). Now no contact while she lies dying, every
+  tornado fades on the bat's tick, and no respawn after her last hitpoint (blert
+  VerzikDataTracker.java:446-456; Near Reality PurpleTornado.kt:34-37,54). Spec rows
+  verzik.p3_tornado_end (D), verzik.p3_inflight_after_death (B). Conformance
+  seam.verzik_tornado_gone_with_her.
+- **FIXED seam15** ToB, supply chests: an Entry chest now keeps what a full backpack could not
+  take, until ten are taken (Entry Mode:7; Bandages (Theatre of Blood)). Conformance
+  seam.tob_entry_chest_keeps_leftovers.
+- **FIXED seam15 (engine)** `::give dragon_dagger_p++` gave dragon_dagger_p:
+  cheat_id_from_name (torirs_server_world.c) underscored the argument before the exact gameval
+  lookup. Conformance seam.give_takes_the_exact_symbol.
+- Not a bug, sourced: Verzik's in-flight auto still lands after her npc_death (15 of 62 Blert
+  P3 rooms, 3-6 ticks after her last launch). Near Reality's blockIncomingHits(15) is not OSRS.
+- Open, potions, Sanfew serum: restores only Attack, Strength, Defence, Ranged and Magic at
+  4 + 30% (restore_potion.rs2:79-83, and the br copy at br_potion.rs2:93-97). Wiki [Sanfew
+  serum] oldid 15236706 line 53: "restores 4 + 30% of the player's base level (rounded down) per
+  dose in all skills except Hitpoints". Both copies should change together.
+- Open, potions, Super restore mix (barbarian_mix.rs2 `[proc,brutal_mix_restore_all]`):
+  restores only the five combat stats, not Prayer or the other skills. Wiki [Super restore]
+  line 61: the mix is a super restore with caviar, healing 6 Hitpoints a dose (the 6 is there).
+- Open, potions: a super restore drunk with a Prayer cape or ring of the gods (i) worn, or a
+  holy wrench carried, should restore Prayer by 8 + 27% (wiki [Super restore] line 57). Not
+  implemented.
+- Open, ToB, configs/tob.constant: `^tob_verzik_nvar_expire` (register 2) is documented as
+  "crab / web: the tick it dies"; seam15's tornado fade also keeps the tick its despawn began
+  there. Suggested comment: "crab / web: the tick it dies; tornado: the tick its despawn began".
+  Documentation only.

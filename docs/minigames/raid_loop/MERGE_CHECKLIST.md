@@ -167,3 +167,20 @@ From the quest session, for the day this branch meets v3:
 - Fight-heavy quests new on v3 and not yet run under the eat port: `dreammentor` and the
   reworked `contact`. If either is red after this branch merges, send the quest session the
   first failing row; it fixes them on its side.
+
+## The super restore no longer heals Hitpoints (seam15, 2026-10-04)
+
+The owner confirmed on 2026-10-04 that the super restore must be fixed:
+`[proc,super_restore_effect]` (prayer_potion.rs2) no longer heals Hitpoints (wiki [Super
+restore] oldid 15183989 line 53, pinned under docs/minigames/theater_of_blood/sources/). It
+reaches every quest and room that drinks `4dose2restore`, `br_4dose2restore` or a Castlewars
+brew.
+- Quest suite on this branch after the fix: 115 green, and deserttreasure, forgettabletale,
+  regicide and troll RED with the same first failing rows as seam14 (the baseline, fixed on
+  v3). No quest went red because its fight healed from restores.
+- v3's quests that are not on this branch (b56 onwards, `dreammentor`, the reworked `contact`)
+  have not been run without the heal. After the merge, any of them that goes red in a fight
+  that drinks a super restore is the quest session's: send it the first failing row.
+- Raid rooms that moved (SEAM_LEDGER.md, seam15): tob_verzik (P3 out of food at tick 636)
+  and tob_maiden (one sound-range row on a changed walk). Both must be re-authored on this
+  branch; neither is a merge blocker for v3.

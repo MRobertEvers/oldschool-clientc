@@ -3653,6 +3653,9 @@ them.
 
 ## Entry chest bandages: min(10, free slots) on the first Open, then "The chest is empty."
 
+Superseded by seam15: the chest now keeps what you could not carry (see "An Entry supply
+chest keeps what you could not carry" below). Kept for the runs before it.
+
 An Entry supply chest hands over as many bandages as you have free slots, up to 10, and a
 second Open says "The chest is empty." Free 10 slots BEFORE opening. The wiki says the leftovers
 stay until the next chest (CONTENT_BUGS.md, seam14; a patch is proposed, not applied).
@@ -3698,6 +3701,9 @@ three names do not sample three outcomes.
 
 ## Her tornado outlives her: a tornado row can pick a hit after the kill
 
+Superseded by seam15: no tornado touches or respawns after her last hitpoint (see "Her tornado
+goes with her" below). Kept for the runs before it.
+
 - Verzik's npc_death does not free her tornado (10846). In that run the one spawned on 697
   chased the raider (who had died and got up at 99) and touched him on 841, 17 ticks after
   her death, then npc_free 842. A row that keeps "the first tornado hit that verifies"
@@ -3711,6 +3717,9 @@ three names do not sample three outcomes.
   only "fully despawns tornadoes at the end", VerzikDataTracker.java:405-407): triage it.
 
 ## A super restore heals 32 hitpoints here (content defect)
+
+Fixed in seam15 (see "A super restore no longer heals Hitpoints" below). Kept for the runs
+before it.
 
 - `[proc,super_restore_effect]` (prayer_potion.rs2:119-143) runs stat_heal(hitpoints, 8, 25)
   with every other stat (line 125), and br_4dose2restore calls the same proc
@@ -3729,3 +3738,146 @@ three names do not sample three outcomes.
   the new level. The whip swing lands on its own anim tick (1658 on the heal tick). A
   reflect's max is the level after the last drink before that tick: tob_nylocas
   (d87427d41) 22 on 729 after a brew on 713 and a restore on 718 = 98, max 24.
+
+## A super restore no longer heals Hitpoints (seam15)
+
+- `[proc,super_restore_effect]` (prayer_potion.rs2) restores every stat except Hitpoints by
+  8 + 25% of base. That covers `4dose2restore`, `br_4dose2restore` (the Tombs' supply copy) and
+  the Castlewars brew. Before seam15 every dose also healed 32 hitpoints at 99.
+- Source: wiki [Super restore] oldid 15183989, line 53 ("restores all player stats that have
+  been lowered, including Prayer, but not Hitpoints"), pinned under
+  docs/minigames/theater_of_blood/sources/. Row: seam.super_restore_no_hitpoints.
+- A kit sized against the old heal needs brew doses or food for those hitpoints. A restore now
+  buys back Prayer and the brews' stat drain, nothing more. tob_maiden and tob_verzik moved
+  because of this (SEAM_LEDGER.md, seam15).
+
+## Taking a raider under base Hitpoints without a cheat
+
+- There is no `::damage` cheat. Cave nightshade (`t.player.eat("nightshade", { op = 4 })`) hits
+  15 a bite (nightshade.rs2) and can be eaten every 2 ticks.
+- A Saradomin brew dose drains Attack, Strength, Defence, Ranged and Magic by 2 + 10% of base
+  (99 -> 88 -> 77 -> 66 -> 55) and lifts Hitpoints to base + 16. Drink before you bite. A second
+  drink 2 ticks after the first is refused by the potion delay: wait 3.
+- Recipe: build/seam_state/matthew-mbp-m4-raid-b1-seam15/srh/srh_scratch.lua.
+
+## Her tornado goes with her (seam15)
+
+- While she lies dying (npc_death to the bat's npc_spawn, 3 ticks), each tornado keeps walking
+  (npc_tile rows) but cannot touch or heal. On the bat's spawn tick every tornado plays 9005,
+  and its npc_free comes one tick later. No tornado spawns after her npc_death.
+- Row: seam.verzik_tornado_gone_with_her (her death 2454, bat 2457, 9005 2457, npc_free 2458,
+  no touch). Spec row verzik.p3_tornado_end (0 ticks, grade D).
+- Sources: blert VerzikDataTracker.java:446-456 (every tornado despawned at the death form) and
+  Near Reality PurpleTornado.kt:34-37,54 (no contact or respawn once she isDead). In 62 Blert P3
+  rooms the tornadoes move between her last hitpoint and the death form (441 rows) and none is
+  listed after it (sources/blert_api/spec_pass_verzik/verzik_seam15_death_2026-10-04.txt).
+- A tornado row no longer has to filter out touches after the kill. Still read hitpoints on
+  the tick before a touch.
+
+## Her last auto lands after she dies (sourced, not a bug)
+
+- An auto she launched before her last hitpoint lands 5-6 ticks later, after her npc_death.
+  Once she is freed the hit_player row carries dealer -1 (scratch vzt_kill_b: launch 68, hit 3
+  on 74).
+- In 15 of 62 Blert P3 rooms a raider's hitpoints drop after her zero tick, 3-6 ticks after her
+  last launch, and one raider died from such a hit. Near Reality's blockIncomingHits(15) is not
+  OSRS. Spec row verzik.p3_inflight_after_death (3-6 ticks, grade B).
+- Keep her prayed max plus one unprayed auto in hand at the kill, and assert no
+  'You have died' through npc_death + 6.
+
+## ::give takes the symbol you typed (seam15)
+
+- `::give`, `::wield`, `::spawn` and `::setvar` look up the argument exactly as typed first,
+  then its underscored form (the display-name spelling), then a unique substring.
+- So `::give dragon_dagger_p++` gives dragon_dagger_p++ (5698), not dragon_dagger_p (1231).
+  Before seam15 any symbol with `+` (the poison tiers p+ and p++) silently gave the plain item.
+  A kit that named p++ before seam15 carried the plain (p) dagger: compare old relay counts
+  with that in mind.
+- Read the item back with `t.inv.count(<symbol>)`; it takes the gameval symbol, not the
+  display name. Row: seam.give_takes_the_exact_symbol.
+
+## An Entry supply chest keeps what you could not carry (seam15)
+
+- tob_chest.rs2: an Open gives min(left, free slots); the rest stay in the chest until ten have
+  been taken; "The chest is empty." comes only after ten.
+- Source: wiki Theatre of Blood/Entry Mode:7 ("Leftover bandages in the supply chest do not
+  carry over from each boss") and Bandages (Theatre of Blood) ("The chest can only contain a
+  maximum of 10 bandages"). Row seam.tob_entry_chest_keeps_leftovers (3 -> 8 -> 10, then empty).
+
+## The whole raid in one run
+
+The recipe seam15 measured: one raider, one kit, from the notice board in Ver Sinhaza to the
+vault and back out, with no `t.raid.enter`. It is green under ONE run name of five; it is not
+yet a test (SEAM_LEDGER.md, seam15).
+
+- Scratch: build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua. It is generated:
+  assemble.py joins seam13's first half, `R.between_halves` and seam14's closer second half
+  into joined_base.lua, and plan.py applies plans 1-12 and 14-16 (each commented with its run).
+  Run it with `run.py --script <joined.lua> --name <name> --no-build --no-publish`; a run takes
+  about three minutes.
+- Kit (`R.KIT`, given once at the notice board). Worn: void ranger helm, glory, imbued
+  Saradomin cape, elite void top and robe, void gloves, dragon boots, berserker ring, magic
+  shortbow (i), 1000 rune arrows. Carried, 28 slots: scythe of vitur, void melee helm, staff of
+  fire, 1000 air, 500 mind, dragon dagger(p), insulated boots (`slayer_boots`, needs
+  `::setlevel slayer 37` or it silently stays in the pack), super combat(4), stamina(4), 6 super
+  restore(4), 13 saradomin brew(4).
+- Between the halves (Sotetseg's entrance): drop the staff, the runes and the vials, wear the
+  bow and the ranger helm. Take each chest's ten with ten slots free.
+- Verzik P2: Rigour and Protect from Missiles, Protect from Magic from the first reds summon.
+  Step one tile off every bomb (1583, 4 ticks) and every Athanatos aim (1586, 7 ticks) inside
+  the box. Hit the Athanatos with the dragon dagger(p): one poisoned hit bursts it, for up to
+  70 to her (Entry Mode:93 "must be poisoned ... not optional"). Then the bow goes back on. Run
+  from any exploding nylocas whose 2x2 is within 5 tiles, to the tile 2-4 off that is farthest
+  from it (Entry Mode:228 "or just run away").
+- Verzik P3: the seam12 prayer rule. Flee a tornado within 6 to a ring tile whose diagonal-first
+  route stays 2 clear of it (it moves 1 tile per 2 of yours). Flee before you eat when it is
+  within 4. The green ball is 75% of your Hitpoints level (74 at 99): be above 75 when it lands.
+- Supplies at each room's exit, the green run s15k1 (re-run by the closer on the final tree,
+  160/160, the same ticks): Sotetseg's entrance 18 brew and 8 restore doses, 0 bandages; after
+  Sotetseg 2 brew + 1 restore used, chest 10; after Xarpus all 10 bandages + 3 brew + 1 restore
+  used; Verzik dead on tick 2919, everything drunk, the raider at 8 hitpoints.
+- The other names: s15j7 died in Verzik P3 at 2972 (food out, her pool ~163 short); s15j5b died
+  in P3 at 2986 (prayer out at 2880, ~338 short); c15alpha died in P3 at 2921 (16 brew and 7
+  restore doses at Sotetseg's entrance); c15bravo died at Xarpus at 2410 (missed 39, 16 brew and
+  6 restore doses); c15charlie never killed Xarpus (no food from about 2700, 12 brew and 4
+  restore doses).
+- What decides it: the first half's Nylocas leaves 12 to 21 brew doses depending on the name,
+  and the second half needs about 18. The sourced bounds are two chests of exactly 10 bandages
+  (Entry Mode:33, :151, :197), the 28-slot kit, the P3 pool 600 (cache_npc_verzik.txt:552) and
+  the P3 green ball at 75% of the Hitpoints level.
+- Raid-wide spec rows: `raid_coverage.py tob_entry` grades only `spec.<id>` steps, so it reads
+  0 of 75. The green ledger has a `raidwide.<id>` step for 42 of the 75 (41 PASS; the one FAIL
+  was the duplicate music row plan 16 drops). The other 33 are death, wipe, logout, party,
+  reward-roll and vault rows one surviving solo run cannot emit. The mapping, row by row:
+  build/seam_state/matthew-mbp-m4-raid-b1-seam15/raidwide_rows.tob_relay_joined.tsv.
+
+## The run name seeds every roll, but only its first 12 characters, case-folded
+
+- strtobase37 (src/net/jbase37.c:29) stops at 12 characters and maps A-Z like a-z. So
+  close14_r2k_a/b/c were one seed (prefix close14_r2k_), which is why seam14's three second
+  halves were identical.
+- Name runs 12 characters or fewer and make them differ early (s15k1, s15j7). To A/B a plan
+  change, rerun the SAME name: the run is byte-identical until the change acts.
+
+## A death ends the run before the drive notes flush: read the tick log
+
+- player.died aborts run(), and the drive notes after the last flush are lost.
+- trj/hits.py (damage by dealer and the nearest projectile per tick window), trj/vtl.py (a
+  Verzik timeline) and trj/summ.py (a ledger digest) rebuild the fight from ticklog.tsv.
+- npc_tile columns are slot, x, z, level, type; npc_heal is slot, type, amount, hp, max.
+
+## The joined second half must not re-measure the first half's tracks
+
+- The second half's base is the `second_half` mark, set after Sotetseg's room track (584) has
+  played, so its copy of raidwide.music.sotetseg_room read nil. The first half reads that track
+  from the Nylocas passage. Plan 16 drops the duplicate.
+
+## A hit on the tick you step into range is sounded against your old tile
+
+- tob_maiden's spec.maiden.av.hit_sound (seam15 close run) counted a hit on tick 355 as
+  unsounded: the raider ended that tick 12 tiles from her south-west tile (6438,100) but began
+  it 13 away (6439,101). The likely reading (not traced in the C): the engine judged the range
+  against the tile he stood on when the hit resolved, and the row read the tile he ended on.
+  It is the T-1 rule again (ENCOUNTER_TIMING.md section 1).
+- Count a hit whose two tiles straddle the 12-tile edge as neither near nor far, or judge it from
+  the tile at the end of tick - 1.

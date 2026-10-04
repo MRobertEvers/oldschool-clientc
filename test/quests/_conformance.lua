@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 155
+-- @seam-count 159
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 165
-local SEAM_COUNT = 155
+local SEAM_COUNT = 159
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -13792,6 +13792,91 @@ return {
             return "ok", detail .. " (Hard 6..9; label = balance)"
         end)
 
+        -- seam15 tob_relay_joined -- conformance snippet for the closer (a CONTENT seam: no verb added or changed).
+        --
+        -- PLACE: in _conformance.lua's PLAN directly after
+        --   seam("seam.tob_hard_chest_pays_fewer_and_label_reads_it", ...)
+        -- (the seam8 supply chest rows). SEAM row: SEAM_COUNT +1. It enters an Entry raid by the bring-along
+        -- (t.raid.enter), starts and clears Bloat by cheat (a measurement of the CHEST, as the Hard chest row does),
+        -- fills 25 slots and leaves by ::tobout and ::clearinv, so it leaves nothing behind for the next row.
+        --
+        -- What it proves (tob_chest.rs2 [oploc1,tob_midway_chest_closed], Entry branch): the chest holds ten and
+        -- keeps what a full backpack could not take. wiki Bandages (Theatre of Blood):27 "The chest can only contain a
+        -- maximum of 10 bandages, so uncollected bandages are deleted"; Theatre of Blood/Entry Mode:7 "Leftover
+        -- bandages in the supply chest do not carry over from each boss". Before the fix the first Open gave
+        -- min(10, free slots) and every later Open said "The chest is empty." (close14_r1a ledger rows 62-64: 3, then
+        -- empty). Scratch: build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/chest_leftovers.lua, run s15chest3 13/13.
+        seam("seam.tob_entry_chest_keeps_leftovers", function()
+            local enter = verb("raid", "enter")
+            local state = verb("raid", "state")
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local drop = verb("player", "drop")
+            local count = verb("inv", "count")
+            local loc_near = verb("world", "loc_near")
+            local last = verb("msg", "last")
+            if not enter then return missing("raid", "enter") end
+            if not state then return missing("raid", "state") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not drop then return missing("player", "drop") end
+            if not count then return missing("inv", "count") end
+            if not loc_near then return missing("world", "loc_near") end
+            if not last then return missing("msg", "last") end
+            local function bandages() local _, c = count("tob_bandages"); return c or 0 end
+            local function teardown()
+                setup_cheat("::tobout")
+                settle(2)
+                setup_cheat("::clearinv")
+                settle(1)
+            end
+            local er, ed = enter("tob", "bloat", { mode = "entry" })
+            if er ~= "ok" then teardown() return "refused", "enter: " .. describe(ed) end
+            setup_cheat("::clearinv")
+            setup_cheat("::tobgo")
+            settle(3)
+            setup_cheat("::kill tob_bloat_story 60")
+            local cleared, guard = nil, 0
+            while cleared == nil and guard < 40 do
+                settle(1)
+                local sr, st = state()
+                if sr == "ok" and is_table(st) and string.find(tostring(st.line), "cleared=1", 1, true) then cleared = st.line end
+                guard = guard + 1
+            end
+            if cleared == nil then teardown() return "refused", "Entry Bloat room never cleared" end
+            setup_cheat("::give shark 25")
+            settle(2)
+            goto_tile(6406, 97, 0)
+            settle(2)
+            local lr, row = loc_near("tob_midway_chest_closed", 16)
+            if lr ~= "ok" then teardown() return lr, "no supply chest near 6406,97: " .. describe(row) end
+            local seen = {}
+            local function open()
+                click_loc("tob_midway_chest_closed", 1)
+                settle(3)
+                seen[#seen + 1] = bandages()
+            end
+            open()                                            -- 3 free slots
+            for _ = 1, 5 do drop("shark"); settle(1) end
+            open()                                            -- 5 more free
+            for _ = 1, 5 do drop("shark"); settle(1) end
+            open()                                            -- 2 left in the chest
+            local _, mark_lines = last(1)
+            local mark = (is_table(mark_lines) and mark_lines[1] and mark_lines[1].serial) or -1
+            open()                                            -- nothing left
+            local empty = false
+            local _, lines = last(10)
+            for _, l in ipairs(is_table(lines) and lines or {}) do
+                if l.serial > mark and string.find(l.text or "", "The chest is empty.", 1, true) then empty = true end
+            end
+            teardown()
+            local detail = "bandages after each Open with 3, +5, +5 free slots, then a fourth: "
+                .. table.concat(seen, " -> ") .. "; fourth Open 'The chest is empty.' " .. tostring(empty)
+                .. " (wiki: the chest holds 10 and keeps the rest; before the fix 3 -> 3 -> 3 -> 3)"
+            if seen[1] == 3 and seen[2] == 8 and seen[3] == 10 and seen[4] == 10 and empty then return "ok", detail end
+            return "refused", detail
+        end)
+
 -- seam8 tob_verzik_forms_and_presentation: one seam row, no verb added or changed.
 --
 -- PLACE: test/quests/_conformance.lua PLAN, after the last raid seam row before
@@ -14153,6 +14238,135 @@ return {
             if heal ~= 3 * touch.damage then return "refused", detail .. " -- the heal is not three times the touch" end
             if touch.damage < 40 or touch.damage > 50 then return "refused", detail .. " -- the touch is not half of 80..99 hitpoints" end
             if freed ~= touch.tick + 1 then return "refused", detail .. " -- not removed one tick after its despawn seq" end
+            return "ok", detail
+        end)
+
+        -- seam15 tob_verzik_tornado_removed_on_death: one content seam row, no new or changed verb.
+        --
+        -- PLACE: in _conformance.lua's PLAN directly AFTER
+        --   seam("seam.verzik_tornado_touches_a_standing_raider", ...)   (seam11)
+        -- Leaves the raid (::tobout) on every exit. Counts as one seam row: SEAM_COUNT / @seam-count + 1.
+        --
+        -- HER TORNADO GOES WITH HER (OSRS-Content tob_verzik.rs2: ~tob_verzik_tornado_tick asks
+        -- ~tob_verzik_p3_state -- no contact once she has fallen, it walks on; ~tob_verzik_death fades
+        -- every tornado on the bat's tick through ~tob_verzik_tornado_fade, removed one tick later; the
+        -- respawn queue refuses a fallen Verzik). Before the fix a tornado outlived her: rooms-tob launch
+        -- 12 killed her on tick 824 and the tornado spawned on 697 touched the raider on 841 for 49 and
+        -- was freed on 842. Sources: Near Reality PurpleTornado.kt:34-37 (finish() once she isDead, before
+        -- contact) and :54 (no respawn on a dead Verzik); blert VerzikDataTracker.java:446-456 (every
+        -- tornado despawned at the P3 -> death-form change) and 62 P3 recordings in which the tornadoes
+        -- keep moving from her last hitpoint to that change (2-7 ticks).
+        -- Measured (scratch vzt_kill_b): death 69, tornado walked 6432,82 -> 81 -> 80 beside me while she
+        -- lay dying, no touch; bat 72 with 9005 on the tornado; npc_free 73; no tornado spawn after 69.
+        seam("seam.verzik_tornado_gone_with_her", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local walk = verb("player", "walk_to")
+            local pray = verb("prayer", "set")
+            local tile = verb("world", "tile")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not walk then return missing("player", "walk_to") end
+            if not pray then return missing("prayer", "set") end
+            if not tile then return missing("world", "tile") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::god 1")
+                setup_cheat("::setlevel hitpoints 99")
+                setup_cheat("::tobout")
+                ticks(2)
+                setup_cheat("::god 0")
+            end
+            local function await_npc(sym, limit)
+                for _ = 1, limit do
+                    if nearest(sym, 40) == "ok" then return true end
+                    ticks(1)
+                end
+                return false
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_tornado_gone_with_her")
+            local _, marks = log_rows({ kind = "mark" })
+            local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- P1 and P2 are not this row: skipped with the scratch damage cheat
+            if not await_npc("verzik_phase1_story", 40) then teardown() return "refused", "no P1 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -20")
+            if not await_npc("verzik_phase2_story", 40) then teardown() return "refused", "no P2 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -60")
+            if not await_npc("verzik_phase3_story", 40) then teardown() return "refused", "no P3 form" end
+            walk(6432, 79, 12)      -- open floor far south of her: the tornado walks a while to reach me
+            ticks(3)
+            pray("protectfrommagic", true)
+            setup_cheat("::god 0")  -- a touch would be half my REAL hitpoints
+            setup_cheat("::tobvzleft 120")
+            -- kill her when her tornado is within 3 tiles: it would reach contact while she lies dying
+            local near
+            for _ = 1, 60 do
+                local tor
+                local _, seen = log_rows({ since = base, kind = "npc_tile" })
+                for _, row in ipairs(is_table(seen) and seen or {}) do
+                    if row.type == 10846 then tor = row end
+                end
+                local _, me = tile()
+                if tor and is_table(me) and math.max(math.abs(tor.x - me.x), math.abs(tor.z - me.z)) <= 3 then
+                    near = tor.x .. "," .. tor.z .. " vs " .. me.x .. "," .. me.z
+                    setup_cheat("::tobvzleft 0")
+                    break
+                end
+                ticks(1)
+            end
+            if near == nil then pray("protectfrommagic", false) teardown() return "refused", "no Entry tornado (10846) came within 3 tiles in 60 ticks" end
+            ticks(30)
+            local _, rows = log_rows({ since = base })
+            pray("protectfrommagic", false)
+            teardown()
+            if not is_table(rows) then return "refused", "ticklog.rows answered no table" end
+            local death, bat, tslot, fade, freed, late_spawn, touches = nil, nil, nil, nil, nil, 0, {}
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_death" and row.type == 10835 and death == nil then death = row.tick end
+                if row.kind == "npc_spawn" and row.type == 10836 and bat == nil then bat = row.tick end
+                if row.kind == "npc_spawn" and row.type == 10846 then
+                    tslot = row.slot
+                    if death and row.tick > death then late_spawn = late_spawn + 1 end
+                end
+            end
+            for _, row in ipairs(rows) do
+                if death and row.tick > death and row.kind == "hit_player" and row.npc_type == 10846 then touches[#touches + 1] = row.tick .. ":" .. row.damage end
+                if row.kind == "npc_anim" and row.slot == tslot and row.seq == 9005 then fade = row.tick end
+                if row.kind == "npc_free" and row.slot == tslot and row.type == 10846 then freed = row.tick end
+            end
+            local detail = string.format("tornado near %s; her npc_death %s, bat %s; tornado 9005 %s, npc_free %s; touches after her death [%s]; spawns after it %d",
+                near, tostring(death), tostring(bat), tostring(fade), tostring(freed), table.concat(touches, ","), late_spawn)
+            if death == nil or bat == nil then return "refused", detail .. " -- she did not die into her bat" end
+            if #touches > 0 then return "refused", detail .. " -- her tornado touched a raider after she fell" end
+            if late_spawn > 0 then return "refused", detail .. " -- a tornado spawned after she fell" end
+            if fade ~= bat or freed ~= bat + 1 then return "refused", detail .. " -- not faded on the bat's tick and removed one tick later" end
             return "ok", detail
         end)
 
@@ -15172,6 +15386,74 @@ return {
             return result, describe(detail)
         end)
 
+        -- raid seam15 super_restore_heals_hitpoints, a CONTENT seam.  NO VERB ADDED OR RENAMED
+        -- (verb_list.py does not move).  One SEAM row: SEAM_COUNT +1, @seam-count +1.
+        -- PLACE: in _conformance.lua's PLAN directly AFTER step("player.drink", ...) (section (B),
+        -- the t.player.eat / t.player.drink rows) and BEFORE seam("seam.held_press_fight_speed", ...).
+        -- It resets its own levels with ::setlevel, so the Entry bandages' boosts before it do not leak in.
+        --
+        -- [proc,super_restore_effect] (prayer_potion.rs2) healed Hitpoints 8 + 25% of base: 32 a dose
+        -- at 99, through the super restore, its br_ supply copy (br_potion.rs2:74) and the Castlewars
+        -- brew.  Wiki [Super restore] oldid 15183989 (docs/minigames/theater_of_blood/sources/
+        -- wiki_Super_restore.wikitext:53): "restores all player stats that have been lowered, including
+        -- Prayer, but not Hitpoints"; :55 "8 + 25% of the player's base level (rounded down)".
+        -- Staged with real content only: three Saradomin brew doses drain Attack (2 + 10% each:
+        -- 99 -> 66) and lift Hitpoints to 115; cave nightshade hits 15 a bite (nightshade.rs2) until
+        -- Hitpoints are 40 or more under base.  RED before the fix: hitpoints 54 -> 86 of 99
+        -- (srh15_pre2); GREEN after: 54 -> 54, attack 55 -> 87 (srh15_post).
+        seam("seam.super_restore_no_hitpoints", function()
+            local drink = verb("player", "drink")
+            local eat = verb("player", "eat")
+            local read = verb("skill", "read")
+            local ticks = verb("ticks")
+            if not drink then return missing("player", "drink") end
+            if not eat then return missing("player", "eat") end
+            if not read then return missing("skill", "read") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            setup_cheat("::give nightshade 6")
+            setup_cheat("::give 4dose2restore")
+            settle(3)
+            local function lvl(s)
+                local _, r = read(s)
+                if is_table(r) then return r.level or -1, r.base_level or -1 end
+                return -1, -1
+            end
+            local brew = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
+            for _ = 1, 3 do
+                local r, d = drink(brew)
+                if r ~= "ok" then return "refused", "staging brew: " .. describe(r) .. " " .. describe(d) end
+                ticks(3)  -- the potion delay: a second drink two ticks after the first is refused
+            end
+            local hp, hp_base = lvl("hitpoints")
+            local bites = 0
+            while hp > hp_base - 40 and bites < 6 do
+                bites = bites + 1
+                local r, d = eat("nightshade", { op = 4 })
+                if r ~= "ok" then return "refused", "staging nightshade: " .. describe(r) .. " " .. describe(d) end
+                ticks(2)
+                hp, hp_base = lvl("hitpoints")
+            end
+            local h1, hb = lvl("hitpoints")
+            local a1, ab = lvl("attack")
+            if not (h1 > 0 and h1 < hb and ab - a1 > 8 + math.floor(ab * 25 / 100)) then
+                return "refused", string.format("staging left hitpoints %d/%d, attack %d/%d (want both under base, attack by more than one dose)", h1, hb, a1, ab)
+            end
+            local result, detail = drink({ "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" })
+            ticks(2)
+            local h2 = lvl("hitpoints")
+            local a2 = lvl("attack")
+            local want_a = math.min(ab, a1 + 8 + math.floor(ab * 25 / 100))
+            local text = string.format(
+                "super restore %s; hitpoints %d -> %d of %d (wiki: unchanged; +1 allowed for a natural regen tick; the old proc healed +%d), attack %d -> %d (want %d = 8 + 25%% of %d) -- %s",
+                describe(result), h1, h2, hb, 8 + math.floor(hb * 25 / 100), a1, a2, want_a, ab, describe(detail))
+            if result == "ok" and h2 - h1 >= 0 and h2 - h1 <= 1 and a2 == want_a then return "ok", text end
+            return "refused", text
+        end)
+
         -- (C) ----------------------------------------------------------------
         -- A HELD PRESS AT FIGHT SPEED (raid seam14).  Every fast press is read
         -- back on the NEXT tick and must return within two server ticks of
@@ -15258,6 +15540,49 @@ return {
                 return bad("an under-levelled fast equip did not answer refused with the server's sentence", d)
             end
             return "ok", table.concat(text, "; ")
+        end)
+
+        -- seam15 give_takes_the_exact_symbol (ENGINE, src/torirsserver/torirs_server_world.c).
+        -- PLACE: in test/quests/_conformance.lua's PLAN, right AFTER
+        --        seam("seam.held_press_fight_speed", ...) and BEFORE step("finish", ...).
+        -- NO VERB was added or renamed (verb_list.py does not move, check-drive-abi
+        -- unchanged).  ONE SEAM row: SEAM_COUNT 155 -> 156, @seam-count 155 -> 156.
+        -- This supersedes seam14's unmerged copy of the same row
+        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam14/conformance.fight_speed_inventory_presses.lua,
+        -- part D): same name, it now also asks the middle tier and that the underscored
+        -- rung still answers.
+        -- RED on HEAD (cheat_id_from_name underscored the argument before the gameval
+        -- lookup, so `dragon_dagger_p++` became `dragon_dagger_p`, obj 1231); GREEN after
+        -- cheat_symbol_exact asks the typed spelling first (5698 / 5680).
+
+        seam("seam.give_takes_the_exact_symbol", function()
+            local count = verb("inv", "count")
+            if not count then return missing("inv", "count") end
+            local function given(arg, symbol, other)
+                setup_cheat("::clearinv")
+                setup_cheat("::give " .. arg)
+                settle(3)
+                local _, exact = t.inv.count(symbol)
+                local _, wrong = t.inv.count(other)
+                return exact, wrong
+            end
+            local pp, pp_plain = given("dragon_dagger_p++", "dragon_dagger_p++", "dragon_dagger_p")
+            local p1, p1_plain = given("dragon_dagger_p+", "dragon_dagger_p+", "dragon_dagger_p")
+            -- the underscored rung must still answer a display-style spelling
+            local sword = given("Bronze_sword", "bronze_sword", "bronze_dagger")
+            setup_cheat("::clearinv")
+            settle(1)
+            local seen = "dragon_dagger_p++ x" .. describe(pp) .. " (dragon_dagger_p x" .. describe(pp_plain)
+                .. "), dragon_dagger_p+ x" .. describe(p1) .. " (dragon_dagger_p x" .. describe(p1_plain)
+                .. "), Bronze_sword -> bronze_sword x" .. describe(sword)
+            if pp ~= 1 or p1 ~= 1 then
+                return "refused", seen
+                    .. " -- cheat_id_from_name underscored the '+' away before the exact gameval lookup"
+            end
+            if sword ~= 1 then
+                return "refused", seen .. " -- the underscored (display-name) rung stopped answering"
+            end
+            return "ok", seen
         end)
 
         step("finish", function()

@@ -7887,6 +7887,40 @@ cheat_npc_display_name(int id)
 }
 
 /*
+ * Rung 2 of `cheat_id_from_name`: the gameval `arg` names, or -1. `wanted` is
+ * `arg` already underscored (obj_name_underscore).
+ *
+ * The typed spelling is asked BEFORE the underscored one, because the
+ * underscoring is not neutral on a gameval: it turns every run of non-alnum
+ * characters into one `_` and trims the ends, and the cache's symbols carry
+ * `+` (the poison tiers: `dragon_dagger_p`, `dragon_dagger_p+`,
+ * `dragon_dagger_p++` are 1231, 5680 and 5698). Underscored first,
+ * `::give dragon_dagger_p++` asked for `dragon_dagger_p` and got it -- a test's
+ * setup silently carried the weaker item (seam15, give_takes_the_exact_symbol).
+ * A spelling the underscoring leaves unchanged reaches the same id either way,
+ * so the second lookup is only ever a difference for a typed display-style
+ * name ("Scythe-of-Vitur") or a symbol with punctuation the pack does not
+ * hold.
+ */
+static int
+cheat_symbol_exact(
+    enum ToriRSServerPackKind kind,
+    const char* arg,
+    const char* wanted)
+{
+    int match;
+
+    assert(arg);
+    assert(wanted);
+    match = ToriRSServer_ContentSymbol(kind, arg);
+    if( match >= 0 )
+        return match;
+    if( strcmp(arg, wanted) == 0 )
+        return -1;
+    return ToriRSServer_ContentSymbol(kind, wanted);
+}
+
+/*
  * The id a `::give`/`::spawn` argument means in one namespace, or -1.
  *
  * Four ways in, most specific first, because a cheat that guesses is worse than
@@ -7894,8 +7928,12 @@ cheat_npc_display_name(int id)
  *
  *   1. a plain number — `::give 995 1000` still has to work, and `::item` is
  *      the only other way to name an id;
- *   2. the cache's own gameval (`configs/all.obj.compack`), which is already
- *      underscored — `scythe_of_vitur` is 22325 there;
+ *   2. the cache's own gameval (`configs/all.obj.compack`): first the
+ *      argument exactly as typed, then underscored — `scythe_of_vitur` is
+ *      22325 there either way, but `dragon_dagger_p++` (5698) is a symbol the
+ *      underscoring would turn into `dragon_dagger_p` (1231), a different and
+ *      weaker obj, so the typed spelling is asked first (see
+ *      cheat_symbol_exact);
  *   3. the *display* name underscored, so the command still resolves against a
  *      cache whose gamevals were never packed;
  *   4. a unique substring of a gameval. Unique is the whole rule: two matches
@@ -7927,9 +7965,10 @@ cheat_id_from_name(
     char* end = NULL;
     long numeric;
 
+    assert(arg);
     if( suggest && suggest_size )
         suggest[0] = '\0';
-    if( !arg || !arg[0] )
+    if( !arg[0] )
         return -1;
 
     numeric = strtol(arg, &end, 10);
@@ -7940,7 +7979,7 @@ cheat_id_from_name(
     if( !wanted[0] )
         return -1;
 
-    match = ToriRSServer_ContentSymbol(kind, wanted);
+    match = cheat_symbol_exact(kind, arg, wanted);
     if( match >= 0 )
         return match;
 
@@ -8166,7 +8205,7 @@ cheat_var_exact(
     obj_name_underscore(wanted, sizeof(wanted), arg);
     if( !wanted[0] )
         return -1;
-    return ToriRSServer_ContentSymbol(kind, wanted);
+    return cheat_symbol_exact(kind, arg, wanted);
 }
 
 /*
