@@ -86,3 +86,35 @@ What the closer checked and changed:
   AV_INVENTORY.tsv except `jaguar_warrior.presentation.off_rig_jaguar_seqs` (12491, 12492, 12498, 12499: the
   quadruped jaguar's rig, named only to say they are not this npc's; RIG_ANIMATIONS.md:49).
 - Not run: no build, no quest test, no Blert or wiki fetch (tables-only pass; another pass builds here).
+
+## matthew-mbp-m4-waves-b1-spec-inferno-b (the Inferno, batch B: the six monster units, fought, 2026-10-04)
+
+Closed by the Opus closer. Parent commit 1940d0927, content c9c4e63a0f (comments and tags only; no constant value changed,
+so no quest test was run; `make -C src torirsserver-scripts` compiled clean; the full quest suite was not run by this pass).
+Total: 301 rows, A 82 / B 88 / C 58 / D 38 / E 35. Content bug rows: 42 appended to CONTENT_BUGS.md (new ids and re-measures of known ones).
+
+- **nibblers_and_pillars**: 37 rows, A 4 / B 11 / C 10 / D 7 / E 5; presentation 7; open M18-M21; bugs NIB-CAD, NIB-TARGET, NIB-FIRST, NIB-ACC, NIB-RADIUS, NIB-PILLAR-1HP (source disagreement), ENG-55-b, ENG-48-b.
+- **bat**: 42 rows, A 15 / B 8 / C 7 / D 5 / E 7; presentation 11; open M22-M27; bugs BAT-RUN, BAT-DRAIN, BAT-CAD, BAT-REVIVE, WT-1-bat, ENG-12-b, ENG-13-bat.
+- **blob_and_splits**: 55 rows, A 17 / B 15 / C 11 / D 5 / E 7; presentation 13; open M28-M32; bugs BLOB-SCAN, BLOB-NOPRAY, BLOB-MELEE, BLOB-FIRST, BLOBLET-IDLE, BLOBLET-OFFSET, BLOB-RANGE.
+- **melee**: 51 rows, A 17 / B 11 / C 8 / D 10 / E 5; presentation 17; open M33-M35; bugs MELEE-DIG, MELEE-DIG-DELAY, MELEE-DIG-LAND, MELEE-REVIVE-HP, WT-1-melee.
+- **ranger**: 48 rows, A 14 / B 15 / C 10 / D 3 / E 6; presentation 12; open M36-M40; bugs RANGER-MELEE-MAX, RANGER-MELEE-CHANCE, RANGER-RANGE, RANGER-FIRST, WT-1-ranger, ENG-13-ranger.
+- **mager_resurrection**: 68 rows, A 15 / B 28 / C 12 / D 8 / E 5; presentation 15; open M41-M45; bugs MAGER-REVIVE-TRIGGER, -GAP, -NIBBLER, -TILE, -SPAWN, MAGER-MELEE-MAX, MAGER-MELEE-CHANCE, MAGER-RANGE, ENG-13-46-mager.
+
+What the closer changed and what it sends back:
+
+- Re-derived three or more rows per table from the source files (pillar 255 at wiki_Rocky_support:30, the half-hp end
+  collapse at wiki_Inferno:264, bat run drain at the Easter post:25, bat gap minimum 3 of 1872, blob 3-tick read at
+  Strategies:592, ImKot dig 50 at Jal_ImKot:49, ranger hp at the Phosani post and the cache, mager 1/10 at Jal_Zek:48's
+  Mod Ash quote, and others). One correction: `blob.water_weakness` A to D, tags `[wiki]` only: the Summer Sweep Up
+  post line 83 names no monster and no percent; only the wiki infobox (Jal_Ak:38-39) and its change line (:62) give 40.
+- `melee.hit_delay` and `melee.prayer_read_tick` (D, `[wiki]`) rest on ENCOUNTER_TIMING.md section 1, the ToB doc's
+  generic pipeline quoting the wiki's Tick manipulation page, not on an Inferno source: kept, sent back for a direct cite.
+- Sent back (measured_by): the bat run drain rows are by reading (no driver verb reads run energy); the melee dig rows
+  are static (the dig was not reached by a fight); `mager.prayer_read_tick` rests on one flick pulse; no mager or ranger
+  kill to completion, no revive chain, no pillar line-of-sight run (ENG-13 rows unmeasured); the midwave collapse
+  damage was not isolated; the runs share one headless rng stream, so samples are correlated (melee unprayed 31/35/38
+  repeat). No row was taken under a god mode: the wave-66 scratches used three `::setvar` resume lines as bring-alongs.
+- Presentation: every seq, spotanim, projectile and sound id named by a presentation row is in AV_INVENTORY.tsv; model
+  ids are not an inventory kind. A worker's notebook had been written into `sources/blert_api/`; it was moved to the
+  pass state directory and not committed.
+- Not run: no Blert or wiki fetch by the closer (the workers used cached Blert data; no fetch recorded).
