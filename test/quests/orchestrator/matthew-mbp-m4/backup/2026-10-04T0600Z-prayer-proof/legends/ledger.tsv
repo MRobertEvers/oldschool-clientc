@@ -1,0 +1,563 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	leg.1.start_and_bullroarer	PASS	34		tile=3206,3233,0 stage=varp139_legendsquest=0 inv=rune_axex1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,charcoalx1,charcoalx1,charcoalx1,charcoalx1,charcoalx1,lockpickx1,lockpickx1,lockpickx1,rune_pickaxex1,soulrunex1,mindrunex1,earthrunex1,lawrunex2
+2	goto-talkToGuard	PASS	0	001-goto-talkToGuard	at 2728,3345,0 from 3206,3233,0
+3	talkToGuard	PASS	4	002-talkToGuard	chat_message: dialogue npc is up
+4	talkToGuard-dialog	PASS	3	003-npc-p1,004-options-p2,005-player-p3,006-npc-p4,007-options-p5,008-player-p6,009-mesbox-p7,010-npc-p8,011-options-p9,012-player-p10,013-npc-p11,014-mesbox-p12,015-npc-p13,016-talkToGuard-dialog	13 page(s): npc:Yes sir, how can I help you?, options:choose:Can I speak to someone , player:Can I speak to someone in char, npc:Well sir, Radimus Erkle is the, options:choose:Can I go on the quest?, player:Can I go on the quest?, mesbox:The guard gets out a scroll of, npc:Well, it looks as if you are e, options:choose:Yes, I'd like to talk t, player:Yes, I'd like to talk to Grand, npc:Ok, very well... You need to g, mesbox:The guard unlocks the gate and, npc:Good Luck!
+5	talkToGuard-gate	PASS	4	017-talkToGuard-gate	the guard's gate carried the player inside the guild: tile 2728,3350
+6	goto-talkToRadimus	PASS	9	018-goto-talkToRadimus	walked to the hut door: now at 2727,3368
+7	talkToRadimus-door	PASS	21	019-talkToRadimus-door	poshdoor element 536887316 left the pool (no event; the named copy changed) -- click_loc poshdoor: pressed the copy at 2726,3368,0 (element 536887316)
+8	talkToRadimus	PASS	3	020-talkToRadimus	map_flag: dialogue npc is up
+9	talkToRadimus-dialog-choose1	PASS	1	021-npc,022-talkToRadimus-dialog-choose1	chat.choose: page changed -- options: Yes actually, what's involved? / Maybe some other time. / Who are you?
+10	talkToRadimus-dialog-choose2	PASS	1	023-player,024-npc,025-npc,026-npc,027-talkToRadimus-dialog-choose2	chat.choose: page changed -- options: Yes, it sounds great! / Not just at the moment.
+11	talkToRadimus-dialog-end	PASS	2	028-player,029-npc,030-npc,031-objbox,032-npc,033-mesbox,034-npc,035-npc,036-npc,037-talkToRadimus-dialog-end	drained to none
+12	quest.stage.started	PASS	2		1 -- varp139_legendsquest (varp) = 1 (started)
+13	talkToRadimus-cupboard	PASS	2	038-talkToRadimus-cupboard	chat_message
+14	talkToRadimus-search	PASS	2	039-talkToRadimus-search	page none->objbox (text)
+15	talkToRadimus-machete	PASS	0	040-talkToRadimus-machete	machette 0 -> 1 (>= 1) after 0 tick(s)
+16	goto-enterJungle	PASS	1	041-objbox,042-goto-enterJungle	at 2795,2943,0 from 2725,3369,0
+17	enterJungle-chop-1	PASS	1		kharazi_jungle_plant2 at 2795,2942: chat_message -- click_loc kharazi_jungle_plant2: pressed the copy at 2795,2942,0 (element 536877363)
+18	enterJungle-chop-2	PASS	5		kharazi_jungle_plant1 at 2795,2940: chat_message -- click_loc kharazi_jungle_plant1: pressed the copy at 2795,2940,0 (element 536877334); click_minimenu: aimed at the named loc copy (element 536877334, estimate 1.0 tile(s) ahead, no scale (the player's pixel)) -- hovered +0,-48 off the projected 382,280 (28 pixel(s) tried)
+19	enterJungle-walk-3	PASS	3		walk to 2795,2938: ok
+20	enterJungle-walk-4	PASS	1		walk to 2795,2937: ok
+21	enterJungle-walk-5	PASS	1		walk to 2795,2936: ok
+22	enterJungle-walk-6	PASS	1		walk to 2795,2935: ok
+23	enterJungle-walk-7	PASS	1		walk to 2795,2934: ok
+24	enterJungle-walk-8	PASS	1		walk to 2795,2933: ok
+25	enterJungle	PASS	0	043-enterJungle	cut through the dense band with the axe and machete: now at 2795,2933
+26	goto-moveToWest	PASS	1	044-goto-moveToWest	at 2791,2917,0 from 2795,2933,0
+27	moveToWest-map-1	PASS	3	045-moveToWest-map-1	thkaramjamap slot 24 op 2 (tab ok nil) -> 1 left
+28	moveToWest	PASS	9	046-objbox,047-objbox,048-moveToWest	sketch drawn at 2791,2917 on try 1: legends_bits 0 -> 1, completed maps in the backpack 0 [frame unchanged]
+29	goto-moveToMiddle	PASS	0	049-goto-moveToMiddle	at 2852,2915,0 from 2791,2917,0
+30	moveToMiddle-map-1	PASS	3	050-moveToMiddle-map-1	thkaramjamap slot 24 op 2 (tab ok nil) -> 1 left
+31	moveToMiddle	PASS	9	051-mesbox,052-objbox,053-objbox,054-moveToMiddle	sketch drawn at 2852,2915 on try 1: legends_bits 1 -> 3, completed maps in the backpack 0
+32	goto-moveToEast	PASS	0	055-goto-moveToEast	at 2910,2916,0 from 2852,2915,0
+33	moveToEast-map-1	PASS	3	056-moveToEast-map-1	thkaramjamap slot 24 op 2 (tab ok nil) -> 1 left
+34	moveToEast-map-2	PASS	6	057-mesbox,058-objbox,059-moveToEast-map-2	thkaramjamap slot 24 op 2 (tab ok nil) -> 1 left
+35	moveToEast	PASS	9	060-mesbox,061-objbox,062-objbox,063-objbox,064-moveToEast	sketch drawn at 2910,2916 on try 2: legends_bits 3 -> 7, completed maps in the backpack 0
+36	moveToEast-complete	PASS	2	065-moveToEast-complete	thkaramjamapcomp 1 -> 1 (>= 1) after 0 tick(s)
+37	quest.stage.mapped_jungle	PASS	0		2 -- varp139_legendsquest (varp) = 2 (mapped_jungle)
+38	goto-useNotes	PASS	0	066-goto-useNotes	at 2795,2930,0 from 2910,2916,0
+39	leaveJungle-walk-1	PASS	1		walk to 2795,2931: ok
+40	leaveJungle-walk-2	PASS	1		walk to 2795,2932: ok
+41	leaveJungle-walk-3	PASS	1		walk to 2795,2933: ok
+42	leaveJungle-walk-4	PASS	1		walk to 2795,2934: ok
+43	leaveJungle-walk-5	PASS	1		walk to 2795,2935: ok
+44	leaveJungle-walk-6	PASS	1		walk to 2795,2936: ok
+45	leaveJungle-walk-7	PASS	1		walk to 2795,2937: ok
+46	leaveJungle-walk-8	PASS	1		walk to 2795,2938: ok
+47	leaveJungle-chop-9	PASS	1		kharazi_jungle_plant2 at 2795,2939: chat_message -- click_loc kharazi_jungle_plant2: pressed the copy at 2795,2939,0 (element 536888456); click_minimenu: aimed at the named loc copy (element 536888456, estimate 1.0 tile(s) ahead, no scale (the player's pixel)) -- hovered +0,-48 off the projected 382,268 (1 pixel(s) tried)
+48	leaveJungle-chop-10	PASS	14		kharazi_jungle_plant1 at 2795,2941: chat_message -- click_loc kharazi_jungle_plant1: pressed the copy at 2795,2941,0 (element 536888483); click_minimenu: aimed at the named loc copy (element 536888483, estimate 1.0 tile(s) ahead, no scale (the player's pixel)) -- hovered +0,-48 off the projected 382,279 (1 pixel(s) tried)
+49	leaveJungle-walk-11	PASS	8		walk to 2795,2943: ok
+50	useNotes-leave	PASS	0	067-useNotes-leave	north of the dense band again: 2795,2943
+51	useNotes-approach	PASS	1	068-useNotes-approach	already within 2
+52	useNotes	PASS	3	069-useNotes	map_flag
+53	useNotes-dialog-choose1	PASS	1	070-npc,071-npc,072-useNotes-dialog-choose1	chat.choose: page changed -- options: Yes, go ahead make a copy! / What will you give me in return? / Sorry, I must complete my quest.
+54	useNotes-dialog-end	PASS	1	073-player,074-npc,075-mesbox,076-npc,077-objbox,078-npc,079-useNotes-dialog-end	drained to none
+55	useNotes-bullroarer	PASS	0	080-useNotes-bullroarer	bullroarer 0 -> 1 (>= 1) after 0 tick(s)
+56	quest.stage.got_bullroarer	PASS	0		3 -- varp139_legendsquest (varp) = 3 (got_bullroarer)
+57	goto-enterJungleWithRoarer	PASS	1	081-goto-enterJungleWithRoarer	at 2794,2943,0 from 2794,2943,0
+58	enterJungleWithRoarer-chop-1	PASS	5		kharazi_jungle_plant2 at 2795,2942: chat_message -- click_loc kharazi_jungle_plant2: pressed the copy at 2795,2942,0 (element 536888455)
+59	enterJungleWithRoarer-chop-2	PASS	10		kharazi_jungle_plant1 at 2795,2940: chat_message -- click_loc kharazi_jungle_plant1: pressed the copy at 2795,2940,0 (element 536888484); click_minimenu: aimed at the named loc copy (element 536888484, estimate 1.0 tile(s) ahead, no scale (the player's pixel)) -- hovered +0,-48 off the projected 382,280 (29 pixel(s) tried)
+60	enterJungleWithRoarer-walk-3	PASS	8		walk to 2795,2938: ok
+61	enterJungleWithRoarer-walk-4	PASS	1		walk to 2795,2937: ok
+62	enterJungleWithRoarer-walk-5	PASS	1		walk to 2795,2936: ok
+63	enterJungleWithRoarer-walk-6	PASS	1		walk to 2795,2935: ok
+64	enterJungleWithRoarer-walk-7	PASS	1		walk to 2795,2934: ok
+65	enterJungleWithRoarer-walk-8	PASS	1		walk to 2795,2933: ok
+66	enterJungleWithRoarer	PASS	0	082-enterJungleWithRoarer	south of the dense band again with the bullroarer: 2795,2933
+67	goto-spinBull	PASS	1	083-goto-spinBull	at 2791,2917,0 from 2795,2933,0
+68	spinBull-1	PASS	2	084-spinBull-1	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+69	spinBull-2	PASS	15	085-spinBull-2	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+70	spinBull-3	PASS	15	086-spinBull-3	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+71	spinBull-4	PASS	15	087-spinBull-4	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+72	spinBull-5	PASS	15	088-spinBull-5	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+73	spinBull-6	PASS	15	089-spinBull-6	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+74	spinBull	PASS	14	090-spinBull	Gujuo appeared after 6 swing(s) of the bullroarer
+75	talkToGujuo	PASS	1	091-talkToGujuo	map_flag: dialogue player is up
+76	talkToGujuo-dialog-choose1	PASS	1	092-player,093-npc,094-talkToGujuo-dialog-choose1	chat.choose: page changed -- options: I was hoping to attract the attention of a native. / Sorry, it was a mistake?
+77	talkToGujuo-dialog-choose2	PASS	1	095-npc,096-npc,097-talkToGujuo-dialog-choose2	chat.choose: page changed -- options: I want to develop friendly relations with your people. / I'm lost, can you show me the way out?
+78	talkToGujuo-dialog-choose3	PASS	1	098-player,099-mesbox,100-npc,101-talkToGujuo-dialog-choose3	chat.choose: page changed -- options: Can you get your people together? / I'm lost, can you show me the way out?
+79	talkToGujuo-dialog-choose4	PASS	1	102-player,103-npc,104-npc,105-talkToGujuo-dialog-choose4	chat.choose: page changed -- options: What can we do instead then? / I'm lost, can you show me the way out?
+80	talkToGujuo-dialog-choose5	PASS	1	106-player,107-npc,108-talkToGujuo-dialog-choose5	chat.choose: page changed -- options: How do we make the totem pole? / I'm lost, can you show me the way out?
+81	talkToGujuo-dialog-choose6	PASS	1	109-player,110-npc,111-npc,112-talkToGujuo-dialog-choose6	chat.choose: page changed -- options: I will release Ungadulu... / Oh well, sorry to hear about that.
+82	talkToGujuo-dialog-end	PASS	1	113-player,114-npc,115-npc,116-npc,117-npc,118-talkToGujuo-dialog-end	drained to none
+83	quest.stage.accepted_rescue_ungadulu	PASS	2		5 -- varp139_legendsquest (varp) = 5 (accepted_rescue_ungadulu)
+84	leg.1.logs	PASS	6	119-leg.1.logs	dropped 6 logs from the jungle cuts: 6 -> 0
+85	leg.1.end	PASS	0	120-leg.1.end	tile 2794,2916 level 0, legendsquest=5 read from the server, bullroarer x1, rune axe, machete, papyrus, charcoal, completed sketch map carried on
+86	leg.2.mossy_rock_to_marked_wall	PASS	0		tile=2794,2916,0 stage=varp139_legendsquest=5 inv=rune_axex1,thkaramjamapcompx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,papyrusx1,bullroarerx1,charcoalx1,charcoalx1,charcoalx1,charcoalx1,lockpickx1,lockpickx1,lockpickx1,rune_pickaxex1,soulrunex1,mindrunex1,earthrunex1,lawrunex2,machettex1 -- checkpoint 1 written: checkpoint 1 written at 2794,2916,0
+87	leg.2.pack	PASS	17	121-leg.2.pack	dropped the spent papyrus/charcoal (0/0 left) and gave the seven gems the guide lists (diamond x1, emerald x1)
+88	goto-enterMossyRock	PASS	0	122-goto-enterMossyRock	at 2782,2935,0 from 2794,2916,0
+89	enterMossyRock-press-1	PASS	1	123-enterMossyRock-press-1	chat_message
+90	enterMossyRock-dialog-1-choose1	PASS	3	124-mesbox,125-enterMossyRock-dialog-1-choose1	chat.choose: page changed
+91	enterMossyRock-dialog-1-end	PASS	1	126-enterMossyRock-dialog-1-end	drained to none
+92	enterMossyRock	PASS	2	127-enterMossyRock	crawled through the Mossy Rocks to 2773,9341 (underground z>9000), legendsquest read next
+93	quest.stage.found_entrance	PASS	2		6 -- varp139_legendsquest (varp) = 6
+94	investigateFireWall-press	PASS	9	128-investigateFireWall-press	map_flag -- click_loc lqfirewall_straight: pressed the copy at 2790,9333,0 (element 536877560); click_minimenu: aimed at the named loc copy (element 536877560, estimate 2.8 tile(s) ahead at 74 px/tile) -- hovered +16,+0 off the projected 341,49 (3 pixel(s) tried)
+95	investigateFireWall-dialog-choose1	PASS	1	129-mesbox,130-mesbox,131-mesbox,132-npc,133-investigateFireWall-dialog-choose1	chat.choose: page changed
+96	investigateFireWall-dialog-choose2	PASS	1	134-player,135-npc,136-npc,137-npc,138-investigateFireWall-dialog-choose2	chat.choose: page changed
+97	investigateFireWall-dialog-end	PASS	1	139-player,140-npc,141-npc,142-npc,143-npc,144-mesbox,145-investigateFireWall-dialog-end	drained to none
+98	quest.stage.spoke_ungadulu	PASS	2		7 -- varp139_legendsquest (varp) = 7
+99	leaveCave	PASS	9	146-leaveCave	map_flag
+100	leaveCave-surface	PASS	5	147-leaveCave-surface	back on the surface at 2781,2934
+101	spinBullAgain-1	PASS	2	148-spinBullAgain-1	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+102	spinBullAgain	PASS	14	149-spinBullAgain	Gujuo appeared after 1 swing(s) of the bullroarer
+103	talkToGujuoAgain	PASS	0	150-talkToGujuoAgain	page npc->player (text): dialogue player is up
+104	talkToGujuoAgain-dialog-choose1	PASS	0	151-player,152-npc,153-talkToGujuoAgain-dialog-choose1	chat.choose: page changed
+105	talkToGujuoAgain-dialog-choose2	PASS	1	154-player,155-npc,156-talkToGujuoAgain-dialog-choose2	chat.choose: page changed
+106	talkToGujuoAgain-dialog-choose3	PASS	1	157-player,158-npc,159-npc,160-talkToGujuoAgain-dialog-choose3	chat.choose: page changed
+107	talkToGujuoAgain-dialog-end	PASS	1	161-player,162-npc,163-talkToGujuoAgain-dialog-end	drained to none
+108	quest.stage.asked_gujuo_holy_water	PASS	2		8 -- varp139_legendsquest (varp) = 8
+109	enterMossyRockAgain-press-1	PASS	1	164-enterMossyRockAgain-press-1	map_flag
+110	enterMossyRockAgain-dialog-1-choose1	PASS	1	165-mesbox,166-enterMossyRockAgain-dialog-1-choose1	chat.choose: page changed
+111	enterMossyRockAgain-dialog-1-end	PASS	1	167-enterMossyRockAgain-dialog-1-end	drained to none
+112	enterMossyRockAgain	PASS	2	168-enterMossyRockAgain	underground again at 2773,9341
+113	enterBookcase-press-1	PASS	13	169-enterBookcase-press-1	map_flag
+114	enterBookcase-dialog-1-choose1	PASS	1	170-mesbox,171-enterBookcase-dialog-1-choose1	chat.choose: page changed
+115	enterBookcase-dialog-1-end	PASS	1	172-enterBookcase-dialog-1-end	drained to none
+116	enterBookcase	PASS	3	173-enterBookcase	in the tunnel behind the bookcase at 2799,9341
+117	enterGate1-press-1	PASS	14	174-enterGate1-press-1	map_flag
+118	enterGate1-press-2	PASS	18	175-mesbox,176-mesbox,177-mesbox,178-mesbox,179-mesbox,180-enterGate1-press-2	page none->mesbox (text)
+119	enterGate1-press-3	PASS	15	181-mesbox,182-mesbox,183-mesbox,184-mesbox,185-mesbox,186-enterGate1-press-3	page none->mesbox (text)
+120	enterGate1	PASS	13	187-mesbox,188-mesbox,189-mesbox,190-mesbox,191-mesbox,192-player,193-mesbox,194-enterGate1	picked the lock and stands south of the gate at 2810,9331
+121	enterGate2-mine_test_boulder1-press-1	PASS	1	195-enterGate2-mine_test_boulder1-press-1	chat_message
+122	enterGate2-mine_test_boulder1-press-2	PASS	6	196-enterGate2-mine_test_boulder1-press-2	chat_message
+123	enterGate2-mine_test_boulder1-press-3	PASS	6	197-enterGate2-mine_test_boulder1-press-3	chat_message
+124	enterGate2-mine_test_boulder1-press-4	PASS	6	198-enterGate2-mine_test_boulder1-press-4	chat_message
+125	enterGate2-mine_test_boulder1	PASS	6	199-enterGate2-mine_test_boulder1	smashed the rock and stands past it at 2809,9326
+126	enterGate2-mine_test_boulder2-press-1	PASS	1	200-enterGate2-mine_test_boulder2-press-1	chat_message
+127	enterGate2-mine_test_boulder2	PASS	6	201-enterGate2-mine_test_boulder2	smashed the rock and stands past it at 2809,9322
+128	enterGate2-mine_test_boulder3-press-1	PASS	1	202-enterGate2-mine_test_boulder3-press-1	chat_message
+129	enterGate2-mine_test_boulder3-press-2	PASS	6	203-enterGate2-mine_test_boulder3-press-2	chat_message
+130	enterGate2-mine_test_boulder3	PASS	6	204-enterGate2-mine_test_boulder3	smashed the rock and stands past it at 2809,9318
+131	enterGate2Door-press-1	PASS	2	205-enterGate2Door-press-1	map_flag
+132	enterGate2Door-dialog-1-choose1	PASS	1	206-mesbox,207-mesbox,208-enterGate2Door-dialog-1-choose1	chat.choose: page changed
+133	enterGate2Door-dialog-1-end	PASS	1	209-mesbox,210-mesbox,211-mesbox,212-mesbox,213-mesbox,214-enterGate2Door-dialog-1-end	drained to none
+134	enterGate2Door	PASS	3	215-enterGate2Door	forced the strength doors and stands south of them at 2810,9313
+135	searchMarkedWall-follow-cave	PASS	28	216-searchMarkedWall-follow-cave	followed the cave to the crumbled wall's south side at 2790,9294
+136	searchMarkedWall-jump-1	PASS	2	217-searchMarkedWall-jump-1	map_flag
+137	searchMarkedWall-jump	PASS	1	218-searchMarkedWall-jump	jumped the crumbled wall, now at 2789,9296
+138	searchMarkedWall-walk	PASS	5	219-searchMarkedWall-walk	walked on to the marked wall, now at 2780,9306
+139	searchMarkedWall-press	PASS	2	220-searchMarkedWall-press	map_flag -- click_loc lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536875402)
+140	searchMarkedWall-dialog-choose1	PASS	1	221-mesbox,222-searchMarkedWall-dialog-choose1	chat.choose: page changed
+141	searchMarkedWall-dialog-end	PASS	1	223-mesbox,224-mesbox,225-searchMarkedWall-dialog-end	drained to none
+142	useSoul	PASS	0	226-useSoul	page none->mesbox (text) [backpack: lost soulrune 1->0] -- use_on lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536875402)
+143	leg.2.end	PASS	3	227-mesbox,228-leg.2.end	tile 2779,9306 level 0, legendsquest=8 read from the server, soul rune set into the marked wall; carrying mind, earth, 2 law runes, 7 gems, lockpicks, pickaxe, bullroarer, rune axe, machete
+144	leg.3.runes_and_gems	PASS	0		tile=2779,9306,0 stage=varp139_legendsquest=8 inv=rune_axex1,thkaramjamapcompx1,opalx1,jadex1,red_topazx1,sapphirex1,emeraldx1,rubyx1,diamondx1,swamprocks1x1,swamprocks1x1,bullroarerx1,swamprocks1x1,lockpickx1,lockpickx1,lockpickx1,rune_pickaxex1,mindrunex1,earthrunex1,lawrunex2,machettex1 -- checkpoint 2 written: checkpoint 2 written at 2779,9306,0
+145	useMind	PASS	0	229-useMind	page none->mesbox (text) [backpack: lost mindrune 1->0] -- use_on lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536875402)
+146	useMind-merged	PASS	3	230-mesbox,231-useMind-merged	mindrune left in the backpack: 0 (wanted 0)
+147	useEarth	PASS	0	232-useEarth	page none->mesbox (text) [backpack: lost earthrune 1->0] -- use_on lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536875402)
+148	useEarth-merged	PASS	3	233-mesbox,234-useEarth-merged	earthrune left in the backpack: 0 (wanted 0)
+149	useLaw	PASS	0	235-useLaw	page none->mesbox (text) [backpack: lost lawrune 2->1] -- use_on lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536875402)
+150	useLaw-merged	PASS	3	236-useLaw-merged	lawrune left in the backpack: 1 (wanted 1) [frame unchanged]
+151	useLaw2	PASS	0	237-useLaw2	page none->mesbox (text) [backpack: lost lawrune 1->0] -- use_on lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536875402)
+152	useLaw2-door-choose1	PASS	1	238-mesbox,239-mesbox,240-useLaw2-door-choose1	chat.choose: page changed
+153	useLaw2-door-end	PASS	1	241-mesbox,242-useLaw2-door-end	drained to none
+154	useLaw2-through	PASS	3	243-useLaw2-through	no law rune left (0); walked through the wall into the gem cavern at 2774,9301
+155	useSapphire	PASS	6	244-useSapphire	map_flag [backpack: lost sapphire 1->0] -- use_on lg_gemplacerock: pressed the copy at 2781,9291,0 (element 536875409); click_minimenu: facing the named copy (element 536875409) made it the projected one
+156	useSapphire-placed	PASS	2	245-useSapphire-placed	sapphire left in the backpack: 0; server line 'starts spinning' -> ok
+157	useDiamond	PASS	4	246-useDiamond	map_flag [backpack: lost diamond 1->0] -- use_on lg_gemplacerock: pressed the copy at 2774,9287,0 (element 536875408); click_minimenu: facing the named copy (element 536875408) made it the projected one
+158	useDiamond-placed	PASS	2	247-useDiamond-placed	diamond left in the backpack: 0; server line 'starts spinning' -> ok
+159	useRuby	PASS	29	248-useRuby	map_flag [backpack: lost ruby 1->0] -- use_on lg_gemplacerock: pressed the copy at 2767,9289,0 (element 536875405); click_minimenu: hunted pose 4 (reach 72) -- hovered +0,-96 off the projected 382,313 (56 pixel(s) tried)
+160	useRuby-placed	PASS	2	249-useRuby-placed	ruby left in the backpack: 0; server line 'starts spinning' -> ok
+161	useTopaz	PASS	7	250-useTopaz	map_flag [backpack: lost red_topaz 1->0] -- use_on lg_gemplacerock: pressed the copy at 2772,9295,0 (element 536875407); click_minimenu: aimed at the named loc copy (element 536875407, estimate 1.4 tile(s) ahead, no scale (the player's pixel)) -- hovered +32,-48 off the projected 349,253 (33 pixel(s) tried)
+162	useTopaz-placed	PASS	2	251-useTopaz-placed	red_topaz left in the backpack: 0; server line 'starts spinning' -> ok
+163	useJade	PASS	7	252-useJade	map_flag [backpack: lost jade 1->0] -- use_on lg_gemplacerock: pressed the copy at 2771,9303,0 (element 536875406); click_minimenu: aimed at the named loc copy (element 536875406, estimate 2.0 tile(s) ahead, no scale (the player's pixel)) -- hovered +0,-64 off the projected 382,241 (38 pixel(s) tried)
+164	useJade-placed	PASS	2	253-useJade-placed	jade left in the backpack: 0; server line 'starts spinning' -> ok
+165	goto-useEmerald	PASS	20	254-goto-useEmerald	beside the emerald's rock at 2756,9298, walk timeout
+166	useEmerald	PASS	1	255-useEmerald	map_flag [backpack: lost emerald 1->0] -- use_on lg_gemplacerock: pressed the copy at 2757,9297,0 (element 536880800)
+167	useEmerald-placed	PASS	2	256-useEmerald-placed	emerald left in the backpack: 0; server line 'starts spinning' -> ok
+168	leg.3.end	PASS	0	257-leg.3.end	tile 2756,9297 level 0, legendsquest=8 read from the server; six gems set above their rocks, the opal (x1) is left for leg 4's far west rock; carrying bullroarer, rune axe, machete, map, pickaxe, lockpicks
+169	leg.4.book_bowl_and_fire_demon	PASS	0		tile=2756,9297,0 stage=varp139_legendsquest=8 inv=rune_axex1,thkaramjamapcompx1,opalx1,swamprocks1x1,swamprocks1x1,bullroarerx1,swamprocks1x1,lockpickx1,lockpickx1,lockpickx1,rune_pickaxex1,machettex1 -- checkpoint 3 written: checkpoint 3 written at 2756,9297,0
+170	useOpal	PASS	9	258-useOpal	map_flag [backpack: lost opal 1->0] -- use_on lg_gemplacerock: pressed the copy at 2764,9309,0 (element 536880799)
+171	useOpal-placed	PASS	2	259-useOpal-placed	opal left in the backpack: 0; server line 'starts spinning' -> ok
+172	waitForBook	PASS	37	260-waitForBook	the book of binding lies at 2765,9297 (search result ok)
+173	pickUpBook	PASS	2	261-pickUpBook	click_obj: met after 1 tick(s)
+174	pickUpBook-count	PASS	1	262-pickUpBook-count	book_of_binding in the backpack: 1
+175	leg.4.pack	PASS	20	263-leg.4.pack	gold bars 6, hammer 1, prayer restores 2, sharks 6
+176	goto-makeBowl	PASS	0	264-goto-makeBowl	at 3187,3424,0 from 2765,9297,0
+177	makeBowl-press-1	PASS	3	265-makeBowl-press-1	page none->options -- use_on anvil: pressed the copy at 3188,3424,0 (element 536877834)
+178	makeBowl-dialog-1-choose1	PASS	0	266-makeBowl-dialog-1-choose1	chat.choose: page changed
+179	makeBowl-dialog-1-end	PASS	1	267-makeBowl-dialog-1-end	drained to none
+180	makeBowl-press-2	PASS	8	268-makeBowl-press-2	page none->options -- use_on anvil: pressed the copy at 3188,3424,0 (element 536877834)
+181	makeBowl-dialog-2-choose1	PASS	0	269-makeBowl-dialog-2-choose1	chat.choose: page changed
+182	makeBowl-dialog-2-end	PASS	1	270-makeBowl-dialog-2-end	drained to none
+183	makeBowl-press-3	PASS	8	271-makeBowl-press-3	page none->options -- use_on anvil: pressed the copy at 3188,3424,0 (element 536877834)
+184	makeBowl-dialog-3-choose1	PASS	0	272-makeBowl-dialog-3-choose1	chat.choose: page changed
+185	makeBowl-dialog-3-end	PASS	1	273-makeBowl-dialog-3-end	drained to none
+186	makeBowl	PASS	6	274-makeBowl	golden bowl forged on try 3; gold bars left 2
+187	makeBowl.spare-bars-dropped	PASS	2	275-makeBowl.spare-bars-dropped	gold bars left 0
+188	goto-enterJungleWithBowl	PASS	0	276-goto-enterJungleWithBowl	at 2791,2917,0 from 3187,3424,0
+189	enterJungleWithBowl	PASS	1		in the Kharazi jungle south of the dense band at 2791,2917, golden bowl, bullroarer, book, machete, axe, food carried [frame unchanged]
+190	spinBullToBless-1	PASS	1	277-spinBullToBless-1	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+191	spinBullToBless	PASS	14	278-spinBullToBless	Gujuo appeared after 1 swing(s) of the bullroarer
+192	talkToGujuoWithBowl	PASS	0	279-talkToGujuoWithBowl	page npc->player (text): dialogue player is up
+193	talkToGujuoWithBowl-dialog-choose1	PASS	0	280-player,281-npc	prayer 60, chose /bless my gold bowl/
+194	talkToGujuoWithBowl-retry-2	PASS	18	282-player,283-npc,284-talkToGujuoWithBowl-retry-2	page none->player (text): dialogue player is up
+195	talkToGujuoWithBowl-retry-2-dialog-choose1	PASS	1	285-player,286-npc	prayer 55, chose /bless my gold bowl/
+196	talkToGujuoWithBowl-retry-3	PASS	18	287-player,288-npc,289-talkToGujuoWithBowl-retry-3	page none->player (text): dialogue player is up
+197	talkToGujuoWithBowl-retry-3-dialog-choose1	PASS	1	290-player,291-npc	prayer 50, chose /bless my gold bowl/
+198	talkToGujuoWithBowl-retry-4	PASS	18	292-player,293-npc,294-talkToGujuoWithBowl-retry-4	page none->player (text): dialogue player is up
+199	talkToGujuoWithBowl-retry-4-dialog-choose1	PASS	1	295-player,296-npc	prayer 45, chose /bless my gold bowl/
+200	talkToGujuoWithBowl-retry-5	PASS	18	297-player,298-npc,299-talkToGujuoWithBowl-retry-5	page none->player (text): dialogue player is up
+201	talkToGujuoWithBowl-retry-5-dialog-choose1	PASS	1	300-player,301-objbox,302-npc	prayer 45, chose /thanks for your help/
+202	talkToGujuoWithBowl-retry-5-blessed	PASS	3	303-player,304-npc,305-npc,306-talkToGujuoWithBowl-retry-5-blessed	blessed golden bowl in the backpack after 5 attempt(s); Prayer now 45; dialogue ended on none
+203	goto-useMacheteOnReeds	PASS	0	307-goto-useMacheteOnReeds	at 2834,2916,0 from 2791,2917,0
+204	useMacheteOnReeds	PASS	3	308-useMacheteOnReeds	map_flag [backpack: gained reed_hollow 0->1] -- use_on tall_reeds: pressed the copy at 2836,2916,0 (element 536872093)
+205	useMacheteOnReeds-reed	PASS	1	309-useMacheteOnReeds-reed	reed_hollow 1 -> 1 (>= 1) after 0 tick(s)
+206	useReedOnPool	PASS	1	310-useReedOnPool	map_flag [backpack: gained goldbowlbless_pure 0->1; lost goldbowlbless_empty 1->0, reed_hollow 1->0] -- use_on sacred_water: pressed the copy at 2837,2915,0 (element 536872094)
+207	useReedOnPool-filled	PASS	3	311-objbox,312-objbox,313-useReedOnPool-filled	blessed pure-water bowl x1, empty blessed bowl x0
+208	quest.stage.filled_bowl	PASS	0		10 -- varp139_legendsquest (varp) = 10
+209	goto-enterMossyRockWithBowl	PASS	0	314-goto-enterMossyRockWithBowl	at 2782,2935,0 from 2836,2916,0
+210	enterMossyRockWithBowl-press-1	PASS	1	315-enterMossyRockWithBowl-press-1	page none->mesbox (text)
+211	enterMossyRockWithBowl-dialog-1-choose1	PASS	0	316-mesbox,317-enterMossyRockWithBowl-dialog-1-choose1	chat.choose: page changed
+212	enterMossyRockWithBowl-dialog-1-end	PASS	1	318-enterMossyRockWithBowl-dialog-1-end	drained to none
+213	enterMossyRockWithBowl	PASS	2	319-enterMossyRockWithBowl	crawled into the Ungadulu cave at 2773,9341 with the blessed pure-water bowl
+214	useBowlOnFireWall	PASS	12	320-useBowlOnFireWall	map_flag -- use_on lqfirewall_straight: pressed the copy at 2790,9333,0 (element 536870979); click_minimenu: aimed at the named loc copy (element 536870979, estimate 2.8 tile(s) ahead at 74 px/tile) -- hovered +16,+0 off the projected 346,49 (3 pixel(s) tried)
+215	useBowlOnFireWall-through	PASS	3	321-useBowlOnFireWall-through	walked through the extinguished wall into the octagram at 2790,9332
+216	useBindingBookOnUngadulu	PASS	5	322-useBindingBookOnUngadulu	page none->mesbox (text)
+217	quest.stage.summoned_nezikchened_fire	PASS	2	323-mesbox,324-npc,325-mesbox	11 -- varp139_legendsquest (varp) = 11
+218	fightNezikchenedInFire	PASS	2	326-fightNezikchenedInFire	attack nezikchened op2 [Attack @yel@Nezikchened@red@ (level-187)] in 1 press(es), pressed slot 372 (element 1073770848) at 2791,9327, watching slot 372: hp no bar -> 27/30, hitsplat 11
+219	fightNezikchenedInFire.dead	PASS	175	327-fightNezikchenedInFire.dead	await_dead_engaged: slot 372 dead after 175 tick(s), 0 re-engagement(s), last hp 0/30; held Nezikchened (npc 3962) -- corroborated by the ZERO BAR: slot 372 read 0/30 at tick 1075 and then left the npc pool (the corpse was released); eat shark below 50: ate shark 1 time(s) (hp 46->66), lowest hp 46/99; progress (5 earlier dropped) t+60 hp 19/30, t+70 hp 14/30, t+80 hp 13/30, t+90 hp 11/30, t+100 hp 10/30, t+110 hp 10/30 ate 1, t+120 hp 10/30 ate 1, t+130 hp 8/30 ate 1, t+140 hp 6/30 ate 1, t+150 hp 6/30 ate 1, t+160 hp 3/30 ate 1, t+170 hp 0/30 ate 1
+220	fightNezikchenedInFire-margin	PASS	0		lowest hp 46/99, sharks 6 -> 5 (margin: lowest hp >= 25 AND sharks left >= 1) [frame unchanged]
+221	quest.stage.defeated_nezikchened_fire	PASS	8	328-mesbox	12 -- varp139_legendsquest (varp) = 12
+222	leg.4.end	PASS	0	329-leg.4.end	tile 2791,9326 level 0, legendsquest=12 read from the server; Nezikchened's first form is dead, sharks left 5, blessed pure-water bowl x1, hitpoints 55, Prayer 0
+223	leg.5.seeds_and_dried_pool	PASS	0		tile=2791,9326,0 stage=varp139_legendsquest=12 inv=rune_axex1,thkaramjamapcompx1,book_of_bindingx1,hammerx1,goldbowlbless_purex1,4doseprayerrestorex1,bullroarerx1,4doseprayerrestorex1,sharkx1,sharkx1,sharkx1,sharkx1,sharkx1,rune_pickaxex1,machettex1 -- checkpoint 4 written: checkpoint 4 written at 2791,9326,0
+224	talkToUngadulu	PASS	28	330-talkToUngadulu	map_flag: dialogue npc is up -- click_minimenu: hunted pose 3 (reach 99) -- hovered +0,-192 off the projected 382,403 (46 pixel(s) tried)
+225	talkToUngadulu-dialog-choose1	PASS	1	331-npc,332-talkToUngadulu-dialog-choose1	chat.choose: page changed
+226	talkToUngadulu-dialog-choose2	PASS	1	333-player,334-npc,335-npc,336-objbox,337-npc,338-talkToUngadulu-dialog-choose2	chat.choose: page changed
+227	talkToUngadulu-dialog-end	PASS	1	339-player,340-npc,341-talkToUngadulu-dialog-end	drained to none
+228	talkToUngadulu-seeds	PASS	2	342-talkToUngadulu-seeds	yommiseeds in the backpack: 3
+229	useBowlOnSeeds	PASS	0	343-useBowlOnSeeds	yommiseeds (slot 5) on goldbowlbless_pure (slot 4): page none->objbox 'You place the seeds into the golden bowl of pure sacred|water.' -- backpack unchanged
+230	useBowlOnSeeds-germinated	PASS	2	344-objbox,345-mesbox,346-useBowlOnSeeds-germinated	germinated yommi seeds x3, plain seeds x0, empty blessed bowl x1
+231	quest.stage.germinated_seeds	PASS	0		13 -- varp139_legendsquest (varp) = 13
+232	leaveCaveWithSeed-firewall	PASS	6	347-leaveCaveWithSeed-firewall	map_flag -- click_loc lqfirewall_straight: pressed the copy at 2790,9333,0 (element 536899926); click_minimenu: aimed at the named loc copy (element 536899926, estimate 2.8 tile(s) ahead, no scale (the player's pixel)) -- hovered -16,-64 off the projected 405,264 (39 pixel(s) tried)
+233	leaveCaveWithSeed-firewall-through	PASS	4	348-leaveCaveWithSeed-firewall-through	walked out through the wall of fire to 2790,9334
+234	leaveCaveWithSeed-press-1	PASS	24	349-leaveCaveWithSeed-press-1	map_flag
+235	leaveCaveWithSeed	PASS	5	350-leaveCaveWithSeed	crawled out of the Ungadulu cave to 2781,2934 carrying the germinated seeds
+236	goto-useMacheteOnReedsAgain	PASS	1	351-goto-useMacheteOnReedsAgain	at 2834,2916,0 from 2781,2934,0
+237	useMacheteOnReedsAgain	PASS	3	352-useMacheteOnReedsAgain	map_flag [backpack: gained reed_hollow 0->1] -- use_on tall_reeds: pressed the copy at 2836,2916,0 (element 536872370)
+238	useMacheteOnReedsAgain-reed	PASS	1	353-useMacheteOnReedsAgain-reed	reed_hollow 1 -> 1 (>= 1) after 0 tick(s)
+239	useReedOnPoolAgain	PASS	3	354-useReedOnPoolAgain	map_flag -- use_on sacred_water: pressed the copy at 2837,2915,0 (element 536872371)
+240	quest.stage.water_pool_dried_up	PASS	3	355-mesbox	14 -- varp139_legendsquest (varp) = 14
+241	goto-spinBullAfterSeeds	PASS	0	356-goto-spinBullAfterSeeds	at 2791,2917,0 from 2836,2916,0
+242	spinBullAfterSeeds-1	PASS	2	357-spinBullAfterSeeds-1	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+243	spinBullAfterSeeds-2	PASS	15	358-spinBullAfterSeeds-2	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+244	spinBullAfterSeeds-3	PASS	15	359-spinBullAfterSeeds-3	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+245	spinBullAfterSeeds-4	PASS	15	360-spinBullAfterSeeds-4	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+246	spinBullAfterSeeds-5	PASS	15	361-spinBullAfterSeeds-5	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+247	spinBullAfterSeeds-6	PASS	15	362-spinBullAfterSeeds-6	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+248	spinBullAfterSeeds-7	PASS	15	363-spinBullAfterSeeds-7	bullroarer slot 11 op 1 (tab ok nil) -> 1 left
+249	spinBullAfterSeeds	PASS	14	364-spinBullAfterSeeds	Gujuo appeared after 7 swing(s) of the bullroarer
+250	talkToGujuoAfterSeeds	PASS	0	365-talkToGujuoAfterSeeds	page npc->player (text): dialogue player is up
+251	talkToGujuoAfterSeeds-dialog-choose1	PASS	0	366-player,367-npc,368-talkToGujuoAfterSeeds-dialog-choose1	chat.choose: page changed
+252	talkToGujuoAfterSeeds-dialog-choose2	PASS	1	369-player,370-npc,371-talkToGujuoAfterSeeds-dialog-choose2	chat.choose: page changed
+253	talkToGujuoAfterSeeds-dialog-choose3	PASS	1	372-player,373-mesbox,374-npc,375-npc,376-npc,377-talkToGujuoAfterSeeds-dialog-choose3	chat.choose: page changed
+254	talkToGujuoAfterSeeds-dialog-choose4	PASS	1	378-player,379-npc,380-npc,381-talkToGujuoAfterSeeds-dialog-choose4	chat.choose: page changed
+255	talkToGujuoAfterSeeds-dialog-end	PASS	1	382-player,383-npc,384-npc,385-talkToGujuoAfterSeeds-dialog-end	drained to none
+256	quest.stage.talk_gujuo_pool	PASS	2		15 -- varp139_legendsquest (varp) = 15
+257	leg.5.end	PASS	0	386-leg.5.end	tile 2791,2917 level 0, legendsquest=15 read from the server; germinated yommi seeds x3, hollow reed x1, empty blessed golden bowl, bullroarer, machete, axe, pickaxe carried
+258	leg.6.bravery_and_heart_crystal	PASS	0		tile=2791,2917,0 stage=varp139_legendsquest=15 inv=rune_axex1,thkaramjamapcompx1,book_of_bindingx1,hammerx1,goldbowlbless_emptyx1,yommiseeds_germx3,reed_hollowx1,4doseprayerrestorex1,bullroarerx1,4doseprayerrestorex1,sharkx1,sharkx1,sharkx1,sharkx1,sharkx1,rune_pickaxex1,machettex1 -- checkpoint 5 written: checkpoint 5 written at 2791,2917,0
+259	leg.6.pack	PASS	11	387-leg.6.pack	ardrigal 1, snake weed 1, vial of water 1, rope 1, unpowered orbs 2, sharks 7, lockpicks 3
+260	addArdrigal	PASS	0	388-addArdrigal	ardrigal (slot 2) on vial_water (slot 7): chat_message 'You mix the Ardrigal into the water.' -- gained ardrigal_sol 0->1; lost ardrigal 1->0, vial_water 1->0
+261	addSnake	PASS	7	389-addSnake	snake_weed (slot 3) on ardrigal_sol (slot 2): page none->objbox 'You mix the two ingredients together' -- backpack unchanged
+262	addArdrigalToSnake	PASS	6	390-objbox,391-objbox,392-addArdrigalToSnake	bravery_pot 1 -> 1 (>= 1) after 0 tick(s)
+263	enterJungleToGoToSource	PASS	0		standing in the Kharazi jungle at 2791,2917 with rune axe x1, machete x1, rune pickaxe x1, bravery potion x1, blessed bowl x1, the charge orb runes, orb, rope, lockpicks and food [frame unchanged]
+264	goto-enterMossyRockToSource	PASS	0	393-goto-enterMossyRockToSource	at 2782,2935,0 from 2791,2917,0
+265	enterMossyRockToSource-press-1	PASS	1	394-enterMossyRockToSource-press-1	page none->mesbox (text)
+266	enterMossyRockToSource-dialog-1-choose1	PASS	0	395-mesbox,396-enterMossyRockToSource-dialog-1-choose1	chat.choose: page changed
+267	enterMossyRockToSource-dialog-1-end	PASS	1	397-enterMossyRockToSource-dialog-1-end	drained to none
+268	enterMossyRockToSource	PASS	2	398-enterMossyRockToSource	crawled through the Mossy Rocks to 2773,9341
+269	src-enterBookcase-press-1	PASS	13	399-src-enterBookcase-press-1	map_flag
+270	src-enterBookcase-dialog-1-choose1	PASS	1	400-mesbox,401-src-enterBookcase-dialog-1-choose1	chat.choose: page changed
+271	src-enterBookcase-dialog-1-end	PASS	1	402-src-enterBookcase-dialog-1-end	drained to none
+272	src-enterBookcase	PASS	3	403-src-enterBookcase	in the tunnel behind the bookcase at 2799,9341
+273	src-gate1-state	PASS	1	404-src-gate1-state	at 2799,9341 lockpick gate present: true
+274	src-enterGate1-press-1	PASS	21	405-src-enterGate1-press-1	map_flag
+275	src-enterGate1	PASS	16	406-mesbox,407-mesbox,408-mesbox,409-mesbox,410-mesbox,411-player,412-mesbox,413-src-enterGate1	picked the lock and stands south of the gate line at 2810,9331
+276	src-mine-mine_test_boulder1-press-1	PASS	1	414-src-mine-mine_test_boulder1-press-1	chat_message
+277	src-mine-mine_test_boulder1	PASS	6	415-src-mine-mine_test_boulder1	smashed the rock and stands past it at 2809,9326
+278	src-mine-mine_test_boulder2-press-1	PASS	1	416-src-mine-mine_test_boulder2-press-1	chat_message
+279	src-mine-mine_test_boulder2	PASS	6	417-src-mine-mine_test_boulder2	smashed the rock and stands past it at 2809,9322
+280	src-mine-mine_test_boulder3-press-1	PASS	1	418-src-mine-mine_test_boulder3-press-1	chat_message
+281	src-mine-mine_test_boulder3	PASS	6	419-src-mine-mine_test_boulder3	smashed the rock and stands past it at 2809,9318
+282	src-enterGate2-press-1	PASS	2	420-src-enterGate2-press-1	map_flag
+283	src-enterGate2-dialog-1-choose1	PASS	1	421-mesbox,422-mesbox,423-src-enterGate2-dialog-1-choose1	chat.choose: page changed
+284	src-enterGate2-dialog-1-end	PASS	1	424-mesbox,425-mesbox,426-mesbox,427-mesbox,428-mesbox,429-src-enterGate2-dialog-1-end	drained to none
+285	src-enterGate2	PASS	3	430-src-enterGate2	forced the strength doors and stands south of them at 2810,9313
+286	src-jumpCrumbledWall-1	PASS	31	431-src-jumpCrumbledWall-1	map_flag
+287	src-jumpCrumbledWall	PASS	1	432-src-jumpCrumbledWall	jumped the crumbled wall, now at 2789,9296
+288	searchMarkedWallToSource	PASS	7	433-searchMarkedWallToSource	map_flag -- click_loc lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536871995)
+289	searchMarkedWallToSource-dialog-choose1	PASS	1	434-mesbox,435-searchMarkedWallToSource-dialog-choose1	chat.choose: page changed
+290	searchMarkedWallToSource-dialog-choose2	PASS	1	436-mesbox,437-searchMarkedWallToSource-dialog-choose2	chat.choose: page changed
+291	searchMarkedWallToSource-dialog-end	PASS	1	438-mesbox,439-searchMarkedWallToSource-dialog-end	drained to none
+292	searchMarkedWallToSource-through	PASS	6	440-searchMarkedWallToSource-through	through the marked wall into the gem room at 2774,9301
+293	walk-magicDoor	PASS	6	441-walk-magicDoor	beside the ancient gate at 2763,9311
+294	useSpellOnDoor	PASS	4	442-useSpellOnDoor	cast charge_water_orb on loc lgmagictrialgateclosed [Cast <col=00ff00>Charge Water Orb< -> @cya@Ancient Gate] (armed by this call: Cast <col=00ff00>Charge Water Orb< ->) in 1 press(es), loc at 2762,9313, cast from 2763,9311 (2 tile(s)): magic xp 184040 -> 184106, backpack lost stafforb 2->1, cosmicrune 6->3, waterrune 60->30 -- CAST (Magic XP paid)
+295	useSpellOnDoor-through	PASS	10	443-objbox,444-mesbox,445-useSpellOnDoor-through	through the magic gate to 2763,9320
+296	useRopeOnWinch	PASS	4	446-useRopeOnWinch	chat_message [backpack: lost rope 1->0]
+297	drinkBraveryPotionAndClimbDown	PASS	9	447-drinkBraveryPotionAndClimbDown	bravery_pot slot 2 op 1 (tab ok nil) -> 1 left
+298	drinkBraveryPotionAndClimbDown-dialog-choose1	PASS	1	448-drinkBraveryPotionAndClimbDown-dialog-choose1	chat.choose: page changed [frame unchanged]
+299	drinkBraveryPotionAndClimbDown-dialog-end	PASS	1	449-objbox,450-drinkBraveryPotionAndClimbDown-dialog-end	drained to none
+300	climbDownWinch-1	PASS	6	451-climbDownWinch-1	page none->mesbox (text)
+301	climbDownWinch-dialog-1-choose1	PASS	0	452-climbDownWinch-dialog-1-choose1	chat.choose: page changed [frame unchanged]
+302	climbDownWinch-dialog-1-end	PASS	1	453-climbDownWinch-dialog-1-end	drained to none
+303	climbDownWinch	PASS	7	454-climbDownWinch	down the winch into the Viyeldi caves at 2377,4712
+304	quest.stage.enter_lower_dungeon	PASS	0		16 -- varp139_legendsquest (varp) = 16
+305	rocky_ledge	PASS	4	455-rocky_ledge	map_flag
+306	rocky_ledge-dialog-choose1	PASS	1	456-mesbox,457-rocky_ledge-dialog-choose1	chat.choose: page changed
+307	rocky_ledge-dialog-end	PASS	1	458-rocky_ledge-dialog-end	drained to none
+308	rocky_ledge-moved	PASS	6	459-rocky_ledge-moved	2377,4712 -> 2377,4718
+309	rocky_ledge1	PASS	11	460-rocky_ledge1	map_flag
+310	rocky_ledge1-dialog-choose1	PASS	1	461-mesbox,462-rocky_ledge1-dialog-choose1	chat.choose: page changed
+311	rocky_ledge1-dialog-end	PASS	1	463-rocky_ledge1-dialog-end	drained to none
+312	rocky_ledge1-moved	PASS	6	464-rocky_ledge1-moved	2377,4718 -> 2378,4727
+313	rocky_ledge2	PASS	6	465-rocky_ledge2	map_flag
+314	rocky_ledge2-dialog-choose1	PASS	1	466-mesbox,467-rocky_ledge2-dialog-choose1	chat.choose: page changed
+315	rocky_ledge2-dialog-end	PASS	1	468-rocky_ledge2-dialog-end	drained to none
+316	rocky_ledge2-moved	PASS	6	469-rocky_ledge2-moved	2378,4727 -> 2381,4729
+317	viycaves_climbrock1	PASS	6	470-viycaves_climbrock1	map_flag
+318	viycaves_climbrock1-dialog-choose1	PASS	1	471-mesbox,472-viycaves_climbrock1-dialog-choose1	chat.choose: page changed
+319	viycaves_climbrock1-dialog-end	PASS	1	473-viycaves_climbrock1-dialog-end	drained to none
+320	viycaves_climbrock1-moved	PASS	6	474-viycaves_climbrock1-moved	2381,4729 -> 2388,4728
+321	viycaves_climbrock2	PASS	3	475-viycaves_climbrock2	map_flag
+322	viycaves_climbrock2-dialog-choose1	PASS	1	476-mesbox,477-viycaves_climbrock2-dialog-choose1	chat.choose: page changed
+323	viycaves_climbrock2-dialog-end	PASS	1	478-viycaves_climbrock2-dialog-end	drained to none
+324	viycaves_climbrock2-moved	PASS	6	479-viycaves_climbrock2-moved	2388,4728 -> 2390,4723
+325	viycaves_climbrock3	PASS	3	480-viycaves_climbrock3	map_flag
+326	viycaves_climbrock3-dialog-choose1	PASS	1	481-mesbox,482-viycaves_climbrock3-dialog-choose1	chat.choose: page changed
+327	viycaves_climbrock3-dialog-end	PASS	1	483-viycaves_climbrock3-dialog-end	drained to none
+328	viycaves_climbrock3-moved	PASS	6	484-viycaves_climbrock3-moved	2390,4723 -> 2390,4717
+329	killSan	PASS	10	485-killSan	attack san_tojalon op2 [Attack @yel@San Tojalon@or1@ (level-106)] in 1 press(es), pressed slot 456 (element 1073745891) at 2392,4715, watching slot 456: hp no bar -> 27/30, hitsplat 10
+330	killSan-dead	PASS	98	486-killSan-dead	await_dead_engaged: slot 456 dead after 98 tick(s), 2 re-engagement(s), last hp 0/30; held San Tojalon (npc 3964) -- corroborated by the ZERO BAR: slot 456 read 0/30 at tick 1682 and then left the npc pool (the corpse was released); eat shark below 50: ate shark 2 time(s) (hp 41->55, 39->59), lowest hp 39/99; progress t+10 hp 27/30 re-engaged 1 ate 1, t+20 hp 24/30 re-engaged 1 ate 1, t+30 hp 20/30 re-engaged 1 ate 1, t+40 hp 19/30 re-engaged 1 ate 1, t+50 hp 13/30 re-engaged 1 ate 1, t+60 hp 11/30 re-engaged 1 ate 1, t+70 hp 8/30 re-engaged 1 ate 1, t+80 hp 4/30 re-engaged 1 ate 2, t+90 hp 2/30 re-engaged 2 ate 2 -- await_dead_engaged re-engage 1 on San Tojalon (npc 3964): ok Attack @yel@San Tojalon@or1@ (level-106); await_dead_engaged re-engage 2 on San Tojalon (npc 3964): ok Attack @yel@San Tojalon@or1@ (level-106)
+331	sectionA	PASS	6	487-sectionA	heartcrystal_sectiona 1 -> 1 (>= 1) after 0 tick(s) [frame unchanged]
+332	killIrvig	PASS	43	488-killIrvig	attack irvig_senay op2 [Attack @yel@Irvig Senay@gr2@ (level-100)] in 2 press(es), pressed slot 464 (element 1073745899) at 2402,4714, watching slot 464: hp no bar -> 30/30, hitsplat 0 -- click_minimenu: the projection framed element 1073761278 and this press must name 1073745899 -- estimate (10.0 tile(s) ahead, no scale (the player's pixel)): none of 99 pixels hittested around the projected 382,283 holds it (0 off-viewport, 0 never hittested) -- probe budget spent; around the projected copy: none of 99 pixels hittested around the projected 353,295 holds it (0 off-viewport, 0 never hittested) -- probe budget spent; click_minimenu: irvig_senay moved 2406,4716 -> 2405,4713 between aim and press; re-aimed at 342,381; player.attack: first press covered (irvig_senay moved 2406,4716 -> 2405,4713 between aim and press; re-aimed at 342,381 and the press answered: element 1073745899 at 342,381: pickset held=false, menu has no row for it -- menu rows: <Cancel|kind0|id0|act1106>) -> settled camera: pose 1 framed nothing (not_visible); pose 4 framed nothing (not_visible) | clear tile: not stepped (copy 13 tile(s) off, beyond 1); player.attack: the copy's press answered covered; walk_near it -> ok within 2
+333	killIrvig-dead	PASS	111	489-killIrvig-dead	await_dead_engaged: slot 464 dead after 111 tick(s), 0 re-engagement(s), last hp 0/30; held Irvig Senay (npc 3965) -- corroborated by the ZERO BAR: slot 464 read 0/30 at tick 1842 and then left the npc pool (the corpse was released); eat shark below 50: ate shark 1 time(s) (hp 41->61), lowest hp 41/99; progress t+10 hp 25/30, t+20 hp 22/30, t+30 hp 22/30 ate 1, t+40 hp 20/30 ate 1, t+50 hp 15/30 ate 1, t+60 hp 15/30 ate 1, t+70 hp 14/30 ate 1, t+80 hp 11/30 ate 1, t+90 hp 4/30 ate 1, t+100 hp 1/30 ate 1, t+110 hp 0/30 ate 1
+334	sectionB	PASS	6	490-mesbox,491-sectionB	heartcrystal_sectionb 1 -> 1 (>= 1) after 0 tick(s)
+335	killRanalph	PASS	14	492-killRanalph	attack ranalph_devere op2 [Attack @yel@Ranalph Devere@gre@ (level-92)] in 1 press(es), pressed slot 471 (element 1073761274) at 2407,4700, watching slot 471: hp no bar -> 27/30, hitsplat 10 -- player.attack: first press covered (element 1073761274 at 155,180: pickset held=false, menu has no row for it -- menu rows: <Cancel|kind0|id0|act1106> <Walk here|kind5|id268435557|act718>) -> settled camera: pose 1 pressed at 383,45
+336	killRanalph-dead	PASS	133	493-killRanalph-dead	await_dead_engaged: slot 471 dead after 133 tick(s), 1 re-engagement(s), last hp 0/30; held Ranalph Devere (npc 3966) -- corroborated by the ZERO BAR: slot 471 read 0/30 at tick 1987 and then left the npc pool (the corpse was released); eat shark below 50: ate shark 3 time(s) (hp 42->62, 48->68, 47->67), lowest hp 42/99; progress t+12 hp 26/30 ate 1, t+24 hp 25/30 re-engaged 1 ate 2, t+34 hp 21/30 re-engaged 1 ate 2, t+44 hp 20/30 re-engaged 1 ate 3, t+54 hp 18/30 re-engaged 1 ate 3, t+64 hp 14/30 re-engaged 1 ate 3, t+74 hp 12/30 re-engaged 1 ate 3, t+84 hp 12/30 re-engaged 1 ate 3, t+94 hp 10/30 re-engaged 1 ate 3, t+104 hp 3/30 re-engaged 1 ate 3, t+114 hp 3/30 re-engaged 1 ate 3, t+124 hp 0/30 re-engaged 1 ate 3 -- await_dead_engaged re-engage 1 on Ranalph Devere (npc 3966): ok Attack @yel@Ranalph Devere@gre@ (level-92)
+337	sectionC	PASS	6	494-mesbox,495-sectionC	heartcrystal_sectionc 1 -> 1 (>= 1) after 0 tick(s)
+338	useCrystalsOnFurnace-heartcrystal_sectiona	PASS	83	496-useCrystalsOnFurnace-heartcrystal_sectiona	map_flag
+339	useCrystalsOnFurnace-dialog-heartcrystal_sectiona-end	PASS	1	497-objbox,498-mesbox,499-useCrystalsOnFurnace-dialog-heartcrystal_sectiona-end	drained to none
+340	useCrystalsOnFurnace-heartcrystal_sectionb	PASS	8	500-useCrystalsOnFurnace-heartcrystal_sectionb	page none->objbox (text)
+341	useCrystalsOnFurnace-dialog-heartcrystal_sectionb-end	PASS	0	501-objbox,502-mesbox,503-useCrystalsOnFurnace-dialog-heartcrystal_sectionb-end	drained to none
+342	useCrystalsOnFurnace-heartcrystal_sectionc	PASS	9	504-useCrystalsOnFurnace-heartcrystal_sectionc	page none->objbox (text)
+343	useCrystalsOnFurnace-dialog-heartcrystal_sectionc-end	PASS	0	505-objbox,506-mesbox,507-mesbox,508-objbox,509-useCrystalsOnFurnace-dialog-heartcrystal_sectionc-end	drained to none
+344	useCrystalsOnFurnace	PASS	6	510-useCrystalsOnFurnace	heartcrystal 1 -> 1 (>= 1) after 0 tick(s)
+345	quest.stage.crystal_pieces_smelted	PASS	0		17 -- varp139_legendsquest (varp) = 17
+346	useHeartOnRock	PASS	10	511-useHeartOnRock	page none->objbox (text) [backpack: gained heartcrystal_glow 0->1; lost heartcrystal 1->0]
+347	useHeartOnRock-glow	PASS	7	512-objbox,513-useHeartOnRock-glow	heartcrystal_glow 1 -> 1 (>= 1) after 0 tick(s)
+348	useHeartOnRecess	PASS	15	514-useHeartOnRecess	map_flag
+349	quest.stage.heart_in_recess	PASS	7	515-mesbox	18 -- varp139_legendsquest (varp) = 18
+350	forceBarrier	PASS	1	516-forceBarrier	map_flag
+351	forceBarrier-through	PASS	7	517-forceBarrier-through	through the force barrier to 2421,4690
+352	pushBoulder	PASS	15	518-pushBoulder	press boulder_legends op 1: aimed at slot 512 (element 1073770297) at 2392,4678; pressed slot 512 (element 1073770297) at 2392,4678; content line 'You attempt to push the boulder out of the way.'
+353	pushBoulder-echned-closed	PASS	4	519-mesbox,520-mesbox,521-npc,522-mesbox,523-pushBoulder-echned-closed	closed Echned's first options page, kind none
+354	quest.stage.pushed_boulder	PASS	6		19 -- varp139_legendsquest (varp) = 19
+355	talkToEchned	PASS	1	524-talkToEchned	map_flag: dialogue mesbox is up
+356	talkToEchned-dialog-choose1	PASS	1	525-mesbox,526-npc,527-mesbox,528-talkToEchned-dialog-choose1	chat.choose: page changed
+357	talkToEchned-dialog-choose2	PASS	1	529-player,530-mesbox,531-npc,532-talkToEchned-dialog-choose2	chat.choose: page changed
+358	talkToEchned-dialog-choose3	PASS	1	533-player,534-npc,535-npc,536-npc,537-talkToEchned-dialog-choose3	chat.choose: page changed
+359	talkToEchned-dialog-choose4	PASS	1	538-player,539-mesbox,540-npc,541-npc,542-mesbox,543-npc,544-talkToEchned-dialog-choose4	chat.choose: page changed
+360	talkToEchned-dialog-end	PASS	1	545-player,546-mesbox,547-npc,548-talkToEchned-dialog-end	drained to none
+361	talkToEchned-dagger	PASS	6	549-talkToEchned-dagger	deathdagger 1 -> 1 (>= 1) after 0 tick(s)
+362	quest.stage.received_dagger	PASS	0		20 -- varp139_legendsquest (varp) = 20
+363	leg.6.end	PASS	0		tile 2393,4676 level 0, legendsquest=20 read from the server; Echned Zekin's death dagger carried, the south room beyond the force barrier of the Viyeldi caves; rune armour worn, sharks, bowl, rune axe, machete, pickaxe carried [frame unchanged]
+364	leg.7.holy_force_to_the_source	PASS	0		tile=2393,4676,0 stage=varp139_legendsquest=20 inv=rune_axex1,thkaramjamapcompx1,vial_emptyx1,swamprocks1x1,goldbowlbless_emptyx1,yommiseeds_germx3,reed_hollowx1,swamprocks1x1,deathdaggerx1,4doseprayerrestorex1,bullroarerx1,4doseprayerrestorex1,stafforbx1,rune_pickaxex1,cosmicrunex3,waterrunex30,lockpickx1,lockpickx1,lockpickx1,machettex1,sharkx1 -- checkpoint 6 written: checkpoint 6 written at 2393,4676,0
+365	leg.7.pack	PASS	4	550-leg.7.pack	sharks 9, death dagger 1, unpowered orb 1, cosmic runes 3, water runes 30, lockpicks 3
+366	forceBarrierBack	PASS	16	551-forceBarrierBack	map_flag
+367	back-viycaves_climbrock3-1	PASS	85	552-back-viycaves_climbrock3-1	chat_message
+368	back-viycaves_climbrock3	PASS	9	553-back-viycaves_climbrock3	2390,4717 -> 2390,4719
+369	back-viycaves_climbrock2-1	PASS	3	554-back-viycaves_climbrock2-1	map_flag
+370	back-viycaves_climbrock2	PASS	9	555-back-viycaves_climbrock2	2390,4719 -> 2390,4725
+371	back-viycaves_climbrock1-1	PASS	3	556-back-viycaves_climbrock1-1	map_flag
+372	back-viycaves_climbrock1	PASS	9	557-back-viycaves_climbrock1	2390,4725 -> 2387,4727
+373	back-rocky_ledge2-1	PASS	3	558-back-rocky_ledge2-1	map_flag
+374	back-rocky_ledge2	PASS	9	559-back-rocky_ledge2	2387,4727 -> 2382,4730
+375	back-rocky_ledge1-1	PASS	3	560-back-rocky_ledge1-1	map_flag
+376	back-rocky_ledge1	PASS	9	561-back-rocky_ledge1	2382,4730 -> 2377,4727
+377	back-rocky_ledge-1	PASS	7	562-back-rocky_ledge-1	map_flag
+378	back-rocky_ledge	PASS	9	563-back-rocky_ledge	2377,4727 -> 2378,4717
+379	goto-pickUpHat	PASS	0	564-goto-pickUpHat	{level=0 count=1 element_id=1342177466 id=740 kind=obj tile_z=4712 tile_x=2379}
+380	pickUpHat	PASS	19	565-pickUpHat	the hat pressed, chat page mesbox
+381	pickUpHat-viyeldi	PASS	3	566-pickUpHat-viyeldi	Viyeldi stands beside the hat, chat none
+382	killViyeldi	PASS	0	567-killViyeldi	chat_message [backpack: gained deathdaggerdone 0->1; lost deathdagger 1->0]
+383	killViyeldi-glowing	PASS	7	568-killViyeldi-glowing	deathdaggerdone 1 -> 1 (>= 1) after 0 tick(s)
+384	killViyeldi-gone	PASS	6	569-killViyeldi-gone	no viyeldi within 8
+385	goto-enterMossyRockHolyForce	PASS	1	570-goto-enterMossyRockHolyForce	at 2782,2935,0 from 2379,4713,0
+386	enterMossyRockHolyForce-press-1	PASS	1	571-enterMossyRockHolyForce-press-1	page none->mesbox (text)
+387	enterMossyRockHolyForce-dialog-1-choose1	PASS	0	572-mesbox,573-enterMossyRockHolyForce-dialog-1-choose1	chat.choose: page changed
+388	enterMossyRockHolyForce-dialog-1-end	PASS	1	574-enterMossyRockHolyForce-dialog-1-end	drained to none
+389	enterMossyRockHolyForce	PASS	2	575-enterMossyRockHolyForce	crawled through the Mossy Rocks to 2773,9341
+390	talkToUngaduluForForce-firewall	PASS	11	576-talkToUngaduluForForce-firewall	map_flag -- click_loc lqfirewall_straight: pressed the copy at 2790,9333,0 (element 536872627); click_minimenu: aimed at the named loc copy (element 536872627) beside the projected element 536872629 -- hovered -16,+0 off the projected 410,12 (2 pixel(s) tried)
+391	talkToUngaduluForForce-inside	PASS	4	577-talkToUngaduluForForce-inside	inside the octagram at 2790,9332
+392	talkToUngaduluForForce	PASS	5	578-talkToUngaduluForForce	map_flag
+393	talkToUngaduluForForce-dialog-choose1	PASS	1	579-objbox,580-npc,581-talkToUngaduluForForce-dialog-choose1	chat.choose: page changed
+394	talkToUngaduluForForce-dialog-end	PASS	1	582-player,583-npc,584-npc,585-objbox,586-talkToUngaduluForForce-dialog-end	drained to none
+395	talkToUngaduluForForce-holyforce	PASS	6	587-talkToUngaduluForForce-holyforce	holyforce 1 -> 1 (>= 1) after 0 tick(s)
+396	talkToUngaduluForForce-dagger	PASS	0	588-talkToUngaduluForForce-dagger	deathdaggerdone: absent (count 0)
+397	hf-leaveOctagram	PASS	5	589-hf-leaveOctagram	map_flag -- click_loc lqfirewall_straight: pressed the copy at 2790,9333,0 (element 536872627); click_minimenu: aimed at the named loc copy (element 536872627, estimate 1.4 tile(s) ahead, no scale (the player's pixel)) -- hovered -16,-64 off the projected 399,267 (39 pixel(s) tried)
+398	hf-enterBookcase-press-1	PASS	7	590-hf-enterBookcase-press-1	map_flag
+399	hf-enterBookcase-dialog-1-choose1	PASS	1	591-mesbox,592-hf-enterBookcase-dialog-1-choose1	chat.choose: page changed
+400	hf-enterBookcase-dialog-1-end	PASS	1	593-hf-enterBookcase-dialog-1-end	drained to none
+401	hf-enterBookcase-press-2	PASS	15	594-hf-enterBookcase-press-2	map_flag
+402	hf-enterBookcase-dialog-2-choose1	PASS	1	595-mesbox,596-hf-enterBookcase-dialog-2-choose1	chat.choose: page changed
+403	hf-enterBookcase-dialog-2-end	PASS	1	597-hf-enterBookcase-dialog-2-end	drained to none
+404	hf-enterBookcase	PASS	3	598-hf-enterBookcase	in the tunnel behind the bookcase at 2799,9341
+405	hf-gate1-state	PASS	1		at 2799,9341 lockpick gate present: true [frame unchanged]
+406	hf-enterGate1-press-1	PASS	13	599-hf-enterGate1-press-1	map_flag
+407	hf-enterGate1-press-2	PASS	18	600-mesbox,601-mesbox,602-mesbox,603-mesbox,604-mesbox,605-hf-enterGate1-press-2	page none->mesbox (text)
+408	hf-enterGate1	PASS	13	606-mesbox,607-mesbox,608-mesbox,609-mesbox,610-mesbox,611-player,612-mesbox,613-hf-enterGate1	picked the lock and stands south of the gate line at 2810,9331
+409	hf-mine-mine_test_boulder1-press-1	PASS	1	614-hf-mine-mine_test_boulder1-press-1	chat_message
+410	hf-mine-mine_test_boulder1	PASS	6	615-hf-mine-mine_test_boulder1	smashed the rock and stands past it at 2809,9326
+411	hf-mine-mine_test_boulder2-press-1	PASS	1	616-hf-mine-mine_test_boulder2-press-1	chat_message
+412	hf-mine-mine_test_boulder2	PASS	6	617-hf-mine-mine_test_boulder2	smashed the rock and stands past it at 2809,9322
+413	hf-mine-mine_test_boulder3-press-1	PASS	1	618-hf-mine-mine_test_boulder3-press-1	chat_message
+414	hf-mine-mine_test_boulder3	PASS	6	619-hf-mine-mine_test_boulder3	smashed the rock and stands past it at 2809,9318
+415	hf-enterGate2-press-1	PASS	2	620-hf-enterGate2-press-1	map_flag
+416	hf-enterGate2-dialog-1-choose1	PASS	1	621-mesbox,622-mesbox,623-hf-enterGate2-dialog-1-choose1	chat.choose: page changed
+417	hf-enterGate2-dialog-1-end	PASS	1	624-mesbox,625-mesbox,626-mesbox,627-mesbox,628-mesbox,629-hf-enterGate2-dialog-1-end	drained to none
+418	hf-enterGate2	PASS	3	630-hf-enterGate2	forced the strength doors and stands south of them at 2810,9313
+419	hf-deathwing-1	PASS	3	631-hf-deathwing-1	attack deathwing op2 [Attack @yel@Death wing@gre@ (level-83)] in 1 press(es), pressed slot 570 (element 1073762087) at 2809,9312, watching slot 570: hp no bar -> 28/30, hitsplat 3 -- player.attack: first press covered (element 1073762087 at 409,195: pickset held=true, menu has no row for it -- menu rows: <Cancel|kind0|id0|act1106> <Walk here|kind5|id268435945|act718>) -> settled camera: pose 1 pressed at 333,191
+420	hf-deathwing-dead-1	PASS	75	632-hf-deathwing-dead-1	await_dead_engaged: slot 570 dead after 75 tick(s), 0 re-engagement(s), last hp 0/30; held Death wing (npc 509) -- corroborated by the ZERO BAR: slot 570 read 0/30 at tick 2611 and then left the npc pool (the corpse was released); eat shark below 50: ate shark 1 time(s) (hp 49->69), lowest hp 49/99; progress t+10 hp 22/30, t+20 hp 19/30 ate 1, t+30 hp 18/30 ate 1, t+40 hp 13/30 ate 1, t+50 hp 3/30 ate 1, t+60 hp 3/30 ate 1, t+70 hp 0/30 ate 1
+421	hf-jumpCrumbledWall-1	PASS	30	633-hf-jumpCrumbledWall-1	map_flag
+422	hf-jumpCrumbledWall	PASS	1	634-hf-jumpCrumbledWall	jumped the crumbled wall, now at 2789,9296
+423	hf-searchMarkedWall	PASS	7	635-hf-searchMarkedWall	map_flag -- click_loc lgancientwalldoor: pressed the copy at 2779,9305,0 (element 536873423)
+424	hf-searchMarkedWall-dialog-choose1	PASS	1	636-mesbox,637-hf-searchMarkedWall-dialog-choose1	chat.choose: page changed
+425	hf-searchMarkedWall-dialog-choose2	PASS	1	638-mesbox,639-hf-searchMarkedWall-dialog-choose2	chat.choose: page changed
+426	hf-searchMarkedWall-dialog-end	PASS	1	640-mesbox,641-hf-searchMarkedWall-dialog-end	drained to none
+427	hf-searchMarkedWall-through	PASS	6	642-hf-searchMarkedWall-through	through the marked wall into the gem room at 2774,9301
+428	hf-walk-magicDoor	PASS	6	643-hf-walk-magicDoor	beside the ancient gate at 2763,9311
+429	useSpellOnDoorHolyForce	PASS	4	644-useSpellOnDoorHolyForce	cast charge_water_orb on loc lgmagictrialgateclosed [Cast <col=00ff00>Charge Water Orb< -> @cya@Ancient Gate] (armed by this call: Cast <col=00ff00>Charge Water Orb< ->) in 1 press(es), loc at 2762,9313, cast from 2763,9311 (2 tile(s)): magic xp 184106 -> 184172, backpack lost stafforb 1->0, cosmicrune 3->0, waterrune 30->0 -- CAST (Magic XP paid)
+430	useSpellOnDoorHolyForce-through	PASS	10	645-objbox,646-mesbox,647-useSpellOnDoorHolyForce-through	through the magic gate to 2763,9320
+431	hf-searchWinch-1	PASS	4	648-hf-searchWinch-1	chat_message
+432	climbDownWinchHolyForce-1	PASS	2	649-climbDownWinchHolyForce-1	page none->mesbox (text)
+433	climbDownWinchHolyForce-dialog-1-choose1	PASS	0	650-mesbox,651-climbDownWinchHolyForce-dialog-1-choose1	chat.choose: page changed
+434	climbDownWinchHolyForce-dialog-1-end	PASS	1	652-climbDownWinchHolyForce-dialog-1-end	drained to none
+435	climbDownWinchHolyForce	PASS	7	653-climbDownWinchHolyForce	down the winch into the Viyeldi caves at 2377,4712
+436	hf-rocky_ledge	PASS	16	654-mesbox,655-hf-rocky_ledge	2377,4712 -> 2376,4717; last messages: table: 0xa3545d260
+437	hf-rocky_ledge1	PASS	20	656-mesbox,657-hf-rocky_ledge1	2376,4717 -> 2378,4728; last messages: table: 0xa333dd440
+438	hf-rocky_ledge2	PASS	15	658-mesbox,659-hf-rocky_ledge2	2378,4728 -> 2382,4728; last messages: table: 0xa328134b0
+439	hf-viycaves_climbrock1	PASS	367	660-mesbox,661-hf-viycaves_climbrock1	2382,4728 -> 2385,4730; last messages: table: 0xa3efec360
+440	hf-viycaves_climbrock2	PASS	739	662-hf-viycaves_climbrock2	2385,4730 -> 2385,4721; last messages: table: 0xa34cbaa60 -- reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 2: pressed from 2393,4724 (walked to (asked 2391,4724, ended 2393,4724)) -> refused; reach retry: the loc's own square 2390,4724 -- the walk ended 2388,4724; not stood on with ::goto -- stand_on_square not set -- not pressed; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 2: pressed from 2393,4724 (walked to (asked 2391,4724, ended 2393,4724)) -> refused; reach retry: the loc's own square 2390,4724 -- the walk ended 2388,4724; not stood on with ::goto -- stand_on_square not set -- not pressed; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 2: pressed from 2393,4724 (walked to (asked 2391,4724, ended 2393,4724)) -> refused; reach retry: the loc's own square 2390,4724 -- the walk ended 2388,4724; not stood on with ::goto -- stand_on_square not set -- not pressed; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 2: pressed from 2393,4724 (walked to (asked 2391,4724, ended 2393,4724)) -> refused; reach retry: the loc's own square 2390,4724 -- the walk ended 2388,4724; not stood on with ::goto -- stand_on_square not set -- not pressed; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 2: pressed from 2393,4724 (walked to (asked 2391,4724, ended 2393,4724)) -> refused; reach retry: the loc's own square 2390,4724 -- the walk ended 2388,4724; not stood on with ::goto -- stand_on_square not set -- not pressed; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach retry 2: pressed from 2391,4712 (walked to (asked 2391,4724, ended 2391,4712)) -> timeout; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach retry 2: pressed from 2391,4712 (walked to (asked 2391,4724, ended 2391,4712)) -> timeout; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry: walked to (asked 2389,4724, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach retry: walked to (asked 2390,4725, ended 2388,4724) and 2388,4724 has already answered this press -- not pressed again; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 1: pressed from 2388,4723 (walked to (asked 2390,4723, ended 2388,4723)) -> refused; reach retry 2: pressed from 2391,4712 (walked to (asked 2391,4724, ended 2391,4712)) -> timeout
+441	hf-viycaves_climbrock3	PASS	101	663-mesbox,664-mesbox,665-mesbox,666-mesbox,667-hf-viycaves_climbrock3	2385,4721 -> 2390,4717; last messages: table: 0xa354afba0
+442	hf-forceBarrier	PASS	62	668-hf-forceBarrier	map_flag
+443	hf-forceBarrier-through	PASS	7	669-hf-forceBarrier-through	through the force barrier to 2421,4690
+444	hf-southRoom	PASS	39	670-hf-southRoom	in the south room beside the boulders at 2396,4679
+445	leg.7.end	PASS	0		tile 2396,4679 level 0, legendsquest=20 read from the server; holy force in the backpack, in the south room beside the boulders (Echned not yet summoned) [frame unchanged]
+446	leg.8.nezikchened_at_the_source	PASS	0		tile=2396,4679,0 stage=varp139_legendsquest=20 inv=rune_axex1,thkaramjamapcompx1,sharkx1,goldbowlbless_emptyx1,yommiseeds_germx3,reed_hollowx1,sharkx1,swamprocks1x1,sharkx1,4doseprayerrestorex1,bullroarerx1,4doseprayerrestorex1,sharkx1,sharkx1,sharkx1,sharkx1,holyforcex1,rune_pickaxex1,lockpickx1,lockpickx1,lockpickx1,machettex1,swamprocks1x1,sharkx1 -- checkpoint 7 written: checkpoint 7 written at 2396,4679,0
+447	leg.8.pack	PASS	0	671-leg.8.pack	holy force 1, empty blessed golden bowl 1, sharks 8
+448	pushBoulderWithForce	PASS	1	672-pushBoulderWithForce	press boulder_legends op 1: aimed at slot 740 (element 1073763640) at 2392,4678; pressed slot 740 (element 1073763640) at 2392,4678; content line 'You attempt to push the boulder out of the way.'
+449	pushBoulderWithForce-echned	PASS	10	673-mesbox,674-npc,675-pushBoulderWithForce-echned	Echned Zekin stands in the mist, chat none
+450	castForce	PASS	1	676-castForce	holyforce slot 18 op 1 (tab ok nil) -> 1 left
+451	castForce-nezikchened	PASS	7	677-castForce-nezikchened	nezikchened present within 10: slot 746 at 2394,4680
+452	fightNezikchenedAtSource	PASS	0	678-fightNezikchenedAtSource	attack nezikchened op2 [Attack @yel@Nezikchened@red@ (level-187)] in 1 press(es), pressed slot 746 (element 1073763634) at 2394,4680, watching slot 746: hp 30/30 -> 29/30, hitsplat 2
+453	fightNezikchenedAtSource-dead	PASS	211	679-fightNezikchenedAtSource-dead	await_dead_engaged: slot 746 dead after 211 tick(s), 4 re-engagement(s), last hp 0/30; held Nezikchened (npc 3962) -- corroborated by the ZERO BAR: slot 746 read 0/30 at tick 4300 and then left the npc pool (the corpse was released); eat shark below 50: ate shark 5 time(s) (hp 49->69, 37->57, 42->62, 44->64, 44->64), lowest hp 37/99; progress (8 earlier dropped) t+92 hp 17/30 re-engaged 2 ate 3, t+102 hp 17/30 re-engaged 2 ate 3, t+112 hp 15/30 re-engaged 2 ate 3, t+122 hp 14/30 re-engaged 2 ate 3, t+132 hp 13/30 re-engaged 2 ate 4, t+142 hp 11/30 re-engaged 3 ate 4, t+152 hp 11/30 re-engaged 4 ate 5, t+162 hp 7/30 re-engaged 4 ate 5, t+172 hp 6/30 re-engaged 4 ate 5, t+182 hp 4/30 re-engaged 4 ate 5, t+192 hp 2/30 re-engaged 4 ate 5, t+202 hp 1/30 re-engaged 4 ate 5 -- await_dead_engaged re-engage 1 on Nezikchened (npc 3962): ok Attack @yel@Nezikchened@red@ (level-187); await_dead_engaged re-engage 2 on Nezikchened (npc 3962): ok Attack @yel@Nezikchened@red@ (level-187); await_dead_engaged re-engage 3 on Nezikchened (npc 3962): ok Attack @yel@Nezikchened@red@ (level-187); await_dead_engaged re-engage 4 on Nezikchened (npc 3962): ok Attack @yel@Nezikchened@red@ (level-187)
+454	fightNezikchenedAtSource-margin	PASS	0	680-fightNezikchenedAtSource-margin	lowest hp 37/99, sharks 8 -> 3 (margin: lowest hp >= 25 AND sharks left >= 1)
+455	quest.stage.defeated_nezikchened_water	PASS	7		22 -- varp139_legendsquest (varp) = 22
+456	pushBoulderAfterFight	PASS	1	681-pushBoulderAfterFight	press boulder_legends op 1: aimed at slot 740 (element 1073763640) at 2392,4678; pressed slot 740 (element 1073763640) at 2392,4678; content line 'You attempt to push the boulder out of the way.'
+457	pushBoulderAfterFight-pool	PASS	7	682-pushBoulderAfterFight-pool	{level=0 tile_z=4678 tile_x=2392 symbol=lgwaterpool id=2941 kind=loc element_id=536892710 match=exact}
+458	useBowlOnSacredWater	PASS	1	683-useBowlOnSacredWater	map_flag [backpack: gained goldbowlbless_pure 0->1; lost goldbowlbless_empty 1->0]
+459	useBowlOnSacredWater-bowl	PASS	7	684-objbox,685-useBowlOnSacredWater-bowl	goldbowlbless_pure 1 -> 1 (>= 1) after 0 tick(s)
+460	leg.8.end	PASS	12	686-leg.8.end	tile 2393,4678 level 0, legendsquest=25 read from the server; the blessed golden bowl full of sacred water (goldbowlbless_pure x1) carried
+461	leg.9.yommi_totem	PASS	0		tile=2393,4678,0 stage=varp139_legendsquest=25 inv=rune_axex1,thkaramjamapcompx1,goldbowlbless_purex1,yommiseeds_germx3,reed_hollowx1,swamprocks1x1,4doseprayerrestorex1,bullroarerx1,4doseprayerrestorex1,sharkx1,sharkx1,holyforcex1,rune_pickaxex1,lockpickx1,lockpickx1,lockpickx1,machettex1,swamprocks1x1,sharkx1 -- checkpoint 8 written: checkpoint 8 written at 2393,4678,0
+462	leg.9.pack	PASS	0	687-leg.9.pack	rune axe 1, machete 1, germinated seeds 3, golden bowl of pure sacred water 1, sharks 3
+463	returnToSurface	PASS	0	688-returnToSurface	at 2836,2914,0 from 2393,4678,0
+464	returnToSurface-surface	PASS	1		back on the surface [frame unchanged]
+465	returnToSurface-empty	PASS	2	689-returnToSurface-empty	goldbowlbless_pure slot 2 op 1 (tab ok nil) -> 0 left
+466	returnToSurface-bowl	PASS	1	690-returnToSurface-bowl	goldbowlbless_empty 1 -> 1 (>= 1) after 0 tick(s)
+467	enterJungleToPlant	PASS	0	691-enterJungleToPlant	at 2834,2916,0 from 2836,2914,0
+468	enterJungleToPlant-tile	PASS	1	692-enterJungleToPlant-tile	in the Kharazi jungle beside the pool at 2834,2916
+469	useMacheteOnReedsEnd	PASS	22	693-useMacheteOnReedsEnd	map_flag [backpack: gained reed_hollow 1->2] -- use_on tall_reeds: pressed the copy at 2836,2916,0 (element 536895874); click_minimenu: hunted pose 1 (reach 99) -- hovered -16,-64 off the projected 382,295 (1 pixel(s) tried)
+470	useMacheteOnReedsEnd-reed	PASS	1	694-useMacheteOnReedsEnd-reed	reed_hollow 2 -> 2 (>= 2) after 0 tick(s)
+471	useReedOnPoolEnd	PASS	1	695-useReedOnPoolEnd	map_flag [backpack: gained goldbowlbless_pure 0->1; lost goldbowlbless_empty 1->0, reed_hollow 2->1] -- use_on sacred_water: pressed the copy at 2837,2915,0 (element 536895873)
+472	useReedOnPoolEnd-bowl	PASS	7	696-objbox,697-objbox,698-useReedOnPoolEnd-bowl	goldbowlbless_pure 1 -> 1 (>= 1) after 0 tick(s)
+473	goto-plantSeed	PASS	0	699-goto-plantSeed	at 2780,2916,0 from 2836,2916,0
+474	plantSeed-1	PASS	2	700-plantSeed-1	chat_message [backpack: lost yommiseeds_germ 3->2] -- use_on fertilesoil: pressed the copy at 2778,2916,0 (element 536871016)
+475	plantSeed	PASS	7	701-plantSeed	the yommi seed grew on the fertile soil, germinated seeds left 2
+476	plantSeed-sapling	PASS	0	702-plantSeed-sapling	the sapling stands: met after 0 tick(s)
+477	useWaterOnTree	PASS	0	703-useWaterOnTree	chat_message [backpack: gained goldbowlbless_empty 0->1; lost goldbowlbless_pure 1->0] -- use_on yommitree_sapling: pressed the copy at 2778,2916,0 (element 536894211)
+478	useWaterOnTree-bowl	PASS	7	704-useWaterOnTree-bowl	goldbowlbless_empty 1 -> 1 (>= 1) after 0 tick(s)
+479	useWaterOnTree-adult	PASS	0	705-useWaterOnTree-adult	the adult yommi tree stands: met after 0 tick(s)
+480	useAxe	PASS	2	706-useAxe	chat_message -- use_on yommitree_adult: pressed the copy at 2778,2916,0 (element 536894209)
+481	useAxe-felled	PASS	6	707-useAxe-felled	the yommi tree lies felled: met after 0 tick(s)
+482	useAxeAgain	PASS	2	708-useAxeAgain	chat_message -- use_on yommitree_felled: pressed the copy at 2778,2916,0 (element 536894207)
+483	useAxeAgain-trimmed	PASS	6	709-useAxeAgain-trimmed	the yommi trunk is trimmed: met after 0 tick(s)
+484	craftTree	PASS	3	710-craftTree	chat_message -- use_on yommitree_trimmed: pressed the copy at 2778,2916,0 (element 536894206)
+485	craftTree-totem	PASS	6	711-craftTree-totem	the totem pole is carved: met after 0 tick(s)
+486	pickUpTotem	PASS	0	712-pickUpTotem	chat_message -- click_loc yommitree_totem: pressed the copy at 2778,2916,0 (element 536894204)
+487	pickUpTotem-totem	PASS	6	713-pickUpTotem-totem	thtotempole 1 -> 1 (>= 1) after 0 tick(s)
+488	quest.stage.collected_totem	PASS	1		30 -- varp139_legendsquest (varp) = 30
+489	leg.9.wolf-attack-1	PASS	2	714-leg.9.wolf-attack-1	attack jungle_wolf op2 [Attack @yel@Jungle Wolf@gre@ (level-64)] in 1 press(es), pressed slot 789 (element 1073765139) at 2778,2916, watching slot 789: hp 18/30 -> 13/30, hitsplat 11
+490	leg.9.wolf-dead-1	PASS	28	715-leg.9.wolf-dead-1	await_dead_engaged: slot 789 dead after 28 tick(s), 0 re-engagement(s), last hp 0/30; held Jungle Wolf (npc 232) -- corroborated by the ZERO BAR: slot 789 read 0/30 at tick 4449 and then left the npc pool (the corpse was released); eat shark below 50: never needed to eat, lowest hp 52/99; progress t+10 hp 10/30, t+20 hp 9/30
+491	leg.9.end	PASS	6	716-leg.9.end	tile 2780,2916 level 0, legendsquest=30 read from the server; the yommi totem pole (thtotempole x1) carried
+492	leg.10.totems_and_the_guild	PASS	0		tile=2780,2916,0 stage=varp139_legendsquest=30 inv=rune_axex1,thkaramjamapcompx1,goldbowlbless_emptyx1,thtotempolex1,yommiseeds_germx2,reed_hollowx1,swamprocks1x1,4doseprayerrestorex1,bullroarerx1,4doseprayerrestorex1,sharkx1,sharkx1,holyforcex1,rune_pickaxex1,lockpickx1,lockpickx1,lockpickx1,machettex1,swamprocks1x1,sharkx1 -- checkpoint 9 written: checkpoint 9 written at 2780,2916,0
+493	leg.10.pack	PASS	8	717-leg.10.pack	yommi totem pole 1, sharks 15, 4-dose prayer restores 4, prayer 0
+494	leg.10.pack-prayer	PASS	0	718-leg.10.pack-prayer	prayer potion doses 16 (need >= 10), prayer 0 of 60
+495	useTotemOnTotem-drink	PASS	15	719-useTotemOnTotem-drink	prayer 0 -> 60 after 3 dose(s) (want >= 50), doses left 13
+496	useTotemOnTotem-prayertab	PASS	0	720-useTotemOnTotem-prayertab	prayer tab -> ok nil
+497	useTotemOnTotem-prayerwidget	PASS	1	721-useTotemOnTotem-prayerwidget	prayerbook:prayer15 -> ok 35454999
+498	useTotemOnTotem-protect	PASS	2	722-useTotemOnTotem-protect	prayer_protectfrommelee varbit 1
+499	goto-useTotemOnTotem	PASS	0	723-goto-useTotemOnTotem	at 2850,2917,0 from 2780,2916,0
+500	useTotemOnTotem	PASS	4	724-useTotemOnTotem	map_flag -- use_on lg_ord_totem_pole: pressed the copy at 2852,2917,0 (element 536897531)
+501	killSan-present	PASS	7	725-mesbox,726-killSan-present	san_tojalon present within 12: slot 824 at 2851,2916
+502	killSan-drink	PASS	0	727-killSan-drink	prayer 58 -> 58 after 0 dose(s) (want >= 45), doses left 13
+503	killSan-protect	PASS	0	728-killSan-protect	prayer_protectfrommelee varbit 1, prayer 58
+504	killSan-prayer	PASS	0	729-killSan-prayer	prayer 58 (need >= 30 for the fight), doses left 13
+505	killSan-2	PASS	2	730-killSan-2	attack san_tojalon op2 [Attack @yel@San Tojalon@or1@ (level-106)] in 1 press(es), pressed slot 824 (element 1073759938) at 2851,2916, watching slot 824: hp 30/30 -> 27/30, hitsplat 12
+506	killSan-dead-2	PASS	116	731-killSan-dead-2	await_dead_engaged: slot 824 dead after 116 tick(s), 0 re-engagement(s), last hp 0/30; held San Tojalon (npc 3964) -- corroborated by the ZERO BAR: slot 824 read 0/30 at tick 4610 and then left the npc pool (the corpse was released); eat shark below 50: never needed to eat, lowest hp 53/99; progress t+10 hp 25/30, t+20 hp 24/30, t+30 hp 18/30, t+40 hp 18/30, t+50 hp 17/30, t+60 hp 17/30, t+70 hp 11/30, t+80 hp 10/30, t+90 hp 6/30, t+100 hp 4/30, t+110 hp 1/30
+507	killSan-margin	PASS	0	732-killSan-margin	lowest hp 53/99, sharks 15 -> 15, prayer after 35 (margin: lowest hp >= 25 AND sharks left >= 1)
+508	killIrvig-present	PASS	8	733-killIrvig-present	irvig_senay present within 12: slot 843 at 2850,2917
+509	killIrvig-drink	PASS	6	734-killIrvig-drink	prayer 35 -> 56 after 1 dose(s) (want >= 45), doses left 12
+510	killIrvig-protect	PASS	0	735-killIrvig-protect	prayer_protectfrommelee varbit 1, prayer 56
+511	killIrvig-prayer	PASS	0	736-killIrvig-prayer	prayer 56 (need >= 30 for the fight), doses left 12
+512	killIrvig-2	PASS	2	737-killIrvig-2	attack irvig_senay op2 [Attack @yel@Irvig Senay@gr2@ (level-100)] in 1 press(es), pressed slot 843 (element 1073759919) at 2850,2917, watching slot 843: hp 30/30 -> 26/30, hitsplat 13
+513	killIrvig-dead-2	PASS	100	738-killIrvig-dead-2	await_dead_engaged: slot 843 dead after 100 tick(s), 0 re-engagement(s), last hp 0/30; held Irvig Senay (npc 3965) -- corroborated by the ZERO BAR: slot 843 read 0/30 at tick 4726 and then left the npc pool (the corpse was released); eat shark below 50: never needed to eat, lowest hp 54/99; progress t+10 hp 24/30, t+20 hp 22/30, t+30 hp 19/30, t+40 hp 15/30, t+50 hp 12/30, t+60 hp 12/30, t+70 hp 8/30, t+80 hp 4/30, t+90 hp 1/30, t+100 hp 0/30
+514	killIrvig-margin	PASS	0		lowest hp 54/99, sharks 15 -> 15, prayer after 36 (margin: lowest hp >= 25 AND sharks left >= 1) [frame unchanged]
+515	killRanalph-present	PASS	8	739-killRanalph-present	ranalph_devere present within 12: slot 855 at 2851,2919
+516	killRanalph-drink	PASS	6	740-killRanalph-drink	prayer 35 -> 56 after 1 dose(s) (want >= 45), doses left 11
+517	killRanalph-protect	PASS	0	741-killRanalph-protect	prayer_protectfrommelee varbit 1, prayer 56
+518	killRanalph-prayer	PASS	0		prayer 56 (need >= 35 for the fight), doses left 11 [frame unchanged]
+519	killRanalph-2	PASS	3	742-killRanalph-2	attack ranalph_devere op2 [Attack @yel@Ranalph Devere@gre@ (level-92)] in 1 press(es), pressed slot 855 (element 1073759907) at 2851,2918, watching slot 855: hp 29/30 -> 27/30, hitsplat 5
+520	killRanalph-dead-2	PASS	136	743-killRanalph-dead-2	await_dead_engaged: slot 855 dead after 136 tick(s), 0 re-engagement(s), last hp 0/30; held Ranalph Devere (npc 3966) -- corroborated by the ZERO BAR: slot 855 read 0/30 at tick 4875 and then left the npc pool (the corpse was released); eat shark below 50: never needed to eat, lowest hp 55/99; progress (1 earlier dropped) t+20 hp 22/30, t+30 hp 19/30, t+40 hp 17/30, t+50 hp 14/30, t+60 hp 12/30, t+70 hp 12/30, t+80 hp 9/30, t+90 hp 7/30, t+100 hp 7/30, t+110 hp 5/30, t+120 hp 4/30, t+130 hp 0/30
+521	killRanalph-margin	PASS	0	744-killRanalph-margin	lowest hp 55/99, sharks 15 -> 15, prayer after 29 (margin: lowest hp >= 25 AND sharks left >= 1)
+522	defeatDemon-present	PASS	8	745-defeatDemon-present	nezikchened present within 12: slot 872 at 2852,2920
+523	defeatDemon-drink	PASS	16	746-defeatDemon-drink	prayer 0 -> 59 after 3 dose(s) (want >= 55), doses left 8
+524	defeatDemon-protect	PASS	0	747-defeatDemon-protect	prayer_protectfrommelee varbit 1, prayer 59
+525	defeatDemon-prayer	PASS	0	748-defeatDemon-prayer	prayer 59 (need >= 55 for the fight), doses left 8
+526	defeatDemon	PASS	2	749-defeatDemon	attack nezikchened op2 [Attack @yel@Nezikchened@red@ (level-187)] in 1 press(es), pressed slot 872 (element 1073759890) at 2851,2918, watching slot 872: hp 28/30 -> 28/30, hitsplat 0
+527	defeatDemon-dead	PASS	232	750-defeatDemon-dead	await_dead_engaged: slot 872 dead after 232 tick(s), 0 re-engagement(s), last hp 0/30; held Nezikchened (npc 3962) -- corroborated by the ZERO BAR: slot 872 read 0/30 at tick 5137 and then left the npc pool (the corpse was released); eat shark below 50: never needed to eat, lowest hp 57/99; progress (11 earlier dropped) t+120 hp 15/30, t+130 hp 14/30, t+140 hp 11/30, t+150 hp 8/30, t+160 hp 7/30, t+170 hp 7/30, t+180 hp 4/30, t+190 hp 4/30, t+200 hp 4/30, t+210 hp 2/30, t+220 hp 1/30, t+230 hp 0/30
+528	defeatDemon-margin	PASS	0	751-defeatDemon-margin	lowest hp 57/99, sharks 15 -> 15, prayer after 12 (margin: lowest hp >= 25 AND sharks left >= 1)
+529	quest.stage.defeated_nezikchened_final	PASS	8		35 -- varp139_legendsquest (varp) = 35
+530	defeatDemon-protectOff	PASS	3	752-defeatDemon-protectOff	prayer_protectfrommelee varbit 0, prayer 10, doses left 8
+531	useTotemOnTotemAgain	PASS	2	753-useTotemOnTotemAgain	page none->mesbox (text) -- use_on lg_ord_totem_pole: pressed the copy at 2852,2917,0 (element 536897531)
+532	useTotemOnTotemAgain-pages	PASS	35	754-mesbox,755-npc,756-objbox,757-npc,758-npc,759-npc,760-npc,761-useTotemOnTotemAgain-pages	mesbox:chat.head/You remove the evil totem pole and replace it with<br>the one you carved yourself.<br>As you do so, you feel a lightness in the air,<br>almost as if the Kharazi Jungle were sighing. | npc:table: 0xa34de5080/Greetings Bwana, we saw your fight with the Demon from some distance away. My people are so pleased with your heroic efforts. Your strength and ability as a warrior are Legendary. | objbox:chat.head/Gujuo offers you an awe inspiring totem pole. | npc:table: 0xa374a9bc0/Please accept this as a token of our appreciation. | npc:table: 0xa35449890/Please, now consider yourself a friend of my people. And visit us anytime. | npc:table: 0xa3aa44cc0/I'll take those germinated Yommi tree seeds to Ungadulu, I'm sure he'll appreciate them. | npc:table: 0xa3338b7e0/I must go and hunt now Bwana...
+533	useTotemOnTotemAgain-gift	PASS	2	762-useTotemOnTotemAgain-gift	thtotempolegift 1 -> 1 (>= 1) after 0 tick(s)
+534	quest.stage.got_gilded_totem	PASS	0		45 -- varp139_legendsquest (varp) = 45
+535	goto-returnToRadimus	PASS	0	763-goto-returnToRadimus	at 2728,3346,0 from 2851,2917,0
+536	returnToRadimus-gate	PASS	4	764-returnToRadimus-gate	map_flag -- click_loc legendsguildgatel: pressed the copy at 2728,3349,0 (element 536885965)
+537	returnToRadimus-inside	PASS	21	765-returnToRadimus-inside	inside the grounds at 2727,3368
+538	returnToRadimus-door	PASS	21	766-returnToRadimus-door	poshdoor element 536885482 left the pool (no event; the named copy changed) -- click_loc poshdoor: pressed the copy at 2726,3368,0 (element 536885482)
+539	returnToRadimus	PASS	3	767-returnToRadimus	map_flag: dialogue npc is up
+540	quest.stage.returned_to_radimus	PASS	9	768-npc,769-mesbox,770-npc,771-npc,772-objbox,773-npc,774-npc	50 -- varp139_legendsquest (varp) = 50
+541	goto-talkToRadimusInGuild	PASS	5	775-goto-talkToRadimusInGuild	at the hall doors 2728,3371, walk ok
+542	talkToRadimusInGuild-doors	PASS	3	776-talkToRadimusInGuild-doors	map_flag -- click_loc legendsguilddoorl: pressed the copy at 2728,3373,0 (element 536885969)
+543	talkToRadimusInGuild-hall	PASS	8	777-talkToRadimusInGuild-hall	in the main hall at 2729,3380, walk ok
+544	talkToRadimusInGuild-snapshot	PASS	1	778-talkToRadimusInGuild-snapshot	skill.snapshot before the hand-in -> ok
+545	talkToRadimusInGuild	PASS	3	779-talkToRadimusInGuild	map_flag: dialogue npc is up
+546	talkToRadimusInGuild-train	PASS	1	780-npc,781-npc,782-talkToRadimusInGuild-train	chat.choose: page changed
+547	talkToRadimusInGuild-pick-attack-1	PASS	0	783-npc,784-talkToRadimusInGuild-pick-attack-1	chat.choose: page changed
+548	talkToRadimusInGuild-pick-defence-1	PASS	1	785-mesbox,786-npc,787-talkToRadimusInGuild-pick-defence-1	chat.choose: page changed
+549	talkToRadimusInGuild-pick-strength-1	PASS	1	788-mesbox,789-npc,790-talkToRadimusInGuild-pick-strength-1	chat.choose: page changed
+550	talkToRadimusInGuild-pick-hitpoints-1	PASS	1	791-mesbox,792-npc,793-talkToRadimusInGuild-pick-hitpoints-1	chat.choose: options changed
+551	talkToRadimusInGuild-pick-hitpoints-2	PASS	0	794-talkToRadimusInGuild-pick-hitpoints-2	chat.choose: page changed
+552	talkToRadimusInGuild-finish	PASS	1	795-mesbox,796-npc,797-talkToRadimusInGuild-finish	none
+553	reward.attack_xp	PASS	4	798-reward.attack_xp	attack gain 30,000 xp -> attack: +30000 xp (whole units)
+554	reward.defence_xp	PASS	0	799-reward.defence_xp	defence gain 30,000 xp -> defence: +30000 xp (whole units)
+555	reward.strength_xp	PASS	0		strength gain 30,000 xp -> strength: +30000 xp (whole units) [frame unchanged]
+556	reward.hitpoints_xp	PASS	0		hitpoints gain 30,000 xp -> hitpoints: +30000 xp (whole units) [frame unchanged]
+557	quest.varp_complete	PASS	0		varp139_legendsquest (varp): client=75 server=75 complete=75 [client+server]
+558	quest.scroll_title	PASS	0	800-quest.scroll	expected a title containing Legends' Quest got=You have completed Legends' Quest! (ok) {name=You have completed Legends' Quest! points=Total Quest Points: 111}
+559	quest.points	PASS	0		qp (varp) 107 -> 111 delta=4 expected=4
+560	quest.journal	PASS	4		title=The Legends Quest (expected any non-empty title) complete=true lines=17 scroll.close=ok journal.close=ok questjournal closed
+SUMMARY	560	PASS	5281	exit=0	pass=560 fail=0
