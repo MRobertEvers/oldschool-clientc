@@ -59,6 +59,24 @@ sessions writing one directory).
 Wait for it, or drive a private copy under another name (`--script <file> --name <id>_2`). A lock
 whose process is gone is cleared as stale, so a killed run never blocks the id.
 
+### Regression runs inside a seam pass: `--no-publish`, and a private name (b59-seam1)
+
+`run.py <quest>` without `--no-publish` rewrites `OSRS-Content/.../selftest/quests/<dir>/play` (the
+committed evidence), so a regression run inside a seam pass passes `--no-publish`; on 2026-10-04 two
+plain `run.py cooks_assistant druid` runs left about 230 renamed PNGs in the content tree. With
+several workers live, a run by quest id also collides with theirs through the per-id lock, and
+`gate.py <id>` then reads THEIR ledger: run the regression as a private copy instead,
+`run.py --script <copy> --name <unique> --no-build --no-publish`, then `gate.py <unique>`.
+
+To show a content seam's behaviour BEFORE the fix without touching the shared pack, compile a
+scratch pack (seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)): copy `server/scripts` without
+`build*/` and `selftest/` into `<scratch>/server/scripts`, symlink every other entry of
+`osrs239-content` beside it, put the HEAD copy of the file there, and run
+`src/build_opt/sscompile --src <scratch>/server/scripts --content-root <scratch> --out <pack>`.
+`--content-root` must be the scratch root, not the real tree (the lane-gated rs2012 files fail to
+compile against the real one). Then run with `TORIRSSERVER_SCRIPTS=<pack>
+TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`.
+
 ## From section 8: harness facts
 
 ### `run.py --script` runs setup (seam19); `--no-build` skips only the client binary
