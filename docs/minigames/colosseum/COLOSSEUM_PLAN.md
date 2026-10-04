@@ -786,6 +786,24 @@ tolerance `approx`.
 | M56 | fremennik_trio | the berserker's attack-to-damage tick, and the tick a protection prayer is read on for all three members | none recorded (Blert sees no hit); a frame count or a solo test against a stationary player; added by the fremennik_trio spec pass |
 | M57 | fremennik_trio | trio hit chance against a player (wiki: 'very accurate', no number) | none recorded; many solo hits at a fixed defence; added by the fremennik_trio spec pass |
 | M58 | fremennik_trio | the rule that picks each member's standing side (D45) | Blert query over a larger sample restricted to a stationary player; added by the fremennik_trio spec pass |
+| M59 | javelin_colossus | the auto's hit chance, its damage under Protect from Missiles and the tick the prayer is read on | none recorded (Blert sees no hit); many solo hits at a fixed defence; added by the javelin_colossus spec pass |
+| M60 | javelin_colossus | Reentry pools: the extra tiles of II/III, pool damage, and why 66 of 99 observed pool spawns have no toss 6 ticks earlier | Blert query with each run's handicap level (overview) against pool spawns; a solo test with Reentry; added by the javelin_colossus spec pass |
+| M61 | javelin_colossus | line of sight against pillars and walls, and what an idle colossus does (11.4% of attack gaps exceed 5 ticks) | solo test behind a pillar; Blert query of the gap against the player's tile; added by the javelin_colossus spec pass |
+| M62 | jaguar_warrior | ticks from the attack animation start to each of its three hits (one tick or staggered), which animation frames they land on, and the tick the protection prayer is read on | none recorded (Blert sees no hit); a frame count or a solo test against a stationary player; added by the jaguar_warrior spec pass |
+| M63 | jaguar_warrior | hit chance of each of the three rolls and the damage of a hit under Protect from Melee | none recorded; many solo hits at a fixed defence; added by the jaguar_warrior spec pass |
+| M64 | jaguar_warrior | diagonal reach of its 2x2 footprint (observed attacks all cardinal, 160 of 160), whether line of sight or reach causes the 14 of 115 gaps over 5 ticks, and the safespot tiles | solo test at the pillar and at diagonal tiles; Blert query of the gap against the player tile; added by the jaguar_warrior spec pass |
+| M65 | serpent_shaman | the Water Surge hit chance against a player of fixed defence, its damage under Protect from Magic and the tick the prayer is read on | none recorded (Blert sees no hit); many solo hits at a fixed defence, a frame count of cast to hit; added by the serpent_shaman spec pass |
+| M66 | serpent_shaman | the reinforcement shaman's centre spawn when the player stands beside the melee partner's spawn (the tile, the radius), its line of sight at range 10 (76 of 891 attack gaps exceed 5), and whether it routefinds around pillars | solo test beside the spawn row and behind a pillar; Blert query of the gap against the player tile; added by the serpent_shaman spec pass |
+| M67 | manticore | the orb's hit chance against a player of fixed defence, its damage under Protect from Magic, Missiles and Melee (zero or reduced) and the tick a protection prayer is read on (wiki: before launch, not in flight) | none recorded (Blert sees no hit); many solo hits at a fixed defence, and a prayer switched on the launch tick against the tick before; added by the manticore spec pass |
+| M68 | manticore | Mantimayhem under the manticore: tier 1's second projectile (its tick, separate accuracy and damage rolls), tier 2's venom (first hit and amount), tier 3's order set and whether it redraws per burst or per instance (the sample holds 4 tier-3 instances, all mage-range-melee) | frame count and a solo run per tier; Blert query over tier-3 runs once the sample holds more; added by the manticore spec pass |
+| M69 | manticore | what cancels or restarts the 10-tick charge when line of sight is lost, what 'sight' means (range 15 and line of sight), and why 91 of 822 burst gaps exceed 10 (a pause the sample does not explain) | a solo test hiding behind a pillar mid-charge; Blert query joining long gaps to the player's line of sight; added by the manticore spec pass |
+| M70 | manticore | which death animation plays (10866 or 10867 `death_explode`), when the explosion 2721 and the gib model 12829 are used (wiki: Volatility explodes one tile beyond the size) | a frame count of a kill with and without Volatility; added by the manticore spec pass |
+| M71 | manticore | the moment a pair's order is picked: observed equal in 24 of 24 pairs alive together and in 22 of 26 pairs whose first manticore died before the second's first burst (a fresh random pick would give about half) | Blert query over more pair waves, with the first kill tick; added by the manticore spec pass |
+| M72 | shockwave_colossus | the clap's hit chance against a player of fixed defence, its damage under Protect from Magic and the tick the prayer is read on | none recorded (Blert sees no hit); many solo hits at a fixed defence; added by the shockwave_colossus spec pass |
+| M73 | shockwave_colossus | what holds a shockwave back (59 of 337 attack gaps exceed 5, the first attack comes at tick 3 to 206), the range rule (3 of 390 recorded attacks are 17 tiles from the footprint, 144 are adjacent) and the second colossus's tile under Dynamic Duo (2 observed, both 2 tiles diagonal) | solo test behind a pillar and at 16-17 tiles; Blert query of the gap against the player's tile; added by the shockwave_colossus spec pass |
+| M74 | minotaur | the melee hit chance against a player of fixed defence, its damage under Protect from Melee, the tick from the attack animation to the hitsplat (wiki: one tick later) and the tick the prayer is read on | none recorded (Blert sees no hit); many solo hits at a fixed defence; added by the minotaur spec pass |
+| M75 | minotaur | the heal's scan period and whether a heal spends the 5-tick attack timer, the delay from animation 10844 to the heal hitsplat, and why 8 of 345 attack gaps exceed 5 (first heal observed at spawn+3, 15 of 25) | solo test with a wounded manticore or javelin out of melee reach of a minotaur (heal ticks per tick log); a frame count of 10844; added by the minotaur spec pass |
+| M76 | minotaur | param_26 (2 vs 4) and whether the id alone switches routefinding, diagonal reach of the 3x3 footprint (1 of 398 gap-1 attacks diagonal; 11 of 409 at gap 2-3), and the pillar safespot tiles | solo test at the pillar and at the footprint corners, with and without Red Flag; added by the minotaur spec pass |
 
 **The five that matter most** (they gate the first seams or a whole unit): **M3**
 (spawn tiles: wave 1 cannot be built without them), **M30** (the offer rule: every
@@ -870,30 +888,33 @@ Colosseum seams follow, and the test row that proves it.
 | ENG-19: the client's npc pool kept the arena's npcs after leaving | every exit (cash-out, death, logout, teleport) despawns the instance's npcs and frees the handle | `t.npc.pack` empty after each exit |
 | The Inferno's `wave.enter` started a one-wave practice run that left after the wave | `::colosseum <wave>` places the player at the wave and the run continues to the end | the full-run test enters wave 1 by the debugproc only, as orchestrator section 6 allows |
 
-## Orchestrator rulings on source disagreements (2026-10-03)
+## Orchestrator rulings on source disagreements (2026-10-03, revised the same night)
 
-The owner was asked to rule on the disagreements below and delegated them ("Use your best
-judgement"). These are the waves orchestrator's rulings. Each says what would overturn it.
-A spec table or a build seam follows the ruling and cites this section; it does not
-re-open the question unless it holds the evidence named.
+The owner delegated these ("Use your best judgement") and then corrected the rule I had
+used: "the wiki is extremely likely to be correct. I would favor that over the cache tbh.
+The runner of that wiki is a stats nerd." The first version of this section ranked the
+cache above the wiki; that is withdrawn. A spec table or a build seam follows the rulings
+below and cites this section.
 
-**The rule behind all of them.** The target is the game as our cache has it (rev 239).
-1. What the cache itself states or computes (a struct's text, an enum, a client script's
-   arithmetic) is the game at that revision and outranks a wiki page, which describes
-   today's game and may post-date a change. 2. A Jagex newspost outranks the wiki; where two
-   posts differ, the later one wins; a post older than the cache that the cache contradicts
-   is superseded by the cache. 3. Where two cache scripts disagree with each other, the one
-   that computes the value the SERVER-facing interface shows (the summary or reward
-   screen) outranks one that draws a tooltip or preview. 4. A ruling made on ranking alone
-   is graded no higher than its best source and keeps an open row naming the observation
-   that would confirm it.
+**The rule behind all of them.**
+1. Where the OSRS wiki states a mechanic or a number and the cache (a client script's
+   arithmetic, a struct's text) disagrees, the WIKI's value is the spec value. The row
+   records the cache's value beside it as the disagreement, and the interface is built to
+   show what the wiki says the game does.
+2. Where the wiki and a Jagex newspost disagree, the wiki wins unless the post is later
+   than the wiki text and announces a change: the wiki tracks the live game and a post can
+   carry a slip of wording.
+3. Where the wiki is silent, the earlier ranking holds: a Jagex post, then the cache, then
+   plugin code, then a recording, then a guide.
+4. A recording's OBSERVED distribution that contradicts the wiki is not overruled by this:
+   list both, and say what a larger sample or a frame count would settle.
 
 | Id | Question | Ruling | Why | Overturned by |
 |---|---|---|---|---|
-| R1 (N1) | Glory for completing wave 12: +1,000 bonus (cache client script) or 1,200 with no bonus (wiki) | Follow the cache client script | Rule 1: it is the game's own arithmetic for what the player is shown | A frame of a real run's end screen whose total fits only the wiki's figure |
-| R2 (N2) | Is a modifier's glory multiplied by its level (two client scripts disagree) | Follow the script that computes the run's total on the summary or reward screen; the glory unit's table names which script that is | Rule 3 | The same frame as R1, taken from a run with a modifier above level 1 |
-| R3 (D2, N5) | Which wave the unique roll and the pet roll belong to: the wave just completed (Jagex posts) or the reward wave (wiki) | Write every roll as "rolled when wave N is completed", N taken from the latest Jagex post; if the wiki's numbering is the same event counted one wave later, say so in the row and close the disagreement | Rule 2, and the two may be one event under two numberings | A later Jagex post, or the cache's reward interface text stating the wave |
-| R4 (N6) | Relentless: "minimum hits" (post) or max hits (wiki) | Use the modifier's own description text from the cache struct (enum 5312's entry for Relentless, each level's text); if that text is silent, the post | Rule 1: the struct text is what the game tells the player | Nothing short of a measured hit distribution from a recording |
+| R1 (N1) | Glory for completing wave 12: +1,000 bonus (cache client script) or 1,200 with no bonus (wiki) | The wiki: 1,200 with no bonus | Rule 1 | A frame of a real run's end screen whose total fits only the client script |
+| R2 (N2) | Is a modifier's glory multiplied by its level (two client scripts disagree) | Whatever the wiki's glory page states; the client script that agrees with it is the one to cite | Rule 1 | The same frame as R1, from a run with a modifier above level 1 |
+| R3 (D2, N5) | Which wave the unique roll and the pet roll belong to: the wave just completed (Jagex posts) or the reward wave (wiki) | The wiki's numbering; write each row as "rolled when wave N is completed" so the two counts cannot be confused, and if the post is the same event counted one wave earlier say so and close the disagreement | Rule 2 | A Jagex post later than the wiki text that states the wave |
+| R4 (N6) | Relentless: "minimum hits" (post) or max hits (wiki) | The wiki: max hits | Rule 2 | A measured hit distribution from a recording |
 
 Not built because no source states them, and to stay that way until one does: an entry
 fee, and a pause. Logging out forfeits the run's loot (the plan's reading of the sources).

@@ -382,6 +382,16 @@ and the owner has the contact sheet. Then the next minigame.
 
 ## 12. Standing rules
 
+**The wiki outranks the cache where they disagree (owner, 2026-10-03, late).** "The wiki is
+extremely likely to be correct. I would favor that over the cache." Where the OSRS wiki
+states a mechanic or a number and the cache (a client script, a struct's text) says
+otherwise, the wiki's value is the spec value and the cache's is recorded as the
+disagreement. The wiki also wins over a Jagex post unless the post is later and announces
+a change. Where the wiki is silent, section 9's ranking holds. An observed recording that
+contradicts the wiki is listed beside it, not overruled. This overrides any pass context
+that says the cache outranks the wiki, and the orchestrator rules on such disagreements
+itself: the owner is not asked.
+
 **The 2004 source is not a source here (owner, 2026-10-03).** Neither wave minigame existed
 in 2004: never cite LostCity, never port from it, and never call a difference from it a
 defect. Where sections 5 and 10 name LostCity for the eat delay and the stat drain, read
