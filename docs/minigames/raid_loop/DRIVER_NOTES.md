@@ -4391,3 +4391,14 @@ the three orbs at 27 on every raider.
   frame-timed boundary. The fixers measured one run in three shifted by one tick from tick
   114-116; the closer's two runs were byte-identical (5561 lines). Compare runs by their
   ledgers' verdicts and spec rows, and quote tick-log rows rather than requiring `cmp`.
+
+## A burst's freeze is in the tick log: one npc_spotanim per slot it hit
+
+There is no `npc_frozen` kind, but an Ice Burst writes `npc_spotanim` `ice_burst_impact` (367 in
+this cache, height 124; `magic_combat_spells.dbrow` `spotanim_target,ice_burst_impact,124`) on
+every nylocas the 3x3 hit, wrong colour included; a splash is spotanim 85 instead. In the launch-14
+tob_nylocas log every one of the 33 chewer bite gaps that was not 3 ticks (17-19, the freeze) held
+a 367 row on that slot, and no 3-tick gap did. Key frozen gaps on that row by slot rather than
+guessing the burst's neighbours from `t.npc.tiles` at cast time (what tob_nylocas does now; it
+gives the same answer here, but a nylocas that walked into or out of the 3x3 in the press's tick
+would be misread).
