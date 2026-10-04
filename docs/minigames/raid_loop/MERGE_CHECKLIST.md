@@ -129,3 +129,22 @@ prays for most of its fight, so once both branches are on v3 re-run every kept r
 (`tools/raid_gate/suite.py`) and expect prayer-point and potion counts to move: a room that
 runs out of prayer is re-authored with more restores, the content is not bent back. The
 waves session will send the commit when its seam pass 4 lands.
+
+## Landed on the waves branch (2026-10-04): parent 457041eec, content c93c574f20
+
+The eat port (34 of 36 files byte-equal to `7936c59bf9`; the two that differ are listed in
+the waves loop's `docs/minigames/waves_loop/FORKED_FROM.md`), `consume_delay` varps
+7223-7225, the Gauntlet paddlefish on the same rule, the prayer fix (no restore over time,
+no drain on the activation tick, the drain counter zeroed on death, wiki drain rates), and
+the default retaliation honouring an npc record's `retaliate=no`. This branch changed the
+same retaliation path in its own seam (the tree-wide retaliation fix for the ToB bosses):
+expect a hand merge there and keep both sides' behaviour. `toa_supplies.rs2` is untouched
+on both branches and still open here.
+
+Two rows that concern this loop's own work:
+- `seam.eat_does_not_hold_queued_hit` (this loop's conformance row for the eat port) also
+  passes on the OLD content, so it does not tell old from new (the waves loop's ENG-58).
+  Open: make the row fail on the pre-port content (an eat inside the hit's delay window,
+  asserting the hit's landing tick), in the next seam pass that touches conformance.
+- `tools/check_gauntlet_contract.py` pins the old Gauntlet eat lines and is red on the
+  waves branch until its pin is updated (the waves loop's ENG-56); not this loop's file.
