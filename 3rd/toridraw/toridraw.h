@@ -301,6 +301,14 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_x,
     int screen_y);
 
+/** True when at least one face of the model survives lighting (its colour C is
+ *  not TORIDRAWHSL16_HIDDEN). A model whose every face is hidden -- an
+ *  invisible placeholder such as cache model 25362, a 4-vertex quad with
+ *  alpha 255 on both faces -- draws nothing and so can never be hit by
+ *  ToriDraw_ProjectedModelMouseHitTest. */
+bool
+ToriDraw_ModelHasVisibleFace(struct ToriDraw_ModelHandle hnd);
+
 /** The analogous test for a GROUND TILE mesh, which the reference does not pick
  *  through Model.draw at all — and which therefore differs from the model test
  *  in BOTH of its rules:

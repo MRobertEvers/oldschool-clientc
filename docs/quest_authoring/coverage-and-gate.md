@@ -736,3 +736,63 @@ change off fails its own cases. Landing it moved 15 committed greens of b56 (bla
 cooks_assistant, eadgar, enlightenedjourney, hauntedmine, hero, hunt, ikov, itgronigen, murder,
 queenofthieves, recruitmentdrive, seaslug, shadowsofcustodia, totem) and 25 of the 71 seam-1
 reopened rows; the list is build/seam_state/matthew-mbp-m4-b56-grader2/movers.tsv.
+
+### A "use X on Y" step reads DRIVEN though the run used another item on Y (Shades of Mort'ton, matthew-mbp-m4-b57-grader3)
+
+The b57 sampler (sampler-findings.md, b57 (a)) sent Mort'ton back. The run cured Razmire and
+Ulsquire with Serum 207 and never made Serum 208, but `use208OnRazmire` and `use208OnUlsquire`
+still read DRIVEN: "an action at line 366 names 'razmire_keelgan_afflicted'". Line 366 is only a
+`by_symbol` lookup. `use207OnFlame` read DRIVEN from the olive oil used on the altar. The verdict
+was FULL. There were two causes. `Guide.items` kept only an ItemRequirement's first id: no
+`addAlternates`, no ItemCollections, no `addIcon`. And nothing knew `mort_serum3` was a dose of the
+guide's `mort_serum1`. So the old `^use` check never saw the cure as a guide item, and the
+any-action-names-the-target loop drove the step.
+
+`Grader.use_item_wanted` / `use_item_driven` replace that now:
+
+- **Which steps.** A step counts when it has an npc/loc target and its text leads with "Use", or
+  when it is named `use<X>On<Y>`. A step named for another verb that a later clause does is left
+  out: "Use the filled druid pouch on a ghast ... and kill it" is `killGhasts`. So is "use the
+  ancient mace's special attack" (`useSpecial`) and a step that only carries its items.
+- **Which item.** Take the `use <X> on|with|in <Y>` clause whose `<Y>` names the target. "Then use
+  it on the pipe" means the clause before's `<X>`. X is the requirement or icon its words name
+  best, by the requirement's name or the display name of any id it accepts. If no name matches, use
+  the highlighted requirement, then the icon. Every id the requirement accepts counts: the ctor's,
+  `addAlternates`, ItemCollections (Quest Helper's `ItemCollections.java`).
+- **Same item.** `obj_family`: the noted form, placeholder and stack images (`certlink`,
+  `placeholderlink`, `countobj`), and dose or charge variants. Those are the objs whose display
+  name matches once a trailing `(N)` is cut, where one of the two carries the `(N)`. Olive oil(3)
+  is the guide's Olive oil(4). `same_thing`'s display rule also counts (Viking's sealed vase,
+  `_water` / `_frozen`). Not `next_obj_stage`, which walks into other objects (`oliveoil4 ->
+  sacred_oil4`).
+- **What drives it.** A `use_on(item, target)` call on the step's target, or one whose row is
+  named after the step. The call's item must be in the family. That is its literal, the local it
+  was bound to, or a loop over `ipairs({...})`. If the item is a variable the test never binds,
+  the row's `[backpack: ... lost X]` must show the item left. A call that writes a named row needs
+  a PASS of that row in the ledger (`"x" .. i` matches by prefix). Without one, the run never got
+  there, and the step is refused. A row named after the step with no `use_on` counts when its
+  backpack diff lost X.
+- **Otherwise.** The other classes grade it as they grade any undriven step. UNMATCHED reads "no
+  use_on of the step's item drives it: the guide's step uses <item> (<ids>) on <target>; line N
+  (ledger row ...) uses <what it used>".
+
+What an author does: use the guide's item on the guide's target with `t.player.use_on`. If the port
+offers another item (Legends' glowing dagger on Ungadulu), or the content's own op does the job
+(the Red Vine "Check", Viking's pipe), declare it with an `ANY-OF:` / `GUIDE-GAP:` marker that
+cites the `.rs2` branch.
+
+Proof: `tools/quest_gate/helper_coverage_use_item_test.py` uses the reverted Mort'ton run (Lua
+03d4ac076, OSRS-Content ledger b52050c293). Rule on: 8/8. With `QUEST_GATE_USE_ITEM_RULE=0`: 5/8.
+With the rule off, the three steps are DRIVEN, the unbound-item and never-ran cases fail, and
+every other grade is identical to v3 over the 62 b57 greens. The rule moves seven green steps in
+six tests, listed in build/seam_state/matthew-mbp-m4-b57-grader3/movers.tsv:
+
+- legends `talkToUngaduluForForce`: the glowing dagger, not the dark dagger.
+- itwatchtower `useNightshadeOnGuard` and `useNightshadeOnGuardAgain`: the run stopped BLOCKED
+  before them.
+- shadowstorm `useImplementOnGolem`: the same.
+- fishingcompo `goToRedVine`: a click on the vine.
+- thefeud `pickupDung`: no use at all.
+- viking `useStrangeObjectOnPipe`: a click on the pipe.
+
+Two verdicts change: legends FULL -> TEST_GAP, shadowstorm TEST_GAP -> MIXED.

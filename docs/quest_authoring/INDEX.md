@@ -20,6 +20,15 @@ topic file with one line added here.
 - `screen_position: <reason>`, `not_found` one tile from an npc -> traps-13-22: Trap 19
 - where is this LOC placed (`loc_add`); a `loc_near -> not_found` sweep -> traps-23-33: Trap 29; gaps-world: A LOC's tile
 - a `^*_coord` constant -> gaps-world: `^*_coord` decoding; A coord constant is where the player SHOULD go
+- a level-1 row reads the level-0 door below as "stands open"; `loc_near` answers another floor's copy -> verbs-pointer: Stacked floors
+- crossing a door or gate on foot; a hand-written `pass_door` helper -> verbs-pointer: `t.player.pass_door(spec)`
+- a door you opened draws NEITHER leaf when you come back; `pass_door` answers `neither leaf on level L` (OPEN engine fix; close it behind you) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (l)
+- `talk_to` answers `I can't reach that!` from the tile in front of an npc behind crates or a counter (Kennith; FIXED b59-seam1: `[apnpc1]` + `p_aprange(2)`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (a)
+- the Sinclair mansion stairs say "It's just a staircase."; Murder Mystery's level-1 barrels out of reach (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b)
+- `walk_to` stalls at 2559,3299 beside `ardougnedoor_l`; no way into West Ardougne (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (c)
+- Lletya's trees say "Nothing interesting happens."; the teleport crystal does nothing; a goto into Lletya (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (e)
+- the Mourner HQ basement ladder lands at 2044,4649,1; a Camelot Teleport out of the basement (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (f)
+- no boat to Miscellania, "I still need to fix this longboat"; `the dialogue closed after N page(s)` on a boat ride (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (i)
 - `on attempt 2 of 3 via ::goto` -> verbs-pointer: `t.player.goto_tile`
 - a goto mid-fight runs back to the npc -> verbs-pointer: Since seam 15 a goto stops the player's action
 - a teleport dialogue lands on your next click; every press `covered` -> start-and-travel: A dialogue or loc that
@@ -27,7 +36,11 @@ topic file with one line added here.
 - `click_loc` `timeout` on a stile that landed -> start-and-travel: A short hop (stiles)
 - `refused -- You can't go any further.` on a ladder -> start-and-travel: Why not `click_loc` the ladder
 - ladders, stairs, trapdoors, basements (`z+6400`), a scene that fails to load -> start-and-travel: Floors and ladders
-- a lever maze the hand-in never reads -> gaps-world: The `goto_tile` bypass
+- a lever maze the hand-in never reads -> gaps-world: The `goto_tile` bypass (SUPERSEDED b58-seam1: Ernest's maze is walked, seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (c))
+- the Wilderness Ditch's Cross answers "Nothing interesting happens."; a goto across the Wilderness border "because the ditch cannot be crossed" (FIXED b58-seam1: Cross jumps it, `t.ticks(4)` then read the tile, the warning pages on the first jump north) -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (a)
+- Keldagrim "has no exit"; a goto out of Keldagrim; boatman Talk-to/Travel, the Dorgesh-Kaan platform, the GE / Ice Mountain carts (FIXED b58-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (f)
+- `walk_to` answers `refused move_to` right after a ferry or boat landing -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (f): walk to a tile inside the scene the landing built first
+- Between a Rock: the ferry cave lands in sealed rock; the wall of flame's Jump-through says "Nothing interesting happens." (FIXED b58-seam1); `talkToDondakan` `no npc ... in the client's entity pool` after the ferry -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (e)
 - `other_floor: ...`; `reach level N by the guide's route first`; a loc only on another floor (never a driver seam) -> verbs-pointer: One named copy; seam-facts: Seam pass vm-b1-seam1 (a)
 - Penguin Agility Course: steps/stepstone `other_floor`, `walk_to` stuck in the water, crusher has only Examine (FIXED vm-b1-seam2: walk onto 2636,4054,1, wade, climb stepstone01) -> gaps-world: Penguin Agility Course
 - Cold War: "The spell wears off as you leave the penguins behind" / "Move along, civilian." after entering the course water -> seam-facts: Seam pass vm-b1-seam2 (a)
@@ -107,6 +120,10 @@ topic file with one line added here.
 - `t.ui.invoke(w, 0)` on an IF1 button does nothing and the `.rs2` binds `[if_button1,...]`; `t.ui.invoke(w, 1)` answers on one button but a real click would not -> traps-23-33: Trap 33 (the IF1 dispatch, FIXED for Ratcatchers, then Dwarf Cannon and Grim Tales' piano in b49-seam2); seam-facts: Seam pass matthew-mbp-m4-b49-seam1 (a)
 
 - `use_on` leaves the tile the content checks ("You need to stand in Betty's open doorway"); a loc used from three tiles off -> verbs-inventory-shops: `use_on` walks off the tile
+- a maze gate or door answers "I can't reach that!" from one side only, a `blankwall_no_blockrange` (loc 44603) on its edge (Ernest the Chicken, FIXED b58-seam1 by `[aploc1]`) -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (c)
+- a door "is securely locked" from INSIDE yet opens from outside without the key (Shield of Arrav `phoenixdoor2`, FIXED b58-seam1): the cache placed the door on the other tile from LostCity's -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (b)
+- a door says it unlocks/opens, its open leaf appears, and the player still cannot pass either way (Eadgar's storeroom, FIXED b58-seam1: walk-through like `open_and_close_door2`) -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (d)
+- `covered ... none of N pixels hittested` on an npc the shot shows nobody at (Biohazard's Chancy / Da Vinci, all-hidden model; FIXED b58-seam1, never `t.drive.op`) -> traps-13-22: Trap 21; seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (h)
 ## Dialogue and chat
 
 - `chat.choose("Yes.")` answers stale on a choice that reopens a name prompt (`p_choice2` then `p_namedialog`, The Garden of Death) -> gaps-dialogue: A choice that reopens as a name prompt
@@ -345,6 +362,8 @@ topic file with one line added here.
 - a stalled script (`TORIRSSERVER_VERBOSE=1`) -> running: `boss_fight=yes`
 - a stale `docs/quests/` walkthrough -> running: Resuming; gaps-world: Read `docs/quests/<quest>.md`
 - proving a content line in a file outside your seam without touching the shared tree; `TORIRSSERVER_SCRIPTS=<private pack>` -> running.md: the private-pack paragraph at the end (matthew-mbp-m4-b49-seam1)
+- proving the PRE-fix content behaviour (a baseline) without reverting the shared tree: a symlink farm with the one file at HEAD, compiled privately -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)
+- a regression run rewrote `selftest/quests/<dir>/play`; `gate.py <id>` read another worker's ledger; proving content BEFORE a fix -> running: Regression runs inside a seam pass
 
 ## Sea and session
 
@@ -464,6 +483,13 @@ topic file with one line added here.
 - an Evil Creature (Eyes of Glouphrie) or any 1-max-hit npc takes your hp down a point; one fight read 40 -> 40 and another 40 -> 35 -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (h) (they hit back, wiki max hit 1) and (i) (per-npc seeded rolls; count swings)
 - a kill's return teleport never moves you; client.log `npc_findhero with no active npc ... from [ai_queue3,<npc>]` (H.A.M. rangers, Sigmund) (FIXED b55-seam2: queue the player's half) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam2 (a); the suspend checker misses a page after `npc_findhero`, five more candidates (OPEN) -> (b)
 - `click_loc slice_goblin_ladder_top` answers "I can't reach that!" on the H.A.M. watchtower (OPEN parity: landing tile behind the crates) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam2 (c)
+- Mourner HQ "The door is locked..." or the trapdoor's "Nothing interesting happens." after Part I; "The trapdoor is bolted on the other side." (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (d)
+- `talkToEssyllt` `no npc 9235 ... in the client's entity pool` right after the trapdoor (await the npc first) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (d)
+- Arianwyn `no npc in the entity pool` from the teleport crystal's landing -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (e)
+- extra ogre bellows after the dyes; a 12-coal give cut to 9 (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (g)
+- the Temple of Light Low wall's Climb-over says "Nothing interesting happens."; `timeout settle_after_click` on the hop (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (h)
+- the Entrana monk: "NO WEAPONS OR ARMOUR are permitted on holy Entrana AT ALL"; a test that boarded armed (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (j)
+- a quest trigger on a shared staircase kills it for everyone; a quest ladder with no maplink row (`~climb_ladder_to`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b), (f)
 
 ## Citations: resolving a number or a name
 
@@ -480,12 +506,13 @@ topic file with one line added here.
 - "vm-b1-seam2 (a)-(d)", "[seam:vm-b1-seam2]" -> seam-facts: Seam pass vm-b1-seam2
 - "vm-b1-seam3 (a)-(d)", "[seam:vm-b1-seam3]" -> seam-facts: Seam pass vm-b1-seam3
 - "vm-b1-seam4 (a)-(c)", "[seam:vm-b1-seam4]" -> seam-facts: Seam pass vm-b1-seam4
+- `KeyError: '(goto past <door>)'` from `ladder.py` or `fail.py --leg` (FIXED b58-seam1: the charges are listed under the table as "not guide steps") -> relay: The ladder; seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (g)
 - `ladder.py` prints "cut in route order" / exits 2 on a `.legs` line ("not a stage range", "falls in none of its ranges"); a leg needs a stage a later leg reaches -> relay: The legs follow the guide's order, and the route does not
 - helper_coverage CONTENT_GAP on a step that is really driven, pinned on a `mes()` in another branch; `{{tact|receives=}}` -> seam-facts: Seam pass vm-b1-seam2 (b)
 - helper_coverage CONTENT_GAP at an unrelated file on a `goToX`/`travelToX` step whose own rows PASS (FIXED vm-b1-seam4) -> coverage-and-gate: CONTENT_GAP at an unrelated line
 - helper_coverage UNMATCHED "presses op1 'Search' ... a gating op" on a step whose text opens with Climb (FIXED vm-b1-seam4, `clause_verbs`) -> coverage-and-gate: Gate RED on the last leg's
 - "the varp seam", "never-arriving-varp", "journal cross-check" -> gaps-world: A stage poll
-- "section 8's player.attack note" -> gaps-combat: `t.player.attack`'s settle; "Ernest the Chicken's maze" -> gaps-world: The `goto_tile` bypass
+- "section 8's player.attack note" -> gaps-combat: `t.player.attack`'s settle; "Ernest the Chicken's maze" -> gaps-world: The `goto_tile` bypass (SUPERSEDED, seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (c))
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
@@ -515,3 +542,6 @@ topic file with one line added here.
 - helper_coverage CHEAT "lands at ... in a room the map walls in (... door <sym> at x,z,l: maps/mX_Z.jl2) ... it went past the closed door (enclosure_entries)"; a goto_tile inside a house whose door the guide never names -> start-and-travel: The grader now catches the goto inside; coverage-and-gate: `enclosure_entries`
 - helper_coverage CHEAT "lands at ... in a pocket the map closes on every side" / "leaves a room the map walls in ... out past the closed door" / "(a blocked tile on the room's edge ...)" / a `(goto past <door>)` step; a goto onto a table, a stair or behind a bar -> coverage-and-gate: A goto onto a table, a stair or a bar's back reads FULL
 - helper_coverage FULL credits `use208OnRazmire` (any `use<Item>On<Target>`) as "an action at line N names '<npc>'" while the ledger never used that item (the `use_on` names the target through a `by_symbol` variable) -> sampler-findings: Sample matthew-mbp-m4-b57 (a)
+- helper_coverage UNMATCHED "no use_on of the step's item drives it: the guide's step uses <item> ... on <target>; line N ... uses <other item>" / "... never ran"; a `use<X>On<Y>` step that read DRIVEN though the run used another item (Mort'ton's serum 207 for 208) -> coverage-and-gate: A "use X on Y" step reads DRIVEN though the run used another item
+- `goto_table.py` prints UNREACHABLE for a goto between two outdoor tiles (the Trollheim summit and Taverley, Ardougne or Lumbridge) while helper_coverage reads FULL; a mountain top or island you reached once through a building or climb -> sampler-findings: Sample matthew-mbp-m4-b58, round 2 (a)
+- a `*-dead` fight row reads "OUT OF shark" or has no `*-margin` row after it, while the same quest's later fights do (a local `kill()` helper with only `eat =`) -> sampler-findings: Sample matthew-mbp-m4-b58, round 3 (a)

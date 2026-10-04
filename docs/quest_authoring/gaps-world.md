@@ -177,6 +177,11 @@ puts it there itself, and a row that reads the npc pool right after a cross-plan
 
 *Origin: section 8 ("Gaps reported by authors").*
 
+> SUPERSEDED (seam pass matthew-mbp-m4-b58-seam1, OSRS-Content 6369379ada): the owner's rule now
+> makes a goto into or out of any closed space a cheat, and Ernest's maze can be walked end to end.
+> Its gates answer from the walled side (seam-facts: "Ernest the Chicken's maze gates"), so drive the
+> levers and gates. The paragraph below is history.
+
 The doc's `goto_tile` bypass (ladders, stairs, trapdoors, `cog.lua`'s navigation-only side puzzle)
 covers a SCRIPTED PUZZLE-GATED door too, whenever the hand-in reads no lever or door state: Ernest
 the Chicken's six-lever maze is pure navigation, because `quest_haunted.rs2:451`'s hand-in tests
