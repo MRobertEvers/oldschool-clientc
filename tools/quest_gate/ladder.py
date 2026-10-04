@@ -39,6 +39,13 @@ a quest without the file is cut exactly as before. --guide-order ignores
 the file; --legs N with a route cut exits 2. fail.py --leg K follows the
 same cut, through build() and cut().
 
+CHARGES. The grade reads the last run's ledger, and a goto there that no
+guide step is named after comes back as a step of its own ("(goto past
+<door>)", "(goto out past <door>)", "(goto into a sealed pocket)"). It is
+not a guide step: it is left out of the table (n, legs and --write are the
+guide's alone) and listed under it, and under "charges" in --json.
+tools/quest_gate/ladder_pseudo_step_test.py holds it.
+
 --leg K prints only leg K after a three-line header (the quest, the stage
 the leg starts at, the last step of the previous leg): what a relay author
 is handed. --write writes docs/quests/ladders/<test_id>.ladder.tsv.
@@ -111,9 +118,19 @@ def quest_triggers(quest_dir, targets, cap=1):
     return shown
 
 
-def build(test_id, route=True):
+def build(test_id, route=True, charges=None):
     """(QUEUE row, guide path, steps). The steps are in the guide's order, or
-    in route order when the quest has a .legs file and route is true."""
+    in route order when the quest has a .legs file and route is true.
+
+    A graded entry that is not a guide step is left out of the steps: the
+    "(goto past <door>)" / "(goto into a sealed pocket)" step the grader adds
+    for a goto in the last run's ledger that no guide step is named after
+    (helper_coverage Grader._charge_name, ENCLOSURE_CHARGE_ANY). It is the
+    test's charge, not the guide's ask, and has no Guide entry to read;
+    indexing guide.steps by it was the KeyError that stopped ladder.py on
+    blackarmgang and haunted (seam pass matthew-mbp-m4-b58-seam1). When
+    `charges` is a list, each one left out is appended to it as
+    {"step", "reason"}, so main() can name it under the table."""
     row = hc.queue_row(test_id)
     if row is None:
         die("test_id %r is not in %s" % (test_id, hc.QUEUE_PATH))
@@ -139,8 +156,14 @@ def build(test_id, route=True):
             for leaf in guide.leaves(step.name):
                 parent_of.setdefault(leaf, step.name)
     steps = []
-    for number, result in enumerate(graded, 1):
-        step = guide.steps[result["step"]]
+    number = 0
+    for result in graded:
+        step = guide.steps.get(result["step"])
+        if step is None:
+            if charges is not None:
+                charges.append({"step": result["step"], "reason": result.get("reason") or ""})
+            continue
+        number += 1
         kind = step.kind
         if result["step"] in parent_of and parent_of[result["step"]] != result["step"]:
             kind = "%s<%s" % (kind, parent_of[result["step"]])
@@ -169,6 +192,9 @@ def build(test_id, route=True):
             "triggers": quest_triggers(row["quest_dir"], step.targets),
             "guide_line": step.line,
         })
+    if not steps:
+        die("guide %s graded to no guide steps (only the run's charges: %s)" % (
+            path, ", ".join(result["step"] for result in graded)))
     if route:
         steps = route_order(test_id, steps)
     return row, os.path.relpath(path, hc.QUEST_HELPER_ROOT), steps
@@ -322,7 +348,8 @@ def main():
     if args.legs is not None and args.legs < 1:
         die("--legs must be at least 1, got %d" % args.legs)
 
-    row, guide, steps = build(args.test_id, route=not args.guide_order)
+    charges = []
+    row, guide, steps = build(args.test_id, route=not args.guide_order, charges=charges)
     routed = bool(steps) and "route_leg" in steps[0]
     if routed and args.legs is not None:
         die("--legs %d: %s is cut by route in %s; edit that file, or add --guide-order" % (
@@ -375,7 +402,8 @@ def main():
     if args.json:
         print(json.dumps({"test_id": args.test_id, "quest_dir": row["quest_dir"], "guide": guide,
                           "step_count": len(steps), "legs": leg_info,
-                          "steps": [dict(s, leg=leg_of[s["n"]]) for s in shown]}, indent=1))
+                          "steps": [dict(s, leg=leg_of[s["n"]]) for s in shown],
+                          "charges": charges}, indent=1))
         return 0
 
     if args.leg is not None:
@@ -398,6 +426,13 @@ def main():
                 stage_str(info["end_stage"]), info["first"], info["last"]))
     print(LEGEND)
     print("\n".join(text_rows(shown, leg_of)))
+    if charges:
+        # Not guide steps: the grader's charge for a goto in the last run's
+        # ledger that no guide step is named after (build()'s docstring).
+        print("not guide steps -- helper_coverage charges these from the last run's ledger "
+              "(python3 tools/quest_gate/helper_coverage.py %s):" % args.test_id)
+        for charge in charges:
+            print("  %s  %s" % (charge["step"], clip(charge["reason"], TEXT_CAP)))
     return 0
 
 

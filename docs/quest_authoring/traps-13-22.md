@@ -157,6 +157,12 @@ A hunted press that WORKS says so in the next row
 means you are standing in a scene that has not rebuilt (section 2's teleport bullet), not that
 something is in the way.
 
+`covered ... none of N pixels hittested` on an npc that the shot shows NOBODY at can mean the npc's
+model is all hidden faces (alpha 255; cache model 25362 on Biohazard's `gambler2`/`artist2`). That
+was a client pick gap, not a camera or stand problem. FIXED in seam pass matthew-mbp-m4-b58-seam1:
+an entity with no visible face picks by its box, as the reference does. If it comes back, report it
+as a seam and never fall back to `t.drive.op`.
+
 ### `ui.tab` answering `ok` does not mean the tab is painted
 
 Same shape one layer down: `t.ui.tab("inventory")` is a BUTTON PRESS that returns as soon as the
