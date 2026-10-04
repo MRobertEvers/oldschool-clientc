@@ -1,7 +1,10 @@
 -- Gertrude's Cat (quest_fluffs). Hand-authored from the scaffold, resumed
 -- after t.player.use_item_on_item landed (was BLOCKED on the missing OPHELDU
 -- verb) and again after a review rejection for two missing item-reward
--- rows; see QUEUE.tsv's last_failure history for both.
+-- rows; see QUEUE.tsv's last_failure history for both. Re-driven in
+-- matthew-mbp-m4-b57 for the closed-space rule: no goto lands in or leaves
+-- Gertrude's house or the fenced lumber yard, and every level change is the
+-- ladder itself.
 --
 -- Flow (areas/varrock/scripts/gertrude.rs2, quests/quest_fluffs/scripts/
 -- quest_fluffs.rs2): talk to Gertrude and accept -> talk to Shilop, pay 100
@@ -13,18 +16,27 @@
 -- quest_fluffs.constant's ^fluffs_crate_0..5) -> give the found kitten back
 -- to Fluffs -> hand in to Gertrude for the reward.
 --
--- Driven for real throughout: Gertrude's accept dialogue, paying Shilop the
--- 100 coins (a real p_choice3 -> p_choice2 branch with the coins actually
--- deducted), walking upstairs to Fluffs and using the milk on her (a real
--- OPNPCU click, %fluffs actually advances), picking a live doogleleaves obj,
--- seasoning the sardine with a real use_item_on_item (OPHELDU) press, feeding
--- it to Fluffs, searching each of the six live kittens_mew crate npcs by its
--- own tile until the one matching %fluffs_crate answers with the kitten
--- mesbox, giving the found kitten back to Fluffs (opnpcu, gertrudekittens),
--- and hand-in to Gertrude (opnpc1, %fluffs=rescued branch) which settles the
--- rewards synchronously (~fluffs_settle_rewards): 1525 Cooking XP, a random
--- one of six pet-kitten colours (~gertrude_give_cat), a Chocolate Cake and a
--- Stew (quest_fluffs.rs2:326-350).
+-- Driven for real throughout: Gertrude's front door (fai_varrock_door,
+-- 3151,3412, maps/m49_53.jl2) opened on the way in and walked through on the
+-- way out; Gertrude's accept dialogue; paying Shilop the 100 coins (a real
+-- p_choice3 -> p_choice2 branch with the coins actually deducted); the lumber
+-- yard's broken fence (gertrudefence 3308,3492, [oploc1,gertrudefence]
+-- quest_fluffs.rs2:126-140, an exactmove between 3308,3491 and 3308,3492)
+-- climbed in and out on every visit; the yard's ladder (fai_varrock_ladder /
+-- fai_varrock_laddertop at 3310,3509, ~climb's same-tile plane change, no
+-- maplink row) climbed up to the loft and down again every time; using the
+-- milk on Fluffs (a real OPNPCU click, %fluffs actually advances); picking a
+-- live doogleleaves obj; seasoning the sardine with a real use_item_on_item
+-- (OPHELDU) press; feeding it to Fluffs; walking to each of the six live
+-- kittens_mew crate npcs and searching that copy by its tile until the one
+-- matching %fluffs_crate answers with the kitten mesbox (every other one must
+-- answer "You find nothing."); giving the found kitten back to Fluffs
+-- (opnpcu, gertrudekittens); and hand-in to Gertrude (opnpc1, %fluffs=rescued
+-- branch) which settles the rewards synchronously (~fluffs_settle_rewards):
+-- 1525 Cooking XP, a random one of six pet-kitten colours
+-- (~gertrude_give_cat), a Chocolate Cake and a Stew (quest_fluffs.rs2:333-356).
+-- No fight: Fluffs' scratch (~fluffs_attack) is only on opnpc1/opnpc3, never
+-- pressed here.
 
 return {
     id = "fluffs",
@@ -56,8 +68,112 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3) -- setup cheats' effects are not client-side yet
 
-        -- Talk to Gertrude west of Varrock (gertrude.rs2:10) and accept.
-        t.exec("goto-talkToGertrude", t.player.goto_tile, 3151, 3410, 0)
+        local function tile_text(r, tt)
+            return r == "ok" and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
+        end
+
+        -- Cross one door on foot. Walk to the tile on this side of it; if the
+        -- closed leaf stands at door_x,door_z, click THAT copy; otherwise an
+        -- earlier press left it open (doors swing back after 500 ticks), so
+        -- assert the open leaf is really standing on or beside the door tile
+        -- -- a row that fails when neither leaf is there -- and do not press it
+        -- again. Then walk to the far side and check the tile.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 30)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and math.abs(nt.x - near_x) <= 1 and math.abs(nt.z - near_z) <= 1 and nt.level == 0,
+                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. "," .. door_z .. " -> " .. tile_text(nr, nt))
+            local cr, cd = t.world.loc_near(closed_sym, 3)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".doorStandsOpen", orr == "ok" and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z) or tostring(cr))
+                        .. "; " .. open_sym .. ": " .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z) or tostring(orr))
+                        .. " (want within 1 of the door tile: still open from the earlier press, so walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z, 30)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and far_ok(ft),
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
+        end
+
+        -- Gertrude's house: the room x 3148-3153 z 3404-3411 (maps/m49_53.jl2),
+        -- its front door fai_varrock_door on the south edge of 3151,3412.
+        local function inside_house(ft)
+            return ft.level == 0 and ft.x >= 3148 and ft.x <= 3153 and ft.z >= 3404 and ft.z <= 3411
+        end
+        local function enter_house(prefix)
+            pass_door(prefix, "fai_varrock_door", "fai_varrock_door_open", 3151, 3412, 3151, 3413, 3151, 3411,
+                inside_house, "inside Gertrude's house, x 3148-3153 z 3404-3411")
+        end
+        local function leave_house(prefix)
+            pass_door(prefix, "fai_varrock_door", "fai_varrock_door_open", 3151, 3412, 3151, 3411, 3151, 3413,
+                function(ft) return ft.level == 0 and ft.z >= 3412 end, "outside the front door, z >= 3412")
+        end
+
+        -- The lumber yard's broken fence. [oploc1,gertrudefence] is an
+        -- exactmove between 3308,3491 (outside) and 3308,3492 (the fence
+        -- tile, inside): a one-tile hop after a route, so click_loc can read
+        -- `timeout` on a crossing that landed (start-and-travel: "A short hop
+        -- does not trip it"). It is called directly and graded on the tile,
+        -- which only the crossing reaches (3308,3491 -> 3308,3493 has no
+        -- static route at margin 40).
+        local function cross_fence(prefix, entering)
+            local near_z = entering and 3491 or 3493
+            t.player.walk_to(3308, near_z, 30)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atFence", nr == "ok" and nt.x == 3308 and nt.z == near_z and nt.level == 0,
+                "walked to 3308," .. near_z .. " beside the broken fence at 3308,3492 -> " .. tile_text(nr, nt))
+            local cr, cd = t.player.click_loc("gertrudefence", 1, { at = { 3308, 3492 } })
+            local fr, ft
+            for _ = 1, 8 do
+                t.ticks(1)
+                fr, ft = t.world.tile()
+                if fr == "ok" and ((entering and ft.z >= 3492) or ((not entering) and ft.z <= 3491)) then
+                    break
+                end
+            end
+            t.check(prefix .. ".crossed", fr == "ok" and ft.x == 3308 and ft.level == 0
+                    and ((entering and ft.z == 3492) or ((not entering) and ft.z == 3491)),
+                "click_loc(gertrudefence) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. tile_text(fr, ft)
+                    .. " (want " .. (entering and "3308,3492,0 inside the yard" or "3308,3491,0 outside the yard") .. ")")
+        end
+
+        -- The loft ladder at 3310,3509: ~climb moves the player to the same
+        -- tile one plane up or down (no maplink row names it).
+        local function climb(name, sym, want_level)
+            t.exec(name, t.player.click_loc, sym, 1, { at = { 3310, 3509 } })
+            -- the click can settle on the walk's map_flag arm when the route
+            -- ends beside the ladder, before ~climb_ladder's anim + p_delay
+            -- moves the plane: poll the tile for the climb itself.
+            local cr, ct
+            for _ = 1, 8 do
+                cr, ct = t.world.tile()
+                if cr == "ok" and ct.level == want_level then
+                    break
+                end
+                t.ticks(1)
+            end
+            t.check(name .. ".level", cr == "ok" and ct.level == want_level and math.abs(ct.x - 3310) <= 1 and math.abs(ct.z - 3509) <= 1,
+                "tile after " .. sym .. " -> " .. tile_text(cr, ct) .. " (want level " .. want_level .. " beside 3310,3509)")
+        end
+
+        -- Outside the yard's south fence -> over the fence -> up the ladder.
+        local function up_to_loft(goto_name, ladder_name)
+            t.exec(goto_name, t.player.goto_tile, 3308, 3490, 0)
+            cross_fence(ladder_name .. ".fenceIn", true)
+            climb(ladder_name, "fai_varrock_ladder", 1)
+        end
+
+        -- Talk to Gertrude west of Varrock (gertrude.rs2:10) and accept. The
+        -- goto lands on the street north of her front door; the door is opened
+        -- and walked through.
+        t.exec("goto-talkToGertrude", t.player.goto_tile, 3151, 3414, 0)
+        enter_house("talkToGertrude.door")
         t.exec("talkToGertrude", t.player.talk_to, "gertrude", 1)
         t.exec("talkToGertrude-dialog", t.chat.play, {
             "player:Hello, are you okay?",
@@ -74,6 +190,7 @@ return {
             "player:Alright then, I'll see what I can do.",
         })
         t.exec("quest.stage.started", t.quest.expect_stage, "started")
+        leave_house("talkToGertrude.leave")
 
         -- Talk to Shilop in Varrock Square (fluffs_boy_dialogue -> fluffs_boy
         -- -> fluffs_boy_secondary, "What will make you tell me?" -> fluffs_pay,
@@ -110,10 +227,11 @@ return {
         t.check("spentCoins", coins_result == "ok" and coins_left == 0,
             "coins after paying Shilop 100 = " .. tostring(coins_left) .. " (read " .. tostring(coins_result) .. ")")
 
-        -- Fluffs (gertrudescat) is upstairs in the lumber mill loft,
-        -- ^fluffs_cat_coord = 1_51_54_42_56 -> 3306,3512,1. Give her the milk
-        -- (OPNPCU, quest_fluffs.rs2:216-234).
-        t.exec("goto-fluffsCat", t.player.goto_tile, 3306, 3512, 1)
+        -- Fluffs (gertrudescat) is upstairs in the lumber yard loft,
+        -- ^fluffs_cat_coord = 1_51_54_42_56 -> 3306,3512,1. Over the broken
+        -- fence, up the ladder, and give her the milk (OPNPCU,
+        -- quest_fluffs.rs2:216-234).
+        up_to_loft("goto-fluffsCat", "climbLadder")
         local cat = t.player.by_symbol("npc", "gertrudescat")
         t.exec("giveMilkToFluffs", t.player.use_on, "bucket_milk", cat)
         -- OPNPCU's own p_delay (quest_fluffs.rs2:229-234) lands after
@@ -125,10 +243,16 @@ return {
         local milk_result, milk_left = t.inv.count("bucket_milk")
         t.check("milkConsumed", milk_result == "ok" and milk_left == 0,
             "bucket_milk after feeding Fluffs = " .. tostring(milk_left) .. " (read " .. tostring(milk_result) .. ")")
+        t.expect("milkBucketEmptied", t.inv.expect_has("bucket_empty", 1)) -- inv_add(inv, bucket_empty, 1), quest_fluffs.rs2:233
 
-        -- Doogle leaves grow behind Gertrude's house (m49_53.spawn OBJ block,
-        -- e.g. 3151,3399,0). Pick one up -- the seasoning step past this needs
-        -- it and the raw sardine already carried.
+        -- Down the ladder and back out over the fence before travelling.
+        climb("leaveLoft1", "fai_varrock_laddertop", 0)
+        cross_fence("leaveYard1.fenceOut", false)
+
+        -- Doogle leaves grow behind Gertrude's house, in the open (m49_53.spawn
+        -- OBJ block, e.g. 3151,3399; a static route from the street north of
+        -- the house reaches it with every door closed). Pick one up -- the
+        -- seasoning step past this needs it and the raw sardine already carried.
         t.exec("goto-pickDoogleLeaves", t.player.goto_tile, 3151, 3399, 0)
         -- click_obj answers `ok` with a nil detail on this path (the await
         -- branch, pointer.lua:1431-1437) -- hollow through t.exec (measured
@@ -157,10 +281,10 @@ return {
         t.expect("haveSeasonedSardine", t.inv.expect_has("seasoned_sardine", 1))
 
         -- Feed the seasoned sardine to Fluffs (OPNPCU, quest_fluffs.rs2:235-
-        -- 248) -- back upstairs to the loft, gertrudescat re-resolved fresh
-        -- since goto-pickDoogleLeaves moved off her tile. This is also the
-        -- action that rolls %fluffs_crate = random(6) for the kitten hunt.
-        t.exec("goto-fluffsCat2", t.player.goto_tile, 3306, 3512, 1)
+        -- 248) -- back over the fence and up the ladder to the loft,
+        -- gertrudescat re-resolved fresh. This is also the action that rolls
+        -- %fluffs_crate = random(6) for the kitten hunt.
+        up_to_loft("goto-fluffsCat2", "climbLadder2")
         local cat2 = t.player.by_symbol("npc", "gertrudescat")
         t.exec("giveSardineToFluffs", t.player.use_on, "seasoned_sardine", cat2)
         t.ticks(3) -- OPNPCU's own p_delay lands after the click's settle, same race as the milk step
@@ -169,68 +293,104 @@ return {
         t.check("sardineConsumed", sardine_result == "ok" and sardine_left == 0,
             "seasoned_sardine after feeding Fluffs = " .. tostring(sardine_left) .. " (read " .. tostring(sardine_result) .. ")")
 
+        -- The crates are in the yard below the loft: down the ladder.
+        climb("climbDownLadderStep", "fai_varrock_laddertop", 0)
+
         -- Six mewing-crate tiles, decoded from quest_fluffs.constant's
         -- ^fluffs_crate_0..5 (level_regionX_regionY_localX_localY, section 8's
         -- formula: worldX = regionX*64+localX, worldZ = regionY*64+localY).
         -- %fluffs_crate was just rolled to one of these six by the feed above
-        -- -- [opnpc1,kittens_mew] only grants the kitten when npc_coord
-        -- matches it, so every live crate npc is tried by its own tile until
-        -- the one that does answers with the kitten mesbox.
+        -- -- [opnpc1,kittens_mew] (quest_fluffs.rs2:277-290) grants the
+        -- kitten only when npc_coord matches it and answers "You find
+        -- nothing." everywhere else. Each crate npc stands on a solid crate
+        -- loc, so the player walks (inside the yard, no goto) to an open tile
+        -- beside it (a = the static-route neighbour) and presses THAT copy by
+        -- its tile.
         local crate_tiles = {
-            { x = 3305, z = 3500, level = 0 }, -- ^fluffs_crate_0 = 0_51_54_41_44
-            { x = 3310, z = 3499, level = 0 }, -- ^fluffs_crate_1 = 0_51_54_46_43
-            { x = 3307, z = 3507, level = 0 }, -- ^fluffs_crate_2 = 0_51_54_43_51
-            { x = 3303, z = 3506, level = 0 }, -- ^fluffs_crate_3 = 0_51_54_39_50
-            { x = 3298, z = 3514, level = 0 }, -- ^fluffs_crate_4 = 0_51_54_34_58
-            { x = 3315, z = 3515, level = 0 }, -- ^fluffs_crate_5 = 0_51_54_51_59
+            { x = 3305, z = 3500, ax = 3306, az = 3500 }, -- ^fluffs_crate_0 = 0_51_54_41_44
+            { x = 3310, z = 3499, ax = 3309, az = 3499 }, -- ^fluffs_crate_1 = 0_51_54_46_43
+            { x = 3307, z = 3507, ax = 3307, az = 3506 }, -- ^fluffs_crate_2 = 0_51_54_43_51
+            { x = 3303, z = 3506, ax = 3304, az = 3506 }, -- ^fluffs_crate_3 = 0_51_54_39_50
+            { x = 3298, z = 3514, ax = 3298, az = 3513 }, -- ^fluffs_crate_4 = 0_51_54_34_58
+            { x = 3315, z = 3515, ax = 3315, az = 3514 }, -- ^fluffs_crate_5 = 0_51_54_51_59
         }
-        -- Checked IMMEDIATELY after each talk_to, no extra t.ticks in
-        -- between: talk_to's own settle already waits out
-        -- [opnpc1,kittens_mew]'s p_delay(4), and this cluster sits right
-        -- against the wilderness line, so the "proceed with caution" system
-        -- warning can also come up mid-search on one of these tiles -- an
-        -- unrelated mesbox that has to be told apart from the kitten one and
-        -- dismissed, not left open to swallow the next crate's click.
+        -- Chat lines come back newest first, each with a serial: a crate's
+        -- answer must be a line newer than the floor read before its press.
+        local function newest_serial()
+            local r, list = t.msg.last(1)
+            if r == "ok" and type(list) == "table" and list[1] then
+                return list[1].serial
+            end
+            return 0
+        end
+        local function line_since(floor, substring)
+            local r, list = t.msg.last(20)
+            if r ~= "ok" or type(list) ~= "table" then
+                return nil
+            end
+            for i = 1, #list do
+                if list[i].serial > floor and string.find(list[i].text, substring, 1, true) then
+                    return list[i].text
+                end
+            end
+            return nil
+        end
         local kitten_found = false
         local kitten_crate_index = nil
         for i = 1, #crate_tiles do
             if not kitten_found then
                 local tile = crate_tiles[i]
-                t.exec("goto-crate" .. i, t.player.goto_tile, tile.x, tile.z, tile.level)
-                -- Not through t.exec: standing exactly on the crate npc's own
-                -- tile (goto_tile lands on it, same as npc_coord) can make
-                -- talk_to's own re-press-to-confirm land on bare ground once
-                -- the kitten mesbox is already open and covering the world
-                -- (measured: click_result answers "menu has no row for it"
-                -- with the "You find a kitten!" mesbox already up in the
-                -- SAME shot) -- the real ground truth is the dialogue that
-                -- chat.play reads right after, not that raw click result.
-                local click_result, click_detail = t.player.talk_to("kittens_mew", 1)
-                local play_result, play_detail = t.chat.play({ "mesbox:You find a kitten!" })
-                if play_result == "ok" then
+                t.player.walk_to(tile.ax, tile.az, 30)
+                local wr, wt = t.world.tile()
+                t.check("searchCrate" .. i .. ".beside", wr == "ok" and wt.level == 0
+                        and math.abs(wt.x - tile.x) + math.abs(wt.z - tile.z) == 1,
+                    "walked to " .. tile.ax .. "," .. tile.az .. " beside crate " .. i .. " at " .. tile.x .. "," .. tile.z
+                        .. " -> " .. tile_text(wr, wt))
+                local floor = newest_serial()
+                local click_result, click_detail = t.player.talk_to("kittens_mew", 1, { at = { tile.x, tile.z } })
+                -- The answer comes after [opnpc1,kittens_mew]'s p_delay(4):
+                -- the kitten mesbox, or a "You find nothing." chat line. This
+                -- cluster sits against the wilderness line, so an unrelated
+                -- warning page can also come up: it is dismissed, never read
+                -- as the answer.
+                local outcome, notes = nil, {}
+                for _ = 1, 12 do
+                    if t.chat.kind() ~= "none" then
+                        local play_result, play_detail = t.chat.play({ "mesbox:You find a kitten!" })
+                        if play_result == "ok" then
+                            outcome = "kitten"
+                            break
+                        end
+                        notes[#notes + 1] = "dismissed an unrelated page: " .. tostring(play_result) .. " " .. tostring(play_detail)
+                        t.chat.continue_()
+                    end
+                    if line_since(floor, "You find nothing.") then
+                        outcome = "nothing"
+                        break
+                    end
+                    t.ticks(1)
+                end
+                local searched = line_since(floor, "You search the crate.")
+                if outcome == "kitten" then
                     kitten_found = true
                     kitten_crate_index = i
-                elseif play_result == "mismatch" then
-                    -- an unrelated dialogue is up (measured: the wilderness-
-                    -- boundary warning near this crate cluster) -- dismiss it
-                    -- so it cannot swallow the next crate's click.
-                    t.chat.continue_()
                 end
-                local outcome_ok = play_result == "ok" or play_result == "not_visible" or play_result == "mismatch"
-                t.check("searchCrate" .. i, outcome_ok,
+                t.check("searchCrate" .. i, outcome ~= nil and searched ~= nil,
                     "crate " .. i .. " at " .. tile.x .. "," .. tile.z .. " -- talk_to(kittens_mew) -> "
                         .. tostring(click_result) .. " " .. tostring(click_detail)
-                        .. "; chat.play(mesbox:You find a kitten!) -> " .. tostring(play_result) .. " " .. tostring(play_detail))
+                        .. "; answer: " .. tostring(outcome) .. "; 'You search the crate.' line: " .. tostring(searched)
+                        .. (#notes > 0 and ("; " .. table.concat(notes, "; ")) or ""))
             end
         end
         t.check("kittenFound", kitten_found == true,
             "kittens_mew crate search: found at crate index " .. tostring(kitten_crate_index)
-                .. " of 6 tried (%varp5749_fluffs_crate matched)")
+                .. " of 6 (%varp5749_fluffs_crate matched)")
         t.expect("haveKitten", t.inv.expect_has("gertrudekittens", 1))
 
         -- Give the found kitten back to Fluffs (OPNPCU, quest_fluffs.rs2:249-
-        -- 259) -- she runs off home with her offspring, advancing to rescued.
-        t.exec("goto-fluffsCat3", t.player.goto_tile, 3306, 3512, 1)
+        -- 259) -- back up the ladder from the yard; she runs off home with her
+        -- offspring, advancing to rescued.
+        climb("climbUpLadderStep", "fai_varrock_ladder", 1)
         local cat3 = t.player.by_symbol("npc", "gertrudescat")
         t.exec("giveKittenToFluffs", t.player.use_on, "gertrudekittens", cat3)
         t.ticks(3) -- same OPNPCU settle race as the milk and sardine steps
@@ -239,15 +399,20 @@ return {
         t.check("kittenGivenConsumed", kitten_left_result == "ok" and kitten_left == 0,
             "gertrudekittens after giving to Fluffs = " .. tostring(kitten_left) .. " (read " .. tostring(kitten_left_result) .. ")")
 
+        -- Down the ladder and out over the fence before travelling back.
+        climb("leaveLoft3", "fai_varrock_laddertop", 0)
+        cross_fence("leaveYard3.fenceOut", false)
+
         -- Hand in to Gertrude (opnpc1,gertrude's %fluffs=^fluffs_rescued
         -- branch, gertrude.rs2:49-61) -- opens with the PLAYER's line (trap
         -- 18). ~fluffs_settle_rewards fires synchronously right after the
         -- last mesbox is dismissed: 1525 Cooking XP, a random pet-kitten
         -- colour, a Chocolate Cake and a Stew. Snapshot cooking XP before the
-        -- hand-in, per the reward rule.
-        local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
-        t.check("xpSnapshot", xp_snapshot_result == "ok", "skill.snapshot before hand-in -> " .. tostring(xp_snapshot_result))
-        t.exec("goto-handInGertrude", t.player.goto_tile, 3151, 3410, 0)
+        -- hand-in, per the reward rule (a read: no row of its own; the
+        -- expect_gain below fails on a bad snapshot).
+        local _, xp_snapshot = t.skill.snapshot()
+        t.exec("goto-handInGertrude", t.player.goto_tile, 3151, 3414, 0)
+        enter_house("handInGertrude.door")
         t.exec("handInGertrude", t.player.talk_to, "gertrude", 1)
         t.exec("handInGertrude-dialog", t.chat.play, {
             "player:Hello Gertrude. Fluffs ran off with her kitten.",
@@ -265,7 +430,7 @@ return {
 
         t.quest.expect_complete()
 
-        -- Reward rows -- the literal grant quest_fluffs.rs2:326-350 makes,
+        -- Reward rows -- the literal grant quest_fluffs.rs2:333-356 makes,
         -- not a number read back from the scroll. The pet kitten is one of
         -- six random colours (~gertrude_give_cat's switch_int(random(6))),
         -- so the six documented colours are tried and exactly one must be
