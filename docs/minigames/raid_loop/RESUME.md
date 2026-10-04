@@ -56,15 +56,23 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   fight watchdog runs only for the barrier-crosser; room music reaches only the builder. Three
   clients are NOT tick-deterministic run to run (a member's typed command lands at its own
   frame-timed boundary; one run in three shifted by a tick).
-- RUNNING: room launch 14 (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo): tob_maiden,
-  tob_bloat, tob_nylocas, tob_verzik re-authored; tob_xarpus, tob_sotetseg kept. Relaunch with
-  the same args (the card's args: pass, raid tob, the six rooms, mode entry, width 1).
+- Room launch 14 (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo; ledger 4fb49229b): KEPT
+  tob_maiden 1dffd5230 (65/65 FULL, 33 of 33 blackstorms landed, prayed hits match 36.5+3.5c),
+  tob_bloat abc53c18e (55/55, hand tiles 14-16 as Blert), tob_nylocas 116a1d938 (76/76, 41 brew
+  doses + 11 restores, Vasilias killed); tob_xarpus f417148e4 and tob_sotetseg 812267e7f kept.
+  tob_verzik REJECTED by its reviewer (green and deathless, but verzik.p3_inflight_after_death
+  unmeasured: her last in-flight auto landed for 0 under that seed); its file is on disk
+  uncommitted and the card retries it. RUNNING: that retry (same args: pass, raid tob, the six
+  rooms, mode entry, width 1). ALL SIX ENTRY SOLO ROOMS ARE OTHERWISE GREEN on this tree.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. Room launch 14 lands (above) (same room pass, move each room's
+1. The tob_verzik retry lands (above). Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
+   `matthew-mbp-m4-raid-b1-rooms-tob-normal`, raid tob, the six rooms, mode normal, party 3, width 1
+   (ids tob_<room>_normal; sources: Strategies wiki per-room sections, the six trio transcripts,
+   Blert guides and data; roles only from the sources) (same room pass, move each room's
    `<id>.author.json` / `.review.json` aside, note it in sample.json's orchestrator_notes).
 2. `tob_entry` from the joined relay if the five-name verdict allows, graded on
    `encounters/raidwide.tsv` (42 of its 75 rows have a raidwide.<id> step in the green ledger;
