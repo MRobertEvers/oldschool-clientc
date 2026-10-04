@@ -47,22 +47,30 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
 - Seam17 MERGED into the raid branch at 41a93c0fc (three driven clients in one world; verified:
   _party_smoke green, cooks_assistant/druid byte-identical, conformance 341/341 = 177 verbs +
   164 seams). The raid17 worktree is removed; branch matthew-mbp-m4-raid-b1-seam17 stays pushed.
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam19` (triage `SEAM_TRIAGE_2026-10-04g.md`):
-  `::tobjoin` puts a member in the leader's room instance, `t.raid.enter` for a party, the
-  member HUD orb bug, a Hard fixture with a Normal completion, the author card's `party` arg,
-  `_party_smoke` at Bloat Normal. One pass at a time again (the parallel allowance was seam17 only).
+- Seam19 LANDED (parent 15c2ace2b, ledger 92e770eec, content 007a1c7c9b): `::tobjoinroom [mode]`
+  puts a member in the leader's `::tobmode` instance (`::tobjoin` was taken by the C selftest);
+  `::tobstate` ends ` party=N scale=K`; every raider's party orbs are current; `t.raid.enter`
+  works for a party; fixture `tob_normal_done.ini` (a Normal completion, for the Hard door);
+  raid_coverage.py party scope; the author card takes `party`; `_party_smoke` phase C at Bloat
+  Normal reads hp_3 1500 = 2000 x 750/1000. Conformance 344/344. Open (CONTENT_BUGS seam19): the
+  fight watchdog runs only for the barrier-crosser; room music reaches only the builder. Three
+  clients are NOT tick-deterministic run to run (a member's typed command lands at its own
+  frame-timed boundary; one run in three shifted by a tick).
+- RUNNING: room launch 14 (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo): tob_maiden,
+  tob_bloat, tob_nylocas, tob_verzik re-authored; tob_xarpus, tob_sotetseg kept. Relaunch with
+  the same args (the card's args: pass, raid tob, the six rooms, mode entry, width 1).
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. Seam19 lands. Then room launch 14 re-authors the four Entry rooms seam16 and seam18 moved (tob_maiden, tob_bloat, tob_nylocas, tob_verzik) (same room pass, move each room's
+1. Room launch 14 lands (above) (same room pass, move each room's
    `<id>.author.json` / `.review.json` aside, note it in sample.json's orchestrator_notes).
 2. `tob_entry` from the joined relay if the five-name verdict allows, graded on
    `encounters/raidwide.tsv` (42 of its 75 rows have a raidwide.<id> step in the green ledger;
    raid_coverage.py grades only spec.<id> steps, so the author names its rows spec.raidwide.*
    or the checker learns raidwide.*); otherwise seam17 on the room the verdict names.
-3. (running, see above) Seam19 on `SEAM_TRIAGE_2026-10-04g.md`: `::tobjoin` puts a member in
+3. (landed) Seam19 on `SEAM_TRIAGE_2026-10-04g.md`: `::tobjoin` puts a member in
    the leader's room instance, `t.raid.enter` for a party, the member HUD orb bug, a Hard fixture
    with a Normal completion, the author card's `party` arg, `_party_smoke` at Bloat Normal.
 4. Normal mode room pass with three players (`tob_<room>_normal`, pass `matthew-mbp-m4-raid-b1-rooms-tob-normal`, roles from the trio transcripts and Blert), then Hard (Hard needs a Normal completion on
@@ -77,23 +85,13 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   `quest_druid/play` (restore was refused; never staged).
 - Whether `docs/WAVES_ORCHESTRATOR.md` belongs on v3.
 
-## Relaunching seam19 if it is not closed
+## Relaunching a pass
 
-If `build/seam_state/matthew-mbp-m4-raid-b1-seam19/close.json` does not exist, relaunch
-`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass` `matthew-mbp-m4-raid-b1-seam19`,
-`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04g.md`, `width` 1, and a `context`
-that says: relaunched by a fresh session (a seam with fix.<key>.json is DONE and its edits are
-uncommitted in the tree; one with only a progress notebook resumes from it); only Entry solo is
-tested; the tree is the raid branch at or after 41a93c0fc (seam17 merged on seam18); every fixer
-reads its triage section and the RULES; the content seam first, the driver seam after it; the
-six room tests are read-only and their KNOWN state is tob_xarpus and tob_sotetseg green,
-tob_maiden 111/111 and tob_bloat 95/95 green with gate findings, tob_nylocas 91/24, tob_verzik
-256/14 (the closer compares, no room may get worse); the editor rules (4 KB outputs, 8 KB
-commands, no recursive grep over OSRS-Content, shell fallback when a hook times out); CLAUDE.md's
-assert/no-switch/no-mutation rules; and the closer's duties: _party_smoke twice (green, tick logs
-byte-identical, members read orb_full 27 for all three, the Bloat Normal hp_3 row quoted),
-cooks_assistant and druid byte-identical to build/merge17_check/*_before.tsv, conformance 100
-percent, the six rooms no worse, the quest suite at its baseline, check-drive-abi/check-pt-switch/
-test-plugin-lua, DRIVER_NOTES 'A party room test', README, CONTENT_BUGS (member orb row FIXED),
-MERGE_CHECKLIST section 3, SEAM_LEDGER line; commit by explicit path submodule first, push the
-raid branch only.
+A background pass dies with the session that launched it. Every card resumes from its state
+directory when relaunched with the SAME args: `build/author_state/<pass>/` for `raid_author`,
+`build/seam_state/<pass>/` for `raid_seam` (`close.json` present = closed). Never use
+resumeFromRunId. The context string for a room launch is in the "RUNNING" line above and the
+state directory's sample.json orchestrator_notes; for a seam pass it is the triage file's RULES
+plus the closer's duties (rooms re-run and 'must be re-authored' lines, quest suite at its
+baseline with any sourced red listed in SEAM_LEDGER.md and MERGE_CHECKLIST.md, conformance,
+DRIVER_NOTES, CONTENT_BUGS, commit by explicit path submodule first, push the raid branch only).
