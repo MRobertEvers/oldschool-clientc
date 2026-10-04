@@ -584,3 +584,58 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127 clean;
   spec_check clean. C unchanged, so the server selftest was not re-run. PNGs were not read: the
   Read tool's hook timed out.
+
+## matthew-mbp-m4-raid-b1-seam15 (2026-10-04; parent 53a8aa8e0, OSRS-Content 946c357a71): the super restore, Verzik's tornado at her death, the joined relay, ::give's exact symbol (triage SEAM_TRIAGE_2026-10-04c.md)
+
+- `super_restore_heals_hitpoints`: LANDED (content, prayer_potion.rs2). The super restore, its
+  br_ copy and the Castlewars brew restore every stat except Hitpoints (wiki [Super restore]
+  oldid 15183989:53, pinned with Restore potion, Sanfew serum, Blighted super restore and
+  Castlewars brew). Conformance seam.super_restore_no_hitpoints PASS (hitpoints 54 -> 54,
+  attack 66 -> 98). Still open (CONTENT_BUGS): Sanfew serum skips the non-combat stats, the
+  Super restore mix restores only the combat five, the Prayer cape / holy wrench bonus.
+- `tob_verzik_tornado_removed_on_death`: LANDED (content, tob_verzik.rs2). No touch or heal
+  while she lies dying, every tornado fades (9005) on the bat's tick and is freed one tick
+  later, no respawn on a fallen Verzik; her in-flight auto still lands (sourced: 15 of 62
+  Blert P3 rooms). Conformance seam.verzik_tornado_gone_with_her PASS (death 2454, bat 2457,
+  9005 2457, free 2458, no touch, no spawn). Spec rows verzik.p3_tornado_end (D) and
+  verzik.p3_inflight_after_death (B) applied with the Blert analysis pinned; spec_check clean.
+  Still open: the tob.constant comment for register 2 (documentation).
+- `tob_relay_joined`: LANDED (content, tob_chest.rs2: an Entry chest keeps leftovers until ten
+  are taken; Entry Mode:7). Conformance seam.tob_entry_chest_keeps_leftovers PASS (3 -> 8 -> 10,
+  then empty). The joined relay (trj/joined.lua, the notice board to the vault, no
+  t.raid.enter) is the recipe "The whole raid in one run" in DRIVER_NOTES.md. Still open: it is
+  green under 1 of 5 run names (below), so tob_entry is not authored.
+- `give_takes_the_exact_symbol`: LANDED (engine, torirs_server_world.c cheat_symbol_exact: the
+  typed gameval first, then the underscored form). Conformance seam.give_takes_the_exact_symbol
+  PASS (p++ x1, p+ x1, Bronze_sword -> bronze_sword x1); RED on a HEAD binary built in a
+  throwaway worktree (fixer). No committed test gives a symbol with punctuation.
+- KEPT ROOMS on the final tree: tob_bloat 94/94, tob_xarpus, tob_nylocas 165/165 and
+  tob_sotetseg 155/155 (FULL 83) green.
+- tob_maiden must be re-authored: 109/110, spec.maiden.av.hit_sound FAIL. The restores no
+  longer heal (11 drunk), so the walk moved, and a hit on tick 355 came as the raider stepped
+  from 13 tiles (6439,101) to 12 (6438,100). The row reads the end-of-tick tile; the sound
+  went by the tile he left. Measure from the tile at tick - 1 (DRIVER_NOTES, "A hit on the tick
+  you step into range"). Not a content fault, nothing reverted.
+- tob_verzik must be re-authored: 188 PASS, 22 FAIL + BLOCKED (was 239 + BLOCKED). With no
+  heal from restores the raider is out of food in P3 at tick 636 (hp 1, 183 of 400 dealt), so
+  every P3, death and vault row is unmeasured. The super restore fixer saw the same copy die in
+  P2 at 530. Its kit needs brew doses or food for the hitpoints the restores used to give.
+- RELAY VERDICT on authoring tob_entry: NOT YET. trj/joined.lua is green under 1 of 5 names:
+  s15k1 160/160 (re-run by the closer on the final tree with the same ticks: Verzik dead on
+  2919, exit 3677,3219, the raider at 8 hp with every potion drunk). The other four died:
+  c15alpha in Verzik P3 at 2921 (16 brew / 7 restore doses at Sotetseg's entrance; everything
+  drunk); c15bravo at Xarpus at 2410 (16 / 6; 10 bandages, 16 brew, 6 restore doses drunk;
+  missed 39); c15charlie never killed Xarpus (12 / 4; no food from about 2700); the fixer's
+  s15j7 (P3 2972, food out) and s15j5b (P3 2986, prayer out). The first half's Nylocas decides
+  the second half: 12-21 brew doses reach Sotetseg's entrance and the green run needed 18. The
+  bounds are sourced (two chests of 10 bandages, Entry Mode:33/:151/:197; the 28-slot kit;
+  P3 600 hp, cache_npc_verzik.txt:552; the P3 ball at 75% of the Hitpoints level); nothing was
+  lowered. The levers left are the scratch's: P2/P3 damage (melee P2 with the scythe), and
+  carrying restores in place of the super combat and stamina once the first half no longer
+  needs them.
+- Gates: quest suite 115 green + deserttreasure, forgettabletale, regicide, troll RED (the
+  baseline, same first failing rows as seam14; no quest moved from the super restore);
+  conformance 324/324 PASS (165 verbs + 159 seam rows); test-quest-cheats, check-quest-verbs,
+  check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127 clean; spec_check clean;
+  server C selftest 11 failures, the baseline set (junglepotion x4, itgronigen x5, chatmenu,
+  same-script loc). PNGs were not opened in this close; the verdicts rest on the ledger rows.
