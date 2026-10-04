@@ -12,11 +12,15 @@ return {
         -- the Dawnbringer: the raid hands it over at the Xarpus exit (tob_xarpus.rs2); the room before Verzik is not played here
         "::give armadyl_helmet 1", "::wield armadyl_helmet", "::give armadyl_chestplate 1", "::wield armadyl_chestplate",
         "::give armadyl_skirt 1", "::wield armadyl_skirt",
+        -- insulated boots take 40 percent off the P2 lightning ball and the Entry page makes them mandatory solo (Entry_Mode.wikitext:94); they need Slayer 37 and are worn, so they take no backpack slot
+        "::setlevel slayer 37", "::give slayer_boots 1", "::wield slayer_boots",
+        -- the cape slot is worn too (a raider does not leave it bare); its defence bonus costs no backpack slot
+        "::give infernal_cape 1", "::wield infernal_cape",
         "::give verzik_special_weapon 1",
         -- the P2 and P3 weapon and its ammunition (swapped to once the shield is down)
         "::give twisted_bow 1", "::give dragon_arrow 500", "::wield dragon_arrow",
         -- a brew and two prayer restores: Protect from Missiles/Magic and Rigour drain 99 prayer points by about tick 420 and a restore dose is worth more than a fish
-        "::give br_4dosepotionofsaradomin 1", "::give br_4dosepotionofsaradomin 1", "::give br_4dosepotionofsaradomin 1", "::give br_4dosepotionofsaradomin 1", "::give br_4dose2restore 1", "::give br_4dose2restore 1",
+        "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 1", "::give br_4dose2restore 1",
         -- food for the fight: anglerfish heal 31 at 99 hitpoints (28 slots minus the five items above)
         "::give anglerfish 16", "::give br_4doserangerspotion 1", "::give staff_of_air 1", "::give death_rune 12",
         -- a charged serpentine helm makes a hit poisonous (tob_damage.rs2 ~tob_hit_is_poisonous): worn for one shot at the second Athanatos only
@@ -588,11 +592,17 @@ return {
                         out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_pct", math.floor(hp_before / 2) == hit_t.damage or math.floor((hp_before + 1) / 2) == hit_t.damage,
                             "measured " .. pct .. " percent, the tornado's hit of " .. hit_t.damage .. " on tick " .. hit_t.tick .. " against my " .. hp_before .. " hitpoints the tick before " .. SPEC.p3_tornado_pct }
                     end
-                    for _, r in ipairs(torn) do
-                        if r.tick > hit_t.tick and r.tick <= hit_t.tick + 30 then
-                            out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - hit_t.tick == 16,
-                                "measured " .. (r.tick - hit_t.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. hit_t.tick .. " " .. SPEC.p3_tornado_respawn }
-                            break
+                end
+                -- the respawn is read against the first tornado hit that a later spawn row follows (a hit after the kill has none)
+                local resp_done = false
+                for _, h in ipairs(R.hitp) do
+                    if h.npc_type == 10846 and not resp_done then
+                        for _, r in ipairs(torn) do
+                            if r.tick > h.tick and r.tick <= h.tick + 30 and not resp_done then
+                                resp_done = true
+                                out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - h.tick == 16,
+                                    "measured " .. (r.tick - h.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. h.tick .. " " .. SPEC.p3_tornado_respawn }
+                            end
                         end
                     end
                 end
@@ -953,7 +963,7 @@ return {
                 if leave_tick ~= nil then
                     phase = "T12"
                 elseif hpv < 50 and fish > 0 and tk >= last_eat + 3 then
-                    t.player.inv_op("anglerfish", 1)
+                    t.player.eat("anglerfish")
                     last_eat = tk
                     plog[#plog + 1] = tk .. ":eat"
                 elseif #pillar_retypes > p1.n_pr_seen then
@@ -1037,11 +1047,11 @@ return {
                             want = "staff_of_air"
                         end
                                                 if p1.worn ~= want then
-                            if want == "dawnbringer" then t.player.equip("verzik_special_weapon")
+                            if want == "dawnbringer" then t.player.equip("verzik_special_weapon", {quick = true})
                             elseif want == "twisted_bow" then
-                                t.player.equip("twisted_bow")
-                                t.player.equip("dragon_arrow")
-                            else t.player.equip("staff_of_air") end
+                                t.player.equip("twisted_bow", {quick = true})
+                                t.player.equip("dragon_arrow", {quick = true})
+                            else t.player.equip("staff_of_air", {quick = true}) end
                             local _, etk = t.tick()
                             seg[#seg + 1] = { tick = etk, w = want }
                             p1.worn = want
@@ -1097,15 +1107,15 @@ return {
                     t.prayer.set("protectfrommagic", false)
                     t.prayer.set("protectfrommissiles", true)
                     t.cheat("::tobboss", false)
-                    t.player.equip("twisted_bow")
-                    t.player.equip("dragon_arrow")
+                    t.player.equip("twisted_bow", {quick = true})
+                    t.player.equip("dragon_arrow", {quick = true})
                     seg[#seg + 1] = { tick = tk, w = "twisted_bow" }
                     local worn_ok = 0
                     for _, piece in ipairs({ "armadyl_helmet", "armadyl_chestplate", "armadyl_skirt" }) do
                         local _, in_pack = t.inv.count(piece)
                         if (in_pack or 0) == 0 then worn_ok = worn_ok + 1 end
                     end
-                    local dr = t.player.inv_op("br_4doserangerspotion", 1)
+                    local dr = t.player.drink("br_4doserangerspotion")
                     t.check("p2.ranged_kit", worn_ok == 3, "worn " .. worn_ok .. " of 3 ranged armour pieces at the P1 -> P2 transition, ranging potion press " .. tostring(dr))
                     -- rapid style for the bow: a shot every four ticks instead of five
                     t.ui.tab("combat")
@@ -1125,12 +1135,12 @@ return {
                     for _, m in ipairs(ml) do
                         if tb_p1 == "" and tostring(m.text):find("tobboss record=") then tb_p1 = tostring(m.text) end
                     end
-                    if hpv < 80 and fish > 0 then
-                        t.player.inv_op("anglerfish", 1)
+                    if hpv < 68 and fish > 0 then
+                        t.player.eat("anglerfish")
                         last_eat = tk
                     end
-                elseif t12.done == 2 and hpv < 85 and fish > 0 and tk >= last_eat + 3 then
-                    t.player.inv_op("anglerfish", 1)
+                elseif t12.done == 2 and hpv < 68 and fish > 0 and tk >= last_eat + 3 then
+                    t.player.eat("anglerfish")
                     last_eat = tk
                 end
                 if t12.done == 2 and p1_rows_done == 0 then
@@ -1442,7 +1452,7 @@ return {
                         end
                         p2.kite_to = nxt
                         if hpv < 50 and fish > 0 and tk >= last_eat + 3 then
-                            t.player.inv_op("anglerfish", 1)
+                            t.player.eat("anglerfish")
                             last_eat = tk
                             plog[#plog + 1] = tk .. ":eat"
                         elseif (mt.x ~= ring[nxt][1] or mt.z ~= ring[nxt][2]) and tk >= p2.kite_walk + 1 then
@@ -1619,8 +1629,8 @@ return {
                     end
                     if not acted and p2.exp == nil then
                         -- a crab blast (52) lands on top of a lightning ball (48): meet a live crab near full hitpoints
-                        if (hpv < 65 or (crab_alive and hpv < 88)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
-                            if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
+                        if (hpv < 65 or (crab_alive and hpv < 76)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
+                            if fish > 0 then t.player.eat("anglerfish") else t.player.drink(brew_name) end
                             last_eat = tk
                             acted = true
                         elseif crab_alive and p2.mode == "exp" then
@@ -1628,7 +1638,7 @@ return {
                             t.player.attack(csym[crab_alive.type] or "verzik_nylocas_ranged_story", 2, 1)
                             acted = true
                         elseif ath_alive and p2.mode == "exp" and tk <= ath_alive.tick + 70 and tk >= ath_alive.tick + (ath_n >= 2 and 11 or 2) and tk >= p2.last_atk + 3 then
-                            if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged") end
+                            if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged", {quick = true}) end
                             -- the Athanatos heals her every beat: it is shot before the experiments, not after
                             t.player.attack("tob_verzik_phase2_armourednylocas_story", 2, 1)
                             p2.last_atk = tk
@@ -1654,14 +1664,14 @@ return {
                                     target = csym[crab_alive.type] or "verzik_nylocas_ranged_story"
                                 elseif ath_alive and tk <= math.max(ath_alive.tick, p2.fight_from) + 70 and (ath_n < 2 or tk >= ath_alive.tick + 11) then
                                     target = "tob_verzik_phase2_armourednylocas_story"
-                                    if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged") end
+                                    if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged", {quick = true}) end
                                 end
                                 -- an Athanatos is shot for 24 ticks after it lands (it heals her every beat); one that survives that is left standing
                                 if red_alive ~= nil and p2.red_first == nil then p2.red_first = red_alive.tick end
                                 -- the first Matomenos is left to reach her: its death (absorb, 1587 on her) is a row, so fire is held until it is gone
                                 local red_wait = (p2.red_first ~= nil and p2.red_done == nil and tk <= p2.red_first + 40)
                                 if p2.red_first ~= nil and red_alive == nil and tk > p2.red_first then p2.red_done = tk end
-                                local absorb = ((last_reds > 0 and tk <= last_reds + 5 and not crab_alive) or red_wait)
+                                local absorb = ((last_reds > 0 and tk <= last_reds + 3 and not crab_alive) or red_wait)
                                 if absorb then
                                     -- the five ticks after the Matomenos summon heal her for every hit: hold fire
                                     p2.last_target = target
@@ -1679,7 +1689,7 @@ return {
                         for _, pn in ipairs({ "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }) do
                             local _, pc = t.inv.count(pn)
                             if pc > 0 and not acted then
-                                t.player.inv_op(pn, 1)
+                                t.player.drink(pn)
                                 break
                             end
                         end
@@ -1694,8 +1704,8 @@ return {
                 end
                 if p3.prep == 0 then
                     p3.prep = 1
-                    if hpv < 75 and fish > 0 then
-                        t.player.inv_op("anglerfish", 1)
+                    if hpv < 68 and fish > 0 then
+                        t.player.eat("anglerfish")
                         last_eat = tk
                     end
                     t.player.walk_to(6430, 91, 6)
@@ -1813,7 +1823,7 @@ return {
                 end
                 if p3.ball_seen > 0 then p3.dealt_cap = 99999 elseif p3.dealt_cap > 400 then p3.dealt_cap = 400 end
                 -- plan the next attack's position by the autos seen
-                local plans = { [1] = "UNDER", [2] = "ADJ", [3] = "STEPON", [4] = "HOME", [5] = "STEPON" }
+                local plans = { [1] = "UNDER", [2] = "ADJ", [3] = "STEPON", [4] = "HOME", [5] = "STEPON", [8] = "ADJ" }
                 if new_atk then
                     p3.plan = plans[p3.autos] or "HOME"
                     p3.stepped = 0
@@ -1859,8 +1869,12 @@ return {
                 local ball_due = (p3.ball_seen > 0 and tk <= p3.ball_seen + 6)
                 -- after the ball the player stays low on purpose: a tornado takes half of the CURRENT hitpoints (min 5) and heals her three times that
                 local after_ball = false
-                if (hpv < 60 or (ball_due and hpv < 85)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
-                    if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
+                -- before the one tornado touch (half of CURRENT hitpoints, and her heal is three times it) the raider eats only at 45, so the touch is a cheaper one
+                local touch_taken = false
+                for _, h in ipairs(R.hitp) do if h.npc_type == 10846 then touch_taken = true end end
+                local eat_below = (p3.enraged > 0 and not touch_taken) and 45 or 60
+                if (hpv < eat_below or (ball_due and hpv < 85)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
+                    if fish > 0 then t.player.eat("anglerfish") else t.player.drink(brew_name) end
                     last_eat = tk
                     acted = true
                 end
@@ -1898,11 +1912,11 @@ return {
                         -- the yellow pool binds me to its tile until its blast (+14, held to +16) and sits beside her tornado's spawn: touch only after it, so the respawn 16 ticks on is not a second touch
                         local pool_out = not (p3.pool and tk >= p3.pool.tick + 17)
                         -- OFF: the touch tactic below measured both rows but starved the kit (see the blocked row); set true to retry
-                        local touch_attempt = false
+                        local touch_attempt = true
                         local want_touch = touch_attempt and (not touched) and hpv >= 36 and fish + brewn >= 3 and not ball_due and not pool_out
                         p3.tdiag = "torat=" .. trow.x .. "," .. trow.z .. " me=" .. mt.x .. "," .. mt.z .. " d=" .. dist .. " wt=" .. tostring(want_touch) .. " fish=" .. fish .. " pool=" .. tostring(pool_out) .. " ball=" .. tostring(ball_due)
                         if (not touched) and hpv < 36 and dist >= 5 and (fish > 0 or brewn > 0) and tk >= last_eat + 3 then
-                            if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
+                            if fish > 0 then t.player.eat("anglerfish") else t.player.drink(brew_name) end
                             last_eat = tk
                             acted = true
                         elseif want_touch and tk >= p3.last_flee + 1 and (math.abs(mt.x - (bx - 3)) > 1 or math.abs(mt.z - trow.z) > 1) then
@@ -1966,12 +1980,12 @@ return {
                 -- ---- 4. webs, crabs ---------------------------------------------------------------
                 -- a web is shot with the Dawnbringer: the twisted bow scales down against a web's magic level (1, 4, 0 in three hits)
                 if not acted and web_alive and not p3.on_dawn then
-                    t.player.equip("verzik_special_weapon")
+                    t.player.equip("verzik_special_weapon", {quick = true})
                     p3.on_dawn = true
                     acted = true
                 end
                 if not acted and (not web_alive) and p3.on_dawn then
-                    t.player.equip("twisted_bow")
+                    t.player.equip("twisted_bow", {quick = true})
                     p3.on_dawn = false
                     acted = true
                 end
@@ -2038,7 +2052,7 @@ return {
                     for _, pn in ipairs({ "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }) do
                         local _, pc = t.inv.count(pn)
                         if pc > 0 then
-                            t.player.inv_op(pn, 1)
+                            t.player.drink(pn)
                             last_eat = tk
                             break
                         end
@@ -2309,7 +2323,7 @@ return {
                 "measured " .. first_n .. " ratio, tornadoes (npc 10846) spawned on the enrage tick " .. torn[1].tick .. ", one raider in the room " .. SPEC.p3_tornado_per_raider }
             local hit_t, hit_half, hit_hpb, hit_hpa
             for _, h in ipairs(R.hitp) do
-                if h.npc_type == 10846 then
+                if h.npc_type == 10846 and h.tick <= (death_tick or 1000000) then
                     local hpb = hp_by_tick[h.tick - 1] or hp_by_tick[h.tick - 2]
                     local hpa = hp_by_tick[h.tick] or hp_by_tick[h.tick + 1] or hp_by_tick[h.tick + 2]
                     local half = (hpb and (math.floor(hpb / 2) == h.damage or math.floor((hpb + 1) / 2) == h.damage)) or (hpa and (hpa == h.damage or hpa == h.damage + 1))
@@ -2325,11 +2339,17 @@ return {
                     out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_pct", hit_half and true or false,
                         "measured " .. pct .. " percent, the tornado's hit of " .. hit_t.damage .. " on tick " .. hit_t.tick .. " against my " .. hp_before .. " hitpoints just before it (" .. tostring(hit_hpa) .. " just after) " .. SPEC.p3_tornado_pct }
                 end
-                for _, r in ipairs(torn) do
-                    if r.tick > hit_t.tick and r.tick <= hit_t.tick + 30 then
-                        out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - hit_t.tick == 16,
-                            "measured " .. (r.tick - hit_t.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. hit_t.tick .. " " .. SPEC.p3_tornado_respawn }
-                        break
+                -- the respawn is read against the first tornado hit that a later spawn row follows (a hit after the kill has none)
+                local resp_done = false
+                for _, h in ipairs(R.hitp) do
+                    if h.npc_type == 10846 and h.tick <= (death_tick or 1000000) and not resp_done then
+                        for _, r in ipairs(torn) do
+                            if r.tick > h.tick and r.tick <= h.tick + 30 and not resp_done then
+                                resp_done = true
+                                out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - h.tick == 16,
+                                    "measured " .. (r.tick - h.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. h.tick .. " " .. SPEC.p3_tornado_respawn }
+                            end
+                        end
                     end
                 end
             end
@@ -2381,24 +2401,24 @@ return {
             pj = pj .. e .. " | "
             if #pj > 380 then
                 part = part + 1
-                t.check("drive.log" .. part, true, pj)
+                t.ticks(1) t.check("drive.log" .. part, true, pj)
                 pj = ""
             end
         end
-        if pj ~= "" then t.check("drive.log" .. (part + 1), true, pj) end
+        if pj ~= "" then t.ticks(1) t.check("drive.log" .. (part + 1), true, pj) end
         local hj = ""
         part = 0
         for _, e in ipairs(hplog) do
             hj = hj .. e .. " "
             if #hj > 380 then
                 part = part + 1
-                t.check("drive.hp" .. part, true, hj)
+                t.ticks(1) t.check("drive.hp" .. part, true, hj)
                 hj = ""
             end
         end
-        if hj ~= "" then t.check("drive.hp" .. (part + 1), true, hj) end
-        t.check("drive.pool_diag", true, string.sub(pool_diag, 1, 380))
-        t.check("p1.tobboss", tb_p1 ~= "", tb_p1)
+        if hj ~= "" then t.ticks(1) t.check("drive.hp" .. (part + 1), true, hj) end
+        t.ticks(1) t.check("drive.pool_diag", true, string.sub(pool_diag, 1, 380))
+        t.ticks(1) t.check("p1.tobboss", tb_p1 ~= "", tb_p1)
         local line = ""
         for _, tr3 in ipairs(p2.trials) do
             local item = tr3.kind .. "@" .. tostring(tr3.A)
@@ -2413,9 +2433,9 @@ return {
         t.check("p2.slams", true, sl ~= "" and sl or "none")
         local pl = ""
         for _, a in ipairs(p3.attacks) do pl = pl .. a.tick .. ":" .. a.seq .. " " end
-        t.check("p3.attacks", true, pl .. "| enraged " .. tostring(p3.enraged) .. ", ball " .. tostring(p3.ball_seen))
+        t.ticks(1) t.check("p3.attacks", true, pl .. "| enraged " .. tostring(p3.enraged) .. ", ball " .. tostring(p3.ball_seen))
         t.check("p2.tobboss", tb_p2 ~= "", tb_p2)
-        t.check("p3.tobboss", tb_p3 ~= "", tb_p3)
+        t.ticks(1) t.check("p3.tobboss", tb_p3 ~= "", tb_p3)
 
         if death_tick ~= nil then
             t.ticks(10)
@@ -2424,6 +2444,19 @@ return {
             for _, m in ipairs(ml) do mt2[#mt2 + 1] = tostring(m.text) end
             local xr, xt = t.world.tile()
             t.check("verzik.exit", true, "boss npc_death row on tick " .. death_tick .. "; my tile " .. tostring(xt and (xt.x .. "," .. xt.z)) .. "; messages " .. table.concat(mt2, " | "))
+            -- the room must be won deathless: the raid's death counter (read-only ::tobjail) is 0, nothing was caged, and no death line was shown
+            t.cheat("::tobjail")
+            t.ticks(2)
+            local _, jl = t.msg.last(40)
+            local jail_line, died_lines = "", 0
+            for _, m in ipairs(jl) do
+                local jt = tostring(m.text)
+                if jail_line == "" and jt:find("tobjail jailed=", 1, true) then jail_line = jt end
+                if jt:find("You have died", 1, true) then died_lines = died_lines + 1 end
+            end
+            local _, hp_end = t.skill.read("hitpoints")
+            t.check("verzik.deathless", jail_line:find("jailed=0 died_in=0 deaths=0", 1, true) ~= nil and died_lines == 0 and (hp_end.current or hp_end.level or 0) > 0,
+                "deathless: " .. jail_line .. "; 'You have died' lines in the last 40 messages: " .. died_lines .. "; hitpoints at the end " .. tostring(hp_end.current or hp_end.level))
         end
         -- ======================= PRESENTATION ROWS (spec.verzik.av.*, from the tick log) =======================
         -- every row names an ANCHOR (an event rows of one kind mark) and what is PICKED near it (an id read off a row of another kind);
@@ -2432,6 +2465,25 @@ return {
         do
             local _, heal_all = t.ticklog.rows({ kind = "npc_heal" })
             local _, hit_all = t.ticklog.rows({ kind = "hit_player" })
+            do
+                local dj, dpart = "", 0
+                local _, dg_anim = t.ticklog.rows({ kind = "npc_anim" })
+                local _, dg_proj = t.ticklog.rows({ kind = "projectile" })
+                for _, hp_row in ipairs(hit_all or {}) do
+                    if hp_row.damage and hp_row.damage >= 15 and hp_row.tick < 700 then
+                        local ls, lt, pj2 = "-", 0, ""
+                        for _, an in ipairs(dg_anim or {}) do
+                            if an.slot == boss_slot and an.tick <= hp_row.tick and an.tick >= lt then ls = an.seq lt = an.tick end
+                        end
+                        for _, pr2 in ipairs(dg_proj or {}) do
+                            if pr2.tick >= hp_row.tick - 5 and pr2.tick <= hp_row.tick then pj2 = pj2 .. pr2.spotanim .. "," end
+                        end
+                        dj = dj .. hp_row.tick .. ":" .. hp_row.damage .. "(" .. ls .. "@" .. lt .. " " .. pj2 .. ") "
+                        if #dj > 380 then dpart = dpart + 1 t.ticks(1) t.check("drive.dmg" .. dpart, true, dj) dj = "" end
+                    end
+                end
+                if dj ~= "" then t.ticks(1) t.check("drive.dmg" .. (dpart + 1), true, dj) end
+            end
             local _, spawn_all = t.ticklog.rows({ kind = "npc_spawn" })
             local _, free_all = t.ticklog.rows({ kind = "npc_free" })
             local _, hitn_all = t.ticklog.rows({ kind = "hit_npc" })
@@ -2441,7 +2493,7 @@ return {
             for _, hl in ipairs(heal_all) do
                 if hl.slot == boss_slot and string.find(tostring(hl.source), "tob_verzik_tornado_heal", 1, true) then
                     for _, hh in ipairs(hit_all) do
-                        if hh.tick == hl.tick and hh.npc_type == 10846 and hh.damage > 0 then
+                        if hh.tick == hl.tick and hh.npc_type == 10846 and hh.tick <= (death_tick or 1000000) and hh.damage > 0 then
                             hm_n = hm_n + 1
                             hm_txt[#hm_txt + 1] = "tick " .. hl.tick .. " heal " .. hl.amount .. " on touch " .. hh.damage
                             if hl.amount == 3 * hh.damage then hm_exact = hm_exact + 1 end
@@ -2552,6 +2604,9 @@ return {
                     end
                 end
             end
+            if not (ab_in_heal >= 1 and ab_edge_damage) then
+                t.check("drive.absorb_diag", true, "summons " .. table.concat(summons, ",") .. "; arrows " .. #arrows .. "; in " .. ab_in .. " healed " .. ab_in_heal .. " edge " .. tostring(ab_edge_damage) .. "; " .. table.concat(ab_txt, "; "))
+            end
             if ab_in_heal >= 1 and ab_edge_damage then
                 t.check("spec.verzik.reds_absorb_window", ab_out_heal == 0,
                     "measured 5 ticks, " .. ab_in_heal .. " of " .. ab_in .. " attacks on summon +0..+4 were healed into her (a 0 roll heals nothing), " .. ab_out_heal .. " of " .. ab_out .. " attacks on +5..+7 healed, an attack on +5 landed as damage (" .. table.concat(ab_txt, "; ") .. ") (spec 5 ticks, grade D, tol exact)")
@@ -2591,7 +2646,7 @@ return {
             { "p1_bolt.seq", "8109", "C", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "npc_anim", field = "seq", slot = boss_slot, lo = -6, hi = 0, excl = { 8110, 8111 } } } }, "boss npc_anim seq within 6 ticks before each P1 bolt projectile (the hit defend seq 8110 ignored)" },
             { "p1_bolt.proj", "1580", "D", { { a = { kind = "npc_anim", slot = boss_slot, type = 10831, seq = 8109 }, p = { kind = "projectile", field = "spotanim", lo = 0, hi = 6, excl = { 1120, 1544, 1547, 133 } } } }, "projectile id launched within 6 ticks of each P1 bolt wind-up" },
             { "p1_bolt.gfx_player", "1581", "D", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "player_spotanim", field = "spotanim", lo = 3, hi = 4, excl = { 1116, 1543, 1546 } } } }, "player spotanim 3-4 ticks after a bolt that reached me" },
-            { "p1_bolt.gfx_pillar", "1582", "D", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "npc_spotanim", field = "spotanim", lo = 2, hi = 4, excl = { 1545, 1548, 134 } } } }, "entity spotanim on a pillar 2-4 ticks after a bolt that struck it" },
+            { "p1_bolt.gfx_pillar", "1582", "D", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "npc_spotanim", field = "spotanim", lo = 2, hi = 4, excl = { 1545, 1548, 134, 85 } } } }, "entity spotanim on a pillar 2-4 ticks after a bolt that struck it" },
             { "p1_pillar_hit.sound", "3291", "D", { { a = { kind = "npc_spotanim", spotanim = 1582 }, p = { kind = "sound", field = "sound", lo = 0, hi = 0, source = "synth", loops = 1, excl = { 178 } } } }, "synth sound row on the tick a bolt struck a pillar" },
             { "p1_pillar_collapse.seq", "8052", "A", { { a = { kind = "npc_retype", from_type = 8379, to_type = 8377 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } } }, "npc_anim seq on each pillar slot on its collapse retype tick" },
             { "p1_pillar_fade.seq", "8104", "D", { { a = { kind = "npc_retype", from_type = 8377, to_type = 8378 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } } }, "npc_anim seq on each pillar slot on its fade retype tick" },
@@ -2626,13 +2681,13 @@ return {
             { "p3_webs.proj", "1601", "D", { { a = { kind = "npc_anim", slot = boss_slot, type = 10835, seq = 8127 }, p = { kind = "projectile", field = "spotanim", lo = 0, hi = 0, excl = PX } } }, "projectile on each P3 web cast tick" },
             { "p3_yellows.seq", "8126", "D", { { a = { kind = "map_spotanim", spotanim = 1595 }, p = { kind = "npc_anim", field = "seq", slot = boss_slot, lo = -1, hi = 0 } } }, "boss npc_anim seq on the tick the yellow pools appeared" },
             { "p3_yellows.gfx_pool", "1595", "C", { { a = { kind = "npc_anim", slot = boss_slot, type = 10835, seq = 8126 }, p = { kind = "map_spotanim", field = "spotanim", lo = 0, hi = 1 } } }, "map spotanim on each yellow-pools cast" },
-            { "p3_yellows.gfx_blast", "1596,1597,1600", "D", { { a = { kind = "npc_anim", slot = boss_slot, type = 10835, seq = 8126 }, p = { kind = "player_spotanim", field = "spotanim", lo = 13, hi = 15, mode = "all" } }, { a = { kind = "projectile", spotanim = 1598 }, p = { kind = "player_spotanim", field = "spotanim", lo = 8, hi = 11 } } }, "player spotanims on the blast tick of each yellows cast (+14) and where the green ball struck (+8)", true },
+            { "p3_yellows.gfx_blast", "1596,1597,1600", "D", { { a = { kind = "npc_anim", slot = boss_slot, type = 10835, seq = 8126 }, p = { kind = "player_spotanim", field = "spotanim", lo = 13, hi = 15, mode = "all" } }, { a = { kind = "projectile", spotanim = 1598 }, p = { kind = "player_spotanim", field = "spotanim", lo = 8, hi = 11, excl = { 1116, 1543, 1546 } } } }, "player spotanims on the blast tick of each yellows cast (+14) and where the green ball struck (+8)", true },
             { "p3_ball.proj", "1598", "D", { { a = { kind = "player_spotanim", spotanim = 1600 }, p = { kind = "projectile", field = "spotanim", lo = -11, hi = -8, excl = PX } } }, "projectile launched 8 ticks before the struck-raider graphic" },
             { "p3_ball.seq", "8125", "D", { { a = { kind = "projectile", spotanim = 1598 }, p = { kind = "npc_anim", field = "seq", slot = boss_slot, lo = 0, hi = 0 } } }, "boss npc_anim seq on the green ball launch tick" },
             { "reds.spawn_seq", "8098", "D", { { a = { kind = "npc_spawn", type = 10845 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } } }, "npc_anim seq on each Matomenos slot at its spawn tick" },
-            { "tornado.seqs", "9004,9005", "D", { { a = { kind = "npc_spawn", type = 10846 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } }, { a = { kind = "hit_player", npc_type = 10846 }, p = { kind = "npc_anim", field = "seq", type = 10846, lo = 0, hi = 1 } } }, "npc_anim seq on a tornado at its spawn tick and on the tick it touched me", true },
-            { "p3_enrage.tornado", "1602", "C", { { a = { kind = "hit_player", npc_type = 10846 }, p = { kind = "player_spotanim", field = "spotanim", lo = 0, hi = 0 } } }, "player_spotanim on me on each tornado touch tick" },
-            { "p3_death.seq", "8128", "D", { { a = { kind = "npc_death", slot = boss_slot }, p = { kind = "npc_anim", field = "seq", slot = boss_slot, lo = 0, hi = 2 } } }, "boss npc_anim seq after the npc_death row" },
+            { "tornado.seqs", "9004,9005", "D", { { a = { kind = "npc_spawn", type = 10846 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } }, { a = { kind = "hit_player", npc_type = 10846, tmax = death_tick }, p = { kind = "npc_anim", field = "seq", type = 10846, lo = 0, hi = 1 } } }, "npc_anim seq on a tornado at its spawn tick and on the tick it touched me", true },
+            { "p3_enrage.tornado", "1602", "C", { { a = { kind = "hit_player", npc_type = 10846, tmax = death_tick }, p = { kind = "player_spotanim", field = "spotanim", lo = 0, hi = 0 } } }, "player_spotanim on me on each tornado touch tick" },
+            { "p3_death.seq", "8128", "D", { { a = { kind = "npc_death", slot = boss_slot }, p = { kind = "npc_anim", field = "seq", slot = boss_slot, lo = 1, hi = 6 } } }, "boss npc_anim seq after the npc_death row" },
             { "p3_death.bat", "8375,8129", "A", { { a = { kind = "npc_death", slot = boss_slot }, p = { kind = "npc_anim", field = "seq", type = 10836, lo = 0, hi = 5 } } }, "npc_anim seq of the death bat (its Entry id 10836 is the form of 8375) after her npc_death row" },
             { "p3_death.throne_loc", "32737,32738", "D", { { a = { kind = "npc_death", slot = boss_slot }, p = { kind = "loc_set", field = "loc", lo = 0, hi = 12, excl = { -1 }, mode = "all" } } }, "locs placed after her npc_death row", true },
             { "p3_death.throne_seq", "8053,8108", "A", { { a = { kind = "npc_death", slot = boss_slot }, p = { kind = "loc_anim", field = "seq", lo = 0, hi = 12 } } }, "loc_anim seq after her npc_death row" },
@@ -2644,11 +2699,12 @@ return {
                 for _, ar in ipairs(AVR[g.a.kind] or {}) do
                     local ok = true
                     for k, v in pairs(g.a) do
-                        if k ~= "kind" and k ~= "tmin" and k ~= "no_proj_same_tick" then
+                        if k ~= "kind" and k ~= "tmin" and k ~= "tmax" and k ~= "no_proj_same_tick" then
                             if ar[k] ~= v then ok = false end
                         end
                     end
                     if g.a.tmin and ar.tick < g.a.tmin then ok = false end
+                    if g.a.tmax and ar.tick > g.a.tmax then ok = false end
                     if ok and g.a.no_proj_same_tick then
                         for _, pr in ipairs(AVR.projectile) do
                             if pr.tick == ar.tick and pr.spotanim ~= 1120 and pr.spotanim ~= 1544 and pr.spotanim ~= 1547 then ok = false end
@@ -2696,7 +2752,7 @@ return {
                 if want[v] then covered = covered + 1 else subset = false end
             end
             local pass = subset and n_pick > 0 and (av[6] ~= true or covered == want_n)
-            t.check("spec.verzik.av." .. av[1], pass,
+            t.ticks(1) t.check("spec.verzik.av." .. av[1], pass,
                 "measured " .. (#obs > 0 and table.concat(obs, ",") or "0") .. ", " .. n_pick .. " picks over " .. n_anchor .. " anchor rows (ticks " .. table.concat(ticks, ",") .. "); " .. av[5]
                 .. " (spec " .. av[2] .. " count, grade " .. av[3] .. ", tol exact)")
         end
@@ -2770,6 +2826,50 @@ return {
         t.check("spec.verzik.av.p3_death.bat_lifetime", bat_life == 5,
             "measured " .. bat_life .. " ticks, the death bat's npc_spawn row on tick " .. tostring(bat_spawn) .. ", the door loc_set (32738) on tick " .. tostring(door_tick) .. ", its npc_free row on tick " .. tostring(bat_free)
             .. " (spec 5 ticks, grade D, tol exact)")
+
+        -- ---- her death form: no tornado survives it, and an auto in flight when her last hitpoint went still can land after it ----
+        if death_tick ~= nil then
+            local torn_alive, torn_end_off, torn_bad = 0, {}, 0
+            for _, sp in ipairs(AVR.npc_spawn) do
+                if sp.type == 10846 and bat_spawn then
+                    if sp.tick > bat_spawn then torn_bad = torn_bad + 1 end
+                    local freed
+                    for _, fr in ipairs(AVR.npc_free) do
+                        if fr.slot == sp.slot and fr.tick >= sp.tick and not freed then freed = fr.tick end
+                    end
+                    if sp.tick <= bat_spawn and (freed == nil or freed >= bat_spawn) then
+                        torn_alive = torn_alive + 1
+                        local despawn
+                        for _, an in ipairs(AVR.npc_anim) do
+                            if an.slot == sp.slot and an.seq == 9005 and an.tick >= bat_spawn - 2 and not despawn then despawn = an.tick end
+                        end
+                        torn_end_off[#torn_end_off + 1] = despawn and (despawn - bat_spawn) or "none"
+                    end
+                end
+            end
+            local touch_after = 0
+            for _, hh in ipairs(AVR.hit_player) do
+                if hh.npc_type == 10846 and hh.tick > death_tick then touch_after = touch_after + 1 end
+            end
+            local torn_ok = torn_alive >= 1 and torn_bad == 0 and touch_after == 0
+            for _, off in ipairs(torn_end_off) do if off ~= 0 then torn_ok = false end end
+            t.check("spec.verzik.p3_tornado_end", torn_ok,
+                "measured " .. (torn_end_off[1] or "none") .. " ticks, " .. torn_alive .. " tornado(es) stood when the death bat spawned on tick " .. tostring(bat_spawn) .. " (despawn seq 9005 offsets " .. table.concat(torn_end_off, ",")
+                .. "), " .. touch_after .. " tornado touches after her death row on tick " .. death_tick .. ", " .. torn_bad .. " spawns after the bat (spec 0 ticks, grade D, tol exact)")
+            local last_launch, drop_tick, drop_dmg = nil, nil, nil
+            for _, an in ipairs(AVR.npc_anim) do
+                if an.slot == boss_slot and an.tick <= death_tick and (an.seq == 8123 or an.seq == 8124 or an.seq == 8125 or an.seq == 8126 or an.seq == 8127) and (last_launch == nil or an.tick >= last_launch) then last_launch = an.tick end
+            end
+            for _, hh in ipairs(AVR.hit_player) do
+                if hh.tick > death_tick and hh.damage > 0 and not drop_tick then drop_tick = hh.tick drop_dmg = hh.damage end
+            end
+            if drop_tick and last_launch then
+                t.check("spec.verzik.p3_inflight_after_death", drop_tick - last_launch >= 3 and drop_tick - last_launch <= 6,
+                    "measured " .. (drop_tick - last_launch) .. " ticks, her last launch on tick " .. last_launch .. ", her death row on tick " .. death_tick .. ", a raider hit of " .. drop_dmg .. " on tick " .. drop_tick .. " (spec 3-6 ticks, grade B, tol range)")
+            else
+                t.check("drive.inflight_diag", true, "no hit_player damage after her death row on tick " .. death_tick .. "; last launch " .. tostring(last_launch) .. "; bat " .. tostring(bat_spawn))
+            end
+        end
 
         local IDLE = { { 10831, 8107 }, { 10833, 8113 }, { 10835, 8120 }, { 10835, 8121 }, { 10844, 8076 }, { 10844, 8077 } }
         local idle_ids, idle_rows = {}, 0
@@ -2864,7 +2964,5 @@ return {
             t.blocked("content_bug: OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_verzik.rs2:2338 enrages on an integer percent (divide(multiply(left, 100), pool) <= 20), so 125 of 600 hitpoints (20.8 percent) already enrages; spec verzik.p3_enrage_threshold (grade B, exact 20 percent, at or below): " .. enrage_bug)
             return
         end
-        t.blocked("driver_seam: spec rows verzik.p3_tornado_heal_mult and verzik.p3_tornado_respawn are measurable only by a touch while she lives, and a solo kit that takes it starves. Measured on the 19th launch (tick log, run name tob_verzik): enrage tick 682, touch hit_player type 10846 damage 39 on tick 721 (hitpoints 78 before), npc_heal [proc,tob_verzik_tornado_heal] 117 on the same tick (3x39), next tornado npc_spawn tick 737 (16 after). That run survived the green ball (74 on tick 749, hitpoints 88) and then ended hp 4 with no food on tick 770 with her alive (the heal of 117 needs about 40 more ticks of shooting); touch on tick 685 (47) or 718 (39) with the second tornado touch on 704 (37) died to the ball on tick 747-749 at hp 12-71 with no food; every variant died or starved because P1 magic cap, the P2 crab kite and the experiments leave no fish and no brew for her extra heal. Without a touch the first one lands after her death (tick 782, 49 damage; no npc_heal, no second npc_spawn)")
-        return
     end,
 }
