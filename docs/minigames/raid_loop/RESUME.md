@@ -36,6 +36,14 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   brew doses. Seams: tob_maiden_entry_prayed_autos, tob_entry_solo_room_costs (content), then
   tob_relay_wiki_kit (the joined relay under five names with the wiki's 6-brew kit; tob_entry
   is authored when 4 of 5 survive). Sourced fixes are expected to move rooms: re-author them.
+- RUNNING IN PARALLEL (owner, 2026-10-04, overriding one-pass-at-a-time for this one pass):
+  seam pass `matthew-mbp-m4-raid-b1-seam17` (triage `SEAM_TRIAGE_2026-10-04e.md`, three driven
+  clients in one raid; engine + driver, no content) in ITS OWN WORKTREE
+  `build/orchestrator/worktrees/raid17`, branch `matthew-mbp-m4-raid-b1-seam17` in both repos
+  (from da183511b / content f8fefeb837; pushed). Its raid_seam card takes `worktree` and
+  `branch` args (e0720cd55). When it lands: merge that branch into the raid branch here (parent
+  and content, merge commits, by hand if seam16 touched the same files), then remove the
+  worktree (`git worktree remove`, both repos). Never run a third pass.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
@@ -94,3 +102,20 @@ A background pass dies with the session that launched it. If
 > suite, conformance and C selftest results; commit by explicit path, submodule first, push
 > both. Never stage or restore the content worktree's dirt under selftest/quests/quest_cook/play
 > and quest_druid/play. QUEST_HELPER_ROOT is /Users/matthewevers/Documents/git_repos/quest-helper.
+
+## Relaunching seam17 if it is not closed
+
+If `build/orchestrator/worktrees/raid17/build/seam_state/matthew-mbp-m4-raid-b1-seam17/close.json`
+does not exist, relaunch `build/orchestrator/worktrees/raid17/tools/raid_gate/workflows/raid_seam.workflow.js`
+with args `pass` `matthew-mbp-m4-raid-b1-seam17`, `branch` `matthew-mbp-m4-raid-b1-seam17`,
+`worktree` `/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid17`,
+`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04e.md`, `width` 1, and a `context`
+that says: it runs ONLY in that worktree (seam16 runs in worktrees/raid at the same time; never
+touch it or the main checkout); builds in its own src/build_questtest; no content edits; the
+fixers in the triage's order; the editor rules (4 KB outputs, 8 KB commands, no recursive grep
+over OSRS-Content, shell fallback when a hook times out); CLAUDE.md's assert/no-switch rules;
+and the closer's duties: one-client quest runs byte-identical (cooks_assistant, druid against a
+throwaway worktree at da183511b), the six rooms still pass, the three-client smoke run's three
+tick logs agree on the server tick, check-drive-abi/check-pt-switch/test-plugin-lua, DRIVER_NOTES
+'Three raiders in one run', README knobs, MERGE_CHECKLIST section 3, SEAM_LEDGER line, push the
+seam17 branch only.
