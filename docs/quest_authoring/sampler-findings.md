@@ -709,3 +709,23 @@ NEEDS-DOOR, walk out through that door first.
 fail. This round it appeared in five Tale rows and one Wanted!! row (`base.door_state`). Assert
 something the run could get wrong, such as the open loc's tile. Otherwise use a plain `t.step` or
 skip the row.
+
+## Sample matthew-mbp-m4-b58, round 2 (2026-10-04)
+
+Eadgar's Ruse went back. Ernest the Chicken, Enter the Abyss and Biohazard passed. So did the wall
+check on Shield of Arrav (Black Arm).
+
+(a) A PLATEAU YOU CANNOT LEAVE ON FOOT COUNTS AS A CLOSED SPACE. The Trollheim summit has no door,
+but on foot you can only reach it through the Troll Stronghold. The static flood from 2840,3690
+covers 2,075 tiles and has no walking exit (`comp.py 2840 3690 2834 3630 80`). `reach.py` says
+UNREACHABLE at margin 120 from the summit to Taverley, Ardougne or Lumbridge. The ways down are the
+stronghold (top door, stairs, the prison door at 2848,10107,1, the secret door
+`troll_stronghold_entrance` at 2827,3646) and two `troll_climbingrocks` pairs, 2833-2834,3628 and
+2856-2857,3612. The second pair checks for worn `death_climbingboots` (quest_troll.rs2:16). Eadgar
+walked that route once on the way up (rows 26-42). After that it used seven gotos between the
+summit and the lowlands: rows 71, 81, 120, 124, 167, 178 and 264. `helper_coverage` read FULL
+because its sealed-pocket rule skips a pocket that has a climb or is too large.
+
+Run `goto_table.py`. If a row is `UNREACHABLE` at margin 30, run `reach.py` again at 120 or more.
+If it is still UNREACHABLE, run `comp.py` from the departure tile. A component that never reaches
+the landing is a pocket. Walk its real way out and back in on every trip.
