@@ -102,7 +102,7 @@ log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} 
 const RETRY_EFFORT = 'medium'
 // At most WIDTH rooms at a time (owner, 2026-10-03: many agents at once hung the editor,
 // and a crash takes every running pass of every loop with it).
-const WIDTH = 3
+const WIDTH = (args && args.width) || 1
 const results = []
 for (let i = 0; i < pending.length; i += WIDTH) results.push(...await pipeline(
   pending.slice(i, i + WIDTH),
