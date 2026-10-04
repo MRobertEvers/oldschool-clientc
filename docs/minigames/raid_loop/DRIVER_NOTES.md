@@ -4402,3 +4402,22 @@ a 367 row on that slot, and no 3-tick gap did. Key frozen gaps on that row by sl
 guessing the burst's neighbours from `t.npc.tiles` at cast time (what tob_nylocas does now; it
 gives the same answer here, but a nylocas that walked into or out of the 3x3 in the press's tick
 would be misread).
+
+## "Unprayed" is the prayer you read, not the first switch you made (Verzik P3)
+
+A protection prayer turned on in an earlier phase stays lit through the phase change: the
+launch-14 tob_verzik raider entered P3 at tick 415 with Protect from Magic still on from P2, and
+`t.prayer.read()` reported `protectfrommagic` true at every sample from 426 to 576. The run's
+spec.verzik.p3_auto_miss_entry counted the autos launched before its own first P3
+`t.prayer.set` (tick 585) as unprayed, so five magic autos (projectile 1594) that landed under
+Protect from Magic (0, 6, 10, 0, 0, all within the prayed max of 10) were counted with the seven
+ranged ones (1593: 10, 0, 9, 15, 10, 0, 0). The truly unprayed sample was 7, not 12.
+
+- Decide "unprayed" per hit: read `t.prayer.read()` on the landing tick (Verzik P3's autos
+  are judged at impact, Entry Mode :243) and keep the hit only when the prayer for ITS style
+  (1593 ranged -> `protectfrommissiles`, 1594 magic -> `protectfrommagic`) was off.
+- Or turn every protection prayer off at the phase change and say so in the row.
+- `raw` on hit_player already includes the prayer's cut, so a raw 0 under the matching prayer
+  is not a miss you can count; and a technique row that proves "prayed at landing" with four
+  raw 0 hits cannot tell the prayer from a miss when the unprayed miss rate is about 3 in 7.
+  Show a prayed sample whose largest hit is under the unprayed ones', or a halved nonzero hit.
