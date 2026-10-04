@@ -125,6 +125,11 @@ lands in a pocket with no way out.
   levels and the guide's recommended food and gear in SETUP only. Do not raise a level
   just to satisfy the margin on a trivial fight. Leave existing `::passive` setup lines
   alone.
+- Protection prayers are read on the npc's attack ANIMATION tick (Jad and most npcs; owner
+  2026-10-04). A hit decided when the projectile lands is the exception and needs a pinned
+  source naming that npc. So a protection prayer goes UP before the attack animation starts,
+  never switched on after seeing it; a test that prays reactively and dies has a wrong plan,
+  not a server bug; never file a content bug for an npc reading the prayer on its swing tick.
 - Two engine rules are about to change and the test must hold under both: prayer will
   NOT regenerate over time (stage and drink prayer potions, switch protection off when
   it is not needed, assert prayer points before a protected fight), and an eat will no
