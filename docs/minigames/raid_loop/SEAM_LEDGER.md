@@ -718,3 +718,95 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   edited pack: 11 failures, the baseline set, tobrun OK 56). PNGs read in this close: tob_verzik
   134-drive.p3state798; the w16alpha shot could not be opened (the editor's Read hook timed out;
   the relay fixer read it: Xarpus at 23.7%, floor covered in pools).
+
+## matthew-mbp-m4-raid-b1-seam18 (2026-10-04; parent 1746816fb, OSRS-Content 6c7a65615a): the Saradomin brew raises Defence, and the relay's recipe under the five names (triage SEAM_TRIAGE_2026-10-04f.md)
+
+- `saradomin_brew_raises_defence`: LANDED (content, sara_brew.rs2). `stat_drain(defence, 2, 10)`
+  became `stat_boost(defence, 2, 20)`. Source: wiki [Saradomin brew] revid 15322175, pinned at
+  docs/minigames/theater_of_blood/sources/wiki_Saradomin_brew.wikitext with a manifest row: :56
+  "raises Hitpoints by 15% + 2 and Defence by 20% + 2 of their base levels ... above their base
+  level by up to the amount restored"; :89 "Defence boost is calculated with: floor((Defence
+  Level) * 1/5) + 2". The engine's stat_boost step is constant + BASE * percent / 100
+  (SS_OP_STAT_BOOST), so (2, 20) is the wiki's formula and its min(current + d, base + d) is the
+  "up to the amount restored" cap. The owner confirmed the fix on 2026-10-04. Conformance
+  seam.brew_raises_defence PASS "defence 99 -> 120 (want 120 = base 99 + floor(99/5) + 2),
+  strength 99 -> 88 (want 88), hitpoints 99 -> 115 (want 115)"; seam.brew_defence_no_stack PASS
+  "defence 120 -> 120 of base 99". RED on a HEAD pack (fixer, run sbd18_red): "defence 99 -> 88".
+  The triage's 121/87/116 were off by one against the page's own table (:109 "95–99 || +21").
+  god_brew.rs2, barbarian_mix.rs2 and castlewars_brew.rs2 carry no copy of the brew lines.
+  Still open (CONTENT_BUGS seam18): br_potion.rs2:80 (the ToA supply brew, "constant for
+  constant" with the ordinary families) still drains Defence and was outside the file list; and
+  whether the four drains are of the current level (:56, :114) or the base (:58, which holds
+  only for a base step) -- the page disagrees with itself, the drains were left as they were.
+- `tob_relay_recipe`: LANDED as a measurement (scratch only: trj/plans18.py exec'd from plan.py
+  into trj/joined.lua; no tracked file, no conformance row). RELAY VERDICT on authoring
+  tob_entry: NOT AUTHORED. 0 of 5 names survive the whole Entry raid with the wiki's kit (at
+  least 4 were needed).
+  BREW-ONLY MEASUREMENT (one run of seam16's plan-17 script, unchanged, under w16alpha on the
+  fixed pack): seam16 died in Xarpus P2 at t2444 (Xarpus 383 damage, step-back missed 23, no food
+  from 2413); with the brew fix Xarpus dies at t2378 (215 damage, missed 1; 9 bandages, 3 brew, 1
+  restore) and the raider dies in Verzik P2 at t2759 (234 damage, no food). The brew was worth one
+  room for w16alpha. The same script on the other four (one run each): bravo identical to seam16
+  (Xarpus 2379), charlie Xarpus 2341 (same tick), delta Nylocas 1779 -> Sotetseg 2414, echo still
+  the Nylocas (~1648).
+  RECIPE PLANS (each A/B under w16alpha against the plan before it): 18 bow at the Matomenos
+  (Entry :120) killed 0 of 6 before her and is off; 18b the same rule with the scythe, by the
+  crab's slot from the tick it is seen: reached her 3, killed before her 3, Maiden 261 -> 144
+  damage, 11 eats -> 5 sharks, no brew. 19 shark-only Maiden, restore only at prayer < 20: same
+  tick log as 18b. 20 detonation step: MEASURED WORSE and left off (Nylocas 324 -> 368); seam16's
+  "117 from detonations" were three support collapses (37/37/43), which hit everyone in the room
+  (tob_nylocas.rs2:1680). 21 restore before a Vasilias cast under Fire Strike's 13: never fired
+  under w16alpha. 22 Xarpus: the splash is judged on the land-1 tile within 1 of the aim (xspit.py
+  over w16bravo's 132 spits: d0 14/14, d1 32/32, d2 0/15), so the step goes out to a clean ring-2
+  tile and two steps to a side tile two from it, never through a pool: w16alpha Xarpus 243 -> 97
+  damage, splash hits 21/90 -> 12/88, bandages 10 -> 3; 22r/22r2 under w16charlie: missed 47 -> 26,
+  still died. 23 the kit is counted by doses at Sotetseg's entrance and the vault.
+
+  | name | result | died | Maiden dmg/eats/crabs reached | Bloat dmg/eats | Nylo dmg/eats/restore presses | Nylo kit used | Sote dmg | Xarpus dmg |
+  |---|---|---|---|---|---|---|---|---|
+  | w16alpha | died | Verzik P3, t2895 (Verzik at 26.2%) | 144/5/3 | 102/3 | 324/31/8 | sharks 2, bandages 10, brew 10, restore 6 | 94 | 147 |
+  | w16bravo | died | Sotetseg, t2351 | 188/7/4 | 155/8 | 377/33/8 | bandages 10, brew 14, restore 6 | 217 | - |
+  | w16charlie | died | Xarpus, t2445 | 202/8/3 | 72/2 | 285/29/12 | bandages 10, brew 11, restore 7 | 77 | 464 |
+  | w16delta | died | Sotetseg, t2300 | 233/9/3 | 189/9 | 323/30/7 | bandages 10, brew 13, restore 4 | 153 | - |
+  | w16echo | died | Sotetseg, t2338 | 201/8/3 | 155/9 | 337/31/7 | bandages 10, brew 15, restore 5 | 185 | - |
+
+  (build/seam_state/matthew-mbp-m4-raid-b1-seam18/table.tob_relay_recipe.tsv; the final1 copy
+  of the same five runs differs only in alpha t2926 and charlie t2431.) THE DECIDING ROOM is the
+  Nylocas as a supply sink: 285-377 damage and 29-33 eats per name, every Bloat-chest bandage, 10-15
+  brew doses and 4-7 restore doses. The second half starts with 0 restore doses in 4 of 5 names
+  and dies where prayer or food runs out: Sotetseg x3 (prayer gone, unprayed projectile 1606),
+  Xarpus x1, Verzik P3 x1. That is the RECIPE, not content: the wiki fights the Nylocas with
+  Ancient Magicks (Entry :157 "highly recommended", :166 burst/barrage the clumps, :92 the rune
+  pouch) and the relay casts single-target Fire Strike; no source says our aggro or collapse
+  damage is wrong, so no content row is claimed. Still open: the Ancient Magicks Nylocas (needs
+  the ancient spellbook in setup and an ancient spell through t.player.cast, untested); whether
+  the kit's 8 restore doses can carry Sotetseg (:30 "one super restore per three brews"); Xarpus
+  P2 on a long phase (the wiki's Entry answer is Ranged from range moving 2 tiles a spit, :207);
+  the bow plan was not checked against a ranged max-hit source. Every A/B is one run under one
+  name.
+- ROOMS on the final tree (tools/raid_gate/run.py --no-build --no-publish, gate.py --allow-blocked,
+  one run each under its own id): tob_maiden 111/111 green (63 of 65 measured, the same two
+  unmeasured rows as seam16), tob_bloat 95/95 green (the seam16 hand_tiles exact-vs-range finding
+  still open), tob_xarpus 121/121 FULL 63, tob_sotetseg 156/156 FULL 83 green.
+- tob_nylocas must be re-authored: the brew fix moved it from 165/165 (seam16; the fixer's HEAD-brew
+  A/B: 48 doses, Vasilias killed at 875 ticks) to 91 PASS / 24 FAIL. The seeded waves now run the
+  raider to 18 brew doses by tick 462 (Attack and Strength 63, lowest hp 26, 5 restores), two
+  supports fall, and the loop ends at 490 ticks with the last support about to fall (shot
+  020-fight.loop: "A support collapses!", "The chamber is full - the next wave is held back").
+  Vasilias never spawns, so her 22 spec rows, room.complete_line and tech.prayer FAIL. The fixer
+  ran six more names: 0 deaths on the HEAD pack, 3 on the fixed pack (ticks 490-498, explosion
+  clusters); not established as systematic. Not reverted: the fix is sourced.
+- tob_verzik must be re-authored (unchanged by this pass; seam16's finding stands): 256 PASS / 14
+  FAIL, the raider dies in P3 at about tick 799 with no food (drive.p3state798 "prayer 17 hp 34
+  fish 0 restores 0"); the fixer's HEAD-pack A/B was identical. tob_maiden and tob_bloat keep
+  seam16's re-author notes.
+- The Saradomin brew raises Defence, quests: none went red. Quest suite on the final tree 115
+  green + deserttreasure, forgettabletale, regicide, troll RED, each with the same first failing
+  step as seam16's gate (killKamil-engage; talkToVeldaban-dialog; goKillGuardAtSecondForest-walk-
+  toForests; troll player.died at tick 465). Nothing moved.
+- Gates: conformance 329/329 PASS (165 verbs + 164 seam rows; SEAM_COUNT 162 -> 164; the one FAIL
+  in the SUMMARY is the deliberate ledger_verdict.word_probe); test-quest-cheats 23/23,
+  check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127 clean
+  (QUEST_HELPER_ROOT set); spec_check clean (no table row changed). No C changed, so the server C
+  selftest was not re-run. Scripts pack 42432, rc 0. PNGs read in this close: tob_nylocas
+  020-fight.loop.
