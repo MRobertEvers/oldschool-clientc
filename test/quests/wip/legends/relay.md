@@ -13,13 +13,17 @@ Camelot from the Viyeldi cave and from the Source) and its jungle cuts, and open
    the leg; lowest hp 39/99). Stage more food for leg 6 and give each fight a margin
    row: lowest hp at least a quarter of max AND food left. The two deathwing fights
    (about lua 1406-1410) need margin rows too.
-2. plantSeed kills any jungle wolf in reach before planting. That was a workaround for
-   a seed that vanished when the player was attacked mid-planting. The owner questioned
-   it (2026-10-04) and it is NOT real behaviour: the planting script is LostCity's line
-   for line and nothing in it reacts to damage. See build/seam_state/next-seam-carry.md
-   item 28 and build/orchestrator/probe_delay/REPORT.md. Once the engine fix lands,
-   remove the wolf workaround. The retry with the next seed may stay: the Herblore roll
-   is about 52% per seed.
+2. plantSeed kills any jungle wolf in reach before planting. The b58 fixer added that
+   believing a wolf's hit cancelled the planting and wasted the seed. That is WRONG
+   (probed 2026-10-04 after the owner questioned it): a script paused in p_delay
+   survives a hit, auto-retaliate, a walk click and an attack click, in LostCity and in
+   ours. 22 plantings with a wolf attacking: 14 saplings, 8 seeds lost, all 8 to the
+   Herblore roll (`stat_random(herblore, 40, 243)`, legends_yommi.rs2:30: "You planted
+   the seed incorrectly ... withers and dies"), 0 cancels. There is no engine fix to
+   wait for. Report: test/quests/orchestrator/matthew-mbp-m4/reports/pdelay_survives_hit_2026-10-04.md.
+   Keep the retry with the next seed (the roll fails about half the time at Herblore
+   45; carry three seeds). The wolf kill may stay only as hp-margin housekeeping; the
+   next author should drop it if the margin holds without it.
 3. `talkToUngaduluForForce` carries a verified ANY-OF marker (the guide's kill branch
    uses the glowing dagger; ungadulu.rs2:538). Keep it.
 4. Nine older mid-run `::give` rows are baselined

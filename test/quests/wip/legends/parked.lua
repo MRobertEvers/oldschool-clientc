@@ -2274,10 +2274,11 @@ return {
             -- (about one in two), a failed roll costs the seed, the pack carries three
             t.exec("goto-plantSeed", t.player.goto_tile, 2780, 2916, 0)
             local soil = t.player.by_symbol("loc", "fertilesoil")
-            -- the jungle wolves the guide warns of ("be prepared for some fights") break into the planting:
-            -- r3 run3 planted with a wolf engaged, the seed was spent and the sapling never stood. Finish any
-            -- wolf in reach first, and count a planting only when the sapling (the stage that takes the
-            -- water, legends_yommi.rs2:44) stands; a spoiled planting is retried with the next seed
+            -- a planting is lost ONLY to the Herblore roll (legends_yommi.rs2:30); a wolf's hit does not cancel
+            -- it (probed 2026-10-04: 22 plantings under attack, 0 cancels; reports/pdelay_survives_hit_2026-10-04.md).
+            -- The wolves the guide warns of ("be prepared for some fights") are finished first only to keep the
+            -- hp margin; count a planting only when the sapling (the stage that takes the water,
+            -- legends_yommi.rs2:44) stands, and retry a withered one with the next seed
             local function clear_wolves(prefix)
                 for i = 1, 4 do
                     if t.npc.nearest("jungle_wolf", 8) ~= "ok" then break end
