@@ -49,3 +49,37 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
 - The raid content worktree's old dirt under `selftest/quests/quest_cook/play` and
   `quest_druid/play` (restore was refused; never staged).
 - Whether `docs/WAVES_ORCHESTRATOR.md` belongs on v3.
+
+## Relaunching seam15 if it is not closed
+
+A background pass dies with the session that launched it. If
+`build/seam_state/matthew-mbp-m4-raid-b1-seam15/close.json` does not exist, relaunch the card
+`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass`
+`matthew-mbp-m4-raid-b1-seam15`, `reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04c.md`,
+`width` 1, and this `context` (one string):
+
+> Seam15 of the raid loop, relaunched by a fresh session. On disk: every seam with a
+> fix.<key>.json report is DONE and its edits are uncommitted in the tree; a seam with only a
+> progress notebook resumes from it. EVERY FIXER reads its seam's full section in
+> docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04c.md and the rules above the first section.
+> One worker at a time; no command prints more than about 4 KB; if the editor's Read or Write
+> hook times out, use the shell (sed -n ranges, python3 or heredocs under 8 KB) and never loop
+> on the failing tool. The six room tests under test/raids/ are read-only (five KEPT:
+> tob_maiden 3eb2a8cf8, tob_xarpus f417148e4, tob_bloat e96af7766, tob_sotetseg 812267e7f,
+> tob_nylocas d87427d41; tob_verzik blocked at 7bd321420). THE CLOSER: (1) re-runs the six
+> rooms on the final tree with run.py --no-build --no-publish and gate.py (--allow-blocked for
+> tob_verzik), logs to files; the super-restore fix is EXPECTED to break rooms that healed from
+> restores: record 'tob_<room> must be re-authored: <what moved>' in SEAM_LEDGER.md, never
+> revert a sourced fix; a room broken for an unsourced reason reverts that seam. (2) Quest
+> suite: baseline 115 green plus deserttreasure, regicide, troll, forgettabletale RED (fixed on
+> v3); the owner confirmed on 2026-10-04 the super restore must be fixed, so a quest that goes
+> red because its fight healed from restores is listed with its first failing row in
+> SEAM_LEDGER.md and MERGE_CHECKLIST.md under 'The super restore no longer heals Hitpoints',
+> not reverted; any other regression reverts its seam. (3) Runs the joined relay scratch under
+> three run names and writes survival and supplies left into SEAM_LEDGER.md as the verdict on
+> authoring tob_entry. (4) Recipes into DRIVER_NOTES.md ('The whole raid in one run'), handed
+> spec rows applied (spec_check.py clean, nothing loosened without its quoted source line),
+> CONTENT_BUGS.md updated, one line per seam in SEAM_LEDGER.md with the quest suite,
+> conformance and C selftest results. Never stage or restore the content worktree's dirt
+> under selftest/quests/quest_cook/play and quest_druid/play. QUEST_HELPER_ROOT is the
+> absolute /Users/matthewevers/Documents/git_repos/quest-helper.
