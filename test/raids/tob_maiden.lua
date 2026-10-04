@@ -1551,7 +1551,7 @@ return {
             for k = 1, #hit_npc_rows do
                 local hr = hit_npc_rows[k]
                 if hr.slot == ws and (death_tick == nil or hr.tick < death_tick) then
-                    local me_at = player_at[hr.tick] or player_at[hr.tick - 1]
+                    local me_at = player_at[hr.tick - 1] or player_at[hr.tick]
                     local sounded = (av.npc_sound_at[hr.tick] or av.npc_sound_at[hr.tick + 1] or av.npc_sound_at[hr.tick - 1]) and true or false
                     local gap = 99
                     if me_at ~= nil then gap = math.max(math.abs(me_at.x - boss_x), math.abs(me_at.z - boss_z)) end
