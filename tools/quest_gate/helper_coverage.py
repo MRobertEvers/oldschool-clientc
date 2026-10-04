@@ -83,7 +83,9 @@ CLASSES (first rule that fires wins, in this order).
                its puzzle-wrapper alias counts), or an action (talk_to/
                click_loc/use_on/...) or action row naming one of its npc/loc/
                obj symbols -- rev 239's name, a multinpc parent, or its display
-               name; a "use X on Y" step needs a use of X on Y, a pick-up step
+               name; a "use X on Y" step needs a use_on of X (its guide
+               alternates, dose/noted variants: obj_family) on Y whose row
+               PASSed -- nothing else drives it (use_item_driven; b57), a pick-up step
                may be done by another route (buy-rum), and a door clicked once
                is one step, not two. Since seam26 a mention counts only when
                (i) its line/row is not ANOTHER guide step's own row (the first
@@ -219,6 +221,18 @@ NEUTRAL_CLASSES = ("DRIVEN", "EQUIVALENT", "TRAVEL", "BRING_ALONG", "ALTERNATIVE
 # reader below would see no item and drop it as a reset adapter; it must be
 # named here, before that branch. helper_coverage_bankgive_test.py.
 GIVE_CHEATS = ("give", "bankgive")
+
+# A guide step that USES an item on its target ("Use the serum 208 on
+# Razmire") is driven only by a use_on of that item -- or one of its family:
+# the guide's alternates and ItemCollections, dose/charge variants, the noted
+# form (Grader.use_item_wanted / use_item_driven). Before, any action naming
+# the target drove it, and Shades of Mort'ton's serum 207 cures drove both
+# serum 208 steps (sampler b57 (a)). QUEST_GATE_USE_ITEM_RULE=0 switches the
+# rule off, for measuring it (helper_coverage_use_item_test.py).
+USE_ITEM_RULE = os.environ.get("QUEST_GATE_USE_ITEM_RULE", "1") != "0"
+USE_CLAUSE = re.compile(r"\buse\s+(.+?)\s+(?:on|onto|with|in|into)\s+(.+?)(?=[,.;!?()]|\bthen\b|\band\b|\bto\b|$)",
+                        re.I | re.S)
+LOST_RE = re.compile(r"\blost ([^\]]*)")
 
 # ------------------------------------------------------------------ words
 
@@ -375,6 +389,29 @@ STEP_CTOR_RE = re.compile(r"\b(\w+)\s*=\s*new\s+(\w+)\s*(?:<[^>]*>)?\s*\(")
 POINT_RE = re.compile(r"new\s+WorldPoint\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 
+_ITEM_COLLECTIONS = None
+
+
+def item_collection(name):
+    """The obj symbols of Quest Helper's `ItemCollections.<name>` (AXES,
+    COINS, ...), as the guide's ItemID constants lowercased; [] when the
+    collection or the file is not there."""
+    global _ITEM_COLLECTIONS
+    if _ITEM_COLLECTIONS is None:
+        _ITEM_COLLECTIONS = {}
+        path = os.path.join(QUEST_HELPER_ROOT, "src", "main", "java", "com", "questhelper", "collections",
+                            "ItemCollections.java")
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                code = strip_java_comments(handle.read())
+            for match in re.finditer(r"^\s*([A-Z][A-Z0-9_]*)\s*\(", code, re.M):
+                open_index = match.end() - 1
+                body = code[open_index + 1:matching_close(code, open_index)]
+                _ITEM_COLLECTIONS.setdefault(match.group(1), [
+                    const.lower().lstrip("_") for cls, const in ID_RE.findall(body) if cls == "ItemID"])
+    return list(_ITEM_COLLECTIONS.get(name, ()))
+
+
 class Step:
     def __init__(self, name, kind, line):
         self.name = name
@@ -391,6 +428,8 @@ class Step:
         self.dialog = []
         self.panel = ""
         self.alt_group = None
+        self.req_raw = []       # the requirement idents as written (`serum208Highlighted`), before item_base
+        self.icons = []         # obj symbols of `step.addIcon(ItemID.X)`
 
     def is_composite(self):
         return "Conditional" in self.kind or self.kind in ("ReorderableConditionalStep",)
@@ -462,6 +501,41 @@ class Guide:
         for match in re.finditer(r"\b(\w+)\s*=\s*(\w+)\s*\.\s*(?:quantity|highlighted|named|hideConditioned|showConditioned|alsoCheckBank|equipped|copy)\b", code):
             if match.group(2) in self.items and match.group(1) not in self.items:
                 self.aliases[match.group(1)] = match.group(2)
+        # Every id a requirement accepts, for a "use X on Y" step's item
+        # (Grader.use_item_wanted): the ctor's ids, an ItemCollections list,
+        # `addAlternates(...)`. Kept apart from `ids`, which the other rules
+        # read as the ctor's own ids.
+        for var, item in self.items.items():
+            item["alts"] = list(item["ids"])
+        for match in STEP_CTOR_RE.finditer(code):
+            var = match.group(1)
+            if match.group(2) in ("ItemRequirement", "FollowerItemRequirement", "KeyringRequirement",
+                                  "TeleportItemRequirement") and var in self.items:
+                open_index = match.end() - 1
+                body = code[open_index + 1:matching_close(code, open_index)]
+                for name in re.findall(r"\bItemCollections\s*\.\s*(\w+)", body):
+                    self.items[var]["alts"].extend(item_collection(name))
+        for match in re.finditer(r"\b(\w+)\s*\.\s*addAlternates\s*\(", code):
+            base = self.item_base(match.group(1))
+            if base in self.items:
+                open_index = match.end() - 1
+                body = code[open_index + 1:matching_close(code, open_index)]
+                self.items[base]["alts"].extend(s for k, s in self._ids_in(body) if k == "obj")
+                for name in re.findall(r"\bItemCollections\s*\.\s*(\w+)", body):
+                    self.items[base]["alts"].extend(item_collection(name))
+        for match in STEP_CTOR_RE.finditer(code):
+            if match.group(2) == "ItemRequirements" and match.group(1) in self.items:
+                open_index = match.end() - 1
+                for arg in split_top(code[open_index + 1:matching_close(code, open_index)]):
+                    base = re.match(r"\s*(\w+)", arg)
+                    if base and base.group(1) in self.items and base.group(1) != match.group(1):
+                        self.items[match.group(1)]["alts"].extend(self.items[base.group(1)]["alts"])
+        # The requirement the step highlights in the inventory is the one it uses.
+        self.highlighted = set()
+        for match in re.finditer(r"\b(\w+)\s*\.\s*setHighlightInInventory\s*\(\s*true\s*\)", code):
+            self.highlighted.add(match.group(1))
+        for match in re.finditer(r"\b(\w+)\s*=\s*\w+\s*\.\s*highlighted\s*\(", code):
+            self.highlighted.add(match.group(1))
         for match in re.finditer(r"\b(\w+)\s*\.\s*canBeObtainedDuringQuest\s*\(", code):
             base = self.item_base(match.group(1))
             if base in self.items:
@@ -549,6 +623,11 @@ class Guide:
             body = code[open_index + 1:matching_close(code, open_index)]
             if match.group(1) in self.steps:
                 self.steps[match.group(1)].targets.extend(self._ids_in(body))
+        for match in re.finditer(r"\b(\w+)\s*\.\s*addIcon\s*\(", code):
+            open_index = match.end() - 1
+            body = code[open_index + 1:matching_close(code, open_index)]
+            if match.group(1) in self.steps:
+                self.steps[match.group(1)].icons.extend(s for k, s in self._ids_in(body) if k == "obj")
         for match in re.finditer(r"\b(\w+)\s*\.\s*addDialogSteps?\s*\(", code):
             open_index = match.end() - 1
             body = code[open_index + 1:matching_close(code, open_index)]
@@ -855,6 +934,7 @@ class Guide:
                 base = self.item_base(ident)
                 if base in self.items:
                     step.req_vars.append(base)
+                    step.req_raw.append(ident)
         if step.kind in ("ItemStep", "DigStep"):
             for base in step.req_vars:
                 step.targets.extend(("obj", s) for s in self.items[base]["ids"])
@@ -1106,6 +1186,7 @@ BY_DISPLAY = {}   # (kind, display name) -> {symbol}
 PARENTS = {}      # multinpc/multiloc child -> {parent}
 CHILDREN = {}     # multinpc/multiloc parent -> [child]
 OPS = {}          # (kind, symbol) -> {op number: op name, lowercased}
+OBJ_LINKS = {}    # obj symbol <-> its certlink / placeholderlink / countobj forms (obj_family)
 SCRIPTS = {}      # (trigger kind, subject) -> (relpath, line): labels, procs, triggers
 LOC_CLIP = {}     # loc symbol -> (blockwalk, width, length, active): all.loc's collision fields (MapWalls)
 _BODIES = {}
@@ -1295,6 +1376,44 @@ def same_thing(kind, guide_symbol, test_string, loose=True):
     return False
 
 
+DOSE_SUFFIX = re.compile(r"\s*\(\s*\d+\s*\)\s*$")
+
+
+def obj_family(symbol):
+    """The obj symbols that are `symbol` for a "use X on Y" step: itself, its
+    noted form / placeholder / stack images (certlink, placeholderlink,
+    countobj), and its dose or charge variants -- the objs whose display name
+    is the same once a trailing "(N)" is cut, where at least one of the two
+    carries the "(N)" (`Olive oil(4)` / `Olive oil(3)`, `Serum 207 (1)` ..
+    `(4)`). Two objs that merely share a plain display name ("Key") are not
+    one family; same_thing's display rule (at most four objs of that name)
+    still applies on top. NOT the content's next_obj_stage chain: it walks
+    into other objects (oliveoil4 -> sacred_oil4, mort_serum1 -> vial_empty)."""
+    content_index()
+    out = {symbol}
+    frontier = [symbol]
+    while frontier:
+        for linked in OBJ_LINKS.get(frontier.pop(), ()):
+            if linked not in out:
+                out.add(linked)
+                frontier.append(linked)
+    for member in list(out):
+        display = DISPLAY.get(("obj", member))
+        if not display:
+            continue
+        base = DOSE_SUFFIX.sub("", display)
+        if len(base) < 3:
+            continue
+        dosed = ["%s(%d)" % (base, n) for n in range(0, 11)] + ["%s (%d)" % (base, n) for n in range(0, 11)]
+        # a dosed member reaches the undosed name too (an uncharged
+        # `Amulet of glory` beside `Amulet of glory(4)`); two plain names never
+        for candidate in dosed + ([base] if display != base else []):
+            out.update(BY_DISPLAY.get(("obj", candidate), ()))
+    for member in list(out):
+        out.update(OBJ_LINKS.get(member, ()))
+    return out
+
+
 def content_index():
     """{symbol: [(relpath, line, trigger)]}, {symbol: category}, {debugproc: (relpath, line, body)}."""
     global _CONTENT_INDEX
@@ -1369,6 +1488,12 @@ def content_index():
                     CHILDREN.setdefault(symbol, []).append(child)
             for number, op in re.findall(r"^op([1-5])=(.+)$", body, re.M):
                 OPS.setdefault((kind, symbol), {})[int(number)] = op.strip().lower()
+            if kind == "obj":
+                # The noted form, the bank placeholder and the stack images
+                # of one object are that object (obj_family).
+                for linked in re.findall(r"^(?:certlink|placeholderlink|countobj\d+)=(\w+)", body, re.M):
+                    OBJ_LINKS.setdefault(symbol, set()).add(linked)
+                    OBJ_LINKS.setdefault(linked, set()).add(symbol)
             if kind == "loc":
                 clip = [re.search(r"^%s=(\d+)" % field, body, re.M)
                         for field in ("blockwalk", "width", "length", "active")]
@@ -1959,6 +2084,9 @@ class Test:
             first = self.code.count("\n", 0, match.start()) + 1
             last = min(self.code.count("\n", 0, close) + 1, first + 30)
             self.row_spans.append((first, last, match.group(1)))
+        self.local_literal = local_literal
+        self.loop_literal = self._loop_literals()
+        self.use_calls = self._use_calls()
         for index, (number, _) in enumerate(self.stand_on_optins):
             for above in range(number, max(0, number - STAND_ON_MARKER_SPAN - 1), -1):
                 match = GUIDE_GAP_RE.match(self.raw_lines[above - 1])
@@ -1974,6 +2102,73 @@ class Test:
             if match:
                 self.gotos.append((number,) + tuple(int(v) for v in match.groups()))
 
+
+    def _bound(self, argtext):
+        """The strings an argument names: its literals, and every literal a
+        local or table field it mentions was bound to."""
+        found = set(re.findall(r"\"([^\"]*)\"", argtext))
+        for ident in re.findall(r"\b([A-Za-z_]\w*)\b", re.sub(r"\"[^\"]*\"", "", argtext)):
+            found.update(text for _, text in self.local_literal.get(ident, ()))
+            found.update(self.loop_literal.get(ident, ()))
+        return found
+
+    def _loop_literals(self):
+        """{loop variable: {literal}} for `for _, piece in ipairs({ "a", "b" })`
+        and `for _, piece in ipairs(PIECES)` over a local table of literals:
+        what a use_on(piece, furnace) in the loop body can use (Legends'
+        crystal pieces on the furnace). Only _use_calls reads it."""
+        out = {}
+        for names, table in re.findall(r"\bfor\s+([\w\s,]+?)\s+in\s+i?pairs\s*\(\s*\{([^}]*)\}", self.code):
+            for var in re.split(r"\s*,\s*", names.strip()):
+                out.setdefault(var, set()).update(re.findall(r"\"([^\"]*)\"", table))
+        for names, table in re.findall(r"\bfor\s+([\w\s,]+?)\s+in\s+i?pairs\s*\(\s*(\w+)\s*\)", self.code):
+            for var in re.split(r"\s*,\s*", names.strip()):
+                out.setdefault(var, set()).update(text for _, text in self.local_literal.get(table, ()))
+        return out
+
+    def _use_calls(self):
+        """[{line, items, target, row}] for every `use_on(item, target)` call
+        -- `t.player.use_on("x", target)`, a local alias `use_on(...)`, and
+        `t.exec("row", t.player.use_on, "x", target)`: `items` the strings
+        the item argument can be (a literal, or what its local was bound
+        to), `target` the ones the target argument can be, `row` the ledger
+        row the call writes (row_name_at), or None."""
+        calls = []
+        code = self.code
+        for match in re.finditer(r"\buse_on\b\s*([(,])", code):
+            start = code.rfind("\n", 0, match.start()) + 1
+            if code[start:match.start()].count('"') % 2:
+                continue  # inside a string: a message naming use_on
+            if match.group(1) == "(":
+                open_index = match.end() - 1
+                args = split_top(code[open_index + 1:matching_close(code, open_index)])
+            else:
+                # the call's arguments follow it inside the enclosing t.exec(...)
+                depth = 0
+                index = match.start() - 1
+                while index >= 0:
+                    if code[index] in ")]}":
+                        depth += 1
+                    elif code[index] in "([{":
+                        if depth == 0:
+                            break
+                        depth -= 1
+                    index -= 1
+                if index < 0 or code[index] != "(":
+                    continue
+                args = split_top(code[match.end():matching_close(code, index)])
+            if len(args) < 2:
+                continue
+            line = code.count("\n", 0, match.start()) + 1
+            row = self.row_name_at(line)
+            # `t.exec("usePotionOnOgre" .. i, ...)`: the literal is only the
+            # rows' prefix (usePotionOnOgre1..6)
+            prefix = row is not None and re.search(
+                r"\bt\.(?:exec|check|expect)\s*\(\s*\"%s\"\s*\.\." % re.escape(row), code) is not None
+            calls.append({"line": line, "items": sorted(self._bound(args[0])),
+                          "target": self._bound(args[1]), "row": row, "row_prefix": prefix,
+                          "item_arg": args[0].strip()})
+        return calls
 
     def row_name_at(self, number):
         """The literal name of the ledger row line `number` writes, or None
@@ -2379,6 +2574,9 @@ class Grader:
         # step name -> why each mention that named its target did not count
         # (another step's row, the wrong op): the reason an UNMATCHED shows.
         self.refusals = {}
+        # step name -> why no use_on of the guide's item drove a "use X on Y"
+        # step (use_item_driven): the UNMATCHED reason, naming both items.
+        self.item_refusals = {}
         self.row = queue_row(test_id)
         assert self.row, "test_id %r is not in %s" % (test_id, QUEUE_PATH)
         self.quest_dir = self.row["quest_dir"]
@@ -2717,8 +2915,214 @@ class Grader:
                 return first
         return None
 
+    @staticmethod
+    def _tokens(text):
+        """Lowercase words AND numbers of `text`, stopwords dropped, stemmed
+        (words() drops "207", which is what tells Serum 207 from 208)."""
+        out = set()
+        for token in re.findall(r"[a-z0-9]+", (text or "").lower()):
+            if token in STOPWORDS or (len(token) < 3 and not token.isdigit()):
+                continue
+            out.add(token if token.isdigit() else stem(token))
+        return out
+
+    def use_clauses(self, step):
+        """[(item words, onto words)] of every "use <X> on|with|in <Y>" clause
+        in the step's text, a pronoun X ("then use it on the pipe") standing
+        for the clause before's Y."""
+        out = []
+        for match in USE_CLAUSE.finditer(step.text or ""):
+            item, onto = match.group(1).strip(), match.group(2).strip()
+            if re.fullmatch(r"(?:it|them|this|these|that|those)", item, re.I) and out:
+                out.append((out[-1][1], onto))
+                continue
+            out.append((item, onto))
+        return out
+
+    def use_item_wanted(self, step):
+        """For a step that USES an item on its npc/loc target (the guide's
+        "Use <X> on|with|in <target>"): (the guide symbols X may be, a label);
+        None for any other step, or when the guide does not say which item.
+
+        A use step: an npc/loc target, and the text leads with "Use", or the
+        step is named use<X>On<Y>. Not one whose NAME leads with another verb
+        that a later clause of its text does ("Use the filled druid pouch on
+        a ghast to make it attackable and kill it" is `killGhasts`: the use
+        readies the step, the kill is it).
+
+        The clause is the one whose <Y> names the target (by display name):
+        "Use a tinderbox on the strange object then use it on the nearby
+        pipe" is the strange object, on the pipe. A step whose clauses all
+        aim elsewhere ("Use the jail key on the south door and talk to
+        Velrak", an npc step) is no use step unless it is named
+        use<X>On<Y>, when every clause counts. X is the
+        requirement or `addIcon(ItemID.X)` item the clause's words name best
+        -- by the requirement's name or the display name of any id it accepts
+        -- ties kept ("Use the serum 208 on Razmire": Serum 208, not a Serum
+        207 listed beside it); else the requirement the step highlights in
+        the inventory, else its icon. A requirement the step only carries (a
+        hammer beside the nails) is not named and not demanded. Each
+        requirement brings every id it accepts: the ctor's, `addAlternates`,
+        ItemCollections."""
+        if not any(kind in ("npc", "loc") for kind, _ in step.targets):
+            return None
+        clauses = self.use_clauses(step)
+        if not clauses:
+            return None
+        leading = self.step_verb(step) == "use"
+        named_use = re.match(r"^use\w*?(?:On|With|In|Onto|Into)(?:[A-Z0-9]|$)", step.name or "") is not None
+        if not (leading or named_use):
+            return None
+        name_verb = re.match(r"([a-z]+)", step.name or "")
+        name_verb = STEP_VERB_ALIAS.get(name_verb.group(1), name_verb.group(1)) if name_verb else ""
+        if name_verb not in ("use", "") and name_verb in self.clause_verbs(step):
+            return None
+        target_words = set()
+        for kind, symbol in step.targets:
+            target_words |= self._tokens(DISPLAY.get((kind, symbol), "")) | self._tokens(symbol.replace("_", " "))
+        aimed = [item for item, onto in clauses if self._tokens(onto) & target_words]
+        if not aimed and not named_use:
+            # "Use the jail key on the south door and talk to Velrak": the use
+            # is on something else; the step's target is the talk's
+            return None
+        wanted_tokens = set()
+        for item in aimed or [item for item, _ in clauses]:
+            wanted_tokens |= self._tokens(item)
+        pool = []  # (label, [symbols], words)
+        for var in dict.fromkeys(step.req_vars):
+            item = self.guide.items.get(var) or {}
+            symbols = list(dict.fromkeys(item.get("alts") or item.get("ids") or []))
+            found = self._tokens(item.get("name", ""))
+            for symbol in symbols:
+                found |= self._tokens(DISPLAY.get(("obj", symbol), ""))
+            pool.append((item.get("name") or var, symbols, found, var))
+        for symbol in dict.fromkeys(step.icons):
+            display = DISPLAY.get(("obj", symbol), "")
+            pool.append((display or symbol, [symbol], self._tokens(display), None))
+        picked = []
+        if wanted_tokens:
+            scored = [(len(found & wanted_tokens), entry) for entry in pool
+                      for found in [entry[2]] if found & wanted_tokens and entry[1]]
+            if scored:
+                best = max(score for score, _ in scored)
+                picked = [entry for score, entry in scored if score == best]
+        if not picked:
+            picked = [entry for entry in pool if entry[3] and entry[1] and any(
+                raw in self.guide.highlighted or base in self.guide.highlighted
+                for base, raw in zip(step.req_vars, step.req_raw) if base == entry[3])]
+        if not picked:
+            picked = [entry for entry in pool if entry[3] is None and entry[1]]
+        symbols = []
+        for _, entry_symbols, _, _ in picked:
+            symbols.extend(s for s in entry_symbols if s not in symbols)
+        if not symbols:
+            return None
+        labels = {}
+        for label, _, _, _ in picked:
+            labels.setdefault(label.lower(), label)
+        return symbols, " / ".join(labels.values())
+
+    def use_item_matches(self, symbols, used):
+        """Is obj string `used` one of the guide `symbols`' family (obj_family:
+        alternates as listed, dose/charge variants, noted forms)? A guide id
+        rev 239 has no obj of is held to same_thing's loose name rule."""
+        if not used or not re.match(r"^[a-z0-9_]+$", used):
+            return False
+        used_family = obj_family(used)
+        for symbol in symbols:
+            if symbol == used or symbol in used_family or used in obj_family(symbol):
+                return True
+            # same display name, at most four objs of it (same_thing):
+            # viking_airtight_vase_with_lid_water / _frozen, "Sealed vase"
+            if same_thing("obj", symbol, used, loose=("obj", symbol) not in DISPLAY):
+                return True
+        return False
+
+    @staticmethod
+    def lost_items(detail):
+        """The objs a row's `[backpack: ... lost x 1->0, y 2->1]` says left the pack."""
+        out = []
+        for chunk in LOST_RE.findall(detail or ""):
+            out.extend(re.findall(r"\b([a-z0-9_]+) \d+->\d+", chunk))
+        return out
+
+    def use_item_driven(self, step, wanted):
+        """DRIVEN for a "use X on Y" step only on a use_on of X's family on
+        the step's target: the test's item argument names it, or -- an item
+        the test passes through a variable it never bound -- the ledger row
+        the call writes says X left the pack. A use_on of another item on
+        the target is refused, naming both (item_refusals); so is a call
+        whose row never PASSed. A row named after the step with no use_on
+        in it counts when its backpack diff lost X (the content took it by
+        another op)."""
+        symbols, label = wanted
+        refused = self.refusals.setdefault(step.name, [])
+        names = [step.name] + [alias for alias, target in self.guide.step_alias.items()
+                               if self.guide.resolve(alias) == step.name]
+        targets = ", ".join(symbol for _, symbol in step.targets[:2])
+        wants = "%s (%s)" % (label, ", ".join(symbols[:4]) + (", ..." if len(symbols) > 4 else ""))
+        seen = []
+        candidates = []
+        for call in self.test.use_calls:
+            line, row_name = call["line"], call["row"]
+            named_row = bool(row_name) and any(self.row_names_step(row_name, name) for name in names)
+            on_target = any(same_thing(kind, symbol, text) or shown_by(kind, symbol, text)
+                            for text in call["target"] for kind, symbol in step.targets)
+            if not (on_target or named_row):
+                continue
+            rows = [r for r in self.rows if row_name and
+                    (r["step"].startswith(row_name) if call["row_prefix"] else r["step"] == row_name)]
+            if call["row_prefix"] and any(len(norm(name)) > len(norm(row_name)) and
+                                          norm(name).startswith(norm(row_name)) for name in names):
+                # `"usePotionOnOgre" .. i` for usePotionOnOgre3: its own row,
+                # not the loop's first
+                rows = [r for r in rows if norm(r["step"]) in {norm(name) for name in names}]
+            passed = [r for r in rows if r["verdict"] == "PASS"]
+            lost = [item for r in passed for item in self.lost_items(r["detail"])]
+            where = "line %d" % line + (" (ledger row %s %r%s)" % (
+                passed[0]["index"], passed[0]["step"], ", lost " + " ".join(lost) if lost else "") if passed else "")
+            if row_name and not passed:
+                # the call writes a named row and the ledger has no PASS of it:
+                # the run never got there (Watchtower stops BLOCKED before
+                # its shamans), or the use failed
+                refused.append("line %d writes row %r%s, which %s" % (
+                    line, row_name, "..." if call["row_prefix"] else "",
+                    "never PASSed" if rows else "the ledger never reached"))
+                seen.append("line %d (row %r%s) never ran" % (line, row_name, "..." if call["row_prefix"] else ""))
+                continue
+            used = call["items"] or lost
+            hit = next((item for item in used if self.use_item_matches(symbols, item)), None)
+            if hit is None:
+                seen.append("%s uses %s" % (where, " / ".join(used) if used else
+                                              "%s (unbound, and no backpack diff)" % call["item_arg"]))
+                continue
+            why = self.line_refused(step, line)
+            if why:
+                refused.append(why)
+                continue
+            candidates.append((not named_row, line in self.line_credits, line, hit, where))
+        if candidates:
+            _, _, line, hit, where = min(candidates)
+            self.line_credits.setdefault(line, step.name)
+            return "%s uses %r on the target, the guide's %s" % (where, hit, label)
+        for row in self.action_rows:
+            if not any(self.row_names_step(row["step"], name) for name in names):
+                continue
+            hit = next((item for item in self.lost_items(row["detail"])
+                        if self.use_item_matches(symbols, item)), None)
+            if hit and not self.claimed_by_other(row["step"], step):
+                return "ledger row %s %r lost %r, the guide's %s" % (row["index"], row["step"], hit, label)
+        self.item_refusals[step.name] = "the guide's step uses %s on %s; %s" % (
+            wants, targets, "; ".join(seen[:3]) if seen else "no use_on of it names the target")
+        return None
+
     def driven(self, step):
         self.refusals.pop(step.name, None)
+        self.item_refusals.pop(step.name, None)
+        if USE_ITEM_RULE and self.pass_rows:
+            wanted = self.use_item_wanted(step)
+            if wanted:
+                return self.use_item_driven(step, wanted)
         conflicted = []
         # The author may name the row after the panel's puzzle wrapper
         # (`pwMsHynnTerprett` for msHynnDialogQuiz).
@@ -3533,6 +3937,8 @@ class Grader:
                 return klass, reason
         if self.is_travel(step):
             return "TRAVEL", "travel, merged into the step it leads to"
+        if self.item_refusals.get(step.name):
+            return "UNMATCHED", "no use_on of the step's item drives it: %s" % self.item_refusals[step.name]
         refused = self.refusals.get(step.name)
         if refused:
             return "UNMATCHED", "no row of its own drives it; the lines naming its target do not count: %s" % (
