@@ -1,0 +1,69 @@
+mechanic_id	scope	note
+mager.npc_id	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.hitpoints	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.combat_level	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_strength_levels	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.defence_level	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.ranged_magic_levels	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.size	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.magic_attack_bonus	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.other_bonuses_zero	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.model	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.ready_walk_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_style_magic_primary	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.melee_style_stab	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_speed	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_gap_modal	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.attack_gap_minimum	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.gap_after_melee	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.first_attack_after_spawn	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.first_attack_modal	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.attack_never_idle_before_death	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.max_hit_magic	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.max_hit_melee	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.melee_chance_adjacent	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.melee_range_diagonal_counts	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_range	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_needs_line_of_sight	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.hit_delay_by_distance	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.prayer_read_tick	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.damage_when_protected_magic	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.hit_chance_unprayed	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.water_spell_elemental_weakness	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.spawn_tick	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.spawn_tiles	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.count_by_wave	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.first_wave	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.waves_present	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_chance_per_attack	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_only_in_combat	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_anim_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_anim_length	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_gap_after	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_gap_before	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_no_move_while_casting	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.resurrects_per_mager_life	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_spawns_one_monster	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_once_per_monster	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revived_hitpoints	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_excludes_nibblers	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_excludes_bloblets	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revivable_kinds	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_corpse_choice	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_tile_x	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_tile_z	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_spawn_tick_offset	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revived_first_attack	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_resurrectable_mager	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
+mager.revive_count_limit	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_magic_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_melee_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_anim_length	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.defend_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.death_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.projectile_spotanim	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.projectiles_per_attack	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.projectile_shape	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.sounds	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.attack_tell_underglow_flicker	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.resurrect_appearance	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)

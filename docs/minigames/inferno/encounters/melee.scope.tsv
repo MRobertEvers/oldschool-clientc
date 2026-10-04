@@ -1,0 +1,52 @@
+mechanic_id	scope	note
+melee.hitpoints	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.combat_level	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.attack_level	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.strength_level	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.defence_level	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.ranged_magic_levels	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.size	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.strength_bonus_and_defence_bonuses	all	one solo test (npc record read)
+melee.aggressive	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.attack_style_slash	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.melee_attacks_only	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.attack_speed	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.attack_gap_modal	stat	statistical: a share over many melee; a solo test reads its own gaps, the recorder tool weighs the 1370
+melee.attack_gap_minimum	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.first_attack_after_spawn	stat	statistical: depends on spawn tile and player tile; the whole distribution is read over several waves
+melee.max_hit	all	one solo test (practice entry on wave 9 or 16; a real run); read as a maximum over many hits
+melee.damage_when_protected	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.attack_range	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.hit_delay	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.prayer_read_tick	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.hit_chance_unprayed	stat	statistical: a share over many unprotected hits
+melee.dig_trigger	all	one solo test needs a player the melee cannot reach (pillars block no line of sight, ENG-13): not isolated by a fight
+melee.dig_first_tick	all	one solo test: stand where it cannot reach, 100 ticks
+melee.dig_interval	stat	statistical: 9 recorded intervals; the recorder tool weighs them
+melee.dig_timer_reset_block	all	one solo test (a wave-start fight)
+melee.dig_timer_reset_by_attack	all	one solo test: let it hit once, then hide
+melee.dig_to_next_attack	all	one solo test with a dig
+melee.post_dig_attack_delay	all	one solo test with a dig
+melee.dig_landing	all	one solo test with a dig
+melee.dig_no_damage_during_anim	all	one solo test with a dig
+melee.count_first_wave	all	one solo test (practice entry on wave 9)
+melee.count_total_run	all	one solo test per wave of a pair (9 and 16)
+melee.spawn_tick	all	one solo test; ours spawns 8 ticks after the pillars (ENG-38, M1)
+melee.spawn_tiles	stat	statistical: nine tiles shuffled per wave; several wave entries cover the set (WT-1: ours are Kronos' nine)
+melee.resurrectable	all	wave 42+ with a Jal-Zek: another unit (the mager and its resurrection) fights it
+melee.resurrected_hitpoints	all	wave 42+ with a Jal-Zek: another unit fights it; here read statically
+melee.attack_seq	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.attack_anim_length	all	static: cache
+melee.ready_seq	all	static: cache
+melee.walk_seq	all	static: cache
+melee.dig_down_seq	all	one solo test with a dig
+melee.dig_down_anim_length	all	static: cache
+melee.dig_up_seq	all	one solo test with a dig
+melee.dig_up_anim_length	all	static: cache
+melee.defend_seq	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.death_seq	all	one solo test (practice entry on wave 9 or 16; a real run)
+melee.death_anim_length	all	static: cache
+melee.model	all	static: cache
+melee.small_record	all	static: cache
+melee.projectile_or_graphic	all	static: cache
+melee.sounds	all	one solo test (read the sounds a fight sends)

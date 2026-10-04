@@ -1,0 +1,13 @@
+# output of nibbler_pillar_analysis.py, 2026-10-04, over build/corpus_tmp/blert_api (18 challenges, 1160 waves, Blert cache fetched 2026-10-03, FETCH_LOG.tsv; no new Blert fetch in this pass)
+# Notes: hp is packed current<<16|base; a tick-delta of 1 is observed in about a quarter of all hits (a 0 hit leaves no delta); two runs (6214a4e9 wave 66, 6a865311 wave 63) report npc 7709 on three other tiles, unexplained; in 11 of 11 wave-66 ends with a pillar standing the pillar death is on the tick of the last despawn (the 4 and 17 are earlier nibbler collapses).
+challenges 18 waves 1160
+pillar positions seen (updates) {(2257, 5349): 86734, (2267, 5335): 80027, (2274, 5351): 88156, (2275, 5343): 84, (2282, 5359): 220, (2265, 5357): 220}
+pillar hp per hitsplat tick-delta (1..4 each ~25%; 5+ = several nibblers in one tick) [(1, 744), (2, 832), (3, 849), (4, 815), (5, 56), (6, 44), (7, 33), (8, 17), (9, 2), (10, 2), (11, 4)]
+gap in ticks between hp-loss ticks of one pillar [(1, 197), (2, 702), (3, 128), (4, 1494), (5, 3), (6, 26), (7, 7), (8, 232), (10, 1), (12, 34), (16, 4), (20, 1), (26, 2), (29, 2), (33, 1)]
+first hp-loss tick since the wave message (n=564) [(6, 103), (7, 139), (8, 151), (9, 72), (10, 43), (11, 4), (12, 10), (13, 6), (14, 2), (17, 1), (20, 1), (21, 1), (38, 2), (39, 5), (40, 8), (41, 3), (42, 4), (43, 6), (44, 2), (49, 1)]
+waves by number of DISTINCT pillars damaged [(1, 564)]
+nibbler step per tick, Chebyshev [(0, 38870), (1, 13141)]
+min Chebyshev distance nibbler to the damaged pillar's 3x3 footprint at an hp-loss tick [(1, 3398)]
+wave 66: pillar-death tick minus last despawn tick of the wave (0 = same tick; blank if no pillar alive at the end) [(0, 11), (4, 1), (17, 1)]
+pillar chosen (waves where all three stood, n=533) by tile W(2257,5349) S(2267,5335) E(2274,5351) {(2257, 5349): 212, (2274, 5351): 167, (2267, 5335): 154}
+nibbler despawn tick minus first tick with hp 0 [(2, 41), (3, 2296), (4, 197), (5, 1034)]

@@ -1,0 +1,38 @@
+mechanic_id	scope	note
+nibblers_and_pillars.nibbler_pillar_target_distinct	all	one test: a six-nibbler wave left alone; count the pillars whose hp moved
+nibblers_and_pillars.nibbler_pillar_pick_share	stat	statistical: a share over many waves; the recorder tool weighs it, one solo test sees one pillar
+nibblers_and_pillars.nibbler_attack_player_after_pillars	all	long: ~1700 ticks of waiting on wave 3 with no kills (practice entry); then the first hit on the player
+nibblers_and_pillars.nibbler_player_hits_while_pillar_stands	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_first_pillar_hit	all	one test: enter several waves and read each wave's first pillar hp loss from the tick log; the whole distribution
+nibblers_and_pillars.nibbler_attack_distance	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_step_max	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_attack_speed	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_hit_gap_modal	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_hitpoints	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_combat_level	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_defence_level	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_magic_level	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_attack_strength_ranged_levels	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_size	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_max_hit	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_accuracy_vs_player	all	long: needs all three pillars down; read the hit_player rows of nibbler npcs
+nibblers_and_pillars.nibbler_despawn_after_lethal_hit	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_hitpoints	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_size	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_moves	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_count_waves_67_68	all	two practice entries (67 and 68)
+nibblers_and_pillars.pillar_damage_per_hit	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_damage_observed_per_hit	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_damage_state_thresholds	all	read varb5655-5657 against the pillar hp; the loc itself is not placed (INF-AV-002)
+nibblers_and_pillars.pillar_collapse_hp	all	long: a nibbler-caused fall takes ~1500 ticks of waiting on wave 3
+nibblers_and_pillars.pillar_collapse_radius	all	long: a fall, with the player standing at known tiles from the pillar npc (it wanders, ENG-45: read its tile from npc_tile rows)
+nibblers_and_pillars.pillar_collapse_end_delay	all	needs a real run resumed at wave 66 and the wave fought to its last kill (about 350 ticks)
+nibblers_and_pillars.pillar_collapse_end_damage_fraction	all	needs a real run resumed at wave 66 with the player below full hitpoints and adjacent to a pillar at the last kill
+nibblers_and_pillars.pillar_collapse_damage_to_player_midwave	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_collapse_damage_to_monsters	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_attack_seq	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_death_seq	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_walk_ready_seq	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_defend_seq	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.nibbler_sounds	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_fall_presentation	all	one solo test (practice entry on wave 1 or 3, or a real run)

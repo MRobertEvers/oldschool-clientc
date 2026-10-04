@@ -1,0 +1,49 @@
+mechanic_id	scope	note
+ranger.npc_id	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.hitpoints	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.combat_level	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.defence_level	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_strength_levels	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.ranged_magic_levels	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.size	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.ranged_attack_bonus	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.ranged_strength_bonus	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.defence_bonuses_zero	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_style_ranged_primary	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.melee_style_crush	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_speed	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_gap_modal	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.attack_gap_minimum	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.gap_after_melee	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.first_attack_after_spawn	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.first_attack_modal	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.attack_never_idle_before_death	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.spawn_tick	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.spawn_tiles	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.count_by_wave	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.first_wave	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.resurrectable	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.resurrected_hitpoints	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.max_hit_ranged	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.max_hit_melee	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.melee_chance_adjacent	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.melee_range_diagonal_counts	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_range	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_needs_line_of_sight	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.hit_delay_by_distance	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.prayer_read_tick	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.damage_when_protected_missiles	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.melee_blocked_by_protect_melee	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.hit_chance_unprayed	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
+ranger.attack_ranged_seq	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_melee_seq	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_ranged_anim_length	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.attack_melee_anim_length	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.ready_walk_seq	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.defend_seq	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.death_seq	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.model	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.projectile_spotanim	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.projectiles_per_attack	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.projectile_shape	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.sounds	all	one solo test (practice entry on wave 18 or later; a real run)
