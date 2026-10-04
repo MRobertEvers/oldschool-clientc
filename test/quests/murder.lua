@@ -20,36 +20,38 @@
 -- MATCHED suspect is then taken through the poison chain.
 --
 -- THE ROUTE (fix_b59, owner rule 2026-10-03: no goto into or out of any
--- closed space). Every room is entered and left on foot through its door,
--- by pass_door below:
+-- closed space). Every room is entered and left on foot through its door
+-- with t.player.pass_door, pressed by tile AND level:
 --   * the mansion grounds are walled in (456 tiles, comp.py 2741 3562): the
 --     only way in or out is the double gate murder_qip_metalgateclosedl/r
 --     (2741-2742,3555, north edge). Every goto lands on, and leaves from,
 --     the road south of it (2741,3552).
---   * the mansion: front double door kr_mansion_double_door_l/r (2740-2741,
---     3572, north edge) into the hall (x 2736-2744, z 3573-3582); off the
---     hall kr_sin_poshdoor 2745,3575 (W edge) to the antechamber, and
---     2746,3576 (N edge) from it to the study (x 2746-2747, z 3577-3582)
---     where the dagger and the pungent pot lie; 2735,3575 to Anna's room,
---     2735,3578 to Bob's room, 2735,3580 to the kitchen and its flour
---     barrel (all E edge).
+--   * level 0: the front double door kr_mansion_double_door_l/r (2740-2741,
+--     3572, north edge) opens on the front room (x 2736-2744, z 3573-3575),
+--     which runs west into the corridor x 2736-2737 z 3576-3582 (the
+--     staircase stands at 2736-2737,3581-3582). Off the front room,
+--     kr_sin_poshdoor 2745,3575 (W edge) to the antechamber and 2746,3576
+--     (N edge) from it to the study (x 2746-2747, z 3577-3582: dagger and
+--     pungent pot), and 2741,3576 (S edge) to the central hall (x 2738-2744,
+--     z 3576-3582) where David and Frank stand. Off the corridor (all E
+--     edge): 2735,3575 Anna's room, 2735,3578 Bob's room, 2735,3580 the
+--     kitchen and its flour barrel.
 --   * the shed with the flypaper sacks opens only to the west yard, by
 --     kr_sin_poordoor 2731,3579 (N edge).
+--   * level 1, by murder_qip_spiralstairs (2736,3581,0: ~climb(1) outside
+--     King's Ransom since seam pass matthew-mbp-m4-b59-seam1, landing
+--     2737,3580,1) and back down by murder_qip_spiralstairstop: the landing
+--     x 2736-2737 z 3578-3580, the corridor z 3577 x 2736-2744 and the strip
+--     x 2743-2744 z 3577-3582. Off them (kr_sin_poshdoor, level-1 copies;
+--     the two at 2735,3578 and 2735,3580 stand straight above the level-0
+--     doors of the same tile): 2735,3580 (E edge) Carol's room with her
+--     barrel; 2735,3578 (E) David's room with his barrel; 2745,3581 (W)
+--     Elizabeth's room with her barrel; 2745,3578 (W) Frank's room with his
+--     barrel; 2736,3577 (S edge) the south bedroom with David's spiders'
+--     nest (2740,3574,1).
 --   * the Seers' pub: its front double door stands open in the map
 --     (kr_opendoubledoor_l/r 2694-2695,3488): the goto lands on the street,
 --     the open leaf is asserted, and the player walks in and back out.
---
--- BLOCKED for four of the six murderers: the mansion staircase does not
--- climb. kr_mansion.rs2:31-35 ([oploc1,murder_qip_spiralstairs], a King's
--- Ransom overlay) answers "It's just a staircase." and returns for anyone
--- not on King's Ransom, which overrides ladders.rs2's [oploc1,_climb_up]
--- ~climb(1) (ladders_stairs/configs/ladders.loc:629 puts the loc in
--- category climb_up); the top (kr_mansion.rs2:48-52) is the same. Carol's,
--- David's, Elizabeth's and Frank's barrels, Carol and Elizabeth themselves
--- and David's spiders' nest are all on level 1. A thread pair whose
--- remaining candidate needs that floor presses the stairs, reads that the
--- level did not change, and ends at t.blocked. Anna and Bob are finished
--- end to end.
 
 -- --------------------------------------------------------------- helpers
 
@@ -68,48 +70,34 @@ local function tile_text(r, tt)
     return tostring(r)
 end
 
--- Walk to x,z on level 0 and grade the tile reached: within one tile of the
--- target and on the side `side_ok` names (walk_to answers ok with no detail,
--- so the tile read is the evidence).
-local function walk_check(t, name, x, z, side_ok, side_desc)
+-- Walk to x,z on `level` (default 0) and grade the tile reached: within
+-- one tile of the target, on that level, and on the side `side_ok` names
+-- (walk_to answers ok with no detail, so the tile read is the evidence).
+local function walk_check(t, name, x, z, side_ok, side_desc, level)
+    level = level or 0
     local wr = t.player.walk_to(x, z, 60)
     local tr, tt = t.world.tile()
     t.check(name,
-        tr == "ok" and tt.level == 0 and math.abs(tt.x - x) <= 1 and math.abs(tt.z - z) <= 1 and side_ok(tt),
-        "walk_to " .. x .. "," .. z .. " -> " .. tostring(wr) .. "; tile " .. tile_text(tr, tt)
-            .. " (want within 1 on level 0, " .. side_desc .. ")")
+        tr == "ok" and tt.level == level and math.abs(tt.x - x) <= 1 and math.abs(tt.z - z) <= 1 and side_ok(tt),
+        "walk_to " .. x .. "," .. z .. "," .. level .. " -> " .. tostring(wr) .. "; tile " .. tile_text(tr, tt)
+            .. " (want within 1 on level " .. level .. ", " .. side_desc .. ")")
 end
 
--- Cross one door or gate on foot (the pass_door pattern of
--- docs/quest_authoring/sampler-findings.md, b56-b58). Walk to the near
--- side. Then press the CLOSED leaf by tile AND level ({ at = {x, z, 0} }):
--- kr_sin_poshdoor has a level-1 copy straight above 2735,3578 and
--- 2735,3580, and a selector never falls back to another copy. A selector
--- that matches no closed copy answers `no_row` and presses NOTHING -- an
--- earlier crossing left the door open (a door swings back after 500
--- ticks) -- so the open leaf is asserted standing within a tile of the door
--- tile on level 0 instead, a row that fails when neither leaf is there.
--- Then walk through and grade the far tile.
-local function pass_door(t, prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
-    walk_check(t, prefix .. ".atDoor", near_x, near_z,
-        function(tt) return not far_ok(tt) end,
-        "this side of " .. closed_sym .. " at " .. door_x .. "," .. door_z)
-    local cr, cd = t.player.click_loc(closed_sym, 1, { at = { door_x, door_z, 0 } })
-    if cr == "no_row" then
-        local orr, od = t.world.loc_near(open_sym, 3)
-        t.check(prefix .. ".doorStandsOpen",
-            orr == "ok" and od.level == 0
-                and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
-            "no closed " .. closed_sym .. " at " .. door_x .. "," .. door_z .. ",0 (" .. txt(cd) .. "); "
-                .. open_sym .. ": "
-                .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
-                .. " (want the open leaf within 1 of the door tile on level 0: an earlier press left it open, so it is walked through, not pressed again)")
-    else
-        t.ticks(1)
-        t.check(prefix .. ".openDoor", cr == "ok",
-            "click_loc(" .. closed_sym .. ", 1, at " .. door_x .. "," .. door_z .. ",0) -> " .. tostring(cr) .. " " .. txt(cd))
-    end
-    walk_check(t, prefix .. ".throughDoor", far_x, far_z, far_ok, far_desc)
+-- Cross one door or gate on foot: t.player.pass_door (b59-seam1,
+-- docs/quest_authoring/verbs-pointer.md). It walks to the near side, reads
+-- the CLOSED leaf on the exact door tile AND level (kr_sin_poshdoor has a
+-- level-1 copy straight above 2735,3578 and 2735,3580), presses it and
+-- grades the closed leaf leaving and the open leaf standing within 1 -- or,
+-- when an earlier crossing left the door open, grades the open leaf on
+-- that level and does not press it -- then walks through and grades the far
+-- tile with far_ok, which names the level too.
+local function pass_door(t, name, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc, level)
+    t.exec(name, t.player.pass_door, {
+        closed = closed_sym, open = open_sym,
+        at = { door_x, door_z, level or 0 },
+        near = { near_x, near_z }, far = { far_x, far_z },
+        far_ok = far_ok, far_desc = far_desc,
+    })
 end
 
 -- Await `await_sym` in the pack, then grade the exact counts `want` lists
@@ -133,15 +121,32 @@ local FRONT, FRONT_OPEN = "kr_mansion_double_door_l", "kr_mansion_open_double_do
 local POSH, POSH_OPEN = "kr_sin_poshdoor", "kr_sin_poshdooropen"
 local POOR, POOR_OPEN = "kr_sin_poordoor", "kr_sin_poordooropen"
 
-local function in_grounds(tt) return tt.z >= 3556 end
-local function on_road(tt) return tt.z <= 3555 end
-local function in_hall(tt) return tt.x >= 2736 and tt.x <= 2744 and tt.z >= 3573 and tt.z <= 3582 end
-local function outside_front(tt) return tt.z <= 3572 end
-local function in_antechamber(tt) return tt.x >= 2745 and tt.z >= 3574 and tt.z <= 3576 end
-local function in_study(tt) return tt.x >= 2746 and tt.z >= 3577 and tt.z <= 3582 end
-local function in_kitchen(tt) return tt.x >= 2733 and tt.x <= 2735 and tt.z >= 3580 and tt.z <= 3582 end
-local function in_shed(tt) return tt.x >= 2731 and tt.x <= 2732 and tt.z >= 3580 and tt.z <= 3581 end
-local function west_yard(tt) return tt.z <= 3579 and tt.x <= 2732 end
+-- Areas. Every predicate names its floor: pass_door grades the far tile
+-- with it alone.
+local function on(level, x0, x1, z0, z1)
+    return function(tt)
+        return tt.level == level and tt.x >= x0 and tt.x <= x1 and tt.z >= z0 and tt.z <= z1
+    end
+end
+local function in_grounds(tt) return tt.level == 0 and tt.z >= 3556 end
+local function on_road(tt) return tt.level == 0 and tt.z <= 3555 end
+local function outside_front(tt) return tt.level == 0 and tt.z <= 3572 end
+local function west_yard(tt) return tt.level == 0 and tt.z <= 3579 and tt.x <= 2732 end
+-- level 0 inside: the front room and the west corridor (open to each other)
+local in_front_room = on(0, 2736, 2744, 3573, 3575)
+local in_west_corridor = on(0, 2736, 2737, 3576, 3582)
+local function in_hall(tt) return in_front_room(tt) or in_west_corridor(tt) end
+local in_central_hall = on(0, 2738, 2744, 3576, 3582)
+local in_antechamber = on(0, 2745, 2747, 3574, 3576)
+local in_study = on(0, 2746, 2747, 3577, 3582)
+local in_kitchen = on(0, 2733, 2735, 3580, 3582)
+local in_shed = on(0, 2731, 2732, 3580, 3581)
+-- level 1: the landing, the corridor and the east strip (open to each other)
+local function upper_hall(tt)
+    return on(1, 2736, 2737, 3577, 3580)(tt) or on(1, 2736, 2744, 3577, 3577)(tt)
+        or on(1, 2743, 2744, 3577, 3582)(tt)
+end
+local in_south_bedroom = on(1, 2733, 2747, 3574, 3576)
 
 return {
     id = "murder",
@@ -156,50 +161,76 @@ return {
         -- Suspect data. npc/barrel/item/poison_loc symbols are quest_murder's
         -- own triggers; barrel_level is the floor the barrel stands on
         -- (maps/m42_55.jl2), proof is the line quest_murder_poisonproof.rs2's
-        -- murderer arm shows. A downstairs barrel's room door is given as
-        -- { door x,z, hall-side tile, room-side tile, room predicate }.
+        -- murderer arm shows. room is the barrel room's door:
+        -- { door x, z, level, outside tile x,z, inside tile x,z, inside
+        --   predicate + text, way-back tile x,z, way-back predicate + text }.
+        -- talk is where the suspect stands (m42_55.spawn): "room" (their own
+        -- barrel room), "hall" (the level-0 central hall) or "garden".
         local SUS = {
             [1] = {
                 name = "anna", npc = "kr_anna_sinclair_multi",
                 barrel = "murderbarrela", barrel_level = 0,
-                room = { 2735, 3575, 2736, 3575, 2734, 3576,
-                    function(tt) return tt.x >= 2733 and tt.x <= 2735 and tt.z >= 3574 and tt.z <= 3577 end,
-                    "in Anna's room x 2733-2735 z 3574-3577" },
-                talk_in_room = true,
+                room = { 2735, 3575, 0, 2736, 3575, 2734, 3576,
+                    on(0, 2733, 2735, 3574, 3577), "in Anna's room x 2733-2735 z 3574-3577, level 0",
+                    2737, 3575, in_hall, "back in the front room / corridor, level 0" },
+                talk = "room",
                 item = "murdernecklace", itemdust = "murdernecklacedust", print = "murderfingerprinta",
                 poison_loc = "murdercompost", proof = "nobody's used poison here",
             },
             [2] = {
                 name = "bob", npc = "kr_bob_sinclair_multi",
                 barrel = "murderbarrelb", barrel_level = 0,
-                room = { 2735, 3578, 2736, 3578, 2734, 3578,
-                    function(tt) return tt.x >= 2733 and tt.x <= 2735 and tt.z >= 3578 and tt.z <= 3579 end,
-                    "in Bob's room x 2733-2735 z 3578-3579" },
-                talk_in_room = false,
+                room = { 2735, 3578, 0, 2736, 3578, 2734, 3578,
+                    on(0, 2733, 2735, 3578, 3579), "in Bob's room x 2733-2735 z 3578-3579, level 0",
+                    2737, 3578, in_hall, "back in the corridor, level 0" },
+                talk = "garden",
                 item = "murdercup", itemdust = "murdercupdust", print = "murderfingerprintb",
                 poison_loc = "murderhive", proof = "don't seem poisoned at all",
             },
             [3] = {
                 name = "carol", npc = "kr_carol_sinclair_multi",
                 barrel = "murderbarrelc", barrel_level = 1,
+                room = { 2735, 3580, 1, 2736, 3580, 2734, 3580,
+                    on(1, 2733, 2735, 3580, 3582), "in Carol's room x 2733-2735 z 3580-3582, level 1",
+                    2737, 3580, upper_hall, "back on the level-1 landing" },
+                talk = "room",
                 item = "murderbottle", itemdust = "murderbottledust", print = "murderfingerprintc",
                 poison_loc = "murderdrain", proof = "nobody's cleaned it recently",
             },
             [4] = {
                 name = "david", npc = "kr_david_sinclair_multi",
                 barrel = "murderbarreld", barrel_level = 1,
+                room = { 2735, 3578, 1, 2736, 3578, 2734, 3578,
+                    on(1, 2733, 2735, 3577, 3579), "in David's room x 2733-2735 z 3577-3579, level 1",
+                    2737, 3578, upper_hall, "back on the level-1 landing" },
+                talk = "hall",
                 item = "murderbook", itemdust = "murderbookdust", print = "murderfingerprintd",
-                poison_loc = "murderweb", proof = "nobody's used poison here",
+                poison_loc = "murderweb", poison_upstairs = true, proof = "nobody's used poison here",
             },
             [5] = {
                 name = "elizabeth", npc = "kr_elizabeth_sinclair_multi",
                 barrel = "murderbarrele", barrel_level = 1,
+                room = { 2745, 3581, 1, 2744, 3581, 2746, 3580,
+                    on(1, 2745, 2747, 3580, 3582), "in Elizabeth's room x 2745-2747 z 3580-3582, level 1",
+                    2743, 3581, upper_hall, "back in the level-1 east strip" },
+                talk = "room",
                 item = "murderneedle", itemdust = "murderneedledust", print = "murderfingerprinte",
+                -- quest_murder_poisonproof.rs2:82-86: the murderer arm's
+                -- mosquitos mesbox, a player line, then the proof mesbox.
                 poison_loc = "murderfountain", proof = "nobody's used poison here",
+                proof_pages = {
+                    "mesbox:The fountain is swarming with mosquitos",
+                    "player:I hate mosquitos",
+                    "mesbox:It's certainly clear nobody's used poison here",
+                },
             },
             [6] = {
                 name = "frank", npc = "kr_frank_sinclair_multi",
                 barrel = "murderbarrelf", barrel_level = 1,
+                room = { 2745, 3578, 1, 2744, 3578, 2746, 3578,
+                    on(1, 2745, 2747, 3577, 3579), "in Frank's room x 2745-2747 z 3577-3579, level 1",
+                    2743, 3578, upper_hall, "back in the level-1 east strip" },
+                talk = "hall",
                 item = "murderpot", itemdust = "murderpotdust", print = "murderfingerprintf",
                 poison_loc = "murdersign", proof = "nobody's cleaned it recently",
             },
@@ -225,36 +256,53 @@ return {
             t.exec("goto.road." .. tag, t.player.goto_tile, 2741, 3552, 0)
             t.ticks(2)
             pass_door(t, "grounds.in." .. tag, GATE, GATE_OPEN, 2741, 3555, 2741, 3554, 2741, 3557,
-                in_grounds, "inside the grounds, z >= 3556")
+                in_grounds, "inside the grounds, z >= 3556, level 0")
         end
         local function grounds_out(tag)
             pass_door(t, "grounds.out." .. tag, GATE, GATE_OPEN, 2741, 3555, 2741, 3556, 2741, 3553,
-                on_road, "on the road south of the gate, z <= 3555")
+                on_road, "on the road south of the gate, z <= 3555, level 0")
         end
         local function mansion_in(tag)
             pass_door(t, "mansion.in." .. tag, FRONT, FRONT_OPEN, 2740, 3572, 2740, 3572, 2740, 3574,
-                in_hall, "in the hall x 2736-2744 z 3573-3582")
+                in_front_room, "in the front room x 2736-2744 z 3573-3575, level 0")
         end
         local function mansion_out(tag)
             pass_door(t, "mansion.out." .. tag, FRONT, FRONT_OPEN, 2740, 3572, 2740, 3573, 2740, 3570,
-                outside_front, "outside the front door, z <= 3572")
+                outside_front, "outside the front door, z <= 3572, level 0")
+        end
+        local function central_in(tag)
+            pass_door(t, "centralhall.in." .. tag, POSH, POSH_OPEN, 2741, 3576, 2741, 3575, 2741, 3577,
+                in_central_hall, "in the central hall x 2738-2744 z 3576-3582, level 0")
+        end
+        local function central_out(tag)
+            pass_door(t, "centralhall.out." .. tag, POSH, POSH_OPEN, 2741, 3576, 2741, 3576, 2741, 3574,
+                in_front_room, "back in the front room, level 0")
         end
         local function kitchen_in(tag)
             pass_door(t, "kitchen.in." .. tag, POSH, POSH_OPEN, 2735, 3580, 2736, 3580, 2734, 3581,
-                in_kitchen, "in the kitchen x 2733-2735 z 3580-3582")
+                in_kitchen, "in the kitchen x 2733-2735 z 3580-3582, level 0")
         end
         local function kitchen_out(tag)
             pass_door(t, "kitchen.out." .. tag, POSH, POSH_OPEN, 2735, 3580, 2735, 3580, 2737, 3580,
-                in_hall, "back in the hall")
+                in_west_corridor, "back in the corridor x 2736-2737, level 0")
         end
         local function room_in(s, tag)
             local r = s.room
-            pass_door(t, "room.in." .. tag .. "." .. s.name, POSH, POSH_OPEN, r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8])
+            pass_door(t, "room.in." .. tag .. "." .. s.name, POSH, POSH_OPEN, r[1], r[2], r[4], r[5], r[6], r[7],
+                r[8], r[9], r[3])
         end
         local function room_out(s, tag)
             local r = s.room
-            pass_door(t, "room.out." .. tag .. "." .. s.name, POSH, POSH_OPEN, r[1], r[2], r[1], r[2], r[3] + 1, r[4],
-                in_hall, "back in the hall")
+            pass_door(t, "room.out." .. tag .. "." .. s.name, POSH, POSH_OPEN, r[1], r[2], r[1], r[2], r[10], r[11],
+                r[12], r[13], r[3])
+        end
+        local function bedroom_in(tag)
+            pass_door(t, "bedroom.in." .. tag, POSH, POSH_OPEN, 2736, 3577, 2736, 3577, 2736, 3576,
+                in_south_bedroom, "in the level-1 south bedroom z 3574-3576", 1)
+        end
+        local function bedroom_out(tag)
+            pass_door(t, "bedroom.out." .. tag, POSH, POSH_OPEN, 2736, 3577, 2736, 3576, 2736, 3578,
+                upper_hall, "back on the level-1 landing", 1)
         end
         local function take_flour(tag)
             t.exec("flour.get." .. tag, t.player.click_loc, "flourbarrel", 2)
@@ -262,40 +310,39 @@ return {
             pack_after(t, "flour.have." .. tag, "pot_flour", { { "pot_flour", 1 }, { "pot_empty", 0 } })
         end
 
-        -- The staircase is pressed for real wherever the upper floor is
-        -- needed; the level it leaves the player on is the evidence for the
-        -- block (see the header: kr_mansion.rs2:31-35).
-        local function upstairs_blocked(why)
-            walk_check(t, "stairs.atFoot", 2737, 3580, in_hall, "in the hall beside the staircase 2736,3581")
-            local cr, cd = t.player.click_loc("murder_qip_spiralstairs", 1)
+        -- The staircase (2736-2737,3581-3582 on both floors), climbed by
+        -- click: the row is the level change, then the landing within 1 of
+        -- the stair tile and in the space it opens on (seam run: up lands
+        -- 2737,3580,1, down 2736,3580,0).
+        local function climb(name, sym, from_level, to_level, landed_ok, landed_desc)
+            local br, bt = t.world.tile()
+            local cr, cd = t.player.click_loc(sym, 1, { at = { 2736, 3581, from_level } })
             local ar = t.await({
                 level = function()
                     local lr, lv = t.world.level()
-                    return lr == "ok" and lv == 1
+                    return lr == "ok" and lv == to_level
                 end,
-                note = "stairs: waiting for level 1",
+                note = sym .. ": waiting for level " .. to_level,
             }, 8)
             local tr, tt = t.world.tile()
-            local mr, md = t.msg.expect("It's just a staircase")
-            local evidence = "click_loc(murder_qip_spiralstairs, 1) -> " .. tostring(cr) .. " " .. txt(cd)
-                .. "; level 1 await -> " .. tostring(ar) .. "; tile " .. tile_text(tr, tt)
-                .. "; msg.expect(It's just a staircase) -> " .. tostring(mr) .. " " .. txt(md)
-            t.shot("stairs.climb")
-            if tr == "ok" and tt.level == 1 then
-                t.blocked("the mansion staircase climbed (" .. evidence .. ") -- kr_mansion.rs2 was fixed; "
-                    .. "this file has no level-1 route yet for " .. why .. ": author the upper floor's doors "
-                    .. "(kr_sin_poshdoor 2736,3577 / 2740,3578 / 2744,3577 / 2745,3578 / 2745,3581 / 2735,3578 / "
-                    .. "2735,3580 on level 1) and continue.")
-                return
-            end
-            t.blocked("content_bug: " .. why .. " is on level 1, and the only way up, "
-                .. "murder_qip_spiralstairs (2736,3581,0), does not climb: " .. evidence .. ". "
-                .. "OSRS-Content/osrs239-content/server/scripts/quests/quest_kingsransom/scripts/kr_mansion.rs2:31-35 "
-                .. "[oploc1,murder_qip_spiralstairs] answers mes(\"It's just a staircase.\") and returns when "
-                .. "%varb3888_kr_quest ! ^kr_told_by_gossip, overriding ladders_stairs/scripts/ladders.rs2's "
-                .. "[oploc1,_climb_up] ~climb(1) (ladders_stairs/configs/ladders.loc:629 category=climb_up); "
-                .. "kr_mansion.rs2:48-52 does the same to murder_qip_spiralstairstop. Needed: fall through to "
-                .. "~climb(1) / ~climb(-1) outside King's Ransom.")
+            t.check(name,
+                br == "ok" and bt.level == from_level and ar == "ok" and tr == "ok" and tt.level == to_level
+                    and math.abs(tt.x - 2736) <= 1 and math.abs(tt.z - 3581) <= 1 and landed_ok(tt),
+                "from " .. tile_text(br, bt) .. "; click_loc(" .. sym .. ", 1, at 2736,3581," .. from_level .. ") -> "
+                    .. tostring(cr) .. " " .. txt(cd) .. "; level " .. to_level .. " await -> " .. tostring(ar)
+                    .. "; landed " .. tile_text(tr, tt) .. " (want level " .. to_level
+                    .. ", within 1 of the stairs 2736,3581, " .. landed_desc .. ")")
+        end
+        local function stairs_up(tag)
+            walk_check(t, "stairs.up." .. tag .. ".atFoot", 2737, 3580, in_west_corridor,
+                "in the corridor beside the staircase 2736,3581")
+            climb("stairs.up." .. tag, "murder_qip_spiralstairs", 0, 1, upper_hall, "on the level-1 landing")
+        end
+        local function stairs_down(tag)
+            walk_check(t, "stairs.down." .. tag .. ".atTop", 2737, 3580, upper_hall,
+                "on the level-1 landing beside the stair top", 1)
+            climb("stairs.down." .. tag, "murder_qip_spiralstairstop", 1, 0, in_west_corridor,
+                "in the level-0 corridor")
         end
 
         -- --------------------------------------------------- accept
@@ -435,27 +482,31 @@ return {
 
         -- ---------------------------------- the suspects' prints
         -- The downstairs candidate first. Each item: its own pot of flour
-        -- from the kitchen, its barrel, flour, flypaper, then its print used
-        -- on murderfingerprint1 ([opheldu,murderfingerprint1] ->
-        -- check_murderer_print).
+        -- from the kitchen, its barrel (up the stairs for Carol, David,
+        -- Elizabeth and Frank), flour, flypaper, then its print used on
+        -- murderfingerprint1 ([opheldu,murderfingerprint1] ->
+        -- check_murderer_print). `where` is the space the player stands in:
+        -- "kitchen", "hall" (level-0 corridor / front room) or "up" (the
+        -- level-1 landing and corridors).
         local matched = nil
-        local in_kitchen_now = true
+        local where = "kitchen"
         for _, sid in ipairs(candidates) do
             local s = SUS[sid]
-            if s.barrel_level ~= 0 then
-                if in_kitchen_now then
-                    kitchen_out("stairs")
-                    in_kitchen_now = false
-                end
-                upstairs_blocked(s.name .. "'s barrel (" .. s.barrel .. ")")
-                return
+            if where == "up" then
+                stairs_down(s.name)
+                where = "hall"
             end
-            if not in_kitchen_now then
+            if where == "hall" then
                 kitchen_in(s.name)
+                where = "kitchen"
             end
             take_flour(s.name)
             kitchen_out(s.name)
-            in_kitchen_now = false
+            where = "hall"
+            if s.barrel_level == 1 then
+                stairs_up(s.name)
+                where = "up"
+            end
             room_in(s, "barrel")
             t.exec("barrel.search." .. s.name, t.player.click_loc, s.barrel, 2)
             t.exec("barrel.close." .. s.name, t.chat.drain, { stop_at = "none" })
@@ -501,6 +552,9 @@ return {
         if not matched then
             t.finish(1)
             return
+        end
+        if where == "up" then
+            stairs_down("prints")
         end
         mansion_out("prints")
 
@@ -550,25 +604,58 @@ return {
         -- Only the matched suspect: their option-4 arm moves
         -- %murder_poisonproof_progress from spoken_salesman to
         -- spoken_murderer, and only then does their own loc's murderer arm
-        -- write searched_loc and show the proof line.
+        -- write searched_loc and show the proof line. Anna and Carol and
+        -- Elizabeth are talked to in their own rooms (Carol's and
+        -- Elizabeth's up the stairs), David and Frank in the level-0
+        -- central hall, Bob in the garden. Every loc but David's spiders'
+        -- nest (level-1 south bedroom) is outside, in the grounds.
         local s = matched
         grounds_in("poison")
-        if s.talk_in_room then
+        local upstairs = false
+        if s.talk == "room" then
             mansion_in("poison")
+            if s.barrel_level == 1 then
+                stairs_up("poison")
+                upstairs = true
+            end
             room_in(s, "poison")
+        elseif s.talk == "hall" then
+            mansion_in("poison")
+            central_in("poison")
         end
         t.exec("suspect.talk." .. s.name, t.player.talk_to, s.npc, 1)
         t.exec("suspect.drain_to_options." .. s.name, t.chat.drain, { stop_at = "options" })
         t.exec("suspect.choose_poison." .. s.name, t.chat.choose, "Why'd you buy poison the other day?")
         t.exec("suspect.close." .. s.name, t.chat.drain, { stop_at = "none" })
-        if s.talk_in_room then
+        if s.talk == "room" then
             room_out(s, "poison")
+            if upstairs then
+                stairs_down("poison")
+                upstairs = false
+            end
             mansion_out("poison")
+        elseif s.talk == "hall" then
+            central_out("poison")
+            if s.poison_upstairs then
+                stairs_up("web")
+                bedroom_in("web")
+            else
+                mansion_out("poison")
+            end
         end
         t.exec("poisonloc.search." .. s.name, t.player.click_loc, s.poison_loc, 2)
-        local pr, pd = t.chat.expect_text(s.proof)
-        t.expect("poisonloc.proof." .. s.name, pr, "chat.expect_text(" .. s.proof .. ") -> " .. txt(pd))
+        if s.proof_pages then
+            t.exec("poisonloc.proof." .. s.name, t.chat.play, s.proof_pages)
+        else
+            local pr, pd = t.chat.expect_text(s.proof)
+            t.expect("poisonloc.proof." .. s.name, pr, "chat.expect_text(" .. s.proof .. ") -> " .. txt(pd))
+        end
         t.exec("poisonloc.close." .. s.name, t.chat.drain, { stop_at = "none" })
+        if s.poison_upstairs then
+            bedroom_out("web")
+            stairs_down("web")
+            mansion_out("web")
+        end
 
         -- --------------------------------------------------- hand in
         local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
