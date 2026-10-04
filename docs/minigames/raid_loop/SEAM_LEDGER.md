@@ -531,3 +531,56 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   pass; check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127
   clean; spec_check clean. C unchanged, so the server selftest was not re-run. The shot PNGs
   were not read: the Read tool's hook timed out on every image this pass.
+
+## matthew-mbp-m4-raid-b1-seam14 (2026-10-04; parent e9fbfd6b5, OSRS-Content 2333c33455): why one Entry solo raider could not carry the Theatre (triage SEAM_TRIAGE_2026-10-04b.md)
+
+- `fight_speed_inventory_presses`: LANDED (driver Lua, pointer.lua; no C). t.player.eat,
+  t.player.drink and opts.quick on inv_op and equip: one real click on the backpack cell, read
+  back on the next tick (equip, eat, drink, quick inv_op 1 tick each; slow inv_op 3-4).
+  Conformance player.eat, player.drink, seam.held_press_fight_speed PASS (VERB 163 -> 165, SEAM
+  +1); seam.eat_does_not_hold_queued_hit rewritten to aim the eat into the delay window, PASS on
+  the tree (+1) and FAIL on a scratchpad copy with the pre-port food.rs2 (+3). Still open:
+  `::give dragon_dagger_p++` gives dragon_dagger_p (torirs_server_world.c cheat_id_from_name
+  underscores before the exact lookup; t.inv.count is right), row seam.give_takes_the_exact_symbol
+  waits unmerged in the state dir; npc.await_dead_engaged's opts.eat still eats slowly; the kept
+  rooms still use the slow presses (a tob_verzik copy with fast presses kills Verzik at 714).
+- `tob_nylocas_entry_damage_taken`: LANDED (content). Wave nylocas and Vasilias swings are
+  accuracy-rolled (LostCity npc_combat_melee.rs2:27-28; cache attack stats), and an Entry frozen
+  nylocas does not bite (Entry Mode :166). Room scratch 545-969 -> 361-441 damage, 1 of 3 -> 3 of
+  3 survive. Conformance seam.nylocas_swing_rolls_accuracy (9 of 14 at 0) and
+  seam.nylocas_frozen_no_bite_entry (0 bites after the burst) PASS (SEAM +2). Spec rows
+  nylocas.swing_miss_entry (C), frozen_bites_entry (D), vasilias_prayed_miss_entry (C) applied.
+  Still open: the Normal/Hard freeze ("usually"); Vasilias' Entry prayed max (Normal 17).
+- `tob_verzik_entry_supply_margin`: LANDED as a finding plus a behaviour-neutral constant
+  (^tob_verzik_p2_zap_boots_pct = 60, both quotes). Every Verzik damage source is at or under its
+  figure, so nothing was lowered. Bandage Magic +4 settled by the 9 June 2021 hotfix line. No
+  conformance row. Still open: the Entry chest drops leftovers it should keep (tob_chest.rs2, not
+  in the seam's files; patch proposed, not applied); the bandages restore no prayer (no figure);
+  no Entry figure for the P2 lightning, blood spell, crabs, tornado heal; Verzik's pillars use the
+  Normal records.
+- tob_nylocas must be re-authored: spec.nylocas.vasilias_reflect PASS -> FAIL (reflects 20/11/6;
+  the 20 is above the test's press-time max of 17 computed from the strength read at the press;
+  tob_damage.rs2's reflect is unchanged, the accuracy roll moved the run; the same in three runs).
+  Coverage FULL 73 -> 71 of 76: the three new Entry spec rows are not measured by the kept test,
+  and explosion_radius is unmeasured in this run. A copy also read
+  spec.nylocas.pillar_collapse_entry_min 31,36,41 -> 0,31,36,41 (a missed in-flight swing from a
+  freed nylocas counted as a collapse; filter by damage >= 30). tech.prayer's 0 count now
+  includes misses as well as blocks.
+- KEPT ROOMS on the final tree: tob_maiden 108/108, tob_bloat 94/94, tob_xarpus 120/120,
+  tob_sotetseg 155/155 PASS, gate green, coverage FULL (63, 55, 63, 83); tob_nylocas 151/152
+  (above); tob_verzik 239 PASS + BLOCKED, 140 of 142 (unchanged, gate accepts --allow-blocked).
+- RELAY VERDICT: first half (seam13 relay1) 3 of 3 green on the final tree (close14_r1a 99/99,
+  r1b 97/97, r1c 98/98; seam13 had 2 of 10). The Nylocas took 392, 279, 330 and the kit at
+  Sotetseg's entrance was 24-34 brew doses and 11-14 restore doses (seam13 measured 11 and 5).
+  Second half with seam13's measured kit: 0 of 3 (Xarpus tick 908; Verzik P2 1290 and 1273), all
+  supplies spent. With the kit the first half now leaves: 0 of 3, dead in Verzik P2 at 1680 with
+  24 brew and 11 restore doses spent. With that kit plus Protect from Magic held from the first
+  reds: 0 of 3, dead in Xarpus at 850 with only 4 brew doses drunk (its loop heals from bandages
+  alone). The whole raid cannot be authored yet; what remains is the second half's recipe
+  (brews at Xarpus, magic and prayer at Verzik P2), not the content. Those second-half runs were
+  identical under all three names.
+- Gates: quest suite 115 green + deserttreasure, forgettabletale, regicide, troll RED (the
+  baseline; nothing moved); conformance 320/320 PASS (165 verbs + 155 seam rows); cheats,
+  check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127 clean;
+  spec_check clean. C unchanged, so the server selftest was not re-run. PNGs were not read: the
+  Read tool's hook timed out.
