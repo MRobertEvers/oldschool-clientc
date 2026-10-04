@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 108
+-- @seam-count 109
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 171
-local SEAM_COUNT = 108
+local SEAM_COUNT = 109
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -10088,11 +10088,18 @@ return {
         -- AN EAT IS TWO CLOCKS, NEVER A PARK (waves seam3 eat_delay_port, the
         -- raid's content 7936c59bf9 brought over).  Two SEAM rows for the port
         -- (consume_shared.rs2 + food.rs2 + every consumption script).
-        -- (1) seam.eat_does_not_hold_queued_hit: a young dark wizard's spell lands
-        --     on its own tick through an eat.  RED on the old content (an eat
-        --     held the spell: eat3_before cast 36 hit 38, cast 52 hit 55), GREEN
-        --     with the port (eat3_after: +1,+1,+1,+1 = the uneaten +1).  Wiki
-        --     Tick eating: "eating a piece of food between the time a monster's
+        -- (1) seam.eat_does_not_hold_queued_hit: a young dark wizard's spell lands on
+        --     its own tick through an eat that LANDS on the cast tick or on the plain
+        --     hit tick. The eat is aimed from the wizard's own cadence (press at
+        --     land-1). The row it replaces pressed only after it read the cast, so the
+        --     eat landed after the +1 hit and the row passed on the old content too
+        --     (CONTENT_BUGS ENG-58). Proof, waves seam pass 5 (build/quest_gate/):
+        --     sf_eat_row_head3 PASS "eat at cast+0 +1, cast+1 +1, cast+1 +1, cast+0 +1"
+        --     on HEAD; sf_eat_row_old (HEAD content with the 38 eat-port files of
+        --     content c93c574f20 put back to c93c574f20^, in a throwaway worktree,
+        --     TORIRSSERVER_CONTENT) FAIL refused "eat at cast+0 -> +2, cast+1 -> +3,
+        --     cast+1 -> +3, cast+0 -> +2 -- 4 of 4 eats moved the queued hit".
+        --     Wiki Tick eating: "eating a piece of food between the time a monster's
         --     attack calculates its damage and when it hits the player".
         -- (2) seam.eat_delay_clocks: ::eatgate's one-tick answers (food after
         --     food refused, combo after food allowed, combo after combo refused,
@@ -10107,91 +10114,138 @@ return {
             local attack = verb("player", "attack")
             local inv_op = verb("player", "inv_op")
             local by_symbol = verb("npc", "by_symbol")
+            local tick = verb("tick")
+            local count = verb("inv", "count")
             if not goto_tile then return missing("player", "goto_tile") end
             if not attack then return missing("player", "attack") end
             if not inv_op then return missing("player", "inv_op") end
             if not by_symbol then return missing("npc", "by_symbol") end
+            if not tick then return missing("tick") end
+            if not count then return missing("inv", "count") end
             if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
             local WIZ = "young_dark_wizard"
+            local function now() local _, n = tick() return n or -1 end
+            -- The stage before seam.attack_fast_path wields a magic shortbow (ranged 99): it
+            -- kills the wizard in a cast or two and leaves no cadence to aim the eats from
+            -- (closer's first harness run: one plain cast with a hit). Unarmed, as in the
+            -- seam's own proof (sf_eat_row_head3); the bow goes back on at teardown.
+            local BOW = "magic_shortbow"
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local bow_off = false
             local function teardown()
                 setup_cheat("::kill " .. WIZ .. " 10")
                 settle(2)
+                if bow_off and equip then equip(BOW) end
             end
+            if unequip and unequip(BOW) == "ok" then bow_off = true end
             setup_cheat("::setlevel attack 1")
             setup_cheat("::setlevel strength 1")
             setup_cheat("::setlevel defence 1")
             setup_cheat("::setlevel hitpoints 99")
             setup_cheat("::give shark 12")
             local goto_result = goto_tile(3242, 3248, 0)
-            if goto_result ~= "ok" then
-                teardown()
-                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
-            end
+            if goto_result ~= "ok" then teardown() return "no_subject", "goto 3242,3248 -> " .. describe(goto_result) end
             setup_cheat("::spawn " .. WIZ .. " 1")
             settle(3)
             t.ticklog.start()
             t.ticklog.mark("seam.eat_does_not_hold_queued_hit")
             local _, marks = t.ticklog.rows({ kind = "mark" })
             local since = marks[#marks].serial
-            local ws, cast_seq, last_anim = nil, nil, nil
-            local acur, hcur, n, guard, engaged = since, since, 0, 0, false
-            local casts, eats = {}, {}
-            while guard < 160 and n < 10 do
+            local ws, cast_seq, epoch = nil, nil, since
+            -- every cast of the current wizard with its hit: { tick, hit }
+            local function casts()
+                local out = {}
+                if ws == nil then return out end
+                local _, an = t.ticklog.rows({ kind = "npc_anim", since = epoch, slot = ws })
+                local _, hp = t.ticklog.rows({ kind = "hit_player", since = epoch, slot = ws })
+                if cast_seq == nil and #hp > 0 then
+                    for _, r in ipairs(an) do if r.tick <= hp[1].tick then cast_seq = r.seq end end
+                end
+                for _, r in ipairs(an) do
+                    if cast_seq ~= nil and r.seq == cast_seq then out[#out + 1] = { tick = r.tick } end
+                end
+                -- a hit belongs to the newest cast before it (a splash writes no
+                -- row, so the next cast's hit must not be paired with it)
+                for k, c in ipairs(out) do
+                    local limit = math.min(c.tick + 8, out[k + 1] and out[k + 1].tick or c.tick + 8)
+                    for _, h in ipairs(hp) do
+                        if c.hit == nil and h.tick > c.tick and h.tick <= limit then c.hit = h.tick end
+                    end
+                end
+                return out
+            end
+            local function engage()
                 local nr, nrow = by_symbol(WIZ)
                 if nr ~= "ok" then
                     setup_cheat("::spawn " .. WIZ .. " 1")
                     settle(2)
-                    engaged, ws = false, nil
-                else
-                    if ws == nil then ws = select(2, t.ticklog.slot(nrow)) end
-                    if not engaged then engaged = (attack(WIZ, 2, 20) == "ok") end
+                    nr, nrow = by_symbol(WIZ)
+                    if nr ~= "ok" then return false end
+                    local _, m2 = t.ticklog.rows({ kind = "npc_spawn", since = since })
+                    epoch = (m2[#m2] and m2[#m2].serial) or epoch
                 end
-                settle(1)
-                guard = guard + 1
-                if ws ~= nil then
-                    local _, hp = t.ticklog.rows({ kind = "hit_player", since = hcur, slot = ws })
-                    for _, h in ipairs(hp) do
-                        hcur = math.max(hcur, h.serial)
-                        if cast_seq == nil and last_anim ~= nil then cast_seq = last_anim.seq end
-                    end
-                    local _, an = t.ticklog.rows({ kind = "npc_anim", since = acur, slot = ws })
-                    for _, r in ipairs(an) do
-                        acur = math.max(acur, r.serial)
-                        last_anim = r
-                        if cast_seq ~= nil and r.seq == cast_seq then
-                            n = n + 1
-                            casts[#casts + 1] = { tick = r.tick, slot = ws }
-                            if n % 2 == 0 then
-                                inv_op("shark", 1)
-                                eats[r.tick] = true
-                            end
-                        end
-                    end
-                end
+                ws = select(2, t.ticklog.slot(nrow))
+                for _ = 1, 6 do if attack(WIZ, 2, 20) == "ok" then return true end settle(1) end
+                return false
             end
-            local plain, eaten, seen = {}, {}, {}
-            for _, c in ipairs(casts) do
-                local _, hs = t.ticklog.rows({ kind = "hit_player", since = since, slot = c.slot })
-                for _, h in ipairs(hs) do
-                    if h.tick > c.tick and h.tick <= c.tick + 8 then
-                        local d = h.tick - c.tick
-                        if eats[c.tick] then eaten[#eaten + 1] = d else plain[#plain + 1] = d end
-                        break
+            if not engage() then teardown() return "no_subject", "the young dark wizard was never engaged" end
+            -- At least two plain casts that HIT: a splash writes no hit row, and in the
+            -- harness's world a run of splashes is common, so wait for up to 120 ticks.
+            local function hit_casts()
+                local n = 0
+                for _, c in ipairs(casts()) do if c.hit then n = n + 1 end end
+                return n
+            end
+            local guard = 0
+            while (#casts() < 3 or hit_casts() < 2) and guard < 120 do settle(1) guard = guard + 1 end
+            local plain, eaten, held = {}, {}, {}
+            for _, c in ipairs(casts()) do
+                if c.hit then plain[#plain + 1] = c.hit - c.tick end
+            end
+            if #plain < 2 then teardown() return "no_subject", "fewer than two plain casts with a hit: " .. #plain end
+            -- the queued hit's own offset: the smallest a plain cast shows (the young
+            -- dark wizard's is +1; a held hit only ever lands later)
+            local plain_off = plain[1]
+            for _, d in ipairs(plain) do if d < plain_off then plain_off = d end end
+            for i = 1, 6 do
+                if #eaten >= 4 then break end
+                local cs = casts()
+                if #cs < 2 then if not engage() then break end settle(6) cs = casts() end
+                if #cs >= 2 then
+                    local gap = cs[#cs].tick - cs[#cs - 1].tick
+                    if gap <= 0 then gap = 4 end
+                    local A = cs[#cs].tick + gap
+                    while A - 2 <= now() do A = A + gap end
+                    local land_at = A + ((i % 2 == 1) and 0 or plain_off)
+                    while now() < land_at - 1 do settle(1) end
+                    if now() == land_at - 1 then
+                        local _, n0 = count("shark")
+                        local press = now()
+                        inv_op("shark", 1)
+                        settle(8)
+                        local _, n1 = count("shark")
+                        local got = nil
+                        for _, c in ipairs(casts()) do if c.tick == A then got = c end end
+                        local txt = "press " .. press .. " eat lands " .. land_at .. " cast " .. describe(got and got.tick or ("none at " .. A))
+                            .. " hit " .. describe(got and got.hit)
+                        if got and got.hit and n1 == n0 - 1 then
+                            local d = got.hit - got.tick
+                            txt = txt .. " (+" .. d .. ", eat at cast+" .. (land_at - got.tick) .. ")"
+                            eaten[#eaten + 1] = txt
+                            if d ~= plain_off then held[#held + 1] = txt end
+                        end
+                        attack(WIZ, 2, 2)
                     end
                 end
             end
             teardown()
-            local text = "cast seq " .. describe(cast_seq) .. "; no eat +" .. table.concat(plain, ",+")
-                .. "; eat on the cast tick +" .. table.concat(eaten, ",+")
-            if #plain < 2 or #eaten < 2 then
-                return "no_subject", text .. " -- fewer than two casts of each kind"
-            end
-            for _, d in ipairs(plain) do seen[d] = true end
-            for _, d in ipairs(eaten) do
-                if not seen[d] then
-                    return "refused", text .. " -- an eat moved a queued npc hit to +" .. d
-                        .. " (a delay no uneaten cast showed): the eat's p_delay held the player's queue"
-                end
+            local text = "cast seq " .. describe(cast_seq) .. "; plain +" .. table.concat(plain, ",+") .. " (own +" .. describe(plain_off) .. ")"
+                .. "; eats aimed at the cast/hit tick: " .. table.concat(eaten, "; ")
+            if #eaten < 2 then return "no_subject", text .. " -- fewer than two eats landed on a predicted cast" end
+            if #held > 0 then
+                return "refused", text .. " -- " .. #held .. " of " .. #eaten .. " eats moved the queued hit off the plain offset"
+                    .. " (the eat's p_delay held the player's queue)"
             end
             return "ok", text
         end)
@@ -10618,6 +10672,96 @@ return {
                 return "hollow", "with no paused run it did not refuse -- " .. text
             end
             return "ok", text
+        end)
+
+        -- THE INFERNO IS ENTERED BY CLICK (waves seam pass 5, inferno_entry_pause_death_file: ENG-6, INF-AV-001,
+        -- ENG-37, ENTRY-4). No verb changed; one SEAM row.
+        --
+        -- PLACEMENT: in test/quests/_conformance.lua's PLAN, immediately AFTER step("wave.resume", ...) (the last
+        -- wave.* row, which leaves no run) and BEFORE seam("seam.retaliate_no", ...).  It ends its own real run
+        -- with wave.enter{restart} (::inferno leaves an active run first) and the practice run's Cave exit, so the rows
+        -- after it see no run, as before.
+        --
+        -- What it pins (measured: build/quest_gate/s5ep_a6 rows A.*, s5ep_cf1):
+        --   * TzHaar-Ket-Keh's Talk-to takes the fire cape and writes varb5646 = 2, the value the entrance's
+        --     multiloc binds Jump-in to (cache_locs.txt:1602-1605); the old content wrote 1 and the entrance
+        --     never offered Jump-in;
+        --   * the entrance's Jump-in starts a REAL run (practice false) at local 30,36 (Blert 2270,5348);
+        --   * exactly one "Wave: 1" line.
+        -- Travel between Ket-Keh and the entrance is a labelled ::goto: the entrance's pocket is not walkable from
+        -- Ket-Keh's (ENG-7, an engine/map finding).
+        seam("seam.inferno_entry_by_click", function()
+            local go = verb("player", "goto_tile")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local click = verb("player", "click_loc")
+            local choose = verb("chat", "choose")
+            local state = verb("wave", "state")
+            local pause = verb("wave", "pause")
+            local enter = verb("wave", "enter")
+            if not go then return missing("player", "goto_tile") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not click then return missing("player", "click_loc") end
+            if not choose then return missing("chat", "choose") end
+            if not state then return missing("wave", "state") end
+            if not pause then return missing("wave", "pause") end
+            if not enter then return missing("wave", "enter") end
+            t.cheat("::give tzhaar_cape_fire 1")
+            t.cheat("::setvar varb5646_inferno_sacrificed_firecape 0")
+            t.ticks(2)
+            go(2495, 5112, 0)
+            local tr, td = talk("inferno_master")
+            if tr ~= "ok" then return tr, "talk_to inferno_master -> " .. describe(td) end
+            local pr, pd = play({ "npc:the Inferno awaits", "choose:Sacrifice your fire cape." })
+            if pr ~= "ok" then return pr, "the sacrifice choice -> " .. describe(pd) end
+            t.ticks(2)
+            local _, v = t.var.server("varb5646_inferno_sacrificed_firecape")
+            local _, capes = t.inv.count("tzhaar_cape_fire")
+            if v ~= 2 or capes ~= 0 then
+                return "hollow", "after the sacrifice varb5646 " .. describe(v) .. " fire capes " .. describe(capes) .. ", not 2 and 0"
+            end
+            go(2495, 5131, 0)
+            -- Count only the lines that arrive after this press: the wave.* rows before this one
+            -- entered wave 1 themselves and their own "Wave: 1" lines are still in the chat ring.
+            local floor = 0
+            local _, before = t.msg.last(30)
+            for _, l in ipairs(is_table(before) and before or {}) do
+                if is_table(l) and type(l.serial) == "number" and l.serial > floor then floor = l.serial end
+            end
+            local cr, cd = click("inferno_entrance", 1)
+            if cr ~= "ok" then return cr, "Jump-in press -> " .. describe(cd) end
+            t.await({ level = function() return t.chat.kind() == "options" end, note = "jump-in options" }, 8)
+            local jr, jd = choose("/^Jump into the Inferno/")
+            if jr ~= "ok" then return jr, "the Jump-in row -> " .. describe(jd) end
+            local wr = t.await({ level = function() local _, _, s = state() return s and s.active and s.wave == 1 and s.alive > 0 end, note = "wave 1" }, 40)
+            local _, detail, s = state()
+            local text = "-> " .. describe(detail)
+            if wr ~= "ok" or not is_table(s) or s.practice ~= false then
+                return "hollow", "the entrance did not start a REAL wave 1 -- " .. text
+            end
+            t.ticks(2)  -- the line reaches the client's chat ring a tick after the server's wave var
+            local _, lines = t.msg.last(14)
+            local waves = 0
+            for _, l in ipairs(is_table(lines) and lines or {}) do
+                local fresh = not is_table(l) or type(l.serial) ~= "number" or l.serial > floor
+                if fresh and string.find(tostring(is_table(l) and l.text or l), "Wave: 1", 1, true) then waves = waves + 1 end
+            end
+            -- leave: wave.enter's ::inferno ends the real run and starts practice; the practice run's exit ends that
+            -- (Protect from Missiles first: wave 1's bat fires on the walk to the exit, as the wave.pause row's stage says)
+            local pray = verb("prayer", "set")
+            if pray then pray("protectfrommissiles", true) end
+            local nr, nd = enter("inferno", 1, { restart = true })
+            if nr ~= "ok" then return "hollow", "could not replace the real run: " .. describe(nr) .. " " .. describe(nd) end
+            local er, ed = pause({ via = "exit" })
+            if er ~= "refused" or not string.find(tostring(ed), "ENDED", 1, true) then
+                return "hollow", "could not end the run afterwards: " .. describe(er) .. " " .. describe(ed)
+            end
+            if waves ~= 1 then
+                return "hollow", "'Wave: 1' printed " .. waves .. " time(s), not once -- " .. text
+            end
+            return "ok", "sacrifice by Talk-to (varb5646 2, cape taken); Jump-in started a real wave 1 at "
+                .. s.tile.x .. "," .. s.tile.z .. "; one 'Wave: 1' line " .. text
         end)
 
         -- RETALIATE=NO REFUSES THE DEFAULT RETALIATION (waves seam pass 4

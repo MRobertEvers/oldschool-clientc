@@ -333,6 +333,9 @@ were not fetched; the archive urls are on the pinned pages.
 | `docs/minigames/inferno/sources/wiki/wiki_The_Floor_Is_Lava.wikitext` | [The Floor Is Lava](https://oldschool.runescape.wiki/w/The_Floor_Is_Lava?oldid=15319473) | 15319473 | 2026-08-25 |
 | `docs/minigames/inferno/sources/wiki/wiki_Slayer_task_TzHaar.wikitext` | [Slayer task/TzHaar](https://oldschool.runescape.wiki/w/Slayer_task%2FTzHaar?oldid=15316995) | 15316995 | 2026-08-23 |
 | `docs/minigames/inferno/sources/wiki/wiki_Module_Tile_markers_Inferno_Zuk_Safespots_json.wikitext` | [Module:Tile markers/Inferno Zuk Safespots.json](https://oldschool.runescape.wiki/w/Module:Tile_markers%2FInferno_Zuk_Safespots.json?oldid=15350387) | 15350387 | 2026-09-18 |
+| `docs/minigames/inferno/sources/wiki/wiki_Death.wikitext` | [Death](https://oldschool.runescape.wiki/w/Death?oldid=15355331) | 15355331 | 2026-09-24 (fetched 2026-10-04, seam5 shared_followups: says nothing about stats on death) |
+| `docs/minigames/inferno/sources/wiki/wiki_Player_owned_house.wikitext` | [Player-owned house](https://oldschool.runescape.wiki/w/Player-owned_house?oldid=15364208) | 15364208 | 2026-10-04 (fetched 2026-10-04, seam5 shared_followups: :288 stats restored on a house death) |
+| `docs/minigames/inferno/sources/wiki/wiki_Saradomin_brew.wikitext` | [Saradomin brew](https://oldschool.runescape.wiki/w/Saradomin_brew?oldid=15322175) | 15322175 | 2026-08-27 (fetched 2026-10-04, seam5 shared_followups: :56 the Defence boost, CONTENT_BUGS ENG-67) |
 
 ## 8. Guides and videos (grade D; fetched 2026-10-03)
 

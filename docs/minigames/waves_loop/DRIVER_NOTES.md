@@ -226,9 +226,14 @@ clear from `t.wave.state()` and the `npc_death` / `npc_free` rows instead.
 game's wave reset) and answers what the server did: ok (pause requested, or paused),
 refused (no run, or the run ended: a practice run leaves on the Cave exit),
 unsupported (the logout press ended the session: the client is on the title screen,
-call `t.session.login()` next) or timeout. On this content the logout button logs out
-and clears the run (ENG-8), so only `via="exit"` arms the content's pause.
+call `t.session.login()` next) or timeout. Since seam pass 5 the logout button's first
+press inside a real run is the pause request (ok "requested"); see "Seam pass 5: entry,
+pause and death" below. A second press can answer ok "PAUSED" (paused=1 is read before
+the socket closes) rather than unsupported: log in next either way.
 
+A paused run is now resumed by the LOGIN itself (`~inferno_login`), so after
+`t.session.relog()` `t.wave.resume()` answers refused (the run is already active); the
+paragraph below describes the verb as written, for content that resumes at the entrance.
 `t.wave.resume()` after a login presses the Cave entrance op 1 and the row
 "Resume the Inferno (wave N).", and is ok once the run is active on the saved wave
 and begun (+16 ticks, `^inferno_resume_delay`). Today the entrance is unreachable
@@ -243,8 +248,8 @@ wave). Before reading `state().pool` after a leave, await `state().tile.x < 6000
 (at most 3 ticks) or `t.ticks(1)`. That mixed-clock read was all of ENG-19: the
 server releases every arena npc on the leave tick and the client drops them on the
 next one (seam.wave_pool_after_leave). `via="logout"` in combat is now refused for
-16 ticks after the last hit (see "The combat logout delay"), and the client's own 5 s
-fallback then ends the session anyway.
+16 ticks after the last hit (see "The combat logout delay"); since seam pass 5 the
+client no longer ends a refused session itself, so the player stays in the fight.
 
 ## t.prayer.set decides "already so?" from the server
 
@@ -289,7 +294,8 @@ three, `intersect`, `gap`, `in_scene`, the tile flags, the flagged `blockers` of
 ray's box and the server tick. An npc's ranged check is cast from the PLAYER to the
 npc (LostCity does it backwards): ask `los("player", npc)` or read `sees_player`.
 Only wall projectile bits and LOC_PROJ_BLOCKER block sight; a `::goto` onto a loc
-tile reads blocked from it. Today the Inferno pillars block nothing (ENG-13).
+tile reads blocked from it. Since seam pass 5 the Inferno pillars are the cache's locs and block sight and
+walking (ENG-13 fixed); before, they blocked nothing.
 Neither verb clicks: record with `t.check`, not `t.exec`.
 
 ## t.npc.pack -- every npc around the player
@@ -353,10 +359,13 @@ restaged to 2: run a real-run leg first. Wave 67 never spawns its Jad today (ENG
 `[if_button,logout:logout]` refuses while fewer than 16 server ticks have passed
 since the last `hit_player` row (wiki Logout button:9), with the chat line
 "You can't log out until 10 seconds after the end of combat." (the text is
-unsourced, an open row). From +16 the server closes the session. The client's own
-5 s fallback (`app_net.c`) still logs a refused player out about 8 ticks later
-(ENG-29), so `t.session.logout` / `relog` within 16 ticks of a hit reads as the
-fallback ending it: wait until the last hit +16 for a server close. `t.ui.widget`
+unsourced, an open row). From +16 the server closes the session. Until seam pass 5
+the client's own 5 s fallback (`app_net.c`) logged a refused player out about 8 ticks
+later (ENG-29); it is gone (the rev-239 client never counts its logoutTimer down), so a
+refused player stays in the world indefinitely and `t.session.logout` inside 16 ticks
+of a hit answers timeout (its detail text still names the old fallback, ENG-69): press
+again after the last hit +16. A logout watch must poll the screen inside one `t.await`:
+`t.ticks` stops on the title screen (it counts the client's world cycle). `t.ui.widget`
 takes `"logout:logout"` as one string; a second string argument raises.
 
 ## A cast is a magic hit (seam pass 3)
@@ -489,3 +498,99 @@ whose setup does not depend on what came before goes at the end of the plan, bef
 `finish`, as `seam.retaliate_no` and `seam.prayer_drain_fresh_per_prayer` do (ENG-50).
 A C change is measured with a private client (`PLATFORM_OBJ_BASE`,
 `PLATFORM_TARGET`, passed as `QUEST_BINARY`) and the scratch recipe at the top.
+
+## Seam pass 5: no verb changed
+
+Seam pass 5 (2026-10-04) was content and one client fix: no driver verb was added,
+changed or brought over. It added one seam row (`seam.inferno_entry_by_click`) and
+sharpened `seam.eat_does_not_hold_queued_hit` (it now aims the eat to LAND on the cast
+tick or the plain hit tick; the old row passed on the pre-port content too, ENG-58).
+`run.py` takes one quest per call: `run.py cooks_assistant druid` fails in argparse.
+
+## Seam pass 5: reading the tick log of an Inferno scratch
+
+A scratch whose tick log starts before the `goto` into the arena also logs overworld
+`npc_spawn`/`npc_free` rows: filter by the Inferno npc ids 7691-7700 (pillars 7709,
+7710). Anchor tiles on the west pillar's `npc_spawn` row (region-local 17,37); npc
+rows give the SOUTH-WEST tile, the same frame as Blert and the scouter (C013).
+`t.ticklog.rows{since=}` takes a SERIAL (the S of `t.ticklog.mark`), not a tick: a
+tick there miscounts. `t.exec(name, t.wave.state)` fails "bad verb/target": pass
+`"inferno"` as its first argument.
+
+## Seam pass 5: spawns and the wave clock
+
+Combat npcs draw their tiles per wave from the nine without replacement; nibblers pick
+one of the nine tiles of their 3x3 block each, with replacement (two may share). A
+wave's last despawn is followed by "Wave completed!" on that tick and the next
+"Wave: N" 6 ticks later (`^inferno_wave_delay`); wave 1 begins 8 ticks after Jump-in
+(`^inferno_entry_delay`), landing at local 30,36. Each wave prints exactly one
+"Wave: N" line now (ENG-37). A blob's bloblets land mage (2,2), range (1,1), melee
+(0,0) from its SW tile, on its `npc_free` tick.
+
+## Seam pass 5: monster timing a test author sees
+
+The ranged Inferno monsters swing in `[ai_opplayer2]` on the clock tick (it was one
+tick later in `[ai_applayer2]`): ranger first attack spawn +1, blob spawn +4, bloblets
+spawn +3 then every 4. The mager still swings a tick after its clock (MAGER-AP-LAG).
+Blob flick: the blob READS the prayer 3 ticks before its projectile leaves (wiki
+Jal-Ak:49); with the read on A-3, `set_on_tick(Missiles, A-4)` makes it throw magic and
+on A-3 ranged; switch to the counter prayer on A-1 (the projectile's damage is blocked
+by the prayer up when it leaves). Nibblers: one pillar per wave, each on a ring tile,
+a bite every 4; idle if their pillar falls while another stands; they turn on the
+player only when no pillar stands (0-4, no miss roll, blocked by Protect from Melee).
+Melee dig: 50 ticks after the wave starts, then 40-60 after its last swing (no reset in
+the first 30); dig anim 7600, up 7601 +6, swing +12.
+
+## Seam pass 5: auto-retaliate off and run, in setup
+
+Set `::setvar varp172_option_nodef 1` (auto-retaliate off) in a wave scratch's setup:
+otherwise the player walks to and fights the first monster that hits, and a safespot
+or a measured cadence is lost (a mager hit on T also skips its T+1 swing,
+MAGER-HIT-SKIP). Run: `t.ui.invoke(select(2, t.ui.widget('orbs:runbutton')), 1)`; run
+energy: `t.ui.text('orbs:runenergy_text')`.
+
+## Seam pass 5: pillars
+
+The pillars are the cache's locs (`inferno_safespot1..3`), so they block `t.world.los`
+and walking. Safespot: stand one tile off the pillar on the far side of the npc's
+straight line; ranger, mager and bat stood there with `sees_player` 0. A fall shows in
+the tick log as `loc_set` loc -1, `npc_spawn` 7710, `npc_anim` 7561, `npc_free` 7709,
+then `npc_free` 7710 two ticks later. After wave 66 the pillars fall on the last
+despawn tick, for half the player's current hitpoints within one tile; none stand at
+67 or 68.
+
+## Seam pass 5: the Jal-Zek revive
+
+Revive reads: `npc_anim` seq 7611 on the mager and an `npc_spawn` row on the SAME tick
+(local x30-37 z28-35). The revived hp is taken with `npc_statsub` (no `hit_npc` row):
+read it from `t.npc.pack(...).hitpoints` (bat 12, blob 20). Find a revived npc's first
+swing by its attack sequence (bat 7578); 7579 is the bat's defend and lands first when
+you hit it. `t.drive.camera` before `t.shot` did not move the shot's camera; an attack
+press on the target aims it. Waves 37-42 kill a bow-only player at 99s: plan pillars or
+Missiles for the bats and bloblets.
+
+## Seam pass 5: entry, pause and death
+
+A real run by click: `talk_to("inferno_master")`, then
+`chat.play{"npc:the Inferno awaits", "choose:Sacrifice your fire cape."}` (varb5646
+becomes 2), a labelled `::goto 2495,5131` (the entrance pocket is not walkable from
+Ket-Keh, ENG-63), `click_loc("inferno_entrance", 1)` and the Jump row. Pause: the logout
+button's first press is the request; the run pauses at the end of the wave and stays in
+the arena (paused=1, active=1, alive 0); `t.session.relog()` resumes it at login, wave
++16 ticks. The second press (16 ticks unhit) logs out, and the login restarts the same
+wave with its full alive count. Never `t.ticks()` on the title screen. A death pays
+`~inferno_tokkul_for_wave(wave)`, doubled with the elite Karamja diary (varb4566); a Zuk
+win gives the cape and 16,440 Tokkul (doubled), on the ground if the pack is full.
+
+## Seam pass 5: death restores drained stats
+
+A death now restores every DRAINED stat, prayer included, to base; a BOOST survives the
+death (ENG-66, unsourced). Before, `death_restore_stats` was a no-op and only the
+stat_restore timer's prayer regeneration hid it (ENG-60).
+
+## Seam pass 5: old content on the shared client
+
+`TORIRSSERVER_CONTENT=<throwaway content root>` runs the shared client on another
+content pack, which is how a before/after proof of a content change is made without
+touching this tree (sf_eat_row_old ran the pre-port eat files from a throwaway
+worktree).

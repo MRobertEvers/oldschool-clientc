@@ -30,3 +30,13 @@ these three); they are still declared and reset by `gauntlet.rs2`, so no id was 
 When the raid branch merges after this one, its three `consume_*` varps must take this
 branch's ids (or new ones) and its `consume_shared.rs2` / `consume_delay.varp` /
 selftest stanza be renamed with them: the two ports are the same code under two numbers.
+**Seam pass 5 `inferno_monsters_file` (2026-10-04):** five npc_var slots for the Inferno monsters, written high so the
+`varn` allocator (which counts up from 0) does not reach them.
+
+| Kind | Id | Name | File that declares it | Added by | Collides with |
+|---|---|---|---|---|---|
+| npc_var slot | 59 | `^inferno_var_nib_slot` | `MI/configs/inferno.constant` (monsters block) | seam pass 5 `inferno_monsters_file` | not a pack id: a raw index into `ToriRSServerNpc.script_vars` (64 slots). It shares the array with `pack/varn.alloc` ids (0-12 today; 5 and 6 are skill_combat's `npc_action_delay` / `npc_start_coord`). Check the varn allocator has not reached 59 on `v3` |
+| npc_var slot | 60 | `^inferno_var_last_swing` | same | same | as 59 |
+| npc_var slot | 61 | `^inferno_var_pillar` | same | same | as 59 |
+| npc_var slot | 62 | `^inferno_var_dig_at` | same | same | as 59 |
+| npc_var slot | 63 | `^inferno_var_spawn_tick` | same | same | as 59 (63 is the last slot, TORIRSSERVER_NPC_VAR_MAX 64) |

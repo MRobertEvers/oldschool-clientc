@@ -1,0 +1,185 @@
+{{External|rs}}
+{{redirect|Brew}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Saradomin brew(1)
+|name2 = Saradomin brew(2)
+|name3 = Saradomin brew(3)
+|name4 = Saradomin brew(4)
+|image1 = [[File:Saradomin brew(1).png]]
+|image2 = [[File:Saradomin brew(2).png]]
+|image3 = [[File:Saradomin brew(3).png]]
+|image4 = [[File:Saradomin brew(4).png]]
+|release = [[24 October]] [[2005]]
+|update = Mogres, Lizards, Pet Fish, Potions and Potatoes!
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drink, Empty, Drop
+|examine1 = 1 dose of Saradomin brew.
+|examine2 = 2 doses of Saradomin brew.
+|examine3 = 3 doses of Saradomin brew.
+|examine4 = 4 doses of Saradomin brew.
+|value1 = 125
+|value2 = 150
+|value3 = 175
+|value4 = 200
+|weight1 = 0.020
+|weight2 = 0.025
+|weight3 = 0.030
+|weight4 = 0.035
+|exchange = Yes
+|id1 = 6691
+|id2 = 6689
+|id3 = 6687
+|id4 = 6685
+}}
+{{Synced switch
+|version1 = [[File:Saradomin brew(1) detail.png|left|130px]]
+|version2 = [[File:Saradomin brew(2) detail.png|left|130px]]
+|version3 = [[File:Saradomin brew(3) detail.png|left|130px]]
+|version4 = [[File:Saradomin brew(4) detail.png|left|130px|class=pageimage]]
+}}
+A '''Saradomin brew''' is made by mixing [[toadflax]] and a [[Crushed nest|crushed bird's nest]] in a [[vial of water]], giving 180 [[Herblore]] experience. This requires level 81 Herblore.
+
+Each dose of a Saradomin brew temporarily lowers [[Strength]], [[Attack]], [[Magic]], and [[Ranged]] by 10% + 2 of their current levels, and raises [[Hitpoints]] by 15% + 2 and [[Defence]] by 20% + 2 of their base levels, all rounded down. This can boost the player's Hitpoints and Defence above their base level by up to the amount restored. Saradomin brews are frequently used alongside [[super restore]] potions which restore the drained offensive stats and can leave the player with [[Hitpoints#Overhealing|overhealed]] hitpoints and a [[boost|temporarily boosted]] defence level greater than they would gain from a [[super defence potion]].
+
+Depending on skill levels, one dose of super restore is enough to restore lost stats from two or three doses of Saradomin brew, or up to four doses of brew if the player's stats were boosted beforehand (as with a [[super combat potion]]). At skill levels 90 and higher, a super restore will only fully restore lost stats from two doses of Saradomin brew.
+
+Saradomin brews can restore far more Hitpoints per inventory slot (a maximum of 64 at or above 94 hitpoints) than any other item except [[purple sweets]]. Saradomin brews are often used in lengthy combat encounters with [[bosses]] or at [[raids]] where inventory space is limited, as well as being commonly used in [[player killing]].
+
+Creating a Saradomin brew in the [[Falador east bank]] is needed to complete the [[Elite Falador Diary]].
+
+==Effects==
+===Hitpoints per dose===
+The amount of Hitpoints healed is based on a player's base Hitpoints level. The formula is <math display="inline">\left\lfloor \text{Hitpoints} \cdot \frac{15}{100}\right\rfloor + 2</math>.
+
+This heal is a boost to the Hitpoints skill and does allow for [[overhealing]] above the player's maximum Hitpoints.
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Hitpoints}} Level
+!Boost
+!{{SCP|Hitpoints}} Level
+!Boost
+!{{SCP|Hitpoints}} Level
+!Boost
+|-
+|'''10–13'''||+3||'''40–46'''||+8||'''74–79'''||+13
+|-
+|'''14–19'''||+4||'''47–53'''||+9||'''80–86'''||+14
+|-
+|'''20–26'''||+5||'''54–59'''||+10||'''87–93'''||+15
+|-
+|'''27–33'''||+6||'''60–66'''||+11||'''94–99'''||+16
+|-
+|'''34–39'''||+7||'''67–73'''||+12|| ||
+|}
+
+===Defence boost by level===
+Defence boost is calculated with: <math display="inline">\left\lfloor\text{(Defence Level)} \cdot \frac{1}{5}\right\rfloor + 2</math>.
+
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Defence}} Level
+!Boost
+!{{SCP|Defence}} Level
+!Boost
+!{{SCP|Defence}} Level
+!Boost
+|-
+|'''1–4'''||+2||'''35–39'''||+9||'''70–74'''||+16
+|-
+|'''5–9'''||+3||'''40–44'''||+10||'''75–79'''||+17
+|-
+|'''10–14'''||+4||'''45–49'''||+11||'''80–84'''||+18
+|-
+|'''15–19'''||+5||'''50–54'''||+12||'''85–89'''||+19
+|-
+|'''20–24'''||+6||'''55–59'''||+13||'''90–94'''||+20
+|-
+|'''25–29'''||+7||'''60–64'''||+14||'''95–99'''||+21
+|-
+|'''30–34'''||+8||'''65–69'''||+15
+|}
+
+===Stat drain by level===
+Attack/Strength/Ranged/Magic drain is calculated with: <math display="inline">\left\lfloor\text{(Current Stat Level)} \cdot \frac{1}{10}\right\rfloor + 2</math>.
+
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Overall}} Level
+! Boost
+!{{SCP|Overall}} Level
+!Boost
+|-
+|'''1'''||-1|| '''60–69'''||-8
+|-
+|'''2–9'''||-2||'''70–79'''||-9
+|-
+|'''10–19'''||-3||'''80–89'''||-10
+|-
+|'''20–29'''||-4||'''90–99'''||-11
+|-
+|'''30–39'''||-5||'''100–109'''||-12
+|-
+|'''40–49'''||-6|| '''110–119'''||-13
+|-
+|'''50–59'''||-7|| '''120–125'''||-14
+|}
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 81
+|skill1boostable = Yes
+|skill1exp = 180
+|members = Yes
+|ticks = 2
+|mat1 = Toadflax potion (unf)
+|mat2 = Crushed nest
+|output1 = Saradomin brew(3)
+}}
+
+==Price per dose==
+{{Price per dose|Saradomin brew}}
+
+==Item sources==
+===Saradomin brew(2)===
+{{Drop sources|Saradomin brew(2)}}
+
+===Saradomin brew(3)===
+{{Drop sources|Saradomin brew(3)}}
+
+===Saradomin brew(4)===
+{{Drop sources|Saradomin brew(4)}}
+
+===Shop locations===
+{{Store locations list|Saradomin brew(4)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 April 2016
+|update = Bank Placeholder Feedback Changes
+|change = Half full potions could now be turned into bank placeholders.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*At a [[Hitpoints]] level of 34 or above, a 4-dose Saradomin Brew has more healing per-slot than any other food in the game. Restoring a total of 28 Hitpoints at a Hitpoints level of 34, it restores 2 points more than [[Cooked moonlight antelope]] which heal 26.
+**This does not include [[purple sweets]], as they are a stackable food item.
+* Despite being high healing, the chat message when drinking the potion indicates that it does not taste very good: {{mes|You drink some of the foul liquid.}}
+
+{{Potions}}
+[[Category:Items storable in the potion storage]]
+[[Category:Temporary skill boost]]
+[[Category:Defence boosting items]]
+[[Category:Hitpoints boosting items]]
