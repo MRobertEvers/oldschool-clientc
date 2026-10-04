@@ -118,3 +118,41 @@ What the closer changed and what it sends back:
   ids are not an inventory kind. A worker's notebook had been written into `sources/blert_api/`; it was moved to the
   pass state directory and not committed.
 - Not run: no Blert or wiki fetch by the closer (the workers used cached Blert data; no fetch recorded).
+
+## matthew-mbp-m4-waves-b1-spec-inferno-c (the Inferno, batch C: mixed waves, the Jads, Zuk, presentation; 2026-10-04)
+
+Closed by the Opus closer after the relaunch. Parent commit 982647a71, content 3fb2bf8662 (comments and tags only; no
+constant value changed, so no quest test was run; `make -C src torirsserver-scripts` compiled clean; the full quest suite
+was not run by this pass). Total: 489 rows, A 108 / B 175 / C 47 / D 75 / E 84. Content bug rows: 30 appended to
+CONTENT_BUGS.md (11 by the workers, 19 copied from the reports by the closer; the parent commit message says 41, which is wrong).
+
+- **mixed_late_waves**: 36 rows, A 0 / B 32 / C 0 / D 2 / E 2; presentation 3; open none new (M29, M30, M38, M43); bugs MIXED-LOCKSTEP, MIXED-NIB-TILE, MIXED-RE-SEEN.
+- **single_jad**: 67 rows, A 14 / B 28 / C 5 / D 11 / E 9; presentation 23; open M46-M51; bugs JAD-PRAYER-READ, JAD-OPEN, JAD-HEALER-STRAND, JAD-HEALER-PLACE, JAD-DEATH-CLIP, JAD-SOUND-TELL, JAD-RE-SEEN.
+- **triple_jad**: 79 rows, A 14 / B 36 / C 5 / D 13 / E 11; presentation 25; open M52-M53; bugs JAD-TRIPLE-STAGGER, JAD-TRIPLE-RE-SEEN.
+- **zuk_glyph_shield**: 37 rows, A 12 / B 12 / C 2 / D 8 / E 3; presentation 10; open M54-M59; bugs WZ-DWELL, WZ-ALIGN, WZ-DIR, WZ-ROW, WZ-START, WZ-WINDOW, GLYPH-DEATH-CLIP.
+- **zuk_fight**: 62 rows, A 13 / B 24 / C 12 / D 9 / E 4; presentation 13; open M60-M62, M66; bugs ZUK-HEAL-GAP, -HEAL-FIRST, -ENRAGE-GAP, -SET-TILE, -SET-OPEN, -JAD-OPEN, -MEJJAK-GAP, -DEATH-CLIP, -MIN-HIT.
+- **zuk_sets_and_healers**: 86 rows, A 21 / B 30 / C 15 / D 11 / E 9; presentation 19; open M66 (closes nothing new); bugs ZUK-SETS-RE-SEEN.
+- **presentation_av**: 122 rows, A 34 / B 13 / C 8 / D 21 / E 46; presentation 118 (+9 reward); open M63-M65, M66; bugs AV-RE-SEEN.
+
+What the closer changed and what it sends back:
+
+- Re-derived three or more rows per table: mixed first wave 35 (wiki_Inferno:227), mager/ranger same first tick 32 of 225
+  (MIXED_LATE_ANALYSIS:21), Strategies:526; Jad hp 350 (cache_npc:317), gap 8 (JAD_ANALYSIS:3-5), healers at 175
+  (Yt_HurKot:70); triple gap 9 741 of 742 + JalTok_Jad:51, first swings 4,7,10 14 of 14, max 113 (JalTok_Jad:12, C060);
+  glyph dwell 5 (ZUK_ANALYSIS:7), 5x3 (Ancestral_Glyph:36), direction saved (QoL newspost:57); Zuk enraged gap 7
+  275 of 275 (ZUK_FIGHT_ANALYSIS:2), sets 350/175/600-480 (wiki_Inferno:287); jalnib ready 7573 / walk 7572.
+- Downgraded: hurkot_sounds and mejjak_sounds (sets and presentation_av) C to E and zuk_fight.sound_hit /
+  presentation_av.zuk_sound_hit D to E, new M66: INFERNO_SOUNDS.md gives them layers c, f and t (a name join, the Fight
+  Caves lineage, a triple member), not a wiki or plugin statement. zuk_sets_and_healers.mejjak_heal_amount C to D (Blert
+  is a recorder; a B candidate). Added the trainer (CODE_CONSTANTS C080, 5..10) to both mejjak_lava_damage rows, whose
+  guide line states only the max. presentation_av.nibbler_ready_walk_seq reordered to 7573,7572 (ready, walk).
+- Kept C: the Jad hit_delay rows ([plugin][blert]) rest on two plugin lineages, trainer and kotori (CODE_CONSTANTS C058).
+- inferno.constant: eight tags removed (back to HEAD) where the cited source contradicts the value: jad67_lx, glyph_run_lz,
+  glyph_row_lz, player_zuk_lz, glyph_pause, jad_open_delay, jad_healer_dx/dz (batch B's rule: a mismatched constant stays
+  untagged with its bug named).
+- Sent back (measured_by): god mode on rows a fight can reach: single_jad and triple_jad after-survival rows (healers,
+  death), zuk_fight thresholds (enrage gap, MejJak heal, Jad healers, death) by ::zukhp under ::god, zuk_sets Jad-healer
+  rows. mixed: the bot died on most waves, so style-change and duration rows are not measured on ours. presentation_av:
+  no fresh fight, sounds read from scripts not measured. Headless runs share one rng stream (correlated samples).
+  single_jad.sound_defend 410 rests on a wiki line naming TzTok-Jad, applied to JalTok-Jad.
+- Not run: no Blert or wiki fetch by the closer or the workers (cached data only).
