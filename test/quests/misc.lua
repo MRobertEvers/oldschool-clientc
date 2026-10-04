@@ -24,19 +24,25 @@
 --    (a walk-through, ~misc_ulby_walk_door; before the quest starts its first
 --    press is the door guard's "Halt! Who goes there?", which grants the
 --    audience).
---  * Etceteria castle (maps/m40_60.jl2): castledoor 2608,3875 and 2609,3875,
---    the stair room's castledoor 2615,3870 (both levels), spiralstairs
---    2613,3867 up -> 2615,3867,1 and spiralstairstop 2614,3867,1 down ->
---    2614,3866,0, then Sigrid's room through 2615,3870,1.
+--  * Etceteria castle (maps/m40_60.jl2): the west door castledoor
+--    2608,3875, the corridor, the stair room's castledoor 2611,3866,
+--    spiralstairs 2613,3867 up -> 2615,3867,1 and spiralstairstop
+--    2614,3867,1 down -> 2614,3866,0, then Sigrid's room through
+--    castledoor 2615,3870,1.
 --  * Derrik's house: viking_abode_door 2551,3893.
 -- Miscellania and Etceteria are one walkable landmass on level 0, so the hops
 -- between the two castles' front doors, Derrik's door and Leif's grove are
--- overland travel between open tiles. The voyage to the island is not: the
--- guide's travelToMisc is a boat from Rellekka, and this pack has no
--- Miscellania boat (viking_sailor.rs2:14-17 answers "I still need to fix
--- this longboat" after the Fremennik Trials; LostCity has no such sailor
--- either), so the run's FIRST goto stands the player on the island's dock
--- 2581,3845 -- where that boat lands -- in the open, outside every building.
+-- overland travel between open tiles. The voyage to the island is not: it
+-- is the guide's travelToMisc, the longship from Rellekka
+-- (quest_viking/scripts/viking_sailor.rs2 [opnpc1,viking_sailor], seam
+-- matthew-mbp-m4-b59-seam1 (i)), which needs The Fremennik Trials complete
+-- (a requirement of this quest, staged in setup). Getting to Rellekka from
+-- Lumbridge on foot means the Taverley members' gate (reach.py: the only way,
+-- membergater 2933,3320, at margins 30/80/160), so the trip is what a player
+-- uses: Camelot Teleport cast from the spellbook (Magic 45, 5 air + 1 law
+-- staged in setup), then overland from Camelot to Rellekka's docks (open
+-- tiles, no door between: reach.py closed-doors), Talk-to the sailor, and
+-- the ride lands on the island's dock 2581,3845.
 --
 -- Courting partner: Prince Brand (%misc_partner_multivar = 1). Brand also
 -- writes the anthem later regardless of who is courted (his own file
@@ -116,6 +122,10 @@ return {
         "::setlevel woodcutting 45", -- the maple row's own level gate (woodcutting_trees), also Ghrim's reputation-tool level for the real support grind
         "::give bronze_axe 1", -- Advisor Ghrim's reputation item AND the real axe ::misc_earnapproval's ~woodcutting_axe_checker needs
         "::complete quest_heroes", -- misc_door_guard.rs2's hard gate: %heroquest = ^hero_complete
+        "::complete quest_fremenniktrials", -- the Rellekka longship's gate (viking_sailor.rs2), a requirement of this quest
+        "::setlevel magic 45", -- Camelot Teleport (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, 5 air + 1 law)
+        "::give airrune 5", -- one Camelot Teleport, Lumbridge -> Camelot on the way to Rellekka
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -152,83 +162,27 @@ return {
             return tostring(r)
         end
 
-        -- Cross one swinging door on foot. Walk to the near side and check
-        -- the tile. Probe THIS level's closed leaf by tile AND level
-        -- (click_loc's `at` selector presses only that copy and answers
-        -- no_row, pressing nothing, when it is not there -- the castles stack
-        -- a castledoor copy on level 0 and level 1 at the same tile, and
-        -- loc_near returns the first copy on any level). no_row means an
-        -- earlier press left this door open (a door swings back after 500
-        -- ticks): assert the open leaf stands within one tile of the door
-        -- tile -- a row that fails when it does not -- and walk through
-        -- without pressing it again. Then walk to the far tile and check it
-        -- exactly: a door that did not open stops that walk at the wall.
-        -- Is an open leaf of `open_sym` standing on `level` within one tile of
-        -- the door tile? loc_near cannot say: it answers the first copy on ANY
-        -- level, and here that is the level-0 leaf straight below a level-1
-        -- door (run 4). So read the scene's copies with their levels: a loc
-        -- selector naming a plane that does not exist (9) matches no copy,
-        -- presses nothing, and answers no_row listing the nearest copies as
-        -- x,z,level (QD.player._loc_copy) -- read-only.
-        local function leaf_on_level(open_sym, door_x, door_z, level)
-            local r, d = t.player.click_loc(open_sym, 1, { at = { door_x, door_z, 9 } })
-            local listed = (r == "no_row" and tostring(d):match("nearest copies: ([^)]*)%)")) or nil
-            if listed == nil then
-                return false, nil, "probe answered " .. tostring(r) .. " " .. tostring(d)
-            end
-            for xs, zs, ls in listed:gmatch("(%d+),(%d+),(%-?%d+)") do
-                local x, z, l = tonumber(xs), tonumber(zs), tonumber(ls)
-                if l == level and math.abs(x - door_x) <= 1 and math.abs(z - door_z) <= 1 then
-                    return true, { x = x, z = z, level = l }, listed
-                end
-            end
-            return false, nil, listed
-        end
-
+        -- Cross one swinging door on foot with the driver's
+        -- t.player.pass_door (b59-seam1; one graded row per crossing): walk
+        -- to the near side; read the CLOSED leaf on the exact door tile AND
+        -- level (the castles stack a castledoor copy on level 0 and level 1
+        -- at one x,z) and press it there, graded on the closed leaf leaving
+        -- the tile and the open leaf standing beside it -- or, if it already
+        -- stands open, assert the open leaf on this level and do not press
+        -- it; walk to the far side and grade that exact tile; then CLOSE it
+        -- behind you (close = true: the open leaf pressed on this level, the
+        -- closed leaf graded back on the door tile, the far tile graded
+        -- again). Closing every door keeps each crossing a press, keeps the
+        -- opened leaf of Derrik's door off his corner (round 1 run 3: "I
+        -- can't reach that!" with viking_abode_door_open on 2551,3894), and
+        -- leaves no door to revert while the player is away (round 1 runs 1
+        -- and 5, engine-side, fixed in 273db6393).
         local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, level, near_x, near_z, far_x, far_z)
-            t.player.walk_to(near_x, near_z, 60)
-            local nr, nt = t.world.tile()
-            t.check(prefix .. ".atDoor", nr == "ok" and nt.x == near_x and nt.z == near_z and nt.level == level,
-                "walked to " .. near_x .. "," .. near_z .. "," .. level .. " beside " .. closed_sym .. " at "
-                    .. door_x .. "," .. door_z .. "," .. level .. " -> " .. tile_text(nr, nt))
-            local pr, pd = t.player.click_loc(closed_sym, 1, { at = { door_x, door_z, level } })
-            local open_ok, leaf, leaves
-            local waited = 0
-            while pr == "no_row" do
-                open_ok, leaf, leaves = leaf_on_level(open_sym, door_x, door_z, level)
-                if open_ok or waited >= 10 then
-                    break
-                end
-                -- Neither leaf in the client's scene yet: give the scene a
-                -- few ticks to catch up, then probe the closed leaf again.
-                t.ticks(2)
-                waited = waited + 2
-                pr, pd = t.player.click_loc(closed_sym, 1, { at = { door_x, door_z, level } })
-            end
-            if waited > 0 then
-                t.note(prefix .. ": neither leaf of " .. closed_sym .. " at " .. door_x .. "," .. door_z .. "," .. level
-                    .. " was in the scene on arrival; waited " .. waited .. " tick(s), probe now " .. tostring(pr))
-            end
-            if pr == "no_row" then
-                t.check(prefix .. ".doorStandsOpen", open_ok,
-                    "no closed " .. closed_sym .. " at " .. door_x .. "," .. door_z .. "," .. level .. " (" .. tostring(pd)
-                        .. "); " .. open_sym .. ": " .. (open_ok and ("open leaf at " .. leaf.x .. "," .. leaf.z .. "," .. leaf.level)
-                        or ("no copy on level " .. level .. " within 1 of the door tile; the scene's nearest copies: " .. leaves))
-                        .. " (want the open leaf on this level within 1 of the door tile: left open by an earlier press,"
-                        .. " walked through, not pressed again)")
-            else
-                -- A door says nothing when it opens, so click_loc may answer
-                -- timeout although it swung; the walk below is the proof.
-                t.check(prefix .. ".openDoor", pr == "ok" or pr == "timeout",
-                    "click_loc(" .. closed_sym .. ", 1, at " .. door_x .. "," .. door_z .. "," .. level .. ") -> "
-                        .. tostring(pr) .. " " .. tostring(pd))
-                t.ticks(1)
-            end
-            local wr, wd = t.player.walk_to(far_x, far_z, 30)
-            local fr, ft = t.world.tile()
-            t.check(prefix .. ".throughDoor", fr == "ok" and ft.x == far_x and ft.z == far_z and ft.level == level,
-                "walked through " .. closed_sym .. " " .. door_x .. "," .. door_z .. "," .. level .. " to " .. far_x .. ","
-                    .. far_z .. " -> " .. tile_text(fr, ft) .. " (walk " .. tostring(wr) .. (wd and (" " .. tostring(wd)) or "") .. ")")
+            t.exec(prefix, t.player.pass_door, {
+                closed = closed_sym, open = open_sym,
+                at = { door_x, door_z, level }, near = { near_x, near_z }, far = { far_x, far_z },
+                close = true, ticks = 30,
+            })
         end
 
         -- A click that TELEPORTS the player (a stair, the throne room's
@@ -309,20 +263,21 @@ return {
         end
         -- Etceteria castle: from the open ground west of its front door up to
         -- Queen Sigrid's room (2615,3872,1), and back down and out.
+        -- Round 3 takes the corridor and its stair-room door 2611,3866 (the
+        -- way misc_astrid walks): the hall's stair-room door 2615,3870,0
+        -- cannot be shut behind you from the hall -- its open leaf stands on
+        -- 2615,3871 with a chair on 2615,3872, so the close press stepped
+        -- the player back into the stair room (run 1, vargas3/brand3/vargas4).
         local function etc_in(p)
-            pass_door(p .. ".etcFrontDoor", CD, CDO, 2608, 3875, 0, 2607, 3875, 2608, 3875)
-            pass_door(p .. ".etcHallDoor", CD, CDO, 2609, 3875, 0, 2609, 3875, 2610, 3875)
-            pass_door(p .. ".etcStairRoomDoor", CD, CDO, 2615, 3870, 0, 2615, 3871, 2615, 3869)
+            pass_door(p .. ".etcFrontDoor", CD, CDO, 2608, 3875, 0, 2607, 3875, 2609, 3874)
+            pass_door(p .. ".etcStairRoomDoor", CD, CDO, 2611, 3866, 0, 2611, 3866, 2613, 3866)
             hop(p .. ".etcStairsUp", "spiralstairs", 1, 2613, 3867, 0, 2615, 3868, 2615, 3867, 1)
             pass_door(p .. ".etcSigridDoor", CD, CDO, 2615, 3870, 1, 2615, 3870, 2615, 3872)
         end
         local function etc_out(p)
             pass_door(p .. ".etcSigridDoor", CD, CDO, 2615, 3870, 1, 2615, 3871, 2615, 3869)
             hop(p .. ".etcStairsDown", "spiralstairstop", 1, 2614, 3867, 1, 2615, 3867, 2614, 3866, 0)
-            -- far tile 2615,3871: the opened leaf stands on that tile and
-            -- walls its north edge, so the walk on goes round it.
-            pass_door(p .. ".etcStairRoomDoor", CD, CDO, 2615, 3870, 0, 2615, 3870, 2615, 3871)
-            pass_door(p .. ".etcHallDoor", CD, CDO, 2609, 3875, 0, 2610, 3875, 2609, 3875)
+            pass_door(p .. ".etcStairRoomDoor", CD, CDO, 2611, 3866, 0, 2612, 3866, 2610, 3866)
             pass_door(p .. ".etcFrontDoor", CD, CDO, 2608, 3875, 0, 2608, 3875, 2606, 3875)
         end
         -- Overland hops between open level-0 tiles of the island.
@@ -334,8 +289,51 @@ return {
         end
 
         -- ---------------------------------------------------- King Vargas: offer
-        -- The voyage (see the header): the dock, then overland to the castle.
-        t.exec("goto-dock", t.player.goto_tile, 2581, 3845, 0)
+        -- The voyage (see the header). Camelot Teleport by click from the
+        -- spellbook, graded on three rows: the cast's own answer, the exact
+        -- runes it took (magic_spells.dbrow [magic_spell_teleport_camelot]:
+        -- 5 air, 1 law), and the landing (tele_coord 2757,3478,0,
+        -- map_findsquare within 2: teleport.rs2 [label,magic_teleport]).
+        local tp_air_result, tp_air0 = t.inv.count("airrune")
+        local tp_law_result, tp_law0 = t.inv.count("lawrune")
+        local tp_result, tp_detail = t.player.cast("camelot_teleport")
+        t.check("camelotTeleport.cast", tp_result == "ok" and string.find(tostring(tp_detail), "TELEPORTED", 1, true) ~= nil,
+            "cast camelot_teleport -> " .. tostring(tp_result) .. " " .. tostring(tp_detail) .. " (want ok TELEPORTED)")
+        t.ticks(1)
+        local tp_air_after_result, tp_air1 = t.inv.count("airrune")
+        local tp_law_after_result, tp_law1 = t.inv.count("lawrune")
+        t.check("camelotTeleport.runes", tp_air_result == "ok" and tp_law_result == "ok" and tp_air_after_result == "ok"
+                and tp_law_after_result == "ok" and tp_air0 == 5 and tp_air1 == 0 and tp_law0 == 1 and tp_law1 == 0,
+            "airrune " .. tostring(tp_air0) .. " -> " .. tostring(tp_air1) .. ", lawrune " .. tostring(tp_law0) .. " -> "
+                .. tostring(tp_law1) .. " (want 5 -> 0 and 1 -> 0)")
+        local tp_tile_result, tp_tile = t.world.tile()
+        t.check("camelotTeleport.landed", tp_tile_result == "ok" and tp_tile.level == 0
+                and math.abs(tp_tile.x - 2757) <= 2 and math.abs(tp_tile.z - 3478) <= 2,
+            "landed " .. tile_text(tp_tile_result, tp_tile) .. " (want within 2 of 2757,3478,0)")
+        -- Camelot -> Rellekka's docks: overland between open tiles.
+        t.exec("goto-rellekkaDocks", t.player.goto_tile, 2629, 3691, 0)
+        -- The guide's travelToMisc: the longship (viking_sailor.rs2
+        -- [opnpc1,viking_sailor] after the Fremennik Trials). The ride
+        -- if_closes, waits two ticks, telejumps, then opens its arrival
+        -- mesbox, so the dialogue is played in two lists around the landing.
+        t.exec("travelToMisc", t.player.talk_to, "viking_sailor", 1)
+        t.exec("travelToMisc-dialog", t.chat.play, {
+            "player:Hello. Can I get a ride on your ship?",
+            "npc:If you're ready to jump aboard",
+            "choose:Let's go!",
+            "player:Let's go!",
+        })
+        t.exec("travelToMisc.sail", t.await, {
+            level = function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x == 2581 and tt.z == 3845 and tt.level == 0
+            end,
+            note = "the longship lands on the Miscellania dock 2581,3845,0",
+        }, 15)
+        t.exec("travelToMisc.arrive", t.chat.play, { "mesbox:The ship arrives at Miscellania.", "end" })
+        local dock_result, dock_tile = t.world.tile()
+        t.check("travelToMisc.landed", dock_result == "ok" and dock_tile.x == 2581 and dock_tile.z == 3845 and dock_tile.level == 0,
+            "after the ride: " .. tile_text(dock_result, dock_tile) .. " (want the Miscellania dock 2581,3845,0)")
         to_castle("goto-castle1")
         castle_in("vargas1")
         -- First press of the throne door before the quest starts: the guard's
@@ -593,19 +591,12 @@ return {
         throne_out("derrik")
         castle_out("derrik")
         t.exec("goto-derrik", t.player.goto_tile, 2551, 3891, 0)
+        -- pass_door closes it behind you: the opened leaf swings onto
+        -- 2551,3894 and walls that tile off from the nook east of it
+        -- (2552,3894, between the crates and the wall), where Derrik often
+        -- stands: with the door open every press on him answers "I can't
+        -- reach that!" (round 1 run 3, shot 340).
         pass_door("derrik.door", "viking_abode_door", "viking_abode_door_open", 2551, 3893, 0, 2551, 3893, 2551, 3895)
-        -- Close it behind you. The opened leaf swings onto 2551,3894 and walls
-        -- that tile off from the nook east of it (2552,3894, between the
-        -- crates and the wall), where Derrik often stands: with the door open
-        -- every press on him answers "I can't reach that!" (run 3, shot 340).
-        local close_result, close_detail = t.player.click_loc("viking_abode_door_open", 1, { at = { 2551, 3894, 0 } })
-        t.ticks(1)
-        local shut_result, shut = t.world.loc_near("viking_abode_door", 2)
-        t.check("derrik.closeDoor", (close_result == "ok" or close_result == "timeout")
-                and shut_result == "ok" and shut.tile_x == 2551 and shut.tile_z == 3893,
-            "click_loc(viking_abode_door_open, 1, at 2551,3894,0) -> " .. tostring(close_result) .. " " .. tostring(close_detail)
-                .. "; closed leaf: " .. (shut_result == "ok" and (shut.tile_x .. "," .. shut.tile_z .. "," .. tostring(shut.level)) or tostring(shut_result))
-                .. " (want back on 2551,3893)")
         -- Derrik wanders his cramped house (fire, anvil and crates fill half
         -- of it). A press that still answers "I can't reach that!" is pressed
         -- again a few ticks later, up to six times, one graded row.
@@ -722,15 +713,13 @@ return {
         -- vargas_check_support reads %misc_approval >= 75% (just reached
         -- above) and falls straight through to vargas_finish_quest in the
         -- same click (no return between the labels) -- one dialogue, one row.
-        -- Up the castle's NORTH stairs this time. The south way's doors were
-        -- all last opened on the way in to the pen (vargas5), so they swing
-        -- shut ~500 ticks later -- while the player climbs back from Leif's
-        -- grove -- and the level-1 landing door 2506,3851 then comes back
-        -- into the client's scene as NEITHER leaf (no castledoor, no
-        -- opencastledoor on level 1) while the server still holds it shut:
-        -- an engine resync bug, not game behaviour (runs 4 and 5, rows
-        -- vargas6.landingDoor.*; reported). The north way's doors have not
-        -- been touched this run, so both ends agree on them.
+        -- Up the castle's NORTH stairs this time (the guide's other
+        -- staircase, the way to Astrid's side). Round 1 took it to dodge an
+        -- engine bug: a south-way door left open at vargas5 reverted while
+        -- the player was at Leif's grove and came back into the client's
+        -- scene as NEITHER leaf (runs 4 and 5). That is fixed (273db6393)
+        -- and every door is now closed behind the player anyway; the north
+        -- way stays because it walks the castle's second stair and door pair.
         to_castle("goto-castle6")
         castle_in_north("vargas6")
 
