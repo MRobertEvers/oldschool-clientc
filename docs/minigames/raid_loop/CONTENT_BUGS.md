@@ -451,3 +451,29 @@ Found and left open:
 - Gear: `::give scythe_of_vitur` reports "has run out of charges and reverted to its uncharged form" early in the Xarpus room, yet it keeps landing three hitsplats a swing to the kill (the uncharged scythe still attacking may be a content gap for the item owner).
 - Combat interface: `combat_interface:special_attack` pressed while idle leaves varp301 0 and the energy unchanged; pressed while engaged it arms and fires inside one tick. Nobody has found why; the minimap orb is the reliable path.
 - Room tests to re-author (the authors', read-only to the seam pass): test/raids/tob_bloat.lua still carries the faulty Defence probe (the replacement block is in build/seam_state/matthew-mbp-m4-raid-b1-seam10/bloat_scratch/tob_bloat_copy.lua) and `spec.bloat.fly_first` reads 3 against 1 in the committed file today; tob_xarpus.lua's planner must mark only the puddle's own tile; tob_verzik.lua must bring poisoned ammo or a charged serpentine helm for the globule row; tob_nylocas.lua must keep supports standing (each Entry collapse is now 30-50).
+
+## From the ToB rig pass matthew-mbp-m4-raid-b1-rig-tob (2026-10-03)
+
+Source: docs/minigames/theater_of_blood/RIG_AUDIT.md, which gives the rig join per room under sources/rig/. All of these are open.
+
+The server lays every `[gameval]` block over the same record in directory order (src/torirsserver/torirs_server_content.c:2030-2041). So npc_anims.generated.npc is applied after tob.npc, and an attack_anim set there reaches the game. Fix each row in the ledger and regenerate, or state the field in tob.npc and make sure the generated block no longer restates it.
+
+Ledger faults, where an npc's attack is not an attack:
+- ToB, Maiden: maiden_blood_slug (+_story, _hard) attack_anim is projectile_muspah_attack_ranged_01 (9944), named for another monster. The blood spawn's rig 1814 offers no attack, so it should be null (RIG_AUDIT L1).
+- ToB, Maiden: maiden_elemental (+_story, _hard) attack_anim is elemental_spawn, the spawn sequence. It should be null (L2).
+- ToB, Bloat: tob_bloat (+_story, _hard) attack_anim is tob_bloat_sleep 8082, the 33-tick down. Any generic attack path plays the whole down. It should be null (L3).
+- ToB, Sotetseg: tob_sotetseg_creeper (+_story, _hard) attack_anim is tob_shadow_projectile_spawn, the spawn sequence. It should be null (L4).
+- ToB, Verzik: tob_verzik_phase2_bloodnylocas (+_story, _hard) attack_anim is elemental_spawn. It should be null (L5).
+- ToB, Verzik: tob_verzik_creeper (+_story, _hard) attack_anim is tob_shadow_projectile_spawn. It should be null (L6).
+- ToB, Verzik: tob_verzik_phase2_armourednylocas, all three modes, attack_anim is tob_spider_tank_spawn. For the Normal record the ledger and tob.npc:2484 already say null, but the stale npc_anims.generated.npc:44992 overlays them. The _story and _hard ledgers still say spawn. Regenerate, and author _story and _hard null (L7).
+- ToB, Verzik: verzik_death_bat (+_story, _hard) attack_anim is verzik_phase3_death_b, the bat's only sequence (its ready animation). It should be null (L8).
+
+Script fault:
+- ToB, Sotetseg: tob_sotetseg.rs2:1020 plays `npc_anim(tob_sotetseg_shadow_portal)` on the boss. Seq 8142 is on framemap 1830, the exit loc 33037's animation, and the boss rig 1822 cannot play it. The spec row sotetseg.av.maze.boss_seq (encounters/sotetseg.tsv:79) claims it as his. Drop the call, or move it to the loc. No source names his own maze animation (RIG_AUDIT S1).
+
+Unused rig animations that our content never plays. Each one is named for this exact npc. A recording or plugin constant should confirm the timing before playing it:
+- ToB, Maiden: the Matomenos never plays elemental_spawn 8098 when it appears. encounters/maiden.tsv:100 says "no source binds them", and the Matomenos rig 1821 is that source (U1).
+- ToB, Sotetseg: the creeper never plays tob_shadow_projectile_spawn 9004 when it appears, nor _despawn 9005 when it leaves. It is removed with npc_del (tob_sotetseg.rs2:1594-1684), so its ledger death_anim never fires either (U7, U8).
+- ToB, Verzik: the P2 Matomenos (8385) never plays elemental_spawn 8098 when it appears (U9).
+- ToB, Verzik: the creeper (8386) never plays 9004 or 9005 (U10).
+- ToB, Nylocas and Verzik: the ranged and magic nylocas never play their own melee swings, top_spider_ranged_meleeattack 8001 and top_spider_magic_meleeattack 7990. No source yet says when they would: perhaps against a pillar or an adjacent raider (U3, U4, U11).

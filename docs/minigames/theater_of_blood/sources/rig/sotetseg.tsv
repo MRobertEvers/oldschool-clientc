@@ -1,0 +1,79 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+tob_sotetseg_noncombat	8387	1822	seq	8136	tob_sotetseg_walk	18	2.0	f7:tob_sotetseg_walk_1;f7:tob_sotetseg_walk_3	walk	bound	walkanim; 60 cycles
+tob_sotetseg_noncombat	8387	1822	seq	8137	tob_sotetseg_idle	14	2.0		ready	bound	readyanim; 60 cycles
+tob_sotetseg_noncombat	8387	1822	seq	8138	tob_sotetseg_attack_melee	14	2.0	f4:tob_sotetseg_attack_melee_4	attack1	rig+name	melee swing; frame sound attack_melee_4 also states it (rig+sound); 60 cycles
+tob_sotetseg_noncombat	8387	1822	seq	8139	tob_sotetseg_attack_ranged	16	2.0		attack2	rig+name	ranged ball; carries no frame sound; 60 cycles
+tob_sotetseg_noncombat	8387	1822	seq	8140	tob_sotetseg_death	15	2.0		death	rig+name	forcedpriority 11, framestep 1; 60 cycles
+tob_sotetseg_noncombat	8387	1822	seq	9032	tob_sotetseg_walk_pet	18	1.2		other	rig+name	walk variant for the pet; 36 cycles; not the boss walk; 36 cycles
+tob_sotetseg_noncombat	8387	1829	seq	8141	tob_sotetseg_wall_float	48	8.0		other	name	off-rig (framemap {1829}); no role stated; 240 cycles
+tob_sotetseg_noncombat	8387	1830	seq	8142	tob_sotetseg_shadow_portal	32	5.33		transition	name	off-rig (framemap {1830} = the darkrealm_exit loc anim); played on the boss by tob_sotetseg.rs2:1020; 160 cycles
+tob_sotetseg_noncombat	8387	1831	seq	8143	tob_sotetseg_tile_glow	30	2.0		other	name	off-rig (framemap {1831}); the lighttile loc anim; 60 cycles
+tob_sotetseg_noncombat	8387	1819	seq	8144	tob_sotetseg_shared_projectile	16	2.13		other	name	off-rig (framemap {1819}); the death-ball spotanim anim; 64 cycles
+tob_sotetseg_combat	8388	1822	seq	8136	tob_sotetseg_walk	18	2.0	f7:tob_sotetseg_walk_1;f7:tob_sotetseg_walk_3	walk	bound	walkanim; 60 cycles
+tob_sotetseg_combat	8388	1822	seq	8137	tob_sotetseg_idle	14	2.0		ready	bound	readyanim; 60 cycles
+tob_sotetseg_combat	8388	1822	seq	8138	tob_sotetseg_attack_melee	14	2.0	f4:tob_sotetseg_attack_melee_4	attack1	rig+name	melee swing; frame sound attack_melee_4 also states it (rig+sound); 60 cycles
+tob_sotetseg_combat	8388	1822	seq	8139	tob_sotetseg_attack_ranged	16	2.0		attack2	rig+name	ranged ball; carries no frame sound; 60 cycles
+tob_sotetseg_combat	8388	1822	seq	8140	tob_sotetseg_death	15	2.0		death	rig+name	forcedpriority 11, framestep 1; 60 cycles
+tob_sotetseg_combat	8388	1822	seq	9032	tob_sotetseg_walk_pet	18	1.2		other	rig+name	walk variant for the pet; 36 cycles; not the boss walk; 36 cycles
+tob_sotetseg_combat	8388	1829	seq	8141	tob_sotetseg_wall_float	48	8.0		other	name	off-rig (framemap {1829}); no role stated; 240 cycles
+tob_sotetseg_combat	8388	1830	seq	8142	tob_sotetseg_shadow_portal	32	5.33		transition	name	off-rig (framemap {1830} = the darkrealm_exit loc anim); played on the boss by tob_sotetseg.rs2:1020; 160 cycles
+tob_sotetseg_combat	8388	1831	seq	8143	tob_sotetseg_tile_glow	30	2.0		other	name	off-rig (framemap {1831}); the lighttile loc anim; 60 cycles
+tob_sotetseg_combat	8388	1819	seq	8144	tob_sotetseg_shared_projectile	16	2.13		other	name	off-rig (framemap {1819}); the death-ball spotanim anim; 64 cycles
+tob_sotetseg_noncombat_story	10864	1822	seq	8136	tob_sotetseg_walk	18	2.0	f7:tob_sotetseg_walk_1;f7:tob_sotetseg_walk_3	walk	bound	walkanim; 60 cycles
+tob_sotetseg_noncombat_story	10864	1822	seq	8137	tob_sotetseg_idle	14	2.0		ready	bound	readyanim; 60 cycles
+tob_sotetseg_noncombat_story	10864	1822	seq	8138	tob_sotetseg_attack_melee	14	2.0	f4:tob_sotetseg_attack_melee_4	attack1	rig+name	melee swing; frame sound attack_melee_4 also states it (rig+sound); 60 cycles
+tob_sotetseg_noncombat_story	10864	1822	seq	8139	tob_sotetseg_attack_ranged	16	2.0		attack2	rig+name	ranged ball; carries no frame sound; 60 cycles
+tob_sotetseg_noncombat_story	10864	1822	seq	8140	tob_sotetseg_death	15	2.0		death	rig+name	forcedpriority 11, framestep 1; 60 cycles
+tob_sotetseg_noncombat_story	10864	1822	seq	9032	tob_sotetseg_walk_pet	18	1.2		other	rig+name	walk variant for the pet; 36 cycles; not the boss walk; 36 cycles
+tob_sotetseg_noncombat_story	10864	1829	seq	8141	tob_sotetseg_wall_float	48	8.0		other	name	off-rig (framemap {1829}); no role stated; 240 cycles
+tob_sotetseg_noncombat_story	10864	1830	seq	8142	tob_sotetseg_shadow_portal	32	5.33		transition	name	off-rig (framemap {1830} = the darkrealm_exit loc anim); played on the boss by tob_sotetseg.rs2:1020; 160 cycles
+tob_sotetseg_noncombat_story	10864	1831	seq	8143	tob_sotetseg_tile_glow	30	2.0		other	name	off-rig (framemap {1831}); the lighttile loc anim; 60 cycles
+tob_sotetseg_noncombat_story	10864	1819	seq	8144	tob_sotetseg_shared_projectile	16	2.13		other	name	off-rig (framemap {1819}); the death-ball spotanim anim; 64 cycles
+tob_sotetseg_combat_story	10865	1822	seq	8136	tob_sotetseg_walk	18	2.0	f7:tob_sotetseg_walk_1;f7:tob_sotetseg_walk_3	walk	bound	walkanim; 60 cycles
+tob_sotetseg_combat_story	10865	1822	seq	8137	tob_sotetseg_idle	14	2.0		ready	bound	readyanim; 60 cycles
+tob_sotetseg_combat_story	10865	1822	seq	8138	tob_sotetseg_attack_melee	14	2.0	f4:tob_sotetseg_attack_melee_4	attack1	rig+name	melee swing; frame sound attack_melee_4 also states it (rig+sound); 60 cycles
+tob_sotetseg_combat_story	10865	1822	seq	8139	tob_sotetseg_attack_ranged	16	2.0		attack2	rig+name	ranged ball; carries no frame sound; 60 cycles
+tob_sotetseg_combat_story	10865	1822	seq	8140	tob_sotetseg_death	15	2.0		death	rig+name	forcedpriority 11, framestep 1; 60 cycles
+tob_sotetseg_combat_story	10865	1822	seq	9032	tob_sotetseg_walk_pet	18	1.2		other	rig+name	walk variant for the pet; 36 cycles; not the boss walk; 36 cycles
+tob_sotetseg_combat_story	10865	1829	seq	8141	tob_sotetseg_wall_float	48	8.0		other	name	off-rig (framemap {1829}); no role stated; 240 cycles
+tob_sotetseg_combat_story	10865	1830	seq	8142	tob_sotetseg_shadow_portal	32	5.33		transition	name	off-rig (framemap {1830} = the darkrealm_exit loc anim); played on the boss by tob_sotetseg.rs2:1020; 160 cycles
+tob_sotetseg_combat_story	10865	1831	seq	8143	tob_sotetseg_tile_glow	30	2.0		other	name	off-rig (framemap {1831}); the lighttile loc anim; 60 cycles
+tob_sotetseg_combat_story	10865	1819	seq	8144	tob_sotetseg_shared_projectile	16	2.13		other	name	off-rig (framemap {1819}); the death-ball spotanim anim; 64 cycles
+tob_sotetseg_noncombat_hard	10867	1822	seq	8136	tob_sotetseg_walk	18	2.0	f7:tob_sotetseg_walk_1;f7:tob_sotetseg_walk_3	walk	bound	walkanim; 60 cycles
+tob_sotetseg_noncombat_hard	10867	1822	seq	8137	tob_sotetseg_idle	14	2.0		ready	bound	readyanim; 60 cycles
+tob_sotetseg_noncombat_hard	10867	1822	seq	8138	tob_sotetseg_attack_melee	14	2.0	f4:tob_sotetseg_attack_melee_4	attack1	rig+name	melee swing; frame sound attack_melee_4 also states it (rig+sound); 60 cycles
+tob_sotetseg_noncombat_hard	10867	1822	seq	8139	tob_sotetseg_attack_ranged	16	2.0		attack2	rig+name	ranged ball; carries no frame sound; 60 cycles
+tob_sotetseg_noncombat_hard	10867	1822	seq	8140	tob_sotetseg_death	15	2.0		death	rig+name	forcedpriority 11, framestep 1; 60 cycles
+tob_sotetseg_noncombat_hard	10867	1822	seq	9032	tob_sotetseg_walk_pet	18	1.2		other	rig+name	walk variant for the pet; 36 cycles; not the boss walk; 36 cycles
+tob_sotetseg_noncombat_hard	10867	1829	seq	8141	tob_sotetseg_wall_float	48	8.0		other	name	off-rig (framemap {1829}); no role stated; 240 cycles
+tob_sotetseg_noncombat_hard	10867	1830	seq	8142	tob_sotetseg_shadow_portal	32	5.33		transition	name	off-rig (framemap {1830} = the darkrealm_exit loc anim); played on the boss by tob_sotetseg.rs2:1020; 160 cycles
+tob_sotetseg_noncombat_hard	10867	1831	seq	8143	tob_sotetseg_tile_glow	30	2.0		other	name	off-rig (framemap {1831}); the lighttile loc anim; 60 cycles
+tob_sotetseg_noncombat_hard	10867	1819	seq	8144	tob_sotetseg_shared_projectile	16	2.13		other	name	off-rig (framemap {1819}); the death-ball spotanim anim; 64 cycles
+tob_sotetseg_combat_hard	10868	1822	seq	8136	tob_sotetseg_walk	18	2.0	f7:tob_sotetseg_walk_1;f7:tob_sotetseg_walk_3	walk	bound	walkanim; 60 cycles
+tob_sotetseg_combat_hard	10868	1822	seq	8137	tob_sotetseg_idle	14	2.0		ready	bound	readyanim; 60 cycles
+tob_sotetseg_combat_hard	10868	1822	seq	8138	tob_sotetseg_attack_melee	14	2.0	f4:tob_sotetseg_attack_melee_4	attack1	rig+name	melee swing; frame sound attack_melee_4 also states it (rig+sound); 60 cycles
+tob_sotetseg_combat_hard	10868	1822	seq	8139	tob_sotetseg_attack_ranged	16	2.0		attack2	rig+name	ranged ball; carries no frame sound; 60 cycles
+tob_sotetseg_combat_hard	10868	1822	seq	8140	tob_sotetseg_death	15	2.0		death	rig+name	forcedpriority 11, framestep 1; 60 cycles
+tob_sotetseg_combat_hard	10868	1822	seq	9032	tob_sotetseg_walk_pet	18	1.2		other	rig+name	walk variant for the pet; 36 cycles; not the boss walk; 36 cycles
+tob_sotetseg_combat_hard	10868	1829	seq	8141	tob_sotetseg_wall_float	48	8.0		other	name	off-rig (framemap {1829}); no role stated; 240 cycles
+tob_sotetseg_combat_hard	10868	1830	seq	8142	tob_sotetseg_shadow_portal	32	5.33		transition	name	off-rig (framemap {1830} = the darkrealm_exit loc anim); played on the boss by tob_sotetseg.rs2:1020; 160 cycles
+tob_sotetseg_combat_hard	10868	1831	seq	8143	tob_sotetseg_tile_glow	30	2.0		other	name	off-rig (framemap {1831}); the lighttile loc anim; 60 cycles
+tob_sotetseg_combat_hard	10868	1819	seq	8144	tob_sotetseg_shared_projectile	16	2.13		other	name	off-rig (framemap {1819}); the death-ball spotanim anim; 64 cycles
+tob_sotetseg_creeper	8389	1818	seq	8100	tob_shadow_projectile	70	7.0	f3:leagues_5_thermy_tornado_wind_01;f3:leagues_5_thermy_tornado_wind_02;f3:leagues_5_thermy_tornado_wind_03;f39:leagues_5_thermy_tornado_wind_04;f39:leagues_5_thermy_tornado_wind_05;f39:leagues_5_thermy_tornado_wind_06	ready	bound	readyanim AND walkanim of the creeper; 210 cycles
+tob_sotetseg_creeper	8389	1818	seq	9004	tob_shadow_projectile_spawn	10	1.0		spawn	rig+name	forcedpriority 8; 30 cycles
+tob_sotetseg_creeper	8389	1818	seq	9005	tob_shadow_projectile_despawn	10	1.0		other	rig+name	despawn (not a death by role: creeper is removed); 30 cycles
+tob_sotetseg_creeper	8389	1818	seq	13134	tob_shadow_projectile_idle	50	5.0		ready	rig+name	idle variant; maxloops 255; not named by record; 150 cycles
+tob_sotetseg_creeper_story	10866	1818	seq	8100	tob_shadow_projectile	70	7.0	f3:leagues_5_thermy_tornado_wind_01;f3:leagues_5_thermy_tornado_wind_02;f3:leagues_5_thermy_tornado_wind_03;f39:leagues_5_thermy_tornado_wind_04;f39:leagues_5_thermy_tornado_wind_05;f39:leagues_5_thermy_tornado_wind_06	ready	bound	readyanim AND walkanim of the creeper; 210 cycles
+tob_sotetseg_creeper_story	10866	1818	seq	9004	tob_shadow_projectile_spawn	10	1.0		spawn	rig+name	forcedpriority 8; 30 cycles
+tob_sotetseg_creeper_story	10866	1818	seq	9005	tob_shadow_projectile_despawn	10	1.0		other	rig+name	despawn (not a death by role: creeper is removed); 30 cycles
+tob_sotetseg_creeper_story	10866	1818	seq	13134	tob_shadow_projectile_idle	50	5.0		ready	rig+name	idle variant; maxloops 255; not named by record; 150 cycles
+tob_sotetseg_creeper_hard	10869	1818	seq	8100	tob_shadow_projectile	70	7.0	f3:leagues_5_thermy_tornado_wind_01;f3:leagues_5_thermy_tornado_wind_02;f3:leagues_5_thermy_tornado_wind_03;f39:leagues_5_thermy_tornado_wind_04;f39:leagues_5_thermy_tornado_wind_05;f39:leagues_5_thermy_tornado_wind_06	ready	bound	readyanim AND walkanim of the creeper; 210 cycles
+tob_sotetseg_creeper_hard	10869	1818	seq	9004	tob_shadow_projectile_spawn	10	1.0		spawn	rig+name	forcedpriority 8; 30 cycles
+tob_sotetseg_creeper_hard	10869	1818	seq	9005	tob_shadow_projectile_despawn	10	1.0		other	rig+name	despawn (not a death by role: creeper is removed); 30 cycles
+tob_sotetseg_creeper_hard	10869	1818	seq	13134	tob_shadow_projectile_idle	50	5.0		ready	rig+name	idle variant; maxloops 255; not named by record; 150 cycles
+(spotanim)		68	spotanim	1603	tob_sotetseg_zap	8	1.33		projectile/graphic	name	anim=qip_watchtower_ogre_spell_travel (seq 5358)
+(spotanim)		1819	spotanim	1604	tob_sotetseg_sharedattack	16	2.13		projectile/graphic	name	anim=tob_sotetseg_shared_projectile (seq 8144)
+(spotanim)		1740	spotanim	1605	tob_sotetseg_sharedattack_impact	8	1.0		projectile/graphic	name	anim=verzik_lightning_impact (seq 8132)
+(spotanim)		1689	spotanim	1606	tob_sotetseg_maging	24	1.6		projectile/graphic	name	anim=inferno_splitter_proj (seq 7616)
+(spotanim)		1689	spotanim	1607	tob_sotetseg_ranging	24	1.6		projectile/graphic	name	anim=inferno_splitter_proj (seq 7616)
+(spotanim)		1818	spotanim	1608	tob_sotetseg_drain	70	7.0	f3:leagues_5_thermy_tornado_wind_01;f3:leagues_5_thermy_tornado_wind_02;f3:leagues_5_thermy_tornado_wind_03;f39:leagues_5_thermy_tornado_wind_04;f39:leagues_5_thermy_tornado_wind_05;f39:leagues_5_thermy_tornado_wind_06	projectile/graphic	name	anim=tob_shadow_projectile (seq 8100)
