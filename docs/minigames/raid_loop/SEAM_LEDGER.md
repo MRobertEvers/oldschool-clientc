@@ -638,4 +638,8 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   conformance 324/324 PASS (165 verbs + 159 seam rows); test-quest-cheats, check-quest-verbs,
   check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127 clean; spec_check clean;
   server C selftest 11 failures, the baseline set (junglepotion x4, itgronigen x5, chatmenu,
-  same-script loc). PNGs were not opened in this close; the verdicts rest on the ledger rows.
+  same-script loc). PNGs read in this close: s15k1 118-verzik.kill (the raider at 8 hp, her
+  bar 2.4%, 'You have finished your potion.'), c15alpha 118-verzik.kill-FAIL (0 hp, a 74 green
+  ball on the raider, her bar 27.4%), tob_verzik 102-drive.p3state630 (1 hp, her bar 63%, the
+  pack all empty vials). The seam rows in _conformance.lua take no shots; they rest on the
+  ledger rows quoted above.
