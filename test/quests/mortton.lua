@@ -143,6 +143,142 @@ return {
 
         t.exec("quest.stage.mortton_not_started", t.quest.expect_stage, "mortton_not_started")
 
+        -- DOORS (docs/QUEST_ORCHESTRATOR.md standing rule, 2026-10-03): no goto lands in or leaves a
+        -- closed space. Razmire's shop and Ulsquire's house are walled rooms, each with one
+        -- `poordoor` (doors.loc: next_loc_stage poordooropen) -- maps/m54_51.jl2:
+        --   Razmire  door 3488,3294 (north edge), street tile 3488,3294, room x 3487-3490 z 3295-3297
+        --   Ulsquire door 3494,3289 (east edge),  street tile 3494,3289, room x 3495-3497 z 3288-3291
+        -- Every entry and exit walks through the door: click the closed leaf, or -- when an earlier
+        -- press left it open (a door swings back after 500 ticks) -- assert the open leaf stands
+        -- beside the door tile and walk through without pressing it again.
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tostring(tt.x) .. "," .. tostring(tt.z) .. "," .. tostring(tt.level)
+            end
+            return tostring(r) .. " " .. tostring(tt)
+        end
+        local function loc_text(r, d)
+            if r == "ok" and type(d) == "table" then
+                return "at " .. tostring(d.tile_x) .. "," .. tostring(d.tile_z) .. "," .. tostring(d.level)
+            end
+            return tostring(r) .. " " .. tostring(d)
+        end
+        -- A live-pool presence read (player.by_symbol only resolves a symbol and answers ok
+        -- whether or not the npc is spawned, so it cannot fail).
+        local function check_npc_present(name, sym, radius)
+            local r, row = t.npc.nearest(sym, radius)
+            local where = tostring(row)
+            if type(row) == "table" then
+                where = "slot " .. tostring(row.slot) .. " at " .. tostring(row.x) .. "," .. tostring(row.z)
+            end
+            t.check(name, r == "ok", "npc.nearest(" .. sym .. ", " .. tostring(radius) .. ") -> " .. tostring(r) .. " " .. where)
+            return r == "ok"
+        end
+        -- Razmire's and Ulsquire's cure is npc_changetype(<cured>, 200) plus a 200-tick queue that
+        -- clears the *_visible bit (ulsquire_shauncy.rs2:15-17,43-44; razmire_keelgan.rs2 the
+        -- same). While the cured form is live, op1 Talk-to reaches @*_talk; once the AFFLICTED
+        -- form is back the bit is gone and op1 falls to @afflicted_talk (ulsquire_shauncy.rs2:
+        -- 53-58). So read the live pool: the afflicted form gets a fresh dose of Serum 207
+        -- (its use path ends in the same @*_talk label), the cured one a plain Talk-to.
+        local function talk_or_recure(talk_row, mix_row, recure_row, cured_sym, afflicted_sym)
+            local afflicted_result, afflicted_row = t.npc.nearest(afflicted_sym, 8)
+            if afflicted_result == "ok" then
+                t.note(afflicted_sym .. " is the live form (slot " .. tostring(afflicted_row.slot)
+                    .. ") -- the 200-tick cure lapsed, re-curing")
+                t.exec(mix_row, t.player.use_item_on_item, "ashes", "tarrominvial")
+                local afflicted_target = t.player.by_symbol("npc", afflicted_sym)
+                t.exec(recure_row, t.player.use_on, "mort_serum3", afflicted_target)
+            else
+                t.note(afflicted_sym .. ": " .. tostring(afflicted_result) .. " -- the cured form is live")
+                check_npc_present(talk_row .. ".find", cured_sym, 8)
+                t.exec(talk_row, t.player.talk_to, cured_sym, 1)
+            end
+        end
+        local RAZMIRE = {
+            name = "Razmire's shop", tag = "Razmire", door_x = 3488, door_z = 3294,
+            street_x = 3488, street_z = 3294, room_x = 3488, room_z = 3295,
+            inside = function(tt) return tt.x >= 3487 and tt.x <= 3490 and tt.z >= 3295 and tt.z <= 3297 end,
+        }
+        local ULSQUIRE = {
+            name = "Ulsquire's house", tag = "Ulsquire", door_x = 3494, door_z = 3289,
+            street_x = 3494, street_z = 3289, room_x = 3495, room_z = 3289,
+            inside = function(tt) return tt.x >= 3495 and tt.x <= 3497 and tt.z >= 3288 and tt.z <= 3291 end,
+        }
+        local inside_house = nil
+        local function pass_door(prefix, house, entering)
+            local near_x, near_z, far_x, far_z = house.street_x, house.street_z, house.room_x, house.room_z
+            if not entering then
+                near_x, near_z, far_x, far_z = house.room_x, house.room_z, house.street_x, house.street_z
+            end
+            -- An npc op inside the room can walk the player out through the OPEN door by itself
+            -- (use_on's walk_near steps off the npc's tile, and Razmire likes the inside door
+            -- tile): then he is on the far side already, and the open leaf is what he crossed --
+            -- assert it, check the side, do not walk back in to walk out again.
+            local sr, st = t.world.tile()
+            if sr == "ok" and st.level == 0 and house.inside(st) == entering
+                and math.abs(st.x - far_x) <= 2 and math.abs(st.z - far_z) <= 2 then
+                local cr0, cd0 = t.world.loc_near("poordoor", 3)
+                local or0, od0 = t.world.loc_near("poordooropen", 3)
+                t.check(prefix .. ".alreadyThrough",
+                    or0 == "ok" and math.abs(od0.tile_x - house.door_x) <= 1 and math.abs(od0.tile_z - house.door_z) <= 1
+                        and not (cr0 == "ok" and cd0.tile_x == house.door_x and cd0.tile_z == house.door_z),
+                    "already " .. (entering and "inside " or "outside ") .. house.name .. " at " .. tile_text(sr, st)
+                        .. " (an npc op walked the player through); poordooropen " .. loc_text(or0, od0)
+                        .. ", closed leaf " .. loc_text(cr0, cd0) .. " (want the open leaf within 1 of "
+                        .. house.door_x .. "," .. house.door_z .. " and no closed leaf on it)")
+                inside_house = entering and house or nil
+                return
+            end
+            t.player.walk_to(near_x, near_z)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor",
+                nr == "ok" and nt.level == 0 and math.abs(nt.x - near_x) <= 1 and math.abs(nt.z - near_z) <= 1
+                    and house.inside(nt) == (not entering),
+                "walked to " .. near_x .. "," .. near_z .. " on the " .. (entering and "street" or "room")
+                    .. " side of " .. house.name .. "'s door at " .. house.door_x .. "," .. house.door_z
+                    .. " -> " .. tile_text(nr, nt))
+            local cr, cd = t.world.loc_near("poordoor", 3)
+            if cr == "ok" and cd.tile_x == house.door_x and cd.tile_z == house.door_z then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, "poordoor", 1, { at = { house.door_x, house.door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near("poordooropen", 3)
+                t.check(prefix .. ".doorStandsOpen",
+                    orr == "ok" and math.abs(od.tile_x - house.door_x) <= 1 and math.abs(od.tile_z - house.door_z) <= 1,
+                    "poordoor at " .. house.door_x .. "," .. house.door_z .. ": nearest closed leaf " .. loc_text(cr, cd)
+                        .. "; poordooropen " .. loc_text(orr, od)
+                        .. " (want the open leaf within 1 of the door tile: an earlier press left it open, so it is"
+                        .. " walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor",
+                fr == "ok" and ft.level == 0 and math.abs(ft.x - far_x) <= 1 and math.abs(ft.z - far_z) <= 1
+                    and house.inside(ft) == entering,
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want "
+                    .. (entering and "inside " or "outside ") .. house.name .. ")")
+            if entering then
+                inside_house = house
+            else
+                inside_house = nil
+            end
+        end
+        -- Walk out of whichever room the player is in, then in through `house`'s door.
+        local function enter_house(prefix, house)
+            if inside_house == house then
+                return
+            end
+            if inside_house ~= nil then
+                pass_door(prefix .. ".leave" .. inside_house.tag, inside_house, false)
+            end
+            pass_door(prefix .. ".enter" .. house.tag, house, true)
+        end
+        local function leave_house(prefix)
+            if inside_house ~= nil then
+                pass_door(prefix .. ".leave" .. inside_house.tag, inside_house, false)
+            end
+        end
+
         -- DIAGNOSTIC (run 3): the shade hunt's own screenshot (42-shade.hunt-FAIL.png,
         -- run 2) showed "I'm already under attack." refusing every Attack press,
         -- exactly the single-way symptom the four setup ::passive lines are
@@ -176,8 +312,10 @@ return {
         -- Search the experiment shelf (all.loc:35647-35662, op1=Search) in
         -- the south building of Mort'ton for Herbi Flax's diary. click_loc
         -- steps off the loc's own tile and walks its far sides before
-        -- projecting, so the real op-1 click lands.
-        t.exec("goto-searchShelf", t.player.goto_tile, 3481, 3279, 0)
+        -- projecting, so the real op-1 click lands. The building is a ruin (crumblywall, no door:
+        -- reach.py walks in with every door closed), so the overland hop from Lumbridge lands on
+        -- the open street outside it, 3485,3282, and the click walks the player in.
+        t.exec("goto-searchShelf", t.player.goto_tile, 3485, 3282, 0)
         local shelf_click_result, shelf_click_detail = t.player.click_loc("shades_experimentshelf", 1)
         -- t.settle() does not cover an inventory sync racing the mesbox's
         -- own inv_add (docs/QUEST_AUTHORING.md section 8) -- poll instead.
@@ -223,10 +361,10 @@ return {
         -- m54_51.spawn:35, 3489,3296,0) -- razmire_keelgan.rs2's
         -- razmire_use_item label (oc_category 108, quest_mortton.obj's
         -- serum_207 category) temporarily cures him and opens razmire_talk.
-        t.exec("goto-razmire", t.player.goto_tile, 3489, 3296, 0)
-        local razmire_afflicted, razmire_afflicted_status = t.player.by_symbol("npc", "razmire_keelgan_afflicted")
-        t.check("razmire.find", razmire_afflicted_status == "ok",
-            "player.by_symbol(npc, razmire_keelgan_afflicted) -> " .. tostring(razmire_afflicted_status))
+        -- On foot from the shelf to his door, and in through it (no goto: the shop is walled).
+        enter_house("razmire", RAZMIRE)
+        local razmire_afflicted = t.player.by_symbol("npc", "razmire_keelgan_afflicted")
+        check_npc_present("razmire.find", "razmire_keelgan_afflicted", 6)
         t.exec("razmire.cure", t.player.use_on, "mort_serum3", razmire_afflicted)
         -- razmire_talk (first visit): "Ah, excellent..." -> since
         -- %morttonquest < mortton_kill_shades -> razmire_questions ->
@@ -272,9 +410,15 @@ return {
         -- (shade.attack-1.png/44-blocked.png); t.player.walk_near answered
         -- "within 2" from there because it is a bare tile-distance check,
         -- not a path/line-of-sight one, so it never caught the fence. Fixed
-        -- with an explicit goto_tile off the porch, to shadeshadow_level1's
-        -- own spawn tile (m54_51.spawn, clear street).
-        t.exec("goto-shadehunt", t.player.goto_tile, 3488, 3288, 0)
+        -- by leaving the shop through its door and walking to shadeshadow_level1's own spawn
+        -- tile (m54_51.spawn, clear street) -- on foot, not a goto out of the walled shop.
+        leave_house("razmire")
+        t.player.walk_to(3488, 3288)
+        local hunt_start_result, hunt_start_tile = t.world.tile()
+        t.check("walkToShadeStreet",
+            hunt_start_result == "ok" and hunt_start_tile.level == 0 and math.abs(hunt_start_tile.x - 3488) <= 1
+                and math.abs(hunt_start_tile.z - 3288) <= 1,
+            "walked from the shop door to the shade street 3488,3288 -> " .. tile_text(hunt_start_result, hunt_start_tile))
 
         -- Real combat off the porch still lands hits at a low rate (one
         -- probe kill needed 51+40 real ticks before a still-live read), so
@@ -287,10 +431,8 @@ return {
         -- fight a real window to land hits, and picks up whatever remains
         -- are on the ground; the loop's own exit condition is shade_bones1
         -- actually reaching 5 in the backpack, read back after every round.
-        -- Eat periodically (section 8's player.attack note: "carry food and
-        -- EAT IT") -- a defensive top-off, not a reaction to a specific low
-        -- reading, since t.skill.read's reading shape is not spelled out in
-        -- docs/QUEST_AUTHORING.md's verb table.
+        -- Eat through the kill wait's own opts.eat (verbs-combat, "Eating"):
+        -- a shark whenever stated hitpoints fall under 60.
         -- shadeshadow_level1 is ITSELF huntmode=aggressive, huntrange 3
         -- (mortton_shades.npc) -- 31 copies packed along this street, so
         -- several aggro at once regardless of the four ::passive Afflicted
@@ -306,9 +448,17 @@ return {
         -- a NEW target when not currently engaged, and on a timeout keep
         -- polling await_dead_engaged (it re-issues Attack on the same slot)
         -- rather than re-resolving.
+        -- Each kill gets a MARGIN row: the lowest hitpoints the eat wait read over that fight
+        -- (opts.eat's own "lowest hp x/y", carried across a timed-out round on the same slot)
+        -- must be >= 25 AND a shark must still be in the pack -- both, never either. Eating is
+        -- the wait's own (shark below 60, at most once per 3 ticks), so it holds whether or
+        -- not an eat delays a queued hit, and nothing here leans on prayer.
         local shade_rounds = 0
         local shade_bones_count = 0
         local shade_engaged = false
+        local shade_kills = 0
+        local fight_lowest = nil
+        local fight_eats = {}
         while shade_bones_count < 5 and shade_rounds < 30 do
             shade_rounds = shade_rounds + 1
             if not shade_engaged then
@@ -323,11 +473,30 @@ return {
                 end
             end
             if shade_engaged then
-                local dead_result, dead_detail = t.npc.await_dead_engaged(80, 15)
+                local dead_result, dead_detail = t.npc.await_dead_engaged(80, 15,
+                    { eat = { item = "shark", below = 60 } })
                 t.note("round " .. tostring(shade_rounds) .. " await_dead_engaged: " .. tostring(dead_result)
                     .. " (" .. tostring(dead_detail) .. ")")
+                local round_lowest = tonumber(string.match(tostring(dead_detail), "lowest hp (%d+)/"))
+                if round_lowest ~= nil and (fight_lowest == nil or round_lowest < fight_lowest) then
+                    fight_lowest = round_lowest
+                end
+                local round_eats = string.match(tostring(dead_detail), "; eat shark below 60: ([^,;]*)")
+                if round_eats ~= nil then
+                    table.insert(fight_eats, round_eats)
+                end
                 if dead_result == "ok" then
                     shade_engaged = false
+                    shade_kills = shade_kills + 1
+                    local shark_left_result, shark_left = t.inv.count("shark")
+                    t.check("shade.fight" .. tostring(shade_kills) .. ".margin",
+                        fight_lowest ~= nil and fight_lowest >= 25 and shark_left_result == "ok"
+                            and type(shark_left) == "number" and shark_left > 0,
+                        "kill " .. tostring(shade_kills) .. " of 5: lowest hp " .. tostring(fight_lowest)
+                            .. " (want >= 25) AND sharks left " .. tostring(shark_left) .. " (want > 0); eats: "
+                            .. table.concat(fight_eats, " | "))
+                    fight_lowest = nil
+                    fight_eats = {}
                     t.player.click_obj("shade_bones1", 3)
                 elseif dead_result == "no_row" then
                     -- the stamped engagement is gone (the attack above never
@@ -337,9 +506,6 @@ return {
                 -- on timeout, shade_engaged stays true and the next round
                 -- polls await_dead_engaged again on the SAME slot instead of
                 -- abandoning it for a freshly-resolved target.
-            end
-            if shade_rounds % 5 == 0 then
-                t.player.inv_op("shark", 1)
             end
             local bones_result, bones_value = t.inv.count("shade_bones1")
             if bones_result == "ok" and type(bones_value) == "number" then
@@ -361,15 +527,14 @@ return {
         -- which type is actually live and, if he has reverted, mix a fresh
         -- dose and re-cure through the afflicted symbol instead of talking
         -- to a base symbol that is not the one spawned right now.
-        t.exec("goto-razmire-2", t.player.goto_tile, 3489, 3296, 0)
-        local razmire_afflicted_now, razmire_afflicted_now_status =
-            t.player.by_symbol("npc", "razmire_keelgan_afflicted")
-        if razmire_afflicted_now_status == "ok" then
-            t.exec("mixSerum207-3", t.player.use_item_on_item, "ashes", "tarrominvial")
-            t.exec("razmire.recure", t.player.use_on, "mort_serum3", razmire_afflicted_now)
-        else
-            t.exec("razmire.giveRemains", t.player.talk_to, "razmire_keelgan", 1)
-        end
+        -- The hunt ends wherever the last shade fell on the open street; the goto lands on the
+        -- street south of the shop (3488,3290, open) and the player walks in through the door.
+        t.exec("goto-razmire-2", t.player.goto_tile, 3488, 3290, 0)
+        enter_house("razmire-2", RAZMIRE)
+        -- player.by_symbol answers ok for any content symbol; the live pool says which form
+        -- is spawned right now.
+        talk_or_recure("razmire.giveRemains", "mixSerum207-3", "razmire.recure",
+            "razmire_keelgan", "razmire_keelgan_afflicted")
         -- razmire_talk's opening line is now ALWAYS "Ah, it's you, how's it
         -- going?" (testbit(mortton_used_serum_on_razmire) was set true on
         -- the very first cure above and never clears), whichever of the two
@@ -397,14 +562,30 @@ return {
         -- stack -- each unit is its own slot), and swamppaste then answered
         -- "You don't have enough inventory space." for every one of the 25
         -- asked.
+        -- The hunt is over and the fights never needed food: keep one shark and drop the rest
+        -- for shop space (the trip loop below does the same per trip). Keep TWO serum pairs,
+        -- not one: the shop trips and the oil visit can each find a cure lapsed
+        -- (talk_or_recure above), and the pyre hand-in needs one more.
+        local first_shark_result, first_shark_have = t.inv.count("shark")
+        local first_shark_drops = 0
+        while first_shark_result == "ok" and type(first_shark_have) == "number" and first_shark_have > 1
+            and first_shark_drops < 4 do
+            t.player.drop("shark")
+            first_shark_drops = first_shark_drops + 1
+            first_shark_result, first_shark_have = t.inv.count("shark")
+        end
+        t.check("razmire.freeSharkSlots",
+            first_shark_result == "ok" and type(first_shark_have) == "number" and first_shark_have == 1,
+            "dropped " .. tostring(first_shark_drops) .. " shark(s) before the builders' store, "
+                .. tostring(first_shark_have) .. " left (want exactly 1 kept)")
         local ashes_before_drop_result, ashes_before_drop_count = t.inv.count("ashes")
         if ashes_before_drop_result == "ok" and type(ashes_before_drop_count) == "number"
-            and ashes_before_drop_count > 1 then
+            and ashes_before_drop_count > 2 then
             t.player.drop("ashes")
         end
         local tarrominvial_before_drop_result, tarrominvial_before_drop_count = t.inv.count("tarrominvial")
         if tarrominvial_before_drop_result == "ok" and type(tarrominvial_before_drop_count) == "number"
-            and tarrominvial_before_drop_count > 1 then
+            and tarrominvial_before_drop_count > 2 then
             t.player.drop("tarrominvial")
         end
 
@@ -447,10 +628,10 @@ return {
         -- (spawn row m54_51.spawn:44, 3496,3289,0) -- ulsquire_shauncy.rs2's
         -- ulsquire_talk, at %morttonquest = mortton_shades_to_razmire,
         -- takes the remaining shade_bones1 straight away (no menu).
-        t.exec("goto-ulsquire", t.player.goto_tile, 3496, 3289, 0)
-        local ulsquire_afflicted, ulsquire_afflicted_status = t.player.by_symbol("npc", "ulsquire_shauncy_afflicted")
-        t.check("ulsquire.find", ulsquire_afflicted_status == "ok",
-            "player.by_symbol(npc, ulsquire_shauncy_afflicted) -> " .. tostring(ulsquire_afflicted_status))
+        -- Out of Razmire's shop through its door, along the street and in through Ulsquire's.
+        enter_house("ulsquire", ULSQUIRE)
+        local ulsquire_afflicted = t.player.by_symbol("npc", "ulsquire_shauncy_afflicted")
+        check_npc_present("ulsquire.find", "ulsquire_shauncy_afflicted", 6)
         t.exec("ulsquire.cure", t.player.use_on, "mort_serum3", ulsquire_afflicted)
         t.exec("ulsquire.giveRemains", t.chat.play, {
             "npc:you've made your own serum",
@@ -528,17 +709,9 @@ return {
             temple_trip = temple_trip + 1
             local trip_suffix = "-" .. tostring(temple_trip)
 
-            -- razmire_keelgan.rs2's opnpc1 is defined on BOTH forms
-            -- (razmire_keelgan and razmire_keelgan_afflicted) and both reach
-            -- [label,razmire_talk] either way -- the afflicted form cures
-            -- itself back to normal first if the "visible"/perm-serum bit is
-            -- set, the normal form re-afflicts itself first (npc_changetype,
-            -- silent) if it is not -- so no cure is needed to reopen the
-            -- store, only knowing WHICH symbol is currently spawned (a
-            -- player.by_symbol resolve answers "ok" for a content symbol
-            -- regardless of live presence, unlike an actual world-pool read,
-            -- so this checks presence with t.npc.by_symbol instead).
-            t.exec("goto-razmire-temple" .. trip_suffix, t.player.goto_tile, 3489, 3296, 0)
+            -- Which form is live decides talk vs re-cure (talk_or_recure above). On foot, through the doors: out of Ulsquire's house (trip 2) and into Razmire's
+            -- shop; a later trip starts inside the shop already and stays.
+            enter_house("razmire-temple" .. trip_suffix, RAZMIRE)
 
             -- Run 2 measured the real bottleneck: NOT shop stock, backpack
             -- SPACE -- none of timberbeam/limestonebrick/swamppaste stack,
@@ -570,13 +743,8 @@ return {
                 "dropped " .. tostring(shark_drops) .. " shark(s), " .. tostring(shark_have)
                     .. " left (kept for trap 26's food requirement)")
 
-            local razmire_afflicted_present, razmire_afflicted_present_status =
-                t.npc.by_symbol("razmire_keelgan_afflicted")
-            local razmire_talk_symbol = "razmire_keelgan"
-            if razmire_afflicted_present_status == "ok" then
-                razmire_talk_symbol = "razmire_keelgan_afflicted"
-            end
-            t.exec("razmire.talk" .. trip_suffix, t.player.talk_to, razmire_talk_symbol, 1)
+            talk_or_recure("razmire.talk" .. trip_suffix, "mixSerum207" .. trip_suffix, "razmire.recure" .. trip_suffix,
+                "razmire_keelgan", "razmire_keelgan_afflicted")
             -- %morttonquest is mortton_rebuild_temple(55) by now (crossed by
             -- the first ::mortton_repairtemple call above), which routes
             -- razmire_talk to a DIFFERENT branch than the
@@ -616,8 +784,9 @@ return {
             if timber_have < 5 then
                 t.exec("razmire.buyTimber" .. trip_suffix, t.shop.buy, "timberbeam", 5 - timber_have)
             else
-                t.check("razmire.buyTimber" .. trip_suffix, true,
-                    "already holding " .. tostring(timber_have) .. " timberbeam -- skipped, not the bottleneck")
+                -- a skip is not a row (it could not fail); the note rides on the next row
+                t.note("trip" .. trip_suffix .. ": already holding " .. tostring(timber_have)
+                    .. " timberbeam -- not bought")
             end
 
             local limestone_result, limestone_have = t.inv.count("limestonebrick")
@@ -627,8 +796,8 @@ return {
             if limestone_have < 5 then
                 t.exec("razmire.buyLimestone" .. trip_suffix, t.shop.buy, "limestonebrick", 5 - limestone_have)
             else
-                t.check("razmire.buyLimestone" .. trip_suffix, true,
-                    "already holding " .. tostring(limestone_have) .. " limestonebrick -- skipped, not the bottleneck")
+                t.note("trip" .. trip_suffix .. ": already holding " .. tostring(limestone_have)
+                    .. " limestonebrick -- not bought")
             end
 
             local swamppaste_have_result, swamppaste_have = t.inv.count("swamppaste")
@@ -668,8 +837,8 @@ return {
             if paste_target > 0 then
                 t.exec("razmire.buySwamppaste" .. trip_suffix, t.shop.buy, "swamppaste", paste_target)
             else
-                t.check("razmire.buySwamppaste" .. trip_suffix, swamppaste_have >= 5,
-                    "already holding " .. tostring(swamppaste_have) .. " swamppaste -- skipped buying more")
+                t.note("trip" .. trip_suffix .. ": already holding " .. tostring(swamppaste_have)
+                    .. " swamppaste -- not bought")
             end
             local shop_close_result = t.shop.close()
             t.check("razmire.shopClose" .. trip_suffix, shop_close_result == "ok",
@@ -717,36 +886,44 @@ return {
         -- through questions_post_rebuild). His cure from earlier has almost
         -- certainly lapsed across the temple-repair wait -- same
         -- afflicted-check-and-recure idiom again.
-        t.exec("goto-ulsquire-2", t.player.goto_tile, 3496, 3289, 0)
+        -- On foot: out of Razmire's shop through its door, in through Ulsquire's.
+        enter_house("ulsquire-2", ULSQUIRE)
         -- ulsquire_temple_built's free-oil grant is gated on
         -- `inv_freespace(inv) != 0` -- the two shop trips carried real
         -- weight (run 6/7's own screenshots showed the pack near full), so
         -- guarantee at least one slot before the dialogue reaches that
         -- check, or it falls to the "buy it from Razmire instead" branch.
-        local free_slots_before_oil = 0
-        for slot_index = 0, 27 do
-            local slot_result_3, slot_cell_3 = t.inv.slot(slot_index)
-            if slot_result_3 == "ok" and (slot_cell_3.name == "" or slot_cell_3.count == 0) then
-                free_slots_before_oil = free_slots_before_oil + 1
+        -- The temple is built, so a leftover building material is what goes (the serum
+        -- pairs are kept for a lapsed cure).
+        local function count_free_slots()
+            local free = 0
+            for slot_index = 0, 27 do
+                local slot_result_3, slot_cell_3 = t.inv.slot(slot_index)
+                if slot_result_3 == "ok" and (slot_cell_3.name == "" or slot_cell_3.count == 0) then
+                    free = free + 1
+                end
+            end
+            return free
+        end
+        local free_slots_before_oil = count_free_slots()
+        local oil_slot_dropped = "nothing"
+        if free_slots_before_oil < 1 then
+            for _, leftover in ipairs({ "swamppaste", "limestonebrick", "timberbeam" }) do
+                local leftover_result, leftover_count = t.inv.count(leftover)
+                if leftover_result == "ok" and type(leftover_count) == "number" and leftover_count > 0 then
+                    t.player.drop(leftover)
+                    t.ticks(1)
+                    oil_slot_dropped = leftover
+                    break
+                end
             end
         end
-        if free_slots_before_oil < 1 then
-            t.player.drop("ashes")
-        end
-        -- ulsquire_shauncy.rs2's opnpc1 is defined on BOTH forms, exactly
-        -- like razmire_keelgan.rs2 above, and both reach [label,ulsquire_talk]
-        -- either way -- no cure needed, only knowing which symbol is
-        -- currently live. player.by_symbol resolves a content symbol and
-        -- answers "ok" whether or not the npc is actually spawned (the same
-        -- false-positive that broke the temple-wall trip loop before this
-        -- fix), so presence is checked with t.npc.by_symbol instead.
-        local ulsquire_afflicted_present, ulsquire_afflicted_present_status =
-            t.npc.by_symbol("ulsquire_shauncy_afflicted")
-        local ulsquire_talk_symbol = "ulsquire_shauncy"
-        if ulsquire_afflicted_present_status == "ok" then
-            ulsquire_talk_symbol = "ulsquire_shauncy_afflicted"
-        end
-        t.exec("ulsquire.askOil", t.player.talk_to, ulsquire_talk_symbol, 1)
+        local free_slots_for_oil = count_free_slots()
+        t.check("ulsquire.oilSlotFree", free_slots_for_oil >= 1,
+            tostring(free_slots_before_oil) .. " free slot(s), dropped " .. oil_slot_dropped .. " -> "
+                .. tostring(free_slots_for_oil) .. " free (ulsquire_temple_built needs inv_freespace != 0)")
+        talk_or_recure("ulsquire.askOil", "mixSerum207-oil", "ulsquire.recure-oil",
+            "ulsquire_shauncy", "ulsquire_shauncy_afflicted")
         -- ulsquire_talk's universal opener (bit already true) is "Ah, hello
         -- again, what can I do for you now?", THEN the PLAYER line "Hello
         -- there, I've started repairing the temple." (not an npc line --
@@ -777,31 +954,39 @@ return {
         -- The debugproc-driven repair loop above never walks the player to
         -- the temple at all (it needs no click), so run 3's altarClick
         -- answered "covered ... the world is not picking" while standing at
-        -- Ulsquire's tile, 3496,3289 -- go back to the temple first.
-        t.exec("goto-temple-altar", t.player.goto_tile, 3506, 3316, 0)
+        -- Ulsquire's tile, 3496,3289 -- go back to the temple first: out of
+        -- Ulsquire's house through its door, then the hop to the open ground
+        -- south of the temple (3506,3311). The temple ring (templewall locs,
+        -- x 3504-3508 z 3314-3318, maps/m54_51.jl2) has an open gap at
+        -- 3506,3314 with no door loc, and the altar sits in the middle at
+        -- 3506,3316 -- the click walks the player in through the gap.
+        leave_house("ulsquire-temple")
+        t.exec("goto-temple-altar", t.player.goto_tile, 3506, 3311, 0)
         local altar_click_result, altar_click_detail = t.player.click_loc("templefire_altar_nofire", 1)
         t.check("temple.altarClick", altar_click_result == "ok",
             "click_loc(templefire_altar_nofire, op1) -> " .. tostring(altar_click_result) .. " "
                 .. tostring(altar_click_detail))
+        -- flamtaer_temple.rs2:284 loc_change(templefire_altar, 99): the lit altar is a real loc
+        -- on the altar's tile for 99 ticks -- poll the scene for it, not a symbol resolve.
         local altar_lit = false
         local altar_rounds = 0
+        local altar_near_result, altar_near = nil, nil
         while not altar_lit and altar_rounds < 10 do
             altar_rounds = altar_rounds + 1
-            t.ticks(10)
-            local altar_target, altar_target_status = t.player.by_symbol("loc", "templefire_altar")
-            if altar_target_status == "ok" then
+            t.ticks(5)
+            altar_near_result, altar_near = t.world.loc_near("templefire_altar", 6)
+            if altar_near_result == "ok" and altar_near.tile_x == 3506 and altar_near.tile_z == 3316 then
                 altar_lit = true
             end
         end
         t.check("temple.altarLit", altar_lit,
-            "polled " .. tostring(altar_rounds) .. " round(s) of 10 ticks for loc templefire_altar (lit) to appear")
+            "polled " .. tostring(altar_rounds) .. " round(s) of 5 ticks: loc templefire_altar (lit) "
+                .. loc_text(altar_near_result, altar_near) .. " (want 3506,3316)")
 
         -- Sanctify the olive oil in the lit flame (oc_category 110,
         -- oplocu,templefire_altar) -> sacred_oil3, %morttonquest =
         -- mortton_created_sacred_oil.
-        local altar_target_2, altar_target_2_status = t.player.by_symbol("loc", "templefire_altar")
-        t.check("temple.altarFind", altar_target_2_status == "ok",
-            "player.by_symbol(loc, templefire_altar) -> " .. tostring(altar_target_2_status))
+        local altar_target_2 = t.player.by_symbol("loc", "templefire_altar")
         t.exec("temple.sanctifyOil", t.player.use_on, "oliveoil3", altar_target_2)
         t.exec("quest.stage.mortton_created_sacred_oil", t.quest.expect_stage, "mortton_created_sacred_oil")
 
@@ -839,26 +1024,41 @@ return {
         -- not at the temple altar -- nearest copy of loc 4093
         -- (all.loc.compack) to the player decoded from maps/m54_50.jl2
         -- (trap 29): level 0, local 51,12 in map square 54,50 -> 3507,3276.
-        t.exec("goto-pyre", t.player.goto_tile, 3507, 3276, 0)
-        local pyre_near_result, pyre_near_detail = t.world.loc_near("temple_pyre", 15)
+        --
+        -- The four pyres stand as a cross around 3507,3275 (each 1x3: 3504-3506,3275 /
+        -- 3507,3272-3274 / 3507,3276-3278 / 3508-3510,3275), so that centre tile is a pocket
+        -- no walk reaches. The player walks out of the temple ring through its gap, hops to the
+        -- open ground north-west of the cross (3505,3278), and every pyre click names the copy
+        -- at 3507,3276, approached from its open west side.
+        t.player.walk_to(3506, 3311)
+        local temple_out_result, temple_out_tile = t.world.tile()
+        t.check("temple.walkOut",
+            temple_out_result == "ok" and temple_out_tile.level == 0 and temple_out_tile.z <= 3313
+                and math.abs(temple_out_tile.x - 3506) <= 1,
+            "walked out of the temple ring through its gap (3506,3314) to 3506,3311 -> "
+                .. tile_text(temple_out_result, temple_out_tile) .. " (want z <= 3313, outside the ring)")
+        t.exec("goto-pyre", t.player.goto_tile, 3505, 3278, 0)
+        local pyre_near_result, pyre_near_detail = t.world.loc_near("temple_pyre", 6)
         t.check("temple.pyreFind", pyre_near_result == "ok",
-            "world.loc_near(temple_pyre, 15) -> " .. tostring(pyre_near_result) .. " " .. tostring(pyre_near_detail))
+            "world.loc_near(temple_pyre, 6) -> " .. loc_text(pyre_near_result, pyre_near_detail))
 
-        t.exec("temple.pyreAddLogs", t.player.click_loc, "temple_pyre", 1)
+        t.exec("temple.pyreAddLogs", t.player.click_loc, "temple_pyre", 1, { at = { 3507, 3276 } })
         t.exec("quest.stage.mortton_logs_on_pyre", t.quest.expect_stage, "mortton_logs_on_pyre")
         -- Section 8: "give a loc_change 2-3 ticks before a second
         -- click_loc can see the new form."
         t.ticks(2)
         local pyre_logs_near_result, pyre_logs_near_detail = t.world.loc_near("temple_pyre_logs", 5)
-        t.check("temple.pyreLogsPlaced", pyre_logs_near_result == "ok",
-            "world.loc_near(temple_pyre_logs, 5) -> " .. tostring(pyre_logs_near_result) .. " "
-                .. tostring(pyre_logs_near_detail))
+        t.check("temple.pyreLogsPlaced",
+            pyre_logs_near_result == "ok" and pyre_logs_near_detail.tile_x == 3507 and pyre_logs_near_detail.tile_z == 3276,
+            "world.loc_near(temple_pyre_logs, 5) -> " .. loc_text(pyre_logs_near_result, pyre_logs_near_detail)
+                .. " (want 3507,3276)")
 
         local shade_bones_before_result, shade_bones_before = t.inv.count("shade_bones1")
-        t.check("temple.shadeBonesBeforePyre", shade_bones_before_result == "ok",
+        t.check("temple.shadeBonesBeforePyre",
+            shade_bones_before_result == "ok" and type(shade_bones_before) == "number" and shade_bones_before >= 1,
             "inv.count(shade_bones1) -> " .. tostring(shade_bones_before_result) .. " ("
-                .. tostring(shade_bones_before) .. ")")
-        t.exec("temple.pyreAddRemains", t.player.click_loc, "temple_pyre_logs", 1)
+                .. tostring(shade_bones_before) .. "; want >= 1: five dropped, two to Razmire, one to Ulsquire)")
+        t.exec("temple.pyreAddRemains", t.player.click_loc, "temple_pyre_logs", 1, { at = { 3507, 3276 } })
         -- Trap 24: a click verb's `ok` is the server's sentence, one tick
         -- before the container update reaches the client -- a bare
         -- t.inv.count on the line right below read 2 -> 2 (run 2's own
@@ -873,74 +1073,73 @@ return {
                 .. " (add_remains_to_funeral_pyre's own inv_del)")
         t.ticks(2)
         local pyre_bones_near_result, pyre_bones_near_detail = t.world.loc_near("temple_pyre_bones_logs", 5)
-        t.check("temple.pyreRemainsPlaced", pyre_bones_near_result == "ok",
-            "world.loc_near(temple_pyre_bones_logs, 5) -> " .. tostring(pyre_bones_near_result) .. " "
-                .. tostring(pyre_bones_near_detail))
+        t.check("temple.pyreRemainsPlaced",
+            pyre_bones_near_result == "ok" and pyre_bones_near_detail.tile_x == 3507
+                and pyre_bones_near_detail.tile_z == 3276,
+            "world.loc_near(temple_pyre_bones_logs, 5) -> " .. loc_text(pyre_bones_near_result, pyre_bones_near_detail)
+                .. " (want 3507,3276)")
 
-        -- Light it ([oploc1,_pyre_remains_loaded] -> label
-        -- light_funeral_pyre): a stat_random(firemaking, 64, 512) roll that
-        -- self-re-arms on its own failure branch via p_oploc(4), same idiom
-        -- as the temple wall/fire altar above (file header) -- press once
-        -- and poll quest.stage() rather than re-pressing per round.
-        t.exec("temple.pyreLight", t.player.click_loc, "temple_pyre_bones_logs", 1)
-        local pyre_lit = false
-        local pyre_rounds = 0
-        while not pyre_lit and pyre_rounds < 10 do
-            pyre_rounds = pyre_rounds + 1
-            t.ticks(10)
-            local pyre_stage_result, pyre_stage_value = t.quest.stage()
-            if pyre_stage_result == "ok" and type(pyre_stage_value) == "number" and pyre_stage_value >= 80 then
-                pyre_lit = true
-            end
+        -- Light it ([oploc1,_pyre_remains_loaded] -> label light_funeral_pyre ->
+        -- [oploc4,_pyre_remains_loaded], mortton_pyre.rs2:228-282): "You attempt to light the
+        -- funeral pyre." now, the stat_random roll 3 ticks later. Only the SUCCESS branch
+        -- sets mortton_lit_pyre, plays temple_pyre_fire on the pyre, advances firemaking 505
+        -- (tenths; flamtaer_pyre.struct pyre_logs) and prayer 250 (shade_bones1
+        -- pyre_shade_exp, +0 bonus), and npc_adds the shade's spirit (shade_heaven) beside the
+        -- pyre -- which funeral_pyre_reward deletes 2 ticks later, when the pyre reverts to an
+        -- empty temple_pyre. The fire and the spirit are on screen together for about a
+        -- second, so the click is NOT a shot row (its settle would eat the window): the
+        -- spirit wait right behind it is, and shoots the frame the spirit stands in.
+        local pyre_snapshot_result, pyre_snapshot = t.skill.snapshot()
+        local pyre_light_result, pyre_light_detail = t.player.click_loc("temple_pyre_bones_logs", 1, { at = { 3507, 3276 } })
+        t.exec("temple.pyreLit", t.npc.await_present, "shade_heaven", 8, 60)
+        t.check("temple.pyreLight", pyre_light_result == "ok",
+            "click_loc(temple_pyre_bones_logs, op1 Light, at 3507,3276) -> " .. tostring(pyre_light_result) .. " "
+                .. tostring(pyre_light_detail))
+        t.ticks(1)
+        t.exec("quest.stage.mortton_lit_pyre", t.quest.expect_stage, "mortton_lit_pyre")
+        t.exec("temple.pyreLit.prayerXp", t.skill.expect_gain, "prayer", 25, pyre_snapshot)
+        local firemaking_after_result, firemaking_after = t.skill.read("firemaking")
+        local firemaking_delta = nil
+        if pyre_snapshot_result == "ok" and type(pyre_snapshot) == "table" and type(pyre_snapshot.firemaking) == "table"
+            and firemaking_after_result == "ok" and type(firemaking_after) == "table" then
+            firemaking_delta = firemaking_after.experience - pyre_snapshot.firemaking.experience
         end
-        t.check("temple.pyreLit", pyre_lit,
-            "polled " .. tostring(pyre_rounds) .. " round(s) of 10 ticks for morttonquest to reach "
-                .. "mortton_lit_pyre(80)")
-
-        if not pyre_lit then
-            local pyre_stage_final_result, pyre_stage_final_value = t.quest.stage()
-            t.blocked("the funeral pyre ([oploc1,_pyre_remains_loaded] -> light_funeral_pyre's self-re-arming "
-                .. "stat_random(firemaking, 64, 512) roll, mortton_pyre.rs2) never reached "
-                .. "%varp339_morttonquest=mortton_lit_pyre(80) after " .. tostring(pyre_rounds) .. " round(s) of 10 ticks "
-                .. "with firemaking 99 (setup) -- morttonquest last read " .. tostring(pyre_stage_final_value)
-                .. " (" .. tostring(pyre_stage_final_result) .. ")")
-            return
+        t.check("temple.pyreLit.firemakingXp", firemaking_delta == 50 or firemaking_delta == 51,
+            "firemaking whole-xp delta " .. tostring(firemaking_delta)
+                .. " (want 50.5 xp = stat_advance(firemaking, 505), read as 50 or 51 in whole units)")
+        -- funeral_pyre_reward (queued 2 ticks after the light) turns the burnt pyre back into an
+        -- empty temple_pyre and deletes the spirit: the remains are gone from the world.
+        local pyre_burnt = false
+        local pyre_burnt_rounds = 0
+        local burnt_bones_result, burnt_bones = nil, nil
+        while not pyre_burnt and pyre_burnt_rounds < 10 do
+            pyre_burnt_rounds = pyre_burnt_rounds + 1
+            t.ticks(1)
+            burnt_bones_result, burnt_bones = t.world.loc_near("temple_pyre_bones_logs", 6)
+            pyre_burnt = burnt_bones_result ~= "ok"
         end
+        local empty_pyre_result, empty_pyre = t.world.loc_near("temple_pyre", 3)
+        t.check("temple.pyreBurnedOut",
+            pyre_burnt and empty_pyre_result == "ok" and empty_pyre.tile_x == 3507 and empty_pyre.tile_z == 3276,
+            "after " .. tostring(pyre_burnt_rounds) .. " tick(s): temple_pyre_bones_logs "
+                .. loc_text(burnt_bones_result, burnt_bones) .. "; temple_pyre " .. loc_text(empty_pyre_result, empty_pyre)
+                .. " (want the loaded pyre gone and an empty temple_pyre back at 3507,3276)")
 
         -- The reward queue (funeral_pyre_reward, 2-tick delay) drops loot
         -- and clears %pyre_loc -- settle before talking to Ulsquire.
         t.ticks(3)
 
         -- Reward snapshot before the hand-in (section 7's rule).
-        local skill_snapshot_result, skill_snapshot = t.skill.snapshot()
-        t.check("skill.snapshotBeforeComplete", skill_snapshot_result == "ok",
-            "skill.snapshot() -> " .. tostring(skill_snapshot_result))
+        local _, skill_snapshot = t.skill.snapshot()
 
         -- Tell Ulsquire the shade's spirit is at rest (ulsquire_shauncy.rs2's
         -- ulsquire_talk, %morttonquest = mortton_lit_pyre branch) ->
-        -- queue(mortton_quest_complete, 0, 0). Serum 207's 200-tick cure
-        -- (npc_changetype) may have lapsed across the pyre build above --
-        -- opnpc1 on the afflicted form only auto-reverts to @ulsquire_talk
-        -- when ulsquire_visible or ulsquire_perm_serum_used is still set,
-        -- otherwise it falls to @afflicted_talk and this dialogue would not
-        -- match -- re-cure first with the ashes/tarrominvial pair kept in
-        -- reserve since before the first shop trip (same idiom as
-        -- mixSerum207-3 above) if the afflicted form is what is spawned.
-        t.exec("goto-ulsquire-3", t.player.goto_tile, 3496, 3289, 0)
-        local ulsquire_afflicted_final, ulsquire_afflicted_final_status =
-            t.npc.by_symbol("ulsquire_shauncy_afflicted")
-        local ulsquire_final_symbol = "ulsquire_shauncy"
-        if ulsquire_afflicted_final_status == "ok" then
-            ulsquire_final_symbol = "ulsquire_shauncy_afflicted"
-            t.exec("mixSerum207-4", t.player.use_item_on_item, "ashes", "tarrominvial")
-            local ulsquire_afflicted_target, ulsquire_afflicted_target_status =
-                t.player.by_symbol("npc", "ulsquire_shauncy_afflicted")
-            t.check("ulsquire.recureFind", ulsquire_afflicted_target_status == "ok",
-                "player.by_symbol(npc, ulsquire_shauncy_afflicted) -> "
-                    .. tostring(ulsquire_afflicted_target_status))
-            t.exec("ulsquire.recure", t.player.use_on, "mort_serum3", ulsquire_afflicted_target)
-        end
-        t.exec("ulsquire.completePyre", t.player.talk_to, ulsquire_final_symbol, 1)
+        -- queue(mortton_quest_complete, 0, 0). Serum 207's 200-tick cure may have lapsed
+        -- across the pyre build -- talk_or_recure re-cures with a reserve pair if the
+        -- afflicted form is the one spawned. On foot from the pyres to his door and in.
+        enter_house("ulsquire-3", ULSQUIRE)
+        talk_or_recure("ulsquire.completePyre", "mixSerum207-4", "ulsquire.recure",
+            "ulsquire_shauncy", "ulsquire_shauncy_afflicted")
         -- ulsquire_talk's universal opener (mortton_used_serum_on_ulsquire
         -- already true) is "Ah, hello again, what can I do for you now?"
         -- BEFORE the stage-specific branch -- same shape ulsquire.askOil-
