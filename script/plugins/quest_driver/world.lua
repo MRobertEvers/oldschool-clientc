@@ -40,10 +40,84 @@
 -- `radius`: which COPY of a loc is nearest is a different question from which
 -- ID the family resolved to, and answering them together would make one
 -- symbol resolve differently at radius 5 than at radius 50.
-function QD.world.loc_near(sym, radius)
+--
+-- STACKED FLOORS (matthew-mbp-m4-b59-seam1 level_aware_loc_read_and_door_
+-- helper).  Without `opts` this answers the first copy in the pool, and the
+-- pool is ordered by x/z distance ONLY (DriveUi_Locs, torirs_plugin_drive_
+-- ui.c: drive_ui_distance2 has no level term) -- so a copy on ANOTHER floor
+-- at the same x,z ties with, or beats, the one on the player's floor.  Both
+-- Miscellania castles and the Sinclair mansion stack a door on levels 0 and
+-- 1 at one x,z, and on level 1 `loc_near("opencastledoor", 3)` answered the
+-- level-0 leaf straight below (misc run4: 10 of 69 "door stands open" rows
+-- passed on the wrong floor).  `opts` names the floor:
+--
+--   { level = n }               only a copy on raw level n
+--   { level = "here" }          only a copy on the player's level
+--   { at = {x, z[, level]}, slack = s }
+--                               only a copy within s tiles (default 0) of
+--                               x,z, and on `level` when the table gives one
+--                               (or opts.level gives one)
+--
+-- The level is the loc's RAW cache level, as the row reports it: on a bridge
+-- deck (a LINK_BELOW column) the player stands one plane lower than the row
+-- says -- gaps-world "t.world.loc_near reports a loc's raw cache level".
+-- A filtered `not_found` names every copy it skipped WITH its level (up to
+-- QD.world._loc_skipped_listed), because "it is there, one floor down" is
+-- the whole diagnosis.  A malformed `opts` is the caller's bug and raises.
+QD.world._loc_skipped_listed = 6
+
+function QD.world._loc_filter(opts)
+    if opts == nil then
+        return nil
+    end
+    assert(type(opts) == "table", "loc_near opts must be a table: { level = n|\"here\" } or { at = {x, z[, level]}, slack = n }")
+    local filter = { slack = opts.slack or 0 }
+    assert(type(filter.slack) == "number", "loc_near opts.slack must be a number")
+    if opts.at ~= nil then
+        assert(type(opts.at) == "table", "loc_near opts.at must be {x, z[, level]}")
+        filter.x = opts.at.x or opts.at[1]
+        filter.z = opts.at.z or opts.at[2]
+        filter.level = opts.at.level or opts.at[3]
+        assert(type(filter.x) == "number", "loc_near opts.at has no x")
+        assert(type(filter.z) == "number", "loc_near opts.at has no z")
+    end
+    local level = opts.level
+    if level ~= nil then
+        assert(filter.level == nil or filter.level == level,
+            "loc_near opts names two different levels (opts.level and opts.at[3])")
+        if level == "here" then
+            local tile_result, tile = api_drive.player_tile()
+            if tile_result ~= "ok" or type(tile) ~= "table" then
+                return nil, tile_result
+            end
+            level = tile.level
+        end
+        assert(type(level) == "number", "loc_near opts.level must be a number or \"here\"")
+        filter.level = level
+    end
+    assert(filter.level ~= nil or filter.x ~= nil, "loc_near opts names neither a level nor a tile")
+    return filter
+end
+
+function QD.world._loc_filter_text(filter)
+    local parts = {}
+    if filter.x ~= nil then
+        parts[#parts + 1] = "within " .. tostring(filter.slack) .. " of " .. filter.x .. "," .. filter.z
+    end
+    if filter.level ~= nil then
+        parts[#parts + 1] = "on level " .. tostring(filter.level)
+    end
+    return table.concat(parts, " ")
+end
+
+function QD.world.loc_near(sym, radius, opts)
     local sym_result, symbol_id = api_drive.symbol("loc", sym)
     if sym_result ~= "ok" then
         return sym_result, sym
+    end
+    local filter, filter_result = QD.world._loc_filter(opts)
+    if opts ~= nil and filter == nil then
+        return filter_result, "loc_near " .. tostring(sym) .. ": the player's tile did not answer"
     end
     local id, match = QD.player._live_loc_id(symbol_id)
     -- Charged through pointer.lua's scan meter (seam15): at radius 0 this is
@@ -53,19 +127,36 @@ function QD.world.loc_near(sym, radius)
     if result ~= "ok" then
         return result, nil
     end
+    local skipped = {}
     for i = 1, #rows do
-        if rows[i].loc_id == id then
-            QD.drive._scan_spend(i, QD.drive._scan_cost_near)
-            return "ok", {
-                kind = "loc",
-                id = id,
-                symbol = sym,
-                match = match,
-                element_id = rows[i].element_id,
-                tile_x = rows[i].x,
-                tile_z = rows[i].z,
-                level = rows[i].level,
-            }
+        local row = rows[i]
+        if row.loc_id == id then
+            local keep = true
+            if filter ~= nil then
+                if filter.level ~= nil and row.level ~= filter.level then
+                    keep = false
+                end
+                if filter.x ~= nil and (math.abs(row.x - filter.x) > filter.slack
+                    or math.abs(row.z - filter.z) > filter.slack) then
+                    keep = false
+                end
+            end
+            if keep then
+                QD.drive._scan_spend(i, QD.drive._scan_cost_near)
+                return "ok", {
+                    kind = "loc",
+                    id = id,
+                    symbol = sym,
+                    match = match,
+                    element_id = row.element_id,
+                    tile_x = row.x,
+                    tile_z = row.z,
+                    level = row.level,
+                }
+            end
+            if #skipped < QD.world._loc_skipped_listed then
+                skipped[#skipped + 1] = row.x .. "," .. row.z .. "," .. tostring(row.level)
+            end
         end
     end
     QD.drive._scan_spend(#rows, QD.drive._scan_cost_near)
@@ -73,11 +164,17 @@ function QD.world.loc_near(sym, radius)
     -- after the three rules above those differ, and the difference is the
     -- whole diagnosis: the family is absent, or it resolved to something
     -- standing outside this radius.
+    local text = sym
     if id ~= symbol_id then
-        return "not_found", sym .. " (" .. tostring(match) .. " -> loc "
-            .. tostring(id) .. ", none within " .. tostring(radius or 0) .. ")"
+        text = sym .. " (" .. tostring(match) .. " -> loc " .. tostring(id) .. ", none within "
+            .. tostring(radius or 0) .. ")"
     end
-    return "not_found", sym
+    if filter ~= nil then
+        text = text .. ": none " .. QD.world._loc_filter_text(filter) .. " within radius "
+            .. tostring(radius or 0) .. " (copies skipped, nearest first: "
+            .. (#skipped > 0 and table.concat(skipped, "; ") or "none") .. ")"
+    end
+    return "not_found", text
 end
 
 function QD.world.obj_near(sym, radius)
@@ -119,6 +216,244 @@ function QD.world.level()
         return result, nil
     end
     return "ok", tile.level
+end
+
+-- t.player.pass_door(spec) -> (ok, detail) `refused` `not_found` `timeout`
+-- (matthew-mbp-m4-b59-seam1 level_aware_loc_read_and_door_helper).
+--
+-- Cross ONE door or gate on foot, graded on the world at every step.  Every
+-- fixer in b56-b59 wrote this helper into its quest file by hand (murder,
+-- misc, misc_astrid, the door-rule brief's "pass_door-style helper"), and
+-- each copy answered the stacked-floor question differently -- a level
+-- filter, an impossible-level selector parsed for its "nearest copies", the
+-- private pool reader.  One verb, one answer:
+--
+--   t.exec("castleGateIn", t.player.pass_door, {
+--       closed = "castledoor", open = "opencastledoor",
+--       at   = { 2510, 3860, 0 },  -- the CLOSED leaf's tile [and level]
+--       near = { 2511, 3860 },     -- a tile on this side
+--       far  = { 2508, 3860 },     -- the tile to stand on past it
+--       -- optional: far_ok = function(tile) ... end, far_desc = "the hall",
+--       --           op = 1, close = true (shut it behind you), ticks = n
+--   })
+--
+--  1. walk to `near`; the player must stand within a tile of it on the
+--     door's level, and NOT already satisfy the far test -- a near tile on
+--     the wrong side is a row that fails, not a crossing that "worked";
+--  2. the CLOSED leaf is read on the exact door tile AND level
+--     (world.loc_near's `at` filter) -- a copy on another floor is never
+--     this door.  Present: it is pressed there by tile and level
+--     (click_loc's `at` selector) and the press is graded on the closed leaf
+--     LEAVING that tile on that level, and on the open leaf standing within
+--     a tile of it when `open` is named -- or on the press itself carrying
+--     the player to the far side (a walk-through door);
+--     (Either leaf is awaited for up to QD.player._pass_door_scene_ticks
+--     first: a scene that has just loaded can hold neither for a tick or two.)
+--     absent: the door stands open, so it is NOT pressed (pressing an open
+--     leaf shuts it), and the OPEN leaf must stand within a tile of the door
+--     tile on this level -- `not_found` naming both reads when neither leaf
+--     is there (a door the client lost, or the wrong tile);
+--  3. walk to `far` and grade it: exactly that tile on the door's level, or
+--     `far_ok(tile)` when given;
+--  4. with `close = true`, press the open leaf (op 1) on this level, grade
+--     the closed leaf back on the door tile, walk back to `far` (the press
+--     walked to the leaf's approach tile) and grade the player still past it.
+--
+-- `level` defaults to the player's level on the near tile (a door does not
+-- change level).  The press answer (`ok` or click_loc's `timeout` for a door
+-- that says nothing) is in the detail; the grade is the loc reads and the
+-- tiles, never that word.  A malformed spec is the caller's bug and raises.
+QD.player._pass_door_radius = 12
+QD.player._pass_door_scene_ticks = 6
+
+function QD.player._pass_door_tile_text(tile)
+    if type(tile) ~= "table" then
+        return tostring(tile)
+    end
+    return tostring(tile.x) .. "," .. tostring(tile.z) .. "," .. tostring(tile.level)
+end
+
+function QD.player.pass_door(spec)
+    assert(type(spec) == "table", "pass_door takes a spec table: { closed=, at=, near=, far= }")
+    local closed = spec.closed
+    local open = spec.open
+    assert(type(closed) == "string", "pass_door spec.closed must be the closed leaf's loc symbol")
+    assert(open == nil or type(open) == "string", "pass_door spec.open must be a loc symbol")
+    assert(spec.close == nil or open ~= nil, "pass_door spec.close needs spec.open (the leaf to shut)")
+    assert(type(spec.at) == "table", "pass_door spec.at must be {x, z[, level]}")
+    assert(type(spec.near) == "table", "pass_door spec.near must be {x, z}")
+    assert(type(spec.far) == "table", "pass_door spec.far must be {x, z}")
+    local door_x = spec.at.x or spec.at[1]
+    local door_z = spec.at.z or spec.at[2]
+    local level = spec.at.level or spec.at[3]
+    local near_x = spec.near.x or spec.near[1]
+    local near_z = spec.near.z or spec.near[2]
+    local far_x = spec.far.x or spec.far[1]
+    local far_z = spec.far.z or spec.far[2]
+    assert(type(door_x) == "number", "pass_door spec.at has no x")
+    assert(type(door_z) == "number", "pass_door spec.at has no z")
+    assert(level == nil or type(level) == "number", "pass_door spec.at level must be a number")
+    assert(type(near_x) == "number", "pass_door spec.near has no x")
+    assert(type(near_z) == "number", "pass_door spec.near has no z")
+    assert(type(far_x) == "number", "pass_door spec.far has no x")
+    assert(type(far_z) == "number", "pass_door spec.far has no z")
+    assert(near_x ~= far_x or near_z ~= far_z, "pass_door spec.near and spec.far are one tile")
+    assert(spec.far_ok == nil or type(spec.far_ok) == "function", "pass_door spec.far_ok must be a function")
+    local op = spec.op or 1
+    local radius = QD.player._pass_door_radius
+    local tile_text = QD.player._pass_door_tile_text
+    local far_desc = spec.far_desc
+
+    -- 1. The near side.
+    local walk_result, walk_detail = QD.player.walk_to(near_x, near_z, spec.ticks)
+    local near_result, near = QD.world.tile()
+    if near_result ~= "ok" or type(near) ~= "table" then
+        return near_result, "pass_door " .. closed .. ": the player's tile did not answer"
+    end
+    if level == nil then
+        level = near.level
+    end
+    local where = door_x .. "," .. door_z .. "," .. level
+    local function is_far(tile)
+        if type(tile) ~= "table" then
+            return false
+        end
+        if spec.far_ok ~= nil then
+            return spec.far_ok(tile) == true
+        end
+        return tile.x == far_x and tile.z == far_z and tile.level == level
+    end
+    if far_desc == nil then
+        far_desc = far_x .. "," .. far_z .. "," .. level
+    end
+    local text = "pass_door " .. closed .. " at " .. where .. ": near " .. near_x .. "," .. near_z
+        .. " -> at " .. tile_text(near)
+    if near.level ~= level or math.abs(near.x - near_x) > 1 or math.abs(near.z - near_z) > 1 then
+        return walk_result ~= "ok" and walk_result or "refused", text
+            .. " (want within 1 of " .. near_x .. "," .. near_z .. "," .. level .. "; walk_to -> "
+            .. tostring(walk_result) .. " " .. tostring(walk_detail) .. ")"
+    end
+    if is_far(near) then
+        return "refused", text .. " -- already past the door (" .. far_desc
+            .. ") before it was passed: the near tile is on the far side"
+    end
+
+    -- 2. The door, read and pressed on its own tile AND level.
+    local door_at = { door_x, door_z, level }
+    -- Either leaf, on this level, before anything is read for the answer: a
+    -- scene that has just loaded (a level change, a long walk) can hold
+    -- neither for a few ticks (misc.lua's run 4 waited for it by hand).  The
+    -- wait ends at the first tick either is there; one that runs out is not
+    -- an answer by itself -- the reads below say what is missing.
+    local start_tick = api_drive.tick()
+    local scene_result = QD.await({
+        level = function()
+            if QD.world.loc_near(closed, radius, { at = door_at }) == "ok" then
+                return true
+            end
+            return open ~= nil and QD.world.loc_near(open, radius, { at = door_at, slack = 1 }) == "ok"
+        end,
+        note = "pass_door: a leaf of " .. closed .. " on " .. where,
+    }, QD.player._pass_door_scene_ticks)
+    local waited = api_drive.tick() - start_tick
+    if scene_result ~= "ok" or waited > 0 then
+        text = text .. "; waited " .. waited .. " tick(s) for a leaf on " .. where .. " ("
+            .. tostring(scene_result) .. ")"
+    end
+    local leaf_result, leaf = QD.world.loc_near(closed, radius, { at = door_at })
+    local crossed = false
+    if leaf_result == "ok" then
+        local press_result, press_detail = QD.player.click_loc(closed, op, { at = door_at })
+        local gone_result = QD.await({
+            level = function()
+                local tile_result, tile = QD.world.tile()
+                if tile_result == "ok" and is_far(tile) then
+                    return true
+                end
+                return QD.world.loc_near(closed, radius, { at = door_at }) ~= "ok"
+            end,
+            note = "pass_door: the closed leaf leaves " .. where,
+        }, 4)
+        local after_result, after = QD.world.tile()
+        text = text .. "; pressed " .. closed .. " op" .. op .. " at " .. where .. " -> "
+            .. tostring(press_result) .. " " .. tostring(press_detail)
+        if after_result == "ok" and is_far(after) then
+            crossed = true
+            text = text .. "; the press carried the player to " .. tile_text(after)
+        elseif gone_result ~= "ok" then
+            return press_result ~= "ok" and press_result or "refused", text
+                .. "; the closed leaf is still at " .. where .. " (player " .. tile_text(after) .. ")"
+        elseif open ~= nil then
+            local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
+            if open_result ~= "ok" then
+                return "refused", text .. "; the closed leaf left " .. where .. " but no " .. open
+                    .. " stands within 1 of it on level " .. level .. ": " .. tostring(open_row)
+            end
+            text = text .. "; open leaf " .. open .. " at " .. open_row.tile_x .. "," .. open_row.tile_z
+                .. "," .. open_row.level
+        else
+            text = text .. "; the closed leaf left " .. where
+        end
+    elseif leaf_result == "not_found" then
+        if open == nil then
+            return "not_found", text .. "; no " .. tostring(leaf) .. " and no open leaf named (spec.open)"
+        end
+        local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
+        if open_result ~= "ok" then
+            return "not_found", text .. "; neither leaf on level " .. level .. ": closed " .. tostring(leaf)
+                .. "; open " .. tostring(open_row)
+        end
+        text = text .. "; stands open (no closed leaf on " .. where .. "; " .. open .. " at "
+            .. open_row.tile_x .. "," .. open_row.tile_z .. "," .. open_row.level .. "), not pressed"
+    else
+        return leaf_result, text .. "; the loc read answered " .. tostring(leaf_result) .. " " .. tostring(leaf)
+    end
+
+    -- 3. Through.
+    if not crossed then
+        local through_result, through_detail = QD.player.walk_to(far_x, far_z, spec.ticks)
+        local far_result, far = QD.world.tile()
+        text = text .. "; far " .. far_x .. "," .. far_z .. " -> at " .. tile_text(far)
+        if far_result ~= "ok" or not is_far(far) then
+            return through_result ~= "ok" and through_result or "refused", text
+                .. " (want " .. far_desc .. "; walk_to -> " .. tostring(through_result) .. " "
+                .. tostring(through_detail) .. ")"
+        end
+    end
+
+    -- 4. Shut it behind you.
+    if spec.close then
+        local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
+        if open_result ~= "ok" then
+            return "not_found", text .. "; close: " .. tostring(open_row)
+        end
+        local open_at = { open_row.tile_x, open_row.tile_z, open_row.level }
+        local shut_result, shut_detail = QD.player.click_loc(open, 1, { at = open_at })
+        local back_result = QD.await({
+            level = function()
+                return QD.world.loc_near(closed, radius, { at = door_at }) == "ok"
+            end,
+            note = "pass_door: the closed leaf is back on " .. where,
+        }, 4)
+        -- The press walks to the leaf's approach tile, which may not be the
+        -- far tile: walk back to it -- through a door that is shut again,
+        -- that walk only ends there from the far side.
+        if back_result == "ok" then
+            QD.player.walk_to(far_x, far_z, spec.ticks)
+        end
+        local still_result, still = QD.world.tile()
+        text = text .. "; close " .. open .. " at " .. tile_text({ x = open_at[1], z = open_at[2], level = open_at[3] })
+            .. " -> " .. tostring(shut_result) .. " " .. tostring(shut_detail) .. "; player " .. tile_text(still)
+        if back_result ~= "ok" then
+            return shut_result ~= "ok" and shut_result or "refused", text
+                .. " (the closed leaf is not back on " .. where .. ")"
+        end
+        if still_result ~= "ok" or not is_far(still) then
+            return "refused", text .. " (want the player still at " .. far_desc .. ")"
+        end
+        text = text .. "; closed leaf back on " .. where
+    end
+    return "ok", text .. " (want " .. far_desc .. ")"
 end
 
 -- t.world.camera() -> a BARE TABLE (like t.chat.kind's bare string), never a
