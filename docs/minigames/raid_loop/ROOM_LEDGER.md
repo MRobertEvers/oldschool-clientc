@@ -130,3 +130,31 @@ Sampler: the reviewers accepted tob_nylocas and tob_verzik. For each, the sample
 - tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
 - tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
 - Content defect (every room): a super restore heals 8 + 25% of base Hitpoints (prayer_potion.rs2:125, through br_potion.rs2:74). The OSRS potion leaves Hitpoints alone. A second, to triage: Verzik's tornado is not freed with her.
+
+## matthew-mbp-m4-raid-b1-rooms-tob, thirteenth launch (Theatre of Blood, Entry mode, solo; 2026-10-04, after seam15)
+Sampler: after seam15 the reviewers accepted tob_maiden and tob_verzik. For each, the sampler re-derived three spec numbers from their sources and checked the ledger, the tick log and the published shots. The Read tool opened the PNGs this launch. Both rooms are kept. Nothing was sent back.
+
+- tob_maiden: KEPT (f6d2c42e5, OSRS e4d92bb310). 110 ledger rows green, coverage FULL 63/63, lint clean, no `::` cheats in the run.
+  - Re-derived: cadence_entry 10 (wiki :48; 42 gaps of 10 in the log), hp_entry_unit 500 (cache stat4=500; the log's hp trace goes from 500 to 0 at 477), thresholds 70/50/30 (wiki :127; the retypes on 185, 276 and 391), auto_max_entry 18 (wiki :39; hit_player 18 on 66).
+  - av.hit_sound now judges the tile at tick - 1. It is a one-line change and the tolerance is still exact. The 355 hit is consistent with it.
+  - Remains: nothing.
+- tob_verzik: KEPT (d1b4ccf00, OSRS f8fefeb837). 264 ledger rows green, coverage FULL 144/144, lint clean. The only cheats are `::tobboss` and `::tobpillars` reads.
+  - Both twelfth-launch findings are resolved.
+  - Deathless: tobjail deaths=0, no 'You have died' line, and the raider is alive after her post-death hit (773:4).
+  - Every tornado row reads in-fight ticks before her death on 772:
+    - The touch on 634 takes 29 of 58 hitpoints (50%) and heals her 87 (3x29).
+    - The next tornado spawns on 650 (+16).
+    - The second tornado plays 9005 on the bat's tick 775 and is freed on 776, with no touch after 772.
+  - Re-derived:
+    - p3_enrage_threshold 20 (wiki :981; Blert, 43 Normal raids from 13.7 to 19.9; ours went from 21.3 to 17.8 on 619/620).
+    - p3_inflight_after_death 3-6 (seam15 Blert file: 15 of 62 rooms; gaps 3-6 in 15 of 19 drops; ours launched on 768 and hit on 773 = 5).
+    - p3_tornado_end 0 (Blert TOTAL tornado_rows_after_K 0; VerzikDataTracker.java:446-456).
+  - The two seam15 rows carry their quoted sources. The 144 versus 142 doc_gap was the brief's count only (212 rows less 68 out of scope). It is noted in DRIVER_NOTES.
+  - Boss damage: 1552 from 86 hits = 1300 of pools plus 252 healed. Every hit came from a player attack.
+  - Shots: 013 begin, 036/061 P1/P2 in the fight, 098 mid-P3, 176 exit, 177 deathless.
+  - Remains: a single tornado touch backs the tornado rows. The rows graded after fight.loop_end show kill-screen frames, so their moments are proved by the tick log, not the PNG. The Entry green-ball damage is out of scope: no source gives it.
+- tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Not re-sampled.
+- tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
+- tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
+- tob_nylocas: KEPT from the twelfth launch (d87427d41, OSRS d91f386291), 76/76 FULL. Not re-sampled.
+- All six Entry solo rooms are green on this branch. Normal and Hard are three-player passes and need the three-client driver seam first (RESUME.md).
