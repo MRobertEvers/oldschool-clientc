@@ -77,38 +77,23 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   `quest_druid/play` (restore was refused; never staged).
 - Whether `docs/WAVES_ORCHESTRATOR.md` belongs on v3.
 
-## Relaunching seam18 if it is not closed
+## Relaunching seam19 if it is not closed
 
-If `build/seam_state/matthew-mbp-m4-raid-b1-seam18/close.json` does not exist, relaunch
-`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass` `matthew-mbp-m4-raid-b1-seam18`,
-`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04f.md`, `width` 1, and a `context`
+If `build/seam_state/matthew-mbp-m4-raid-b1-seam19/close.json` does not exist, relaunch
+`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass` `matthew-mbp-m4-raid-b1-seam19`,
+`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04g.md`, `width` 1, and a `context`
 that says: relaunched by a fresh session (a seam with fix.<key>.json is DONE and its edits are
 uncommitted in the tree; one with only a progress notebook resumes from it); only Entry solo is
-tested; the six room tests are read-only; seam17 runs in worktrees/raid17 at the same time, never
-touch it; every fixer reads its triage section and the RULES; the brew seam first, the relay seam
-after it; the owner confirmed the brew fix on 2026-10-04; the editor rules (4 KB outputs, 8 KB
-commands, no recursive grep over OSRS-Content, shell fallback when a hook times out); and the
-closer's duties: re-run the six rooms (the brew fix is expected to move rooms: 'tob_<room> must be
-re-authored: <what moved>', never revert a sourced fix), the quest suite (baseline 115 green +
-deserttreasure, regicide, troll, forgettabletale RED; a quest red from brews is listed under 'The
-Saradomin brew raises Defence' in SEAM_LEDGER.md and MERGE_CHECKLIST.md, not reverted), the
-relay's five-name table and the brew-only run into SEAM_LEDGER.md as the tob_entry verdict (4 of
-5), DRIVER_NOTES, spec rows, CONTENT_BUGS, conformance, commit by explicit path submodule first,
-push the raid branch only.
-
-## Relaunching seam17 if it is not closed
-
-If `build/orchestrator/worktrees/raid17/build/seam_state/matthew-mbp-m4-raid-b1-seam17/close.json`
-does not exist, relaunch `build/orchestrator/worktrees/raid17/tools/raid_gate/workflows/raid_seam.workflow.js`
-with args `pass` `matthew-mbp-m4-raid-b1-seam17`, `branch` `matthew-mbp-m4-raid-b1-seam17`,
-`worktree` `/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid17`,
-`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04e.md`, `width` 1, and a `context`
-that says: it runs ONLY in that worktree (seam16 runs in worktrees/raid at the same time; never
-touch it or the main checkout); builds in its own src/build_questtest; no content edits; the
-fixers in the triage's order; the editor rules (4 KB outputs, 8 KB commands, no recursive grep
-over OSRS-Content, shell fallback when a hook times out); CLAUDE.md's assert/no-switch rules;
-and the closer's duties: one-client quest runs byte-identical (cooks_assistant, druid against a
-throwaway worktree at da183511b), the six rooms still pass, the three-client smoke run's three
-tick logs agree on the server tick, check-drive-abi/check-pt-switch/test-plugin-lua, DRIVER_NOTES
-'Three raiders in one run', README knobs, MERGE_CHECKLIST section 3, SEAM_LEDGER line, push the
-seam17 branch only.
+tested; the tree is the raid branch at or after 41a93c0fc (seam17 merged on seam18); every fixer
+reads its triage section and the RULES; the content seam first, the driver seam after it; the
+six room tests are read-only and their KNOWN state is tob_xarpus and tob_sotetseg green,
+tob_maiden 111/111 and tob_bloat 95/95 green with gate findings, tob_nylocas 91/24, tob_verzik
+256/14 (the closer compares, no room may get worse); the editor rules (4 KB outputs, 8 KB
+commands, no recursive grep over OSRS-Content, shell fallback when a hook times out); CLAUDE.md's
+assert/no-switch/no-mutation rules; and the closer's duties: _party_smoke twice (green, tick logs
+byte-identical, members read orb_full 27 for all three, the Bloat Normal hp_3 row quoted),
+cooks_assistant and druid byte-identical to build/merge17_check/*_before.tsv, conformance 100
+percent, the six rooms no worse, the quest suite at its baseline, check-drive-abi/check-pt-switch/
+test-plugin-lua, DRIVER_NOTES 'A party room test', README, CONTENT_BUGS (member orb row FIXED),
+MERGE_CHECKLIST section 3, SEAM_LEDGER line; commit by explicit path submodule first, push the
+raid branch only.
