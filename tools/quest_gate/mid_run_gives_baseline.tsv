@@ -10,7 +10,6 @@
 # with a count, not a line number; `lines` is where they sat at the measure.
 # The list only shrinks: a row whose give is gone is a lint finding.
 test_id	count	cheat	lines
-atailoftwocats	1	::give deathrune 5	319
 deserttreasure	1	::give 4dose2restore 2	701
 deserttreasure	1	::give abyssal_whip 1	701
 deserttreasure	1	::give airrune 400	249
