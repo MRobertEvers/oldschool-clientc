@@ -77,38 +77,24 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   `quest_druid/play` (restore was refused; never staged).
 - Whether `docs/WAVES_ORCHESTRATOR.md` belongs on v3.
 
-## Relaunching seam16 if it is not closed
+## Relaunching seam18 if it is not closed
 
-A background pass dies with the session that launched it. If
-`build/seam_state/matthew-mbp-m4-raid-b1-seam16/close.json` does not exist, relaunch
-`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass` `matthew-mbp-m4-raid-b1-seam16`,
-`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04d.md`, `width` 1, and this
-`context` (one string):
-
-> Seam16 of the raid loop, relaunched by a fresh session. On disk: every seam with a
-> fix.<key>.json report is DONE and its edits are uncommitted in the tree; a seam with only a
-> progress notebook resumes from it. Only ToB ENTRY mode SOLO is tested. All six Entry solo
-> rooms are KEPT and read-only: tob_maiden f6d2c42e5, tob_bloat e96af7766, tob_xarpus
-> f417148e4, tob_sotetseg 812267e7f, tob_nylocas d87427d41, tob_verzik d1b4ccf00. EVERY FIXER
-> reads its seam's full section in docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04d.md and the
-> RULES above the first section; the fixers run in the triage's order (the relay seam last).
-> One worker at a time; no command prints more than about 4 KB; no shell command over 8 KB;
-> never a recursive grep over OSRS-Content; if the editor's Read or Write hook times out use
-> the shell and never loop on the failing tool. Nothing sourced is lowered without its quoted
-> source line; a guide transcript is evidence, never the number to encode. THE CLOSER: (1)
-> re-runs the six rooms with run.py --no-build --no-publish and gate.py, logs to files; a
-> sourced fix that moves a room is EXPECTED: record 'tob_<room> must be re-authored: <what
-> moved>' in SEAM_LEDGER.md, never revert a sourced fix; a room broken for an unsourced reason
-> reverts that seam. (2) Quest suite: baseline 115 green + deserttreasure, regicide, troll,
-> forgettabletale RED; any other regression reverts its seam unless its first failing row is a
-> sourced ToB change, listed in SEAM_LEDGER.md and MERGE_CHECKLIST.md instead. (3) Carries the
-> relay seam's five-name table into SEAM_LEDGER.md as the verdict on authoring tob_entry
-> (authored when at least 4 of 5 survive with the wiki's kit). (4) Recipes into
-> DRIVER_NOTES.md, spec rows applied (spec_check.py clean), CONTENT_BUGS.md a row per
-> disagreement with a grade A-C source, one line per seam in SEAM_LEDGER.md with the quest
-> suite, conformance and C selftest results; commit by explicit path, submodule first, push
-> both. Never stage or restore the content worktree's dirt under selftest/quests/quest_cook/play
-> and quest_druid/play. QUEST_HELPER_ROOT is /Users/matthewevers/Documents/git_repos/quest-helper.
+If `build/seam_state/matthew-mbp-m4-raid-b1-seam18/close.json` does not exist, relaunch
+`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass` `matthew-mbp-m4-raid-b1-seam18`,
+`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04f.md`, `width` 1, and a `context`
+that says: relaunched by a fresh session (a seam with fix.<key>.json is DONE and its edits are
+uncommitted in the tree; one with only a progress notebook resumes from it); only Entry solo is
+tested; the six room tests are read-only; seam17 runs in worktrees/raid17 at the same time, never
+touch it; every fixer reads its triage section and the RULES; the brew seam first, the relay seam
+after it; the owner confirmed the brew fix on 2026-10-04; the editor rules (4 KB outputs, 8 KB
+commands, no recursive grep over OSRS-Content, shell fallback when a hook times out); and the
+closer's duties: re-run the six rooms (the brew fix is expected to move rooms: 'tob_<room> must be
+re-authored: <what moved>', never revert a sourced fix), the quest suite (baseline 115 green +
+deserttreasure, regicide, troll, forgettabletale RED; a quest red from brews is listed under 'The
+Saradomin brew raises Defence' in SEAM_LEDGER.md and MERGE_CHECKLIST.md, not reverted), the
+relay's five-name table and the brew-only run into SEAM_LEDGER.md as the tob_entry verdict (4 of
+5), DRIVER_NOTES, spec rows, CONTENT_BUGS, conformance, commit by explicit path submodule first,
+push the raid branch only.
 
 ## Relaunching seam17 if it is not closed
 
