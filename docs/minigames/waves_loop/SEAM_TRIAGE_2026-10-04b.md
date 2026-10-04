@@ -23,6 +23,10 @@ Presentation: an animation, graphic, projectile or sound is placed only from a s
 (the cache's own binding, `docs/minigames/inferno/RIG_ANIMATIONS.md` at tier bound,
 rig+name or rig+sound, a plugin or Blert id, `docs/INFERNO_SOUNDS.md` rows a source
 STATES); never invent a visual and never change a mechanic to fit one.
+A standing rule for every attack (owner, 2026-10-04): protection prayer is checked on the
+attack's ANIMATION tick for Jad and for most npcs; a hit whose damage is decided on landing
+is the exception, never the default. A row that calls "prayer read on the swing" a defect
+is wrong unless a pinned source says that npc is an exception.
 Sources: OSRS behaviour first; the 2004 source is never cited
 (`docs/WAVES_ORCHESTRATOR.md` section 12). After any content edit:
 `make -C <worktree>/src torirsserver-scripts > <log> 2>&1`. C is proved with a private

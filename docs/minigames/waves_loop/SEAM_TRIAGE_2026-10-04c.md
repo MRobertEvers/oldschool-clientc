@@ -24,11 +24,14 @@ Units: single_jad, triple_jad, mixed_late_waves (the Jad rows); zuk_sets_and_hea
 
 Files: `MI/scripts/inferno_jad.rs2`, `MI/scripts/inferno_ai.rs2 (the Jad's attack proc only; the other monsters' procs landed in seam pass 5 and are not yours)`, `MI/configs/inferno.constant (the Jad and healer blocks only)`
 
-Summary. Tables: `single_jad.tsv`, `triple_jad.tsv`. Rows: JAD-PRAYER-READ (the Jad reads
-the protection prayer on the tick it swings; in OSRS the hit is rolled when the projectile
-lands, which is what "pray on the tell" rests on: fix it so an honest reactive prayer
-survives, and prove with the technique: switch on the animation, every hit blocked),
-JAD-OPEN (first attack 1 tick after spawn against Blert's observed offset: the row gives
+Summary. Tables: `single_jad.tsv`, `triple_jad.tsv`. Rows: JAD-PRAYER-READ is NOT a defect (owner, 2026-10-04: "Jad prayer protection is
+checked on the animation. In fact MOST things in OSRS ARE. It is the EXCEPTION that damage
+is calculated on [landing]."): our server reading the protection prayer on the tick the
+Jad swings is the OSRS rule, and the batch C scratch that died with a reactive prayer was
+playing the wrong technique, not finding a bug. Leave the read where it is. Pin the wiki's
+Jad and TzTok-Jad lines on when the prayer is checked and quote them in the table's row; if
+a wiki line reads differently from the owner's rule, do not change the server: write the
+quote in your report for the orchestrator to bring to the owner. JAD-OPEN (first attack 1 tick after spawn against Blert's observed offset: the row gives
 the distribution), JAD-TRIPLE-STAGGER (the three Jads' first swings at 1, 3 and 6 ticks:
 the table says what the stagger should be), JAD-HEALER-STRAND (killing the Jad with a
 healer alive leaves the wave stuck: the healers must die or despawn with the Jad as the
@@ -38,8 +41,8 @@ clip: free it when the clip ends), JAD-SOUND-TELL and the table's presentation r
 (sequences and sounds per attack from `RIG_ANIMATIONS.md` and Blert's ids; `docs/
 INFERNO_SOUNDS.md` for which sound rows a source states), INF-AV-007 (Jad's attacks on
 the glyph play no impact sound or graphic: the document gives 163 and the impact
-spotanim at layer k). Prove on wave 67 (one Jad, pray on the tell, kill it with its
-healers) and wave 68 (three Jads: the stagger and the prayer order from the tick log).
+spotanim at layer k). Prove on wave 67 (one Jad: the prayer up on the swing tick as the technique row,
+kill it with its healers) and wave 68 (three Jads: the stagger and the prayer order from the tick log).
 
 Evidence. `CONTENT_BUGS.md` JAD-*, INF-AV-007; `single_jad.tsv`, `triple_jad.tsv`.
 
