@@ -845,3 +845,38 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   set. test-torirsserver-embed is 79 ok / 48 FAILED, identical to the base. `make
   test-torirsserver` stops at torirsserver-servpack's Membership check: that is content,
   and the content was not touched in this pass.
+
+## matthew-mbp-m4-raid-b1-seam19 (2026-10-04; parent 15c2ace2b, OSRS-Content 007a1c7c9b): a party of three at a room's entrance (triage SEAM_TRIAGE_2026-10-04g.md)
+
+- `tob_party_room_bring_along`: LANDED (content, tob.rs2, tob_hud.rs2, tob_raid.rs2).
+  `::tobjoinroom [0|1|2]` is a member's half of `::tobmode`, built on the door's join
+  (`~tob_join_raid` + `~tob_party_join`). It is not named `::tobjoin` because
+  tob_selftest.rs2:2755 already owns that name for the C selftest. `::tobstate` ends
+  ` party=N scale=K`. Every raider's party orbs are current (`~tob_hud_orbs_party`; wiki
+  Theatre of Blood/Strategies :578, raidwide.tsv `raidwide.hud.orb_full` A), and a joiner gets
+  the room card that mounts the HUD. The seam17 CONTENT_BUGS orb row is FIXED. Still open
+  (CONTENT_BUGS seam19): the fight watchdog runs only for the raider who crosses the barrier,
+  and room music reaches only the builder or starter. Folding the two joins is also open.
+- `tob_party_room_test_shape`: LANDED (driver raid.lua, `_party_smoke.lua` phase C, fixture
+  tob_normal_done.ini, raid_coverage.py party scope, raid_author.workflow.js `args.party`).
+  Three conformance seam rows were merged (SEAM_COUNT 164 -> 167). The closer made
+  `seam.tobstate_reads_party_and_scale` close a chat page first: in the full harness
+  `seam.super_restore_no_hitpoints` left a nightshade "player" page open, and the orb write
+  (`[queue,tob_room_settle]`, a normal queue) waited behind it (partyslot 0 / p0 0; bisected
+  with harness subsets and a probe run). Open: the fixture has no conformance row (a
+  one-fixture harness cannot load it; the fixer's scratch_hard_door.lua proves it).
+- Gates on the final tree: `_party_smoke` twice, 133/133 PASS and gate green each time. Its
+  tick logs are byte-identical (5561 lines). `spec.bloat.hp_3` reads "measured 1500 (spec 1500
+  hp, grade A, tol exact) ... bloat.tsv bloat.hp_normal '2000,1750,1500' ... = 2000 x 750 /
+  1000 (raidwide.scale.party_3_or_fewer 750 permille)". p2 and p3 read
+  `raidwide.hud.orb_full.entrance` and `.members_in_fight` as "p0=27 p1=27 p2=27". The
+  cooks_assistant and druid ledgers are byte-identical to build/merge17_check. Conformance
+  is 344/344 PASS (177 verbs + 167 seams). The six Entry rooms read maiden 110/0, bloat 94/0,
+  xarpus 120/0, sotetseg 155/0, nylocas 91/24 and verzik 256/14, the known state. The quest
+  suite is 115 green, with deserttreasure, forgettabletale, regicide and troll RED on the
+  same first failing steps as seam18. test-quest-cheats, check-quest-verbs, check-drive-abi,
+  check-pt-switch and test-plugin-lua pass. Lint is clean on 127 files. No C changed; the
+  fixer's private torirsserver --selftest with this pack had 11 failures, the baseline set.
+  Determinism is not guaranteed for three clients: the fixers measured one run in three
+  shifted by one tick from tick 114-116 (a member's typed command lands at its own
+  frame-timed boundary).
