@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 141 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 146 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 141
+-- @verb-count 146
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 98
+-- @seam-count 99
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 141
-local SEAM_COUNT = 98
+local VERB_COUNT = 146
+local SEAM_COUNT = 99
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -332,6 +332,26 @@ local SHOP_TILE_Z = 3247
 local SHOP_OBJ_SYMBOL = "pot_empty"
 local SHOP_OBJ_COUNT = 5
 local SHOP_COINS = 5000
+
+-- The bank rows' subject (seam bank_withdraw_and_deposit_verbs,
+-- matthew-mbp-m4-b56-seam2).  Lumbridge castle's top-floor booth,
+-- `aide_bankbooth` at 3208,3221 level 2, op 2 "Bank" (bank_booths.rs2; the
+-- other copies on that row are `_closed` and `_multi`).  The fixture's bank
+-- already holds ten slots (250000 coins among them -- measured,
+-- build/quest_gate/s2bank_probe1 row 9), so the rows bank two objs it does
+-- NOT hold, stocked by the setup-only `::bankgive` at the top of run():
+-- sharks for the exchange, bones to fill the backpack for the full-pack
+-- refusal.  Both are non-stackable, so every unit is a slot and "full" is 28.
+local BANK_BOOTH_SYMBOL = "aide_bankbooth"
+local BANK_BOOTH_OP = 2
+local BANK_TILE_X = 3208
+local BANK_TILE_Z = 3219
+local BANK_TILE_LEVEL = 2
+local BANK_OBJ_SYMBOL = "shark"
+local BANK_OBJ_STOCK = 30
+local BANK_OBJ_WITHDRAW = 12
+local BANK_FILL_SYMBOL = "bones"
+local BANK_FILL_STOCK = 40
 
 -- player.cast's subject (seam cast_spell_on_npc, seam19): Wind Strike on a
 -- Lumbridge goblin east of the river -- m50_50.spawn:102
@@ -628,6 +648,11 @@ return {
         setup_cheat("::runes 25")
         setup_cheat("::dropobj " .. OBJ_SYMBOL .. " 1")
         setup_cheat("::xp " .. STAT_SYMBOL .. " 500")
+        -- The bank rows' stock (BANK_* above).  HERE and nowhere later:
+        -- `::bankgive` is setup-only, and QD.cheat refuses it once the
+        -- quest.bind row has bound a quest (seam.bankgive_is_setup_only).
+        setup_cheat("::bankgive " .. BANK_OBJ_SYMBOL .. " " .. BANK_OBJ_STOCK)
+        setup_cheat("::bankgive " .. BANK_FILL_SYMBOL .. " " .. BANK_FILL_STOCK)
         settle(6)
 
         -- --------------------------------------------- phase 0: the clock
@@ -8751,6 +8776,221 @@ return {
                 return "refused", text .. " -- 30 minutes did not grow 6 branches that the secateurs cut back to state 22"
             end
             return "ok", text
+        end)
+
+        -- --------- seam bank_withdraw_and_deposit_verbs (b56-seam2): the bank
+        --
+        -- t.bank.open/withdraw/deposit/count/close drive the bank the way a
+        -- player does: the booth's own Bank op through click_minimenu, then
+        -- the bank interface's item cells pressed with their fixed sparse ops
+        -- (bank.rs2, bank_deposit.rs2).  Every exchange row is graded on BOTH
+        -- containers -- the backpack read through inv.count, the bank through
+        -- bank.count -- because a backpack that grew while the bank did not is
+        -- a conjured item, not a withdraw.  Last in the plan: it moves the
+        -- player to the castle's top floor and empties the backpack, and
+        -- nothing after it reads the world.  The stock is setup
+        -- (`::bankgive` at the top of run()), exactly as a quest file's
+        -- `setup` list stocks one.
+        stage(function()
+            setup_cheat("::clearinv")
+            settle(2)
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(BANK_TILE_X, BANK_TILE_Z, BANK_TILE_LEVEL)
+            end
+            settle(2)
+        end)
+
+        step("bank.open", function()
+            local fn = verb("bank", "open")
+            local withdraw = verb("bank", "withdraw")
+            if not fn then return missing("bank", "open") end
+            -- Before the press: every exchange verb refuses a bank that is
+            -- not on screen, by name, rather than pressing a stale grid.
+            local early = withdraw and withdraw(BANK_OBJ_SYMBOL, 1) or "closed"
+            if early ~= "closed" then
+                return "refused", "bank.withdraw with no bank open answered " .. describe(early)
+                    .. ", not closed"
+            end
+            local result, detail = fn(BANK_BOOTH_SYMBOL, BANK_BOOTH_OP)
+            local text = BANK_BOOTH_SYMBOL .. " op " .. BANK_BOOTH_OP .. " -> "
+                .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "opened bankmain", 1, true)
+                or not string.find(tostring(detail), "item slot", 1, true) then
+                return "hollow", "an `ok` that does not say the bank mounted and what its "
+                    .. "container holds -- the frame and the container are two messages: " .. text
+            end
+            return "ok", text .. "; before it, a withdraw -> closed"
+        end)
+
+        step("bank.count", function()
+            local fn = verb("bank", "count")
+            if not fn then return missing("bank", "count") end
+            -- The stock is the setup's own number, so the reading is knowable.
+            local result, total = fn(BANK_OBJ_SYMBOL)
+            return answered(result, total, BANK_OBJ_SYMBOL .. " in the bank: ",
+                equals(BANK_OBJ_STOCK), "the setup banked " .. BANK_OBJ_STOCK)
+        end)
+
+        step("bank.withdraw", function()
+            local fn = verb("bank", "withdraw")
+            local count_of = verb("inv", "count")
+            local bank_count = verb("bank", "count")
+            if not fn then return missing("bank", "withdraw") end
+            if not count_of or not bank_count then
+                return "no_subject", "bank.withdraw is graded on inv.count and bank.count, and "
+                    .. "one of them is not on this driver"
+            end
+            -- 1. The exchange: the backpack up by N AND the bank down by N.
+            local _, held_before = count_of(BANK_OBJ_SYMBOL)
+            local _, bank_before = bank_count(BANK_OBJ_SYMBOL)
+            local result, detail = fn(BANK_OBJ_SYMBOL, BANK_OBJ_WITHDRAW)
+            local _, held_after = count_of(BANK_OBJ_SYMBOL)
+            local _, bank_after = bank_count(BANK_OBJ_SYMBOL)
+            local text = BANK_OBJ_SYMBOL .. " x" .. BANK_OBJ_WITHDRAW .. " -> " .. describe(result)
+                .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if type(held_before) ~= "number" or type(held_after) ~= "number"
+                or held_after - held_before ~= BANK_OBJ_WITHDRAW then
+                return "hollow", "the backpack went " .. describe(held_before) .. " -> "
+                    .. describe(held_after) .. ", not +" .. BANK_OBJ_WITHDRAW .. " -- " .. text
+            end
+            if type(bank_before) ~= "number" or type(bank_after) ~= "number"
+                or bank_before - bank_after ~= BANK_OBJ_WITHDRAW then
+                return "hollow", "the bank went " .. describe(bank_before) .. " -> "
+                    .. describe(bank_after) .. ", not -" .. BANK_OBJ_WITHDRAW
+                    .. ": a backpack that grew while the bank did not is a conjured item -- " .. text
+            end
+            -- 2. Fill the backpack from the bank (28 - N bones), then 3. the
+            --    refusal: a withdraw into a full backpack moves nothing and
+            --    says so by name, with the server's own sentence.
+            local fill = 28 - held_after
+            local filled, filled_detail = fn(BANK_FILL_SYMBOL, fill)
+            if filled ~= "ok" then
+                return "no_subject", "filling the backpack with " .. fill .. " " .. BANK_FILL_SYMBOL
+                    .. " answered " .. describe(filled) .. " " .. describe(filled_detail)
+                    .. " -- the full-pack refusal has no subject (" .. text .. ")"
+            end
+            local full, full_detail = fn(BANK_OBJ_SYMBOL, 1)
+            local _, held_full = count_of(BANK_OBJ_SYMBOL)
+            local _, bank_full = bank_count(BANK_OBJ_SYMBOL)
+            if full ~= "refused" or not string.find(tostring(full_detail), "backpack full", 1, true) then
+                return "refused", "a withdraw into a full backpack answered " .. describe(full)
+                    .. " " .. describe(full_detail) .. ", not a refusal naming the full backpack -- "
+                    .. text
+            end
+            if held_full ~= held_after or bank_full ~= bank_after then
+                return "refused", "the refused withdraw still moved something: backpack "
+                    .. describe(held_after) .. " -> " .. describe(held_full) .. ", bank "
+                    .. describe(bank_after) .. " -> " .. describe(bank_full)
+            end
+            return "ok", text .. "; backpack " .. tostring(held_before) .. " -> "
+                .. tostring(held_after) .. ", bank " .. tostring(bank_before) .. " -> "
+                .. tostring(bank_after) .. "; filled with " .. fill .. " " .. BANK_FILL_SYMBOL
+                .. ", then a withdraw -> refused: " .. describe(full_detail)
+        end)
+
+        step("bank.deposit", function()
+            local fn = verb("bank", "deposit")
+            local count_of = verb("inv", "count")
+            local bank_count = verb("bank", "count")
+            if not fn then return missing("bank", "deposit") end
+            if not count_of or not bank_count then
+                return "no_subject", "bank.deposit is graded on inv.count and bank.count, and "
+                    .. "one of them is not on this driver"
+            end
+            -- 1. The mirror: Deposit-All of the filler, the backpack down by
+            --    every one and the bank up by every one.
+            local _, fill_held = count_of(BANK_FILL_SYMBOL)
+            local _, fill_bank = bank_count(BANK_FILL_SYMBOL)
+            local all, all_detail = fn(BANK_FILL_SYMBOL, "all")
+            local _, fill_held_after = count_of(BANK_FILL_SYMBOL)
+            local _, fill_bank_after = bank_count(BANK_FILL_SYMBOL)
+            local text = BANK_FILL_SYMBOL .. " all -> " .. describe(all) .. " " .. describe(all_detail)
+            if all ~= "ok" then
+                return all, text
+            end
+            if fill_held_after ~= 0 or type(fill_held) ~= "number" or type(fill_bank) ~= "number"
+                or fill_bank_after ~= fill_bank + fill_held then
+                return "hollow", "Deposit-All left the backpack at " .. describe(fill_held_after)
+                    .. " and the bank went " .. describe(fill_bank) .. " -> "
+                    .. describe(fill_bank_after) .. " -- " .. text
+            end
+            -- 2. A counted deposit.
+            local _, held_before = count_of(BANK_OBJ_SYMBOL)
+            local _, bank_before = bank_count(BANK_OBJ_SYMBOL)
+            local result, detail = fn(BANK_OBJ_SYMBOL, 5)
+            local _, held_after = count_of(BANK_OBJ_SYMBOL)
+            local _, bank_after = bank_count(BANK_OBJ_SYMBOL)
+            text = text .. "; " .. BANK_OBJ_SYMBOL .. " x5 -> " .. describe(result) .. " "
+                .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if type(held_before) ~= "number" or type(held_after) ~= "number"
+                or type(bank_before) ~= "number" or type(bank_after) ~= "number"
+                or held_before - held_after ~= 5 or bank_after - bank_before ~= 5 then
+                return "hollow", "backpack " .. describe(held_before) .. " -> " .. describe(held_after)
+                    .. ", bank " .. describe(bank_before) .. " -> " .. describe(bank_after)
+                    .. " -- not -5/+5: " .. text
+            end
+            -- 3. The refusal: nothing of it carried -> not_found, nothing pressed.
+            local none, none_detail = fn(BANK_FILL_SYMBOL, 1)
+            if none ~= "not_found" then
+                return "refused", "a deposit of " .. BANK_FILL_SYMBOL .. " the backpack no longer "
+                    .. "holds answered " .. describe(none) .. " " .. describe(none_detail)
+                    .. ", not not_found -- " .. text
+            end
+            return "ok", text .. "; then a deposit of what is not carried -> not_found"
+        end)
+
+        step("bank.close", function()
+            local fn = verb("bank", "close")
+            local bank_count = verb("bank", "count")
+            if not fn then return missing("bank", "close") end
+            local result, detail = fn()
+            local text = "close -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- The screen really gone: bank.count reads only an OPEN bank.
+            if bank_count then
+                local after = bank_count(BANK_OBJ_SYMBOL)
+                if after ~= "closed" then
+                    return "hollow", "after close, bank.count answers " .. describe(after)
+                        .. " rather than closed -- the screen did not go: " .. text
+                end
+                text = text .. "; bank.count after it -> closed"
+            end
+            local again = fn()
+            if again ~= "ok" then
+                return "hollow", "a second close answers " .. describe(again) .. ", not ok -- " .. text
+            end
+            return "ok", text .. "; a second close -> ok"
+        end)
+
+        -- `::bankgive` stocks a bank and is SETUP ONLY: after a quest is
+        -- bound it is a mid-run ::give with a detour through the bank (trap
+        -- 16), and QD.cheat refuses it before anything is sent (core.lua).
+        -- The quest.bind row bound one long before this point.
+        seam("seam.bankgive_is_setup_only", function()
+            local cheat = verb("cheat")
+            if not cheat then return missing("cheat") end
+            if type(t.quest) ~= "table" or t.quest._bound == nil then
+                return "no_subject", "no quest is bound at this point (the quest.bind row did not "
+                    .. "bind), so the after-setup rule has nothing to refuse"
+            end
+            local result, detail = cheat("::bankgive " .. BANK_OBJ_SYMBOL .. " 1", false)
+            if result ~= "refused" or not string.find(tostring(detail), "SETUP", 1, true) then
+                return "refused", "::bankgive after quest.bind answered " .. describe(result) .. " "
+                    .. describe(detail) .. ", not the setup-only refusal"
+            end
+            return "ok", "::bankgive after quest.bind -> refused: " .. describe(detail)
         end)
 
         step("finish", function()

@@ -121,6 +121,8 @@ CONTACT_DUNGEON = CONTENT / "quests/quest_contact/scripts/contact_dungeon.rs2"
 EYEGLO_NPC = CONTENT / "quests/quest_theeyesofglouphrie/configs/eyeglo.npc"
 EYEGLO_QUEST = CONTENT / "quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2"
 SWANSONG_NPC = CONTENT / "quests/quest_swansong/configs/swansong.npc"
+DREAMMENTOR_NPC = CONTENT / "quests/quest_dreammentor/configs/dreammentor.npc"
+DREAMMENTOR_DREAM = CONTENT / "quests/quest_dreammentor/scripts/dreammentor_dream.rs2"
 ASCENT_NPC = CONTENT / "quests/quest_ascentofarceuus/configs/ascentofarceuus.npc"
 ASCENT_LOCS = CONTENT / "quests/quest_ascentofarceuus/scripts/ascentofarceuus_locs.rs2"
 SWANSONG_CONSTANT = CONTENT / "quests/quest_swansong/configs/quest_swansong.constant"
@@ -256,6 +258,7 @@ TROLLLOVE_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
 ROUTEQUEST_ROUTE = CONTENT / "quests/quest_routequest/scripts/routequest_start_and_route.rs2"
 ROUTEQUEST_HIDEOUT = CONTENT / "quests/quest_routequest/scripts/routequest_hideout.rs2"
 ROUTEQUEST_HOUND = CONTENT / "quests/quest_routequest/scripts/routequest_hound.rs2"
+MDQ_KENDAL = CONTENT / "quests/quest_mountaindaughter/scripts/mountaindaughter_kendal.rs2"
 ROUTEQUEST_NPC = CONTENT / "quests/quest_routequest/configs/quest_routequest.npc"
 ROUTEQUEST_VARP = CONTENT / "quests/quest_routequest/configs/quest_routequest.varp"
 ROUTEQUEST_CONSTANT = CONTENT / "quests/quest_routequest/configs/quest_routequest.constant"
@@ -3624,7 +3627,7 @@ def check_in_search_of_the_myreque() -> None:
          "inv_del(inv, steel_mace, 1);", "inv_del(inv, steel_warhammer, 1);",
          "inv_del(inv, steel_dagger, 1);", "%varp387_routequest = ^routequest_ambush;",
          "%varb396_thsfm_vanstrom_hide = 1;", "npc_add(^routequest_hound_spawn, skeleton_hellhound",
-         "npc_setowner;", "npc_setmode(applayer2);", "[ai_queue3,skeleton_hellhound]",
+         "npc_setowner;", "npc_setmode(opplayer2);", "[ai_queue3,skeleton_hellhound]",
          "%varp387_routequest = ^routequest_saved_myreque;", "It drops nothing",
          "[timer,routequest_hound_monitor]", "[proc,routequest_hound_cleanup]",
          "[proc,routequest_on_death]", "%varp6817_routequest_hound_death = 1;",
@@ -3639,6 +3642,15 @@ def check_in_search_of_the_myreque() -> None:
     )
     require("obj_add" not in hideout,
             "In Search of the Myreque: Skeleton Hellhound must have no loot path")
+    # The hound is a melee monster (wiki Skeleton_Hellhound oldid 15199509: crush,
+    # speed 4, max hit 12): it swings through the default [ai_opplayer2,_]. Its own
+    # [ai_opplayer2] that only set applayer2 (no [ai_applayer2] handler) spent every
+    # swing on a mode change (seam applayer2_npcs_that_never_swing, b56).
+    hound = ROUTEQUEST_HOUND.read_text()
+    require("[ai_opplayer2,skeleton_hellhound]" not in hound
+            and "[ai_spawn,skeleton_hellhound]" not in hound
+            and "npc_setmode(applayer2);" not in hound,
+            "In Search of the Myreque: the Skeleton Hellhound must not be put in the ranged applayer2 mode")
     require_text(
         ROUTEQUEST_MYREQUE2.read_text(),
         ("%varp387_routequest < ^routequest_complete", "~routequest_veliaf;",
@@ -3802,6 +3814,56 @@ def check_ascent_of_arceuus() -> None:
     )
 
 
+def check_dreammentor() -> None:
+    """Dream Mentor's dream bosses are real fights (The Everlasting, The
+    Untouchable, The Illusive and A Doubt spawned on npc_default.npc's 10 hp and
+    died in a tick; only The Inadequacy had a block). Wiki The_Everlasting
+    oldid 15199540, The_Untouchable 15199541, The_Illusive 15199542, A_Doubt
+    15199544, The_Inadequacy 15292423 (cache stat1..4 = attack/defence/
+    strength/hitpoints agree page for page)."""
+    npc = DREAMMENTOR_NPC.read_text()
+    for name, needles in (
+        ("dream_everlasting", ("hitpoints=230", "attack=187", "strength=231", "defence=120",
+                               "huntmode=aggressive", "param=attackrate,6",
+                               "param=damagetype,^crush_style", "param=death_drop,null")),
+        ("dream_untouchable", ("hitpoints=90", "attack=187", "strength=255", "defence=434",
+                               "param=attackrate,6", "param=damagetype,^crush_style",
+                               "param=death_drop,null")),
+        ("dream_illusive", ("hitpoints=144", "attack=72", "strength=71", "defence=105",
+                            "huntmode=aggressive", "param=attackrate,6",
+                            "param=damagetype,^crush_style", "param=death_drop,null")),
+        ("dream_razorbeast", ("hitpoints=59", "attack=72", "strength=58", "defence=85",
+                              "huntmode=aggressive", "param=attackrate,6",
+                              "param=strengthbonus,16", "param=death_drop,bones")),
+    ):
+        block = _npc_block(npc, name)
+        for line in needles:
+            require(line in block, f"Dream Mentor: [{name}] lacks `{line}`")
+    require("huntmode=aggressive" not in _npc_block(npc, "dream_untouchable"),
+            "Dream Mentor: The Untouchable is aggressive (the wiki says it is not)")
+    dream = DREAMMENTOR_DREAM.read_text()
+    require_text(
+        dream,
+        ("[opnpc2,dream_inadequacy]", "[opnpc2,dream_everlasting]", "[opnpc2,dream_untouchable]",
+         "[opnpc2,dream_illusive]", "[opnpc2,dream_razorbeast]",
+         "[ai_queue3,dream_inadequacy]\nif (npc_findhero = true) {\n    queue(dreammentor_boss_down, 3, 1);",
+         "[ai_queue3,dream_illusive]\nif (npc_findhero = true) {\n    queue(dreammentor_boss_down, 3, 4);",
+         "[queue,dreammentor_boss_down](int $stage)",
+         "[ai_applayer2,dream_inadequacy]", "[ai_opplayer2,dream_inadequacy]",
+         "npc_add(~dreammentor_arena_at($handle, 32, 30), dream_everlasting, 1000);",
+         "npc_add(~dreammentor_arena_at($handle, 32, 30), dream_untouchable, 1000);",
+         "npc_add(~dreammentor_arena_at($handle, 32, 30), dream_illusive, 1000);",
+         "map_instance_from_square(^dreammentor_arena_coord)",
+         "[proc,dreammentor_on_damage](int $dealt)", "npc_queue(4, 0, 4);"),
+        "Dream Mentor dreammentor_dream.rs2",
+    )
+    # An npc script may not suspend a player: the death handlers only queue.
+    for body in dream.split("[ai_queue3,")[1:]:
+        head = body.split("\n\n", 1)[0]
+        require("mesbox" not in head and "p_teleport" not in head and "p_delay" not in head,
+                "Dream Mentor: an [ai_queue3] death handler suspends or moves the player")
+
+
 def check_swansong() -> None:
     """Swan Song's Sea Troll Queen and level-79 sea trolls are real fights
     (sampler matthew-mbp-m4-b54 round 4: with no block they fought on
@@ -3901,6 +3963,56 @@ def check_troubledtortugans() -> None:
                  ("[oploc1,tt_lair_entrance]", "~ttq_spawn_cave_gryphon;", "[label,ttq_mooring_disembark]",
                   "~ttq_spawn_pearl;"),
                  "Troubled Tortugans fight entry points")
+
+
+def check_twilightspromise() -> None:
+    """Twilight's Promise: Mezan and the eight Teomat cultists are real fights (with
+    no block they fought on npc_default.npc's 10 hp and died in a tick). Wiki
+    Knight_of_Varlamore_(Twilight's_Promise) oldid 15200510, Cultist oldid 15326762,
+    Twilight's_Promise oldid 15356498."""
+    base = ROOT / "OSRS-Content/osrs239-content/server/scripts/quests/quest_twilightspromise"
+    npc = (base / "configs/twilightspromise.npc").read_text()
+    for name, needles in (
+        ("vmq2_knight_6_combat", ("hitpoints=100", "attack=70", "strength=70", "defence=40",
+                                  "magic=20", "param=attackrate,5", "param=damagetype,^slash_style",
+                                  "param=strengthbonus,0", "param=stabdefence,28",
+                                  "param=slashdefence,26", "param=crushdefence,10",
+                                  "param=magicdefence,5", "param=death_drop,null")),
+    ) + tuple(
+        (f"vmq2_cultist_{kind}", ("hitpoints=25", "attack=30", "strength=35", "defence=30",
+                                   "param=attackrate,4", "param=damagetype,^stab_style",
+                                   "param=strengthbonus,0", "param=crushdefence,30",
+                                   "param=death_drop,null"))
+        for kind in ("m_1", "m_2", "m_3", "f_1", "f_2", "f_3")
+    ):
+        block = _npc_block(npc, name)
+        for line in needles:
+            require(line in block, f"Twilight's Promise: [{name}] lacks `{line}`")
+    colosseum = (base / "scripts/twilightspromise_colosseum.rs2").read_text()
+    require_text(
+        colosseum,
+        ("[proc,tp_mezan_start]", "~map_instance_from_square(^tp_arena_template);",
+         "npc_add(map_instance_coord($handle, ^tp_arena_knight_x, ^tp_arena_knight_z, 0), vmq2_knight_6_combat",
+         "[opnpc2,vmq2_knight_6_combat]", "~npc_retaliate(0);", "@player_combat_start;",
+         "[proc,tp_mezan_prepare_hit]", "%tp_mezan_streak >= ^tp_mezan_streak",
+         "[ai_queue3,vmq2_knight_6_combat]", "%varb9832_vmq2_colosseum_knight = 2;",
+         "queue(tp_mezan_leave, 4, 0);", "~npc_default_death;"),
+        "Twilight's Promise colosseum script",
+    )
+    funnel = (ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/player_hit_npc_prepare.rs2").read_text()
+    require("~tp_mezan_prepare_hit($prepared, $style, $hit_success)" in funnel,
+            "Twilight's Promise: player_hit_npc_prepare does not call ~tp_mezan_prepare_hit")
+    battle = (base / "scripts/twilightspromise_battle.rs2").read_text()
+    require_text(
+        battle,
+        ("[proc,tp_battle_start]", "~map_instance_from_square(^tp_battle_template);",
+         "npc_add(map_findsquare(movecoord($landing, 5, 0, 0), 0, 2, ^map_findsquare_lineofwalk), vmq2_cultist_m_1",
+         "npc_setmode(opplayer2);", "[opnpc2,vmq2_cultist_m_1]", "[opnpc2,vmq2_cultist_f_3]",
+         "[ai_queue3,vmq2_cultist_m_1]", "[ai_queue3,vmq2_cultist_f_3]",
+         "%varp7291_tp_battle_kills >= ^tp_cultists_total", "queue(tp_battle_won, 3, 0);",
+         "[queue,tp_battle_won]", "~map_instance_release_here;", "%varb9649_vmq2 = ^tp_finish;"),
+        "Twilight's Promise battle script",
+    )
 
 
 def check_meatandgreet() -> None:
@@ -4249,7 +4361,7 @@ def check_ghosts_ahoy() -> None:
         book,
         (
             "npc_add(^ahoy_lobster_spawn_coord, giant_lobster, ^ahoy_lobster_lifetime);",
-            "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
+            "npc_setowner;", "npc_setmode(opplayer2);", "hint_npc;",
             "[opnpc2,giant_lobster]", "[apnpc2,giant_lobster]",
             "[ai_queue3,giant_lobster]", "npc_findhero", "p_finduid(uid)",
             "%varb215_ahoy_killed_lobster = 1;",
@@ -4261,6 +4373,28 @@ def check_ghosts_ahoy() -> None:
         ),
         "Ghosts Ahoy owner-private timed lobster and complete loot",
     )
+    # The lobster is a melee monster (wiki Giant_lobster_(Ghosts_Ahoy) oldid 15272821:
+    # Stab, speed 4, max hit 4): it retaliates through the default [ai_queue1,_]
+    # opplayer2 rung. An applayer2 override with no [ai_applayer2] handler made it
+    # hit once and never again (seam ghostsahoy_giant_lobster_never_swings, b56).
+    require("[ai_queue1,giant_lobster]" not in book and "[ai_spawn,giant_lobster]" not in book
+            and "npc_setmode(applayer2);" not in book,
+            "Ghosts Ahoy: the giant lobster must not be put in the ranged applayer2 mode")
+    # The Kendal is a melee monster (wiki The_Kendal oldid 15199460: crush, max hit
+    # 9): spawned in opplayer2 and retaliating through the default [ai_queue1,_].
+    # The applayer2 overrides with no [ai_applayer2] handler kept it from ever
+    # swinging (seam applayer2_npcs_that_never_swing, b56).
+    kendal = MDQ_KENDAL.read_text()
+    require_text(
+        kendal,
+        ("npc_add(^mdq_kendal_coord, mdaughter_bearman_fighter, ^mdq_kendal_lifetime);",
+         "npc_setowner;", "npc_setmode(opplayer2);"),
+        "Mountain Daughter private Kendal spawn",
+    )
+    require("[ai_queue1,mdaughter_bearman_fighter]" not in kendal
+            and "[ai_spawn,mdaughter_bearman_fighter]" not in kendal
+            and "npc_setmode(applayer2);" not in kendal,
+            "Mountain Daughter: the Kendal must not be put in the ranged applayer2 mode")
     require("@wiki_lobster_drop" not in book and "@lobster_drop" not in book,
             "Ghosts Ahoy: quest lobster must not leak a generic lobster table")
     require_text(
@@ -4405,7 +4539,7 @@ def check_one_small_favour() -> None:
         relay,
         (
             "npc_add(^osf_slagilith_coord, slagilith, ^osf_slagilith_lifetime);",
-            "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
+            "npc_setowner;", "npc_setmode(opplayer2);", "hint_npc;",
             "[opnpc2,slagilith]", "[apnpc2,slagilith]",
             "[ai_queue3,slagilith]", "npc_findhero", "p_finduid(uid)",
             "%varp416_onesmallfavour = ^osf_slagilith_defeated;",
@@ -4420,6 +4554,13 @@ def check_one_small_favour() -> None:
         ),
         "One Small Favour private Slagilith lifecycle, weakness and loot",
     )
+    # The Slagilith is a melee monster (wiki Slagilith oldid 15258101: crush, max
+    # hit 13): it retaliates through the default [ai_queue1,_] opplayer2 rung. An
+    # applayer2 override with no [ai_applayer2] handler kept it from ever swinging
+    # (seam applayer2_npcs_that_never_swing, b56).
+    require("[ai_queue1,slagilith]" not in relay and "[ai_spawn,slagilith]" not in relay
+            and "npc_setmode(applayer2);" not in relay,
+            "One Small Favour: the Slagilith must not be put in the ranged applayer2 mode")
     require_text(
         PLAYER_HIT_FUNNEL.read_text(),
         (
@@ -4858,6 +4999,53 @@ def check_theeyesofglouphrie() -> None:
     require_text(quest, tuple(needles), "The Eyes of Glouphrie kill chain")
 
 
+def check_taleoftherighteous() -> None:
+    """Tale of the Righteous' Corrupt Lizardman is a real fight (with no block it
+    fought on npc_default.npc's 10 hp). Wiki Corrupt_Lizardman oldid 15200061
+    (id 8000): combat 46, 50 hitpoints, 38/38/38, ranged 38, attack bonus 22,
+    strength bonus 20, ranged 22/20, defence stab -10 / slash 25, crush, attack
+    speed 4, max hit 6, aggressive, poisonous, Bones and 3 Xerician fabric always;
+    the cache record agrees (stat1..5 38/38/38/50/38). It is met in the player's
+    own copy of m18_155, and its death writes stage 10 from the npc's own queue."""
+    base = CONTENT / "quests/quest_taleoftherighteous"
+    block = _npc_block((base / "configs/taleoftherighteous.npc").read_text(),
+                       "shayzienquest_lizardman_boss")
+    for line in ("hitpoints=50", "attack=38", "strength=38", "defence=38", "magic=1",
+                 "ranged=38", "huntmode=aggressive", "param=huntrange,5",
+                 "param=attackrate,4", "param=damagetype,^crush_style",
+                 "param=crushattack,22", "param=strengthbonus,20",
+                 "param=rangeattack,22", "param=rangebonus,20",
+                 "param=stabdefence,-10", "param=slashdefence,25",
+                 "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0",
+                 "param=poison_severity,16", "param=death_drop,bones"):
+        require(line in block, f"Tale of the Righteous: [shayzienquest_lizardman_boss] lacks `{line}`")
+    require_text(
+        (base / "scripts/tor_cave.rs2").read_text(),
+        ("[opnpc2,shayzienquest_lizardman_boss]\n@player_combat_start;",
+         "[apnpc2,shayzienquest_lizardman_boss]\n@player_combat_start_ap;",
+         "[ai_queue3,shayzienquest_lizardman_boss]",
+         "%varb6358_shayzienquest = ^tor_altar;",
+         "obj_add(npc_coord, xeric_fabric, 3, ^lootdrop_duration);",
+         "~npc_default_death;",
+         "npc_add(~tor_cave_tile($handle, 1172, 9949), shayzienquest_lizardman_boss, 3000);",
+         "~map_instance_from_square(^tor_cave_template)"),
+        "Tale of the Righteous cave fight",
+    )
+    archive = (base / "scripts/tor_archive.rs2").read_text()
+    require_text(
+        archive,
+        ("[opnpc1,shayzienquest_puzzle_piece]", "[opnpc2,shayzienquest_puzzle_piece]",
+         "[proc,tor_device_cast](int $spell, dbrow $spell_data)",
+         "~map_instance_from_square(^tor_prison_template)"),
+        "Tale of the Righteous strange device",
+    )
+    require("~pvm_spell_fail" not in archive.split("[proc,tor_device_cast]")[1].split("[proc,tor_device_hit]")[0],
+            "Tale of the Righteous: the device's cast calls ~pvm_spell_fail, which retaliates and walks it at the player")
+    require("~tor_device_cast($spell, $spell_data);" in
+            (CONTENT / "skill_combat/scripts/player/player_magic.rs2").read_text(),
+            "Tale of the Righteous: ~pvm_default_spell no longer hands the Strange Device its spells")
+
+
 def check_quest_progress_varps() -> None:
     """A quest's progress varp (or its varbit's carrier) is transmit=yes scope=perm.
 
@@ -4937,14 +5125,17 @@ def main() -> int:
         check_ascent_of_arceuus()
         check_anothersliceofham()
         check_meatandgreet()
+        check_twilightspromise()
         check_theeyesofglouphrie()
+        check_dreammentor()
+        check_taleoftherighteous()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet and The Eyes of Glouphrie, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor and Tale of the Righteous, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

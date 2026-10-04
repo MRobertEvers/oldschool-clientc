@@ -246,6 +246,14 @@ NPC_SPAWN_EXCLUSIONS = {
     ("troll_champion", 2911, 3612, 0),
     ("troll_godric", 2827, 10077, 0),
     ("troll_eadgar", 2829, 10083, 0),
+    # Sleeping Giants (matthew-mbp-m4-b56-parity): the dump's Hill Giant at the
+    # Giants' Plateau cave mouth (3361,3147) IS Kovac in his "Strike" form, but as a
+    # plain gh_giant2 it is attackable and answers nothing. The quest owns the tile
+    # through the multinpc shell giants_foundry_kovac_multi_outside
+    # (quest_sleepinggiants/configs/sleepinggiants.spawn), which shows the Strike giant
+    # at stage 0..4, Kovac at 5..9 and nothing from 10 (wiki Sleeping_Giants oldid
+    # 15241064; Quest Helper SleepingGiants.java strikeHillGiant WorldPoint 3361,3147).
+    ("gh_giant2", 3361, 3147, 0),
 }
 
 

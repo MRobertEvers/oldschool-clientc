@@ -209,6 +209,18 @@ answered.
 Section 8's mesbox/p_delay recipe is the fix for a plain choice-to-choice chain too: end the list,
 `t.await` the reopened kind, then play a SECOND list.
 
+### A choice that reopens as a name prompt (`p_choice2` then `p_namedialog`) also reads as stale (The Garden of Death, matthew-mbp-m4-b56)
+
+The same classifier misreads a choice whose answer opens a NAME PROMPT. In The Garden of Death,
+"Attempt another translation?" (`gardenofdeath.rs2:274`) is a `~p_choice2`. Its Yes opens the
+`p_namedialog` word entry again. `t.chat.choose("Yes.")` reports that reopen as stale, even though
+the answer landed and the prompt is up.
+
+Answer that menu with a bare `t.chat.choose("Yes.")` (no row), then let the next
+`t.exec(..., t.chat.name_entry, word)` row prove the prompt came back. If the prompt did not come
+back, that row fails, so nothing goes unchecked. `test/quests/gardenofdeath.lua`'s word loops do
+this.
+
 ### A first effect that is a bare `mes()` (Mourning's End II wall support)
 
 The mirror shape is a trigger whose FIRST effect is a bare `mes()` line and whose real effect lands

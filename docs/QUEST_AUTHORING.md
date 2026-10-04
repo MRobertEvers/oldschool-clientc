@@ -216,6 +216,7 @@ banners: the topic file named in each group heading.
 - `t.player.inv_op(item, op)` -> `ok`/error; a numbered held op (`refused` = never sent, `timeout` = sent, no answer).
 - `t.player.equip(item)` / `unequip(item)` / `drop(item)` / `emote(name)`.
 - `t.shop.open(npc, op=3, shop_inv)`, `t.shop.attach(shop_inv)`, `t.shop.buy(item, n)`, `t.shop.close()`.
+- `t.bank.open(booth_or_banker, op=2, {at=})`, `withdraw(item, n|"all")`, `deposit(item, n|"all")`, `count(item)`, `close()` (call close directly, `t.check`) -> `ok closed not_found refused`; stock the bank with a SETUP `::bankgive <obj> <n>` (refused after `bind`; gaps-combat).
 
 ### Travel and clicks -- `verbs-pointer.md`
 

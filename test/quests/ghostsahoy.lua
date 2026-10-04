@@ -16,7 +16,13 @@ return {
     max_frames = 120000, -- Rune-Draw: ~12 ticks a game, up to 100 games
     setup = {
         "::clearinv",
-        "::ghostsahoy", -- resets ahoy_*, completes prieststart/priestperil, worn amulet + 40 ecto-tokens
+        -- The two prerequisites FIRST: ~ahoy_reset (ahoy_shared.rs2:240-241) writes varp107/varp302
+        -- complete without paying their quest points, so a ::complete after ::ghostsahoy took the
+        -- "already complete" branch (quest_cheat.rs2:73-75) and the scroll read Total Quest Points 2
+        -- (b56 shot sampler, 955-quest.scroll). Arms: quest_cheat.rs2:999 and :1068.
+        "::complete quest_restlessghost",
+        "::complete quest_priestinperil",
+        "::ghostsahoy", -- resets ahoy_*, re-asserts prieststart/priestperil, worn amulet + 40 ecto-tokens
         "::give amulet_of_ghostspeak 1", -- spare, handed to the Crone for enchanting
         "::give ectotoken 100",
         "::give silk 1",
@@ -44,7 +50,6 @@ return {
         "::setlevel strength 40",
         "::setlevel defence 40",
         "::setlevel hitpoints 40",
-        "::complete quest_priestinperil", -- quest_cheat.rs2's arm is quest_priestinperil; quest_priestperil / quest_priest had no arm and did nothing
     },
 
     run = function(t)
@@ -66,6 +71,19 @@ return {
             points = 2,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+
+        -- Both prerequisites PAID (1 qp each, Quest Helper GhostsAhoy.java requirements:
+        -- Priest in Peril + The Restless Ghost): qp 2 before the quest, and neither
+        -- ::complete took its "already complete" branch.
+        local qp0_res, qp0 = t.var.varp("varp101_qp")
+        t.expect("prereq.qp_before", (qp0_res == "ok" and tonumber(qp0) == 2) and "ok" or "refused",
+            "varp101_qp after setup = " .. tostring(qp0) .. " (want 2: Restless Ghost 1 + Priest in Peril 1)")
+        local pip_res, pip_line = t.msg.expect("Priest in Peril complete.")
+        local rg_res, rg_line = t.msg.expect("Restless Ghost complete.")
+        local al_res, al_line = t.msg.expect("already complete")
+        t.expect("prereq.paid", (pip_res == "ok" and rg_res == "ok" and al_res ~= "ok") and "ok" or "refused",
+            "pip=" .. tostring(pip_res) .. " [" .. tostring(pip_line) .. "] rg=" .. tostring(rg_res) .. " ["
+                .. tostring(rg_line) .. "] already=" .. tostring(al_res) .. " [" .. tostring(al_line) .. "]")
 
         -- Wear the tools that must be worn: frees two backpack slots and
         -- satisfies the nettle-picking glove check and arms the lobster fight.
@@ -493,10 +511,21 @@ return {
             t.blocked("killLobster: giant_lobster not found in the pool after the chest search")
             return
         end
+        local function player_hp()
+            local hr, hs = t.skill.read("hitpoints")
+            return hr == "ok" and hs and (hs.current or hs.level) or nil
+        end
+        local lob_hp0 = player_hp()
         t.exec("killLobster.attack", t.player.attack, "giant_lobster", 2, 20)
         -- 30 hp at attack/strength 40 with a rune scimitar: ~75 ticks
         -- (build/quest_gate/s26gh_lob2: dead after 76). 60 was too short.
         t.exec("killLobster.dead", t.npc.await_dead_engaged, 150, 6)
+        local lob_hp1 = player_hp()
+        -- Recorded, not graded: the b56 sampler saw hp flat through the whole fight, and a
+        -- probe (build/quest_gate/fixb56_ghost_lobster2, Defence 1, no Attack click) took one
+        -- 3-hp hit before auto-retaliate engaged and none in the ~25 ticks after -- a content
+        -- seam in the lobster's swing, reported, not fixed here.
+        t.note("player hp across the lobster fight " .. tostring(lob_hp0) .. " -> " .. tostring(lob_hp1) .. " /40")
 
         t.exec("searchChestAfterLobster", t.player.click_loc, "ahoy_chest_open", 1)
         t.exec("inv.scrap3", t.inv.await, "ahoy_map_scrap_3", 1, 5)
@@ -598,7 +627,16 @@ return {
             "npc:Thank you, thank you a thousand times over.",
             "npc:Please, take this Ectophial",
         })
+        -- The scroll's own total: 2 prerequisite points + Ghosts Ahoy's 2 (read, no shot --
+        -- expect_complete photographs this same scroll as quest.scroll).
+        local sc_res, sc = t.scroll.title()
+        local sc_points = type(sc) == "table" and tostring(sc.points) or tostring(sc)
+        t.expect("quest.scroll_total", (sc_res == "ok" and sc_points:find("Total Quest Points: 4", 1, true)) and "ok" or "refused",
+            "scroll " .. tostring(sc_res) .. ": " .. sc_points .. " (want Total Quest Points: 4)")
         t.quest.expect_complete()
+        local qp1_res, qp1 = t.var.varp("varp101_qp")
+        t.expect("quest.qp_total", (qp1_res == "ok" and tonumber(qp1) == 4) and "ok" or "refused",
+            "varp101_qp after completion = " .. tostring(qp1) .. " (want 4)")
 
         t.exec("reward.prayer_xp", t.skill.expect_gain, "prayer", 2400, snap)
         t.exec("reward.ectophial", t.inv.expect_has, "ectophial", 1)

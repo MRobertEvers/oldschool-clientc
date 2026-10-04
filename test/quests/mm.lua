@@ -151,11 +151,17 @@ return {
         "::setlevel hitpoints 99", -- the guide recommends combat stats for Ape Atoll; survives the Crash Island spiders, the ravine archers and the jail punches on the temple run (leg 4)
         "::setlevel defence 70",
         "::setlevel prayer 52", -- guide (enterValley): "going north WITH PROTECT FROM RANGED ON" needs level 40 Protect from Missiles
-        "::give lobster 18", -- guide (enterValleyForAmuletMake): "Food, Antipoison" for the ravine archers and the temple spikes
+        "::give lobster 10", -- guide (enterValleyForAmuletMake): "Food, Antipoison" for the ravine archers and the temple spikes; 10 with the rune armour below (legs 1-5 ate 2-3 armoured; 18 left no room for leg 5's bananas or leg 6's zombie bones)
         "::give 4doseprayerrestore 2", -- guide (enterValleyForAmuletMake): "Prayer potions"; the ravine prayer drains the setup points before the temple
         "::setlevel attack 90", -- guide (killNinja, killGorilla, goDownToZombie): "Combat gear" for the archers, the gorilla and the zombie monkeys (leg 5)
         "::setlevel strength 90",
         "::give rune_scimitar 1", -- guide (goDownToZombie): combat gear, wielded in leg 5
+        -- Quest Helper recommended items (MonkeyMadnessI.java:327, :887): "Combat gear, food and potions". Worn
+        -- armour, so the backpack keeps its slots: with Protect from Magic up the Jungle Demon's halberd is all
+        -- that lands, and unarmoured it ate all 17 lobsters (lowest 33/99, 316 ticks) once prayer stopped
+        -- regenerating and an eat stopped holding his queued hit (origin/matthew-mbp-m4-waves-b1, 2026-10-04)
+        "::give rune_full_helm 1", "::wield rune_full_helm", "::give rune_chainbody 1", "::wield rune_chainbody",
+        "::give rune_platelegs 1", "::wield rune_platelegs", "::give rune_kiteshield 1", "::wield rune_kiteshield",
         "::setvar varp111_treequest 9", -- guide requirement: Tree Gnome Village (no ::complete row for it)
     },
     bind = {
@@ -573,6 +579,15 @@ return {
 
             -- enterValley: the ravine archers (mm_archer.rs2, spawns m42_43.spawn:20-37) knock the player out
             -- one arrow in twenty (mm_knockout.rs2 aa_archer_knockout) and drop them in the Ape Atoll jail.
+            -- Prayer does not regenerate: the setup's 52 points and two 4-dose prayer potions (7 + 52/4 = 20 a
+            -- dose) carry every Protect prayer of legs 2-5, at one point per 5 ticks (+0 prayer bonus), so a
+            -- prayer is on only while something it blocks is in reach.
+            do
+                local _, points = t.skill.read("prayer")
+                local level = points and points.level
+                t.check("enterValley-prayer", level ~= nil and level >= 20, "prayer " .. tostring(level)
+                    .. " (need >= 20: the ravine walk to the knockout measured 42 ticks on the v3 run of 2026-10-03, about 9 points)")
+            end
             do
                 local tab_result, tab_detail = t.ui.tab("prayer")
                 local widget_result, widget = t.ui.widget("prayerbook:prayer14")
@@ -606,6 +621,21 @@ return {
                 if t.chat.kind() ~= "none" then
                     t.exec("enterValley-wake", t.chat.drain, {})
                 end
+            end
+            -- past the ravine (the jail and the town are east of the archers' spawns): Protect from Missiles off
+            do
+                local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
+                if on == 1 then
+                    t.ui.tab("prayer")
+                    t.ticks(1)
+                    local widget_result, widget = t.ui.widget("prayerbook:prayer14")
+                    if widget_result == "ok" then t.ui.invoke(widget, 1) end
+                    t.ticks(2)
+                    _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
+                end
+                local _, points = t.skill.read("prayer")
+                t.check("enterValley-protectOff", on == 0, "prayer_protectfrommissiles varbit " .. tostring(on)
+                    .. ", prayer " .. tostring(points and points.level) .. " kept for the leg 4 ravine")
             end
 
             local function eat_if_hurt()
@@ -732,7 +762,7 @@ return {
             t.check("leg.2.state", ex == "ok" and sr == "ok" and dentures == 1,
                 "tile=" .. tostring(etile and etile.x) .. "," .. tostring(etile and etile.z) .. "," .. tostring(etile and etile.level)
                 .. " mm_main=" .. tostring(stage) .. " mm_monkey_dentures=" .. tostring(dentures) .. " lobster=" .. tostring(food)
-                .. " (bottom of the warehouse hole cavern, quiet; royal seal, gold bar, wool, bones from earlier; prayer 52 setup, Protect from Missiles still on)")
+                .. " (bottom of the warehouse hole cavern, quiet; royal seal, gold bar, wool, bones from earlier; prayer 52 setup, Protect from Missiles off since the ravine)")
             -- LEG 2 END
         end },
         { name = "mould_to_zooknock", run = function(t)
@@ -947,11 +977,19 @@ return {
             t.check("goUpToDaeroForAmuletMake", ar == "ok" and atile ~= nil and atile.x > 2780 and atile.x < 2830 and atile.z > 2690 and atile.z < 2730,
                 "the three ferries done; back on Ape Atoll at " .. tostring(atile and atile.x) .. "," .. tostring(atile and atile.z))
 
-            -- enterValleyForAmuletMake: Protect from Missiles on (it is the guide's Protect from Ranged), walk north up the ravine
+            -- enterValleyForAmuletMake: Protect from Missiles on (it is the guide's Protect from Ranged), walk north up the ravine.
+            -- Prayer does not regenerate; leg 2 turned the prayer off at the jail, so the ravine walk spends what is left.
+            do
+                local _, points = t.skill.read("prayer")
+                local level = points and points.level
+                t.check("enterValleyForAmuletMake-prayer", level ~= nil and level >= 20, "prayer " .. tostring(level)
+                    .. " (need >= 20: the ravine walk measured 42 ticks to the knockout on the v3 run of 2026-10-03, about 9 points)")
+            end
             do
                 local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
                 if on ~= 1 then
                     t.ui.tab("prayer")
+                    t.ticks(1) -- verbs-combat.md: the widget resolves a tick after the tab switch
                     local widget_result, widget = t.ui.widget("prayerbook:prayer14")
                     if widget_result == "ok" then t.ui.invoke(widget, 1) end
                     t.ticks(2)
@@ -975,6 +1013,21 @@ return {
             for _ = 1, 3 do
                 t.ticks(6)
                 if t.chat.kind() ~= "none" then t.exec("enterValleyForAmuletMake-wake", t.chat.drain, {}) end
+            end
+            -- past the ravine: the jail escape and the walk to the temple meet guards, not archers -- Protect from Missiles off
+            do
+                local _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
+                if on == 1 then
+                    t.ui.tab("prayer")
+                    t.ticks(1)
+                    local widget_result, widget = t.ui.widget("prayerbook:prayer14")
+                    if widget_result == "ok" then t.ui.invoke(widget, 1) end
+                    t.ticks(2)
+                    _, on = t.var.varbit("varb4117_prayer_protectfrommissiles")
+                end
+                local _, points = t.skill.read("prayer")
+                t.check("enterValleyForAmuletMake-protectOff", on == 0, "prayer_protectfrommissiles varbit " .. tostring(on)
+                    .. ", prayer " .. tostring(points and points.level))
             end
             -- if an archer knocked the player into the jail, pick the door and slip past the guards as in leg 2
             local freed = false
@@ -1005,9 +1058,28 @@ return {
                         t.ticks(2)
                     end
                 end
-                for _ = 1, 2 do
-                    t.player.inv_op("4doseprayerrestore", 1)
-                    t.ticks(3)
+                -- the setup's prayer potions (guide: "Prayer potions"): drink up to 45 points, smallest potion first
+                do
+                    local _, read_before = t.skill.read("prayer")
+                    local before = read_before and read_before.level or 0
+                    local drank = 0
+                    for _ = 1, 3 do
+                        local _, now = t.skill.read("prayer")
+                        if now ~= nil and now.level ~= nil and now.level >= 45 then break end
+                        local pot
+                        for _, p in ipairs({ "1doseprayerrestore", "2doseprayerrestore", "3doseprayerrestore", "4doseprayerrestore" }) do
+                            local _, n = t.inv.count(p)
+                            if n ~= nil and n > 0 then pot = p break end
+                        end
+                        if not pot then break end
+                        t.player.inv_op(pot, 1)
+                        t.ticks(3)
+                        drank = drank + 1
+                    end
+                    local _, read_after = t.skill.read("prayer")
+                    local after = read_after and read_after.level or 0
+                    t.check("enterTemple-drink", (drank > 0 and after > before and after >= 45) or (drank == 0 and before >= 45),
+                        "prayer " .. before .. " -> " .. after .. " after " .. drank .. " dose(s) (want >= 45; the temple trip and the walk to the child measured about 65 ticks, 13 points)")
                 end
                 local _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
                 t.ui.tab("prayer")
@@ -1076,6 +1148,46 @@ return {
                 if widget_result == "ok" then t.ui.invoke(widget, 1) end
                 t.ticks(4)
             end
+            -- Prayer does not regenerate: a protect prayer is on only while its fight lasts, and every point
+            -- spent comes from the setup's prayer potions (7 + 52/4 = 20 a dose; one point per 5 ticks)
+            local function prayer_points()
+                local _, reading = t.skill.read("prayer")
+                return reading and reading.level or 0
+            end
+            local function drink_to(step, want, note)
+                local before = prayer_points()
+                local drank = 0
+                for _ = 1, 3 do
+                    if prayer_points() >= want then break end
+                    local pot
+                    for _, p in ipairs({ "1doseprayerrestore", "2doseprayerrestore", "3doseprayerrestore", "4doseprayerrestore" }) do
+                        local _, n = t.inv.count(p)
+                        if n ~= nil and n > 0 then pot = p break end
+                    end
+                    if not pot then break end
+                    t.player.inv_op(pot, 1)
+                    t.ticks(3)
+                    drank = drank + 1
+                end
+                local after = prayer_points()
+                t.check(step, (drank > 0 and after > before and after >= want) or (drank == 0 and before >= want),
+                    "prayer " .. before .. " -> " .. after .. " after " .. drank .. " dose(s) (want >= " .. want .. "; " .. note .. ")")
+            end
+            local function prayer_off(step, varbit_name, widget_name)
+                local _, on = t.var.varbit(varbit_name)
+                if on == 1 then
+                    protect(widget_name)
+                    _, on = t.var.varbit(varbit_name)
+                end
+                t.check(step, on == 0, varbit_name .. " " .. tostring(on) .. ", prayer " .. prayer_points())
+            end
+            local function margin(step, detail, food_before)
+                local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+                local _, food_left = t.inv.count("lobster")
+                t.check(step, lowest ~= nil and lowest >= 25 and (food_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, lobsters " .. tostring(food_before) .. " -> " .. tostring(food_left)
+                    .. ", prayer after " .. prayer_points() .. " (margin: lowest hp >= 25 AND lobsters left >= 1)")
+            end
             -- guide (giveChildBananas) lists the five bananas as brought along; given here, not in setup, because setup plus leg 4's items would overflow the 28 slots
             t.cheat("::give banana 5")
             t.ticks(3)
@@ -1100,6 +1212,8 @@ return {
 
             -- talkToMonkeyChild: the first meeting, varbit_119 0 -> spoke (mm_monkey_child.rs2:9)
             t.exec("goto-talkToMonkeyChild", t.player.goto_tile, 2744, 2794, 0)
+            -- the child's four talks and two 110-tick waits need no protection: Protect from Melee off
+            prayer_off("talkToMonkeyChild-protectOff", "varb4118_prayer_protectfrommelee", "prayerbook:prayer15")
             t.exec("talkToMonkeyChild", t.player.talk_to, "mm_monkey_child")
             t.exec("talkToMonkeyChild-dialog", t.chat.play, {
                 "player:Hello there little monkey.",
@@ -1194,35 +1308,32 @@ return {
             t.expect("talkToChildFor4Talismans-stage", t.var.await_server("varb119_varbit_119", 7, 10))
 
             -- killNinja: a posted monkey archer (mm_archer.rs2:18); Protect from Missiles for its poisoned arrows
-            local _, restore_before = t.inv.count("4doseprayerrestore")
-            local _, points_before = t.skill.read("prayer")
-            for _, potion in ipairs({ "4doseprayerrestore", "3doseprayerrestore", "2doseprayerrestore", "1doseprayerrestore" }) do
-                local _, have = t.inv.count(potion)
-                if have ~= nil and have > 0 then
-                    t.player.inv_op(potion, 1)
-                    t.ticks(3)
-                end
-            end
-            local _, points_after = t.skill.read("prayer")
-            t.check("killNinja-restore", true, "prayer potions before " .. tostring(restore_before) .. ", prayer points " .. tostring(points_before and points_before.level) .. " -> " .. tostring(points_after and points_after.level))
+            drink_to("killNinja-restore", 45, "the archer and the walk to the gorilla measured about 65 ticks, 13 points")
             protect("prayerbook:prayer14")
             local _, missiles_on = t.var.varbit("varb4117_prayer_protectfrommissiles")
             local _, prayer_pts = t.skill.read("prayer")
             t.check("killNinja-protect", missiles_on == 1, "protect from missiles varbit " .. tostring(missiles_on) .. ", prayer points " .. tostring(prayer_pts and prayer_pts.level))
+            t.check("killNinja-prayer", prayer_points() >= 15, "prayer " .. prayer_points() .. " (need >= 15: the archer fight measured 45 ticks on the v3 run of 2026-10-03, 9 points)")
             t.exec("goto-killNinja", t.player.goto_tile, 2757, 2789, 0)
             local ar, ad = t.player.attack("mm_posted_archer", 2, 20)
             t.check("killNinja", ar == "ok" or ar == "timeout", ad)
-            t.exec("killNinja.dead", t.npc.await_dead_engaged, 160, 30, { eat = { item = "lobster", below = 50 } })
+            local _, lobsters_ninja = t.inv.count("lobster")
+            local _, ninja_detail = t.exec("killNinja.dead", t.npc.await_dead_engaged, 160, 30, { eat = { item = "lobster", below = 50 } })
+            margin("killNinja-margin", ninja_detail, lobsters_ninja)
             -- killGorilla: a temple guard (aa_monkey_guard.rs2:47), melee, heals under 30 hp: Protect from Melee
             eat_if_hurt(85)
+            drink_to("killGorilla-drink", 50, "the gorilla fight measured 187 ticks on the v3 run of 2026-10-03, 38 points")
             t.exec("goto-killGorilla", t.player.goto_tile, 2800, 2785, 0)
             protect("prayerbook:prayer15")
             local _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
             local _, prayer_g = t.skill.read("prayer")
             t.check("killGorilla-protect", melee_on == 1, "protect from melee varbit " .. tostring(melee_on) .. ", prayer points " .. tostring(prayer_g and prayer_g.level))
+            t.check("killGorilla-prayer", prayer_points() >= 40, "prayer " .. prayer_points() .. " (need >= 40: 187 ticks at one point per 5)")
             local gr, gd = t.player.attack("mm_religious_guard", 2, 20)
             t.check("killGorilla", gr == "ok" or gr == "timeout", gd)
-            t.exec("killGorilla.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "lobster", below = 55 } })
+            local _, lobsters_gorilla = t.inv.count("lobster")
+            local _, gorilla_detail = t.exec("killGorilla.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "lobster", below = 55 } })
+            margin("killGorilla-margin", gorilla_detail, lobsters_gorilla)
             t.ticks(4)
             -- goDownToZombie: the trapdoor (mm_temple.rs2:10, :17)
             for _ = 1, 8 do eat_if_hurt(85) end
@@ -1258,23 +1369,63 @@ return {
             t.cheat("::give 4doseprayerrestore 3")
             t.cheat("::give lobster 8")
             t.ticks(3)
-            t.player.inv_op("4doseprayerrestore", 1)
-            t.ticks(2)
+            -- Prayer does not regenerate: drink for the zombie fight, the row asserts the points rose
+            local function prayer_points()
+                local _, reading = t.skill.read("prayer")
+                return reading and reading.level or 0
+            end
+            do
+                local before = prayer_points()
+                local drank = 0
+                for _ = 1, 3 do
+                    if prayer_points() >= 30 then break end
+                    local pot
+                    for _, p in ipairs({ "1doseprayerrestore", "2doseprayerrestore", "3doseprayerrestore", "4doseprayerrestore" }) do
+                        local _, n = t.inv.count(p)
+                        if n ~= nil and n > 0 then pot = p break end
+                    end
+                    if not pot then break end
+                    t.player.inv_op(pot, 1)
+                    t.ticks(3)
+                    drank = drank + 1
+                end
+                local after = prayer_points()
+                t.check("killZombie-drink", (drank > 0 and after > before and after >= 30) or (drank == 0 and before >= 30),
+                    "prayer " .. before .. " -> " .. after .. " after " .. drank .. " dose(s) (want >= 30)")
+            end
             local _, melee_before = t.var.varbit("varb4118_prayer_protectfrommelee")
             if melee_before ~= 1 then protect("prayerbook:prayer15") end
             for _ = 1, 3 do eat_if_hurt(70) end
             local _, pts = t.skill.read("prayer")
             local _, melee_on = t.var.varbit("varb4118_prayer_protectfrommelee")
             t.check("killZombie-protect", melee_on == 1, "protect from melee varbit " .. tostring(melee_on) .. " (was " .. tostring(melee_before) .. "), prayer points " .. tostring(pts and pts.level))
+            t.check("killZombie-prayer", prayer_points() >= 15, "prayer " .. prayer_points() .. " (need >= 15: the zombie fight measured 60 ticks on the v3 run of 2026-10-03, 12 points)")
             -- killZombie: the zombie monkey at the foot of the rope (aggressive; leg 5 left the player in its reach)
             eat_if_hurt(80)
             local zr, zd = t.player.attack("mm_zombie_monkey_small", 2, 20)
             t.check("killZombie", zr == "ok" or zr == "timeout", zd)
-            t.exec("killZombie.dead", t.npc.await_dead_engaged, 200, 40, { eat = { item = "lobster", below = 55 } })
+            local _, lobsters_zombie = t.inv.count("lobster")
+            local _, zombie_detail = t.exec("killZombie.dead", t.npc.await_dead_engaged, 200, 40, { eat = { item = "lobster", below = 55 } })
+            do
+                local lowest = tonumber(tostring(zombie_detail):match("lowest hp (%d+)/"))
+                local _, food_left = t.inv.count("lobster")
+                t.check("killZombie-margin", lowest ~= nil and lowest >= 25 and (food_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, lobsters " .. tostring(lobsters_zombie) .. " -> " .. tostring(food_left)
+                    .. ", prayer after " .. prayer_points() .. " (margin: lowest hp >= 25 AND lobsters left >= 1)")
+            end
             t.ticks(1)
             -- the zombie's death_drop (combat_stats.generated.npc:19206) lies on the floor: take it
             t.exec("killZombie-take", t.player.click_obj, "mm_small_zombie_monkey_bones", 3)
             t.exec("killZombie-bones", t.inv.await, "mm_small_zombie_monkey_bones", 1, 10)
+            -- the rest of the leg is travel and talk: Protect from Melee off, the points are kept for the demon
+            do
+                local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+                if on == 1 then
+                    protect("prayerbook:prayer15")
+                    _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+                end
+                t.check("killZombie-protectOff", on == 0, "prayer_protectfrommelee varbit " .. tostring(on) .. ", prayer " .. prayer_points())
+            end
             -- leaveToPrepareForTalismanRun: the guide's "teleport out to prepare" -- plain travel to the Grand Tree's first floor
             t.exec("leaveToPrepareForTalismanRun", t.player.goto_tile, 2483, 3487, 1)
             t.exec("talkToDaeroForTalismanRun", t.player.talk_to, "mm_daero", 1)
@@ -1689,18 +1840,37 @@ return {
             t.cheat("::give lobster 6") -- guide (prepareForBattle): "Food"
             t.ticks(3)
             for _ = 1, 6 do eat_if_hurt(99) end
-            for _, potion in ipairs({ "4doseprayerrestore", "3doseprayerrestore", "2doseprayerrestore", "1doseprayerrestore" }) do
-                local _, have = t.inv.count(potion)
-                for _ = 1, (have or 0) do
-                    t.player.inv_op(potion, 1)
+            -- Prayer does not regenerate: drink the carried prayer potions up to a full book (52) for the demon,
+            -- smallest potion first; the row asserts the points rose
+            local function prayer_points()
+                local _, reading = t.skill.read("prayer")
+                return reading and reading.level or 0
+            end
+            do
+                local before = prayer_points()
+                local drank = 0
+                for _ = 1, 4 do
+                    if prayer_points() >= 50 then break end
+                    local pot
+                    for _, p in ipairs({ "1doseprayerrestore", "2doseprayerrestore", "3doseprayerrestore", "4doseprayerrestore" }) do
+                        local _, n = t.inv.count(p)
+                        if n ~= nil and n > 0 then pot = p break end
+                    end
+                    if not pot then break end
+                    t.player.inv_op(pot, 1)
                     t.ticks(3)
+                    drank = drank + 1
                 end
+                local after = prayer_points()
+                t.check("prepareForBattle-drink", (drank > 0 and after > before and after >= 50) or (drank == 0 and before >= 50),
+                    "prayer " .. before .. " -> " .. after .. " after " .. drank .. " dose(s) (want >= 50)")
             end
             protect("prayerbook:prayer13")
             local _, magic_on = t.var.varbit("varb4116_prayer_protectfrommagic")
             local _, prayer_now = t.skill.read("prayer")
             local _, lobsters = t.inv.count("lobster")
             t.check("prepareForBattle", magic_on == 1, "protect from magic varbit " .. tostring(magic_on) .. ", prayer points " .. tostring(prayer_now and prayer_now.level) .. ", lobster " .. tostring(lobsters))
+            t.check("killDemon-prayer", prayer_points() >= 50, "prayer " .. prayer_points() .. " (need >= 50: the demon fight measured 248 ticks on the v3 run of 2026-10-03, about 50 points)")
             -- equip the sigil (mm_demon.rs2:13): the arena is a private instance, the squad appears in smoke and Garkor opens the battle
             local demon_mark = t.cutscene.mark()
             t.exec("killDemon-sigil", t.player.inv_op, "mm_sigil", 2)
@@ -1717,7 +1887,15 @@ return {
             t.check("killDemon-arena", ar == "ok" and arena ~= nil and arena.z > 9000, "the sigil carried the player into the demon arena at " .. tile_text())
             local dr, dd = t.player.attack("mm_demon", 2, 30)
             t.check("killDemon-press", dr == "ok" or dr == "timeout", tostring(dr) .. " " .. tostring(dd))
-            t.exec("killDemon.dead", t.npc.await_dead_engaged, 600, 40, { eat = { item = "lobster", below = 60 } })
+            local _, lobsters_demon = t.inv.count("lobster")
+            local _, demon_detail = t.exec("killDemon.dead", t.npc.await_dead_engaged, 600, 40, { eat = { item = "lobster", below = 60 } })
+            do
+                local lowest = tonumber(tostring(demon_detail):match("lowest hp (%d+)/"))
+                local _, food_left = t.inv.count("lobster")
+                t.check("killDemon-margin", lowest ~= nil and lowest >= 25 and (food_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, lobsters " .. tostring(lobsters_demon) .. " -> " .. tostring(food_left)
+                    .. ", prayer after " .. prayer_points() .. " (margin: lowest hp >= 25 AND lobsters left >= 1)")
+            end
             t.ticks(4)
             t.exec("killDemon-end", t.chat.drain, {})
             t.expect("quest.stage.monkeymadness_defeated_demon", t.quest.expect_stage("monkeymadness_defeated_demon"))

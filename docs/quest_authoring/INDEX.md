@@ -54,9 +54,13 @@ topic file with one line added here.
 - Rum Deal: Pete says "take a boat over" but nothing takes you to Braindeath Island; the goto from the Port Phasmatys dock is the only way -> gaps-world: Rum Deal: Pete says "take a boat over"
 - Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
 - an npc's tile one behind when read right at the script's `mes()` line; an npc's `slot` changed after a teleport out of view and back -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (b), (c)
+- a goto from an underground room to a tile far beyond its wall reads FULL; the wall is a multiloc `Hole`/`Squeeze-through` (Lost Tribe cellar, Wanted! dk); a goto leaves a castle/base it walked into -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (a), (b)
+- `goto_table.py` prints `LEVEL CHANGE 1->0` (a goto from an upstairs room), or `reach.py` from a goto's DEPARTURE says NEEDS-DOOR after a `talk_to` walked you in -> sampler-findings: Sample matthew-mbp-m4-b56, round 4
 
 ## Pressing and clicking
 
+- a repeating machine op (Giants' Foundry lava/waterfall) makes `click_loc` wait 20 ticks and overshoot the heat, stalls `walk_near`, or answers `covered` under the foundry hud -> gaps-world: A machine that repeats its op every tick
+- "You need a pickaxe" with a pickaxe in the pack -> gaps-world: "You need a pickaxe" with a pickaxe in the pack
 - `player.attack: first press covered (...) -> settled camera: ...`; a boss raised one row after a press that walked you answers `covered` -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35); seam-facts: Seam pass 35 (e)
 - `click_loc: the walk outlasted the 20-tick settle; followed it N more tick(s)`; a timed lift missed while walking -> verbs-pointer: A press whose walk outlasts the 20-tick settle (seam35)
 - `map_flag: no dialogue in 5 tick(s)` on a freed/respawned multinpc form (Desert Treasure's troll parents) -> seam-facts: Seam pass 33 (e); traps-13-22: trap 19
@@ -105,6 +109,7 @@ topic file with one line added here.
 - `use_on` leaves the tile the content checks ("You need to stand in Betty's open doorway"); a loc used from three tiles off -> verbs-inventory-shops: `use_on` walks off the tile
 ## Dialogue and chat
 
+- `chat.choose("Yes.")` answers stale on a choice that reopens a name prompt (`p_choice2` then `p_namedialog`, The Garden of Death) -> gaps-dialogue: A choice that reopens as a name prompt
 - a `|` drawn inside a line (`find the|helmet`); `chat.play` meets an extra page (`npc:together.`) -> verbs-chat: A long line is more than one page
 - a Talk-to missing on a multinpc shell drawn as a `*_noop` form (Fight Arena's Sammy) -> gaps-world: A multinpc shell whose every visible child
 - `expected kind=npc, got player` -> traps-13-22: Trap 18
@@ -193,6 +198,7 @@ topic file with one line added here.
 
 ## Fights
 
+- `t.player.attack` never answers on an "Attack" npc with no hitpoints (Tale of the Righteous' Strange Device); does `click_minimenu` take "Attack" or 2? -> gaps-combat: `t.player.attack` never answers on an npc with no hitpoints
 - `slot N left the pool ... came back as slot M ... -- followed it`; a teleporting boss graded dead `corroborated by ABSENCE` while alive -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35)
 - a Haunted Mine `t.drive.op` for Dayth's Attack or the lift -> gaps-world: A timed lift or a `covered` boss press (both real presses since seam35)
 - `; progress t+10 hp .., ..` at the end of an await_dead detail -> verbs-combat: `t.npc.await_dead(npc, ticks=60`
@@ -242,6 +248,7 @@ topic file with one line added here.
 - `t.exec(name, t.bank.close)` FAILs `bad verb/target` -> verbs-inventory-shops: `t.bank.count(item)` and `t.bank.close()`
 - a note says one more shark "cannot fit"; every rerun of a boss fight reads the same ticks and food; the margin row has no lowest hp (Swan Song round 6) -> gaps-combat: A note says one more food item cannot fit
 - how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
+- setup says the guide's light source or helmet "does not fit in 28 slots" while the run equips and spends items before the step that needs them -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (c)
 
 ## Completion and rewards
 
@@ -258,6 +265,7 @@ topic file with one line added here.
 - a boss dies in a few ticks and never hits you; "1 Quest Point" twice on the scroll; a brief's skill XP the content pays as a lamp -> gaps-combat: A level-191 boss dies in seven ticks; gaps-dialogue: A brief names skill XP; sampler-findings: Sample matthew-mbp-m4-b53, round 3 (Contact!'s boss and doubled line FIXED seam pass matthew-mbp-m4-b53-seam4)
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 - `reward.*` shot shows the Quest List tab; `reward tab ... not selected`; `10,500 Magic XP` read as 500 -> verbs-root-and-quest: Reward rows photograph the tab; `t.scroll.reward_xp`
+- a reward row asserts a var an earlier step already set (`varlamore_visited == 1` for the Fortis teleport) -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (d)
 
 ## Long quests
 
@@ -310,6 +318,8 @@ topic file with one line added here.
 - sonnet-b41: `teleportAway` UNMATCHED with its row PASS -> coverage-and-gate: A step named `teleportAway`; next mesbox missing after an objbox -> verbs-chat: The next script's mesbox; `is_modal() == true` never holds -> verbs-ui-and-npc: `t.ui.is_modal() == true`; stage row reads the old value after a goto out of a zone -> gaps-world: A stage a zone exit writes
 - vm-b1 (2): gate RED `step 'leg.N.end' ... has no shot` on the last leg; `kickBoard` UNMATCHED on a Search press -> coverage-and-gate: Gate RED on the last leg's; Meiyerditch ladder op 1 does nothing, Drakan wall shortcut lands on 3595,3309,2 -> gaps-world: Meiyerditch; no ladder step for rope (yak hair), the window tax Enter amount, stage 275 never seen, Bork gives nothing, runts kill you -> gaps-world: The Fremennik Isles
 - CONTENT_GAP "only <other quest>.rs2, another quest's" then ALTERNATIVE on an exit loc the guide names, and a `goto_tile` past it reads FULL -> coverage-and-gate: CONTENT_GAP "only <other quest>.rs2"
+- a quest draws random branches (Wanted! pool stops) and only the drawn ones ran; `reach.py` dies on a missing `locs.pickle`; `locs_near.py` prints `''` for a multiloc wall -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (e), (f)
+- helper_coverage FULL though a goto leaves the room the setup cheat stood you in, lands in a building bigger than the enclosure flood (Arceuus Library), leaves an archive or the essence mine, or leaves a random draw's last stop (Wanted!! pos6) -> sampler-findings: Sample matthew-mbp-m4-b56, round 3
 - lint "... outside setup: a mid-run ::give" / "::bankgive is a SETUP cheat" / "`-- lint: kit-give` ..."; a note "mid-run ::give BASELINED"; a setup `::bankgive` of a guide-obtained item graded CHEAT like `::give` -> verbs-state-and-vars: lint: "outside setup: a mid-run ::give"
 
 ## Harness and runs

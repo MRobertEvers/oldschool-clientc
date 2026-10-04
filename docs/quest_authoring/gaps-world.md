@@ -1027,3 +1027,28 @@ formulas are the port's own and they gate nothing, so carry food rather than rel
 The same review sent back two more hops: the chasm west side to Al Kharid (`goto-osman`), and out
 of the private scarab instance to Sophanem (`goto-priest`). Each of them needs the climb or walk
 that the guide names.
+
+## "You need a pickaxe" with a pickaxe in the pack: the staged Mining is below the pick's level (Tale of the Righteous, matthew-mbp-m4-b56)
+
+Mining content checks the pickaxe AND the level needed to use it. If the pick is too good for the
+staged Mining, the content tells you that you have no pickaxe. Tale of the Righteous' rockfall
+(`shayzienquest_blockage`) answered `You need a pickaxe` to a rune pickaxe while Mining was below
+41, the level a rune pickaxe needs. Either stage Mining at or above the pick's level (the test used
+`::setlevel mining 45`), or give the pick that the quest's own level requirement allows.
+
+## A machine that repeats its op every tick: menu presses, not `click_loc`, and turn the camera off the hud (Sleeping Giants, matthew-mbp-m4-b56)
+
+The Giants' Foundry lava pool, waterfall and tools repeat their op every tick until you do
+something else. That breaks two verbs:
+
+- A settled `t.player.click_loc` waits for the action to end. The action never ends, so the verb
+  waits out its ~20-tick timeout while the sword's heat keeps moving, and the heat overshoots the
+  band. Press with `t.drive.click_minimenu(target, op)`, which returns at once, and read the heat
+  every tick in your own loop.
+- `walk_near` re-sends its move only while the player is idle. During a repeating op the player is
+  never idle, so `walk_near` stalls. Use `walk_to` an exact tile (instance-local) and then press.
+
+The foundry hud overlay covers the polishing wheel from the default camera, and a covered press
+burns about 20 ticks of heat before it answers. Turn the camera first: `t.drive.camera(128, 383,
+600)` was measured clear for the wheel. If a press still answers `covered`, step the yaw by 256
+and press again. `test/quests/sleepinggiants.lua`'s `press()` does both.

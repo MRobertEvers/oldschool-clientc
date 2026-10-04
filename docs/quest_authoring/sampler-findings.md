@@ -607,3 +607,105 @@ Every stronghold entry, stairs down and storeroom stairs is clicked and has an e
 The rewards are literal: 11000 Herblore and qp 4 to 5, matching the scroll in shot 257. The batch
 queue writer skipped both round-6 rows, because queue.json listed them from round 5. So the
 sampler set eadgar to green.
+
+## Sample matthew-mbp-m4-b56, round 2 (2026-10-03)
+
+*The sampler checked twilightspromise (7f69624b0, 154/0, 412 shots) and wanted (d3672c684, 152/0,
+277 shots) and SENT BOTH BACK. Both commits are reverted (728e039cf, 3c5008256), and so are their
+evidence commits (OSRS-Content a45c71ef73, 3e59236da2). The round-2 files are kept in
+`test/quests/wip/<id>/parked.lua`; the next author resumes those, not the reverted files.*
+
+(a) WANTED!: A GOTO THROUGH A CAVE WALL THAT HAS AN OP. `dk.goto` clicks the Lumbridge cellar
+trapdoor, then teleports about 100 tiles from 3210,9616 to the Dorgeshuun mine at 3318,9628. The
+cellar's east wall `lost_tribe_cellar_wall` (3219,9618) is a multiloc. After The Lost Tribe it is a
+`Hole` with `Squeeze-through` (`losttribe.rs2:245`), and a tunnel lies behind it. The shots tell:
+201 shows the walled cellar and 202 the mine. `enclosure_entries` cannot see it. The hole is a wall
+decoration whose op is not Open, so the cellar counts as a sealed room with no door. The landing
+is also outside the cellar. Look for these on any goto whose departure is underground.
+
+(b) WANTED!: GOTOS THAT LEAVE A CLOSED SPACE WITHOUT WALKING OUT. Three rows do this:
+- `goto-tiffy2` and `goto-tiffy3` depart from 2955,3337, inside the White Knights' Castle, past
+  `fai_falador_castledoubledoorr` 2965,3339.
+- `goto-mage` departs from inside the Black Knights' base in Taverley Dungeon.
+- `pos6.goto` departs from the mine.
+
+The orchestrator's rule covers the way out as well as the way in. An author who opened a door on
+the way in walks back out through it.
+
+(c) WANTED!: GUIDE GEAR LEFT OUT FOR "NO ROOM". The setup comment said the light source and spiny
+helmet did not fit, because the 28 slots were full. That is true only at setup time. The run wears
+the scimitar at once and spends the coins and the 20 essence before the swamp caves. Count the
+slots at the step that needs the item, not at setup. If an item still does not fit, cite the script
+that proves it does not matter.
+
+(d) TWILIGHT'S PROMISE: A REWARD ROW THAT READS THE WRONG CARRIER. `reward.teleport` asserted
+`varb9650_varlamore_visited == 1`. The first Regulus flight already sets that var
+(`twilightspromise.rs2:177`), so the row cannot fail. The spell is gated on `%varb9649_vmq2 >=
+^tp_complete` instead (`skill_magic/scripts/spells/teleport.rs2:37-41`). Before you trust a
+"reward carrier" var, grep where the reward's own use reads it. A var that an earlier step wrote
+proves nothing about the reward.
+
+(e) A RANDOM DRAW LEAVES BRANCHES UNRUN. Wanted!'s hunt draws three of fifteen pool stops. This run
+drew Castle Wars, the swamp caves and McGrubor's Wood, so the Grand Tree, Yanille pub and other
+branches never ran. A green ledger proves only the drawn ids, which the `hunt.pos*_drawn` rows
+name. Check every other branch's hop tile and entrance click against the map with `reach.py` and
+`locs_near.py`, since no run will.
+
+(f) SAMPLE TOOLS. `reports/sample_tools/reach.py` now finds `locs.pickle` itself: it uses a copy
+beside the script, else `build/orchestrator/sample_b56/locs.pickle`, and builds that file through
+`locs_near.py` when it is missing. `locs_near.py` prints `''` for a multiloc's base record, for
+example `lost_tribe_cellar_wall`. Read its `multiloc<N>` records in `configs/all.loc` for the name
+and op a player sees.
+
+## Sample matthew-mbp-m4-b56, round 3 (2026-10-03)
+
+*The sampler checked taleoftherighteous (bc780e5d5, 110/0), twilightspromise (1e42352dd, 155/0) and
+wanted (d97a04eac, 168/0). It kept twilightspromise. It SENT BACK taleoftherighteous and wanted:
+the parent commits are reverted (cb3e3c3c5, 964fa96e5), the evidence too (OSRS-Content 4fec39c3f8,
+14989465c4), and the round-3 files are parked in `test/quests/wip/<id>/parked.lua`.*
+
+(a) A GOTO OUT OF THE ROOM THE SETUP CHEAT PUT YOU IN. `::taleoftherighteous` stands the player
+inside Phileas's house, behind its closed door. The first goto teleported out of the house without
+opening that door. The rule about leaving a closed space applies from the first row: open the door
+and walk out, even when no row walked you in.
+
+(b) A BIG BUILDING IS STILL A CLOSED SPACE. The Arceuus Library is closed by four double doors, but
+its floor is bigger than the 400 tiles `enclosure_entries` floods, so the grader stays FULL on a
+goto that lands beside Archeio. Run `reach.py` from the landing to a street tile. NEEDS-DOOR means
+you click the door.
+
+(c) AN INSTANCE OR TELEPORT AREA HAS ITS OWN WAY OUT. The Library Historical Archive is left through
+Istoria's Leave (`tor_archive.rs2:163-168`), and the Rune Essence mine through its exit portal. A
+goto from inside either skips that exit. Use the exit, then goto from where it lands.
+
+(d) THE LAST STOP OF A RANDOM DRAW. In Wanted!!, Solus's script moves you away after the pool stops
+at positions 2 and 4 (Camelot, Falador). Position 6 does not move you, so the next goto leaves from
+inside whatever pos6 drew: McGrubor's Wood (railing), the Grand Tree, the Yanille pub or the swamp
+caves. Every branch needs its own way out, and that includes the branches this run did not draw.
+The Champions' Guild door (`championdoor`) closes behind you as well: walk out through it.
+
+(e) TWILIGHT'S PROMISE, A CONTENT NOTE. The Fortis Teleport reward is now proved by a real cast that
+gains magic xp and lands on the spell's `tele_coord`. That coordinate, 1735,2965, is marked as an
+ESTIMATE in `skill_magic/configs/magic_spells.dbrow:245-250`. Shot 412 shows a hut in grassland,
+not the Sunrise Palace. It is a skill_magic content gap, not a defect in the quest test.
+
+## Sample matthew-mbp-m4-b56, round 4 (2026-10-03)
+
+Both accepted tests went back again, each for one more goto that LEAVES a room.
+
+(a) A LADDER OR STAIR IS A DOOR FOR THIS RULE. In Tale of the Righteous, Lord Shiro is in a walled
+room up `shayzien_ladder` (1486,3634,1). `goto-talkToDuffy` and `goto-returnToPhileasTent` both
+left from that room on level 1, so the ladder down was never clicked. `goto_table.py` prints this
+as `LEVEL CHANGE 1->0`. `helper_coverage` does not grade plain climbs, so FULL does not prove it.
+Click the climb down, check `t.world.tile()` is on level 0, then goto.
+
+(b) THE ROOM A `talk_to` WALKED YOU INTO. In Wanted!!, `goto-mage` lands outside the Varrock Zamorak
+chapel, and the test clicks its door (`fai_varrock_poor_door_flipped`, 3255,3388). `talk_to` then
+walks you inside to the Mage. `canifis.goto` left from 3262,3381, which is still inside the chapel.
+For every goto, run `reach.py` from the departure tile, not only from the landing tile. If it says
+NEEDS-DOOR, walk out through that door first.
+
+(c) A DOOR-STATE BRANCH IS NOT A CHECK. `t.check(name, true, "door is open (at nil,nil)")` cannot
+fail. This round it appeared in five Tale rows and one Wanted!! row (`base.door_state`). Assert
+something the run could get wrong, such as the open loc's tile. Otherwise use a plain `t.step` or
+skip the row.
