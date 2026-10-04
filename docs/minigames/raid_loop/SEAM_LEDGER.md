@@ -494,3 +494,40 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   baseline; nothing moved); conformance 314/314 PASS (unchanged, 163 verbs + 151 seam
   rows); server selftest 11 FAIL (baseline), tobrun OK 56; cheats 23/23; check-quest-verbs,
   check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 119 clean; spec_check clean.
+
+## matthew-mbp-m4-raid-b1-seam13 (2026-10-04; parent 0037b16de, OSRS-Content 6ca627de58): the whole raid as a relay, in two halves (triage SEAM_TRIAGE_2026-10-04.md)
+
+- `tob_relay_lobby_to_nylocas`: LANDED as a RECIPE (no content or driver change). Ver Sinhaza
+  to Sotetseg's entrance by click with one kit: board, party, Entry, door, the Maiden, Bloat, the
+  chest and the Nylocas. Scratch relay1/relay_lobby_to_sotetseg.lua, green once (s13_relay_a9
+  92/92) and survived in 2 of 10 runs. The other eight died in the Nylocas, which took 880-1179
+  hitpoints against the ~820 the kit still holds. The raid-wide rows it reaches all measured
+  (lobby, party, door, hud, music, chest, wave lines, card sound). Its bandage Heal was withdrawn
+  for the equivalent one below. No conformance row. Still open: the Nylocas starves a driven
+  solo raider; the Entry freeze rule ("frozen nylocas cannot attack the pillars") is missing
+  from tob_nylocas.rs2 (suspected, not measured); t.player.inv_op / equip block 3-17 ticks per
+  press in a raid room, so the scratch uses the private t.player._inv_press until a fight-speed
+  verb exists; t.inv.count cannot count dragon_dagger_p++.
+- `tob_relay_sotetseg_to_vault`: LANDED (content plus a RECIPE). The bandages' Heal is bound
+  (wiki item page; prayer not restored). Insulated boots take 40 percent off Verzik's P2
+  lightning (wiki item page). Sotetseg's entrance to Ver Sinhaza by click (both mazes, chest,
+  Xarpus, the Dawnbringer, Verzik to her death, vault, own chest, Take-all, out) runs green as
+  s13b_full_c 55/55 and s13b_full_e 58/58. Conformance seam.tob_entry_bandages_heal PASS (SEAM
+  151 -> 152). Spec row raidwide.vault.music_on_entry reworded to the teleport anchor (0 exact,
+  unchanged). Still open: no supply margin (Verzik leaves 0 food in every completed run); the
+  bandage prayer restore and the Magic boost (the two wiki pages disagree); P2 lightning has no
+  Entry figure; tob.constant's stale "25 with insulated boots" comment.
+- CLOSER, kit reconciliation: the two halves' kits differ in every worn slot and in supplies
+  (assumed 4 bandages, 6 sharks, 8+8 doses; measured 0, 0, 11 brew and 5 restore doses). The
+  second half with the measured kit (close13_kit3, scratch close/relay_second_half_measured_kit.lua)
+  killed Sotetseg (460 ticks) and Xarpus, then DIED in Verzik P2 at tick 1253 with every supply
+  spent. The halves do not join yet. t.raid.enter's ~tob_debug_kit gives 4+4 br_ potions to a
+  raider holding no br_ brew; the first measured-kit run took that gift and got only 8 bandages.
+- KEPT ROOMS on the final tree: tob_maiden 108/108, tob_bloat 94/94, tob_xarpus 120/120,
+  tob_sotetseg 155/155, tob_nylocas 162/162 PASS, all gate green with coverage FULL (63, 55, 63,
+  83, 73); tob_verzik 239 PASS + BLOCKED, 140 of 142 (as 7bd321420). No number moved.
+- Gates: quest suite 115 green + deserttreasure, forgettabletale, regicide, troll RED (the
+  baseline; nothing moved); conformance 315/315 PASS (163 verbs + 152 seam rows); cheats
+  pass; check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127
+  clean; spec_check clean. C unchanged, so the server selftest was not re-run. The shot PNGs
+  were not read: the Read tool's hook timed out on every image this pass.
