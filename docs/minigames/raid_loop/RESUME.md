@@ -38,7 +38,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
    room seam15 moved.
 3. `tob_entry`: author the whole-raid test from the joined relay scratch, graded on
    `encounters/raidwide.tsv` (75 rows in scope for Entry solo).
-4. Normal mode room pass, then Hard, then party play (needs a second driven client).
+4. Normal mode room pass, then Hard: BOTH WITH THREE PLAYERS (owner, 2026-10-04: "For normal
+   and hard mode, you will need 3 players"). Solo stays Entry only. Nothing drives more than
+   one client today (DRIVER_NOTES.md has no multi-client verb; `::tobscale <n>` only restates
+   a boss for a party of n), so a seam pass comes first: three driven clients in one run, one
+   party through the notice board, each raider's own readouts and tick log. Triage it from
+   the party rows in `encounters/*.tsv` before launching it.
 5. The frame-count pass for D/E tick rows (`tools/raid_gate/frame_diff.py`; the first pilot
    measured nothing).
 6. Tombs of Amascut spec pass (corpus pinned), then Chambers of Xeric.
