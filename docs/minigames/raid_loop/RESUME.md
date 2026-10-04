@@ -17,46 +17,43 @@ worktree, `width` 1 (owner: one worker at a time), every command's output under 
 Before a room launch run `python3 tools/raid_gate/pass_state.py build/author_state/<pass>` and
 check it; a room to re-author must have its `<id>.author.json` / `.review.json` moved aside.
 
-## State on 2026-10-04, after seam15
+## State on 2026-10-04, after room launch 13
 
 - Mode tested: Theatre of Blood, ENTRY, SOLO only. Normal, Hard and party play are untested.
-- Seam15 LANDED (parent 53a8aa8e0, OSRS-Content 946c357a71; ledger bab6fbf19, bf7ca2f11): the
-  super restore no longer heals Hitpoints, Verzik's tornado is removed at her death, `::give`
-  takes the exact symbol, the Entry chest keeps its leftover bandages (10 in all). Gates: quest
-  suite at the baseline (115 green + deserttreasure, forgettabletale, regicide, troll RED; no
-  quest moved), conformance 324/324, server C selftest at its baseline 11 failures.
-- Rooms kept and green on the seam15 tree (pass `matthew-mbp-m4-raid-b1-rooms-tob`): tob_bloat
-  e96af7766, tob_xarpus f417148e4, tob_sotetseg 812267e7f, tob_nylocas d87427d41.
-- Rooms to re-author (launch 13 of the same pass; their author/review state is moved aside as
-  `*.launch12_seam15.*.bak`, sample.json carries the note): tob_maiden (109/110, hit_sound read
-  the end-of-tick tile on a step from 13 tiles to 12; measure from the tile at tick - 1) and
-  tob_verzik (out of food in P3 at 636 with no heal from restores; also still owes: no death in
-  the room, the tornado touch before her death; the sent-back 142-row attempt is
-  `build/author_state/matthew-mbp-m4-raid-b1-rooms-tob/tob_verzik.sampled_l12_9b9b34b22.lua`).
-- Joined whole-raid relay (`build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`):
-  green under 1 of 5 run names (s15k1 160/160, the raider at 8 hp with every dose drunk); the
-  other four die at Xarpus or in Verzik P3. Verdict: do NOT author tob_entry as a must-survive
-  test yet. Run names: only the first 12 characters seed a run (jbase37), case folded.
+- Seam15 LANDED (parent 53a8aa8e0, OSRS-Content 946c357a71): the super restore no longer heals
+  Hitpoints, Verzik's tornado goes with her, `::give` takes the exact symbol, the Entry chest
+  keeps its leftover bandages. Gates at the baseline (quest suite 115 green + deserttreasure,
+  forgettabletale, regicide, troll RED; conformance 324/324; C selftest 11 baseline failures).
+- ALL SIX Entry solo rooms KEPT (pass `matthew-mbp-m4-raid-b1-rooms-tob`, launch 13, ledger
+  71dcbbcb8): tob_maiden f6d2c42e5 (63 rows), tob_bloat e96af7766 (55), tob_xarpus f417148e4
+  (63), tob_sotetseg 812267e7f (83), tob_nylocas d87427d41 (76), tob_verzik d1b4ccf00 (144,
+  deathless, every tornado row before her death). Coverage FULL on each.
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam16` (triage `SEAM_TRIAGE_2026-10-04d.md`,
+  3d5bea4a7): the green relay's own tick log shows an Entry solo raider spending ten times what
+  the guides and the Entry Mode wiki's litmus (:123, at most four food and one dose on Maiden)
+  allow: Maiden lands 20 of 21 autos under Protect from Magic for 199 (eleven above the halved
+  max of 9), 13 restore presses in 213 ticks; Nylocas 360, Bloat 109, Xarpus 10 bandages + 3
+  brew doses. Seams: tob_maiden_entry_prayed_autos, tob_entry_solo_room_costs (content), then
+  tob_relay_wiki_kit (the joined relay under five names with the wiki's 6-brew kit; tob_entry
+  is authored when 4 of 5 survive). Sourced fixes are expected to move rooms: re-author them.
+- Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
+  names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. Room launch 13: tob_maiden and tob_verzik (card `raid_author`, pass
-   `matthew-mbp-m4-raid-b1-rooms-tob`, raid `tob`, all six rooms, mode `entry`, width 1). If it
-   died with its session, relaunch with the same args; the state directory is the resume.
-2. A seam pass for the relay's margin before `tob_entry`: the levers are the scratch's (P2/P3
-   damage, melee P2; restores in place of the super combat and stamina for the second half; the
-   Nylocas room decides the kit that reaches Sotetseg, 12-21 brew doses against the 18 the green
-   run needed). Nothing sourced may be lowered. Then author `tob_entry` from the joined relay,
-   graded on `encounters/raidwide.tsv` (75 rows in scope for Entry solo).
-3. Normal mode room pass, then Hard: BOTH WITH THREE PLAYERS (owner, 2026-10-04: "For normal
-   and hard mode, you will need 3 players"). Solo stays Entry only. Nothing drives more than
-   one client today (DRIVER_NOTES.md has no multi-client verb; `::tobscale <n>` only restates
-   a boss for a party of n), so a seam pass comes first: three driven clients in one run, one
-   party through the notice board, each raider's own readouts and tick log. Triage it from
-   the party rows in `encounters/*.tsv` before launching it.
-4. The frame-count pass for D/E tick rows (`tools/raid_gate/frame_diff.py`; the first pilot
-   measured nothing).
-5. Tombs of Amascut spec pass (corpus pinned), then Chambers of Xeric.
+1. Seam16 lands: re-author the rooms it moved (same room pass, move each room's
+   `<id>.author.json` / `.review.json` aside, note it in sample.json's orchestrator_notes).
+2. `tob_entry` from the joined relay if the five-name verdict allows, graded on
+   `encounters/raidwide.tsv` (42 of its 75 rows have a raidwide.<id> step in the green ledger;
+   raid_coverage.py grades only spec.<id> steps, so the author names its rows spec.raidwide.*
+   or the checker learns raidwide.*); otherwise seam17 on the room the verdict names.
+3. THREE DRIVEN CLIENTS (owner, 2026-10-04: "For normal and hard mode, you will need 3
+   players"): seam pass on `SEAM_TRIAGE_2026-10-04e.md` (the facts and the design questions are
+   in it). Solo stays Entry only.
+4. Normal mode room pass with three players, then Hard (Hard needs a Normal completion on
+   every account: tob_party.rs2 `%varp6826_tob_completions < 1` at the door).
+5. The frame-count pass for D/E tick rows (`tools/raid_gate/frame_diff.py`).
+6. Tombs of Amascut spec pass (corpus pinned), then Chambers of Xeric.
 
 ## Waiting on the owner
 
@@ -64,3 +61,36 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
 - The raid content worktree's old dirt under `selftest/quests/quest_cook/play` and
   `quest_druid/play` (restore was refused; never staged).
 - Whether `docs/WAVES_ORCHESTRATOR.md` belongs on v3.
+
+## Relaunching seam16 if it is not closed
+
+A background pass dies with the session that launched it. If
+`build/seam_state/matthew-mbp-m4-raid-b1-seam16/close.json` does not exist, relaunch
+`tools/raid_gate/workflows/raid_seam.workflow.js` with args `pass` `matthew-mbp-m4-raid-b1-seam16`,
+`reuse_triage` `docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04d.md`, `width` 1, and this
+`context` (one string):
+
+> Seam16 of the raid loop, relaunched by a fresh session. On disk: every seam with a
+> fix.<key>.json report is DONE and its edits are uncommitted in the tree; a seam with only a
+> progress notebook resumes from it. Only ToB ENTRY mode SOLO is tested. All six Entry solo
+> rooms are KEPT and read-only: tob_maiden f6d2c42e5, tob_bloat e96af7766, tob_xarpus
+> f417148e4, tob_sotetseg 812267e7f, tob_nylocas d87427d41, tob_verzik d1b4ccf00. EVERY FIXER
+> reads its seam's full section in docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-04d.md and the
+> RULES above the first section; the fixers run in the triage's order (the relay seam last).
+> One worker at a time; no command prints more than about 4 KB; no shell command over 8 KB;
+> never a recursive grep over OSRS-Content; if the editor's Read or Write hook times out use
+> the shell and never loop on the failing tool. Nothing sourced is lowered without its quoted
+> source line; a guide transcript is evidence, never the number to encode. THE CLOSER: (1)
+> re-runs the six rooms with run.py --no-build --no-publish and gate.py, logs to files; a
+> sourced fix that moves a room is EXPECTED: record 'tob_<room> must be re-authored: <what
+> moved>' in SEAM_LEDGER.md, never revert a sourced fix; a room broken for an unsourced reason
+> reverts that seam. (2) Quest suite: baseline 115 green + deserttreasure, regicide, troll,
+> forgettabletale RED; any other regression reverts its seam unless its first failing row is a
+> sourced ToB change, listed in SEAM_LEDGER.md and MERGE_CHECKLIST.md instead. (3) Carries the
+> relay seam's five-name table into SEAM_LEDGER.md as the verdict on authoring tob_entry
+> (authored when at least 4 of 5 survive with the wiki's kit). (4) Recipes into
+> DRIVER_NOTES.md, spec rows applied (spec_check.py clean), CONTENT_BUGS.md a row per
+> disagreement with a grade A-C source, one line per seam in SEAM_LEDGER.md with the quest
+> suite, conformance and C selftest results; commit by explicit path, submodule first, push
+> both. Never stage or restore the content worktree's dirt under selftest/quests/quest_cook/play
+> and quest_druid/play. QUEST_HELPER_ROOT is /Users/matthewevers/Documents/git_repos/quest-helper.
