@@ -25,9 +25,25 @@
 -- through real clicks -- use_on the pebble on the tombstone, click_loc the
 -- raft, use_on the rope on the rock then the dead tree, click_loc the ledge
 -- door and the crate, use_on the key on the west door -- reusing that proven
--- sequence. goto_tile is used only for PLAIN TRAVEL between legs (an
--- approach tile before a click, or crossing open floor already reached with
--- no gate left in between), never past a mechanism itself.
+-- sequence. goto_tile is used only for PLAIN TRAVEL between two open,
+-- outdoor tiles of one walkable region, never past a mechanism, a door or
+-- a climb (b59 door-rule re-drive, build/orchestrator/fix_b59/
+-- rovingelves.progress.md has the flood for every hop):
+--   * Islwyn and Eluned's camp (2291,3147) lies in a 7,176-tile region of
+--     Isafdar the map closes with Regicide's traps, dense forest, log
+--     balances and the Arandar pass's Huge Gate (overpass_gate_left/right
+--     2384/2386,3334, regicide_arandar_gate_guard.rs2). Every trip in or
+--     out crosses that gate by click (`cross_arandar`); the hops on each
+--     side of it are open ground.
+--   * Glarial's Tomb is left by its own ladder (2556,9844 -> 2557,3444).
+--   * Almera's yard and the raft pen are entered through their two fence
+--     gates on foot (2528,3495 and 2513,3494).
+--   * Inside the falls every double door and both key doors are opened on
+--     foot, in and out. The way back out is the dungeon's own exit door to
+--     the ledge and the ledge's barrel (op1 Get in, down the river,
+--     quest_waterfall_locs.rs2:339-345) -- runes cannot ride along for a
+--     teleport because Glarial's Tomb refuses them
+--     (~waterfall_tomb_item_forbidden, quest_waterfall_locs.rs2:46-60).
 --
 -- Prerequisites (rovingelves_islwyn.rs2's opnpc1 gate): Regicide complete
 -- and Waterfall Quest complete. Regicide has no `::complete` arm in
@@ -79,6 +95,7 @@
 return {
     id = "rovingelves",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 120000, -- four Arandar gate crossings and the falls dungeon walked in and out
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so nothing forbidden rides along
         "::give spade 1", -- rovingelves_seed.rs2's opheld1 refuses to plant without one
@@ -122,6 +139,123 @@ return {
     },
 
     run = function(t)
+        -- ---------------------------------------------------------------
+        -- Travel helpers (b59 door-rule re-drive). Every tile named here is
+        -- checked against the map in build/orchestrator/fix_b59/
+        -- rovingelves.progress.md (reach.py / comp.py floods, doors shut).
+        -- ---------------------------------------------------------------
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(r)
+        end
+
+        local function at_tile(r, tt, x, z)
+            return r == "ok" and type(tt) == "table" and tt.level == 0 and tt.x == x and tt.z == z
+        end
+
+        -- Poll world.tile() until `pred` holds (a climb or a pushed
+        -- crossing answers before it lands), then hand back the reading.
+        local function await_tile(pred, ticks, note)
+            t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and type(tt) == "table" and pred(tt)
+                end,
+                note = note,
+            }, ticks)
+            return t.world.tile()
+        end
+
+        -- Walk to x,z and check the exact tile.
+        local function walk_check(name, x, z, why)
+            local wr, wd = t.player.walk_to(x, z, 40)
+            local tr, tt = t.world.tile()
+            t.check(name, at_tile(tr, tt, x, z),
+                "walk_to " .. x .. "," .. z .. " (" .. why .. ") -> " .. tostring(wr) .. " " .. tostring(wd)
+                    .. "; at " .. tile_text(tr, tt))
+        end
+
+        -- Cross one door on foot (sampler-findings b56/b57 pass_door). Walk
+        -- to the near tile and check it; if the CLOSED leaf stands on the
+        -- door tile on this level, click that copy (op 1 Open); otherwise an
+        -- earlier press left it open (a door swings back after 500 ticks),
+        -- so assert the OPEN leaf on this level within 2 of the door tile
+        -- (a double door's leaves swing a tile out) -- a row that fails when
+        -- neither leaf is there -- and never press it again. Then walk to the
+        -- far tile and check it exactly.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_desc)
+            t.player.walk_to(near_x, near_z, 30)
+            local nr, nt = t.world.tile()
+            local level = (nr == "ok" and type(nt) == "table") and nt.level or 0
+            t.check(prefix .. ".atDoor", at_tile(nr, nt, near_x, near_z),
+                "walked to " .. near_x .. "," .. near_z .. ",0 beside " .. closed_sym .. " at " .. door_x .. "," .. door_z
+                    .. " -> " .. tile_text(nr, nt))
+            local cr, cd = t.world.loc_near(closed_sym, 1)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == level then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".doorStandsOpen", orr == "ok" and od.level == level
+                        and math.abs(od.tile_x - door_x) <= 2 and math.abs(od.tile_z - door_z) <= 2,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": "
+                        .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (want the open leaf on level " .. level .. " within 2 of the door tile: standing open,"
+                        .. " walked through, not pressed again)")
+            end
+            local wr = t.player.walk_to(far_x, far_z, 20)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", at_tile(fr, ft, far_x, far_z),
+                "walked through " .. closed_sym .. " to " .. far_x .. "," .. far_z .. " (" .. far_desc .. ") -> "
+                    .. tile_text(fr, ft) .. " (walk " .. tostring(wr) .. ")")
+        end
+
+        -- The Arandar pass's Huge Gate (overpass_gate_left, width 2, at
+        -- 2384,3334; regicide_arandar_gate_guard.rs2 [label,arandar_gate]):
+        -- open for a player past ^regicide_killed_tyras, it pushes the
+        -- player two tiles across (p_teleport z+-2). The camp side is
+        -- 2385,3333 (the 7,176-tile Isafdar region, Islwyn's camp included),
+        -- the Kandarin side 2385,3335. A pushed crossing can answer before it
+        -- lands, so the row is graded on the tiles before and after, with the
+        -- click's own answer in the detail.
+        local function cross_arandar(prefix, northbound)
+            local near_z = northbound and 3333 or 3335
+            local far_z = northbound and 3335 or 3333
+            local near_name = northbound and "the Isafdar side" or "the Kandarin side"
+            walk_check(prefix .. ".atGate", 2385, near_z, near_name .. " of the Arandar Huge Gate")
+            local cr, cd = t.player.click_loc("overpass_gate_left", 1, { at = { 2384, 3334 } })
+            local fr, ft = await_tile(function(tt)
+                return tt.level == 0 and tt.z == far_z
+            end, 10, "the Huge Gate's push to z " .. far_z)
+            t.check(prefix .. ".throughGate", at_tile(fr, ft, 2385, far_z),
+                "click_loc(overpass_gate_left at 2384,3334, op1 Enter) -> " .. tostring(cr) .. " " .. tostring(cd)
+                    .. "; world.tile() after -> " .. tile_text(fr, ft) .. " (want 2385," .. far_z
+                    .. ",0: [label,arandar_gate] p_teleport z" .. (northbound and "+2" or "-2") .. ")")
+        end
+
+        -- A travel hop: from an open tile to an open tile of the same
+        -- walkable region (or across open overland), never into a room.
+        local function hop(name, x, z)
+            t.exec(name, t.player.goto_tile, x, z, 0)
+        end
+
+        -- From anywhere in the camp's region to the Kandarin side of the gate.
+        local function leave_camp(prefix)
+            hop(prefix .. ".gotoGate", 2385, 3332)
+            cross_arandar(prefix, true)
+        end
+
+        -- From open Kandarin ground into the camp, one tile off Islwyn.
+        local function enter_camp(prefix)
+            hop(prefix .. ".gotoGate", 2385, 3336)
+            cross_arandar(prefix, false)
+            hop(prefix .. ".gotoCamp", 2290, 3147)
+        end
+
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp6262_rovingelves_quest",
             constants = {
@@ -141,9 +275,10 @@ return {
         t.ticks(3) -- setup cheats' effect is not client-side yet
 
         local qp_before_result, qp_before = t.var.varp("varp101_qp")
-        t.step("qp.baseline", qp_before_result == "ok" and "PASS" or "FAIL",
+        t.check("qp.baseline", qp_before_result == "ok" and qp_before == 1,
             "t.var.varp(\"qp\") before any quest progress -> " .. tostring(qp_before_result)
-                .. " " .. tostring(qp_before))
+                .. " " .. tostring(qp_before) .. " (want 1: setup's ::complete quest_waterfall awards Waterfall"
+                .. " Quest's 1 qp; Regicide's varp write awards none)")
 
         local not_started_journal_result, not_started_journal = t.ui.journal_open("Roving Elves")
         t.check("quest.stage.not_started", not_started_journal_result == "ok" and not_started_journal ~= nil
@@ -161,7 +296,9 @@ return {
         -- tile (2290,3147), not onto it -- see the banner above.
         -- [opnpc1,roving_bowyer]/[opnpc1,roving_islwyn_2ops] share one trigger
         -- head; not_started routes to @rovingelves_islwyn_first.
-        t.exec("goto-islwyn1", t.player.goto_tile, 2290, 3147, 0)
+        -- From the fixture's open Lumbridge street to the Kandarin side of
+        -- the Arandar gate, through it on foot, then across Isafdar.
+        enter_camp("islwyn1")
         t.exec("talk.islwyn1", t.player.talk_to, "roving_bowyer", 1)
         t.exec("talk.islwyn1-dialog", t.chat.play, {
             "npc:Human! Why are you here?",
@@ -187,18 +324,14 @@ return {
         -- same base-symbol-survives-the-transform shape, approached from one
         -- tile off (2288,3145). spoken_islwyn routes to
         -- @rovingelves_eluned_ritual, which names the tomb and stages
-        -- spoken_eluned.
-        t.exec("goto-eluned1", t.player.goto_tile, 2289, 3145, 0)
+        -- spoken_eluned. She stands three tiles from Islwyn on the same
+        -- open ground (reach.py 2290,3147 -> 2289,3145: closed-doors len 3),
+        -- so this is a walk, not a hop. walk_near's own `_step_off_tile`
+        -- picks a real walkable adjacent tile (her own tile has no clear
+        -- camera pixel to click, measured live on an earlier revision).
         local eluned1, eluned1_result = t.player.by_symbol("npc", "roving_female_woodelf")
         t.step("lookup.eluned1", eluned1_result == "ok" and "PASS" or "FAIL",
             "by_symbol npc roving_female_woodelf -> " .. tostring(eluned1_result))
-        -- goto_tile lands exactly on her own spawn tile (distance 0), which
-        -- walk_near's own banner names as having no clear camera pixel to
-        -- click -- confirmed live (talk.eluned1 pressed bare ground, "menu
-        -- has no row for it", both with a raw goto to her tile and with a
-        -- guessed one-tile-west offset that turned out to be pond water and
-        -- landed us tiles away instead). walk_near's own `_step_off_tile`
-        -- picks a real walkable adjacent tile rather than a guessed one.
         t.exec("walk.eluned1", t.player.walk_near, eluned1, 10, 1)
         t.exec("talk.eluned1", t.player.talk_to, "roving_female_woodelf", 1)
         t.exec("talk.eluned1-dialog", t.chat.play, {
@@ -226,7 +359,11 @@ return {
         -- Proven live by a prior content-parity pass (not this file):
         -- build/quest_gate/parity_rovingelves5/ledger.tsv, 10/10 PASS,
         -- same click sequence below.
-        t.exec("goto-tombstone-approach", t.player.goto_tile, 2559, 3445, 0)
+        -- Out of the camp through the Arandar gate, then open Kandarin
+        -- ground to the tombstone's north side (2559,3445 is the tombstone's
+        -- own footprint; reach.py 2386,3336 -> 2559,3446 closed-doors).
+        leave_camp("tombstone")
+        hop("goto-tombstone-approach", 2559, 3446)
         local tombstone, tombstone_result = t.player.by_symbol("loc", "glarials_tombstone_waterfall_quest")
         t.step("lookup.tombstone", tombstone_result == "ok" and "PASS" or "FAIL",
             "by_symbol loc glarials_tombstone_waterfall_quest -> " .. tostring(tombstone_result))
@@ -246,12 +383,9 @@ return {
         -- returns -- await it rather than reading world.tile() bare.
         t.exec("enterGlarialsTombstone.climbedDown", t.msg.await, "climb down", 50)
         local tomb_tile_result, tomb_tile = t.world.tile()
-        local tomb_tile_pass = tomb_tile_result == "ok" and tomb_tile ~= nil
-            and tomb_tile.z ~= nil and tomb_tile.z >= 9800
-        t.step("enterGlarialsTombstone.tile", tomb_tile_pass and "PASS" or "FAIL",
-            "world.tile() after the climb-down -> " .. tostring(tomb_tile_result) .. " "
-                .. tostring(tomb_tile and (tomb_tile.x .. "," .. tomb_tile.z .. "," .. tomb_tile.level))
-                .. " (want z>=9800, inside Glarial's Tomb; 0_39_153_58_52 = 2554,9844,0)")
+        t.check("enterGlarialsTombstone.tile", at_tile(tomb_tile_result, tomb_tile, 2554, 9844),
+            "world.tile() after the climb-down -> " .. tile_text(tomb_tile_result, tomb_tile)
+                .. " (want 2554,9844,0 = p_teleport(0_39_153_58_52), inside Glarial's Tomb)")
 
         -- The tombstone's own entrance tile (2554,9844) is further from the
         -- guardian's spawn than the old goto_tile cheat landed, so the npc
@@ -302,6 +436,9 @@ return {
         local mossguardian_rounds = 0
         local mossguardian_sharks_eaten = 0
         local mossguardian_seed_confirmed = false
+        -- The lowest hitpoints seen: each round's own read above, and the
+        -- `lowest hp N/` the wait's eater reports for the ticks in between.
+        local mossguardian_lowest_hp = nil
         while not mossguardian_seed_confirmed and mossguardian_rounds < 20 do
             mossguardian_rounds = mossguardian_rounds + 1
 
@@ -311,6 +448,10 @@ return {
             -- which is the point -- fifteen sharks is enough headroom for
             -- that to run the whole fight without ever reading empty.
             local hp_result, hp = t.skill.read("hitpoints")
+            if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil
+                and (mossguardian_lowest_hp == nil or hp.level < mossguardian_lowest_hp) then
+                mossguardian_lowest_hp = hp.level
+            end
             if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 90 then
                 local has_shark_result, has_shark = t.inv.has("shark")
                 if has_shark_result == "ok" and has_shark then
@@ -334,7 +475,14 @@ return {
                 -- or it left the pool the same way await_dead_engaged can.
                 kill_signal = true
             else
-                local await_result = t.npc.await_dead_engaged(30, 6)
+                -- Eat inside the wait too (below 60 of 99): an eat no longer
+                -- holds a queued hit, so the margin is carried, not rescued.
+                local await_result, await_detail = t.npc.await_dead_engaged(30, 6,
+                    { eat = { item = "shark", below = 60 } })
+                local wait_low = tonumber(tostring(await_detail):match("lowest hp (%d+)/"))
+                if wait_low ~= nil and (mossguardian_lowest_hp == nil or wait_low < mossguardian_lowest_hp) then
+                    mossguardian_lowest_hp = wait_low
+                end
                 if await_result == "ok" then
                     kill_signal = true
                 end
@@ -361,6 +509,14 @@ return {
                 .. "corroborated against roving_old_consecration_seed's own private drop -> "
                 .. tostring(mossguardian_seed_confirmed and "confirmed" or "never confirmed within the round budget"))
         t.expect("player.aliveAfterGuardian", t.player.alive())
+        -- Fight margin (fixer brief): lowest hp at least a quarter of the
+        -- 99 staged hitpoints AND food left, never one or the other.
+        local sharks_left_result, sharks_left = t.inv.count("shark")
+        t.check("killGuardian.margin", mossguardian_lowest_hp ~= nil and mossguardian_lowest_hp >= 25
+                and sharks_left_result == "ok" and sharks_left >= 1,
+            "lowest hp " .. tostring(mossguardian_lowest_hp) .. "/99 (staged ::setlevel hitpoints 99), shark staged 15,"
+                .. " left " .. tostring(sharks_left) .. " (" .. tostring(sharks_left_result) .. ")"
+                .. " -- margin: lowest hp >= 25 AND shark left >= 1")
 
         -- await_dead's own `no_row` (npc left the pool) also fires if the
         -- PLAYER dies and respawns instead -- the guardian's own
@@ -418,7 +574,24 @@ return {
         -- @rovingelves_eluned_enchant, which swaps the old seed for the new
         -- one (inv_del/inv_add before its own mesbox, so poll with inv.await
         -- rather than a bare read -- section 8's gap note).
-        t.exec("goto-eluned2", t.player.goto_tile, 2289, 3145, 0)
+        -- Out of Glarial's Tomb by its own ladder:
+        -- ladder_from_cellar_directional at 2556,9844, maplink
+        -- 0_39_153_61_52 -> 0_39_53_61_52 (2557,9844 -> 2557,3444,
+        -- ladders_stairs/configs/maplink.dbrow). The climb can answer
+        -- before it lands, so wait for the surface before grading it.
+        local tomb_ladder_result, tomb_ladder_detail = t.player.click_loc("ladder_from_cellar_directional", 1)
+        local tomb_out_result, tomb_out = await_tile(function(tt)
+            return tt.level == 0 and tt.z < 6400
+        end, 15, "the tomb ladder's climb to the surface")
+        t.check("tomb.climbOut", at_tile(tomb_out_result, tomb_out, 2557, 3444),
+            "click_loc(ladder_from_cellar_directional, 1) -> " .. tostring(tomb_ladder_result) .. " "
+                .. tostring(tomb_ladder_detail) .. "; world.tile() after -> " .. tile_text(tomb_out_result, tomb_out)
+                .. " (want 2557,3444,0, the maplink's surface end beside the tombstone)")
+
+        -- Open Kandarin ground from the tombstone to the Arandar gate
+        -- (reach.py 2557,3444 -> 2386,3336 closed-doors len 281), through
+        -- it, and across Isafdar to the camp.
+        enter_camp("eluned2")
         local eluned2, eluned2_result = t.player.by_symbol("npc", "roving_female_woodelf")
         t.step("lookup.eluned2", eluned2_result == "ok" and "PASS" or "FAIL",
             "by_symbol npc roving_female_woodelf -> " .. tostring(eluned2_result))
@@ -456,15 +629,33 @@ return {
         -- tile check in the same run -- read as PASS here, matching their
         -- own writeup). The seed's own ifop1=Plant fires
         -- [opheld1,roving_new_consecration_seed].
-        t.exec("goto-raft-approach", t.player.goto_tile, 2509, 3494, 0)
+        -- Out of the camp through the Arandar gate, open Kandarin ground to
+        -- the street east of Almera's yard (reach.py 2386,3336 -> 2530,3495
+        -- closed-doors), then on foot through the yard's east fence gate
+        -- (fencegate_l 2528,3495, west edge) and the raft pen's gate
+        -- (fencegate_l 2513,3494, west edge; the pen is 12 tiles,
+        -- x 2510-2512, z 3492-3496). Opening the left leaf opens the pair.
+        leave_camp("raft")
+        hop("goto-raft-approach", 2530, 3495)
+        pass_door("almeraYard.in", "fencegate_l", "openfencegate_l", 2528, 3495, 2528, 3495, 2527, 3495,
+            "inside Almera's yard")
+        pass_door("raftPen.in", "fencegate_l", "openfencegate_l", 2513, 3494, 2513, 3494, 2512, 3494,
+            "the raft pen behind Almera's house")
         -- boardRaft's own settle resolves on the raft's first mes() line
         -- ("You board the small raft"), one to two ticks ahead of the
         -- p_teleport that actually moves the player downstream -- no bare
         -- tile read right after the click (trap 24's cousin for a
         -- teleport, not a container). The NEXT leg's own tile check
         -- (useRopeOnRock, below) is boardRaft's real evidence.
-        t.exec("boardRaft", t.player.click_loc, "lograft_waterfall_quest")
-        t.ticks(3)
+        local raft_result, raft_detail = t.player.click_loc("lograft_waterfall_quest", 1)
+        local mound_result, mound = await_tile(function(tt)
+            return tt.level == 0 and tt.x == 2512 and tt.z == 3481
+        end, 15, "the raft's p_teleport(0_39_54_16_25) to the land mound")
+        t.check("boardRaft", at_tile(mound_result, mound, 2512, 3481),
+            "click_loc(lograft_waterfall_quest, 1) -> " .. tostring(raft_result) .. " " .. tostring(raft_detail)
+                .. "; world.tile() after -> " .. tile_text(mound_result, mound)
+                .. " (want 2512,3481,0: [oploc1,lograft_waterfall_quest] p_teleport(0_39_54_16_25), the mound)")
+        t.ticks(4) -- the raft's last two mes() lines and p_delay(2)s are still in flight
 
         local crossing_rock, crossing_rock_result = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
         t.step("lookup.crossingRock", crossing_rock_result == "ok" and "PASS" or "FAIL",
@@ -504,41 +695,72 @@ return {
         -- open."); p_delay(2); mes("You walk through the door."); p_teleport(...)
         -- -- click_loc's settle resolves on the FIRST mes(), two ticks
         -- ahead of the teleport (trap 24's cousin again).
-        t.exec("enterFalls", t.player.click_loc, "waterfall_ledge_door")
-        t.ticks(3)
-        local falls_tile_result, falls_tile = t.world.tile()
-        local falls_tile_pass = falls_tile_result == "ok" and falls_tile ~= nil
-            and falls_tile.z ~= nil and falls_tile.z >= 9800
-        t.step("enterFalls.tile", falls_tile_pass and "PASS" or "FAIL",
-            "world.tile() after click_loc(waterfall_ledge_door) -> " .. tostring(falls_tile_result) .. " "
-                .. tostring(falls_tile and (falls_tile.x .. "," .. falls_tile.z .. "," .. falls_tile.level))
-                .. " (want z>=9800, inside the falls dungeon -- p_teleport(0_40_154_15_5))")
+        local ledge_door_result, ledge_door_detail = t.player.click_loc("waterfall_ledge_door", 1)
+        local falls_tile_result, falls_tile = await_tile(function(tt)
+            return tt.level == 0 and tt.x == 2575 and tt.z == 9861
+        end, 10, "the ledge door's p_teleport(0_40_154_15_5) into the falls")
+        t.check("enterFalls", at_tile(falls_tile_result, falls_tile, 2575, 9861),
+            "click_loc(waterfall_ledge_door, 1) -> " .. tostring(ledge_door_result) .. " " .. tostring(ledge_door_detail)
+                .. "; world.tile() after -> " .. tile_text(falls_tile_result, falls_tile)
+                .. " (want 2575,9861,0 -- [oploc1,waterfall_ledge_door] p_teleport(0_40_154_15_5), the entrance hall;"
+                .. " waterfall complete, so no flood)")
 
-        -- The crate room is inside the same already-reached dungeon, plain
-        -- travel with no further door/puzzle between here and there (the
-        -- content-parity pass's own proof used the identical goto).
-        t.exec("goto-crate-approach", t.player.goto_tile, 2589, 9888, 0)
+        -- ---------------------------------------------------------------
+        -- Inside the falls, every door on foot. The entrance hall (112
+        -- tiles from 2575,9861) is closed by three castle double doors:
+        -- east to the crate room (castledoubledoorl/r 2582,9875/9876, on
+        -- their tiles' west edge), west to the passage north
+        -- (castledoubledoorl/r 2564/2565,9881, north edge) and a north pair
+        -- this route never needs. Opening the left leaf opens the pair.
+        -- ---------------------------------------------------------------
+        pass_door("crateRoom.in", "castledoubledoorl", "opencastledoubledoorl", 2582, 9875, 2581, 9875, 2584, 9876,
+            "inside the east crate room, x 2582-2595 z 9875-9888")
         local key_before_result, key_before = t.inv.count("baxtorian_key_waterfall_quest")
-        t.exec("searchFallsCrate", t.player.click_loc, "baxtorian_crate_waterfall_quest")
+        t.exec("searchFallsCrate", t.player.click_loc, "baxtorian_crate_waterfall_quest", 1)
         -- inv.await, not a bare count (trap 24): the engine writes the
         -- inv_add into the NEXT tick's player update.
         t.exec("searchFallsCrate.gotKey", t.inv.await, "baxtorian_key_waterfall_quest",
             (key_before_result == "ok" and key_before or 0) + 1, 10)
+        pass_door("crateRoom.out", "castledoubledoorl", "opencastledoubledoorl", 2582, 9875, 2583, 9875, 2581, 9875,
+            "the entrance hall")
+        pass_door("westPassage.in", "castledoubledoorl", "opencastledoubledoorl", 2564, 9881, 2564, 9881, 2564, 9882,
+            "the passage north of the hall's west doors")
 
-        t.exec("goto-door-approach", t.player.goto_tile, 2566, 9901, 0)
+        -- "Go through the doors from the west room": two baxtorian_door_2
+        -- copies, both locked to op1 from the passage (quest_waterfall_locs.rs2
+        -- [oploc1,baxtorian_door_2_waterfall_quest]: coordz < 9895 is
+        -- "The door is locked."), both opened with the crate's key
+        -- ([oplocu,...]: ~waterfall_walk_door). The first, 2568,9893 (north
+        -- edge), lets the player into a 13-tile room x 2566-2569 z 9894-9901;
+        -- the second, 2566,9901 -- ^waterfall_original_room_door_coord --
+        -- sends a player past ^waterfall_placed_amulet straight on to
+        -- ^waterfall_raised_room_door_coord 2604,9901, the chalice room.
+        walk_check("keyDoor.approach", 2568, 9892, "the passage south of the first locked door")
+        local key_door1, key_door1_result = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
+        t.step("lookup.baxtorianDoor2", key_door1_result == "ok" and "PASS" or "FAIL",
+            "by_symbol loc baxtorian_door_2_waterfall_quest -> " .. tostring(key_door1_result))
+        local key1_result, key1_detail = t.player.use_on("baxtorian_key_waterfall_quest", key_door1, { at = { 2568, 9893 } })
+        local in_room_result, in_room = await_tile(function(tt)
+            return tt.level == 0 and tt.z >= 9894 and tt.z <= 9901 and tt.x >= 2566 and tt.x <= 2569
+        end, 10, "the first key door's walk-through into the west room")
+        t.check("keyDoor.in", at_tile(in_room_result, in_room, 2568, 9894),
+            "use_on(baxtorian_key, baxtorian_door_2 at 2568,9893) -> " .. tostring(key1_result) .. " "
+                .. tostring(key1_detail) .. "; world.tile() after -> " .. tile_text(in_room_result, in_room)
+                .. " (want 2568,9894,0: ~waterfall_walk_door(entering) steps one tile past the door)")
+
+        walk_check("useKeyOnFallsDoor.approach", 2566, 9900, "inside the west room, south of its second door")
         local falls_door, falls_door_result = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
-        t.step("lookup.baxtorianDoor2", falls_door_result == "ok" and "PASS" or "FAIL",
-            "by_symbol loc baxtorian_door_2_waterfall_quest -> " .. tostring(falls_door_result))
-        t.exec("useKeyOnFallsDoor", t.player.use_on, "baxtorian_key_waterfall_quest", falls_door)
-        t.ticks(5) -- the door's own oplocu chains mes()+p_delay(2)+p_teleport past the
-                   -- puzzle-room shortcut fix (quest_waterfall_locs.rs2:422) before landing
-        local after_door_result, after_door = t.world.tile()
-        local after_door_pass = after_door_result == "ok" and after_door ~= nil
-            and after_door.z ~= nil and after_door.z >= 9895
-        t.step("useKeyOnFallsDoor.tile", after_door_pass and "PASS" or "FAIL",
-            "world.tile() after use_on(key, door) + 5 tick(s) -> " .. tostring(after_door_result) .. " "
-                .. tostring(after_door and (after_door.x .. "," .. after_door.z .. "," .. after_door.level))
-                .. " (want z>=9895, past the door -- ^waterfall_raised_room_door_coord)")
+        local key2_result, key2_detail = "not_found", tostring(falls_door_result)
+        if falls_door_result == "ok" then
+            key2_result, key2_detail = t.player.use_on("baxtorian_key_waterfall_quest", falls_door, { at = { 2566, 9901 } })
+        end
+        local after_door_result, after_door = await_tile(function(tt)
+            return tt.level == 0 and tt.x > 2600 and tt.z >= 9901
+        end, 15, "the second key door's p_teleport to ^waterfall_raised_room_door_coord")
+        t.check("useKeyOnFallsDoor", at_tile(after_door_result, after_door, 2604, 9901),
+            "use_on(baxtorian_key, baxtorian_door_2 at 2566,9901) -> " .. tostring(key2_result) .. " "
+                .. tostring(key2_detail) .. "; world.tile() after -> " .. tile_text(after_door_result, after_door)
+                .. " (want 2604,9901,0 = ^waterfall_raised_room_door_coord 0_40_154_44_45, the chalice room)")
 
         -- Real walk (not goto_tile -- no gate left between here and the
         -- planting spot, just distance): the door's own landing tile
@@ -565,13 +787,14 @@ return {
         -- mesbox), so confirm both halves land where the constant says
         -- before trying again.
         local chalice_tile_result, chalice_tile = t.world.tile()
-        t.step("chalice.tileProbe", chalice_tile_result == "ok" and "PASS" or "FAIL",
+        t.check("chalice.tileProbe", at_tile(chalice_tile_result, chalice_tile, 2603, 9909),
             "world.tile() after walk.chaliceRoom -> " .. tostring(chalice_tile_result) .. " "
                 .. tostring(chalice_tile and (chalice_tile.x .. "," .. chalice_tile.z .. "," .. chalice_tile.level))
                 .. " (want 2603,9909,0, one tile off ^rovingelves_chalice_coord 0_40_154_43_54 -- "
                 .. "that exact tile is the chalice loc's own unwalkable footprint)")
         local chalice_loc_result, chalice_loc = t.world.loc_near("baxtorian_chalice_waterfall_quest", 10)
-        t.step("chalice.locProbe", chalice_loc_result == "ok" and "PASS" or "FAIL",
+        t.check("chalice.locProbe", chalice_loc_result == "ok" and type(chalice_loc) == "table"
+                and chalice_loc.tile_x == 2603 and chalice_loc.tile_z == 9910,
             "world.loc_near(baxtorian_chalice_waterfall_quest, 10) -> " .. tostring(chalice_loc_result) .. " "
                 .. tostring(chalice_loc and string.format("id=%s tile=%s,%s match=%s",
                     tostring(chalice_loc.id), tostring(chalice_loc.tile_x), tostring(chalice_loc.tile_z),
@@ -621,17 +844,89 @@ return {
                 .. "(ui.journal_open is skipped here: it opens the Quest List on the Free tab and never "
                 .. "finds this members quest's row).")
 
+        -- ---------------------------------------------------------------
+        -- Out of the falls the way in, every door on foot. The raised
+        -- room's door (baxtorian_door_2 2604,9900) answers op1 from inside
+        -- with ~waterfall_walk_door and, its x past 2600, p_teleport back to
+        -- ^waterfall_original_room_door_coord 2566,9901
+        -- (quest_waterfall_locs.rs2 [oploc1,baxtorian_door_2_waterfall_quest]).
+        -- ---------------------------------------------------------------
+        local raised_door_result, raised_door_detail = t.player.click_loc("baxtorian_door_2_waterfall_quest", 1,
+            { at = { 2604, 9900 } })
+        local west_room_result, west_room = await_tile(function(tt)
+            return tt.level == 0 and tt.x < 2600
+        end, 15, "the raised room door's p_teleport back to the west room")
+        t.check("raisedRoom.out", west_room_result == "ok" and type(west_room) == "table" and west_room.level == 0
+                and west_room.x >= 2566 and west_room.x <= 2569 and west_room.z >= 9894 and west_room.z <= 9901,
+            "click_loc(baxtorian_door_2 at 2604,9900, 1) -> " .. tostring(raised_door_result) .. " "
+                .. tostring(raised_door_detail) .. "; world.tile() after -> " .. tile_text(west_room_result, west_room)
+                .. " (want the west room, x 2566-2569 z 9894-9901: p_teleport(^waterfall_original_room_door_coord))")
+
+        -- The first key door from inside: op1 is "The door is locked."
+        -- for any player below z 9895 -- the tile beside it is 9894 -- so the
+        -- key opens it this way too (~waterfall_walk_door(leaving) puts the
+        -- player on the door tile 2568,9893, the passage side).
+        walk_check("keyDoor.outApproach", 2568, 9894, "inside the west room, north of its first door")
+        local key_door_out, key_door_out_result = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
+        local key3_result, key3_detail = "not_found", tostring(key_door_out_result)
+        if key_door_out_result == "ok" then
+            key3_result, key3_detail = t.player.use_on("baxtorian_key_waterfall_quest", key_door_out, { at = { 2568, 9893 } })
+        end
+        local passage_result, passage = await_tile(function(tt)
+            return tt.level == 0 and tt.z <= 9893
+        end, 10, "the first key door's walk-through back to the passage")
+        t.check("keyDoor.out", at_tile(passage_result, passage, 2568, 9893),
+            "use_on(baxtorian_key, baxtorian_door_2 at 2568,9893) -> " .. tostring(key3_result) .. " "
+                .. tostring(key3_detail) .. "; world.tile() after -> " .. tile_text(passage_result, passage)
+                .. " (want 2568,9893,0: ~waterfall_walk_door(leaving) lands on the door tile, passage side)")
+
+        pass_door("westPassage.out", "castledoubledoorl", "opencastledoubledoorl", 2564, 9881, 2564, 9882, 2565, 9880,
+            "the entrance hall")
+
+        -- The hall's own exit: baxtorian_door_waterfall_quest 2575,9861,
+        -- op1 "You open the door and walk through." p_teleport(0_39_54_15_7)
+        -- = 2511,3463, the ledge (quest_waterfall_locs.rs2:335-337).
+        local exit_door_result, exit_door_detail = t.player.click_loc("baxtorian_door_waterfall_quest", 1)
+        local ledge_result, ledge = await_tile(function(tt)
+            return tt.level == 0 and tt.z < 6400
+        end, 10, "the falls' exit door to the ledge")
+        t.check("falls.exitToLedge", at_tile(ledge_result, ledge, 2511, 3463),
+            "click_loc(baxtorian_door_waterfall_quest, 1) -> " .. tostring(exit_door_result) .. " "
+                .. tostring(exit_door_detail) .. "; world.tile() after -> " .. tile_text(ledge_result, ledge)
+                .. " (want 2511,3463,0: p_teleport(0_39_54_15_7), the ledge)")
+
+        -- Off the ledge in its barrel: barrel_waterfall_quest (op1 "Get in")
+        -- stands at 2512,3463 beside the ledge tile -- placed on level 1 of
+        -- maps/m39_54.jl2 ("1 16 7: 2022 10"), a tile m39_54.jm2 flags as a
+        -- bridge (f2), so it is on the player's own plane; LostCity places it
+        -- byte-for-byte the same. [oploc1,barrel_waterfall_quest]: "You climb
+        -- in the barrel and start rocking." ... p_teleport(^waterfall_fail_coord)
+        -- = 0_39_53_31_21 = 2527,3413, the river bank (quest_waterfall_locs.rs2:339-345).
+        -- (The ledge's dead tree is no way off: from the ledge its op1
+        -- answers "I can't reach that!", measured run 1.)
+        local barrel_result, barrel_detail = t.player.click_loc("barrel_waterfall_quest", 1)
+        local bank_result, bank = await_tile(function(tt)
+            return tt.level == 0 and tt.x == 2527 and tt.z == 3413
+        end, 15, "the barrel's ride off the ledge to the river bank")
+        t.check("falls.offLedge", at_tile(bank_result, bank, 2527, 3413),
+            "click_loc(barrel_waterfall_quest, 1) -> " .. tostring(barrel_result) .. " "
+                .. tostring(barrel_detail) .. "; world.tile() after -> " .. tile_text(bank_result, bank)
+                .. " (want 2527,3413,0 = ^waterfall_fail_coord, the river bank)")
+
+        -- Open river-bank ground to the Arandar gate (reach.py 2527,3413 ->
+        -- 2386,3336 closed-doors len 242), through it, across Isafdar.
+        enter_camp("islwyn2")
+
         -- Reward snapshot before the hand-in (docs section 7's reward-row
         -- rule): quest_complete_rewards passes "10000 Strength XP|Crystal
         -- bow or shield (500 charges)|Moss Guardian in the Nightmare Zone" --
         -- the strength xp and the chosen item are both asserted below against
         -- those literal numbers, never a value read back from the scroll.
-        local reward_snapshot_result, reward_before = t.skill.snapshot()
-        t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL",
-            "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
+        -- No row of its own (the status of a read cannot fail usefully): a
+        -- failed snapshot fails reward.strength's expect_gain below.
+        local _, reward_before = t.skill.snapshot()
 
         -- Islwyn again: stage seed_planted routes to @rovingelves_islwyn_finish.
-        t.exec("goto-islwyn2", t.player.goto_tile, 2290, 3147, 0)
         t.exec("talk.islwyn2", t.player.talk_to, "roving_bowyer", 1)
         t.exec("talk.islwyn2-dialog", t.chat.play, {
             "player:The seed is planted. Glarial and the other ancestors can finally rest.",
