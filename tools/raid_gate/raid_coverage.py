@@ -158,9 +158,12 @@ def spec_tables(test_id):
     assert raid in RAID_DOCS, "unknown raid prefix in %s" % test_id
     directory = os.path.join(ROOT, "docs", "minigames", RAID_DOCS[raid], "encounters")
     if room in FULL_RAID_ROOMS:
-        return sorted(p for p in glob.glob(os.path.join(directory, "*.tsv"))
-                      if os.path.basename(p)[:-4] not in FULL_RAID_ROOMS
-                      and not p.endswith(".scope.tsv"))
+        # The whole-raid test is graded on the raid-wide table only (the lobby,
+        # the doors, the supply chests, the HUD, deaths, the vault and rewards):
+        # each room's own table is the room test's, already kept and sampled, and
+        # the relay plays each fight to the kill without re-probing its mechanics.
+        path = os.path.join(directory, "raidwide.tsv")
+        return [path] if os.path.isfile(path) else []
     path = os.path.join(directory, "%s.tsv" % room)
     return [path] if os.path.isfile(path) else []
 
