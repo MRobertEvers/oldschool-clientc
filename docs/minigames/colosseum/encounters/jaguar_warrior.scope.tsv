@@ -1,0 +1,68 @@
+mechanic_id	scope	note
+jaguar_warrior.stats.hp	all	one solo test
+jaguar_warrior.stats.combat_level	all	one solo test
+jaguar_warrior.stats.attack_level	all	one solo test
+jaguar_warrior.stats.defence_level	all	one solo test
+jaguar_warrior.stats.strength_level	all	one solo test
+jaguar_warrior.stats.ranged_level	all	one solo test
+jaguar_warrior.stats.magic_level	all	one solo test
+jaguar_warrior.stats.size	all	one solo test
+jaguar_warrior.stats.attack_rate_param	all	one solo test
+jaguar_warrior.stats.strength_bonus	all	one solo test
+jaguar_warrior.stats.stab_defence	all	one solo test
+jaguar_warrior.stats.slash_defence	all	one solo test
+jaguar_warrior.stats.crush_defence	all	one solo test
+jaguar_warrior.stats.magic_defence	all	one solo test
+jaguar_warrior.stats.ranged_defence_light	all	one solo test
+jaguar_warrior.stats.ranged_defence_standard	all	one solo test
+jaguar_warrior.stats.ranged_defence_heavy	all	one solo test
+jaguar_warrior.stats.xp_bonus	all	one solo test
+jaguar_warrior.stats.examine	all	one solo test
+jaguar_warrior.stats.aggressive	all	one solo test
+jaguar_warrior.style.attack_style	all	one solo test
+jaguar_warrior.style.auto_prayer	all	one solo test
+jaguar_warrior.range.tiles	all	one solo test
+jaguar_warrior.range.attack_footprint_gap	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.range.diagonal_reach	all	one solo test
+jaguar_warrior.attack.hits_per_attack	all	one solo test
+jaguar_warrior.maxhit.per_hit_unprayed	all	one solo test
+jaguar_warrior.maxhit.attack_total_unprayed	all	one solo test
+jaguar_warrior.maxhit.prayed	all	one solo test
+jaguar_warrior.accuracy.per_hit_chance	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.hit.offsets_from_attack	all	one solo test
+jaguar_warrior.hit.prayer_read_tick	all	one solo test
+jaguar_warrior.cadence.attack	all	one solo test
+jaguar_warrior.cadence.gap_share_five	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.cadence.gap_minimum	all	one solo test
+jaguar_warrior.cadence.gap_over_five_cause	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.cadence.attacks_per_life_max	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.first_attack.earliest	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.first_attack.never_attacked_share	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.first_attack.attack_kind	all	one solo test
+jaguar_warrior.spawn.only_reinforcement	all	one solo test
+jaguar_warrior.spawn.tick	all	one solo test
+jaguar_warrior.spawn.wave_one	all	one solo test
+jaguar_warrior.spawn.waves	all	one solo test
+jaguar_warrior.spawn.tiles	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+jaguar_warrior.spawn.first_move_after_spawn	all	one solo test
+jaguar_warrior.movement.max_tiles_per_tick	all	one solo test
+jaguar_warrior.movement.routefinds	all	one solo test
+jaguar_warrior.movement.safespot_nw_pillar	all	one solo test
+jaguar_warrior.movement.safespot_under_red_flag	all	one solo test
+jaguar_warrior.movement.safespot_line_of_sight	all	one solo test
+jaguar_warrior.reward.ca_claw_special	all	one solo test
+jaguar_warrior.presentation.model	all	one solo test
+jaguar_warrior.presentation.idle.seq	all	one solo test
+jaguar_warrior.presentation.walk.seq	all	one solo test
+jaguar_warrior.presentation.attack.seq	all	one solo test
+jaguar_warrior.presentation.attack.length	all	one solo test
+jaguar_warrior.presentation.attack.sound_frames	all	one solo test
+jaguar_warrior.presentation.attack.hit_frames	all	one solo test
+jaguar_warrior.presentation.attack.likeness	all	one solo test
+jaguar_warrior.presentation.defend.seq	all	one solo test
+jaguar_warrior.presentation.defend.length	all	one solo test
+jaguar_warrior.presentation.death.seq	all	one solo test
+jaguar_warrior.presentation.death.active_cycles	all	one solo test
+jaguar_warrior.presentation.spawn.seq	all	one solo test
+jaguar_warrior.presentation.graphics.none	all	one solo test
+jaguar_warrior.presentation.off_rig_jaguar_seqs	all	one solo test

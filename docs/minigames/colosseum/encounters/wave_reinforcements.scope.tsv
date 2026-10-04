@@ -1,0 +1,52 @@
+mechanic_id	scope	note
+wave_reinforcements.spawn_tick	all	one solo test
+wave_reinforcements.spawn_tick_origin_offset	all	one solo test
+wave_reinforcements.timer_not_reset_by_kills	all	one solo test
+wave_reinforcements.cleared_before_spawn_no_reinforcement	all	one solo test
+wave_reinforcements.same_tick_clear_kills	all	one solo test
+wave_reinforcements.same_tick_clear_sample	all	one solo test
+wave_reinforcements.w2.jaguar_warrior	all	one solo test
+wave_reinforcements.w3.jaguar_warrior	all	one solo test
+wave_reinforcements.w4.jaguar_warrior	all	one solo test
+wave_reinforcements.w4.serpent_shaman	all	one solo test
+wave_reinforcements.w5.jaguar_warrior	all	one solo test
+wave_reinforcements.w5.serpent_shaman	all	one solo test
+wave_reinforcements.w6.jaguar_warrior	all	one solo test
+wave_reinforcements.w6.serpent_shaman	all	one solo test
+wave_reinforcements.w7.minotaur	all	one solo test
+wave_reinforcements.w8.minotaur	all	one solo test
+wave_reinforcements.w9.minotaur	all	one solo test
+wave_reinforcements.w10.minotaur	all	one solo test
+wave_reinforcements.w10.serpent_shaman	all	one solo test
+wave_reinforcements.w11.minotaur	all	one solo test
+wave_reinforcements.w11.serpent_shaman	all	one solo test
+wave_reinforcements.w1.jaguar_warrior	all	one solo test
+wave_reinforcements.w12.none	all	one solo test
+wave_reinforcements.w4_to_w6.pair	all	one solo test
+wave_reinforcements.kind_by_wave_band	all	one solo test
+wave_reinforcements.arms_once_per_wave	all	one solo test
+wave_reinforcements.npc_id.jaguar_warrior	all	one solo test
+wave_reinforcements.npc_id.serpent_shaman	all	one solo test
+wave_reinforcements.npc_id.minotaur	all	one solo test
+wave_reinforcements.npc_id.minotaur_red_flag	all	one solo test
+wave_reinforcements.size.jaguar_warrior	all	one solo test
+wave_reinforcements.size.serpent_shaman	all	one solo test
+wave_reinforcements.size.minotaur	all	one solo test
+wave_reinforcements.tile_y_north	all	one solo test
+wave_reinforcements.tile_x_north	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.tile_draw_share	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.gate_by_player_side	all	one solo test
+wave_reinforcements.gate_rule_closest	all	one solo test
+wave_reinforcements.tile_south_gate	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_move_after_spawn.minotaur	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_move_after_spawn.jaguar_warrior	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_move_after_spawn.serpent_shaman	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_attack_after_spawn.serpent_shaman	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_attack_after_spawn.jaguar_warrior	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_attack_after_spawn.minotaur	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.first_attack_minimum	stat	statistical: settled by the recorder tool over many waves
+wave_reinforcements.presentation.minotaur_spawn_seq	all	one solo test
+wave_reinforcements.presentation.minotaur_spawn_sounds	all	one solo test
+wave_reinforcements.presentation.jaguar_shaman_spawn_seq	all	one solo test
+wave_reinforcements.presentation.gate_open	all	one solo test
+wave_reinforcements.presentation.announcement	all	one solo test

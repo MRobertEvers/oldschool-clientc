@@ -556,3 +556,8 @@ Format: wiki file name minus the wiki_ prefix and .wikitext, then the line, then
 ### Cross-check against the cache (read-only, 2026-10-03)
 
 The fourteen npc ids the Strategies page lists for the RuneLite highlighter (Fortis_Colosseum_Strategies:1583-1596) each exist in sources/cache_npc.txt with a colosseum_ name that fits: 12810 jaguar_warrior, 12811 standard_mager, 12812 minotaur, 12813 minotaur_routefind (the Red Flag variant), 12814 warbander_ranged, 12815 warbander_mage, 12816 warbander_melee, 12817 javelin_colossus, 12818 manticore, 12819 shockwave_colossus, 12821 sol_p1, 12823 modifier_bees, 12825 healing_totem, 12826 solar_flare. The wiki states no animation, projectile or graphic id anywhere; the one animation statement is Jaguar_warrior:25 (same attack animation as the dragon claws special, minus the uppercut). Not available from the wiki: attack animation ids, projectile ids, spawn tile coordinates per spawn (only the 12 default spawns and the A/B/start tiles as unnamed markers in Module_Tile_markers_Colosseum_json), a wave table with random versus fixed marked, reinforcement timing in ticks (40 seconds only).
+
+### Fetched by the colosseum_entry_and_minimus spec pass (2026-10-03, tools/toa_fetch_wiki.py, 1 request/second)
+
+- `wiki/wiki_Transcript_Minimus.wikitext`: https://oldschool.runescape.wiki/?oldid=15207801 (rev 15207801, page dated 2026-05-07); marked Incomplete by the wiki (Glory-milestone dialogue differences missing). Closes plan M35's dialogue half.
+- `wiki/wiki_Transcript_Gloria.wikitext`: https://oldschool.runescape.wiki/?oldid=14984060 (rev 14984060, page dated 2025-09-10).

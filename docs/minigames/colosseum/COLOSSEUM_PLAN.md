@@ -380,7 +380,7 @@ D-rows are `SOURCES.md` section 10 in table order; the plan gives no verdict on 
 | D25 | Sol animation names (10886 vs 10887 for the triple) | sol_heredit_attacks, wave_presentation | M41 |
 | D26 | totem heal 30 % vs 40 % -> 30 %, respawn 1 vs 2 min | modifier_system | the post is A and dated; M42 for the heal itself |
 | D27 | death fee: 75 % up to 125,000 until 100 vs 50 waves | death_and_fee | the later post is A; M34 for the cap |
-| D28 | tonalztics 0-75 % vs 0-50 % | reward_items | not built here (the weapon exists in our tree) |
+| D28 | tonalztics 0-75 % vs 0-50 % | reward_items | SETTLED A for 0-75 % (Jan 2024 poll, Part One overview, cache strength 55): `reward_items` tonalztics.damage.max_share_of_max_hit; the weapon exists in our tree |
 | D29 | wave length (Blert only) | wave_table | no disagreement in value; a sanity bracket for tests |
 | D30 | "jaguar mager" | jaguar_warrior, serpent_shaman | no source names one; the brief's term folds into the two units |
 | D31 | minotaur ids 12812 / 12813 | minotaur, modifier_system | M50 |
@@ -804,6 +804,27 @@ tolerance `approx`.
 | M74 | minotaur | the melee hit chance against a player of fixed defence, its damage under Protect from Melee, the tick from the attack animation to the hitsplat (wiki: one tick later) and the tick the prayer is read on | none recorded (Blert sees no hit); many solo hits at a fixed defence; added by the minotaur spec pass |
 | M75 | minotaur | the heal's scan period and whether a heal spends the 5-tick attack timer, the delay from animation 10844 to the heal hitsplat, and why 8 of 345 attack gaps exceed 5 (first heal observed at spawn+3, 15 of 25) | solo test with a wounded manticore or javelin out of melee reach of a minotaur (heal ticks per tick log); a frame count of 10844; added by the minotaur spec pass |
 | M76 | minotaur | param_26 (2 vs 4) and whether the id alone switches routefinding, diagonal reach of the 3x3 footprint (1 of 398 gap-1 attacks diagonal; 11 of 409 at gap 2-3), and the pillar safespot tiles | solo test at the pillar and at the footprint corners, with and without Red Flag; added by the minotaur spec pass |
+| M77 | sol_heredit_attacks | Sol's reach and movement: the extended spear and shield range in tiles (hotfix of 21 March 2024), the move freeze after an AoE (wiki 4; SOLSIM 6 spear / 4 shield), the adjacency-at-start-of-tick rule and his walking speed (SOLSIM 2 tiles per tick) | Blert query: Sol's NPC_UPDATE tile per tick against the player's tile at each attack tick; frame count of a walk-away delay |
+| M78 | sol_heredit_phases | the crystal patrol: the edge path, the stops, the random distance and the stop spacing (wiki: "move a random distance", guide: "every 20 seconds or so") | Blert query over the 12824 NPC_UPDATE tiles per tick (not yet run); frame count |
+| M79 | sol_heredit_phases | the laser: which tile it aims at (the player's tile at the scan or at the shot), its area, the hit tick and its damage (75 / 70+ / 60-79, D22), and the miss rule | none recorded (Blert sees no hit); frame count and a solo test |
+| M80 | sol_heredit_phases | Sol's death: the tick the hazards, crystals and sand clear, the tick the chest 50741 appears, and what spotanim 2724 is for | Blert: no NPC_DEATH is emitted for 12821 in 12 streams; frame count of the kill |
+| M81 | colosseum_entry_and_minimus | Minimus's appear and Leave-teleport visuals (sequence, graphic, sound) and the gap between his two arena overheads | frame count of a recorded Minimus appearance and of a Leave; not in the cache beyond ready 11092 and walk 819 |
+| M82 | colosseum_entry_and_minimus | landing tiles after Enter (outside -> lobby, lobby -> arena) and Exit, and the lobby tiles of Minimus 12807 and Gloria 12809 | video frame of each entry; no cache map places an npc |
+| M83 | reward_pool_and_cash_out | the split of the 1/10 multi-echo roll between 2 and 3 crystals (wiki: one `2-3` line; Jagex: 'either 2 or 3') | the first Colosseum drop-log sample; until then a fair coin is a guess, not a spec |
+| M84 | reward_pool_and_cash_out | where the sunfire-piece duplicate protection is stored (per account across runs? per run?) and how the 'full set first' rule counts pieces | a drop-log post or a live tester; no cache varp names it |
+| M85 | reward_pool_and_cash_out | the `Token (Varlamore)` line in the wave-3 table: quantity rule and what it is ('Varies') | the wiki line's own note, then a second source |
+| M86 | reward_pool_and_cash_out | what invs 844/845 (4 slots each) hold when the pile exceeds 4 stacks, and the basis of the 'Estimated Value' GP in varp 261/262 | a screenshot of a late-wave intermission or the cache clientscript read against a live pile |
+| M87 | reward_pool_and_cash_out | the threshold for the clan broadcast 'valuable loot from the Colosseum' (`N:Pet_Insurance_Rework_More:34`) | a post or a clan-broadcast sample |
+| M88 | reward_pool_and_cash_out | the chest 50741 tile and the tick it appears after Sol's death and after a cash-out (shares M80 for the tick) | a Blert-adjacent or video frame of the arena centre; wiki says only 'the centre part of the arena' |
+| M89 | reward_items | which glaive spotanims (2725-2734) and sounds play for the uncharged and charged throw, hit and special (the cache names them; no plugin or Blert id promotes them) | a frame count of a charged and an uncharged throw and special, ten instances from two players |
+| M90 | reward_items | how many echo-boots charges one recoil hit costs, and whether several attackers in one tick each cost one | the first charged-boots test: wear charged boots, take hits from one and from two npcs, read the charge |
+| M91 | quiver_and_pet | any graphic, sound or sequence played on receiving the pet or on the Minimus gamble result, and whether the pet and quiver trigger the valuable-loot broadcast | no source names one; a video frame count of a receipt, or a solo test; added by the quiver_and_pet spec pass |
+| M92 | colosseum_combat_achievements | what the Speed-Chaser/Speed-Runner total time measures: start, stop, whether the lobby and the modifier choice are counted | the CA structs give only 'total time'; a live tester or a Blert wave/run tick total against a stated speed-run time |
+| M93 | colosseum_combat_achievements | Furball: which manticore hits are 'avoidable' | the manticore's hit log by prayer and projectile order; the wiki gives only the phrase |
+| M94 | colosseum_combat_achievements | the claw-type and spear/hasta/halberd item sets and what 'using only' voids (I was here first, I Brought Mine Too) | the cache item records' weapon-type params; wiki lists items |
+| M95 | colosseum_combat_achievements | Showboating: how the salute's direction is read and the below-10 % comparison | frame check of the confirmation message against facing; wiki gives the message only |
+| M96 | colosseum_combat_achievements | Slow Dancing: what counts as running | a live tester; wiki gives 'without running' only |
+| M97 | colosseum_combat_achievements | Perfect Footwork: how a hit is attributed to Sol's Spear, Shield, Grapple or Triple Attack | Blert hitsplats against Sol's attack ticks (M25, M26 windows) |
 
 **The five that matter most** (they gate the first seams or a whole unit): **M3**
 (spawn tiles: wave 1 cannot be built without them), **M30** (the offer rule: every

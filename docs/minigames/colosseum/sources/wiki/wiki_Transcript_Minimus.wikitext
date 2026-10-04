@@ -1,0 +1,168 @@
+{{Transcript|npc}}
+{{Incomplete|Dialogue differences for each Glory milestone (Brawler, Challenger, Gladiator, Hero, Champion, Grand Champion), if there is any}}
+
+==Attempting to enter the arena before talking to Minimus==
+* '''Minimus:''' Oi! Where d'you think you're going? Come and speak to me before you go wondering{{sic}} through there. You'll get yourself killed!
+* {{tact|end}}
+
+==Attempting to use the bank chest without enough Glory==
+* '''Minimus:''' Oi, get yer hands off that! It's reserved for survivors of the Colosseum.
+* {{tbox|You do not have enough Glory to use that.}}
+* {{tact|end}}
+
+==First time dialogue==
+* '''Player:''' Hello there.
+* '''Minimus:''' Welcome, Rookie.
+* '''Player:''' What is this place?
+* '''Minimus:''' This place...? Why, This is the great Fortis Colosseum!
+* '''Minimus:''' Adventurers come from near and far to test their might within these walls.
+* '''Player:''' That sounds exciting!
+* '''Minimus:''' Indeed it is. If you are victorious in the Colosseum, the whole of Varlamore shall hear of your name.
+* '''Player:''' I imagine its{{sic}} quite the challenge then?
+* '''Minimus:''' It'll put your skills to the test alright.
+* '''Player:''' How do I participate?
+* '''Minimus:''' Just head through that tunnel behind me and we'll get the show started! Make sure you've got everything you need. Once you're in you can't leave until the end of a wave!
+* '''Minimus:''' Come and ask if you have any other questions.
+* {{tselect|Select an Option}}
+* {{topt|Can you tell me about modifiers?}}
+** '''Player:''' Can you tell me about modifiers?
+** '''Minimus:''' Yes! After all, they were my idea...
+** '''Player:''' Oh...
+** '''Minimus:''' Every time you complete a wave, I'll offer you a choice of three modifiers.
+** '''Minimus:''' Each modifier will increase the challenge for the rest of the run - So choose wisely!
+** '''Minimus:''' Some modifiers can be offered multiple times, with the effects then growing in power!
+** '''Player:''' Thanks for the heads up!
+** '''Minimus:''' Was there anything else?
+** {{tact|previous}}
+* {{topt|How do I get rewarded?}}
+** '''Player:''' How do I get rewarded?
+** '''Minimus:''' Well it's a bit different to just killing monsters and picking up items, as I'm sure you're used to...
+** '''Player:''' How so?
+** '''Minimus:''' After each wave inside the Colosseum, I'll show you the rewards you have earned, as well as what you'll earn from the next wave...
+** '''Minimus:''' If you aren't confident that you can complete the next wave, you can claim your existing rewards and exit early.
+** '''Minimus:''' However, if you're confident you can beat the next wave, you can risk your whole reward pile to get even more!
+** '''Minimus:''' Be careful though. If you die or leave the arena before claiming your loot from me, you will lose all of the rewards you've earned.
+** '''Player:''' So I'm guessing the higher the wave, the better the rewards?
+** '''Minimus:''' Oh, you're good. Exactly that!
+** '''Minimus:''' Even better - if you manage to finish all of the waves and the final challenge, then you'll be awarded with Dizana's Quiver.
+** '''Minimus:''' It's a handy piece of kit that you wear on your back to store extra bolts or arrows.
+** '''Player:''' That does sound handy! Thanks for explaining all of that.
+** '''Minimus:''' Anytime, Rookie. Anything else?
+** {{tact|previous}}
+* {{topt|What is Glory?}}
+** '''Player:''' What is Glory?
+** '''Minimus:''' It's the measure of your progress inside the Colosseum.
+** '''Minimus:''' Speak to Gloria over there if you want to know the details.
+** '''Player:''' Thanks.
+** {{tact|previous}}
+* {{topt|What do you do around here?}}
+** '''Player:''' What do you do around here?
+** '''Minimus:''' I'm Minimus. It's not my real name of course, but it seems to have stuck. I started out competing here as a gladiator when I was a young'n. After that I became one of the lanistas.
+** '''Player:''' Lanistas?
+** '''Minimus:''' The ones responsible for overseeing the selecting and training of the gladiators.
+** '''Minimus:''' Eventually, the kingdom gave me the role of Colosseum Master. I still make sure to fit some fighting in, but now I have the honor{{sic}} of managing the fights themselves.
+** '''Player:''' So are you not training like the rest of the gladiators?
+** '''Minimus:''' I have no need! I'm already one of the greatest fighters to grace this arena.
+** '''Player:''' Are you at a disadvantage because of your height?
+** '''Minimus:''' No! How dare you even suggest that! Those spindly human bodies are unfit to go toe to toe with a fine dwarf like myself!
+** '''Minimus:''' Now, did you need anything else?
+** {{tact|previous}}
+* {{topt|Goodbye.}}
+** '''Player:''' Goodbye.
+** '''Minimus:''' Farewell, Rookie.
+** {{tact|end}}
+
+==Subsequent dialogue==
+* '''Player:''' Hello there.
+* '''Minimus:''' Welcome, [rank].
+* {{tselect|Select an Option}}
+* {{topt|Can we talk about modifiers?}}
+** {{tact|above}}
+* {{topt|How can I get rewards?}}
+** {{tact|above}}
+* {{topt|What is Glory?}}
+** {{tact|above}}
+* {{topt|What do you do around here?}}
+** {{tact|above}}
+* {{topt|Goodbye.}}
+** {{tact|above}}
+
+==Upon entering the arena==
+* '''Minimus:''' {{overhead|A [rank] approaches!}} <!--Rookie, Brawler, Challenger, Gladiator, Hero, Champion or Grand Champion depending on the player's current Glory rating-->
+* '''Minimus:''' {{overhead|Let me know when you want to begin.}}
+
+
+==Right-Click Leave while inside the Fortis Colosseum==
+===Before wave 1===
+* {{tselect|Are you sure you wish to leave?}}
+* {{topt|Yes.}}
+** {{qact|The player exits the Fortis Colosseum}}
+* {{topt|No.}}
+** {{tact|end}}
+
+===After wave 1===
+* '''Minimus:''' Leaving now will forfeit your run, with you only being rewarded the items you have earned so far.
+* {{tselect|Are you sure you wish to leave early?}}
+* {{topt|Yes.}}
+{{qact|Minimus teleports to the [[Rewards Chest (Fortis Colosseum)|Rewards chest]]}}
+** '''Minimus:''' It was a valiant effort, [rank]. I've popped all your earned rewards into that chest over there. You can retrieve them from it when ready.
+* {{topt|No.}}
+** '''Player:''' On second thoughts, I'd better stay.
+** {{tact|end}}
+
+==Exchanging a quiver==
+* '''Player:''' I have a spare Dizana's quiver (uncharged).
+* '''Minimus:''' You want to offer it for some Sunfire splinters? I could also try to convince Smol Heredit to follow you.
+* '''Minimus:''' But be aware, you will not get the quiver back.
+* {{tselect|Trade Dizana's Quiver?}}
+* {{topt|Yes, Trade it for 4,000 Sunfire Splinters}}
+** {{tselect|Are you REALLY sure?}}
+** {{topt|No, keep Dizana's quiver.}}
+*** '''Minimus:''' Very well, Grand Champion. Keep your trophy.
+*** {{tact|end}}
+** {{topt|Yes, exchange Dizana's quiver for 4,000 Sunfire splinters?}}
+*** {{tcond|If the player does not have enough inventory space:}}
+**** '''Minimus:''' It doesn't actually look like you have enough space to carry 4,000 Sunfire splinters. Come back when you have room.
+**** {{tact|end}}
+*** {{tcond|If the player has enough inventory space:}}
+**** {{tbox|pic=Dizana's quiver (uncharged) detail.png|pic2=Sunfire splinters 4 detail.png|You exchange Dizana's Quiver for 4,000 Sunfire Splinters.}}
+**** {{tact|end}}
+* {{topt|Gamble for a Smol Heredit.}}
+** {{tselect|Are you REALLY sure?}}
+** {{topt|No, keep Dizana's quiver.}}
+*** '''Minimus:''' Very well, Grand Champion. Keep your trophy.
+*** {{tact|end}}
+** {{topt|Yes, gamble for a Smol Heredit?{{sic}}}} 
+*** {{tcond|If the player does not receive the pet:}}
+**** '''Minimus:''' He doesn't want to go with you. Sorry.
+**** {{tact|end}}
+*** {{tcond|If the player receives the pet:}}
+**** '''Minimus:''' He seems to like you. Smol heredit is yours.
+**** {{tact|end}}
+* {{topt|No, keep it.}}
+** '''Minimus:''' Very well, Grand Champion. Keep your trophy.
+** {{tact|end}}
+
+==Exchanging a quiver after the player has received Smol Heredit==
+* '''Player:''' I have a spare Dizana's quiver.
+* '''Minimus:''' Want to offer it for some sunfire splinters? Just be aware you won't get the quiver back if you do.
+* {{tselect|Trade Dizana's Quiver?}}
+* {{topt|Yes, trade it for 4,000 sunfire splinters.}}
+** {{tselect|Are you REALLY sure?}}
+** {{topt|No, keep Dizana's quiver.}}
+*** '''Minimus:''' Very well, Grand Champion. Keep your trophy.
+*** {{tact|end}}
+** {{topt|Yes, exchange Dizana's quiver for 4,000 sunfire splinters.}}
+*** {{tcond|If the player has free inventory space:}}
+**** {{tbox|pic=Dizana's quiver (uncharged) detail.png|pic2=Sunfire splinters 4 detail.png|You exchange Dizana's quiver for 4,000 sunfire splinters.}}
+**** {{tact|end}}
+*** {{tcond|If the player does not have free inventory space:}}
+**** '''Minimus:''' It doesn't actually look like you have enough space to carry 4,000 sunfire splinters. Come back when you have room.
+**** {{tact|end}}
+* {{topt|No, keep it.}}
+** '''Minimus:''' Very well, Grand Champion. Keep your trophy.
+** {{tact|end}}
+
+==Attempting to exchange a charged or blessed Dizana's quiver==
+* '''Minimus:''' I'm afraid you can only offer spare uncharged versions of the quiver to me.
+* {{tact|end}}

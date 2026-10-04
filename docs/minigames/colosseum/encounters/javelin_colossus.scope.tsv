@@ -1,0 +1,76 @@
+mechanic_id	scope	note
+javelin_colossus.stats.hp	all	one solo test
+javelin_colossus.stats.combat_level	all	one solo test
+javelin_colossus.stats.attack_level	all	one solo test
+javelin_colossus.stats.defence_level	all	one solo test
+javelin_colossus.stats.strength_level	all	one solo test
+javelin_colossus.stats.ranged_level	all	one solo test
+javelin_colossus.stats.magic_level	all	one solo test
+javelin_colossus.stats.size	all	one solo test
+javelin_colossus.stats.attack_rate_param	all	one solo test
+javelin_colossus.stats.ranged_attack_bonus	all	one solo test
+javelin_colossus.stats.ranged_strength_bonus	all	one solo test
+javelin_colossus.stats.melee_defence_bonus	all	one solo test
+javelin_colossus.stats.magic_defence_bonus	all	one solo test
+javelin_colossus.stats.ranged_defence_bonus	all	one solo test
+javelin_colossus.stats.xp_bonus	all	one solo test
+javelin_colossus.stats.examine	all	one solo test
+javelin_colossus.style.attack_style	all	one solo test
+javelin_colossus.style.auto_prayer	all	one solo test
+javelin_colossus.range.tiles	all	one solo test
+javelin_colossus.range.observed_toss_distance_max	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.range.observed_auto_distance_max	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.range.npc_blocking	all	one solo test
+javelin_colossus.range.line_of_sight_pillars	all	one solo test
+javelin_colossus.maxhit.auto_unprayed	all	one solo test
+javelin_colossus.maxhit.relentless	all	one solo test
+javelin_colossus.maxhit.auto_prayed	all	one solo test
+javelin_colossus.accuracy.auto_hit_chance	all	one solo test
+javelin_colossus.auto.prayer_read_tick	all	one solo test
+javelin_colossus.auto.hit_delay	all	one solo test
+javelin_colossus.auto.projectile	all	one solo test
+javelin_colossus.cadence.auto	all	one solo test
+javelin_colossus.cadence.auto_to_toss	all	one solo test
+javelin_colossus.cadence.toss_to_auto	all	one solo test
+javelin_colossus.cadence.pause_share	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.cadence.pause_cause	all	one solo test
+javelin_colossus.special.autos_before_toss	all	one solo test
+javelin_colossus.special.autos_before_first_toss	all	one solo test
+javelin_colossus.special.counter_scope	all	one solo test
+javelin_colossus.special.tosses_per_auto_ratio	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.first_attack.earliest	all	one solo test
+javelin_colossus.first_attack.share_at_earliest	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.first_attack.kind	all	one solo test
+javelin_colossus.movement.max_tiles_per_tick	all	one solo test
+javelin_colossus.movement.moved_share	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.movement.step_on_attack_tick	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.spawn.tick	all	one solo test
+javelin_colossus.spawn.tiles	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.toss.ignores_prayer	all	one solo test
+javelin_colossus.toss.max_damage	all	one solo test
+javelin_colossus.toss.landing_delay	all	one solo test
+javelin_colossus.toss.target_sample_tick	all	one solo test
+javelin_colossus.toss.dodge_rule	all	one solo test
+javelin_colossus.toss.glory_exclusion	all	one solo test
+javelin_colossus.toss.damage_type	all	one solo test
+javelin_colossus.reentry.struct_text	all	one solo test with the Reentry modifier chosen
+javelin_colossus.reentry.pool_tiles	all	one solo test with the Reentry modifier chosen
+javelin_colossus.reentry.pool_damage	all	one solo test with the Reentry modifier chosen
+javelin_colossus.reentry.pool_interval	all	one solo test with the Reentry modifier chosen
+javelin_colossus.reentry.unpaired_pool_spawns	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+javelin_colossus.presentation.reentry.pool_objects	all	one solo test
+javelin_colossus.presentation.auto.seq	all	one solo test
+javelin_colossus.presentation.toss.seq	all	one solo test
+javelin_colossus.presentation.auto.length	all	one solo test
+javelin_colossus.presentation.toss.length	all	one solo test
+javelin_colossus.presentation.auto.sound_frames	all	one solo test
+javelin_colossus.presentation.toss.sound_frames	all	one solo test
+javelin_colossus.presentation.idle.seq	all	one solo test
+javelin_colossus.presentation.walk.seq	all	one solo test
+javelin_colossus.presentation.spawn.seq	all	one solo test
+javelin_colossus.presentation.spawn.length	all	one solo test
+javelin_colossus.presentation.death.seq	all	one solo test
+javelin_colossus.presentation.death.length	all	one solo test
+javelin_colossus.presentation.death.sound_frames	all	one solo test
+javelin_colossus.presentation.graphics.candidates	all	one solo test
+javelin_colossus.presentation.graphics.lengths	all	one solo test

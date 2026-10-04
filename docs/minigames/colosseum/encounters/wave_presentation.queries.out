@@ -1,0 +1,41 @@
+deaths with an update stream: fremennik_archer:200 fremennik_berserker:196 fremennik_seer:201 jaguar_warrior:68 javelin_colossus:232 manticore:194 minotaur:82 minotaur_12813:1 other_12824:10 serpent_shaman:182 shockwave_colossus:54 totem_12825:10
+death tick minus the last NPC_UPDATE tick (0 would mean the despawn is the same tick):
+   fremennik_archer 1:200
+   fremennik_berserker 1:196
+   fremennik_seer 1:201
+   jaguar_warrior 1:68
+   javelin_colossus 1:232
+   manticore 1:194
+   minotaur 1:82
+   minotaur_12813 1:1
+   other_12824 1:10
+   serpent_shaman 1:182
+   shockwave_colossus 1:54
+   totem_12825 1:10
+last update hitpoints == 0 (True) or still above 0 (False; kill hit not observed or other cause):
+   fremennik_archer False:2 True:198
+   fremennik_berserker False:196
+   fremennik_seer True:201
+   jaguar_warrior True:68
+   javelin_colossus False:8 True:224
+   manticore False:11 True:183
+   minotaur False:1 True:81
+   minotaur_12813 True:1
+   other_12824 True:10
+   serpent_shaman False:1 True:181
+   shockwave_colossus False:3 True:51
+   totem_12825 False:4 True:6
+death tick minus the tick of the final hitsplat that took hitpoints to 0 (= despawn lifetime after the killing hit):
+   fremennik_archer n=198 min=3 median=4 max=6 3:32 4:133 5:26 6:7
+   fremennik_berserker n=196 min=3 median=6 max=6 3:1 4:17 5:34 6:144
+   fremennik_seer n=201 min=3 median=5 max=6 3:18 4:60 5:66 6:57
+   jaguar_warrior n=68 min=3 median=4 max=6 3:27 4:37 5:2 6:2
+   javelin_colossus n=224 min=3 median=3 max=10 10:1 3:163 4:56 5:1 6:1 7:2
+   manticore n=183 min=4 median=4 max=9 4:139 5:38 7:2 8:2 9:2
+   minotaur n=81 min=4 median=5 max=14 14:1 4:36 5:26 7:4 8:3 9:11
+   minotaur_12813 n=1 min=4 median=4 max=4 4:1
+   serpent_shaman n=181 min=3 median=4 max=6 3:43 4:131 5:1 6:6
+   shockwave_colossus n=51 min=4 median=4 max=7 4:33 5:17 7:1
+   totem_12825 n=6 min=3 median=3 max=3 3:6
+spawn events (type 7, first per instance): fremennik_archer:200 fremennik_berserker:196 fremennik_seer:201 jaguar_warrior:68 javelin_colossus:232 manticore:194 minotaur:82 minotaur_12813:1 other_12824:48 serpent_shaman:182 shockwave_colossus:54 sol_heredit:12 totem_12825:10
+death events (type 9): fremennik_archer:200 fremennik_berserker:196 fremennik_seer:201 jaguar_warrior:68 javelin_colossus:232 manticore:194 minotaur:82 minotaur_12813:1 other_12824:10 serpent_shaman:182 shockwave_colossus:54 totem_12825:10

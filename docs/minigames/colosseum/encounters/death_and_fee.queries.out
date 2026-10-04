@@ -1,0 +1,7 @@
+Q2 run 155d0a41 status 3 death wave 10 tick 102 doom hitsplats that wave 5 doom(8) chosen by then True handicaps 4,12,34,64,5,42,8,11,41,35 last wave record 10
+Q2 run 71fc3eb6 status 3 death wave 11 tick 27 doom hitsplats that wave 6 doom(8) chosen by then True handicaps 5,4,3,35,65,34,8,1,31,64,0 last wave record 11
+Q2 run 94e62f36 status 3 death wave 10 tick 18 doom hitsplats that wave 4 doom(8) chosen by then True handicaps 4,34,64,8,0,38,12,30,5,35 last wave record 10
+Q2 run b758da55 status 3 death wave 11 tick 44 doom hitsplats that wave 5 doom(8) chosen by then True handicaps 4,34,8,38,64,12,68,0,42,72,1 last wave record 11
+Q2 run b9a31c46 status 3 death wave 11 tick 42 doom hitsplats that wave 3 doom(8) chosen by then True handicaps 4,8,34,64,0,30,5,35,65,60,38 last wave record 11
+Q2 run e44653fd status 3 death wave 11 tick 15 doom hitsplats that wave 0 doom(8) chosen by then False handicaps 4,12,3,34,64,33,42,11,5,41,71 last wave record 11
+Q1 runs 18 status {3: 6, 1: 12} totalDeaths {1: 6, 0: 12} PLAYER_DEATH events 6
