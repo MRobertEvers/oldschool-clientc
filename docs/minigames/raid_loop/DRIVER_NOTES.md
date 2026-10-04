@@ -3245,3 +3245,18 @@ sote12/tornado_scratch*.lua, vz12_kill.lua).
 - A tornado that leaves by running out of path plays 9005 and is freed ON the same tick
   (9005@142 free@142, 9005@372 free@372), not D+1; the D+1 free is the step-back case
   (9005@333 free@334). `sotetseg.tornado_despawn_ticks` counts only the step-back case.
+
+## A level read is a TABLE: `tonumber(t.skill.read(...))` is nil, and a `or 99` hides it
+
+- `local _, reading = t.skill.read("strength")` gives a reading table; the current
+  (drained or boosted) level is `reading.level`. `tonumber(reading)` is nil, so
+  `tonumber(reading) or 99` reads 99 every time and a row built on it writes a constant
+  as a measurement (the tenth-launch Vasilias reflect row: "max hit 25" at every press while
+  `fight.levels661` read Strength 86 and shot 020 shows the 86 indicator). Read `.level`,
+  and let a missing reading fail the row rather than fall back to a level.
+- The whip has no aggressive style. The combat-tab slot pressed for the bow's rapid
+  (`varp43_com_mode` 1) is the whip's Lash: controlled, +1 Strength, not +3. Standard melee
+  max: floor(0.5 + (level * prayer + style + 8) * (bonus + 64) / 640); whip alone, Lash,
+  no prayer: Strength 99 -> 25, 86 -> 22, 81 -> 21, 76 -> 20. A brew-drained Strength
+  can put the max under a reflect you saw; the `<= max` leg only means something with the
+  real level.
