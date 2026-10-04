@@ -49,7 +49,7 @@ return {
         "::give slayer_helm 1", -- getItemRequirements(): the spiny helmet OR slayer helm for the swamp caves (no spiny helmet obj exists; slayer_helm is the guide's alternative)
         "::wield slayer_helm",
         "::give candle_lantern_lit 1", -- getItemRequirements(): a light source for the swamp caves -- getItemRequirements(): "the ability to defeat a level 32 Black Knight" -- a real weapon, equipped in run()
-        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves). The light source and spiny helmet the guide also lists are NOT staged: 20 essence + coins + rope + scimitar + 5 sharks already fill the 28 slots, and no script in quest_wanted/ladders_stairs checks either
+        "::give rope 1", -- getItemRequirements(): A rope (goDownToLumbridgeSwampCaves, tied to the hole if the position draw is the caves). The light source and slayer helm the guide also lists are staged on the lines above.: 20 essence + coins + rope + scimitar + 5 sharks already fill the 28 slots, and no script in quest_wanted/ladders_stairs checks either
         "::give shark 4", -- food for the Black Knight / Solus fights (four, not five: the backpack is full at 28 with the light source, and the Commorb purchase needs one free slot)
     },
 
@@ -432,6 +432,14 @@ return {
         })
         t.expect("hunt.pos2_marked_complete", t.var.await_server("varb1068_wanted_mission2complete", 1, 10))
 
+        -- walk back out of the Champions' Guild through the door clicked to get in (a goto never leaves a closed room)
+        t.exec("cg.openGuildDoorOut", t.player.click_loc, "championdoor", 1)
+        do
+            local ow = t.player.walk_to(3191, 3367, 20)
+            local owr, owt = t.world.tile()
+            t.check("cg.outside_guild", owr == "ok" and owt.z >= 3364, "walk_to 3191,3367 past the opened guild door -> " .. tostring(ow) .. " tile " .. (owr == "ok" and (owt.x .. "," .. owt.z) or tostring(owr)))
+        end
+
         -- Read back which pool id got drawn for position 4.
         local pos4_id = nil
         for id = 5, 19 do
@@ -675,6 +683,36 @@ return {
             t.check("huntDownSolus", chain_ok, "scan chain read back from the server: " .. chain_txt .. "stage=" .. tostring(sv) .. " (want 9 = hunt); pool draws " .. tostring(POOL[pos2_id][1]) .. ", " .. tostring(POOL[pos4_id][1]) .. ", " .. tostring(POOL[pos6_id][1]))
         end
 
+        -- leave whatever closed space position 6 drew, the way it was entered, so goto-aubury departs from open ground
+        if pos6_id == 9 then
+            t.exec("pos6.openTreeDoorOut", t.player.click_loc, "treedoorl", 1)
+            local ow = t.player.walk_to(pool6[2], pool6[3], 20)
+            t.step("pos6.walkOutOfTree", ow == "ok" and "PASS" or "FAIL", "walk_to " .. pool6[2] .. "," .. pool6[3] .. " outside the Grand Tree -> " .. tostring(ow))
+        elseif pos6_id == 16 then
+            t.exec("pos6.railingOut", t.player.click_loc, "mcgruborlooserailing", 1)
+            t.ticks(10)
+            local ow = t.player.walk_to(pool6[2], pool6[3], 20)
+            t.step("pos6.walkOutOfWood", ow == "ok" and "PASS" or "FAIL", "walk_to " .. pool6[2] .. "," .. pool6[3] .. " outside McGrubor's Wood -> " .. tostring(ow))
+        elseif pos6_id == 18 then
+            t.exec("pos6.openPubDoorOut", t.player.click_loc, "poshdoor", 1)
+            local ow = t.player.walk_to(pool6[2], pool6[3], 20)
+            t.step("pos6.walkOutOfPub", ow == "ok" and "PASS" or "FAIL", "walk_to " .. pool6[2] .. "," .. pool6[3] .. " outside the Yanille pub -> " .. tostring(ow))
+        elseif pos6_id == 19 then
+            t.exec("pos6.recrossSteppingStone", t.player.click_loc, "swamp_cave_steppingstone_b", 1)
+            t.ticks(6)
+            local back = {{3221, 9556}, {3212, 9559}, {3203, 9556}, {3194, 9553}, {3186, 9557}, {3174, 9557}, {3169, 9564}}
+            for wi, wp in ipairs(back) do
+                local cw = t.player.walk_to(wp[1], wp[2], 40)
+                if cw ~= "ok" then t.step("pos6.caveWalkBack" .. wi, "FAIL", "walk_to " .. wp[1] .. "," .. wp[2] .. " -> " .. tostring(cw)) end
+            end
+            t.exec("pos6.climbRopeOut", t.player.click_loc, "swamp_cave_climbing_rope", 1)
+            t.ticks(4)
+        end
+        do
+            local ur, ut = t.world.tile()
+            t.check("pos6.back_outside", ur == "ok" and ut.z < 9000, "tile " .. (ur == "ok" and (ut.x .. "," .. ut.z .. "," .. ut.level) or tostring(ur)) .. " on the surface before the goto to Aubury")
+        end
+
         -- 17. Rune essence mine (fixed): Solus found, fought for real
         t.exec("goto-aubury", t.player.goto_tile, 3253, 3396, 0)
         t.exec("goToEssenceMine", t.player.talk_to, "aubury", 4)
@@ -698,6 +736,11 @@ return {
             t.check("mine.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(msd))
         end
         t.expect("quest.stage.final_battle", t.quest.expect_stage("final_battle"))
+
+        -- leave the mine by its exit portal (Aubury's teleport brought us in), then land outside before the goto
+        t.exec("mine.exitPortal", t.player.click_loc, "blankrunestone_exit_portal", 1)
+        t.ticks(6)
+        do local xr, xt = t.world.tile(); t.check("mine.left", xr == "ok" and xt.z < 4000, xr == "ok" and (xt.x .. "," .. xt.z .. "," .. xt.level) or tostring(xr)) end
 
         -- 18. Commorb Contact: claim Solus's hat as proof
         t.exec("contact2.op", t.player.inv_op, "wanted_crystal_ball", 2)

@@ -45,7 +45,7 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         local _, sharks0 = t.inv.count("shark")
-        t.check("setup.kit", true, "staged: rune scimitar wielded, shortbow + arrows + wind strike runes + rope + pickaxe in the pack, rune armour worn, " .. tostring(sharks0) .. " sharks")
+        t.check("setup.kit", sharks0 == 12 and select(2, t.inv.count("rope")) == 1, "staged: rune scimitar wielded, shortbow + arrows + wind strike runes + rope + pickaxe in the pack, rune armour worn, " .. tostring(sharks0) .. " sharks")
 
         -- guide 1.1 talkToPhileas (stage 0 -> 1). The door of his house is the only thing between, the cheat stands us inside.
         t.exec("goto-talkToPhileas", t.player.goto_tile, 1542, 3570, 0)
@@ -81,8 +81,16 @@ return {
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        -- guide 1.2 teleportToArchive
-        t.exec("goto-teleportToArchive", t.player.goto_tile, 1624, 3808, 0)
+        -- guide 1.2 teleportToArchive. The setup cheat stood us inside Phileas's house: leave by its door, then travel to a street tile outside a library door and walk in through it.
+        t.exec("leaveHouse-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+        t.ticks(3)
+        t.player.walk_to(1538, 3570, 8)
+        do local _, ht = t.world.tile(); t.check("leaveHouse-outside", ht.x <= 1539, "outside Phileas's door at x " .. tostring(ht.x) .. "," .. tostring(ht.z) .. " (house interior is x >= 1541)") end
+        t.exec("goto-teleportToArchive", t.player.goto_tile, 1621, 3807, 0)
+        t.exec("enterLibrary-door", t.player.click_loc, "archeuus_door_double_left_green", 1, { at = { 1623, 3807 } })
+        t.ticks(3)
+        t.player.walk_to(1626, 3808, 10)
+        do local _, lt = t.world.tile(); t.check("enterLibrary-inside", lt.x >= 1624, "inside the library past its west door at " .. tostring(lt.x) .. "," .. tostring(lt.z)) end
         t.exec("teleportToArchive", t.player.talk_to, "raidquest_library_archive_guardian", 1)
         t.exec("teleportToArchive-dialog", t.chat.play, {
             "npc:Hello. Would you like to visit",
@@ -119,7 +127,7 @@ return {
         local _, ptile = t.world.tile()
         local ox = ptile.x - 1588
         local oz = ptile.z - 10199
-        t.check("prison.copy", ptile ~= nil, "private prison copy; entry tile " .. ptile.x .. "," .. ptile.z .. " (world-equivalent 1588,10199), offset " .. ox .. "," .. oz)
+        t.check("prison.copy", ptile.x >= 6400, "private prison copy; entry tile " .. ptile.x .. "," .. ptile.z .. " (world-equivalent 1588,10199), offset " .. ox .. "," .. oz)
 
         -- guide 1.4 pushStrangeDeviceWest: push from the east side, the device slides to x 1575
         t.exec("pushStrangeDeviceWest", t.player.press, "shayzienquest_puzzle_piece", 1, 20)
@@ -166,11 +174,34 @@ return {
         t.ticks(4)
 
         -- guide 1.10 talkToPhileasAgain (stage 5 -> 6)
+        -- the portal leaves us in the Library Historical Archive: Istoria's Leave option (tor_archive.rs2:163-168) teleports to 1626,3808, inside the library
+        t.exec("leaveArchive", t.player.talk_to, "raidquest_library_historian", 3)
+        t.exec("leaveArchive-dialog", t.chat.play, { "choose:Yes please." })
+        t.ticks(4)
+        do local _, at = t.world.tile(); t.check("leaveArchive.arrived", at.z < 5000, "back in the library at " .. tostring(at.x) .. "," .. tostring(at.z)) end
+        do
+            local dr, dd = t.world.loc_near("archeuus_door_double_left_green_open", 8)
+            if dr == "ok" then
+                t.check("leaveLibrary-door", true, "west door archeuus_door_double_left_green is still open from the entry visit (open variant found at " .. tostring(dd.x) .. "," .. tostring(dd.z) .. "): walk through it, not past it")
+            else
+                t.exec("leaveLibrary-door", t.player.click_loc, "archeuus_door_double_left_green", 1, { at = { 1623, 3807 } })
+            end
+        end
+        t.ticks(3)
+        t.player.walk_to(1621, 3807, 10)
+        do local _, ot = t.world.tile(); t.check("leaveLibrary-outside", ot.x <= 1622, "outside the library west door at " .. tostring(ot.x) .. "," .. tostring(ot.z)) end
         t.exec("goto-talkToPhileasAgain", t.player.goto_tile, 1539, 3570, 0)
-        t.exec("talkToPhileasAgain-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+        do
+            local dr, dd = t.world.loc_near("wallkit_shayzien_door01_l_reverse_open", 8)
+            if dr == "ok" then
+                t.check("talkToPhileasAgain-door", true, "Phileas's door is still open from the first visit (open variant at " .. tostring(dd.x) .. "," .. tostring(dd.z) .. "): walk through it")
+            else
+                t.exec("talkToPhileasAgain-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+            end
+        end
         t.ticks(3)
         t.player.walk_to(1542, 3570, 8)
-        t.check("talkToPhileasAgain-inside", select(2, t.world.tile()) ~= nil, "walked in through the door, tile " .. tostring(select(2, t.world.tile())))
+        t.check("talkToPhileasAgain-inside", select(2, t.world.tile()).x >= 1541, "walked in through the door, tile " .. tostring(select(2, t.world.tile())))
         t.exec("talkToPhileasAgain", t.player.talk_to, "phileas_rimor_visible", 1)
         t.exec("talkToPhileasAgain-dialog", t.chat.play, {
             "player:Good day.",
@@ -198,6 +229,18 @@ return {
         t.expect("quest.stage.shiro", t.quest.expect_stage("shiro"))
 
         -- guide 1.11 goUpToShiro, 1.12 talkToShiro (stage 6 -> 7)
+        do
+            local dr, dd = t.world.loc_near("wallkit_shayzien_door01_l_reverse_open", 8)
+            if dr == "ok" then
+                t.check("leaveHouse-toShiro", true, "Phileas's door is open (open variant at " .. tostring(dd.x) .. "," .. tostring(dd.z) .. "): walk out through it")
+            else
+                t.exec("leaveHouse-toShiro", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+                t.ticks(3)
+            end
+            t.player.walk_to(1538, 3570, 10)
+            local _, ot = t.world.tile()
+            t.check("leaveHouse-toShiro-outside", ot.x <= 1539, "left Phileas's house, now at " .. tostring(ot.x) .. "," .. tostring(ot.z) .. " (interior is x >= 1541)")
+        end
         t.exec("goto-goUpToShiro", t.player.goto_tile, 1492, 3635, 0)
         t.exec("goUpToShiro", t.player.click_loc, "shayzien_ladder", 1)
         t.ticks(4)
@@ -288,7 +331,7 @@ return {
         local _, kill_detail = t.exec("killLizardman.dead", t.npc.await_dead_engaged, 300, 20, { eat = { item = "shark", below = 40 } })
         local lowest = tonumber(tostring(kill_detail):match("lowest hp (%d+)/"))
         local _, food1 = t.inv.count("shark")
-        t.check("killLizardman.dead.margin", (food1 or 0) >= 2 or (lowest or 0) > 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: left >= 2 or lowest > 25)")
+        t.check("killLizardman.dead.margin", (food1 or 0) >= 1 and (lowest or 0) >= 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: food left >= 1 and lowest >= 25)")
         t.ticks(4)
         t.expect("quest.stage.altar", t.quest.expect_stage("altar"))
 
@@ -332,6 +375,9 @@ return {
             "choose:Yes.",
         })
         t.ticks(6)
+        t.player.walk_to(6419, 100, 30) -- toward the gate; the click row below is the assertion
+        t.drive.camera(0, 383, 1100)
+        t.ticks(2)
         t.exec("passMagicGate-again", t.player.click_loc, "shayzienquest_cave_door", 1)
         t.ticks(4)
         t.exec("talkToDuffyInCrevice", t.player.talk_to, "shayzienquest_duffy", 1)
@@ -416,9 +462,15 @@ return {
 
         -- guide 1.28 returnToPhileasTent: walking into the house is the trigger (a timer sees the tile)
         t.exec("goto-returnToPhileasTent", t.player.goto_tile, 1539, 3570, 0)
-        local door_ok, door_row = t.world.loc_near("wallkit_shayzien_door01_l_reverse_open", 4)
-        t.check("returnToPhileasTent-doorstate", door_ok == "ok", "door at 1540,3570 still open from the first visit: " .. tostring(door_ok))
-        t.player.walk_to(1542, 3570, 10)
+        do
+            local dr, dd = t.world.loc_near("wallkit_shayzien_door01_l_reverse_open", 8)
+            if dr == "ok" then
+                t.check("returnToPhileasTent-doorstate", true, "Phileas's door is open (open variant at " .. tostring(dd.x) .. "," .. tostring(dd.z) .. "): walk through it")
+                t.player.walk_to(1542, 3570, 10)
+            else
+                t.exec("returnToPhileasTent-doorstate", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+            end
+        end
         t.exec("returnToPhileasTent.await", t.var.await, "varb6358_shayzienquest", 16, 30)
         t.exec("returnToPhileasTent-dialog", t.chat.play, {
             "player:Err, this doesn't look good.",
@@ -428,6 +480,18 @@ return {
         -- guide 1.29 goUpToShrioToFinish, 1.30 finishQuest
         local _, coins0 = t.inv.count("coins")
         local snap = t.skill.snapshot()
+        do
+            local dr, dd = t.world.loc_near("wallkit_shayzien_door01_l_reverse_open", 8)
+            if dr == "ok" then
+                t.check("leaveHouse-toFinish", true, "Phileas's door is open (open variant at " .. tostring(dd.x) .. "," .. tostring(dd.z) .. "): walk out through it")
+            else
+                t.exec("leaveHouse-toFinish", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+                t.ticks(3)
+            end
+            t.player.walk_to(1538, 3570, 10)
+            local _, ot = t.world.tile()
+            t.check("leaveHouse-toFinish-outside", ot.x <= 1539, "left Phileas's house, now at " .. tostring(ot.x) .. "," .. tostring(ot.z) .. " (interior is x >= 1541)")
+        end
         t.exec("goto-goUpToShrioToFinish", t.player.goto_tile, 1492, 3635, 0)
         t.exec("goUpToShrioToFinish", t.player.click_loc, "shayzien_ladder", 1)
         t.ticks(4)
