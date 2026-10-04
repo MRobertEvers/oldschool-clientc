@@ -108,3 +108,25 @@ Sampler: the reviewer accepted tob_nylocas; tob_verzik was committed blocked by 
 - tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Not re-sampled.
 - tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
 - tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
+
+## matthew-mbp-m4-raid-b1-rooms-tob, twelfth launch (Theatre of Blood, Entry mode, solo; 2026-10-04, after seam14)
+Sampler: the reviewers accepted tob_nylocas and tob_verzik. For each, the sampler re-derived three spec numbers from their sources and checked the ledger and the tick log. The shots could not be opened: the Read tool's PreToolUse hook timed out on every PNG, for the reviewers and for the sampler. The only shot check was by pixel (distinct frames, no gray clear-colour frames, shots taken while the fight ran). tob_nylocas is kept and tob_verzik is sent back.
+
+- tob_nylocas: KEPT (d87427d41, OSRS d91f386291). 164 ledger rows green, coverage FULL 76/76, lint clean.
+  - Re-derived from the Entry Mode wiki: explosion_radius 2 (:176), pillar_collapse_entry_min 30 (:179), frozen_bites_entry 0 (:166).
+  - Tick log: the supports collapse on 432 and 475, with dealerless hits of 41 and 36 (only rows of 30 or more count).
+  - Vasilias took 416 damage less 56 healed = 360, and every hit landed within 5 ticks of one of the player's attacks.
+  - Reflects 18/6/22 each equal her heal and the raw value. Strength was rebuilt from the drink animations: 22 on tick 729 was rolled at Strength 98 (a brew on 713, then a restore on 718), so the max was 24, the row's own figure.
+  - The Entangle freeze runs 24 ticks from the cast on 81. The next bite on 106 comes after the thaw.
+  - Remains: frozen_bites rests on 1 counted probe. tech.prayer cannot use `raw` (a prayed hit reads raw 0), so it proves the prayer from the landing rate: at most 26 landed of 229 or more covered swings, against 41 of 89 unprayed. No shot of each prayer switch beyond 011-013. The shots were not viewed.
+- tob_verzik: SENT BACK (reverted 9b9b34b22 by f609dc051; OSRS 5db7494b25 by 9883b36f83). It had 268 rows and FULL 142/142.
+  - Re-derived from the Strategies wiki :981: tornado 50 percent, heal 3x, respawn 16. The in-fight touch on 681 agrees: 49 off 99 hitpoints, a heal of 147, and the next spawn on 697.
+  - Finding 1, the raider dies. Verzik dies on 824. Her in-flight hit on 825 (13, raw 16) lands on 13 hitpoints, and the death animation plays on 827. verzik.exit passes with 'You have died. Death count: 1.' and 'You have run out of Prayer points' in its own detail, and the vault rows are read after the death.
+  - The kit was out of anglerfish from tick 342 and drank last on 704. The 681 touch healed her from 26 to 173.
+  - Finding 2, a tornado row reads a hit after the kill. spec.verzik.p3_tornado_pct cites the touch on 841: 17 ticks after her death, on a raider who had got back up at 99, because her tornado outlives her. av.tornado.seqs and av.p3_enrage.tornado also count that touch.
+  - Fix: assert the room is deathless, filter the tornado rows to hits before her death, and keep the kill. The sampled file is in the pass state dir as tob_verzik.sampled_l12_9b9b34b22.lua.
+- tob_maiden: KEPT from the eighth launch (3eb2a8cf8, OSRS c4b4ddc311), 63/63 FULL. Not re-sampled.
+- tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Not re-sampled.
+- tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
+- tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
+- Content defect (every room): a super restore heals 8 + 25% of base Hitpoints (prayer_potion.rs2:125, through br_potion.rs2:74). The OSRS potion leaves Hitpoints alone. A second, to triage: Verzik's tornado is not freed with her.
