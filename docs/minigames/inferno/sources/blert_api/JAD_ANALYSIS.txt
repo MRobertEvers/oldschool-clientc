@@ -1,0 +1,35 @@
+runs with wave 67 streams: 14
+first Jad attack tick (n=14): [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4] min 4 p50 4 max 4
+Jad attack gaps all: {4: 21, 8: 125}
+  gap after R: {8: 68}
+  gap after M: {8: 57}
+  gap after X: {4: 21}
+styles: {'R': 74, 'M': 64, 'X': 22} ; ranged+magic only: R 74 M 64
+style transitions (non-melee pairs): {('R', 'M'): 29, ('M', 'M'): 24, ('M', 'R'): 23, ('R', 'R'): 35}
+melee attacks with player adjacent to footprint: {True: 22} ; non-melee with player adjacent: {False: 101, True: 37}
+healer spawn tick (n=14): [14, 19, 19, 19, 21, 23, 25, 28, 29, 29, 31, 36, 56, 76]
+healers spawned per run: {5: 14}
+Jad hp on the tick before healers appear: [175, 186, 187, 193, 195, 200, 201, 201, 204, 211, 215, 221, 224, 228]
+Jad hp on the spawn tick: [106, 123, 132, 141, 143, 150, 154, 156, 156, 159, 160, 167, 174, 174]
+healer spawn offset from Jad SW tile: n=70 dx -4..5 dy -4..9; inside our window dx 1..3 dz 6..8: 8 (11 percent); modal (0,8) 6
+healer spawn offsets (dx,dy: count): {(-4, -2): 1, (-4, 0): 1, (-4, 2): 1, (-4, 3): 1, (-4, 7): 1, (-3, -4): 1, (-3, -3): 1, (-3, -1): 1, (-3, 0): 3, (-3, 2): 2, (-3, 3): 2, (-3, 4): 1, (-2, -4): 2, (-2, -2): 2, (-2, -1): 2, (-2, 1): 4, (-2, 4): 1, (-2, 6): 1, (-2, 7): 1, (-1, -3): 1, (-1, -2): 2, (-1, 6): 2, (-1, 7): 2, (-1, 8): 2, (0, -4): 3, (0, -2): 1, (0, 7): 1, (0, 8): 6, (0, 9): 1, (1, -2): 1, (1, 6): 2, (1, 7): 1, (1, 8): 1, (2, -4): 2, (2, 8): 2, (3, -2): 2, (3, 6): 1, (3, 7): 1, (4, -3): 1, (4, 6): 1, (4, 7): 1, (4, 8): 2, (5, -2): 1, (5, 8): 1}
+Jad death tick: [61, 65, 66, 67, 75, 84, 87, 91, 92, 95, 114, 117, 124, 143]
+ticks from hp 0 first seen to despawn: [7, 12, 12, 12, 18, 19, 20, 21, 21, 22, 22, 22, 36, 37]
+Jad hp increases (heal ticks) per run: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+Jad heal amounts observed per tick: {}
+gap between consecutive Jad heal ticks: {}
+healer attack gaps (same healer): {4: 128, 5: 4, 6: 1, 7: 2, 8: 1}
+Jad tiles seen across updates (tile: run count): {(2266, 5347): 2, (2265, 5347): 14, (2265, 5346): 2, (2265, 5345): 1}
+--- player side, 160 Jad attacks, PLAYER_UPDATE source 0
+player tile on tick 0/1 (x,y: count): {(2269, 5355): 2, (2270, 5345): 2, (2266, 5346): 4, (2264, 5352): 2, (2264, 5354): 2, (2267, 5341): 2, (2265, 5354): 2, (2267, 5355): 2, (2262, 5348): 2, (2270, 5351): 1, (2268, 5351): 1, (2271, 5345): 2, (2265, 5353): 2, (2268, 5345): 2}
+correct protect bit set at attack+k (k=-1..4) for R of 74: {-1: 23, 0: 23, 1: 23, 2: 63, 3: 73, 4: 64}
+correct protect bit set at attack+k (k=-1..4) for M of 64: {-1: 24, 0: 24, 1: 24, 2: 57, 3: 64, 4: 55}
+correct protect bit set at attack+k (k=-1..4) for X of 22: {-1: 21, 0: 21, 1: 21, 2: 22, 3: 22, 4: 22}
+earliest k from which the correct bit stays set through attack+3: {-3: 64, -2: 2, -1: 1, 2: 75, 3: 17, None: 1}
+hp drop tick offsets when the correct bit WAS set at attack+3 (style,k: count): {('M', 1): 1, ('M', 3): 2, ('R', 1): 1, ('R', 2): 2, ('R', 3): 1}
+hp drop tick offsets when the correct bit was NOT set at attack+3 (style,k: count): {}
+--- tsv-side
+pillar (7709) spawn rows by wave: {'65': 34, '66': 29}
+healer despawn tick minus Jad despawn tick (healers: count): {-47: 1, 0: 69}
+Jad despawn tick minus wave-67 record ticks (runs: count): {0: 14}
+wave 68 start minus wave 67 end (runs: count): {6: 14}

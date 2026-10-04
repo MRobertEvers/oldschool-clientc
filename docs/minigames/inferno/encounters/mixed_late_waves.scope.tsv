@@ -1,0 +1,37 @@
+mechanic_id	scope	note
+mixed.first_wave	all	one solo test: enter the wave, read the tick log
+mixed.last_wave	all	one solo test: enter the wave, read the tick log
+mixed.wave_count	all	one solo test: enter the wave, read the tick log
+mixed.tick0_composition_matches_wave_table	all	one solo test: enter the wave, read the tick log
+mixed.kinds_per_wave	all	one solo test: enter the wave, read the tick log
+mixed.monsters_at_tick0	all	one solo test: enter the wave, read the tick log
+mixed.nonrevive_spawns_all_on_tick0	all	one solo test: enter the wave, read the tick log
+mixed.late_spawns_equal_resurrects	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.revived_per_wave_histogram	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.wave66_magers_at_tick0	all	one solo test: enter the wave, read the tick log
+mixed.nonnibbler_share_spawn_tile	all	one solo test: enter the wave, read the tick log
+mixed.nibbler_share_spawn_tile_waves	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.first_attack_any_tick	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.first_attack_same_tick_mager_ranger	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.first_attack_phase_mager_ranger	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.first_attack_phase_mager_meleer	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.ranger_attack_on_mager_tick_share	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.simultaneous_style_tick_share	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.style_changes_per_wave	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.style_changes_median_waves_35_44	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.style_changes_median_waves_45_56	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.style_changes_median_waves_57_66	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.wave_duration	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.wave_duration_waves_35_44	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.wave_duration_waves_45_56	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.wave_duration_waves_57_66	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.last_death_tick	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.mager_auto_gap_in_company	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.ranger_auto_gap_in_company	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.meleer_auto_gap_in_company	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.bat_auto_gap_in_company	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.guide_blob_melee_prayer_split	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.pillar_safespot_not_total	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
+mixed.presentation.attack_sequences	all	one solo test: enter the wave, read the tick log
+mixed.presentation.projectile_graphics	all	one solo test: enter the wave, read the tick log
+mixed.presentation.sounds_by_kind	all	one solo test: enter the wave, read the tick log
