@@ -467,3 +467,30 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   hit_player raw yet.
 - Unrelated, recorded: the committed tob_bloat.lua fails tech.protect_from_missiles on the
   current tree and on HEAD content alike (125 fly hits, largest 7 > 6); not this pass.
+
+## matthew-mbp-m4-raid-b1-seam12 (2026-10-03; parent 5099f50e3, OSRS-Content 6f82ec574e): the Sotetseg tornado and proc-tick ball, Verzik P3 against its sources (triage SEAM_TRIAGE_2026-10-03j.md)
+
+- `tob_sotetseg_tornado_stall_and_proc_ball`: LANDED (content). The maze tornado is centred
+  on the path (one column inward on rows touching column 0 or 13) and walks through players
+  (moverestrict=passthru); it follows from start columns 13, 12, 1 and 7 (sote12_after_a/b)
+  where 13 and 12 stalled (sote12_before). magic_per_ball_proc_tick is produced by a driven
+  player (5-tick bow aligned to his attack - 1, a hold past the slot after a death ball):
+  11 and 11 in sote12_procball_c, and again in the closer's close12_sote. No conformance
+  row (content only). Still open: one column short of Near-Reality's centre at the walls
+  (needs a wall-ignoring npc walk); the arena tornado is unmeasured solo; the scratches used
+  `::god`, so tob_sotetseg.lua must re-author the row on food and prayer.
+- `tob_verzik_p3_against_sources`: LANDED (content). P3 prayer read at the landing; enrage
+  latched; green ball on 8125; a prayed blood-spell raider takes 0 and counts half the roll
+  (Mod Ash row settled by the Blert pull). Spec rows p2_heal_spell_fraction (A -> B),
+  p3_enrage_latch (new, C), p3_prayer_read (new, D), av.p3_ball.seq (8125). vz12_kill.lua
+  killed her as vz12_kill_a and vz12_kill_b. No conformance row (content only). Still open:
+  the kill recipe died under a third name (close12_vz, 8 tornado touches, every seam12 row
+  PASS), so the flee is not yet robust; the P3 auto splat is one tick later (T+4); the
+  blood-spell heal timing (cast tick vs Blert's T+2); tob.constant's stale Mod Ash comment;
+  tob_verzik.lua (author WIP) must re-author with the kit and flee.
+- KEPT ROOMS: tob_maiden 108/108, tob_xarpus 120/120, tob_bloat 94/94 PASS on the final
+  tree; gate green; coverage FULL (63, 63, 55). No number they measure moved.
+- Gates: quest suite 115 green + deserttreasure, forgettabletale, regicide, troll RED (the
+  baseline; nothing moved); conformance 314/314 PASS (unchanged, 163 verbs + 151 seam
+  rows); server selftest 11 FAIL (baseline), tobrun OK 56; cheats 23/23; check-quest-verbs,
+  check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 119 clean; spec_check clean.
