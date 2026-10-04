@@ -3219,3 +3219,29 @@ sote12/tornado_scratch*.lua, vz12_kill.lua).
   The closer's re-run under a third name (close12_vz, final pack) died in P3 after 8 tornado
   touches, while every seam12 row in it passed. Prove a room test's plan under at least
   three names, and expect to tune the flee further.
+
+## Vasilias reflect: `raw` on the reflect row does not tell 100 from 50 percent
+
+- The reflect is its own `damage` call (tob_damage.rs2:293-300: `$reflect` = your rolled
+  hit, clamped to her hitpoints, then `damage` on you and `npc_statheal` on her). The
+  `hit_player` row's `raw` is the figure THAT call passed, so `damage == raw == npc_heal`
+  holds under the old 50/50 rule as well: content would pass the halved roll to both.
+  Your rolled hit is not in the log anywhere (her `hit_npc` that tick is 0, raw 0).
+- The only discriminator in the log is size: a reflect above floor(max / 2), where max is
+  your weapon's max hit at that press. An abyssal whip alone at 99 Strength, aggressive,
+  no prayer or boost: floor(0.5 + 110 * 146 / 640) = 25, so any reflect over 12 is
+  possible only at 100 percent (the ninth-launch run had 21 and 14). Compute the max from
+  the player's Strength level and bonus at the press (brews drain Strength), assert the
+  largest reflect against it, and write both numbers in the row; with no reflect over half
+  the max, leave the row open.
+- A reflect landing while she is near full hitpoints heals less than it reflects (heal cut
+  at her base: 668 reflect 21, heal 13). Pair such a row on the reflect, not the heal.
+
+## Sotetseg tornado at the end of the path: it catches you there and sinks the same tick
+
+- A runner one tile a tick ahead of the tornado is not hit on the way, but the path ends
+  and you stop; the tornado reaches your tile and hits (37 and 43 in the ninth-launch
+  run, the realm runner standing on the end tile).
+- A tornado that leaves by running out of path plays 9005 and is freed ON the same tick
+  (9005@142 free@142, 9005@372 free@372), not D+1; the D+1 free is the step-back case
+  (9005@333 free@334). `sotetseg.tornado_despawn_ticks` counts only the step-back case.
