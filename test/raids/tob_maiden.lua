@@ -1426,6 +1426,20 @@ return {
             for _, crab in pairs(crab_set) do av.crab_types[#av.crab_types + 1] = crab.type end
             specs[#specs + 1] = { "av.slug.spawn_npc", av.slug_types, "count", #av.slug_types .. " blood spawns (npc_spawn rows off her slot, not on a transmog tick): npc type", "8367,10821,10829", "B", "exact" }
             specs[#specs + 1] = { "av.crab_spawn.npc", av.crab_types, "count", #av.crab_types .. " Matomenos npc_spawn rows on her npc_retype ticks: npc type", "8366,10820,10828", "B", "exact" }
+            av.crab_spawn_seqs = {}
+            av.crab_spawn_zero = 0
+            for _, crab in pairs(crab_set) do
+                local seen = 0
+                for k = 1, #av.all_anims do
+                    if av.all_anims[k].slot == crab.slot and av.all_anims[k].tick == crab.tick then
+                        seen = av.all_anims[k].seq
+                        break
+                    end
+                end
+                if seen == 0 then av.crab_spawn_zero = av.crab_spawn_zero + 1 end
+                av.crab_spawn_seqs[#av.crab_spawn_seqs + 1] = seen
+            end
+            specs[#specs + 1] = { "av.crab_spawn.seq", av.crab_spawn_seqs, "count", #av.crab_spawn_seqs .. " Matomenos: the npc_anim seq on the slot on its npc_spawn tick (" .. av.crab_spawn_zero .. " with no row)", "8098", "D", "exact" }
             -- the walk and ready seqs are the npc record's, played by the client with no action seq: the spawn steps one tile a tick and no npc_anim row
             -- or drawn action seq (t.npc.state anim_id -1) ever names 8101 or 8102
             av.slug_walk = {}
