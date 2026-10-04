@@ -98,3 +98,13 @@ Sampler: the reviewer accepted tob_nylocas; tob_verzik was committed blocked by 
 - tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Not re-sampled.
 - tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
 - tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
+
+## matthew-mbp-m4-raid-b1-rooms-tob, eleventh launch (Theatre of Blood, Entry mode, solo; 2026-10-04)
+Sampler: the reviewer accepted tob_nylocas; tob_verzik was committed blocked by its reviewer. The sampler re-derived three spec numbers for tob_nylocas from their sources, checked the ledger and the tick log, and opened the shots. tob_nylocas is kept.
+
+- tob_nylocas: KEPT (70220376f, OSRS 7ac4e05e0c). 162 ledger rows green, 73 spec rows, coverage FULL 73/73, lint clean. Re-derived vasilias_attackrate 4 (story records 10787-10789 attackrate 4, cache_npc_nylocas.txt:749/782/815; her npc_anim gaps 4 in the tick log), vasilias_hp_entry_unit 360 (stat4=360 at :735/:768/:801; npc_heal base 360), vasilias_reflect 100 (DMM Summer Finals newspost :52). The reflect row now computes each press's whip max from reading.level: strength 86 at the press (fight.levels661) gives max 22, half 11, largest reflect 21. Her 56 hit_npc rows sum 405, minus 45 healed, is 360. Remains: nothing. (Minor: the attackrate row's source_ref :306 names the normal-mode record header; the story records carry the same 4.)
+- tob_verzik: BLOCKED (7bd321420, OSRS ee2a620389), reviewer verdict blocked; 140 of 142 spec rows. Remains: verzik.p3_tornado_heal_mult and verzik.p3_tornado_respawn (grade D). Run 12 took one touch at tick 721 (39 damage, her heal 117 = 3x, next tornado 737 = 16 ticks), but the solo kit then starved (hp 4, no food at tick 770). The touch tactic is gated off in the committed file. Not sampled (not accepted).
+- tob_maiden: KEPT from the eighth launch (3eb2a8cf8, OSRS c4b4ddc311), 63/63 FULL. Not re-sampled.
+- tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Not re-sampled.
+- tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
+- tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
