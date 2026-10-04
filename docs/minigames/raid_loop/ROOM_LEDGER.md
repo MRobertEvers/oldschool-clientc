@@ -179,3 +179,16 @@ Sampler: the reviewers accepted tob_maiden, tob_bloat and tob_nylocas, re-author
 - tob_xarpus: KEPT from earlier launches (f417148e4), green on this tree. Not re-sampled.
 - tob_sotetseg: KEPT from earlier launches (812267e7f), green on this tree. Not re-sampled.
 - tob_verzik: NOT ACCEPTED this launch. Committed d1b4ccf00 is 256 PASS / 14 FAIL on this tree: the accuracy-rolled P3 moves the seeded fight, the raider dies in P3 around tick 799 with no food, and verzik.p3_auto_miss_entry has no ledger row. Its author was still running at sample time (test/raids/tob_verzik.lua uncommitted).
+
+## matthew-mbp-m4-raid-b1-rooms-tob, fourteenth launch, Verzik retry (Theatre of Blood, Entry mode, solo; 2026-10-04)
+
+- tob_maiden: KEPT (1dffd5230, OSRS 73241bbf8d), sampled earlier in this launch. 112/112, coverage FULL 65/65.
+- tob_bloat: KEPT (abc53c18e, OSRS 785100ce92), sampled earlier in this launch. 94/94, coverage FULL 55/55.
+- tob_nylocas: KEPT (116a1d938, OSRS fcf7ca91b1), sampled earlier in this launch. 177/177, coverage FULL 76/76. Remains: tech.style_kills' text says "Fire Strike" though every cast is Ice Burst.
+- tob_xarpus: KEPT from earlier launches (f417148e4). Not re-sampled.
+- tob_sotetseg: KEPT from earlier launches (812267e7f). Not re-sampled.
+- tob_verzik: SENT BACK. Reverted 725620c00 (41f0cd7e2) and OSRS 268c35a7eb (91bfb9010c). The run was 258/258 PASS, coverage FULL 145/145, lint clean and deathless.
+  - Re-derived OK: p3_cadence 7 (cache attackrate 7, Strategies :935, log gaps of 7). reds_threshold 35 (Strategies :928; the log's P2 hits minus heals leave 138 of 400, 34.5%, at the summon on 349).
+  - Finding: spec.verzik.p3_auto_miss_entry ("6 zeros among 12 unprayed, no protection prayer up before tick 585") is not what the log says. Protect from Magic was on from P2 through tick 576: drive.p3state426..576 read `protectfrommagic` true, and those rows label it "pg". So the five magic autos (1594) landed prayed (0, 6, 10, 0, 0). The unprayed sample is the seven ranged autos (1593: 10, 0, 9, 15, 10, 0, 0), with 3 zeros among 7, below the row's own 12.
+  - Fix: judge "unprayed" per hit from `t.prayer.read()` on the landing tick for that hit's style, or turn the prayers off at the P3 transition. Secondary: tech.p3_prayer_at_landing proves the landing-tick prayer with four raw-0 hits, which cannot tell the prayer from a miss. Show a halved nonzero hit, or a prayed maximum under the unprayed one.
+  - Sampled file: build/author_state/.../tob_verzik.sampled_l14_725620c00.lua. DRIVER_NOTES: 6231bf019.
