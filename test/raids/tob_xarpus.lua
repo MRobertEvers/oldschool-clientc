@@ -1226,6 +1226,12 @@ return {
         specs[#specs + 1] = { id = "xarpus.av.screech.sound", m = (A.say_n == 1 and A.screech_snd == 1) and "4007" or "-1", u = "count", s = "4007", g = "D", tol = "exact", ok = A.say_n == 1 and A.screech_snd == 1, x = ", sound row 4007 on the tick of the screech line (" .. tostring(A.say_tick) .. "): " .. A.screech_snd .. " of " .. A.say_n }
         specs[#specs + 1] = { id = "xarpus.av.screech.text", m = tostring(A.say_n), u = "count", s = "1", g = "C", tol = "exact", ok = A.say_n == 1, x = ", npc_say rows holding 'Screeeech!' over the whole fight" }
         specs[#specs + 1] = { id = "xarpus.av.death.seq", m = (A.death_anim >= 1) and "8063" or "-1", u = "count", s = "8063", g = "A", tol = "exact", ok = A.death_anim >= 1, x = ", npc_anim 8063 on tick " .. tostring(A.dtick) .. ", the tick of the npc_retype to the dead form" }
+        local _, d8062 = t.ticklog.rows({ kind = "npc_anim", seq = 8062, slot = bslot })
+        A.d8062_n, A.d8062_tick = 0, -1
+        for i = 1, #d8062 do
+            if d8062[i].tick == kill.tick + 1 then A.d8062_n = A.d8062_n + 1; A.d8062_tick = d8062[i].tick end
+        end
+        specs[#specs + 1] = { id = "xarpus.av.death_a.seq", m = (A.d8062_n >= 1) and "8062" or "-1", u = "count", s = "8062", g = "D", tol = "exact", ok = A.d8062_n >= 1 and A.dtick > A.d8062_tick, x = ", npc_death on tick " .. tostring(kill.tick) .. ", npc_anim 8062 on the combat form on tick " .. tostring(A.d8062_tick) .. " (one tick after), then 8063 with the retype on tick " .. tostring(A.dtick) }
         specs[#specs + 1] = { id = "xarpus.av.death.npc_type", m = tostring(A.death_to), u = "count", s = "8341,10769,10773", g = "C", tol = "exact", ok = A.death_to == 10769, x = ", the third npc_retype, on tick " .. tostring(A.dtick) }
         specs[#specs + 1] = { id = "xarpus.av.death.sound_script", m = tostring(A.death_snd), u = "count", s = "0", g = "A", tol = "exact", ok = A.death_snd == 0, x = ", sound rows of 3549 on the collapse tick (the frame sound of 8063 rides the npc_anim row)" }
         specs[#specs + 1] = { id = "xarpus.av.death_pools.window", m = (A.rm_n > 0) and (A.rm_lo .. "-" .. A.rm_hi) or "-1", u = "ticks", s = "4-7", g = "D", tol = "range", ok = A.rm_n > 0 and A.rm_lo >= 4 and A.rm_hi <= 7, x = ", " .. A.rm_n .. " of " .. #pool_set .. " pools removed, loc_set -1 rows after the collapse tick " .. tostring(A.dtick) }
