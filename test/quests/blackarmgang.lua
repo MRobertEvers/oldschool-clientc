@@ -79,6 +79,24 @@
 -- the real `::blackarmgang_partner` debugproc (grants both items the trade
 -- would, before the door is ever approached) and a genuine
 -- `use_on(phoenixkey2, phoenixdoor2)` press on the real loc.
+--
+-- RE-DRIVEN after 7de9a81bd (b58 door rule, docs/QUEST_ORCHESTRATOR.md,
+-- owner 2026-10-03): a `goto_tile` into or out of ANY closed space is a
+-- cheat. Every goto now departs from and lands on an open street tile, and
+-- every door, ladder and staircase between the street and the npc is clicked
+-- going in AND coming out:
+--   * Varrock Palace: three fai_varrock_castle_doors (3215,3477 hall,
+--     3214,3486 corridor, 3210,3490 library) to Reldo, and 3218,3472 to King
+--     Roald's throne room (maps/m50_54.jl2); the front doorway 3212-3213,3470
+--     has no door (fai_varrock_museum_door_inactive_l/r, no op).
+--   * Katrine: two fai_varrock_poor_doors down the alley (3196,3384 and
+--     3190,3384, maps/m49_52.jl2); blackarmdoor 3185,3388 to the stairs room
+--     only opens once joined (quest_blackarmgang.rs2:96-102).
+--   * Weapon store: phoenixdoor2 3251,3386 (key in, "slip out" leaving,
+--     quest_blackarmgang.rs2:49-85) and the fai_varrock_ladder 3252,3384.
+--   * Ladders and stairs here have no maplink row, so ~climb moves +/-1
+--     level on the PLAYER's own tile (ladders_stairs/scripts/ladders.rs2):
+--     each climb walks to a stand tile whose other floor is open.
 
 return {
     id = "blackarmgang",
@@ -102,6 +120,9 @@ return {
         "::setlevel defence 99",
         "::setlevel attack 99",
         "::setlevel strength 99",
+        -- Food for the Weaponsmaster fight: eaten by await_dead's opts.eat
+        -- below EAT_BELOW, and the margin row asserts some is left.
+        "::give lobster 5",
     },
 
     run = function(t)
@@ -122,6 +143,157 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started_reset", t.quest.expect_stage("not_started"))
 
+        -- ------------------------------------------------------- helpers
+        local function txt(v)
+            local kind = type(v)
+            if kind == "string" or kind == "number" or kind == "boolean" or kind == "nil" then
+                return tostring(v)
+            end
+            return "<" .. kind .. ">"
+        end
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(r)
+        end
+
+        -- Wait for a teleport the click queued (a hideout door, a climb) to
+        -- land; the row after it reads the tile and grades it.
+        local function await_tile(pred, ticks, what)
+            return t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and pred(tt)
+                end,
+                note = what .. ": waiting for the landing",
+            }, ticks)
+        end
+
+        -- Cross one ordinary door on foot (the b56/b57 pass_door pattern).
+        -- Walk to the tile on this side; if the CLOSED leaf stands on the door
+        -- tile on the player's own level, click THAT copy (the palace door
+        -- 3218,3472 has a level-2 copy straight above it, and loc_near
+        -- searches every level); otherwise an earlier press left it open (a
+        -- door swings back after 500 ticks), so assert the OPEN leaf stands
+        -- within a tile of the door on this level -- a row that fails when
+        -- neither leaf is there -- and do not press it again. Then walk
+        -- through and check the far tile.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and nt.x == near_x and nt.z == near_z,
+                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. "," .. door_z
+                    .. " -> " .. tile_text(nr, nt))
+            local here = (nr == "ok") and nt.level or 0
+            local cr, cd = t.world.loc_near(closed_sym, 3)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == here then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".doorStandsOpen",
+                    orr == "ok" and od.level == here
+                        and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. "," .. here .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": "
+                        .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (want the open leaf within 1 of the door tile on this level: an earlier press left it open, so it is walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z, 40)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and far_ok(ft),
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
+        end
+
+        -- A hideout door (blackarmdoor, phoenixdoor2): content's
+        -- ~open_hideout_door TELEPORTS the player across and leaves nothing
+        -- open, so it is clicked on every crossing. A one-tile teleport can
+        -- answer `timeout settle_after_click` on a crossing that landed
+        -- (start-and-travel: "A short hop (stiles) does not trip it"): the row
+        -- is graded on the tiles -- the tile before the click NOT on the far
+        -- side, the tile after it on the far side -- with the click's answer
+        -- in the detail.
+        local function cross(name, sym, door_x, door_z, near_x, near_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 30)
+            local br, bt = t.world.tile()
+            local cr, cd = t.player.click_loc(sym, 1, { at = { door_x, door_z } })
+            await_tile(far_ok, 10, name)
+            local wr, wt = t.world.tile()
+            t.check(name, (cr == "ok" or cr == "timeout") and br == "ok" and not far_ok(bt) and wr == "ok" and far_ok(wt),
+                "from " .. tile_text(br, bt) .. " click_loc(" .. sym .. " at " .. door_x .. "," .. door_z .. ") -> "
+                    .. tostring(cr) .. " " .. txt(cd) .. "; world.tile -> " .. tile_text(wr, wt) .. " (want " .. far_desc .. ")")
+        end
+
+        -- A ladder or staircase with no maplink row: ~climb moves the player
+        -- +/-1 level on the tile he STANDS on (ladders_stairs/scripts/
+        -- ladders.rs2 [proc,climb]), so walk to a stand tile whose other floor
+        -- is open, click that copy, wait for the level to change, then grade
+        -- the landing.
+        local function climb(name, sym, at_x, at_z, stand_x, stand_z, from_level, want_level, land_ok, land_desc)
+            t.player.walk_to(stand_x, stand_z, 30)
+            local sr, st = t.world.tile()
+            t.check(name .. ".atStairs", sr == "ok" and st.x == stand_x and st.z == stand_z and st.level == from_level,
+                "walked to the stand tile " .. stand_x .. "," .. stand_z .. "," .. from_level .. " beside " .. sym
+                    .. " " .. at_x .. "," .. at_z .. " -> " .. tile_text(sr, st))
+            local cr, cd = t.player.click_loc(sym, 1, { at = { at_x, at_z } })
+            await_tile(function(tt) return tt.level == want_level end, 10, name)
+            local wr, wt = t.world.tile()
+            t.check(name, (cr == "ok" or cr == "timeout") and wr == "ok" and wt.level == want_level and land_ok(wt),
+                "from " .. tile_text(sr, st) .. " click_loc(" .. sym .. " at " .. at_x .. "," .. at_z .. ") -> "
+                    .. tostring(cr) .. " " .. txt(cd) .. "; landed " .. tile_text(wr, wt) .. " (want level "
+                    .. want_level .. ", " .. land_desc .. ")")
+        end
+
+        -- Varrock Palace, maps/m50_54.jl2: the courtyard 3212,3466 is open
+        -- street (reach.py walks it to 3212,3430 with every door shut); the
+        -- doorway 3212-3213,3470 has no door; the entrance hall (z 3471-3476)
+        -- -> fai_varrock_castle_door 3215,3477 (south edge) -> the great hall
+        -- (z 3477-3486) -> door 3214,3486 (north edge) -> the corridor
+        -- (z 3487-3489) -> door 3210,3490 (south edge) -> the library
+        -- (x 3207-3214, z 3490-3497).
+        local CASTLE_DOOR, CASTLE_DOOR_OPEN = "fai_varrock_castle_door", "fai_varrock_castle_door_open"
+        local function library_in(pfx)
+            pass_door(pfx .. ".hallDoor", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3215, 3477, 3215, 3476, 3215, 3478,
+                function(tt) return tt.z >= 3477 and tt.level == 0 end, "in the great hall, z >= 3477")
+            pass_door(pfx .. ".corridorDoor", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3214, 3486, 3214, 3486, 3214, 3488,
+                function(tt) return tt.z >= 3487 and tt.level == 0 end, "in the library corridor, z >= 3487")
+            pass_door(pfx .. ".libraryDoor", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3210, 3490, 3210, 3489, 3210, 3491,
+                function(tt) return tt.z >= 3490 and tt.level == 0 end, "in the library, z >= 3490")
+        end
+        local function library_out(pfx)
+            pass_door(pfx .. ".libraryDoorOut", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3210, 3490, 3210, 3490, 3210, 3488,
+                function(tt) return tt.z <= 3489 and tt.level == 0 end, "in the library corridor, z <= 3489")
+            pass_door(pfx .. ".corridorDoorOut", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3214, 3486, 3214, 3487, 3214, 3485,
+                function(tt) return tt.z <= 3486 and tt.level == 0 end, "in the great hall, z <= 3486")
+            pass_door(pfx .. ".hallDoorOut", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3215, 3477, 3215, 3477, 3215, 3475,
+                function(tt) return tt.z <= 3476 and tt.level == 0 end, "in the entrance hall, z <= 3476")
+            t.player.walk_to(3212, 3466, 40)
+            local cr, ct = t.world.tile()
+            t.check(pfx .. ".courtyard", cr == "ok" and ct.z <= 3469 and ct.level == 0,
+                "walked out through the front doorway to 3212,3466 -> " .. tile_text(cr, ct)
+                    .. " (want the open courtyard south of the palace, z <= 3469)")
+        end
+
+        -- Katrine's room (x 3183-3189, z 3382-3387, maps/m49_52.jl2) is at
+        -- the end of an alley room (x 3190-3195) closed by two
+        -- fai_varrock_poor_doors, both on their tile's WEST edge: 3196,3384
+        -- (street | alley) and 3190,3384 (alley | Katrine).
+        local POOR_DOOR, POOR_DOOR_OPEN = "fai_varrock_poor_door", "fai_varrock_poor_door_open"
+        local function katrine_in(pfx)
+            pass_door(pfx .. ".alleyDoor", POOR_DOOR, POOR_DOOR_OPEN, 3196, 3384, 3196, 3384, 3194, 3384,
+                function(tt) return tt.x <= 3195 and tt.level == 0 end, "in the alley, x <= 3195")
+            pass_door(pfx .. ".hideoutDoor", POOR_DOOR, POOR_DOOR_OPEN, 3190, 3384, 3190, 3384, 3188, 3384,
+                function(tt) return tt.x <= 3189 and tt.level == 0 end, "in Katrine's room, x <= 3189")
+        end
+        local function katrine_out(pfx)
+            pass_door(pfx .. ".hideoutDoorOut", POOR_DOOR, POOR_DOOR_OPEN, 3190, 3384, 3189, 3384, 3191, 3384,
+                function(tt) return tt.x >= 3190 and tt.level == 0 end, "in the alley, x >= 3190")
+            pass_door(pfx .. ".alleyDoorOut", POOR_DOOR, POOR_DOOR_OPEN, 3196, 3384, 3195, 3384, 3197, 3384,
+                function(tt) return tt.x >= 3196 and tt.level == 0 end, "on the street, x >= 3196")
+        end
+
         -- ------------------------------------------------------- Reldo x2
         -- Quest Helper's stage-0 steps (startQuest/searchBookcase/
         -- talkToReldoAgain) are the guide's SHARED start for both routes --
@@ -140,7 +312,12 @@ return {
         -- Fresh character (%phoenixgang/%blackarmgang/%squire all
         -- not_started, no lost_tribe_brooch): the p_choice3 branch offers
         -- "I'm in search of a quest." as option 1 -> @reldo_phoenixstart.
-        t.exec("goto-startQuest", t.player.goto_tile, 3209, 3495, 0)
+        --
+        -- The goto lands in the open palace courtyard (the fixture's tile
+        -- 3206,3233 is Lumbridge's open castle courtyard); the three doors to
+        -- the library are opened on foot (library_in above).
+        t.exec("goto-startQuest", t.player.goto_tile, 3212, 3466, 0)
+        library_in("startQuest")
         t.exec("startQuest", t.player.talk_to, "reldo", 1)
         t.exec("startQuest-dialog", t.chat.play, {
             "npc:Hello stranger.",
@@ -174,8 +351,8 @@ return {
         -- the_shield_of_arrav only while %phoenixgang = phoenixgang_started
         -- exactly, which the Reldo conversation above just set. Map decode
         -- (trap 29): m50_54.jl2 "0 12 37: 2402 10 3" -> 50*64+12,54*64+37 =
-        -- 3212,3493,0, a few tiles from Reldo's own spawn.
-        t.exec("goto-searchBookcase", t.player.goto_tile, 3212, 3493, 0)
+        -- 3212,3493,0, a few tiles from Reldo's own spawn, in the same
+        -- library: click_loc walks there (no goto inside the room).
         t.exec("searchBookcase", t.player.click_loc, "questbookcase", 1)
         t.exec("searchBookcase-dialog", t.chat.play, {
             "player:Aha!",
@@ -207,7 +384,7 @@ return {
         -- before the ordinary menu this time, naming Baraek (Phoenix Gang)
         -- and Charlie the Tramp (Black Arm Gang) -- no "Hello stranger."
         -- opener, the guard short-circuits ahead of it.
-        t.exec("goto-talkToReldoAgain", t.player.goto_tile, 3209, 3495, 0)
+        -- Same library: talk_to walks back to him.
         t.exec("talkToReldoAgain", t.player.talk_to, "reldo", 1)
         t.exec("talkToReldoAgain-dialog", t.chat.play, {
             "npc:Then perhaps you now have your quest?",
@@ -226,7 +403,9 @@ return {
 
         -- ------------------------------------------------ Charlie the tramp
         -- tramp.rs2's `[opnpc1,tramppg]` (south Varrock, by the alleyway):
-        -- spawn row m50_52.spawn "tramppg 3208 3391 0".
+        -- spawn row m50_52.spawn "tramppg 3208 3391 0", on the open street.
+        -- Out of the palace the way we came in, then an overland goto.
+        library_out("leavePalace")
         t.exec("goto-talkToCharlie", t.player.goto_tile, 3208, 3391, 0)
         t.exec("talkToCharlie", t.player.talk_to, "tramppg", 1)
         t.exec("talkToCharlie-dialog", t.chat.play, {
@@ -247,8 +426,9 @@ return {
         -- %blackarmgang = started, which the tramp step above just set) ->
         -- `katrine_gangmember` -> "Ok, no problem." sets
         -- %blackarmgang = spoken_katrine. Spawn row m49_52.spawn
-        -- "katrine 3186 3385 0".
-        t.exec("goto-talkToKatrine", t.player.goto_tile, 3186, 3385, 0)
+        -- "katrine 3186 3385 0", behind the alley's two doors: walked from
+        -- the tramp (reach.py 3208,3391 -> 3196,3384 closed-doors, 18 tiles).
+        katrine_in("talkToKatrine")
         t.exec("talkToKatrine", t.player.talk_to, "katrine", 1)
         t.exec("talkToKatrine-dialog", t.chat.play, {
             "player:What is this place?",
@@ -316,7 +496,10 @@ return {
         -- `last_useitem = phoenixkey2` (m50_52.jl2:570, "0 51 58: 2398 0 3"
         -- decodes to 3251,3386,0 -- trap 29's map-text decode, since a `.loc`
         -- config carries no coordinate). Stand on the street outside it and
-        -- press the real trigger -- no `::goto` past the lock.
+        -- press the real trigger -- no `::goto` past the lock. Out of
+        -- Katrine's room through both alley doors first; the goto leaves from
+        -- the street.
+        katrine_out("leaveKatrine")
         t.exec("goto-phoenixdoor2", t.player.goto_tile, 3251, 3389, 0)
         local phoenixdoor2_target = t.player.by_symbol("loc", "phoenixdoor2")
         t.exec("unlockPhoenixDoor2", t.player.use_on, "phoenixkey2", phoenixdoor2_target)
@@ -325,6 +508,14 @@ return {
         -- chat-LOG line, never a page -- read it back with `msg.expect`
         -- rather than trusting the settle's `map_flag` arm alone.
         t.expect("unlockPhoenixDoor2.message", t.msg.expect("You unlock the door."))
+        -- ~open_hideout_door teleports the player onto the store's side
+        -- (the room x 3250-3252, z 3382-3385 south of the door edge).
+        await_tile(function(tt) return tt.z <= 3385 and tt.level == 0 end, 10, "unlockPhoenixDoor2")
+        local in_result, in_tile = t.world.tile()
+        t.check("unlockPhoenixDoor2.inside",
+            in_result == "ok" and in_tile.level == 0 and in_tile.z <= 3385 and in_tile.x >= 3250 and in_tile.x <= 3252,
+            "world.tile after the key unlock -> " .. tile_text(in_result, in_tile)
+                .. " (want the store's ground floor, x 3250-3252 z <= 3385, level 0)")
 
         -- ------------------------------------------------ steal 2 crossbows
         -- quest_blackarmgang.rs2's `[opobj3,phoenix_crossbow]`:
@@ -339,22 +530,46 @@ return {
         -- makes that a short, one-sided fight (a prerequisite, trap 16),
         -- not a substitute for the real clicks that steal the crossbows.
         --
-        -- Ordinary floor travel from the unlocked door's entry room, not a
-        -- second gate: `fai_varrock_ladder` (m50_52.jl2:3196, "0 52 56:
-        -- 11794 10" -> 3252,3384,0) climbs to the Weaponsmaster's own floor,
-        -- and `goto_tile`'s destination-level-climbs-stairs-for-you rule
-        -- (QUEST_AUTHORING.md section 2) is exactly this case -- the lock
-        -- above was the real gate and it is already open.
-        t.exec("goto-weaponStore", t.player.goto_tile, 3252, 3384, 1)
+        -- `fai_varrock_ladder` (m50_52.jl2:3196, "0 52 56: 11794 10" ->
+        -- 3252,3384,0) climbs to the Weaponsmaster's own floor. It has no
+        -- maplink row, so the climb lands on the stand tile one level up:
+        -- 3252,3385,1 is inside the store (x 3243-3252, z 3382-3386).
+        climb("goUpToWeaponStore", "fai_varrock_ladder", 3252, 3384, 3252, 3385, 0, 1,
+            function(tt) return tt.x >= 3243 and tt.x <= 3252 and tt.z >= 3382 and tt.z <= 3386 end,
+            "inside the weapon store, x 3243-3252 z 3382-3386")
 
+        local function hp_now()
+            local hr, hp = t.skill.read("hitpoints")
+            if hr == "ok" and type(hp) == "table" then
+                return hp.level, hp.base
+            end
+            return nil, nil
+        end
+        local hp_before = hp_now()
         t.exec("attackWeaponsmaster", t.player.attack, "weaponsmaster")
         -- RETRY after 68c5e8d9d: npc_menu_verb now resolves the Weaponsmaster's
         -- (a nameless multinpc shell) menu verb child-then-base through the
         -- ungated row, so `[label,player_melee_attack]`'s own `p_opnpc(2)`
         -- re-arm reaches him and the fight finishes for real -- no more
         -- stall at hitsplat 10.
-        local wm_dead_result, wm_dead_detail = t.npc.await_dead("weaponsmaster", 150, 10, 20)
+        local hp_at_attack = hp_now()
+        local wm_dead_result, wm_dead_detail = t.npc.await_dead("weaponsmaster", 150, 10, 20,
+            { eat = { item = "lobster", below = 50 } })
         t.expect("weaponsmasterDead", wm_dead_result, wm_dead_detail)
+        -- Margin: the lowest stated hitpoints over the fight (await_dead's
+        -- own eat sampler, plus the two reads around the attack press) is at
+        -- least a quarter of the maximum, AND food is left.
+        local low_text, base_text = string.match(tostring(wm_dead_detail), "lowest hp (%d+)/(%d+)")
+        local low, base = tonumber(low_text), tonumber(base_text)
+        if low ~= nil and hp_at_attack ~= nil and hp_at_attack < low then
+            low = hp_at_attack
+        end
+        local food_result, food_left = t.inv.count("lobster")
+        t.check("killWeaponsMaster.margin",
+            low ~= nil and base ~= nil and low * 4 >= base and food_result == "ok" and (food_left or 0) >= 1,
+            "lowest hp " .. tostring(low) .. "/" .. tostring(base) .. " (hp before the attack " .. tostring(hp_before)
+                .. ", after the press " .. tostring(hp_at_attack) .. ", then await_dead's sampler), lobsters left "
+                .. tostring(food_left) .. " (" .. tostring(food_result) .. ") of 5 staged -- margin: lowest hp >= a quarter of max AND food left")
 
         -- quest_blackarmgang.rs2's `[opobj3,phoenix_crossbow]` reads
         -- `npc_find(coord, weaponsmaster, 10, 0)` -- the NPC POOL, not the
@@ -393,7 +608,41 @@ return {
         -- ----------------------------------------------------- join Katrine
         -- katrine.rs2's `[label,katrine_got_yet]`: >=2 phoenix_crossbow ->
         -- gives them to Katrine, %blackarmgang = ^blackarmgang_joined.
-        t.exec("goto-handInKatrine", t.player.goto_tile, 3186, 3385, 0)
+        --
+        -- Out of the store the way we came: down the ladder (its level-1 top
+        -- is fai_varrock_ladder_taller_top on the same tile; 3252,3385,0 is
+        -- the store's ground floor), then out through phoenixdoor2 WITH THE
+        -- KEY. `[label,unlock_weaponstore_door]`'s `$leaving` is
+        -- `~check_axis(coord, loc_coord, loc_angle)` (doors/scripts/
+        -- door_procs.rs2:112): true only while the player stands on the
+        -- door's own tile row. This pack places the door on the STREET tile
+        -- 3251,3386 (south edge, maps/m50_52.jl2 "0 51 58: 2398 0 3"), so
+        -- from inside (3251,3385) a bare op1 is not "leaving" and answers
+        -- "The door is securely locked." (measured run 1, quest_blackarmgang
+        -- .rs2:59-61), while the key branch (`$key_used`) teleports the player
+        -- to loc_coord, the street side (lines 63-85; LostCity's
+        -- quest_blackarmgang.rs2:45-70 is the same script). The key the
+        -- partner handed over is still carried, so it unlocks the door from
+        -- the inside too -- a real press on the real loc, graded on the tiles.
+        climb("goDownFromWeaponStore", "fai_varrock_ladder_taller_top", 3252, 3384, 3252, 3385, 1, 0,
+            function(tt) return tt.x >= 3250 and tt.x <= 3252 and tt.z >= 3382 and tt.z <= 3385 end,
+            "the store's ground floor, x 3250-3252 z 3382-3385")
+        t.player.walk_to(3251, 3385, 20)
+        local out_before_result, out_before = t.world.tile()
+        local out_use_result, out_use_detail = t.player.use_on("phoenixkey2", phoenixdoor2_target)
+        await_tile(function(tt) return tt.z >= 3386 and tt.level == 0 end, 10, "leaveWeaponStore")
+        local out_after_result, out_after = t.world.tile()
+        local out_key_result, out_key_count = t.inv.count("phoenixkey2")
+        t.check("leaveWeaponStore",
+            (out_use_result == "ok" or out_use_result == "timeout")
+                and out_before_result == "ok" and out_before.z <= 3385
+                and out_after_result == "ok" and out_after.z >= 3386 and out_after.level == 0,
+            "from " .. tile_text(out_before_result, out_before) .. " use_on(phoenixkey2, phoenixdoor2) -> "
+                .. tostring(out_use_result) .. " " .. txt(out_use_detail) .. "; world.tile -> "
+                .. tile_text(out_after_result, out_after) .. " (want the street north of the door, z >= 3386); phoenixkey2 held "
+                .. tostring(out_key_count) .. " (" .. tostring(out_key_result) .. ")")
+        t.exec("goto-handInKatrine", t.player.goto_tile, 3197, 3384, 0)
+        katrine_in("handInKatrine")
         t.exec("handInKatrine", t.player.talk_to, "katrine", 1)
         t.exec("handInKatrine-dialog", t.chat.play, {
             "npc:Have you got those crossbows",
@@ -408,8 +657,19 @@ return {
         -- Helper's `getShieldFromCupboard`): one click does the open AND the
         -- search -- unlike Jerico's two-stage cupboard, there is only ever
         -- one trigger here -- and grants `arravshield2` behind its own
-        -- `~mesbox`. goto_tile climbs the base's stairs directly (section 2).
-        t.exec("goto-cupboard", t.player.goto_tile, 3189, 3386, 1)
+        -- `~mesbox`.
+        --
+        -- The stairs room is north of Katrine's, behind `blackarmdoor`
+        -- (3185,3388, south edge), which `[oploc1,blackarmdoor]` opens only
+        -- once %blackarmgang >= joined -- a teleport across, nothing stays
+        -- open. `fai_varrock_stairs` (3188,3389) has no maplink row: the
+        -- click approaches it from the south (measured run 1: a press from
+        -- 3187,3389 walked to 3188,3388 first), and the climb lands on
+        -- 3188,3388,1, open floor in the cupboard's room.
+        cross("goUpstairsInBase.blackarmDoor", "blackarmdoor", 3185, 3388, 3185, 3387,
+            function(tt) return tt.z >= 3388 and tt.level == 0 end, "the stairs room, z >= 3388")
+        climb("goUpstairsInBase", "fai_varrock_stairs", 3188, 3389, 3188, 3388, 0, 1,
+            function(tt) return tt.x == 3188 and tt.z == 3388 end, "the stand tile 3188,3388 one floor up")
         t.exec("cupboard.search", t.player.click_loc, "blackarmcupboardshut", 1)
         t.exec("cupboard.dismiss", t.chat.play, {
             "mesbox:You find half a shield, which you take.",
@@ -429,7 +689,21 @@ return {
         -- curator.rs2's `[opnpc1,curator]`: %blackarmgang>=joined &
         -- <complete & arravshield2>0 jumps straight to
         -- `@curator_take_blackarm_half` -- no menu, one direct branch.
-        -- Spawn row m50_53.spawn "curator 3257 3447 0".
+        -- Spawn row m50_53.spawn "curator 3257 3447 0", in the museum's
+        -- open lobby (reach.py 3252,3420 -> 3257,3447 closed-doors; its
+        -- front doorway 3253,3448-3449 is fai_varrock_museum_door_inactive,
+        -- no op).
+        --
+        -- Down and out of the Black Arm base first. `fai_varrock_stairs_top`
+        -- (3188,3390,1) is reachable only from the north (3188,3392,1; the
+        -- pocket south of it sits over the solid stairs), and the climb lands
+        -- on 3188,3392,0 in the stairs room. Then blackarmdoor back into
+        -- Katrine's room and both alley doors out to the street.
+        climb("goDownstairsInBase", "fai_varrock_stairs_top", 3188, 3390, 3188, 3392, 1, 0,
+            function(tt) return tt.x == 3188 and tt.z == 3392 end, "the stand tile 3188,3392 one floor down")
+        cross("goDownstairsInBase.blackarmDoor", "blackarmdoor", 3185, 3388, 3185, 3388,
+            function(tt) return tt.z <= 3387 and tt.level == 0 end, "Katrine's room, z <= 3387")
+        katrine_out("leaveBlackArmBase")
         t.exec("goto-talkToHaig", t.player.goto_tile, 3257, 3447, 0)
         t.exec("talkToHaig", t.player.talk_to, "curator", 1)
         t.exec("talkToHaig-dialog", t.chat.play, {
@@ -510,7 +784,13 @@ return {
         -- Spawn row m50_54.spawn "king_roald 3222 3472 0".
         local coins_before_result, coins_before = t.inv.count("coins")
 
-        t.exec("goto-talkToRoald", t.player.goto_tile, 3222, 3472, 0)
+        -- The throne room (x 3219-3225, z 3470-3478) is closed by
+        -- fai_varrock_castle_door 3218,3472 (east edge) from the entrance
+        -- hall and ds2_varrock_door 3222,3479 from the north: goto the open
+        -- courtyard, walk through the front doorway, open the hall's door.
+        t.exec("goto-talkToRoald", t.player.goto_tile, 3212, 3466, 0)
+        pass_door("talkToRoald.throneDoor", CASTLE_DOOR, CASTLE_DOOR_OPEN, 3218, 3472, 3218, 3472, 3220, 3472,
+            function(tt) return tt.x >= 3219 and tt.level == 0 end, "in the throne room, x >= 3219")
         t.exec("talkToRoald", t.player.talk_to, "king_roald", 1)
         t.exec("talkToRoald-dialog", t.chat.play, {
             "player:Greetings, your majesty.",
