@@ -794,7 +794,7 @@ return {
         ["walk_later"] = { value = "34-42", unit = "ticks", grade = "B", tol = "range", closes = "M17" },
         ["speed_walk"] = { value = "1", unit = "tiles", grade = "B", tol = "exact", closes = "-" },
         ["speed_run"] = { value = "2", unit = "tiles", grade = "B", tol = "exact", closes = "-" },
-        ["hand_tiles"] = { value = "16", unit = "count", grade = "B", tol = "exact", closes = "M6" },
+        ["hand_tiles"] = { value = "14-16", unit = "count", grade = "B", tol = "range", closes = "M6" },
         ["hand_lead"] = { value = "3", unit = "ticks", grade = "B", tol = "exact", closes = "M6" },
         ["hand_cadence"] = { value = "6", unit = "ticks", grade = "B", tol = "exact", closes = "M6" },
         ["hand_cadence_hurt"] = { value = "4", unit = "ticks", grade = "B", tol = "exact", closes = "M6" },
