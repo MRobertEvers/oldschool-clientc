@@ -664,3 +664,43 @@ Open:
   after it). seam16 re-pointed that one row. Its maiden comments add 11 lines to
   tob.constant between lines 240 and 285, so every other spec citation past line 240 is off by
   5-11 more lines; they were not re-pointed. Documentation only.
+
+## From seam18 (matthew-mbp-m4-raid-b1-seam18, 2026-10-04)
+
+- **FIXED seam18** Potions, Saradomin brew: `[label,consume_effect_sara_brew]`
+  (player/scripts/consumption/sara_brew.rs2) ran `stat_drain(defence, 2, 10)`, so every dose
+  LOWERED Defence 2 + 10% (99 -> 88) and every accuracy-rolled hit on a brewing raider landed
+  more often. Now `stat_boost(defence, 2, 20)`. Wiki [Saradomin brew] revid 15322175
+  (2026-08-27), pinned at docs/minigames/theater_of_blood/sources/wiki_Saradomin_brew.wikitext
+  with a manifest row: line 56 "Each dose of a Saradomin brew temporarily lowers Strength,
+  Attack, Magic, and Ranged by 10% + 2 of their current levels, and raises Hitpoints by 15% + 2
+  and Defence by 20% + 2 of their base levels, all rounded down. This can boost the player's
+  Hitpoints and Defence above their base level by up to the amount restored."; line 89 "Defence
+  boost is calculated with: floor((Defence Level) * 1/5) + 2"; table line 109 "95–99 || +21".
+  The engine's `stat_boost` step is `constant + base * percent / 100` and its result
+  `max(min(current + d, base + d), current)` (torirs_server_scripts.c, SS_OP_STAT_BOOST), so
+  (2, 20) is the wiki's formula of the base level, rounded down, and the "up to the amount
+  restored" cap: a second dose at 120 leaves 120. **Grade C at best**: one wiki item page,
+  whose prose (:56), formula (:89) and table (:109) agree with each other and with our server;
+  no recorder or plugin source. Measured: Defence 99 -> 120, Strength 99 -> 88, Hitpoints
+  99 -> 115 (the wiki's table: +16 at 94-99), read the next tick (run sbd18_green); RED on the
+  HEAD pack: Defence 99 -> 88 (sbd18_red). Conformance seam.brew_raises_defence and
+  seam.brew_defence_no_stack. The other brews do not route through this label and carry no
+  copy of it: god_brew.rs2 (Zamorak, ancient, forgotten, Armadyl brews) and barbarian_mix.rs2
+  (Zamorak mix, ancient mix) keep their own Defence drains (their headers cite their own wiki
+  pages; those pages are not pinned and were not re-checked here); castlewars_brew.rs2 boosts
+  Defence 5 + 15% (super combat's arm, wiki_Castlewars_brew.wikitext); no Blighted or Sanfew
+  path in the consumption directory touches a brew.
+- Open, potions, Saradomin brew br_ supply copy: br_potion.rs2:76-83 (`br_*dosepotionofsaradomin`,
+  the Tombs of Amascut supply brew; the file's header says it mirrors the ordinary families
+  "constant for constant") still runs `stat_drain(defence, 2, 10)`. The same one-line fix,
+  `stat_boost(defence, 2, 20)` in place of that drain, was outside seam18's file list.
+- Open, potions, Saradomin brew drains, of the base or the current level: line 56 and line 114
+  ("Attack/Strength/Ranged/Magic drain is calculated with: floor((Current Stat Level) * 1/10) +
+  2") say the drain is of the current level; `stat_drain(x, 2, 10)` steps by the base level.
+  The same page's line 58 ("At skill levels 90 and higher, a super restore will only fully
+  restore lost stats from two doses of Saradomin brew") holds only for a base-level step: of
+  the current level, three doses at 99 drain 11 + 10 + 9 = 30, which a super restore's 32
+  covers. The two agree on the first dose from an undrained stat. The page disagrees with
+  itself, so the drain was left as it was; a second source (a plugin's brew calculator, a
+  Jagex statement, or a measured three-dose drain) would settle it.

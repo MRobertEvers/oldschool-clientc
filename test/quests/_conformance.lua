@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 162
+-- @seam-count 164
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 165
-local SEAM_COUNT = 162
+local SEAM_COUNT = 164
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -15854,6 +15854,102 @@ return {
                 "super restore %s; hitpoints %d -> %d of %d (wiki: unchanged; +1 allowed for a natural regen tick; the old proc healed +%d), attack %d -> %d (want %d = 8 + 25%% of %d) -- %s",
                 describe(result), h1, h2, hb, 8 + math.floor(hb * 25 / 100), a1, a2, want_a, ab, describe(detail))
             if result == "ok" and h2 - h1 >= 0 and h2 - h1 <= 1 and a2 == want_a then return "ok", text end
+            return "refused", text
+        end)
+
+        -- raid seam18 saradomin_brew_raises_defence, a CONTENT seam.  NO VERB ADDED OR RENAMED
+        -- (verb_list.py does not move).  Two SEAM rows: SEAM_COUNT +2, @seam-count +2.
+        -- PLACE: in _conformance.lua's PLAN directly AFTER seam("seam.super_restore_no_hitpoints", ...)
+        -- (section (B), the t.player.eat / t.player.drink rows) and BEFORE the "(C)" banner and
+        -- seam("seam.held_press_fight_speed", ...).  Each row resets its own levels with ::setlevel.
+        --
+        -- [label,consume_effect_sara_brew] (sara_brew.rs2) ran stat_drain(defence, 2, 10): every
+        -- dose made the drinker SOFTER.  Wiki [Saradomin brew] revid 15322175 (docs/minigames/
+        -- theater_of_blood/sources/wiki_Saradomin_brew.wikitext:56): "raises Hitpoints by 15% + 2
+        -- and Defence by 20% + 2 of their base levels, all rounded down. This can boost the player's
+        -- Hitpoints and Defence above their base level by up to the amount restored."; :89 "Defence
+        -- boost is calculated with: floor((Defence Level) * 1/5) + 2"; table :109 "95-99 || +21";
+        -- :83 Hitpoints "94-99 || +16".  So at 99: Defence 99 -> 120, Hitpoints 99 -> 115, and
+        -- Strength 99 -> 88 (:114 floor(99 / 10) + 2; :129 "90-99 || -11").  Grade C at best (one wiki item page,
+        -- its prose, formula and table agreeing).  The second row is the cap: "by up to the amount
+        -- restored" -- a second dose at Defence 120 leaves 120 (stat_boost's min(current + d, base + d)).
+        -- RED before the fix (pack from HEAD sara_brew.rs2, run sbd18_red): defence 99 -> 88 (want 120).
+        -- GREEN after (run sbd18_green): defence 99 -> 120, strength 99 -> 88, hitpoints 99 -> 115;
+        -- second dose: defence 120 -> 120 of base 99.  (The triage's 121 / 87 / 116 are each one off
+        -- the page's own tables: +21 at 95-99, -11 at 90-99, +16 at 94-99.)
+        seam("seam.brew_raises_defence", function()
+            local drink = verb("player", "drink")
+            local read = verb("skill", "read")
+            local ticks = verb("ticks")
+            if not drink then return missing("player", "drink") end
+            if not read then return missing("skill", "read") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            settle(3)
+            local function lvl(s)
+                local _, r = read(s)
+                if is_table(r) then return r.level or -1, r.base_level or -1 end
+                return -1, -1
+            end
+            local d0, db = lvl("defence")
+            local s0, sb = lvl("strength")
+            local h0, hb = lvl("hitpoints")
+            if not (d0 == db and s0 == sb and h0 == hb) then
+                return "refused", string.format("staging left defence %d/%d, strength %d/%d, hitpoints %d/%d (want all at base)", d0, db, s0, sb, h0, hb)
+            end
+            local result, detail = drink({ "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" })
+            ticks(1)  -- read back the next tick
+            local d1 = lvl("defence")
+            local s1 = lvl("strength")
+            local h1 = lvl("hitpoints")
+            local want_d = db + math.floor(db / 5) + 2
+            local want_s = s0 - (math.floor(s0 / 10) + 2)
+            local want_h = math.min(h0 + math.floor(hb * 15 / 100) + 2, hb + math.floor(hb * 15 / 100) + 2)
+            local text = string.format(
+                "brew %s; defence %d -> %d (want %d = base %d + floor(%d/5) + 2), strength %d -> %d (want %d), hitpoints %d -> %d (want %d) -- %s",
+                describe(result), d0, d1, want_d, db, db, s0, s1, want_s, h0, h1, want_h, describe(detail))
+            if result == "ok" and d1 == want_d and s1 == want_s and h1 == want_h then return "ok", text end
+            return "refused", text
+        end)
+
+        seam("seam.brew_defence_no_stack", function()
+            local drink = verb("player", "drink")
+            local read = verb("skill", "read")
+            local ticks = verb("ticks")
+            if not drink then return missing("player", "drink") end
+            if not read then return missing("skill", "read") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            settle(3)
+            local function lvl(s)
+                local _, r = read(s)
+                if is_table(r) then return r.level or -1, r.base_level or -1 end
+                return -1, -1
+            end
+            local brew = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
+            local r1, x1 = drink(brew)
+            if r1 ~= "ok" then return "refused", "first dose: " .. describe(r1) .. " " .. describe(x1) end
+            ticks(3)  -- the potion delay: a second drink two ticks after the first is refused
+            local d1, db = lvl("defence")
+            local want = db + math.floor(db / 5) + 2
+            if d1 ~= want then
+                return "refused", string.format("first dose left defence %d/%d (want %d)", d1, db, want)
+            end
+            local r2, x2 = drink(brew)
+            ticks(1)  -- read back the next tick
+            local d2 = lvl("defence")
+            local text = string.format(
+                "second dose %s; defence %d -> %d of base %d (wiki :56 \"above their base level by up to the amount restored\": want %d) -- %s",
+                describe(r2), d1, d2, db, want, describe(x2))
+            if r2 == "ok" and d2 == want then return "ok", text end
             return "refused", text
         end)
 

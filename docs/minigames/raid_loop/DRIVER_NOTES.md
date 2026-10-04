@@ -3755,9 +3755,10 @@ before it.
 
 - There is no `::damage` cheat. Cave nightshade (`t.player.eat("nightshade", { op = 4 })`) hits
   15 a bite (nightshade.rs2) and can be eaten every 2 ticks.
-- A Saradomin brew dose drains Attack, Strength, Defence, Ranged and Magic by 2 + 10% of base
-  (99 -> 88 -> 77 -> 66 -> 55) and lifts Hitpoints to base + 16. Drink before you bite. A second
-  drink 2 ticks after the first is refused by the potion delay: wait 3.
+- A Saradomin brew dose drains Attack, Strength, Ranged and Magic by 2 + 10% of base
+  (99 -> 88 -> 77 -> 66 -> 55), raises Defence to base + 21 (since seam18; it drained Defence
+  before) and lifts Hitpoints to base + 16. Drink before you bite. A second drink 2 ticks after
+  the first is refused by the potion delay: wait 3.
 - Recipe: build/seam_state/matthew-mbp-m4-raid-b1-seam15/srh/srh_scratch.lua.
 
 ## Her tornado goes with her (seam15)
@@ -4030,7 +4031,94 @@ yet a test (SEAM_LEDGER.md, seam15).
   no restores left, about 12 brew doses put Magic under Fire Strike's 13: w16delta's Nylocas
   boss phase ended in eight "Your Magic level is not high enough for this spell" and a death
   with Vasilias at 17%.
-- Our sara_brew.rs2:30 also drains Defence by 10% + 2, where the wiki says a brew raises it by
-  20% + 2 of base (open content row, CONTENT_BUGS seam16). Until that is fixed every brew makes
-  accuracy-rolled hits land more often, and the note "Taking a raider under base Hitpoints
-  without a cheat" above describes our brew, not the game's.
+- Defence is no longer drained: seam18 made sara_brew.rs2 raise it by 20% + 2 of base, as the
+  wiki says (see "The Saradomin brew raises Defence (seam18)" below).
+
+## The Saradomin brew raises Defence (seam18)
+
+- sara_brew.rs2 is now `stat_boost(hitpoints, 2, 15)`, `stat_boost(defence, 2, 20)` and
+  `stat_drain(attack/strength/magic/ranged, 2, 10)` (wiki Saradomin brew :56, :89; grade C).
+  At 99 one dose reads Defence 120, Strength 88 and Hitpoints 115 on the next tick. A second
+  dose leaves Defence at 120: `stat_boost` caps at base plus one dose.
+- Rows: seam.brew_raises_defence and seam.brew_defence_no_stack.
+- A room that brews now takes fewer accuracy-rolled hits. In the Nylocas waves the landed rate
+  fell from about 19% to about 17%, so the roll sequence after the first brew diverges: a room
+  tuned on the old brew must be re-run, not trusted.
+- Brew drains step by the BASE level. The wiki's "current level" (:56, :114) conflicts with its
+  own super-restore paragraph (:58), so it is an open row in CONTENT_BUGS.md (seam18). Do not
+  change the drain without a second source: seam15's seam.super_restore_no_hitpoints staging
+  assumes 3 doses take Attack 99 -> 66.
+- The ToA supply brew (br_potion.rs2, `br_*dosepotionofsaradomin`) still drains Defence: open
+  row in CONTENT_BUGS.md.
+
+## Engine arithmetic for consumables
+
+- `stat_boost`, `stat_drain`, `stat_sub` and `stat_heal` all step by
+  `constant + BASE * percent / 100` (the integer divide is the wiki's "rounded down").
+- `stat_boost` gives `max(min(cur + d, base + d), cur)` (no stacking); `stat_heal` gives
+  `max(min(cur + d, base), cur)`; `stat_add` is the unclamped one.
+- A wiki "X% of the current level" drain cannot be written with `stat_drain`'s percent. It
+  needs `stat_drain(x, calc(stat(x) / 10 + 2), 0)` (`stat()` is the boosted level).
+
+## A RED pack without touching the shared tree
+
+- Build a symlink shadow of the content root: symlink every top-level entry, recreate the path
+  down to the one changed file as real directories, and write the old file from
+  `git show HEAD:./server/scripts/...`.
+- Compile it with `src/build_opt/sscompile --src <shadow>/server/scripts --out
+  <shadow>/server/scripts/build --content-root <shadow>`. The content root must be the shadow,
+  or the lane.ini path match fails.
+- Run with `TORIRSSERVER_SCRIPTS=<shadow>/server/scripts/build`. The server only warns on a
+  stale pack. The script count is the same as the real pack's (42432).
+
+## Maiden's Matomenos: meet each crab with the weapon in hand (seam18)
+
+- Relay plan 18b: attack each crab by its own slot from the tick `t.npc.nearest` sees it, at
+  any distance: `t.player.attack(sym, 2, 1, { slot = crab.slot, quick = true })`.
+- The bow (MSB(i), rune arrows) let all 6 of 6 reach her (c = 6). The scythe intercept let 3
+  of 6 reach her and halved her damage (261 -> 144) and the food (10 sharks -> 5).
+- Count leaks from the tick log: a Matomenos (10820) `npc_death` on the same tick as an
+  `npc_heal` on her slot. The heal is twice the crab's remaining hitpoints, so a wounded leak
+  still counts in c.
+
+## Xarpus phase 2: where the splash lands (seam18)
+
+- Measured with trj/xspit.py: a spit hits the raider if and only if the raider's tile at
+  land-1 is within 1 of the aim tile (w16bravo: distance 0 14 of 14, distance 1 32 of 32,
+  distance 2 0 of 15). The aim is the raider's tile at S-1 (the T-1 rule).
+- So the melee dance is OUT to a clean ring-2 tile (it takes the puddle), then TWO clean steps
+  to a side tile two away from it. `step_tick` blocks one tick each (issued S-2, S-1, S;
+  resolved S-1, S, S+1). Stepping back to the side tile next to the out tile is inside the
+  3x3 every time.
+- Phase 1 has no recipe lever on exhumed leaks: the click lands on the spawn tick and the run
+  is 2 tiles a tick. An exhumed fires every tick from spawn+3 unless covered, stays open 11
+  ticks, and the next comes 12 ticks later, so one more than about 5 tiles away leaks.
+
+## Nylocas: a dealer -1 hit over 8 is a support collapse (seam18)
+
+- A support collapse deals 37-43 in Entry and hits everyone in the room wherever they stand
+  (tob_nylocas.rs2:1680). Seam16's "117 from detonations" was three collapses.
+- Aggro explosions (max 8 in Entry) cost 0-9 a room over ten runs. Stepping away from them
+  (relay plan 20) cost a support and 44 hitpoints: do not spend presses on them.
+
+## Count the kit by doses, never by presses (seam18)
+
+- `R.used.restore` counted every press, and the potion delay refuses most of them: seam16's
+  "restores 13" was 6 doses.
+- The relay's `R.kit(t)` / `R.kit_used(t, k0)` read shark, bandage, brew-dose and restore-dose
+  counts and print the difference per room (`<room>.kit_used` rows).
+- Entry Mode restores hitpoints and prayer after every boss (wiki Entry Mode :22). Food eaten to
+  top up at the end of a fight is wasted, and a brew in the Maiden drains the scythe's Strength
+  for the rest of the fight.
+
+## The whole raid after the brew fix: still 0 of 5 (seam18)
+
+- With the wiki's kit plus the Bloat chest's 10 bandages, the seam18 relay reaches Sotetseg
+  with 0-2 restore doses, 3-14 brew doses and no food in every name. Nothing after the Nylocas
+  recovers that: the Sotetseg chest's 10 bandages are all the second half gets.
+- The Nylocas is the supply sink: 285-377 damage, 29-33 eats, 10-15 brew doses and 4-7
+  restore doses per name. The relay fights it with single-target Fire Strike, where the wiki
+  recommends Ancient Magicks (Entry :157, :166, rune pouch :92). That is the next lever.
+- The brew fix alone (one run of seam16's plan-17 relay under w16alpha): Xarpus is killed
+  instead of the phase 2 death (missed 23 -> 1, damage 383 -> 215) and the death moves to
+  Verzik P2 at t2759. bravo and charlie died on the same tick as before.

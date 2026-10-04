@@ -184,3 +184,20 @@ brew.
 - Raid rooms that moved (SEAM_LEDGER.md, seam15): tob_verzik (P3 out of food at tick 636)
   and tob_maiden (one sound-range row on a changed walk). Both must be re-authored on this
   branch; neither is a merge blocker for v3.
+
+## The Saradomin brew raises Defence (seam18, 2026-10-04)
+
+The owner confirmed on 2026-10-04 that the brew must be fixed: `[label,consume_effect_sara_brew]`
+(sara_brew.rs2) no longer drains Defence; a dose raises it by 2 + 20% of base (wiki [Saradomin
+brew] revid 15322175 lines 56 and 89, pinned under docs/minigames/theater_of_blood/sources/). It
+reaches every quest and room that drinks `4dosepotionofsaradomin` and its smaller doses. The ToA
+supply brew (br_potion.rs2:80) still drains Defence; that is an open content row, not fixed here.
+- Quest suite on this branch after the fix: 115 green, and deserttreasure, forgettabletale,
+  regicide and troll RED with the same first failing steps as seam16 (the baseline, fixed on
+  v3). No quest went red because its fight drank brews.
+- v3's quests that are not on this branch (b56 onwards) have not been run with the fixed brew.
+  After the merge, any of them that goes red in a fight that drinks a Saradomin brew is the
+  quest session's: send it the first failing row.
+- Raid rooms that moved (SEAM_LEDGER.md, seam18): tob_nylocas (the last support falls before
+  Vasilias spawns at 490 ticks; 91 PASS / 24 FAIL). It must be re-authored on this branch; it is
+  not a merge blocker for v3.
