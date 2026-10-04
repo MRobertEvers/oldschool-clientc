@@ -13,6 +13,54 @@ Held-item verbs are in `verbs-inventory-shops.md`, fights in `verbs-combat.md`, 
 the scene actually holds and the row's `match` names the rule -- `exact`, `base`, or `multiloc`
 (trap 20).
 
+#### Stacked floors: `t.world.loc_near(sym, radius, { level = n | "here" })` (b59-seam1)
+
+Without opts `loc_near` answers the FIRST copy, and the pool is ordered by x/z distance only (no
+level term, `DriveUi_Locs`), so a copy on another floor at the same x,z ties with or beats the one
+on yours. Miscellania's castles and the Sinclair mansion stack a door on levels 0 and 1 at one
+tile: on level 1, `loc_near("opencastledoor", 3)` answered the level-0 leaf at 2506,3852,0
+(misc run 4: 10 of 69 "door stands open" rows passed on the wrong floor). Name the floor:
+
+- `{ level = n }` -- only a copy on raw level n; `{ level = "here" }` -- the player's level.
+- `{ at = {x, z[, level]}, slack = s }` -- only a copy within `s` tiles (default 0) of x,z, on
+  `level` when given: `loc_near("opencastledoor", 12, { at = { 2506, 3851, 1 }, slack = 1 })`.
+- A filtered `not_found` names the copies it skipped WITH their level (`copies skipped, nearest
+  first: 2506,3852,0`). The level is the RAW cache level: on a bridge deck the player stands one
+  plane lower (gaps-world: `t.world.loc_near` reports a loc's raw cache level).
+- Never read the pool through `t.drive._pool_read` or parse `click_loc`'s `nearest copies` from an
+  impossible level (`{ at = { x, z, 9 } }`): both were b59 workarounds for this.
+
+### `t.player.pass_door(spec)` -- cross one door on foot (b59-seam1)
+
+`t.player.pass_door{ closed=, open=, at={x,z[,level]}, near={x,z}, far={x,z} [, far_ok=fn,
+far_desc=, op=1, close=true, ticks=] }` -> `(ok, detail)` `refused` `not_found` `timeout`. One row
+per crossing, through `t.exec`:
+
+```lua
+t.exec("vargas1.castleGate", t.player.pass_door, { closed = "castledoor", open = "opencastledoor",
+    at = { 2510, 3860, 0 }, near = { 2511, 3860 }, far = { 2508, 3860 } })
+```
+
+1. walks to `near`; must stand within 1 of it on the door's level, and NOT already satisfy the far
+   test (`refused ... already past the door`);
+2. waits up to 6 ticks for either leaf on the door's level (a scene that just loaded), then reads
+   the CLOSED leaf on the exact `at` tile AND level. Present: presses it there (`click_loc`'s `at`
+   selector) and grades the closed leaf LEAVING that tile and level, plus the open leaf standing
+   within 1 of it when `open` is named (or the press carrying the player to the far side: a
+   walk-through door). Absent: the door stands open (`stands open ..., not pressed` -- pressing an
+   open leaf shuts it) and the OPEN leaf must stand within 1 of the door tile on that level;
+   neither leaf -> `not_found ... neither leaf on level L`;
+3. walks to `far` and grades exactly that tile on the door's level, or `far_ok(tile)`;
+4. `close = true`: presses the open leaf on that level, grades the closed leaf back on the door
+   tile, walks back to `far` and grades it (a door the client lost after its 500-tick revert while
+   you were away is the reason misc_astrid closes doors behind it).
+
+`level` defaults to the player's level at `near`. The press's own word (`ok`, or `timeout` for a door
+that says nothing) is in the detail; the grade is the loc reads and the tiles. Proved on Miscellania
+castle's stacked `castledoor` 2506,3851 (levels 0 and 1): conformance `player.pass_door` and
+`seam.stacked_door_read_on_its_own_floor`; a misc.lua copy using it for all 25 call sites ran
+207/0 (84 crossings, 17 pressed, 67 standing open, every one on its own floor).
+
 ### `t.world.tile()` -- also `t.world.level`
 
 `t.world.tile()` -> `(ok, {x,z,level})`. `t.world.level()` -> `(ok, level)`.

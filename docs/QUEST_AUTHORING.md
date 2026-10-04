@@ -228,7 +228,8 @@ banners: the topic file named in each group heading.
 - `t.player.click_loc(loc_symbol_string, op=1, opts)` -> walks other approach tiles on `I can't reach that!`; `opts.at` names a copy.
 - `t.player.click_obj(obj, op=3)` -> waits for the backpack count to rise; write the count yourself.
 - `t.player.by_symbol(kind, name)` -> `(target, "ok")` -- reversed order; resolves only, never a presence check.
-- `t.world.tile()` / `level()`; `t.world.loc_near(sym, r)` / `obj_near(sym, r)` -> `(ok, {...}) not_found`.
+- `t.world.tile()` / `level()`; `t.world.loc_near(sym, r[, {level=n|"here"} | {at={x,z,level}, slack=}])` / `obj_near(sym, r)` -> `(ok, {...}) not_found`; with opts it reads ONE floor.
+- `t.player.pass_door{closed=, open=, at={x,z,level}, near={x,z}, far={x,z}[, close=true]}` -> one door crossed on foot, graded on the leaf reads and tiles.
 - `t.drive.screen_position(target)`, `t.drive.click_minimenu(target, option)`, `t.drive.camera(yaw, pitch, zoom)`.
 - `t.drive.op(target, option)` -> the logged bypass, never the default and never evidence of reach.
 

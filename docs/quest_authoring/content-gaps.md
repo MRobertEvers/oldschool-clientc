@@ -247,7 +247,8 @@ their bones. Do not `::give` bones.
 in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
 
 - **The Hand in the Sand.** Rarve's sandpit cutscene is not ported. Entrana has no boat crossing and
-  no check that bans weapons, so Mazion is reached by `goto_tile` (parity notes).
+  no check that bans weapons, so Mazion is reached by `goto_tile` (parity notes). (The Port Sarim
+  monk's weapon search is FIXED: seam-facts, Seam pass matthew-mbp-m4-b59-seam1 (j).)
 - **Meat and Greet.** Emelio's "Trade" and the Spice Merchant's "Let's trade" open nothing, because
   the shop stock files are not generated (PARITY.tsv row, `wiki_shop_owners.csv` regen).
 - **The Eyes of Glouphrie.** Brimstail hands out discs only while the stage is below

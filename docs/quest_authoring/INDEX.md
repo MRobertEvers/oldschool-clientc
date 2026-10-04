@@ -20,6 +20,15 @@ topic file with one line added here.
 - `screen_position: <reason>`, `not_found` one tile from an npc -> traps-13-22: Trap 19
 - where is this LOC placed (`loc_add`); a `loc_near -> not_found` sweep -> traps-23-33: Trap 29; gaps-world: A LOC's tile
 - a `^*_coord` constant -> gaps-world: `^*_coord` decoding; A coord constant is where the player SHOULD go
+- a level-1 row reads the level-0 door below as "stands open"; `loc_near` answers another floor's copy -> verbs-pointer: Stacked floors
+- crossing a door or gate on foot; a hand-written `pass_door` helper -> verbs-pointer: `t.player.pass_door(spec)`
+- a door you opened draws NEITHER leaf when you come back; `pass_door` answers `neither leaf on level L` (OPEN engine fix; close it behind you) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (l)
+- `talk_to` answers `I can't reach that!` from the tile in front of an npc behind crates or a counter (Kennith; FIXED b59-seam1: `[apnpc1]` + `p_aprange(2)`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (a)
+- the Sinclair mansion stairs say "It's just a staircase."; Murder Mystery's level-1 barrels out of reach (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b)
+- `walk_to` stalls at 2559,3299 beside `ardougnedoor_l`; no way into West Ardougne (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (c)
+- Lletya's trees say "Nothing interesting happens."; the teleport crystal does nothing; a goto into Lletya (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (e)
+- the Mourner HQ basement ladder lands at 2044,4649,1; a Camelot Teleport out of the basement (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (f)
+- no boat to Miscellania, "I still need to fix this longboat"; `the dialogue closed after N page(s)` on a boat ride (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (i)
 - `on attempt 2 of 3 via ::goto` -> verbs-pointer: `t.player.goto_tile`
 - a goto mid-fight runs back to the npc -> verbs-pointer: Since seam 15 a goto stops the player's action
 - a teleport dialogue lands on your next click; every press `covered` -> start-and-travel: A dialogue or loc that
@@ -354,6 +363,7 @@ topic file with one line added here.
 - a stale `docs/quests/` walkthrough -> running: Resuming; gaps-world: Read `docs/quests/<quest>.md`
 - proving a content line in a file outside your seam without touching the shared tree; `TORIRSSERVER_SCRIPTS=<private pack>` -> running.md: the private-pack paragraph at the end (matthew-mbp-m4-b49-seam1)
 - proving the PRE-fix content behaviour (a baseline) without reverting the shared tree: a symlink farm with the one file at HEAD, compiled privately -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)
+- a regression run rewrote `selftest/quests/<dir>/play`; `gate.py <id>` read another worker's ledger; proving content BEFORE a fix -> running: Regression runs inside a seam pass
 
 ## Sea and session
 
@@ -473,6 +483,13 @@ topic file with one line added here.
 - an Evil Creature (Eyes of Glouphrie) or any 1-max-hit npc takes your hp down a point; one fight read 40 -> 40 and another 40 -> 35 -> seam-facts: Seam pass matthew-mbp-m4-b55-seam1 (h) (they hit back, wiki max hit 1) and (i) (per-npc seeded rolls; count swings)
 - a kill's return teleport never moves you; client.log `npc_findhero with no active npc ... from [ai_queue3,<npc>]` (H.A.M. rangers, Sigmund) (FIXED b55-seam2: queue the player's half) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam2 (a); the suspend checker misses a page after `npc_findhero`, five more candidates (OPEN) -> (b)
 - `click_loc slice_goblin_ladder_top` answers "I can't reach that!" on the H.A.M. watchtower (OPEN parity: landing tile behind the crates) -> seam-facts: Seam pass matthew-mbp-m4-b55-seam2 (c)
+- Mourner HQ "The door is locked..." or the trapdoor's "Nothing interesting happens." after Part I; "The trapdoor is bolted on the other side." (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (d)
+- `talkToEssyllt` `no npc 9235 ... in the client's entity pool` right after the trapdoor (await the npc first) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (d)
+- Arianwyn `no npc in the entity pool` from the teleport crystal's landing -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (e)
+- extra ogre bellows after the dyes; a 12-coal give cut to 9 (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (g)
+- the Temple of Light Low wall's Climb-over says "Nothing interesting happens."; `timeout settle_after_click` on the hop (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (h)
+- the Entrana monk: "NO WEAPONS OR ARMOUR are permitted on holy Entrana AT ALL"; a test that boarded armed (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (j)
+- a quest trigger on a shared staircase kills it for everyone; a quest ladder with no maplink row (`~climb_ladder_to`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b), (f)
 
 ## Citations: resolving a number or a name
 

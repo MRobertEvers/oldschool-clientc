@@ -743,7 +743,7 @@ a deck skips a guide step. zanaris, grail and hero (the committed ferry users) s
 docs/quests/ladders/deviousminds.notes.md. Desert Treasure's guide items are all obtainable in
 content (docs/quests/ladders/deserttreasure.notes.md); the Ardougne SILVER shop opening EMPTY in
 the client (a content-declared inv, `cell 3 of shopmain:items is not mounted`) is FIXED in seam35
-(Seam pass 35 (a)); open: the Entrana monk's weapon search is unported.
+(Seam pass 35 (a)); the Entrana monk's weapon search is FIXED (Seam pass matthew-mbp-m4-b59-seam1 (j)).
 
 ## Seam pass 35 (2026-10-01)
 
@@ -1867,3 +1867,109 @@ fallbacks are no longer needed.
 that mirrors `osrs239-content` with the one file replaced by its HEAD copy, compile it with
 `src/build_opt/sscompile --src <farm>/server/scripts --out <farm>/server/scripts/build`, and run with
 `TORIRSSERVER_SCRIPTS=<that build dir>` (the phoenixdoor2 and Keldagrim baselines).
+
+## Seam pass matthew-mbp-m4-b59-seam1 (2026-10-04, batch matthew-mbp-m4-b59)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b59-seam1]`; the driver verbs in the
+parent commit with the same tag. b59 re-drove ten tier 1 tests with no goto past a closed door, and
+four stopped at content nobody could reach on foot. These are the fixes.
+
+(a) **`talk_to(kennith)` answers `I can't reach that!` from inside the cabin** -- FIXED,
+`area_fishing_platform/scripts/kennith.rs2`. Kennith (2766,3288,1) stands in a pocket behind
+`slug2_crate_stack`. The nearest standable tile is 2766,3286, two tiles back. He now has an
+`[apnpc1]` approach trigger at range 2 for both `kennith` and the `kennith_platform` leaf, the shape
+of At First Light's Verity. A multinpc needs both the base and the leaf bound. The crates are
+`blockrange=0`, so the talk lands across them. A wall still refuses even at range 2: from 2768,3288
+the answer is `I can't reach that!`. Talk from 2766,3286,1 (wiki Sea_Slug/Quick_guide oldid
+14957910).
+
+(b) **The Sinclair mansion spiral stairs say "It's just a staircase."** -- FIXED,
+`quest_kingsransom/scripts/kr_mansion.rs2`. King's Ransom's triggers on `murder_qip_spiralstairs` /
+`murder_qip_spiralstairstop` are more specific than `[oploc1,_climb_up]`, so outside its own
+`^kr_told_by_gossip` state they now do the plain `~climb(1)` / `~climb(-1)` (LostCity's mansion has
+a plain ladder here, `m42_55.jm2`, loc 1747). The stairs land at 2737,3580,1. Murder Mystery's
+level-1 evidence is there: barrels c 2733,3580,1, d 2733,3577,1, e 2747,3581,1, f 2747,3577,1, and
+the web at 2740,3574,1. Trap for any quest overlay on a shared staircase or ladder: fall through to
+the generic climb outside the overlay's own states.
+
+(c) **`walk_to` stalls at 2559,3299 against the West Ardougne wall door** -- FIXED,
+`area_ardougne_west/scripts/doors.rs2`. The map places `ardougnedoor_l`/`_r` (8738/8739, a 2x2 block
+at 2557-2558,3299-3300). The Biohazard walk-through was bound only to LostCity's
+`ardougnewalldoor_left/right`, which no map places. Now it is bound to both. Press a leaf from 2559
+(east) or 2556 (west); you are forcemoved two tiles through the block. Before Biohazard is complete
+the door answers "...But they will not open." and you stay put.
+
+(d) **The Mourner HQ door and its trapdoor lock out a player who finished Mourning's End Part I** --
+FIXED (`doors.rs2` mournerstewdoor, `mend1_disguise.rs2`). With the full mourner disguise worn, both
+admit from `^mend1_gathering` on, Part I complete included. Without the disguise, the door gives its
+mesbox and the trapdoor says "The trapdoor is bolted on the other side." (wiki
+Mourner_Headquarters oldid 15302196, Trapdoor_(Mourner_Headquarters) oldid 14713443). The trapdoor
+lands at 2044,4628,0 on Essyllt's spawn tile. Wait for him with `t.npc.await_present` before
+`talk_to`: the landing does not wait for the npc pool the way `goto_tile` does.
+
+(e) **Lletya's trees say "Nothing interesting happens."; the teleport crystal does nothing** --
+FIXED, new `quest_mourningsendparti/scripts/mend1_lletya_access.rs2`. `elf_village_treegate` op1
+Pass at 2305,3191 and 2305,3195 (the west column x=2304 to the east column x=2306, on your own row,
+both ways) once `%varp517_mourning_quest >= ^mend1_escorted`. `mourning_teleport_crystal_N` op1
+(`t.player.inv_op(<crystal>, 1)`) lands around 2328,3170 and steps the charge 5 -> 4 -> 3 -> 2 -> 1
+-> `elf_crystal_tiny`. Arianwyn (2353,3172) is out of entity-pool range from the landing: `walk_to`
+2350,3172 first. Never goto into Lletya. Sources: wiki Tree_(Lletya) oldid 14250252, Teleport_crystal
+oldid 15261004.
+
+(f) **The Mourner HQ basement ladder lands in a void at 2044,4649,1** -- FIXED, new
+`mend1_hideout_ladder.rs2`. `mourner_hideout_ladder1` (2044,4650) climbs to 2542,3326,0 beside the
+trapdoor, so the basement is left on foot, with no Camelot Teleport. Trap: a quest ladder whose
+destination the shortest-path data lacks is bound by name with `~climb_ladder_to(coord, true)`.
+Never hand-add a `maplink.dbrow` row: that file is generated and the importer erases it.
+
+(g) **Mourning's End Part I mints an extra ogre bellows per dye** -- FIXED, `mend1_sheep.rs2`. A
+dye now consumes the empty bellows and the toad catch hands it back, so the pack holds exactly one
+bellows through the whole sheep task (wiki Red_dye_bellows oldid 15186976). The four extra bellows
+had cut the 12-coal give to 9.
+
+(h) **The Temple of Light low wall's Climb-over says "Nothing interesting happens."** -- FIXED,
+`quest_mourningsendpartii/scripts/mend2_temple.rs2`. `mourning_temple_wall_jump` (1883,4620,1 and
+1883,4658,1) crosses 1882 <-> 1884 on the wall's row, with no level, no XP and no fail roll (wiki
+"Low wall (Temple of Light)" oldid 14748714). `click_loc` answers `timeout settle_after_click` for
+the short hop, so grade the crossing on `t.world.tile()`.
+
+(i) **No boat to Miscellania; `goto` from Lumbridge to the island dock** -- FIXED
+(`quest_viking/scripts/viking_sailor.rs2`, new `area_miscellania/scripts/misc_sailor.rs2`). Rellekka
+`viking_sailor` (2629,3693) Talk-to or op3 Miscellania lands at 2581,3845,0. Miscellania
+`misc_sailor` (2581,3847) Talk-to or op3 Rellekka lands at 2629,3693,0. Both need The Fremennik
+Trials: `::complete quest_fremenniktrials` in setup, a Quest Helper requirement of Throne of
+Miscellania. Without it the sailors give the before-trials lines and do not move you. The ride is
+`if_close`, `mes`, `p_delay(2)`, telejump, mesbox, so the dialogue CLOSES for two ticks before the
+arrival mesbox. End the `chat.play` list at `player:Let's go!`, `t.await` the landing tile, then
+`chat.play{"mesbox:The ship arrives at Miscellania.", "end"}`. One list spanning the gap answers
+`the dialogue closed after N page(s)`. Royal Trouble's `[opnpc1,misc_sailor]` falls back to the ride.
+Sources: wiki Transcript:Sailor oldid 15095248, Sailor oldid 15351110.
+
+(j) **The Port Sarim monk sails you to Entrana armed** -- FIXED,
+`areas/port_sarim/scripts/monk_of_entrana.rs2` `~has_entrana_restricted_items` (LostCity's proc).
+After "The monk quickly searches you." the monk checks worn AND carried items. Any `weapon_*` obj,
+any wearable with an attack or defence bonus (outside the neck and ring slots and the wiki's
+exceptions: ice gloves, wizard and other robes, god capes and books, and so on), and cannon parts
+are refused. The refusal is two npc pages, "NO WEAPONS OR ARMOUR are permitted on holy Entrana AT
+ALL..." and "Do not try and deceive us again...", and you stay on the dock (wiki Entrana oldid
+15352889). Bank or drop gear first, as hero.lua does at Draynor. Food, runes, arrows and jewellery
+pass. LostCity's "All is satisfactory" page is NOT ported, so the `chat.play` list still ends at
+`mesbox:The monk quickly searches you.`. Supersedes "open: the Entrana monk's weapon search is
+unported" (Seam pass 34).
+
+(k) **`t.world.loc_near` on level 1 answers the door on level 0 below; a hand-written `pass_door`**
+-- FIXED in the driver. `loc_near(sym, r, {level=n|"here"})` or `{at={x,z[,level]}, slack=s}`
+reads ONE floor, and a filtered `not_found` names the skipped copies with their levels.
+`t.player.pass_door{closed=, open=, at=, near=, far=[, close=true]}` crosses one door and grades it
+on the leaf reads and the tiles. See verbs-pointer: Stacked floors and `t.player.pass_door(spec)`.
+
+(l) **A door the player opened draws NEITHER leaf after its 500-tick revert while the player was
+away** (Miscellania castle gate 2510,3860,0 on the way back from Leif; the level-1 landing door
+2506,3851,1 after a stair climb) -- OPEN, an engine fix waiting to land. The client's
+`UPDATE_ZONE_FULL_FOLLOWS` cleared only obj stacks. The reference (Client-TS Client.ts ~7463) also
+resets the zone's locs to the map's. On top of that, the server never retired the open leaf's
+revert record (`torirs_server_zone.c`, a removed loc compared by angle). The fix and its conformance
+row `seam.door_revert_reaches_a_returning_client` are proved in a private worktree but not
+committed. Until it lands, close a door behind you when you leave its zone for 500+ ticks
+(`pass_door{..., close=true}`). `pass_door` answers `not_found ... neither leaf on level L` when the
+bug fires.
