@@ -233,6 +233,107 @@ def artefact_dir(name):
     return os.path.join(REPO_ROOT, "build", "quest_gate", name)
 
 
+# THE PARTY RUN (raid seam17 party_run_and_verbs; run.py run_party). N client
+# processes play one world, each in its own session directory under the run's
+# build/quest_gate/<id>/p<n>/ (ledger.tsv, shots/, ticklog.tsv, heartbeat,
+# client.log); run.py writes <id>/party.tsv naming them. The gate grades ONE
+# ledger, the UNION, which party_union writes at <id>/ledger.tsv with every
+# shot at <id>/shots/:
+#   * the leader's (p1) rows keep their own names -- the leader holds the
+#     world and its one tick log, so its spec.* rows are the ones
+#     raid_coverage.py grades, unchanged;
+#   * a member's row is renamed `p<n>:<step>` and its shots `p<n>-<shot>`, so
+#     every row carries its raider (`p2:spec.maiden.cadence`);
+#   * a raider whose session left no ledger is a FAIL row `p<n>:run.no_ledger`;
+#   * the SUMMARY counts the union, with the leader's ticks and exit.
+# A run without party.tsv is never touched.
+PARTY_MARKER = "party.tsv"
+PARTY_STEP_RE = re.compile(r"^p\d+:")
+
+
+def party_seats(directory):
+    """[(n, account, session_dir)] from <directory>/party.tsv, or None when the
+    run is not a party run."""
+    assert directory
+    marker = os.path.join(directory, PARTY_MARKER)
+    if not os.path.isfile(marker):
+        return None
+    seats = []
+    with open(marker, "r", encoding="utf-8") as handle:
+        for line in handle:
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 3 or not fields[0].startswith("p"):
+                continue
+            seats.append((int(fields[0][1:]), fields[1], os.path.join(directory, fields[2])))
+    assert seats, "%s names no raider" % marker
+    return seats
+
+
+def party_union(directory):
+    """Write the union ledger and shots of a party run (see PARTY_MARKER).
+    Returns the number of raiders, or 0 when `directory` is not a party run."""
+    import shutil
+    seats = party_seats(directory)
+    if seats is None:
+        return 0
+    lines = ["quest-ledger-v1", "index\tstep\tverdict\tticks\tshots\tdetail"]
+    shots_dir = os.path.join(directory, "shots")
+    if os.path.isdir(shots_dir):
+        shutil.rmtree(shots_dir)
+    os.makedirs(shots_dir)
+    counts = {"PASS": 0, "FAIL": 0, "BLOCKED": 0}
+    index = 0
+    leader_ticks = "0"
+    leader_exit = "exit=none"
+    for seat, account, session in seats:
+        prefix = "" if seat == 1 else "p%d:" % seat
+        shot_prefix = "" if seat == 1 else "p%d-" % seat
+        rows, summary = ledger.read(os.path.join(session, "ledger.tsv"))
+        if rows is None:
+            index += 1
+            counts["FAIL"] += 1
+            lines.append("%d\t%srun.no_ledger\tFAIL\t0\t\traider p%d (%s) left no ledger at %s"
+                         % (index, "p%d:" % seat, seat, account, os.path.join(session, "ledger.tsv")))
+            continue
+        if seat == 1 and summary is not None:
+            leader_ticks = summary[3] if len(summary) > 3 else "0"
+            leader_exit = summary[4] if len(summary) > 4 else "exit=none"
+        for row in rows:
+            index += 1
+            names = ledger.shot_names(row)
+            if row["verdict"] in counts:
+                counts[row["verdict"]] += 1
+            lines.append("\t".join([str(index), prefix + row["step"], row["verdict"], row["ticks"],
+                                    ",".join(shot_prefix + n for n in names), row["detail"]]))
+        if summary is None:
+            index += 1
+            counts["FAIL"] += 1
+            lines.append("%d\t%srun.no_summary\tFAIL\t0\t\traider p%d (%s): its ledger has no "
+                         "SUMMARY row" % (index, "p%d:" % seat, seat, account))
+        own_shots = os.path.join(session, "shots")
+        if os.path.isdir(own_shots):
+            for entry in sorted(os.listdir(own_shots)):
+                if not entry.endswith(".png"):
+                    continue
+                target = os.path.join(shots_dir, shot_prefix + entry)
+                try:
+                    os.link(os.path.join(own_shots, entry), target)
+                except OSError:
+                    shutil.copy2(os.path.join(own_shots, entry), target)
+    verdict = "PASS" if counts["FAIL"] == 0 else "FAIL"
+    summary = "SUMMARY\t%d\t%s\t%s\t%s\tpass=%d fail=%d" % (
+        index, verdict, leader_ticks, leader_exit, counts["PASS"], counts["FAIL"])
+    if counts["BLOCKED"]:
+        summary += " blocked=%d" % counts["BLOCKED"]
+    lines.append(summary)
+    with open(os.path.join(directory, "ledger.tsv"), "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    leader_ticklog = os.path.join(seats[0][2], "ticklog.tsv")
+    if os.path.isfile(leader_ticklog):
+        shutil.copy2(leader_ticklog, os.path.join(directory, "ticklog.tsv"))
+    return len(seats)
+
+
 def parse_summary_counts(summary):
     """("pass=<n> fail=<m>[ blocked=<k>]" -> (n, m, k_or_None), or
     (None, None, None) if it cannot be read -- treated as its own
@@ -783,7 +884,9 @@ def minimum_shape_findings(name, rows, shots_dir):
             png_count, min_shots, "BLOCKED" if trailing_blocked else "green"))
 
     for row in rows:
-        step = row["step"]
+        # A party member's row is `p<n>:<step>` (PARTY_MARKER); its source
+        # line names the bare step.
+        step = PARTY_STEP_RE.sub("", row["step"])
         if step not in shooting_rows and _REPEAT_SUFFIX_RE.sub("", step) not in shooting_rows:
             continue
         if row["shots"]:
@@ -797,7 +900,7 @@ def minimum_shape_findings(name, rows, shots_dir):
         findings.append("step %r is written with t.exec/t.check, which always "
                          "shoots, but has no shot recorded and no %s in its "
                          "detail -- an empty shots column there means the "
-                         "capture itself failed" % (step, UNCHANGED_MARKER))
+                         "capture itself failed" % (row["step"], UNCHANGED_MARKER))
 
     return findings
 
@@ -831,6 +934,10 @@ def check_quest(name, allow_blocked):
     findings = []
     blocked = []
     directory = artefact_dir(name)
+    # A party run is graded on the union of its raiders' ledgers, rebuilt here
+    # from their own session directories (PARTY_MARKER).
+    if os.path.isdir(directory):
+        party_union(directory)
     ledger_path = os.path.join(directory, "ledger.tsv")
     shots_dir = os.path.join(directory, "shots")
     rows, summary = ledger.read(ledger_path)
@@ -909,18 +1016,27 @@ def check_quest(name, allow_blocked):
     if os.path.isdir(shots_dir):
         logout_shots = logout_row_shots(rows)
         by_digest = {}
+        # A party run's union holds every raider's shots: "never changed" is a
+        # question about ONE client's sequence, so the digests are grouped per
+        # raider (`p<n>-` prefix; the leader's have none). Two raiders standing
+        # side by side can photograph the same dialogue page.
+        party = party_seats(directory) is not None
         for entry in sorted(os.listdir(shots_dir)):
             if not entry.endswith(".png"):
                 continue
             path = os.path.join(shots_dir, entry)
-            by_digest.setdefault(md5_of(path), []).append(entry)
+            raider = ""
+            if party:
+                prefix = re.match(r"^p\d+-", entry)
+                raider = prefix.group(0) if prefix else ""
+            by_digest.setdefault((raider, md5_of(path)), []).append(entry)
             matched = matches_boot_fingerprint(path)
             if matched == "title_screen" and entry[:-len(".png")] in logout_shots:
                 matched = None
             if matched:
                 findings.append("shot %r matches the %s fingerprint -- this run never "
                                  "actually got past boot/login" % (entry, matched))
-        for digest, names in sorted(by_digest.items()):
+        for (_raider, digest), names in sorted(by_digest.items()):
             if len(names) > 1:
                 findings.append("%d shots share one MD5 (%s), a screenshot that never "
                                  "changed: %s" % (len(names), digest, ", ".join(names)))

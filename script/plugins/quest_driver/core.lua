@@ -30,6 +30,8 @@ local QD = {
     prayer = {},    -- prayer.lua (raid seam 1): set/read a prayer by click
     raid = {},      -- raid.lua (raid seam 1): enter a raid room, read the raid
     ticklog = {},   -- ticklog.lua (raid seam 1): the server's per-tick event log
+    party = {},     -- raid.lua (raid seam17): a party run's role, barrier and
+                     -- the ToB lobby verbs (form, apply, accept, ready, follow_in)
 }
 
 -- The one global this chunk exports. QD itself stays `local` -- a register,

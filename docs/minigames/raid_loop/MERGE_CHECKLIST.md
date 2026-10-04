@@ -96,6 +96,21 @@ the merge.
   rows on the branch; v3's counts will differ and the merge must add, not replace.
 - `tools/wiki_droptable.py`: `MINIGAME_DEATH_QUEUES`.
 - `tools/toa_fetch_wiki.py`: never overwrites a pinned page.
+- seam17 (2026-10-04), the party run. A one-client run is untouched: cooks_assistant and
+  druid ledgers are byte-identical to the branch base (closer, final tree), and the suite
+  holds its buckets.
+  - `tools/quest_gate/run.py`: `run_party`, `PARTY_RE`/`read_party_size`, `party_accounts`,
+    `free_loopback_port`, `--party N`; `client_env` and `launch_client` take `extra_env`;
+    `write_wrapper_script` takes `party` (it prepends `QD_PARTY`); `--all` runs a file that
+    declares `party = N,` on its own, one at a time.
+  - `tools/quest_gate/gate.py`: `PARTY_MARKER`, `party_seats`, `party_union`; `check_quest`
+    rebuilds the union for a party run; duplicate-MD5 is grouped per raider in a party union;
+    minimum-shape strips `p<n>:`. A run directory without `party.tsv` is never touched.
+  - `tools/raid_gate/gate.py`: an id starting with `_` skips raid_coverage.
+  - `test/quests/_conformance.lua`, `tools/quest_gate/verb_list.py` (unchanged): 177 verbs
+    (12 new `party.*` rows after `raid.leave`), 159 seam rows on the branch.
+  - `script/plugins/plugin_api.meta.lua`: `api_drive.barrier_mark`, `barrier_present`,
+    `players`.
 
 ## 4. The owner's main checkout
 

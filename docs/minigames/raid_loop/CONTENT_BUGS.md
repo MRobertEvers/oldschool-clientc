@@ -704,3 +704,21 @@ Open:
   covers. The two agree on the first dose from an undrained stat. The page disagrees with
   itself, so the drain was left as it was; a second source (a plugin's brew calculator, a
   Jagex statement, or a measured three-dose drain) would settle it.
+
+## From seam17 (matthew-mbp-m4-raid-b1-seam17, 2026-10-04)
+
+- Open, ToB, every room, tob_hud.rs2 `[proc,tob_hud_orbs]` and tob_raid.rs2:1572-1573
+  `[proc,tob_arm_watchdog]` (`queue(tob_room_watchdog, 0, 0)`, reached from tob_party.rs2:697
+  `~tob_start_room`): a raider's copies of the party orb varbits (6442..6446,
+  `varb644N_tob_client_pK`) are written only when `~tob_hud_orbs` runs FOR THAT RAIDER, on
+  its own arrival (`[queue,tob_room_settle]`) and in the fight watchdog, which is queued only
+  on the raider who crossed the barrier. So a member never sees the orbs of raiders who
+  arrived after it. Measured in the three-client smoke (test/raids/_party_smoke.lua, closer
+  run on the final tree), Normal, Maiden's fight running: the leader reads
+  `p0=27 p1=27 p2=27`, member p2 reads `p0=27 p1=27 p2=0` (`p2:raid.orbs_member_view_observed`).
+  Expected: every raider's HUD shows every party member's orb (raidwide.tsv
+  `raidwide.hud.orb_full`, "party orb varbit (6442..6446) for a raider at full hitpoints",
+  tob.constant:3429). The real game's refresh cadence for those orbs is not pinned: find a
+  source before choosing a fix (every raider's watchdog, or a broadcast from `~tob_hud_orbs`).
+  Found by seam17 party_run_and_verbs. The smoke grades the leader's three orbs and each
+  raider's own orb until it is fixed.

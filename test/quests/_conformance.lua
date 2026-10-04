@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 165
+-- @verb-count 177
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 164
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 165
+local VERB_COUNT = 177
 local SEAM_COUNT = 164
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -11342,6 +11342,140 @@ return {
                     .. " -- " .. describe(after_detail)
             end
             return "ok", describe(detail) .. "; then " .. describe(after_detail)
+        end)
+
+        -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/
+        -- quest_driver/raid.lua). PLACE: in _conformance.lua's PLAN directly AFTER
+        -- step("raid.leave", ...) (the raid stanza), in this order. VERB_COUNT +12.
+        -- The conformance run is ONE client, so every row below proves the verb on a
+        -- party of one (QD_PARTY absent): role/size/names/name/barrier/players/see
+        -- answer as a party of one; form + ready drive the real board and door solo
+        -- ("Members: 1"); apply / accept / follow_in prove their refusal shapes here
+        -- (no party listed, nobody applied, no party at the door). Their party
+        -- behaviour is proved by the three-client smoke test/raids/_party_smoke.lua
+        -- (rows p2:party.apply, party.accept.2/3, p2:party.follow_in), which the
+        -- closer runs: python3 tools/raid_gate/run.py _party_smoke --no-build --no-publish.
+        -- Merged by the seam17 closer: VERB_COUNT 165 -> 177, @verb-count likewise.
+        step("party.role", function()
+            local fn = verb("party", "role")
+            if not fn then return missing("party", "role") end
+            local role = fn()
+            if role ~= 1 then return "refused", "a solo run is raider 1, read " .. describe(role) end
+            return "ok", "role " .. role .. " (a party of one)"
+        end)
+        step("party.size", function()
+            local fn = verb("party", "size")
+            if not fn then return missing("party", "size") end
+            local size = fn()
+            if size ~= 1 then return "refused", "a solo run is a party of 1, read " .. describe(size) end
+            return "ok", "size " .. size
+        end)
+        step("party.names", function()
+            local fn = verb("party", "names")
+            if not fn then return missing("party", "names") end
+            local names = fn()
+            if type(names) ~= "table" or #names ~= 1 or type(names[1]) ~= "string" or names[1] == "" then
+                return "refused", "a solo run names itself once, read " .. describe(names)
+            end
+            return "ok", "names {" .. names[1] .. "}"
+        end)
+        step("party.name", function()
+            local fn = verb("party", "name")
+            if not fn then return missing("party", "name") end
+            local mine, first = fn(), fn(1)
+            if mine == nil or mine ~= first then
+                return "refused", "name() " .. describe(mine) .. " vs name(1) " .. describe(first)
+            end
+            return "ok", "name() = name(1) = " .. mine
+        end)
+        step("party.barrier", function()
+            local fn = verb("party", "barrier")
+            if not fn then return missing("party", "barrier") end
+            return fn("conformance", 5)
+        end)
+        step("party.players", function()
+            local fn = verb("party", "players")
+            if not fn then return missing("party", "players") end
+            settle(3)
+            local result, detail, rows = fn(15)
+            if result ~= "ok" then return result, describe(detail) end
+            if type(rows) ~= "table" then return "refused", "no row list: " .. describe(rows) end
+            if not string.find(tostring(detail), " at ", 1, true) then
+                return "refused", "the local player is not in its own pool: " .. describe(detail)
+            end
+            return "ok", describe(detail) .. " (" .. #rows .. " other player(s) within 15)"
+        end)
+        step("party.see", function()
+            local fn = verb("party", "see")
+            if not fn then return missing("party", "see") end
+            -- A party of one has nobody else to see: ok at once.
+            return fn(nil, 15, 3)
+        end)
+        step("party.apply", function()
+            local goto_tile = verb("player", "goto_tile")
+            local fn = verb("party", "apply")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not fn then return missing("party", "apply") end
+            local gr, gd = goto_tile(3662, 3216, 0)
+            if gr ~= "ok" then return gr, "goto the board: " .. describe(gd) end
+            -- Nobody else is in this world: the list holds no party to apply to.
+            local result, detail = fn("nobody_here", 6)
+            if verb("key") then t.key("escape") end
+            settle(2)
+            if result ~= "not_found" or not string.find(tostring(detail), "no party named", 1, true) then
+                return "refused", "expected not_found 'no party named', got " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "solo refusal: " .. describe(detail)
+        end)
+        step("party.follow_in", function()
+            local fn = verb("party", "follow_in")
+            if not fn then return missing("party", "follow_in") end
+            -- No party: the door refuses (tob_party.rs2 [oploc1,tob_surface_raid_entrance]).
+            local result, detail = fn()
+            if result == "ok" or not string.find(tostring(detail), "You need to be in a party", 1, true) then
+                return "refused", "expected the door's party refusal, got " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "solo refusal: " .. describe(detail)
+        end)
+        step("party.form", function()
+            local fn = verb("party", "form")
+            if not fn then return missing("party", "form") end
+            return fn("entry")
+        end)
+        step("party.accept", function()
+            local fn = verb("party", "accept")
+            if not fn then return missing("party", "accept") end
+            -- The panel party.form left open; nobody applies in a solo world.
+            local result, detail = fn("nobody_here", 4)
+            if result ~= "not_found" or not string.find(tostring(detail), "never applied", 1, true) then
+                return "refused", "expected not_found 'never applied', got " .. describe(result) .. " " .. describe(detail)
+            end
+            if verb("key") then t.key("escape") end
+            settle(2)
+            return "ok", "solo refusal: " .. describe(detail)
+        end)
+        step("party.ready", function()
+            local fn = verb("party", "ready")
+            if not fn then return missing("party", "ready") end
+            local result, detail = fn()
+            -- Out again and the party disbanded, so later rows find the lobby as it was.
+            setup_cheat("::tobout")
+            settle(3)
+            local click_loc = verb("player", "click_loc")
+            if click_loc and click_loc("tob_surface_notice_board", 1) == "ok" then
+                settle(2)
+                local wr, wid = t.ui.widget("tob_partylist:myparty")
+                if wr == "ok" then t.ui.invoke(wid, 1) settle(3) end
+                local ar, aid = t.ui.widget("tob_partydetails:action")
+                if ar == "ok" then t.ui.invoke(aid, 1) settle(2) end
+                if verb("key") then t.key("escape") end
+                settle(2)
+            end
+            if result ~= "ok" then return result, describe(detail) end
+            if not string.find(tostring(detail), "Members: 1. Mode: Entry.", 1, true) then
+                return "refused", "the ready check did not read 'Members: 1. Mode: Entry.': " .. describe(detail)
+            end
+            return "ok", describe(detail)
         end)
 
         -- PROTECTION PRAYERS BLOCK A WAVE NYLOCAS'S HIT (raid seam6

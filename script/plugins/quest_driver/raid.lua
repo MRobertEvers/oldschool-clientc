@@ -651,3 +651,578 @@ function QD.raid.start_tile()
     end
     return "ok", fight, string.format("%d,%d,%d", fight.x, fight.z, fight.level)
 end
+
+-- ===================================================================== party
+--
+-- t.party: a PARTY RUN (raid seam17 party_run_and_verbs; docs/minigames/
+-- raid_loop/DRIVER_NOTES.md "Three raiders in one run"). run.py launches N
+-- clients against ONE world (the leader's client hosts it; the others join
+-- over the party link, TORIRS_EMBED_PARTY_*), every client runs the SAME
+-- test file, and each one learns who it is from the QD_PARTY global run.py
+-- writes into its wrapper: {role = n, size = N, names = {...}}. A run that
+-- is not a party has no QD_PARTY, and every reader below answers as a party
+-- of one (role 1, size 1, the run's own name), so a solo test may call them.
+--
+--   t.party.role()            -> 1 (the leader) .. N
+--   t.party.size()            -> N
+--   t.party.names()           -> {"<run>_p1", ..., "<run>_pN"} (account names; a
+--                                copy, the n-th is raider n)
+--   t.party.name(n)           -> raider n's account name (default: this one)
+--   t.party.barrier(name, ticks) -> ok timeout refused
+--   t.party.players(radius)   -> ("ok", detail, rows): the OTHER players this
+--                                client's entity pool holds within `radius`
+--                                tiles (nil: all), rows {name, x, z, level, pid}
+--   t.party.see(names, radius, ticks) -> ok timeout: every named raider is in
+--                                players(radius); the detail lists where
+--   t.party.form(mode)        -> ok ...: the notice board, Make party, Mode
+--   t.party.apply(leader)     -> ok ...: the party list, the leader's row, Apply
+--   t.party.accept(name)      -> ok ...: the leader accepts an applicant
+--   t.party.ready()           -> ok ...: the leader's door click and "Yes, let's go!"
+--   t.party.follow_in()       -> ok ...: a member's door click after the leader
+--
+-- WHAT A MEMBER CAN AND CANNOT DO. A member hosts no world, so everything a
+-- client reads (ui, chat, msg, inv, npcs, locs, players, its own tile) and
+-- every click works as on the leader; t.cheat goes out as the client's typed
+-- ::command packet (handled for that member at the world's next tick); the
+-- SERVER readers -- t.tick, t.ticklog, t.var.server, t.raid.state -- answer
+-- `unsupported`. The world's one tick log is the leader's: a spec row is the
+-- leader's to write.
+
+QD.party._MODES = {
+    entry = { label = "Entry", first = "Not very experienced. I'll start with Entry Mode.",
+        choose = "Entry Mode - practice, no uniques." },
+    normal = { label = "Normal", first = "Quite experienced. I'll start with Normal Mode.",
+        choose = "Normal Mode." },
+    hard = { label = "Hard", first = "Quite experienced. I'll start with Normal Mode.",
+        choose = "Hard Mode - requires a normal completion." },
+}
+
+function QD.party._info()
+    if type(QD_PARTY) == "table" then
+        return QD_PARTY
+    end
+    return nil
+end
+
+function QD.party.role()
+    local info = QD.party._info()
+    return info and info.role or 1
+end
+
+function QD.party.size()
+    local info = QD.party._info()
+    return info and info.size or 1
+end
+
+function QD.party.names()
+    local info = QD.party._info()
+    local out = {}
+    if info then
+        for i = 1, #info.names do
+            out[i] = info.names[i]
+        end
+    else
+        out[1] = QD.session._user()
+    end
+    return out
+end
+
+function QD.party.name(n)
+    local names = QD.party.names()
+    return names[n or QD.party.role()]
+end
+
+-- A display name as the server prints it and as an account is spelled:
+-- compared case-folded, with `_`, `-` and the server's non-breaking space
+-- all read as a space (ToriRSServer_SavePath's folding, run.py save_file_stem).
+function QD.party._fold(name)
+    local text = string.lower(tostring(name or ""))
+    text = string.gsub(text, "<[^>]*>", "")
+    text = string.gsub(text, "\194\160", " ")
+    text = string.gsub(text, "[_%-]", " ")
+    return text
+end
+
+function QD.party._same(a, b)
+    return QD.party._fold(a) == QD.party._fold(b)
+end
+
+-- t.party.barrier(name, timeout_ticks): every raider writes
+-- <run dir>/barrier.<name>.p<n> (api_drive.barrier_mark) and waits until all
+-- N are there. Driver state, not game state: the world never sees the files.
+-- In a party of one it answers ok at once.
+function QD.party.barrier(name, timeout_ticks)
+    assert(type(name) == "string")
+    assert(string.match(name, "^[%w_%-%.]+$"))
+    local size = QD.party.size()
+    if size <= 1 then
+        return "ok", "party.barrier " .. name .. ": a party of one"
+    end
+    local mine = string.format("barrier.%s.p%d", name, QD.party.role())
+    local marked = api_drive.barrier_mark(mine)
+    if marked ~= "ok" then
+        return marked, "party.barrier " .. name .. ": could not write " .. mine .. " (" .. tostring(marked) .. ")"
+    end
+    local start = api_drive.tick()
+    local missing = {}
+    local result = QD.await({
+        level = function()
+            missing = {}
+            for n = 1, size do
+                if api_drive.barrier_present(string.format("barrier.%s.p%d", name, n)) ~= "ok" then
+                    missing[#missing + 1] = "p" .. n
+                end
+            end
+            return #missing == 0
+        end,
+        note = "party.barrier " .. name,
+    }, timeout_ticks or 200)
+    if result ~= "ok" then
+        return "timeout", string.format("party.barrier %s: p%d waited %d tick(s); still missing %s",
+            name, QD.party.role(), api_drive.tick() - start, table.concat(missing, ","))
+    end
+    return "ok", string.format("party.barrier %s: all %d raiders, p%d waited %d tick(s)",
+        name, size, QD.party.role(), api_drive.tick() - start)
+end
+
+function QD.party._rows_text(rows)
+    local parts = {}
+    for _, r in ipairs(rows) do
+        parts[#parts + 1] = string.format("%s pid %d at %d,%d,%d", tostring(r.name), r.pid, r.x, r.z, r.level)
+    end
+    if #parts == 0 then
+        return "nobody"
+    end
+    return table.concat(parts, "; ")
+end
+
+function QD.party.players(radius)
+    local result, rows = api_drive.players()
+    if result ~= "ok" then
+        return result, "party.players: no world in this client yet"
+    end
+    local me = nil
+    for _, r in ipairs(rows) do
+        if r.me then
+            me = r
+        end
+    end
+    local out = {}
+    for _, r in ipairs(rows) do
+        local near = true
+        if radius ~= nil and me ~= nil then
+            near = r.level == me.level and math.abs(r.x - me.x) <= radius and math.abs(r.z - me.z) <= radius
+        end
+        if not r.me and near then
+            out[#out + 1] = r
+        end
+    end
+    local where = me and string.format("%s at %d,%d,%d", tostring(me.name), me.x, me.z, me.level)
+        or string.format("own player not among the %d in the pool", #rows)
+    return "ok", string.format("%s sees %s", where, QD.party._rows_text(out)), out
+end
+
+-- t.party.see(names, radius, ticks): wait until every name in `names` (account
+-- or display spelling; default: every other raider) is a player this client
+-- holds within `radius` tiles.
+function QD.party.see(names, radius, ticks)
+    if names == nil then
+        names = {}
+        for i, n in ipairs(QD.party.names()) do
+            if i ~= QD.party.role() then
+                names[#names + 1] = n
+            end
+        end
+    end
+    local detail = ""
+    local missing = {}
+    local result = QD.await({
+        level = function()
+            local r, d, rows = QD.party.players(radius)
+            detail = d
+            missing = {}
+            if r ~= "ok" then
+                return false
+            end
+            for _, want in ipairs(names) do
+                local found = false
+                for _, row in ipairs(rows) do
+                    if QD.party._same(row.name, want) then
+                        found = true
+                    end
+                end
+                if not found then
+                    missing[#missing + 1] = want
+                end
+            end
+            return #missing == 0
+        end,
+        note = "party.see",
+    }, ticks or 10)
+    if result ~= "ok" then
+        return "timeout", "party.see: missing " .. table.concat(missing, ", ") .. " -- " .. tostring(detail)
+    end
+    return "ok", detail
+end
+
+-- ------------------------------------------------------------ the ToB lobby
+--
+-- The party verbs below are real click sequences on the real interfaces
+-- (tob_board.rs2, tob_party.rs2; DRIVER_NOTES "The party board and the
+-- scoreboard"), each read back from what the client was sent:
+--   the notice board  tob_surface_notice_board op 1; a first reading is three
+--                     pages (mesbox, the Entry/Normal question, mesbox), then
+--                     tob_partylist;
+--   Make party        tob_partylist:myparty op 1 -> tob_partydetails;
+--   a party's row     tob_partylist:<kk> op 1 "View party" (sub 3 is the
+--                     party's name, which is its leader's) -> tob_partydetails;
+--   the action button tob_partydetails:action op 1: Apply / Withdraw / Leave /
+--                     Disband by role (its text is sub 9);
+--   Mode              tob_partydetails:mode op 1, then the three-way choice;
+--   members           tob_partydetails:current, row k's cells subs 11k..11k+10;
+--   applicants        tob_partydetails:applicants, applicant k's row is sub
+--                     20k (op 1 Accept, op 10 Reject) and its name sub 20k+1;
+--   the door          tob_surface_raid_entrance op 1: the death warning, then
+--                     for the leader "Is your party ready? Members: N. Mode: X."
+--                     and "Yes, let's go!"; a member walks in once the leader
+--                     is inside (else "Your party leader has not entered the
+--                     Theatre yet.").
+-- The panel's first push draws only its last row (a client defect, DRIVER_NOTES):
+-- every read presses Refresh first.
+
+function QD.party._refresh_panel()
+    local r, id = QD.ui.widget("tob_partydetails:refresh")
+    if r == "ok" then
+        QD.ui.invoke(id, 1)
+        QD.ticks(2)
+    end
+end
+
+-- The panel's member names, in row order (tob_partydetails:current).
+function QD.party._panel_members()
+    local names = {}
+    for k = 0, 4 do
+        local best = nil
+        for c = 0, 10 do
+            local r, text = QD.ui._text_one("tob_partydetails:current", k * 11 + c)
+            if r == "ok" and text ~= "" and best == nil and not string.match(text, "^[%d%s/%-]+$") then
+                best = text
+            end
+        end
+        if best then
+            names[#names + 1] = best
+        end
+    end
+    return names
+end
+
+function QD.party._panel_text()
+    local _, frame = QD.ui._text_one("tob_partydetails:frame", 1)
+    local _, mode = QD.ui._text_one("tob_partydetails:mode", 0)
+    local _, action = QD.ui._text_one("tob_partydetails:action", 9)
+    return string.format("'%s' | '%s' | action '%s' | members %s", tostring(frame), tostring(mode),
+        tostring(action), table.concat(QD.party._panel_members(), ", "))
+end
+
+-- Read the notice board and land on tob_partylist; a first reading's three
+-- pages are answered with `mode`'s experience line (it sets only the board's
+-- default mode, tob_board.rs2 ~tob_board_first_read).
+function QD.party._open_board(mode)
+    local spec = QD.party._MODES[mode or "entry"]
+    assert(spec)
+    local r, d = QD.player.click_loc("tob_surface_notice_board", 1)
+    if r ~= "ok" then
+        return r, "Read the notice board: " .. tostring(d)
+    end
+    QD.ticks(2)
+    if QD.chat.kind() == "mesbox" then
+        QD.chat.drain({ stop_at = "options", max_pages = 3 })
+        local cr, cd = QD.chat.choose(spec.first)
+        if cr ~= "ok" then
+            return cr, "the board's first reading: " .. tostring(cd)
+        end
+        QD.ticks(2)
+        -- The last page ("When you form a raiding party, it will be set to
+        -- ... Mode") sits under the list; continue it, or it stays open over
+        -- every later press.
+        for _ = 1, 3 do
+            if QD.chat.kind() ~= "mesbox" then
+                break
+            end
+            QD.chat.drain({ max_pages = 2 })
+            QD.ticks(1)
+        end
+    end
+    local lr, ld = QD.ui.await_open("tob_partylist", 10)
+    if lr ~= "ok" then
+        return lr, "the board did not open tob_partylist: " .. tostring(ld)
+    end
+    return "ok"
+end
+
+function QD.party.form(mode)
+    mode = mode or "entry"
+    local spec = QD.party._MODES[mode]
+    assert(spec)
+    local r, d = QD.party._open_board(mode)
+    if r ~= "ok" then
+        return r, "party.form: " .. d
+    end
+    local wr, wid = QD.ui.widget("tob_partylist:myparty")
+    if wr ~= "ok" then
+        return wr, "party.form: tob_partylist:myparty: " .. tostring(wid)
+    end
+    QD.ui.invoke(wid, 1)
+    local pr, pd = QD.ui.await_open("tob_partydetails", 10)
+    if pr ~= "ok" then
+        return pr, "party.form: Make party did not open tob_partydetails: " .. tostring(pd)
+    end
+    QD.party._refresh_panel()
+    QD.party._refresh_panel()
+    local _, shown = QD.ui._text_one("tob_partydetails:mode", 0)
+    if not string.find(tostring(shown), spec.label, 1, true) then
+        local mr, mid = QD.ui.widget("tob_partydetails:mode")
+        if mr ~= "ok" then
+            return mr, "party.form: tob_partydetails:mode: " .. tostring(mid)
+        end
+        QD.ui.invoke(mid, 1)
+        QD.await({ level = function() return QD.chat.kind() == "options" end, note = "party.form: Mode" }, 5)
+        local cr, cd = QD.chat.choose(spec.choose)
+        if cr ~= "ok" then
+            return cr, "party.form: Mode -> " .. spec.choose .. ": " .. tostring(cd)
+        end
+        QD.ticks(2)
+        QD.party._refresh_panel()
+    end
+    local er, ed = QD.ui.expect_text("tob_partydetails:mode", "Mode: " .. spec.label, 5, 0)
+    local text = QD.party._panel_text()
+    if er ~= "ok" then
+        return er, "party.form: the panel does not say Mode: " .. spec.label .. " -- " .. text
+    end
+    local fr = QD.ui.expect_text("tob_partydetails:frame", "Party of", 5, 1)
+    if fr ~= "ok" then
+        return fr, "party.form: no 'Party of' title -- " .. text
+    end
+    return "ok", "party.form " .. mode .. ": " .. text
+end
+
+-- t.party.apply(leader): open the list, press the leader's party's row,
+-- press Apply; read back: the action button now offers Withdraw (role 3,
+-- an applicant). `leader` is an account or display name.
+function QD.party.apply(leader, ticks)
+    assert(leader)
+    local r, d = QD.party._open_board("entry")
+    if r ~= "ok" then
+        return r, "party.apply: " .. d
+    end
+    local row = nil
+    local seen = {}
+    local start = api_drive.tick()
+    while row == nil and api_drive.tick() - start < (ticks or 20) do
+        seen = {}
+        for k = 0, 44 do
+            local sym = string.format("tob_partylist:%02d", k)
+            local tr, text = QD.ui._text_one(sym, 3)
+            if tr == "ok" and text ~= "" then
+                seen[#seen + 1] = text
+                if row == nil and QD.party._same(text, leader) then
+                    row = sym
+                end
+            end
+        end
+        if row == nil then
+            local rr, rid = QD.ui.widget("tob_partylist:refresh")
+            if rr == "ok" then
+                QD.ui.invoke(rid, 1)
+            end
+            QD.ticks(2)
+        end
+    end
+    if row == nil then
+        return "not_found", "party.apply: no party named " .. tostring(leader) .. " on the list (rows: "
+            .. (#seen > 0 and table.concat(seen, ", ") or "none") .. ")"
+    end
+    local wr, wid = QD.ui.widget(row)
+    if wr ~= "ok" then
+        return wr, "party.apply: " .. row .. ": " .. tostring(wid)
+    end
+    QD.ui.invoke(wid, 1)
+    local pr, pd = QD.ui.await_open("tob_partydetails", 10)
+    if pr ~= "ok" then
+        return pr, "party.apply: View party did not open tob_partydetails: " .. tostring(pd)
+    end
+    QD.party._refresh_panel()
+    QD.party._refresh_panel()
+    local ar, ad = QD.ui.expect_text("tob_partydetails:action", "Apply", 5, 9)
+    if ar ~= "ok" then
+        return ar, "party.apply: the action button does not offer Apply -- " .. QD.party._panel_text()
+    end
+    local br, bid = QD.ui.widget("tob_partydetails:action")
+    if br ~= "ok" then
+        return br, "party.apply: tob_partydetails:action: " .. tostring(bid)
+    end
+    QD.ui.invoke(bid, 1)
+    QD.ticks(2)
+    QD.party._refresh_panel()
+    local wr2 = QD.ui.expect_text("tob_partydetails:action", "Withdraw", 5, 9)
+    local text = QD.party._panel_text()
+    if wr2 ~= "ok" then
+        return "refused", "party.apply: after Apply the button does not offer Withdraw -- " .. text
+    end
+    return "ok", "party.apply " .. row .. ": " .. text
+end
+
+-- t.party.accept(name, ticks): the leader, on its own open panel, waits for
+-- `name` among the applicants (pressing Refresh) and presses its Accept;
+-- read back: `name` is a member row of the panel.
+function QD.party.accept(name, ticks)
+    assert(name)
+    local lr, ld = QD.ui.await_open("tob_partydetails", 2)
+    if lr ~= "ok" then
+        return lr, "party.accept: the party panel is not open (" .. tostring(ld) .. "); t.party.form first"
+    end
+    -- A predicate may not wait (a Refresh press is a click and two ticks), so
+    -- the loops are written out: press Refresh, read the applicant rows. An
+    -- applicant's row is re-laid as others are accepted (applicant k moves to
+    -- k-1), and a row just pressed has its ops cleared for 80 client cycles
+    -- (torirs_tob_party_ack.cs2), so each press re-reads the index, and a press
+    -- that did not take is pressed again -- what a player does -- at most three
+    -- times, each named in the detail.
+    local seen = {}
+    local presses = {}
+    local member = false
+    local start = api_drive.tick()
+    while not member and #presses < 3 and api_drive.tick() - start < (ticks or 30) + 30 do
+        local hit = nil
+        QD.party._refresh_panel()
+        seen = {}
+        for k = 0, 9 do
+            local tr, text = QD.ui._text_one("tob_partydetails:applicants", k * 20 + 1)
+            if tr == "ok" and text ~= "" then
+                seen[#seen + 1] = text
+                if hit == nil and QD.party._same(text, name) then
+                    hit = k
+                end
+            end
+        end
+        for _, m in ipairs(QD.party._panel_members()) do
+            if QD.party._same(m, name) then
+                member = true
+            end
+        end
+        if hit ~= nil and not member then
+            local wr, wid = QD.ui.widget("tob_partydetails:applicants", hit * 20)
+            if wr ~= "ok" then
+                return wr, "party.accept: applicant row " .. hit .. ": " .. tostring(wid)
+            end
+            local cr = QD.ui.invoke(wid, 1)
+            presses[#presses + 1] = string.format("applicant %d at tick %d (%s)", hit,
+                api_drive.tick() - start, tostring(cr))
+            QD.ticks(4)
+        elseif hit == nil and not member and #presses == 0 and api_drive.tick() - start >= (ticks or 30) then
+            return "not_found", "party.accept: " .. tostring(name) .. " never applied (applicants: "
+                .. (#seen > 0 and table.concat(seen, ", ") or "none") .. ")"
+        end
+    end
+    if not member then
+        QD.party._refresh_panel()
+        for _, m in ipairs(QD.party._panel_members()) do
+            if QD.party._same(m, name) then
+                member = true
+            end
+        end
+    end
+    local text = QD.party._panel_text()
+    if not member then
+        return "refused", "party.accept: " .. tostring(name) .. " is not a member row after "
+            .. (#presses > 0 and table.concat(presses, ", ") or "no press") .. " -- " .. text
+    end
+    return "ok", "party.accept " .. tostring(name) .. " (pressed "
+        .. (#presses > 0 and table.concat(presses, ", ") or "nothing: already a member") .. "): " .. text
+end
+
+-- The door: click, then the death-warning mesbox.
+function QD.party._door()
+    local mr, since = api_drive.message_serial()
+    local r, d = QD.player.click_loc("tob_surface_raid_entrance", 1)
+    if r ~= "ok" then
+        return r, "the door: " .. tostring(d), since
+    end
+    QD.ticks(2)
+    return "ok", nil, (mr == "ok") and since or 0
+end
+
+function QD.party._line_since(since, prefix)
+    local r, list = api_drive.messages()
+    if r ~= "ok" then
+        return nil
+    end
+    for i = 1, #list do
+        if list[i].serial > since and string.find(list[i].text, prefix, 1, true) then
+            return list[i].text
+        end
+    end
+    return nil
+end
+
+function QD.party._await_line(since, prefix, ticks)
+    local line = nil
+    QD.await({
+        level = function()
+            line = QD.party._line_since(since, prefix)
+            return line ~= nil
+        end,
+        note = "party: '" .. prefix .. "'",
+    }, ticks or 10)
+    return line
+end
+
+-- t.party.ready(): the leader's door click, the warning, the ready check
+-- ("Is your party ready? Members: N. Mode: X.") and "Yes, let's go!"; read
+-- back: the entry line "You enter the Theatre of Blood (X Mode)...". The
+-- detail carries the ready check's title verbatim.
+function QD.party.ready()
+    local r, d, since = QD.party._door()
+    if r ~= "ok" then
+        return r, "party.ready: " .. d
+    end
+    QD.chat.drain({ stop_at = "options", max_pages = 3 })
+    local tr, title = QD.chat.options_title()
+    if tr ~= "ok" then
+        local said = QD.party._line_since(since, "")
+        return tr, "party.ready: no ready check after the door (" .. tostring(title) .. "); last line: "
+            .. tostring(said)
+    end
+    local cr, cd = QD.chat.choose("Yes, let's go!")
+    if cr ~= "ok" then
+        return cr, "party.ready: " .. tostring(cd)
+    end
+    local line = QD.party._await_line(since, "You enter the Theatre of Blood", 10)
+    if not line then
+        return "timeout", "party.ready: chose Yes, let's go! under '" .. tostring(title)
+            .. "' and no entry line followed"
+    end
+    return "ok", "party.ready: '" .. tostring(title) .. "' -> '" .. line .. "'"
+end
+
+-- t.party.follow_in(): a member's door click once its leader is inside
+-- (tob_party.rs2 [oploc1,tob_surface_raid_entrance] -> ~tob_enter ->
+-- tob_raid.rs2 tob_join_raid); read back: the entry line.
+function QD.party.follow_in()
+    local r, d, since = QD.party._door()
+    if r ~= "ok" then
+        return r, "party.follow_in: " .. d
+    end
+    local early = QD.party._line_since(since, "has not entered the Theatre yet")
+    if early then
+        QD.chat.drain({ max_pages = 3 })
+        return "refused", "party.follow_in: '" .. early .. "'"
+    end
+    QD.chat.drain({ max_pages = 3 })
+    local line = QD.party._await_line(since, "You enter the Theatre of Blood", 10)
+    if not line then
+        local said = QD.party._line_since(since, "")
+        return "timeout", "party.follow_in: no entry line after the door; last line: " .. tostring(said)
+    end
+    return "ok", "party.follow_in: '" .. line .. "'"
+end

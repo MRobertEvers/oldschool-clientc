@@ -22,8 +22,10 @@
 
 #include "app.h"
 #include "game/content_test.h"
+#include "game/rs_entity_sync.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_boot.h"
 #include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_embed.h"
 
@@ -206,6 +208,70 @@ PluginDrive_App(void)
     return g_app;
 }
 
+/* THE PARTY RUN (raid seam17, party_run_and_verbs). The leader's client hosts
+ * the world and other client processes play in it over the party link
+ * (torirs_server_embed.h, TORIRS_EMBED_PARTY_*). Two consequences for the
+ * driver:
+ *
+ * 1. On the LEADER, `srv->active_player` is "whoever the world last acted
+ *    for" -- with three raiders that is the last pid the player phase walked,
+ *    a member, not this client. Every server-side read and t.cheat here
+ *    (varps, ticklog, vessel, the cheat ladder) means THIS client's player, so
+ *    the world is handed out with client 0's player active. With one client
+ *    the active player already is client 0's, and nothing is called: a solo
+ *    run is untouched.
+ * 2. A MEMBER (TORIRS_EMBED_PARTY_JOIN) has no world in its process: g_embed
+ *    is NULL. Its script starts once it is in game (below), its t.cheat goes
+ *    out as the client's own typed ::command packet, and the server-side
+ *    readers answer `unsupported` as on any socket-server run. */
+static struct ToriRSServer*
+drive_embed_world_as_leader(void)
+{
+    struct ToriRSServer* srv;
+    struct ToriRSServerPlayer* own;
+
+    assert(g_embed);
+    srv = ToriRSServer_EmbedWorld(g_embed);
+    if( !srv )
+        return NULL;
+    own = ToriRSServer_EmbedPlayer(g_embed, 0);
+    if( own && srv->active_player != own )
+        ToriRSServer_WorldSetActive(srv, own);
+    return srv;
+}
+
+static int
+drive_party_member(void)
+{
+    char const* join = getenv("TORIRS_EMBED_PARTY_JOIN");
+    return join && *join;
+}
+
+/* A member's NAMES. Every symbol a test spells -- a component
+ * ("tob_partydetails:action"), a loc, an npc, a varbit -- resolves through the
+ * server's content tables (ToriRSServer_ContentSymbol), which a process loads
+ * when its embedded world boots. A member's world is the leader's, so its own
+ * process never boots one, and without this every symbol lookup on a member
+ * answered no_row. The member loads the same tables from the same content
+ * tree (ToriRSServer_BootLoad: read-only symbol and config tables, no world),
+ * once, before its script starts. */
+static int g_member_tables_loaded;
+
+static void
+drive_member_load_tables(void)
+{
+    static struct ToriRSServerBootConfig config;
+    int errors;
+
+    if( g_member_tables_loaded )
+        return;
+    g_member_tables_loaded = 1;
+    ToriRSServer_BootDefaults(&config);
+    errors = ToriRSServer_BootLoad(&config);
+    fprintf(stderr, "quest-driver: party member loaded the content tables from %s (%d error(s))\n",
+        config.content_dir ? config.content_dir : "?", errors);
+}
+
 struct ToriRSServer*
 PluginDrive_EmbedWorld(void)
 {
@@ -214,7 +280,7 @@ PluginDrive_EmbedWorld(void)
      * DriveCore_Cheat below already does. */
     if( !g_embed )
         return NULL;
-    return ToriRSServer_EmbedWorld(g_embed);
+    return drive_embed_world_as_leader();
 }
 
 /* Defined below, in the scheduler section: writes the ledger's trailing
@@ -366,8 +432,20 @@ DriveCore_Cheat(struct App* app, char const* text)
 
     assert(app);
     assert(text);
-    (void)app;
 
+    if( !g_embed && drive_party_member() )
+    {
+        /* A party member (see drive_embed_world_as_leader's banner): no world
+         * here, so the line goes out the way a staff member's typed
+         * `::command` does -- App_SendCommand, the client's own cheat packet,
+         * handled for THIS player at the world's next boundary. The verdict
+         * is "sent", not "ran": the server's reply line arrives as a chat
+         * message (t.cheat waits for it), and the setup loop's own client
+         * reads (backpack, stats, worn) are what prove the effect. */
+        if( text[0] == ':' && text[1] == ':' )
+            text += 2;
+        return App_SendCommand(app, text) ? DRIVE_OK : DRIVE_REFUSED;
+    }
     if( !g_embed )
         /* Socket-server run: t.cheat's packet fallback is U6/U8, not first
          * class yet. Answering `unsupported` rather than silently doing
@@ -385,7 +463,7 @@ DriveCore_Cheat(struct App* app, char const* text)
     if( text[0] == ':' && text[1] == ':' )
         text += 2;
 
-    srv = ToriRSServer_EmbedWorld(g_embed);
+    srv = drive_embed_world_as_leader();
     assert(srv);
     /* The WHOLE of handle_cheat's dispatch -- content's `[debugproc]` first,
      * then the C ladder -- not just its first half. This used to call
@@ -719,8 +797,23 @@ drive_await_settle(enum DriveResult result, char const* detail)
 static int
 drive_world_ready(void)
 {
+    /* As early as the first pump: before login, so the load is paid before
+     * the member joins the leader's lock step rather than inside it. */
+    if( !g_embed && drive_party_member() )
+        drive_member_load_tables();
     if( !g_app || !g_app->world )
         return 0;
+    if( !g_embed && drive_party_member() )
+    {
+        /* A party member hosts no world, so "online" is this client's own
+         * reading: its local player is in the entity pool (the login burst
+         * landed) and its worldview finished loading. */
+        int world_idx;
+        if( g_app->esync.local_pid < 0 ||
+            !RS_EntitySync_FindPlayer(&g_app->esync, g_app->esync.local_pid, &world_idx, NULL) )
+            return 0;
+        return g_app->world->load_complete;
+    }
     if( !g_embed || !ToriRSServer_EmbedOnline(g_embed, 0) )
         return 0;
     return g_app->world->load_complete;
@@ -1149,6 +1242,131 @@ lua_drive_session(struct lua_State* L)
     return 1;
 }
 
+/* ------------------------------------------------------------ party barrier
+ *
+ * t.party.barrier (script/plugins/quest_driver/raid.lua): every raider of a
+ * party run (tools/quest_gate/run.py run_party) writes
+ * <run dir>/barrier.<name>.p<n> and waits until all of them are there. The run
+ * dir is the session dir's parent (build/quest_gate/<id>/, the session dirs
+ * being its p1/ .. pN/). These files are driver state, not game state: the
+ * world never sees them. Lua has no io library in this state
+ * (torirs_plugin_lua.c opens base, table, string, math, utf8), so the two
+ * file operations live here, confined to a bare file name in that one
+ * directory. */
+static int
+drive_run_dir_path(char const* file, char* out, size_t capacity)
+{
+    char const* dir = DriveCore_SessionDir();
+    char const* slash;
+    int length;
+    int written;
+
+    assert(file);
+    assert(out);
+    /* A bare file name: the run dir is the only directory these touch. */
+    assert(file[0] != '\0');
+    assert(strchr(file, '/') == NULL);
+    if( !dir )
+        return 0;
+    slash = strrchr(dir, '/');
+    length = slash ? (int)(slash - dir) : 0;
+    /* A trailing slash on the session dir would name the session dir
+     * itself; run.py never passes one. */
+    assert(!slash || slash[1] != '\0');
+    if( slash )
+        written = snprintf(out, capacity, "%.*s/%s", length, dir, file);
+    else
+        written = snprintf(out, capacity, "./%s", file);
+    assert(written > 0);
+    assert((size_t)written < capacity);
+    (void)written; /* only the assert reads it, and OPT=1 has no asserts */
+    return 1;
+}
+
+static int
+lua_drive_barrier_mark(struct lua_State* L)
+{
+    char const* file = PluginDrive_ArgString(L, 1);
+    char path[1200];
+    FILE* f;
+
+    if( !drive_run_dir_path(file, path, sizeof(path)) )
+        return PluginDrive_PushResult(L, DRIVE_UNSUPPORTED, NULL);
+    f = fopen(path, "wb");
+    if( !f )
+        /* run.py made the directory; a write that fails is the run's
+         * problem to report (the barrier then times out naming it), not a
+         * contract violation by the caller. */
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, NULL);
+    fprintf(f, "tick=%d\n", g_app && g_app->world
+        ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : -1);
+    fclose(f);
+    return PluginDrive_PushResult(L, DRIVE_OK, NULL);
+}
+
+static int
+lua_drive_barrier_present(struct lua_State* L)
+{
+    char const* file = PluginDrive_ArgString(L, 1);
+    char path[1200];
+    FILE* f;
+
+    if( !drive_run_dir_path(file, path, sizeof(path)) )
+        return PluginDrive_PushResult(L, DRIVE_UNSUPPORTED, NULL);
+    f = fopen(path, "rb");
+    if( !f )
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+    fclose(f);
+    return PluginDrive_PushResult(L, DRIVE_OK, NULL);
+}
+
+/* api_drive.players() -> result, rows: every player in THIS client's entity
+ * pool -- the raiders it can see -- as {name, x, z, level, pid, me}. The tile
+ * is the world tile (scene base + grid), `me` marks the local player. A read
+ * of what the client was sent, so it works on a party member as on the
+ * leader; t.party.players (raid.lua) filters it by radius. */
+static int
+lua_drive_players(struct lua_State* L)
+{
+    struct World_EntityPool* pool;
+    int i;
+    int n = 0;
+    int local_idx = -1;
+
+    assert(g_app);
+    if( !g_app->world )
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+    /* The local player the way drive_pointer_local_player finds it: the
+     * entity sync's slot for local_pid (2047 before the server named one). */
+    if( !RS_EntitySync_FindPlayer(&g_app->esync,
+            g_app->esync.local_pid >= 0 ? g_app->esync.local_pid : 2047, &local_idx, NULL) )
+        local_idx = -1;
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_newtable(L);
+    pool = &g_app->world->entities.player;
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player const* player = World_EntityPoolGet(pool, i);
+        if( !player )
+            continue;
+        lua_newtable(L);
+        lua_pushstring(L, player->name);
+        lua_setfield(L, -2, "name");
+        lua_pushinteger(L, g_app->world->_base_tile_x + player->grid_position.x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, g_app->world->_base_tile_z + player->grid_position.z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, player->grid_position.level);
+        lua_setfield(L, -2, "level");
+        lua_pushinteger(L, player->server_pid);
+        lua_setfield(L, -2, "pid");
+        lua_pushboolean(L, i == local_idx);
+        lua_setfield(L, -2, "me");
+        lua_rawseti(L, -2, ++n);
+    }
+    return 2;
+}
+
 /* ------------------------------------------------------------ render skip
  *
  * t.render.skip / t.render.frame (script/plugins/quest_driver/world.lua).
@@ -1225,6 +1443,9 @@ static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"report", lua_drive_report},
     {"finish", lua_drive_finish},
     {"session", lua_drive_session},
+    {"barrier_mark", lua_drive_barrier_mark},
+    {"barrier_present", lua_drive_barrier_present},
+    {"players", lua_drive_players},
     {"render_skip", lua_drive_render_skip},
     {"render_frame", lua_drive_render_frame},
     {NULL, NULL},

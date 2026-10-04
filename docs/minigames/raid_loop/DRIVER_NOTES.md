@@ -4122,3 +4122,182 @@ yet a test (SEAM_LEDGER.md, seam15).
 - The brew fix alone (one run of seam16's plan-17 relay under w16alpha): Xarpus is killed
   instead of the phase 2 death (missed 23 -> 1, damage 383 -> 215) and the death moves to
   Verzik P2 at t2759. bravo and charlie died on the same tick as before.
+
+## Three raiders in one run
+
+Seam17 added this (three_clients_one_world, party_run_and_verbs). Normal and Hard need a
+party ("For normal and hard mode, you will need 3 players", owner 2026-10-04). A test file
+that declares `party = 3,`, or a run given `--party 3`, starts three client processes. All
+three play in ONE world, ticking in lock step. The worked example is
+`test/raids/_party_smoke.lua`. Its knobs and directories are in `test/raids/README.md`
+("A party run").
+
+- Run it: `python3 tools/raid_gate/run.py _party_smoke --no-build --no-publish`, then
+  `python3 tools/raid_gate/gate.py _party_smoke`. Closer runs on the final tree went 99/99
+  PASS. They took 9.6 s of the leader's wall clock for 165 world ticks: two raid entries,
+  the second at Normal with the Maiden's fight started.
+- Do the tick logs agree? Yes. There is one log, the world's, written in the leader's `p1/`
+  and copied to `p2/`, `p3/` and the run directory. Each member also gets the server tick
+  in every TICK frame. With `TORIRS_EMBED_PARTY_TRACE=1`, p2's and p3's client.log read
+  `net: party: boundary 150 -> server tick 149`. That is the tick of the Normal Maiden's
+  row, `2948 149 npc_spawn 1570 8360 105283740`. Two consecutive smoke runs gave
+  byte-identical tick logs.
+
+### Where the world lives: the leader's process (option A)
+
+The world stays embedded in the LEADER's client. Members are clients 1..3 of that embed,
+reached over a loopback "party link" (`src/torirsserver/torirs_server_embed.h`). The other
+option, B, was the standalone torirsserver with `transport=tcp`. It was rejected for two
+reasons. First, every server-side driver verb reads the world in its own process:
+`t.cheat`, `t.ticklog`, `t.tick`, the server varps and `drive_world_ready`
+(`src/plugin/torirs_plugin_drive.c`). Under B, all three clients would lose them, the
+leader included. Second, B's 600 ms wall clock cannot follow content_test's virtual clock.
+`TORIRSSERVER_EMBED_CLIENT_MAX` is 4 (leader + 3), which is enough for a party of three. A
+five-raider party needs it raised (`TORIRSSERVER_PLAYER_MAX` is 8). The link exists only on
+native POSIX hosts. A Windows or web build given a party knob aborts with a message.
+
+### Lock step: READY, then TICK
+
+The link is framed: a 1-byte type and a 4-byte big-endian length. 'D' frames carry the
+game's bytes untouched. A member sends 'R' (READY) at each of its own 600 ms boundaries
+and then blocks until the leader's 'T' (TICK, which carries `srv->tick`). The leader runs
+a boundary only after every member has said READY. At that boundary it feeds each
+member's input to the world in seat order, before the tick. So one world tick is one
+boundary on every client, and a member's trace reads `boundary k -> server tick k-1`.
+'S' (SEAT) is a member's first frame: seat n is client id n-1, and so login order and
+pid. `TORIRS_EMBED_PARTY_SEAT` makes "who is pid 2" a fact of the command line, not a
+race between processes.
+
+The smoke's leader row `seam.three_clients_one_world` checks the whole run. From the
+first tick with all three logged in, every world tick carries exactly three `player_tile`
+rows. Measured: `ticks 4..166 (163 ticks): 3 player_tile rows on every tick`.
+
+### Stalls and exits
+
+The slowest client sets the pace. If a member sends no READY within
+`TORIRS_EMBED_PARTY_WAIT_S` (default 60), the leader logs it out by name and keeps going:
+`client 2 <name> sent no READY within TORIRS_EMBED_PARTY_WAIT_S -- logged out`. A member
+that exits is logged out the same way (`closed its link`), so the leader's rows show the
+departure. If the leader stalls, every member blocks and the leader's heartbeat ends the
+run. When the leader exits, run.py gives each member 20 s to finish its own script and
+then kills it. An unfinished member ledger gets its SUMMARY like any unfinished run.
+
+### Seats, accounts and directories
+
+Accounts are `<base>_p1` .. `<base>_p3`, where base is the run name sanitised and cut to
+9 characters, so no account is longer than 12 (only 12 characters seed a run). The
+password is `test`. Raider n's session is `build/quest_gate/<run>/p<n>/`: ledger.tsv,
+shots/, heartbeat, client.log and script/. The world's saves are `<run>/saves/`. Every
+raider's fixture is written there before any client starts. `<run>/party.tsv` names the
+seats.
+
+### Grading: the union ledger
+
+`gate.py` grades the union at `<run>/ledger.tsv`. The leader's rows keep their names, so
+its `spec.*` rows are the ones `raid_coverage.py` grades, unchanged. A member's rows are
+`p<n>:<step>` and its shots `p<n>-<shot>`. A raider with no ledger becomes a FAIL row,
+`p<n>:run.no_ledger`. Duplicate-MD5 shots are judged per raider, because two raiders side
+by side can photograph the same dialogue page. A test id starting with `_` skips
+`raid_coverage` (raid_gate/gate.py): it has no encounter table.
+
+### What a member's script looks like
+
+It is the SAME file. `local role = t.party.role()`, then branch with if/else:
+
+```lua
+if role == 1 then t.exec("party.form", t.party.form, "normal") end
+t.expect("party.barrier.formed", t.party.barrier("formed", 300))
+if role ~= 1 then t.exec("party.apply", t.party.apply, t.party.name(1)) end
+-- leader: t.party.accept(t.party.name(n)) for each n, then t.party.ready()
+-- member: t.msg.await("has entered the Theatre of Blood", 20); t.party.follow_in()
+```
+
+A member reads and clicks everything a client can: ui, chat, msg, inv, npcs, locs,
+`t.party.players`, its own tile and stats. Its `t.cheat` goes out as the client's typed
+`::command` packet (App_SendCommand) and is handled for that member at the world's next
+boundary. The verdict is "sent", not "ran", so read the effect back. In the smoke,
+`party.setup_landed` reads hitpoints 99 and defence 99 on all three raiders. A member
+loads the content symbol tables itself (ToriRSServer_BootLoad, no world). Without them,
+every component, loc and varbit name it spelled answered `no_row`.
+
+What a member cannot do: the SERVER readers. `t.tick`, `t.ticklog`, `t.var.server`,
+`t.raid.state`, `t.raid.enter` and `t.raid.leave` all answer `unsupported`. Spec rows and
+tick-ledger rows are the leader's to write. A member leaves the raid with
+`t.cheat("::tobout")` and a tile read. `t.session.relog` on a member would type `p<n>` as
+its user, because session.lua derives the user from the session directory. For the same
+reason, a solo `t.party.names()` answers the session directory's name; under run.py that
+is the account, except in the conformance harness (`attempt-01`).
+
+On the leader, client 0's player is made the world's active player before every server
+read and cheat (`drive_embed_world_as_leader`). With three raiders, the active player
+between ticks is whoever the world last acted for. Solo, it is already client 0's and
+nothing changes: cooks_assistant and druid ledgers are byte-identical to the branch base.
+
+### What a Normal room test author writes
+
+Start with `party = 3,` and the lobby sequence. The leader forms the party with
+`t.party.form("normal")`, accepts both members, then calls `t.party.ready()`, which reads
+`Is your party ready? Members: 3. Mode: Normal.`. The members call `t.party.follow_in()`
+after the call-in line. The leader crosses the barrier ("Yes, begin the fight."). The
+scale is the party that walked in: `~tob_start_room` sets `^tob_var_scale` to
+`~tob_party_size`. Measured in the smoke:
+
+- Normal Maiden at 2625 = 3500 x 750 / 1000 (`spec.maiden.hp_3`).
+- `spec.raidwide.scale.party_3_or_fewer` at 750. Source: "Players in groups of three will
+  find that the bosses have 75% of their original hitpoints."
+  (wiki_Update_Theatre_of_Blood_Changes_Deadman_Summer_Finals.wikitext:28).
+- HUD varbit 6448 at 1000 (`spec.raidwide.hud.boss_hp_full`).
+
+A member's part in a fight is its own clicks plus barrier sync with the leader.
+
+### t.party.barrier: sync without a cheat
+
+`t.party.barrier(name, ticks)` writes `<run dir>/barrier.<name>.p<n>` (api_drive.barrier_mark)
+and waits until all N files exist. These files are driver state; the world never sees
+them. A barrier typically waits 0-22 ticks. A party of one answers ok at once.
+`QD.await` predicates cannot yield, so a predicate cannot click. A loop that presses
+Refresh while it waits has to be written out.
+
+### The lobby verbs: form, apply, accept, ready, follow_in
+
+Each verb is a real click sequence on `tob_partylist`, `tob_partydetails` and the door,
+read back on the next tick:
+
+- `form(mode)`: the notice board (a first reading's three pages are answered with the
+  mode's experience line), then Make party, then Mode if needed. Read back: `Mode: X` and
+  the `Party of` title.
+- `apply(leader)`: the party list row whose sub 3 is the leader's name, then View party,
+  then Apply. Read back: the action button offers Withdraw.
+- `accept(name)`: on the leader's open panel. Accept is applicant k's sub `20k`. A
+  just-pressed row has no ops for 80 client cycles (`torirs_tob_party_ack.cs2`), so accept
+  re-reads the index and presses again, up to 3 times. Read back: a member row.
+- `ready()`: the door, the death warning, then the ready check. The detail carries
+  `Is your party ready? Members: N. Mode: X.` verbatim. Then "Yes, let's go!" and the
+  entry line.
+- `follow_in()`: a member's door click after the leader. A member who is too early reads
+  "Your party leader has not entered the Theatre yet" and gets `refused`.
+
+The panel's first push draws only its last row, so every read presses Refresh first.
+After the board's first reading, its last mesbox page ("When you form a raiding party
+...") can stay on screen under the party panel. It is cosmetic: no press failed because
+of it in any run.
+
+### t.party.players / t.party.see: who this client can see
+
+`api_drive.players()` lists every player in THIS client's entity pool: name, world tile,
+level, pid and `me`. `t.party.players(radius)` returns the OTHER players within radius.
+`t.party.see(names, radius, ticks)` waits until every named raider is among them. The
+names can be account or display spellings; the default is every other raider. The solo
+pool fills about 2 ticks after a script starts, so settle before the first read. In the
+smoke, every raider reads the other two in the lobby and in the Maiden's room:
+`_party_sm_p2 at 3663,3216,0 sees _party_sm_p3 pid 3 at 3664,3216,0; _party_sm_p1 pid 1 at
+3662,3216,0`.
+
+### HUD orbs in a party (content finding)
+
+Inside the raid, a member's orbs for raiders who arrived after it stay 0 until its own
+`~tob_hud_orbs` runs again. The fight watchdog that refreshes them is queued only on the
+raider who crossed the barrier (tob_raid.rs2:1572-1573, `queue(tob_room_watchdog, 0, 0)`;
+tob_party.rs2:697). Measured with the fight running: the leader reads
+`p0=27 p1=27 p2=27`, and p2 reads `p0=27 p1=27 p2=0`. Grade the leader's three orbs and
+each raider's own orb. The finding is in CONTENT_BUGS.md (seam17).
