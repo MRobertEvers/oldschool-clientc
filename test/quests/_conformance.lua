@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 101
+-- @seam-count 102
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 147
-local SEAM_COUNT = 101
+local SEAM_COUNT = 102
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9157,6 +9157,97 @@ return {
                 return leave("refused", text .. " -- the level-0 leaf left open was not read as standing open")
             end
             return leave("ok", text)
+        end)
+
+        -- SEAM door_revert_lost_when_player_is_away (matthew-mbp-m4-b59-seam1):
+        -- UPDATE_ZONE_FULL_FOLLOWS RESETS THE ZONE'S LOCS, not just its obj
+        -- stacks (src/game/rs_gameproto_exec.c zone_full_reset_locs; reference
+        -- Client-TS Client.ts UPDATE_ZONE_FULL_FOLLOWS sets endTime = 0 on every
+        -- locChanges entry in the zone).  The zone catch-up describes only what
+        -- differs from the map, so a door whose 500-tick revert (doors.rs2
+        -- ~door_open_active, loc_del(500) + loc_add(500)) fired while the client
+        -- was not told about its zone came back with NEITHER leaf: the closed
+        -- leaf still deleted, the open one removed by a stale LOC_DEL the server
+        -- never retired (torirs_server_zone.c, a removed loc compared by angle).
+        -- Subject: Miscellania's castle gate, castledoor 2510,3860,0 (open leaf
+        -- opencastledoor 2511,3860,0).  Arrive at 2513,3862,0 (the teleport's
+        -- rebuild centres the scene on zone 314,482), open it, go to
+        -- 2545,3870,0 -- zone 318: outside the 7x7 zone window, and 7 tiles
+        -- inside the rebuild margin, so the scene is NOT rebuilt (a rebuild
+        -- re-reads the map and hides the bug: the first twin went to
+        -- 2551,3895 from a scene centred one zone west and passed on the
+        -- broken binary) -- wait the revert out, come back: the closed leaf
+        -- must stand on 2510,3860,0 and no open leaf within 1.  Measured on the scratch twin: build/quest_gate/b59door_repro0
+        -- row 7 (before: "closed=false open=false") / b59door_repro2 row 7
+        -- (after: "closed=true open=false").  The same hole on a plane change
+        -- (revert on the tick the stairs re-FULL the new plane) is
+        -- b59door_plane4 / b59door_plane6 (build/seam_state/
+        -- matthew-mbp-m4-b59-seam1/door_revert/repro_plane_stairs.lua).
+        seam("seam.door_revert_reaches_a_returning_client", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local by_symbol = verb("player", "by_symbol")
+            local pool_read = verb("drive", "_pool_read")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not pool_read then return missing("drive", "_pool_read") end
+            local closed, closed_result = by_symbol("loc", "castledoor")
+            local open, open_result = by_symbol("loc", "opencastledoor")
+            if closed_result ~= "ok" or not is_table(closed) or open_result ~= "ok" or not is_table(open) then
+                return "no_subject", "by_symbol castledoor -> " .. describe(closed_result)
+                    .. ", opencastledoor -> " .. describe(open_result)
+            end
+            -- Which leaves the CLIENT holds at the gate, on level 0.
+            local function leaves()
+                local rows_result, rows = pool_read("locs", 0, 18)
+                if rows_result ~= "ok" or not is_table(rows) then
+                    return nil, nil, "the loc pool -> " .. describe(rows_result)
+                end
+                local has_closed, has_open = false, false
+                for index = 1, #rows do
+                    local row = rows[index]
+                    local id = row.resolved_loc_id or row.loc_id
+                    if row.level == 0 and (row.loc_id == closed.id or id == closed.id)
+                        and row.x == 2510 and row.z == 3860 then
+                        has_closed = true
+                    end
+                    if row.level == 0 and (row.loc_id == open.id or id == open.id)
+                        and math.abs(row.x - 2510) <= 1 and math.abs(row.z - 3860) <= 1 then
+                        has_open = true
+                    end
+                end
+                return has_closed, has_open, "closed leaf " .. tostring(has_closed)
+                    .. ", open leaf " .. tostring(has_open)
+            end
+            local goto_result, goto_detail = goto_tile(2513, 3862, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto 2513,3862,0 -> " .. describe(goto_result) .. " " .. describe(goto_detail)
+            end
+            local press_result, press_detail = click_loc("castledoor", 1, { at = { 2510, 3860, 0 } })
+            settle(2)
+            local _, opened, opened_text = leaves()
+            if not opened then
+                return "no_subject", "Open castledoor 2510,3860,0 -> " .. describe(press_result) .. " "
+                    .. describe(press_detail) .. "; " .. describe(opened_text) .. " -- the gate did not open"
+            end
+            local away_result, away_detail = goto_tile(2545, 3870, 0)
+            if away_result ~= "ok" then
+                return "no_subject", "goto 2545,3870,0 -> " .. describe(away_result) .. " " .. describe(away_detail)
+            end
+            settle(510)
+            local back_result, back_detail = goto_tile(2513, 3862, 0)
+            settle(4)
+            local has_closed, has_open, text = leaves()
+            text = "opened (" .. describe(opened_text) .. "), 35 tiles away for 510 ticks, back -> "
+                .. describe(back_result) .. " " .. describe(back_detail) .. "; " .. describe(text)
+            setup_cheat("::tele lumbridge")
+            settle(4)
+            if has_closed ~= true or has_open ~= false then
+                return "refused", text .. " -- want the closed leaf on 2510,3860,0 and no open leaf:"
+                    .. " the revert never reached the client"
+            end
+            return "ok", text
         end)
 
         step("finish", function()
