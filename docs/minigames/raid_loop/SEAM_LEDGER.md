@@ -643,3 +643,78 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   ball on the raider, her bar 27.4%), tob_verzik 102-drive.p3state630 (1 hp, her bar 63%, the
   pack all empty vials). The seam rows in _conformance.lua take no shots; they rest on the
   ledger rows quoted above.
+
+## matthew-mbp-m4-raid-b1-seam16 (2026-10-04; parent 2be1a3db5, OSRS-Content a098da317e): what an Entry solo raider spends, room by room, and the wiki's kit (triage SEAM_TRIAGE_2026-10-04d.md)
+
+- `tob_maiden_entry_prayed_autos`: LANDED as a sourced verdict, no behaviour change (comments
+  in tob_maiden.rs2 and tob.constant). The blackstorm always lands and Protect from Magic halves
+  it (Strategies:590); a prayed Entry hit above 9 is the leak term c (61 of 61 hits matched at
+  their launch-tick c). The 18 and the 2/3 the triage read as autos were blood pools. Prayer was
+  not drained by Maiden: the 13 "restores" were presses on the relay's Strength<85 trigger, 6
+  doses drunk. Conformance seam.maiden_blackstorm_always_lands_entry PASS "6 blackstorms
+  launched, 6 landed, 6 raw 9 (Entry, Protect from Magic, c 0, Defence 99)". Spec rows
+  maiden.auto_land_rate_entry and maiden.auto_prayed_entry (D) applied. Still open: the Entry
+  table's "preventable with Prayer" (:111) against Strategies' "halved" is D against D; a Blert
+  per-hit Entry dataset would settle it.
+- `tob_entry_solo_room_costs`: LANDED (content, tob_bloat.rs2 and tob_verzik.rs2). Bloat's stomp
+  needs line of sight (Entry Mode :134, :145; two guides agree); a falling-flesh tile rolled
+  twice lands once (blert bloat_events.csv: 15 or 14 graphics in 310 of 1 050 drops); Verzik's
+  P3 ranged, magic and melee attacks roll accuracy (cache verzik_phase3_story, Strategies:942,
+  Entry :243/:245, LostCity npc_combat_melee.rs2:27-28). Conformance seam.bloat_stomp_needs_sight
+  PASS "HIDDEN at local 29,27 (6 from his SW): stomp on down+29 none; ... SEEN at local 24,24
+  (2 from his SW): stomp on down+29 raw 26"; seam.verzik_p3_attacks_roll_accuracy PASS "17
+  unprayed ranged/magic autos, 8 at 0, max 20; 3 melee, 2 at 0 (rune armour, Defence 99)".
+  Both were RED on a HEAD pack (fixer: stomp raw 34 on the hidden raider; 0 of 16 autos and 0
+  of 17 melee at 0). Spec bloat.hand_tiles 16 exact -> 14-16 range (B, blert distribution),
+  bloat.stomp_range text and sources, verzik.p3_auto_miss_entry (C) new. Nylocas and Xarpus:
+  no content change; their cost is the recipe's (supports collapsed beside him, detonations
+  within 2 tiles, exhumeds covered 1-4 orbs late, the P2 1-tile step inside the splash).
+  Still open (CONTENT_BUGS seam16): Xarpus [M70] absorbed share, Verzik P2 stomp and urnbomb
+  unrolled, the Entry green ball's figure.
+- `tob_relay_wiki_kit`: LANDED as a measurement (scratch only, trj/plan.py plan 17, no tracked
+  file). RELAY VERDICT on authoring tob_entry: NOT AUTHORED. 0 of 5 names survive with the
+  wiki's kit (at least 4 were needed). Xarpus phase 2 decides 3 of 5: acid splats (dealer 10768,
+  projectile 1555) 51-63 hits for 273-337 a run plus 81-110 from pools, the step-back "missed"
+  23-34 times as the board fills over a 360+ tick phase 2. The Nylocas decides 2 of 5: w16delta
+  brewed Magic below Fire Strike's 13 and died with Vasilias at 17%; w16echo died in the waves
+  after a 328-damage Bloat. Content finding (grade D, open): sara_brew.rs2:30 DRAINS Defence
+  where the wiki says a brew raises it by 20% + 2 of base; seam17 should settle it first and
+  re-run these five names.
+
+  | name | result | died | Maiden dmg/eats/restores | Bloat dmg/eats | Nylo dmg/eats/restores | at Sotetseg's entrance | Sote dmg/used | Xarpus dmg/used |
+  |---|---|---|---|---|---|---|---|---|
+  | w16alpha | died | Xarpus P2 (bar 23.7%, no screech), 2444 | 261/11/2 | 105/7 | 281/23/7 | brew 9 doses, restore 0, 20 free | 92/brew 4 | 383/bandages 10, brew 5, restore 0; no food from 2413 |
+  | w16bravo | died | Xarpus P2 (no screech), 2379 | 188/8/0 | 112/5 | 355/33/12 | brew 9 doses, restore 0, 20 free | 79/brew 3 | 398/bandages 10, brew 6, restore 0; no food from 2365 |
+  | w16charlie | died | Xarpus P2 (no screech), 2341 | 216/9/0 | 163/11 | 248/24/6 | brew 11 doses, restore 1 dose, 19 free | 63/brew 2 | 447/bandages 10, brew 9, restore 1 |
+  | w16delta | died | Nylocas boss phase (Vasilias 17%), 1779 | 267/12/3 | 0/0 | 568/-/- | not reached (bloat.after: brew 22, restore 6 doses) | - | - |
+  | w16echo | died | Nylocas waves (529 ticks in), ~1510 | 200/8/0 | 328/27 | 354/21/0 | not reached (bloat.after: brew 9, restore 0) | - | - |
+
+  No name reached the vault, so supplies at the vault are unmeasured.
+- KEPT ROOMS on the final tree (tools/raid_gate/run.py --no-build --no-publish, gate.py):
+  tob_nylocas 165/165 FULL 76, tob_xarpus 120/120 FULL 63, tob_sotetseg 155/155 FULL 83 green.
+- tob_maiden must be re-authored: measure maiden.auto_land_rate_entry and
+  maiden.auto_prayed_entry (the room is 110/110 green; the gate now reads 63 of 65 measured).
+  m16/analysis.lua measures both.
+- tob_bloat must be re-authored: its spec.bloat.hand_tiles row still carries "spec 16, tol
+  exact" where the table now says 14-16 range (gate: tolerance and spec value mismatch). The
+  room is 94/94 and its ledger is the kept one except that row's measured 14,15,16.
+- tob_verzik must be re-authored: 256 PASS, 14 FAIL (was green). The P3 roll moved the seeded
+  fight and the raider died in P3 at tick 799 with Verzik at 10.2% and no food (shot
+  134-drive.p3state798: hp 34, prayer 17, "You have finished your potion."), so every P3 death
+  and vault row is unmeasured; verzik.p3_auto_miss_entry also needs its row. Nothing reverted:
+  the fix is sourced.
+- CLOSER, conformance: the three new rows failed in the full harness at first and were fixed in
+  _conformance.lua only. The tick log is one per session (ticklog.start is idempotent), so the
+  Maiden row now reads only its own ticks and sits after seam.maiden_blackstorm_sound_once (which
+  had counted its blood throws); its raider stood in a pool losing 5 prayer a tick, so prayer is
+  topped up every 5 ticks. The Verzik row filters its retypes and anims to its own ticks, clears
+  the backpack and gives all four rune pieces before equipping them.
+- Gates: quest suite 115 green + deserttreasure, forgettabletale, regicide, troll RED (the
+  baseline, same first failing rows: troll player.died at tick 465, regicide
+  goKillGuardAtSecondForest-walk-toForests; nothing moved); conformance 327/327 PASS (165 verbs
+  + 162 seam rows; SEAM_COUNT 159 -> 162); test-quest-cheats, check-quest-verbs,
+  check-drive-abi, check-pt-switch, test-plugin-lua pass; lint 127 clean; spec_check --all
+  clean. No C changed, so the server C selftest was not re-run (the room-costs fixer ran it on the
+  edited pack: 11 failures, the baseline set, tobrun OK 56). PNGs read in this close: tob_verzik
+  134-drive.p3state798; the w16alpha shot could not be opened (the editor's Read hook timed out;
+  the relay fixer read it: Xarpus at 23.7%, floor covered in pools).
