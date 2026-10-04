@@ -92,8 +92,10 @@
 --   * Katrine: two fai_varrock_poor_doors down the alley (3196,3384 and
 --     3190,3384, maps/m49_52.jl2); blackarmdoor 3185,3388 to the stairs room
 --     only opens once joined (quest_blackarmgang.rs2:96-102).
---   * Weapon store: phoenixdoor2 3251,3386 (key in, "slip out" leaving,
---     quest_blackarmgang.rs2:49-85) and the fai_varrock_ladder 3252,3384.
+--   * Weapon store: phoenixdoor2 3251,3386 (key in from the street; a
+--     plain press out from inside, "You slip out through the door.",
+--     quest_blackarmgang.rs2 [label,unlock_weaponstore_door] after seam
+--     matthew-mbp-m4-b58-seam1 item b) and the fai_varrock_ladder 3252,3384.
 --   * Ladders and stairs here have no maplink row, so ~climb moves +/-1
 --     level on the PLAYER's own tile (ladders_stairs/scripts/ladders.rs2):
 --     each climb walks to a stand tile whose other floor is open.
@@ -611,36 +613,40 @@ return {
         --
         -- Out of the store the way we came: down the ladder (its level-1 top
         -- is fai_varrock_ladder_taller_top on the same tile; 3252,3385,0 is
-        -- the store's ground floor), then out through phoenixdoor2 WITH THE
-        -- KEY. `[label,unlock_weaponstore_door]`'s `$leaving` is
-        -- `~check_axis(coord, loc_coord, loc_angle)` (doors/scripts/
-        -- door_procs.rs2:112): true only while the player stands on the
-        -- door's own tile row. This pack places the door on the STREET tile
-        -- 3251,3386 (south edge, maps/m50_52.jl2 "0 51 58: 2398 0 3"), so
-        -- from inside (3251,3385) a bare op1 is not "leaving" and answers
-        -- "The door is securely locked." (measured run 1, quest_blackarmgang
-        -- .rs2:59-61), while the key branch (`$key_used`) teleports the player
-        -- to loc_coord, the street side (lines 63-85; LostCity's
-        -- quest_blackarmgang.rs2:45-70 is the same script). The key the
-        -- partner handed over is still carried, so it unlocks the door from
-        -- the inside too -- a real press on the real loc, graded on the tiles.
+        -- the store's ground floor), then out through phoenixdoor2 by a PLAIN
+        -- press -- no key used on the way out. Seam matthew-mbp-m4-b58-seam1
+        -- item b (docs/quest_authoring/seam-facts.md): the rev-239 cache
+        -- encodes the door's wall edge from the STREET tile 3251,3386
+        -- (maps/m50_52.jl2 "0 51 58: 2398 0 3"; LostCity puts it on the store
+        -- tile, m50_52.jm2 "0 51 57: 2398 0 1"), so `~check_axis` read
+        -- "leaving" inverted here; `[label,unlock_weaponstore_door]` now
+        -- decides inside from the store's row (coordz < the door's z), and op1
+        -- from inside answers "You slip out through the door." and teleports
+        -- the player to loc_coord, the street side. The key branch would
+        -- answer "You unlock the door." instead, so the message row below is
+        -- what proves the plain-press branch ran.
         climb("goDownFromWeaponStore", "fai_varrock_ladder_taller_top", 3252, 3384, 3252, 3385, 1, 0,
             function(tt) return tt.x >= 3250 and tt.x <= 3252 and tt.z >= 3382 and tt.z <= 3385 end,
             "the store's ground floor, x 3250-3252 z 3382-3385")
         t.player.walk_to(3251, 3385, 20)
         local out_before_result, out_before = t.world.tile()
-        local out_use_result, out_use_detail = t.player.use_on("phoenixkey2", phoenixdoor2_target)
+        local out_key0_result, out_key0_count = t.inv.count("phoenixkey2")
+        local out_use_result, out_use_detail = t.player.click_loc("phoenixdoor2", 1, { at = { 3251, 3386 } })
         await_tile(function(tt) return tt.z >= 3386 and tt.level == 0 end, 10, "leaveWeaponStore")
         local out_after_result, out_after = t.world.tile()
         local out_key_result, out_key_count = t.inv.count("phoenixkey2")
+        t.expect("leaveWeaponStore.message", t.msg.expect("You slip out through the door."))
         t.check("leaveWeaponStore",
             (out_use_result == "ok" or out_use_result == "timeout")
-                and out_before_result == "ok" and out_before.z <= 3385
-                and out_after_result == "ok" and out_after.z >= 3386 and out_after.level == 0,
-            "from " .. tile_text(out_before_result, out_before) .. " use_on(phoenixkey2, phoenixdoor2) -> "
+                and out_before_result == "ok" and out_before.level == 0
+                and out_before.x >= 3250 and out_before.x <= 3252 and out_before.z <= 3385
+                and out_after_result == "ok" and out_after.z >= 3386 and out_after.level == 0
+                and out_key0_result == "ok" and out_key_result == "ok" and out_key_count == out_key0_count,
+            "from " .. tile_text(out_before_result, out_before) .. " click_loc(phoenixdoor2,1 at 3251,3386) -> "
                 .. tostring(out_use_result) .. " " .. txt(out_use_detail) .. "; world.tile -> "
-                .. tile_text(out_after_result, out_after) .. " (want the street north of the door, z >= 3386); phoenixkey2 held "
-                .. tostring(out_key_count) .. " (" .. tostring(out_key_result) .. ")")
+                .. tile_text(out_after_result, out_after) .. " (want the store's ground floor before, z <= 3385, and the street"
+                .. " north of the door after, z >= 3386); phoenixkey2 held " .. tostring(out_key0_count) .. "(" .. tostring(out_key0_result)
+                .. ") -> " .. tostring(out_key_count) .. "(" .. tostring(out_key_result) .. ") -- a plain press, the key is not used")
         t.exec("goto-handInKatrine", t.player.goto_tile, 3197, 3384, 0)
         katrine_in("handInKatrine")
         t.exec("handInKatrine", t.player.talk_to, "katrine", 1)
