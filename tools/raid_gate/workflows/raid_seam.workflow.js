@@ -24,7 +24,8 @@ export const meta = {
 // loop is NOT the quest loop (owner, 2026-10-02): no QUEUE.tsv, no claims, no
 // content lock, nothing pushed to v3; this branch reaches v3 by one PR.
 
-const WT = '/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid'
+// args.worktree runs the pass in another worktree of the raid branch (seam17, 2026-10-04: the owner allowed one extra pass in its own worktree).
+const WT = (args && args.worktree) || '/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid'
 const CONTENT = `${WT}/OSRS-Content/osrs239-content`
 const pass = args && args.pass
 // The raid branch: the pass name without its -seamN / -spec suffix, or args.branch.
