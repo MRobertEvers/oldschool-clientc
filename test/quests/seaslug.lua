@@ -23,13 +23,15 @@
 -- are in the room behind 2768,3276, the panel is kicked and the crane turned
 -- from the deck tile 2769,3289 (no drive.op), and Kent's island and the
 -- Witchaven jetty are walked. The only gotos left are the overland hops
--- between open tiles on the mainland.
+-- between open tiles on the mainland; each Lumbridge <-> Ardougne trip
+-- presses the Taverley members' gate membergater 2933,3320 (taverley_gate
+-- below, sampler ruling b59 (a)).
 --
--- BLOCKED (content_bug) at talkToKennith: walked into the cabin, the talk
--- answers "I can't reach that!" -- Kennith is two tiles back behind crates
--- and kennith.rs2 has no approach-range trigger (talk_kennith below names
--- the fix). The whole route after it was proven with a throwaway probe in
--- b59 fixer run 3 (134 PASS; build/orchestrator/fix_b59/seaslug.run3.ledger.tsv).
+-- Kennith is talked to across the crates from 2766,3286,1 inside the cabin:
+-- the seam pass matthew-mbp-m4-b59-seam1 (OSRS-Content 3e8fbb4d30) gave
+-- kennith.rs2 its [apnpc1] approach-range Talk-to (p_aprange(2)); before it
+-- the talk answered "I can't reach that!" and this file stopped at a
+-- content_bug there.
 --
 -- Chain driven for real, nothing cheated (trap 16): gather swamp tar (m49_49
 -- ground spawns) -> mix with a bought pot of flour -> heat on a real fire ->
@@ -84,12 +86,69 @@ return {
         t.ticks(3) -- setup's ::give/::setlevel cheats are not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- The Taverley members' wall. Owner ruling (docs/quest_authoring/
+        -- sampler-findings.md, "Sample matthew-mbp-m4-b59" (a)): a gate that
+        -- is the only way on foot between two regions is clicked on every
+        -- crossing, however large the regions. Lumbridge and Ardougne meet on
+        -- foot only through a members' gate: reach.py 3206,3233 -> 2716,3302
+        -- with every door shut is UNREACHABLE at margins 30/80/160 and at 300
+        -- says NEEDS-DOOR via membergater@2933,3320; from either side of that
+        -- gate the rest is open (reach.py margin 300: 2933,3320 -> 2716,3302
+        -- closed-doors len 667, 2933,3319 -> 3183,3180 len 389, 3206,3233 ->
+        -- 2933,3317 len 387). membergater 2933,3320 is the south wall of its
+        -- tile (Taverley z >= 3320, west of Falador z <= 3319), a gates.rs2
+        -- [label,member_fencegate_try] walk-through with no opened variant,
+        -- so every crossing is a press, graded on the tiles before and after:
+        -- from 2933,3319 the press p_teleports onto the gate tile; from the
+        -- gate tile itself (~check_axis entering) it p_teleports through to
+        -- 2933,3319 (click_loc first steps off the loc's own tile to
+        -- 2933,3321, so the way out is pressed from 2933,3321: b59 r3 run 2).
+        -- Each trip: goto two tiles short on open ground, walk to the tile
+        -- beside the gate, press it, then the overland goto on.
+        local function gate_tile_text(r, tt)
+            if r ~= "ok" or type(tt) ~= "table" then
+                return tostring(r) .. " " .. tostring(tt)
+            end
+            return tt.x .. "," .. tt.z .. "," .. tt.level
+        end
+        local function taverley_gate(prefix, into_taverley)
+            local goto_z, stand_z, far_ok, far_desc
+            if into_taverley then
+                goto_z, stand_z = 3317, 3319
+                far_ok = function(tt) return tt.level == 0 and tt.z >= 3320 end
+                far_desc = "through membergater 2933,3320 into Taverley, z >= 3320"
+            else
+                goto_z, stand_z = 3323, 3321
+                far_ok = function(tt) return tt.level == 0 and tt.z <= 3319 end
+                far_desc = "through membergater 2933,3320 out of Taverley, z <= 3319"
+            end
+            t.exec(prefix .. ".goto", t.player.goto_tile, 2933, goto_z, 0)
+            t.player.walk_to(2933, stand_z, 10)
+            local br, bt = t.world.tile()
+            t.check(prefix .. ".atGate", br == "ok" and bt.x == 2933 and bt.z == stand_z and bt.level == 0,
+                "walked to 2933," .. stand_z .. ",0 beside membergater 2933,3320 -> " .. gate_tile_text(br, bt))
+            local cr, cd = t.player.click_loc("membergater", 1, { at = { 2933, 3320 } })
+            for _ = 1, 10 do
+                local ar, at = t.world.tile()
+                if ar == "ok" and far_ok(at) then
+                    break
+                end
+                t.ticks(1)
+            end
+            local wr, wt = t.world.tile()
+            t.check(prefix .. ".cross",
+                (cr == "ok" or cr == "timeout") and br == "ok" and not far_ok(bt) and wr == "ok" and far_ok(wt),
+                "from " .. gate_tile_text(br, bt) .. " click_loc(membergater at 2933,3320) -> " .. tostring(cr) .. " "
+                    .. tostring(cd) .. "; world.tile -> " .. gate_tile_text(wr, wt) .. " (want " .. far_desc .. ")")
+        end
+
         -- ---------------------------------------------------- accept, Caroline
         -- caroline.rs2 [opnpc1,caroline] at %seaslugquest=not_started jumps
         -- straight to [label,caroline_help] (no separate accept branch), which
         -- opens with the PLAYER's own line (trap 18) -- drain walks the whole
         -- alternating player/npc run up to the p_choice2 options page without
         -- needing each line spelled out.
+        taverley_gate("caroline.gateIn", true)
         t.exec("caroline.goto", t.player.goto_tile, 2716, 3302, 0)
         t.exec("caroline.greet", t.player.talk_to, "caroline")
         local drain1_result, drain1_detail = t.chat.drain({ stop_at = "options" })
@@ -106,6 +165,7 @@ return {
         -- m49_49.spawn:71-87), NOT the m53_5x squares (those are Mort'ton's
         -- ghast swamp -- same obj symbol reused on a different map square,
         -- confirmed by the ghast_invis/willothewisp/mmsnail neighbours there).
+        taverley_gate("swamp.gateOut", false)
         t.exec("swamp.goto", t.player.goto_tile, 3183, 3180, 0)
         local tar_before_result, tar_before_count = t.inv.count("swamp_tar")
         -- click_obj answers ok with a nil detail (trap 12's hollow rule) --
@@ -326,37 +386,23 @@ return {
         end
 
         -- Talk to Kennith from the cabin. He is two tiles back, behind the
-        -- crates, and kennith.rs2 binds only [opnpc1] (adjacent reach): the
-        -- server answers "I can't reach that!" from every tile a player can
-        -- stand on (b59 fixer runs 2-3, rows talkToKennith/-Again/-AfterKicking).
-        -- A refusal ends the run at an honest content_bug; once the content
-        -- has the approach twin named below, the same call talks and the run
-        -- continues down the route already proven in b59 run 3
-        -- (build/orchestrator/fix_b59/seaslug.run3.ledger.tsv: 134 PASS, the
-        -- only 3 FAILs being these talks).
+        -- crates (slug2_crate_stack, blockrange 0), in a pocket no player tile
+        -- touches; kennith.rs2's [apnpc1,kennith] / [apnpc1,kennith_platform]
+        -- (seam matthew-mbp-m4-b59-seam1, p_aprange(2)) let the Talk-to reach
+        -- him across the crates from 2766,3286,1, as the guide's "talk to
+        -- Kennith from inside the cabin". Graded on the press answering ok AND
+        -- a dialogue being open after it (none was before: cabin_in walked
+        -- here with no chat open); the stage change after the drain is graded
+        -- by each caller.
         local function talk_kennith(name)
+            local before = t.chat.kind()
             local kr, kd = t.player.talk_to("kennith")
-            if kr ~= "ok" then
-                t.blocked("content_bug: " .. name .. ": talk_to(kennith) from 2766,3286,1 inside the cabin -> "
-                    .. tostring(kr) .. " " .. tostring(kd) .. ". Kennith (areas/world/configs/m43_51.spawn:42, "
-                    .. "2766,3288 level 1) stands in a 5-tile pocket (x 2765-2767, z 3288-3289) closed by "
-                    .. "slug2_crate_stack 2765,3287 (width 2), seaslug_wall_window 2767,3287, seaslug_wall "
-                    .. "2768,3288 and the panel slug_breakable_panel/boardgames_barstool_invis 2768,3289 "
-                    .. "(maps/m43_51.jl2, level 2 placements); the nearest tile a player reaches is 2766,3286 "
-                    .. "in the cabin, two tiles back. area_fishing_platform/scripts/kennith.rs2:10-12 binds only "
-                    .. "[opnpc1,kennith*] (adjacent reach), and its [oploc1,kennithwall] (kennith.rs2:14, "
-                    .. "LostCity's 'Shout-across' crates, LostCity maps/m43_51.jm2:5932,5955) has no placement in "
-                    .. "this cache. Needed (content): an approach twin for the guide's 'talk to Kennith from inside "
-                    .. "the cabin', [apnpc1,kennith_platform] (and kennith) if (npc_range(coord) > 2) "
-                    .. "{ p_aprange(2); return; } @kennith_chat; -- the At First Light Verity fix, "
-                    .. "quest_atfirstlight/scripts/atfirstlight.rs2:166-171.")
-                return false
-            end
             local kind = t.chat.kind()
-            t.check(name, kind ~= "none",
+            local ok = kr == "ok" and before == "none" and kind ~= "none"
+            t.check(name, ok,
                 "talk_to(kennith) from 2766,3286,1 inside the cabin -> " .. tostring(kr) .. " "
-                    .. tostring(kd) .. "; dialogue open: " .. tostring(kind))
-            return true
+                    .. tostring(kd) .. "; dialogue before: " .. tostring(before) .. ", after: " .. tostring(kind))
+            return ok
         end
 
         -- --------------------------------------------------- give Holgart the paste
@@ -367,6 +413,7 @@ return {
         -- Only the SECOND talk (now that the stage is spoken_holgart) reaches
         -- [label,holgart_paste], which checks inv_total(inv, swamppaste) and
         -- hands it over.
+        taverley_gate("holgart1.gateIn", true)
         t.exec("holgart1.goto", t.player.goto_tile, 2720, 3306, 0)
         t.exec("holgart1.greet", t.player.talk_to, "holgartland")
         local hdrain1_result, hdrain1_detail = t.chat.drain({ stop_at = "none" })
