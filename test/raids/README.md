@@ -32,6 +32,9 @@ set `TORIRS_QUEST_TESTS_DIR=test/raids` and `TORIRS_QUEST_PUBLISH_DIR` and exec
 the quest gate script (`tools/raid_gate/README.md`).
 
 - Fixtures come from `test/raids/fixtures/` (seeded with `fresh_lumbridge.ini`).
+  `tob_normal_done.ini` is `fresh_lumbridge.ini` plus one Theatre of Blood completion
+  (`6826 = 1`, `varp6826_tob_completions`), so every raider of a Hard party test passes the
+  door's "You must complete the Theatre of Blood once" check (raid seam19).
 - Artefacts land in `build/quest_gate/<id>/` like a quest's. That directory,
   the session lock (`build/quest_gate/.locks/<id>.lock`) and a relay's
   checkpoints are keyed by id alone, so **a raid id must never equal a quest
@@ -196,13 +199,32 @@ python3 tools/raid_gate/gate.py _party_smoke                           # grades 
 - **What a member can do.** Everything a client reads and clicks (ui, chat, msg, inv,
   npcs, locs, `t.party.players`, its own tile and stats). `t.cheat` on a member goes out
   as the client's own typed `::command` packet (setup lines included); the server readers
-  (`t.tick`, `t.ticklog`, `t.var.server`, `t.raid.state`/`leave`) answer `unsupported`.
-  Spec rows are the leader's to write.
+  (`t.tick`, `t.ticklog`, `t.var.server`, `t.raid.state`/`leave`/`start_tile`) answer
+  `unsupported`. Spec rows are the leader's to write.
 - **Sync.** `t.party.barrier(name, ticks)` (every raider writes its file and waits for all),
   and the in-game reads: `t.msg.await("has entered the Theatre of Blood")`,
   `t.party.see(names, radius, ticks)`, the party panel.
 - **Lobby verbs** (real clicks, read back): `t.party.form(mode)`, `t.party.apply(leader)`,
   `t.party.accept(name)`, `t.party.ready()`, `t.party.follow_in()`.
+
+### A party room test (raid seam19)
+
+The id is `<raid>_<room>_<mode>` (`tob_maiden_normal`, `tob_maiden_hard`): `raid_coverage.py`
+grades it against `<room>.tsv`, and its evidence publishes to
+`selftest/minigames/tob/<room>_<mode>/play/` (the id split at its first `_`). The file
+declares `party = 3,` (and `fixture = "tob_normal_done.ini"` for Hard), and every raider
+calls `t.raid.enter("tob", "<room>", {mode = "<mode>"})` with the same arguments: the leader
+lands with `::tobmode`, each member joins the leader's instance with its own typed
+`::tobjoinroom <mode>` (read back on its client: the room line, its tile on the leader's
+within 5 ticks), and the verb returns on every raider once all three stand at the entrance
+(the leader's detail ends `party 3 of 3 in the instance (tobstate party=3 scale=1)`). The
+leader writes `spec.scope` (`mode=<mode> party=3`), every `spec.*` row and every tick-ledger
+row; a member's part is its own clicks, prayers, steps and eats and a `t.party.barrier` at
+each phase. The LEADER crosses the barrier (only the crosser runs the room's per-tick
+watchdog: CONTENT_BUGS.md, seam19). The worked example is `_party_smoke.lua` phase C (Normal
+Bloat: `spec.bloat.hp_3` 1500, `scale=3`, the three orbs at 27 on every raider). In a party
+scope `raid_coverage.py` keeps a sidecar `party` row only for the run's mode and size
+(`maiden.hp_3` at 3, never `maiden.hp_5`, `maiden.hp_4` or Hard's `maiden.hp_hard_5`).
 
 Knobs (run.py sets them; listed for a hand-run): leader `TORIRS_EMBED_PARTY_LISTEN=<port>`
 and `TORIRS_EMBED_PARTY_SIZE=<n incl. leader>` (the first boundary waits for n-1 members);
@@ -211,8 +233,11 @@ n-th, so pids are stable); both `TORIRS_EMBED_PARTY_WAIT_S` (default 60; run.py 
 environment's value through); member `TORIRS_EMBED_PARTY_TRACE=1` prints
 `net: party: boundary k -> server tick T`.
 
-Cost: the smoke (two raid entries, 165 world ticks, three clients) takes 10-14 s of wall
-clock; two runs gave byte-identical tick logs. Its leader row `seam.three_clients_one_world`
+Cost: the smoke (three raid entries since seam19, about 183 world ticks, three clients)
+takes 12-14 s of the leader's wall clock (about 60 s for the whole run.py, the script pack
+check included). Its tick logs are byte-identical between most runs; a member's typed
+`::command` lands at the boundary its own frame timing reaches, so one run in three was
+measured one tick later from phase B (seam19: runs 1 and 3 equal, run 2 shifted at tick 116). Its leader row `seam.three_clients_one_world`
 checks lock step over the whole run (every world tick from the first with three raiders on
 carries three `player_tile` rows: `ticks 4..166 (163 ticks)` on the closer's run). Why the
 world lives in the leader and how the link works: docs/minigames/raid_loop/DRIVER_NOTES.md,

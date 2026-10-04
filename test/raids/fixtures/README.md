@@ -14,6 +14,10 @@ fixture under its own rules.
   Re-copy it deliberately if the quest fixture changes; do not edit it here
   unless the raid suite needs a different state, and then give that state its
   own file.
+- `tob_normal_done.ini` -- `fresh_lumbridge.ini` plus one Theatre of Blood
+  completion (`6826 = 1`, `varp6826_tob_completions`, scope=perm), so every
+  raider of a Hard party test passes the door's "You must complete the Theatre
+  of Blood once before attempting Hard Mode." check (raid seam19).
 
 The rules are `test/quests/fixtures/README.md`'s: `[varps]` carries only
 `scope=perm` vars, and a fixture is named for the state it holds

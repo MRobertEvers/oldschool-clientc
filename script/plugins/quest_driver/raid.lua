@@ -3,12 +3,17 @@
 -- Raid seam 1 (docs/RAID_ORCHESTRATOR.md section 4, instance resume per room;
 -- build/seam_state/<pass>/triage.json key raid_room_entry_verbs).
 --
---   t.raid.enter(raid, room, opts) -> ok refused timeout no_row
+--   t.raid.enter(raid, room, opts) -> ok refused timeout no_row unsupported
 --   t.raid.state()                 -> ("ok", {raid, room, room_id, mode, started,
 --                                     handle, boss_symbol, boss_slot, fight, line})
 --                                     or not_found when no raid is active
 --   t.raid.leave()                 -> ok refused timeout
 --   t.raid.start_tile()            -> ("ok", {x, z, level}) refused unsupported
+--
+-- In a party run (raid seam19) every raider calls t.raid.enter the same way:
+-- the leader lands with the raid's debugproc, the members join its instance
+-- with ::tobjoinroom (THE PARTY BRANCH, above QD.raid.enter). state, leave and
+-- start_tile answer `unsupported` on a member: they read the server.
 --
 -- WHAT "ENTER" IS, AND WHAT IT IS NOT.  A room test is one relay leg per room
 -- (RAID_ORCHESTRATOR.md section 6), so it has to begin standing where a player
@@ -387,7 +392,238 @@ end
 --    handle H, started 0, fight x,z,level"
 -- refused: an unknown raid/room/mode, the landing cheat refused, or the state
 -- read back disagreeing with what was asked (wrong room/mode, already started).
+-- THE PARTY BRANCH (raid seam19, tob_party_room_test_shape). In a party run
+-- (QD.party.size() > 1: `party = 3,` in the test, or run.py --party 3) every
+-- raider calls t.raid.enter with the SAME arguments, in the same order, and it
+-- answers on each once all of them are at the room's entrance:
+--
+--   leader (role 1)  the solo path below (`::tobmode <room> <mode>`, the
+--                    settle, the state read), then barrier raid_enter_<k>, then
+--                    barrier raid_joined_<k>, then ::tobstate again: the
+--                    instance's party must read the run's size (`party=N`).
+--   member (role n)  barrier raid_enter_<k> (the leader is in), then its own
+--                    typed `::tobjoinroom <mode>` (tob.rs2: the door's join,
+--                    ~tob_join_raid + ~tob_party_join, so the seats fill in the
+--                    order the members join), read back on its own client: the
+--                    room line ("<room>. Cross the barrier to begin ...") and
+--                    its tile leaving where it stood within _JOIN_TICKS, then
+--                    the settle, then its tile equal to the leader's as this
+--                    client sees the leader (a joiner lands on the tile the
+--                    leader landed on), then the boss in its own pool; then
+--                    barrier raid_joined_<k>.
+--
+-- `k` counts this client's party enters, so a second enter in one run has its
+-- own barrier files (a barrier's files stay in the run dir). Each raider
+-- passes both barriers exactly once per call, whatever its own result, so a
+-- refused join cannot strand the others. A member's ok detail begins as the
+-- leader's does ("in tob bloat (normal) at x,z,level; boss present (...)") and
+-- names the seat it took; the handle, the started flag and the fight tile are
+-- the leader's to read (a member has no server readers: t.raid.state answers
+-- unsupported there). ToB only: ToA and CoX have no member bring-along, so a
+-- party enter of either answers unsupported on every raider. A member who is
+-- still inside an earlier instance is refused by the join ("You're already
+-- inside the Theatre."): it leaves first with t.cheat("::tobout").
+QD.raid._party_enters = 0
+QD.raid._JOIN_TICKS = 5
+QD.raid._PARTY_BARRIER_TICKS = 300
+-- ::tobjoinroom's refusals (tob.rs2 [debugproc,tobjoinroom] and tob_raid.rs2
+-- ~tob_join_raid), matched as plain substrings.
+QD.raid._JOIN_REFUSALS = {
+    "You're already inside the Theatre.",
+    "Your party leader has not entered the Theatre yet.",
+    "That party is running a different mode.",
+    "That party is already fighting.",
+    "That party is full.",
+    "tobjoinroom: mode must be",
+}
+
 function QD.raid.enter(raid, room, opts)
+    if QD.party.size() <= 1 then
+        return QD.raid._enter_here(raid, room, opts)
+    end
+    return QD.raid._enter_party(raid, room, opts)
+end
+
+-- The member's half of a party enter: (ok, detail) or (refused|timeout, detail).
+-- Never called by the leader, never in a party of one (refused there: there is
+-- no leader's raid to join).
+function QD.raid._join(room, row, mode, mode_name)
+    local size = QD.party.size()
+    local role = QD.party.role()
+    if size <= 1 or role == 1 then
+        return "refused", string.format("raid.enter: the member's join needs a party and a member seat"
+            .. " (party of %d, role %d): the leader's path is ::tobmode", size, role)
+    end
+    local leader = QD.party.name(1)
+    local text = string.format("::tobjoinroom %d", mode)
+    local departure = QD.raid._tile_text()
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" then
+        return serial_result, "raid.enter: message_serial answered " .. tostring(serial_result)
+    end
+    local start = api_drive.tick()
+    local cheat_result, cheat_detail = QD.cheat(text, false)
+    if cheat_result ~= "ok" then
+        return cheat_result, string.format("raid.enter: %s answered %s%s", text, tostring(cheat_result),
+            cheat_detail and (" -- " .. tostring(cheat_detail)) or "")
+    end
+    -- The typed command is sent, not run: read its effect back on this client.
+    local said = nil
+    local refusal = nil
+    local landed_tile = nil
+    local landed = QD.await({
+        level = function()
+            local list_result, list = api_drive.messages()
+            if list_result == "ok" then
+                for i = 1, #list do
+                    local m = list[i]
+                    if m.serial > since then
+                        if said == nil and string.find(m.text, ". Cross the barrier to begin", 1, true) then
+                            said = m.text
+                        end
+                        for j = 1, #QD.raid._JOIN_REFUSALS do
+                            if refusal == nil and string.find(m.text, QD.raid._JOIN_REFUSALS[j], 1, true) then
+                                refusal = m.text
+                            end
+                        end
+                    end
+                end
+            end
+            if refusal ~= nil then
+                return true
+            end
+            local key = QD.raid._tile_text()
+            if said ~= nil and key ~= "?" and key ~= departure then
+                landed_tile = key
+                return true
+            end
+            return false
+        end,
+        note = "raid.enter: " .. text .. " landing",
+    }, QD.raid._JOIN_TICKS)
+    if refusal ~= nil then
+        return "refused", string.format("raid.enter: %s refused: '%s' (p%d at %s)", text, refusal, role, departure)
+    end
+    if landed ~= "ok" or landed_tile == nil then
+        return "timeout", string.format("raid.enter: %s: within %d tick(s) the room line %s and the tile %s (left %s)",
+            text, QD.raid._JOIN_TICKS, said and ("came ('" .. said .. "')") or "never came",
+            QD.raid._tile_text(), departure)
+    end
+    local landed_after = api_drive.tick() - start
+    local settle_result, settle_detail = QD.raid._settle(nil)
+    if settle_result ~= "ok" then
+        return settle_result, "raid.enter: after " .. text .. ": " .. settle_detail
+    end
+    -- The room's entry is where the leader landed: this client's own tile must
+    -- be the tile it sees the leader on.
+    local leader_row = nil
+    local mine = nil
+    QD.await({
+        level = function()
+            local players_result, rows = api_drive.players()
+            if players_result ~= "ok" then
+                return false
+            end
+            leader_row, mine = nil, nil
+            for _, r in ipairs(rows) do
+                if r.me then
+                    mine = r
+                elseif QD.party._same(r.name, leader) then
+                    leader_row = r
+                end
+            end
+            return leader_row ~= nil and mine ~= nil
+        end,
+        note = "raid.enter: the leader in this client's pool",
+    }, 3)
+    if leader_row == nil or mine == nil then
+        return "refused", string.format("raid.enter: %s landed p%d at %s but the leader %s is not in its pool",
+            text, role, settle_detail, tostring(leader))
+    end
+    local leader_text = string.format("%d,%d,%d", leader_row.x, leader_row.z, leader_row.level)
+    if mine.x ~= leader_row.x or mine.z ~= leader_row.z or mine.level ~= leader_row.level then
+        return "refused", string.format("raid.enter: %s landed p%d at %d,%d,%d, not on the leader %s's tile %s",
+            text, role, mine.x, mine.z, mine.level, tostring(leader), leader_text)
+    end
+    local status, boss_row, boss_symbol = QD.raid._boss(row.boss, QD.raid._BOSS_TICKS)
+    return "ok", string.format("in tob %s (%s) at %s; %s; p%d joined by %s (landed %d tick(s) after it was typed)"
+        .. " on the leader %s's tile %s; room line '%s'; handle, started and fight are the leader's to read",
+        room, mode_name, settle_detail, QD.raid._boss_text(boss_symbol, status, boss_row), role, text,
+        landed_after, tostring(leader), leader_text, said)
+end
+
+-- t.raid.enter in a party run (see THE PARTY BRANCH above).
+function QD.raid._enter_party(raid, room, opts)
+    opts = opts or {}
+    local size = QD.party.size()
+    local role = QD.party.role()
+    assert(size > 1)
+    if raid ~= "tob" then
+        return "unsupported", string.format("raid.enter: a party of %d enters ToB only -- %s has no member"
+            .. " bring-along (raid seam19)", size, tostring(raid))
+    end
+    local row = QD.raid._ROOMS.tob[room]
+    if row == nil then
+        local names = {}
+        for name in pairs(QD.raid._ROOMS.tob) do
+            names[#names + 1] = name
+        end
+        table.sort(names)
+        return "refused", string.format("raid.enter: unknown tob room '%s' (%s)", tostring(room),
+            table.concat(names, " "))
+    end
+    local mode_name = opts.mode or "normal"
+    local mode = QD.raid._TOB_MODES[mode_name]
+    if mode == nil then
+        return "refused", "raid.enter: unknown ToB mode '" .. tostring(mode_name) .. "' (entry, normal, hard)"
+    end
+    QD.raid._party_enters = QD.raid._party_enters + 1
+    local entered = string.format("raid_enter_%d", QD.raid._party_enters)
+    local joined = string.format("raid_joined_%d", QD.raid._party_enters)
+    local wait = QD.raid._PARTY_BARRIER_TICKS
+
+    if role == 1 then
+        local result, detail = QD.raid._enter_here(raid, room, opts)
+        local entered_result, entered_detail = QD.party.barrier(entered, wait)
+        if entered_result ~= "ok" then
+            return entered_result, "raid.enter (leader): " .. entered_detail .. " -- after " .. tostring(detail)
+        end
+        local joined_result, joined_detail = QD.party.barrier(joined, wait)
+        if result ~= "ok" then
+            return result, detail
+        end
+        if joined_result ~= "ok" then
+            return joined_result, "raid.enter (leader): " .. detail .. "; " .. joined_detail
+        end
+        -- The members' joins, read back from the instance: its party count.
+        local state_result, fields, line = QD.raid._read_state("tob")
+        if state_result ~= "ok" then
+            return state_result, "raid.enter (leader): " .. detail .. "; the party read: " .. tostring(fields)
+        end
+        if fields.party ~= size then
+            return "refused", string.format("raid.enter: %s; but the instance's party reads %s of %d once"
+                .. " every member joined -- %s", detail, tostring(fields.party), size, line)
+        end
+        return "ok", string.format("%s; party %d of %d in the instance (tobstate party=%d scale=%s)", detail,
+            fields.party, size, fields.party, tostring(fields.scale))
+    end
+
+    local entered_result, entered_detail = QD.party.barrier(entered, wait)
+    local result, detail
+    if entered_result ~= "ok" then
+        result, detail = entered_result, "raid.enter (member): " .. entered_detail
+    else
+        result, detail = QD.raid._join(room, row, mode, mode_name)
+    end
+    local joined_result, joined_detail = QD.party.barrier(joined, wait)
+    if result == "ok" and joined_result ~= "ok" then
+        return joined_result, detail .. "; " .. joined_detail
+    end
+    return result, detail
+end
+
+-- The solo path (and the leader's half of a party enter).
+function QD.raid._enter_here(raid, room, opts)
     opts = opts or {}
     local rooms = QD.raid._ROOMS[raid]
     if rooms == nil then
@@ -555,6 +791,19 @@ function QD.raid.enter(raid, room, opts)
         QD.raid._boss_text(boss_symbol, status, boss_row), tail)
 end
 
+-- A member's answer from the server readers (raid seam17/19): its process
+-- holds no world, so the raid's registers and session varps are the leader's
+-- to read. nil on the leader and in a solo run (nothing changes there).
+function QD.raid._member_unsupported(verb)
+    local role = QD.party.role()
+    if role == 1 then
+        return nil
+    end
+    return string.format("%s: p%d is a party member and holds no world; the raid's state is the leader's"
+        .. " (role 1) to read%s", verb, role,
+        verb == "raid.leave" and " -- a member leaves with t.cheat(\"::tobout\") and a tile read" or "")
+end
+
 -- t.raid.state() -> ("ok", {raid, room, room_id, mode, started, handle,
 -- boss_symbol, boss_slot, fight, seed, line}) for the active raid, or
 -- ("not_found", "<the three active varps>") when none is.  `mode` is ToB's
@@ -562,6 +811,10 @@ end
 -- no started register and answers false); `boss_slot` is the client pool slot
 -- of the room's boss, or nil when it is not in the pool.
 function QD.raid.state()
+    local member = QD.raid._member_unsupported("raid.state")
+    if member ~= nil then
+        return "unsupported", member
+    end
     local raid, reading = QD.raid._active()
     if raid == nil then
         return "not_found", "raid.state: no raid active (" .. reading .. ")"
@@ -605,6 +858,10 @@ end
 -- varp> = 0"; refused when no raid is active.  Waits for the server's active
 -- varp to read 0 and for the walk-out teleport to settle.
 function QD.raid.leave()
+    local member = QD.raid._member_unsupported("raid.leave")
+    if member ~= nil then
+        return "unsupported", member
+    end
     local raid, reading = QD.raid._active()
     if raid == nil then
         return "refused", "raid.leave: no raid active (" .. reading .. ")"
@@ -633,6 +890,10 @@ end
 -- unsupported for CoX, whose rooms have no barrier tile (its encounters wake
 -- on approach, and Olm's way in is the raids_bossentrance loc).
 function QD.raid.start_tile()
+    local member = QD.raid._member_unsupported("raid.start_tile")
+    if member ~= nil then
+        return "unsupported", member
+    end
     local raid, reading = QD.raid._active()
     if raid == nil then
         return "refused", "raid.start_tile: no raid active (" .. reading .. ")"

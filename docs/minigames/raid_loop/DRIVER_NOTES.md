@@ -4301,3 +4301,93 @@ raider who crossed the barrier (tob_raid.rs2:1572-1573, `queue(tob_room_watchdog
 tob_party.rs2:697). Measured with the fight running: the leader reads
 `p0=27 p1=27 p2=27`, and p2 reads `p0=27 p1=27 p2=0`. Grade the leader's three orbs and
 each raider's own orb. The finding is in CONTENT_BUGS.md (seam17).
+
+**Fixed in seam19.** Every raider's column is now current: whoever runs `~tob_hud_orbs` (an
+arrival, the starter's per-tick watchdog) refreshes the whole party. The seam19 smoke reads
+`p0=27 p1=27 p2=27` on all three clients at Bloat's entrance and with the fight running.
+See "A party room test" below.
+
+## A party room test (seam19)
+
+Seam19 added this (tob_party_room_bring_along, tob_party_room_test_shape). A Normal or Hard
+room test is a party of three at the room's entrance. The worked example is
+`test/raids/_party_smoke.lua` phase C: Normal Bloat, `spec.bloat.hp_3` 1500, `scale=3`, and
+the three orbs at 27 on every raider.
+
+- **The id and the file.** The id is `tob_<room>_<mode>` (`tob_maiden_normal`,
+  `tob_maiden_hard`). `raid_coverage.py` grades it against `<room>.tsv`. `run.py` publishes
+  it to `selftest/minigames/tob/<room>_<mode>/play/` (the id is split at its first `_`),
+  with the members' `p<n>-` shots. The file declares `party = 3,`. A Hard test also declares
+  `fixture = "tob_normal_done.ini"`: that is `fresh_lumbridge.ini` plus
+  `varp6826_tob_completions = 1`, because the door refuses Hard to a raider with no
+  completion. `::tobmode` and `::tobjoinroom` do not check it.
+- **Every raider calls `t.raid.enter("tob", "<room>", {mode = "<mode>"})`**, with the same
+  arguments and the same number of times. The barrier names count the calls, so a test that
+  enters on one raider only desyncs them (they time out after 300 ticks).
+  - The leader lands with `::tobmode`, as solo. It then passes the barriers
+    `raid_enter_<k>` and `raid_joined_<k>` and re-reads `::tobstate`. ok ends
+    `party 3 of 3 in the instance (tobstate party=3 scale=1)`; refused if the instance's
+    party is short.
+  - A member waits for `raid_enter_<k>`, types `::tobjoinroom <mode>`, and reads back the
+    room line and its tile leaving within 5 ticks (measured 1-2), then its tile equal to the
+    leader's. ok reads `in tob bloat (normal) at 6452,159,0; boss present (...); p2 joined by
+    ::tobjoinroom 1 (landed 2 tick(s) after it was typed) on the leader <name>'s tile ...`.
+  - Measured on all six rooms at Normal and on the Maiden at Hard: all three raiders on one
+    tile at the entrance.
+- **`::tobjoinroom [0|1|2]`** (tob.rs2) is a member's half of `::tobmode`. No argument means
+  the raid's own mode. It runs the door's join (`~tob_join_raid`: the handle, the chest
+  flags, the arrival on the leader's tile, the room card that mounts the HUD) and
+  `~tob_party_join`, so the seats fill in the order the members type it. Its refusals, each
+  answered `refused` with the line:
+  - "You're already inside the Theatre." (leave first with `t.cheat("::tobout")`)
+  - "Your party leader has not entered the Theatre yet."
+  - "That party is running a different mode."
+  - "That party is already fighting. Wait for the room to finish."
+  - "That party is full."
+  The older `::tobjoin` (tob_selftest.rs2) is the C selftest's: Normal only, no refusals of
+  its own. Never use it in a test.
+- **`::tobstate` ends ` party=N scale=K`**: the instance's party count and the scale
+  register. Scale reads 1 (the build's seed) until the barrier is crossed, then the party
+  that walked in. Normal and Hard boss hitpoints are the same at scale 1, 2 and 3 (the
+  3-or-fewer pool), so a party test proves its scale from this field, not from hitpoints.
+- **The leader/member split.** The leader writes `spec.scope` (`mode=<mode> party=3`), every
+  `spec.*` row and every tick-ledger row. On a member, `t.raid.state`, `t.raid.leave` and
+  `t.raid.start_tile` answer `unsupported` ("p2 is a party member and holds no world"), as
+  do `t.tick`, `t.ticklog` and `t.var.server`. The one tick log carries every raider's tiles
+  and hits; a member's are told apart by pid (seat n is pid n). A member's part is its own
+  clicks, prayers, steps and eats, plus a `t.party.barrier` at each phase the leader also
+  passes (name each barrier once per run).
+- **The LEADER crosses the barrier.** Only the raider who crosses an unstarted barrier runs
+  the room's per-tick watchdog (CONTENT_BUGS.md, seam19 Open row). Until that is fixed,
+  Maiden's blood and Sotetseg's maze tick apply only to that raider: do not grade a member's
+  per-tick room damage.
+- **Roles come from the sources, never invention.** Use the trio transcripts under
+  `docs/minigames/theater_of_blood/sources/transcripts/` (`grep -l -i trio`:
+  yt_4i4lv-srJkw.md, yt_6soXuRA77JU.md, yt__QXdNAZh7Yo.md, yt_D1b4eWwnOHU.md) and the Blert
+  files `sources/blert_guides/tob_nylocas_trio_content.mdx`, `tob_bloat_humid_content.mdx`
+  and `sources/blert_nylo_pillar_assignment.json`. Cite the line beside each role's branch.
+- **Grading a party scope.** `raid_coverage.py` keeps a sidecar `party` row only in the run's
+  mode. It drops a party/normal/hard row whose id names another party size (`_5`, `_4`,
+  `_5p`, `hard_5`). `_3` counts at 3, and at 2 when the quantity says "or fewer". In-scope
+  counts on the current tables: Normal/3 maiden 70, bloat 57, nylocas 85, sotetseg 89,
+  xarpus 63, verzik 170; Hard/3 74, 54, 80, 89, 66, 158. `--mode` and `--party` override the
+  scope row each on its own. A `tob_<room>_<mode>` id whose scope row names another mode is a
+  finding.
+- **Party orbs.** Varbits 6442..6446 are current on every raider's client, so a member can
+  grade `raidwide.hud.orb_*` rows on its own client. With the fight running, a member's `p0`
+  tracks the leader's hits (measured p0=10 on all three).
+- **The orbs wait for an open chat page.** The arrival's orb write is a normal queue
+  (`[queue,tob_room_settle]`, tob_raid.rs2), so it does not run while a modal is open. The
+  seam19 closer measured partyslot 0 / p0 0 for six ticks at an entrance behind a nightshade
+  "player" page, and 1 / 27 once it was closed. Close any chat page before `t.raid.enter`
+  when a row reads the orbs.
+- **A member's entrance shot is dark.** It is taken while the room's title card is still
+  fading (dark red with the card): the settle does not wait for the card. This is cosmetic.
+- **Time and determinism.** A three-client run costs about 70 ms of the leader's wall clock
+  per world tick. The smoke runs 183 ticks in 12-14 s, about 60 s for the whole `run.py`; an
+  opening (enter, cross, one read, out) takes 6-12 s. A full Normal room of ~700 ticks should
+  take about a minute; set `max_frames` from a measured run. Two runs' tick logs are equal
+  most of the time but not by guarantee: a member's typed command lands at its own
+  frame-timed boundary. The fixers measured one run in three shifted by one tick from tick
+  114-116; the closer's two runs were byte-identical (5561 lines). Compare runs by their
+  ledgers' verdicts and spec rows, and quote tick-log rows rather than requiring `cmp`.

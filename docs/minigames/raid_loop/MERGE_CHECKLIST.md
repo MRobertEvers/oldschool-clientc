@@ -111,6 +111,20 @@ the merge.
     (12 new `party.*` rows after `raid.leave`), 159 seam rows on the branch.
   - `script/plugins/plugin_api.meta.lua`: `api_drive.barrier_mark`, `barrier_present`,
     `players`.
+- seam19 (2026-10-04), the party room test. No shared tool under `tools/quest_gate/`
+  changed; cooks_assistant and druid ledgers are byte-identical to the seam17 base and the
+  suite holds its buckets (115 green, the same four RED).
+  - `test/quests/_conformance.lua`: three new seam rows before `step("finish")`
+    (`seam.tobjoinroom_refuses_like_the_door`, `seam.tobstate_reads_party_and_scale`,
+    `seam.raid_enter_party_branch_solo_unchanged`): 177 verbs, 167 seam rows on the branch.
+    `tools/quest_gate/verb_list.py` unchanged.
+  - `script/plugins/quest_driver/raid.lua`: `t.raid.enter` has a party branch
+    (`QD.raid._enter_party`, `_join`, `_enter_here` holds the old solo body); `state`,
+    `leave` and `start_tile` answer `unsupported` on a member. A party of one takes the old
+    path.
+  - Raid-only tooling: `tools/raid_gate/raid_coverage.py` (`tob_<room>_<mode>` ids, party
+    scope, `--mode`/`--party`), `tools/raid_gate/workflows/raid_author.workflow.js`
+    (`args.party`).
 
 ## 4. The owner's main checkout
 

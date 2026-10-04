@@ -3,11 +3,16 @@
 table (docs/RAID_ORCHESTRATOR.md sections 5 and 6).
 
     python3 tools/raid_gate/raid_coverage.py tob_maiden [tob_bloat ...] [--ledger PATH]
+        [--mode entry|normal|hard|all] [--party N]
 
 For test id <raid>_<room> the spec table is docs/minigames/<raid docs>/encounters/
 <room>.tsv (tools/raid_gate/spec_check.py defines it); a whole-raid id (tob_entry,
-cox_solo, toa_150) is graded against every room table of its raid. The ledger is
-build/quest_gate/<id>/ledger.tsv (or --ledger).
+cox_solo, toa_150) is graded against every room table of its raid. A party room
+test's id names its mode after the room, <raid>_<room>_<mode> (tob_maiden_normal,
+tob_maiden_hard; raid seam19): the table is still <room>.tsv, and a spec.scope row
+whose mode is not the id's is a finding. The ledger is build/quest_gate/<id>/ledger.tsv
+(or --ledger); for a party run that is the union ledger, whose spec rows are the
+leader's (DRIVER_NOTES "Three raiders in one run").
 
 THE ROW CONTRACT. For every spec row the test writes one PASS ledger row named
 `spec.<mechanic_id>` whose detail starts with
@@ -37,7 +42,8 @@ quantity names another mode (hard/hm, entry/story, normal/regular), a row with n
 marker whose entry_/.entry/_entry sibling exists when the mode is entry, and a row
 that names a party size or scale other than the test's (party, scale, _3_5, 2_5, duo,
 trio, 4p, 5p, team, per_player) unless it also says solo/_1. Without a scope row
-every row counts (mode all).
+every row counts (mode all). --mode and --party, when given, override the scope
+row's (each on its own).
 
 TEXT ROWS. A spec row whose unit is `text` is graded by equality: the detail reads
 `measured <text>[; free text] (spec <text>[ text], grade <G>, tol exact)` -- the
@@ -47,6 +53,18 @@ must match after trimming and case-folding.
 SIDECAR. `<room>.scope.tsv` beside the table (mechanic_id, scope, note) states a row's
 scope outright -- all, entry, normal, hard, party (two or more players), stat (a
 distribution no single room settles) -- and overrides the name heuristic.
+
+A `party` row in a PARTY run (party >= 2; raid seam19) is in scope only when it is
+the test's mode and the test's size: a party row whose id names another mode is
+skipped (`bloat.hp_entry_scale` in a Normal run), and a `party`, `normal` or `hard`
+row whose id ends in a party size is kept only when the run's party is that size
+(`maiden.hp_3` at 2 or 3, never `maiden.hp_5`, `maiden.hp_4` or, in Hard,
+`maiden.hp_hard_5`): `_<n>` or `_<n>p` is n players (n or fewer when the quantity
+says "or fewer" / "and below"), `_<a>_<b>` is a to b players, `_<n>_or_fewer` is n or
+fewer. A row with no size in its id (`bloat.fly_spread`, `bloat.hp_scale`) counts at
+every party size, and an `all` row is never size-filtered (`sotetseg.maze_off_on_3`
+is a cycle tick). In a solo run (party 1) every party row is skipped and nothing
+else changes, as before.
 
 Verdict per test: FULL (every in-scope spec row measured and within tolerance) or a list of
 findings: `unmeasured <id>`, `out of tolerance <id>: measured .. vs spec ..`,
@@ -66,6 +84,10 @@ FULL_RAID_ROOMS = {"entry", "solo", "150"}
 SPEC_RE = re.compile(r"\(spec\s+(?P<s>.+?),\s*grade\s+(?P<g>[A-E]),\s*tol\s+(?P<t>exact|\+-\d+|range|approx|bracket<=\d+(?:\.\d+)?)\)")
 NUM_RE = re.compile(r"^-?[\d.]+(?:-[\d.]+)?(?:,-?[\d.]+)*$")
 SCOPE_RE = re.compile(r"mode=(?P<mode>entry|normal|hard|all)\s+party=(?P<party>\d)")
+# A party room test's id: <raid>_<room>_<mode> (raid seam19).
+ID_MODES = ("entry", "normal", "hard")
+# The party size a sidecar `party` row's id ends in (see SIDECAR in the docstring).
+PARTY_SIZE_RE = re.compile(r"(?:^|_)(?P<lo>[1-5])(?:p|_(?P<hi>[1-5])|_(?P<fewer>or_fewer))?$")
 
 
 def parse_row(detail, text_row=False):
@@ -127,12 +149,18 @@ def row_scope(spec, mode, party, ids, sidecar=None):
         return None
     scope = (sidecar or {}).get(spec["mechanic_id"])
     if scope:
-        if scope == "all" or scope == mode:
+        if scope == "all":
             return None
+        if scope == mode:
+            # A party run cannot measure another party size's figure
+            # (maiden.hp_hard_5, xarpus.hp.hard_4 in a Hard party of three).
+            return party_size_scope(spec, party) if party >= 2 else None
         if scope in ("entry", "normal", "hard"):
             return "sidecar: %s" % scope
         if scope == "party":
-            return None if party >= 2 else "sidecar: party"
+            if party < 2:
+                return "sidecar: party"
+            return party_row_scope(spec, mode, party)
         return "sidecar: stat"
     text = ("%s %s" % (spec["mechanic_id"], spec["quantity"])).lower()
     tokens = re.split(r"[^a-z0-9]+", text)
@@ -153,8 +181,51 @@ def row_scope(spec, mode, party, ids, sidecar=None):
     return None
 
 
-def spec_tables(test_id):
+def party_size_scope(spec, party):
+    """None when a row's id names no party size or names the run's, else why
+    not. `_<n>` / `_<n>p` is n players -- n or fewer when the quantity says so
+    ("3 players or fewer", "3-scale and below") -- `_<a>_<b>` a to b players,
+    `_<n>_or_fewer` n or fewer."""
+    name = spec["mechanic_id"].lower().split(".")[-1]
+    size = PARTY_SIZE_RE.search(name)
+    if not size:
+        return None
+    lo = int(size.group("lo"))
+    quantity = spec.get("quantity", "").lower()
+    if size.group("fewer") or any(w in quantity for w in ("or fewer", "and below", "or less")):
+        ok = party <= lo
+    elif size.group("hi"):
+        ok = lo <= party <= int(size.group("hi"))
+    else:
+        ok = party == lo
+    if ok:
+        return None
+    return "sidecar: names %s player(s), the run has %d" % (size.group(0).lstrip("_"), party)
+
+
+def party_row_scope(spec, mode, party):
+    """A sidecar `party` row in a party run: None when it is in scope, else why
+    not (another mode named; another party size named)."""
+    tokens = re.split(r"[^a-z0-9]+", spec["mechanic_id"].lower())
+    if not any(w in tokens for w in MODE_WORDS[mode]):
+        for other, words in MODE_WORDS.items():
+            if other != mode and any(w in tokens for w in words):
+                return "sidecar: party, names %s" % other
+    return party_size_scope(spec, party)
+
+
+def split_id(test_id):
+    """(raid, room, id_mode): tob_maiden -> (tob, maiden, None);
+    tob_maiden_normal -> (tob, maiden, normal); tob_entry -> (tob, entry, None)."""
     raid, _, room = test_id.partition("_")
+    head, sep, tail = room.rpartition("_")
+    if sep and head and tail in ID_MODES:
+        return raid, head, tail
+    return raid, room, None
+
+
+def spec_tables(test_id):
+    raid, room, _ = split_id(test_id)
     assert raid in RAID_DOCS, "unknown raid prefix in %s" % test_id
     directory = os.path.join(ROOT, "docs", "minigames", RAID_DOCS[raid], "encounters")
     if room in FULL_RAID_ROOMS:
@@ -247,12 +318,18 @@ def grade(test_id, ledger_path=None, mode=None, party=None):
     by_step = {}
     for r in rows:
         by_step.setdefault(r["step"], []).append(r)
-    if mode is None:
+    findings = []
+    if mode is None or party is None:
         scope_rows = [r for r in by_step.get("spec.scope", []) if r["verdict"] == "PASS"]
         sm = SCOPE_RE.search(scope_rows[-1]["detail"]) if scope_rows else None
-        mode = sm.group("mode") if sm else "all"
-        party = int(sm.group("party")) if sm else 0
-    findings = []
+        if mode is None:
+            mode = sm.group("mode") if sm else "all"
+        if party is None:
+            party = int(sm.group("party")) if sm else 0
+    id_mode = split_id(test_id)[2]
+    if id_mode is not None and mode != id_mode:
+        findings.append("scope mismatch: %s plays mode=%s by its id, the scope reads mode=%s" % (
+            test_id, id_mode, mode))
     skipped = []
     total = 0
     for table in tables:

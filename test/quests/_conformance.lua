@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 164
+-- @seam-count 167
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 177
-local SEAM_COUNT = 164
+local SEAM_COUNT = 167
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -16216,6 +16216,183 @@ return {
                 return "refused", seen .. " -- the underscored (display-name) rung stopped answering"
             end
             return "ok", seen
+        end)
+
+        -- Merged by the seam19 closer (matthew-mbp-m4-raid-b1-seam19): SEAM_COUNT 164 -> 167.
+        -- seam19 tob_party_room_bring_along: two seam rows, no verb added or changed.
+        --
+        -- PLACE: test/quests/_conformance.lua PLAN, immediately before step("finish"),
+        -- after seam("seam.give_takes_the_exact_symbol", ...) -- with the other raid
+        -- rows that end at Ver Sinhaza (DRIVER_NOTES "t.raid.enter": ::tobmode's kit
+        -- adds potions, so a raid row runs where no later row reads the backpack).
+        -- Each row leaves with ::tobout and ::clearinv. SEAM_COUNT +2.
+        --
+        -- What they prove (content, OSRS-Content minigame_tob/scripts/tob.rs2,
+        -- tob_hud.rs2, tob_raid.rs2; a party of THREE is proved by the party scratch
+        -- bring_along/scratch_tobjoin.lua and test/raids/_party_smoke.lua, which a
+        -- one-client harness cannot run):
+        --   * ::tobjoinroom (a member's half of ::tobmode) refuses with the door's
+        --     lines: no raid -> "Your party leader has not entered the Theatre yet.",
+        --     already inside -> "You're already inside the Theatre."
+        --   * ::tobstate carries party=N and scale=K (the instance's ^tob_var_party_n
+        --     and ^tob_var_scale); solo: party=1 scale=1 before and after the barrier,
+        --     and the party-of-one orb path is unchanged (partyslot 1, p0 = 27 at the
+        --     entrance).
+        seam("seam.tobjoinroom_refuses_like_the_door", function()
+            local enter = verb("raid", "enter")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not ticks then return missing("ticks") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local function line_since(since, needle)
+                local _, lines = t.msg.last(20)
+                for _, m in ipairs(lines or {}) do
+                    if (m.serial or 0) > since and string.find(m.text or "", needle, 1, true) then return m.text end
+                end
+                return nil
+            end
+            local function serial_now()
+                local _, ring = t.msg.last(1)
+                return (ring and ring[1] and ring[1].serial) or 0
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local s0 = serial_now()
+            setup_cheat("::tobjoinroom")
+            ticks(2)
+            local none = line_since(s0, "Your party leader has not entered the Theatre yet.")
+            local entered, enter_detail = enter("tob", "bloat", { mode = "normal" })
+            local s1 = serial_now()
+            setup_cheat("::tobjoinroom")
+            ticks(2)
+            local inside = line_since(s1, "You're already inside the Theatre.")
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = string.format("no raid: %s; raid.enter %s (%s); inside: %s",
+                describe(none), describe(entered), describe(enter_detail), describe(inside))
+            if none and entered == "ok" and inside then return "ok", text end
+            return "refused", text
+        end)
+
+        seam("seam.tobstate_reads_party_and_scale", function()
+            local enter = verb("raid", "enter")
+            local varbit = verb("var", "varbit")
+            local ticks = verb("ticks")
+            -- (closer, seam19) An earlier row can leave a chat page open --
+            -- seam.super_restore_no_hitpoints' nightshade leaves a "player"
+            -- page -- and the arrival's orb write is a NORMAL queue
+            -- ([queue,tob_room_settle], tob_raid.rs2), which waits while a
+            -- modal is open: measured partyslot 0 / p0 0 for six ticks behind
+            -- that page, 1 / 27 with it closed. Close it first.
+            local close_chat = verb("chat", "close")
+            if not close_chat then return missing("chat", "close") end
+            close_chat()
+            if not enter then return missing("raid", "enter") end
+            if not varbit then return missing("var", "varbit") end
+            if not ticks then return missing("ticks") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local function state_line()
+                local _, ring = t.msg.last(1)
+                local since = (ring and ring[1] and ring[1].serial) or 0
+                setup_cheat("::tobstate")
+                ticks(2)
+                local _, lines = t.msg.last(20)
+                for _, m in ipairs(lines or {}) do
+                    if (m.serial or 0) > since and string.find(m.text or "", "tobstate active=", 1, true) then return m.text end
+                end
+                return nil
+            end
+            local entered, enter_detail = enter("tob", "bloat", { mode = "normal" })
+            local before = state_line()
+            -- The orb at the entrance, before any fight can hit it.
+            local _, slot = varbit("varb6441_tob_client_partyslot")
+            local _, p0 = varbit("varb6442_tob_client_p0")
+            setup_cheat("::tobgo")
+            ticks(3)
+            local after = state_line()
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            settle(2)
+            local function has(s, k) return s ~= nil and string.find(s, k, 1, true) ~= nil end
+            local text = string.format("raid.enter %s (%s); before the barrier: %s; after ::tobgo: %s; partyslot %s, p0 %s",
+                describe(entered), describe(enter_detail), describe(before), describe(after), describe(slot), describe(p0))
+            if entered == "ok" and has(before, "started=0") and has(before, " party=1 scale=1")
+                and has(after, "started=1") and has(after, " party=1 scale=1") and slot == 1 and p0 == 27 then
+                return "ok", text
+            end
+            return "refused", text
+        end)
+
+        -- seam19 tob_party_room_test_shape: one seam row, no verb added (t.raid.enter
+        -- gained a party branch; QD.raid._join / _enter_party are private), so
+        -- VERB_COUNT is unchanged. SEAM_COUNT +1.
+        --
+        -- PLACE: test/quests/_conformance.lua PLAN, immediately before step("finish"),
+        -- AFTER the seam19 bring_along rows (seam("seam.tobstate_reads_party_and_scale",
+        -- ...), conformance.tob_party_room_bring_along.lua) -- with the other raid rows
+        -- that end at Ver Sinhaza. It leaves with t.raid.leave (::tobout) and ::clearinv.
+        --
+        -- What a one-client harness can prove (the three-raider behaviour is the smoke's:
+        -- test/raids/_party_smoke.lua phase C, rows raid.enter.bloat_normal and
+        -- p2:/p3:raid.enter.bloat_normal, party.bloat.three_on_one_tile,
+        -- raid.bloat.tobstate_party_3, p2:/p3:raid.state.member_unsupported):
+        --   * the member's join refuses on a party of one, typing nothing (the tile
+        --     does not move);
+        --   * t.raid.enter on a party of one is the solo path unchanged: ::tobmode, the
+        --     detail ends "handle H, started 0, fight x,z,level" with no "party N of N"
+        --     suffix, and no party barrier was taken (t.raid._party_enters stays 0);
+        --   * t.raid.state is not "unsupported" on a party of one (the member guard
+        --     is a member's only).
+        -- The fixture test/raids/fixtures/tob_normal_done.ini (completions 1) cannot be
+        -- loaded by this harness (one fixture per run, fresh_lumbridge); its proof is
+        -- the fixer's scratch run build/seam_state/<pass>/test_shape/scratch_hard_door.lua
+        -- (fixture.completions 1, 'Members: 3. Mode: Hard.', the members' Hard door),
+        -- with fresh_lumbridge as the control (the door's "You must complete ..." line).
+        seam("seam.raid_enter_party_branch_solo_unchanged", function()
+            local enter = verb("raid", "enter")
+            local state_of = verb("raid", "state")
+            local leave = verb("raid", "leave")
+            local tile_of = verb("world", "tile")
+            if not enter then return missing("raid", "enter") end
+            if not state_of then return missing("raid", "state") end
+            if not leave then return missing("raid", "leave") end
+            if not tile_of then return missing("world", "tile") end
+            if type(t.raid._join) ~= "function" or type(t.raid._ROOMS) ~= "table" then
+                return missing("raid", "_join")
+            end
+            if t.party.size() ~= 1 then
+                return "refused", "the conformance harness is not a party of one: size " .. describe(t.party.size())
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local _, before = tile_of()
+            local jr, jd = t.raid._join("bloat", t.raid._ROOMS.tob.bloat, 1, "normal")
+            settle(2)
+            local _, after = tile_of()
+            local still = is_table(before) and is_table(after) and before.x == after.x and before.z == after.z
+            local enters_before = t.raid._party_enters
+            local er, ed = enter("tob", "bloat", { mode = "normal" })
+            local sr, sd = state_of()
+            local lr, ld = leave()
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = string.format("join on a party of one: %s (%s), tile %s; enter: %s (%s); state: %s; leave: %s",
+                describe(jr), describe(jd), still and "unmoved" or "MOVED", describe(er), describe(ed),
+                describe(sr), describe(lr))
+            if jr ~= "refused" or not string.find(tostring(jd), "needs a party", 1, true) or not still then
+                return "refused", text
+            end
+            if er ~= "ok" or not string.find(tostring(ed), "in tob bloat (normal)", 1, true)
+                or not string.find(tostring(ed), "started 0, fight", 1, true)
+                or string.find(tostring(ed), " of 1 in the instance", 1, true)
+                or t.raid._party_enters ~= enters_before then
+                return "hollow", "the solo path changed -- " .. text
+            end
+            if sr ~= "ok" or lr ~= "ok" then
+                return "refused", text
+            end
+            return "ok", text
         end)
 
         step("finish", function()

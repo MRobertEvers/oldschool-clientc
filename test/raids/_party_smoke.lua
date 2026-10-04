@@ -14,6 +14,12 @@
 -- Phase B, Normal: the leader sets the party to Normal, the three enter again,
 -- the leader starts the Maiden's fight with all three in the raid and reads
 -- her hitpoints and the HUD bar: the scale a party of three fixes.
+-- Phase C, a party room test's opening (raid seam19): all three call
+-- t.raid.enter("tob", "bloat", {mode = "normal"}) -- the leader's ::tobmode,
+-- the members' ::tobjoinroom -- and stand on one tile at Bloat's entrance in
+-- one instance (::tobstate party=3); every raider reads the three orbs full;
+-- the leader crosses, reads scale=3 and Bloat's 1500 (spec.bloat.hp_3); every
+-- raider reads the members' orbs full with the fight running; all leave.
 return {
     id = "_party_smoke",
     fixture = "fresh_lumbridge.ini",
@@ -220,6 +226,82 @@ return {
         local _, tile_end = t.world.tile()
         want("raid.left.normal", type(tile_end) == "table" and tile_end.x > 3600 and tile_end.x < 3700,
             "after ::tobout at " .. (type(tile_end) == "table" and (tile_end.x .. "," .. tile_end.z) or tostring(tile_end)))
+        t.expect("party.barrier.normal_out", t.party.barrier("normal_out", 300))
+
+        -- Phase C, a party room test's opening (raid seam19,
+        -- tob_party_room_test_shape): the same three, out of the raid, call
+        -- t.raid.enter("tob", "bloat", {mode = "normal"}) -- the leader lands
+        -- with ::tobmode, each member joins its instance with ::tobjoinroom --
+        -- and stand at Bloat's entrance, corridor side, the fight unstarted.
+        -- One run, not a second one: run.py runs one file per run, and the
+        -- lobby phases above already leave the three in Ver Sinhaza with no
+        -- raid open, which is where a room test's party starts.
+        local er, ed = t.raid.enter("tob", "bloat", { mode = "normal" })
+        t.check("raid.enter.bloat_normal", er, ed)
+        local _, at = t.world.tile()
+        local at_text = type(at) == "table" and (at.x .. "," .. at.z .. "," .. at.level) or tostring(at)
+        local pr, pd, others = t.party.players(0)
+        want("party.bloat.three_on_one_tile", pr == "ok" and type(others) == "table" and #others == t.party.size() - 1,
+            "at " .. at_text .. ": " .. tostring(pd))
+        if role == 1 then
+            local sr, state = t.raid.state()
+            local line = type(state) == "table" and state.line or tostring(state)
+            want("raid.bloat.tobstate_party_3", sr == "ok" and state.room == "bloat" and state.mode == "normal"
+                and not state.started and string.find(line, " party=3 ", 1, true) ~= nil,
+                "measured " .. tostring(line) .. " (three raiders in the leader's instance, the room unstarted)")
+        else
+            local mr, md = t.raid.state()
+            want("raid.state.member_unsupported", mr == "unsupported", tostring(mr) .. ": " .. tostring(md))
+        end
+        -- The orbs at the entrance, every raider's client: all three full.
+        local entrance_orbs, entrance_full = orbs_text()
+        want("raidwide.hud.orb_full.entrance", entrance_full, "measured " .. entrance_orbs
+            .. " (spec 27 each: fill 26 + 1; p" .. role .. "'s own client at Bloat's entrance)")
+        t.expect("party.barrier.bloat_entrance", t.party.barrier("bloat_entrance", 300))
+        if role == 1 then
+            -- The leader crosses (the barrier's own question, as in phase B);
+            -- the scale is the party that walked in.
+            t.exec("bloat.barrier", t.player.click_loc, "tob_arena_barrier", 1)
+            t.await({ level = function() return t.chat.kind() == "options" end, note = "the barrier's question" }, 5)
+            t.exec("bloat.begin", t.chat.choose, "Yes, begin the fight.")
+            t.ticks(1)
+            local sr, state = t.raid.state()
+            local line = type(state) == "table" and state.line or tostring(state)
+            want("raid.bloat.scale_3", sr == "ok" and state.started and string.find(line, " party=3 scale=3", 1, true) ~= nil,
+                "measured " .. tostring(line) .. " (~tob_start_room: ^tob_var_scale = ~tob_party_size)")
+            t.cheat("::tobwhy")
+            t.ticks(1)
+            local _, lines = t.msg.last(40)
+            local hp = nil
+            for _, m in ipairs(lines or {}) do
+                if hp == nil and string.find(m.text, "Bloat", 1, true) then hp = tonumber(string.match(m.text, "hp=(%d+)")) end
+            end
+            t.step("spec.bloat.hp_3", hp == 1500 and "PASS" or "FAIL", string.format(
+                "measured %s (spec 1500 hp, grade A, tol exact); Normal Bloat, a party of three, ::tobwhy once the barrier is crossed (tobstate started=1 scale=3);"
+                .. " bloat.tsv bloat.hp_normal '2000,1750,1500' (5 / 4 / 3-or-fewer, grade A) = 2000 x 750 / 1000"
+                .. " (raidwide.scale.party_3_or_fewer 750 permille)", tostring(hp)))
+        end
+        t.expect("party.barrier.bloat_fight", t.party.barrier("bloat_fight", 300))
+        -- With the fight running only the leader stands past the barrier: the
+        -- members' orbs stay full in every raider's column, and the leader's
+        -- is current on every client (seam19 content fix: ~tob_hud_orbs
+        -- refreshes the whole party).
+        t.ticks(2)
+        local fight_orbs = orbs_text()
+        local _, o0 = t.var.varbit("varb6442_tob_client_p0")
+        local _, o1 = t.var.varbit("varb6443_tob_client_p1")
+        local _, o2 = t.var.varbit("varb6444_tob_client_p2")
+        want("raidwide.hud.orb_full.members_in_fight", o1 == 27 and o2 == 27 and type(o0) == "number" and o0 >= 1 and o0 <= 27,
+            "measured " .. fight_orbs .. " on p" .. role .. "'s client (members 27 each; the leader's own orb current, 1..27)")
+        t.expect("party.barrier.bloat_read", t.party.barrier("bloat_read", 300))
+        t.cheat("::tobout")
+        t.await({ level = function()
+            local _, tile = t.world.tile()
+            return type(tile) == "table" and tile.x > 3600 and tile.x < 3700
+        end, note = "back in Ver Sinhaza" }, 20)
+        local _, tile_bloat = t.world.tile()
+        want("raid.left.bloat", type(tile_bloat) == "table" and tile_bloat.x > 3600 and tile_bloat.x < 3700,
+            "after ::tobout at " .. (type(tile_bloat) == "table" and (tile_bloat.x .. "," .. tile_bloat.z) or tostring(tile_bloat)))
         -- seam17 three_clients_one_world (the engine seam's row, merged by the
         -- closer): from the first world tick with all three raiders on, every
         -- tick of the world's one log carries exactly one player_tile row per

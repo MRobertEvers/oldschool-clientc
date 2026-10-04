@@ -707,7 +707,7 @@ Open:
 
 ## From seam17 (matthew-mbp-m4-raid-b1-seam17, 2026-10-04)
 
-- Open, ToB, every room, tob_hud.rs2 `[proc,tob_hud_orbs]` and tob_raid.rs2:1572-1573
+- **FIXED seam19** (below) ToB, every room, tob_hud.rs2 `[proc,tob_hud_orbs]` and tob_raid.rs2:1572-1573
   `[proc,tob_arm_watchdog]` (`queue(tob_room_watchdog, 0, 0)`, reached from tob_party.rs2:697
   `~tob_start_room`): a raider's copies of the party orb varbits (6442..6446,
   `varb644N_tob_client_pK`) are written only when `~tob_hud_orbs` runs FOR THAT RAIDER, on
@@ -722,3 +722,63 @@ Open:
   source before choosing a fix (every raider's watchdog, or a broadcast from `~tob_hud_orbs`).
   Found by seam17 party_run_and_verbs. The smoke grades the leader's three orbs and each
   raider's own orb until it is fixed.
+
+## From seam19 (matthew-mbp-m4-raid-b1-seam19, 2026-10-04)
+
+- **FIXED seam19** ToB, every room: a raider's orb column showed only the raiders who arrived
+  before it, and nobody saw a member's hitpoints move in a fight (seam17's row above). Source:
+  the orbs are the whole party's hitpoints on every raider's screen, one order for the team
+  (wiki Theatre of Blood/Strategies, sources/wiki_Theatre_of_Blood_Strategies.wikitext:578,
+  "the order of the health orbs that are present on the top left of the player's screen, from
+  top to bottom", with one orb order per scale for the whole team), drawn by the cache from
+  each client's varbits 6442..6446 (raidwide.tsv `raidwide.hud.orb_full`, A). The refresh
+  cadence is still not pinned, so the fix keeps the one this tree already had and widens who
+  it reaches: `~tob_hud_orbs` now also runs `~tob_hud_orbs_party`, which, for a party of two
+  or more, makes every other raider who is in this raid (`%varp5893_tob_active` 1 and the same
+  handle) publish their own slot and then rewrite their six varbits, so the starter's per-tick
+  watchdog and every arrival refresh the whole party. A party of one returns before any
+  `p_finduid` (one-client ledgers byte-identical: cooks_assistant, druid; the six Entry rooms'
+  counts unchanged). Not chosen: arming every raider's watchdog, which would also count every
+  raider into `^tob_var_boss_misses` each tick (the boss-death rule). Measured (scratch
+  bring_along/scratch_tobjoin.lua, run s19join_after3, Normal Bloat, three raiders): at the
+  entrance every raider reads p0=27 p1=27 p2=27; with the fight running and only the leader
+  hit by the flies, all three read p0=10 p1=27 p2=27 (before the fix the members read p0=27,
+  stale, while the leader read p0=6). `_party_smoke` 99/99: the members'
+  `raid.orbs_member_view_observed` reads "p0=27 p1=27 p2=27 (all full)" (before: p2=0).
+- **FIXED seam19** ToB, every room: a raider who joined a party already inside
+  (`~tob_join_raid`, the door's second entrant) had the orb varbits and no orb column on screen.
+  The Theatre HUD is mounted by `~tob_title_card` (tob_title.rs2, whose header lists "a joiner
+  stepping into a party through `~tob_join_raid`" among the entries it serves) and by
+  `~tob_hud_open` at the barrier, for the raider who crosses it; every other way into a room
+  (the build, `~tob_carry_party`'s "Everyone gets the card", the resume) gives the card, the
+  join did not. `~tob_join_raid` now gives the room's card after `~tob_room_arrive`. Measured
+  in s19join_after3: the three raiders' screens at Bloat's entrance each show three full orbs,
+  each with its own orb marked (before: the members' screens had none).
+- Open, ToB, every room: the fight watchdog (`[queue,tob_room_watchdog]`, the per-player,
+  per-tick hook) is armed only for the raider who crosses an unstarted barrier
+  (`~tob_start_room`), on a resume and on a re-entry; a teammate who crosses a started barrier is
+  only stepped (`[oploc1,tob_arena_barrier]`, `~tob_barrier_step`), and `~tob_carry_party`
+  arms nobody. So the per-player rules that hook carries run for ONE raider of a party:
+  Maiden's blood (`~tob_maiden_blood_sweep`, "will do damage to the player every tick"),
+  Sotetseg's maze tick (`~tob_sote_player_tick`), the cleared room's exit walk. tob_raid.rs2's
+  own comment says it "is re-armed every tick for every player who crossed the barrier". Not
+  fixed here: arming it per raider also multiplies `^tob_var_boss_misses` (one instance register
+  counted into by every watchdog) and so shortens the two-consecutive-tick death confirmation
+  to one tick for three raiders; the fix has to split the per-player rules from the per-room
+  ones. Found by seam19 tob_party_room_bring_along (code read, not yet measured in a party
+  room); a Normal Maiden party test will show it as a member standing in blood untouched.
+- Note, debug: there are two member joins. `::tobjoinroom [0|1|2]` (tob.rs2, seam19) is the
+  party room test's: reset, the door's join and `~tob_party_join`, kit, the room line, and the
+  door's and the join's refusals. `::tobjoin` (tob_selftest.rs2:2755) is the C selftest's
+  two-raider harness (torirs_server_world_selftest.c:34043, parses "tobjoin <handle>"): Normal
+  only, arguments ignored, no "already inside" refusal (typed twice it joins the party twice).
+  The seam19 triage asked for the new one under `::tobjoin`; that name was taken in a file this
+  seam does not own. Folding them is: delete the selftest's, rename `::tobjoinroom` to
+  `::tobjoin` and have it also print "tobjoin <handle>" for the C harness.
+- Open, ToB, every room: the room's music reaches only the raider who built the room or
+  started the fight. `~tob_music_room` runs in `~tob_build_room` and `~tob_music_fight` in
+  `~tob_start_room`, each a per-player `~tob_music_play` on the active raider; `~tob_join_raid`
+  and `~tob_carry_party` play nothing. Measured in seam19's `_party_smoke` tick log: the leader's
+  `music 0 570` at tick 98 on entry, no music row for the two members who joined at tick 111.
+  Found by seam19 tob_party_room_bring_along (tick log read; not fixed: the music pages'
+  "upon entering" sentences were not re-read for a party).
