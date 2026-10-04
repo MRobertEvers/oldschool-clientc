@@ -112,7 +112,11 @@ return {
         local flinch_from = nil
         local flinch_to = nil
         local flinch_moved = nil
+        local reach_fails = 0
+        local reach_streak = 0
         local flinch_down = -1
+        -- technique frames: each is taken once, on the tick the technique happens inside the fight loop
+        local tshot = {}
         -- presentation reads (read-only): the animation the client draws on Bloat by phase and motion, the camera
         -- events (the stomp's shake), the cycles a falling-flesh shadow has left when first seen
         local pres = { pose_seen = {}, ready_anim = -1, walk_anim = -1, anim_seen = {}, cam_serial = nil, cam_events = {}, shadow_live = {}, shadow_lives = {} }
@@ -200,6 +204,21 @@ return {
             if phase == "down" and age >= 27 and age <= 28 and pre_stomp_for ~= down_tick then
                 pre_stomp_for = down_tick
                 pre_stomp[#pre_stomp + 1] = hp_now
+                if hp_now > 40 and not tshot.eat then
+                    tshot.eat = true
+                    t.shot("tech.eat_before_stomp")
+                end
+            end
+            if phase == "walk" and prayer_tick ~= nil and now >= prayer_tick + 7 and not tshot.prot and not dead then
+                local pfr, pfh = t.ticklog.rows({ kind = "hit_player", slot = boss_slot })
+                if pfr == "ok" then
+                    for k = 1, #pfh do
+                        if pfh[k].tick >= now - 1 and pfh[k].damage <= 8 and not tshot.prot then
+                            tshot.prot = true
+                            t.shot("tech.protect_from_missiles")
+                        end
+                    end
+                end
             end
             if not dead then
                 local tx = me.x
@@ -219,6 +238,13 @@ return {
                     tz = 189 - fz
                     prev_bx = b.x
                     prev_bz = b.z
+                end
+                if sr == "ok" and phase == "walk" and prev_bx ~= nil and not tshot.behind then
+                    -- directly behind the tank: the mirror of Bloat's centre through the tank's centre, within a tile
+                    if math.max(math.abs(me.x - (12859 - b.x)), math.abs(me.z - (189 - b.z))) <= 1 then
+                        tshot.behind = true
+                        t.shot("tech.hide_behind_tank")
+                    end
                 end
                 local spots_result, spots = t.world.spotanims(1)
                 local shadow_here = false
@@ -330,23 +356,29 @@ return {
                 if def_probe_down == down_tick and def_drained ~= nil then
                     if def_pre_down ~= down_tick and age >= 21 and age <= 28 then
                         def_pre_down = down_tick
+                        local _, lm0 = t.msg.last(1)
+                        local m0 = 0
+                        if lm0 and lm0[1] then m0 = lm0[1].serial end
                         t.cheat("::tobboss")
                         t.ticks(1)
-                        local _, dm = t.msg.last(4)
-                        for _, m in ipairs(dm) do
+                        local _, dm = t.msg.last(8)
+                        for _, m in ipairs(dm or {}) do
                             local v = string.match(m.text, "tobboss record=.* def=(%d+) of")
-                            if v and def_pre_read == nil then def_pre_read = tonumber(v) end
+                            if v and m.serial > m0 and def_pre_read == nil then def_pre_read = tonumber(v) end
                         end
                         local _, pt = t.tick()
                         def_pre_tick = pt
                     elseif def_post_down ~= down_tick and def_pre_down == down_tick and age >= 30 and age <= 44 then
                         def_post_down = down_tick
+                        local _, lm0 = t.msg.last(1)
+                        local m0 = 0
+                        if lm0 and lm0[1] then m0 = lm0[1].serial end
                         t.cheat("::tobboss")
                         t.ticks(1)
-                        local _, dm = t.msg.last(4)
-                        for _, m in ipairs(dm) do
+                        local _, dm = t.msg.last(8)
+                        for _, m in ipairs(dm or {}) do
                             local v = string.match(m.text, "tobboss record=.* def=(%d+) of")
-                            if v and def_after == nil then def_after = tonumber(v) end
+                            if v and m.serial > m0 and def_after == nil then def_after = tonumber(v) end
                         end
                         local _, pt = t.tick()
                         def_after_tick = pt
@@ -364,6 +396,10 @@ return {
                     act = "S"
                     dodges = dodges + 1
                     t.player.walk_to(safe_x, safe_z, 1)
+                    if not tshot.shadow then
+                        tshot.shadow = true
+                        t.shot("tech.step_off_shadow")
+                    end
                 elseif soak_count > 0 and now > soak_until and now <= soak_until + 7 and hp_now >= 40 and phase == "walk" then
                     -- after the soaked hit: command a one-tile step every tick, the first one that lands ends the stun
                     act = "x"
@@ -375,7 +411,7 @@ return {
                         step_z = me.z - 1
                     end
                     t.player.walk_to(step_x, step_z, 1)
-                elseif hp_now < 72 and food_name ~= nil then
+                elseif hp_now < 72 and food_name ~= nil and not (phase == "down" and age >= 30 and age <= 31 and flinch_moved == nil and flinch_down ~= down_tick and downs_seen >= 1 and hp_now >= 40 and sr == "ok") then
                     act = "E"
                     eat_count = eat_count + 1
                     t.player.inv_op(food_name, 1)
@@ -383,46 +419,61 @@ return {
                     act = "R"
                     restores = restores + 1
                     t.player.inv_op(restore_name, 1)
-                elseif phase == "down" and def_drained == nil and def_attempts < 4 and def_probe_down ~= down_tick and downs_seen >= 1 and age >= 2 and age <= 6 and hp_now >= 60 and low_swings == 0 then
+                elseif phase == "down" and def_drained == nil and def_attempts < 4 and def_probe_down ~= down_tick and downs_seen >= 2 and boss_hp >= 100 and age >= 2 and age <= 6 and hp_now >= 60 and low_swings == 0 then
                     -- stomp_defence needs a real drain: Dragon warhammer specials (30 percent of the current Defence a hit)
                     act = "D"
                     def_probe_down = down_tick
                     def_attempts = def_attempts + 1
                     t.exec("def.equip" .. def_attempts, t.player.equip, "dragon_warhammer")
-                    local base_text = "?"
-                    for k = 1, 2 do
-                        local tr, td = t.ui.tab("combat")
-                        local wr, wid = t.ui.widget("combat_interface:special_attack")
-                        local ir = "no_widget"
-                        if wr == "ok" then ir = t.ui.invoke(wid, 1) end
-                        local ar = t.player.attack("tob_bloat_story", 2, 1)
-                        t.ticks(1)
-                        t.cheat("::tobboss")
-                        t.ticks(1)
-                        local _, dm = t.msg.last(4)
-                        local dnow = nil
-                        for _, m in ipairs(dm) do
-                            local v, bv = string.match(m.text, "tobboss record=.* def=(%d+) of (%d+)")
-                            if v and dnow == nil then
-                                dnow = tonumber(v)
-                                def_base = tonumber(bv)
+                    for spec_try = 1, 2 do
+                            local _, e_before = t.var.varp("varp300_sa_energy")
+                            local wr, wid = t.ui.widget("orbs:specbutton")
+                            local ir = "no_widget"
+                            if wr == "ok" then ir = t.ui.invoke(wid, 1) end
+                            t.ticks(1)
+                            local _, armed = t.var.varp("varp301_sa_attack")
+                            local ar = t.player.attack("tob_bloat_story", 2, 8)
+                            local spent_tick = nil
+                            for w = 1, 8 do
+                                local _, en = t.var.varp("varp300_sa_energy")
+                                if type(en) == "number" and type(e_before) == "number" and en <= e_before - 500 then
+                                    local _, tk = t.tick()
+                                    spent_tick = tk
+                                    break
+                                end
+                                t.ticks(1)
                             end
-                        end
-                        def_log = def_log .. " [try " .. def_attempts .. "." .. k .. " special " .. tostring(ir) .. " swing " .. tostring(ar) .. " Defence " .. tostring(dnow) .. " of " .. tostring(def_base) .. "]"
-                        if dnow ~= nil and def_base ~= nil and dnow < def_base then
-                            def_drained = dnow
-                            break
-                        end
+                            local dnow = nil
+                            if spent_tick ~= nil then
+                                local m0 = 0
+                                local _, lmm = t.msg.last(1)
+                                if lmm and lmm[1] then m0 = lmm[1].serial end
+                                t.cheat("::tobboss")
+                                t.ticks(1)
+                                local _, dm = t.msg.last(8)
+                                for _, m in ipairs(dm or {}) do
+                                    local v, bv = string.match(m.text, "tobboss record=.* def=(%d+) of (%d+)")
+                                    if v and m.serial > m0 and dnow == nil then
+                                        dnow = tonumber(v)
+                                        def_base = tonumber(bv)
+                                    end
+                                end
+                            end
+                            def_log = def_log .. " [try " .. def_attempts .. "." .. spec_try .. " armed " .. tostring(armed) .. " energy " .. tostring(e_before) .. " special " .. tostring(ir) .. " swing " .. tostring(ar) .. " spent on tick " .. tostring(spent_tick) .. " Defence " .. tostring(dnow) .. " of " .. tostring(def_base) .. "]"
+                            if dnow ~= nil and def_base ~= nil and dnow < def_base then
+                                def_drained = dnow
+                            end
+                        if def_drained ~= nil then break end
                     end
                     local sc_r, sc_n = t.inv.count("scythe_of_vitur")
                     local scythe_name = "scythe_of_vitur"
                     if sc_r ~= "ok" or sc_n == nil or sc_n < 1 then scythe_name = "scythe_of_vitur_uncharged" end
                     t.exec("def.reequip" .. def_attempts, t.player.equip, scythe_name)
-                elseif phase == "down" and boss_hp > 128 and boss_hp <= 170 and age < 29 and hp_now >= 50 then
+                elseif phase == "down" and boss_hp > 128 and boss_hp <= 170 and age < 29 and hp_now >= 50 and (age < 21 or hp_now >= 76) then
                     -- the Bloat sits between 40 and 60 percent: stop swinging so the next walk is read at that health (speed_run, walk_later)
                     act = "h"
                     t.ticks(1)
-                elseif phase == "down" and downs_seen >= 3 and flinch_moved == nil and flinch_down ~= down_tick and boss_hp * 100 < 100 * 320 and age >= 8 and age < 29 and hp_now >= 50 then
+                elseif phase == "down" and downs_seen >= 3 and flinch_moved == nil and flinch_down ~= down_tick and boss_hp * 100 < 100 * 320 and age >= 8 and age < 29 and hp_now >= 50 and (age < 21 or hp_now >= 76) then
                     -- the Bloat is nearly dead: hold the swings until the flinch window opens so the click-back is observed before the kill
                     act = "h"
                     t.ticks(1)
@@ -437,7 +488,21 @@ return {
                             local pr_ok, pr_detail, pr_set = t.prayer.read()
                             act = act .. (pr_set and pr_set.piety and "P" or "p") .. (pr_set and pr_set.protectfrommissiles and "M" or "m")
                         end
-                        t.player.attack("tob_bloat_story", 2, 1)
+                        local atk_r = t.player.attack("tob_bloat_story", 2, 1)
+                        if atk_r == "ok" then reach_streak = 0 else reach_streak = reach_streak + 1 end
+                    if reach_streak >= 3 and sr == "ok" and me.x >= b.x - 1 and me.x <= b.x + 3 and me.z >= b.z - 1 and me.z <= b.z + 3 then
+                        reach_streak = 0
+                            -- "I can't reach that": the Bloat went down in a corner the player cannot get at from this side; take another side of it
+                            act = act .. "n"
+                            reach_fails = reach_fails + 1
+                            local side = reach_fails % 4
+                            local sx = b.x - 1
+                            local sz = b.z + 1
+                            if side == 1 then sx = b.x + 1; sz = b.z - 1 end
+                            if side == 2 then sx = b.x - 1; sz = b.z - 1 end
+                            if side == 3 then sx = b.x + 1; sz = b.z + 3 end
+                            t.player.walk_to(sx, sz, 1)
+                        end
                     end
                 elseif phase == "down" and age >= 30 and age <= 31 and flinch_down ~= down_tick and downs_seen >= 1 and flinch_moved == nil and hp_now >= 40 and sr == "ok" then
                     -- the flinch: click five tiles back from the down Bloat inside the four-tick window after the stomp
@@ -477,6 +542,10 @@ return {
                     t.player.walk_to(pick_x, pick_z, 3)
                     local _, after_tile = t.world.tile()
                     flinch_moved = math.max(math.abs(after_tile.x - me.x), math.abs(after_tile.z - me.z))
+                    if not tshot.flinch then
+                        tshot.flinch = true
+                        t.shot("tech.flinch_back")
+                    end
                 elseif phase == "down" then
                     act = "f"
                     t.player.walk_to(safe_x, safe_z, 1)
@@ -516,6 +585,20 @@ return {
             if after == now then
                 t.ticks(1)
             end
+        end
+        if dead and not player_dead then
+            -- the kill frame: the death animation and the wave-complete line need a few ticks to show
+            local wave_seen = false
+            for _ = 1, 12 do
+                t.ticks(1)
+                local _, kill_lines = t.msg.last(8)
+                for l = 1, #kill_lines do
+                    if string.find(kill_lines[l].text, "complete!", 1, true) then wave_seen = true end
+                end
+                if wave_seen then break end
+            end
+            t.ticks(1)
+            t.shot("bloat.killed_death")
         end
         t.check("bloat.progress_end", true, log_text .. " dead=" .. tostring(dead) .. " iterations=" .. iteration .. " eats=" .. eat_count .. " dodges=" .. dodges)
         -- ANALYSIS BEGIN
