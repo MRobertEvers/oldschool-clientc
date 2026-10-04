@@ -785,3 +785,19 @@ The Lletya and Eluned trips also cross the pitfall at 2274,3173-3175 and the tri
 Isafdar, list the locs on the path that have an op and `blockwalk=0`. Stage Agility in setup,
 then walk a trap helper that presses each trap on every trip. Grade each press on the tiles
 before and after it.
+
+## Sample matthew-mbp-m4-b59, round 4 (2026-10-04)
+
+Mourning's End Part I passed. All 35 Isafdar trap crossings are walked and pressed.
+
+(a) A CONDITIONAL RELOG FOR THE CAMERA SEAM IS ACCEPTED. After a walk-built scene rebuild in
+Isafdar, the client camera can sit 23-53 tiles from the player. Every loc press then answers
+`covered ... none of N pixels`. This is a client bug; the engine seam row is filed separately.
+The test reads `t.world.camera()` against `t.world.tile()` after each walk and before each trap
+press. Only when the camera is more than 16 tiles off does it call `t.session.relog()` on the same
+tile. It writes a visible `<name>.cameraResync` row that carries both readings and fails unless
+the player stands on the same tile with the camera within 16 tiles afterwards. That is
+acceptable: a relog moves nobody, skips no crossing, and does none of the quest's work. It is not
+acceptable if it fires unconditionally, changes the tile, or stands in for a press. It re-boots
+the embedded server, so nothing the quest needs may live only in server memory at that point
+(spawned npcs, a skipped clock). Remove the helper when the client fix lands.
