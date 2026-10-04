@@ -874,6 +874,56 @@ return {
             specs[#specs + 1] = { "auto_protect_ratio", protect_ratios, "ratio", #protected_hits .. " protected hits " .. table.concat(protected_hits, " ") .. " over the first unprotected hit " .. tostring(unprotected_hits[1]) .. ", all before the first transmog (no leaks yet)", "0.5", "D", "exact" }
         end
 
+        -- every blackstorm of the fight: does it land (no accuracy roll), and its hit against floor(floor(floor(36.5 + 3.5c) / 2) / 2) for the c Matomenos leaked at its launch
+        t.ticks(1)
+        do
+            local _, heal_rows = t.ticklog.rows({ kind = "npc_heal", slot = ws })
+            local dtick = {}
+            local boss_end = 1000000000
+            for _, d in ipairs(death_rows or {}) do
+                if d.slot ~= ws then dtick[d.tick] = true else boss_end = d.tick end
+            end
+            local leaks = {}
+            for _, h in ipairs(heal_rows or {}) do if dtick[h.tick] then leaks[#leaks + 1] = h.tick end end
+            local launches = {}
+            for a = 1, #attacks do
+                if not attacks[a].blood then launches[#launches + 1] = attacks[a].tick end
+            end
+            local landed, resolved, bad = 0, 0, 0
+            local land_values = {}
+            local formula_values = {}
+            local formula_notes = {}
+            for _, lt in ipairs(launches) do
+                local hit = nil
+                for h = 1, #hit_player_rows do
+                    local hp = hit_player_rows[h]
+                    if hp.npc_slot == ws and hp.tick >= lt + 3 and hp.tick <= lt + 7 and hit == nil then hit = hp end
+                end
+                if hit ~= nil or lt + 7 < boss_end then
+                    resolved = resolved + 1
+                    if hit ~= nil then landed = landed + 1 end
+                end
+                if hit ~= nil then
+                    local c = 0
+                    for _, k in ipairs(leaks) do if k <= lt then c = c + 1 end end
+                    local full = math.floor((365 + 35 * c) / 10)
+                    local want = math.floor(math.floor(full / 2) / 2)
+                    if prayer_on_tick == nil or lt < prayer_on_tick then want = nil end
+                    if want ~= nil then
+                        formula_values[#formula_values + 1] = hit.damage
+                        if hit.damage ~= want then
+                            bad = bad + 1
+                            formula_values[#formula_values + 1] = -1
+                        end
+                        formula_notes[#formula_notes + 1] = "L" .. lt .. "/H" .. hit.tick .. " c" .. c .. " " .. hit.damage .. "=" .. want
+                    end
+                end
+            end
+            land_values[1] = resolved > 0 and (100 * landed / resolved) or -1
+            specs[#specs + 1] = { "auto_land_rate_entry", land_values, "percent", landed .. " of " .. resolved .. " resolved blackstorms landed as a hit_player row on her slot 3 to 7 ticks after the launch row (a launch in flight at her death is not counted), Protect from Magic on for the later ones", "100", "D", "exact" }
+            specs[#specs + 1] = { "auto_prayed_entry", formula_values, "hp", #formula_notes .. " protected blackstorms, " .. bad .. " off the formula at their launch-tick c; leaks at [" .. table.concat(leaks, ",") .. "]; " .. table.concat(formula_notes, " "), "9,10,10,11,12,13,14", "D", "exact" }
+        end
+
         -- blood throws: the group of 1578 rows on one tick is the splat under the player plus the extras
         t.ticks(1)
         local throws = {}
