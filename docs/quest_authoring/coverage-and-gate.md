@@ -737,6 +737,71 @@ cooks_assistant, eadgar, enlightenedjourney, hauntedmine, hero, hunt, ikov, itgr
 queenofthieves, recruitmentdrive, seaslug, shadowsofcustodia, totem) and 25 of the 71 seam-1
 reopened rows; the list is build/seam_state/matthew-mbp-m4-b56-grader2/movers.tsv.
 
+### `reach.py` says NEEDS-OP; a goto over a trap, a log or climbing rocks reads CHEAT (matthew-mbp-m4-b60-seam0)
+
+The sample tools (`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/reach.py`,
+`goto_table.py`, `comp.py`) and `MapWalls` used to treat every `blockwalk=0` loc as floor. Regicide's
+pitfalls (Jump), tripwires (Step-over) and woodsprings (Pass) are such locs, and
+`regicide_traps.rs2:118-153` hurts a player who steps on them, so a goto from the Arandar gate to
+Islwyn's camp read `REACH closed-doors len=545`. Three b59 tests (rovingelves, mourningsendparti
+twice) went back for gotos the tool had called clean (sampler-findings, "Sample matthew-mbp-m4-b59,
+round 3" (a)).
+
+Now, by default:
+
+- **An OP LOC blocks the flood.** That is a loc on a tile the map leaves walkable (`blockwalk=0`, or a
+  ground decoration that is not `blockwalk=1` and active) with any `op1`-`op5`. Two kinds are not op
+  locs. A loc whose every op is in `PASS_THROUGH_OPS` is walked through: an open door leaf (Close) and
+  a crop (Pick: X Marks the Spot's dig in the Draynor wheat). A wall decoration (shapes 4-8) is clicked
+  from the tile beside it.
+- **A ZONE-TRIGGER tile blocks too.** These are the tiles a `[zone]`/`[mapzone]` timer hurts you on,
+  and `sample_tools/zone_triggers.tsv` lists them with the `.rs2` file:line. It covers Regicide's
+  tripwire (its tile and the tiles north and east of it), Regicide's pitfalls, and the Underground
+  Pass spear traps (the tile and the tile north). Add a row when you find another walk trigger.
+- **`reach.py` answers one rung**, in this order:
+  1. `REACH closed-doors`.
+  2. `NEEDS-DOOR via <door>@x,z`.
+  3. `NEEDS-OP len=N via <loc>@x,z,... [doors ...] [zone triggers: <file:line>]`. This is the path that
+     clicks the fewest op locs, then crosses the fewest doors. It may also cross a ground decoration
+     that blocks and has an op, such as Troll Stronghold's climbing rocks. REACH and NEEDS-DOOR treat
+     those as solid.
+  4. `UNREACHABLE`.
+
+  Pass `--allow-op-locs` to get the old flood back. `goto_table.py` tries margins 30, 100 and 250
+  until a hop reads REACH. A charge is the widest box's. `comp.py` prints the doors and op locs on the
+  edge of its component.
+- **`MapWalls` (`enclosure_entries`, `enclosure_exits`, `sealed_entries`) agrees.** Op tiles and
+  trigger tiles stop its flood as blocked tiles do (`MapWalls.OP_LOCS_BLOCK`). The loc becomes one of
+  the room's `ops`.
+
+What an author does: walk to the trap and press it (`click_loc` with the op), then grade the tiles
+before and after. Never goto across one. Stage the Agility level the trap needs in setup.
+
+Proof: `tools/quest_gate/helper_coverage_op_loc_reach_test.py` 9/9. The test runs each rule in both
+settings:
+
+- The b59 rovingelves round-1 ledger (OSRS-Content 9f83f98e1b): rows 7, 16, 38, 44 and 93 read
+  NEEDS-OP via the pitfall at 2276-2278,3263 and the woodspring at 2235,3181. With `--allow-op-locs`
+  they read REACH.
+- The round-3 ledger (dafbe3c8e3) stays clean.
+- Lumbridge gotos stay REACH.
+- Monkey Madness `goto-talkToZooknock` grades CHEAT: a 294-tile pocket past
+  `mm_double_springtrap_trigger`. With `OP_LOCS_BLOCK` False it grades DRIVEN.
+
+What landing it moves:
+
+- **`helper_coverage --all-green`.** Of 78, only mm changed: FULL went to TEST_GAP (rows 110 and 221),
+  and `gate.py mm` is RED.
+- **`goto_table.py` over all 142 published ledgers (2,384 goto rows).** Six new NEEDS-OP rows:
+  - mm 110 and 221;
+  - regicide 362 (`goto-passTrap5-again` across `upass_speartrap`);
+  - troll 15 (`goto-enterArena` over the climbing rocks);
+  - contact 6 and 135 (`icthalarins_door_arch`). This arch is `blockwalk=0` with an Open op and has no
+    `[oploc]` handler, so a sampler should judge it.
+
+  The wider margins also turned 11 old `UNREACHABLE (margin 30)` rows into NEEDS-DOOR (desertrescue's
+  `thttmineexitl` four times, Taverley's member gate, ...) and 27 into REACH.
+
 ### A "use X on Y" step reads DRIVEN though the run used another item on Y (Shades of Mort'ton, matthew-mbp-m4-b57-grader3)
 
 The b57 sampler (sampler-findings.md, b57 (a)) sent Mort'ton back. The run cured Razmire and
