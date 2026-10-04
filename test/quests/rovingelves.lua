@@ -29,12 +29,15 @@
 -- outdoor tiles of one walkable region, never past a mechanism, a door or
 -- a climb (b59 door-rule re-drive, build/orchestrator/fix_b59/
 -- rovingelves.progress.md has the flood for every hop):
---   * Islwyn and Eluned's camp (2291,3147) lies in a 7,176-tile region of
---     Isafdar the map closes with Regicide's traps, dense forest, log
---     balances and the Arandar pass's Huge Gate (overpass_gate_left/right
---     2384/2386,3334, regicide_arandar_gate_guard.rs2). Every trip in or
---     out crosses that gate by click (`cross_arandar`); the hops on each
---     side of it are open ground.
+--   * Islwyn and Eluned's camp (2291,3147) lies in Isafdar behind the
+--     Arandar pass's Huge Gate (overpass_gate_left/right 2384/2386,3334,
+--     regicide_arandar_gate_guard.rs2) and Regicide's traps. Every trip in
+--     or out crosses that gate by click (`cross_arandar`) and walks
+--     Isafdar on foot, pressing the pitfall, three dense forests and the
+--     tripwire on the way (`gate_to_camp` / `camp_to_gate`); no goto starts
+--     or ends on the Isafdar side of the gate.
+--   * The first trip west passes the Taverley members' wall by its east
+--     gate (membergater 2935,3450), pressed on foot.
 --   * Glarial's Tomb is left by its own ladder (2556,9844 -> 2557,3444).
 --   * Almera's yard and the raft pen are entered through their two fence
 --     gates on foot (2528,3495 and 2513,3494).
@@ -95,7 +98,7 @@
 return {
     id = "rovingelves",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 120000, -- four Arandar gate crossings and the falls dungeon walked in and out
+    max_frames = 360000, -- five Arandar gate crossings, Isafdar walked trap by trap five times, the falls in and out
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so nothing forbidden rides along
         "::give spade 1", -- rovingelves_seed.rs2's opheld1 refuses to plant without one
@@ -114,11 +117,13 @@ return {
         -- prerequisite the player brings along, not the quest's own
         -- deliverable, the same idiom mortton.lua's "::give shark 5" uses).
         -- Shark is ordinary food, not weapon/armour, so it does not trip
-        -- ~waterfall_tomb_forbidden_loadout. Fifteen sharks (300 hp of
-        -- healing) against a fight the prior run measured taking a 99-hp
+        -- ~waterfall_tomb_forbidden_loadout. Twenty sharks (400 hp of
+        -- healing) against a fight an earlier run measured taking a 99-hp
         -- character from full to 2/30 on the guardian over ~146 ticks with
-        -- no food eaten at all.
-        "::give shark 15",
+        -- no food eaten at all; the hunt ate all fifteen of the old stock on
+        -- one account (b59 r3 run 4: nine rounds, two guardians swinging)
+        -- after two walked Isafdar trips' tripwire snags. 27 slots at most.
+        "::give shark 20",
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
@@ -134,6 +139,14 @@ return {
         -- spawn rows close together (m39_153.spawn) also means more than
         -- one can be swinging at once.
         "::setlevel magic 99",
+        -- Isafdar is walked trap by trap on every trip (sampler b59): the
+        -- dense forests refuse below Agility 56 (regicide_route.rs2
+        -- @regicide_cross_dense_forest), a Regicide prerequisite the player
+        -- already has; the guide's own item list carries an antipoison for
+        -- a snagged tripwire (potions are legal in Glarial's Tomb,
+        -- quest_waterfall_locs.rs2:47-51).
+        "::setlevel agility 56",
+        "::give 4doseantipoison 2",
         "::setvar varp328_regicide_quest ^regicide_complete", -- no ::complete arm for Regicide; prerequisite only, never the quest under test
         "::complete quest_waterfall",
     },
@@ -217,43 +230,209 @@ return {
         -- The Arandar pass's Huge Gate (overpass_gate_left, width 2, at
         -- 2384,3334; regicide_arandar_gate_guard.rs2 [label,arandar_gate]):
         -- open for a player past ^regicide_killed_tyras, it pushes the
-        -- player two tiles across (p_teleport z+-2). The camp side is
-        -- 2385,3333 (the 7,176-tile Isafdar region, Islwyn's camp included),
-        -- the Kandarin side 2385,3335. A pushed crossing can answer before it
-        -- lands, so the row is graded on the tiles before and after, with the
-        -- click's own answer in the detail.
+        -- player two tiles across (p_teleport z+-2). The Isafdar side is
+        -- 2385,3333, the Kandarin side 2385,3335; the caller stands the
+        -- player on the near tile (a walked route's last row or walk_check).
+        -- A pushed crossing can answer before it lands, so the row is graded
+        -- on the tiles before and after, with the click's answer in the detail.
         local function cross_arandar(prefix, northbound)
             local near_z = northbound and 3333 or 3335
             local far_z = northbound and 3335 or 3333
-            local near_name = northbound and "the Isafdar side" or "the Kandarin side"
-            walk_check(prefix .. ".atGate", 2385, near_z, near_name .. " of the Arandar Huge Gate")
+            local br, bt = t.world.tile()
             local cr, cd = t.player.click_loc("overpass_gate_left", 1, { at = { 2384, 3334 } })
             local fr, ft = await_tile(function(tt)
                 return tt.level == 0 and tt.z == far_z
             end, 10, "the Huge Gate's push to z " .. far_z)
-            t.check(prefix .. ".throughGate", at_tile(fr, ft, 2385, far_z),
-                "click_loc(overpass_gate_left at 2384,3334, op1 Enter) -> " .. tostring(cr) .. " " .. tostring(cd)
-                    .. "; world.tile() after -> " .. tile_text(fr, ft) .. " (want 2385," .. far_z
-                    .. ",0: [label,arandar_gate] p_teleport z" .. (northbound and "+2" or "-2") .. ")")
+            t.check(prefix .. ".throughGate", at_tile(br, bt, 2385, near_z) and at_tile(fr, ft, 2385, far_z),
+                "from " .. tile_text(br, bt) .. " click_loc(overpass_gate_left at 2384,3334, op1 Enter) -> "
+                    .. tostring(cr) .. " " .. tostring(cd) .. "; world.tile() after -> " .. tile_text(fr, ft)
+                    .. " (want 2385," .. near_z .. ",0 -> 2385," .. far_z .. ",0: [label,arandar_gate] p_teleport z"
+                    .. (northbound and "+2" or "-2") .. ")")
         end
 
-        -- A travel hop: from an open tile to an open tile of the same
-        -- walkable region (or across open overland), never into a room.
+        -- A travel hop: from an open tile to an open tile across open
+        -- overland (never into a room, never into Isafdar's trap belt).
         local function hop(name, x, z)
             t.exec(name, t.player.goto_tile, x, z, 0)
         end
 
-        -- From anywhere in the camp's region to the Kandarin side of the gate.
+        -- ---------------------------------------------------------------
+        -- Isafdar on foot (sampler b59: every hop between the Arandar gate
+        -- and the camp used to goto across Regicide's traps). The map
+        -- closes the camp off from the gate with traps and dense forest;
+        -- with every trap TRIGGER tile blocked (regicide_traps.rs2:116-159:
+        -- a pitfall's loc tile, a tripwire's tile and the tiles north and
+        -- east of it) the only on-foot route, both ways, is
+        --   the pitfall ring 2276-2278,3261-3263 (Jump, regicide_pitfall_side,
+        --     maplink_agility 2279,3262 <-> 2275,3262),
+        --   three dense forests side by side at 2266/2269/2272,3191 (Enter,
+        --     Agility 56, regicide_route.rs2 @regicide_cross_dense_forest:
+        --     2265 <-> 2268 <-> 2271 <-> 2274,3192),
+        --   the tripwire 2285,3188 (Step-over, maplink_agility
+        --     2284,3188 <-> 2287,3188).
+        -- (The woodspring at 2235,3181 is not on it: its maplink_agility row
+        -- runs west->east only, 2234 -> 2238, so westward its Pass answers
+        -- "Nothing interesting happens.", measured in regicide's ledger.)
+        -- The walks between are waypoint chains off a 4-way flood of the
+        -- map with the trigger tiles blocked (build/orchestrator/fix_b59/r3/
+        -- rovingelves.progress.md), graded on the exact tile at each end.
+        -- ---------------------------------------------------------------
+        local function last_lines(n)
+            local _, lines = t.msg.last(n)
+            local out = {}
+            for _, line in ipairs(type(lines) == "table" and lines or {}) do
+                out[#out + 1] = tostring(type(line) == "table" and line.text or line)
+            end
+            return table.concat(out, " | ")
+        end
+
+        -- Eat a shark below 60 of 99 and drink an antipoison when a snagged
+        -- tripwire (or anything else) poisoned the player: both are what a
+        -- player crossing the traps carries (the guide's own item list names
+        -- the antipoison). No row: the crossing rows carry the readings.
+        local function trap_vitals()
+            local hr, hp = t.skill.read("hitpoints")
+            if hr == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 60 then
+                t.player.inv_op("shark", 1)
+                t.ticks(2)
+            end
+            local pr, poison = t.var.varp("varp102_poison")
+            if pr == "ok" and (tonumber(poison) or 0) > 0 then
+                for _, dose in ipairs({ "1doseantipoison", "2doseantipoison", "3doseantipoison", "4doseantipoison" }) do
+                    local dr, n = t.inv.count(dose)
+                    if dr == "ok" and (n or 0) > 0 then
+                        t.player.inv_op(dose, 1)
+                        t.ticks(2)
+                        break
+                    end
+                end
+            end
+        end
+
+        -- Walk a waypoint chain and check the exact tile at its end.
+        local function walk_route(name, points)
+            local trail = {}
+            for _, p in ipairs(points) do
+                local wr = t.player.walk_to(p[1], p[2], 40)
+                if wr == "refused" then
+                    -- move_to refuses a tile outside the scene the client
+                    -- has built; a rebuild near the edge lands a tick later.
+                    t.ticks(3)
+                    wr = t.player.walk_to(p[1], p[2], 40)
+                end
+                local r, tt = t.world.tile()
+                trail[#trail + 1] = p[1] .. "," .. p[2] .. ":" .. tostring(wr) .. "@" .. tile_text(r, tt)
+            end
+            local last = points[#points]
+            local r, tt = t.world.tile()
+            if not at_tile(r, tt, last[1], last[2]) then
+                t.ticks(2)
+                t.player.walk_to(last[1], last[2], 40)
+                r, tt = t.world.tile()
+            end
+            t.check(name, at_tile(r, tt, last[1], last[2]),
+                "walked " .. #points .. " waypoint(s) to " .. last[1] .. "," .. last[2] .. ",0 -> at " .. tile_text(r, tt)
+                    .. " [" .. table.concat(trail, " ") .. "]")
+        end
+
+        -- Cross one trap or dense forest by its own op from the exact src
+        -- tile and grade it on the src -> dest tiles (only the op moves the
+        -- player over it: the pit is walled by inviswalls, the forest is
+        -- solid, the tripwire's tiles fire the trap if walked). A pitfall can
+        -- fail its Agility roll (regicide_traps.rs2 [label,regicide_jump_pitfall]:
+        -- 15 damage; outside the pit's zone the player stays put), so a
+        -- crossing that did not land is retried from the src tile (bounded).
+        -- A tripwire's failed roll still crosses, snagged (10 damage, poison).
+        local function cross_trap(name, step)
+            local attempts, landed = 0, false
+            local br, bt, cr, cd, fr, ft
+            while attempts < 4 and not landed do
+                attempts = attempts + 1
+                if attempts > 1 then
+                    trap_vitals()
+                    t.player.walk_to(step.src[1], step.src[2], 20)
+                end
+                br, bt = t.world.tile()
+                cr, cd = t.player.click_loc(step.sym, 1, { at = step.at })
+                fr, ft = await_tile(function(tt)
+                    return tt.level == 0 and tt.x == step.dest[1] and tt.z == step.dest[2]
+                end, 10, name .. ": the crossing's landing " .. step.dest[1] .. "," .. step.dest[2])
+                landed = at_tile(fr, ft, step.dest[1], step.dest[2])
+            end
+            t.check(name, at_tile(br, bt, step.src[1], step.src[2]) and landed,
+                "from " .. tile_text(br, bt) .. " click_loc(" .. step.sym .. " at " .. step.at[1] .. "," .. step.at[2]
+                    .. ", op1 " .. step.op .. ") -> " .. tostring(cr) .. " " .. tostring(cd) .. "; world.tile() after -> "
+                    .. tile_text(fr, ft) .. " (want " .. step.src[1] .. "," .. step.src[2] .. ",0 -> " .. step.dest[1]
+                    .. "," .. step.dest[2] .. ",0) on attempt " .. attempts .. " of at most 4 :: " .. last_lines(4))
+            trap_vitals()
+        end
+
+        local PITFALL_W = { sym = "regicide_pitfall_side", op = "Jump", at = { 2278, 3262 }, src = { 2279, 3262 }, dest = { 2275, 3262 } }
+        local PITFALL_E = { sym = "regicide_pitfall_side", op = "Jump", at = { 2276, 3262 }, src = { 2275, 3262 }, dest = { 2279, 3262 } }
+        local FOREST_E = {
+            { sym = "regicide_cross_over2", op = "Enter", at = { 2266, 3191 }, src = { 2265, 3192 }, dest = { 2268, 3192 } },
+            { sym = "regicide_cross_over3", op = "Enter", at = { 2269, 3191 }, src = { 2268, 3192 }, dest = { 2271, 3192 } },
+            { sym = "regicide_cross_over1", op = "Enter", at = { 2272, 3191 }, src = { 2271, 3192 }, dest = { 2274, 3192 } },
+        }
+        local FOREST_W = {
+            { sym = "regicide_cross_over1", op = "Enter", at = { 2272, 3191 }, src = { 2274, 3192 }, dest = { 2271, 3192 } },
+            { sym = "regicide_cross_over3", op = "Enter", at = { 2269, 3191 }, src = { 2271, 3192 }, dest = { 2268, 3192 } },
+            { sym = "regicide_cross_over2", op = "Enter", at = { 2266, 3191 }, src = { 2268, 3192 }, dest = { 2265, 3192 } },
+        }
+        local TRIPWIRE_E = { sym = "regicide_trap_tripwire", op = "Step-over", at = { 2285, 3188 }, src = { 2284, 3188 }, dest = { 2287, 3188 } }
+        local TRIPWIRE_W = { sym = "regicide_trap_tripwire", op = "Step-over", at = { 2285, 3188 }, src = { 2287, 3188 }, dest = { 2284, 3188 } }
+
+        -- Isafdar side of the Arandar gate (2385,3333) -> one tile off
+        -- Islwyn (2290,3147), on foot.
+        local function gate_to_camp(prefix)
+            walk_route(prefix .. ".walkToPitfall", { { 2383, 3325 }, { 2376, 3322 }, { 2368, 3320 }, { 2359, 3319 }, { 2355, 3313 }, { 2346, 3314 },
+                { 2343, 3321 }, { 2336, 3324 }, { 2331, 3319 }, { 2331, 3309 }, { 2323, 3307 }, { 2316, 3310 },
+                { 2319, 3317 }, { 2317, 3325 }, { 2308, 3326 }, { 2303, 3321 }, { 2303, 3311 }, { 2304, 3302 },
+                { 2304, 3292 }, { 2304, 3282 }, { 2304, 3272 }, { 2297, 3271 }, { 2290, 3274 }, { 2284, 3270 },
+                { 2279, 3265 }, { 2279, 3262 } })
+            cross_trap(prefix .. ".jumpPitfall", PITFALL_W)
+            walk_route(prefix .. ".walkToForest", { { 2265, 3262 }, { 2255, 3262 }, { 2249, 3258 }, { 2245, 3252 }, { 2241, 3246 }, { 2241, 3236 },
+                { 2241, 3226 }, { 2241, 3216 }, { 2243, 3208 }, { 2244, 3199 }, { 2246, 3191 }, { 2252, 3187 },
+                { 2259, 3188 }, { 2265, 3192 } })
+            for i, step in ipairs(FOREST_E) do
+                cross_trap(prefix .. ".denseForest" .. i, step)
+            end
+            walk_route(prefix .. ".walkToTripwire", { { 2281, 3189 }, { 2284, 3188 } })
+            cross_trap(prefix .. ".stepOverTripwire", TRIPWIRE_E)
+            walk_route(prefix .. ".walkToCamp", { { 2293, 3184 }, { 2293, 3174 }, { 2294, 3165 }, { 2290, 3159 }, { 2290, 3149 }, { 2290, 3147 } })
+        end
+
+        -- Anywhere in the camp -> the Isafdar side of the Arandar gate, on foot.
+        local function camp_to_gate(prefix)
+            walk_route(prefix .. ".walkToTripwire", { { 2290, 3157 }, { 2294, 3163 }, { 2291, 3170 }, { 2291, 3180 }, { 2288, 3187 }, { 2287, 3188 } })
+            cross_trap(prefix .. ".stepOverTripwire", TRIPWIRE_W)
+            walk_route(prefix .. ".walkToForest", { { 2275, 3189 }, { 2274, 3192 } })
+            for i, step in ipairs(FOREST_W) do
+                cross_trap(prefix .. ".denseForest" .. i, step)
+            end
+            walk_route(prefix .. ".walkToPitfall", { { 2259, 3188 }, { 2251, 3186 }, { 2243, 3188 }, { 2243, 3198 }, { 2242, 3207 }, { 2241, 3216 },
+                { 2241, 3226 }, { 2241, 3236 }, { 2241, 3246 }, { 2245, 3252 }, { 2249, 3258 }, { 2255, 3262 },
+                { 2265, 3262 }, { 2275, 3262 } })
+            cross_trap(prefix .. ".jumpPitfall", PITFALL_E)
+            walk_route(prefix .. ".walkToGate", { { 2282, 3269 }, { 2287, 3274 }, { 2296, 3273 }, { 2302, 3271 }, { 2304, 3279 }, { 2303, 3288 },
+                { 2303, 3298 }, { 2303, 3308 }, { 2303, 3318 }, { 2305, 3326 }, { 2315, 3326 }, { 2319, 3320 },
+                { 2316, 3313 }, { 2320, 3307 }, { 2330, 3307 }, { 2331, 3316 }, { 2334, 3323 }, { 2342, 3323 },
+                { 2345, 3316 }, { 2352, 3313 }, { 2357, 3318 }, { 2366, 3319 }, { 2374, 3321 }, { 2381, 3324 },
+                { 2384, 3331 }, { 2385, 3333 } })
+        end
+
+        -- From the camp to the Kandarin side of the gate.
         local function leave_camp(prefix)
-            hop(prefix .. ".gotoGate", 2385, 3332)
+            camp_to_gate(prefix)
             cross_arandar(prefix, true)
         end
 
         -- From open Kandarin ground into the camp, one tile off Islwyn.
         local function enter_camp(prefix)
             hop(prefix .. ".gotoGate", 2385, 3336)
+            walk_check(prefix .. ".atGate", 2385, 3335, "the Kandarin side of the Arandar Huge Gate")
             cross_arandar(prefix, false)
-            hop(prefix .. ".gotoCamp", 2290, 3147)
+            gate_to_camp(prefix)
         end
 
         local bind_result, bind_detail = t.quest.bind({
@@ -296,8 +475,31 @@ return {
         -- tile (2290,3147), not onto it -- see the banner above.
         -- [opnpc1,roving_bowyer]/[opnpc1,roving_islwyn_2ops] share one trigger
         -- head; not_started routes to @rovingelves_islwyn_first.
-        -- From the fixture's open Lumbridge street to the Kandarin side of
-        -- the Arandar gate, through it on foot, then across Isafdar.
+        -- From the fixture's open Lumbridge street west into Kandarin: the
+        -- Taverley members' wall is the only way on foot (reach.py
+        -- 3206,3233 -> 2385,3336 NEEDS-DOOR via a members' gate at margins
+        -- 200/300; sampler ruling b59 (a)), so the run's first goto stops
+        -- outside the east gate (membergater 2935,3450, a gates.rs2
+        -- walk-through, @member_fencegate_try), the gate is pressed on foot
+        -- and graded on the tiles before and after, and the overland hop to
+        -- the Arandar gate departs from open Taverley ground one tile in
+        -- (reach.py 2933,3450 -> 2385,3336 closed-doors len 900). Then the
+        -- Arandar gate on foot and Isafdar walked trap by trap.
+        hop("islwyn1.gotoMemberGate", 2938, 3450)
+        walk_check("islwyn1.memberGate.approach", 2936, 3450, "outside the Taverley members' east gate")
+        do
+            local br, bt = t.world.tile()
+            local cr, cd = t.player.click_loc("membergater", 1, { at = { 2935, 3450 } })
+            local fr, ft = await_tile(function(tt)
+                return tt.level == 0 and tt.x <= 2935
+            end, 10, "the members' gate walk-through into Taverley")
+            t.check("islwyn1.memberGate.cross", at_tile(br, bt, 2936, 3450) and fr == "ok" and type(ft) == "table"
+                    and ft.level == 0 and ft.x <= 2935 and ft.z == 3450,
+                "from " .. tile_text(br, bt) .. " click_loc(membergater at 2935,3450, op1 Open) -> " .. tostring(cr) .. " "
+                    .. tostring(cd) .. "; world.tile() after -> " .. tile_text(fr, ft)
+                    .. " (want 2936,3450,0 -> x <= 2935 on z 3450: through the east gate into Taverley)")
+        end
+        walk_check("islwyn1.insideTaverley", 2933, 3450, "open Taverley ground west of the members' gate")
         enter_camp("islwyn1")
         t.exec("talk.islwyn1", t.player.talk_to, "roving_bowyer", 1)
         t.exec("talk.islwyn1-dialog", t.chat.play, {
@@ -329,10 +531,11 @@ return {
         -- so this is a walk, not a hop. walk_near's own `_step_off_tile`
         -- picks a real walkable adjacent tile (her own tile has no clear
         -- camera pixel to click, measured live on an earlier revision).
-        local eluned1, eluned1_result = t.player.by_symbol("npc", "roving_female_woodelf")
-        t.step("lookup.eluned1", eluned1_result == "ok" and "PASS" or "FAIL",
-            "by_symbol npc roving_female_woodelf -> " .. tostring(eluned1_result))
-        t.exec("walk.eluned1", t.player.walk_near, eluned1, 10, 1)
+        -- No row for the lookup or the step: the walked route already stands
+        -- the player within two tiles of her, so neither could fail
+        -- usefully (sampler b59); talk_to's own row is the evidence.
+        local eluned1 = t.player.by_symbol("npc", "roving_female_woodelf")
+        t.player.walk_near(eluned1, 10, 1)
         t.exec("talk.eluned1", t.player.talk_to, "roving_female_woodelf", 1)
         t.exec("talk.eluned1-dialog", t.chat.play, {
             "player:Islwyn said you could tell me about a ritual.",
@@ -364,9 +567,8 @@ return {
         -- own footprint; reach.py 2386,3336 -> 2559,3446 closed-doors).
         leave_camp("tombstone")
         hop("goto-tombstone-approach", 2559, 3446)
-        local tombstone, tombstone_result = t.player.by_symbol("loc", "glarials_tombstone_waterfall_quest")
-        t.step("lookup.tombstone", tombstone_result == "ok" and "PASS" or "FAIL",
-            "by_symbol loc glarials_tombstone_waterfall_quest -> " .. tostring(tombstone_result))
+        -- A lookup is not a row (sampler b59): the use_on below fails on a bad handle.
+        local tombstone = t.player.by_symbol("loc", "glarials_tombstone_waterfall_quest")
         -- Trap 298: use_on's arming is a backpack-tab press with no settle
         -- of its own, and the setup's ::setlevel cheats (five skills) can
         -- leave the sidebar on a level-up tab instead of the inventory one
@@ -398,14 +600,12 @@ return {
         t.step("mossguardian.await_present", guardian_present_result == "ok" and "PASS" or "FAIL",
             "npc.await_present(roving_mossgiant, 15, 10) -> " .. tostring(guardian_present_result))
 
-        local guardian, guardian_result = t.player.by_symbol("npc", "roving_mossgiant")
-        t.step("lookup.mossguardian", guardian_result == "ok" and "PASS" or "FAIL",
-            "by_symbol npc roving_mossgiant -> " .. tostring(guardian_result))
-
         -- A fight is a wait, not a click (docs section 8): one Attack press,
         -- then await_dead re-engages on its own. op2 matches all.npc's
         -- roving_mossgiant op2=Attack.
-        t.exec("killGuardian.attack", t.player.attack, "roving_mossgiant", 2)
+        -- 20 ticks, as each round below: the guardian can stand a few tiles
+        -- off the ladder (run 2 of b59 r3: no hit inside the default 10).
+        t.exec("killGuardian.attack", t.player.attack, "roving_mossgiant", 2, 20)
 
         -- queue.py's RETRY after b44ce7a2d: the prior run's single 150-tick
         -- await_dead left the character bare-handed against 120 hp / +62
@@ -445,7 +645,7 @@ return {
             -- Eat before the round's damage, not after: a hit that lands
             -- while hp is already low is the one that kills. Threshold 90
             -- (out of a 99 base_level) eats on nearly any damage taken,
-            -- which is the point -- fifteen sharks is enough headroom for
+            -- which is the point -- twenty sharks is enough headroom for
             -- that to run the whole fight without ever reading empty.
             local hp_result, hp = t.skill.read("hitpoints")
             if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil
@@ -514,7 +714,7 @@ return {
         local sharks_left_result, sharks_left = t.inv.count("shark")
         t.check("killGuardian.margin", mossguardian_lowest_hp ~= nil and mossguardian_lowest_hp >= 25
                 and sharks_left_result == "ok" and sharks_left >= 1,
-            "lowest hp " .. tostring(mossguardian_lowest_hp) .. "/99 (staged ::setlevel hitpoints 99), shark staged 15,"
+            "lowest hp " .. tostring(mossguardian_lowest_hp) .. "/99 (staged ::setlevel hitpoints 99), shark staged 20,"
                 .. " left " .. tostring(sharks_left) .. " (" .. tostring(sharks_left_result) .. ")"
                 .. " -- margin: lowest hp >= 25 AND shark left >= 1")
 
@@ -538,15 +738,13 @@ return {
         -- one run after the exact same kill left it readable a tick later,
         -- so poll for it in the pool before pressing, the same way inv.await
         -- polls a backpack grant rather than trusting a bare read.
-        local seed_visible_result = t.await({
+        t.await({
             level = function()
                 local result = t.world.obj_near("roving_old_consecration_seed", 15)
                 return result == "ok"
             end,
             note = "waiting for the old seed's private drop to reach the client's entity pool",
-        }, 10)
-        t.step("seedDrop.visible", seed_visible_result == "ok" and "PASS" or "FAIL",
-            "t.world.obj_near(roving_old_consecration_seed, 15) polled up to 10 ticks -> " .. tostring(seed_visible_result))
+        }, 10) -- no row (sampler b59: it could not fail); pickUpSeed's count is the evidence
 
         -- click_obj answers `ok` with a nil detail (trap 12/section 8's
         -- fourth hollow verb) -- call it directly and write the count by hand.
@@ -592,10 +790,8 @@ return {
         -- (reach.py 2557,3444 -> 2386,3336 closed-doors len 281), through
         -- it, and across Isafdar to the camp.
         enter_camp("eluned2")
-        local eluned2, eluned2_result = t.player.by_symbol("npc", "roving_female_woodelf")
-        t.step("lookup.eluned2", eluned2_result == "ok" and "PASS" or "FAIL",
-            "by_symbol npc roving_female_woodelf -> " .. tostring(eluned2_result))
-        t.exec("walk.eluned2", t.player.walk_near, eluned2, 10, 1)
+        local eluned2 = t.player.by_symbol("npc", "roving_female_woodelf") -- no row: see eluned1
+        t.player.walk_near(eluned2, 10, 1)
         t.exec("talk.eluned2", t.player.talk_to, "roving_female_woodelf", 1)
         t.exec("talk.eluned2-dialog", t.chat.play, {
             "player:I found the old seed.",
@@ -657,9 +853,7 @@ return {
                 .. " (want 2512,3481,0: [oploc1,lograft_waterfall_quest] p_teleport(0_39_54_16_25), the mound)")
         t.ticks(4) -- the raft's last two mes() lines and p_delay(2)s are still in flight
 
-        local crossing_rock, crossing_rock_result = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
-        t.step("lookup.crossingRock", crossing_rock_result == "ok" and "PASS" or "FAIL",
-            "by_symbol loc crossing_rock_waterfall_quest -> " .. tostring(crossing_rock_result))
+        local crossing_rock = t.player.by_symbol("loc", "crossing_rock_waterfall_quest") -- no row: useRopeOnRock grades it
         -- Graded on world.tile(), not use_on's own settle word: proven live
         -- by a prior content-parity pass (build/parity_state/parity2) that
         -- quest_waterfall_locs.rs2's [aplocu,crossing_rock_waterfall_quest]
@@ -680,9 +874,7 @@ return {
                 .. " 2512,3476 (the crossing_rock tile itself, the forcewalk2 START) -- graded"
                 .. " on the tile, not the press's own settle word, see above)")
 
-        local overhanging_tree, overhanging_tree_result = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest")
-        t.step("lookup.overhangingTree", overhanging_tree_result == "ok" and "PASS" or "FAIL",
-            "by_symbol loc overhanging_tree1_waterfall_quest -> " .. tostring(overhanging_tree_result))
+        local overhanging_tree = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest") -- no row: useRopeOnTree grades it
         t.exec("useRopeOnTree", t.player.use_on, "rope", overhanging_tree)
         local after_tree_result, after_tree = t.world.tile()
         t.step("useRopeOnTree.tile", after_tree_result == "ok" and after_tree ~= nil
@@ -736,9 +928,7 @@ return {
         -- sends a player past ^waterfall_placed_amulet straight on to
         -- ^waterfall_raised_room_door_coord 2604,9901, the chalice room.
         walk_check("keyDoor.approach", 2568, 9892, "the passage south of the first locked door")
-        local key_door1, key_door1_result = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
-        t.step("lookup.baxtorianDoor2", key_door1_result == "ok" and "PASS" or "FAIL",
-            "by_symbol loc baxtorian_door_2_waterfall_quest -> " .. tostring(key_door1_result))
+        local key_door1 = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest") -- no row: keyDoor.in grades it
         local key1_result, key1_detail = t.player.use_on("baxtorian_key_waterfall_quest", key_door1, { at = { 2568, 9893 } })
         local in_room_result, in_room = await_tile(function(tt)
             return tt.level == 0 and tt.z >= 9894 and tt.z <= 9901 and tt.x >= 2566 and tt.x <= 2569
@@ -792,13 +982,9 @@ return {
                 .. tostring(chalice_tile and (chalice_tile.x .. "," .. chalice_tile.z .. "," .. chalice_tile.level))
                 .. " (want 2603,9909,0, one tile off ^rovingelves_chalice_coord 0_40_154_43_54 -- "
                 .. "that exact tile is the chalice loc's own unwalkable footprint)")
-        local chalice_loc_result, chalice_loc = t.world.loc_near("baxtorian_chalice_waterfall_quest", 10)
-        t.check("chalice.locProbe", chalice_loc_result == "ok" and type(chalice_loc) == "table"
-                and chalice_loc.tile_x == 2603 and chalice_loc.tile_z == 9910,
-            "world.loc_near(baxtorian_chalice_waterfall_quest, 10) -> " .. tostring(chalice_loc_result) .. " "
-                .. tostring(chalice_loc and string.format("id=%s tile=%s,%s match=%s",
-                    tostring(chalice_loc.id), tostring(chalice_loc.tile_x), tostring(chalice_loc.tile_z),
-                    tostring(chalice_loc.match))))
+        -- (The chalice itself is a static map loc at 2603,9910 -- maps/
+        -- m40_154 -- so a row asserting its tile would only re-read the map;
+        -- sampler b59 dropped it. The plant below is the evidence.)
 
         -- Per queue.py's last_failure on this file, both of this section's
         -- old blockers are answered: the plant press IS sent (a retry to an
@@ -822,8 +1008,8 @@ return {
         local plant_pass = plant_dig_msg_result == "ok" and plant_drop_msg_result == "ok"
             and seed_after_plant_result == "ok" and seed_after_plant == 0
         t.check("plantSeed", plant_pass,
-            "inv_op(roving_new_consecration_seed, 1) at the confirmed zone/loc/stage (chalice.tileProbe, "
-                .. "chalice.locProbe, quest.stage.seed_enchanted all confirmed right before this click) -> "
+            "inv_op(roving_new_consecration_seed, 1) in the chalice room (chalice.tileProbe and "
+                .. "quest.stage.seed_enchanted confirmed before this click) -> "
                 .. tostring(plant_result) .. " " .. tostring(plant_detail)
                 .. "; msg.expect('You dig a small hole with your spade.') -> " .. tostring(plant_dig_msg_result)
                 .. "; msg.expect('You drop the crystal seed in the hole.') -> " .. tostring(plant_drop_msg_result)
@@ -831,18 +1017,10 @@ return {
                 .. " " .. tostring(seed_after_plant) .. " (want 0 -- rovingelves_seed.rs2's own "
                 .. "inv_del(inv, roving_new_consecration_seed, 1))")
 
-        -- Named quest.stage.<constant> per docs trap 14, read through the
-        -- same working channel as the row above rather than the broken
-        -- journal_open: [opheld1,roving_new_consecration_seed] sets
-        -- %rovingelves_quest = ^rovingelves_seed_planted in the same
-        -- execution as the drop message, so that message IS the stage
-        -- transition's own evidence.
-        t.check("quest.stage.seed_planted", plant_pass,
-            "rovingelves_seed.rs2's [opheld1,roving_new_consecration_seed] sets %varp6262_rovingelves_quest = "
-                .. "^rovingelves_seed_planted in the same execution as the 'You drop the crystal seed in "
-                .. "the hole.' message read above -- plantSeed's own evidence is this row's evidence too "
-                .. "(ui.journal_open is skipped here: it opens the Quest List on the Free tab and never "
-                .. "finds this members quest's row).")
+        -- The stage itself, read through the same server-content channel as
+        -- quest.stage.obtained_old_seed and seed_enchanted (sampler b59: the
+        -- row used to reuse plantSeed's evidence).
+        t.exec("quest.stage.seed_planted", t.quest.expect_stage, "seed_planted")
 
         -- ---------------------------------------------------------------
         -- Out of the falls the way in, every door on foot. The raised
