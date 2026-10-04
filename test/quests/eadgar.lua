@@ -8,9 +8,17 @@
 -- floor behind a door or a climb. The gotos left are overland hops between
 -- open tiles: Lumbridge, the lane west of Sanfew's house (2890,3428), the
 -- ground east of Tenzing's fence gate (2826,3555), the rocks (2856,3611),
--- the Trollheim summit beside the stronghold door (2840,3690) and beside
--- Eadgar's cave mouth (2893,3671), the thistle (2891,3676), Ardougne zoo
--- and Tegid's river bank. Everything between is clicked:
+-- the Camelot teleport landing (2757,3478), Ardougne zoo, Tegid's river
+-- bank, and -- inside the one walkable summit component -- the Trollheim
+-- summit beside the stronghold door (2840,3690), beside Eadgar's cave
+-- mouth (2893,3671) and at the thistle (2891,3676).
+--
+-- The summit is a pocket on foot (sampler b58 round 2): no goto ever
+-- leaves or reaches it. Every trip DOWN is Camelot Teleport cast from the
+-- spellbook (runes and landing graded); every trip UP walks the whole way
+-- (walk_up: Tenzing's gate and doors, the stile, both rock pairs, the
+-- secret door, the prison, the top exit). The thistle is dried on a fire
+-- lit on the summit itself. Everything between is clicked:
 --
 --   * Sanfew's house: the west door (the map places it standing open, so
 --     the open leaf is asserted, not pressed) and the spiral staircase
@@ -76,9 +84,16 @@ return {
         "::give pineapple_chunks 1",
         "::give pestle_and_mortar 1",
         "::give ranarrvial 1",
-        "::give lobster 5", -- food for the stronghold's aggressive trolls (b58 run 2: hp 99 -> 49 over the trips, no eat);
-        -- the guide names no food but warns Trollheim is dangerous (combat 50). 23 slots above + 5 = 28, the boots
-        -- are worn at once, and the pack never holds more than 27 after that (the parrot replaces the alco-chunks)
+        "::setlevel magic 45", -- Camelot Teleport (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, 5 air +
+        -- 1 law, no quest gate in teleport.rs2:13): the summit is a pocket on foot (sampler b58 round 2), so every trip
+        -- DOWN from it to the lowlands is this spell, cast by click from the spellbook; every trip back UP is walked
+        "::give airrune 15", -- three casts: Pete, Tegid, Sanfew
+        "::give lawrune 3",
+        "::give shark 3", -- food for the stronghold's aggressive trolls (b58 run 2: hp 99 -> 49 over the trips, no eat);
+        -- the guide names no food but warns Trollheim is dangerous (combat 50). Slots: the 23 above + 2 rune stacks
+        -- + 3 sharks = 28 (r2 staged 5 lobsters, 60 hp; 3 sharks are the same 60 hp in the two slots the runes
+        -- need -- Falador Teleport, nearer Taverley, would need a third rune stack, water). The boots are worn at
+        -- Tenzing's, and the pack never holds more than 27 after that (the parrot replaces the alco-chunks)
     },
 
     run = function(t)
@@ -123,7 +138,7 @@ return {
         -- The stronghold's trolls attack whoever walks its floors (b58 run 2:
         -- hitpoints 99 -> 91 on the first top-floor walk, 49 by the
         -- storeroom). Hitpoints are sampled after every walk and crossing;
-        -- below EAT_BELOW a lobster is eaten (early: an eat will no longer
+        -- below EAT_BELOW a shark is eaten (early: an eat will no longer
         -- hold a queued hit). Each stronghold trip ends in a margin row:
         -- lowest hp at least a quarter of 99 AND food left.
         local EAT_BELOW = 55
@@ -135,7 +150,7 @@ return {
                     hp_low = hp.level
                 end
                 if hp.level < EAT_BELOW then
-                    local er = t.player.inv_op("lobster", 1)
+                    local er = t.player.inv_op("shark", 1)
                     if er == "ok" then
                         hp_eaten = hp_eaten + 1
                     end
@@ -145,11 +160,11 @@ return {
         end
         local function margin_row(name, trip)
             vitals()
-            local fr, food = t.inv.count("lobster")
+            local fr, food = t.inv.count("shark")
             local hr, hp = t.skill.read("hitpoints")
             t.check(name, hp_low ~= nil and hp_low >= 25 and fr == "ok" and food >= 1,
                 trip .. ": lowest hp " .. tostring(hp_low) .. "/99 (sampled after every walk and crossing), hp now "
-                    .. tostring(hr == "ok" and hp.level or hr) .. ", lobsters staged 5, eaten " .. hp_eaten
+                    .. tostring(hr == "ok" and hp.level or hr) .. ", sharks staged 3, eaten " .. hp_eaten
                     .. ", left " .. tostring(food) .. " (" .. tostring(fr) .. ") (margin: lowest hp >= 25 AND food left)")
             hp_low = nil
         end
@@ -319,6 +334,110 @@ return {
             top_exit(pfx, exit_name)
         end
 
+        -- The Trollheim summit is a pocket on foot (sampler b58 round 2:
+        -- the flood from 2840,3690 is 2,075 tiles and never reaches the
+        -- lowlands; the ledge outside the secret door is a separate 57,
+        -- the ground between the two rock pairs a separate 169). So EVERY
+        -- trip up from the lowlands walks the whole way, the guide's
+        -- "Travel to Eadgar" panel: Tenzing's fence gate, his front and
+        -- back doors, the stile, both troll_climbingrocks pairs (the
+        -- south one with the climbing boots worn, quest_troll.rs2:16),
+        -- the secret door, the prison stairs, the prison door, the north
+        -- stairs and the top exit. The two gotos left are overland hops
+        -- between open tiles (to the ground east of Tenzing's gate, and
+        -- from north of the stile to the south rocks). `sfx` is "" on the
+        -- first trip (the guide's own step names), a trip name after.
+        local function walk_up(sfx, first)
+            t.exec("goto-tenzing" .. sfx, t.player.goto_tile, 2826, 3555, 0)
+            pass_door("tenzingGate" .. sfx, "death_fencegate_l", "death_openfencegate_l", 2824, 3555, 2825, 3555, 2823, 3555,
+                function(tt) return tt.level == 0 and tt.x == 2823 and tt.z == 3555 end, "2823,3555,0 in the yard, west of the gate", 2)
+            cross("enterTenzingHouse" .. sfx, "death_sherpa_door", 2822, 3555, 0,
+                function(tt) return tt.level == 0 and tt.x >= 2819 and tt.x <= 2822 and tt.z >= 3554 and tt.z <= 3557 end,
+                "inside Tenzing's house, x 2819-2822 z 3554-3557")
+            if first then
+                t.exec("equipClimbingBoots", t.player.equip, "death_climbingboots")
+            end
+            cross("leaveTenzingHouse" .. sfx, "death_sherpa_backdoor", 2820, 3557, 0,
+                function(tt) return tt.level == 0 and tt.z >= 3558 end, "north of the back door, z >= 3558")
+
+            -- click_loc's own settle never resolves for death_fullstyle --
+            -- `[oploc1,_stile]` (stiles.rs2) is TWO bare p_teleport()s either
+            -- side of a silent `~agility_exactmove`, a hop too short to trip
+            -- the "teleport" settle arm. Graded on the read-back tile: the
+            -- stile spans 2817,3562-3563 (crossed along z) and the crossing
+            -- lands one past the far end, 2817,3564, which only the crossing
+            -- itself reaches.
+            walk_check("walk-stile" .. sfx, 2817, 3561, 0, 20)
+            local stile_before_result, stile_before_tile = t.world.tile()
+            local stile_click, stile_detail = t.player.click_loc("death_fullstyle", 1)
+            t.ticks(5) -- let the silent ~agility_exactmove crossing finish
+            local stile_after_result, stile_after_tile = t.world.tile()
+            t.check("climbStile" .. sfx, stile_after_result == "ok" and stile_after_tile ~= nil
+                    and stile_after_tile.level == 0 and math.abs(stile_after_tile.x - 2817) <= 1 and stile_after_tile.z >= 3564,
+                "click_loc(death_fullstyle) -> " .. tostring(stile_click) .. " " .. tostring(stile_detail)
+                    .. "; tile before " .. tile_text(stile_before_result, stile_before_tile)
+                    .. ", after " .. tile_text(stile_after_result, stile_after_tile) .. " (want 2817,>=3564,0: north of the stile)")
+
+            t.exec("goto-rocks" .. sfx, t.player.goto_tile, 2856, 3611, 0)
+            t.exec("climbRocks" .. sfx, t.player.click_loc, "troll_climbingrocks", 1)
+            t.ticks(5) -- let the exact-move crossing finish
+            local rocks_after_result, rocks_after_tile = t.world.tile()
+            t.check("crossedRocks" .. sfx, rocks_after_result == "ok" and rocks_after_tile ~= nil and rocks_after_tile.z > 3611,
+                "world.tile() after troll_climbingrocks -> " .. tile_text(rocks_after_result, rocks_after_tile))
+            vitals()
+            t.player.walk_to(2834, 3626, 120) -- the path west to the second rock pair (2833-2834,3628)
+            t.exec("climbRocks2" .. sfx, t.player.click_loc, "troll_climbingrocks", 1, { at = { 2834, 3628 } })
+            t.ticks(6)
+            local r2_result, r2_tile = t.world.tile()
+            t.check("crossedRocks2" .. sfx, r2_result == "ok" and r2_tile ~= nil and r2_tile.z >= 3629, "tile " .. tile_text(r2_result, r2_tile))
+            walk_check("walk-secretdoor" .. sfx, 2827, 3646, 0, 60, 2)
+
+            -- RUN 4 (b55): click_loc's own pose/pixel hunt answered
+            -- "screen_position: yaw 0 framed nothing in 5 poses" -- the secret
+            -- door's model never rendered a hittable pixel at this approach
+            -- tile (a disguised rock-face). drive.op sends the op with no pixel
+            -- and no route; the server still validates and runs the real
+            -- [oploc1,troll_stronghold_entrance] trigger. Graded on the exact
+            -- landing p_teleport(0_44_157_7_2) = 2823,10050,0.
+            local secretdoor_target = t.player.by_symbol("loc", "troll_stronghold_entrance")
+            local secretdoor_op, secretdoor_detail = t.drive.op(secretdoor_target, 1)
+            t.ticks(3)
+            local secretdoor_after_result, secretdoor_after_tile = t.world.tile()
+            t.check("enterSecretDoor" .. sfx, secretdoor_after_result == "ok" and secretdoor_after_tile.x == 2823
+                    and secretdoor_after_tile.z == 10050 and secretdoor_after_tile.level == 0,
+                "drive.op(troll_stronghold_entrance) -> " .. tostring(secretdoor_op) .. " " .. tostring(secretdoor_detail)
+                    .. "; tile " .. tile_text(secretdoor_after_result, secretdoor_after_tile) .. " (want 2823,10050,0: the secret door's p_teleport(0_44_157_7_2))")
+
+            -- Through the prison and up to the top floor, then out onto the
+            -- summit through the top exit (the guide's goUpStairsPrison,
+            -- goUpToTopFloorStronghold, exitStronghold).
+            prison_to_summit(first and "travel" or ("up" .. sfx), "goUpStairsPrison" .. sfx, "goUpToTopFloorStronghold" .. sfx,
+                "exitStronghold" .. sfx, true)
+        end
+
+        -- Off the summit: Camelot Teleport, pressed in the spellbook
+        -- (t.player.cast presses [if_button,magic_spellbook:camelot_teleport]).
+        -- Graded on the runes the spell took (5 air, 1 law:
+        -- magic_spells.dbrow [magic_spell_teleport_camelot]) and the
+        -- landing: tele_coord 0_43_54_5_22 = 2757,3478,0, map_findsquare
+        -- within 2 (teleport.rs2 [label,magic_teleport]).
+        local function teleport_down(name)
+            local br, bt = t.world.tile()
+            local ar0, air0 = t.inv.count("airrune")
+            local lr0, law0 = t.inv.count("lawrune")
+            local cr, cd = t.player.cast("camelot_teleport")
+            t.ticks(1)
+            local wr, wt = t.world.tile()
+            local ar1, air1 = t.inv.count("airrune")
+            local lr1, law1 = t.inv.count("lawrune")
+            local landed = wr == "ok" and wt.level == 0 and math.abs(wt.x - 2757) <= 2 and math.abs(wt.z - 3478) <= 2
+            local paid = ar0 == "ok" and ar1 == "ok" and lr0 == "ok" and lr1 == "ok" and air0 - air1 == 5 and law0 - law1 == 1
+            t.check(name, cr == "ok" and string.find(tostring(cd), "TELEPORTED", 1, true) ~= nil and landed and paid,
+                "from " .. tile_text(br, bt) .. " cast camelot_teleport -> " .. tostring(cr) .. " " .. tostring(cd) .. "; landed "
+                    .. tile_text(wr, wt) .. " (want within 2 of 2757,3478,0); airrune " .. tostring(air0) .. " -> " .. tostring(air1)
+                    .. ", lawrune " .. tostring(law0) .. " -> " .. tostring(law1) .. " (want -5 air, -1 law)")
+        end
+
         -- ---------------------------------------------------------------
         -- 1. Sanfew: accept the quest (sanfew.rs2 sanfew_more_work).
         -- ---------------------------------------------------------------
@@ -354,67 +473,7 @@ return {
         --    (2820,3557) are the only way through (reach.py: NEEDS-DOOR via
         --    all three).
         -- ---------------------------------------------------------------
-        t.exec("goto-tenzing", t.player.goto_tile, 2826, 3555, 0)
-        pass_door("tenzingGate", "death_fencegate_l", "death_openfencegate_l", 2824, 3555, 2825, 3555, 2823, 3555,
-            function(tt) return tt.level == 0 and tt.x == 2823 and tt.z == 3555 end, "2823,3555,0 in the yard, west of the gate", 2)
-        cross("enterTenzingHouse", "death_sherpa_door", 2822, 3555, 0,
-            function(tt) return tt.level == 0 and tt.x >= 2819 and tt.x <= 2822 and tt.z >= 3554 and tt.z <= 3557 end,
-            "inside Tenzing's house, x 2819-2822 z 3554-3557")
-        t.exec("equipClimbingBoots", t.player.equip, "death_climbingboots")
-        cross("leaveTenzingHouse", "death_sherpa_backdoor", 2820, 3557, 0,
-            function(tt) return tt.level == 0 and tt.z >= 3558 end, "north of the back door, z >= 3558")
-
-        -- click_loc's own settle never resolves for death_fullstyle --
-        -- `[oploc1,_stile]` (stiles.rs2) is TWO bare p_teleport()s either
-        -- side of a silent `~agility_exactmove`, a hop too short to trip
-        -- the "teleport" settle arm. Graded on the read-back tile: the
-        -- stile spans 2817,3562-3563 (crossed along z) and the crossing
-        -- lands one past the far end, 2817,3564, which only the crossing
-        -- itself reaches.
-        walk_check("walk-stile", 2817, 3561, 0, 20)
-        local stile_before_result, stile_before_tile = t.world.tile()
-        local stile_click, stile_detail = t.player.click_loc("death_fullstyle", 1)
-        t.ticks(5) -- let the silent ~agility_exactmove crossing finish
-        local stile_after_result, stile_after_tile = t.world.tile()
-        t.check("climbStile", stile_after_result == "ok" and stile_after_tile ~= nil
-                and stile_after_tile.level == 0 and math.abs(stile_after_tile.x - 2817) <= 1 and stile_after_tile.z >= 3564,
-            "click_loc(death_fullstyle) -> " .. tostring(stile_click) .. " " .. tostring(stile_detail)
-                .. "; tile before " .. tile_text(stile_before_result, stile_before_tile)
-                .. ", after " .. tile_text(stile_after_result, stile_after_tile) .. " (want 2817,>=3564,0: north of the stile)")
-
-        t.exec("goto-rocks", t.player.goto_tile, 2856, 3611, 0)
-        t.exec("climbRocks", t.player.click_loc, "troll_climbingrocks", 1)
-        t.ticks(5) -- let the exact-move crossing finish
-        local rocks_after_result, rocks_after_tile = t.world.tile()
-        t.check("crossedRocks", rocks_after_result == "ok" and rocks_after_tile ~= nil and rocks_after_tile.z > 3611,
-            "world.tile() after troll_climbingrocks -> " .. tile_text(rocks_after_result, rocks_after_tile))
-        t.player.walk_to(2834, 3626, 120) -- the path west to the second rock pair (2833-2834,3628)
-        t.exec("climbRocks2", t.player.click_loc, "troll_climbingrocks", 1, { at = { 2834, 3628 } })
-        t.ticks(6)
-        local r2_result, r2_tile = t.world.tile()
-        t.check("crossedRocks2", r2_result == "ok" and r2_tile ~= nil and r2_tile.z >= 3629, "tile " .. tile_text(r2_result, r2_tile))
-        walk_check("walk-secretdoor", 2827, 3646, 0, 60, 2)
-
-        -- RUN 4 (b55): click_loc's own pose/pixel hunt answered
-        -- "screen_position: yaw 0 framed nothing in 5 poses" -- the secret
-        -- door's model never rendered a hittable pixel at this approach
-        -- tile (a disguised rock-face). drive.op sends the op with no pixel
-        -- and no route; the server still validates and runs the real
-        -- [oploc1,troll_stronghold_entrance] trigger. Graded on the exact
-        -- landing p_teleport(0_44_157_7_2) = 2823,10050,0.
-        local secretdoor_target = t.player.by_symbol("loc", "troll_stronghold_entrance")
-        local secretdoor_op, secretdoor_detail = t.drive.op(secretdoor_target, 1)
-        t.ticks(3)
-        local secretdoor_after_result, secretdoor_after_tile = t.world.tile()
-        t.check("enterSecretDoor", secretdoor_after_result == "ok" and secretdoor_after_tile.x == 2823
-                and secretdoor_after_tile.z == 10050 and secretdoor_after_tile.level == 0,
-            "drive.op(troll_stronghold_entrance) -> " .. tostring(secretdoor_op) .. " " .. tostring(secretdoor_detail)
-                .. "; tile " .. tile_text(secretdoor_after_result, secretdoor_after_tile) .. " (want 2823,10050,0: the secret door's p_teleport(0_44_157_7_2))")
-
-        -- Through the prison and up to the top floor, then out onto the
-        -- summit through the top exit (the guide's goUpStairsPrison,
-        -- goUpToTopFloorStronghold, exitStronghold).
-        prison_to_summit("travel", "goUpStairsPrison", "goUpToTopFloorStronghold", "exitStronghold", true)
+        walk_up("", true)
 
         t.exec("goto-eadgarcaveentrance", t.player.goto_tile, 2893, 3671, 0)
         climb("enterEadgarsCave", "troll_mad_eadgar_entrance", 2892, 3672, 0, 2893, 10074, 2)
@@ -500,7 +559,10 @@ return {
         -- (eadgar_pete_dialog_1/_2) set only by Pete's "When did you add
         -- it?" and "What do you feed them?" answers
         -- (eadgar_zoo_keeper_aviary.rs2:59-65), so two conversations.
+        -- Off the summit by Camelot Teleport (the summit is a pocket on
+        -- foot), then overland to the zoo.
         leave_cave("leaveEadgarsCaveForPete")
+        teleport_down("teleportCamelotForPete")
         t.exec("goto-pete", t.player.goto_tile, 2611, 3285, 0)
         t.exec("talkToPete-1", t.player.talk_to, "eadgar_zoo_keeper_aviary", 1)
         t.exec("talkToPete-1-dialog", t.chat.play, {
@@ -557,6 +619,9 @@ return {
         -- 6. Give the parrot to Eadgar -> explained_plan. Hide it under
         --    the rack in the prison -> hid_parrot.
         -- ---------------------------------------------------------------
+        -- Back up to Trollheim on foot, the whole way (the guide's
+        -- enterEadgarsCaveWithParrot), then the cave.
+        walk_up("WithParrot")
         enter_cave("goto-enterEadgarCaveWithTrainedParrot", "enterEadgarCaveWithTrainedParrot")
         local eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
         t.exec("giveParrotToEadgar", t.player.use_on, "eadgar_drunk_parrot", eadgar_npc)
@@ -601,6 +666,7 @@ return {
         -- 8. Tegid: talk him out of a dirty robe.
         -- ---------------------------------------------------------------
         leave_cave("leaveEadgarsCaveForTegid")
+        teleport_down("teleportCamelotForTegid")
         t.exec("goto-tegid", t.player.goto_tile, 2913, 3417, 0)
         t.exec("talkToTegid-robe", t.player.talk_to, "eadgar_druid_washing", 1)
         t.exec("talkToTegid-robe-dialog", t.chat.play, {
@@ -618,6 +684,7 @@ return {
         -- 9. Deliver logs, robe, 5 raw chicken, 10 grain to Eadgar. Each
         --    delivery is a real opnpcu click.
         -- ---------------------------------------------------------------
+        walk_up("WithItems")
         enter_cave("goto-enterEadgarsCaveWithItems", "enterEadgarsCaveWithItems")
         eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
 
@@ -680,8 +747,14 @@ return {
 
         -- A fire the player lights is the real `fire` loc (firemaking.rs2);
         -- troll_stronghold_camp_fire falls through to cooking's generic
-        -- "You can't cook that." (run 6).
-        t.exec("goto-fire", t.player.goto_tile, 3206, 3233, 0)
+        -- "You can't cook that." (run 6). The guide's lightFire names no
+        -- place, so the fire is lit right here beside the thistle, on the
+        -- summit (firemaking.rs2 [proc,area_allow_loc_add] refuses only a
+        -- blocked tile): no trip down and back up for it.
+        local fire_from_r, fire_from = t.world.tile()
+        t.check("fire.onSummit", fire_from_r == "ok" and fire_from.level == 0 and fire_from.x >= 2870 and fire_from.x <= 2910
+                and fire_from.z >= 3660 and fire_from.z <= 3700,
+            "lighting the fire at " .. tile_text(fire_from_r, fire_from) .. " (want the Trollheim summit beside the thistle)")
         t.exec("lightFire", t.player.use_item_on_item, "tinderbox", "logs")
         local fire_lit_result, fire_lit_detail = t.msg.await("The fire catches", 15)
         t.check("fire.lit", fire_lit_result == "ok",
@@ -833,40 +906,25 @@ return {
         local function in_storeroom(tt)
             return tt.level == 0 and STOREROOM[tt.x * 100000 + tt.z] == true
         end
+        -- The storeroom door (2869,10085, a wall on that tile's south edge)
+        -- is a walk-through door (eadgar_troll_chief_cook.rs2
+        -- [oploc1,eadgar_storeroomdoor], LostCity quest_eadgar.rs2:488-506):
+        -- from the corridor the drawer key unlocks it once at got_burnt_meat
+        -- ("You unlock the door.", the key is used up) and
+        -- [proc,eadgar_storeroomdoor_pass] puts the player on the door tile,
+        -- inside; the open leaf stands one tile south for 3 ticks.
         walk_check("walk-storeroomdoor", 2869, 10084, 0, 60, 0)
-        local sd_click, sd_detail = t.player.click_loc("eadgar_storeroomdoor", 1, { at = { 2869, 10085, 0 } })
-        t.ticks(1)
-        local sdo_r, sdo = t.world.loc_near("eadgar_storeroomdoor_open", 3)
-        local sdp_r, sdp = t.world.tile()
-        t.check("enterStoreroomDoor", sd_click == "ok" and ((sdo_r == "ok" and sdo.level == 0 and math.abs(sdo.tile_x - 2869) <= 1
-                and math.abs(sdo.tile_z - 10085) <= 1) or (sdp_r == "ok" and in_storeroom(sdp))),
-            "click_loc eadgar_storeroomdoor op1 at 2869,10085,0 -> " .. tostring(sd_click) .. " " .. tostring(sd_detail)
-                .. "; eadgar_storeroomdoor_open: " .. (sdo_r == "ok" and (sdo.tile_x .. "," .. sdo.tile_z .. "," .. tostring(sdo.level)) or tostring(sdo_r))
-                .. "; player " .. tile_text(sdp_r, sdp)
-                .. " (want the unlocked door within 1 of 2869,10085,0, or a walk-through door that already put the player inside)")
+        local key_before_r, key_before = t.inv.count("eadgar_troll_storeroom_key")
+        cross("enterStoreroomDoor", "eadgar_storeroomdoor", 2869, 10085, 0, in_storeroom,
+            "inside the storeroom: the walk-through lands on the door tile 2869,10085,0")
+        -- already in the ring: the crossing's own click settled on it
+        t.expect("enterStoreroomDoor.unlockMessage", t.msg.expect("You unlock the door."))
+        local key_after_r, key_after = t.inv.count("eadgar_troll_storeroom_key")
+        t.check("enterStoreroomDoor.keyUsed", key_before_r == "ok" and key_before == 1 and key_after_r == "ok" and key_after == 0,
+            "eadgar_troll_storeroom_key " .. tostring(key_before) .. " (" .. tostring(key_before_r) .. ") -> " .. tostring(key_after)
+                .. " (" .. tostring(key_after_r) .. ") (want 1 -> 0: the one-time unlock uses the key up)")
         t.expect("quest.stage.unlocked_storeroom", t.quest.expect_stage("unlocked_storeroom"))
-        local sw_r, sw_d = t.player.walk_to(2869, 10086, 10)
-        local si_r, si_t = t.world.tile()
-        if not (si_r == "ok" and in_storeroom(si_t)) then
-            -- b58 run 2: the door unlocks (stage 100) but the player cannot
-            -- walk through it, in either direction. [oploc1,eadgar_storeroomdoor]
-            -- (quest_eadgar/scripts/eadgar_troll_chief_cook.rs2:149-159) does an
-            -- in-place loc_change(eadgar_storeroomdoor_open, 300), and that
-            -- loc (configs/all.loc:33299-33300) is a shape-0 wall with no
-            -- blockwalk=0 and no op: the "open" door blocks the same edge and
-            -- cannot be pressed. LostCity walks the player through instead
-            -- (LostCity_Server quest_eadgar.rs2:488-506,
-            -- ~open_and_close_door2(eadgar_storeroomdoor_open, ...)), and its
-            -- inside tile 0_44_157_53_37 always opens. The storeroom is the
-            -- only way to the crate room (reach.py: NEEDS-DOOR via
-            -- eadgar_storeroomdoor then troll_stronghold_interior_door).
-            t.blocked("content_bug: eadgar_storeroomdoor unlocks but never lets the player through -- "
-                .. "eadgar_troll_chief_cook.rs2:149-159 loc_changes in place to eadgar_storeroomdoor_open (all.loc:33299, "
-                .. "a blocking shape-0 wall with no op); LostCity quest_eadgar.rs2:488-506 walks the player through with "
-                .. "~open_and_close_door2. walk_to(2869,10086) -> " .. tostring(sw_r) .. " " .. tostring(sw_d)
-                .. "; tile " .. tile_text(si_r, si_t))
-            return
-        end
+        walk_check("enterStoreroom.walkIn", 2869, 10087, 0, 10, 0)
 
         -- The crate room is walked into through its door; eight troll_sguard
         -- guards patrol it on fixed loops (configs/quest_eadgar.npc) and
@@ -1009,6 +1067,7 @@ return {
                 { 2861, 10078 }, { 2861, 10077 }, { 2861, 10076 } } },
             { name = "columnToSouth", dest = { 2860, 10075 }, ahead = 0, seg = { { 2860, 10076 }, { 2860, 10075 } } },
         }
+        local catches = {} -- "<attempt>:<hop>" for every guard catch on the way in
         local function hop(h, attempt)
             local why = "no window"
             for w = 1, 150 do
@@ -1020,6 +1079,9 @@ return {
                     t.ticks(3) -- a catch on the way lands its knockout teleport within three ticks
                     local r, tt = t.world.tile()
                     local there = r == "ok" and tt.level == 0 and tt.x == h.dest[1] and tt.z == h.dest[2]
+                    if not there and r == "ok" and in_storeroom(tt) then
+                        catches[#catches + 1] = attempt .. ":" .. h.name
+                    end
                     t.check("crateRoom." .. h.name .. attempt, there or (r == "ok" and in_storeroom(tt)),
                         "after " .. w .. " tick(s) of waiting the guards' loops cleared the hop; walked to " .. h.dest[1] .. "," .. h.dest[2]
                             .. " -> " .. tile_text(r, tt) .. " (want there, or back in the storeroom if a guard caught it anyway)")
@@ -1093,7 +1155,8 @@ return {
             t.ui.await_close("fade_overlay", 12)
             t.ticks(2)
         end
-        t.check("searchCrate", goutweed_got, crate_detail)
+        t.check("searchCrate", goutweed_got, crate_detail .. "; guard catches on the way in: " .. #catches
+            .. (#catches > 0 and (" (" .. table.concat(catches, ", ") .. ")") or ""))
         t.chat.close() -- dismiss the "You've found some goutweed!" objbox (~objbox, eadgar_troll_chief_cook.rs2:218)
 
         -- The crate's guard check opens fade_overlay (troll_guard_knockout,
@@ -1115,8 +1178,17 @@ return {
         -- Out of the storeroom by its door, up the storeroom stairs
         -- (2852,10061,0 east -> 2852,10060,1), up the south stairs, out the
         -- top exit.
-        pass_door("leaveStoreroomDoor", "eadgar_storeroomdoor", "eadgar_storeroomdoor_open", 2869, 10085, 2869, 10085, 2869, 10083,
-            function(tt) return tt.level == 0 and tt.z <= 10084 end, "the corridor south of the storeroom, z <= 10084")
+        -- From the door tile (0_44_157_53_37, inside) the door always opens
+        -- and [proc,eadgar_storeroomdoor_pass] steps the player across its
+        -- south edge to 2869,10084; no key is used (it is gone). The press
+        -- is made from 2869,10086 (click_loc steps off a loc's own tile
+        -- first, run r2.1): the player walks onto the door tile and the
+        -- script takes it from there.
+        walk_check("leaveStoreroom.atDoor", 2869, 10086, 0, 20, 0)
+        cross("leaveStoreroomDoor", "eadgar_storeroomdoor", 2869, 10085, 0,
+            function(tt) return tt.level == 0 and tt.x == 2869 and tt.z == 10084 end,
+            "2869,10084,0: the corridor tile south of the door")
+        walk_check("leaveStoreroom.corridor", 2869, 10083, 0, 10, 0)
         walk_check("walk-storeroomStairsUp", 2852, 10064, 0, 60, 0)
         climb("goUpFromStoreroom", "troll_stronghold_stairs", 2852, 10061, 0, 2852, 10060, 1)
         kitchen_to_summit("toSanfew", "goUpToTopFloorToSanfew", "exitStrongholdToSanfew")
@@ -1130,6 +1202,7 @@ return {
         local _, herblore_snap = t.skill.snapshot() -- read only; reward.herblore_xp below is the assertion
 
         local qp_before_result, qp_before = t.var.varp("varp101_qp")
+        teleport_down("teleportCamelotToSanfew")
         t.exec("goto-sanfew-2", t.player.goto_tile, 2890, 3428, 0)
         sanfew_in("turnin", "returnUpToSanfew")
         t.exec("talkToSanfew-turnin", t.player.talk_to, "sanfew", 1)
