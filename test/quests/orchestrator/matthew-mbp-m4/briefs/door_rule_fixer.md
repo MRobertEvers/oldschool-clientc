@@ -1,8 +1,8 @@
-# Brief for a b58 door-rule fixer (one quest test each)
+# Brief for a door-rule fixer (one quest test each)
 
 You are an Opus FIXER re-driving ONE committed quest test in
-/Users/matthewevers/Documents/git_repos/3draster (branch matthew-mbp-m4-b58 in the
-parent and in the OSRS-Content submodule). Your quest test id is given in the message
+/Users/matthewevers/Documents/git_repos/3draster (the batch branch named in the message that sent you
+here, in the parent and in the OSRS-Content submodule). Your quest test id is given in the message
 that sent you here; call it `<id>` below. Seven other fixers do the same for other
 quests at the same time: touch ONLY `test/quests/<id>.lua` (and, if you remove baseline
 rows, `tools/quest_gate/mid_run_gives_baseline.tsv` -- report that edit).
@@ -22,11 +22,36 @@ and coming out, including the room a setup cheat stands the player in. A plain o
 hop between open tiles, or between two open tiles of one dungeon passage, is travel and
 stays.
 
+## What counts as a closed space (learned in b56-b58)
+
+- A room, house, shop back, fenced yard or pen, a walled city quarter behind a guarded
+  gate, the space behind a bar counter.
+- Another floor of a building, a cellar or dungeon reached by a ladder, stair or
+  trapdoor.
+- A cave or mine entered by a climb, a crawl, a rope or a cut-through, and a region
+  such as the Kharazi Jungle that is entered by cutting through its edge.
+- A mountain top, plateau or island the player cannot leave on foot without a climb
+  (the Trollheim summit). Flood the walkable map from the departure tile with
+  `comp.py`: if the component never reaches the landing, the hop crosses something.
+- NOT a closed space: a gate between two large open outdoor regions (the Taverley
+  members' gate), and a building whose doorway the map leaves open with no door loc.
+
+Repeated trips count every time. If the test walks into a place once and hops in or out
+of it later, each later hop is a fault. For a long trip a player would not walk, use
+what a player uses: a REAL teleport. Stage the magic level and the runes in SETUP, cast
+the spell from the spellbook by click (`t.player.cast`), and grade it with three rows:
+the cast answered TELEPORTED, the exact runes were consumed, the landing tile. Check
+`skill_magic/scripts/spells/teleport.rs2` for which spells this pack implements and what
+each refuses (Ardougne Teleport needs the scroll read; there are no standard teleport
+tablets). Then an overland goto between open tiles is travel. Where no teleport reaches
+(Trollheim before Eadgar's Ruse is done), factor the walked route into one helper and
+call it on every trip.
+
 ## Start
 
 - The committed `test/quests/<id>.lua`.
 - The reopen note with the charged steps, ledger rows, landings and obstacles:
-  `build/orchestrator/fix_b58/<id>.finding.txt` (read it first).
+  `build/orchestrator/fix_<batch>/<id>.finding.txt` (read it first).
 - `python3 tools/quest_gate/helper_coverage.py <id>` prints every CHEAT row and why.
 - `python3 tools/quest_gate/ladder.py <id>` is the guide (never read the Java).
 - Read docs/QUEST_AUTHORING.md (the core) once; look a failing row up through
@@ -83,6 +108,13 @@ lands in a pocket with no way out.
 
 - Any `t.check(name, true, ...)` or check whose condition cannot fail (the status of a
   read, `x ~= nil`, an accepted `timeout`); any detail that prints a table address.
+- Kill targets must be real. Before you trust a fight, check the npc the guide has the
+  player kill has a combat block (hitpoints, attack, defence ... in a `.npc` file, not
+  only anims in `npc_anims.generated.npc`) and, for a boss, an entry in
+  `docs/bosses/quest_combat_manifest.json`. An npc with no block spawns with engine
+  defaults and dies in one hit: that is a content bug, not a pass. Stop at an honest
+  `t.blocked` before the fight, keep the fight rows below it, and report it (Between a
+  Rock...'s Arzinian Avatar, b58).
 - Fights: every real fight gets a margin row -- lowest hp at least a quarter of the
   player's maximum hitpoints AND food left (never OR, never a fallback value). Stage
   levels and the guide's recommended food and gear in SETUP only. Do not raise a level
@@ -102,7 +134,7 @@ lands in a pocket with no way out.
 
 Foreground only, one run at a time, logs to files:
 
-    python3 tools/quest_gate/run.py <id> --no-build --no-publish > build/orchestrator/fix_b58/<id>.runN.log 2>&1
+    python3 tools/quest_gate/run.py <id> --no-build --no-publish > build/orchestrator/fix_<batch>/<id>.runN.log 2>&1
     python3 tools/quest_gate/gate.py <id>
     python3 tools/quest_gate/lint_quest.py test/quests/<id>.lua
     python3 tools/quest_gate/helper_coverage.py <id> | tail -4      # must be FULL
@@ -110,7 +142,7 @@ Foreground only, one run at a time, logs to files:
 
 Open `-FAIL.png` shots with the Read tool. If walking the whole quest outruns the frame
 budget, set `max_frames` (ceiling 480000). Notebook:
-`build/orchestrator/fix_b58/<id>.progress.md`, appended after every run (if it exists,
+`build/orchestrator/fix_<batch>/<id>.progress.md`, appended after every run (if it exists,
 read it first and continue).
 
 ## Hard rules
