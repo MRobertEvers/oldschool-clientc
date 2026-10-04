@@ -32,6 +32,22 @@
 -- with t.player.attack/t.npc.await_dead, then goes back to the dig tile
 -- for the real dig (proof: build/quest_gate/q3proof, gardener dead in 9
 -- ticks and "You dig a hole in the ground...").
+--
+-- DOORS AND FLOORS (fix_b59, the closed-space rule of docs/
+-- QUEST_ORCHESTRATOR.md): no goto lands in or leaves a closed space. Both
+-- ships are left by their own gangplank (general_use/scripts/gangplank.rs2
+-- ~gangplank_disembark); the white apron is the guide's, in the Port Sarim
+-- fishing shop (m47_50.spawn:53, 3016,3229 -- the other copy at 3009,3204
+-- lies INSIDE Wydin's employees-only back room); Wydin's shop and the fishing
+-- shop are walked into and out of past their map-open doors; the back room
+-- is entered AND left through wydindoor's own click (food_store.rs2
+-- [oploc1,wydindoor] -> [proc,hunt_walk_door], a walk-through with no
+-- opened loc); the Blue Moon Inn is entered on foot, climbed by
+-- fai_varrock_stairs (maplink 3226,3393,0 <-> 3230,3393,1), and Hector's
+-- room is opened by its fai_varrock_door (3222,3395,1), in and out. The one
+-- gate crossed by a goto is Karamja's membergatel (2816,3182) between the
+-- Musa Point and Brimhaven jungles, two large open regions (comp.py floods
+-- 4,380 and 18,718 tiles), which the rule exempts like the Taverley gate.
 
 return {
     id = "hunt",
@@ -60,6 +76,9 @@ return {
         "::setlevel attack 40",
         "::setlevel strength 40",
         "::give rune_scimitar 1",
+        -- Food for the same fight: the margin row below asserts the lowest
+        -- hitpoints AND food left, and await_dead eats it below EAT_BELOW.
+        "::give lobster 2",
     },
 
     run = function(t)
@@ -80,6 +99,104 @@ return {
 
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        -- ------------------------------------------------------- helpers
+        local function txt(v)
+            local kind = type(v)
+            if kind == "string" or kind == "number" or kind == "boolean" or kind == "nil" then
+                return tostring(v)
+            end
+            return "<" .. kind .. ">"
+        end
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(r)
+        end
+
+        -- Wait for a teleport the click queued (a gangplank, a walk-through
+        -- door, a climb) to land; the row after it reads the tile.
+        local function await_tile(pred, ticks, what)
+            return t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and pred(tt)
+                end,
+                note = what .. ": waiting for the landing",
+            }, ticks)
+        end
+
+        -- Walk to x,z on the current floor and grade the tile reached.
+        local function walk_check(name, x, z, ok_fn, desc)
+            local wr = t.player.walk_to(x, z, 40)
+            local r, tt = t.world.tile()
+            t.check(name, r == "ok" and ok_fn(tt),
+                "walk_to " .. x .. "," .. z .. " -> " .. txt(wr) .. "; tile " .. tile_text(r, tt) .. " (want " .. desc .. ")")
+        end
+
+        -- Cross one ordinary door on foot (the b56/b57 pass_door pattern).
+        -- Walk to the tile on this side; if the CLOSED leaf stands on the door
+        -- tile on the player's own level, click THAT copy; otherwise the door
+        -- stands open (the map plants it open, or an earlier press left it
+        -- so), so assert the OPEN leaf stands within a tile of the door on
+        -- this level -- a row that fails when neither leaf is there -- and do
+        -- not press it. Then walk through and check the far tile.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and nt.x == near_x and nt.z == near_z,
+                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. "," .. door_z
+                    .. " -> " .. tile_text(nr, nt))
+            local here = (nr == "ok") and nt.level or 0
+            local cr, cd = t.world.loc_near(closed_sym, 3)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == here then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z, here } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".doorStandsOpen",
+                    orr == "ok" and od.level == here
+                        and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. "," .. here .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": "
+                        .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (want the open leaf within 1 of the door tile on this level: it stands open, so it is walked through, not pressed)")
+            end
+            t.player.walk_to(far_x, far_z, 40)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and far_ok(ft),
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
+        end
+
+        -- A click that TELEPORTS the player across (wydindoor's
+        -- hunt_walk_door, a gangplank, a staircase): it leaves no opened loc,
+        -- so it is clicked on every crossing, and a short teleport can answer
+        -- `timeout settle_after_click` on a crossing that landed. The row is
+        -- graded on the tiles -- the tile before the click NOT on the far
+        -- side, the tile after it on the far side -- with the click's answer
+        -- in the detail.
+        local function cross(name, sym, at_x, at_z, at_level, near_x, near_z, far_ok, far_desc)
+            if near_x ~= nil then
+                t.player.walk_to(near_x, near_z, 30)
+            end
+            local br, bt = t.world.tile()
+            local cr, cd = t.player.click_loc(sym, 1, { at = { at_x, at_z, at_level } })
+            await_tile(far_ok, 12, name)
+            local wr, wt = t.world.tile()
+            t.check(name, (cr == "ok" or cr == "timeout") and br == "ok" and not far_ok(bt) and wr == "ok" and far_ok(wt),
+                "from " .. tile_text(br, bt) .. " click_loc(" .. sym .. " at " .. at_x .. "," .. at_z .. "," .. at_level .. ") -> "
+                    .. tostring(cr) .. " " .. txt(cd) .. "; world.tile -> " .. tile_text(wr, wt) .. " (want " .. far_desc .. ")")
+        end
+
+        local function hp_now()
+            local hr, hp = t.skill.read("hitpoints")
+            if hr == "ok" and type(hp) == "table" then
+                return hp.level, hp.base_level
+            end
+            return nil, nil
+        end
 
         -- ---------------------------------------------------- Redbeard Frank
         t.exec("goto-redbeard", t.player.goto_tile, 3051, 3253, 0)
@@ -143,9 +260,20 @@ return {
             "mesbox:The ship arrives at Karamja.",
         })
 
+        -- The telejump stands the player on the ship's deck (level 1,
+        -- 2956,3143). Leave it by the gangplank, as a player does:
+        -- sarimshipplank_off (2956,3144,1, angle north) -> ~gangplank_disembark
+        -- drops one level and two tiles north onto the Musa Point pier.
+        cross("hunt.disembarkMusa", "sarimshipplank_off", 2956, 3144, 1, nil, nil,
+            function(tt) return tt.level == 0 and tt.z >= 3145 and math.abs(tt.x - 2956) <= 2 end,
+            "on the Musa Point pier, level 0, z >= 3145")
+
         -- ------------------------------------------ fetch the rum, for real
-        -- Deadman's Chest, Brimhaven -- buy a bottle of Karamja Rum.
-        t.exec("goto-bartender", t.player.goto_tile, 2797, 3155, 0)
+        -- Deadman's Chest, Brimhaven -- buy a bottle of Karamja Rum. The
+        -- pub has no door (comp.py floods 7,050 tiles from its floor); the
+        -- goto lands on the floor in front of the bar (2796,3158), not on
+        -- the bartender's own spawn tile behind it (m43_49.spawn:47).
+        t.exec("goto-bartender", t.player.goto_tile, 2796, 3158, 0)
         t.exec("talk-bartender", t.player.talk_to, "deadmans_bartender", 1)
         t.exec("buy-rum", t.chat.play, {
             "npc:Yohoho me hearty",
@@ -157,6 +285,12 @@ return {
         local rum_bought_result, rum_bought_detail = t.inv.await("karamja_rum", 1, 10)
         t.step("hunt.rum_bought", rum_bought_result == "ok" and "PASS" or "FAIL",
             "inv.await(karamja_rum, 1) -> " .. tostring(rum_bought_result) .. " " .. tostring(rum_bought_detail))
+
+        -- talk_to may have walked round behind the bar (open at 2793,3156):
+        -- walk back out onto the pub floor before the next hop.
+        walk_check("hunt.pubFloor", 2796, 3158,
+            function(tt) return tt.level == 0 and tt.z >= 3157 and math.abs(tt.x - 2796) <= 1 end,
+            "the pub floor in front of the bar, z >= 3157")
 
         -- Luthas's banana plantation -- get employed so his export crate
         -- will take the rum (banana_crate.rs2's [oplocu,bananacrate]
@@ -255,6 +389,9 @@ return {
         -- read-state trigger, a mes() chat-log line, not a mesbox.
         t.exec("check-crate-full", t.player.click_loc, "bananacrate", 1)
         t.expect("hunt.crate_full_msg", t.msg.expect("crate is full of bananas"))
+        -- ...and the rum is under them (banana_crate.rs2 [oploc1,bananacrate],
+        -- %varp5737_crate_rum = 1).
+        t.expect("hunt.crate_rum_msg", t.msg.expect("some rum stashed in here"))
 
         -- Hand the crate over -- Luthas pays 30 coins and ships it
         -- (crate_rum 1 -> 2), re-employing for another round; decline it.
@@ -335,24 +472,55 @@ return {
             "mesbox:ship arrives at Port Sarim",
         })
 
+        -- Off the ship by its gangplank: karamjashipplank_off (3031,3217,1,
+        -- angle west) -> ~gangplank_disembark drops one level and two tiles
+        -- west onto the Port Sarim pier.
+        cross("hunt.disembarkSarim", "karamjashipplank_off", 3031, 3217, 1, nil, nil,
+            function(tt) return tt.level == 0 and tt.x <= 3030 and math.abs(tt.z - 3217) <= 2 end,
+            "on the Port Sarim pier, level 0, x <= 3030")
+
         -- A white apron is Wydin's own health-and-safety requirement for
         -- the job, not the quest's own deliverable (trap 16) -- pick up
-        -- the one left on the ground by his shop (areas/world/configs/
-        -- m47_50.spawn) rather than cheat it in. click_obj answers `ok`
-        -- with a nil detail (trap 12's hollow shape), so called directly
-        -- with the before/after count as the real detail.
-        t.exec("goto-apron", t.player.goto_tile, 3009, 3204, 0)
+        -- the guide's one in the Port Sarim fishing shop (getWhiteApron,
+        -- 3016,3229; areas/world/configs/m47_50.spawn:53) rather than cheat
+        -- it in. The shop (x 3011-3016, z 3221-3229, maps/m47_50) has one
+        -- doorway, 3014,3220's south edge, whose poordooropen the map
+        -- plants open. click_obj answers `ok` with a nil detail (trap 12's
+        -- hollow shape), so called directly with the before/after count as
+        -- the real detail.
+        local function in_fish_shop(tt)
+            return tt.level == 0 and tt.x >= 3011 and tt.x <= 3016 and tt.z >= 3221 and tt.z <= 3229
+        end
+        t.exec("goto-fishshop", t.player.goto_tile, 3014, 3218, 0)
+        pass_door("hunt.fishShopIn", "poordoor", "poordooropen", 3014, 3220, 3014, 3219, 3014, 3222,
+            in_fish_shop, "inside the fishing shop, x 3011-3016 z 3221-3229")
         local apron_before_result, apron_before = t.inv.count("white_apron")
         local apron_pick_result, apron_pick_detail = t.player.click_obj("white_apron")
         local apron_after_result, apron_after = t.inv.count("white_apron")
         t.step("hunt.take_apron",
-            (apron_pick_result == "ok" and apron_after_result == "ok" and apron_after > (apron_before or 0)) and "PASS" or "FAIL",
-            "click_obj(white_apron) -> " .. tostring(apron_pick_result) .. " " .. tostring(apron_pick_detail)
+            (apron_pick_result == "ok" and apron_before_result == "ok" and apron_after_result == "ok"
+                and apron_after > apron_before) and "PASS" or "FAIL",
+            "click_obj(white_apron) -> " .. tostring(apron_pick_result) .. " " .. txt(apron_pick_detail)
                 .. " -- white_apron count " .. tostring(apron_before) .. " -> " .. tostring(apron_after))
+        local apron_tile_result, apron_tile = t.world.tile()
+        t.check("hunt.apron_in_fish_shop", apron_tile_result == "ok" and in_fish_shop(apron_tile),
+            "picked up standing at " .. tile_text(apron_tile_result, apron_tile)
+                .. " (want inside the fishing shop: the guide's copy at 3016,3229, not the back-room copy at 3009,3204)")
 
-        -- Wydin's grocery store, Port Sarim -- get employed (needs the
-        -- apron just picked up, carried is enough for the job offer).
-        t.exec("goto-wydin", t.player.goto_tile, 3014, 3204, 0)
+        pass_door("hunt.fishShopOut", "poordoor", "poordooropen", 3014, 3220, 3014, 3221, 3014, 3218,
+            function(tt) return tt.level == 0 and tt.z <= 3219 end, "out on the street south of the shop, z <= 3219")
+
+        -- Wydin's grocery store, Port Sarim (front room x 3012-3016,
+        -- z 3204-3209; the back room x 3009-3011 behind wydindoor). Its
+        -- front doorway is 3017,3206's west edge, whose poordooropen the map
+        -- plants open: walk there from the fishing shop (reach.py: open
+        -- street) and in. Get employed (the apron carried is enough for the
+        -- job offer).
+        local function in_wydin_front(tt)
+            return tt.level == 0 and tt.x >= 3012 and tt.x <= 3016 and tt.z >= 3204 and tt.z <= 3209
+        end
+        pass_door("hunt.wydinShopIn", "poordoor", "poordooropen", 3017, 3206, 3018, 3206, 3015, 3206,
+            in_wydin_front, "inside Wydin's shop, x 3012-3016 z 3204-3209")
         t.exec("talk-wydin", t.player.talk_to, "wydin", 1)
         t.exec("wydin-job", t.chat.play, {
             "npc:Welcome to my food store",
@@ -368,29 +536,16 @@ return {
         -- not just carried, before letting an employee through.
         t.exec("wear-apron", t.player.equip, "white_apron")
 
-        -- wydindoor is a SILENT door: food_store.rs2's own
-        -- [proc,hunt_walk_door] swaps the loc and teleports with no
-        -- dialogue, no chat line, and no route, so click_loc's settle
-        -- times out even when the door really opened. Its own after-the-
-        -- fact "did the loc change" fallback (pointer.lua's click_loc,
-        -- the door-evidence comment) needs the PLAYER's tile unchanged
-        -- across the click, which goto-wydin landing exactly on the
-        -- door's own tile (3012,3204) breaks -- every click steps off it
-        -- first. So click, then check for the back room's own crate
-        -- instead of trusting the verdict.
-        local door_ok = false
-        for door_attempt = 1, 3 do
-            t.player.click_loc("wydindoor", 1)
-            t.ticks(2)
-            local inside_result = t.world.loc_near("grocerycrate", 6)
-            if inside_result == "ok" then
-                door_ok = true
-                break
-            end
+        -- wydindoor is a SILENT walk-through door: food_store.rs2's own
+        -- [proc,hunt_walk_door] teleports the player across with no
+        -- dialogue, no chat line and no opened loc, so click_loc's settle
+        -- can time out on a crossing that landed. cross() grades it on the
+        -- tiles: in, x <= 3011; out, x >= 3012.
+        local function in_back_room(tt)
+            return tt.level == 0 and tt.x >= 3009 and tt.x <= 3011 and tt.z >= 3204 and tt.z <= 3209
         end
-        t.step("hunt.enter_back_room", door_ok and "PASS" or "FAIL",
-            "click_loc(wydindoor) x attempts, then world.loc_near(grocerycrate, 6) -> "
-                .. (door_ok and "found (through the door)" or "not_found (still outside)"))
+        cross("hunt.enter_back_room", "wydindoor", 3012, 3204, 0, 3013, 3204,
+            in_back_room, "in the back room, x 3009-3011 z 3204-3209")
         t.shot("enter-back-room")
 
         -- The grocery crate -- Wydin's half of the smuggle. crate_rum = 2
@@ -408,6 +563,14 @@ return {
         local rum_back_result, rum_back_detail = t.inv.await("karamja_rum", 1, 10)
         t.step("hunt.rum_recovered", rum_back_result == "ok" and "PASS" or "FAIL",
             "inv.await(karamja_rum, 1) -> " .. tostring(rum_back_result) .. " " .. tostring(rum_back_detail))
+
+        -- Out the way we came: wydindoor again (the exit arm of
+        -- hunt_walk_door teleports onto the door tile 3012,3204), then the
+        -- front doorway.
+        cross("hunt.leave_back_room", "wydindoor", 3012, 3204, 0, 3011, 3204,
+            in_wydin_front, "back in the front room, x 3012-3016 z 3204-3209")
+        pass_door("hunt.wydinShopOut", "poordoor", "poordooropen", 3017, 3206, 3016, 3206, 3018, 3206,
+            function(tt) return tt.level == 0 and tt.x >= 3017 end, "out on the street east of the shop, x >= 3017")
 
         -- Talk to Redbeard again -- [label,redboard_progress] sees
         -- inv_total(inv, karamja_rum) >= 1 (the bottle smuggled in above)
@@ -439,12 +602,30 @@ return {
         t.expect("quest.stage.received_key", t.quest.expect_stage("received_key"))
 
         -- ------------------------------------------- Hector's chest, upstairs
-        -- goto_tile alone climbs the stairs (fai_varrock_stairs) -- no
-        -- click_loc needed first (QUEST_AUTHORING.md section 2).
-        t.exec("goto-chest", t.player.goto_tile, 3219, 3396, 1)
+        -- The Blue Moon Inn, Varrock (maps/m50_53): the goto lands on the
+        -- street west of the inn (3213,3395). The west doorway is 3216,3395's
+        -- west edge, whose fai_varrock_door_open the map plants open; the
+        -- stairs are fai_varrock_stairs 3227,3393 (maplink 3226,3393,0 ->
+        -- 3230,3393,1, and fai_varrock_stairs_top back down); Hector's room
+        -- (x 3218-3222, z 3393-3396, level 1) is closed by fai_varrock_door
+        -- on 3222,3395's east edge. Every one is crossed in and out.
+        local DOOR, DOOR_OPEN = "fai_varrock_door", "fai_varrock_door_open"
+        local function in_hector_room(tt)
+            return tt.level == 1 and tt.x >= 3218 and tt.x <= 3222 and tt.z >= 3393 and tt.z <= 3396
+        end
+        t.exec("goto-inn", t.player.goto_tile, 3213, 3395, 0)
+        pass_door("hunt.innIn", DOOR, DOOR_OPEN, 3216, 3395, 3215, 3395, 3217, 3395,
+            function(tt) return tt.level == 0 and tt.x >= 3216 end, "inside the inn, x >= 3216")
+        cross("hunt.climbStairs", "fai_varrock_stairs", 3227, 3393, 0, 3226, 3393,
+            function(tt) return tt.level == 1 and tt.x >= 3229 and tt.x <= 3231 and tt.z >= 3392 and tt.z <= 3395 end,
+            "upstairs at the stairs head, level 1, x 3229-3231 z 3392-3395")
+        pass_door("hunt.hectorDoorIn", DOOR, DOOR_OPEN, 3222, 3395, 3223, 3395, 3221, 3395,
+            in_hector_room, "in Hector's room, level 1, x 3218-3222 z 3393-3396")
 
         -- [oplocu,piratechest]: op1 alone only answers "The chest is
-        -- locked." -- it takes the key through use_on.
+        -- locked." -- it takes the key through use_on, and
+        -- pirate_message.rs2 deletes the key as it hands over the message.
+        local key_before_result, key_before = t.inv.count("chest_key")
         local piratechest = t.player.by_symbol("loc", "piratechest")
         t.exec("use-key-on-chest", t.player.use_on, "chest_key", piratechest)
 
@@ -453,6 +634,9 @@ return {
         local msg_result, msg_detail = t.inv.await("piratemessage", 1, 10)
         t.step("hunt.message_taken", msg_result == "ok" and "PASS" or "FAIL",
             "inv.await(piratemessage, 1) -> " .. tostring(msg_result) .. " " .. tostring(msg_detail))
+        local key_after_result, key_after = t.inv.count("chest_key")
+        t.check("hunt.key_used_up", key_before_result == "ok" and key_before == 1 and key_after_result == "ok" and key_after == 0,
+            "chest_key " .. tostring(key_before) .. " -> " .. tostring(key_after) .. " (want 1 -> 0: [oplocu,piratechest] inv_del)")
 
         -- ------------------------------------------------- read the message
         t.exec("read-message", t.player.inv_op, "piratemessage", 1)
@@ -461,6 +645,16 @@ return {
         })
 
         t.expect("quest.stage.read_note", t.quest.expect_stage("read_note"))
+
+        -- Out of the inn the same way: Hector's door, the stairs down, the
+        -- west doorway.
+        pass_door("hunt.hectorDoorOut", DOOR, DOOR_OPEN, 3222, 3395, 3222, 3395, 3224, 3395,
+            function(tt) return tt.level == 1 and tt.x >= 3223 end, "on the landing outside Hector's room, level 1, x >= 3223")
+        cross("hunt.descendStairs", "fai_varrock_stairs_top", 3228, 3393, 1, 3230, 3393,
+            function(tt) return tt.level == 0 and tt.x >= 3225 and tt.x <= 3227 and tt.z >= 3392 and tt.z <= 3395 end,
+            "downstairs at the stairs foot, level 0, x 3225-3227 z 3392-3395")
+        pass_door("hunt.innOut", DOOR, DOOR_OPEN, 3216, 3395, 3217, 3395, 3214, 3395,
+            function(tt) return tt.level == 0 and tt.x <= 3215 end, "out on the street west of the inn, x <= 3215")
 
         -- ---------------------------------------------------- Falador Park
         t.exec("goto-dig", t.player.goto_tile, 2999, 3383, 0)
@@ -497,8 +691,18 @@ return {
         local dig1_result, dig1_detail = t.player.inv_op("spade", 1)
         local dig_mes_result, dig_mes_detail = t.msg.await("You dig a hole in the ground", 5)
         local dig_redirected = dig_mes_result ~= "ok"
-        t.check("dig-treasure", true,
-            "inv_op(spade,1) -> " .. tostring(dig1_result) .. " " .. tostring(dig1_detail)
+        -- The press is graded on what it did, not on inv_op's answer (the
+        -- silent redirect settles `timeout settle_after_click`, measured
+        -- run 1 of fix_b59): either the real dig's own line landed, or
+        -- hunt_dig's redirect fired -- which needs a falador_gardener within
+        -- 10 tiles of the spot, read back here, and the fight rows below
+        -- grade the gardener it set on the player.
+        local gardener_after_result = t.npc.nearest("falador_gardener", 10)
+        t.check("dig-treasure",
+            (dig1_result == "ok" or dig1_result == "timeout")
+                and (dig_mes_result == "ok" or gardener_after_result == "ok"),
+            "inv_op(spade,1) -> " .. tostring(dig1_result) .. " " .. txt(dig1_detail)
+                .. " -- npc.nearest(falador_gardener,10) after the press " .. tostring(gardener_after_result)
                 .. " -- npc.nearest(falador_gardener,10) pre-press read " .. tostring(gardener_before_result)
                 .. " -- msg.await('You dig a hole in the ground') -> " .. tostring(dig_mes_result) .. " " .. tostring(dig_mes_detail)
                 .. (dig_redirected
@@ -516,8 +720,33 @@ return {
                 "player.equip(rune_scimitar) -> " .. tostring(equip_result)
                     .. " " .. tostring(equip_detail))
 
+            local hp_before = hp_now()
             t.exec("attack-gardener", t.player.attack, "falador_gardener", 2, 20)
-            t.exec("gardener-dead", t.npc.await_dead, "falador_gardener", 60)
+            local hp_at_attack = hp_now()
+            local dead_result, dead_detail = t.npc.await_dead("falador_gardener", 60, 10, 6,
+                { eat = { item = "lobster", below = 6 } })
+            t.expect("gardener-dead", dead_result, dead_detail)
+            -- Margin: the lowest stated hitpoints over the fight is at least
+            -- a quarter of the maximum, AND food is left. The lowest is the
+            -- minimum of await_dead's own eat sampler (absent when the
+            -- gardener already died inside the attack press -- measured,
+            -- fix_b59 account hunt_c: "already gone before the wait") and
+            -- the reads before the press, after it and after the wait.
+            local hp_after, hp_base = hp_now()
+            local low_text, base_text = string.match(tostring(dead_detail), "lowest hp (%d+)/(%d+)")
+            local low, base = tonumber(low_text), tonumber(base_text) or hp_base
+            for _, v in ipairs({ hp_before or false, hp_at_attack or false, hp_after or false }) do
+                if v and (low == nil or v < low) then
+                    low = v
+                end
+            end
+            local food_result, food_left = t.inv.count("lobster")
+            t.check("killGardener.margin",
+                low ~= nil and base ~= nil and low * 4 >= base and food_result == "ok" and (food_left or 0) >= 1,
+                "lowest hp " .. tostring(low) .. "/" .. tostring(base) .. " (hp before the attack " .. tostring(hp_before)
+                    .. ", after the press " .. tostring(hp_at_attack) .. ", after the wait " .. tostring(hp_after)
+                    .. ", sampler " .. tostring(low_text) .. "), lobsters left "
+                    .. tostring(food_left) .. " (" .. tostring(food_result) .. ") of 2 staged -- margin: lowest hp >= a quarter of max AND food left")
 
             -- await_dead resolves on a corpse's bar reading 0 -- the slot
             -- is still IN the pool for a few ticks after that, and
