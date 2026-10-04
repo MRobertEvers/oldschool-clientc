@@ -145,6 +145,37 @@
 --       exists but has no Quest Helper `ObjectStep` at all (mend1.constant's
 --       own header: "deferred, not a missed critical-path branch") -- left
 --       undriven, same as the previous author's revision.
+--
+-- RE-DRIVE b59 (door rule, docs/QUEST_ORCHESTRATOR.md 2026-10-03): no goto_tile
+-- into or out of a closed space. Every crossing is now pressed on foot: the
+-- Arandar pass's Huge Gate (Tirannwn is sealed from Kandarin but for it:
+-- regicide_arandar_gate_guard.rs2), the Mourner HQ's front door, its trapdoor
+-- room's poordoor and the basement's two doors, Elena's door, the orchard
+-- gate, the food-store hall's double doors and store room door. Two exits have
+-- no working walk and are left by a REAL teleport (Camelot Teleport cast from
+-- the spellbook, graded on TELEPORTED, the runes and the landing): Lletya
+-- after the briefing, and the HQ basement, whose only ladder
+-- (mourner_hideout_ladder1, category climb_up_ladder, no maplink row) climbs
+-- the player to 2044,4649,1, a void over the basement (measured,
+-- build/quest_gate/mesp_probe2 row 20). Two ENTRIES cannot be made at all,
+-- and the file stops at the first of them with a content_bug row:
+--   * Lletya (Oronwen, the final Arianwyn report): its only walkable gaps are
+--     the elf_village_treegate trees at 2305,3191/3195, whose op1 Pass has no
+--     handler anywhere in OSRS-Content, and the teleport crystal's ifop1
+--     Lletya has none either (both answered "Nothing interesting happens.",
+--     build/quest_gate/mesp_probe1 rows 9 and 13).
+--   * West Ardougne (the HQ, the rotten apple, both food stores): the map
+--     places ardougnedoor_l/_r at 2557-2558,3299-3300, which fall to the
+--     generic [oploc1,_door_closed] in-place loc_change and stay blocked
+--     (probe2 rows 10-16); the walk-through label is bound to
+--     ardougnewalldoor_left/_right, placed nowhere.
+-- Everything below the first block is kept, re-routed by the same rule, for
+-- the day those land; a scratch copy that crossed only those two gaps by a
+-- goto ran it end to end, 303 rows, 0 FAIL (build/quest_gate/mesp_tail5).
+-- Point (3) above changed with it: the tar swamp at 2223,3123 and the
+-- Tyras-camp barrels lie behind the dense forest (Agility 56), so the second
+-- barrel is the orchard's own respawn (200 ticks) and the tar is the
+-- 2263,3127 copy, both in the open.
 
 return {
     id = "mourningsendparti",
@@ -229,6 +260,16 @@ return {
         -- Regicide above.
         "::setvar varp293_chompybird ^chompybird_complete",
         "::complete quest_sheepherder",
+        -- Biohazard is the next link of the same chain (Roving Elves ->
+        -- Regicide -> Underground Pass -> Biohazard); West Ardougne's city
+        -- doors open on it (area_ardougne_west/scripts/doors.rs2:36-49).
+        "::complete quest_biohazard",
+        -- Camelot Teleport (level 45, 5 air + 1 law a cast): out of Lletya
+        -- after the briefing and out of the HQ basement three times (its
+        -- ladder leads nowhere -- this file's header). Four casts.
+        "::setlevel magic 45",
+        "::give airrune 20",
+        "::give lawrune 4",
     },
 
     run = function(t)
@@ -251,6 +292,216 @@ return {
         local SHOT_YAW_BASEMENT = 1536
         local SHOT_ZOOM_INDOOR = 200
         local SHOT_ZOOM_OUTDOOR = 600
+
+        local function free_slots()
+            local free = 0
+            for i = 0, 27 do
+                local sr, slot = t.inv.slot(i)
+                if sr ~= "ok" then
+                    return sr, nil
+                end
+                if slot.count == 0 then
+                    free = free + 1
+                end
+            end
+            return "ok", free
+        end
+
+        local function tile_text(r, w)
+            if r ~= "ok" or type(w) ~= "table" then
+                return tostring(r) .. " " .. tostring(w)
+            end
+            return w.x .. "," .. w.z .. "," .. w.level
+        end
+
+        -- Cross one door on foot (the b56 pass_door pattern). Walk to the near
+        -- side and check the tile; press the CLOSED leaf on the exact door
+        -- tile on the player's own level, or -- when an earlier press left it
+        -- open -- assert the open leaf stands within open_reach of the door
+        -- tile; walk through; check the far tile.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc, open_reach)
+            open_reach = open_reach or 1
+            t.player.walk_to(near_x, near_z, 30)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and math.abs(nt.x - near_x) <= 1 and math.abs(nt.z - near_z) <= 1,
+                "walked to " .. near_x .. "," .. near_z .. " beside " .. closed_sym .. " at " .. door_x .. "," .. door_z
+                    .. " -> " .. tile_text(nr, nt))
+            local here = (nr == "ok") and nt.level or 0
+            local cr, cd = t.world.loc_near(closed_sym, 3)
+            local press = "not pressed: it stands open"
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == here then
+                -- A door that swings the player's way can answer `timeout
+                -- settle_after_click` on a press that opened it (the Elena
+                -- exit did, scratch run mesp_tail1 row 194): the press's
+                -- answer goes in the .through detail, and the far tile -- a
+                -- walk no closed door lets through -- grades it.
+                local pr, pd = t.player.click_loc(closed_sym, 1, { at = { door_x, door_z } })
+                press = "pressed " .. closed_sym .. " at " .. door_x .. "," .. door_z .. " -> " .. tostring(pr) .. " " .. tostring(pd)
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".standsOpen", orr == "ok" and od.level == here
+                        and math.abs(od.tile_x - door_x) <= open_reach and math.abs(od.tile_z - door_z) <= open_reach,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": "
+                        .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (an earlier press left it open: walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z, 30)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".through", fr == "ok" and far_ok(ft),
+                press .. "; walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
+        end
+
+        -- The Arandar pass's Huge Gate (overpass_gate_right 2386,3334;
+        -- maplink.dbrow 0_37_52_18_5 <-> 0_37_52_18_7 = 2386,3333 <-> 2386,3335)
+        -- is Tirannwn's only way in from Kandarin on foot (the Isafdar flood
+        -- from 2386,3333 is 7,176 tiles and closed). regicide_arandar_gate_guard.rs2
+        -- opens it once Regicide is past ^regicide_killed_tyras and nudges the
+        -- player; probe2 measured the nudge landing part-way (2385,3335 after a
+        -- southward press) with the gate standing open, so the row walks on to
+        -- the far tile and is graded on the tiles before and after.
+        local function pass_arandar(prefix, southward)
+            local near_z = southward and 3335 or 3333
+            local far_z = southward and 3331 or 3337
+            t.player.walk_to(2386, near_z, 30)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atGate", nr == "ok" and nt.level == 0 and math.abs(nt.x - 2386) <= 1 and nt.z == near_z,
+                "walked to 2386," .. near_z .. " beside overpass_gate_right 2386,3334 -> " .. tile_text(nr, nt))
+            local cr, cd = t.player.click_loc("overpass_gate_right", 1, { at = { 2386, 3334 } })
+            t.ticks(1)
+            t.player.walk_to(2386, far_z, 20)
+            local fr, ft = t.world.tile()
+            local crossed = fr == "ok" and ft.level == 0 and math.abs(ft.x - 2386) <= 2
+                and ((southward and ft.z <= 3333) or ((not southward) and ft.z >= 3335))
+            t.check(prefix, crossed,
+                "from " .. tile_text(nr, nt) .. ": click_loc(overpass_gate_right) -> " .. tostring(cr) .. " " .. tostring(cd)
+                    .. "; walked on to 2386," .. far_z .. " -> " .. tile_text(fr, ft)
+                    .. (southward and " (want z <= 3333, inside the pass)" or " (want z >= 3335, Kandarin side)"))
+        end
+
+        -- Camelot Teleport pressed in the spellbook (teleport.rs2:13 ->
+        -- [label,magic_teleport]): 5 air + 1 law, tele_coord 2757,3478 within 2.
+        local function camelot(prefix)
+            local br, bt = t.world.tile()
+            local ar0, air0 = t.inv.count("airrune")
+            local lr0, law0 = t.inv.count("lawrune")
+            local cr, cd = t.player.cast("camelot_teleport")
+            t.ticks(1)
+            local wr, wt = t.world.tile()
+            local ar1, air1 = t.inv.count("airrune")
+            local lr1, law1 = t.inv.count("lawrune")
+            t.check(prefix .. ".cast", cr == "ok" and string.find(tostring(cd), "TELEPORTED", 1, true) ~= nil,
+                "from " .. tile_text(br, bt) .. " cast camelot_teleport -> " .. tostring(cr) .. " " .. tostring(cd))
+            t.check(prefix .. ".runes", ar0 == "ok" and ar1 == "ok" and lr0 == "ok" and lr1 == "ok"
+                    and air0 - air1 == 5 and law0 - law1 == 1,
+                "airrune " .. tostring(air0) .. " -> " .. tostring(air1) .. ", lawrune " .. tostring(law0) .. " -> "
+                    .. tostring(law1) .. " (want -5 air, -1 law)")
+            t.check(prefix .. ".landed", wr == "ok" and wt.level == 0 and math.abs(wt.x - 2757) <= 2 and math.abs(wt.z - 3478) <= 2,
+                "landed " .. tile_text(wr, wt) .. " (want within 2 of 2757,3478,0)")
+        end
+
+        -- Lletya (x 2306-2358 z 3148-3197) is walled in; its only walkable
+        -- gaps are the elf_village_treegate trees (2305,3191 and 2305,3195,
+        -- maps/m36_49.jl2, op1 Pass). Returns false after a content_bug row
+        -- when the crossing does not happen.
+        local function lletya_gate(prefix, inward)
+            local near_x = inward and 2304 or 2306
+            local far_x = inward and 2306 or 2304
+            t.player.walk_to(near_x, 3193, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atGate", nr == "ok" and nt.level == 0 and nt.x == near_x and math.abs(nt.z - 3193) <= 1,
+                "walked to " .. near_x .. ",3193 beside the tree at 2305,3191 -> " .. tile_text(nr, nt))
+            local cr, cd = t.player.click_loc("elf_village_treegate", 1, { at = { 2305, 3191 } })
+            t.ticks(3)
+            t.player.walk_to(far_x, 3193, 10)
+            local fr, ft = t.world.tile()
+            local crossed = fr == "ok" and ft.level == 0 and ((inward and ft.x >= 2306) or ((not inward) and ft.x <= 2304))
+            if crossed then
+                t.check(prefix, crossed, "click_loc(elf_village_treegate) -> " .. tostring(cr) .. " " .. tostring(cd)
+                    .. "; walked to " .. far_x .. ",3193 -> " .. tile_text(fr, ft))
+                return true
+            end
+            t.blocked("content_bug: Lletya cannot be " .. (inward and "entered" or "left") .. " on foot or by its crystal. "
+                .. "Its only walkable gaps are elf_village_treegate (configs/all.loc:96800, op1=Pass) at 2305,3191 and "
+                .. "2305,3195 (maps/m36_49.jl2), and no [oploc1,elf_village_treegate] exists anywhere in OSRS-Content: "
+                .. "the press here answered '" .. tostring(cr) .. " " .. tostring(cd) .. "' and walk_to " .. far_x
+                .. ",3193 ended at " .. tile_text(fr, ft) .. ". The teleport crystal Eluned hands over "
+                .. "(mourning_teleport_crystal_4, configs/all.obj:96509, ifop1=Lletya) has no [opheld1,...] either "
+                .. "('Nothing interesting happens.', build/quest_gate/mesp_probe1 row 13), and Eluned's escort "
+                .. "(mend1_shared.rs2:59-92) runs once. Needed: the trees' Pass handler (OSRS: walk through the tree at "
+                .. "Lletya's entrance) and/or the crystal's Lletya teleport.")
+            return false
+        end
+
+        -- West Ardougne is walled in (4,528 tiles from 2551,3320, closed);
+        -- the city doors are ardougnedoor_l/_r at 2557-2558,3299-3300.
+        -- Returns false after a content_bug row when the crossing does not happen.
+        local function ardougne_wall(prefix, westward)
+            local near_x = westward and 2559 or 2556
+            local far_x = westward and 2555 or 2560
+            local door_x = westward and 2558 or 2557
+            local door_sym = westward and "ardougnedoor_l" or "ardougnedoor_r"
+            t.player.walk_to(near_x, 3299, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and nt.level == 0 and nt.x == near_x and math.abs(nt.z - 3299) <= 1,
+                "walked to " .. near_x .. ",3299 beside " .. door_sym .. " " .. door_x .. ",3299 -> " .. tile_text(nr, nt))
+            local cr, cd = "not pressed:", door_sym .. " at " .. door_x .. ",3299 already changed to its open stage by an earlier press"
+            local lr, ld = t.world.loc_near(door_sym, 2)
+            if lr == "ok" and ld.tile_x == door_x and ld.tile_z == 3299 and ld.level == 0 then
+                cr, cd = t.player.click_loc(door_sym, 1, { at = { door_x, 3299 } })
+                t.ticks(3)
+            end
+            t.player.walk_to(far_x, 3299, 10)
+            local fr, ft = t.world.tile()
+            local crossed = fr == "ok" and ft.level == 0 and ((westward and ft.x <= 2556) or ((not westward) and ft.x >= 2559))
+            if crossed then
+                t.check(prefix, crossed, "click_loc(" .. door_sym .. ") -> " .. tostring(cr) .. " " .. tostring(cd)
+                    .. "; walked to " .. far_x .. ",3299 -> " .. tile_text(fr, ft))
+                return true
+            end
+            t.blocked("content_bug: West Ardougne cannot be " .. (westward and "entered" or "left") .. " on foot. "
+                .. "The map places ardougnedoor_l/_r (ids 8738/8739) at 2557-2558,3299-3300 (maps/m39_51.jl2), which fall to "
+                .. "the generic [oploc1,_door_closed] (doors/scripts/doors.rs2:89 -> ~door_open_active's in-place loc_change "
+                .. "for a centrepiece door) and stay blocked: the press here answered '" .. tostring(cr) .. " "
+                .. tostring(cd) .. "' and walk_to " .. far_x .. ",3299 ended at " .. tile_text(fr, ft)
+                .. " (build/quest_gate/mesp_probe2 rows 10-16). The walk-through label "
+                .. "west_ardougne_open_city_doors (areas/area_ardougne_west/scripts/doors.rs2:26-49) is bound to "
+                .. "ardougnewalldoor_left/_right (ids 2048/2049), placed nowhere. Needed: bind it to ardougnedoor_l/_r.")
+            return false
+        end
+
+        -- The Mourner HQ, West Ardougne: the front door mournerstewdoor
+        -- (2551,3320, north edge; doors.rs2:19-24 walks a disguised player
+        -- through), the trapdoor room's poordoor (2546,3325, east edge), and
+        -- mourning_hideout_trap_door (2542,3327; mend1_disguise.rs2:346-353
+        -- p_teleports to the basement, 2044,4628). From the street at 2551,3320.
+        local function hq_down(door_row, trap_row)
+            local br, bt = t.world.tile()
+            t.exec(door_row, t.player.click_loc, "mournerstewdoor", 1, { at = { 2551, 3320 } })
+            t.ticks(4)
+            local ar, at = t.world.tile()
+            t.check(door_row .. ".walked_through", br == "ok" and ar == "ok" and at.z >= 3321 and at.x >= 2547 and at.x <= 2555,
+                "tile before=" .. tile_text(br, bt) .. " after=" .. tile_text(ar, at) .. " (want inside the HQ front room, z >= 3321)")
+            pass_door(trap_row .. ".poordoor", "poordoor", "poordooropen", 2546, 3325, 2547, 3325, 2545, 3326,
+                function(w) return w.x <= 2546 and w.z >= 3324 and w.z <= 3327 end, "inside the trapdoor room, x <= 2546")
+            t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
+            t.exec(trap_row, t.player.click_loc, "mourning_hideout_trap_door", 1, { at = { 2542, 3327 } })
+            local landed_r, landed_detail = t.await({
+                level = function()
+                    local tile_result, tile = t.world.tile()
+                    return tile_result == "ok" and tile and tile.x and tile.z
+                        and math.abs(tile.x - 2044) <= 8 and math.abs(tile.z - 4628) <= 8
+                end,
+                note = "trapdoor.landed_basement",
+            }, 10)
+            t.step(trap_row .. ".landed", landed_r == "ok" and "PASS" or "FAIL",
+                "await(world.tile() within 8 of mend1_hq_basement_coord 2044,4628) after the trap door -> "
+                    .. tostring(landed_r) .. " " .. tostring(landed_detail))
+            t.ticks(3)
+        end
+
         do
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp517_mourning_quest",
@@ -298,6 +549,11 @@ return {
         -- [opnpc1,roving_female_woodelf] calls ~mend1_eluned_start once
         -- %rovingelves_quest is complete and %mourning_quest < ^mend1_briefed. ----
         -- OBSOLETE: talkToIslwyn the live game starts Mourning's End Part I at Eluned (https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I?oldid=15292327#Starting_the_quest: "Start point: Talk to Eluned inside the elven woods of Isafdar"); quest-helper's Islwyn start predates Song of the Elves' 2019 rework, and Islwyn's hook starts nothing (quests/quest_mourningsendparti/scripts/mend1_shared.rs2:103-105) -- driven below as talkToEluned.
+        -- Kandarin's side of the Arandar pass (first goto of the run), the
+        -- Huge Gate on foot, then Isafdar's open forest to Eluned (2289,3145
+        -- is in the 7,176-tile component the gate opens onto).
+        t.exec("goto-arandarNorth", t.player.goto_tile, 2386, 3337, 0)
+        pass_arandar("arandarIn.eluned", true)
         t.exec("goto-talkToEluned", t.player.goto_tile, 2289, 3145, 0)
         t.exec("talkToEluned", t.player.talk_to, "roving_female_woodelf", 1)
         -- mend1_eluned_start (mend1_shared.rs2:59-92): meets_requirements is
@@ -346,7 +602,13 @@ return {
         -- is now the full wiki transcript, verbatim, with a story/skip
         -- choice -- driven here via the shorter "Let's skip the backstory."
         -- branch; both branches converge on the same tail. ----
-        t.exec("goto-talkToArianwyn", t.player.goto_tile, 2353, 3172, 0)
+        -- Eluned's own p_teleport (mend1_shared.rs2:85) set the player down
+        -- inside Lletya at 2352,3170, two tiles from Arianwyn: no goto.
+        local lletya_r, lletya_tile = t.world.tile()
+        t.check("talkToEluned.inLletya", lletya_r == "ok" and lletya_tile.level == 0
+                and lletya_tile.x >= 2306 and lletya_tile.x <= 2358 and lletya_tile.z >= 3148 and lletya_tile.z <= 3197,
+            "after Eluned's escort: " .. tile_text(lletya_r, lletya_tile) .. " (want inside Lletya, x 2306-2358 z 3148-3197; "
+                .. "^mend1_lletya_arrival_coord is 2352,3170)")
         t.exec("talkToArianwyn", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn-dialog", t.chat.play, {
             "npc:Welcome to Lletya, home to the Elven Resistance.",
@@ -400,7 +662,14 @@ return {
         -- real death drop (mend1_disguise.rs2's [ai_queue3,...]), not a
         -- click grant -- graded on npc.await_dead_engaged, not the press. ----
         t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
-        t.exec("goto-killMourner", t.player.goto_tile, 2299, 3328, 0)
+        -- Out of Lletya: its tree gates have no handler (this file's header),
+        -- so the player leaves the way a player would, by a teleport spell.
+        camelot("leaveLletya.teleport")
+        -- Seers' Village is in the same open Kandarin component as the
+        -- pass's north gate (flood from 2386,3336: 101,300 tiles).
+        t.exec("goto-arandarNorth.mourner", t.player.goto_tile, 2386, 3337, 0)
+        pass_arandar("arandarIn.mourner", true)
+        t.exec("goto-killMourner", t.player.goto_tile, 2300, 3328, 0)
         -- The mourner's own header names a companion
         -- (mourning_overpass_mourner_spawner) at this same spawn row --
         -- a spawner cycling a fresh copy in mid-fight is exactly the "kill
@@ -412,21 +681,36 @@ return {
         -- without ever dying. So this attacks again whenever a live copy
         -- is still standing after "dead", up to three attempts, and only
         -- trusts the kill once none remains.
+        -- Every await eats a staged shark under 20 hp (half of 40); the
+        -- margin row reads the waits' own "lowest hp" / "never needed to eat".
         local mourner_kill_confirmed = false
         local mourner_kill_attempts = 0
+        local mourner_lowest_hp = nil
+        local mourner_never_ate = true
         while not mourner_kill_confirmed and mourner_kill_attempts < 3 do
             mourner_kill_attempts = mourner_kill_attempts + 1
             local mourner_attack_result, mourner_attack_detail =
                 t.player.attack("mourning_overpass_mourner", 2, 30)
             t.step("killMourner.attack." .. mourner_kill_attempts,
-                (mourner_attack_result == "ok" or mourner_attack_result == "timeout") and "PASS" or "FAIL",
+                mourner_attack_result == "ok" and "PASS" or "FAIL",
                 "attack(mourning_overpass_mourner,2,30) attempt " .. mourner_kill_attempts .. " -> "
                     .. tostring(mourner_attack_result) .. " " .. tostring(mourner_attack_detail))
-            local mourner_dead_result, mourner_dead_detail = t.npc.await_dead_engaged(60)
+            local mourner_dead_result, mourner_dead_detail =
+                t.npc.await_dead_engaged(60, nil, { eat = { item = "shark", below = 20 } })
             t.step("killMourner.awaitDead." .. mourner_kill_attempts,
                 mourner_dead_result == "ok" and "PASS" or "FAIL",
                 "npc.await_dead_engaged(60) attempt " .. mourner_kill_attempts .. " -> "
                     .. tostring(mourner_dead_result) .. " " .. tostring(mourner_dead_detail))
+            local low = string.match(tostring(mourner_dead_detail), "lowest hp (%d+)/")
+            if low ~= nil then
+                low = tonumber(low)
+                if mourner_lowest_hp == nil or low < mourner_lowest_hp then
+                    mourner_lowest_hp = low
+                end
+            end
+            if string.find(tostring(mourner_dead_detail), "never needed to eat", 1, true) == nil then
+                mourner_never_ate = false
+            end
             t.ticks(2)
             local still_alive_r = t.npc.nearest("mourning_overpass_mourner", 10)
             mourner_kill_confirmed = still_alive_r ~= "ok"
@@ -435,6 +719,17 @@ return {
         t.step("killMourner",
             mourner_kill_confirmed and "PASS" or "FAIL",
             "killed after " .. tostring(mourner_kill_attempts) .. " attempt(s), no live copy remains")
+        -- Margin: lowest hp at least a quarter of 40 (10) AND food left. A
+        -- wait that never ate never saw hp under its 20 threshold.
+        local margin_food_r, margin_food_n = t.inv.count("shark")
+        local margin_hp_r, margin_hp = t.skill.read("hitpoints")
+        local margin_low_ok = (mourner_lowest_hp ~= nil and mourner_lowest_hp >= 10)
+            or (mourner_lowest_hp == nil and mourner_never_ate)
+        t.check("killMourner.margin", margin_low_ok and margin_food_r == "ok" and margin_food_n >= 1,
+            "lowest hp " .. tostring(mourner_lowest_hp) .. "/40 from the waits' eat readings"
+                .. (mourner_never_ate and " (never needed to eat: hp stayed >= 20)" or "")
+                .. ", hp now " .. tostring(margin_hp_r == "ok" and type(margin_hp) == "table" and margin_hp.level or margin_hp_r)
+                .. ", shark left " .. tostring(margin_food_n) .. " of 3 staged (margin: lowest hp >= 10 AND food left)")
         -- RE-AUTHOR: the death handler ([ai_queue3,mourning_overpass_mourner])
         -- drops all seven pieces as real (private) ground items via
         -- obj_add(npc_coord, ..., ^lootdrop_duration) and prints NO chat
@@ -486,7 +781,12 @@ return {
         -- talked to Tegid first (%mourning_tegid_chat -- mend1_disguise.rs2
         -- ~mend1_tegid_talk, called from the front of Eadgar's Ruse's own
         -- [opnpc1,eadgar_druid_washing] after its four standard lines). ----
-        t.exec("goto-talkToTegid", t.player.goto_tile, 2912, 3418, 0)
+        -- Out of Tirannwn by the same gate, then overland: Tegid's riverbank
+        -- (2912,3417) is in the open Kandarin/Taverley component with the
+        -- pass's north side.
+        t.exec("goto-arandarSouth.out", t.player.goto_tile, 2386, 3331, 0)
+        pass_arandar("arandarOut.tegid", false)
+        t.exec("goto-talkToTegid", t.player.goto_tile, 2912, 3417, 0)
         t.exec("talkToTegid", t.player.talk_to, "eadgar_druid_washing", 1)
         t.exec("talkToTegid-dialog", t.chat.play, {
             "player:So, you're doing laundry, eh?",
@@ -506,7 +806,6 @@ return {
         -- ---- Tegid's laundry basket (eadgar_laundry_basket, op1=Search) --
         -- gated on the talk above; the soap is offered while the bloody top
         -- is still held. ----
-        t.exec("goto-searchLaundry", t.player.goto_tile, 2912, 3418, 0)
         t.exec("searchLaundry", t.player.click_loc, "eadgar_laundry_basket", 1)
         t.exec("searchLaundry-dialog", t.chat.play, {
             "mesbox:It's full of dirty robes, On top you see a bar of soap.",
@@ -552,7 +851,16 @@ return {
         -- We already carry 2 silk and 1 fur (setup), so mend1_oronwen_talk
         -- (mend1_disguise.rs2:86-115) runs both halves of the exchange in
         -- the one dialogue. ----
-        t.exec("goto-talkToOronwen", t.player.goto_tile, 2324, 3179, 0)
+        -- Back into Tirannwn by the gate, overland to the trees at Lletya's
+        -- west edge, and through them on foot -- which content cannot do yet
+        -- (this file's header): the run ends here on a content_bug row.
+        t.exec("goto-arandarNorth.oronwen", t.player.goto_tile, 2386, 3337, 0)
+        pass_arandar("arandarIn.oronwen", true)
+        t.exec("goto-lletyaGate.oronwen", t.player.goto_tile, 2303, 3193, 0)
+        if not lletya_gate("lletyaIn.oronwen", true) then
+            return
+        end
+        t.player.walk_to(2324, 3178, 40)
         -- Lletya's fence stands between the arrival pose and the player
         -- (the talk and equip shots showed only a fence face); look down.
         t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
@@ -615,29 +923,24 @@ return {
         -- longer checked at the door (it is Essyllt's to read, in the
         -- basement) and west_ardy_walk_door prints no mes() line at all --
         -- graded on the player's tile actually changing, not a message. ----
+        -- Out of Lletya through its trees, out of Tirannwn by the Arandar
+        -- gate, overland to East Ardougne's side of the city wall, through the
+        -- wall door, and on foot to the HQ's front door.
+        if not lletya_gate("lletyaOut.hq", false) then
+            return
+        end
+        t.exec("goto-arandarSouth.hq", t.player.goto_tile, 2386, 3331, 0)
+        pass_arandar("arandarOut.hq", false)
+        t.exec("goto-ardougneWall.hq", t.player.goto_tile, 2561, 3299, 0)
+        if not ardougne_wall("ardougneWallIn.hq", true) then
+            return
+        end
         t.exec("goto-enterMournerBase", t.player.goto_tile, 2551, 3320, 0)
-        local door_before_r, door_before = t.world.tile()
-        local door_before_x, door_before_z = door_before and door_before.x, door_before and door_before.z
-        t.exec("enterMournerBase", t.player.click_loc, "mournerstewdoor", 1)
-        t.ticks(4)
-        local door_after_r, door_after = t.world.tile()
-        local door_after_x, door_after_z = door_after and door_after.x, door_after and door_after.z
-        t.check("enterMournerBase.walked_through",
-            door_after_r == "ok" and (door_after_x ~= door_before_x or door_after_z ~= door_before_z),
-            "tile before=" .. tostring(door_before_x) .. "," .. tostring(door_before_z)
-                .. " after=" .. tostring(door_after_x) .. "," .. tostring(door_after_z))
+        -- The door also sets the disguise bit (doors.rs2:68); the trapdoor's
+        -- p_teleport lands on 2044,4628,0 (mend1_disguise.rs2:346-353).
+        hq_down("enterMournerBase", "enterBasement")
         t.expect("enterMournerBase.disguise_bit", t.var.await_server("varb798_mourning_mourner_disguise", 1, 6))
-
-        -- ---- Basement trapdoor (mourning_hideout_trap_door,
-        -- mend1_disguise.rs2:136-143 -- p_teleport to mend1_hq_basement_coord,
-        -- 2044,4628,0, the same tile the basement npcs spawn on) ----
-        t.exec("goto-enterBasement", t.player.goto_tile, 2542, 3327, 0)
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("enterBasement", t.player.click_loc, "mourning_hideout_trap_door", 1)
         t.expect("enterBasement.message", t.msg.expect("You climb down into the basement"))
-        -- p_teleport's client-side region reload needs a tick or two before
-        -- the basement's npcs populate the entity pool.
-        t.ticks(3)
 
         end
         do
@@ -723,17 +1026,21 @@ return {
         -- gnome npc (mourner_hideout_gnome/_head) answers from 7 on. Entry
         -- gates on %mourning_quest < ^mend1_assignment(4), the stage
         -- talkToEssyllt actually leaves the player in. ----
-        local rack_near_result, rack_near = t.world.loc_near("mourning_gnome_rack", 15)
+        -- Essyllt's room (x 2039-2045 z 4628-4633) and the gnome's (x
+        -- 2034-2038 z 4628-4633) both open north onto the basement corridor:
+        -- mourner_hideout_door2 (2042,4633) out, mourner_hideout_door3
+        -- (2037,4633) in (maps/m31_72.jl2, generic door_closed).
+        pass_door("gnomeRoom.essylltDoor", "mourner_hideout_door2", "mourner_hideout_door2_open", 2042, 4633, 2042, 4633, 2042, 4635,
+            function(w) return w.z >= 4634 end, "in the corridor, z >= 4634")
+        pass_door("gnomeRoom.gnomeDoor", "mourner_hideout_door3", "mourner_hideout_door3_open", 2037, 4633, 2037, 4634, 2036, 4631,
+            function(w) return w.z <= 4633 and w.x >= 2034 and w.x <= 2038 end, "in the gnome's room, x 2034-2038 z <= 4633")
+        local rack_near_result, rack_near = t.world.loc_near("mourning_gnome_rack", 6)
         t.step("mourningGnomeRack.locate",
             rack_near_result == "ok" and "PASS" or "FAIL",
-            "world.loc_near(mourning_gnome_rack, 15) -> " .. tostring(rack_near_result) .. " "
+            "world.loc_near(mourning_gnome_rack, 6) -> " .. tostring(rack_near_result) .. " "
                 .. (rack_near_result == "ok" and string.format("tile=%s,%s,%s match=%s",
                     tostring(rack_near.tile_x), tostring(rack_near.tile_z), tostring(rack_near.level), tostring(rack_near.match))
                     or tostring(rack_near)))
-        if rack_near_result == "ok" then
-            t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-            t.exec("goto-mourningGnomeRack", t.player.goto_tile, rack_near.tile_x, rack_near.tile_z, rack_near.level)
-        end
 
         -- ---- Click 1: mend1_gnome_bargains (mend1_gnome.rs2:112-161) --
         -- "Bargains and bluffs", verbatim; quest-helper's talkToGnome picks
@@ -885,6 +1192,10 @@ return {
         -- arming miss, same shape as the cleanTop retry above (use_on
         -- re-arms before every retry press per docs/QUEST_AUTHORING.md
         -- section 6). ----
+        -- Out of the basement by a teleport: its ladder lands in a void
+        -- (this file's header). Seers' Village and the Feldip toad ground are
+        -- in one open Kandarin component.
+        camelot("leaveBasement.gnome")
         t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
         t.exec("goto-toadGround", t.player.goto_tile, 2394, 3050, 0)
         -- t.player.by_symbol resolves the SYMBOL, and click_minimenu re-picks
@@ -908,12 +1219,14 @@ return {
         t.step("toadRed.locate", toad_red_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_red_r))
         if toad_red_r == "ok" then
             local toad_red_walk_result = t.player.walk_to(toad_red.x, toad_red.z, 10)
-            -- ok or timeout both count: a toad that wanders a tile mid-walk
-            -- makes the destination tile stale, but the player still ends up
-            -- close enough for use_on's own hunt (measured: catchToad.yellow
-            -- PASSed on a run where this exact row timed out).
-            t.step("walk-toadRed", (toad_red_walk_result == "ok" or toad_red_walk_result == "timeout") and "PASS" or "FAIL",
-                "walk_to(" .. tostring(toad_red.x) .. "," .. tostring(toad_red.z) .. ") -> " .. tostring(toad_red_walk_result))
+            -- A toad that wanders a tile mid-walk makes the destination stale
+            -- (walk_to can answer timeout), so the row is graded on where the
+            -- player stands: within 3 tiles of the toad's reading.
+            local toad_red_at_r, toad_red_at = t.world.tile()
+            t.check("walk-toadRed", toad_red_at_r == "ok" and math.abs(toad_red_at.x - toad_red.x) <= 3
+                    and math.abs(toad_red_at.z - toad_red.z) <= 3,
+                "walk_to(" .. tostring(toad_red.x) .. "," .. tostring(toad_red.z) .. ") -> " .. tostring(toad_red_walk_result)
+                    .. "; standing at " .. tile_text(toad_red_at_r, toad_red_at) .. " (want within 3 of the toad)")
         end
         t.exec("catchToad.red", t.player.use_on, "mourning_ogre_bellows_red", toad_target)
         t.ticks(2)
@@ -931,12 +1244,14 @@ return {
         t.step("toadYellow.locate", toad_yellow_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_yellow_r))
         if toad_yellow_r == "ok" then
             local toad_yellow_walk_result = t.player.walk_to(toad_yellow.x, toad_yellow.z, 10)
-            -- ok or timeout both count: a toad that wanders a tile mid-walk
-            -- makes the destination tile stale, but the player still ends up
-            -- close enough for use_on's own hunt (measured: catchToad.yellow
-            -- PASSed on a run where this exact row timed out).
-            t.step("walk-toadYellow", (toad_yellow_walk_result == "ok" or toad_yellow_walk_result == "timeout") and "PASS" or "FAIL",
-                "walk_to(" .. tostring(toad_yellow.x) .. "," .. tostring(toad_yellow.z) .. ") -> " .. tostring(toad_yellow_walk_result))
+            -- A toad that wanders a tile mid-walk makes the destination stale
+            -- (walk_to can answer timeout), so the row is graded on where the
+            -- player stands: within 3 tiles of the toad's reading.
+            local toad_yellow_at_r, toad_yellow_at = t.world.tile()
+            t.check("walk-toadYellow", toad_yellow_at_r == "ok" and math.abs(toad_yellow_at.x - toad_yellow.x) <= 3
+                    and math.abs(toad_yellow_at.z - toad_yellow.z) <= 3,
+                "walk_to(" .. tostring(toad_yellow.x) .. "," .. tostring(toad_yellow.z) .. ") -> " .. tostring(toad_yellow_walk_result)
+                    .. "; standing at " .. tile_text(toad_yellow_at_r, toad_yellow_at) .. " (want within 3 of the toad)")
         end
         t.exec("catchToad.yellow", t.player.use_on, "mourning_ogre_bellows_yellow", toad_target)
         t.ticks(2)
@@ -947,12 +1262,14 @@ return {
         t.step("toadGreen.locate", toad_green_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_green_r))
         if toad_green_r == "ok" then
             local toad_green_walk_result = t.player.walk_to(toad_green.x, toad_green.z, 10)
-            -- ok or timeout both count: a toad that wanders a tile mid-walk
-            -- makes the destination tile stale, but the player still ends up
-            -- close enough for use_on's own hunt (measured: catchToad.yellow
-            -- PASSed on a run where this exact row timed out).
-            t.step("walk-toadGreen", (toad_green_walk_result == "ok" or toad_green_walk_result == "timeout") and "PASS" or "FAIL",
-                "walk_to(" .. tostring(toad_green.x) .. "," .. tostring(toad_green.z) .. ") -> " .. tostring(toad_green_walk_result))
+            -- A toad that wanders a tile mid-walk makes the destination stale
+            -- (walk_to can answer timeout), so the row is graded on where the
+            -- player stands: within 3 tiles of the toad's reading.
+            local toad_green_at_r, toad_green_at = t.world.tile()
+            t.check("walk-toadGreen", toad_green_at_r == "ok" and math.abs(toad_green_at.x - toad_green.x) <= 3
+                    and math.abs(toad_green_at.z - toad_green.z) <= 3,
+                "walk_to(" .. tostring(toad_green.x) .. "," .. tostring(toad_green.z) .. ") -> " .. tostring(toad_green_walk_result)
+                    .. "; standing at " .. tile_text(toad_green_at_r, toad_green_at) .. " (want within 3 of the toad)")
         end
         t.exec("catchToad.green", t.player.use_on, "mourning_ogre_bellows_green", toad_target)
         t.ticks(2)
@@ -963,12 +1280,14 @@ return {
         t.step("toadBlue.locate", toad_blue_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_blue_r))
         if toad_blue_r == "ok" then
             local toad_blue_walk_result = t.player.walk_to(toad_blue.x, toad_blue.z, 10)
-            -- ok or timeout both count: a toad that wanders a tile mid-walk
-            -- makes the destination tile stale, but the player still ends up
-            -- close enough for use_on's own hunt (measured: catchToad.yellow
-            -- PASSed on a run where this exact row timed out).
-            t.step("walk-toadBlue", (toad_blue_walk_result == "ok" or toad_blue_walk_result == "timeout") and "PASS" or "FAIL",
-                "walk_to(" .. tostring(toad_blue.x) .. "," .. tostring(toad_blue.z) .. ") -> " .. tostring(toad_blue_walk_result))
+            -- A toad that wanders a tile mid-walk makes the destination stale
+            -- (walk_to can answer timeout), so the row is graded on where the
+            -- player stands: within 3 tiles of the toad's reading.
+            local toad_blue_at_r, toad_blue_at = t.world.tile()
+            t.check("walk-toadBlue", toad_blue_at_r == "ok" and math.abs(toad_blue_at.x - toad_blue.x) <= 3
+                    and math.abs(toad_blue_at.z - toad_blue.z) <= 3,
+                "walk_to(" .. tostring(toad_blue.x) .. "," .. tostring(toad_blue.z) .. ") -> " .. tostring(toad_blue_walk_result)
+                    .. "; standing at " .. tile_text(toad_blue_at_r, toad_blue_at) .. " (want within 3 of the toad)")
         end
         t.exec("catchToad.blue", t.player.use_on, "mourning_ogre_bellows_blue", toad_target)
         t.ticks(2)
@@ -1124,37 +1443,18 @@ return {
         end
         do
         -- ---- Report back to Essyllt, HQ basement (mend1_essyllt_after_sheep,
-        -- mend1_disguise.rs2:178-205). Quest-helper lists enterBaseAfterSheep
-        -- as its own standalone step (unlike the AfterPoison return, which
-        -- is folded as a substep of talkToEssylltAfterPoison and never
-        -- enumerated on its own -- helper_coverage.py confirmed the
-        -- difference), so this door is clicked for real a second time
-        -- rather than goto_tile past it -- doors.rs2's own
-        -- west_ardougne_mourner_headquarters_doors gate reads
-        -- %mourning_mourner_disguise (already 1 from the first pass) and
-        -- walks through SILENTLY the second time, no mes() at all, so this
-        -- row asserts no message. The trapdoor beyond it stays a direct
-        -- goto -- that one IS the ladder/trapdoor exception (section 2:
-        -- its own p_teleport already lands on this exact tile, and
-        -- quest-helper folds its own AfterSheep trapdoor return the same
-        -- way it folds AfterPoison's, so it is never independently
-        -- enumerated). ----
+        -- mend1_disguise.rs2:178-205). The guide's enterBaseAfterSheep /
+        -- enterBasementAfterSheep: from the sheep fields overland to East
+        -- Ardougne's side of the city wall, through the wall door, and in by
+        -- the front door, the trapdoor room's door and the trapdoor
+        -- (doors.rs2's mourner-HQ gate reads %mourning_mourner_disguise,
+        -- already 1, and walks through silently). ----
+        t.exec("goto-ardougneWall.afterSheep", t.player.goto_tile, 2561, 3299, 0)
+        if not ardougne_wall("ardougneWallIn.afterSheep", true) then
+            return
+        end
         t.exec("goto-enterBaseAfterSheep", t.player.goto_tile, 2551, 3320, 0)
-        t.exec("enterBaseAfterSheep", t.player.click_loc, "mournerstewdoor", 1)
-        t.exec("goto-enterBasementAfterSheep", t.player.goto_tile, 2542, 3327, 0)
-        t.exec("enterBasementAfterSheep", t.player.click_loc, "mourning_hideout_trap_door", 1)
-        local sheep_basement_result, sheep_basement_detail = t.await({
-            level = function()
-                local tile_result, tile = t.world.tile()
-                return tile_result == "ok" and tile and tile.x and tile.z
-                    and math.abs(tile.x - 2044) <= 8 and math.abs(tile.z - 4628) <= 8
-            end,
-            note = "trapdoor.landed_basement_after_sheep",
-        }, 10)
-        t.step("enterBasementAfterSheep.landed", sheep_basement_result == "ok" and "PASS" or "FAIL",
-            "await(world.tile() within 8 of 2044,4628) after the trap door -> "
-                .. tostring(sheep_basement_result) .. " " .. tostring(sheep_basement_detail))
-        t.ticks(3)
+        hq_down("enterBaseAfterSheep", "enterBasementAfterSheep")
         t.exec("talkToEssylltAfterSheep", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         -- mend1_essyllt_after_sheep (mend1_disguise.rs2:543-566): "New
         -- orders", verbatim, falling straight into mend1_essyllt_poison_
@@ -1188,28 +1488,49 @@ return {
         -- for free" via the engine's generic ground-item take, no script
         -- needed, but driven here as its own row rather than left to
         -- incidental pickup on some earlier walk). ----
-        t.exec("goto-pickUpRottenApple", t.player.goto_tile, 2535, 3333, 0)
-        -- RUN 4 measured this: goto_tile's own arrival on the stack's tile
-        -- already collects it (the "already works for free" header banner
-        -- is literal, not just narrative) -- an unconditional click_obj
-        -- here found a SECOND, distant rottenapples spawn instead
-        -- (m39_52.spawn:56, 2549,3332) and picked that one up too, leaving
-        -- two in the backpack where mend1_elena_talk's own inv_del(...,1)
-        -- only ever removes one. Only click if the arrival did not already
-        -- collect it.
-        local apple_precount_r, apple_precount_n = t.inv.count("rottenapples")
-        local rottenapple_pick_result = "skipped: goto's own arrival already holds "
-            .. tostring(apple_precount_n)
-        if not (apple_precount_r == "ok" and apple_precount_n >= 1) then
-            rottenapple_pick_result = t.player.click_obj("rottenapples", 3)
+        -- Out of the basement by a teleport (its ladder leads nowhere), back
+        -- overland to the city wall and on foot to the apple, two tiles north
+        -- of where the goto stops (2535,3331: one tile off, the player's own
+        -- model covered the stack in every hunted pose, scratch runs
+        -- mesp_tail1/2). The radius-3 pick cannot reach the second spawn at
+        -- 2549,3332 (m39_52.spawn:56), so exactly one is held.
+        camelot("leaveBasement.afterSheep")
+        t.exec("goto-ardougneWall.apple", t.player.goto_tile, 2561, 3299, 0)
+        if not ardougne_wall("ardougneWallIn.apple", true) then
+            return
         end
-        local apple_wait_r, apple_wait_detail = t.inv.await("rottenapples", 1, 10)
-        t.step("pickUpRottenApple", apple_wait_r == "ok" and "PASS" or "FAIL",
-            "click_obj(rottenapples, 3) -> " .. tostring(rottenapple_pick_result)
-                .. "; inv.await(rottenapples, 1, 10) -> " .. tostring(apple_wait_r) .. " " .. tostring(apple_wait_detail))
+        t.exec("goto-pickUpRottenApple", t.player.goto_tile, 2535, 3331, 0)
+        local apple_before_r, apple_before_n = t.inv.count("rottenapples")
+        -- The stack shares its tile with wandering rats: a press can answer
+        -- `covered` (scratch run mesp_tail1 row 180, the Take row under an
+        -- Attack Rat row). Look straight down and press again, at most three.
+        local rottenapple_pick_result, rottenapple_pick_detail, apple_wait_r, apple_wait_detail
+        local apple_presses = 0
+        repeat
+            apple_presses = apple_presses + 1
+            t.drive.camera((apple_presses - 1) * 512, 383, SHOT_ZOOM_INDOOR)
+            rottenapple_pick_result, rottenapple_pick_detail = t.player.click_obj("rottenapples", 3)
+            apple_wait_r, apple_wait_detail = t.inv.await("rottenapples", 1, 6)
+        until apple_wait_r == "ok" or apple_presses >= 3
+        rottenapple_pick_detail = tostring(rottenapple_pick_detail) .. " (press " .. apple_presses .. ")"
+        local apple_after_pick_r, apple_after_pick_n = t.inv.count("rottenapples")
+        t.check("pickUpRottenApple", apple_before_r == "ok" and apple_before_n == 0 and apple_wait_r == "ok"
+                and apple_after_pick_r == "ok" and apple_after_pick_n == 1,
+            "rottenapples " .. tostring(apple_before_n) .. " -> " .. tostring(apple_after_pick_n)
+                .. "; click_obj(rottenapples, 3) -> " .. tostring(rottenapple_pick_result) .. " " .. tostring(rottenapple_pick_detail)
+                .. "; inv.await -> " .. tostring(apple_wait_r) .. " " .. tostring(apple_wait_detail))
         t.ticks(3)
-        local journal_poison0_r, journal_poison0 = t.ui.journal_open("Mourning's End Part I")
-        local journal_poison0_line = journal_poison0 and journal_poison0.first_line
+        -- the same one-off UI-mount race the other journal reads retry
+        local journal_poison0_r, journal_poison0
+        for _ = 1, 3 do
+            journal_poison0_r, journal_poison0 = t.ui.journal_open("Mourning's End Part I")
+            if journal_poison0_r == "ok" then
+                break
+            end
+            t.ui.journal_close()
+            t.ticks(5)
+        end
+        local journal_poison0_line = type(journal_poison0) == "table" and journal_poison0.first_line or nil
         t.check("quest.stage.poison_task",
             journal_poison0_r == "ok" and journal_poison0_line ~= nil
                 and journal_poison0_line:find("Essyllt wants me to make people ill as if from the plague", 1, true) ~= nil,
@@ -1221,30 +1542,19 @@ return {
         -- ---- Elena, north-west East Ardougne (elena2, m40_52.spawn:22 --
         -- 2592,3336,0; mend1_elena_talk, mend1_poison.rs2:29-42 -- the
         -- rottenapples>=1 branch, opened by [opnpc1,elena2]'s own front-of-
-        -- trigger call once %mourning_quest = poison_task). A hand-typed
-        -- goto tile 1 south of her put the camera inside a nearby building
-        -- with no line of sight to her at all (MEASURED: a full pose+pixel
-        -- hunt found no Talk-to row, only Cancel/Walk here) -- t.npc.by_symbol
-        -- reads her own LIVE tile (unlike t.player.by_symbol's target table,
-        -- this row carries x/z/level) so goto_tile lands exactly on her,
-        -- the same fix mourningGnomeRack.locate used for a loc. ----
-        t.exec("goto-talkToElena", t.player.goto_tile, 2592, 3335, 0)
-        local elena_row_r, elena_row = t.npc.by_symbol("elena2")
-        t.step("elena.locate", elena_row_r == "ok" and "PASS" or "FAIL",
-            "npc.by_symbol(elena2) -> " .. tostring(elena_row_r) .. " "
-                .. (elena_row_r == "ok" and string.format("tile=%s,%s,%s", tostring(elena_row.x), tostring(elena_row.z), tostring(elena_row.level)) or ""))
-        if elena_row_r == "ok" then
-            t.exec("goto-elena-exact", t.player.goto_tile, elena_row.x, elena_row.z, elena_row.level)
+        -- trigger call once %mourning_quest = poison_task). Her house (x
+        -- 2590-2592 z 3334-3338) is walled in with elenadoor2 on 2592,3339's
+        -- south edge: out of West Ardougne by the wall door, overland to her
+        -- door, through it on foot. ----
+        t.exec("goto-ardougneWallWest.elena", t.player.goto_tile, 2555, 3299, 0)
+        if not ardougne_wall("ardougneWallOut.elena", false) then
+            return
         end
+        t.exec("goto-talkToElena", t.player.goto_tile, 2592, 3340, 0)
+        pass_door("elenaHouseIn", "elenadoor2", "elenadoor2open", 2592, 3339, 2592, 3339, 2592, 3337,
+            function(w) return w.z <= 3338 and w.x >= 2590 and w.x <= 2592 end, "inside Elena's house, z <= 3338")
+        t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_INDOOR)
         local elena_talk_result, elena_talk_detail = t.player.talk_to("elena2", 1)
-        if elena_talk_result ~= "ok" then
-            local elena_op_target, elena_op_target_r = t.player.by_symbol("npc", "elena2")
-            if elena_op_target_r == "ok" then
-                elena_talk_result, elena_talk_detail = t.drive.op(elena_op_target, 1)
-                elena_talk_detail = "[bypass after 1 failed on-screen press] " .. tostring(elena_talk_detail)
-                t.ticks(2)
-            end
-        end
         t.step("talkToElena", elena_talk_result == "ok" and "PASS" or "FAIL",
             "talk_to(elena2,1) -> " .. tostring(elena_talk_result) .. " " .. tostring(elena_talk_detail))
         t.shot("talkToElena-after")
@@ -1319,6 +1629,8 @@ return {
         t.check("talkToElena.result", apple_after_r == "ok" and apple_after_n == 0,
             "rottenapples=" .. tostring(apple_after_n) .. " (" .. tostring(apple_after_r) .. ")")
         t.expect("talkToElena.var", t.var.await_server("varb805_mourning_elena", 4, 6))
+        pass_door("elenaHouseOut", "elenadoor2", "elenadoor2open", 2592, 3339, 2592, 3338, 2592, 3340,
+            function(w) return w.z >= 3339 end, "outside Elena's house, z >= 3339")
 
         end
         do
@@ -1329,15 +1641,22 @@ return {
         -- exactly quest-helper's own pickUpBarrel WorldPoint) and
         -- useBarrelOnPile is a real [oplocu,...] use-on -- the bare
         -- [oploc1,...] only tells the player they need a barrel now. ----
-        t.exec("goto-fillBarrel", t.player.goto_tile, 2487, 3371, 0)
-        -- click_obj answers `ok` with a nil detail (hollow, trap 12/section
-        -- 8) -- graded by hand, the counts read back are the evidence.
-        local pickup_barrel_result = t.player.click_obj("regicide_barrel_empty", 3)
+        -- The orchard (x 2466-2494 z 3365-3387) is fenced in; its gate
+        -- mourning_orchard_fencegate_l/_r stands on 2474-2475,3364's north
+        -- edge. Overland to the gate, through it, and on to the barrel.
+        t.exec("goto-fillBarrel", t.player.goto_tile, 2474, 3363, 0)
+        pass_door("orchardIn", "mourning_orchard_fencegate_l", "mourning_orchard_fencegate_open_l", 2474, 3364, 2474, 3364, 2474, 3366,
+            function(w) return w.z >= 3365 end, "inside the orchard, z >= 3365", 2)
+        t.player.walk_to(2487, 3372, 30)
+        local pickup_barrel_before_r, pickup_barrel_before_n = t.inv.count("regicide_barrel_empty")
+        local pickup_barrel_result, pickup_barrel_detail = t.player.click_obj("regicide_barrel_empty", 3)
+        local pickup_barrel_wait_r = t.inv.await("regicide_barrel_empty", 1, 10)
         local pickup_barrel_count_r, pickup_barrel_count_n = t.inv.count("regicide_barrel_empty")
         t.check("pickUpBarrel",
-            pickup_barrel_result == "ok" and pickup_barrel_count_r == "ok" and pickup_barrel_count_n >= 1,
-            "click_obj(regicide_barrel_empty, 3) -> " .. tostring(pickup_barrel_result)
-                .. "; regicide_barrel_empty=" .. tostring(pickup_barrel_count_n))
+            pickup_barrel_before_r == "ok" and pickup_barrel_before_n == 0 and pickup_barrel_wait_r == "ok"
+                and pickup_barrel_count_r == "ok" and pickup_barrel_count_n == 1,
+            "regicide_barrel_empty " .. tostring(pickup_barrel_before_n) .. " -> " .. tostring(pickup_barrel_count_n)
+                .. "; click_obj(regicide_barrel_empty, 3) -> " .. tostring(pickup_barrel_result) .. " " .. tostring(pickup_barrel_detail))
         local applebarrel_target = t.player.by_symbol("loc", "mourning_orchard_applepile")
         -- SHOW AND SETTLE THE BACKPACK BEFORE THE FIRST use_on OF THE RUN:
         -- use_on's arming is a one-shot behind an unsettled tab press
@@ -1352,8 +1671,10 @@ return {
         t.expect("fillBarrel.message", t.chat.expect_text("You scoop up a barrel full of the rotten apples."))
         t.chat.close()
         local barrelfull_r, barrelfull_n = t.inv.count("applebarrel_full")
-        t.check("fillBarrel.result", barrelfull_r == "ok" and barrelfull_n == 1,
-            "applebarrel_full=" .. tostring(barrelfull_n) .. " (" .. tostring(barrelfull_r) .. ")")
+        local barrelempty_r, barrelempty_n = t.inv.count("regicide_barrel_empty")
+        t.check("fillBarrel.result", barrelfull_r == "ok" and barrelfull_n == 1 and barrelempty_r == "ok" and barrelempty_n == 0,
+            "applebarrel_full=" .. tostring(barrelfull_n) .. ", regicide_barrel_empty=" .. tostring(barrelempty_n)
+                .. " (the empty barrel went into the pile)")
 
         -- ---- Apple press (mourning_orchard_applebarrel_empty,
         -- mend1_poison.rs2:83-99). RETRY after 1858fe69a: the reasoning this
@@ -1371,7 +1692,7 @@ return {
         -- [oploc1,...] with the real [oplocu,mourning_orchard_applebarrel_empty],
         -- which fires on last_useitem = applebarrel_full -- t.player.use_on
         -- is the verb. ----
-        t.exec("goto-pressApples", t.player.goto_tile, 2484, 3374, 0)
+        t.player.walk_to(2484, 3373, 20)
         -- SHOW AND SETTLE THE BACKPACK BEFORE THE FIRST use_on OF THE RUN:
         -- the sidebar is wherever talkToElena's own dialogue/journal reads
         -- left it, and use_on's arming is a one-shot behind an unsettled tab
@@ -1392,60 +1713,87 @@ return {
         t.exec("pressApples.continue", t.chat.continue_, true)
         t.chat.close()
         t.expect("pressApples.mash", t.inv.await("mourning_applebarrel_mush", 1, 10))
+        local press_full_r, press_full_n = t.inv.count("applebarrel_full")
+        t.check("pressApples.barrelUsed", press_full_r == "ok" and press_full_n == 0,
+            "applebarrel_full=" .. tostring(press_full_n) .. " after the press (want 0: crushed into the mush)")
+
+        -- ---- A second empty barrel for the coal tar (getNaphtha: "Grab
+        -- another barrel"). The orchard's own spawn (m38_52.spawn:39) is a
+        -- RESPAWN obj: ToriRSServer_WorldGroundTake re-arms it
+        -- ^lootdrop_duration (200) ticks after the take
+        -- (src/torirsserver/torirs_server_world.c:5911), so the player waits
+        -- beside it and takes the new one. ----
+        t.player.walk_to(2487, 3372, 20)
+        local barrel_back_r, barrel_back_detail = t.await({
+            level = function()
+                local obj_r = t.world.obj_near("regicide_barrel_empty", 2)
+                return obj_r == "ok"
+            end,
+            note = "orchard barrel respawn",
+        }, 260)
+        t.step("pickUpBarrel2.respawned", barrel_back_r == "ok" and "PASS" or "FAIL",
+            "await(world.obj_near(regicide_barrel_empty, 2)) -> " .. tostring(barrel_back_r) .. " " .. tostring(barrel_back_detail))
+        local barrel2_result, barrel2_detail = t.player.click_obj("regicide_barrel_empty", 3)
+        local barrel2_wait_r = t.inv.await("regicide_barrel_empty", 1, 10)
+        local barrel2_r, barrel2_n = t.inv.count("regicide_barrel_empty")
+        t.check("pickUpBarrel2", barrel2_wait_r == "ok" and barrel2_r == "ok" and barrel2_n == 1,
+            "click_obj(regicide_barrel_empty, 3) -> " .. tostring(barrel2_result) .. " " .. tostring(barrel2_detail)
+                .. "; regicide_barrel_empty=" .. tostring(barrel2_n))
+        pass_door("orchardOut", "mourning_orchard_fencegate_l", "mourning_orchard_fencegate_open_l", 2474, 3364, 2474, 3365, 2474, 3362,
+            function(w) return w.z <= 3364 end, "outside the orchard, z <= 3364", 2)
 
         end
         do
-        -- ---- Coal tar: a second empty barrel from Tirannwn
-        -- (areas/world/configs/m34_49.spawn:67, 2184,3139,0), carried to
-        -- Regicide's own tar collection point (regicide_bombcraft.rs2's
-        -- regicide_collect_tar label, gated open to this quest via
-        -- ~mend1_naphtha_allowed) -- RE-AUTHOR per this file's header
-        -- point (3). The barrel spawn and the loc are NOT the same tile
-        -- (trap 20 has no spawn row for a loc at all, so this was found by
-        -- decoding maps/m34_48.jl2:908 -- `0 47 51: 3975 10 1` = ABS
-        -- 34*64+47,48*64+51 = 2223,3123,0, one of three placements), so
-        -- this is two separate gotos. ----
+        -- ---- Coal tar (regicide_bombcraft.rs2's regicide_collect_tar,
+        -- gated open to this quest via ~mend1_naphtha_allowed). Of the three
+        -- regicide_tar_collection placements (2223,3123 / 2263,3127 /
+        -- 2294,3115) only 2263,3127 stands in the open Isafdar component the
+        -- Arandar gate opens onto (2263,3128 beside it); 2223,3123 is behind
+        -- the dense forest (regicide_cross_over*, Agility 56). Into Tirannwn
+        -- by the gate and on to the tar with the orchard's second barrel. ----
         t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
-        t.exec("goto-tarBarrel", t.player.goto_tile, 2184, 3139, 0)
-        local pickup_tar_barrel_result = t.player.click_obj("regicide_barrel_empty", 3)
-        local pickup_tar_barrel_count_r, pickup_tar_barrel_count_n = t.inv.count("regicide_barrel_empty")
-        t.check("pickUpTarBarrel",
-            pickup_tar_barrel_result == "ok" and pickup_tar_barrel_count_r == "ok" and pickup_tar_barrel_count_n >= 1,
-            "click_obj(regicide_barrel_empty, 3) -> " .. tostring(pickup_tar_barrel_result)
-                .. "; regicide_barrel_empty=" .. tostring(pickup_tar_barrel_count_n))
-        t.exec("goto-tarCollection", t.player.goto_tile, 2223, 3123, 0)
-        local tar_loc_result, tar_loc_row = t.world.loc_near("regicide_tar_collection", 15)
-        t.check("collectTar.present", tar_loc_result == "ok",
-            "loc_near(regicide_tar_collection, 15) -> " .. tostring(tar_loc_result) .. " "
+        t.exec("goto-arandarNorth.tar", t.player.goto_tile, 2386, 3337, 0)
+        pass_arandar("arandarIn.tar", true)
+        t.exec("goto-tarCollection", t.player.goto_tile, 2263, 3128, 0)
+        local tar_loc_result, tar_loc_row = t.world.loc_near("regicide_tar_collection", 3)
+        t.check("collectTar.present", tar_loc_result == "ok" and tar_loc_row.tile_x == 2263 and tar_loc_row.tile_z == 3127,
+            "loc_near(regicide_tar_collection, 3) -> " .. tostring(tar_loc_result) .. " "
                 .. (tar_loc_result == "ok"
                     and (tostring(tar_loc_row.tile_x) .. "," .. tostring(tar_loc_row.tile_z)
                         .. " L" .. tostring(tar_loc_row.level))
-                    or tostring(tar_loc_row)))
-        t.exec("collectTar", t.player.click_loc, "regicide_tar_collection", 1)
+                    or tostring(tar_loc_row)) .. " (want the copy at 2263,3127)")
+        t.exec("collectTar", t.player.click_loc, "regicide_tar_collection", 1, { at = { 2263, 3127 } })
         t.ticks(2)
         t.expect("collectTar.message", t.msg.expect("You fill the barrel with thick coal tar"))
         t.expect("collectTar.result", t.inv.await("regicide_barrel_tar", 1, 10))
+        local tar_empty_r, tar_empty_n = t.inv.count("regicide_barrel_empty")
+        t.check("collectTar.barrelUsed", tar_empty_r == "ok" and tar_empty_n == 0,
+            "regicide_barrel_empty=" .. tostring(tar_empty_n) .. " after the tar (want 0: it is the tar barrel now)")
 
         -- ---- Coal: a genuine bring-along per quest-helper's own
         -- coal20OrNaphtha ItemRequirement (10-20 coal alongside the tar
-        -- barrel), given here rather than in setup -- see this file's
-        -- header point (3) for why it cannot sit in the backpack for the
-        -- whole quest. t.cheat is hollow (trap 12), so it is graded by
-        -- hand, not through t.exec. ----
-        -- A setup ::give is counted and waited out by run.py's own wrapper
-        -- (trap 23); this one is mid-run, so the same wait is spelled by
-        -- hand -- the cheat's reply outruns its own backpack effect by a
-        -- tick, same as any other cheat.
-        -- 12, not 15: run 2 measured the backpack holding only 12 of a
-        -- requested 15 (the still minigame itself used just 7 of those, so
-        -- 12 is comfortable margin, not a floor found by trial).
-        local coal_cheat_result, coal_cheat_detail = t.cheat("::give coal 12")
-        local coal_wait_r, coal_wait_detail = t.inv.await("coal", 10, 10)
+        -- barrel). t.cheat is hollow (trap 12), so it is graded by hand. The
+        -- free slots are counted first: a full pack drops a give silently. ----
+        local coal_free_r, coal_free = free_slots()
+        t.check("giveCoal.room", coal_free_r == "ok" and coal_free >= 9,
+            "free backpack slots " .. tostring(coal_free) .. " (" .. tostring(coal_free_r) .. "; want >= 9 for 9 coal)")
+        -- 9: the scratch run of this file (mesp_tail3) had exactly 9 free
+        -- slots here -- each dye/catch cycle leaves one extra empty_ogre_bellows
+        -- behind (mend1_sheep.rs2:62-63 never deletes the bellows it dyes, and
+        -- :134-135 adds one back on the catch) -- and the still burned 7.
+        -- lint: kit-give coal20OrNaphtha bring-along: non-stackable coal held from setup overflows the 28-slot pack before the HQ (mourner loot, gnome items, four toads), so it is handed over at the leg that burns it
+        local coal_cheat_result, coal_cheat_detail = t.cheat("::give coal 9")
+        local coal_wait_r, coal_wait_detail = t.inv.await("coal", 9, 10)
         local coal_r, coal_n = t.inv.count("coal")
-        t.step("giveCoal", (coal_cheat_result == "ok" and coal_wait_r == "ok") and "PASS" or "FAIL",
-            "cheat(::give coal 12) -> " .. tostring(coal_cheat_result) .. " " .. tostring(coal_cheat_detail)
-                .. "; inv.await(coal,10,10) -> " .. tostring(coal_wait_r) .. " " .. tostring(coal_wait_detail)
+        t.check("giveCoal", coal_cheat_result == "ok" and coal_wait_r == "ok" and coal_r == "ok" and coal_n == 9,
+            "cheat(::give coal 9) -> " .. tostring(coal_cheat_result) .. " " .. tostring(coal_cheat_detail)
+                .. "; inv.await(coal,9,10) -> " .. tostring(coal_wait_r) .. " " .. tostring(coal_wait_detail)
                 .. "; coal=" .. tostring(coal_n))
+
+        -- Out of Tirannwn by the gate; Rimmington (2927,3211) lies past the
+        -- Taverley members' gate, an open-to-open crossing (travel).
+        t.exec("goto-arandarSouth.still", t.player.goto_tile, 2386, 3331, 0)
+        pass_arandar("arandarOut.still", false)
 
         -- ---- Fractionalising still, Rimmington chemist (2927,3212,0 --
         -- quest-helper's own getNaphtha WorldPoint): open with the tar
@@ -1468,7 +1816,7 @@ return {
         -- does not), so the loop reacts to the real gauge, never a fixed
         -- schedule. ----
         t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
-        t.exec("goto-still", t.player.goto_tile, 2927, 3212, 0)
+        t.exec("goto-still", t.player.goto_tile, 2927, 3213, 0)
         t.ui.tab("inventory")
         t.ticks(2)
         local still_loc_target = t.player.by_symbol("loc", "regicide_fractionalizing_still")
@@ -1554,13 +1902,13 @@ return {
         -- same notify-the-server path a real player's Escape takes, so it
         -- is the fix, not a workaround.
         local still_close_result = t.key("escape")
-        t.step("still.close", still_close_result == "ok" and "PASS" or "FAIL",
-            "key(escape) -> " .. tostring(still_close_result))
         -- t.ui.await_close is the same hollow-on-success shape as
-        -- await_open above -- graded by hand.
+        -- await_open above -- graded by hand; the Escape press's own status
+        -- is only carried in the detail.
         local still_closed_result = t.ui.await_close("regicide_still")
         t.step("still.closed", still_closed_result == "ok" and "PASS" or "FAIL",
-            "ui.await_close(regicide_still) -> " .. tostring(still_closed_result))
+            "key(escape) -> " .. tostring(still_close_result) .. "; ui.await_close(regicide_still) -> "
+                .. tostring(still_closed_result))
         t.expect("still.naphtha", t.inv.await("regicide_barrel_naphtha", 1, 10))
 
         end
@@ -1577,6 +1925,11 @@ return {
             "regicide_barrel_naphtha", "mourning_applebarrel_mush")
         t.ticks(2)
         t.expect("useNaphthaOnBarrel.result", t.inv.await("mourning_applebarrel_naphtha_mush", 1, 10))
+        local naphtha_left_r, naphtha_left_n = t.inv.count("regicide_barrel_naphtha")
+        local mush_left_r, mush_left_n = t.inv.count("mourning_applebarrel_mush")
+        t.check("useNaphthaOnBarrel.used", naphtha_left_r == "ok" and naphtha_left_n == 0 and mush_left_r == "ok" and mush_left_n == 0,
+            "regicide_barrel_naphtha=" .. tostring(naphtha_left_n) .. " mourning_applebarrel_mush=" .. tostring(mush_left_n)
+                .. " (want both 0: mixed into the naphtha apple mix)")
 
         -- ---- Sieve the mix -> toxic naphtha (mend1_poison.rs2:156-170,
         -- the same [opheldu]-pair shape). Named for quest-helper's own step
@@ -1591,6 +1944,10 @@ return {
             "mourning_sieve", "mourning_applebarrel_naphtha_mush")
         t.ticks(2)
         t.expect("useSieveOnBarrel.result", t.inv.await("mourning_toxic_naphtha", 1, 10))
+        local mix_left_r, mix_left_n = t.inv.count("mourning_applebarrel_naphtha_mush")
+        t.check("useSieveOnBarrel.used", mix_left_r == "ok" and mix_left_n == 0,
+            "mourning_applebarrel_naphtha_mush=" .. tostring(mix_left_n) .. " (want 0: strained; the sieve itself is kept, "
+                .. "mend1_poison.rs2:459-460 deletes only the mix)")
 
         -- ---- Cook the toxic naphtha on a range -- not a fire. RE-AUTHOR
         -- (parity1o): any range works now (skill_cooking/scripts/
@@ -1599,17 +1956,23 @@ return {
         -- range (2547,3322 -- symbol "range", the client's cooking-range
         -- category) instead of the underground Carnillean one. ----
         -- ANY-OF: cookNaphtha cookToxin the guide targets only carnilleanrange, but the content cooks the naphtha on ANY range via skill_cooking/scripts/cooking.rs2:11's [oplocu,_cooking_oven] hook (mend1_poison.rs2's ~mend1_heat_toxic_naphtha) -- cooked below at the Mourner HQ range as cookToxin.
+        -- From Rimmington overland to East Ardougne's side of the city wall,
+        -- through the wall door, in at the HQ's front door; the range
+        -- (2547,3322-3323) stands in the front room, cooked from 2548,3323.
+        t.exec("goto-ardougneWall.cook", t.player.goto_tile, 2561, 3299, 0)
+        if not ardougne_wall("ardougneWallIn.cook", true) then
+            return
+        end
         t.exec("goto-enterMournerBaseForCook", t.player.goto_tile, 2551, 3320, 0)
         local cook_door_before_r, cook_door_before = t.world.tile()
-        t.exec("enterMournerBaseForCook", t.player.click_loc, "mournerstewdoor", 1)
+        t.exec("enterMournerBaseForCook", t.player.click_loc, "mournerstewdoor", 1, { at = { 2551, 3320 } })
         t.ticks(4)
         local cook_door_after_r, cook_door_after = t.world.tile()
         t.check("enterMournerBaseForCook.walked_through",
-            cook_door_before_r == "ok" and cook_door_after_r == "ok"
-                and (cook_door_after.x ~= cook_door_before.x or cook_door_after.z ~= cook_door_before.z),
-            "tile before=" .. tostring(cook_door_before and cook_door_before.x) .. "," .. tostring(cook_door_before and cook_door_before.z)
-                .. " after=" .. tostring(cook_door_after and cook_door_after.x) .. "," .. tostring(cook_door_after and cook_door_after.z))
-        t.exec("goto-cookToxin", t.player.goto_tile, 2547, 3323, 0)
+            cook_door_before_r == "ok" and cook_door_after_r == "ok" and cook_door_after.z >= 3321,
+            "tile before=" .. tile_text(cook_door_before_r, cook_door_before) .. " after=" .. tile_text(cook_door_after_r, cook_door_after)
+                .. " (want inside the HQ front room, z >= 3321)")
+        t.player.walk_to(2548, 3323, 10)
         local range_result, range_row = t.world.loc_near("range", 6)
         t.check("cookToxin.range_present", range_result == "ok",
             "loc_near(range, 6) -> " .. tostring(range_result) .. " "
@@ -1627,6 +1990,26 @@ return {
         t.chat.close()
         t.expect("cookToxin.result", t.inv.await("mourning_apple_toxin", 2, 10))
         t.expect("cookToxin.barrel_back", t.inv.await("regicide_barrel_empty", 1, 4))
+        local toxic_left_r, toxic_left_n = t.inv.count("mourning_toxic_naphtha")
+        t.check("cookToxin.used", toxic_left_r == "ok" and toxic_left_n == 0,
+            "mourning_toxic_naphtha=" .. tostring(toxic_left_n) .. " (want 0: evaporated on the range)")
+
+        -- Out of the HQ by its front door (doors.rs2:20-21 walks the player
+        -- out), along the street to the food-store hall (x 2522-2529 z
+        -- 3312-3319, double doors w_ardougnedoubledoorl/r on 2525-2526,3311's
+        -- north edge) and its store room (x 2517-2521 z 3312-3316, poordoor on
+        -- 2521,3314's east edge).
+        t.player.walk_to(2551, 3321, 10)
+        local hq_out_before_r, hq_out_before = t.world.tile()
+        -- the walk-through answers `timeout settle_after_click` (mesp_tail3
+        -- row 248): graded on the tiles, the press's answer in the detail
+        local hq_out_pr, hq_out_pd = t.player.click_loc("mournerstewdoor", 1, { at = { 2551, 3320 } })
+        t.ticks(4)
+        local hq_out_r, hq_out = t.world.tile()
+        t.check("leaveHQ.cook", hq_out_r == "ok" and hq_out.z <= 3320,
+            "click_loc(mournerstewdoor) -> " .. tostring(hq_out_pr) .. " " .. tostring(hq_out_pd) .. "; tile before="
+                .. tile_text(hq_out_before_r, hq_out_before) .. " after=" .. tile_text(hq_out_r, hq_out)
+                .. " (want the street, z <= 3320)")
 
         -- ---- Poison food store 1, West Ardougne (mourning_sack_full1,
         -- maps/m39_51.jl2:4218-4221 -> abs 2517,3312 / 2517,3315 / 2521,3316;
@@ -1634,7 +2017,11 @@ return {
         -- base). RE-AUTHOR: both stores share the SAME objbox line now
         -- ("You add the toxin to the grain, after a few seconds of mixing
         -- you can't tell the difference."). ----
-        t.exec("goto-poisonStore1", t.player.goto_tile, 2517, 3313, 0)
+        t.exec("goto-poisonStore1", t.player.goto_tile, 2525, 3310, 0)
+        pass_door("storeHallIn", "w_ardougnedoubledoorl", "w_ardougnedoubledoorlopen", 2525, 3311, 2525, 3311, 2525, 3313,
+            function(w) return w.z >= 3312 and w.x >= 2522 end, "inside the store hall, z >= 3312")
+        pass_door("storeRoomIn", "poordoor", "poordooropen", 2521, 3314, 2522, 3314, 2520, 3314,
+            function(w) return w.x <= 2521 and w.z >= 3312 and w.z <= 3316 end, "inside the store room, x <= 2521")
         local store1_result, store1_row = t.world.loc_near("mourning_sack_full1", 20)
         t.check("poisonStore1.present", store1_result == "ok",
             "loc_near(mourning_sack_full1, 20) -> " .. tostring(store1_result) .. " "
@@ -1648,16 +2035,25 @@ return {
                 .. tostring(store1_target and store1_target.match))
         t.ui.tab("inventory")
         t.ticks(2)
+        local toxin1_before_r, toxin1_before = t.inv.count("mourning_apple_toxin")
         t.exec("poisonStore1", t.player.use_on, "mourning_apple_toxin", store1_target)
         t.expect("poisonStore1.message",
             t.chat.expect_text("You add the toxin to the grain"))
         t.chat.close()
         t.expect("poisonStore1.var", t.var.await_server("varb806_mourning_food_poison1", 1, 6))
+        local toxin1_after_r, toxin1_after = t.inv.count("mourning_apple_toxin")
+        t.check("poisonStore1.used", toxin1_before_r == "ok" and toxin1_after_r == "ok" and toxin1_before == 2 and toxin1_after == 1,
+            "mourning_apple_toxin " .. tostring(toxin1_before) .. " -> " .. tostring(toxin1_after) .. " (want 2 -> 1)")
+        pass_door("storeRoomOut", "poordoor", "poordooropen", 2521, 3314, 2521, 3314, 2523, 3314,
+            function(w) return w.x >= 2522 end, "back in the store hall, x >= 2522")
+        pass_door("storeHallOut", "w_ardougnedoubledoorl", "w_ardougnedoubledoorlopen", 2525, 3311, 2525, 3312, 2525, 3309,
+            function(w) return w.z <= 3311 end, "on the street, z <= 3311")
 
         -- ---- Poison food store 2, the church stores (mourning_sack_full2,
         -- maps/m39_51.jl2:4222-4224 -> abs 2524,3285 / 2524,3288 / 2525,3288;
         -- mend1_poison.rs2:534-596). The second store poisoned writes
-        -- ^mend1_learn_secret. ----
+        -- ^mend1_learn_secret. The church is open onto West Ardougne's
+        -- streets (one walkable component with the HQ's door). ----
         t.exec("goto-poisonStore2", t.player.goto_tile, 2524, 3286, 0)
         local store2_result, store2_row = t.world.loc_near("mourning_sack_full2", 20)
         t.check("poisonStore2.present", store2_result == "ok",
@@ -1672,12 +2068,16 @@ return {
                 .. tostring(store2_target and store2_target.match))
         t.ui.tab("inventory")
         t.ticks(2)
+        local toxin2_before_r, toxin2_before = t.inv.count("mourning_apple_toxin")
         t.exec("poisonStore2", t.player.use_on, "mourning_apple_toxin", store2_target)
         t.expect("poisonStore2.message",
             t.chat.expect_text("You add the toxin to the grain"))
         t.chat.close()
         t.expect("poisonStore2.var", t.var.await_server("varb807_mourning_food_poison2", 1, 6))
         t.expect("poisonStore2.stage7", t.var.await_server("varp517_mourning_quest", 7, 6))
+        local toxin2_after_r, toxin2_after = t.inv.count("mourning_apple_toxin")
+        t.check("poisonStore2.used", toxin2_before_r == "ok" and toxin2_after_r == "ok" and toxin2_before == 1 and toxin2_after == 0,
+            "mourning_apple_toxin " .. tostring(toxin2_before) .. " -> " .. tostring(toxin2_after) .. " (want 1 -> 0)")
 
         end
         do
@@ -1694,39 +2094,7 @@ return {
         -- the trap door (mend1_disguise.rs2:136-143) p_teleports to
         -- mend1_hq_basement_coord, 2044,4628,0.
         t.exec("goto-enterMournerBaseAfterPoison", t.player.goto_tile, 2551, 3320, 0)
-        local poison_door_before_r, poison_door_before = t.world.tile()
-        local poison_door_before_x = poison_door_before and poison_door_before.x
-        local poison_door_before_z = poison_door_before and poison_door_before.z
-        t.exec("enterMournerBaseAfterPoison", t.player.click_loc, "mournerstewdoor", 1)
-        t.ticks(4)
-        local poison_door_after_r, poison_door_after = t.world.tile()
-        local poison_door_after_x = poison_door_after and poison_door_after.x
-        local poison_door_after_z = poison_door_after and poison_door_after.z
-        t.check("enterMournerBaseAfterPoison.walked_through",
-            poison_door_before_r == "ok" and poison_door_after_r == "ok"
-                and (poison_door_after_x ~= poison_door_before_x or poison_door_after_z ~= poison_door_before_z),
-            "tile before=" .. tostring(poison_door_before_x) .. "," .. tostring(poison_door_before_z)
-                .. " after=" .. tostring(poison_door_after_x) .. "," .. tostring(poison_door_after_z))
-        t.exec("goto-enterMournerBasementAfterPoison", t.player.goto_tile, 2542, 3327, 0)
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("enterMournerBasementAfterPoison", t.player.click_loc, "mourning_hideout_trap_door", 1)
-        -- read the landing, not the message: the first visit's identical
-        -- "You climb down into the basement." may still be in the ring
-        local basement_result, basement_detail = t.await({
-            level = function()
-                local tile_result, tile = t.world.tile()
-                -- mend1_hq_basement_coord is 2044,4628,0: an instance
-                -- region, not the z + 6400 underground frame
-                return tile_result == "ok" and tile and tile.x and tile.z
-                    and math.abs(tile.x - 2044) <= 8 and math.abs(tile.z - 4628) <= 8
-            end,
-            note = "trapdoor.landed_basement",
-        }, 10)
-        t.step("enterMournerBasementAfterPoison.landed", basement_result == "ok" and "PASS" or "FAIL",
-            "await(world.tile() within 8 of mend1_hq_basement_coord 2044,4628) after the trap door -> "
-                .. tostring(basement_result) .. " " .. tostring(basement_detail))
-        t.ticks(3)
-        t.exec("goto-talkToEssylltAfterPoison", t.player.goto_tile, 2043, 4631, 0)
+        hq_down("enterMournerBaseAfterPoison", "enterMournerBasementAfterPoison")
         t.exec("talkToEssylltAfterPoison", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssylltAfterPoison-dialog", t.chat.play, {
             "npc:You are back already? How is the epidemic going?",
@@ -1788,11 +2156,27 @@ return {
         -- the two documented xp rewards (mend1_shared.rs2:31:
         -- "40000 Thieving XP|25000 Hitpoints XP|Elf teleport crystal|Access
         -- to the Mourner HQ basement and Lletya"). ----
+        -- Out of the basement by a teleport (its ladder leads nowhere), into
+        -- Tirannwn by the Arandar gate, overland to Lletya's trees and
+        -- through them (a content_bug row while they have no handler).
+        camelot("leaveBasement.afterPoison")
+        t.exec("goto-arandarNorth.final", t.player.goto_tile, 2386, 3337, 0)
+        pass_arandar("arandarIn.final", true)
+        t.exec("goto-lletyaGate.final", t.player.goto_tile, 2303, 3193, 0)
+        if not lletya_gate("lletyaIn.final", true) then
+            return
+        end
+        -- walk_to presses the minimap, which reaches ~18 tiles: three hops
+        -- (2324,3178 -> 2352,3171 in one press never moved, mesp_tail4 row 294)
+        t.player.walk_to(2324, 3178, 80)
+        t.player.walk_to(2340, 3172, 80)
+        t.player.walk_to(2352, 3171, 80)
+        local ari_r, ari_tile = t.world.tile()
+        t.check("walk.arianwynFinal", ari_r == "ok" and math.abs(ari_tile.x - 2352) <= 2 and math.abs(ari_tile.z - 3171) <= 2,
+            "walked from the trees to Arianwyn -> " .. tile_text(ari_r, ari_tile) .. " (want within 2 of 2352,3171)")
         local qp_before_r, qp_before = t.var.varp("varp101_qp")
+        local crystal_before_r, crystal_before = t.inv.count("mourning_teleport_crystal_4")
         local skill_snapshot_r, skill_snapshot = t.skill.snapshot()
-        t.step("reward.snapshot", skill_snapshot_r == "ok" and "PASS" or "FAIL",
-            "skill.snapshot() -> " .. tostring(skill_snapshot_r))
-        t.exec("goto-talkToArianwynFinal", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwynFinal", t.player.talk_to, "mourning_arianwyn", 1)
         -- mend1_arianwyn_talk's ^mend1_report branch (mend1_shared.rs2:
         -- 143-156), "Reporting back to Arianwyn", verbatim -> ~mend1_quest_
@@ -1869,7 +2253,14 @@ return {
         -- talkToArianwyn*), not a grantable state to assert here. ----
         t.exec("reward.thieving_xp", t.skill.expect_gain, "thieving", 40000, skill_snapshot)
         t.exec("reward.hitpoints_xp", t.skill.expect_gain, "hitpoints", 25000, skill_snapshot)
-        t.exec("reward.teleport_crystal", t.inv.expect_has, "mourning_teleport_crystal_4", 1)
+        -- ~mend1_quest_complete (mend1_shared.rs2:28-30) adds a fresh
+        -- mourning_teleport_crystal_4 beside Eluned's (whose Lletya op does
+        -- nothing yet, so it is still a (4)).
+        local crystal_after_r, crystal_after = t.inv.count("mourning_teleport_crystal_4")
+        t.check("reward.teleport_crystal", crystal_before_r == "ok" and crystal_after_r == "ok"
+                and crystal_after == crystal_before + 1,
+            "mourning_teleport_crystal_4 " .. tostring(crystal_before) .. " -> " .. tostring(crystal_after) .. " (want +1)"
+                .. "; skill.snapshot() -> " .. tostring(skill_snapshot_r))
 
         end
         t.finish(0)
