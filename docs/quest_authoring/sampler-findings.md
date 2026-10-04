@@ -765,3 +765,59 @@ reviewer read only the rows named `*-margin` and reported "sharks left".
 
 To check a test, grep the ledger for `OUT OF` and for every `*-dead` row that has no `*-margin`
 row after it. Read the `lowest hp` and the food count from the `-dead` row's detail.
+
+## Sample matthew-mbp-m4-b59 (2026-10-04)
+
+Making History passed. Pirate's Treasure (hunt) went back.
+
+(a) A GATE BETWEEN TWO LARGE OPEN REGIONS IS STILL CLICKED. Pirate's Treasure buys its rum in
+Brimhaven, so it crosses Karamja's `membergatel` (2816,3182) twice: `goto-bartender` (2956,3146
+to 2796,3158) and `goto-luthas` (back). `goto_table.py` printed `NEEDS-DOOR ... via
+membergatel@2816,3182`, and `reach.py` still said so at margin 80 and 160. On foot, the gate is
+the only way between the two sides. The file called this an exempt gate because both sides are
+large (`comp.py` floods 4,380 and 18,718 tiles). There is no such exemption. The door rule says
+every gate between the player and the target is clicked on every visit, and the Trollheim finding
+(b58 round 2) already says size does not matter. Hero, in the same batch, clicks this exact gate
+(`karamjaGate.cross`). The fix: goto 2817,3182, `click_loc` the gate, then goto, and do the same
+on the way back.
+
+(b) A REDIRECT ROW MUST CHECK SOMETHING THE PRESS CAUSED. Hunt's `dig-treasure` row accepted a
+`timeout` click answer together with "the gardener is within 10 tiles". That was already true
+before the press (the row's own pre-press read), so the row passes even when the press does
+nothing. `dig.rs2`'s redirect, `[label,pirate_irate_gardener_attack]`, makes the gardener say
+"Hey, leave off my flowers!" and attack. Assert that line or the gardener engaging you.
+
+## Sample matthew-mbp-m4-b59, round 3 (2026-10-04)
+
+Sea Slug passed. Mourning's End Part I went back.
+
+(a) A REACH THROUGH ISAFDAR WALKS OVER REGICIDE'S TRAPS. Mourning's End Part I uses `goto_tile`
+for seven trips between the Arandar pass's south side (2386,3331), Eluned (2289,3145), the Lletya
+trees (2303,3193), the tar (2263,3128) and the overpass mourner (2300,3328). The fixer's audit
+said every trip was REACH (len 365-547), inside "the 7,176-tile component the gate opens onto".
+That component counts trap tiles as floor. The traps have `blockwalk=0`, so `reach.py` walks over
+them, but each has an op (Jump, Pass, Step-over), and `regicide_traps.rs2`'s zone triggers fire
+when you step on one (the tripwire poisons you and deals 5 damage). If you treat those tiles as
+blocked, none of the seven trips has a route at margin 300. Every trip crosses the pitfall at
+2276-2278,3263 and either the woodspring (2235,3181) or the dense forests (2266/2269/2272,3191).
+The Lletya and Eluned trips also cross the pitfall at 2274,3173-3175 and the tripwire at
+2285,3188. Roving Elves went back for the same hops (a324eedfe). Before you trust a REACH through
+Isafdar, list the locs on the path that have an op and `blockwalk=0`. Stage Agility in setup,
+then walk a trap helper that presses each trap on every trip. Grade each press on the tiles
+before and after it.
+
+## Sample matthew-mbp-m4-b59, round 4 (2026-10-04)
+
+Mourning's End Part I passed. All 35 Isafdar trap crossings are walked and pressed.
+
+(a) A CONDITIONAL RELOG FOR THE CAMERA SEAM IS ACCEPTED. After a walk-built scene rebuild in
+Isafdar, the client camera can sit 23-53 tiles from the player. Every loc press then answers
+`covered ... none of N pixels`. This is a client bug; the engine seam row is filed separately.
+The test reads `t.world.camera()` against `t.world.tile()` after each walk and before each trap
+press. Only when the camera is more than 16 tiles off does it call `t.session.relog()` on the same
+tile. It writes a visible `<name>.cameraResync` row that carries both readings and fails unless
+the player stands on the same tile with the camera within 16 tiles afterwards. That is
+acceptable: a relog moves nobody, skips no crossing, and does none of the quest's work. It is not
+acceptable if it fires unconditionally, changes the tile, or stands in for a press. It re-boots
+the embedded server, so nothing the quest needs may live only in server memory at that point
+(spawned npcs, a skipped clock). Remove the helper when the client fix lands.

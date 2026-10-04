@@ -33,8 +33,13 @@ stays.
 - A mountain top, plateau or island the player cannot leave on foot without a climb
   (the Trollheim summit). Flood the walkable map from the departure tile with
   `comp.py`: if the component never reaches the landing, the hop crosses something.
-- NOT a closed space: a gate between two large open outdoor regions (the Taverley
-  members' gate), and a building whose doorway the map leaves open with no door loc.
+- A gate that is the ONLY way on foot between two regions is clicked on every
+  crossing, however large the regions are (Karamja's members' gate between Musa Point
+  and Brimhaven: sampler ruling, b59, docs/quest_authoring/sampler-findings.md "Sample
+  matthew-mbp-m4-b59" (a)). Check with `reach.py` at margins 30, 80 and 160: a route
+  that exists only through the gate means the gate is pressed.
+- NOT a closed space: a gate with another on-foot way round it between the two tiles,
+  and a building whose doorway the map leaves open with no door loc.
 
 Repeated trips count every time. If the test walks into a place once and hops in or out
 of it later, each later hop is a fault. For a long trip a player would not walk, use
@@ -120,6 +125,11 @@ lands in a pocket with no way out.
   levels and the guide's recommended food and gear in SETUP only. Do not raise a level
   just to satisfy the margin on a trivial fight. Leave existing `::passive` setup lines
   alone.
+- Protection prayers are read on the npc's attack ANIMATION tick (Jad and most npcs; owner
+  2026-10-04). A hit decided when the projectile lands is the exception and needs a pinned
+  source naming that npc. So a protection prayer goes UP before the attack animation starts,
+  never switched on after seeing it; a test that prays reactively and dies has a wrong plan,
+  not a server bug; never file a content bug for an npc reading the prayer on its swing tick.
 - Two engine rules are about to change and the test must hold under both: prayer will
   NOT regenerate over time (stage and drink prayer potions, switch protection off when
   it is not needed, assert prayer points before a protected fight), and an eat will no

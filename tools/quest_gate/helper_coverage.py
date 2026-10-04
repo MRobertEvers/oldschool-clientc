@@ -2471,6 +2471,7 @@ def stand_ons(rows):
 def ledger_path(test_id, quest_dir):
     candidates = [
         os.path.join(REPO_ROOT, "build", "quest_gate", test_id, "ledger.tsv"),
+        os.path.join(CONTENT_ROOT, "selftest", "quests", quest_dir, "play-%s" % test_id, "ledger.tsv"),
         os.path.join(CONTENT_ROOT, "selftest", "quests", quest_dir, "play", "ledger.tsv"),
         os.path.join(CONTENT_ROOT, "selftest", "quest_tests", test_id, "ledger.tsv"),
     ]
@@ -2488,6 +2489,31 @@ def queue_row(test_id):
             if row["test_id"] == test_id:
                 return row
     return None
+
+
+VERIFY_ONLY = "VERIFY ONLY"
+
+
+def joint_verify(row, sibling_row):
+    """Is a sibling that is not green yet being verified in the SAME round as
+    this test? Two siblings reopened together (misc and misc_astrid, batch
+    matthew-mbp-m4-b59) each name the other in a BRANCH-IN marker, so neither
+    can wait for the other's row to turn green first. The orchestrator marks
+    both rows `VERIFY ONLY` for one batch (queue.py set --owner <batch>
+    --failure "VERIFY ONLY ..."); such a sibling may vouch while this row is
+    itself VERIFY ONLY or already green in that batch. The sibling still has
+    to DRIVE the step in its own grading, and a sibling that is sent back
+    loses the note, so this test goes RED with it."""
+    if sibling_row.get("status") != "todo":
+        return False
+    if not (sibling_row.get("last_failure") or "").startswith(VERIFY_ONLY):
+        return False
+    owner = sibling_row.get("owner") or ""
+    if not owner or (row.get("owner") or "") != owner:
+        return False
+    if row.get("status") == "green":
+        return True
+    return row.get("status") == "todo" and (row.get("last_failure") or "").startswith(VERIFY_ONLY)
 
 
 def guide_path(row):
@@ -3398,7 +3424,7 @@ class Grader:
             if guide_path(row) != guide_path(self.row):
                 return False, "sibling %s is graded against another guide (%s)" % (
                     sibling, os.path.basename(guide_path(row) or "") or "none")
-            if row.get("status") != "green":
+            if row.get("status") != "green" and not joint_verify(self.row, row):
                 return False, "sibling %s is %s, not green" % (sibling, row.get("status"))
             path = os.path.join(REPO_ROOT, "test", "quests", sibling + ".lua")
             if not os.path.isfile(path) or not git_tracked(path):

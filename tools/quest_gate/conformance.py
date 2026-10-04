@@ -57,8 +57,11 @@ USER = "qdconform"
 # The quest default (quest_list.DEFAULT_MAX_FRAMES).  At 40000 the harness had
 # outgrown its cap: with 86 seam rows a clean run drew 39,510 frames (about 30
 # a tick), so the 87th row (seam.iban_temple_door_regicide_shortcut, b48-seam1)
-# was cut off mid-row as "frame cap, or the client exited 0".
-MAX_FRAMES = "60000"
+# was cut off mid-row as "frame cap, or the client exited 0".  At 60000 it
+# outgrew it again: 101 seam rows drew ~51,000 and the 102nd
+# (seam.door_revert_reaches_a_returning_client, b59-seam1) waits a door's
+# 500-tick revert out, ~15,000 frames on its own.
+MAX_FRAMES = "90000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.
