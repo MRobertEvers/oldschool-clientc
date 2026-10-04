@@ -3508,3 +3508,176 @@ A whole-log `t.ticklog.rows({})` with a Lua filter, run at the end of a 1300-tic
 
 A player_tile row lands on the tick AFTER a teleport resolves. To date an arrival, use the jump
 row's tick - 1.
+
+# Seam pass 14: why one Entry solo raider could not carry the Theatre (2026-10-04)
+
+Seam13 found three reasons the whole raid could not be authored: the driver's held presses cost
+3-17 ticks each in a fight, the Nylocas took more hitpoints than the kit holds, and Verzik left
+no supply margin. This pass gave the tests fight-speed presses, made the Nylocas' swings roll
+accuracy and added the Entry freeze rule, and found that Verzik's damage sources are all at or
+under their figures. The first half of the raid now survives 3 of 3; the second half still dies,
+and what binds it now is its own recipe (prayer at Verzik, brews never drunk at Xarpus), not the
+content. Scratches and run names are under build/seam_state/matthew-mbp-m4-raid-b1-seam14/.
+
+## A held press costs 3 ticks, up to 17 in a wave room: use opts.quick, t.player.eat, t.player.drink
+
+`t.player.inv_op(item, op)` and `t.player.equip(item)` wait for the world to go quiet after the
+click: a settle, three equal backpack reads, then a chat-line wait. That costs 3 server ticks a
+press in Lumbridge and up to 17 in the Nylocas room, where the frame never settles. In a fight,
+call one of these instead:
+
+- `t.player.eat(item_or_list[, {op = n}])`
+- `t.player.drink(item_or_list[, {op = n}])`
+- `t.player.inv_op(item, op, {quick = true})`
+- `t.player.equip(item, {quick = true})`
+
+Each one is the same real click on the backpack cell (never a server op). It returns on the tick
+its effect can be read, one server tick after the press. On ok the detail reads
+`<item> slot S op O: <before> -> <after> [WORN ...], read on tick N (pressed on N-1, +1)`, and
+eat and drink add `hitpoints before -> after` as read (in a fight that includes any hit landing
+on the same tick). A list for eat or drink means the first symbol held, so pass a potion's doses
+in the order to drink them. Measured: the committed tob_verzik test with only its presses made
+fast kills Verzik at tick 714, where the slow presses die in P3 at tick 854. Conformance:
+player.eat, player.drink and seam.held_press_fight_speed (equip 1, eat 1, drink 1, quick inv_op 1,
+slow inv_op 3-4 ticks).
+
+## A fast eat or drink answered timeout "... not re-pressed": the food or potion timer refused it
+
+A fast press is ONE click. Inside the food timer (food after food, 3 ticks) or the potion timer
+(potion after potion), the server ignores the click without a word. The verb answers timeout:
+`pressed on tick P, slot still <item> on tick P+2 -- no new chat line; not re-pressed (a fast
+press is one click)`. A test that counts every press as a heal counts too many: a tob_nylocas copy
+counted 39 presses and 36 landed. Read the result, and click again on the next tick if you need
+the heal. A level requirement answers refused with the server's own sentence ("You need to have
+an Attack level of 70."). On equip, ok means the worn total rose; on inv_op {quick}, ok means the
+cell changed. An op that changes nothing (Check, Read) has nothing to read back, so use the slow
+inv_op for it.
+
+## ::give dragon_dagger_p++ gives the plain dragon_dagger_p (t.inv.count is right)
+
+The server's cheat name match underscores its argument before the exact lookup
+(torirs_server_world.c cheat_id_from_name), so "p++" and "p+" lose their "+" signs and resolve
+to dragon_dagger_p. `t.inv.count("dragon_dagger_p++")` correctly reads 0, because the backpack
+really holds dragon_dagger_p. Until the cheat looks up the exact symbol first, a kit with a p++
+dagger holds the plain one: count it as dragon_dagger_p. (A conformance row for the fix,
+seam.give_takes_the_exact_symbol, waits in the pass's state dir, unmerged.)
+
+## How an eat is aimed into a queued hit's delay window (seam.eat_does_not_hold_queued_hit)
+
+A cast is in the tick log at the reading of its own server tick R (`t.tick()`). A press made at
+reading R is processed in tick R after the npc, so the eat's player_anim row is stamped R. Eat the
+moment a cast row with tick == t.tick() appears, and the eat lands on the cast tick, between the
+hit being queued and the hit landing. Read the eat's tick from player_anim (seq 829), not from
+when the verb returned. The pre-port food.rs2 (p_delay(^eat_delay)) holds a young dark wizard's
++1 hit to +3; the ported content lands it at +1. A bow fight puts the wizard at range, where the
+plain delay is already +2..+4: take the bow off, because an eat's hold can only be seen when the
+plain delay is at most +2. The row was rewritten this way in seam14 and fails on a scratchpad
+copy with the pre-port food.rs2 (+3), so it now discriminates.
+
+## The press costs in the kept rooms, slow against fast
+
+Same tree, copies of the kept tests: tob_nylocas equip 94 -> 29 ticks, eat 174 -> 36. tob_verzik:
+killed at tick 714 with 37 eat/drink animations, against a P3 death at tick 854 with 41. A room
+re-authored to use fast presses will move its damage-taken, supply and kill-tick rows and roll
+differently (the verzik p1_cap bare-fist max went 10 -> 7). Record a moved number with both
+figures; it does not mean the room broke. npc.await_dead_engaged's opts.eat still eats through
+the slow inv_op.
+
+## A nylocas swing at 0 with no prayer up: the waves and Vasilias now roll accuracy
+
+A wave nylocas's swing and Vasilias' swing roll the npc's attack roll against your defence roll
+(Ischyros stab, Toxobolos ranged, Hagios magic), then 0..max (tob_nylocas.rs2 ~tob_nylo_hit_roll;
+LostCity npc_combat_melee.rs2:27-28; cache_npc_nylocas.txt stats). Before seam14 every swing
+landed for 1..max. A 0 hit_player row with splat 26 is a miss OR a prayer block, and the two look
+the same, so never infer the overhead from a 0: a row that counts prayer blocks must count only
+swings of the prayed style. Measured with Defence 99 and no armour: 5-8 of 14 unprayed aggro
+swings landed (conformance seam.nylocas_swing_rolls_accuracy).
+
+## A frozen chewer stops biting (Entry only)
+
+An Ice Burst or Barrage on a nylocas chewing a support freezes it, and in Entry Mode it does not
+bite until it thaws (Entry Mode page :166; ~tob_nylo_pillar_tick). Measured: bites at t65 and t68,
+the Ice Burst lands at t69, the next bite at t85 (+16). A wrong-colour spell still nulls the
+nylocas (0, splat 26), so a frozen grey or green one is out of the fight until it detonates at
+52 ticks. In Normal and Hard it keeps biting every 3 ticks (the Strategies page says only
+"usually"). Measure the freeze with a bite-animation count on the slot (seqs 7989/7999/8004), not
+with t.player.cast's result: the cast answers timeout on a nulled target because no Magic XP is
+given. Conformance: seam.nylocas_frozen_no_bite_entry.
+
+## A hit_player row with dealer -1 that is not a support collapse
+
+A nylocas killed while its projectile is in flight is freed before the impact, so the impact is
+written with npc_slot -1 and npc_type -1, exactly like a collapse row. Now that a swing can miss,
+such a row can be a 0 on a collapse tick, and a row that takes every dealerless hit on a collapse
+tick counts it (a tob_nylocas copy read 0,31,36,41). Filter collapses by damage >= 30 (Entry) or
+by the support's npc_free tick.
+
+## The Nylocas within one kit (RECIPE)
+
+With the accuracy roll in, seam13's plan (aggro swingers first, the protection prayer of the
+aggro majority, then the chewers of a support under 75 percent, Vasilias by form) takes 361-441
+in the room scratch and keeps 9-10 full brews (nylo/nylo_room.lua). In the relay first half on
+the final tree it took 392, 279 and 330 (close14_r1a/b/c, all three green) and left 6-8 full
+brews and 2-3 full restores. That is roughly 175 from wave swings, 36-84 from 1-2 collapses,
+15-58 from explosions and about 112 from Vasilias. What a human adds when a kit is tighter (Entry
+Mode page :160-166): burst or barrage clumps you will not deal with soon, since in Entry a frozen
+nylocas cannot chew; kill greens first with the fastest ranged weapon; stay near the centre
+unless you are clearing greys; let a support that is about to fall go and keep the other three
+up, because collapses stack at 30+ each. To split a run's damage by source:
+`python3 build/seam_state/matthew-mbp-m4-raid-b1-seam14/nylo/an_hits.py <run dir>`.
+
+## Verzik's P2 prayer: hold Protect from Magic from the first reds summon
+
+The blood spell is checked against your prayer at the cast (~tob_verzik_blood_spell;
+Verzik_Vitur:397 "calculated during her attack animation"), so switching on the 1591 projectile
+row is always one tick late. The seam13 second-half scratch switches to missiles on every 1583
+urnbomb and took 33 blood hits (241 damage) while Verzik healed 404 against a 400 P2 pool. Holding
+magic from the first 8117 seq (Entry Mode :231 "swap to Protect from Magic") cut the blood
+damage to 0-3 and moved the deaths into P3 (s14v_kit_a/b, verz/relay_second_half_magic_after_reds.lua).
+
+## The second half starves on prayer once the blood spell is prayed
+
+With 5 restore doses, s14v_kit_a/b reached P3 at 24-26 prayer and died at 0-6 ("You have run out
+of Prayer points" seven times). The bandages restore no prayer in this tree (no source gives a
+figure). Budget restores for P2 and P3. The first half now leaves 11-14 restore doses, not 5.
+
+## Where Verzik's damage comes from (classify a run)
+
+`python3 build/seam_state/matthew-mbp-m4-raid-b1-seam14/verz/classify.py <ticklog.tsv>` groups
+hit_player rows by phase and source: zap 1585, bomb 1583, blood 1591, autos 1593/1594, ball 1598,
+tornado npc 10846, crab explosion map_spotanim 1565. In five Entry runs every source was at or
+under its spec max: P1 bolt 15 (60, 30 prayed), P2 bomb 8 (16), zap with boots 25 (28), blood 44
+(45), crab explosion 60 (63), P3 autos 10 prayed (20), ball 74 (75 percent of the HP level). The
+lightning is the long sink: 8-12 zaps per P2 (110-146 damage), because a long P2 means more of
+them.
+
+## Entry chest bandages: min(10, free slots) on the first Open, then "The chest is empty."
+
+An Entry supply chest hands over as many bandages as you have free slots, up to 10, and a
+second Open says "The chest is empty." Free 10 slots BEFORE opening. The wiki says the leftovers
+stay until the next chest (CONTENT_BUGS.md, seam14; a patch is proposed, not applied).
+
+## Insulated boots: 60 percent of the P2 lightning roll
+
+`^tob_verzik_p2_zap_boots_pct` (tob_verzik.constant) is 60, from the item page's "by 40%". The
+Strategies page says "25 if wearing insulated boots" (52 percent of 48); both are quoted there.
+With boots one zap lands 0-28, every fifth P2 attack.
+
+## The whole raid after seam14: the first half survives, the second half does not yet
+
+First half (seam13 relay1/relay_lobby_to_sotetseg.lua) on the final tree: 3 of 3 green
+(close14_r1a 99/99, r1b 97/97, r1c 98/98). Seam13 had 2 of 10. The Nylocas took 392, 279 and
+330, and the kit at Sotetseg's entrance was brew(4) 6-8 and restore(4) 2-3: 24-34 brew doses
+and 11-14 restore doses, where seam13 measured 11 and 5.
+
+Second half with seam13's measured kit (close/relay_second_half_measured_kit.lua): 0 of 3
+(close14_r2a died in Xarpus at tick 908; r2b and r2c died in Verzik P2 at 1290 and 1273), every
+supply spent. With the kit the first half now leaves (the least of the three:
+close/relay_second_half_seam14_kit.lua): 0 of 3, all three identical, dead in Verzik P2 at tick
+1680 with 24 brew doses and 11 restore doses spent. With that kit and Protect from Magic held from
+the first reds (close/relay_second_half_seam14_kit_magic_after_reds.lua): 0 of 3, all identical,
+dead in Xarpus at tick 850 having drunk only 4 brew doses, because the scratch's Xarpus loop heals
+from bandages alone. The two halves now differ by the second half's recipe, not by the content:
+the Xarpus loop must drink brews once the bandages run out, and Verzik's P2 must hold magic and
+restore prayer. These second-half scripts gave the same result under all three run names, so
+three names do not sample three outcomes.

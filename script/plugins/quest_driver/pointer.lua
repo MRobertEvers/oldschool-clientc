@@ -4132,10 +4132,16 @@ end
 -- A numbered held op (OPHELD1..5).  `op` 0 is Examine, which is answered
 -- client-side; a negative op is the "Use" arming and is use_on's, not this
 -- verb's.
-function QD.player.inv_op(item, op)
+function QD.player.inv_op(item, op, opts)
     op = op or 1
     if op < 0 then
         return "unsupported", "inv_op: a negative op is use_on's arming half"
+    end
+    -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one click and
+    -- the next read, not this verb's settle (the banner at the end of file).
+    if QD.player._quick_opts(opts, "inv_op") then
+        local quick_result, quick_detail = QD.player._inv_quick(item, op, "inv_op")
+        return quick_result, quick_detail
     end
     -- What was on the floor before the press, so a stack the press itself
     -- put there can be named (QD.player._inv_stray_drop, seam pass 19).
@@ -4338,7 +4344,12 @@ end
 -- cannot tell equipping from dropping, and `[opheld2,_] ~equip` refuses an
 -- item that has no worn slot -- which must read as `refused`, with the
 -- server's own sentence, not as success.
-function QD.player.equip(item)
+function QD.player.equip(item, opts)
+    -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one press and
+    -- the worn slot on the next read (QD.player._equip_quick, end of file).
+    if QD.player._quick_opts(opts, "equip") then
+        return QD.player._equip_quick(item)
+    end
     local obj_result, obj_id = api_drive.symbol("obj", item)
     if obj_result ~= "ok" then
         return obj_result, item
@@ -8594,4 +8605,274 @@ function QD.drive._press_quick(target, option, before_retry)
         tail = tail .. "; the menus offered this op on no other copy"
     end
     return result, tostring(detail), tail, presses, offered
+end
+
+-- ==========================================================================
+-- SEAM fight_speed_inventory_presses (raid seam14, 2026-10-04) -- A HELD
+-- PRESS AT FIGHT SPEED.  Everything below this banner is this seam's; above
+-- it, two call sites only, each marked SEAM-FIGHT-SPEED: the opts.quick
+-- dispatch at the top of QD.player.inv_op and of QD.player.equip.
+--
+-- WHAT WAS WRONG.  A human eats, drinks or swaps a weapon with one click and
+-- the server acts on it the next tick.  The quest verbs wait for the world
+-- to go quiet after the click instead, and in a fight it never does:
+--   inv_op  = _settle_after_click (<= 10) + QD.settle (<= 30, "the frame is
+--             settled", which a moving wave never is) + _inv_quiet (three
+--             equal backpack reads) + QD.await's trailing msg.await("", 5);
+--             3 ticks a press in a calm Lumbridge (build/quest_gate/
+--             fsip_probe1: `eat shark ok 5->8 (3)`, `drink combat ok 8->11
+--             (3)`), up to 17 in the Nylocas room (seam13, s13_dev_nylo5);
+--   equip   = 1 tick when the press lands, but a press refused because the
+--             backpack cell was not live yet is retried through QD.await
+--             (one tick, then up to five more waiting for a chat line), and a
+--             press the server dropped is re-pressed only after four.
+-- tob_nylocas's own account (build/quest_gate/tob_nylocas): `ticks spent
+-- equip 83 eat 167` for 54 eats and drinks.  Every Entry room test measured
+-- its damage taken at that handicap.
+--
+-- THE FAST PRESS.  The same click on the same backpack cell
+-- (api_drive.inv_op -> app_plugin_inv_op -> the minimenu dispatcher a real
+-- click reaches; never a server op), then ONE wait on the chunk's own await
+-- -- never QD.await, whose ok carries a five-tick chat wait -- for the press's
+-- own effect on the next read: the pressed cell no longer holding what it
+-- held (the shark eaten, the dose drunk, the weapon gone from the backpack)
+-- or the worn total of the item risen.  Bounded by QUICK_PRESS_TICKS, so it
+-- returns the tick the effect is readable: one tick after the click lands.
+-- A refusal from the dispatcher (the cell not displayed yet) re-presses the
+-- tab and waits FRAMES, not ticks, at most QUICK_PRESS_ATTEMPTS times; the
+-- refusal is DRIVE_REFUSED-before-dispatch (the banner above _inv_press), so
+-- a re-press can never double-send.  No re-press after a press that left:
+-- a press the server ignored (the eat delay, a level requirement) answers
+-- `timeout` naming what the cell still holds and the last chat line, and the
+-- caller decides, as a player would, whether to click again.
+-- ==========================================================================
+QD.player.QUICK_PRESS_TICKS = 2
+QD.player.QUICK_PRESS_ATTEMPTS = 3
+QD.player.QUICK_PAINT_FRAMES = 3
+
+-- opts.quick, decided one way for inv_op and equip (combat.lua's
+-- QD._combat_quick is the attack verbs'; this has no ticks argument to read).
+function QD.player._quick_opts(opts, verb)
+    if opts == nil then
+        return false
+    end
+    assert(type(opts) == "table", verb .. ": opts is not a table")
+    if opts.quick == nil then
+        return false
+    end
+    assert(type(opts.quick) == "boolean", verb .. ": opts.quick must be true or false")
+    return opts.quick
+end
+
+-- The server's own tick (srv->tick), or the client clock on a binary without
+-- api_drive.server_tick: every detail below states which ticks it counted.
+function QD.player._quick_now()
+    local result, tick = QD.tick()
+    if result == "ok" then
+        return tick
+    end
+    return api_drive.tick()
+end
+
+function QD.player._quick_frames(frames, note)
+    local seen = 0
+    return await({
+        level = function()
+            seen = seen + 1
+            return seen > frames
+        end,
+        note = note,
+    }, 1)
+end
+
+-- The press, fast: (result, cell, where, refusal).  _inv_press's shape.
+function QD.player._inv_press_quick(item, op)
+    local tab_result, tab_detail = QD.player._show_backpack()
+    local refusal = nil
+    local attempt = 0
+    while true do
+        local cell_result, cell = QD.player._inv_cell(item)
+        if cell_result ~= "ok" then
+            return cell_result, nil, cell, refusal
+        end
+        attempt = attempt + 1
+        local result, why = api_drive.inv_op(
+            cell.component_id, cell.slot, cell.obj_id, cell.count, op)
+        local where = item .. " slot " .. tostring(cell.slot) .. " op " .. tostring(op)
+        if tab_result ~= "ok" then
+            where = where .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
+        end
+        if attempt > 1 then
+            where = where .. " [pressed on attempt " .. tostring(attempt)
+                .. "; the first answered '" .. tostring(refusal) .. "']"
+        end
+        if result ~= "refused" then
+            return result, cell, where, why
+        end
+        refusal = why
+        if attempt >= QD.player.QUICK_PRESS_ATTEMPTS then
+            return "refused", cell, where, refusal
+        end
+        tab_result, tab_detail = QD.player._show_backpack()
+        QD.player._quick_frames(QD.player.QUICK_PAINT_FRAMES,
+            "quick press: the backpack cell is not live yet (" .. tostring(refusal) .. ")")
+    end
+end
+
+function QD.player._quick_obj_text(obj_id, count)
+    if obj_id == nil or obj_id < 0 then
+        return "(empty)"
+    end
+    local name_result, name = api_drive.symbol_name("obj", obj_id)
+    local text = name_result == "ok" and name or ("obj " .. tostring(obj_id))
+    if count ~= nil and count ~= 1 then
+        text = text .. " x" .. tostring(count)
+    end
+    return text
+end
+
+function QD.player._quick_hp()
+    local result, stat = QD.skill.read("hitpoints")
+    if result == "ok" and type(stat) == "table" then
+        return stat.level
+    end
+    return nil
+end
+
+-- ONE fast held press and its effect: (result, detail, landed).  `landed` is
+-- a table { cell =, now_text =, worn_text =, tick =, pressed = } on ok.
+-- `label` names the verb in the detail.
+function QD.player._inv_quick(item, op, label)
+    local worn_edge = QD.player._inv_worn_edge(item)
+    local serial_result, serial_before = api_drive.message_serial()
+    local pressed = QD.player._quick_now()
+    local result, cell, where, refusal = QD.player._inv_press_quick(item, op)
+    if cell == nil then
+        return result, label .. ": " .. tostring(where)
+    end
+    if result ~= "ok" then
+        return result, label .. " " .. where .. " -- " .. tostring(refusal)
+    end
+    local container_result, container_id = QD._inv_container()
+    assert(container_result == "ok", "the backpack container resolved for the press and not after it")
+    local landed = nil
+    local awaited = await({
+        level = function()
+            local slot_result, slot = api_drive.inv_slot(container_id, cell.slot)
+            local changed = slot_result == "ok"
+                and (slot.obj_id ~= cell.obj_id or slot.count ~= cell.count)
+            local worn_text = worn_edge ~= nil and worn_edge() or nil
+            if not changed and worn_text == nil then
+                return false
+            end
+            landed = {
+                cell = cell,
+                now_text = slot_result == "ok" and QD.player._quick_obj_text(slot.obj_id, slot.count) or "?",
+                worn_text = worn_text,
+                tick = QD.player._quick_now(),
+                pressed = pressed,
+            }
+            return true
+        end,
+        note = label .. " " .. item .. " (quick press)",
+    }, QD.player.QUICK_PRESS_TICKS)
+    if QD.player._death_fence ~= nil and QD.player._death_fence("a quick held press") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local before_text = QD.player._quick_obj_text(cell.obj_id, cell.count)
+    if awaited ~= "ok" or landed == nil then
+        local line = ""
+        if serial_result == "ok" then
+            local list_result, list = api_drive.messages()
+            if list_result == "ok" and type(list) == "table" then
+                for i = 1, #list do
+                    if list[i].serial > serial_before then
+                        line = tostring(list[i].text)
+                        break
+                    end
+                end
+            end
+        end
+        local now = QD.player._quick_now()
+        return "timeout", label .. " " .. where .. ": pressed on tick " .. tostring(pressed)
+            .. ", slot still " .. before_text .. " on tick " .. tostring(now) .. " ("
+            .. tostring(now - pressed) .. " tick(s)) -- "
+            .. (line ~= "" and ("the server said '" .. line .. "'") or "no new chat line")
+            .. "; not re-pressed (a fast press is one click)"
+    end
+    local text = label .. " " .. where .. ": " .. before_text .. " -> " .. landed.now_text
+    if landed.worn_text ~= nil then
+        text = text .. " [" .. landed.worn_text .. "]"
+    end
+    text = text .. ", read on tick " .. tostring(landed.tick) .. " (pressed on "
+        .. tostring(pressed) .. ", +" .. tostring(landed.tick - pressed) .. ")"
+    return "ok", text, landed
+end
+
+-- `item` for eat/drink may be one symbol or a list (a potion's doses, most
+-- doses last or first as the caller orders them): the first one held.
+function QD.player._quick_first_held(item, verb)
+    if type(item) == "string" then
+        return item
+    end
+    assert(type(item) == "table" and #item > 0, verb .. ": item is neither a symbol nor a list of symbols")
+    for i = 1, #item do
+        local count_result, count = QD.inv.count(item[i])
+        if count_result == "ok" and (count or 0) > 0 then
+            return item[i]
+        end
+    end
+    return nil
+end
+
+-- t.player.eat(item, opts) / t.player.drink(item, opts) -> ok timeout refused
+-- not_found.  ALWAYS the fast press (there is no slow shape to keep): op
+-- `opts.op` or 1 (every food's Eat, every potion's Drink in the cache).
+-- ok = the pressed cell changed on the next read (the food gone, the dose one
+-- lower); the detail carries hitpoints before -> after as READ, which in a
+-- fight includes whatever hit landed on the same tick.
+function QD.player._consume(verb, item, opts)
+    if opts ~= nil then
+        assert(type(opts) == "table", verb .. ": opts is not a table")
+        assert(opts.op == nil or type(opts.op) == "number", verb .. ": opts.op is not a number")
+    end
+    local op = (opts and opts.op) or 1
+    local held = QD.player._quick_first_held(item, verb)
+    if held == nil then
+        return "not_found", verb .. ": none of " .. table.concat(item, ", ") .. " is in the backpack"
+    end
+    local hp_before = QD.player._quick_hp()
+    local result, detail = QD.player._inv_quick(held, op, verb)
+    if result ~= "ok" then
+        return result, detail
+    end
+    return "ok", detail .. "; hitpoints " .. tostring(hp_before) .. " -> " .. tostring(QD.player._quick_hp())
+end
+
+function QD.player.eat(item, opts)
+    return QD.player._consume("eat", item, opts)
+end
+
+function QD.player.drink(item, opts)
+    return QD.player._consume("drink", item, opts)
+end
+
+-- equip(item, { quick = true }): one press, ok when the worn total of the
+-- item rose on the next read; `refused` when the press left and the server
+-- said why in a line (a level requirement), `timeout` otherwise.
+function QD.player._equip_quick(item)
+    local result, detail, landed = QD.player._inv_quick(item, 2, "equip")
+    if result == "ok" and (landed == nil or landed.worn_text == nil) then
+        -- The cell changed but nothing went on: read the worn edge once more
+        -- (the worn update can be a frame behind the backpack's), then name it.
+        local worn_result, worn_cell = QD.player._worn_cell(item)
+        if worn_result ~= "ok" then
+            return "refused", detail .. " -- the backpack changed but " .. item .. " is not worn"
+        end
+        return "ok", detail .. " [worn " .. tostring(worn_cell.symbol) .. "]"
+    end
+    if result == "timeout" and string.find(detail, "the server said", 1, true) then
+        return "refused", detail
+    end
+    return result, detail
 end

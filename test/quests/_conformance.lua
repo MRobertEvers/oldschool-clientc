@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 163
+-- @verb-count 165
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 152
+-- @seam-count 155
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 163
-local SEAM_COUNT = 152
+local VERB_COUNT = 165
+local SEAM_COUNT = 155
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9301,26 +9301,56 @@ return {
         --     weapon delay runs adds 3).  HEAD copy: no ::eatgate, and the eaten gap
         --     was 6/4 (the eat's p_stopaction let the retaliate flinch reset the
         --     delay); fixed: 7,7.
+        -- (1) rewritten in raid seam14: the eat is now AIMED -- pressed
+        --     with the fast t.player.eat at the reading of the cast's own server tick
+        --     (a press there is processed in that tick), the eat's own tick read
+        --     from the ticklog's player_anim row, and only an eat on the cast tick or
+        --     the tick before (inside the queued hit's delay window) is counted.  The
+        --     old row ate with the slow inv_op after SEEING the cast, so its eats landed
+        --     on or after the hit's own tick and it passed on the pre-port content too
+        --     (the waves loop's ENG-58, MERGE_CHECKLIST.md).  seam14: FAILS on a
+        --     scratchpad copy with the pre-port food.rs2 (fsip_conf_preport1, +3) and
+        --     PASSES on the tree (fsip_conf2, +1 x6).
         seam("seam.eat_does_not_hold_queued_hit", function()
             local goto_tile = verb("player", "goto_tile")
             local attack = verb("player", "attack")
-            local inv_op = verb("player", "inv_op")
+            local eat = verb("player", "eat")
             local by_symbol = verb("npc", "by_symbol")
             if not goto_tile then return missing("player", "goto_tile") end
             if not attack then return missing("player", "attack") end
-            if not inv_op then return missing("player", "inv_op") end
+            if not eat then return missing("player", "eat") end
             if not by_symbol then return missing("npc", "by_symbol") end
             if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            if not verb("tick") then return missing("tick") end
             local WIZ = "young_dark_wizard"
+            -- The PLAN reaches this row with seam.attack_fast_path's magic
+            -- shortbow still worn, and a bow fights the wizard from range,
+            -- where its bolt takes +2..+4 to land.  An eat's park (p_delay 2)
+            -- held a +1 hit to +3, and a plain +3 from range is the same
+            -- number: that is how the old version of this row passed on the
+            -- pre-port content (the waves loop's ENG-58).  So the bow comes
+            -- off (back on at teardown) and the fight is adjacent, and a plain
+            -- delay over +2 is refused as no subject below.
+            local BOW = "magic_shortbow"
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local bow_off = false
             local function teardown()
                 setup_cheat("::kill " .. WIZ .. " 10")
                 settle(2)
+                if bow_off and equip then equip(BOW) end
+            end
+            local function now()
+                local _, tick = t.tick()
+                return tick
             end
             setup_cheat("::setlevel attack 1")
             setup_cheat("::setlevel strength 1")
             setup_cheat("::setlevel defence 1")
             setup_cheat("::setlevel hitpoints 99")
             setup_cheat("::give shark 12")
+            -- not_found when no bow is worn (the row run on its own): unarmed already
+            if unequip and unequip(BOW) == "ok" then bow_off = true end
             local goto_result = goto_tile(3242, 3248, 0)
             if goto_result ~= "ok" then
                 teardown()
@@ -9332,10 +9362,9 @@ return {
             t.ticklog.mark("seam.eat_does_not_hold_queued_hit")
             local _, marks = t.ticklog.rows({ kind = "mark" })
             local since = marks[#marks].serial
-            local ws, cast_seq, last_anim = nil, nil, nil
-            local acur, hcur, n, guard, engaged = since, since, 0, 0, false
-            local casts, eats = {}, {}
-            while guard < 160 and n < 10 do
+            local ws, engaged, pcur, guard = nil, false, since, 0
+            local presses, eat_this, aimed = {}, false, {}
+            while guard < 220 and #presses < 6 do
                 local nr, nrow = by_symbol(WIZ)
                 if nr ~= "ok" then
                     setup_cheat("::spawn " .. WIZ .. " 1")
@@ -9347,52 +9376,106 @@ return {
                 end
                 settle(1)
                 guard = guard + 1
-                if ws ~= nil then
-                    local _, hp = t.ticklog.rows({ kind = "hit_player", since = hcur, slot = ws })
-                    for _, h in ipairs(hp) do
-                        hcur = math.max(hcur, h.serial)
-                        if cast_seq == nil and last_anim ~= nil then cast_seq = last_anim.seq end
-                    end
-                    local _, an = t.ticklog.rows({ kind = "npc_anim", since = acur, slot = ws })
-                    for _, r in ipairs(an) do
-                        acur = math.max(acur, r.serial)
-                        last_anim = r
-                        if cast_seq ~= nil and r.seq == cast_seq then
-                            n = n + 1
-                            casts[#casts + 1] = { tick = r.tick, slot = ws }
-                            if n % 2 == 0 then
-                                inv_op("shark", 1)
-                                eats[r.tick] = true
-                            end
-                        end
-                    end
+                -- The wizard's casts are its projectile launches (the only
+                -- caster on this tile).  MEASURED (seam14 fsip_probe5): a cast
+                -- is in the log at the reading of its own server tick R, and a
+                -- press made at reading R is processed in tick R after the npc
+                -- (the eat's player_anim is stamped R) -- so eating the moment
+                -- the cast is seen puts the eat ON THE CAST TICK, inside the
+                -- window between the hit being queued and the hit landing.
+                local newest = nil
+                local _, launched = t.ticklog.rows({ kind = "projectile", since = pcur })
+                for _, p in ipairs(launched) do
+                    pcur = math.max(pcur, p.serial)
+                    newest = p.tick
+                    eat_this = not eat_this
+                end
+                local tick_now = now()
+                if newest ~= nil and newest == tick_now and eat_this and not aimed[newest] then
+                    aimed[newest] = true
+                    local er, ed = eat("shark")
+                    presses[#presses + 1] = { pressed = tick_now, result = er, detail = ed }
                 end
             end
-            local plain, eaten, seen = {}, {}, {}
-            for _, c in ipairs(casts) do
-                local _, hs = t.ticklog.rows({ kind = "hit_player", since = since, slot = c.slot })
-                for _, h in ipairs(hs) do
-                    if h.tick > c.tick and h.tick <= c.tick + 8 then
-                        local d = h.tick - c.tick
-                        if eats[c.tick] then eaten[#eaten + 1] = d else plain[#plain + 1] = d end
+            teardown()
+            local all_casts = {}
+            local _, launched_all = t.ticklog.rows({ kind = "projectile", since = since })
+            for _, p in ipairs(launched_all) do all_casts[#all_casts + 1] = p.tick end
+            local _, hits = t.ticklog.rows({ kind = "hit_player", since = since, slot = ws })
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = since })
+            -- The eat's own tick: the first player_anim in [pressed, pressed+2]
+            -- whose seq the player had not shown before the first press (the
+            -- punch is the only animation before it).
+            local first_press = presses[1] and presses[1].pressed or math.huge
+            local before_seqs = {}
+            for _, a in ipairs(anims) do
+                if a.tick < first_press then before_seqs[a.seq] = true end
+            end
+            local eats, eat_seq = {}, nil
+            for _, pr in ipairs(presses) do
+                for _, a in ipairs(anims) do
+                    if a.tick >= pr.pressed and a.tick <= pr.pressed + 2 and not before_seqs[a.seq] then
+                        eats[#eats + 1] = a.tick
+                        eat_seq = a.seq
                         break
                     end
                 end
             end
-            teardown()
-            local text = "cast seq " .. describe(cast_seq) .. "; no eat +" .. table.concat(plain, ",+")
-                .. "; eat on the cast tick +" .. table.concat(eaten, ",+")
-            if #plain < 2 or #eaten < 2 then
-                return "no_subject", text .. " -- fewer than two casts of each kind"
+            local function eaten_near(c, low, high)
+                for _, e in ipairs(eats) do
+                    if e >= c + low and e <= c + high then return e end
+                end
+                return nil
             end
-            for _, d in ipairs(plain) do seen[d] = true end
-            for _, d in ipairs(eaten) do
-                if not seen[d] then
-                    return "refused", text .. " -- an eat moved a queued npc hit to +" .. d
-                        .. " (a delay no uneaten cast showed): the eat's p_delay held the player's queue"
+            local plain, plain_count, eaten, outside = {}, {}, {}, {}
+            for _, c in ipairs(all_casts) do
+                local hit = nil
+                for _, h in ipairs(hits) do
+                    if h.tick > c and h.tick <= c + 3 then hit = h.tick break end
+                end
+                if hit ~= nil then
+                    local d = hit - c
+                    local e = eaten_near(c, -1, 0)
+                    if e ~= nil then
+                        eaten[#eaten + 1] = { cast = c, eat = e, delta = d }
+                    elseif eaten_near(c, -3, 1) == nil then
+                        plain[#plain + 1] = d
+                        plain_count[d] = (plain_count[d] or 0) + 1
+                    else
+                        outside[#outside + 1] = d
+                    end
                 end
             end
-            return "ok", text
+            local mode, mode_n = nil, 0
+            for d, n in pairs(plain_count) do
+                if n > mode_n then mode, mode_n = d, n end
+            end
+            local eaten_text = {}
+            for _, row in ipairs(eaten) do
+                eaten_text[#eaten_text + 1] = "cast " .. row.cast .. " eat " .. row.eat .. " hit +" .. row.delta
+            end
+            local text = "casts " .. #all_casts .. ", presses " .. #presses .. " (eat seq " .. describe(eat_seq)
+                .. ", eats at " .. table.concat(eats, ",") .. "); no eat near the cast: +"
+                .. table.concat(plain, ",+") .. "; eat on the cast tick or the tick before: "
+                .. table.concat(eaten_text, "; ") .. "; eat elsewhere: +" .. table.concat(outside, ",+")
+            if #plain < 2 or mode == nil then
+                return "no_subject", text .. " -- fewer than two uneaten casts with a hit"
+            end
+            if mode > 2 then
+                return "no_subject", text .. " -- the uneaten hits land +" .. mode .. ": an eat's two-tick park"
+                    .. " would hold a +1 hit to +3, which no hit this late can tell from its own tick"
+            end
+            if #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two eats landed inside a queued hit's delay window"
+            end
+            for _, row in ipairs(eaten) do
+                if row.delta ~= mode then
+                    return "refused", text .. " -- the hit of the cast on " .. row.cast .. " landed +" .. row.delta
+                        .. ", not on its own tick (+" .. mode .. "): the eat on " .. row.eat
+                        .. " held the queued npc hit (an eat's p_delay parks the player's queue)"
+                end
+            end
+            return "ok", text .. " -- every hit landed on its own tick (+" .. mode .. ")"
         end)
 
         seam("seam.eat_delay_clocks", function()
@@ -11351,6 +11434,191 @@ return {
             -- is the first waves, before the first natural detonation at spawn+52.
             if landed_melee > 0 then return "refused", reading .. " -- a melee nylocas hit through Protect from Melee (tob_nylocas.rs2 ~tob_nylo_swing)" end
             return "ok", reading
+        end)
+
+        -- seam14 tob_nylocas_entry_damage_taken: two SEAM rows, no verb added or changed
+        -- (the Nylocas wave swing and Vasilias' swing are accuracy-rolled; an Entry frozen
+        -- chewer does not bite).  Teardown ::tobout.  SEAM_COUNT +2, @seam-count +2.
+        -- The 'before' is measured, not mutated: before the seam every unprayed swing
+        -- landed 1..max (s14ny_pre1..3); the Normal control (s14ny_freeze_probe_normal)
+        -- keeps biting every 3 ticks through the same freeze.
+
+        -- A WAVE NYLOCAS'S SWING IS ROLLED (raid seam14 tob_nylocas_entry_damage_taken).
+        -- Content only: tob_nylocas.rs2 ~tob_nylo_swing / ~tob_nylo_hit_roll (the npc's attack
+        -- roll against the player's defence roll, then 0..max; LostCity npc_combat_melee.rs2
+        -- ~npc_meleeattack), tob_nylocas_boss.rs2 ~tob_vasilias_damage. Graded: no prayer on,
+        -- at least ten swings from the fighting (aggro) forms 10780..10785 that follow one of
+        -- their attack animations (7989/7999/8004) within 6 ticks, at least one at 0 and at
+        -- least one above 0. Before the seam every such swing was 1..max (0 zeros).
+        seam("seam.nylocas_swing_rolls_accuracy", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then setup_cheat("::tobout") return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local swings, zeros, landed, top = 0, 0, 0, 0
+            for _ = 1, 40 do
+                settle(5)
+                swings, zeros, landed, top = 0, 0, 0, 0
+                local attacks = {}
+                local _, anims = log_rows({ kind = "npc_anim" })
+                for _, a in ipairs(anims or {}) do
+                    if a.seq == 7989 or a.seq == 7999 or a.seq == 8004 then
+                        attacks[a.slot] = attacks[a.slot] or {}
+                        local list = attacks[a.slot]
+                        list[#list + 1] = a.tick
+                    end
+                end
+                local _, hits = log_rows({ kind = "hit_player" })
+                for _, h in ipairs(hits or {}) do
+                    local at = nil
+                    for _, tick in ipairs(attacks[h.npc_slot] or {}) do
+                        if tick <= h.tick and (at == nil or tick > at) then at = tick end
+                    end
+                    if h.npc_type ~= nil and h.npc_type >= 10780 and h.npc_type <= 10785 and at ~= nil and h.tick - at <= 6 then
+                        swings = swings + 1
+                        if h.damage == 0 then zeros = zeros + 1 else landed = landed + 1 end
+                        if h.damage > top then top = h.damage end
+                    end
+                end
+                if swings >= 10 and zeros >= 1 and landed >= 1 then break end
+            end
+            setup_cheat("::tobout")
+            local detail = swings .. " unprayed aggro swings: " .. zeros .. " at 0, " .. landed .. " landed (max " .. top .. ")"
+            if swings >= 10 and zeros >= 1 and landed >= 1 then return "ok", detail end
+            return "refused", detail .. " (want >= 10 swings, >= 1 at 0 and >= 1 landed)"
+        end)
+
+        -- A FROZEN ENTRY NYLOCAS DOES NOT BITE ITS SUPPORT (raid seam14). Content only:
+        -- tob_nylocas.rs2 ~tob_nylo_pillar_tick reads npc_frozen in Entry Mode (Entry Mode page
+        -- :166 "Frozen nylocas cannot attack the pillars until unfrozen, even if they are in melee
+        -- range"). Graded: Ice Burst on a chewing grey or green nylocas (wrong style: nulled, so it
+        -- lives on frozen), at least one bite animation in the 9 ticks up to the hit, none in the
+        -- 15 after it (Ice Burst freezes 16). Before the seam it bit on through the freeze every
+        -- 3 ticks (the Normal control s14ny_freeze_probe_normal still does: +2,+5,+8,+11,+14).
+        seam("seam.nylocas_frozen_no_bite_entry", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_slot = verb("ticklog", "slot")
+            local tiles = verb("npc", "tiles")
+            local cast = verb("player", "cast")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not tiles then return missing("npc", "tiles") end
+            if not cast then return missing("player", "cast") end
+            if not now_tick then return missing("tick") end
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setvar varb4070_spellbook 1")
+            setup_cheat("::give water_rune 200")
+            setup_cheat("::give chaos_rune 100")
+            setup_cheat("::give death_rune 100")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then setup_cheat("::setvar varb4070_spellbook 0") return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            local function teardown()
+                setup_cheat("::tobout")
+                setup_cheat("::setvar varb4070_spellbook 0")
+            end
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local tried = {}
+            for _ = 1, 200 do
+                local _, now = now_tick()
+                local pick = nil
+                for _, style in ipairs({ "melee", "ranged" }) do
+                    local sym = "tob_nylocas_incoming_" .. style .. "_story"
+                    local nr, _, rows = tiles(sym, 20)
+                    if nr == "ok" and pick == nil then
+                        for _, row in ipairs(rows) do
+                            local _, ws = log_slot(row)
+                            if ws ~= nil and not tried[ws] and pick == nil then
+                                local _, anims = log_rows({ kind = "npc_anim", slot = ws })
+                                local bites = 0
+                                for _, a in ipairs(anims or {}) do
+                                    if (a.seq == 7999 or a.seq == 8004) and a.tick >= now - 7 then bites = bites + 1 end
+                                end
+                                if bites >= 2 then pick = { row = row, sym = sym, ws = ws } end
+                            end
+                        end
+                    end
+                end
+                if pick ~= nil then
+                    tried[pick.ws] = true
+                    local cast_result = cast("ice_burst", pick.sym, 2, 2, { slot = pick.row.slot })
+                    settle(16)
+                    local _, hits = log_rows({ kind = "hit_npc", slot = pick.ws })
+                    local hit_at = nil
+                    for _, h in ipairs(hits or {}) do if hit_at == nil and h.tick >= now then hit_at = h.tick end end
+                    if hit_at ~= nil then
+                        local before, after, died = 0, 0, nil
+                        local _, anims = log_rows({ kind = "npc_anim", slot = pick.ws })
+                        for _, a in ipairs(anims or {}) do
+                            if a.seq == 7999 or a.seq == 8004 then
+                                if a.tick >= hit_at - 9 and a.tick <= hit_at then before = before + 1 end
+                                if a.tick > hit_at and a.tick <= hit_at + 15 then after = after + 1 end
+                            elseif a.tick > hit_at and a.tick <= hit_at + 15 and died == nil then
+                                died = a.tick - hit_at
+                            end
+                        end
+                        -- a chewer that detonated before +6 says nothing about the freeze: try another
+                        if died == nil or died >= 6 then
+                            teardown()
+                            local detail = pick.sym .. " slot " .. pick.ws .. " Ice Burst (" .. tostring(cast_result) .. ") hit at t" .. hit_at
+                                .. ": bites in the 9 ticks up to it " .. before .. ", in the 15 after " .. after
+                                .. (died ~= nil and (" (detonated +" .. died .. ")") or "")
+                            if before >= 1 and after == 0 then return "ok", detail end
+                            return "refused", detail .. " (want >= 1 before and 0 after)"
+                        end
+                    end
+                else
+                    settle(1)
+                end
+            end
+            teardown()
+            return "timeout", "no chewing grey or green nylocas was frozen in 200 polls"
         end)
 
 -- seam8 tob_rewards_and_completion: CONTENT seam, no driver verb added or changed.
@@ -14867,6 +15135,129 @@ return {
                 .. " (99 + 13 = 112), magic " .. m0 .. " -> " .. m1 .. " (+4 = 103), stamina " .. tostring(st)
             if n1 == (n0 or 0) - 1 and a1 == 117 and r1 == 112 and m1 == 103 and st == 1 then return "ok", detail end
             return "refused", detail
+        end)
+
+        -- (B) ----------------------------------------------------------------
+        -- t.player.eat / t.player.drink: one click on the backpack cell, ok
+        -- when the cell changed on the next read.  A detail that does not name
+        -- the cell's before -> after is the hollow these rows catch.
+        step("player.eat", function()
+            local fn = verb("player", "eat")
+            if not fn then return missing("player", "eat") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give shark 2")
+            settle(3)
+            local result, detail = fn("shark")
+            if result == "ok" and not string.find(tostring(detail), "shark -> ", 1, true) then
+                return "hollow", "answered ok without naming the cell's change -- " .. describe(detail)
+            end
+            local _, left = t.inv.count("shark")
+            if result == "ok" and left ~= 1 then
+                return "refused", "ok, but the backpack holds " .. describe(left) .. " shark (want 1) -- " .. describe(detail)
+            end
+            return result, describe(detail) .. "; sharks left " .. describe(left)
+        end)
+
+        step("player.drink", function()
+            local fn = verb("player", "drink")
+            if not fn then return missing("player", "drink") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give 4dose2combat")
+            settle(3)
+            -- A list: the first dose held is drunk (here the only one).
+            local result, detail = fn({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" })
+            if result == "ok" and not string.find(tostring(detail), "4dose2combat -> 3dose2combat", 1, true) then
+                return "hollow", "answered ok without naming the dose going down -- " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        -- (C) ----------------------------------------------------------------
+        -- A HELD PRESS AT FIGHT SPEED (raid seam14).  Every fast press is read
+        -- back on the NEXT tick and must return within two server ticks of
+        -- being pressed; the slow inv_op is timed beside it for the contrast.
+        -- RED on the old driver: inv_op ignored opts (3 ticks) and t.player.eat
+        -- / drink did not exist.
+        seam("seam.held_press_fight_speed", function()
+            local equip = verb("player", "equip")
+            local inv_op = verb("player", "inv_op")
+            local eat = verb("player", "eat")
+            local drink = verb("player", "drink")
+            if not equip then return missing("player", "equip") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not eat then return missing("player", "eat") end
+            if not drink then return missing("player", "drink") end
+            if not verb("tick") then return missing("tick") end
+            local function now()
+                local _, tick = t.tick()
+                return tick
+            end
+            local function count(name)
+                local _, n = t.inv.count(name)
+                return n
+            end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give abyssal_whip")
+            setup_cheat("::give rune_scimitar")
+            setup_cheat("::give shark 4")
+            setup_cheat("::give 4dose2combat")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            settle(3)
+            local text = {}
+            local function fast(label, fn, ...)
+                local before = now()
+                local result, detail = fn(...)
+                local spent = now() - before
+                text[#text + 1] = label .. " " .. describe(result) .. " in " .. spent
+                return result, tostring(detail), spent
+            end
+            local function bad(why, detail)
+                setup_cheat("::setlevel attack 99")
+                return "refused", table.concat(text, "; ") .. " -- " .. why .. ": " .. string.sub(describe(detail), 1, 600)
+            end
+            local r, d, spent = fast("equip whip", equip, "abyssal_whip", { quick = true })
+            if r ~= "ok" or spent > 2 or not string.find(d, "WORN abyssal_whip", 1, true) or count("abyssal_whip") ~= 0 then
+                return bad("the fast equip did not put the whip on within two ticks", d)
+            end
+            r, d, spent = fast("equip scimitar", equip, "rune_scimitar", { quick = true })
+            if r ~= "ok" or spent > 2 or not string.find(d, "WORN rune_scimitar", 1, true) or count("abyssal_whip") ~= 1 then
+                return bad("the fast swap did not put the scimitar on and the whip back", d)
+            end
+            r, d, spent = fast("eat", eat, "shark")
+            if r ~= "ok" or spent > 2 or count("shark") ~= 3 then
+                return bad("the fast eat did not take one shark within two ticks", d)
+            end
+            -- Inside the food timer the server ignores a bite silently: the
+            -- fast press answers timeout, says it did not press again, and
+            -- the shark stays.
+            r, d, spent = fast("eat again", eat, "shark")
+            if r ~= "timeout" or not string.find(d, "not re-pressed", 1, true) or count("shark") ~= 3 then
+                return bad("a bite inside the food timer was not reported as an unanswered single click", d)
+            end
+            r, d, spent = fast("drink", drink, { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" })
+            if r ~= "ok" or spent > 2 or not string.find(d, "-> 3dose2combat", 1, true) then
+                return bad("the fast drink did not lower the dose within two ticks", d)
+            end
+            settle(3)
+            r, d, spent = fast("inv_op quick brew", inv_op, "4dosepotionofsaradomin", 1, { quick = true })
+            if r ~= "ok" or spent > 2 or not string.find(d, "-> 3dosepotionofsaradomin", 1, true) then
+                return bad("inv_op { quick = true } did not drink the brew within two ticks", d)
+            end
+            settle(3)
+            local slow_before = now()
+            local slow_result = inv_op("shark", 1)
+            local slow_spent = now() - slow_before
+            text[#text + 1] = "slow inv_op eat " .. describe(slow_result) .. " in " .. slow_spent
+            setup_cheat("::setlevel attack 1")
+            settle(2)
+            r, d, spent = fast("under-levelled whip", equip, "abyssal_whip", { quick = true })
+            setup_cheat("::setlevel attack 99")
+            if r ~= "refused" or not string.find(d, "Attack level", 1, true) then
+                return bad("an under-levelled fast equip did not answer refused with the server's sentence", d)
+            end
+            return "ok", table.concat(text, "; ")
         end)
 
         step("finish", function()

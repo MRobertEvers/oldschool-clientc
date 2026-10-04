@@ -532,3 +532,46 @@ Open:
 - Open, ToB, supply chests: an Entry chest hands over min(10, free slots) and then answers "The
   chest is empty." (tob_chest.rs2:159). No source says whether a raider may come back for the
   rest after freeing slots.
+
+## From seam14 (matthew-mbp-m4-raid-b1-seam14, 2026-10-04)
+
+- **FIXED seam14** ToB, Nylocas: a wave nylocas's swing dealt add(1, random(max)), so every swing
+  landed for 1..max whatever the raider wore; Vasilias did the same (16 of 16 prayed magic and
+  ranged swings landed). `~tob_nylo_hit_roll` in tob_nylocas.rs2 now rolls the npc's attack roll
+  against the player's defence roll (stab, ranged or magic by colour), and only a roll that beats
+  it deals 0..max; `~tob_vasilias_damage` uses it. Sources: LostCity npc_combat_melee.rs2:27-28
+  ("randominc($attack_roll) > randominc($defence_roll)" then "randominc($maxhit)"); the cache
+  records (cache_npc_nylocas.txt: Entry small 80/80/1 +505, big 100/100/6 +400, Vasilias Entry
+  160/140/20 +380) and the wiki infoboxes. Room damage for a driven Entry solo fell from 545-969
+  to 361-441 (scratch) and 279-392 (relay first half). Spec rows nylocas.swing_miss_entry and
+  nylocas.vasilias_prayed_miss_entry (C).
+- **FIXED seam14** ToB, Nylocas Entry: frozen nylocas went on chewing the supports. Entry Mode
+  page :166: "Frozen nylocas cannot attack the pillars until unfrozen, even if they are in melee
+  range". `~tob_nylo_pillar_tick` now returns while npc_frozen > 0, in Entry only. Spec row
+  nylocas.frozen_bites_entry (D); conformance seam.nylocas_frozen_no_bite_entry.
+- Open, ToB, Nylocas Normal/Hard freeze: Strategies:719 says only "Frozen nylocas will usually
+  stop attacking a pillar for a short time", which is not a rule, so Normal and Hard frozen
+  nylocas still bite.
+- Open, ToB, Vasilias Entry: her prayed magic/ranged max is still the Normal 17 (no Entry
+  figure exists); the accuracy roll now gates it.
+- Open, ToB, supply chests (tob_chest.rs2:122-169): an Entry chest gives min(10, free slots) and
+  then says "The chest is empty." The item page ("The chest can only contain a maximum of 10
+  bandages, so uncollected bandages are deleted") and Entry Mode :7 ("Leftover bandages in the
+  supply chest do not carry over from each boss") say the leftovers stay until the next chest.
+  Patch proposed at build/seam_state/matthew-mbp-m4-raid-b1-seam14/verz/chest_proposal/ (not in
+  the seam's files, not applied, not compiled).
+- Open, ToB, bandages: no prayer restore (tob_spectate.rs2). Entry Mode :7/:35 say the bandage
+  acts as a prayer potion; :151 says it "slightly restores Prayer"; the item page says "more
+  research is needed". A prayer-potion restore would be grade E at best: the owner decides. The
+  Magic boost is SETTLED: the 9 June 2021 hotfix "Reduced the amount that the story mode bandage
+  boosts your magic level by" supports the item page's static +4, which the code uses.
+- Open, ToB, Verzik Entry figures: the P2 lightning (48; 28 with boots), blood spell (45), crab
+  explosion, Athanatos landing, yellow blast and web snap all roll the Normal values, because no
+  source gives an Entry figure. The Entry page :228 says the lightning "can largely be ignored in
+  a solo raid" with insulated boots, yet it dealt 110-146 per P2. The tornado heal (Normal 3x,
+  Entry "a percentage", :256) has no Entry figure either.
+- Open, ToB, Verzik: her pillars spawn as the Normal records 8379/8377/8378, not Entry
+  10840/10838/10839, in every run (npc_retype rows); hp is set to 200 by script. Presentation only.
+- Closed as stale, ToB, Verzik: tob.constant's "25 with insulated boots" comment is the
+  Strategies page's figure, not stale; the 60 percent is now ^tob_verzik_p2_zap_boots_pct with
+  both quotes (behaviour unchanged).
