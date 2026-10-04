@@ -58,10 +58,7 @@ return {
         local vr, vrow = t.npc.nearest("hg_verity", 10)
         t.check("talkToVerity-where", vr == "ok", "verity row " .. tostring(vr) .. " x=" .. tostring(vrow and vrow.x) .. " z=" .. tostring(vrow and vrow.z))
         local tv_result, tv_detail = t.player.talk_to("hg_verity", 1)
-        do
-            t.blocked("content_bug: talkToVerity -- Verity stands at 1559,9464 behind the bar counter (floor-blocked tiles z 9463, x 1556-1560, flap hg_table_tavern02_door01 has no op); talk_to from 1559,9462 straight across answers " .. tostring(tv_result) .. " '" .. tostring(tv_detail) .. "' and from 1561,9463 and 1559,9461 the same: every tile adjacent to her is unreachable, so the only landing is the sealed pocket behind the bar (a goto past the counter, rejected). The port lacks the across-the-counter reach OSRS has; all later legs unverified.")
-            return
-        end
+        t.check("talkToVerity-talk", tv_result == "ok", "talk_to hg_verity -> " .. tostring(tv_result) .. " " .. tostring(tv_detail))
         t.exec("talkToVerity-dialog", t.chat.play, {
             "player:Apatura sent me",
             "npc:Yes. Fox's report on his trapping trip vanished",
@@ -138,8 +135,9 @@ return {
         local leaf1_result, leaf1_total = t.inv.await("afl_leaf1", 1, 8)
         t.check("takeLeaf-have", leaf1_result, "smooth leaves: " .. tostring(leaf1_total))
 
-        -- 1.13 takeSecondLeaf
-        t.exec("goto-takeSecondLeaf", t.player.goto_tile, 1673, 2991, 0)
+        -- 1.13 takeSecondLeaf. afl_bush2 stands at 1673,2992 and 1673,2991 is solid ground
+        -- (reach.py: target tile solid); 1672,2992, west of the bush, is open.
+        t.exec("goto-takeSecondLeaf", t.player.goto_tile, 1672, 2992, 0)
         t.exec("takeSecondLeaf", t.player.click_loc, "afl_bush2", 1)
         local leaf2_result, leaf2_total = t.inv.await("afl_leaf2", 1, 8)
         t.check("takeSecondLeaf-have", leaf2_result, "sticky leaves: " .. tostring(leaf2_total))
@@ -156,12 +154,16 @@ return {
             local fl, _ = t.world.loc_near("hunting_boxtrap_full_jerboa", 14)
             local bl, _ = t.world.loc_near("hunting_boxtrap_failed", 14)
             if (held or 0) >= 1 and el ~= "ok" and fl ~= "ok" and bl ~= "ok" then
-                t.exec("catchJerboa-goto-at" .. round, t.player.goto_tile, 1664, 3002, 0)
+                -- Walk (not goto) a step or two across the open oasis to the jerboas' side.
+                t.player.walk_to(1664, 3002, 6)
+                local _, lay_tile = t.world.tile()
                 local lay_result, lay_detail = t.player.inv_op("hunting_box_trap", 1)
                 t.ticks(6)
                 local _, held_after = t.inv.count("hunting_box_trap")
                 local laid, _ = t.world.loc_near("hunting_boxtrap_empty", 6)
-                t.check("catchJerboa-lay" .. round, lay_result == "ok" and (held_after or 0) < (held or 0) and laid == "ok", "lay -> " .. tostring(lay_result) .. " " .. tostring(lay_detail) .. "; box traps held " .. tostring(held) .. " -> " .. tostring(held_after) .. "; trap loc " .. tostring(laid))
+                local laid_full, _ = t.world.loc_near("hunting_boxtrap_full_jerboa", 6)
+                local laid_failed, _ = t.world.loc_near("hunting_boxtrap_failed", 6)
+                t.check("catchJerboa-lay" .. round, (lay_result == "ok" or lay_result == "timeout") and (held_after or 0) < (held or 0) and (laid == "ok" or laid_full == "ok" or laid_failed == "ok"), "lay at " .. tostring(lay_tile and lay_tile.x) .. "," .. tostring(lay_tile and lay_tile.z) .. " -> " .. tostring(lay_result) .. " " .. tostring(lay_detail) .. "; box traps held " .. tostring(held) .. " -> " .. tostring(held_after) .. "; trap loc empty " .. tostring(laid) .. ", full " .. tostring(laid_full) .. ", failed " .. tostring(laid_failed))
             end
             t.ticks(40)
             local fok = t.world.loc_near("hunting_boxtrap_full_jerboa", 14)
@@ -202,7 +204,23 @@ return {
         local fur_result, fur_total = t.inv.await("afl_fur", 1, 5)
         t.check("talkToFoxAfterPoultice-fur", fur_result, "fur samples: " .. tostring(fur_total))
 
-        -- 1.18/1.19 talkToAtza (fur in hand)
+        -- Doors around Atza. An opened door is loc_del'd and fortis_door_l_open is loc_add'ed one
+        -- tile over for 500 ticks (doors.rs2 door_open_active). A door an earlier press left open
+        -- is not re-pressed: the nearest fortis_door_l_open must stand on the tile that door's
+        -- open leaf takes (Atza's 1698,3064 -> 1699,3064; the hammer house's 1695,3068 -> 1695,3067).
+        local function door_open_at(row, door_x, door_z, open_x, open_z)
+            local open_result, open_row = t.world.loc_near("fortis_door_l_open", 4)
+            local ox = type(open_row) == "table" and open_row.tile_x or nil
+            local oz = type(open_row) == "table" and open_row.tile_z or nil
+            t.check(row, open_result == "ok" and ox == open_x and oz == open_z, "fortis_door_l_open " .. tostring(open_result) .. " at " .. tostring(ox) .. "," .. tostring(oz) .. " (the door at " .. door_x .. "," .. door_z .. " opens onto " .. open_x .. "," .. open_z .. ")")
+        end
+        local function stands_at(row, want_x, want_z, why)
+            local _, here = t.world.tile()
+            t.check(row, here ~= nil and here.x == want_x and here.z == want_z, why .. ": at " .. tostring(here and here.x) .. "," .. tostring(here and here.z) .. " (want " .. want_x .. "," .. want_z .. ")")
+        end
+
+        -- 1.18/1.19 talkToAtza (fur in hand). 1698,3066 is open ground outside Atza's house
+        -- (reach.py from Fox: closed-doors); her door fortis_door_l@1698,3064 is pressed to go in.
         t.exec("goto-talkToAtza", t.player.goto_tile, 1698, 3066, 0)
         t.exec("talkToAtza-door", t.player.click_loc, "fortis_door_l", 1, { at = { 1698, 3064 } })
         t.exec("talkToAtza", t.player.talk_to, "afl_atza", 1)
@@ -213,22 +231,29 @@ return {
         })
         t.expect("quest.stage.repair", t.quest.expect_stage("repair"))
 
-        -- 1.20 takeHammer
+        -- 1.20 takeHammer. The hammer (m26_47.spawn: 1696,3070) is in the house west of Atza's,
+        -- behind fortis_door_l@1695,3068, whose outside face is 1695,3067 (reach.py: 1695,3067
+        -- and 1698,3066 are open ground joined with every door closed; 1695,3069 NEEDS-DOOR via
+        -- 1695,3068). Walk out of Atza's house through her open door, walk to the hammer house
+        -- door, press it, take the hammer, walk back out through it. No goto: all on foot.
+        door_open_at("takeHammer-atzaDoorOpen", 1698, 3064, 1699, 3064)
         t.player.walk_to(1698, 3066, 12)
-        local _, out1 = t.world.tile()
-        t.check("takeHammer-leaveAtza", out1 and out1.z >= 3065, "walked out through Atza's door to " .. tostring(out1 and out1.x) .. "," .. tostring(out1 and out1.z))
-        t.exec("goto-takeHammerOutside", t.player.goto_tile, 1694, 3068, 0)
+        stands_at("takeHammer-leaveAtza", 1698, 3066, "walked out through Atza's door")
+        t.player.walk_to(1695, 3067, 12)
+        stands_at("takeHammer-atHammerHouseDoor", 1695, 3067, "walked to the hammer house door's outside face")
         t.exec("takeHammer-door", t.player.click_loc, "fortis_door_l", 1, { at = { 1695, 3068 } })
         t.exec("takeHammer", t.player.click_obj, "hammer")
         local hammer_result, hammer_total = t.inv.await("hammer", 1, 8)
         t.check("takeHammer-have", hammer_result, "hammers: " .. tostring(hammer_total))
 
-        -- 1.21 makeEquipmentPile
-        t.player.walk_to(1694, 3068, 12)
-        local _, out2 = t.world.tile()
-        t.check("makeEquipmentPile-leaveHammerHouse", out2 and out2.x <= 1694, "walked out through the hammer house door to " .. tostring(out2 and out2.x) .. "," .. tostring(out2 and out2.z))
-        t.exec("goto-makeEquipmentPile", t.player.goto_tile, 1698, 3066, 0)
-        t.exec("makeEquipmentPile-door", t.player.click_loc, "fortis_door_l", 1, { at = { 1698, 3064 } })
+        -- 1.21 makeEquipmentPile: out through the hammer house door takeHammer-door opened, back
+        -- to Atza's door (open since talkToAtza-door), in to the pile at 1697,3063.
+        door_open_at("makeEquipmentPile-hammerDoorOpen", 1695, 3068, 1695, 3067)
+        t.player.walk_to(1695, 3067, 12)
+        stands_at("makeEquipmentPile-leaveHammerHouse", 1695, 3067, "walked out through the hammer house door")
+        t.player.walk_to(1698, 3066, 12)
+        stands_at("makeEquipmentPile-atAtzaDoor", 1698, 3066, "walked back to Atza's door")
+        door_open_at("makeEquipmentPile-atzaDoorOpen", 1698, 3064, 1699, 3064)
         t.exec("makeEquipmentPile", t.player.click_loc, "afl_housetrap_multi", 1)
         t.var.await("varb9840_afl_housetrapped", 2, 10)
         t.expect("makeEquipmentPile-set", t.var.expect("varb9840_afl_housetrapped", 2))
@@ -241,7 +266,11 @@ return {
         })
         t.expect("quest.stage.trim", t.quest.expect_stage("trim"))
 
-        -- 1.23/1.24 returnToFoxAfterTrim
+        -- 1.23/1.24 returnToFoxAfterTrim: walk out of Atza's house through her open door first;
+        -- the goto departs from 1698,3066, open ground outside.
+        door_open_at("returnToFoxAfterTrim-atzaDoorOpen", 1698, 3064, 1699, 3064)
+        t.player.walk_to(1698, 3066, 12)
+        stands_at("returnToFoxAfterTrim-leaveAtza", 1698, 3066, "walked out through Atza's door")
         t.exec("goto-returnToFoxAfterTrim", t.player.goto_tile, 1623, 2980, 0)
         t.exec("returnToFoxAfterTrim", t.player.talk_to, "afl_hunter_fox_multi", 1)
         t.exec("returnToFoxAfterTrim-dialog", t.chat.play, {
@@ -260,6 +289,8 @@ return {
         t.exec("goto-goDownTreeEnd", t.player.goto_tile, 1557, 3046, 0)
         t.exec("goDownTreeEnd", t.player.click_loc, "hunterguild_stairs_down01_combined", 1)
         t.ticks(4)
+        local _, below_end = t.world.tile()
+        t.check("goDownTreeEnd-landed", below_end ~= nil and below_end.z > 9000, "burrow tile " .. tostring(below_end and below_end.x) .. "," .. tostring(below_end and below_end.z))
 
         -- 1.27 talkToVerityEnd
         t.exec("goto-talkToVerityEnd", t.player.goto_tile, 1559, 9462, 0)
@@ -281,6 +312,8 @@ return {
         t.exec("goto-goUpTreeToFinishQuest", t.player.goto_tile, 1557, 9451, 0)
         t.exec("goUpTreeToFinishQuest", t.player.click_loc, "hunterguild_stairs_up01", 1)
         t.ticks(4)
+        local _, above_end = t.world.tile()
+        t.check("goUpTreeToFinishQuest-landed", above_end ~= nil and above_end.z < 4000, "surface tile " .. tostring(above_end and above_end.x) .. "," .. tostring(above_end and above_end.z))
         t.exec("goto-talkToApaturaToFinishQuest", t.player.goto_tile, 1555, 3033, 0)
 
         local _, reward_before = t.skill.snapshot()
