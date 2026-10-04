@@ -25,8 +25,11 @@ return {
         -- Quest Helper skill requirements: Crafting 50, Herblore 45, Magic 56, Mining 52, Prayer 42,
         -- Smithing 50, Strength 50, Thieving 50, Woodcutting 50, Agility 50
         "::setlevel crafting 50", "::setlevel woodcutting 50", "::setlevel agility 50",
-        "::setlevel herblore 45", "::setlevel magic 56", "::setlevel mining 55", "::setlevel prayer 60",
+        "::setlevel herblore 45", "::setlevel magic 56", "::setlevel mining 60", "::setlevel prayer 60",
         "::setlevel smithing 50", "::setlevel thieving 50", "::setlevel strength 80",
+        -- Mining 60, not the guide's 52: each scratched boulder costs a Mining level (quest_legends.rs2:568
+        -- stat_sub) and below 52 the boulders refuse (:534), so 55 left three misses of slack across the
+        -- three boulders (r3 run2 sank to 51 on the third and stalled leg 2)
         -- The Kharazi jungle animals attack a character with a fresh 10 hitpoints while the
         -- bullroarer is swung (spinBull died at tick 247); Quest Helper lists combat gear for the
         -- fights of later legs (Nezikchened, the heart-crystal trio), so the character is armed once
@@ -43,6 +46,14 @@ return {
         -- leg 1's papyrus and charcoal: leg 2 gives them after dropping those (leg.2.pack).
         "::give lockpick 3", "::give rune_pickaxe 1",
         "::give soulrune 1", "::give mindrune 1", "::give earthrune 1", "::give lawrune 2",
+        -- The guide's three "teleport out" points leave a closed cave, so they are real spells cast
+        -- from the spellbook (teleport.rs2 magic_teleport; magic.rs2 magic_teleport_gate refuses only
+        -- the Gauntlet, the MTA, a teleblock and deep wilderness): Varrock Teleport out of the gem
+        -- cavern to the guide's anvil (leg 4 makeBowl: 1 law, 3 air, 1 fire, level 25,
+        -- magic_spells.dbrow:104) and Camelot Teleport out of the Viyeldi caves twice (leg 7
+        -- enterMossyRockHolyForce, leg 9 returnToSurface: 1 law, 5 air each, level 45, :129). Magic 56
+        -- is staged above. Three law runes on top of the marked wall's two.
+        "::give lawrune 3", "::give airrune 13", "::give firerune 1",
     },
     bind = {
         varp = "varp139_legendsquest",
@@ -171,7 +182,49 @@ return {
             t.exec("talkToRadimus-machete", t.inv.await, "machette", 1, 10)
             t.chat.drain({ max_pages = 3 })
 
+            ---------------------------------------------------------------- 1: out of the hut and the guild grounds
+            -- Radimus's study is behind the hut door (poshdoor 2726,3368; open, it is poshdooropen beside
+            -- that tile) and the grounds behind the mithril gates (legends_gate.rs2 open_legends_gate walks a
+            -- started player through either way): both are crossed on foot before the overland hop
+            do
+                t.player.walk_to(2725, 3368, 10)
+                local _, near = t.world.tile()
+                local closed_result, closed = t.world.loc_near("poshdoor", 3)
+                if closed_result == "ok" and closed.tile_x == 2726 and closed.tile_z == 3368 and (closed.level or 0) == 0 then
+                    t.exec("leaveHut-door", t.player.click_loc, "poshdoor", 1, { at = { 2726, 3368 } })
+                    t.ticks(1)
+                else
+                    local open_result, open = t.world.loc_near("poshdooropen", 3)
+                    t.check("leaveHut-doorStandsOpen", open_result == "ok" and (open.level or 0) == 0
+                            and math.abs(open.tile_x - 2726) <= 1 and math.abs(open.tile_z - 3368) <= 1,
+                        "inside the hut at " .. near.x .. "," .. near.z .. "; poshdooropen "
+                            .. (open_result == "ok" and ("at " .. open.tile_x .. "," .. open.tile_z .. "," .. tostring(open.level)) or tostring(open_result))
+                            .. " (the door pressed on the way in still stands open, so it is walked through, not pressed)")
+                end
+                t.player.walk_to(2727, 3368, 10)
+                local _, outside = t.world.tile()
+                t.check("leaveHut", near.x <= 2725 and outside.x >= 2727,
+                    "through the hut door: " .. near.x .. "," .. near.z .. " -> " .. outside.x .. "," .. outside.z)
+            end
+            do
+                t.player.walk_to(2728, 3350, 30)
+                local _, inside = t.world.tile()
+                t.check("leaveGuild-atGate", inside.z >= 3350 and math.abs(inside.x - 2728) <= 1,
+                    "inside the mithril gates at " .. inside.x .. "," .. inside.z)
+                t.exec("leaveGuild-gate", t.player.click_loc, "legendsguildgatel", 1, { at = { 2728, 3349 } })
+                local out = t.await({ level = function()
+                    local _, at = t.world.tile()
+                    -- the gate leaf's wall is on the north edge of 2728,3349 (locs rot 1): that tile is outside
+                    return at.z <= 3349
+                end, note = "out through the guild gate" }, 12)
+                local _, road = t.world.tile()
+                t.check("leaveGuild", out == "ok", "through the mithril gates: " .. inside.x .. "," .. inside.z
+                    .. " -> " .. road.x .. "," .. road.z)
+            end
+
             ---------------------------------------------------------------- 1: the jungle, the sketch
+            -- an overland hop from the road outside the guild gates to the open ground north of the
+            -- Kharazi jungle's dense band (the band is then cut through below)
             t.exec("goto-enterJungle", t.player.goto_tile, 2795, 2943, 0)
             local crossed = cross_jungle("enterJungle", true, 12)
             local _, jungle = t.world.tile()
@@ -213,6 +266,26 @@ return {
             local left = cross_jungle("leaveJungle", false, 12)
             local _, north = t.world.tile()
             t.check("useNotes-leave", left, "north of the dense band again: " .. north.x .. "," .. north.z)
+            -- the cuts hand out logs (jungle_tree.rs2, a log per roll while a slot is free); with the
+            -- teleport runes staged in setup they fill the backpack, and the forester's bullroarer would not
+            -- fit: drop them before the copy
+            do
+                local _, logs_before = t.inv.count("logs")
+                for _ = 1, 30 do
+                    local _, remaining = t.inv.count("logs")
+                    if remaining == 0 then break end
+                    t.player.drop("logs")
+                    t.ticks(1)
+                end
+                local _, logs_after = t.inv.count("logs")
+                local free = 0
+                for slot = 0, 27 do
+                    local slot_result, cell = t.inv.slot(slot)
+                    if slot_result == "ok" and cell.name == "" then free = free + 1 end
+                end
+                t.check("useNotes-logs", logs_after == 0 and free >= 1, "dropped the jungle cuts' logs " .. tostring(logs_before)
+                    .. " -> " .. tostring(logs_after) .. "; free backpack slots for the bullroarer " .. free)
+            end
             local forester = t.player.by_symbol("npc", "jungleforester_m")
             t.exec("useNotes-approach", t.player.walk_near, forester, 30)
             t.exec("useNotes", t.player.use_on, "thkaramjamapcomp", forester)
@@ -538,7 +611,8 @@ return {
             end
             slide("useMind", "mindrune", 0)
             slide("useEarth", "earthrune", 0)
-            slide("useLaw", "lawrune", 1)
+            -- setup staged five law runes: two for the wall, three for the teleports of legs 4, 7 and 9
+            slide("useLaw", "lawrune", 4)
 
             local wall = t.player.by_symbol("loc", "lgancientwalldoor")
             t.exec("useLaw2", t.player.use_on, "lawrune", wall, { at = wall_at })
@@ -547,9 +621,9 @@ return {
             do
                 local _, laws = t.inv.count("lawrune")
                 local _, at = t.world.tile()
-                t.check("useLaw2-through", laws == 0 and at.x < 2779 and at.z < 9305,
-                    "no law rune left (" .. tostring(laws) .. "); walked through the wall into the gem cavern at "
-                    .. at.x .. "," .. at.z)
+                t.check("useLaw2-through", laws == 3 and at.x < 2779 and at.z < 9305,
+                    "the wall took its second law rune (" .. tostring(laws) .. " left, the three teleport runes); "
+                    .. "walked through the wall into the gem cavern at " .. at.x .. "," .. at.z)
             end
 
             ---------------------------------------------------------------- the gems (rs2:780)
@@ -612,6 +686,91 @@ return {
             local function underground()
                 local _, at = t.world.tile()
                 return at.z > 9000
+            end
+            -- a real teleport spell from the spellbook, graded on the runes it took and the landing tile
+            local function teleport_out(step, spell, runes, land_x, land_z)
+                local before = {}
+                for i, rune in ipairs(runes) do
+                    local _, n = t.inv.count(rune[1])
+                    before[i] = n or 0
+                end
+                local _, from = t.world.tile()
+                local _, detail = t.exec(step, t.player.cast, spell)
+                t.ticks(2)
+                local spent, right = {}, true
+                for i, rune in ipairs(runes) do
+                    local _, n = t.inv.count(rune[1])
+                    local used = before[i] - (n or 0)
+                    if used ~= rune[2] then right = false end
+                    spent[#spent + 1] = rune[1] .. " " .. before[i] .. " -> " .. tostring(n) .. " (spent " .. used .. ", want " .. rune[2] .. ")"
+                end
+                t.check(step .. "-runes", right, spell .. ": " .. table.concat(spent, ", "))
+                local _, at = t.world.tile()
+                t.check(step .. "-landing", math.abs(at.x - land_x) <= 3 and math.abs(at.z - land_z) <= 3 and (at.level or 0) == 0,
+                    "cast at " .. from.x .. "," .. from.z .. "," .. (from.level or 0) .. ", landed at " .. at.x .. "," .. at.z .. ","
+                    .. (at.level or 0) .. " (want within 3 of the spell's tele_coord " .. land_x .. "," .. land_z .. "); cast: " .. tostring(detail))
+            end
+            -- kharazi_dense_jungle (legends_zones.dbrow): chop the jungle loc straight ahead
+            -- (jungle_tree.rs2 moves the player two tiles through it); a free tile ahead is walked.
+            local function cross_jungle(name, want_south, limit)
+                local symbols = { "kharazi_jungle_plant1", "kharazi_jungle_plant2", "kharazi_jungle_tree1",
+                                  "kharazi_jungle_tree2", "kharazi_jungle_tree_logs" }
+                local dz = want_south and -1 or 1
+                local stuck = 0
+                for i = 1, limit do
+                    local _, tile = t.world.tile()
+                    if want_south and tile.z < 2934 then return true end
+                    if (not want_south) and tile.z > 2942 then return true end
+                    local pressed = false
+                    for _, symbol in ipairs(symbols) do
+                        if t.world.loc_near(symbol, 1) == "ok" then
+                            local result, detail = t.player.click_loc(symbol, 1, { at = { tile.x, tile.z + dz } })
+                            if result == "ok" then
+                                t.step(name .. "-chop-" .. i, result == "ok" and "PASS" or "FAIL", symbol .. " at " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(detail))
+                                pressed = true
+                                break
+                            end
+                        end
+                    end
+                    if not pressed then
+                        local walked = t.player.walk_to(tile.x, tile.z + dz, 10)
+                        t.step(name .. "-walk-" .. i, walked == "ok" and "PASS" or "FAIL",
+                            "walk to " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(walked))
+                    end
+                    local moved = t.await({ level = function()
+                        local _, now = t.world.tile()
+                        return now.x ~= tile.x or now.z ~= tile.z
+                    end, note = "moved" }, 40)
+                    if moved ~= "ok" then
+                        stuck = stuck + 1
+                        local side = (stuck % 2 == 1) and 1 or -1
+                        local sidestep = t.player.walk_to(tile.x + side, tile.z, 10)
+                        t.step(name .. "-sidestep-" .. i, sidestep == "ok" and "PASS" or "FAIL",
+                            "blocked ahead of " .. tile.x .. "," .. tile.z .. ", side-step to "
+                            .. (tile.x + side) .. "," .. tile.z .. ": " .. tostring(sidestep)
+                            .. "; last messages: " .. tostring(select(2, t.msg.last(2))))
+                    end
+                end
+                return false
+            end
+            -- the cuts hand out logs while a slot is free (jungle_tree.rs2); the reeds, the holy force and the
+            -- totem need those slots, so every crossing ends by dropping them, graded on the count and free slots
+            local function drop_logs(name)
+                local _, logs_before = t.inv.count("logs")
+                for _ = 1, 30 do
+                    local _, remaining = t.inv.count("logs")
+                    if remaining == 0 then break end
+                    t.player.drop("logs")
+                    t.ticks(1)
+                end
+                local _, logs_after = t.inv.count("logs")
+                local free = 0
+                for slot = 0, 27 do
+                    local slot_result, cell = t.inv.slot(slot)
+                    if slot_result == "ok" and cell.name == "" then free = free + 1 end
+                end
+                t.check(name, logs_after == 0 and free >= 1, "dropped the jungle cuts' logs " .. tostring(logs_before)
+                    .. " -> " .. tostring(logs_after) .. "; free backpack slots " .. free)
             end
 
             ---------------------------------------------------------------- useOpal (rs2:808)
@@ -688,8 +847,18 @@ return {
             ---------------------------------------------------------------- makeBowl
             -- Quest Helper: any anvil (the Varrock west smithy, three copies of `anvil`). The gold bar
             -- on the anvil with legendsquest >= asked_gujuo_holy_water forges the bowl
-            -- (smithing.rs2:274 -> quest_legends.rs2:1284): a "Yes" choice, 4 ticks, stat_random
-            t.exec("goto-makeBowl", t.player.goto_tile, 3187, 3424, 0)
+            -- (smithing.rs2:274 -> quest_legends.rs2:1284): a "Yes" choice, 4 ticks, stat_random.
+            -- The gem cavern is deep in the Mossy Rock cave: Varrock Teleport is cast out of it (runes
+            -- staged in setup), then the smithy (no door; its doorway faces north) is walked into.
+            teleport_out("makeBowl-teleport", "varrock_teleport",
+                { { "lawrune", 1 }, { "airrune", 3 }, { "firerune", 1 } }, 3213, 3424)
+            do
+                local walked = t.player.walk_to(3187, 3424, 60)
+                local _, at = t.world.tile()
+                t.check("makeBowl-walkToAnvil", math.abs(at.x - 3187) <= 1 and math.abs(at.z - 3424) <= 1,
+                    "walked from Varrock square into the west smithy beside the anvil: " .. at.x .. "," .. at.z
+                    .. ", walk " .. tostring(walked))
+            end
             local forged = false
             for i = 1, 6 do
                 local anvil = t.player.by_symbol("loc", "anvil")
@@ -728,7 +897,26 @@ return {
             end
 
             ---------------------------------------------------------------- enterJungleWithBowl
-            t.exec("goto-enterJungleWithBowl", t.player.goto_tile, 2791, 2917, 0)
+            -- out of the smithy by its north doorway on foot, an overland hop to the open ground north of
+            -- the Kharazi jungle's dense band, the band cut through, then on inside the jungle
+            do
+                t.player.walk_to(3187, 3431, 20)
+                local _, street = t.world.tile()
+                t.check("enterJungleWithBowl-leaveSmithy", street.z >= 3429,
+                    "out of the west smithy's north doorway onto the street at " .. street.x .. "," .. street.z)
+            end
+            t.exec("goto-enterJungleWithBowl", t.player.goto_tile, 2795, 2943, 0)
+            -- ::goto can land one column west (2794), where the tile two ahead is blocked; the cut that
+            -- worked runs down x=2795 (leg 1)
+            t.player.walk_to(2795, 2943, 10)
+            do
+                local crossed = cross_jungle("enterJungleWithBowl-jungle", true, 12)
+                local _, at = t.world.tile()
+                t.check("enterJungleWithBowl-cut", crossed, "cut south through the dense band with the axe and machete: now at "
+                    .. at.x .. "," .. at.z)
+                drop_logs("enterJungleWithBowl-logs")
+            end
+            t.exec("goto-enterJungleWithBowl-inside", t.player.goto_tile, 2791, 2917, 0)
             do
                 local _, at = t.world.tile()
                 t.check("enterJungleWithBowl", at.z < 2934 and at.x > 2780, "in the Kharazi jungle south of the dense band at "
@@ -1081,8 +1269,10 @@ return {
             -- Quest Helper (enterJungleToGoToSource): a bravery potion (made below from an ardrigal, a
             -- snake weed and a vial of water), Charge Orb runes and an unpowered orb, a rope, lockpicks,
             -- combat gear and food. The backpack is full of leg 4/5's leftovers, so drop the hammer, the
-            -- unused book of binding first.
-            for _, junk in ipairs({ "book_of_binding", "hammer" }) do
+            -- unused book of binding first, and the bullroarer: its last guide step was leg 5's
+            -- spinBullAfterSeeds (leg 10's replaced pole brings Gujuo itself), and the teleport runes
+            -- staged in setup hold two slots until leg 9.
+            for _, junk in ipairs({ "book_of_binding", "hammer", "bullroarer" }) do
                 for _ = 1, 8 do
                     local _, remaining = t.inv.count(junk)
                     if remaining == 0 then break end
@@ -1418,6 +1608,92 @@ return {
                 return at.z > 9000
             end
 
+            -- a real teleport spell from the spellbook, graded on the runes it took and the landing tile
+            local function teleport_out(step, spell, runes, land_x, land_z)
+                local before = {}
+                for i, rune in ipairs(runes) do
+                    local _, n = t.inv.count(rune[1])
+                    before[i] = n or 0
+                end
+                local _, from = t.world.tile()
+                local _, detail = t.exec(step, t.player.cast, spell)
+                t.ticks(2)
+                local spent, right = {}, true
+                for i, rune in ipairs(runes) do
+                    local _, n = t.inv.count(rune[1])
+                    local used = before[i] - (n or 0)
+                    if used ~= rune[2] then right = false end
+                    spent[#spent + 1] = rune[1] .. " " .. before[i] .. " -> " .. tostring(n) .. " (spent " .. used .. ", want " .. rune[2] .. ")"
+                end
+                t.check(step .. "-runes", right, spell .. ": " .. table.concat(spent, ", "))
+                local _, at = t.world.tile()
+                t.check(step .. "-landing", math.abs(at.x - land_x) <= 3 and math.abs(at.z - land_z) <= 3 and (at.level or 0) == 0,
+                    "cast at " .. from.x .. "," .. from.z .. "," .. (from.level or 0) .. ", landed at " .. at.x .. "," .. at.z .. ","
+                    .. (at.level or 0) .. " (want within 3 of the spell's tele_coord " .. land_x .. "," .. land_z .. "); cast: " .. tostring(detail))
+            end
+            -- kharazi_dense_jungle (legends_zones.dbrow): chop the jungle loc straight ahead
+            -- (jungle_tree.rs2 moves the player two tiles through it); a free tile ahead is walked.
+            local function cross_jungle(name, want_south, limit)
+                local symbols = { "kharazi_jungle_plant1", "kharazi_jungle_plant2", "kharazi_jungle_tree1",
+                                  "kharazi_jungle_tree2", "kharazi_jungle_tree_logs" }
+                local dz = want_south and -1 or 1
+                local stuck = 0
+                for i = 1, limit do
+                    local _, tile = t.world.tile()
+                    if want_south and tile.z < 2934 then return true end
+                    if (not want_south) and tile.z > 2942 then return true end
+                    local pressed = false
+                    for _, symbol in ipairs(symbols) do
+                        if t.world.loc_near(symbol, 1) == "ok" then
+                            local result, detail = t.player.click_loc(symbol, 1, { at = { tile.x, tile.z + dz } })
+                            if result == "ok" then
+                                t.step(name .. "-chop-" .. i, result == "ok" and "PASS" or "FAIL", symbol .. " at " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(detail))
+                                pressed = true
+                                break
+                            end
+                        end
+                    end
+                    if not pressed then
+                        local walked = t.player.walk_to(tile.x, tile.z + dz, 10)
+                        t.step(name .. "-walk-" .. i, walked == "ok" and "PASS" or "FAIL",
+                            "walk to " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(walked))
+                    end
+                    local moved = t.await({ level = function()
+                        local _, now = t.world.tile()
+                        return now.x ~= tile.x or now.z ~= tile.z
+                    end, note = "moved" }, 40)
+                    if moved ~= "ok" then
+                        stuck = stuck + 1
+                        local side = (stuck % 2 == 1) and 1 or -1
+                        local sidestep = t.player.walk_to(tile.x + side, tile.z, 10)
+                        t.step(name .. "-sidestep-" .. i, sidestep == "ok" and "PASS" or "FAIL",
+                            "blocked ahead of " .. tile.x .. "," .. tile.z .. ", side-step to "
+                            .. (tile.x + side) .. "," .. tile.z .. ": " .. tostring(sidestep)
+                            .. "; last messages: " .. tostring(select(2, t.msg.last(2))))
+                    end
+                end
+                return false
+            end
+            -- the cuts hand out logs while a slot is free (jungle_tree.rs2); the reeds, the holy force and the
+            -- totem need those slots, so every crossing ends by dropping them, graded on the count and free slots
+            local function drop_logs(name)
+                local _, logs_before = t.inv.count("logs")
+                for _ = 1, 30 do
+                    local _, remaining = t.inv.count("logs")
+                    if remaining == 0 then break end
+                    t.player.drop("logs")
+                    t.ticks(1)
+                end
+                local _, logs_after = t.inv.count("logs")
+                local free = 0
+                for slot = 0, 27 do
+                    local slot_result, cell = t.inv.slot(slot)
+                    if slot_result == "ok" and cell.name == "" then free = free + 1 end
+                end
+                t.check(name, logs_after == 0 and free >= 1, "dropped the jungle cuts' logs " .. tostring(logs_before)
+                    .. " -> " .. tostring(logs_after) .. "; free backpack slots " .. free)
+            end
+
             ---------------------------------------------------------------- the pack for the second fight
             -- Quest Helper (pushBoulderWithForce): combat gear, food and potions. Leg 6 left one shark: the
             -- junk (swamp rocks, the empty vial) is dropped and the food topped up to ten (brought-along food).
@@ -1496,9 +1772,21 @@ return {
             t.exec("killViyeldi-gone", t.npc.await_gone, "viyeldi", 8, 30)
 
             ---------------------------------------------------------------- enterMossyRockHolyForce
-            -- guide (pickUpHat): "teleport out now, and you'll be guided to get the holy force" -- the
-            -- teleport is plain travel to the surface; the rocks are then entered by hand
-            t.exec("goto-enterMossyRockHolyForce", t.player.goto_tile, 2782, 2935, 0)
+            -- guide (pickUpHat): "teleport out now, and you'll be guided to get the holy force": Camelot
+            -- Teleport out of the Viyeldi caves (runes staged in setup), an overland hop to the open ground
+            -- north of the Kharazi jungle's dense band, the band cut through, and the Mossy Rocks (inside
+            -- the jungle, 2782,2937) are entered by hand
+            teleport_out("enterMossyRockHolyForce-teleport", "camelot_teleport", { { "lawrune", 1 }, { "airrune", 5 } }, 2757, 3478)
+            t.exec("goto-enterMossyRockHolyForce", t.player.goto_tile, 2795, 2943, 0)
+            t.player.walk_to(2795, 2943, 10)
+            do
+                local crossed = cross_jungle("enterMossyRockHolyForce-jungle", true, 12)
+                local _, at = t.world.tile()
+                t.check("enterMossyRockHolyForce-cut", crossed, "cut south through the dense band with the axe and machete: now at "
+                    .. at.x .. "," .. at.z)
+                drop_logs("enterMossyRockHolyForce-logs")
+            end
+            t.exec("goto-enterMossyRockHolyForce-rock", t.player.goto_tile, 2782, 2935, 0)
             local inside = false
             for i = 1, 12 do
                 t.exec("enterMossyRockHolyForce-press-" .. i, t.player.click_loc, "lgshamancaverock1", 1)
@@ -1518,7 +1806,14 @@ return {
                 local _, at = t.world.tile()
                 t.check("talkToUngaduluForForce-inside", at.z < 9333, "inside the octagram at " .. at.x .. "," .. at.z)
             end
-            -- ungadulu.rs2:538: the glowing dagger handed over; "I've killed Viyeldi." earns the Holy Force
+            -- ungadulu.rs2:538: the glowing dagger handed over; "I've killed Viyeldi." earns the Holy Force.
+            -- The guide's "Use the dark dagger on Ungadulu" (ungadulu.rs2:525) is its keep-Viyeldi-alive branch
+            -- ("If you wish to keep Viyeldi alive, teleport out now", pickUpHat). This run kills Viyeldi, because
+            -- leg 10's guide steps killSan/killIrvig/killRanalph exist only then (nezikchened.rs2:151 summons the
+            -- heroes only with legends_killed_viyeldi set); killViyeldi turned the dark dagger into the glowing
+            -- one (viyeldi.rs2:31-33), and Ungadulu takes the dagger either way (ungadulu.rs2:536/549), so a
+            -- dark dagger cannot be held here on a route that drives every guide step.
+            -- ANY-OF: talkToUngaduluForForce talkToUngaduluForForce-holyforce Ungadulu's glowing-dagger branch gives the same Holy Force the dark dagger would: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/ungadulu.rs2:538
             t.exec("talkToUngaduluForForce", t.player.use_on, "deathdaggerdone", t.player.by_symbol("npc", "ungadulu_good"))
             converse("talkToUngaduluForForce-dialog", { "/killed Viyeldi/" })
             settle_chat("talkToUngaduluForForce-settle")
@@ -1832,6 +2127,92 @@ return {
                 return at.z > 9000
             end
 
+            -- a real teleport spell from the spellbook, graded on the runes it took and the landing tile
+            local function teleport_out(step, spell, runes, land_x, land_z)
+                local before = {}
+                for i, rune in ipairs(runes) do
+                    local _, n = t.inv.count(rune[1])
+                    before[i] = n or 0
+                end
+                local _, from = t.world.tile()
+                local _, detail = t.exec(step, t.player.cast, spell)
+                t.ticks(2)
+                local spent, right = {}, true
+                for i, rune in ipairs(runes) do
+                    local _, n = t.inv.count(rune[1])
+                    local used = before[i] - (n or 0)
+                    if used ~= rune[2] then right = false end
+                    spent[#spent + 1] = rune[1] .. " " .. before[i] .. " -> " .. tostring(n) .. " (spent " .. used .. ", want " .. rune[2] .. ")"
+                end
+                t.check(step .. "-runes", right, spell .. ": " .. table.concat(spent, ", "))
+                local _, at = t.world.tile()
+                t.check(step .. "-landing", math.abs(at.x - land_x) <= 3 and math.abs(at.z - land_z) <= 3 and (at.level or 0) == 0,
+                    "cast at " .. from.x .. "," .. from.z .. "," .. (from.level or 0) .. ", landed at " .. at.x .. "," .. at.z .. ","
+                    .. (at.level or 0) .. " (want within 3 of the spell's tele_coord " .. land_x .. "," .. land_z .. "); cast: " .. tostring(detail))
+            end
+            -- kharazi_dense_jungle (legends_zones.dbrow): chop the jungle loc straight ahead
+            -- (jungle_tree.rs2 moves the player two tiles through it); a free tile ahead is walked.
+            local function cross_jungle(name, want_south, limit)
+                local symbols = { "kharazi_jungle_plant1", "kharazi_jungle_plant2", "kharazi_jungle_tree1",
+                                  "kharazi_jungle_tree2", "kharazi_jungle_tree_logs" }
+                local dz = want_south and -1 or 1
+                local stuck = 0
+                for i = 1, limit do
+                    local _, tile = t.world.tile()
+                    if want_south and tile.z < 2934 then return true end
+                    if (not want_south) and tile.z > 2942 then return true end
+                    local pressed = false
+                    for _, symbol in ipairs(symbols) do
+                        if t.world.loc_near(symbol, 1) == "ok" then
+                            local result, detail = t.player.click_loc(symbol, 1, { at = { tile.x, tile.z + dz } })
+                            if result == "ok" then
+                                t.step(name .. "-chop-" .. i, result == "ok" and "PASS" or "FAIL", symbol .. " at " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(detail))
+                                pressed = true
+                                break
+                            end
+                        end
+                    end
+                    if not pressed then
+                        local walked = t.player.walk_to(tile.x, tile.z + dz, 10)
+                        t.step(name .. "-walk-" .. i, walked == "ok" and "PASS" or "FAIL",
+                            "walk to " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(walked))
+                    end
+                    local moved = t.await({ level = function()
+                        local _, now = t.world.tile()
+                        return now.x ~= tile.x or now.z ~= tile.z
+                    end, note = "moved" }, 40)
+                    if moved ~= "ok" then
+                        stuck = stuck + 1
+                        local side = (stuck % 2 == 1) and 1 or -1
+                        local sidestep = t.player.walk_to(tile.x + side, tile.z, 10)
+                        t.step(name .. "-sidestep-" .. i, sidestep == "ok" and "PASS" or "FAIL",
+                            "blocked ahead of " .. tile.x .. "," .. tile.z .. ", side-step to "
+                            .. (tile.x + side) .. "," .. tile.z .. ": " .. tostring(sidestep)
+                            .. "; last messages: " .. tostring(select(2, t.msg.last(2))))
+                    end
+                end
+                return false
+            end
+            -- the cuts hand out logs while a slot is free (jungle_tree.rs2); the reeds, the holy force and the
+            -- totem need those slots, so every crossing ends by dropping them, graded on the count and free slots
+            local function drop_logs(name)
+                local _, logs_before = t.inv.count("logs")
+                for _ = 1, 30 do
+                    local _, remaining = t.inv.count("logs")
+                    if remaining == 0 then break end
+                    t.player.drop("logs")
+                    t.ticks(1)
+                end
+                local _, logs_after = t.inv.count("logs")
+                local free = 0
+                for slot = 0, 27 do
+                    local slot_result, cell = t.inv.slot(slot)
+                    if slot_result == "ok" and cell.name == "" then free = free + 1 end
+                end
+                t.check(name, logs_after == 0 and free >= 1, "dropped the jungle cuts' logs " .. tostring(logs_before)
+                    .. " -> " .. tostring(logs_after) .. "; free backpack slots " .. free)
+            end
+
             ---------------------------------------------------------------- the pack
             -- Quest Helper (enterJungleToPlant): radimus notes, a rune axe, a machete, the blessed golden
             -- bowl, the yommi seeds, combat gear and food -- all carried from earlier legs
@@ -1847,18 +2228,29 @@ return {
             end
 
             ---------------------------------------------------------------- returnToSurface
-            -- guide: "Teleporting out will evaporate the water" -- the teleport is plain travel (the
-            -- content has no teleport hook: only cutting jungle with a full bowl, jungle_tree.rs2:58, drains
-            -- it), so the water is poured out by hand, the bowl's own Empty op (quest_legends.rs2:1148),
-            -- which is what the guide's step lists: the bowl is empty when the reeds are used
-            t.exec("returnToSurface", t.player.goto_tile, 2836, 2914, 0)
+            -- guide: "Teleporting out will evaporate the water": Camelot Teleport out of the Source (runes
+            -- staged in setup). The content has no teleport hook on the bowl (only cutting jungle with a
+            -- full bowl drains it, jungle_tree.rs2:58), so the water is poured out by hand, the bowl's own
+            -- Empty op (quest_legends.rs2:1148), which is what the guide's step lists: the bowl is empty
+            -- when the reeds are used
+            teleport_out("returnToSurface", "camelot_teleport", { { "lawrune", 1 }, { "airrune", 5 } }, 2757, 3478)
             t.check("returnToSurface-surface", not underground(), "back on the surface")
             t.exec("returnToSurface-empty", t.player.inv_op, "goldbowlbless_pure", 1)
             t.exec("returnToSurface-bowl", t.inv.await, "goldbowlbless_empty", 1, 10)
 
             ---------------------------------------------------------------- enterJungleToPlant
-            -- travel into the Kharazi jungle beside the pool; the fights the guide warns of are the animals
-            t.exec("enterJungleToPlant", t.player.goto_tile, 2834, 2916, 0)
+            -- an overland hop to the open ground north of the Kharazi jungle's dense band, the band cut
+            -- through, then on inside the jungle to the pool; the fights the guide warns of are the animals
+            t.exec("goto-enterJungleToPlant", t.player.goto_tile, 2795, 2943, 0)
+            t.player.walk_to(2795, 2943, 10)
+            do
+                local crossed = cross_jungle("enterJungleToPlant-jungle", true, 12)
+                local _, at = t.world.tile()
+                t.check("enterJungleToPlant", crossed, "cut south through the dense band with the axe and machete: now at "
+                    .. at.x .. "," .. at.z)
+                drop_logs("enterJungleToPlant-logs")
+            end
+            t.exec("goto-useMacheteOnReedsEnd", t.player.goto_tile, 2834, 2916, 0)
             do
                 local _, at = t.world.tile()
                 t.check("enterJungleToPlant-tile", at.x >= 2830 and at.x <= 2840,
@@ -1882,13 +2274,29 @@ return {
             -- (about one in two), a failed roll costs the seed, the pack carries three
             t.exec("goto-plantSeed", t.player.goto_tile, 2780, 2916, 0)
             local soil = t.player.by_symbol("loc", "fertilesoil")
+            -- the jungle wolves the guide warns of ("be prepared for some fights") break into the planting:
+            -- r3 run3 planted with a wolf engaged, the seed was spent and the sapling never stood. Finish any
+            -- wolf in reach first, and count a planting only when the sapling (the stage that takes the
+            -- water, legends_yommi.rs2:44) stands; a spoiled planting is retried with the next seed
+            local function clear_wolves(prefix)
+                for i = 1, 4 do
+                    if t.npc.nearest("jungle_wolf", 8) ~= "ok" then break end
+                    t.exec(prefix .. "-wolf-attack-" .. i, t.player.attack, "jungle_wolf", 2, 20)
+                    t.exec(prefix .. "-wolf-dead-" .. i, t.npc.await_dead_engaged, 120, 6, { eat = { item = "shark", below = 50 } })
+                end
+            end
             local planted = false
             for i = 1, 3 do
+                clear_wolves("plantSeed-" .. i)
+                t.player.walk_to(2780, 2916, 10)
                 t.exec("plantSeed-" .. i, t.player.use_on, "yommiseeds_germ", soil, { at = { 2778, 2916 } })
                 settle_chat("plantSeed-settle-" .. i)
-                if t.await({ level = function()
-                    return stands("yommitree_sapling") or stands("yommitree_baby")
-                end, note = "a yommi tree grows" }, 12) == "ok" then planted = true break end
+                if t.await({ level = function() return stands("yommitree_sapling") end, note = "the sapling grows" }, 12) == "ok" then
+                    planted = true
+                    break
+                end
+                local _, seeds = t.inv.count("yommiseeds_germ")
+                if seeds == 0 then break end
             end
             do
                 local _, seeds = t.inv.count("yommiseeds_germ")
@@ -2018,6 +2426,69 @@ return {
                 t.check(step, on == 1, "prayer_protectfrommelee varbit " .. tostring(on) .. ", prayer " .. prayer_level())
             end
 
+            -- kharazi_dense_jungle (legends_zones.dbrow): chop the jungle loc straight ahead
+            -- (jungle_tree.rs2 moves the player two tiles through it); a free tile ahead is walked.
+            local function cross_jungle(name, want_south, limit)
+                local symbols = { "kharazi_jungle_plant1", "kharazi_jungle_plant2", "kharazi_jungle_tree1",
+                                  "kharazi_jungle_tree2", "kharazi_jungle_tree_logs" }
+                local dz = want_south and -1 or 1
+                local stuck = 0
+                for i = 1, limit do
+                    local _, tile = t.world.tile()
+                    if want_south and tile.z < 2934 then return true end
+                    if (not want_south) and tile.z > 2942 then return true end
+                    local pressed = false
+                    for _, symbol in ipairs(symbols) do
+                        if t.world.loc_near(symbol, 1) == "ok" then
+                            local result, detail = t.player.click_loc(symbol, 1, { at = { tile.x, tile.z + dz } })
+                            if result == "ok" then
+                                t.step(name .. "-chop-" .. i, result == "ok" and "PASS" or "FAIL", symbol .. " at " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(detail))
+                                pressed = true
+                                break
+                            end
+                        end
+                    end
+                    if not pressed then
+                        local walked = t.player.walk_to(tile.x, tile.z + dz, 10)
+                        t.step(name .. "-walk-" .. i, walked == "ok" and "PASS" or "FAIL",
+                            "walk to " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(walked))
+                    end
+                    local moved = t.await({ level = function()
+                        local _, now = t.world.tile()
+                        return now.x ~= tile.x or now.z ~= tile.z
+                    end, note = "moved" }, 40)
+                    if moved ~= "ok" then
+                        stuck = stuck + 1
+                        local side = (stuck % 2 == 1) and 1 or -1
+                        local sidestep = t.player.walk_to(tile.x + side, tile.z, 10)
+                        t.step(name .. "-sidestep-" .. i, sidestep == "ok" and "PASS" or "FAIL",
+                            "blocked ahead of " .. tile.x .. "," .. tile.z .. ", side-step to "
+                            .. (tile.x + side) .. "," .. tile.z .. ": " .. tostring(sidestep)
+                            .. "; last messages: " .. tostring(select(2, t.msg.last(2))))
+                    end
+                end
+                return false
+            end
+            -- the cuts hand out logs while a slot is free (jungle_tree.rs2); the reeds, the holy force and the
+            -- totem need those slots, so every crossing ends by dropping them, graded on the count and free slots
+            local function drop_logs(name)
+                local _, logs_before = t.inv.count("logs")
+                for _ = 1, 30 do
+                    local _, remaining = t.inv.count("logs")
+                    if remaining == 0 then break end
+                    t.player.drop("logs")
+                    t.ticks(1)
+                end
+                local _, logs_after = t.inv.count("logs")
+                local free = 0
+                for slot = 0, 27 do
+                    local slot_result, cell = t.inv.slot(slot)
+                    if slot_result == "ok" and cell.name == "" then free = free + 1 end
+                end
+                t.check(name, logs_after == 0 and free >= 1, "dropped the jungle cuts' logs " .. tostring(logs_before)
+                    .. " -> " .. tostring(logs_after) .. "; free backpack slots " .. free)
+            end
+
             ---------------------------------------------------------------- the pack
             -- Quest Helper (useTotemOnTotem): the Yommi totem, combat gear, food and potions. The
             -- character wears full rune (setup); food is topped up here, four hero fights follow.
@@ -2142,8 +2613,17 @@ return {
             -- ANY-OF: talkToGujouForTotem useTotemOnTotemAgain Gujuo opens his own stage-40 talk and gives the gift, then leaves: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/gujuo.rs2:113
 
             ---------------------------------------------------------------- returnToRadimus
-            -- the guild grounds stand behind the mithril gates (legends_gate.rs2): plain travel to the
-            -- road, the gate is clicked open
+            -- out of the Kharazi jungle the way it was entered: across the jungle to the dense band (2795,2930,
+            -- the cut leg 1 left by), the band cut through northwards; then plain travel to the road outside
+            -- the guild, whose grounds stand behind the mithril gates (legends_gate.rs2): the gate is clicked open
+            t.exec("goto-returnToRadimus-band", t.player.goto_tile, 2795, 2930, 0)
+            do
+                local crossed = cross_jungle("returnToRadimus-jungle", false, 12)
+                local _, at = t.world.tile()
+                t.check("returnToRadimus-leaveJungle", crossed, "cut north through the dense band out of the jungle: now at "
+                    .. at.x .. "," .. at.z)
+                drop_logs("returnToRadimus-logs")
+            end
             t.exec("goto-returnToRadimus", t.player.goto_tile, 2728, 3346, 0)
             t.exec("returnToRadimus-gate", t.player.click_loc, "legendsguildgatel", 1, { at = { 2728, 3349 } })
             t.ticks(3)
