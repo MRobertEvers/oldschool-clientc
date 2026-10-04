@@ -821,3 +821,7 @@ acceptable: a relog moves nobody, skips no crossing, and does none of the quest'
 acceptable if it fires unconditionally, changes the tile, or stands in for a press. It re-boots
 the embedded server, so nothing the quest needs may live only in server memory at that point
 (spawned npcs, a skipped clock). Remove the helper when the client fix lands.
+FIXED (OSRS-Content 4b4cc88be6, seam-facts "Seam pass matthew-mbp-m4-b60-seam0" (c)): it was
+not the client and not the rebuild. A slipped pitfall played `human_death` and never ended it, and
+the client holds every walk while that pose plays. With the content fix the relog has nothing to
+correct; a new test must not add one.

@@ -61,6 +61,111 @@ castle's stacked `castledoor` 2506,3851 (levels 0 and 1): conformance `player.pa
 `seam.stacked_door_read_on_its_own_floor`; a misc.lua copy using it for all 25 call sites ran
 207/0 (84 crossings, 17 pressed, 67 standing open, every one on its own floor).
 
+### The crossing verbs: `cross_gate`, `cross_trap`, `walk_route`, `teleport_cast` (b60-seam0)
+
+In b56-b59 every door-rule fixer hand-wrote these four helpers into its quest file (hero.lua
+`taverley_gate`/`cross`/`teleport`, hunt.lua `cross`, rovingelves.lua and mourningsendparti.lua
+`cross_trap`/`walk_route`/`trap_vitals`, misc.lua `camelotTeleport.*`), each a little different and
+each needing a sampler round. Use the verbs; do not copy a helper. Every one is graded on the world
+(tiles before and after, loc reads, rune counts), never on the press's answer, which is only in the
+detail: a row must check something the press caused (sampler-findings: "Sample
+matthew-mbp-m4-b59" (b)). A malformed spec raises. Proved by conformance `player.cross_gate`,
+`player.walk_route`, `player.cross_trap` and `player.teleport_cast`, and by the scratch runs in
+`build/seam_state/matthew-mbp-m4-b60-seam0/crossing/` (b60s0_cross1-3).
+
+#### `t.player.cross_gate(spec)` -- a wall gate, either way, pressed on every crossing
+
+`t.player.cross_gate{ loc=, at={x,z[,level]}, near={x,z}, far_ok=fn, far_desc= [, far={x,z},
+op=1, ticks=] }` -> `(ok, detail)` `refused` `not_found` `timeout` `covered` ... One row per
+crossing, through `t.exec`:
+
+```lua
+t.exec("goto-achietties.memberGate", t.player.goto_tile, 2938, 3450, 0)  -- open ground, this side
+t.exec("achietties.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+    near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+    far_desc = "inside Taverley, x <= 2935" })
+```
+
+A WALK-THROUGH gate (gates.rs2 `[label,member_fencegate_try]`: `membergatel`/`membergater` at
+Taverley 2935,3450-3451 and 2933-2934,3320, Karamja 2816,3182) moves the player across itself and
+leaves no opened loc, so it is pressed on EVERY crossing, and where it lands depends on the side
+(onto the gate tile from one side, one tile past it from the other): the far side is a TEST,
+`far_ok(tile)` (the level is checked for you), not a tile. The verb walks to `near` (within 1, on the
+gate's level, and NOT already far: `refused ... already ...`), reads the gate on its exact tile and
+level, presses that copy, waits up to 12 ticks, and passes only when the tile before the press fails
+`far_ok` and the tile after passes it. A pushed hop can answer `timeout settle_after_click` although
+it landed (Karamja's crossBack did, b60s0_cross1 row 6): that is fine, the tiles are the verdict.
+`far = {x, z}` then walks on to that exact tile and grades it. A gate that is the only way on foot
+between two regions is clicked on every visit, however large the regions (sampler-findings: "Sample
+matthew-mbp-m4-b59" (a)); never `goto_tile` across it.
+
+An OPENING gate (a leaf that stays open: `fencegate_l`/`openfencegate_l`) takes `open = "<open
+leaf>"` and a `far` tile, and is handed to `t.player.pass_door` (closed = `loc`): the leaf standing
+open is walked through, never pressed shut (b60s0_cross3 `penIn` pressed, `penOut` "stands open ...,
+not pressed").
+
+#### `t.player.cross_trap(spec)` -- a trap or obstacle by its own op, src tile to dest tile
+
+`t.player.cross_trap{ loc=, at={x,z[,level]}, src={x,z}, dest={x,z} [, op=1, op_name="Jump",
+attempts=4, vitals=fn|{eat=, below=, antipoison=true}, camera={yaw,pitch,zoom}] }` -> `(ok, detail)`
+`refused` `covered` `not_visible` `timeout` ...
+
+```lua
+local VITALS = { eat = "shark", below = 60, antipoison = true }
+t.exec("enterIsafdar.jumpPitfall", t.player.cross_trap, { loc = "regicide_pitfall_side", op_name = "Jump",
+    at = { 2278, 3262, 0 }, src = { 2279, 3262 }, dest = { 2275, 3262 }, vitals = VITALS })
+```
+
+Only the op moves the player over the obstacle (a pit is walled by inviswalls, a dense forest is
+solid, a tripwire's trigger tiles fire the trap when walked: regicide_traps.rs2), so the row is two
+tiles: the player ON `src` before the press and ON `dest` after it (10 ticks). A failed roll that
+leaves the player standing (a slipped pitfall: 15 damage, `You slip and fall onto the spikes.`) is
+pressed again from `src`, at most `attempts` presses, with `vitals` between presses and once after.
+Off `src` by 1-2 tiles (a stumble) it steps back on; further than that it STOPS (`stopped: ... not
+walked round the obstacle`) -- a retry that walked round the pit put mourningsendparti's player in it
+(run r4/2). A snagged tripwire still crosses, and its line is in the detail. `vitals` as a table eats
+one `eat` below `below` Hitpoints and drinks one antipoison dose while `varp102_poison` is non-zero;
+as a function it is called as is. Isafdar's crossings (rovingelves.lua `PITFALL_W/E`, `FOREST_E/W`,
+`TRIPWIRE_E/W`; mourningsendparti.lua adds `PITFALL_S/N` at 2274,3173-3175) are its subjects. A dense
+forest answering `You can see no way to get past this.` four times is content, not the verb:
+`[label,regicide_cross_dense_forest]` needs `%varp328_regicide_quest >= ^regicide_spoken_tracker2`
+(regicide_route.rs2:75). Every Isafdar trip presses every trap on it (sampler-findings: "Sample
+matthew-mbp-m4-b59, round 3" (a)).
+
+#### `t.player.walk_route(points, opts)` -- a waypoint chain, graded on the exact end tile
+
+`t.player.walk_route({ {x,z}, ... } [, { max_hop=10, ticks=40, level=, vitals= }])` ->
+`(ok, detail)` `refused` `timeout`. Each hop is `walk_to`; consecutive waypoints more than `max_hop`
+tiles apart (Chebyshev) RAISE -- split the hop: `move_to` refuses a tile outside the scene the client
+has built, and a long walk crosses scene rebuilds. The player more than `max_hop` from the first
+waypoint is `refused ... nothing walked`. A hop that answers `refused` waits 3 ticks and is walked
+once more; a second refusal stops the route there. The verdict is the player EXACTLY on the last
+waypoint on the route's level; the detail lists every hop's answer and tile and counts the hops that
+stopped short. `walk_to` is the client's pathfinder: it knows walls, not traps, so a route through
+Isafdar is a chain the author keeps off every trigger tile (rovingelves.lua's chains were flooded
+with them blocked). Conformance walks rovingelves' 26-waypoint walkToPitfall chain, 2385,3333 ->
+2279,3262: 106 tiles west, wider than one 104-tile scene.
+
+#### `t.player.teleport_cast(spell, landing, opts)` -- a real teleport, three rows
+
+`t.player.teleport_cast(spell, {x, z[, level=0]}, { name=, runes={ {rune, n}, ... } [, radius=2,
+where=, ticks=] })` -> `(ok, detail)` `refused`, and it WRITES three rows itself (like
+`t.quest.expect_complete`): call it directly, never through `t.exec`.
+
+```lua
+t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "camelotTeleport",
+    runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+```
+
+- `<name>.cast` -- `t.player.cast(spell)` answered `ok ... TELEPORTED`;
+- `<name>.runes` -- each named rune left the backpack by EXACTLY its count (copy the cost from the
+  spell's `magic_spells.dbrow` row, never from what the cast took);
+- `<name>.landed` -- the player within `radius` (teleport.rs2 `map_findsquare`, 2) of `landing` on
+  its level.
+
+It answers `ok` only when all three passed, else `refused` naming the rows that did not. A step the
+guide does with a teleport is done with this, not with `goto_tile` or `::tele`.
+
 ### `t.world.tile()` -- also `t.world.level`
 
 `t.world.tile()` -> `(ok, {x,z,level})`. `t.world.level()` -> `(ok, level)`.

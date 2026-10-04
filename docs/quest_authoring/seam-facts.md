@@ -1973,3 +1973,56 @@ row `seam.door_revert_reaches_a_returning_client` are proved in a private worktr
 committed. Until it lands, close a door behind you when you leave its zone for 500+ ticks
 (`pass_door{..., close=true}`). `pass_door` answers `not_found ... neither leaf on level L` when the
 bug fires.
+
+## Seam pass matthew-mbp-m4-b60-seam0 (2026-10-04, batch matthew-mbp-m4-b60)
+
+Content in OSRS-Content 4b4cc88be6 (`[seam:matthew-mbp-m4-b60-seam0]`); the driver verbs, the
+sample tools and the conformance rows in the parent commit with the same tag. This pass ran BEFORE
+b60's door-rule fixers, on the owner's say-so, because every b56-b59 door-rule fixer had hand-written
+the same crossing helpers and three b59 tests went back for gotos the reach tool called clean.
+
+(a) **Crossing helpers are verbs now.** `t.player.cross_gate`, `cross_trap`, `walk_route` and
+`teleport_cast` sit beside `pass_door`; verbs-pointer.md "The crossing verbs" has the specs.
+Conformance `player.cross_gate` (Taverley east gate in and out, after proving a walk alone does not
+cross), `player.walk_route` (rovingelves' 26-waypoint chain, 106 tiles), `player.cross_trap` (the
+pitfall Jump, `You manage to cross safely.`) and `player.teleport_cast` (Camelot, 5 air + 1 law to
+0). The b59 tests (hero, hunt, rovingelves, mourningsendparti, misc) still carry their own copies; a
+copy of hunt.lua migrated to `cross_gate` ran 114/0 and graded FULL.
+
+(b) **`reach.py` charges op locs** -- coverage-and-gate.md "`reach.py` says NEEDS-OP". Landing it
+moved one committed quest: Monkey Madness (`mm`) is RED under `gate.py` (TEST_GAP: `goto-
+talkToZooknock` and `goto-useTalisman` land in a 294-tile pocket past `mm_double_springtrap_trigger`,
+`ape_atoll_dungeon.rs2`; the trap is crossed with a plank or walked over for damage). Its queue row
+was left green for the orchestrator to reopen.
+
+(c) **The camera "detached after a walk-triggered rebuild" was a slipped pitfall** -- FIXED,
+`quest_regicide/scripts/regicide_traps.rs2`. `[label,regicide_jump_pitfall]`'s slip played
+`anim(human_death, 0)` and never ended it. The seq's last frame holds 20,000 client cycles
+(`configs/all.seq`, and LostCity 225 alike), and while a primary seq with postanim DELAYMOVE plays,
+the client holds every walk the server sends (`World_MoverHeldByAnim`, the same as Client-TS
+`Client.ts` routeMove). So the player walked on server-side while his model, camera and minimap
+stayed at the pit, and every loc press answered `covered`. The client is faithful; no engine change.
+The slip now ends the fall a tick later (`p_delay(0); anim(null, 0);`), as LostCity's spike pit does
+(LostCity_Content2 `quest_upass/scripts/upass_grid.rs2:87-89`). Conformance
+`seam.slip_fall_releases_the_walk` slips at Agility 1, lands, walks 8 tiles and reads the eye 4-10
+tiles south of the player at pose 0/383/600; without the fix it read `d -1,-15`. A quick check for
+the shape anywhere else: `t.world.camera()` against `t.world.tile()`. Any content that plays
+`human_death` on a living player must clear it (unchanged, worth a look:
+`quest_viking/scripts/viking_thorvald.rs2:326`).
+
+(d) **The Isafdar woodspring passes both ways, and walking onto it springs it** -- FIXED,
+`regicide_traps.rs2` + `skill_agility/configs/maplink_agility.dbrow`. Before, the pass was a
+tile-keyed `~maplink_agility` lookup with one row per trap direction, and four reverse rows had been
+dropped by `tools/maplink_import.py` (its 2-tile radius misses the far side of a 3-wide loc;
+docs/MAPLINKS_REJECTS.md:273-276; a re-import must keep the four hand-added rows). Pressed from the
+east, the approach stood the player on the trap's middle tile and it printed `Nothing interesting
+happens.` It is now LostCity's handler (LostCity_Server `quest_regicide.rs2:31-134`): the pass is
+worked out from the trap's angle and the side the player stands on, a failed roll walks the player
+onto the trap, and the walk trigger (`regicide_zones.rs2:1-66`) springs it: `You set off the trap
+as you pass.`, 8 damage, thrown to the trap's fixed side (from the WEST that is the east side,
+across it). The sprung tiles are the middle two of each spring (2236-2237,3181; 2200-2201,3169;
+2275-2276,3163; 2257-2258,3227; 2181,3210-3211; 2295,3214-3215). `walk_to` re-issues into a spring
+on every idle tick until the player dies, so never walk across one: press it with `cross_trap`
+(op 1; no level gate, the roll is `stat_random(agility, 30, 155)`, so stage Agility to fail less) and grade the tile; a failed roll from the west lands on the east side,
+crossed with damage. The committed regicide.lua walks over the 2235,3181 spring in leg 3 and now
+dies there (row 119 `walk-climbThroughForest`); its fixer passes the trap before the walk.

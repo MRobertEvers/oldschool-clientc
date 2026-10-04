@@ -22,6 +22,14 @@ topic file with one line added here.
 - a `^*_coord` constant -> gaps-world: `^*_coord` decoding; A coord constant is where the player SHOULD go
 - a level-1 row reads the level-0 door below as "stands open"; `loc_near` answers another floor's copy -> verbs-pointer: Stacked floors
 - crossing a door or gate on foot; a hand-written `pass_door` helper -> verbs-pointer: `t.player.pass_door(spec)`
+- a members' wall gate (`membergatel`/`membergater`: Taverley, Karamja 2816,3182, west of Falador); a hand-written `cross`/`taverley_gate` helper; a gate press `timeout settle_after_click` that landed -> verbs-pointer: `t.player.cross_gate(spec)`
+- a Regicide pitfall Jump / dense forest Enter / tripwire Step-over; `You slip and fall onto the spikes.`; a hand-written `cross_trap`/`trap_vitals` -> verbs-pointer: `t.player.cross_trap(spec)`
+- a dense forest answers `You can see no way to get past this.` (regicide varp below `^regicide_spoken_tracker2`) -> verbs-pointer: `t.player.cross_trap(spec)`
+- `walk_to` answers `refused` (`move_to`) on a tile far away; a hand-written `walk_route` waypoint chain -> verbs-pointer: `t.player.walk_route(points, opts)`
+- a teleport spell graded by hand (`camelotTeleport.cast/.runes/.landed`, hero.lua `teleport`) -> verbs-pointer: `t.player.teleport_cast(spell, landing, opts)`
+- `reach.py`/`goto_table.py` prints `NEEDS-OP via <loc>@x,z`; `helper_coverage` charges a goto into a sealed pocket past a trap, spring trap, log or climbing rocks as CHEAT -> coverage-and-gate: `reach.py` says NEEDS-OP
+- `You set off the trap as you pass.` (Isafdar woodspring) while walking, again and again until the player dies; a woodspring press answering `Nothing interesting happens.` (FIXED b60-seam0) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam0 (d)
+- after `You slip and fall onto the spikes.` the player walks on but the camera, model and minimap stay at the pit (FIXED b60-seam0) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam0 (c)
 - a door you opened draws NEITHER leaf when you come back; `pass_door` answers `neither leaf on level L` (OPEN engine fix; close it behind you) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (l)
 - `talk_to` answers `I can't reach that!` from the tile in front of an npc behind crates or a counter (Kennith; FIXED b59-seam1: `[apnpc1]` + `p_aprange(2)`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (a)
 - the Sinclair mansion stairs say "It's just a staircase."; Murder Mystery's level-1 barrels out of reach (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b)
@@ -546,5 +554,5 @@ topic file with one line added here.
 - `goto_table.py` prints UNREACHABLE for a goto between two outdoor tiles (the Trollheim summit and Taverley, Ardougne or Lumbridge) while helper_coverage reads FULL; a mountain top or island you reached once through a building or climb -> sampler-findings: Sample matthew-mbp-m4-b58, round 2 (a)
 - a `*-dead` fight row reads "OUT OF shark" or has no `*-margin` row after it, while the same quest's later fights do (a local `kill()` helper with only `eat =`) -> sampler-findings: Sample matthew-mbp-m4-b58, round 3 (a)
 - `goto_table.py` prints `NEEDS-DOOR ... via membergatel` (or another gate) between two big open regions, and the file calls the gate exempt because both sides are large; a dig or op row that passes on "npc within N tiles" which was already true before the press -> sampler-findings: Sample matthew-mbp-m4-b59 (a), (b)
-- `goto_table.py` prints REACH for a goto through Isafdar (Arandar pass, Lletya, Eluned, Islwyn's camp, the tar) and the file says "one 7,176-tile component": the path walks over Regicide's traps (`blockwalk=0`) -> sampler-findings: Sample matthew-mbp-m4-b59, round 3 (a)
-- every loc press in Isafdar answers `covered ... none of N pixels` after a walk; `t.world.camera()` tens of tiles from the player (a conditional same-tile relog is accepted) -> sampler-findings: Sample matthew-mbp-m4-b59, round 4 (a)
+- `goto_table.py` prints REACH for a goto through Isafdar (Arandar pass, Lletya, Eluned, Islwyn's camp, the tar) and the file says "one 7,176-tile component": the path walks over Regicide's traps (`blockwalk=0`) (FIXED b60-seam0: now `NEEDS-OP`) -> sampler-findings: Sample matthew-mbp-m4-b59, round 3 (a)
+- every loc press in Isafdar answers `covered ... none of N pixels` after a walk; `t.world.camera()` tens of tiles from the player (FIXED OSRS-Content 4b4cc88be6: a slipped pitfall's death pose held the walk; no relog needed) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam0 (c)
