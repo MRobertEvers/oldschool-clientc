@@ -117,3 +117,15 @@ quest test `contact` (row 214, the Giant Scarab), which stayed green here: tell 
 session if it is red after either merge. Eat paths the port does not cover, found by the
 waves loop: `minigame_toa/scripts/toa_supplies.rs2` (CONTENT_BUGS.md row, the ToA seams'),
 `minigame_gauntlet/scripts/gauntlet_craft.rs2` (paddlefish) and `kebab.rs2:20`.
+
+## A prayer fix is landing on the waves branch (noted 2026-10-03)
+
+By the owner's decision ("Prayer does not regenerate") the waves loop changes shared files
+`player/scripts/stat_restore.rs2`, `skill_prayer/scripts/prayer.rs2` and `player/death.rs2`:
+the restore timer no longer restores prayer, there is no drain on the activation tick, the
+drain counter is kept when prayers go off and zeroed on death, and each prayer's drain is
+checked against the wiki's table (Chivalry drained at twice the rate). Every raid room
+prays for most of its fight, so once both branches are on v3 re-run every kept room
+(`tools/raid_gate/suite.py`) and expect prayer-point and potion counts to move: a room that
+runs out of prayer is re-authored with more restores, the content is not bent back. The
+waves session will send the commit when its seam pass 4 lands.
