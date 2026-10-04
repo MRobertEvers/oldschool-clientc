@@ -165,3 +165,17 @@ Mort'ton staged `quest_priestperil` (`quest_priestinperil`); Mourning's End Part
 `quest_cheat.rs2` and refuses a setup row that names none, suggesting the near names. The arm's name
 is the dbrow's, which is not always the quest directory's or the varp's: grep `quest_cheat.rs2` for
 `$row = ` before staging a prerequisite.
+
+### lint: "outside setup: a mid-run ::give" / "::bankgive is a SETUP cheat" (matthew-mbp-m4-b56)
+
+Item cheats belong in `setup = {...}` (the owner's rule: no `::give` after setup). `lint_quest.py`
+refuses a `"::bankgive ..."` literal anywhere outside the setup table, marked or not: the driver
+refuses it only after `t.quest.bind`, so one in run() before the bind would reach the server. It
+refuses a `"::give ..."` outside setup (run(), a leg, a local helper, `"::give " .. item`) unless the
+line carries, or the comment line directly above it is, `-- lint: kit-give <reason>` -- an exception
+the orchestrator accepted -- or it is one of the 113 gives in 23 files committed before the rule
+(`tools/quest_gate/mid_run_gives_baseline.tsv`, printed as BASELINED, each the orchestrator's to
+decide; the list only shrinks and a stale row is a finding). A marker with no reason or covering no
+give is refused. `lint_quest.py --mid-run-gives <files>` lists every one with its state.
+`helper_coverage.py` grades a `::bankgive` exactly like a `::give` of the same item: a setup
+`::bankgive` of an item the guide has you obtain is CHEAT (`GIVE_CHEATS`).

@@ -103,7 +103,9 @@ CLASSES (first rule that fires wins, in this order).
   CONTENT_GAP  a t.blocked()/content_bug line or a `-- GUIDE-GAP:` marker
                names the step (or a ConditionalStep above it); the marker
                counts only when its reason cites a real `<file>.rs2:<line>`.
-  CHEAT        a ::give / debugproc inv_add of an item the step OBTAINS
+  CHEAT        a ::give / ::bankgive / debugproc inv_add of an item the step
+               OBTAINS (::bankgive is graded exactly as ::give: same item,
+               same verdict -- GIVE_CHEATS)
                (pick/buy/kill/mine... -- a bring-along only when the step's
                whole job is picking it up), or a ::setvar / ::complete /
                debugproc write of a quest var the step names.
@@ -207,6 +209,16 @@ GUIDES_DIR = os.path.join(QUEST_HELPER_ROOT, "src", "main", "java", "com", "ques
 
 GAP_CLASSES_TEST = ("CHEAT", "UNMATCHED")
 NEUTRAL_CLASSES = ("DRIVEN", "EQUIVALENT", "TRAVEL", "BRING_ALONG", "ALTERNATIVE")
+
+# The cheats that hand the player an item by NAME, graded alike (_cheat_effects,
+# bring_along): `::give <obj> <n>` into the pack and `::bankgive <obj> <n>`
+# into the bank (cheat_bank.rs2, setup-only). A banked item is one t.bank.
+# withdraw away from the pack, so a setup ::bankgive of an item the guide has
+# the player OBTAIN is the same CHEAT as a ::give of it. ::bankgive's body is
+# `inv_add(bank, $stored, ...)` -- a local, not a symbol -- so the debugproc
+# reader below would see no item and drop it as a reset adapter; it must be
+# named here, before that branch. helper_coverage_bankgive_test.py.
+GIVE_CHEATS = ("give", "bankgive")
 
 # ------------------------------------------------------------------ words
 
@@ -2468,7 +2480,7 @@ class Grader:
             command = parts[0]
             args = parts[1:]
             effect = {"line": number, "text": text, "items": [], "vars": [], "teleport": False}
-            if command == "give" and args:
+            if command in GIVE_CHEATS and args:
                 if args[0] in bring:
                     # A bring-along is fine to give -- unless the ladder has a
                     # step whose whole job is picking it up (Fishing Contest's
@@ -2514,7 +2526,7 @@ class Grader:
                 found.update(self.item_words(item))
             for var in effect["vars"]:
                 found.update(words(var.replace("_", " ")))
-            if command in debugprocs:
+            if command in debugprocs and command not in GIVE_CHEATS:
                 found.update(words(command.replace("_", " ")))
             found -= set(words(self.quest_dir.replace("_", " ") + " " + self.test_id.replace("_", " ")))
             found -= {"quest", "test", "give", "cheat"}
@@ -3418,7 +3430,7 @@ class Grader:
         given = set()
         for _, text in self.test.cheats:
             parts = text[2:].split()
-            if len(parts) > 1 and parts[0] == "give":
+            if len(parts) > 1 and parts[0] in GIVE_CHEATS:
                 given.add(parts[1])
         items = [s for k, s in step.targets if k == "obj"]
         if items and set(items) <= bring:
