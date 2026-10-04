@@ -1,0 +1,20 @@
+mechanic_id	scope	note
+pause.logout_press_arms_pause	all	solo; the logout button ends the session instead (ENG-8): one press in a real wave 2, measured; the content's exit/::infernopause path arms it
+pause.takes_effect_at	all	solo; real wave 1 fought to the last kill with a request armed: pause teleport on the last npc_free tick
+pause.second_press_resets_wave	all	solo; second ::infernopause answers 'already noted'; no reset exists
+pause.reset_restart_point	all	solo; a logout without a pause clears the run (saved_wave 0, wave 0)
+pause.reset_respawn_tiles_same	all	solo; a resumed wave 2 compared with an uninterrupted wave 2 (spawn rotation restarts at 0: inferno.rs2:241)
+pause.resume_trigger	all	solo; the content resumes by the Cave entrance click (ENG-6, ENG-7), not at login
+pause.resume_wave_offset	all	solo; one real wave-1 clear then resume
+pause.resume_spawn_ticks	all	solo; wave.resume verb reports the begin tick; counted from the entrance press, not from login
+pause.stat_changes_frozen	all	solo; drained prayer 69 -> 70 at tick 100 while paused (n=1)
+pause.run_energy_recovery_frozen	all	solo; static read only: no driver verb reads run energy
+pause.special_attack_recovers	all	solo; not measured here (no verb), single guide source
+pause.floor_items_carried	all	solo; static read: the instance is freed on a pause; not played
+pause.logout_blocked_at_wave_start	all	solo; logout pressed on the run's first active tick (alive 0), session ended on the same tick
+pause.logout_block_window	all	solo; open row M4; needs a recorder or video of the refusal
+pause.glyph_direction_persists_login	all	solo; belongs to the Zuk unit's run; static read of inferno_glyph.rs2 here, not played
+pause.pillar_hp_kept	all	solo; open row M5; the content saves only the dead flags, not hit points
+pause.request_chat_text	all	solo; open row M6, presentation
+logout.combat_delay_ticks	all	solo; seam pass 3 measured it (DRIVER_NOTES.md:347-356), not re-measured here
+logout.combat_refusal_text	all	solo; open row M6, presentation (ENG-42)

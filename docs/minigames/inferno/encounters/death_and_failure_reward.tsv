@@ -1,0 +1,23 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+death.hardcore_status_kept	1 if dying in the Inferno keeps a hardcore ironman's status (a safe death)	1	count	[jagex]	A	sources/newsposts/wiki_Update_Group_Ironman.wikitext:249	-	exact
+death.items_kept	what a player keeps when dying in the Inferno	all	text	[jagex][wiki]	D	sources/newsposts/wiki_Update_Group_Ironman.wikitext:249; sources/wiki/wiki_Inferno.wikitext:2	-	exact
+death.items_lost_unprotected	carried or worn items lost on a death in the Inferno	0	count	[jagex][wiki]	D	sources/newsposts/wiki_Update_Group_Ironman.wikitext:249; sources/wiki/wiki_Inferno.wikitext:2	-	exact
+death.gravestone_created	gravestones left by a death in the Inferno	0	count	[jagex][wiki]	D	sources/newsposts/wiki_Update_Group_Ironman.wikitext:249; sources/wiki/wiki_Inferno.wikitext:2	-	exact
+death.respawn_tile	where the player stands after dying in the Inferno	?	text	[M7]	E	sources/newsposts/wiki_Update_Group_Ironman.wikitext:249	M7	approx
+death.run_cleared	1 if a death ends the run (the next entry starts at wave 1, nothing saved)	1	count	[M8]	E	sources/newsposts/wiki_Update_Inferno_slayer_task_Tournament_worlds_and_Poll_56.wikitext:21	M8	approx
+death.slayer_task_wiped	1 if dying during an Inferno Slayer task wipes the task	1	count	[jagex]	A	sources/newsposts/wiki_Update_Inferno_slayer_task_Tournament_worlds_and_Poll_56.wikitext:21	-	exact
+death.leave_slayer_task_wiped	1 if leaving the Inferno before completion wipes an Inferno Slayer task	1	count	[jagex]	A	sources/newsposts/wiki_Update_Inferno_slayer_task_Tournament_worlds_and_Poll_56.wikitext:21	-	exact
+death.failed_run_pays_tokkul	1 if a run that ends before Zuk's death pays Tokkul	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:298; sources/wiki/wiki_Tokkul.wikitext:36	-	exact
+death.tokkul_rises_with_wave	1 if the failed-run Tokkul prize rises with the wave reached	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:298; sources/wiki/wiki_Tokkul.wikitext:36	-	exact
+death.tokkul_by_wave_table	Tokkul paid by the wave a failed run ended on	?	text	[M9]	E	sources/wiki/wiki_Inferno.wikitext:298	M9	approx
+death.tokkul_failed_run_trigger	which endings pay the failed-run prize (death, leaving at the Cave exit, or both)	?	text	[M9]	E	sources/wiki/wiki_Inferno.wikitext:298; sources/wiki/wiki_Tokkul.wikitext:36	M9	approx
+death.tokkul_zuk_kill	Tokkul given for defeating TzKal-Zuk	16440	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:298; sources/wiki/wiki_TzKal_Zuk.wikitext:91	-	exact
+death.tokkul_elite_diary_multiplier	multiplier on the Tokkul prize with the elite Karamja Diary complete	2	ratio	[wiki]	D	sources/wiki/wiki_Tokkul.wikitext:36; sources/wiki/wiki_Inferno.wikitext:298; sources/wiki/wiki_TzKal_Zuk.wikitext:91	-	exact
+death.tokkul_diary_applies_to_failed_run	1 if the diary doubling applies to the failed-run prize too	1	count	[wiki]	D	sources/wiki/wiki_Tokkul.wikitext:36	-	exact
+death.tokkul_item_id	object id the prize is paid in (tzhaar_token)	6529	count	[cache]	A	sources/cache_objs.txt:5	-	exact
+death.exit_loc_name	name of the in-arena exit loc (30283)	Cave exit	text	[cache]	A	sources/cache_locs.txt:497	-	exact
+death.exit_loc_op1	op 1 of the Cave exit	Exit	text	[cache]	A	sources/cache_locs.txt:503	-	exact
+death.exit_loc_op2	op 2 of the Cave exit	Quick-exit	text	[cache]	A	sources/cache_locs.txt:504	-	exact
+death.exit_loc_size	Cave exit footprint width x length	5x4	text	[cache]	A	sources/cache_locs.txt:499-500	-	exact
+death.quick_exit_effect	what op 2 Quick-exit does that op 1 Exit does not	?	text	[M10]	E	sources/cache_locs.txt:504	M10	approx
+death.exit_before_zuk_pays_no_cape	infernal capes given by leaving before Zuk's death	0	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:296	-	exact

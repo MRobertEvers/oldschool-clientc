@@ -201,6 +201,7 @@ pillar damage, the mager's revive target or projectiles.
 | blert.io public API, 1,262 requests (the rows of `FETCH_LOG.tsv`; closer recount 2026-10-03) at one per 3 s (hard constant in `tools/waves_gate/verify_blert.py`), 16:32Z-17:33Z and 19:38Z-19:45Z | live API (no revision); `docs/minigames/inferno/sources/blert_api/FETCH_LOG.tsv` has date, status, bytes, url, file of every request | 2026-10-03 |
 | Per-wave event streams `GET /api/v1/challenges/inferno/<uuid>/events?stage=<199+wave>` and per-wave records | `docs/minigames/inferno/sources/blert_api/wave_records.tsv` (1,269 rows); `observed_npc_events.tsv` (2.9 MB, over the 2 MB rule: on disk beside it, **not in git**, rewritten offline from the cache by `verify_blert.py export`) | 2026-10-03 |
 | Derived distributions (observed events only) | `docs/minigames/inferno/sources/blert/SAMPLE_SUMMARY.md` | 2026-10-03 |
+| Spec pass `matthew-mbp-m4-waves-b1-spec-inferno-a` (entry_and_cape): 20 more requests, `GET /api/v1/challenges/inferno/<uuid>/events?stage=200` for the same 20 runs, 3 s apart, the local player's first ticks of wave 1 only (the last 20 rows of `FETCH_LOG.tsv`, 03:02Z-03:03Z UTC on 2026-10-04) | live API (no revision); `docs/minigames/inferno/sources/blert_api/player_start_wave1.tsv` | 2026-10-03 (local) |
 
 The sample is 20 challenges, 1,235 wave streams: 18 planned (12 completed, 6 failed at wave 31 or later; all cached in
 full) plus two newer challenges from a live listing that moved on, `c8d56ab9` (waves 1-32) and `dd5b1591` (waves 1-28),
