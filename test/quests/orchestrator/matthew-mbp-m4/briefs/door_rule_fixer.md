@@ -1,0 +1,136 @@
+# Brief for a b58 door-rule fixer (one quest test each)
+
+You are an Opus FIXER re-driving ONE committed quest test in
+/Users/matthewevers/Documents/git_repos/3draster (branch matthew-mbp-m4-b58 in the
+parent and in the OSRS-Content submodule). Your quest test id is given in the message
+that sent you here; call it `<id>` below. Seven other fixers do the same for other
+quests at the same time: touch ONLY `test/quests/<id>.lua` (and, if you remove baseline
+rows, `tools/quest_gate/mid_run_gives_baseline.tsv` -- report that edit).
+
+The test was green until the coverage grader learned to read the map's walls. It is
+reopened because at least one `goto_tile` teleports the player into or out of a closed
+space. Fix the named rows AND audit every goto so none is left, prove it green, and
+leave the file UNCOMMITTED for the batch's review round.
+
+## The rule (docs/QUEST_ORCHESTRATOR.md standing rules, owner 2026-10-03)
+
+A `goto_tile` into OR out of ANY closed space is a cheat, plain one-click doors
+included. A goto departs only from an open, walkable tile outside and lands only on
+one. Every door, gate, counter, stair, ladder, trapdoor, railing, fence, portal or npc
+"Leave" option between the player and the target is clicked on every visit, going in
+and coming out, including the room a setup cheat stands the player in. A plain overland
+hop between open tiles, or between two open tiles of one dungeon passage, is travel and
+stays.
+
+## Start
+
+- The committed `test/quests/<id>.lua`.
+- The reopen note with the charged steps, ledger rows, landings and obstacles:
+  `build/orchestrator/fix_b58/<id>.finding.txt` (read it first).
+- `python3 tools/quest_gate/helper_coverage.py <id>` prints every CHEAT row and why.
+- `python3 tools/quest_gate/ladder.py <id>` is the guide (never read the Java).
+- Read docs/QUEST_AUTHORING.md (the core) once; look a failing row up through
+  docs/quest_authoring/INDEX.md. Patterns proven in the last two batches:
+  docs/quest_authoring/start-and-travel.md ("The grader now catches the goto inside")
+  and docs/quest_authoring/sampler-findings.md (sections "Sample matthew-mbp-m4-b56"
+  and "Sample matthew-mbp-m4-b57").
+- Worked examples of a re-driven test, on this branch: test/quests/priest.lua and
+  test/quests/cooks_assistant.lua are the OLD files here (their re-driven versions are
+  in an open PR), so read instead the fixers' notebooks:
+  build/orchestrator/fix_b57/priest.progress.md, cog.progress.md,
+  blackknight.progress.md, and the finished files build/orchestrator/fix_b57/*.final.lua.
+
+## The audit (do not skip it)
+
+In the last batches tests were sent back round after round for "one more goto". List
+EVERY `goto_tile` (grep -n; some are comments, some sit in loops or helpers). For each,
+write in your notebook: row name, departure tile and level (the previous row's landing,
+or the ledger's departure stamp after a run), landing tile and level, and the verdict of
+the static walkability tools in test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/
+(`reach.py`, `goto_table.py`, `locs_near.py`; read their usage; doors closed; raise the
+margin before believing UNREACHABLE; they do not know stair or ladder links, counters,
+or script-spawned locs). Fix every row whose departure or landing needs a door, changes
+level or map frame where a stair, ladder or trapdoor exists, lands on a solid tile, or
+lands in a pocket with no way out.
+
+## Things earlier fixers learned the hard way
+
+- **Door helper.** Use one `pass_door`-style helper: walk to the near side and check
+  the tile; click the CLOSED leaf on the exact door tile, or, if the door stands open,
+  assert the OPEN leaf's loc (an opened door's loc shifts one tile and may keep its
+  symbol or take an `_open` one) with a check that can fail; walk through; check the
+  far tile. Never press an already-open door.
+- **Stacked floors.** `t.world.loc_near` searches every level and returns the first
+  copy. A door or ladder with a copy on another floor at the same tile gets the wrong
+  copy clicked. Count only a copy on the player's own level (press by tile AND level).
+- **Climbs.** A ladder or stair click can answer before the climb lands: wait for the
+  level to change, then check the landing tile. Where a ladder has no maplink row the
+  climb is plus/minus one level on the tile you stand on.
+- **Pushed crossings** (a walk-through door, a gate that moves you) can answer
+  `timeout settle_after_click` although the crossing worked: grade the row on the tiles
+  before and after, with the click's answer in the detail.
+- **Message boxes swallow clicks** (a wilderness warning, a first-time gate dialogue):
+  read and dismiss them.
+- **A full pack silently drops gives and purchases**: count free slots at the step.
+- **Random draws.** `run.py --name X` changes the account only together with
+  `--script test/quests/<id>.lua`. If the test draws anything at random, run it under
+  several account names that way and audit every branch in the file, drawn or not.
+- **"Use ITEM on TARGET" guide steps.** The grader credits such a step when any row
+  names the target. Check each one by hand: the row must use the item the guide names,
+  and assert the item left the pack and the effect happened.
+
+## Also fix while you are there
+
+- Any `t.check(name, true, ...)` or check whose condition cannot fail (the status of a
+  read, `x ~= nil`, an accepted `timeout`); any detail that prints a table address.
+- Fights: every real fight gets a margin row -- lowest hp at least a quarter of the
+  player's maximum hitpoints AND food left (never OR, never a fallback value). Stage
+  levels and the guide's recommended food and gear in SETUP only. Do not raise a level
+  just to satisfy the margin on a trivial fight. Leave existing `::passive` setup lines
+  alone.
+- Two engine rules are about to change and the test must hold under both: prayer will
+  NOT regenerate over time (stage and drink prayer potions, switch protection off when
+  it is not needed, assert prayer points before a protected fight), and an eat will no
+  longer hold a queued hit (eat earlier, carry margin).
+- No `::give`, `::setlevel` or `::setvar` after setup.
+  `python3 tools/quest_gate/lint_quest.py --mid-run-gives test/quests/<id>.lua` lists
+  baselined mid-run gives: move each to setup, drive the item, or mark it
+  `-- lint: kit-give <reason>` and delete its row from the baseline file.
+- Reward rows assert the literal documented amounts.
+
+## Running
+
+Foreground only, one run at a time, logs to files:
+
+    python3 tools/quest_gate/run.py <id> --no-build --no-publish > build/orchestrator/fix_b58/<id>.runN.log 2>&1
+    python3 tools/quest_gate/gate.py <id>
+    python3 tools/quest_gate/lint_quest.py test/quests/<id>.lua
+    python3 tools/quest_gate/helper_coverage.py <id> | tail -4      # must be FULL
+    python3 tools/quest_gate/fail.py <id>                           # to read a failure
+
+Open `-FAIL.png` shots with the Read tool. If walking the whole quest outruns the frame
+budget, set `max_frames` (ceiling 480000). Notebook:
+`build/orchestrator/fix_b58/<id>.progress.md`, appended after every run (if it exists,
+read it first and continue).
+
+## Hard rules
+
+- No content, driver, tool or src edits; no `make`.
+- Never `git stash`, `reset`, `checkout -- <path>`, `clean`, `add`, `commit` or `push`:
+  you commit NOTHING.
+- Every shell command's output under about 4 KB (logs to files, read slices with
+  tail/grep/cut). No scratch files under /tmp. Never screenshot the desktop.
+- If the quest cannot be made green without a content or driver change (a door with no
+  op, an npc unreachable behind a counter, a ladder with no destination, a monster that
+  never attacks), stop that leg at an honest `t.blocked` row naming it, leave the file
+  as the best honest version, and report exactly what is needed with file:line evidence.
+  Settle a content question from LostCity first where LostCity has the quest
+  (/Users/matthewevers/Documents/git_repos/LostCity_Server/content/scripts/quests/ and
+  /Users/matthewevers/Documents/git_repos/LostCity_Content2/scripts/quests/).
+
+## Return (concise)
+
+The goto table (row, departure -> landing, verdict before, what you changed); the other
+rows fixed; each "use ITEM on TARGET" guide step and the row that uses that item; the
+final run (rows / FAIL, gate, lint, coverage, fight margins); the extra account runs
+and the branches they drew; baseline rows removed; anything you could not settle.
