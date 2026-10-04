@@ -55,6 +55,7 @@ topic file with one line added here.
 - Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
 - an npc's tile one behind when read right at the script's `mes()` line; an npc's `slot` changed after a teleport out of view and back -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (b), (c)
 - a goto from an underground room to a tile far beyond its wall reads FULL; the wall is a multiloc `Hole`/`Squeeze-through` (Lost Tribe cellar, Wanted! dk); a goto leaves a castle/base it walked into -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (a), (b)
+- `goto_table.py` prints `LEVEL CHANGE 1->0` (a goto from an upstairs room), or `reach.py` from a goto's DEPARTURE says NEEDS-DOOR after a `talk_to` walked you in -> sampler-findings: Sample matthew-mbp-m4-b56, round 4
 
 ## Pressing and clicking
 

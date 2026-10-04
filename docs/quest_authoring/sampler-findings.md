@@ -688,3 +688,24 @@ The Champions' Guild door (`championdoor`) closes behind you as well: walk out t
 gains magic xp and lands on the spell's `tele_coord`. That coordinate, 1735,2965, is marked as an
 ESTIMATE in `skill_magic/configs/magic_spells.dbrow:245-250`. Shot 412 shows a hut in grassland,
 not the Sunrise Palace. It is a skill_magic content gap, not a defect in the quest test.
+
+## Sample matthew-mbp-m4-b56, round 4 (2026-10-03)
+
+Both accepted tests went back again, each for one more goto that LEAVES a room.
+
+(a) A LADDER OR STAIR IS A DOOR FOR THIS RULE. In Tale of the Righteous, Lord Shiro is in a walled
+room up `shayzien_ladder` (1486,3634,1). `goto-talkToDuffy` and `goto-returnToPhileasTent` both
+left from that room on level 1, so the ladder down was never clicked. `goto_table.py` prints this
+as `LEVEL CHANGE 1->0`. `helper_coverage` does not grade plain climbs, so FULL does not prove it.
+Click the climb down, check `t.world.tile()` is on level 0, then goto.
+
+(b) THE ROOM A `talk_to` WALKED YOU INTO. In Wanted!!, `goto-mage` lands outside the Varrock Zamorak
+chapel, and the test clicks its door (`fai_varrock_poor_door_flipped`, 3255,3388). `talk_to` then
+walks you inside to the Mage. `canifis.goto` left from 3262,3381, which is still inside the chapel.
+For every goto, run `reach.py` from the departure tile, not only from the landing tile. If it says
+NEEDS-DOOR, walk out through that door first.
+
+(c) A DOOR-STATE BRANCH IS NOT A CHECK. `t.check(name, true, "door is open (at nil,nil)")` cannot
+fail. This round it appeared in five Tale rows and one Wanted!! row (`base.door_state`). Assert
+something the run could get wrong, such as the open loc's tile. Otherwise use a plain `t.step` or
+skip the row.
