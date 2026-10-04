@@ -88,7 +88,7 @@ FINISH: write the schema JSON to ${STATE}/${id}.review.json, then return it. cov
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
-YOUR JOB: read this pass's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, verbatim; authored = every ${STATE}/<id>.author.json, verbatim; sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or []); sample_sent_back = its "sent_back" list (or []). Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], sampled: false, sample_considered: [], sample_sent_back: [] }
+YOUR JOB: return this pass's persisted state, read by a program, not by you. Run python3 ${WT}/tools/raid_gate/pass_state.py ${STATE} (it writes ${STATE}/state.json), then Read ${STATE}/state.json with the Read tool and return its content EXACTLY as your structured output: every field verbatim, no entry added, dropped, shortened or reworded. Never read the pass's other files yourself.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], sampled: false, sample_considered: [], sample_sent_back: [] }
 const sentBack = new Set(state.sample_sent_back || [])
 // A rejected review is not a verdict: its room is authored again from the file on disk and
 // the reviewer's findings (below), exactly as a sent-back room is.
