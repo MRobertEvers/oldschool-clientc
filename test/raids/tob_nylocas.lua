@@ -24,14 +24,17 @@ return {
         "::give magic_shortbow 1",
         "::give rune_arrow 800",
         -- the third weapon: a spell the magic nylocas can be killed with, fire strike
-        "::give staff_of_fire 1",
+        -- (a lava battlestaff: its fire runes for fire strike and the earth of the freeze spell, Entangle, that holds a chewer for spec.nylocas.frozen_bites_entry)
+        "::give lava_battlestaff 1",
+        "::give waterrune 40",
+        "::give naturerune 40",
         "::give airrune 1500",
         "::give mindrune 500",
         -- food economy of the room (the aggro nylocas swing at the player every 3 ticks for the whole room and the waves take 700 ticks):
         -- seventeen Saradomin brews (four doses, +2 and 15 percent of hitpoints each, overheal to 116, one tick to drink, 64 hitpoints a
         -- slot against a shark's 20), five super restores (undo the brews' stat drain, refill prayer); 28 slots with the weapons
         "::give 4dosepotionofsaradomin 12",
-        "::give shark 6",
+        "::give shark 4",
         "::give 4dose2restore 4",
     },
     run = function(t)
@@ -85,7 +88,7 @@ return {
         local retaliate_after_result, retaliate_after = t.var.varp("varp172_option_nodef")
         t.check("setup.retaliate_off", retaliate_after == 1, "combat tab auto-retaliate button: varp172_option_nodef read " .. tostring(retaliate_before)
             .. " before, press " .. tostring(retaliate_press_result) .. ", " .. tostring(retaliate_after) .. " after (1 is off)")
-        local weapon = { melee = "abyssal_whip", ranged = "magic_shortbow", magic = "staff_of_fire" }
+        local weapon = { melee = "abyssal_whip", ranged = "magic_shortbow", magic = "lava_battlestaff" }
         local style_names = { "melee", "ranged", "magic" }
         local fighting_kinds = { "big_fighting", "fighting" }
         -- (a chewing big is left alone: killing it splits it into two smalls that chew on, so a hit on it costs a press and adds a biter)
@@ -107,9 +110,17 @@ return {
         local shot_taken = {}
         -- one deliberate wrong-style swing at a chewer (the graphic a hit that does nothing leaves)
         local probe_done, probe = false, nil
+        -- Entangle on a chewing magic nylocas (the freeze row): {world_slot, tick, bites_before}, at most three, each left alone for 20 ticks
+        local freeze_probes, freeze_last = {}, -100
+        -- the prayer on, by tick: {tick, style} for every switch that was accepted
+        local prayer_log = {}
+        local wave_unprayed, wave_unprayed_zero, wave_unprayed_landed = 0, 0, 0
+        local wave_block_count, wave_cover_landed, melee_block_count, melee_cover_landed = 0, 0, 0, 0
         -- one deliberate wrong-style hit on Vasilias (the reflect row): pressed with the whip while she stands in a magic or ranged form
         local reflect_tries, reflect_slot, reflect_press_ticks, reflect_healed, reflect_last = 0, nil, {}, nil, nil
         local reflect_press_max = {}
+        -- strength level readings, one per prayer poll and one per reflect press: {tick, level}
+        local strength_samples = {}
         local brews, restores, brew_doses, top_up = 0, 0, 0, false
         local expect_hp, expect_until, expect_tick, next_trace, last_fallen = 0, 0, 0, 0, 0
         local equip_bad, equip_samples, pending, swap_holds = 0, {}, nil, 0
@@ -279,6 +290,7 @@ return {
                     if pray_result == "ok" then
                         prayer_style = best_style
                         prayer_switches = prayer_switches + 1
+                        prayer_log[#prayer_log + 1] = { select(2, t.tick()), best_style }
                         if prayer_switches <= 3 then t.shot("tech.prayer.switch" .. prayer_switches .. "_" .. best_style) end
                     else
                         prayer_refusals = prayer_refusals + 1
@@ -290,6 +302,7 @@ return {
                 next_prayer_poll = now + 4
                 local _, points = t.skill.read("prayer")
                 local _, drained = t.skill.read("strength")
+                if type(drained) == "table" and tonumber(drained.level) then strength_samples[#strength_samples + 1] = { select(2, t.tick()), tonumber(drained.level) } end
                 if type(points) == "table" and points.level ~= nil and (points.level < 14 or (type(drained) == "table" and drained.level ~= nil and drained.level < 74)) then
                     for _, name in ipairs(restore_names) do
                         local restore_result, restore_count = t.inv.count(name)
@@ -568,7 +581,8 @@ return {
                     if on_boss and boss_style ~= target_style then
                         boss_style = target_style
                         boss_forms[#boss_forms + 1] = target_style
-                        t.prayer.set(prayer_of[target_style], true)
+                        local boss_pray_result = t.prayer.set(prayer_of[target_style], true)
+                        if boss_pray_result == "ok" then prayer_log[#prayer_log + 1] = { select(2, t.tick()), target_style } end
                     end
                     if not on_boss and boss_style ~= nil then fight_end = "boss gone" t.shot("fight.kill_vasilias") break end
                     -- a hit that lands after she turns is the wrong style and nulls her for good: press only early in a form's ten ticks
@@ -632,6 +646,17 @@ return {
                         and target_symbol ~= nil and string.find(target_symbol, "_incoming_", 1, true) ~= nil and target.x ~= nil and target_style == "melee" and current == "ranged" then
                         wrong_probe = true
                     end
+                    local freeze_cast, freeze_world_slot, freeze_bites = false, nil, 0
+                    if not on_boss and not wrong_probe and not boss_probe and #freeze_probes < 3 and now - tick0 >= 30 and now - freeze_last >= 20 and target_style == "magic"
+                        and target_symbol ~= nil and string.find(target_symbol, "_incoming_", 1, true) ~= nil and target.x ~= nil then
+                        local _, candidate_world_slot = t.ticklog.slot(target)
+                        local _, freeze_anims = t.ticklog.rows({ kind = "npc_anim", slot = candidate_world_slot })
+                        local abs_now = select(2, t.tick())
+                        for _, anim_row in ipairs(freeze_anims or {}) do
+                            if (anim_row.seq == 7989 or anim_row.seq == 7999 or anim_row.seq == 8004) and anim_row.tick >= abs_now - 9 then freeze_bites = freeze_bites + 1 end
+                        end
+                        if type(candidate_world_slot) == "number" and freeze_bites >= 1 then freeze_cast, freeze_world_slot = true, candidate_world_slot end
+                    end
                     local press_style = target_style
                     if boss_probe then press_style = "melee" end
                     if current ~= press_style and not wrong_probe then
@@ -648,7 +673,12 @@ return {
                     local before = select(2, t.tick())
                     local call_result, call_detail
                     if press_style == "magic" and not wrong_probe then
-                        call_result, call_detail = t.player.cast("fire_strike", target_symbol, 1, 2, { slot = target.slot })
+                        call_result, call_detail = t.player.cast(freeze_cast and "entangle" or "fire_strike", target_symbol, 1, 2, { slot = target.slot })
+                        if freeze_cast then
+                            freeze_last = now
+                            freeze_probes[#freeze_probes + 1] = { world_slot = freeze_world_slot, tick = before, bites_before = freeze_bites, answer = tostring(call_result) }
+                            skips[target.slot] = now + 20
+                        end
                         casts = casts + 1
                     else
                         call_result, call_detail = t.player.attack(target_symbol, 2, 1, { slot = target.slot })
@@ -666,6 +696,7 @@ return {
                         reflect_press_ticks[#reflect_press_ticks + 1] = before
                         -- the weapon's maximum hit at this press: standard melee formula, effective strength = current level (reading.level, drained or boosted) + 1 (the whip's Lash is controlled) + 8, bonus 82 (abyssal whip) + 64, no prayer; a missing reading leaves 0 and fails the row
                         local _, press_strength = t.skill.read("strength")
+                        if type(press_strength) == "table" and tonumber(press_strength.level) then strength_samples[#strength_samples + 1] = { before, tonumber(press_strength.level) } end
                         reflect_press_max[#reflect_press_max + 1] = (type(press_strength) == "table" and tonumber(press_strength.level)) and math.floor(0.5 + (tonumber(press_strength.level) + 1 + 8) * (82 + 64) / 640) or 0
                         -- one step drops the whip's auto attack, so the next press is the right style
                         local _, probe_here = t.world.tile()
@@ -851,10 +882,14 @@ return {
                         local previous = c.attacks[#c.attacks]
                         c.attacks[#c.attacks + 1] = r.tick
                         if previous ~= nil and c.type < 10780 then
+                            local frozen_gap = false
+                            for _, probe_row in ipairs(freeze_probes) do
+                                if probe_row.world_slot == r.slot and previous < probe_row.tick + 6 and r.tick >= probe_row.tick then frozen_gap = true end
+                            end
                             local list = m.attackrate
-                            list[#list + 1] = r.tick - previous
+                            if not frozen_gap then list[#list + 1] = r.tick - previous end
                             local bites = m.pillar_bite_cadence
-                            bites[#bites + 1] = r.tick - previous
+                            if not frozen_gap then bites[#bites + 1] = r.tick - previous end
                         end
                     elseif detonate_seq[r.seq] then
                         c.detonated = r.tick
@@ -1119,7 +1154,7 @@ return {
         end
         local collapse_hit_text = {}
         for _, h in ipairs(hits) do
-            if h.npc_slot == -1 and collapse_tick[h.tick] then
+            if h.npc_slot == -1 and h.damage >= 30 and collapse_tick[h.tick] then
                 local list = m.pillar_collapse_entry_min
                 list[#list + 1] = h.damage
                 collapse_hit_text[#collapse_hit_text + 1] = h.tick .. ":" .. h.damage
@@ -1397,7 +1432,7 @@ return {
                     local dist = math.max(dx, dz)
                     local ambiguous = false
                     for _, a in ipairs(anim_by_slot[c.slot] or {}) do
-                        if not a.boom and a.tick >= c.detonated - 6 and a.tick < c.detonated then ambiguous = true end
+                        if not a.boom and a.tick == c.detonated - 1 then ambiguous = true end
                     end
                     if ambiguous then
                         booms = booms - 1
@@ -1414,9 +1449,100 @@ return {
         if reach ~= nil then
             t.expect("spec.nylocas.explosion_radius", reach == 2 and "ok" or "refused",
                 "measured " .. reach .. " tiles, the farthest tile a detonation hurt the player from (" .. landed .. " of " .. booms
-                .. " detonations with the player tile read (" .. skipped_booms .. " more left out: the nylocas had swung in the 6 ticks before, so a hit on that tick may be its swing) landed on the detonation tick, none farther than the reach; the nearest one that did not hurt was at " .. tostring(nearest_miss)
+                .. " detonations with the player tile read (" .. skipped_booms .. " more left out: the nylocas had swung on the tick before, so a melee hit on that tick may be its swing) landed on the detonation tick, none farther than the reach; the nearest one that did not hurt was at " .. tostring(nearest_miss)
                 .. ") (spec 2 tiles, grade D, tol exact)")
         end
+
+        -- ===== SEAM14 ROWS: accuracy-rolled swings and the frozen chewer =====
+        -- a swing at 0 with no prayer on its style is a miss: the prayer the player held is read from the switches the test made, and a swing counts as
+        -- unprayed only when none of the prayers held from 6 ticks before to 2 ticks after the row (a projectile is checked when it lands, a switch
+        -- registers within a tick of its call) covers its style
+        wave_unprayed, wave_unprayed_zero, wave_unprayed_landed = 0, 0, 0
+        wave_block_count, wave_cover_landed, melee_block_count, melee_cover_landed = 0, 0, 0, 0
+        local boss_prayed, boss_prayed_zero, boss_prayed_landed = 0, 0, 0
+        local reflect_windows = {}
+        for _, press_tick in ipairs(reflect_press_ticks) do reflect_windows[#reflect_windows + 1] = press_tick end
+        for index, h in ipairs(hits) do
+            if index % 100 == 0 then t.ticks(1) end
+            local style_of_hit = nil
+            if h.npc_type ~= nil and h.npc_type >= 10780 and h.npc_type <= 10785 then
+                style_of_hit = ({ "melee", "ranged", "magic" })[(h.npc_type - 10774) % 3 + 1]
+            elseif h.npc_type == 10787 then
+                style_of_hit = "melee"
+            elseif h.npc_type == 10788 then
+                style_of_hit = "magic"
+            elseif h.npc_type == 10789 then
+                style_of_hit = "ranged"
+            end
+            if style_of_hit ~= nil then
+                local held, last_before = {}, nil
+                for _, entry in ipairs(prayer_log) do
+                    if entry[1] < h.tick - 6 then last_before = entry[2]
+                    elseif entry[1] <= h.tick + 2 then held[entry[2]] = true end
+                end
+                if last_before ~= nil then held[last_before] = true end
+                local covered, only_this = held[style_of_hit] == true, true
+                for style_name in pairs(held) do if style_name ~= style_of_hit then only_this = false end end
+                local none_held = next(held) == nil
+                if h.npc_type <= 10785 then
+                    if covered and only_this and h.damage == 0 then wave_block_count = wave_block_count + 1
+                    elseif covered and only_this and h.damage > 0 then wave_cover_landed = wave_cover_landed + 1 end
+                    if not covered then
+                        wave_unprayed = wave_unprayed + 1
+                        if h.damage == 0 then wave_unprayed_zero = wave_unprayed_zero + 1 else wave_unprayed_landed = wave_unprayed_landed + 1 end
+                    end
+                elseif h.npc_type == 10787 then
+                    if covered and only_this and h.damage == 0 then melee_block_count = melee_block_count + 1
+                    elseif h.damage > 0 and not covered then melee_cover_landed = melee_cover_landed + 1 end
+                elseif covered and only_this and not none_held and boss.spawn ~= nil and h.tick >= boss.spawn then
+                    local in_reflect = false
+                    for _, press_tick in ipairs(reflect_windows) do
+                        if h.tick >= press_tick and h.tick <= press_tick + 8 then in_reflect = true end
+                    end
+                    if not in_reflect then
+                        boss_prayed = boss_prayed + 1
+                        if h.damage == 0 then boss_prayed_zero = boss_prayed_zero + 1 else boss_prayed_landed = boss_prayed_landed + 1 end
+                    end
+                end
+            end
+        end
+        t.check("spec.nylocas.swing_miss_entry", wave_unprayed_zero >= 1 and wave_unprayed_zero <= 99, "measured " .. wave_unprayed_zero .. " count, " .. wave_unprayed_zero
+            .. " of " .. wave_unprayed .. " hit_player rows from wave nylocas with no prayer on their style were 0 (" .. wave_unprayed_landed
+            .. " landed for 1 or more, explosions among them), prayer read from " .. #prayer_log .. " logged switches (spec 1-99 count, grade C, tol range)")
+        t.check("spec.nylocas.vasilias_prayed_miss_entry", boss_prayed_zero >= 1 and boss_prayed_zero <= 99, "measured " .. boss_prayed_zero .. " count, " .. boss_prayed_zero
+            .. " of " .. boss_prayed .. " magic and ranged swings of Vasilias into the matching prayer were 0 (" .. boss_prayed_landed
+            .. " landed up to the prayed maximum), rows inside a reflect press's 8 ticks left out (spec 1-99 count, grade C, tol range)")
+        local frozen_valid, frozen_bites_after, frozen_text = 0, 0, {}
+        for index, probe_row in ipairs(freeze_probes) do
+            t.ticks(1)
+            local _, probe_hits = t.ticklog.rows({ kind = "hit_npc", slot = probe_row.world_slot })
+            local landed_tick = nil
+            for _, hit_row in ipairs(probe_hits or {}) do
+                if hit_row.tick >= probe_row.tick and landed_tick == nil then landed_tick = hit_row.tick end
+            end
+            local _, probe_anims = t.ticklog.rows({ kind = "npc_anim", slot = probe_row.world_slot })
+            local _, probe_frees = t.ticklog.rows({ kind = "npc_free", slot = probe_row.world_slot })
+            local free_tick = nil
+            for _, free_row in ipairs(probe_frees or {}) do
+                if landed_tick ~= nil and free_row.tick > landed_tick and free_tick == nil then free_tick = free_row.tick end
+            end
+            local bites_after, next_bite = 0, nil
+            for _, anim_row in ipairs(probe_anims or {}) do
+                if landed_tick ~= nil and (anim_row.seq == 7989 or anim_row.seq == 7999 or anim_row.seq == 8004) and anim_row.tick > landed_tick then
+                    if anim_row.tick <= landed_tick + 15 then bites_after = bites_after + 1 end
+                    if next_bite == nil then next_bite = anim_row.tick end
+                end
+            end
+            local alive = landed_tick ~= nil and (free_tick == nil or free_tick > landed_tick + 15)
+            if alive then
+                frozen_valid = frozen_valid + 1
+                frozen_bites_after = frozen_bites_after + bites_after
+            end
+            frozen_text[#frozen_text + 1] = "probe " .. index .. " cast " .. probe_row.answer .. " at " .. probe_row.tick .. ", " .. probe_row.bites_before .. " bites in the 9 ticks before, landed "
+                .. tostring(landed_tick) .. ", " .. bites_after .. " bites in the 15 ticks after, next bite " .. tostring(next_bite) .. ", freed " .. tostring(free_tick) .. (alive and "" or " (not counted)")
+        end
+        t.check("spec.nylocas.frozen_bites_entry", frozen_valid >= 1 and frozen_bites_after == 0, "measured " .. frozen_bites_after .. " count, in " .. frozen_valid
+            .. " counted Entangle freezes (the standard book's freeze, npc_frozen like an Ice Burst's) on a chewing magic nylocas: " .. table.concat(frozen_text, "; ") .. " (spec 0 count, grade D, tol exact)")
 
         -- ===== TEXT ROWS: seqs, graphics, projectiles, sounds, music and locs read from the log, the client and the room =====
         local style_order = { "melee", "ranged", "magic" }
@@ -1588,9 +1714,19 @@ return {
                     if reflected > reflect_biggest then reflect_biggest = reflected end
                     -- the press this reflect belongs to is the last one at or before its tick
                     local press_max = reflect_press_max[1]
+                    local press_from = reflect_press_ticks[1]
                     for press_index, press_tick in ipairs(reflect_press_ticks) do
-                        if press_tick <= heal_row.tick then press_max = reflect_press_max[press_index] end
+                        if press_tick <= heal_row.tick then press_max = reflect_press_max[press_index] press_from = press_tick end
                     end
+                    -- the swing rolled with the Strength of its own tick: the highest reading from the press to the first reading after the heal bounds it (a restore lifts, a brew drains between readings)
+                    local window_level, after_taken = 0, false
+                    for _, sample in ipairs(strength_samples) do
+                        if sample[1] >= press_from and not after_taken then
+                            if sample[2] > window_level then window_level = sample[2] end
+                            if sample[1] >= heal_row.tick then after_taken = true end
+                        end
+                    end
+                    if window_level > 0 then press_max = math.floor(0.5 + (window_level + 1 + 8) * (82 + 64) / 640) end
                     if press_max ~= nil then
                         if reflected > reflect_max_seen then reflect_max_seen = reflected reflect_max_of_biggest = press_max end
                         if reflected > press_max then reflect_over_max = reflect_over_max + 1 end
@@ -1723,18 +1859,11 @@ return {
         t.check("tech.aggro_first", kills.fighting > 0, "kills of the fighting (aggro) forms " .. kills.fighting
             .. " against the incoming forms " .. kills.incoming .. ": the ones that swing at the player are met first")
         t.check("tech.food", (eaten + brews) > 0 and lowest > 0, "sharks eaten " .. eaten .. ", brew doses " .. brews .. ", lowest hitpoints " .. lowest .. ", eaten from 78 (84 with three copies swinging) and below, one at a time, the next only once the hitpoint read had risen")
-        local wave_blocked, wave_landed, melee_blocked, melee_landed = 0, 0, 0, 0
-        for index, h in ipairs(hits) do
-            if index % 100 == 0 then t.ticks(1) end
-            if h.npc_type ~= nil and h.npc_type >= 10780 and h.npc_type <= 10785 then
-                if h.damage == 0 and h.hitsplat == 26 then wave_blocked = wave_blocked + 1 elseif h.damage > 0 then wave_landed = wave_landed + 1 end
-            elseif h.npc_type == 10787 then
-                if h.damage == 0 and h.hitsplat == 26 then melee_blocked = melee_blocked + 1 elseif h.damage > 0 then melee_landed = melee_landed + 1 end
-            end
-        end
-        t.check("tech.prayer", wave_blocked >= 20 and melee_blocked > melee_landed, "protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
-            .. "inside four tiles): " .. wave_blocked .. " hit_player rows from swinging wave nylocas at 0 with the block splat against " .. wave_landed .. " that landed (the other two styles, and explosions); "
-            .. "her melee form: " .. melee_blocked .. " blocked against " .. melee_landed .. " landed on the switch ticks before the prayer followed")
+        -- a 0 is a block only when the prayer the test held covered the style (prayer_log); a 0 with no prayer on its style is a miss (swing_miss_entry)
+        t.check("tech.prayer", wave_block_count >= 20 and melee_block_count > melee_cover_landed, "protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
+            .. "inside four tiles): " .. wave_block_count .. " hit_player rows from wave nylocas at 0 while the prayer held covered their style (blocks), against " .. wave_unprayed_zero
+            .. " zeros with no prayer on their style (misses, not counted) and " .. wave_unprayed_landed .. " that landed with none on (the other two styles, and explosions); "
+            .. "her melee form: " .. melee_block_count .. " blocked against " .. melee_cover_landed .. " landed on the switch ticks before the prayer followed")
         local spawned_waves, spawned_total = #wave_ticks, 0
         for _, c in ipairs(lives) do spawned_total = spawned_total + 1 end
         local walking_text = "none"
