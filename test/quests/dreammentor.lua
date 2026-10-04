@@ -70,7 +70,7 @@ return {
         t.exec("enterCyrisusCave", t.player.click_loc, "dream_cave_wall_entrance", 1)
         t.ticks(3)
         do local _, tile = t.world.tile()
-            t.check("enterCyrisusCave-landed", tile ~= nil, "after the crawl: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
+            t.check("enterCyrisusCave-landed", tile ~= nil and tile.x > 2338, "after the crawl: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
 
         -- ---- talkToCyrisus: the offer (dreammentor_start, dreammentor_cyrisus.rs2:~160) ----
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
