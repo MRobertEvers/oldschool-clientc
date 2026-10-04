@@ -643,3 +643,38 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   ball on the raider, her bar 27.4%), tob_verzik 102-drive.p3state630 (1 hp, her bar 63%, the
   pack all empty vials). The seam rows in _conformance.lua take no shots; they rest on the
   ledger rows quoted above.
+
+## matthew-mbp-m4-raid-b1-seam17 (2026-10-04; parent 3736f3d22, OSRS-Content f8fefeb837 unchanged): three driven clients in one raid (triage SEAM_TRIAGE_2026-10-04e.md)
+
+- `three_clients_one_world`: LANDED (engine; torirs_server_embed.c/.h, net_transport_embed.c,
+  make test-embed-party-link 9/9). Option A: the leader's embedded world takes members over
+  a loopback party link in READY/TICK lock step. Smoke leader row
+  seam.three_clients_one_world PASS `ticks 4..166 (163 ticks): 3 player_tile rows on every
+  tick`. The three tick logs agree on one npc_spawn row: the Normal Maiden's
+  `2948 149 npc_spawn 1570 8360 105283740` is in p1/, p2/ and p3/ticklog.tsv (copies of the
+  world's one log), and p2's and p3's own TICK trace reads `boundary 150 -> server tick 149`.
+  Two closer runs: tick logs byte-identical. Still open: TORIRSSERVER_EMBED_CLIENT_MAX is 4,
+  so a five-raider party needs it raised; POSIX only.
+- `party_run_and_verbs`: LANDED (run.py run_party / --party, gate.py party union,
+  raid_gate `_` ids, raid.lua t.party.* with 12 conformance rows, now 177 verbs; also
+  src/plugin/torirs_plugin_drive.c and plugin_api.meta.lua, which were outside the seam's
+  list but kept: without them a member's script never starts, as pty_before shows on the
+  engine-only binary). test/raids/_party_smoke.lua 99/99 PASS twice: Entry party formed,
+  applied and accepted (party.members_3), `Is your party ready? Members: 3. Mode: Entry.`, the
+  members follow in, everyone sees the other two, then Normal: spec.maiden.hp_3 2625,
+  spec.raidwide.scale.party_3_or_fewer 750, spec.raidwide.hud.boss_hp_full 1000,
+  raidwide.hud.orb_full p0=p1=p2=27 on the leader. Still open: a member's server readers
+  (t.tick, t.ticklog, t.var.server, t.raid.*) answer unsupported; t.session.relog on a
+  member types `p<n>`; a member's view of later raiders' orbs stays 0 (CONTENT_BUGS seam17).
+  tob_entry_trio (Normal/Hard rooms with three raiders) is not authored yet.
+- Gates on the final tree: cooks_assistant and druid ledgers byte-identical to a base build
+  at da183511b in a throwaway worktree; quest suite 115 green + deserttreasure,
+  forgettabletale, regicide and troll RED, the baseline. Three of the four are
+  byte-identical to the base, and forgettabletale differs only in a Lua table address.
+  The six ToB rooms are green and FULL (maiden 110, bloat 94, nylocas 165, sotetseg 155,
+  xarpus 120, verzik 264). Conformance 336/336 PASS (177 verbs + 159 seams).
+  test-quest-cheats, check-quest-verbs, check-drive-abi, check-pt-switch and test-plugin-lua
+  pass. Lint is clean on 127 files. torirsserver --selftest has 11 failures, the baseline
+  set. test-torirsserver-embed is 79 ok / 48 FAILED, identical to the base. `make
+  test-torirsserver` stops at torirsserver-servpack's Membership check: that is content,
+  and the content was not touched in this pass.
