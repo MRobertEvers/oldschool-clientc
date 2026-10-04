@@ -1,5 +1,20 @@
 -- Mourning's End Part II -- hand-written, NOT the new_quest.py scaffold.
 --
+-- b59 door-rule re-drive (2026-10-04): every goto into or out of a closed
+-- space is gone. Lletya -> the HQ is now Ardougne Teleport, the Ardougne
+-- Wall Door, the HQ door, its inner door and the trapdoor; the caves are
+-- entered through door2 and door4; the temple -> Lletya trips are a
+-- teleport out. The run now STOPS, honestly, at the first content refusal
+-- on that road: the Ardougne Wall Door does not open (see its t.blocked).
+-- Past it the same road hits the HQ door and trapdoor gates
+-- (doors.rs2:60, mend1_disguise.rs2:347: both admit only varp517 <
+-- ^mend1_report), and nothing lets a player back INTO Lletya
+-- (elf_village_treegate has no trigger, the elf teleport crystal no op);
+-- inside the temple the rope rocks sit behind a Low wall with no trigger.
+-- Each of those is a conditional t.blocked where the drive meets it. The
+-- rows below them are kept, re-audited statically (reach.py) and fixed;
+-- they have not run since this re-drive.
+--
 -- RESUMED sonnet-b21 (2026-09-25), continuing sonnet-b19's file (2026-09-24).
 -- The committed file at HEAD (ec30f7f5f) still predated content parity1f and
 -- the seam14 door-collision fix, and ended at Puzzle 4 with a "no content
@@ -115,6 +130,20 @@ return {
         "::give rope 1",
         "::give death_talisman 1",
         "::setlevel agility 99", -- guaranteed wall-support crossing, see header
+        -- Lletya -> the Mourner HQ is a REAL teleport (b59 door rule: no goto
+        -- out of Lletya's walled pocket or into West Ardougne). Ardougne
+        -- Teleport (teleport.rs2:16-23) needs Plague City complete AND its
+        -- scroll read (elena_complete_read_scroll = 30), magic 51 and 2 law +
+        -- 2 water runes per cast (magic_spells.dbrow ardougne_teleport); two
+        -- Lletya -> HQ trips in the quest, so runes for two casts. Biohazard
+        -- is a prerequisite of this quest chain (Underground Pass -> Regicide
+        -- -> Roving Elves -> Part I) and gates the HQ door's own branches.
+        "::complete quest_plaguecity",
+        "::setvar varp165_elenaquest ^elena_complete_read_scroll",
+        "::complete quest_biohazard",
+        "::setlevel magic 51",
+        "::give lawrune 4",
+        "::give waterrune 4",
         "::complete quest_mourningsendpart1", -- quest_cheat.rs2's arm; quest_mourningsendparti had no arm and did nothing
         "::mend2", -- last: resets mourning_quest_main and teleports beside Arianwyn
     },
@@ -139,6 +168,248 @@ return {
 
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        -- ============================================================
+        -- Travel helpers (b59 door-rule re-drive). No goto_tile enters or
+        -- leaves a closed space: Lletya is a walled pocket (1,113 tiles,
+        -- exits only through elf_village_treegate 2305,3191/3195), West
+        -- Ardougne is behind the Ardougne Wall Door, the Mourner HQ behind
+        -- mournerstewdoor, the basement under mourning_hideout_trap_door,
+        -- Essyllt's room behind mourner_hideout_door2 and the caves behind
+        -- mourner_hideout_door4. Every one is clicked, both ways.
+        -- ============================================================
+        local h = {}
+        function h.tile_text(r, tl)
+            if r ~= "ok" or type(tl) ~= "table" then
+                return tostring(r)
+            end
+            return tostring(tl.x) .. "," .. tostring(tl.z) .. "," .. tostring(tl.level)
+        end
+
+        -- Reads that ASSERT (b59: these were t.exec rows on a read verb,
+        -- which pass on the read's status whatever the value). A light
+        -- edge or Door of Light varbit is lit at any colour (mend2.constant
+        -- ^mend2_light_red=1 .. _white=7) and dark at 0.
+        function h.expect_var(name, var, want, ok)
+            local r, v = t.var.server(var)
+            t.check(name, r == "ok" and type(v) == "number" and ok(v),
+                "var.server(" .. var .. ") -> " .. tostring(r) .. " " .. tostring(v) .. " (want " .. want .. ")")
+        end
+        function h.lit(name, var)
+            h.expect_var(name, var, ">= 1: lit", function(v) return v >= 1 end)
+        end
+        function h.dark(name, var)
+            h.expect_var(name, var, "0: dark", function(v) return v == 0 end)
+        end
+        function h.stage_is(name, want)
+            h.expect_var(name, "varb1103_mourning_quest_main", tostring(want), function(v) return v == want end)
+        end
+        function h.count_at_least(name, obj, n)
+            local r, c = t.inv.count(obj)
+            t.check(name, r == "ok" and type(c) == "number" and c >= n,
+                "inv.count(" .. obj .. ") -> " .. tostring(r) .. " " .. tostring(c) .. " (want >= " .. n .. ")")
+        end
+        function h.count_is(name, obj, n)
+            local r, c = t.inv.count(obj)
+            t.check(name, r == "ok" and c == n,
+                "inv.count(" .. obj .. ") -> " .. tostring(r) .. " " .. tostring(c) .. " (want " .. n .. ")")
+        end
+        -- Informational only: a note, never a row that cannot fail.
+        function h.note_var(name, var)
+            local r, v = t.var.server(var)
+            t.note(name .. ": var.server(" .. var .. ") -> " .. tostring(r) .. " " .. tostring(v))
+        end
+        function h.note_count(name, obj)
+            local r, c = t.inv.count(obj)
+            t.note(name .. ": inv.count(" .. obj .. ") -> " .. tostring(r) .. " " .. tostring(c))
+        end
+
+        -- Walk to the near side of a door, press the CLOSED leaf on the
+        -- exact door tile (or assert the open leaf stands within a tile of
+        -- it, from an earlier press, and do not press again), walk through,
+        -- check the far tile.
+        function h.pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, level)
+            level = level or 0
+            t.player.walk_to(near_x, near_z, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and nt.level == level and nt.x == near_x and nt.z == near_z,
+                "walked to " .. near_x .. "," .. near_z .. "," .. level .. " beside " .. closed_sym .. " at "
+                    .. door_x .. "," .. door_z .. " -> " .. h.tile_text(nr, nt))
+            local cr, cd = t.world.loc_near(closed_sym, 1)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == level then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 2)
+                t.check(prefix .. ".doorStandsOpen", orr == "ok" and od.level == level
+                    and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. tostring(cd.level)) or tostring(cr))
+                        .. "; " .. open_sym .. ": " .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. tostring(od.level)) or tostring(orr))
+                        .. " (want within 1 of the door tile on level " .. level .. ": standing open from an earlier press, walked through, not pressed again)")
+            end
+            local wr, wd = t.player.walk_to(far_x, far_z, 20)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and ft.level == level and ft.x == far_x and ft.z == far_z,
+                "walked through " .. closed_sym .. " to " .. far_x .. "," .. far_z .. " -> " .. h.tile_text(fr, ft)
+                    .. " (walk " .. tostring(wr) .. (wd and (" " .. tostring(wd)) or "") .. ")")
+        end
+
+        -- Ardougne Teleport pressed in the spellbook, graded on three rows:
+        -- the cast answered TELEPORTED, exactly 2 law + 2 water left the pack
+        -- (magic_spells.dbrow ardougne_teleport runesrequired), and the
+        -- landing is within 2 of tele_coord 0_41_51_37_37 = 2661,3301,0
+        -- (teleport.rs2 [label,magic_teleport], map_findsquare radius 2).
+        function h.ardougne_teleport(name)
+            local br, bt = t.world.tile()
+            local lr0, law0 = t.inv.count("lawrune")
+            local wr0, water0 = t.inv.count("waterrune")
+            local cr, cd = t.player.cast("ardougne_teleport")
+            t.ticks(1)
+            local ar, at = t.world.tile()
+            local lr1, law1 = t.inv.count("lawrune")
+            local wr1, water1 = t.inv.count("waterrune")
+            t.check(name, cr == "ok" and string.find(tostring(cd), "TELEPORTED", 1, true) ~= nil,
+                "from " .. h.tile_text(br, bt) .. " cast ardougne_teleport -> " .. tostring(cr) .. " " .. tostring(cd))
+            t.check(name .. ".runes", lr0 == "ok" and lr1 == "ok" and wr0 == "ok" and wr1 == "ok"
+                and law0 - law1 == 2 and water0 - water1 == 2,
+                "lawrune " .. tostring(law0) .. " -> " .. tostring(law1) .. ", waterrune " .. tostring(water0) .. " -> "
+                    .. tostring(water1) .. " (want -2 law, -2 water)")
+            t.check(name .. ".landed", ar == "ok" and at.level == 0 and math.abs(at.x - 2661) <= 2 and math.abs(at.z - 3301) <= 2,
+                "landed " .. h.tile_text(ar, at) .. " (want within 2 of 2661,3301,0)")
+        end
+
+        -- Lletya -> the Mourner HQ basement, Essyllt's room. Returns false
+        -- after an honest t.blocked when the content refuses a step.
+        -- hq_step / basement_step name the guide's own steps for the rows.
+        function h.lletya_to_basement(prefix, hq_step, basement_step)
+            h.ardougne_teleport(prefix .. ".ardougneTeleport")
+            -- East Ardougne market -> the east face of the Ardougne Wall
+            -- Door: a plain overland hop between open tiles (reach.py
+            -- 2661,3301 -> 2559,3300: REACH closed-doors len=141).
+            t.exec("goto-" .. prefix .. ".wallDoor", t.player.goto_tile, 2559, 3300, 0)
+            local er, et = t.world.tile()
+            t.check(prefix .. ".wallDoor.east", er == "ok" and et.level == 0 and et.x == 2559 and et.z == 3300,
+                "east of the Ardougne Wall Door -> " .. h.tile_text(er, et) .. " (want 2559,3300,0)")
+            -- The wall door: ardougnedoor_r/_l (2557-2558,3299-3300, shape
+            -- 10), generic doors.loc:724-738 door_closed.
+            local dr, dd = t.player.click_loc("ardougnedoor_r", 1, { at = { 2558, 3300 } })
+            t.ticks(2)
+            local wr, wd = t.player.walk_to(2556, 3300, 12)
+            local wtr, wtt = t.world.tile()
+            local through = wtr == "ok" and wtt.level == 0 and wtt.x <= 2556
+            if not through then
+                t.check(prefix .. ".wallDoor.refused", wtr == "ok" and wtt.x >= 2559,
+                    "click_loc ardougnedoor_r -> " .. tostring(dr) .. " " .. tostring(dd) .. "; walk_to 2556,3300 -> "
+                        .. tostring(wr) .. " " .. tostring(wd) .. "; tile " .. h.tile_text(wtr, wtt) .. " (still east of the wall)")
+                t.blocked("content_bug: the Ardougne Wall Door (ardougnedoor_r/_l, 2557-2558,3299-3300, shape 10) does"
+                    .. " not let a Biohazard-complete player into West Ardougne: doors.loc:724-738 binds it to the"
+                    .. " generic door_closed handler, which loc_changes a shape-10 door in place (doors.rs2"
+                    .. " door_open_active), and the Biohazard walk-through (area_ardougne_west/scripts/doors.rs2"
+                    .. " west_ardougne_open_city_doors, LostCity's biohazard_complete forcemove) is bound to"
+                    .. " ardougnewalldoor_left/right (ids 2048/2049), placed nowhere on the 239 map; the opened leaf"
+                    .. " still blocks 2558,3300. The Plague City sewer is closed once Biohazard starts"
+                    .. " (quest_elena/scripts/mud_patch.rs2 'filled in'), so West Ardougne has no way in. Past this"
+                    .. " door the same leg hits two more gates (helper below): the Mourner HQ door"
+                    .. " (area_ardougne_west/scripts/doors.rs2:60) and its trapdoor"
+                    .. " (quest_mourningsendparti/scripts/mend1_disguise.rs2:347) admit only %varp517_mourning_quest"
+                    .. " < ^mend1_report, never a Part I-complete player")
+                return false
+            end
+            t.check(prefix .. ".wallDoor.west", through,
+                "click_loc ardougnedoor_r -> " .. tostring(dr) .. " " .. tostring(dd) .. "; walk_to 2556,3300 -> "
+                    .. tostring(wr) .. "; tile " .. h.tile_text(wtr, wtt) .. " (want x <= 2556: inside West Ardougne)")
+            -- Inside West Ardougne to the HQ's south door, on foot
+            -- (reach.py 2556,3300 -> 2551,3319: REACH closed-doors len=24).
+            t.player.walk_to(2551, 3320, 40)
+            local sr, st = t.world.tile()
+            t.check(prefix .. ".hqDoor.outside", sr == "ok" and st.level == 0 and st.x == 2551 and st.z == 3320,
+                "outside mournerstewdoor (2551,3320, north edge) -> " .. h.tile_text(sr, st) .. " (want 2551,3320,0)")
+            -- The guide's enterMournerHQ: mournerstewdoor, full disguise worn.
+            local hr, hd = t.player.click_loc("mournerstewdoor", 1, { at = { 2551, 3320 } })
+            t.ticks(3)
+            local ir, it = t.world.tile()
+            local inside = ir == "ok" and it.level == 0 and it.z >= 3321
+            if not inside then
+                local kr, ktext = t.chat.text()
+                t.check(hq_step .. ".refused", ir == "ok" and it.z == 3320
+                    and string.find(tostring(ktext), "The door is locked", 1, true) ~= nil,
+                    "click_loc mournerstewdoor -> " .. tostring(hr) .. " " .. tostring(hd) .. "; chat.text -> "
+                        .. tostring(kr) .. " " .. tostring(ktext) .. "; tile " .. h.tile_text(ir, it)
+                        .. " (the content's Biohazard-complete refusal, doors.rs2:98-99)")
+                t.chat.close()
+                t.blocked("content_bug: the Mourner HQ door refuses a disguised player after Mourning's End Part I,"
+                    .. " so Part II's basement (Essyllt, the caves, the Temple of Light) is unreachable."
+                    .. " OSRS-Content/osrs239-content/server/scripts/areas/area_ardougne_west/scripts/doors.rs2:60"
+                    .. " admits the disguise only while %varp517_mourning_quest >= ^mend1_gathering &"
+                    .. " < ^mend1_report (8); Part I complete is ^mend1_complete (9), which falls through to"
+                    .. " Biohazard's 'The door is locked...' (doors.rs2:98-99). The trapdoor below has the same"
+                    .. " gate: quests/quest_mourningsendparti/scripts/mend1_disguise.rs2:347 answers 'Nothing"
+                    .. " interesting happens.' for varp517 >= ^mend1_report. Part I's own reward line"
+                    .. " (mend1_shared.rs2:31) promises 'Access to the Mourner HQ basement', and the guide's"
+                    .. " enterMournerHQ step needs only the disguise (MourningsEndPartII.java goTalkToEssyllt).")
+                return false
+            end
+            t.check(hq_step, inside,
+                "click_loc mournerstewdoor -> " .. tostring(hr) .. " " .. tostring(hd) .. "; tile " .. h.tile_text(ir, it)
+                    .. " (want inside the HQ, z >= 3321)")
+            -- HQ ground floor: the inner door to the trapdoor room
+            -- (reach.py 2551,3321 -> 2547,3325 len 8; 2546,3325 -> 2542,3326 len 5).
+            h.pass_door(prefix .. ".hqInnerDoor", "poordoor", "poordooropen", 2546, 3325, 2547, 3325, 2546, 3325)
+            t.player.walk_to(2542, 3326, 12)
+            -- The guide's enterMournerBasement: the trapdoor 2542,3327
+            -- (mend1_disguise.rs2:346 p_teleport ^mend1_hq_basement_coord =
+            -- 0_31_72_60_20 = 2044,4628,0, inside Essyllt's room).
+            local trr, trd = t.player.click_loc("mourning_hideout_trap_door", 1, { at = { 2542, 3327 } })
+            t.await({ level = function()
+                local r, tl = t.world.tile()
+                return r == "ok" and tl.x == 2044 and tl.z == 4628
+            end, note = basement_step .. " landing" }, 10)
+            local br, bt = t.world.tile()
+            local down = br == "ok" and bt.level == 0 and bt.x == 2044 and bt.z == 4628
+            if not down then
+                t.check(basement_step .. ".refused", br == "ok" and bt.z < 4000,
+                    "click_loc mourning_hideout_trap_door -> " .. tostring(trr) .. " " .. tostring(trd) .. "; tile " .. h.tile_text(br, bt))
+                t.blocked("content_bug: the Mourner HQ trapdoor refuses after Mourning's End Part I:"
+                    .. " OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/"
+                    .. "mend1_disguise.rs2:347 answers 'Nothing interesting happens.' for %varp517_mourning_quest"
+                    .. " >= ^mend1_report, and Part II needs the basement (Essyllt, the caves)")
+                return false
+            end
+            t.check(basement_step, down,
+                "click_loc mourning_hideout_trap_door -> " .. tostring(trr) .. " " .. tostring(trd) .. "; landed "
+                    .. h.tile_text(br, bt) .. " (want 2044,4628,0: ^mend1_hq_basement_coord)")
+            return true
+        end
+
+        -- Essyllt's room -> the Mourner Caves: north through door2 into the
+        -- basement hall, west through door4 into the caves (the grader's
+        -- rooms: Essyllt's 32 tiles x 2039-2045 z 4628-4633; the hall's 93
+        -- tiles x 2034-2045 z 4634-4651; maps/m31_72.jl2).
+        function h.basement_to_caves(prefix, cave_step)
+            h.pass_door(prefix .. ".essylltDoor", "mourner_hideout_door2", "mourner_hideout_door2_open",
+                2042, 4633, 2042, 4633, 2042, 4634)
+            h.pass_door(cave_step, "mourner_hideout_door4", "mourner_hideout_door4_open",
+                2034, 4636, 2034, 4636, 2033, 4636)
+        end
+
+        -- The Temple of Light -> Lletya. A real teleport takes the player
+        -- out (no walk back through the basement: its ladder up,
+        -- mourner_hideout_ladder1 2044,4650, is a generic climb_up_ladder
+        -- with no maplink.dbrow row), but nothing takes a player back INTO
+        -- Lletya: the walled pocket's only way in, elf_village_treegate
+        -- (op1 Pass, configs/all.loc:96800), has no trigger anywhere in
+        -- server/scripts, and the Elf teleport crystal Part I grants
+        -- (mourning_teleport_crystal_4, mend1_shared.rs2:29) has no op.
+        function h.temple_to_lletya(prefix)
+            h.ardougne_teleport(prefix .. ".ardougneTeleport")
+            t.blocked("content_gap: no way into Lletya for a player outside it -- elf_village_treegate"
+                .. " (2305,3191/2305,3195, op1 Pass, configs/all.loc:96800) has no [oploc1] trigger in"
+                .. " server/scripts, and mourning_teleport_crystal_4 (granted by"
+                .. " quests/quest_mourningsendparti/scripts/mend1_shared.rs2:29) has no [opheld] op, so Arianwyn"
+                .. " (Lletya, 2353,3172) is reachable only by a goto")
+            return false
+        end
 
         -- Gear up the disguise ::give left unworn -- mend2_shared.rs2's
         -- own gate at ^mend2_crystal_given checks all six worn slots.
@@ -166,8 +437,12 @@ return {
         t.expect("quest.stage.briefed", t.quest.expect_stage("briefed"))
 
         -- ---- Essyllt, HQ basement: briefed -> essyllt_task
-        -- (mend2_shared.rs2:150-159, re-read fresh -- text unchanged). ----
-        t.exec("goto-talkToEssyllt", t.player.goto_tile, 2044, 4628, 0)
+        -- (mend2_shared.rs2:150-159, re-read fresh -- text unchanged).
+        -- Reached for real: Ardougne Teleport out of Lletya, the wall door,
+        -- the HQ door, the trapdoor (b59; was a goto from Lletya). ----
+        if not h.lletya_to_basement("toHQ1", "enterMournerHQ", "enterMournerBasement") then
+            return
+        end
         t.exec("talkToEssyllt", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssyllt-dialog", t.chat.play, {
             "player:Arianwyn sent me. She's asked me to look for Edern",
@@ -184,16 +459,12 @@ return {
         -- for free (docs section 2: "no click_loc on the ladder first"),
         -- none of them carry a quest trigger of their own (mend2_temple.rs2's
         -- own header: "already walkable end to end through the generic
-        -- door/ladder handlers with zero code change"). ----
-        t.exec("goto-enterCave", t.player.goto_tile, 2036, 4636, 0)
-        t.exec("getcrystal.enterCave", t.player.click_loc, "mourner_hideout_door4", 1)
-        t.ticks(3)
-        t.player.walk_to(2031, 4636, 12)
-        t.ticks(2)
-        local _, cave_tile = t.world.tile()
-        local cave_x, cave_z = cave_tile.x, cave_tile.z
-        t.check("getcrystal.crossDoor", cave_x ~= nil and cave_x <= 2033,
-            "walked through mourner_hideout_door4 to the cave side: tile " .. tostring(cave_x) .. "," .. tostring(cave_z))
+        -- door/ladder handlers with zero code change"). b59: out of
+        -- Essyllt's room through door2, then door4 into the caves (both
+        -- were skipped by a goto). The caves themselves are one open
+        -- passage to the temple (reach.py 2033,4636 -> 1926,4642: REACH
+        -- closed-doors len=133): the goto below is travel. ----
+        h.basement_to_caves("toCave1", "enterCave")
 
         t.exec("goto-searchCorpse", t.player.goto_tile, 1926, 4642, 0)
         t.exec("getcrystal.searchCorpse", t.player.click_loc, "mourning_dead_guard4", 1)
@@ -294,7 +565,10 @@ return {
         -- summons Eluned (roving_female_woodelf_temp_1) in the SAME
         -- conversation ("Just a second, I will summon Eluned" ...
         -- ~chatnpc_specific("Eluned", ...)). ----
-        t.exec("goto-talkToArianwyn2", t.player.goto_tile, 2353, 3172, 0)
+        -- b59: was a goto from the temple's floor 2 straight into Lletya.
+        if not h.temple_to_lletya("toLletya1") then
+            return
+        end
         t.exec("talkToArianwyn2", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn2-dialog", t.chat.play, {
             "player:Is this it?",
@@ -376,6 +650,13 @@ return {
         -- results (see the getCrystal leg's own comment -- the zone
         -- teleport interrupts the route and reads "timeout" even when it
         -- landed).
+        -- b59: Lletya -> the basement -> the caves for real (was one goto
+        -- from Lletya to the doorway); the goto that follows is a hop
+        -- along the open cave passage (reach.py 2033,4636 -> 1921,4639).
+        if not h.lletya_to_basement("toHQ2", "goBackIntoMournerBasement.hqDoor", "goBackIntoMournerBasement") then
+            return
+        end
+        h.basement_to_caves("toCave2", "enterTempleOfLight.caveDoor")
         t.exec("goto-doorway2Align", t.player.goto_tile, 1921, 4639, 0)
         local doorway2_walk_a = t.player.walk_to(1919, 4639, 0)
         t.note("walk_to 1919,4639,0 -> " .. tostring(doorway2_walk_a))
@@ -691,7 +972,7 @@ return {
         -- mourning_temple_way_down and climb down, pass the lit cyan
         -- barrier, open+search the blue-crystal chest.
         -- ============================================================
-        t.exec("p4.inv.mirrors", t.inv.count, "mourning_mirror")
+        h.count_at_least("p4.inv.mirrors", "mourning_mirror", 1)
         -- "go back to Mirror #8 and rotate it so you can exit east"
         t.exec("p4.door_yellow2.back", t.player.click_loc, "mourning_door_1_1_south", 1)
         t.exec("p4.pillar1_1.turn", t.player.click_loc, "mourning_temple_pillar_1_1", 1)
@@ -715,7 +996,7 @@ return {
         t.exec("p4.pillar2_6.take", t.player.click_loc, "mourning_temple_pillar_2_6", 1)
         t.ticks(2)
         t.exec("p4.pillar2_6.yellow", t.player.use_on, "mourning_crystal_yellow", pillar26)
-        t.exec("p4.edge2_5_6", t.var.server, "varb1199_mourning_light_temple_2_5_6")
+        h.lit("p4.edge2_5_6", "varb1199_mourning_light_temple_2_5_6")
 
         -- goUpToFloor2Puzzle4 (java:780): the south straight stairs again,
         -- floor 1 -> floor 2.
@@ -732,7 +1013,7 @@ return {
         t.ticks(2)
         t.exec("p4.pillar3_1.turn", t.player.click_loc, "mourning_temple_pillar_3_1", 1)
         t.exec("p4.pillar3_1.turn_choose", t.chat.play, { "choose:South." })
-        t.exec("p4.edge3_1_8", t.var.server, "varb1229_mourning_light_temple_3_1_8")
+        h.lit("p4.edge3_1_8", "varb1229_mourning_light_temple_3_1_8")
         -- "Run all the way south, then place Mirror #8 to shine the light down"
         local pillar313 = t.player.by_symbol("loc", "mourning_temple_pillar_3_13")
         t.exec("goto-p4.pillar3_13", t.player.goto_tile, 1860, 4613, 2)
@@ -740,7 +1021,7 @@ return {
         t.exec("p4.pillar3_13.place", t.player.use_on, "mourning_mirror", pillar313)
         t.exec("p4.pillar3_13.turn", t.player.click_loc, "mourning_temple_pillar_3_13", 1)
         t.exec("p4.pillar3_13.turn_choose", t.chat.play, { "choose:Up or down...", "choose:Down." })
-        t.exec("p4.door_cyan_north.lit", t.var.server, "varb1152_mourning_door_1_13_north")
+        h.lit("p4.door_cyan_north.lit", "varb1152_mourning_door_1_13_north")
 
         -- goDownFromF2Puzzle4 (java:786): the south straight stairs down,
         -- floor 2 -> floor 1, to reach the rope.
@@ -752,16 +1033,61 @@ return {
             "world.tile() after the south stairs down -> " .. tostring(p4down_result) .. " " .. tostring(p4down_tile and
                 (p4down_tile.x .. "," .. p4down_tile.z .. "," .. p4down_tile.level) or "nil") .. " expected level 1")
 
-        -- "Use the rope shortcut to reach the bottom floor."
-        local rocks = t.player.by_symbol("loc", "mourning_temple_way_down")
-        t.exec("goto-p4.rope", t.player.goto_tile, 1876, 4620, 1)
-        t.ticks(2)
-        t.exec("p4.rope.tie", t.player.use_on, "rope", rocks)
+        -- "Use the rope shortcut to reach the bottom floor." b59: the rope
+        -- rocks (mourning_temple_way_down 1876,4620,1) stand in a 26-tile
+        -- pocket (floor 1, x 1874-1882 z 4617-4623) whose only way in from
+        -- the south stairs is the Low wall mourning_temple_wall_jump
+        -- (1883,4620,1, op1 Climb-over, shape 10); the old goto onto the
+        -- rocks skipped it. The floor-0 landing is another pocket (120 tiles,
+        -- x 1858-1881 z 4617-4627) left only by the cyan barrier and the rope.
+        function h.low_wall(name, near_x, far_x)
+            t.player.walk_to(near_x, 4620, 30)
+            local nr, nt = t.world.tile()
+            t.check(name .. ".atWall", nr == "ok" and nt.level == 1 and nt.x == near_x and nt.z == 4620,
+                "beside the Low wall 1883,4620,1 -> " .. h.tile_text(nr, nt) .. " (want " .. near_x .. ",4620,1)")
+            local cr, cd = t.player.click_loc("mourning_temple_wall_jump", 1, { at = { 1883, 4620 } })
+            t.await({ level = function()
+                local r, tl = t.world.tile()
+                return r == "ok" and tl.x == far_x
+            end, note = name .. " landing" }, 12)
+            local fr, ft = t.world.tile()
+            local crossed = fr == "ok" and ft.level == 1 and ft.x == far_x
+            if not crossed then
+                t.check(name .. ".refused", fr == "ok" and ft.x == near_x,
+                    "click_loc mourning_temple_wall_jump -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. h.tile_text(fr, ft))
+                t.blocked("content_gap: the Temple of Light's Low wall mourning_temple_wall_jump (1883,4620,1,"
+                    .. " op1 Climb-over, configs/all.loc) has no trigger anywhere in server/scripts, so the rope"
+                    .. " rocks' pocket (Puzzle 4's useRope, MourningsEndPartII.java useRope 1876,4620,1) is"
+                    .. " reachable only by a goto")
+                return false
+            end
+            t.check(name, crossed,
+                "click_loc mourning_temple_wall_jump -> " .. tostring(cr) .. " " .. tostring(cd) .. "; landed " .. h.tile_text(fr, ft))
+            return true
+        end
+        if not h.low_wall("useRope.lowWall", 1884, 1882) then
+            return
+        end
+        t.exec("p4.rope.tie", t.player.use_on, "rope", t.player.by_symbol("loc", "mourning_temple_way_down"))
+        h.count_is("p4.rope.tied_away", "rope", 0)
         t.exec("p4.rope.down", t.player.click_loc, "mourning_temple_way_down", 1)
-        t.ticks(2)
+        t.await({ level = function()
+            local r, tl = t.world.tile()
+            return r == "ok" and tl.level == 0
+        end, note = "p4.rope.down landing" }, 10)
+        do
+            local rdr, rdt = t.world.tile()
+            t.check("goDownRope", rdr == "ok" and rdt.level == 0 and rdt.x == 1877 and rdt.z == 4620,
+                "after the rope -> " .. h.tile_text(rdr, rdt) .. " (want 1877,4620,0: mend2_puzzle4.rs2 p_teleport 0_29_72_21_12)")
+        end
         -- "Mirror #9 is pre-placed, meaning that you can pass through the cyan barrier."
         t.exec("p4.door_cyan.pass", t.player.click_loc, "mourning_door_1_13_north", 1)
         t.ticks(2)
+        do
+            local cpr, cpt = t.world.tile()
+            t.check("p4.door_cyan.pass.tile", cpr == "ok" and cpt.level == 0 and cpt.z <= 4615,
+                "through mourning_door_1_13_north (1860,4616,0) -> " .. h.tile_text(cpr, cpt) .. " (want the chest room, z <= 4615)")
+        end
         -- "Open the chest to obtain a blue crystal."
         t.exec("p4.chest.open", t.player.click_loc, "mourning_temple_light_parts_4_closed", 1)
         t.ticks(6)
@@ -770,7 +1096,34 @@ return {
         local parts4_result, parts4_val = t.var.server("varb1115_mourning_temple_parts_4")
         t.check("p4.chest.parts4", parts4_result == "ok" and parts4_val == 1,
             "var.server(mourning_temple_parts_4) -> " .. tostring(parts4_result) .. " " .. tostring(parts4_val))
-        t.exec("p4.chest.blue", t.inv.count, "mourning_crystal_blue")
+        h.count_at_least("p4.chest.blue", "mourning_crystal_blue", 1)
+
+        -- b59: out the way in -- back through the cyan barrier, up the rope
+        -- (climbUpRope, mourning_temple_way_ropemulti 1877,4620,0 ->
+        -- p_teleport 1_29_72_20_12 = 1876,4620,1), back over the Low wall;
+        -- the old goto to the dispenser left this pocket and changed floor.
+        t.exec("p4.door_cyan.back", t.player.click_loc, "mourning_door_1_13_north", 1)
+        t.ticks(2)
+        do
+            local cbr, cbt = t.world.tile()
+            t.check("p4.door_cyan.back.tile", cbr == "ok" and cbt.level == 0 and cbt.z >= 4617,
+                "back through mourning_door_1_13_north -> " .. h.tile_text(cbr, cbt) .. " (want the rope pocket, z >= 4617)")
+        end
+        t.exec("climbUpRope", t.player.click_loc, "mourning_temple_way_ropemulti", 1)
+        t.await({ level = function()
+            local r, tl = t.world.tile()
+            return r == "ok" and tl.level == 1
+        end, note = "climbUpRope landing" }, 10)
+        do
+            local rur, rut = t.world.tile()
+            t.check("climbUpRope.tile", rur == "ok" and rut.level == 1 and rut.x == 1876 and rut.z == 4620,
+                "after climbing the rope -> " .. h.tile_text(rur, rut) .. " (want 1876,4620,1)")
+        end
+        if not h.low_wall("climbUpRope.lowWall", 1882, 1884) then
+            return
+        end
+        -- Floor 1, east of the Low wall -> the dispenser: one open floor
+        -- (reach.py 1884,4620 -> 1913,4639 level 1: REACH closed-doors len=52).
 
         -- ============================================================
         -- Puzzles 1-4 solved for real (mourning_temple_parts_2/_3/_5/_4 all
@@ -793,45 +1146,45 @@ return {
         -- reused byte-for-byte), cross the wall-support gap carrying the
         -- blue crystal Puzzle 4's own chest already gave, place it, cross
         -- back, remove pillar 5's mirror, then re-turn pillar 3 (2_6) Up. ----
-        t.check("goto.p5dispenser", t.player.goto_tile(1913, 4639, 1) == "ok", "the crystal dispenser")
+        t.exec("goto.p5dispenser", t.player.goto_tile, 1913, 4639, 1) -- the crystal dispenser
         t.ticks(2)
         t.exec("p5.dispenser.pull", t.player.click_loc, "mourning_temple_light_wall_lever", 1)
         t.ticks(3)
-        t.exec("p5.dispenser.mirrors", t.inv.count, "mourning_mirror")
-        t.exec("p5.dispenser.yellow", t.inv.count, "mourning_crystal_yellow")
-        t.exec("p5.dispenser.fractured", t.inv.count, "mourning_fractured_crystal_1")
+        h.count_at_least("p5.dispenser.mirrors", "mourning_mirror", 10)
+        h.count_at_least("p5.dispenser.yellow", "mourning_crystal_yellow", 1)
+        h.count_at_least("p5.dispenser.fractured", "mourning_fractured_crystal_1", 1)
 
-        t.check("goto.p5.pillar1", t.player.goto_tile(1909, 4639, 1) == "ok", "pillar 2_9")
+        t.exec("goto.p5.pillar1", t.player.goto_tile, 1909, 4639, 1) -- pillar 2_9
         t.exec("p5.pillar1.place", t.player.use_on, "mourning_mirror", pillar29)
         t.exec("p5.pillar1.turn", t.player.click_loc, "mourning_temple_pillar_2_9", 1)
         t.exec("p5.pillar1.point", t.chat.choose, "North.")
-        t.exec("p5.pillar1.edge", t.var.server, "varb1203_mourning_light_temple_2_7_9")
+        h.lit("p5.pillar1.edge", "varb1203_mourning_light_temple_2_7_9")
 
-        t.check("goto.p5.pillar2", t.player.goto_tile(1909, 4650, 1) == "ok", "pillar 2_7")
+        t.exec("goto.p5.pillar2", t.player.goto_tile, 1909, 4650, 1) -- pillar 2_7
         t.exec("p5.pillar2.place", t.player.use_on, "mourning_mirror", pillar27)
         t.exec("p5.pillar2.turn", t.player.click_loc, "mourning_temple_pillar_2_7", 1)
         t.exec("p5.pillar2.point", t.chat.choose, "West.")
-        t.exec("p5.pillar2.edge", t.var.server, "varb1201_mourning_light_temple_2_6_7")
+        h.lit("p5.pillar2.edge", "varb1201_mourning_light_temple_2_6_7")
 
-        t.check("goto.p5.pillar3", t.player.goto_tile(1898, 4650, 1) == "ok", "pillar 2_6")
+        t.exec("goto.p5.pillar3", t.player.goto_tile, 1898, 4650, 1) -- pillar 2_6
         t.exec("p5.pillar3.place", t.player.use_on, "mourning_mirror", pillar26)
         t.exec("p5.pillar3.turn", t.player.click_loc, "mourning_temple_pillar_2_6", 1)
         t.exec("p5.pillar3.point", t.chat.choose, "South.")
-        t.exec("p5.pillar3.edge", t.var.server, "varb1202_mourning_light_temple_2_6_11")
+        h.lit("p5.pillar3.edge", "varb1202_mourning_light_temple_2_6_11")
 
-        t.check("goto.p5.pillar4", t.player.goto_tile(1898, 4628, 1) == "ok", "pillar 2_11")
+        t.exec("goto.p5.pillar4", t.player.goto_tile, 1898, 4628, 1) -- pillar 2_11
         t.exec("p5.pillar4.place", t.player.use_on, "mourning_crystal_yellow", pillar211)
-        t.exec("p5.pillar4.edge", t.var.server, "varb1207_mourning_light_temple_2_11_15")
+        h.lit("p5.pillar4.edge", "varb1207_mourning_light_temple_2_11_15")
 
-        t.check("goto.p5.pillar5", t.player.goto_tile(1898, 4613, 1) == "ok", "pillar 2_15")
+        t.exec("goto.p5.pillar5", t.player.goto_tile, 1898, 4613, 1) -- pillar 2_15
         t.exec("p5.pillar5.place", t.player.use_on, "mourning_mirror", pillar215)
         t.exec("p5.pillar5.turn", t.player.click_loc, "mourning_temple_pillar_2_15", 1)
         t.exec("p5.pillar5.point", t.chat.choose, "East.")
-        t.exec("p5.pillar5.edge", t.var.server, "varb1209_mourning_light_temple_2_15_east")
-        t.exec("p5.pillar5.door", t.var.server, "varb1162_mourning_door_2_16_west")
+        h.lit("p5.pillar5.edge", "varb1209_mourning_light_temple_2_15_east")
+        h.lit("p5.pillar5.door", "varb1162_mourning_door_2_16_west")
 
         -- The wall-support crossing, out, carrying the blue crystal.
-        t.check("goto.p5.crossing_out", t.player.goto_tile(1901, 4612, 1) == "ok", "near bank")
+        t.exec("goto.p5.crossing_out", t.player.goto_tile, 1901, 4612, 1) -- near bank
         t.exec("p5.crossing.out", t.player.click_loc, "mourning_temple_agility_hanging", 1)
         do
             local r, d = t.await({ level = function()
@@ -843,7 +1196,7 @@ return {
         end
         local p5outT, p5outV = t.world.tile()
         t.check("p5.crossing.out.tile", p5outT == "ok", "world.tile() after crossing out -> " .. tostring(p5outV))
-        t.exec("p5.crossing.out.blue_kept", t.inv.count, "mourning_crystal_blue")
+        h.count_at_least("p5.crossing.out.blue_kept", "mourning_crystal_blue", 1)
 
         -- puzzle5Pillar6: enter through the door for real, then use_on the
         -- blue crystal directly -- no goto onto the pillar's own square and
@@ -853,13 +1206,13 @@ return {
         t.ticks(2)
         local pillar216 = t.player.by_symbol("loc", "mourning_temple_pillar_2_16")
         t.exec("p5.pillar6.place", t.player.use_on, "mourning_crystal_blue", pillar216)
-        t.exec("p5.pillar6.edge", t.var.server, "varb1211_mourning_light_temple_2_16_north")
+        h.lit("p5.pillar6.edge", "varb1211_mourning_light_temple_2_16_north")
 
-        t.check("goto.p5.door_out", t.player.goto_tile(1913, 4613, 1) == "ok", "back toward the door")
+        t.exec("goto.p5.door_out", t.player.goto_tile, 1913, 4613, 1) -- back toward the door
         t.exec("p5.crossing.door_out", t.player.click_loc, "mourning_door_2_16_west", 1)
 
         -- Cross back to remove the mirror from pillar 5 (2_15).
-        t.check("goto.p5.crossing_back", t.player.goto_tile(1911, 4612, 1) == "ok", "far bank")
+        t.exec("goto.p5.crossing_back", t.player.goto_tile, 1911, 4612, 1) -- far bank
         t.exec("p5.crossing.back", t.player.click_loc, "mourning_temple_agility_hanging", 1)
         do
             local r, d = t.await({ level = function()
@@ -872,10 +1225,10 @@ return {
         local p5backT, p5backV = t.world.tile()
         t.check("p5.crossing.back.tile", p5backT == "ok", "world.tile() after crossing back -> " .. tostring(p5backV))
 
-        t.check("goto.p5.pillar5b", t.player.goto_tile(1898, 4613, 1) == "ok", "pillar 2_15 again")
+        t.exec("goto.p5.pillar5b", t.player.goto_tile, 1898, 4613, 1) -- pillar 2_15 again
         t.exec("p5.pillar5.remove", t.player.click_loc, "mourning_temple_pillar_2_15", 1)
-        t.exec("p5.pillar5.mirror_returned", t.inv.count, "mourning_mirror")
-        t.exec("p5.pillar5.edge_cleared", t.var.server, "varb1209_mourning_light_temple_2_15_east")
+        h.count_at_least("p5.pillar5.mirror_returned", "mourning_mirror", 7)
+        h.dark("p5.pillar5.edge_cleared", "varb1209_mourning_light_temple_2_15_east")
 
         -- Re-turn pillar 3 (2_6) Up -- this is the object's SECOND real
         -- interaction this session (South, just above, was the first).
@@ -888,12 +1241,11 @@ return {
         -- p5.pillar3.point_up PASSes below every run so far. The guard is
         -- kept as a live re-check (never a remembered result, trap 21) in
         -- case it comes back; if it ever does, this is where to t.blocked.
-        t.check("goto.p5.pillar3b", t.player.goto_tile(1898, 4650, 1) == "ok", "pillar 2_6 again")
+        t.exec("goto.p5.pillar3b", t.player.goto_tile, 1898, 4650, 1) -- pillar 2_6 again
         t.exec("p5.pillar3.turn_up", t.player.click_loc, "mourning_temple_pillar_2_6", 1)
         t.exec("p5.pillar3.point_up.menu", t.chat.choose, "Up or down...")
         local point_up_kind = t.chat.kind()
-        t.check("p5.pillar3.point_up.kind_after_menu", true,
-            "chat.kind() after choosing \"Up or down...\" -> " .. tostring(point_up_kind))
+        t.note("chat.kind() after choosing \"Up or down...\" -> " .. tostring(point_up_kind))
         if point_up_kind ~= "options" and point_up_kind ~= "npc" and point_up_kind ~= "player" then
             t.blocked("mourningsendpartii: driver/engine seam, reproduced live -- mend2_puzzle1.rs2's"
                 .. " pillar_2_6 [oploc1] \"Up or down...\" branch chains straight into a second"
@@ -915,10 +1267,10 @@ return {
             return
         end
         t.exec("p5.pillar3.point_up", t.chat.choose, "Up.")
-        t.exec("p5.pillar3.edge_up", t.var.server, "varb1217_mourning_light_temple_2_6_up")
+        h.lit("p5.pillar3.edge_up", "varb1217_mourning_light_temple_2_6_up")
 
         -- goUpToFloor2Puzzle5: the south straight stairs, floor 1 -> floor 2.
-        t.check("goto.southStairsApproach5", t.player.goto_tile(1896, 4620, 1) == "ok", "the south stairs")
+        t.exec("goto.southStairsApproach5", t.player.goto_tile, 1896, 4620, 1) -- the south stairs
         t.exec("goUpToFloor2Puzzle5", t.player.click_loc, "mourning_temple_stairs_base", 1)
         t.ticks(3)
         local p5up1T, p5up1V = t.world.tile()
@@ -929,7 +1281,7 @@ return {
         -- goDownToMiddleFromSouthPuzzle5: the south circle stairs down,
         -- floor 2 -> floor 1 (the north circle shares floor 1, ~6 tiles
         -- away -- approach close to the south copy).
-        t.check("goto.southCircleApproach1", t.player.goto_tile(1891, 4634, 2) == "ok", "the south circle stairs")
+        t.exec("goto.southCircleApproach1", t.player.goto_tile, 1891, 4634, 2) -- the south circle stairs
         t.exec("goDownToMiddleFromSouthPuzzle5", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(3)
         local p5mid1T, p5mid1V = t.world.tile()
@@ -940,7 +1292,7 @@ return {
         -- goUpFromMiddleToNorth (TRAVEL, same crossing as the getCrystal
         -- leg's own): the north circle stairs up, floor 1 -> floor 2 north,
         -- where pillars 7-11 sit.
-        t.check("goto.northCircleApproach2", t.player.goto_tile(1891, 4640, 1) == "ok", "the north circle stairs")
+        t.exec("goto.northCircleApproach2", t.player.goto_tile, 1891, 4640, 1) -- the north circle stairs
         t.exec("goUpFromMiddleToNorthPuzzle5", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
         t.ticks(3)
         local p5mid2T, p5mid2V = t.world.tile()
@@ -951,44 +1303,44 @@ return {
         ------------------------------------------------------------------
         -- Floor 2 -- pillars 7-11.
         ------------------------------------------------------------------
-        t.check("goto.p5.pillar7", t.player.goto_tile(1898, 4650, 2) == "ok", "pillar 3_6, floor 2")
+        t.exec("goto.p5.pillar7", t.player.goto_tile, 1898, 4650, 2) -- pillar 3_6, floor 2
         local pillar36 = t.player.by_symbol("loc", "mourning_temple_pillar_3_6")
         t.exec("p5.pillar7.place", t.player.use_on, "mourning_mirror", pillar36)
         t.exec("p5.pillar7.turn", t.player.click_loc, "mourning_temple_pillar_3_6", 1)
         t.exec("p5.pillar7.point", t.chat.choose, "South.")
-        t.exec("p5.pillar7.edge", t.var.server, "varb1238_mourning_light_temple_3_6_11")
+        h.lit("p5.pillar7.edge", "varb1238_mourning_light_temple_3_6_11")
 
-        t.check("goto.p5.pillar8", t.player.goto_tile(1898, 4628, 2) == "ok", "pillar 3_11")
+        t.exec("goto.p5.pillar8", t.player.goto_tile, 1898, 4628, 2) -- pillar 3_11
         local pillar311 = t.player.by_symbol("loc", "mourning_temple_pillar_3_11")
         t.exec("p5.pillar8.place", t.player.use_on, "mourning_fractured_crystal_1", pillar311)
-        t.exec("p5.pillar8.edge", t.var.server, "varb1241_mourning_light_temple_3_10_11")
+        h.lit("p5.pillar8.edge", "varb1241_mourning_light_temple_3_10_11")
 
-        t.check("goto.p5.pillar9", t.player.goto_tile(1887, 4628, 2) == "ok", "pillar 3_10")
+        t.exec("goto.p5.pillar9", t.player.goto_tile, 1887, 4628, 2) -- pillar 3_10
         local pillar310 = t.player.by_symbol("loc", "mourning_temple_pillar_3_10")
         t.exec("p5.pillar9.place", t.player.use_on, "mourning_mirror", pillar310)
         t.exec("p5.pillar9.turn", t.player.click_loc, "mourning_temple_pillar_3_10", 1)
         t.exec("p5.pillar9.point.updown", t.chat.choose, "Up or down...")
         t.exec("p5.pillar9.point", t.chat.choose, "Down.")
-        t.exec("p5.pillar9.edge", t.var.server, "varb1221_mourning_light_temple_2_10_up")
+        h.lit("p5.pillar9.edge", "varb1221_mourning_light_temple_2_10_up")
 
-        t.check("goto.p5.pillar10", t.player.goto_tile(1898, 4613, 2) == "ok", "pillar 3_15")
+        t.exec("goto.p5.pillar10", t.player.goto_tile, 1898, 4613, 2) -- pillar 3_15
         local pillar315 = t.player.by_symbol("loc", "mourning_temple_pillar_3_15")
         t.exec("p5.pillar10.place", t.player.use_on, "mourning_mirror", pillar315)
         t.exec("p5.pillar10.turn", t.player.click_loc, "mourning_temple_pillar_3_15", 1)
         t.exec("p5.pillar10.point", t.chat.choose, "East.")
-        t.exec("p5.pillar10.edge", t.var.server, "varb1247_mourning_light_temple_3_15_16")
+        h.lit("p5.pillar10.edge", "varb1247_mourning_light_temple_3_15_16")
 
-        t.check("goto.p5.pillar11", t.player.goto_tile(1915, 4613, 2) == "ok", "pillar 3_16")
+        t.exec("goto.p5.pillar11", t.player.goto_tile, 1915, 4613, 2) -- pillar 3_16
         local pillar316 = t.player.by_symbol("loc", "mourning_temple_pillar_3_16")
         t.exec("p5.pillar11.place", t.player.use_on, "mourning_mirror", pillar316)
         t.exec("p5.pillar11.turn", t.player.click_loc, "mourning_temple_pillar_3_16", 1)
         t.exec("p5.pillar11.point.updown", t.chat.choose, "Up or down...")
         t.exec("p5.pillar11.point", t.chat.choose, "Down.")
-        t.exec("p5.pillar11.edge", t.var.server, "varb1227_mourning_light_temple_2_16_up")
+        h.lit("p5.pillar11.edge", "varb1227_mourning_light_temple_2_16_up")
 
         -- goDownFromF2Puzzle5: the south straight stairs down, floor 2 ->
         -- floor 1.
-        t.check("goto.southStairsApproach6", t.player.goto_tile(1892, 4620, 2) == "ok", "the south stairs")
+        t.exec("goto.southStairsApproach6", t.player.goto_tile, 1892, 4620, 2) -- the south stairs
         t.exec("goDownFromF2Puzzle5", t.player.click_loc, "mourning_temple_stairs_top", 1)
         t.ticks(3)
         local p5down1T, p5down1V = t.world.tile()
@@ -996,33 +1348,36 @@ return {
             "world.tile() after the south stairs down -> " .. tostring(p5down1T) .. " " .. tostring(p5down1V and
                 (p5down1V.x .. "," .. p5down1V.z .. "," .. p5down1V.level) or "nil") .. " expected level 1")
 
-        -- goDownFromF1Puzzle5: the west circle stairs down, floor 1 ->
-        -- floor 0 (the east circle shares floor 1, ~15 tiles away --
-        -- approach close to the west copy).
-        t.check("goto.westCircleApproach1", t.player.goto_tile(1890, 4639, 1) == "ok", "the west circle stairs")
+        -- goDownFromF1Puzzle5 (java: mourning_temple_circle_stairs_top at
+        -- 1903,4639,1): the EAST circle stairs down, floor 1 -> 1905,4639,0.
+        -- b59: was a goto to the WEST circle's top (1890,4639,1), the
+        -- 9-tile stair square only the circle stairs reach, whose way down
+        -- lands in the 3-tile pocket behind mourning_door_1_b (1886,4639,0);
+        -- the next goto then left that pocket past the barrier.
+        t.exec("goto.eastCircleApproach5down", t.player.goto_tile, 1901, 4639, 1) -- the east circle stairs
         t.exec("goDownFromF1Puzzle5", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(3)
         local p5down2T, p5down2V = t.world.tile()
-        t.check("goDownFromF1Puzzle5.tile", p5down2T == "ok" and p5down2V.level == 0,
-            "world.tile() after the west circle stairs down -> " .. tostring(p5down2T) .. " " .. tostring(p5down2V and
-                (p5down2V.x .. "," .. p5down2V.z .. "," .. p5down2V.level) or "nil") .. " expected level 0")
+        t.check("goDownFromF1Puzzle5.tile", p5down2T == "ok" and p5down2V.level == 0 and p5down2V.x == 1905 and p5down2V.z == 4639,
+            "world.tile() after the east circle stairs down -> " .. tostring(p5down2T) .. " " .. tostring(p5down2V and
+                (p5down2V.x .. "," .. p5down2V.z .. "," .. p5down2V.level) or "nil") .. " expected 1905,4639,0")
 
         ------------------------------------------------------------------
         -- Floor 0 -- pillars 12-14, then the chest -> mourning_temple_parts_6.
         ------------------------------------------------------------------
-        t.check("goto.p5.pillar12", t.player.goto_tile(1887, 4628, 0) == "ok", "pillar 1_10, floor 0")
+        t.exec("goto.p5.pillar12", t.player.goto_tile, 1887, 4628, 0) -- pillar 1_10, floor 0
         local pillar110 = t.player.by_symbol("loc", "mourning_temple_pillar_1_10")
         t.exec("p5.pillar12.place", t.player.use_on, "mourning_mirror", pillar110)
         t.exec("p5.pillar12.turn", t.player.click_loc, "mourning_temple_pillar_1_10", 1)
         t.exec("p5.pillar12.point", t.chat.choose, "South.")
-        t.exec("p5.pillar12.edge", t.var.server, "varb1172_mourning_light_temple_1_10_14")
+        h.lit("p5.pillar12.edge", "varb1172_mourning_light_temple_1_10_14")
 
-        t.check("goto.p5.pillar13", t.player.goto_tile(1887, 4613, 0) == "ok", "pillar 1_14")
+        t.exec("goto.p5.pillar13", t.player.goto_tile, 1887, 4613, 0) -- pillar 1_14
         local pillar114 = t.player.by_symbol("loc", "mourning_temple_pillar_1_14")
         t.exec("p5.pillar13.place", t.player.use_on, "mourning_mirror", pillar114)
         t.exec("p5.pillar13.turn", t.player.click_loc, "mourning_temple_pillar_1_14", 1)
         t.exec("p5.pillar13.point", t.chat.choose, "East.")
-        t.exec("p5.pillar13.edge", t.var.server, "varb1177_mourning_light_temple_1_14_east")
+        h.lit("p5.pillar13.edge", "varb1177_mourning_light_temple_1_14_east")
 
         -- puzzle5Pillar14 ("Enter the south east room", java:846): the lit
         -- west doorway (mourning_door_1_16_west, 1912,4613,0) is the real
@@ -1036,7 +1391,7 @@ return {
         -- "stiles.rs2" rule -- click_loc's settle never sees a chat line or
         -- a jump big enough to trip the teleport arm, so grade this one
         -- directly on where the player lands, not on the verb's own result.
-        t.check("goto.p5.door16west", t.player.goto_tile(1909, 4613, 0) == "ok", "the lit west doorway")
+        t.exec("goto.p5.door16west", t.player.goto_tile, 1909, 4613, 0) -- the lit west doorway
         local door16west_result, door16west_detail = t.player.click_loc("mourning_door_1_16_west", 1)
         t.ticks(3)
         local door16west_tile_result, door16west_tile = t.world.tile()
@@ -1049,21 +1404,21 @@ return {
         t.exec("p5.pillar14.place", t.player.use_on, "mourning_mirror", pillar116)
         t.exec("p5.pillar14.turn", t.player.click_loc, "mourning_temple_pillar_1_16", 1)
         t.exec("p5.pillar14.point", t.chat.choose, "North.")
-        t.exec("p5.pillar14.edge", t.var.server, "varb1179_mourning_light_temple_1_16_north")
+        h.lit("p5.pillar14.edge", "varb1179_mourning_light_temple_1_16_north")
 
         -- searchMagentaYellowChest ("Search the chest ... north of you",
         -- java:849): the lit north doorway (mourning_door_1_16_north,
         -- 1915,4616,0) is the real way into the chest room.
         t.exec("searchMagentaYellowChest.door", t.player.click_loc, "mourning_door_1_16_north", 1)
         t.ticks(2)
-        t.check("goto.p5.chest", t.player.goto_tile(1910, 4622, 0) == "ok", "the chest room")
+        t.exec("goto.p5.chest", t.player.goto_tile, 1910, 4622, 0) -- the chest room
         t.exec("p5.chest.open", t.player.click_loc, "mourning_temple_light_parts_6_closed", 1)
         t.ticks(2)
         t.exec("p5.chest.search", t.player.click_loc, "mourning_temple_light_parts_6_open", 1)
         t.ticks(2)
-        t.exec("p5.chest.mirrors", t.inv.count, "mourning_mirror")
-        t.exec("p5.chest.fractured", t.inv.count, "mourning_fractured_crystal_1")
-        t.exec("p5.chest.fractured2", t.inv.count, "mourning_fractured_crystal_2")
+        h.note_count("p5.chest.mirrors", "mourning_mirror")
+        h.note_count("p5.chest.fractured", "mourning_fractured_crystal_1")
+        h.count_at_least("p5.chest.fractured2", "mourning_fractured_crystal_2", 1)
         local parts6_result, parts6_val = t.var.server("varb1117_mourning_temple_parts_6")
         t.check("p5.chest.parts6", parts6_result == "ok" and parts6_val == 1,
             "var.server(mourning_temple_parts_6) -> " .. tostring(parts6_result) .. " " .. tostring(parts6_val))
@@ -1083,9 +1438,30 @@ return {
         -- (143/143 PASS against this exact content).
         -- ============================================================
 
+        -- b59: out of the chest room (16 tiles, x 1908-1915 z 4617-4622)
+        -- and the south-east room (20 tiles, x 1913-1917 z 4611-4615) the
+        -- way in, back through both lit Doors of Light (mend2_puzzle5.rs2
+        -- :684/:687, mend2_pass_light_door passes either way while lit);
+        -- the old goto to the stairs left both rooms past them.
+        t.exec("p5.chestRoom.out", t.player.click_loc, "mourning_door_1_16_north", 1)
+        t.ticks(3)
+        do
+            local cro_r, cro_t = t.world.tile()
+            t.check("p5.chestRoom.out.tile", cro_r == "ok" and cro_t.level == 0 and cro_t.z <= 4615 and cro_t.x >= 1913,
+                "back through mourning_door_1_16_north (1915,4616,0) -> " .. h.tile_text(cro_r, cro_t) .. " (want the south-east room)")
+        end
+        t.exec("p5.southEastRoom.out", t.player.click_loc, "mourning_door_1_16_west", 1)
+        t.ticks(3)
+        do
+            local seo_r, seo_t = t.world.tile()
+            t.check("p5.southEastRoom.out.tile", seo_r == "ok" and seo_t.level == 0 and seo_t.x <= 1911,
+                "back through mourning_door_1_16_west (1912,4613,0) -> " .. h.tile_text(seo_r, seo_t) .. " (want x <= 1911, the open floor)")
+        end
+
         -- goUpToF1Puzzle6: the east circle staircase, ground floor ->
-        -- floor 1, back to the dispenser after the chest room.
-        t.check("goto.eastCircleApproach5", t.player.goto_tile(1905, 4639, 0) == "ok", "the east circle stairs")
+        -- floor 1, back to the dispenser (reach.py 1911,4613 -> 1905,4639
+        -- level 0: REACH closed-doors len=72).
+        t.exec("goto.eastCircleApproach5", t.player.goto_tile, 1905, 4639, 0) -- the east circle stairs
         t.exec("goUpToF1Puzzle6", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
         t.ticks(3)
         local p6up0T, p6up0V = t.world.tile()
@@ -1093,35 +1469,35 @@ return {
             "world.tile() after the east circle stairs -> " .. tostring(p6up0T) .. " " .. tostring(p6up0V and
                 (p6up0V.x .. "," .. p6up0V.z .. "," .. p6up0V.level) or "nil") .. " expected level 1")
 
-        t.check("goto.p6dispenser", t.player.goto_tile(1913, 4639, 1) == "ok", "the crystal dispenser")
+        t.exec("goto.p6dispenser", t.player.goto_tile, 1913, 4639, 1) -- the crystal dispenser
         t.ticks(2)
         t.exec("p6.dispenser.pull", t.player.click_loc, "mourning_temple_light_wall_lever", 1)
         t.ticks(3)
-        t.exec("p6.dispenser.mirrors", t.inv.count, "mourning_mirror")
-        t.exec("p6.dispenser.yellow", t.inv.count, "mourning_crystal_yellow")
-        t.exec("p6.dispenser.cyan", t.inv.count, "mourning_crystal_cyan")
-        t.exec("p6.dispenser.blue", t.inv.count, "mourning_crystal_blue")
-        t.exec("p6.dispenser.frac1", t.inv.count, "mourning_fractured_crystal_1")
-        t.exec("p6.dispenser.frac2", t.inv.count, "mourning_fractured_crystal_2")
+        h.count_at_least("p6.dispenser.mirrors", "mourning_mirror", 13)
+        h.count_at_least("p6.dispenser.yellow", "mourning_crystal_yellow", 1)
+        h.count_at_least("p6.dispenser.cyan", "mourning_crystal_cyan", 1)
+        h.count_at_least("p6.dispenser.blue", "mourning_crystal_blue", 1)
+        h.count_at_least("p6.dispenser.frac1", "mourning_fractured_crystal_1", 1)
+        h.count_at_least("p6.dispenser.frac2", "mourning_fractured_crystal_2", 1)
 
         -- Pillar 1 (2_9): reuse of Puzzle 1's own handler.
-        t.check("goto.p6.pillar1", t.player.goto_tile(1909, 4639, 1) == "ok", "pillar 2_9")
+        t.exec("goto.p6.pillar1", t.player.goto_tile, 1909, 4639, 1) -- pillar 2_9
         t.exec("p6.pillar1.place", t.player.use_on, "mourning_mirror", pillar29)
         t.exec("p6.pillar1.turn", t.player.click_loc, "mourning_temple_pillar_2_9", 1)
         t.exec("p6.pillar1.point", t.chat.choose, "North.")
-        t.exec("p6.pillar1.edge", t.var.server, "varb1203_mourning_light_temple_2_7_9")
+        h.lit("p6.pillar1.edge", "varb1203_mourning_light_temple_2_7_9")
 
         -- Pillar 2 (2_7): NEW "down" branch on Puzzle 1's own object.
-        t.check("goto.p6.pillar2", t.player.goto_tile(1909, 4650, 1) == "ok", "pillar 2_7")
+        t.exec("goto.p6.pillar2", t.player.goto_tile, 1909, 4650, 1) -- pillar 2_7
         t.exec("p6.pillar2.place", t.player.use_on, "mourning_mirror", pillar27)
         t.exec("p6.pillar2.turn", t.player.click_loc, "mourning_temple_pillar_2_7", 1)
         t.exec("p6.pillar2.point.updown", t.chat.choose, "Up or down...")
         t.exec("p6.pillar2.point", t.chat.choose, "Down.")
-        t.exec("p6.pillar2.edge", t.var.server, "varb1186_mourning_light_temple_1_7_up")
+        h.lit("p6.pillar2.edge", "varb1186_mourning_light_temple_1_7_up")
 
         -- goDownFromF1Puzzle6: the east circle staircase down, floor 1 ->
         -- ground floor.
-        t.check("goto.eastCircleApproach6", t.player.goto_tile(1901, 4639, 1) == "ok", "the east circle stairs")
+        t.exec("goto.eastCircleApproach6", t.player.goto_tile, 1901, 4639, 1) -- the east circle stairs
         t.exec("goDownFromF1Puzzle6", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(3)
         local p6down0T, p6down0V = t.world.tile()
@@ -1130,58 +1506,58 @@ return {
                 (p6down0V.x .. "," .. p6down0V.z .. "," .. p6down0V.level) or "nil") .. " expected level 0")
 
         -- Pillar 3 (1_7, floor 0): brand new object.
-        t.check("goto.p6.pillar3", t.player.goto_tile(1909, 4650, 0) == "ok", "pillar 1_7")
+        t.exec("goto.p6.pillar3", t.player.goto_tile, 1909, 4650, 0) -- pillar 1_7
         local pillar17 = t.player.by_symbol("loc", "mourning_temple_pillar_1_7")
         t.exec("p6.pillar3.place", t.player.use_on, "mourning_mirror", pillar17)
         t.exec("p6.pillar3.turn", t.player.click_loc, "mourning_temple_pillar_1_7", 1)
         t.exec("p6.pillar3.point", t.chat.choose, "West.")
-        t.exec("p6.pillar3.edge", t.var.server, "varb1169_mourning_light_temple_1_6_7")
+        h.lit("p6.pillar3.edge", "varb1169_mourning_light_temple_1_6_7")
 
         -- Pillar 4 (1_6, floor 0): fractured crystal 2, splits north/south.
-        t.check("goto.p6.pillar4", t.player.goto_tile(1898, 4650, 0) == "ok", "pillar 1_6")
+        t.exec("goto.p6.pillar4", t.player.goto_tile, 1898, 4650, 0) -- pillar 1_6
         local pillar16 = t.player.by_symbol("loc", "mourning_temple_pillar_1_6")
         t.exec("p6.pillar4.place", t.player.use_on, "mourning_fractured_crystal_2", pillar16)
-        t.exec("p6.pillar4.edge_north", t.var.server, "varb1167_mourning_light_temple_1_3_6")
-        t.exec("p6.pillar4.edge_south", t.var.server, "varb1170_mourning_light_temple_1_6_11")
+        h.lit("p6.pillar4.edge_north", "varb1167_mourning_light_temple_1_3_6")
+        h.lit("p6.pillar4.edge_south", "varb1170_mourning_light_temple_1_6_11")
 
         -- Pillar 5 (1_3, floor 0): brand new object, point up.
-        t.check("goto.p6.pillar5", t.player.goto_tile(1898, 4665, 0) == "ok", "pillar 1_3")
+        t.exec("goto.p6.pillar5", t.player.goto_tile, 1898, 4665, 0) -- pillar 1_3
         local pillar13 = t.player.by_symbol("loc", "mourning_temple_pillar_1_3")
         t.exec("p6.pillar5.place", t.player.use_on, "mourning_mirror", pillar13)
         t.exec("p6.pillar5.turn", t.player.click_loc, "mourning_temple_pillar_1_3", 1)
         t.exec("p6.pillar5.point.updown", t.chat.choose, "Up or down...")
         t.exec("p6.pillar5.point", t.chat.choose, "Up.")
-        t.exec("p6.pillar5.edge", t.var.server, "varb1183_mourning_light_temple_1_3_up")
+        h.lit("p6.pillar5.edge", "varb1183_mourning_light_temple_1_3_up")
 
         -- Pillar 6 (1_11, floor 0): fractured crystal 1, splits west/east.
-        t.check("goto.p6.pillar6", t.player.goto_tile(1898, 4628, 0) == "ok", "pillar 1_11")
+        t.exec("goto.p6.pillar6", t.player.goto_tile, 1898, 4628, 0) -- pillar 1_11
         local pillar111 = t.player.by_symbol("loc", "mourning_temple_pillar_1_11")
         t.exec("p6.pillar6.place", t.player.use_on, "mourning_fractured_crystal_1", pillar111)
-        t.exec("p6.pillar6.edge_west", t.var.server, "varb1171_mourning_light_temple_1_10_11")
-        t.exec("p6.pillar6.edge_east", t.var.server, "varb1173_mourning_light_temple_1_11_12")
+        h.lit("p6.pillar6.edge_west", "varb1171_mourning_light_temple_1_10_11")
+        h.lit("p6.pillar6.edge_east", "varb1173_mourning_light_temple_1_11_12")
 
         -- Pillar 7 (1_10, floor 0): NEW "up" branch on Puzzle 5's own object.
-        t.check("goto.p6.pillar7", t.player.goto_tile(1887, 4628, 0) == "ok", "pillar 1_10")
+        t.exec("goto.p6.pillar7", t.player.goto_tile, 1887, 4628, 0) -- pillar 1_10
         t.exec("p6.pillar7.place", t.player.use_on, "mourning_mirror", pillar110)
         t.exec("p6.pillar7.turn", t.player.click_loc, "mourning_temple_pillar_1_10", 1)
         t.exec("p6.pillar7.point.updown", t.chat.choose, "Up or down...")
         t.exec("p6.pillar7.point", t.chat.choose, "Up.")
-        t.exec("p6.pillar7.edge", t.var.server, "varb1187_mourning_light_temple_1_10_up")
+        h.lit("p6.pillar7.edge", "varb1187_mourning_light_temple_1_10_up")
 
         -- Pillar 8 (1_12, floor 0): brand new object, point up.
-        t.check("goto.p6.pillar8", t.player.goto_tile(1909, 4628, 0) == "ok", "pillar 1_12")
+        t.exec("goto.p6.pillar8", t.player.goto_tile, 1909, 4628, 0) -- pillar 1_12
         local pillar112 = t.player.by_symbol("loc", "mourning_temple_pillar_1_12")
         t.exec("p6.pillar8.place", t.player.use_on, "mourning_mirror", pillar112)
         t.exec("p6.pillar8.turn", t.player.click_loc, "mourning_temple_pillar_1_12", 1)
         t.exec("p6.pillar8.point.updown", t.chat.choose, "Up or down...")
         t.exec("p6.pillar8.point", t.chat.choose, "Up.")
-        t.exec("p6.pillar8.edge", t.var.server, "varb1189_mourning_light_temple_1_12_up")
+        h.lit("p6.pillar8.edge", "varb1189_mourning_light_temple_1_12_up")
 
         -- Pillar 7's up turn sends the column-10 beam up green (f0r1c2U).
-        t.exec("p6.pillar7.green_rises", t.var.server, "varb1221_mourning_light_temple_2_10_up")
+        h.lit("p6.pillar7.green_rises", "varb1221_mourning_light_temple_2_10_up")
 
         -- Back up to floor 1 (east circle) for the rest of Puzzle 6.
-        t.check("goto.eastCircleApproach7", t.player.goto_tile(1905, 4639, 0) == "ok", "the east circle stairs")
+        t.exec("goto.eastCircleApproach7", t.player.goto_tile, 1905, 4639, 0) -- the east circle stairs
         t.exec("p6.climbToF1", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
         t.ticks(3)
         local p6up1T, p6up1V = t.world.tile()
@@ -1190,16 +1566,16 @@ return {
                 (p6up1V.x .. "," .. p6up1V.z .. "," .. p6up1V.level) or "nil") .. " expected level 1")
 
         -- Pillar 9 (2_3, floor 1): the yellow crystal.
-        t.check("goto.p6.pillar9", t.player.goto_tile(1898, 4665, 1) == "ok", "pillar 2_3")
+        t.exec("goto.p6.pillar9", t.player.goto_tile, 1898, 4665, 1) -- pillar 2_3
         t.ticks(2)
         local pillar23b = t.player.by_symbol("loc", "mourning_temple_pillar_2_3")
         t.exec("p6.pillar9.place", t.player.use_on, "mourning_crystal_yellow", pillar23b)
-        t.exec("p6.pillar9.edge", t.var.server, "varb1215_mourning_light_temple_2_3_up")
-        t.exec("p6.pillar9.yellow_gone", t.inv.count, "mourning_crystal_yellow")
+        h.lit("p6.pillar9.edge", "varb1215_mourning_light_temple_2_3_up")
+        h.count_is("p6.pillar9.yellow_gone", "mourning_crystal_yellow", 0)
 
         -- goUpNorthLadderToF2Puzzle6: the north ladder, floor 1 -> floor 2
         -- north room, where pillar 3_3 sits.
-        t.check("goto.northLadderApproach3", t.player.goto_tile(1898, 4667, 1) == "ok", "the north ladder")
+        t.exec("goto.northLadderApproach3", t.player.goto_tile, 1898, 4667, 1) -- the north ladder
         t.exec("goUpNorthLadderToF2Puzzle6", t.player.click_loc, "mourning_temple_ladder_wall", 1)
         t.ticks(3)
         local p6ladderupT, p6ladderupV = t.world.tile()
@@ -1208,17 +1584,17 @@ return {
                 (p6ladderupV.x .. "," .. p6ladderupV.z .. "," .. p6ladderupV.level) or "nil") .. " expected level 2")
 
         -- Pillar 10 (3_3, floor 2): Mirror #7 west (existing Puzzle 3 code).
-        t.check("goto.p6.pillar10", t.player.goto_tile(1898, 4664, 2) == "ok", "pillar 3_3")
+        t.exec("goto.p6.pillar10", t.player.goto_tile, 1898, 4664, 2) -- pillar 3_3
         t.ticks(2)
         t.exec("p6.pillar10.place", t.player.use_on, "mourning_mirror", pillar33)
         t.exec("p6.pillar10.turn", t.player.click_loc, "mourning_temple_pillar_3_3", 1)
         t.exec("p6.pillar10.point", t.chat.choose, "West.")
-        t.exec("p6.pillar10.edge", t.var.server, "varb1230_mourning_light_temple_3_2_3")
+        h.lit("p6.pillar10.edge", "varb1230_mourning_light_temple_3_2_3")
 
         -- goDownNorthLadderToF1Puzzle6: back down to floor 1 (the north room
         -- is a pocket, same as Puzzle 3), then goUpToFloor2Puzzle6 (south
         -- stairs) to reach the rest of floor 2.
-        t.check("goto.northLadderApproach4", t.player.goto_tile(1898, 4667, 2) == "ok", "the north ladder")
+        t.exec("goto.northLadderApproach4", t.player.goto_tile, 1898, 4667, 2) -- the north ladder
         t.exec("goDownNorthLadderToF1Puzzle6", t.player.click_loc, "mourning_temple_ladder_wall_top", 1)
         t.ticks(3)
         local p6ladderdownT, p6ladderdownV = t.world.tile()
@@ -1226,7 +1602,7 @@ return {
             "world.tile() after the north ladder down -> " .. tostring(p6ladderdownT) .. " " .. tostring(p6ladderdownV and
                 (p6ladderdownV.x .. "," .. p6ladderdownV.z .. "," .. p6ladderdownV.level) or "nil") .. " expected level 1")
 
-        t.check("goto.southStairsApproach7", t.player.goto_tile(1896, 4620, 1) == "ok", "the south stairs")
+        t.exec("goto.southStairsApproach7", t.player.goto_tile, 1896, 4620, 1) -- the south stairs
         t.exec("goUpToFloor2Puzzle6", t.player.click_loc, "mourning_temple_stairs_base", 1)
         t.ticks(3)
         local p6up2T, p6up2V = t.world.tile()
@@ -1235,34 +1611,34 @@ return {
                 (p6up2V.x .. "," .. p6up2V.z .. "," .. p6up2V.level) or "nil") .. " expected level 2")
 
         -- Pillar 11 (3_10, floor 2 south): Mirror #8 west, green.
-        t.check("goto.p6.pillar11", t.player.goto_tile(1887, 4629, 2) == "ok", "pillar 3_10")
+        t.exec("goto.p6.pillar11", t.player.goto_tile, 1887, 4629, 2) -- pillar 3_10
         t.ticks(2)
         t.exec("p6.pillar11.place", t.player.use_on, "mourning_mirror", pillar310)
         t.exec("p6.pillar11.turn", t.player.click_loc, "mourning_temple_pillar_3_10", 1)
         t.exec("p6.pillar11.point", t.chat.choose, "West.")
-        t.exec("p6.pillar11.edge", t.var.server, "varb1243_mourning_light_temple_3_10_west")
+        h.lit("p6.pillar11.edge", "varb1243_mourning_light_temple_3_10_west")
 
         -- Pillar 12 (3_12): Mirror #9 west.
-        t.check("goto.p6.pillar12", t.player.goto_tile(1909, 4629, 2) == "ok", "pillar 3_12")
+        t.exec("goto.p6.pillar12", t.player.goto_tile, 1909, 4629, 2) -- pillar 3_12
         t.ticks(2)
         local pillar312 = t.player.by_symbol("loc", "mourning_temple_pillar_3_12")
         t.exec("p6.pillar12.place", t.player.use_on, "mourning_mirror", pillar312)
         t.exec("p6.pillar12.turn", t.player.click_loc, "mourning_temple_pillar_3_12", 1)
         t.exec("p6.pillar12.point", t.chat.choose, "West.")
-        t.exec("p6.pillar12.edge", t.var.server, "varb1244_mourning_light_temple_3_11_12")
+        h.lit("p6.pillar12.edge", "varb1244_mourning_light_temple_3_11_12")
 
         -- Pillar 13 (3_11): Mirror #10 north.
-        t.check("goto.p6.pillar13", t.player.goto_tile(1898, 4629, 2) == "ok", "pillar 3_11")
+        t.exec("goto.p6.pillar13", t.player.goto_tile, 1898, 4629, 2) -- pillar 3_11
         t.ticks(2)
         t.exec("p6.pillar13.place", t.player.use_on, "mourning_mirror", pillar311)
         t.exec("p6.pillar13.turn", t.player.click_loc, "mourning_temple_pillar_3_11", 1)
         t.exec("p6.pillar13.point", t.chat.choose, "North.")
-        t.exec("p6.pillar13.edge", t.var.server, "varb1238_mourning_light_temple_3_6_11")
+        h.lit("p6.pillar13.edge", "varb1238_mourning_light_temple_3_6_11")
 
         -- goDownToMiddleFromSouthPuzzle6 / goUpFromMiddleToNorthPuzzle6: the
         -- same south-circle-down, north-circle-up shuffle Puzzle 5 used, to
         -- cross from the south part of floor 2 to the north part.
-        t.check("goto.southCircleApproach2", t.player.goto_tile(1891, 4634, 2) == "ok", "the south circle stairs")
+        t.exec("goto.southCircleApproach2", t.player.goto_tile, 1891, 4634, 2) -- the south circle stairs
         t.exec("goDownToMiddleFromSouthPuzzle6", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(3)
         local p6mid1T, p6mid1V = t.world.tile()
@@ -1270,7 +1646,7 @@ return {
             "world.tile() after the south circle stairs down -> " .. tostring(p6mid1T) .. " " .. tostring(p6mid1V and
                 (p6mid1V.x .. "," .. p6mid1V.z .. "," .. p6mid1V.level) or "nil") .. " expected level 1")
 
-        t.check("goto.northCircleApproach3", t.player.goto_tile(1891, 4640, 1) == "ok", "the north circle stairs")
+        t.exec("goto.northCircleApproach3", t.player.goto_tile, 1891, 4640, 1) -- the north circle stairs
         t.exec("goUpFromMiddleToNorthPuzzle6", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
         t.ticks(3)
         local p6mid2T, p6mid2V = t.world.tile()
@@ -1279,58 +1655,62 @@ return {
                 (p6mid2V.x .. "," .. p6mid2V.z .. "," .. p6mid2V.level) or "nil") .. " expected level 2")
 
         -- Pillar 14 (3_6, floor 2 north): Mirror #11 west.
-        t.check("goto.p6.pillar14", t.player.goto_tile(1898, 4649, 2) == "ok", "pillar 3_6")
+        t.exec("goto.p6.pillar14", t.player.goto_tile, 1898, 4649, 2) -- pillar 3_6
         t.ticks(2)
         t.exec("p6.pillar14.place", t.player.use_on, "mourning_mirror", pillar36)
         t.exec("p6.pillar14.turn", t.player.click_loc, "mourning_temple_pillar_3_6", 1)
         t.exec("p6.pillar14.point", t.chat.choose, "West.")
-        t.exec("p6.pillar14.edge", t.var.server, "varb1234_mourning_light_temple_3_5_6")
+        h.lit("p6.pillar14.edge", "varb1234_mourning_light_temple_3_5_6")
 
         -- Pillar 15 (3_5): the blue crystal.
-        t.check("goto.p6.pillar15", t.player.goto_tile(1887, 4649, 2) == "ok", "pillar 3_5")
+        t.exec("goto.p6.pillar15", t.player.goto_tile, 1887, 4649, 2) -- pillar 3_5
         t.ticks(2)
         local pillar35 = t.player.by_symbol("loc", "mourning_temple_pillar_3_5")
         t.exec("p6.pillar15.place", t.player.use_on, "mourning_crystal_blue", pillar35)
-        t.exec("p6.pillar15.edge", t.var.server, "varb1235_mourning_light_temple_3_5_west")
+        h.lit("p6.pillar15.edge", "varb1235_mourning_light_temple_3_5_west")
 
         -- Pillar 16 (3_1): Mirror #12 south (existing Puzzle 3/4 code), red.
-        t.check("goto.p6.pillar16", t.player.goto_tile(1860, 4664, 2) == "ok", "pillar 3_1")
+        t.exec("goto.p6.pillar16", t.player.goto_tile, 1860, 4664, 2) -- pillar 3_1
         t.ticks(2)
         t.exec("p6.pillar16.place", t.player.use_on, "mourning_mirror", pillar31)
         t.exec("p6.pillar16.turn", t.player.click_loc, "mourning_temple_pillar_3_1", 1)
         t.exec("p6.pillar16.point", t.chat.choose, "South.")
-        t.exec("p6.pillar16.edge", t.var.server, "varb1229_mourning_light_temple_3_1_8")
+        h.lit("p6.pillar16.edge", "varb1229_mourning_light_temple_3_1_8")
 
         -- Pillar 17 (3_8): Mirror #13 east, red.
-        t.check("goto.p6.pillar17", t.player.goto_tile(1860, 4640, 2) == "ok", "pillar 3_8")
+        t.exec("goto.p6.pillar17", t.player.goto_tile, 1860, 4640, 2) -- pillar 3_8
         t.ticks(2)
-        t.exec("p6.pillar17.door_1_b.before", t.var.server, "varb1157_mourning_door_1_b")
+        h.note_var("p6.pillar17.door_1_b.before", "varb1157_mourning_door_1_b")
         local pillar38 = t.player.by_symbol("loc", "mourning_temple_pillar_3_8")
         t.exec("p6.pillar17.place", t.player.use_on, "mourning_mirror", pillar38)
         t.exec("p6.pillar17.turn", t.player.click_loc, "mourning_temple_pillar_3_8", 1)
         t.exec("p6.pillar17.point", t.chat.choose, "East.")
-        t.exec("p6.pillar17.edge", t.var.server, "varb1239_mourning_light_temple_3_8_east")
-        t.exec("p6.pillar17.1_b_east", t.var.server, "varb1249_mourning_light_temple_1_b_east")
-        t.exec("p6.pillar17.door_1_b", t.var.server, "varb1157_mourning_door_1_b")
-        t.exec("p6.pillar17.door_1_c", t.var.server, "varb1158_mourning_door_1_c")
+        h.lit("p6.pillar17.edge", "varb1239_mourning_light_temple_3_8_east")
+        h.lit("p6.pillar17.1_b_east", "varb1249_mourning_light_temple_1_b_east")
+        h.lit("p6.pillar17.door_1_b", "varb1157_mourning_door_1_b")
+        h.note_var("p6.pillar17.door_1_c", "varb1158_mourning_door_1_c")
 
         -- ==== the Death Altar leg, on the beams this run lit ====
-        t.exec("altar.start.stage", t.var.server, "varb1103_mourning_quest_main")
+        h.stage_is("altar.start.stage", 30)
 
-        -- Down from pillar 17 (floor 2) to the Death Altar's own entrance --
-        -- the south straight stairs (2->1), then goDownToCentre: the west
-        -- circle stairs (1->0), landing beside Mirror #14's barrier at
-        -- 1886,4639,0 (NOT the ladder-landing pocket 1890,4639, which no
-        -- route leaves).
-        t.check("goto.southStairsApproach8", t.player.goto_tile(1892, 4620, 2) == "ok", "the south stairs")
-        t.exec("p6.descendToF1", t.player.click_loc, "mourning_temple_stairs_top", 1)
+        -- Down from pillar 17 (floor 2) to the Death Altar's own entrance:
+        -- the south circle stairs down (2 -> the 9-tile stair square
+        -- 1890-1892,4638-4640,1), then goDownToCentre, the west circle
+        -- stairs down (1 -> 0), landing beside Mirror #14's barrier at
+        -- 1886,4639,0. b59: was the south straight stairs down to
+        -- 1896,4620,1 and a goto INTO the stair square, which only the
+        -- circle stairs reach (reach.py 1896,4620 -> 1890,4639 level 1:
+        -- UNREACHABLE; the square's flood is 9 tiles).
+        t.exec("goto.southCircleApproach3", t.player.goto_tile, 1891, 4634, 2) -- the south circle stairs
+        t.exec("altar.goDownToMiddleFromSouth", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(3)
-        local p6altardown1T, p6altardown1V = t.world.tile()
-        t.check("p6.descendToF1.tile", p6altardown1T == "ok" and p6altardown1V.level == 1,
-            "world.tile() after the south stairs down -> " .. tostring(p6altardown1T) .. " " .. tostring(p6altardown1V and
-                (p6altardown1V.x .. "," .. p6altardown1V.z .. "," .. p6altardown1V.level) or "nil") .. " expected level 1")
+        do
+            local sqr, sqt = t.world.tile()
+            t.check("altar.goDownToMiddleFromSouth.tile", sqr == "ok" and sqt.level == 1 and sqt.x >= 1890 and sqt.x <= 1892
+                and sqt.z >= 4638 and sqt.z <= 4640,
+                "after the south circle stairs down -> " .. h.tile_text(sqr, sqt) .. " (want the stair square 1890-1892,4638-4640,1)")
+        end
 
-        t.check("goto.westCircleApproach2", t.player.goto_tile(1890, 4639, 1) == "ok", "the west circle stairs")
         t.exec("goDownToCentre", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(12)
         local r_altar_stairs_landed, tl_altar_stairs_landed = t.world.tile()
@@ -1349,16 +1729,16 @@ return {
         -- "rotate Mirror #14 to shine the red light west"
         t.exec("altar.mirror14.turn", t.player.click_loc, "mourning_temple_pillar_1_b", 1)
         t.exec("altar.mirror14.west", t.chat.choose, "West.")
-        t.exec("altar.mirror14.1_b_west", t.var.server, "varb1250_mourning_light_temple_1_b_west")
-        t.exec("altar.mirror14.door_1_c", t.var.server, "varb1158_mourning_door_1_c")
-        t.exec("altar.mirror14.door_1_b", t.var.server, "varb1157_mourning_door_1_b")
+        h.lit("altar.mirror14.1_b_west", "varb1250_mourning_light_temple_1_b_west")
+        h.lit("altar.mirror14.door_1_c", "varb1158_mourning_door_1_c")
+        h.note_var("altar.mirror14.door_1_b", "varb1157_mourning_door_1_b")
 
         -- "The black barrier to the west ... should now be white and open."
         t.exec("altar.door_1_c.in", t.player.click_loc, "mourning_door_1_c", 1)
         t.ticks(3)
         local r_altar_door_1_c_in_tile, tl_altar_door_1_c_in_tile = t.world.tile()
         t.check("altar.door_1_c.in.tile", r_altar_door_1_c_in_tile == "ok", "world.tile() -> " .. tostring(tl_altar_door_1_c_in_tile))
-        t.exec("altar.door_1_c.first_time", t.var.server, "varb1330_mourning_light_door_1_c_first_time")
+        h.note_var("altar.door_1_c.first_time", "varb1330_mourning_light_door_1_c_first_time")
 
         -- the ruins with the talisman, then the crystal on the altar
         local ruins = t.player.by_symbol("loc", "deathtemple_ruined")
@@ -1368,9 +1748,9 @@ return {
         t.check("altar.ruins.tile", r_altar_ruins_tile == "ok", "world.tile() -> " .. tostring(tl_altar_ruins_tile))
         local altarLoc = t.player.by_symbol("loc", "death_altar")
         t.exec("altar.charge", t.player.use_on, "mourning_crystal_new_sample", altarLoc)
-        t.exec("altar.powered", t.inv.count, "mourning_crystal_new_powered")
-        t.exec("altar.sample_gone", t.inv.count, "mourning_crystal_new_sample")
-        t.exec("altar.stage_still_30", t.var.server, "varb1103_mourning_quest_main")
+        h.count_at_least("altar.powered", "mourning_crystal_new_powered", 1)
+        h.count_is("altar.sample_gone", "mourning_crystal_new_sample", 0)
+        h.stage_is("altar.stage_still_30", 30)
         t.exec("altar.portal.leave", t.player.click_loc, "deathtemple_exit_portal", 1)
         t.ticks(6)
         local r_altar_portal_tile, tl_altar_portal_tile = t.world.tile()
@@ -1384,8 +1764,8 @@ return {
         -- "turn the light back towards the entrance door"
         t.exec("altar.mirror14.turn_back", t.player.click_loc, "mourning_temple_pillar_1_b", 1)
         t.exec("altar.mirror14.east", t.chat.choose, "East.")
-        t.exec("altar.mirror14.back.door_1_b", t.var.server, "varb1157_mourning_door_1_b")
-        t.exec("altar.mirror14.back.door_1_c", t.var.server, "varb1158_mourning_door_1_c")
+        h.lit("altar.mirror14.back.door_1_b", "varb1157_mourning_door_1_b")
+        h.note_var("altar.mirror14.back.door_1_c", "varb1158_mourning_door_1_c")
         t.exec("altar.door_1_b.out", t.player.click_loc, "mourning_door_1_b", 1)
         t.ticks(3)
         local r_altar_door_1_b_out_tile, tl_altar_door_1_b_out_tile = t.world.tile()
@@ -1395,7 +1775,7 @@ return {
         -- (useCrystalOnCrystal has no ObjectStep of its own), but still a
         -- real climb: the west circle stairs (0->1), then the north circle
         -- stairs (1->2), the same crossings the getCrystal leg used.
-        t.check("goto.westCircleApproach3", t.player.goto_tile(1886, 4639, 0) == "ok", "the west circle stairs")
+        t.exec("goto.westCircleApproach3", t.player.goto_tile, 1886, 4639, 0) -- the west circle stairs
         t.exec("altar.climbToF1", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
         t.ticks(3)
         local altarUp1T, altarUp1V = t.world.tile()
@@ -1403,7 +1783,7 @@ return {
             "world.tile() after the west circle stairs -> " .. tostring(altarUp1T) .. " " .. tostring(altarUp1V and
                 (altarUp1V.x .. "," .. altarUp1V.z .. "," .. altarUp1V.level) or "nil") .. " expected level 1")
 
-        t.check("goto.northCircleApproach4", t.player.goto_tile(1891, 4640, 1) == "ok", "the north circle stairs")
+        t.exec("goto.northCircleApproach4", t.player.goto_tile, 1891, 4640, 1) -- the north circle stairs
         t.exec("altar.climbToF2", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
         t.ticks(3)
         local altarUp2T, altarUp2V = t.world.tile()
@@ -1411,13 +1791,13 @@ return {
             "world.tile() after the north circle stairs -> " .. tostring(altarUp2T) .. " " .. tostring(altarUp2V and
                 (altarUp2V.x .. "," .. altarUp2V.z .. "," .. altarUp2V.level) or "nil") .. " expected level 2")
 
-        t.check("goto.altar.crystal", t.player.goto_tile(1909, 4638, 2) == "ok", "the dark crystal, floor 2 north")
+        t.exec("goto.altar.crystal", t.player.goto_tile, 1909, 4638, 2) -- the dark crystal, floor 2 north
         t.ticks(2)
         local darkCrystal = t.player.by_symbol("loc", "mourning_temple_obsidian_crystal_dead")
         t.exec("altar.crystal.use", t.player.use_on, "mourning_crystal_new_powered", darkCrystal)
         t.ticks(2)
-        t.exec("altar.crystal.safe_guards", t.var.server, "varb1331_mourning_light_temple_safe_guards")
-        t.exec("altar.crystal.powered_gone", t.inv.count, "mourning_crystal_new_powered")
+        h.lit("altar.crystal.safe_guards", "varb1331_mourning_light_temple_safe_guards")
+        h.count_is("altar.crystal.powered_gone", "mourning_crystal_new_powered", 0)
         local stage40_result, stage40_val = t.var.server("varb1103_mourning_quest_main")
         t.check("quest.stage.puzzle_done", stage40_result == "ok" and stage40_val == 40,
             "var.server(mourning_quest_main) -> " .. tostring(stage40_result) .. " " .. tostring(stage40_val)
@@ -1445,7 +1825,10 @@ return {
         t.check("reward.qp_before", qp_before_result == "ok",
             "var.varp(qp) before hand-in -> " .. tostring(qp_before))
 
-        t.check("goto.talkToArianwyn4", t.player.goto_tile(2353, 3172, 0) == "ok", "Lletya")
+        -- b59: was a goto from the temple's floor 2 straight into Lletya.
+        if not h.temple_to_lletya("toLletya2") then
+            return
+        end
         t.exec("talkToArianwyn4", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn4-dialog", t.chat.play, {
             "player:Arianwyn -- it's done. The Temple of Light is lit again, and the Death Altar answers to us.",
@@ -1453,7 +1836,7 @@ return {
             "npc:Return to me once you've had a moment to catch your breath, and I'll see you properly rewarded.",
         })
         t.ticks(2)
-        t.exec("quest.stage.report", t.var.server, "varb1103_mourning_quest_main")
+        h.stage_is("quest.stage.report", 50)
 
         t.exec("talkToArianwyn5", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn5-dialog", t.chat.play, {
