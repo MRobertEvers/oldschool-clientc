@@ -3681,3 +3681,51 @@ from bandages alone. The two halves now differ by the second half's recipe, not 
 the Xarpus loop must drink brews once the bandages run out, and Verzik's P2 must hold magic and
 restore prayer. These second-half scripts gave the same result under all three run names, so
 three names do not sample three outcomes.
+
+## The raider dies three ticks after Verzik: her in-flight hit lands after her npc_death
+
+- Her P3 auto is a projectile; one launched before her last hitpoint goes still lands after
+  the npc_death row. A tob_verzik run (rooms-tob launch 12) killed her on tick 824 and took
+  her 825 hit (13, raw 16) on 13 hitpoints: death anim 836 on 827, chat 'You have died.
+  Death count: 1.' The room counts as won (a death in a won room gets up in place, see
+  "The cage" above), so every row after it passed, the vault readout included.
+- A room is not green on a death. Assert no 'You have died' line from the room's start to
+  the boss npc_death row PLUS the flight of her last launch (6 ticks), and end the fight
+  with hitpoints above her prayed max (10 Entry) plus the unprayed max when prayer is out.
+- That run had no anglerfish from tick 342 and drank last on 704; the tornado touch on
+  681 healed her 26 -> 173 (147 = 3 x 49) and the extra 140 ticks starved the kit. Take the
+  touch with her pool high enough that 3 x your half-hitpoints does not undo P3.
+
+## Her tornado outlives her: a tornado row can pick a hit after the kill
+
+- Verzik's npc_death does not free her tornado (10846). In that run the one spawned on 697
+  chased the raider (who had died and got up at 99) and touched him on 841, 17 ticks after
+  her death, then npc_free 842. A row that keeps "the first tornado hit that verifies"
+  took that one: spec.verzik.p3_tornado_pct read 49 of 99 on 841 because hp_by_tick had no
+  reading at 679/680 for the in-fight touch on 681.
+- Filter every tornado row (pct, heal, respawn, av.tornado.seqs, av.p3_enrage.tornado) to
+  hits before her npc_death, and read hitpoints on the tick before the touch (poll every
+  tick while a tornado is within 2), or rebuild it: 681's 49 + her 2 that tick on a reading
+  of 48 after = 99 before.
+- Whether the tornado should vanish with her is unsourced in sources/ (the blert plugin
+  only "fully despawns tornadoes at the end", VerzikDataTracker.java:405-407): triage it.
+
+## A super restore heals 32 hitpoints here (content defect)
+
+- `[proc,super_restore_effect]` (prayer_potion.rs2:119-143) runs stat_heal(hitpoints, 8, 25)
+  with every other stat (line 125), and br_4dose2restore calls the same proc
+  (br_potion.rs2:74). Below base, a dose heals 8 + 25% of base, 32 at 99, capped at base.
+  OSRS's super restore restores every stat except Hitpoints. Until it is fixed a restore is
+  a heal in every raid kit (the nylocas and verzik runs of rooms-tob launch 12 both lean on
+  it): do not plan a kit on it, and do not measure a hit against a hitpoints reading taken
+  across a restore.
+
+## Strength at a Vasilias swing: rebuild it from the drink animations
+
+- The ticklog has no stat row. A drink is player_anim 829 (brew and restore alike); tell
+  them apart by the test's own brew/restore counters on the trace rows. Observed at base 99:
+  a Saradomin brew takes 11 from Strength (77 -> 66, 99 -> 88), a super restore adds 32
+  capped at 99 (66 -> 98), and both run ~player_combat_stat, so the next swing rolls with
+  the new level. The whip swing lands on its own anim tick (1658 on the heal tick). A
+  reflect's max is the level after the last drink before that tick: tob_nylocas
+  (d87427d41) 22 on 729 after a brew on 713 and a restore on 718 = 98, max 24.
