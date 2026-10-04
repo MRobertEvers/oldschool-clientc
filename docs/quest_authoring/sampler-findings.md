@@ -729,3 +729,19 @@ because its sealed-pocket rule skips a pocket that has a climb or is too large.
 Run `goto_table.py`. If a row is `UNREACHABLE` at margin 30, run `reach.py` again at 120 or more.
 If it is still UNREACHABLE, run `comp.py` from the departure tile. A component that never reaches
 the landing is a pocket. Walk its real way out and back in on every trip.
+
+## Sample matthew-mbp-m4-b58, round 3 (2026-10-04)
+
+Eadgar's Ruse passed. Legends' Quest went back.
+
+(a) A FIGHT INSIDE A SHARED `kill()` HELPER STILL NEEDS ITS OWN MARGIN ROW. Legends' leg 10 writes
+`killSan-margin`, `killIrvig-margin`, `killRanalph-margin` and `defeatDemon-margin`. Leg 6 fights
+the same three heroes in the Viyeldi caves through a local `kill()` helper (lua 1262-1265). That
+helper only calls `await_dead_engaged` with `eat = { item = "shark", below = 50 }`, so it writes no
+margin row (ledger rows 357-364). Row 364 `killRanalph-dead` ends "OUT OF shark". Leg 6 staged 6
+sharks (row 275): a deathwing ate 1 (row 313), San 2, Irvig 1 and Ranalph 2. The lowest hp was
+39/99. That clears a quarter of max hitpoints but leaves no food, and the rule needs both. The
+reviewer read only the rows named `*-margin` and reported "sharks left".
+
+To check a test, grep the ledger for `OUT OF` and for every `*-dead` row that has no `*-margin`
+row after it. Read the `lowest hp` and the food count from the `-dead` row's detail.
