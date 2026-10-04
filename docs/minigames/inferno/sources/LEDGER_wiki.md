@@ -417,3 +417,88 @@ Note: the tier pages `W:Combat_Achievements_Master` and `_Grandmaster` carry onl
 ### C. Technique rows
 
 `docs/minigames/inferno/sources/wiki/TECHNIQUES.md` has 46 rows, each with the sentence, the mechanic and the file:line (S = Inferno/Strategies, I = Inferno, and so on).
+
+## Eat and drink delays (waves seam pass 3, `eat_delay_port`)
+
+(Seam pass 3 closer: the seam these pages source is KEPT AS A PATCH, not on the branch -- `docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.eat_delay_port*.patch`; the pins stay as sources.)
+
+Fetched 2026-10-03 between 18:44 and 18:55 CDT by the `eat_delay_port` fixer with `tools/toa_fetch_wiki.py`
+(one worker, sequential, the tool's 0.8 s pacing; three calls). `Combo eating` resolved to `Food/Fast foods` and wrote no
+file of its own; `Barbarian Herblore` resolved to `Barbarian Training`. These pages are the modern source for the
+consumption rules the server now plays (`OSRS-Content/.../player/scripts/consumption/consume_shared.rs2`); the 2004 source
+is not one (owner, 2026-10-03). Grade D alone, C where two pages agree.
+
+| Date | URL (permalink) | Revision | File | What it is for |
+|---|---|---|---|---|
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Food?oldid=15354673 | rev 15354673 (2026-09-23) | `docs/minigames/inferno/sources/wiki/wiki_Food.wikitext` | the standard eat delay; combo foods in the food table |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Food/Fast_foods?oldid=15360001 | rev 15360001 (2026-10-02) | `docs/minigames/inferno/sources/wiki/wiki_Food_Fast_foods.wikitext` | eat delay, attack delay, combo eating, potions in a combo |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Template:Fast_foods_table?oldid=15316794 | rev 15316794 (2026-08-22) | `docs/minigames/inferno/sources/wiki/wiki_Template_Fast_foods_table.wikitext` | per-food attack and eat delays (pies, cakes, pizzas, combo foods) |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Potions?oldid=15351958 | rev 15351958 (2026-09-20) | `docs/minigames/inferno/sources/wiki/wiki_Potions.wikitext` | the potion timer |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Tick_eating?oldid=15034399 | rev 15034399 (2025-11-18) | `docs/minigames/inferno/sources/wiki/wiki_Tick_eating.wikitext` | a queued hit lands after an eat on its own tick |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Cooked_karambwan?oldid=15358532 | rev 15358532 (2026-09-29) | `docs/minigames/inferno/sources/wiki/wiki_Cooked_karambwan.wikitext` | combo order rules |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Tick_manipulation?oldid=15292712 | rev 15292712 (2026-08-11) | `docs/minigames/inferno/sources/wiki/wiki_Tick_manipulation.wikitext` | context only (skilling timer); no consumption number quoted |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Barbarian_Training?oldid=15359145 | rev 15359145 (2026-09-30) | `docs/minigames/inferno/sources/wiki/wiki_Barbarian_Training.wikitext` | barbarian mixes carry the food attack delay |
+
+What they state (file:line):
+
+- Food:7 "Most food will delay your next attack or food consumption by 3 ticks (1.8 seconds) when consumed."
+- Food/Fast foods:5 "Standard food, when eaten, adds a 3 tick penalty to when a player may eat again. If the player has attacked recently and is currently waiting on a weapon delay to attack again, this also adds a 3 tick delay before that attack."
+- Food/Fast foods:8 karambwan and halibut "have a 2 tick attack delay"; :11 "Foods only add to an existing attack delay between weapon attacks. If your weapon is ready to attack again then eating does not add any new delay."; :10 "with an attack speed of 4 ticks, players utilising these faster foods can expect an additional attack for every 4 food consumed" (the fight goes on through an eat).
+- Food/Fast foods:24 "combo foods do not respect the eat delay incurred by other foods ... A player can combo eat by clicking a regular food and then a combo food later in the same tick; both items will be consumed and apply their healing in one game tick."; :26 "eating a shark with a karambwan results in a 3 + 2 = 5 tick attack delay"; :29 "Non-barbarian potions respect a different delay timer, meaning a sip of any non-mix potion can be included in a combo eat action."; :40 "Potions do not incur the standard 3 tick (1.8 second) attack or eat delay."
+- Template:Fast foods table (eat delay column): cake and chocolate cake 2,2,3; redberry, meat and apple pie 1,2; dragonfruit (:256), wild (:278) and summer (:289) pie 1,1; plain, meat, anchovy and pineapple pizza 1,2; karambwan and halibut attack 2, eat 3, combo yes.
+- Cooked karambwan:30 "Karambwans may be consumed after other foods without delay; this does not work if the karambwan is eaten first, and does not work when eating two karambwan in a row."
+- Potions:9 "drinking a non-barbarian potion will delay your next potion consumption by 3 ticks (1.8 seconds). Notably, food and potions do not share the same timer ... Note that drinking barbarian mixes use the same timer that eating food does."
+- Barbarian Training:397 barbarian mixes heal "in addition to the regular effects to normal potions ... as well as incurring the standard attack delay from eating food."
+- Tick eating:3 "Tick-eating is the act of eating a piece of food between the time a monster's attack calculates its damage and when it hits the player."
+
+Not stated by any page pinned here: whether, inside one tick, an eat is applied before or after that tick's swing when the
+weapon becomes ready on that very tick (our server applies it after: `build/seam_state/matthew-mbp-m4-waves-b1-seam3/fix.eat_delay_port.json`).
+
+## Shared combat rules (waves seam pass 3, `shared_combat_rules`)
+
+Fetched 2026-10-03 about 19:05 CDT by the `shared_combat_rules` fixer with `tools/toa_fetch_wiki.py` (one worker,
+sequential, the tool's pacing; one call of three titles). `Logout` resolved to `Logout button`. Grade D alone.
+Two wiki searches for the refusal's text (`"log out until 10 seconds after"`, `"seconds after the end of combat"`)
+returned 0 hits: no pinned page states the message, which stays an open presentation row.
+
+| Date | URL (permalink) | Revision | File | What it is for |
+|---|---|---|---|---|
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Logout_button?oldid=15034464 | rev 15034464 (2025-11-18) | `docs/minigames/inferno/sources/wiki/wiki_Logout_button.wikitext` | the combat logout delay (16 ticks after the last hit received) |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Attack_types?oldid=15301238 | rev 15301238 (2026-08-14) | `docs/minigames/inferno/sources/wiki/wiki_Attack_types.wikitext` | a spell cast is a Magic attack, whatever the weapon |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Auto_Retaliate?oldid=15265794 | rev 15265794 (2026-07-17) | `docs/minigames/inferno/sources/wiki/wiki_Auto_Retaliate.wikitext` | context: the player's retaliation (no npc rule quoted) |
+
+What they state (file:line):
+
+- Logout button:9 "players in [[combat]] cannot log out until 16 game [[Game tick|ticks]], or 9.6 seconds, after they have last received a hit."
+- Attack types:37 "The Magic attack type is used when casting offensive spells or using [[powered staves]]."
+- Jal-Nib:50 (pinned earlier) "They will then move towards one of the pillars to attack it, ignoring the player. If all pillars are destroyed, they will attack the player instead."
+
+## Prayer regeneration and drain (waves seam pass 3, `prayer_regen_and_drain`)
+
+(Seam pass 3 closer: the seam these pages source is KEPT AS A PATCH, not on the branch -- `docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.prayer_regen_and_drain*.patch`; the pins stay as sources.)
+
+Fetched 2026-10-03 about 19:46-19:52 CDT by the `prayer_regen_and_drain` fixer with `tools/toa_fetch_wiki.py`
+(one worker, sequential, the tool's pacing; four calls). `Prayer drain` resolved to `Prayer`; `Prayer bonus` resolved
+to `Prayer items`. One wiki search (`"prayer points" "do not regenerate"`) found the Combat page's sentence. Grade D alone.
+
+| Date | URL (permalink) | Revision | File | What it is for |
+|---|---|---|---|---|
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Prayer?oldid=15358187 | rev 15358187 (2026-09-29) | `docs/minigames/inferno/sources/wiki/wiki_Prayer.wikitext` | drain mechanics, drain effects per prayer, the fraction and what resets it, flicking |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Prayer_items?oldid=15313251 | rev 15313251 (2026-08-20) | `docs/minigames/inferno/sources/wiki/wiki_Prayer_items.wikitext` | prayer bonus: 3.33% longer per point |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Combat?oldid=15270648 | rev 15270648 (2026-07-20) | `docs/minigames/inferno/sources/wiki/wiki_Combat.wikitext` | prayer points do not regenerate |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Temporary_skill_boost?oldid=15362807 | rev 15362807 (2026-10-03) | `docs/minigames/inferno/sources/wiki/wiki_Temporary_skill_boost.wikitext` | boosts decay 1 level a minute (a prayer boost above base keeps decaying) |
+| 2026-10-03 | https://oldschool.runescape.wiki/w/Prayer_regeneration_potion?oldid=15324376 | rev 15324376 (2026-08-29) | `docs/minigames/inferno/sources/wiki/wiki_Prayer_regeneration_potion.wikitext` | context: 1 point per 12 ticks from the potion, not natural regeneration |
+
+What they state (file:line):
+
+- Combat:82 "Unlike Hitpoints, prayer points do not regenerate over time (outside of the [[Demonic Ruins]]) and can only be restored by praying at an altar, consuming potions, or using certain [[Special attacks]]."
+- Prayer:35 "in the background, it is represented as a fraction. This fraction can be reset through a [[rejuvenation pool]], the [[Falador shield]] prayer recharge, or dying. Drinking a [[Prayer potion]] will '''NOT''' reset it."
+- Prayer:459 "the total across all activated prayers is added to an internal ''prayer drain counter'' each [[game tick]]. Whenever this counter value exceeds ... ''prayer drain resistance'', one prayer point is depleted, and that player's current prayer drain counter value decreases by their prayer drain resistance. ... it is possible to lose more than one prayer point within a single game tick."
+- Prayer:461-463 "a base ''prayer drain resistance'' of 60, increased by 2 for every point of prayer bonus" (formula `2 x bonus + 60`, no floor stated).
+- Prayer:503 "To consume no prayer points, turn the prayer off within the next tick."
+- Prayer:528 "the game does not drain prayer for prayers on the tick they are activated. 1-tick flicking works because ... the game also thinks those prayers were just activated when you get to the end of each tick so prayer is never drained."
+- Prayer:176-416 drain effect per prayer; all equal `configs/prayers.dbrow` except Chivalry (Prayer:376 `12`, prayers.dbrow:339 `24`).
+- Temporary skill boost:46 "skills that are temporarily boosted will decay at a rate of 1 level per minute".
+
+Not stated by any page pinned here: whether "exceeds" is strict (ours pays at counter >= resistance; the long-run rate is the
+formula's either way), and what a negative prayer bonus does (ours floors the resistance at 60).

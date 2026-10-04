@@ -1818,6 +1818,24 @@ ToriRSServer_CombatHitPlayerFrom(
     ToriRSServer_CombatSyncHitpoints(player);
 
     /*
+     * The combat logout delay: every hit received, a 0 or a fully absorbed one
+     * included, re-arms it. OSRS Wiki, Logout button: "players in combat cannot
+     * log out until 16 game ticks, or 9.6 seconds, after they have last
+     * received a hit" (docs/minigames/inferno/sources/wiki/
+     * wiki_Logout_button.wikitext:9).
+     *
+     * The rule and its clock are content's (skill_combat/combat.rs2
+     * `[proc,combat_player_hit_received]`, interface_logout/scripts/logout.rs2);
+     * the engine's part is only to say "a hit landed", and to say it here
+     * because this is the one place every hit on a player ends -- an npc's
+     * default swing, a scripted projectile's queue, the `damage` opcode of a
+     * boss or of another player all arrive through it, and no single attack
+     * script sees them all. A tree without the proc (a selftest pack) runs
+     * nothing, which is the "no rule" it states.
+     */
+    ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", NULL, 0);
+
+    /*
      * The block animation is content's — [ai_opplayer2,_] plays
      * anim(%com_defendanim). The engine no longer drives it.
      */

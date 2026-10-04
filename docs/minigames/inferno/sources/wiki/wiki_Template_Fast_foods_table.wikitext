@@ -1,0 +1,564 @@
+{{#ifeq:{{BASEPAGENAME}}|Food|}}
+{| class="wikitable sortable align-center-1 align-right-6 align-right-7"
+! colspan="2" |Food
+!Heals
+! data-sort-type="number" |Skills<br />needed
+!Notes
+!<small>Attack delay<br />''(ticks)''</small>
+!<small>Eat delay<br />''(ticks)''</small>
+!Combo
+!GP per heal
+!GE price
+!Members
+|-
+|{{plinkt|Cooked giant crab meat}}
+|2x5
+|{{SCP|Cooking|21}}
+|Made using [[Cooking]]<br />All five bites have 2-tick eat delay.
+|3,3,3,3,3
+|2,2,2,2,2
+|{{not okay}}
+|{{Coins|{{GEP|Cooked giant crab meat}}/10}}
+|{{Coins|{{GEP|Cooked giant crab meat}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cake}}
+|4x3
+|{{SCP|Cooking|40}}
+|Made using [[Cooking]]<br />Only the first two bites have the 2-tick eat delay, the third slice is 3-tick.
+|3,3,3
+|2,2,3
+|{{not okay}}
+|{{Coins|{{GEP|Cake}}/12}}
+|{{Coins|{{GEP|Cake}}}}
+|{{members|No}}
+|-
+|{{plinkt|Chocolate cake}}
+|5x3
+|{{SCP|Cooking|50}}
+|Made using [[Cooking]]<br />Only the first two bites have the 2-tick eat delay, the third slice is 3-tick.
+|3,3,3
+|2,2,3
+|{{not okay}}
+|{{Coins|{{GEP|Chocolate cake}}/15}}
+|{{Coins|{{GEP|Chocolate cake}}}}
+|{{members|No}}
+|-
+|{{plinkt|Redberry pie}}
+|5x2
+|{{SCP|Cooking|10}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3,3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Redberry pie}}/10}}
+|{{Coins|{{GEP|Redberry pie}}}}
+|{{members|No}}
+|-
+|{{plinkt|Meat pie}}
+|6x2
+|{{SCP|Cooking|20}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3,3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Meat pie}}/12}}
+|{{Coins|{{GEP|Meat pie}}}}
+|{{members|No}}
+|-
+|{{plinkt|Garden pie}}
+|6x2
+|{{SCP|Cooking|34}}
+|Made using [[Cooking]]<br />Temporary [[Farming]] boost of +3 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Garden pie}}/12}}
+|{{Coins|{{GEP|Garden pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Fish pie}}
+|6x2
+|{{SCP|Cooking|47}}
+|Made using [[Cooking]]<br />Temporary [[Fishing]] boost of +3 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Fish pie}}/12}}
+|{{Coins|{{GEP|Fish pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Apple pie}}
+|7x2
+|{{SCP|Cooking|10}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Apple pie}}/14}}
+|{{Coins|{{GEP|Apple pie}}}}
+|{{members|No}}
+|-
+|{{plinkt|Botanical pie}}
+|7x2
+|{{SCP|Cooking|52}}
+|Made using [[Cooking]]<br />Temporary [[Herblore]] boost of +4 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Botanical pie}}/14}}
+|{{Coins|{{GEP|Botanical pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Mushroom pie}}
+|8x2
+|{{SCP|Cooking|60}}
+|Made using [[Cooking]]<br />Temporary [[Crafting]] boost of +4 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Mushroom pie}}/16}}
+|{{Coins|{{GEP|Mushroom pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Admiral pie}}
+|8x2
+|{{SCP|Cooking|70}}
+|Made using [[Cooking]]<br />Temporary [[Fishing]] boost of +5 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Admiral pie}}/16}}
+|{{Coins|{{GEP|Admiral pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Toad crunchies}}
+|8
+|{{SCP|Cooking|10}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Toad crunchies}}/8}}
+|{{Coins|{{GEP|Toad crunchies}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade t'd crunch}}
+|8
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|85}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade t'd crunch}}/8}}
+|{{Coins|{{GEP|Premade t'd crunch}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Spicy crunchies}}
+|7
+|{{SCP|Cooking|12}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Spicy crunchies}}/7}}
+|{{Coins|{{GEP|Spicy crunchies}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade s'y crunch}}
+|7
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|85}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade s'y crunch}}/7}}
+|{{Coins|{{GEP|Premade s'y crunch}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Worm crunchies}}
+|8
+|{{SCP|Cooking|14}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Worm crunchies}}/8}}
+|{{Coins|{{GEP|Worm crunchies}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade w'm crun'}}
+|8
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|85}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade w'm crun'}}/8}}
+|{{Coins|{{GEP|Premade w'm crun'}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Chocchip crunchies}}
+|7
+|{{SCP|Cooking|16}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Chocchip crunchies}}/7}}
+|{{Coins|{{GEP|Chocchip crunchies}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade ch' crunch}}
+|7
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|85}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade ch' crunch}}/7}}
+|{{Coins|{{GEP|Premade ch' crunch}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Plain pizza}}
+|7x2
+|{{SCP|Cooking|35}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Plain pizza}}/14}}
+|{{Coins|{{GEP|Plain pizza}}}}
+|{{members|No}}
+|-
+|{{plinkt|Meat pizza}}
+|8x2
+|{{SCP|Cooking|45}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Meat pizza}}/16}}
+|{{Coins|{{GEP|Meat pizza}}}}
+|{{members|No}}
+|-
+|{{plinkt|Anchovy pizza}}
+|9x2
+|{{SCP|Cooking|55}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Anchovy pizza}}/18}}
+|{{Coins|{{GEP|Anchovy pizza}}}}
+|{{members|No}}
+|-
+|{{plinkt|Dragonfruit pie}}
+|10x2
+|{{SCP|Cooking|73}}
+|Made using [[Cooking]]<br />Temporary [[Fletching]] boost of +4 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Dragonfruit pie}}/20}}
+|{{Coins|{{GEP|Dragonfruit pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Pineapple pizza}}
+|11x2
+|{{SCP|Cooking|65}}
+|Made using [[Cooking]]<br />Only the first bite has the 1-tick eat delay, the second slice is 2-tick.
+|3
+|1,2
+|{{not okay}}
+|{{Coins|{{GEP|Pineapple pizza}}/22}}
+|{{Coins|{{GEP|Pineapple pizza}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Wild pie}}
+|11x2
+|{{SCP|Cooking|85}}
+|Made using [[Cooking]]<br />Temporary [[Ranged]] boost of +4, [[Slayer]] +5 <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Wild pie}}/22}}
+|{{Coins|{{GEP|Wild pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Summer pie}}
+|11x2
+|{{SCP|Cooking|95}}
+|Made using [[Cooking]]<br />Temporary [[Agility]] boost of +5 and 10% Run energy <br />Both slices are a 1-tick eat delay.
+|3,3
+|1,1
+|{{not okay}}
+|{{Coins|{{GEP|Summer pie}}/22}}
+|{{Coins|{{GEP|Summer pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Fruit batta}}
+|11
+|{{SCP|Cooking|25}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Fruit batta}}/11}}
+|{{Coins|{{GEP|Fruit batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade fr't batta}}
+|11
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|120}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade fr't batta}}/11}}
+|{{Coins|{{GEP|Premade fr't batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Toad batta}}
+|11
+|{{SCP|Cooking|26}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Toad batta}}/11}}
+|{{Coins|{{GEP|Toad batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade t'd batta}}
+|11
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|120}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade t'd batta}}/11}}
+|{{Coins|{{GEP|Premade t'd batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Worm batta}}
+|11
+|{{SCP|Cooking|27}}
+|Made using [[Gnome cooking]], Dropped by [[Tortoise]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Worm batta}}/11}}
+|{{Coins|{{GEP|Worm batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade w'm batta}}
+|11
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|120}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade w'm batta}}/11}}
+|{{Coins|{{GEP|Premade w'm batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Vegetable batta}}
+|11
+|{{SCP|Cooking|28}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Vegetable batta}}/11}}
+|{{Coins|{{GEP|Vegetable batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade veg batta}}
+|11
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|120}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade veg batta}}/11}}
+|{{Coins|{{GEP|Premade veg batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Cheese+tom batta}}
+|11
+|{{SCP|Cooking|29}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Cheese+tom batta}}/11}}
+|{{Coins|{{GEP|Cheese+tom batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade c+t batta}}
+|11
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|120}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade c+t batta}}/11}}
+|{{Coins|{{GEP|Premade c+t batta}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Worm hole}}
+|12
+|{{SCP|Cooking|30}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Worm hole}}/12}}
+|{{Coins|{{GEP|Worm hole}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade worm hole}}
+|12
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|150}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade worm hole}}/12}}
+|{{Coins|{{GEP|Premade worm hole}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Veg ball}}
+|12
+|{{SCP|Cooking|36}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Veg ball}}/12}}
+|{{Coins|{{GEP|Veg ball}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade veg ball}}
+|12
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|150}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade veg ball}}/12}}
+|{{Coins|{{GEP|Premade veg ball}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Chocolate bomb}}
+|15
+|{{SCP|Cooking|42}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Chocolate bomb}}/15}}
+|{{Coins|{{GEP|Chocolate bomb}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade choc bomb}}
+|15
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|160}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade choc bomb}}/15}}
+|{{Coins|{{GEP|Premade choc bomb}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Tangled toad's legs}}
+|15
+|{{SCP|Cooking|40}}
+|Made using [[Gnome cooking]]
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Tangled toad's legs}}/15}}
+|{{Coins|{{GEP|Tangled toad's legs}}}}
+|{{members|Yes}} 
+|-
+|{{plinkt|Premade ttl}}
+|15
+|{{NA}}
+|Purchased from [[Gnome waiter]] in the [[Grand tree]] for {{Coins|160}}
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Premade ttl}}/15}}
+|{{Coins|{{GEP|Premade ttl}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Toad's legs}}
+|3
+|{{NA}}
+|Obtained by removing the legs from [[Swamp toad]]s
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Toad's legs}}/3}}
+|{{Coins|{{GEP|Toad's legs}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Crystal paddlefish}}
+|16
+|{{SCP|Crafting|1}} {{SCP|Smithing|1}}
+|Only obtainable and useable within [[The Gauntlet]]
+|2
+|3
+|{{okay}}
+|{{NA}}
+|{{NA}}
+|{{members|Yes}}
+|-
+|{{plinkt|Corrupted paddlefish}}
+|16
+|{{SCP|Crafting|1}} {{SCP|Smithing|1}}
+|Only obtainable and useable within [[The Corrupted Gauntlet]]
+|2
+|3
+|{{okay}}
+|{{NA}}
+|{{NA}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cooked karambwan}}
+|18
+|{{SCP|Cooking|30}} {{SCP|Fishing|65}}
+|Requires [[Tai Bwo Wannai Trio]] to fish/cook.
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Cooked karambwan}}/18}}
+|{{Coins|{{GEP|Cooked karambwan}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Smelly kebab}}
+|18
+|{{NA}}
+|Only obtainable and useable during the quest [[The Blood Moon Rises]].
+|2
+|3
+|{{Okay}}
+|{{NA}}
+|{{NA}}
+|{{members|Yes}}
+|-
+|{{plinkt|Halibut}}
+|20
+|{{SCP|Cooking|83}} {{SCP|Fishing|83}}
+|Obtained via rod fishing a [[halibut shoal]] or [[deep sea trawling]].
+|2
+|3
+|{{okay}}
+|{{Coins|{{GEP|Halibut}}/20}}
+|{{Coins|{{GEP|Halibut}}}}
+|{{members|Yes}}
+|-
+|}

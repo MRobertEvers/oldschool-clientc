@@ -76,3 +76,62 @@ The three workflow cards under `tools/waves_gate/workflows/` are written from th
 raid cards' shape (`tools/raid_gate/workflows/raid_{spec,seam,author}.workflow.js` at
 `94f55b306`) with the worktree path, the nouns and the phases changed; they are not
 verbatim copies.
+
+## Content: the eat-delay port (waves seam pass 3, `eat_delay_port`)
+
+**Kept as a patch, not on the branch (seam pass 3 closer, 2026-10-03):** the port reddened green
+quest tests (troll, contact, regicide: deaths in fights that eat), so its files were restored from
+`HEAD` and the change is `docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.eat_delay_port.{content,parent}.patch`.
+The rows below say what the patch copies; none of these copies is on the branch until the owner
+lands it. The `player_magic.rs2` row at the end belongs to `shared_combat_rules` and IS on the branch.
+
+Raid CONTENT commit `7936c59bf9` (OSRS-Content, raid seam6 `eat_delay_port`, parent `2cddff56d5`), content merge base with `v3` `315ffdff00`. Since that base neither side had touched any of these files except `pack/varp.alloc` (`v3`: `a9aefa1206`, `28793800be`), so every other file was written byte-for-byte from `git show 7936c59bf9:<path>` (cmp-checked) and only then changed where the last column says. The behaviours were re-checked against the pinned modern wiki (`docs/minigames/inferno/sources/LEDGER_wiki.md`, eat-delay rows); nothing was left out. Not cherry-picked.
+
+| Date | Raid commit | Path (same in both) | Kind | Changed since the copy |
+|---|---|---|---|---|
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/pack/varp.alloc` | content, in place | yes: three-way merge: `v3` had allocated 7218-7222 since the base (`ft_jugs`, `ft_fluid_seed`, `bv_voy_*`), so the three consume varps are appended as 7223-7225 (`MERGE_CHECKLIST.md`) |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/bosses/boss_tormented_demons/scripts/td_consumables.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/general/scripts/food.rs2` | content, in place | yes: copied, then the delay comments re-sourced to Template:Fast foods table, and `[proc,food_pie_fast_half]` added: the half dragonfruit, wild and summer pie keep a 1-tick eat delay (template "1,1"; the port gave every pie 1,2) |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_nightmarezone/scripts/nightmarezone_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume_delay.varp` | content, in place | yes: copied, then the ids renamed 7218/7219/7220 -> 7223/7224/7225 and the header comment re-sourced to the pinned wiki (no 2004 citation) |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/anti_poison.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/antifire_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/ape_atoll_food.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/attack_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/barbarian_mix.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/br_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/castlewars_brew.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/combat_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/consume_shared.rs2` | content, in place | yes: copied, then the varp ids renamed (21 references) and the header comment re-sourced to the pinned wiki pages with quotes; code otherwise verbatim |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/cox_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/deadman_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/defence_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/divine_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/energy_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/god_brew.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/hunter_meat.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/hunter_mix.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/inferno_potions.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/kebab.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/magic_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/misc_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/poison_karambwan.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/prayer_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/ranging_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/restore_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/sara_brew.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/skill_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/snail.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/strange_fruit.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/strength_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/ugthanki_kebab_bad.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/varlamore_potion.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | content `7936c59bf9` | `OSRS-Content/osrs239-content/server/scripts/player/scripts/consumption/venom_cure.rs2` | content, in place, verbatim | no |
+| 2026-10-03 | `94f55b306` | `src/torirsserver/torirs_server_world_selftest.c` (the eat stanza, raid lines 19624-19653) | engine selftest, hunk only (the rest of the file is `v3`'s) | yes: the varp name is `varp7224_consume_food_delay` and the 2004 citation is replaced by the wiki Food/Fast foods quote |
+| 2026-10-03 | content `7936c59bf9` (from `93707f5d60`) | `OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/player_magic.rs2` (the two damage-type hunks: `~pvm_spell_success` and `~pvm_spell_fail`, raid lines 470-483 and 506-511) | same path, in place | content, hunks only, verbatim (seam pass 3 `shared_combat_rules`); the third raid hunk (`~player_combat_stat` at the top of `~pvm_spell_cast`, cited to LostCity `changestat.rs2`) was NOT taken | no |
+
+The two conformance rows that go with it (`seam.eat_does_not_hold_queued_hit`, `seam.eat_delay_clocks`, raid `94f55b306` `test/quests/_conformance.lua:9035-9238`) are verbatim in `build/seam_state/matthew-mbp-m4-waves-b1-seam3/conformance.eat_delay_port.lua` for the closer to merge after `seam.attack_fast_path`.
+
+| Date | Raid commit | Path (same in both) | Kind | Changed since the copy |
+|---|---|---|---|---|
+| 2026-10-03 | `94f55b306` | `test/quests/_conformance.lua` (rows `seam.eat_does_not_hold_queued_hit` and `seam.eat_delay_clocks`; on the raid tip `origin/matthew-mbp-m4-raid-b1` they sit at lines 9253-9456) | driver gate, two seam rows, verbatim; HELD with the patch in `build/seam_state/matthew-mbp-m4-waves-b1-seam3/held/conformance_rows.eat_delay_port.lua` (not in `_conformance.lua` on the branch) | no |

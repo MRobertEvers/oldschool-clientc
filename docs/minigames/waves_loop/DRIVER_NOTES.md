@@ -8,7 +8,11 @@ by waves seam pass 1, `matthew-mbp-m4-waves-b1-seam1`; every copied file is a ro
 `build/quest_gate/dp_scratch3`, 31/31 PASS) and by the driver's own conformance file
 (`test/quests/_conformance.lua`, 158 verbs and 102 seam rows, all PASS). Seam pass 2
 (`matthew-mbp-m4-waves-b1-seam2`) added t.wave.*, the tick-exact prayer verbs,
-t.world.los, t.npc.pack, t.player.drink and t.inv.doses (171 verbs). The
+t.world.los, t.npc.pack, t.player.drink and t.inv.doses (171 verbs). Seam pass 3
+(`matthew-mbp-m4-waves-b1-seam3`) added no verb; it changed what the fights underneath
+them do (Inferno waves spawn once, the combat logout delay, a cast is a magic hit) and
+added one seam row (103). Its eat-delay port and its prayer regeneration and drain fix
+moved green quest tests and are held as patches (see "Held as patches" below). The
 contract for every other verb is `docs/QUEST_AUTHORING.md`. Add a heading here for
 each new verb or fact a later seam pass lands.
 
@@ -186,7 +190,8 @@ other name every row after the relog runs on a fresh tutorial account.
 
 `[timer,stat_restore]` (`player/scripts/stat_restore.rs2:34`) moves a drained or
 boosted stat one level every 100 ticks counted from login. A row that reads a drain
-must account for that window (`CONTENT_BUGS.md` ENG-2).
+must account for that window (`CONTENT_BUGS.md` ENG-2). The timer also restores
+drained prayer (ENG-10, the fix held as a patch).
 
 ## t.wave.state / enter / await_wave / await_clear
 
@@ -208,8 +213,9 @@ server tick 5, wave begun on 13 (+8, `^inferno_wave_delay`), alive 4 = pool 4, p
 server tick it happened on, or timeout with the last state. `await_clear` is ok when
 alive reaches 0 after the wave began, the wave number moves, or the run ends; it
 refuses when no run is active. Deadlines are drive ticks; ticks in details are
-server ticks. Today a wave re-spawns every 8 ticks (CONTENT_BUGS.md ENG-5), so a
-clear may never come.
+server ticks. `await_clear` keys on the wave it finds when called: called after the
+last kill, when the wave var has already moved, it waits on the NEXT wave. Read a
+clear from `t.wave.state()` and the `npc_death` / `npc_free` rows instead.
 
 ## t.wave.pause / resume
 
@@ -227,6 +233,15 @@ from the exit pad (ENG-6, ENG-7): the seam's proof staged a paused run with
 `::setvar` and a labelled `::goto 2495,5123` in its scratch, not in the verb. A relog
 reboots the embedded server, so the server tick restarts at 0, and the login chat
 line arrives a tick after `relog` returns.
+
+`t.wave.pause` settles on the SERVER's run varp; the client may still stand in the
+arena on that frame (its own tile still reads 6430,81 and its pool still holds the
+wave). Before reading `state().pool` after a leave, await `state().tile.x < 6000`
+(at most 3 ticks) or `t.ticks(1)`. That mixed-clock read was all of ENG-19: the
+server releases every arena npc on the leave tick and the client drops them on the
+next one (seam.wave_pool_after_leave). `via="logout"` in combat is now refused for
+16 ticks after the last hit (see "The combat logout delay"), and the client's own 5 s
+fallback then ends the session anyway.
 
 ## t.prayer.set decides "already so?" from the server
 
@@ -258,7 +273,8 @@ the client's stat read at once.
 Measured: 20 back-to-back flicks of Protect from Melee cost 0 points; holding it
 for 20 npc phases cost 4. T-1: a city guard hit 0/6 times with the prayer pressed on
 A-1 against 4/6 pressed on A; the Inferno bat 0/3 against 3/3 (pf_a_final,
-pf_b_final). Prayer regenerates on this branch (ENG-10).
+pf_b_final). Prayer still regenerates on this branch (ENG-10): the fix is held as a
+patch (see "Held as patches" below).
 
 ## t.world.los -- line of sight as the server computes it
 
@@ -293,13 +309,14 @@ before/after, presses, pressed/landed tick); not_found when none is carried; no_
 for an unknown family. A drink lands +1 tick after the press; a press inside the last
 drink's or eat's delay is dropped by the server, so the verb re-presses every 2 ticks.
 `opts.then_attack` (npc symbol, row, or true) re-attacks one tick after landing: never
-on the landing tick, the drink's trailing `p_stopaction` wipes it (ENG-18). `t.exec`
+on the landing tick, the drink's trailing `p_stopaction` wipes it (ENG-18; the fix is
+held as a patch). `t.exec`
 passes only two returns, so call drink directly and write the row with `t.check`.
 
 `t.inv.doses(family)` returns ok, a text and `{doses, free, capacity, items}`;
 carrying none is ok with 0. On this branch an eat holds a projectile hit until its
-delay ends (+2/+3 ticks) while melee lands at once (ENG-16): plan eats off the
-projectile-impact tick.
+delay ends (+2/+3 ticks) while melee lands at once (ENG-16; the fix is held as a
+patch): plan eats off the projectile-impact tick.
 
 ## gate.py in this worktree needs QUEST_HELPER_ROOT
 
@@ -311,3 +328,70 @@ cutscene exemption needs a guide (zombiequeen) goes red. Grade with
 `QUEST_HELPER_ROOT=/Users/matthewevers/Documents/git_repos/quest-helper python3
 tools/quest_gate/gate.py --allow-blocked`. The tool's search path is the quest
 loop's to fix, not this loop's.
+
+## Inferno waves spawn once (seam pass 3)
+
+A wave's set now spawns once: `[softtimer,inferno_wave_tick]` clears itself on the tick
+it fires (ENG-5 fixed). Measured: wave 1 one set at server tick 19, last kill 72, last
+`npc_free` 76, wave 2 one set at 84 (ws3_resp_after2). The next wave starts
+`^inferno_wave_delay` = 8 ticks after the last `npc_free`; Blert has 6 (left for the
+spec pass to grade). Read spawn sets with `t.ticklog.rows{kind="npc_spawn"}` grouped
+by tick: 7691 nibbler, 7692 bat, 7700 jad, 7709 pillar.
+
+`t.wave.enter` is a PRACTICE run: a cleared wave leaves. To reach wave 2 enter a REAL
+run: stage `varb5646=2`, labelled `::goto 2495,5123`, `click_loc inferno_entrance 1`,
+choose `/^Jump into the Inferno/`. `::inferno` writes `varb5646=1`
+(`inferno.rs2:421`), so after a `t.wave.enter` the entrance has no Jump-in until it is
+restaged to 2: run a real-run leg first. Wave 67 never spawns its Jad today (ENG-20).
+
+## The combat logout delay (seam pass 3)
+
+`[if_button,logout:logout]` refuses while fewer than 16 server ticks have passed
+since the last `hit_player` row (wiki Logout button:9), with the chat line
+"You can't log out until 10 seconds after the end of combat." (the text is
+unsourced, an open row). From +16 the server closes the session. The client's own
+5 s fallback (`app_net.c`) still logs a refused player out about 8 ticks later
+(ENG-29), so `t.session.logout` / `relog` within 16 ticks of a hit reads as the
+fallback ending it: wait until the last hit +16 for a server close. `t.ui.widget`
+takes `"logout:logout"` as one string; a second string argument raises.
+
+## A cast is a magic hit (seam pass 3)
+
+A spell cast or splash now reaches every per-style rule as Magic, whatever is in
+hand (Attack types:37): the black mask, salve, Slash Bash, the Nylocas and Zulrah
+checks. `hit_npc` rows carry no style, so prove it with a differential (a melee-only
+modifier on vs off). Melee never calls `~npc_retaliate`, and `retaliate=no` is still
+ignored by the default retaliation (ENG-25, ENG-26, ENG-27): a nibbler still turns on the
+player.
+
+## Reading the npc pool (seam pass 3)
+
+`t.wave.state().pool` and `t.npc.tiles` read the client pool's NEAREST 64 rows; far
+rows can be ranked out at a crowded tile. `TORIRS_DRIVE_DEBUG`'s `npc_pool=N` is the
+high-water count, not the live npcs; a radius-1 `api_drive` read logs every npc
+outside it (`build/seam_state/matthew-mbp-m4-waves-b1-seam3/npa_probe_summary.py`).
+Near a crowd the server's npc view radius grows from 15 to 24 tiles while fewer than
+64 npcs are in view, so a pool can be FULL at Lumbridge.
+
+## Held as patches (seam pass 3)
+
+Two seams of pass 3 reddened green quest tests and are NOT on the branch; the owner
+decides. Their patches are `docs/minigames/waves_loop/patches/matthew-mbp-m4-waves-b1-seam3.*.patch`
+and their conformance rows wait in `build/seam_state/matthew-mbp-m4-waves-b1-seam3/held/`.
+What a test author would see once they land (measured by the fixers with the patches
+applied; none of it is true on the branch today):
+
+- `eat_delay_port` (ENG-16, ENG-17, ENG-18): an eat is two clocks, never a park. A food
+  sets a 3-tick food timer; an eat while the weapon delay runs adds 3 (karambwan and
+  halibut 2); a ready weapon gains nothing; potions have their own 3-tick timer and no
+  attack delay. Food then karambwan and food then potion work in one tick; food after
+  food, food after karambwan and karambwan after karambwan are refused silently.
+  Unarmed swing gaps 4 uneaten, 7 with a shark after the swing; a spell eaten through
+  lands +1 like an uneaten one; an Attack pressed during a drink survives. Read-only
+  readouts `::eatdelay` and `::eatgate`. Press two items in one Lua resume to put both
+  on one server tick.
+- `prayer_regen_and_drain` (ENG-10, ENG-11): prayer points do not regenerate; a prayer
+  in force for k npc phases costs (k-1) x its drain effect (the activation tick is
+  free, so one-tick flicking costs 0); the drain counter survives turning prayers off,
+  running out and a potion. Protect from Melee for 20 phases = 228 units (3 points +
+  counter 48).

@@ -1,0 +1,22 @@
+# Merge checklist -- the waves loop
+
+Every var id, alloc row or other numbered allocation the waves branch adds, so that
+whoever reaches `v3` second can see the collision before the pack does
+(`docs/WAVES_ORCHESTRATOR.md` section 10 lesson 11: names carry the id). One row per id.
+Check each id against `v3`'s `OSRS-Content/osrs239-content/pack/varp.alloc` (and the
+matching alloc file for other kinds) and the raid branch's before merging; renumber
+the name and every reference together.
+
+**Seam pass 3 closer (2026-10-03):** the three ids below are allocated only inside the held patch
+`patches/matthew-mbp-m4-waves-b1-seam3.eat_delay_port.content.patch`; the branch's `varp.alloc`
+does not carry them yet. Keep the rows so whoever lands the patch checks them again.
+
+| Kind | Id | Name | File that declares it | Added by | Collides with |
+|---|---|---|---|---|---|
+| varp | 7223 | `varp7223_consume_combo_delay` | `server/scripts/player/configs/consumption/consume_delay.varp` | waves seam pass 3 `eat_delay_port` | the raid branch's content `7936c59bf9` declares the same timer as `varp7218_consume_combo_delay`; `v3` already has 7218 = `varp7218_ft_jugs` |
+| varp | 7224 | `varp7224_consume_food_delay` | same | waves seam pass 3 `eat_delay_port` | raid `varp7219_consume_food_delay`; `v3` 7219 = `varp7219_ft_fluid_seed` |
+| varp | 7225 | `varp7225_consume_potion_delay` | same | waves seam pass 3 `eat_delay_port` | raid `varp7220_consume_potion_delay`; `v3` 7220 = `varp7220_bv_voy_bearing` |
+
+When the raid branch merges after this one, its three `consume_*` varps must take this
+branch's ids (or new ones) and its `consume_shared.rs2` / `consume_delay.varp` /
+selftest stanza be renamed with them: the two ports are the same code under two numbers.

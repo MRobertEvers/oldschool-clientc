@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 102
+-- @seam-count 103
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 171
-local SEAM_COUNT = 102
+local SEAM_COUNT = 103
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -10275,6 +10275,69 @@ return {
                 return "hollow", "a practice run's Cave exit did not read as an ended run -- " .. text
             end
             return "ok", text
+        end)
+
+        -- THE ARENA POOL IS EMPTY ONCE THE CLIENT IS OFF THE ARENA (waves seam3
+        -- npc_pool_after_leave, ENG-19 settled as a driver read, not a stale pool).
+        -- No verb changed; one SEAM row.
+        --
+        -- PLACEMENT: in test/quests/_conformance.lua's PLAN, immediately AFTER
+        -- step("wave.pause", ...) (the practice run's Cave exit, which ends the run)
+        -- and BEFORE step("wave.resume", ...).  It re-enters and leaves once more, so
+        -- wave.resume after it still reads "no run is paused".
+        --
+        -- What it pins (measured: build/quest_gate/npa_pool_d, rows c1-c3):
+        --   * a read taken the instant t.wave.pause returns is on the SERVER's clock
+        --     (the run's varp) while the pool is the CLIENT's: at +0 the client's own
+        --     player tile still reads the arena (6430,81) and the pool still holds the
+        --     wave (`pool 20: harpie x5, nibbler x15` with 20 staged).  That was
+        --     ENG-19's reading; it is not a stale pool.
+        --   * one server tick later the client is on the exit pad and the pool is 0
+        --     (the row awaits the client's own tile off the arena, <= 3 ticks, then reads);
+        --   * a second enter reads exactly one wave (pool == alive).
+        seam("seam.wave_pool_after_leave", function()
+            local state = verb("wave", "state")
+            local enter = verb("wave", "enter")
+            local pause = verb("wave", "pause")
+            if not state then return missing("wave", "state") end
+            if not enter then return missing("wave", "enter") end
+            if not pause then return missing("wave", "pause") end
+            -- wait (<= 3 ticks) for the CLIENT to be off the arena: the leave's own
+            -- tick may not have reached the client when wave.pause returns on the
+            -- server's varp (ENG-19's reading); then the pool must be empty
+            local function off_arena()
+                t.await({ level = function()
+                    local _, _, s = state()
+                    return is_table(s) and is_table(s.tile) and s.tile.x < 6000
+                end, note = "client off the arena" }, 3)
+                return state()
+            end
+            -- the leave was the wave.pause row just before this one
+            local r1, d1, s1 = off_arena()
+            if r1 ~= "ok" or not is_table(s1) then
+                return "hollow", "wave.state answered " .. describe(r1) .. " " .. describe(d1)
+            end
+            if s1.active or s1.pool ~= 0 or not is_table(s1.tile) or s1.tile.x >= 6000 then
+                return "refused", "once the client is off the arena the run is not over with an empty pool -- " .. describe(d1)
+            end
+            local re, de, se = enter("inferno", 1)
+            if re ~= "ok" or not is_table(se) then
+                return re, "re-enter -> " .. describe(de)
+            end
+            if se.pool ~= se.alive or not (se.alive > 0) then
+                return "refused", "the second enter does not read exactly one wave (pool " .. tostring(se.pool)
+                    .. ", alive " .. tostring(se.alive) .. ") -- " .. describe(de)
+            end
+            local rp, dp = pause({ via = "exit" })
+            if rp ~= "refused" or not string.find(tostring(dp), "ENDED", 1, true) then
+                return "hollow", "the second Cave exit did not end the practice run -- " .. describe(dp)
+            end
+            local r2, d2, s2 = off_arena()
+            if r2 ~= "ok" or not is_table(s2) or s2.active or s2.pool ~= 0 or not is_table(s2.tile) or s2.tile.x >= 6000 then
+                return "refused", "after the second leave the pool is not empty -- " .. describe(d2)
+            end
+            return "ok", string.format("leave 1: %s | enter 2: alive %d pool %d | leave 2: %s",
+                tostring(d1), se.alive, se.pool, tostring(d2))
         end)
 
         step("wave.resume", function()
