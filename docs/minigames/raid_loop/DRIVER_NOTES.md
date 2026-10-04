@@ -2794,10 +2794,10 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
   "the next hit", because her urnbomb also hits from her slot.
 - Unprayed, heal = floor(raw * 50 / 100): 11 of 11 casts in build/quest_gate/s11_heal2
   (raw 7..44). Assert the fraction on unprayed casts.
-- Under Protect from Magic the current content deals 0 (raw 0) and still heals on the
-  roll. Mod Ash (Strategies:930) says the prayer halves the hit and the heal is half of
-  what was dealt. Report the prayed casts as what the content does; it is an open content
-  row (CONTENT_BUGS.md, seam11), not a driver gap.
+- Under Protect from Magic you take 0 (raw 0) and, since seam12, the heal counts half the
+  roll: floor(floor(roll / 2) / 2), at most 11 for one raider. The Blert pull settled it
+  (see "Verzik P2: the blood spell off a prayed raider heals her half the HALVED roll"
+  in the seam 12 section). Assert prayed casts at 11 or less.
 
 ## Counting every copy of a loc: t.world.loc_copies(sym, radius) (seam11)
 
@@ -3030,7 +3030,10 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
   (br_4dosepotionofsaradomin), 4 restores (br_4dose2restore), 13 anglerfish. Eat brew,
   brew, restore. P2 starts with rigour and Protect from Missiles; switch to Protect from
   Magic on projectile 1591.
-- In P3 switch prayer on her npc_anim: 8124 magic, 8125 ranged. Keep at least 2 tiles from
+- In P3 switch prayer on her npc_anim (8124 magic, 8125 ranged) or on the projectile
+  (1594 magic, 1593 ranged); since seam12 the prayer counts when the projectile lands, so
+  the switch is in time. The seam 12 recipe below replaces this one for the tornado
+  (this one has no flee). Keep at least 2 tiles from
   her 7x7 body. Shoot P3 crabs (3 hp) at once. For the yellows, walk onto the
   map_spotanim 1595 tile and hold until pool tick + 15. For the webs, walk 3 tiles off on
   the 8127 tick.
@@ -3070,34 +3073,149 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
   wait 5 ticks and try again. Measure your own weapon's swing-to-splat delay first.
 - Do not try to get there by shifting the start tick (ticks 2..9). The proc tick follows
   whichever hit happens to cross, so a tick shift only moves the gamble.
+- Seam12 proved a recipe that works (5-tick bow, phase alignment, a hold past the slot
+  after a death ball): "Sotetseg: putting a ball on the maze proc tick, a recipe that
+  works" in the seam 12 section.
 
-## Verzik P3: she picks the style and reads your prayer on the tick she animates
+## Verzik P3: she picks the style and reads your prayer on the tick she animates (SUPERSEDED by seam12)
 
-- `~tob_verzik_p3_regular` rolls the style with `random(2)` (tob_verzik.rs2:2900). It plays
-  8125 (ranged) or 8124 (magic) at :2903-2908. On that same tick it checks the protection
-  prayer and halves the hit (:2934, :2939).
-- So a prayer you switch when you see her npc_anim row is one tick late for that hit. It
-  only helps the next auto, and only if she picks the same style again (half the time).
-  The line "switch prayer on her npc_anim" in 'Verzik P3 that a solo bow survives' works
-  because the bow kit can absorb the hits, not because the prayer blocks them.
-- The green ball's pose is also 8125 or 8124 at random (tob_verzik.rs2:3021-3025). It
-  throws projectile 1598 and no auto hit. A switch keyed on 8125 therefore drops Protect
-  from Magic on a ball tick for no reason. Tell the ball by its 1598 projectile on the
-  same tick, not by the pose.
-- To protect a P3 auto you need the prayer up before the attack tick. That means a
-  prediction (pick one style and hold it), not a reaction.
+- Fixed in seam12. The prayer is now read when the projectile lands, and the green ball is
+  always on 8125. See "Verzik P3: switch the protection prayer on what she shows; it counts
+  when the projectile lands" in the seam 12 section.
 
-## Verzik P3: after a tornado heal she attacks every 7 ticks again (content_bug candidate)
+## Verzik P3: after a tornado heal she attacks every 7 ticks again (FIXED by seam12)
 
-- The enrage line and the tornadoes are a one-time latch (bit 70 of tob_var_spawned,
-  tob_verzik.rs2:2752-2761). The attack clock does not read that latch. It reads
-  `~tob_verzik_enraged`, which recomputes "at or below 20 percent" from her current
-  hitpoints on every attack (tob_verzik.rs2:2735, 2745-2749, clock at :2744). The Normal
-  auto max does the same (:2917).
-- A tornado that reaches you heals her by its damage times the multiplier
-  (`~tob_verzik_tornado_heal`, tob_verzik.rs2:3590-3594). Once that lifts her over 20
-  percent, her cadence goes back to 7 while the tornadoes keep coming. The real enrage
-  is permanent (tob_timing.rs2:153-165 calls it a drop from 7 to 5).
-- If your cadence row measures a 7 after the enrage line, that is this bug. End the row
-  content_bug with these file:line references; do not drop the 7s from the gaps. Not yet
-  in CONTENT_BUGS.md.
+- Fixed in seam12: `~tob_verzik_enraged` now returns true once bit 70 is set, so a tornado
+  heal no longer resets her cadence to 7. See "Verzik P3: the enrage is permanent, even after
+  a tornado heal" in the seam 12 section. A 7 after the enrage line is now a real failure.
+
+# Seam pass 12: the Sotetseg tornado and proc-tick ball, Verzik P3 against the sources
+
+Both seams were content (tob_sotetseg.rs2, tob.npc, tob_verzik.rs2). No driver verb was
+added or changed, so the conformance PLAN did not move. The scratch scripts that prove each
+recipe are under build/seam_state/matthew-mbp-m4-raid-b1-seam12/ (sote12/procball_scratch.lua,
+sote12/tornado_scratch*.lua, vz12_kill.lua).
+
+## Sotetseg: the maze tornado is centred on the path now
+
+- It spawns with its 3x3 body around the path's start tile. It walks one path tile a tick
+  (an npc_tile row every tick, diagonal where the body shifts), and it walks through the
+  runner (`moverestrict=passthru` on all three creeper records). The old stall at start
+  column 12 or 13 is gone: sote12_after_a and _b followed and hit from start columns 13, 12,
+  1 and 7.
+- Its npc_spawn / npc_tile coord is the body's SW corner. The path tile it is on is
+  (x + 1, z + 1). On a row whose lit path touches column 0 it is (x, z + 1), and on a row
+  touching column 13 it is (x + 2, z + 1). The realm's walls stand one tile outside the grid,
+  and this engine's npc walk always respects walls, so the body is kept inside the grid there.
+- It hits only on the path tile under its centre, on the tick AFTER its npc_tile row reaches
+  your tile (its timer hunts first, then steps). sote12_after_a: npc_tile t69 onto the
+  runner's tile, hit_player t70. A runner one tile a tick ahead of it is never hit.
+- Scratch only: `::tobsotemaze <start> <toward>`, sent before the threshold hit, parks the
+  next maze's path. Seed 0 is `<start>` (1..13). Later seeds step toward `<toward>` by up to
+  5, or roll normally with -1. Never use it in a room test.
+
+## Sotetseg: putting a ball on the maze proc tick, a recipe that works
+
+- His attacks are npc_anim rows on his slot: 8139 with projectile 1606 is an ordinary ball,
+  8139 with 1604 is the death ball, and 8138 is melee (only within 1 tile, so stand further).
+  The next attack is the last + 5, or + 10 after a death ball. The attack after ten ordinary
+  balls is the death ball.
+- The maze procs on the tick AFTER the hit_npc that takes him to 373 or below (maze 1) or
+  186 or below (maze 2) in solo Entry. Track his hitpoints as 560 minus every hit_npc on his
+  slot. His attack on the proc tick comes first.
+- Wield a 5-tick weapon and keep it firing: bow_of_faerdhinen (attackrate 5, range 10, no
+  ammo; `::setlevel agility 99` to wield it). Every hit then lands at the same phase of his
+  5-tick cycle. At bx+2, bz-5 with the fast press `t.player.attack(sym, 2, 2)`, swing
+  (player_anim 426) to hit_npc is d = 3 ticks, and press to swing is L = 0.
+- Align once, early. phase = (your hit_npc tick - any attack tick of his) mod 5, and you
+  want 4. If it is not 4, cancel with a one-tile step and press again at H - d - L, where H
+  is the first tick at least (last swing + 5 + d) with (H - his attack tick) mod 5 = 4.
+- Inside the last ~70 hitpoints, on each swing S work out the attack at Bn = S + 6 + d (the
+  tick after the NEXT swing's hit). If Bn is not an ordinary ball (it is the empty slot
+  D + 5 after a death ball D, or the death ball itself), step off and press at
+  S + 5(k + 1) - L for the smallest k that makes Bn + 5k a ball. sote12_procball_a shows why:
+  an aligned hit landed on 144 before the empty 145 (death ball 140), the proc had no attack,
+  and the run was 10.
+- Do not eat inside the window: an eat delays the next swing and breaks the phase. Re-align
+  after one.
+- Mark the run as proc-tick by a ball tick equal to the npc_retype tick and assert 11;
+  assert sotetseg.magic_per_ball (10) on the other runs.
+- Proved twice. sote12_procball_c: hit 149 (383 -> 370), npc_retype 150 with 8139 + 1606
+  on 150, 11 balls between death balls 140 and 235; hit 324 -> proc 325, 11 between 295 and
+  403. The closer's re-run under a new name (close12_sote): hit 114 -> proc 115 with a ball,
+  11 between 80 and 178; hit 262 -> proc 263, 11 between 238 and 336.
+- The scratches used `::god 1` (incoming damage only). The hit timing, procs and ball counts
+  are the player's own, but a room test must survive on food and prayer, and an eat inside
+  the hold breaks the phase.
+
+## Verzik P3: switch the protection prayer on what she shows; it counts when the projectile lands
+
+- The style shows on her attack tick T: npc_anim 8125 with projectile 1593 is ranged
+  (Protect from Missiles), 8124 with 1594 is magic (Protect from Magic). During the crab
+  summon (14406) the pose shows nothing, so key on the projectile there.
+- The server reads your prayer on the landing tick (`[queue,tob_verzik_p3_auto_land]`,
+  T + end_cycle // 30, 2-3 ticks). A `t.prayer.set` issued when you read the row (T or
+  T+1) is in time. The splat comes one tick after that read, so pair an auto with its
+  hit_player on T+3..T+5.
+- The green ball is always on 8125 with projectile 1598 and no auto hit. A Missiles switch
+  on its tick costs nothing.
+- Prove it like `seam.verzik_p3_prayer_at_impact`: an auto whose prayer was off on T and on
+  at the landing must splat at most half the max (Entry 10). vz12_kill_a: 7 such autos,
+  max 8. close12_vz: 4, max 9. The old pack gave 5 of 11 over 10.
+- Source: "You need prayer up as the projectile hits your character, otherwise it's
+  considered off prayer" (transcripts/yt_oGPT3sZMnd8.md:51); spec row verzik.p3_prayer_read.
+
+## Verzik P3: the enrage is permanent, even after a tornado heal
+
+- After "I'm not finished with you just yet!" she attacks every 5 ticks for the rest of the
+  phase, and the max stays 34 (Entry 20). A tornado heal that puts her back above 20 percent
+  does not reset it (the bit 70 latch in `~tob_verzik_enraged`).
+- Row: every plain-auto gap after the npc_say is 5. Record her hitpoints as npc_heal minus
+  hit_npc damage, and show that some gaps start above 20 percent
+  (`seam.verzik_enrage_latches`: vz12_kill_b had 12, close12_vz had 9).
+- When the enrage lands inside the green ball's window, her next attack is the enrage tick
+  + 5 (Blert models it the same way). Measure p3_ball_delay only on a ball window with no
+  enrage in it.
+- Spec row verzik.p3_enrage_latch (grade C: the Blert pull, the blert plugin's one-way
+  flag, OpenOSRS's `tornados`).
+
+## Verzik P2: the blood spell off a prayed raider heals her half the HALVED roll
+
+- Under Protect from Magic you take 0 (raw 0 on the T+4 hit_player row). The heal (npc_heal
+  `[proc,tob_verzik_blood_spell]` on T) is floor(floor(roll / 2) / 2), at most 11 for one
+  raider. Unprayed, the heal is floor(raw * 50 / 100).
+- Pair a cast with the hit on T + (1591 end_cycle // 30), never with "the next hit": her
+  urnbomb hits from the same slot.
+- Source: the Blert pull (sources/blert_api/spec_pass_verzik/verzik_seam12_2026-10-03.txt).
+  Praying raiders lost 0 hitpoints in 370 of 370 casts, and the heal was 11 or less in 73
+  of 78 clean readings. Spec row verzik.p2_heal_spell_fraction, now grade B.
+- The heal still lands on the cast tick and reads the prayer at the cast, while Blert's
+  hitpoint stream shows it at T+2 (health-bar latency unknown). Not changed by seam12.
+
+## RECIPE: an Entry solo Verzik kill a driven player survives
+
+- Script: build/seam_state/matthew-mbp-m4-raid-b1-seam12/vz12_kill.lua, built on seam11's
+  vz11_kill7. Setup gear only, no `::god`, no boss cheat. It killed her as vz12_kill_a
+  (t724) and vz12_kill_b (t824).
+- Kit: armadyl worn, Dawnbringer wielded. Twisted bow, whip, staff of fire with 60 air and
+  15 death runes, 6 saradomin brews, 4 restores, 1 ranging potion, 13 anglerfish.
+- P1: Dawnbringer specs, then whip, then bow. P2: rigour and Protect from Missiles, Protect
+  from Magic on 1591. P3: the prayer rule above.
+- Read your prayer each loop with `t.prayer.read()` and press `t.prayer.set` only when the
+  wanted one is off. That way the record shows which autos were reactive.
+- Webs: step 3 tiles off on the 8127 tick. Yellows: the pool is the FIRST 1595 copy (more
+  copies follow on later ticks). The blast is the 8126 tick + 14; be on the pool from
+  8126 + 10.
+- Tornado: let the first one touch if you want its rows. Then keep moving, away from it but
+  toward the boss: "think in rectangles" (transcripts/yt_sDaQ2qsU8AQ.md:28).
+- Track the freshest npc_tile row of the tornado type (10846), not a slot in `live`: a
+  touched tornado is npc_del'd without a free row, and a stale slot hid it in vz12_kill_b's
+  first try (5 touches, death).
+- When it is 6 tiles away or closer, walk to the ring tile 3 off her body that is farthest
+  from it. Skip any tile whose midpoint with you is within 2 of the tornado. Score 12 points
+  per tile of wall clearance, up to 3, and 40 off for a tile beside the wall: a corner is a
+  trap (6421,81 killed two tries). With a yellow pool down, stay within 4 tiles of the pool.
+- IT IS NOT YET ROBUST. The run name seeds your rolls, and the flee is tuned on two names.
+  The closer's re-run under a third name (close12_vz, final pack) died in P3 after 8 tornado
+  touches, while every seam12 row in it passed. Prove a room test's plan under at least
+  three names, and expect to tune the flee further.
