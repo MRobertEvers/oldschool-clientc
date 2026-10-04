@@ -1,0 +1,194 @@
+{{Update|date=27 March 2024|url=https://secure.runescape.com/m=news/easter--varlamore-updates?oldschool=1|category=game}}
+[[File:Easter & Varlamore Updates newspost.jpg|right]]
+{{clear}}
+__TOC__
+''We’re hopping into spring with an egg-citing Easter event!''
+
+==Changelog March 27th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Easter 2024'''
+
+* Easter has arrived with a good old-fashioned mystery to unscramble. Catch up with the Easter Bunny outside the Grand Exchange to start the egg hunt.
+* Added new Easter rewards, including fetching FashionScape and a new Book…
+
+'''Varlamore: Part One Feedback Changes'''
+
+* Tweaked the look of the World Map around the moonlight antelopes.
+* Corrected the blocking of one tile on Ralos' Rise.
+* The Hunter Skill Cape and Max Cape menus now refer to their teleport options as ‘Hunter Areas’ rather than ‘Chinchompa Teleports’.
+* Rebalanced the bosses from Perilous Moons:
+** The Eclipse Moon boss now has slightly higher Defence.
+** The Blue Moon boss builds Cold twice as fast.
+** The Blue Moon boss heals more consistently during the Tornado phase.
+** The Blood Moon boss’ healing from its third attack has been reduced.
+** The Blood Moon boss’ healing from the Jaguar attacks has increased slightly.
+* Removed a bush from the Sunlight Antelope area that prevented them from following players.
+* The Fishing activity in the Perilous Moons dungeon now interrupts repeatable actions like Fletching.
+* Corrected the description for Doom to state that it applies on ''any'' damage taken, rather than any damage taken 'off-Prayer'.
+* Players can now toggle receiving duplicate Hunter Rumours. This toggle is ‘ON’ by default but can be changed using the ‘Rumour-Settings’ option on Verity.
+* The naming of Rumours, Loot Sacks and Skill Guide references are now consistent and should reference Basic, Adept, Expert and Master tiers.
+* Rotated the north and east traps to face the Pyre Foxes and increased the number of Pyre Foxes in the area.
+* Improved the appearance of all Pitfall Trap creatures.
+* Hunting for Red Chinchompas now correctly tells you to retrieve Fur.
+* Razor-Backed Kebbit meat can now be stored in Meat Pouches.
+* Obtaining Sunfire Splinters from Sunlight Antelopes will now correctly add them to the Collection Log.
+* Reduced the respawn timer for Sunlight and Moonlight Antelopes.
+* Players world hopping while Thieving in the Bazaar will now be able to do so faster.
+* Fixed an issue where a Medium Anagram Clue behaved like a Challenge Scroll instead of a Clue Scroll.
+* Made more trees across the Avium Savannah choppable.
+* Fixed an issue where players couldn’t permanently disable the warnings inside Perilous Moons.
+* Increased the buy limit of Atlatl Darts at the Grand Exchange.
+* The Eclipse Atlatl’s requirements are now 50 Attack and Strength.
+* The Master Clue that required the Fortis Salute now requires a normal Salute instead.
+* One fish is now guaranteed when Fishing in Perilous Moons, although two fish can be obtained with a skill check.
+
+<u>'''Previous Hotfixes'''</u>
+
+* Extended the range of Sol Heredit's Spear Strike and Shield Slam attacks.
+* Restored Yew Trees to their usual spots.
+* Players can no longer walk inside the walls of the Varlamore Crypt.
+* The skeleton north of the Colosseum now gives the correct note.
+* Players are now able to craft the Hunter Sunlight Crossbow when boosting to level 74 Fletching.
+* Removed the interaction message when trying to combine Spear Tips and Headless Arrows.
+* Players can once again teleport to Al Kharid via the Jewellery Box, and right-click options should work again.
+* Hunter creatures now drop Rumour items as intended.
+* Improved the drop rates for some Hunter Rumour items.
+* Removed Herblore XP for creating Moonlight Potions inside Perilous Moons.
+* Fixed a S.T.A.S.H. Unit in Fortis.
+* Increased the maximum permitted player count inside the boss rooms for each of the Moons of Peril.
+* Reduced the healing offered by Snowy Knight Mixes.
+* Fixed a bug where the new Quetzal pet could not be reclaimed from Probita.
+* Apatura will now correctly offer to unlock the teleport to the Hunter Guild.
+* The bosses from Perilous Moons will now render on top of anything else in their rooms.
+* Fixed an interaction where Dizana's Quiver and Toxic Blowpipe weren’t respecting the bonuses offered by the Blowpipe's ammunition.
+* The reduction for Colosseum Death Costs will now apply up to 100 completed waves.
+* Echo Boots no longer lose charges in PvP – considering they don’t work there, we feel this makes sense.
+* Players will now receive a message about the Quetzal Whistle and where to claim it when they complete 10 Rumours.
+* Reduced the XP given for creating Sunfire Runes, which now correctly give XP per Essence used.
+* Prevented Random Events from spawning in the houses associated with the Thieving activity.
+* You will no longer receive duplicate Huntsman's Kits from Hunter Loot Sacks.
+* Moonlight Moths, Sunlight Moths and Snowy Knight Jars now have the same delay as other potions.
+
+'''Other Changes'''
+
+* Improved the accuracy of spells cast by Kolodion and the other arena mages, after a previous error made them less accurate than they should have been. Protect from Magic still provides protection from their spells.
+* The Account Guide on Tutorial Island no longer advises Jagex Account users to link emails to their accounts, as they no longer need to do that.
+* If you have not unlocked the Bones to Peaches spell, it can now be hidden by the Spellbook filter that hides spells you lack the requirements to cast.
+* Players doing the Lassar section of Desert Treasure II can now recover lost quest items from Ketla.
+* Changed the sound effect on the mage Vardorvis head attack to something shorter. Thanks to Aatykon and his Twitch chat for the help picking it out.
+* Crossbow Bolts will now activate at the correct rate of 10%.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Easter 2024 ==
+[[File:Easter & Varlamore Updates (1).png|600px|center]]
+
+The Easter Bunny has arrived in Gielinor once more, but his baskets are looking a little bare...
+
+Oh dear. It seems chocolate eggs are in short supply this Easter, and the people of Varrock are ''not'' happy bunnies about it. This warrants an invest-egg-ation!
+
+A rather scrambled Easter Bunny has set up shop just outside of the Grand Exchange in Varrock, so head on over to help him crack the case of the missing choccies.
+
+As always you’ll be rewarded for your efforts with a selection of seasonal goodies, including some rather smashing FashionScape and, of course, some Easter Eggs!
+
+We hope you’re as egg-cited for this event as we are…
+
+==Varlamore: Part One Feedback Changes==
+We’ve had a relatively smooth landing in the Shining Kingdom of Varlamore! It’s been great to watch you all explore this beautiful new land and uncover all that Part One has to offer. Here’s an updated breakdown of some of the stats from launch week:
+
+[[File:Easter & Varlamore Updates (2).png|600px|center]]
+
+As with any major update, we had a few post-launch changes and fixes to make. You can find last week’s hotfixes in the Changelog up top, so we’ll move swiftly on to this week’s changes.
+
+===Fortis Colosseum===
+Just a small fix to the description of Doom, which now correctly states that the effect applies on ''any ''damage taken, not just damage taken ‘off-Prayer’.
+
+Stay tuned for more Colosseum changes soon!
+
+===Hunter Guild===
+Excellent news for confused hunters this week! We’ve tweaked the names of Loot Sacks to indicate which tier of Hunter’s Rumours they came from.
+
+For those of you who prefer a little variety, we’ve added a toggle which prevents you receiving the same Hunter’s Rumour back-to-back. It’s toggled ‘ON’ by default, but you can change it using the new ‘Rumour-Settings’ option on Guild Scribe Verity.
+
+The Hunter Skill Cape and Max Cape menus now correctly refer to their teleport options as ‘Hunter Areas’, rather than ‘Chinchompa Teleports’.
+
+Outside the Guild, Sunlight and Moonlight Antelopes will now respawn much faster, and we’ve switched up the scenery to stop them getting stuck on bushes and the like. Additionally, your Collection Log will now update correctly when receiving Sunfire Splinters from these springy creatures. Finally, the World Map should look a bit more aesthetically pleasing in the area around the Moonlight Antelopes.
+
+Pyre Foxes have had a look over too and we've shifted the Traps in the North and East of the area to face where the Foxes like to hang out. Not only that, but we've also seen more Pyre Foxes within that region!
+
+We’ve also made a small fix to the Red Chinchompa Rumour, which now correctly tells you to bring back Red Chinchompa Fur.
+
+Finally, we’ve improved the overall look of various Pitfall creatures so that you’ll have a better time removing them from the area.
+
+===Perilous Moons===
+Top of the list, some balancing tweaks for the bosses:
+
+* The Eclipse Moon boss now has slightly higher Defence.
+* The Blue Moon boss builds Cold twice as fast.
+* The Blue Moon boss heals more consistently during the Tornado phase.
+* The Blood Moon boss’ healing from its third attack has been reduced.
+* The Blood Moon boss’ healing from the Jaguar attacks has increased slightly.
+
+Next up, the Fishing activity now interrupts repeatable actions like Fletching so you can remain focused on the task at hand. Speaking of which, we’ve made it clearer that Fishing guarantees one fish, although you can obtain two fish with a successful skill check.
+
+We’ve seen PvPers making use of the Eclipse Atlatl with great results! To make things a bit fairer (and prevent lower brackets being dominated by the Obsidian Maul), we’ve rebalanced the required stats to 50 Attack and Strength.
+
+Last but not least, we’ve fixed a bug where players were being persistently warned of the dangers of the Perilous Moons dungeon even after deciding to ignore them. Don’t worry, you weren’t forgetting to check the box – we were just looking out for you a bit aggressively.
+
+===Miscellaneous===
+* Corrected the blocking of one tile on Ralos' Rise.
+* Players world hopping while Thieving in the Bazaar will now be able to do so faster.
+* Fixed an issue where a Medium Anagram Clue behaved like a Challenge Scroll instead of a Clue Scroll.
+* More trees across the Avium Savannah should now be choppable!
+* Increased the buy limit of Atlatl Darts at the Grand Exchange.
+* The Master Clue that requires players to perform the Fortis Salute with the Blue Moon Set equipped now requires a regular Salute instead.
+
+==Other Changes==
+* Improved the accuracy of spells cast by Kolodion and the other arena mages, after a previous error made them less accurate than they should have been. Protect from Magic still provides protection from their spells.
+* The Account Guide on Tutorial Island no longer advises Jagex Account users to link emails to their accounts, as they no longer need to do that.
+* If you have not unlocked the Bones to Peaches spell, it can now be hidden by the Spellbook filter that hides spells you lack the requirements to cast.
+* Players doing the Lassar section of Desert Treasure II can now recover lost quest items from Ketla.
+* Changed the sound effect on the mage Vardorvis head attack to something shorter. Thanks to Aatykon and his Twitch chat for the help picking it out.
+* Crossbow Bolts will now activate at the correct rate of 10%.
+
+==Easter Merch==
+[[File:Easter & Varlamore Updates (3).jpg|600px|center]]
+Celebrate Easter with none other than the Bunny himself! This limited edition pin from AngelsScapes is available on the [https://runescape.backstreetmerch.com/ merch store], available whilst stocks last!
+
+==PvP World Rota ==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1bozyir/easter_varlamore_updates/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

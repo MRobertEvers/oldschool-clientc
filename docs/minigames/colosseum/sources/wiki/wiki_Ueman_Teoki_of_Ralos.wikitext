@@ -1,0 +1,24 @@
+{{Infobox NPC
+|name = Ueman, Teoki of Ralos
+|image = [[File:Ueman, Teoki of Ralos.png|120px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|options = Talk-to
+|examine = A teoki in service to Ralos.
+|map = {{Map|x=1825|y=9487|r=4|plane=0|mtype=square|mapID=-1}}
+|id = 13420
+|leagueRegion = Varlamore
+}}
+[[File:Ueman, Teoki of Ralos chathead.png|left]]
+'''Ueman''' is one of seven{{CiteNPC|npc=Cuali, Teoki of Ralos|quote=I am one of the seven teoki in service to Ralos.}} [[teoki]] in service of [[Ralos]]. He is found under the [[Fortis Colosseum]], and is responsible for maintaining it.{{CiteNPC|npc=Ueman, Teoki of Ralos|quote=I am the teoki responsible for the Colosseum. I am in charge of all that happens here.}} While [[Minimus]] handles much of the day-to-day function,{{CiteNPC|npc=Ueman, Teoki of Ralos|quote=Well, much of the day-to-day running is handled by the Colosseum Master, but yes, I am the one overall in charge of this place.}} Ueman maintains the ultimate leadership role, because the Colosseum is considered a holy site honouring Ralos.{{CiteNPC|npc=Ueman, Teoki of Ralos|quote=This is more than just a place of spectacle. You stand in one of the holiest sites in all of Varlamore. Each drop of blood spilt here is a glorious offering to Ralos. It is these offerings that sustain him. Without them, he will not have the strength to light our way.}}
+
+==Dialogue==
+{{hastranscript|npc}}
+
+==References==
+{{reflist}}
+
+{{Fortis Colosseum}}
+{{Losanium}}

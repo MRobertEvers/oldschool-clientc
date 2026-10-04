@@ -1,0 +1,22 @@
+# Manticores Made Easy - OSRS The Colosseum — transcript
+
+Auto-generated captions from <https://www.youtube.com/watch?v=NqNvxSdSpZc>
+(ShakeyJake, *Manticores Made Easy - OSRS The Colosseum*, uploaded 2024-05-04, 3:47, 60 fps source).
+
+Downloaded with `yt-dlp --write-auto-subs` and converted by `tools/waves_gate/vtt_to_md.py` for the Fortis Colosseum source corpus. Timestamps are `H:MM:SS` and link back to the video. Machine transcription: every tick count, npc name and item name must be cross-checked against the wiki, the cache or a recording before it is encoded as a constant.
+
+## Transcript
+
+*[0:00:00](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=0)* — for goodness Shake shaky Jake hello everyone and welcome my name is shaky Jake this is a quickfire mini guide and how I deal with the manor during the Coliseum throughout my runs I was Finding most of my deaths were due to the Manor in some way whether I was getting hit by other mobs while flicking them screwing up timing or just forgetting to switch pair entirely I put some thought in how I could deal with them easier and this is what I came up with this may have been discussed elsewhere but none of the guides I use personally went over this method to some
+
+*[0:00:33](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=33)* — this may seem like I'm over complicating the Mana but from personal experience this really helped me get more consistent at the Coliseum so as you probably know everything in the Coliseum works on a five tick cycle the manac calls work on athentic cycle so we can count the tick to know exactly when the manor will attack but more importantly it keeps us in cycle let's switch to live commentary and I'll take you through it so here we are we have a man ready charged up with range first so what the guard would tell you to do is before you step out is to PR range once the man cor
+
+*[0:01:06](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=66)* — starts It Animation you switch to pray Mage then atic lator pray immedately like this okay so for man is about standard you need to know how to do that first before you do anything else this method just kind of helps steamline that make it more repeatable and in my opinion easier to follow okay so for this method you're going to want to put a metronome on just s a one tick cycle so the pr range in this situation is going to be tick zero what we're going to do is when we step out and need do his major attack
+
+*[0:01:38](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=98)* — we're going to count that as tick one then his melee attack is going to be tick two and we count from three four 5 6 7 8 9 and 10 by the time we get to 10 our range pre needs to be back on our heads you can put it back on and tick 10 or if there's nothing else here we can put it back on on tick three um after we count to 10 we go straight back to one and on tick one we go back to the second PR which is Mage so it goes some L this ftic zero 1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10 1 2 3 okay so it's simple as
+
+*[0:02:19](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=139)* — that it's just count to 10 but you put the prayers in those Cycles so here we have an older clip and I'll comment over it so we have a ranger at the back and a mage first Manticore this is very typical in the Coliseum but with the counting method this is no different than fighting a single man score you get yourself in that 10 TI counting cycle on tick number three we'll switch the pro range and we make sure we go back to Mage on tick number 10 so using the clip I'll comment over it and just counting so let them charge up so Maj is 6 zero 1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10 1 two three so it makes it so much
+
+*[0:03:02](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=182)* — trivial you don't have to worry about the ranger don't worry about the mantore you just keep in that cycle and of course this also works for door man C but instead of counting to 10 you just count to five easy that 1 2 3 4 5 1 2 3 4 5 1 2 3 4 5 1 2 3 four five easy that and that's about it guys short and sweet hopefully this helps you with your runs if you have any questions feel free to post in below and I'll help out as best
+
+*[0:03:33](https://www.youtube.com/watch?v=NqNvxSdSpZc&t=213)* — I can this method might not be for everyone but I would highly recommend giving it a go thank you for watching feel free to drop a sub I'll hopefully be uploading much more in the near future catch you later and good luck with the Coliseum

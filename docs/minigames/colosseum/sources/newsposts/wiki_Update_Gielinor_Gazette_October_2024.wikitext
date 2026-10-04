@@ -1,0 +1,161 @@
+{{Update|date=25 October 2024|url=https://secure.runescape.com/m=news/gielinor-gazette---october-2024?oldschool=1|category=community}}
+[[File:Gielinor Gazette - October 2024 newspost.png|right]]
+{{clear}}
+__TOC__
+In this month’s issue: all the deets on those ‘Miscellaneous Project Updates’ from the Summer Summit...
+
+==Gielinor Gazette October 2024==
+Hello, and welcome back to the Gielinor Gazette! Autumn is on its way, but we’re not ready to let go of Summer just yet – which is why this month’s edition is dedicated to the ‘Miscellaneous Project Updates’ section of our Summer Summit Roadmap.
+
+Let’s have a look!
+
+==Words From the Team==
+This section's here to give members of the team a chance to look back on recent updates or give you a brief look behind the curtain of what we get up to behind the scenes!
+
+===Wintertodt Improvements===
+''With Mod Kirby''
+
+Poll 82 brought one of our boldest QoL pitches yet: equalising the way Wintertodt deals damage by introducing a Warmth Meter. Our recent beta revealed that this big change has been a long time coming, which is why we were so excited to bring it to the game in early October.
+
+Mod Kirby had this to say:
+
+{{Letter|''“One of the problems that Wintertodt has had forever is that it's way more supply intensive for players with high Hitpoints, to the point where it's become almost mandatory to do Wintertodt ASAP on a new account. The concept of a Warmth Meter to substitute Hitpoints has been kicking around in the community since before I joined the team, so it felt like a welcome change. While we were doing that, it made sense to address some of the other problems the content had, like the Wintertodt deciding to slap you across the face and stop you Fletching for multiple cycles in a row. These changes should make it feel a lot comfier, which is exactly how you should feel when fighting a giant snow spirit intent on encasing the world in permafrost. Oh, and I can’t wait for players to find the red herring!”''}}
+
+===Araxxor===
+''With Mod Arcane''
+
+In August, we had the audacity to release ''another'' Spider boss: Araxxor. Rest assured we've heard you loud and clear and won't be looking to release another oversized spider until at least next year!
+
+Since then, loads of you have gotten hands-on with the awesome Araxyte, so we caught up with Mod Arcane to see what he made of everything you got up to!
+
+{{Letter|''As someone who has developed quite a few different PvM encounters in the past 4+ years, Araxxor was something of a first for me since slayer bosses inherently don't want to be too engaging. The game itself is asking you to kill hundreds in a row, admist other slayer tasks that are low intensity, having a boss sprung upon you that is very high intensity would be unwelcome, compared to other bosses that are a bit more opt-in.''
+
+''Trying to strike a balance between a fairly chill boss, but one that still has enough depth to keep the player feeling like they have bits to improve on or things to try long term was quite difficult, I'm not sure if I fully accomplished this but players seem to enjoy Araxxor so I'd like to think I wasn't miles off at least!''}}
+
+===QA and CAs===
+''With Mod Nox''
+
+With the recent release of Combat Achievements for Hueycoatl and Amoxliatl, we had quite the debate on our hands when it comes to difficulty in CAs. One particular thread that caught our eye insisted that we should complete the tasks ourselves before releasing them. Mod Nox jumped in to say that he does exactly this, which lead to a back and forth on what it's like QA testing Combat Achievements.
+
+We chatted to the man himself to gauge his thoughts and give you a little look at what goes in to a batch of CAs. Unlike the other sections here, we'll be framing this one more like an interview because there's a ''lot'' to get through!
+
+'''Let's get straight into the meat of things! What do you feel is one of the biggest challenges you face when testing Combat Achievements and giving feedback to our designers?'''
+
+''In my opinion, one of the biggest challenges we face when looking at balancing when designing and testing new Combat Achievements is that there is no universally accepted scale for what the difficulty of a specific tier of CA should be, and I don't think there ever can be.''
+
+''Everyone has their own opinion of what the spectrum of a difficult or easy achievement is, if you ask 10 Grandmasters what they think the Inferno speedrun time should be, you’ll likely get 10 different answers, all of which will heavily be influenced by their own personal bias and skillset. Now, what if we asked the same questions to 10 Master tier players who are working on trying to achieve Grandmaster?  How might their motivations and aspirations impact their answers?''
+
+''The goal posts are constantly changing, with new metas and new items entering the game, the best we can do when looking at CAs is taking a snapshot of the game at the time and trying to set a reasonable challenge for you all, which is no easy feat. ''
+
+''It is also worth mentioning that there will always be an easiest and a hardest achievement in each tier, so while you might be able to look at the Elite tasks and say “okay this Combat Achievement is too hard for Elite, it should be in Master”, if we were to move that task up a notch then its spot would be filled by the next hardest task.  This is an issue that we tried to resolve by introducing the point system, so players don’t need to complete every task in a tier to unlock it’s rewards, if something is too challenging for you at the moment (or you don’t have access to a specific piece of gear), then you aren’t locked out of that tier of rewards.''
+
+'''That's a lot to navigate! So, what kind of an approach do you take to try and line things up?'''
+
+''Before I even take a look at a new set of CAs I always remind myself of exactly what it means to me for someone to be an Elite, Master, or Grandmaster tier player.  As I said, there’s no “correct” way of looking at this, but while I was completing all the tiers these were the lessons I learned along the way, so I try to bear them in mind:''
+
+* '''''Up to and including Elite''''': are just beginning their journey into PvM. Ultimately, they are about a player achieving a baseline competency at the content they are participating in, not doing anything particularly special or advanced, but not doing anything wrong either.  Whether something belongs in Easy, Medium, Hard, or Elite, will typically depend on where the content falls in terms of it's difficulty in the bigger picture. These tiers are all about the fundamentals.''
+* '''''Master''''': This tier is generally about the small optimisations players can make to improve. How can I save those extra couple of ticks in this fight?  What happens if I start incorporating some more advanced tech?  How can I improve my movement here? Players are starting to experiment with making these optimisations and by this point should understand more fundamentally how our game works and how they can take advantage of that in their bossing encounters.''
+* '''''Grandmaster''''': This tier is all about a player's full mastery over the content they are completing. They have a complete understanding of our fundamental game mechanics and know exactly how to manipulate them in order to achieve what the player is aiming for at that moment, rather than necessarily relying on cookie-cutter tactics which they might have learned previously.  In my experience, the biggest difference between Master and Grandmaster is their ability to adapt when things go wrong. This is very separate to what I would consider a specialist at a piece of content, you do not need to be someone attempting to get world records or performing extreme self-restrictions (I’m looking at you Noobtype & Port Khazard) for me to be able to say you have full mastery over content. ''
+
+''It’s worth stating that not '''every''' CA will fit into these wide thematic buckets. Ultimately, it’s about trying to understand where a task fits into a player's journey as a PvMer, as well as what type of content the task is testing.  If we’re considering a CA for an end game piece of content, that’s drastically going to change our approach to tiering as opposed to if we were looking at a mid-game slayer boss. ''
+
+'''It sounds as though there's a lot to consider even when just looking through designs. How do you go about actually ''testing'' the various Combat Achievements, regardless of the wider conversation around tiers and difficulty?'''
+
+''We typically split CAs into what should be relatively familiar categories for you all, Perfection, Speed, Restriction, and Mechanical among some others.  Ultimately, the aim of combat achievements is to try and push a player to achieve a level of mastery over a specific combat encounter; these categories tend to force players into situations which promote that improvement.  I also quite like having a few flavour challenges thrown into the mix while going for the traditional CAs, it's nice to have some unique experiences which you might not have under normal circumstances!''
+
+''I’m not a huge fan of using our staff tools to check if something is possible or not as I believe it’s important to experience the challenge as any regular player would, so for me this normally consists of hopping into the game and trying to complete the challenge myself.  I’ll typically try things first on a copy of my personal account in a test world and give my initial feedback to the designer, which might include whether it was too easy or too hard, and importantly whether it was actually a fun task to complete, and from there we work together to see what changes might be appropriate or if it’s just right. Obviously, that feedback is entirely subjective, and we know that player skill level will skew that feedback slightly - just because something was too easy for me doesn’t mean it would be too easy for everyone, so we try wherever possible to get members of the team who fit the target audience of that content to try these tasks out and give feedback too.''
+
+''Once I’m done initially playing through new CAs I’ll often complete them using different account builds, with different stats and access to different gear, as we obviously don’t want CAs to be solely completable by maxed players with maxed banks. Just because something can be achieved, it doesn’t necessarily mean it’s average for a person at that point in their PvM journey to achieve.  This is where having that understanding of a player’s journey can really help, as it allows us to better frame where a task might actually fit - though of course sometimes we miss the mark, either by overestimating or underestimating.''
+
+'''Are there any types of task that stand out as particularly difficult to get right while you're testing?'''
+
+''Speed tasks are the most difficult ones to test. Usually by the time we release CAs, a couple of weeks have passed and we've had some data to base our speed times on, but it’s not an exact science. For example, the Fortis Colosseum had an average completion time of around 30 minutes when we released its Combat Achievements, so 28 and 24 minutes felt like reasonable targets. These days, 24 minutes is considered slow for a Colosseum enthusiast's average money run - metas and player comfort develop really quickly!''
+
+''This is one of the drawbacks of releasing CAs quite soon after content has launched. It would be easier to have a clear picture as to what an Elite time might be compared to a Grandmaster time with months and months of data, but we know players are hungry for CAs when new content comes out so we’re eager to turn them around quickly.''
+
+''Another complexity with speed tasks is that there is nothing fun about repeatedly resetting content until you get that optimal start (I’m looking at you Ruby Bolts (e)), so it’s not something we expect a player to do when we consider the times we're setting. In my ideal world, I would like to aim for a player who has completed a CA Tier to consistently achieve a speed time within that tier 70-80% of the time they go for it, so if I’m consistently falling outside of that bracket during testing that’s something I will be sure to give feedback to our designers.  It’s my view that we should leave speedrunning to speedrunners, and set achievable targets for players to beat with the use of good tech and not a reliance on your Scythe simply swinging big.''
+
+'''Thanks so much for taking the time to chat through all of this, do you have any closing words before we move on?'''
+
+''To wrap all of this up, the key takeaway here is that trying to generalise a subsect of our player base is incredibly difficult.  I might have my own definitions for what it means to be an Elite tier gamer, but that isn’t something which is shared by everyone.  Imagine if you were playing your favourite competitive game, and had to make a generalised sweeping statement of the skill level for every player in Gold or Silver, you might have a general idea of how good they are, but there will be some Gold players who have Diamond level mechanics and Bronze game knowledge, or the opposite might be true.  If there was an aim test in order to rank up to Platinum, they’d likely nail it, but might completely fumble at a game knowledge quiz.  The same is true for Combat Achievements, as a player you might struggle a lot with performing a mechanical task but understand how a boss’s mechanics work flawlessly, and that’s ok!  Everyone has their own strengths, and CAs are a way for us to encourage players to try and take on challenges they might not be particularly comfortable with.''
+
+''Ultimately, these challenges are a target for you to set your sights on with the aim of improving as a player.  Yes some of them are very hard, and some of them are pretty easy, but my advice would be to try and enjoy that journey while you can - whether it’s a case of getting your first 25 Zulrah kills, or you finally get that Corrupted Gauntlet GM time after you’ve spent three days resetting for good demi-boss RNG! Eventually you'll tick off that troublesome task and it all becomes worth it!''
+
+Now go pick a boss and go achieve some combat.  Make Mod Nox proud!
+
+==Miscellaneous Project Updates==
+Our newest roadmap includes a big ol’ section right at the bottom dedicated to ‘Miscellaneous Updates’. With all the excitement around Varlamore: The Rising Darkness and the Summer Summit, we haven’t yet had a chance to talk about any of these – so we tracked down some J-Mods for the inside scoop. 
+
+===Run Energy Changes===
+We last spoke about Run Energy changes in June, but had to take a step back to focus on making the eagerly-awaited Poll 82 changes as good as they could be following your feedback from the betas you've been participating in.
+
+Recently, however, we were able to revisit our proposed changes and spend some time getting them to a healthier place.
+
+These changes are designed to help Agility feel more impactful, without disadvantaging newer players who haven’t had the chance to level it yet. We've judiciously applied some buffs, sought out your feedback, and we hope that our Run Energy changes might cross the finish line soon! We released [https://secure.runescape.com/m=news/run-energy-changes---open-beta-2?oldschool=1 a blog yesterday] detailing our newest iteration, and there's an ongoing Open Beta on Worlds 585 through to 589 for you to try them out for yourselves and let us know what you think!
+
+===Addressing Chromium Ingots===
+Specifically, addressing the time-consuming process of obtaining enough Chromium Ingots to craft the four Ancient Rings. Although we really like them as an incentive to keep battling those bosses, we’re aware that actually obtaining these drops can take some time.
+
+Instead of just removing Chromium Ingots altogether, we’d actually like to add them to more PvM activities – with more ways to obtain them, it follows that they’ll be much less arduous to obtain!
+
+However, this long-term plan doesn’t address your immediate concern. For now, we’d like to introduce an NPC who will create the Rings for you, at cost. This allows Ironmen to bypass the Chromium Ingot requirement, which is disproportionately difficult for them because they can’t simply buy the Ingots in the first place. Cost-wise, this option won’t break the Bank – but it will be more expensive than buying from the Grand Exchange.
+
+===Missing Player Owned House Teleports===
+A house is not a home without its beloved Portal Nexus – but we know you’ve been clamouring for even more glowy portal goodness. The hope is that we’ll be able to add portals to more exciting locales, matching the vast array of teleportation options that already exist in-game. This work is by no means top of the priority list, but we’ll be considering it for one of the upcoming Quality of Life polls.
+
+===God Alignment Prayers===
+These contentious Prayers have been on our to-do list for some time. They were first pitched all the way back in March, as a way to show your affinity with the gods of Gielinor through specific, themed Prayers. However, it became clear that you weren’t happy with this initial offering – and unfortunately, we’re no closer to having a reworked design to share with you.
+
+The key issue is that although we have a couple of Alignments in mind that we feel work well, expanding that to the full Gielinor pantheon is much harder. Prayers are a key part of the combat system – and naturally, we’re carefully considering our options in light of the existing meta.
+
+Overall, Prayer still lacks some high-level rewards, and how we tackle that is very much an open question. We don't have a date for when we'll revisit Prayer, but we know there's a demand for new Prayers and we do want to revisit them in the future in a way we can actually deliver to really spice things up and get you all excited!
+
+===Scorpia's Unique===
+It’s been more than a year since we last asked you for suggestions regarding uniques from the Wilderness’s favourite arachnid, and we’d like to sincerely apologise for how long it’s taken us to make up our minds.
+
+We’re currently thinking about adding Blighted Overloads to Scorpia’s loot table. Some of you may have noticed that we've already had a dry run of this update in this year's Deadman Mode - which is why Chitin is one of the key ingredients! It was clear that this proposal would be very welcome, so we're waiting for an appropriate poll to discuss it in greater detail. 
+
+===House on the Hill Shortcut===
+Avid birdhouse-builders will know the pain of schlepping back down to base camp from the House on the Hill on your own two feet, when you could be speeding down a thrilling Agility shortcut.
+
+Our original (and somewhat ambitious) plan was to include a zipline – but it turns out making such a thing look smooth and elegant was harder than expected. This meant that we needed a ‘fade-to-black’ cutscene to make it work. Your feedback has shown us that you're still up for some ziplining fun, so we’re committed to getting you one - cutscene or no. We know that when it comes to finding love on Fossil Island, you're really just here for the zipline...
+
+Carabiners at the ready – we’ll be sticking the landing on this one in an upcoming Quality of Life poll.
+
+===PvP Arena Matchmaking===
+Matchmaking is one of the biggest issues in the PvP Arena, and has been for some time. We’ve spent a long while investigating the underlying problems and working out how to solve them, and we’re pleased to announce that you should already have seen a new-and-improved Matchmaking system with last week's game update! 
+
+===Forestry===
+The Forestry skill expansion was significantly adjusted after launch, primarily to reduce the amount of extra ‘stuff’ players needed to enjoy it, while ensuring that there was plenty of room for normal Woodcutting between events. We also took steps to ensure that Forestry retained its community skilling vibes by reducing the need to world-hop. 
+
+These changes were broadly well-received, but as time passes and more new activities enter the game, we’re seeing a drop-off in the number of people doing Forestry. This is completely normal, but it does mean that we have to think about re-balancing the rate of event spawns to compensate. Additionally, we're buffing drop rates to make up for the new, lower frequency of events - which should help you fill out your Collection Log while collecting logs. 
+
+You can expect some Forestry questions in the next Quality of Life poll that will address these issues.
+
+===Ancient Sceptre===
+Something short and sweet to round out the bunch – fixing a bug that’s existed since we introduced Bloodbark Armour!
+
+We know that the Ancient Sceptre’s ‘blood passive’ has been bugged since then, because we’ve discovered that the source of the bug is in Bloodbark’s code. When we introduced the Ancient Sceptre, it was hooked into the same lines of code – so it inherited a bug we didn’t even know existed!
+
+Rest assured, now that we’ve gotten to the bottom of things this problem should be fixed in the very near future.
+
+That’s all from this month’s Gielinor Gazette! As you may well guess, it’s been all go behind the scenes, and we can’t wait to show you what we’ve been working on.
+
+Next month’s Community Showcase will be a terrifying Halloween special! We want to see your creepy creations, your spooky shout-outs, and your most petrifying Postbag letters. We’d especially love to see you enjoying the Halloween event in your fanciest fancy dress – let’s see that Frightening FashionScape on display!
+
+We’d also like to hear your answers to the following question:
+
+“What’s the scariest thing you’ve ever done in Old School RuneScape?”
+
+You can submit your answers, along with anything else you’d like included in the Community Showcase, using the form below.
+
+<center><big>[https://forms.office.com/Pages/ResponsePage.aspx?id=cHKPuw2LyU2JAOl_a-ccwkuFydxi__NAhv4a-l6BSp1UQk5aQTVUNzVXNE5KU1lNSEZCUjJMMkQ3My4u&embed=true Player Showcase Submissions - November 2024]</big></center>
+Until next month... happy ‘Scaping! &nbsp;
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1gbufc4/gielinor_gazette_october_2024/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

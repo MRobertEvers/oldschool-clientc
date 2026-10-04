@@ -1,0 +1,57 @@
+{{Infobox Item
+|name = Sunfire splinters
+|image = [[File:Sunfire splinters 1.png]] [[File:Sunfire splinters 2.png]] [[File:Sunfire splinters 3.png]] [[File:Sunfire splinters 4.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|bankable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Vaporised material from the sun.
+|value = 100
+|alchable = No
+|weight = 0.000
+|exchange = Yes
+|id = 28924
+|leagueRegion = Varlamore
+}}
+[[File:Sunfire splinters 4 detail.png|130px|left]]
+'''Sunfire splinters''' can be obtained from participating in the [[Fortis Colosseum]], hunting [[sunlight antelope]], defeating [[the Hueycoatl]] and opening [[Chest (moon key)]]. They are used for various items:
+{{List|c=1|
+* Charging [[Dizana's quiver]] and the [[Tonalztics of Ralos]] as well as blessing Dizana's quiver to make it permanently charged
+* Creating [[sunfire rune]]s with [[rune essence]] (and variants) alongside [[fire rune]]s (1 fire rune and 1 sunfire splinter are used per essence) and by extension making [[searing page]]s
+* Creating [[Jug of sunfire wine|jugs of sunfire wine]] from a [[jug of wine]] (uses 2 splinters per jug, requires [[Pestle and mortar|pestle & mortar]])
+}}
+Dizana's quivers can be exchanged for 4,000 sunfire splinters by talking to [[Minimus]]. The average number of Sunfire splinters gained per successful Colosseum run is {{Formatexpr
+|{{Decimals|(1/1*80)+(1/7*150)+(9/70*150)+(1/70*500)+(5535/43400*150)+(615/43400*500)+(2725/19250*500)+(2375/16800*500)+(5832/45920*500)+(756/45920*1100)+(14472/114240*500)+(1876/114240*1750)+(3180/21600*1100)+(424/21600*2500)+(2340/16000*1750)+(312/16000*3500)+(360/2080*2500)+(792/4800*3500)|2}}}}, not including exchanging the additional quivers from completion.
+
+==Item sources==
+{{Drop sources|Sunfire splinters}}
+
+{{Recipe
+|members = Yes
+|ticks = 0
+|mat1 = Dizana's quiver
+|mat1cost = No
+|output1 = Sunfire splinters
+|output1quantity = 4000
+}}
+
+==Products==
+{{Uses material list|Sunfire splinters}}
+
+==Gallery==
+<gallery captionalign="center" widths="120">
+Sunfire splinters 1 detail.png|One sunfire splinter
+Sunfire splinters 2 detail.png|Two sunfire splinters
+Sunfire splinters 3 detail.png|Three sunfire splinters
+Sunfire splinters 4 detail.png|Four or more sunfire splinters
+</gallery>
+
+{{Fortis Colosseum}}
+
+[[Category:Collection log items]]

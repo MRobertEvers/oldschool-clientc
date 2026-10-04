@@ -1,0 +1,177 @@
+{{Update|date=30 April 2025|url=https://secure.runescape.com/m=news/poll-84-batch-ii?oldschool=1|category=game}}
+[[File:Poll 84- Batch II newspost.jpg|right]]
+{{clear}}
+__TOC__
+{| class="wikitable" style="text-align: center;"
+|-
+!Known Issues
+!Status
+|-
+|We were aware of an issue causing fishing spots to move every few seconds instead of every few minutes.
+|Hotfixed
+|-
+|We're investigating an issue where players may lose their Rune Pouch on death. To be safe, we recommend avoiding dangerous activities until it's resolved.
+|Hotfixed
+|}
+
+----
+
+''Poll 84 updates continued! The second batch brings you more QoL changes featuring the Abyssal Sire rework, a fixed layout at Chambers of Xeric, an Agility shortcut at Varrock and more…''
+
+==Changelog - April 30th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Poll 84 Changes: Batch II'''
+
+* Things have just got snappier at Abyssal Sire:
+** Shortened the boss' Lung Phase.
+** Abyssal Sire is now targetable during its transition phases.
+** Boosted Sire's speed to match the player's running pace.
+** Implemented a minimum hit of 50% of your weapon’s max hit, allowing end-game setups to one-phase the vents more reliably.
+*** Demonbane weapons are now also able to one-shot these vents.
+* Increased Sire’s HP by 25 and introduced a 50% damage reduction during its transition phases, to balance out the above changes.
+* Removed some blocking terrain in the centre of the arena.
+* Scions and Spawns have reduced defence 80 → 50 and 30 → 10 respectively.
+* Demonbane weapons are now guaranteed to hit vs spawns.
+* Introduced a "Full" layout toggle in the CoX raid creation interface, allowing you to generate a Challenge Mode (CM) style layout for regular Chambers of Xeric (CoX) raids.
+** This means all the rooms appear in the same predictable order just like in CM.
+** The bosses scale to the regular CoX difficulty, with no CM-specific rewards or increased HP.
+* Unprotected Chinchompas now behave like regular items on death - they’ll go straight to your Gravestone or Death Pile, giving you a chance to recover them.
+* Replaced the "Destroy" option with a "Drop" option, resulting in Chinchompas to be dropped on the ground as any other item would.
+* Added an Agility shortcut at the Varrock Castle Garden, allowing you to hop over the fence, given you have Level 35 Agility and have completed Garden of Tranquillity.
+* Both the main-hand and off-hand variants of the Imcando Hammer can now be used on Entrana.
+* Re-implemented: Moving Fishing spots no longer stall players mid-run.
+
+'''Other Changes'''
+
+* Lily of the Sands should now be correctly used from the Reagent Pouch when making Menaphite Remedies.
+* The monks of Entrana now allow you to take the Carrot costume hat to their island.
+* Some tiles on the upper floor at the southern end of Ferox Enclave were not acting as safe zones in PvP Worlds. They have now been made safe.
+* Echo boots can now be reverted to Guardian boots on a F2P world, in case their owner wishes to sell them.
+* Adjusted the placement of the Gravestone timer in relation to the Deadman state icon so that the time left can be read easier.
+* Pollnivneach is now correctly spelled in the Max Cape teleport menu.
+* Fixed a typo in the chatbox message that appears while creating a Prestige GIM.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Poll 84 Changes: Batch II==
+We're picking up where we left off with the Poll 84 changes, and bringing more of those sweet sweet QoL improvements that you love to see. From PvM to skilling, here's what's new in Gielinor...
+
+===Abyssal Sire Rework===
+Things just got a lot snappier at the Abyssal Sire fight!
+
+One of the biggest pain points with this boss has been the long transition phases, especially the Lung Phase, which tended to drag things out. With this rework, we’ve shortened Sire's Lung Phase to keep the fight moving at a faster pace.
+
+To further reduce downtime and keep the momentum going, Abyssal Sire is now targetable during its transition phases, so you won’t be left standing around waiting for it to power up.
+
+Likewise, in order to address Sire's sluggish movement, we've boosted its speed to match the player's running pace.
+
+For those of you using end-game setups, we’ve implemented a minimum hit of 50% of your weapon’s max hit versus the respiratory systems, allowing you to more reliably finish this phase with a single Shadow Barrage. Demonbane weapons are now also able to one-shot these vents.
+
+To balance out these changes and ensure the fight doesn’t become too short, we’ve increased Sire’s HP by 25 and introduced a 50% damage reduction during its transition phases. This should ensure the challenge is maintained without the unnecessary delays, though kills will still be faster on average than before.
+
+A few extra tweaks we've made also include: 
+
+* Removed some blocking terrain in the centre of the arena.
+* Scions and Spawns have reduced defence 80 → 50 and 30 → 10 respectively.
+* Demonbane weapons are now guaranteed to hit vs spawns.
+
+Gear up and off to Abyssal Nexus you go!
+
+===CM Layout at Regular CoX===
+This one is for all you raiders of Gielinor! Ever wished your Chambers of Xeric runs came without the unpredictability of the room layouts? That is now an option as of this update.
+
+[[File:Poll 84- Batch II (1).png|thumb|520px|center|''You can choose the "Full" option to get the CM style layout in a regular CoX raid. If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-30/options.jpg here]!'']]
+
+We’re excited to introduce a "Full" layout toggle in the raid creation interface that would allow you to generate a Challenge Mode (CM) style layout for regular Chambers of Xeric (CoX) raids. This means all the rooms appear in the same predictable order just like in CM, offering a consistent layout for those who prefer it. It's the same boss difficulty and rewards as a regular Cox, meaning the bosses scale to the normal mode difficulty, with no CM-specific rewards or increased HP.
+
+[[File:Poll 84- Batch II (2).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-30/interface.jpg here]!'']]
+
+Who would this option be useful for?
+
+* Speedrunners: The consistent layout makes the process a bit smoother by eliminating the need to re-roll for certain rooms. This gives the speedrunning community an option for 'normal' Chambers of Xeric runs in a new category, without requiring specific layouts to compete.
+* Challenge Mode learners: This option is great for practicing CM mechanics in a less stressful environment. By having a fixed layout for all rooms, you can get comfortable with the flow of the raid, perfect your gear choices, and learn when to use certain potions or tactics. This is especially helpful for newer players who want to practice CM procedure and familiarise themselves with the timing, preparation, and strategy without the stakes of a full CM raid.
+* CoX room explorers: By avoiding re-rolling for specific layouts, you'll be able to practice each room in the same order and get the most out of your learning experience.
+
+For short, this change allows players to get a taste of Challenge Mode mechanics without the added intensity, making it ideal for those looking to improve their raiding experience. And don't worry - this change won’t impact the current metas or strategies in CoX. While it may save some prep time and make things a little more efficient, overall dynamics of the raid will remain unchanged.
+
+===Chinchompa Insurance===
+Chinchompas are your ''deadly'' cute fluffs you've worked so hard for and it sucks to lose them to a disconnect or a PvM death. But no more of that! As of this update, any unprotected chins go straight to your Gravestone or Death Pile, just like normal items, so you have a chance to recover them.
+
+We've also replaced the "Destroy" option with a "Drop" option, resulting in Chinchompas to be dropped on the ground as any other item would, instead of running away.
+
+Both of these changes mean that your Chinchompa will stick around like any other loot would in PvM. However, don't forget that this does not apply to PvP and your opponent still gets your unprotected chins fair and square!
+
+===New Agility Shortcut at Varrock===
+[[File:Poll 84- Batch II (3).gif|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-30/shortcut1.gif here]!'']]
+
+Ever wished you could vault that garden fence when doing a certain master clue step? Well, now you can! We're looking to add more ways to speed up your journey, and first up on the list is the Varrock Castle Garden: you can now hop over the fence to skip the long walk around the palace. All you need to make the jump is Level 35 Agility and completion of Garden of Tranquillity quest. Stay tuned for more shortcuts making way (literally) into the game as part of Poll 84.
+
+===Imcando Hammers on Entrana===
+When it comes to entering Entrana with weapons, it's a case of "You shall not pass" - but Imcando Hammer being on this list is a bit of a head-scratcher. Despite being considered a weapon, the Imcando Hammer has zero stats and doesn’t even speed up unarmed combat - so why can’t it be brought to Entrana? One clever skiller even reported that their niche methods could benefit from bringing the Imcando Hammer, as it would help save inventory space.
+
+Because of these reasons, we’re whitelisting both the main-hand and off-hand variants of the Imcando Hammer to be used on Entrana. You shall now pass! Plus, you can finally free up that precious inventory space without losing out on any of the hammer’s utility. 
+
+===Back in Business: Moving Fishing Spots No Longer Stall Movement===
+Last week, we rolled out an update that prevents moving fishing spots from stalling your movement. However, we spotted some ''fishy'' behaviour following this update and had to revert it to fix the issue. The underlying problem has now been resolved, and the update is live once again: If a fishing spot moves while you're running towards it, it will no longer stall your movement or force you to stand idle. You can now click straight to the new location immediately, without getting caught in any weird pathing.
+
+==Yama is two weeks away!==
+We just wanted to drop in and remind you to mark your calendars for the release of Yama, the Master of Pacts on Wednesday, May 14th. That's in two weeks!
+
+We can not ''wait'' to see the lot of you get hands-on, squadding up with a friend or going it alone against Yama, whether you're challenging him in his most inhibited 'base' form or signing one of a number of Contracts that sees the Master of Pacts pulling fewer punches...
+
+Naturally there's a whole host of rewards ([https://secure.runescape.com/m=news/yama---master-of-pacts?oldschool=1 which you can read about here]), but one that's sparked more conversation than most is the new, Slash-focused Oathplate armour. Last time we showed it off, it was rendered in an out-of-game environment, so here's a look at both Oathplate variants alongside some other endgame armour sets (and also Justiciar is here...)
+
+[[File:Poll 84- Batch II (4).png|600px|center]]
+
+We'll see you in the Chasm of Fire on Wednesday, May 14th, so make sure to dust off those demonbane weapons!
+
+Until then, Yama returns to the shadows with a click of his fingers...
+
+[[File:Poll 84- Batch II (5).gif|380px|center]]
+
+==Other Changes==
+
+* Lily of the Sands should now be correctly used from the Reagent Pouch when making Menaphite Remedies.
+* The monks of Entrana now allow you to take the Carrot costume hat to their island.
+* Some tiles on the upper floor at the southern end of Ferox Enclave were not acting as safe zones in PvP Worlds. They have now been made safe.
+* Echo boots can now be reverted to Guardian boots on a F2P world, in case their owner wishes to sell them.
+* Adjusted the placement of the Gravestone timer in relation to the Deadman state icon so that the time left can be read easier.
+* Pollnivneach is now correctly spelled in the Max Cape teleport menu.
+* Fixed a typo in the chatbox message that appears while creating a Prestige GIM.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1kbci3z/poll_84_batch_ii/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

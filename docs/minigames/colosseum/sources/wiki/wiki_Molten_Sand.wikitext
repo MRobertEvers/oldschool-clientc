@@ -1,0 +1,25 @@
+{{Infobox Scenery
+|name = Molten Sand
+|image = [[File:Molten Sand.png|250x250px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|location = [[Civitas illa Fortis]]
+|options = None
+|examine = Hot!
+|map = no
+|id = 50746
+}}
+'''Molten Sand''' is an obstacle encountered in the [[Fortis Colosseum]]. It is spawned during the boss fight against [[Sol Heredit]] and deals 6-8 damage per tick when stood upon. A stronger version can also be spawned by [[Javelin Colossus|Javelin Colossi]] when any tier of the Reentry modifier is active, as well as by any NPC when the Volatility III modifier is active, dealing up to 15 damage every other tick.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = Molten sand no longer deals damage between waves.
+}}
+{{Subject changes footer}}
+
+{{Fortis Colosseum}}

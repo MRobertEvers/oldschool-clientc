@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """verify_blert -- measure wave minigames from Blert recordings and from our own tick log.
 
-    tools/waves_gate/verify_blert.py list    --status completed --limit 12
+    tools/waves_gate/verify_blert.py [--game inferno|colosseum] list --status completed --limit 12
     tools/waves_gate/verify_blert.py sample                      # 12 completed + 6 failed late
     tools/waves_gate/verify_blert.py fetch   <uuid> [--waves 1-69]
     tools/waves_gate/verify_blert.py overviews                   # per-wave record of each cached challenge
     tools/waves_gate/verify_blert.py export                      # observed npc rows + wave records as TSV
     tools/waves_gate/verify_blert.py summary [--md out.md]       # per-wave spawns, per-npc attack gaps
     tools/waves_gate/verify_blert.py ticklog <run>/ticklog.tsv   # the same summary of OUR server
+
+--game picks the minigame (default inferno, so every earlier invocation is unchanged). The
+Colosseum is challenge type 4; wave n is stage 99 + n (stages 100-111, 12 waves; the plugin's
+core/Stage.java); GET /api/v1/challenges/colosseum/<uuid>/events?stage=<99 + wave>; its cache
+is docs/minigames/colosseum/sources/blert_api/. See
+docs/minigames/colosseum/sources/blert/PROVENANCE.md before quoting any number: a Manticore
+burst's 2nd and 3rd NPC_ATTACK are ASSERTED by the plugin (one per tick), so the Colosseum
+summary groups a burst and measures only the gap between burst starts.
 
 Pattern: tools/verify_tob_timings.py (list, fetch into a cache, analyse the cache). Differences:
 
@@ -54,15 +62,21 @@ UA = "3draster-toa-research/1.0 (mrobertevers@gmail.com)"
 MIN_INTERVAL_SECONDS = 3.0
 _THROTTLE_SLACK = 0.05          # request starts are spaced by at least 3.05 s
 
-CHALLENGE_TYPE_INFERNO = 5
+CHALLENGE_TYPE = 5
+MAX_WAVES = 69
+API_SLUG = "inferno"
+GAME = "inferno"
+PILLAR_NPC = 7709               # the Inferno pillars are excluded from the tick-0 set
+BURST_ATTACKS: frozenset = frozenset()   # attacks whose follow-ups are asserted (Colosseum manticore)
 STATUS = {"in_progress": 0, "completed": 1, "reset": 2, "wiped": 3, "abandoned": 4}
-STAGE_INFERNO_WAVE_1 = 200      # wave n is stage 199 + n (plugin core/Stage.java)
+STAGE_WAVE_1 = 200      # wave n is stage 199 + n (plugin core/Stage.java); Colosseum: 99 + n
 
 DOCS_CACHE = os.path.join(REPO, "docs", "minigames", "inferno", "sources", "blert_api")
-BIG_CACHE = os.path.join(REPO, "build", "corpus_tmp", "blert_api")
+BIG_CACHE_ROOT = os.path.join(REPO, "build", "corpus_tmp", "blert_api")
+BIG_CACHE = BIG_CACHE_ROOT
 BIG_FILE_BYTES = 2 * 1024 * 1024
 FETCH_LOG = os.path.join(DOCS_CACHE, "FETCH_LOG.tsv")
-THROTTLE_LOCK = os.path.join(BIG_CACHE, ".last_request")
+THROTTLE_LOCK = os.path.join(BIG_CACHE_ROOT, ".last_request")
 
 # Event type numbers: plugin events/EventType.java, protos/event.proto.
 EV_PLAYER_UPDATE, EV_PLAYER_ATTACK, EV_PLAYER_DEATH = 4, 5, 6
@@ -100,6 +114,59 @@ ANIM_BY_NPC = {
     (7704, 7590): 86, (7704, 7592): 85, (7704, 7593): 84,
     (7701, 2637): 87, (7705, 2637): 87, (7706, 7566): 88,
 }
+
+
+INFERNO_NAMES, INFERNO_ATTACKS, INFERNO_ANIMS = NPC_NAME, ATTACK_NAME, ANIM_BY_NPC
+
+# Fortis Colosseum. plugin challenges/colosseum/ColosseumNpc.java (ids), core/NpcAttack.java
+# (attack numbers 100-115), core/Stage.java (COLOSSEUM_WAVE_1 = 100 .. WAVE_12 = 111).
+COLOSSEUM_NAMES = {
+    12810: "jaguar_warrior", 12811: "serpent_shaman", 12812: "minotaur", 12813: "minotaur_12813",
+    12814: "fremennik_archer", 12815: "fremennik_seer", 12816: "fremennik_berserker",
+    12817: "javelin_colossus", 12818: "manticore", 12819: "shockwave_colossus",
+    12821: "sol_heredit", 12823: "bee_swarm", 12824: "laser_prism", 12825: "healing_totem",
+    12826: "solarflare",
+}
+COLOSSEUM_ATTACKS = {
+    100: "berserker_auto", 101: "seer_auto", 102: "archer_auto", 103: "shaman_auto",
+    104: "jaguar_auto", 105: "javelin_auto", 106: "javelin_toss", 107: "manticore_mage",
+    108: "shockwave_auto", 109: "minotaur_auto", 110: "sol_thrust", 111: "sol_slam",
+    112: "sol_break", 113: "sol_combo", 114: "manticore_range", 115: "manticore_melee",
+    -1: "manticore_burst",      # synthetic: the gap between burst STARTS (summarise)
+}
+# ColosseumNpc.java: (npc id, animation id) -> NpcAttack number. The manticore has none: its
+# attacks are read from the animation 10869 plus the style spotanim (Manticore.java), so a
+# ticklog can only be compared on its animation ticks (see BURST_ATTACKS).
+COLOSSEUM_ANIMS = {
+    (12810, 10847): 104, (12811, 10859): 103, (12812, 10843): 109, (12813, 10843): 109,
+    (12814, 10850): 102, (12815, 10853): 101, (12816, 10856): 100,
+    (12817, 10892): 105, (12817, 10893): 106, (12819, 10903): 108,
+    (12821, 10883): 110, (12821, 10884): 112, (12821, 10885): 111, (12821, 10887): 113,
+}
+COLOSSEUM_BURST_ATTACKS = frozenset({107, 114, 115})
+MANTICORE_ANIMATION = 10869     # Manticore.ATTACK_ANIMATION (not an NpcAttack)
+
+
+def configure(game: str) -> None:
+    """Point every module-level constant at one minigame (called once, by main)."""
+    global GAME, CHALLENGE_TYPE, MAX_WAVES, API_SLUG, STAGE_WAVE_1, PILLAR_NPC, BURST_ATTACKS
+    global NPC_NAME, ATTACK_NAME, ANIM_BY_NPC, DOCS_CACHE, FETCH_LOG, BIG_CACHE
+    GAME = game
+    if game == "colosseum":
+        CHALLENGE_TYPE, MAX_WAVES, API_SLUG, STAGE_WAVE_1, PILLAR_NPC = 4, 12, "colosseum", 100, -1
+        BURST_ATTACKS = COLOSSEUM_BURST_ATTACKS
+        NPC_NAME, ATTACK_NAME, ANIM_BY_NPC = COLOSSEUM_NAMES, COLOSSEUM_ATTACKS, COLOSSEUM_ANIMS
+    elif game == "inferno":
+        CHALLENGE_TYPE, MAX_WAVES, API_SLUG, STAGE_WAVE_1, PILLAR_NPC = 5, 69, "inferno", 200, 7709
+        BURST_ATTACKS = frozenset()
+        NPC_NAME, ATTACK_NAME, ANIM_BY_NPC = INFERNO_NAMES, INFERNO_ATTACKS, INFERNO_ANIMS
+    else:
+        raise SystemExit("unknown --game %r" % game)
+    DOCS_CACHE = os.path.join(REPO, "docs", "minigames", game, "sources", "blert_api")
+    # Checkpoints and files over 2 MB: one directory per game (the Inferno's stays where it was).
+    # THROTTLE_LOCK stays in the Inferno's directory so every game shares one request clock.
+    BIG_CACHE = BIG_CACHE_ROOT if game == "inferno" else os.path.join(BIG_CACHE_ROOT, game)
+    FETCH_LOG = os.path.join(DOCS_CACHE, "FETCH_LOG.tsv")
 
 
 # ---------------------------------------------------------------------------------------
@@ -171,7 +238,7 @@ def http_get(url: str, target: str = "", retries: int = 5):
 # ---------------------------------------------------------------------------------------
 
 def list_challenges(status: int | None, limit: int, stage_ge: int | None = None) -> list[dict]:
-    q: dict = {"type": CHALLENGE_TYPE_INFERNO, "limit": limit}
+    q: dict = {"type": CHALLENGE_TYPE, "limit": limit}
     if status is not None:
         q["status"] = status
     if stage_ge is not None:
@@ -223,7 +290,7 @@ def parse_waves(spec: str | None, upto: int) -> list[int]:
     for part in spec.split(","):
         a, _, b = part.partition("-")
         out.extend(range(int(a), int(b or a) + 1))
-    return sorted({w for w in out if 1 <= w <= 69})
+    return sorted({w for w in out if 1 <= w <= MAX_WAVES})
 
 
 def fetch_overview(doc: dict) -> bool:
@@ -233,7 +300,7 @@ def fetch_overview(doc: dict) -> bool:
     10-tick offset; the DIFFERENCES between waves do not."""
     if "overview" in doc:
         return False
-    _, body = http_get("%s/challenges/inferno/%s" % (API, doc["uuid"]), doc["uuid"] + ".json")
+    _, body = http_get("%s/challenges/%s/%s" % (API, API_SLUG, doc["uuid"]), doc["uuid"] + ".json")
     doc["overview"] = body
     _save(doc["uuid"], doc)
     return True
@@ -243,12 +310,12 @@ def fetch_challenge(row: dict, waves_spec: str | None = None) -> str:
     uuid = row["uuid"]
     doc = load_cached(uuid) or {"uuid": uuid, "challenge": row, "waves": {}, "missing": []}
     fetch_overview(doc)
-    reached = max(1, min(69, int(row.get("stage") or STAGE_INFERNO_WAVE_1) - STAGE_INFERNO_WAVE_1 + 1))
+    reached = max(1, min(MAX_WAVES, int(row.get("stage") or STAGE_WAVE_1) - STAGE_WAVE_1 + 1))
     for wave in parse_waves(waves_spec, reached):
         if str(wave) in doc["waves"] or wave in doc["missing"]:
             continue                                  # never fetched twice
-        stage = STAGE_INFERNO_WAVE_1 + wave - 1
-        url = "%s/challenges/inferno/%s/events?stage=%d" % (API, uuid, stage)
+        stage = STAGE_WAVE_1 + wave - 1
+        url = "%s/challenges/%s/%s/events?stage=%d" % (API, API_SLUG, uuid, stage)
         _, events = http_get(url, uuid + ".json")
         if events is None:
             doc["missing"].append(wave)
@@ -338,6 +405,8 @@ def read_ticklog(path: str) -> list[dict]:
                        y=cell(cols, "y", cell(cols, "z")), attack=None)
             if kind == "npc_anim":
                 attack = ANIM_BY_NPC.get((npc, cell(cols, "seq", -1)))
+                if attack is None and GAME == "colosseum" and npc == 12818 and cell(cols, "seq", -1) == MANTICORE_ANIMATION:
+                    attack = 107        # a burst START; the style needs the spotanim, which the log may not carry
                 if attack is None:
                     continue
                 obs.update(kind="attack", attack=attack)
@@ -369,10 +438,12 @@ def summarise(runs: list[tuple[str, list[dict]]]) -> dict:
     deaths = collections.defaultdict(collections.Counter)     # npc -> despawn lifetime
     ends = collections.defaultdict(list)                      # wave -> per-run last event tick
     comp = collections.defaultdict(collections.Counter)       # wave -> tick-0 set (npc name x count) -> runs
+    later_ticks = collections.defaultdict(collections.Counter)  # (wave, npc) -> spawn tick (after 0) -> n
+    bursts: collections.Counter = collections.Counter()       # style tuple of one manticore burst -> n
     for _, obs in runs:
         sets: dict[int, collections.Counter] = collections.defaultdict(collections.Counter)
         for o in obs:
-            if o["kind"] == "spawn" and o["tick"] == 0 and o["npc"] != 7709:
+            if o["kind"] == "spawn" and o["tick"] == 0 and o["npc"] != PILLAR_NPC:
                 sets[o["wave"]][o["npc"]] += 1
         for w, c in sets.items():
             comp[w][tuple(sorted((name(n), k) for n, k in c.items()))] += 1
@@ -385,7 +456,25 @@ def summarise(runs: list[tuple[str, list[dict]]]) -> dict:
             per_end[o["wave"]] = max(per_end.get(o["wave"], 0), o["tick"])
             if o["kind"] == "spawn":
                 (tick0 if o["tick"] == 0 else later)[o["wave"]][(o["npc"], o["x"], o["y"])] += 1
+                if o["tick"] > 0:
+                    later_ticks[(o["wave"], o["npc"])][o["tick"]] += 1
                 rooms[key] = dict(spawn=o["tick"], last=None)
+            elif o["kind"] == "attack" and o["attack"] in BURST_ATTACKS:
+                # A manticore burst: the plugin emits ONE event per tick for three ticks from one
+                # animation (ASSERTED, PROVENANCE.md). Count the burst, not its inner events.
+                rec = rooms.setdefault(key, dict(spawn=None, last=None))
+                b = rec.get("burst")
+                if b is not None and o["tick"] - b["start"] <= 2 and len(b["styles"]) < 3:
+                    b["styles"].append(o["attack"])
+                    continue
+                if b is not None:
+                    bursts[tuple(b["styles"])] += 1
+                if rec.get("burst_prev") is not None:
+                    gaps[(o["npc"], -1)][o["tick"] - rec["burst_prev"]] += 1
+                elif rec["spawn"] not in (None, 0):
+                    firsts[(o["npc"], -1)][o["tick"] - rec["spawn"]] += 1
+                rec["burst"] = dict(start=o["tick"], styles=[o["attack"]])
+                rec["burst_prev"] = o["tick"]
             elif o["kind"] == "attack":
                 rec = rooms.setdefault(key, dict(spawn=None, last=None))
                 if rec["last"] is not None:
@@ -397,10 +486,13 @@ def summarise(runs: list[tuple[str, list[dict]]]) -> dict:
                 rec = rooms.get(key)
                 if rec and rec["spawn"] not in (None, 0):
                     deaths[o["npc"]][o["tick"] - rec["spawn"]] += 1
+        for rec in rooms.values():
+            if rec.get("burst") is not None:
+                bursts[tuple(rec["burst"]["styles"])] += 1
         for w, t in per_end.items():
             ends[w].append(t)
     return dict(tick0=tick0, later=later, wave_runs=wave_runs, gaps=gaps, firsts=firsts,
-                deaths=deaths, ends=ends, comp=comp)
+                deaths=deaths, ends=ends, comp=comp, later_ticks=later_ticks, bursts=bursts)
 
 
 def _dist(counter: collections.Counter) -> str:
@@ -442,6 +534,17 @@ def render(agg: dict, label: str) -> str:
           "Event: NPC_DEATH(9), which the plugin emits on NpcDespawned, NOT when hitpoints reach 0.", ""]
     for npc, c in sorted(agg["deaths"].items(), key=lambda kv: name(kv[0])):
         L.append("%-14s lifetime %s" % (name(npc), _dist(c)))
+    if GAME == "colosseum":
+        L += ["", "## Spawn tick of every npc spawned AFTER tick 0 (reinforcements and adds)",
+              "Event: NPC_SPAWN(7), real spawn ticks (the tick 0 batch is excluded). wave, npc: tick:n.", ""]
+        for (wave, npc), c in sorted(agg["later_ticks"].items(), key=lambda kv: (kv[0][0], name(kv[0][1]))):
+            L.append("wave %-2d %-18s %s" % (wave, name(npc), _dist(c)))
+        L += ["", "## Manticore bursts (one animation 10869 = up to three NPC_ATTACK events, one per tick)",
+              "Events: NPC_ATTACK(10) 107/114/115. The 2nd and 3rd event of a burst are ASSERTED by the",
+              "plugin (PROVENANCE.md); the burst gap above is the gap between burst STARTS. Style order",
+              "of each burst (mage=107 range=114 melee=115); a burst shorter than 3 lost a style read.", ""]
+        for styles, n in sorted(agg["bursts"].items(), key=lambda kv: -kv[1]):
+            L.append("n=%-4d %s" % (n, ",".join(attack_name(a).replace("manticore_", "") for a in styles) or "(none)"))
     L += ["", "## Wave end per run",
           "Events: the last NPC_SPAWN/ATTACK/DEATH tick of the wave in each run (a lower bound on the",
           "wave's end tick; the stage-end tick is a STAGE_UPDATE the API does not serve).", ""]
@@ -467,7 +570,7 @@ def overview_report(docs: list[dict]) -> str:
         n += 1
         waves = ov["inferno"]["waves"]
         for i, w in enumerate(waves):
-            wave = w["stage"] - STAGE_INFERNO_WAVE_1 + 1
+            wave = w["stage"] - STAGE_WAVE_1 + 1
             length[wave].append(w["ticks"])
             if i + 1 < len(waves) and w.get("ticksLost", 0) == 0:
                 gapc[waves[i + 1]["startTick"] - (w["startTick"] + w["ticks"])] += 1
@@ -476,7 +579,7 @@ def overview_report(docs: list[dict]) -> str:
                     first_ticks[wave][npc["spawnNpcId"]].append(npc["spawnTick"])
         for stage, sp in (ov.get("spawns") or {}).items():
             key = tuple(sorted((x["npcId"], x["x"], x["y"]) for x in sp["npcs"]))
-            spawn_sets[int(stage) - STAGE_INFERNO_WAVE_1 + 1][key] += 1
+            spawn_sets[int(stage) - STAGE_WAVE_1 + 1][key] += 1
     per_run = []
     for d in docs:
         ov = d.get("overview")
@@ -507,6 +610,116 @@ def overview_report(docs: list[dict]) -> str:
     return "\n".join(L) + "\n"
 
 
+def colosseum_overview_report(docs: list[dict]) -> str:
+    """GET /challenges/colosseum/<uuid>: `splits` 152-163 are the waves' lengths in ticks (the
+    game's own `Wave duration` timer, OBSERVED), 164-173 the cumulative start of waves 3-12 (a
+    sum of lengths: the Minimus intermission is NOT counted), `colosseum.waves[]` the per-wave
+    record (handicap options and choice, every npc with spawnTick/spawnPoint/deathTick),
+    `spawns` the server's spawn index of the four indexed types (shaman, javelin, manticore,
+    shockwave: blert challenge-harder colosseum.rs). A handicap id is handicap + 30 * level."""
+    length = collections.defaultdict(list)
+    spawn_sets = collections.defaultdict(collections.Counter)
+    options = collections.defaultdict(collections.Counter)
+    chosen = collections.defaultdict(collections.Counter)
+    per_run = []
+    n = 0
+    for d in docs:
+        ov = d.get("overview")
+        if not ov or not ov.get("colosseum"):
+            continue
+        n += 1
+        sp = ov.get("splits") or {}
+        lens = [sp.get(str(152 + i)) for i in range(12)]
+        reached = d["challenge"]["stage"] - STAGE_WAVE_1 + 1
+        for i, v in enumerate(lens):
+            if v is not None and not (d["challenge"]["status"] != 1 and i + 1 >= reached):
+                length[i + 1].append(v)         # a wave a failed run ended in is partial: not a length
+        for stage, rec in (ov.get("spawns") or {}).items():
+            key = tuple(sorted((x["npcId"], x["x"], x["y"]) for x in rec["npcs"]))
+            spawn_sets[int(stage) - STAGE_WAVE_1 + 1][key] += 1
+        for w in ov["colosseum"]["waves"]:
+            wave = w["stage"] - STAGE_WAVE_1 + 1
+            for o in w.get("options") or []:
+                options[wave][o] += 1
+            if w.get("options"):
+                chosen[wave][w.get("handicap")] += 1
+        per_run.append("%s status=%s stage=%s game ticks %-5s waves %s" % (
+            d["uuid"][:8], d["challenge"]["status"], d["challenge"]["stage"],
+            ov.get("challengeTicks"), ",".join("-" if v is None else str(v) for v in lens)))
+    L = ["# Per-wave record (GET /challenges/colosseum/<uuid>), %d challenges" % n, "",
+         "Wave length = splits 152-163 = the game's `Wave duration` timer (PROVENANCE.md, STAGE_UPDATE).",
+         "Per run (status 1 completed, 3 wiped):", ""] + per_run + ["",
+         "## Wave length in ticks, per wave", ""]
+    for wave in sorted(length):
+        v = sorted(length[wave])
+        L.append("wave %-2d n=%-2d min %-4d median %-4d max %d" % (wave, len(v), v[0], v[len(v) // 2], v[-1]))
+    L += ["", "## Spawn index (npc id, x, y of the four indexed types), per wave", ""]
+    for wave in sorted(spawn_sets):
+        L.append("wave %d" % wave)
+        for key, c in sorted(spawn_sets[wave].items(), key=lambda kv: -kv[1]):
+            L.append("    seen %d  %s" % (c, "  ".join("%s@%d,%d" % (name(a), b, c2) for a, b, c2 in key)))
+    L += ["", "## Handicap options offered per wave (id = handicap + 30 * level), count over runs", ""]
+    for wave in sorted(options):
+        L.append("wave %-2d %s" % (wave, "  ".join("%d:%d" % kv for kv in sorted(options[wave].items()))))
+    return "\n".join(L) + "\n"
+
+
+def sol_effects_report(docs: list[dict]) -> str:
+    """Events 201 (doom hitsplat), 203 (reentry pools), 204-207 (Sol) of every cached wave.
+    All OBSERVED except the dust pattern/direction LABELS (derived) and a grapple HIT (its
+    tick is the announcement + 5 by construction): PROVENANCE.md."""
+    pattern = collections.Counter(); dust_gap = collections.Counter(); first = collections.defaultdict(list)
+    laser = collections.Counter(); scan_shot = collections.Counter(); pool_gap = collections.Counter()
+    grapple = collections.Counter(); doom = collections.Counter(); reentry = collections.Counter()
+    sol_runs = 0
+    for d in docs:
+        for wave_key, evs in d["waves"].items():
+            for e in evs:
+                if e["type"] == 201:
+                    doom[int(wave_key)] += 1
+                elif e["type"] == 203:
+                    reentry[int(wave_key)] += 1
+        evs = d["waves"].get(str(MAX_WAVES))
+        if not evs:
+            continue
+        sol_runs += 1
+        dust = [e for e in evs if e["type"] == 204]
+        las = [e for e in evs if e["type"] == 207]
+        pools = [e for e in evs if e["type"] == 206]
+        for a, b in zip(dust, dust[1:]):
+            dust_gap[b["tick"] - a["tick"]] += 1
+        for e in dust:
+            pattern[(e["colosseumSolDust"]["pattern"], e["colosseumSolDust"].get("direction"))] += 1
+        for key, seq in (("dust", dust), ("laser", las), ("pool", pools)):
+            if seq:
+                first[key].append(seq[0]["tick"])
+        for e in las:
+            laser[e["colosseumSolLasers"]["phase"]] += 1
+        for a, b in zip(las, las[1:]):
+            if a["colosseumSolLasers"]["phase"] == 0 and b["colosseumSolLasers"]["phase"] == 1:
+                scan_shot[b["tick"] - a["tick"]] += 1
+        for a, b in zip(pools, pools[1:]):
+            pool_gap[b["tick"] - a["tick"]] += 1
+        for e in evs:
+            if e["type"] == 205:
+                g = e["colosseumSolGrapple"]
+                grapple[(g["target"], g["outcome"], e["tick"] - g["attackTick"])] += 1
+    L = ["# Sol Heredit and the modifier events (%d wave-12 streams)" % sol_runs, "",
+         "Events 204-207 (graphics objects), 205 (chat), 201 (DOOM hitsplat), 203 (pool objects).", "",
+         "dust (pattern 0 trident1 / 1 trident2 / 2 shield1 / 3 shield2, direction 0 N 1 E 2 S 3 W; LABELS derived): "
+         + "  ".join("%s:%d" % (k, v) for k, v in sorted(pattern.items(), key=lambda kv: str(kv[0]))),
+         "dust gap between consecutive dust events: " + _dist(dust_gap),
+         "first tick: dust %s | laser %s | pools %s" % tuple(sorted(first[k]) for k in ("dust", "laser", "pool")),
+         "laser events (0 scan, 1 shot): %s ; scan -> next shot gap: %s" % (dict(laser), _dist(scan_shot)),
+         "pool event gaps: " + _dist(pool_gap),
+         "grapple (equipment slot, outcome 0 hit 1 defend 2 parry, event tick - announcement tick): "
+         + "  ".join("%s:%d" % (k, v) for k, v in sorted(grapple.items())),
+         "doom hitsplats per wave (all runs): " + "  ".join("%d:%d" % kv for kv in sorted(doom.items())),
+         "reentry pool events per wave (all runs): " + "  ".join("%d:%d" % kv for kv in sorted(reentry.items())),
+         "totem heal events (202): " + str(sum(1 for d in docs for evs in d["waves"].values() for e in evs if e["type"] == 202))]
+    return "\n".join(L) + "\n"
+
+
 def cmd_overviews(args) -> int:
     got = 0
     for doc in all_cached():
@@ -524,8 +737,8 @@ def cmd_summary(args) -> int:
     if not runs:
         raise SystemExit("the cache holds no challenge; run `sample` or `fetch` first")
     waves = sum(len(d["waves"]) for d in docs)
-    text = render(summarise(runs), "Blert Inferno sample: %d challenges, %d wave streams" % (len(runs), waves))
-    text += "\n" + overview_report(docs)
+    text = render(summarise(runs), "Blert %s sample: %d challenges, %d wave streams" % (GAME.capitalize(), len(runs), waves))
+    text += "\n" + (colosseum_overview_report(docs) + "\n" + sol_effects_report(docs) if GAME == "colosseum" else overview_report(docs))
     if args.md:
         with open(args.md, "w", encoding="utf-8") as fh:
             fh.write(text)
@@ -550,13 +763,28 @@ def cmd_export(args) -> int:
                     "" if o["attack"] is None else attack_name(o["attack"])))
                 n_ev += 1
     n_w = 0
+    if GAME == "colosseum":
+        with open(os.path.join(DOCS_CACHE, "wave_records.tsv"), "w", encoding="utf-8") as fh:
+            fh.write("run\tstatus\twave\tticks\tticks_lost\toffset\thandicap_id\toptions\tgame_duration_ticks\n")
+            for d in sorted(docs, key=lambda d: d["uuid"]):
+                ov = d.get("overview") or {}
+                sp = ov.get("splits") or {}
+                for w in (ov.get("colosseum") or {}).get("waves", []):
+                    wave = w["stage"] - STAGE_WAVE_1 + 1
+                    fh.write("%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
+                        d["uuid"][:8], d["challenge"]["status"], wave, sp.get(str(151 + wave), ""),
+                        w.get("ticksLost", ""), w.get("offset", ""), w.get("handicap", ""),
+                        ",".join(str(o) for o in w.get("options") or []), d["challenge"].get("challengeTicks")))
+                    n_w += 1
+        print("wrote %d npc rows, %d wave rows" % (n_ev, n_w))
+        return 0
     with open(os.path.join(DOCS_CACHE, "wave_records.tsv"), "w", encoding="utf-8") as fh:
         fh.write("run\tstatus\twave\tticks\tstart_tick\tticks_lost\tgame_duration_ticks\n")
         for d in sorted(docs, key=lambda d: d["uuid"]):
             ov = d.get("overview") or {}
             for w in (ov.get("inferno") or {}).get("waves", []):
                 fh.write("%s\t%s\t%d\t%d\t%d\t%d\t%s\n" % (
-                    d["uuid"][:8], d["challenge"]["status"], w["stage"] - STAGE_INFERNO_WAVE_1 + 1, w["ticks"],
+                    d["uuid"][:8], d["challenge"]["status"], w["stage"] - STAGE_WAVE_1 + 1, w["ticks"],
                     w["startTick"], w["ticksLost"], d["challenge"].get("challengeTicks")))
                 n_w += 1
     print("wrote %d npc rows, %d wave rows" % (n_ev, n_w))
@@ -572,21 +800,23 @@ def cmd_list(args) -> int:
     status = int(args.status) if args.status.isdigit() else STATUS[args.status]
     for r in list_challenges(status, args.limit, args.stage_ge):
         print("%s status=%s stage=%s(wave %d) ticks=%s start=%s deaths=%s" % (
-            r["uuid"], r["status"], r["stage"], r["stage"] - STAGE_INFERNO_WAVE_1 + 1,
+            r["uuid"], r["status"], r["stage"], r["stage"] - STAGE_WAVE_1 + 1,
             r.get("challengeTicks"), r.get("startTime"), r.get("totalDeaths")))
     return 0
 
 
 def cmd_fetch(args) -> int:
     cached = load_cached(args.uuid)
-    row = cached["challenge"] if cached else {"uuid": args.uuid, "stage": STAGE_INFERNO_WAVE_1 + 68}
+    row = cached["challenge"] if cached else {"uuid": args.uuid, "stage": STAGE_WAVE_1 + MAX_WAVES - 1}
     print(fetch_challenge(row, args.waves))
     return 0
 
 
 def cmd_sample(args) -> int:
+    if args.late_wave is None:
+        args.late_wave = 31 if GAME == "inferno" else 9
     done = list_challenges(STATUS["completed"], args.completed)
-    late = list_challenges(STATUS["wiped"], args.failed, stage_ge=STAGE_INFERNO_WAVE_1 + args.late_wave - 1)
+    late = list_challenges(STATUS["wiped"], args.failed, stage_ge=STAGE_WAVE_1 + args.late_wave - 1)
     chosen = {r["uuid"]: r for r in done + late}
     print("sample: %d completed + %d failed at wave >= %d" % (len(done), len(late), args.late_wave))
     for r in chosen.values():
@@ -598,6 +828,7 @@ def cmd_sample(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--game", choices=("inferno", "colosseum"), default="inferno")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("list")
     p.add_argument("--status", default="completed")
@@ -611,7 +842,7 @@ def main() -> int:
     p = sub.add_parser("sample")
     p.add_argument("--completed", type=int, default=12)
     p.add_argument("--failed", type=int, default=6)
-    p.add_argument("--late-wave", type=int, default=31, dest="late_wave",
+    p.add_argument("--late-wave", type=int, default=None, dest="late_wave",
                    help="a failed run is 'late' when it reached at least this wave")
     p.set_defaults(fn=cmd_sample)
     p = sub.add_parser("export")
@@ -625,6 +856,7 @@ def main() -> int:
     p.add_argument("path")
     p.set_defaults(fn=cmd_ticklog)
     args = ap.parse_args()
+    configure(args.game)
     return args.fn(args)
 
 

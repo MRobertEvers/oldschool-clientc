@@ -1,0 +1,182 @@
+{{Update|date=31 July 2024|rev=31 July 2024|url=https://secure.runescape.com/m=news/qol-improvements--further-deadman-armageddon-tweaks?oldschool=1|category=game}}
+[[File:QoL Improvements & Further Deadman- Armageddon Tweaks newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week brings a plethora of general QoL improvements, plus tweaks to Deadman: Armageddon and While Guthix Sleeps!''
+
+==Changelog July 31st==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Deadman: Armageddon'''
+
+* Adjusted the prices of certain Deadman items for Bank Keys.
+* If the player getting special attacked by the Morrigan's Javelin is praying ranged, the bleed damage should now correctly respect this and be reduced by 40%.
+* Taking the cages up and down in Chasm of Fire deals damage to the player, as intended. These changes only apply to Deadman mode.
+* Fixed a bug where losing one minute of Deadman protection when you log out wasn't working, leaving it vulnerable to infinite protection abuse. The protection timer now correctly goes down when you log out, like it did with the previous Deadmans.
+* If you chose the Path of Mahjarrat from the Tier 4 Quest Lamp, you can now correctly claim 10 Museum Kudos for the Curse of the Empty Lord miniquest.
+* The new Deadman versions of the imbued Mage Arena Capes can now be stored in the Player Owned House Cape Rack.
+
+'''While Guthix Sleeps '''
+
+Graphically updated the tormented demons’ fire shield effect:
+
+* Shifted the hue from yellow to orange and toned it down.
+* Added more transparency.
+* Reduced the turning speed of the shield by 50%.
+* The shield animation now plays for two ticks instead of three.
+* Removed the floor symbol and fire circle elements during the shield animation.
+
+'''Miscellaneous QoL Changes'''
+
+* Added XP lamps to the rewards from the Beekeeper random event.
+* Shades of Mort'ton has received some usability adjustments:
+** Added a left-click option to the sacred fire to let players sanctify Olive Oil and Serum 207 more conveniently.
+** Sanctifying an item with the sacred fire will automatically continue sanctifying the vials in your Inventory until you run out of sanctity or items or cancel the action.
+** Sanctifying Serum 207 now uses 5% sanctity per dose, down from 20% - although you will still need at least 20% sanctity to perform the action.
+** A Make-All menu will now appear when using Sacred Oil to make Pyre Logs.
+** Adjusted the Firemaking XP of making Pyre Logs to be a flat 5 XP per dose of Sacred Oil consumed, instead of a variable rate based on how many doses are in the vial.
+** The pyres now have left-click options for adding Pyre Logs and Shade Remains automatically, prioritising the best Pyre Logs available; players may still select them manually if desired.
+** Players will be warned if trying to burn Pyre Logs without the appropriate Shade Remains.
+* Created five Clan ranks above and below the Administrator for greater flexibility.
+* Created a new toggle which lets UIMs opt out of death protection from cosmetics, affecting ornamented items. This applies only to PvM deaths; item loss on PvP death is not affected by the toggle.
+* Fixed issues with certain bolts and arrows acting sus with Dizana’s Quiver:
+** Karil's Bolt Racks no longer hinders using the bolts.
+** The Sunlight Crossbow and its Bolts should now work with the Dizana's Quiver, counting as a bolt and giving the correct bonuses.
+** Having the Mithril Grapple inside Dizana's or a regular Quiver no longer causes issues, and lets the player shoot Crossbow Bolts as intended.
+* You can now cast Vengeance Other from a Blighted Vengeance Sack.
+* Added 'Make-X' option when fletching Bolts, similar to how it is when fletching Darts.
+* Drakan's Medallion can now be reclaimed from Perdu's shop for 30,000 GP.
+* The Plank Make spell will now convert the first log in your Inventory, depositing the resulting Plank in the first available slot.
+
+'''Other Changes''' 
+
+* 100% weapon accuracy during Eclipse Moon's Clone Phase is now present for all attack styles.
+* Laps removed are adjusted to 10 from 25 when logging out at the Wilderness Agility Course. The laps still get reset upon leaving the course.
+* Gabooty has put a sale on for the Tai Bwo Wannai denizens and some of them took up the offer to refresh their wardrobe, bringing a bit more colour to the village.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Zerker'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Deadman: Armageddon==
+[[File:QoL Improvements & Further Deadman- Armageddon Tweaks (1).jpg|600px|center]]
+Deadman: Armageddon is firing on all cylinders, and it’s been great to see so many of you joining the battle! You have until August 3rd to experience the PvP action and snag yourself some killer cosmetics.
+
+Before we jump into this week's changes, we've received a handful of questions around the World 345 transfer process and wanted to clear some things up!
+
+At the end of Deadman: Armageddon, your character and all of their stats will transfer over to World 345. You'll also transfer any untradeables that you've got so long as they ''don't'' convert into a tradeable item on death, this means that things like Barrows armour or a recoloured Bow of Faerdhinen should not transfer over. You'll also keep any pets that you've got because it wouldn't be right to separate you from your adoring little followers! Additionally, any items in any 'storage' containers (check out [https://oldschool.runescape.wiki/w/Storage this page] for a full list) should also be wiped, so you won't find anything you've got sitting in the Chambers of Xeric making its way into the permanent Deadman worlds either.
+
+Hopefully that clears things up, now back to our regularly scheduled game update content!
+
+While you've been busy surviving the chaos, we’ve been busy making improvements behind the scenes:
+
+* Adjusted the prices of certain Deadman items for Bank Keys.
+* If the player getting special attacked by the Morrigan's Javelin is praying ranged, the bleed damage should now correctly respect this and be reduced by 40%.
+* Taking the cages up and down in Chasm of Fire deals damage to the player, as intended. These changes only apply to Deadman mode.
+* Fixed a bug where losing one minute of Deadman protection when you log out wasn't working, leaving it vulnerable to infinite protection abuse. The protection timer now correctly goes down when you log out, like it did with the previous Deadmans.
+* If you chose the Path of Mahjarrat from the Tier 4 Quest Lamp, you can now correctly claim 10 Museum Kudos for the Curse of the Empty Lord miniquest.
+* The new Deadman versions of the imbued Mage Arena Capes can now be stored in the Player Owned House Cape Rack.
+
+===Deadman 2024 Finale===
+If you haven't already, mark your calendars for the Deadman 2024 Grand Finale, which will be livestreamed on our [https://www.twitch.tv/oldschoolrs Twitch channel], this '''Saturday, August 3rd at 18:00 BST'''. Tune in to watch five finales across five combat brackets battle through PvP mayhem! It’s a show you won’t want to miss.
+
+==While Guthix Sleeps==
+Over the last couple of weeks, we have seen that some players have been having a hard time with the tormented demons' fire shield effect, causing them eye strain and motion sickness. To avoid this, we've made some tweaks: 
+
+* Shifted the hue from yellow to orange and toned it down.
+* Added more transparency.
+* Reduced the turning speed of the shield by 50%.
+* The shield animation now plays for two ticks instead of three.
+* Removed the floor symbol and fire circle elements during the shield animation.
+
+[[File:QoL Improvements & Further Deadman- Armageddon Tweaks (2).gif|thumb|404px|center|''Tormented Demons' New Shield Animation''<br>''If you can’t view the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-07-31/td%20shield.gif here].'']]
+
+==Miscellaneous QoL Changes==
+We’ve also managed to bring you a handful of much-requested Quality of Life changes this week!
+
+First up, we’re heading to the Clan Hall, where we’ve added five more rank slots above and below Administrator, which should cover all your ranking needs. For context, the game has restrictions ''specifically ''based on the Administrator rank, which is why it’s not so easy for us to move it about. One such restriction involves the data space where a player’s ‘last seen’ date is stored. We’re aware that Clan Leaders want this information to be stored for lower-rank Clan members, rather than only those above Administrator Rank, and we hope to be able to offer this in future. For now, though, we hope the extra Rank slots give players more flexibility in roles above Administrator in rank. For existing Clans, the new Rank slots have been assigned placeholder Titles. You can use the Titles menu to assign more thematic ones if you so desire.
+
+Next up, a quality-of-life improvement for UIMs! On a PvM death, many items that have Ornament Kits applied to them will be protected on death, staying in your Inventory rather than falling to a grave. This protection was introduced years ago as a little extra perk for cosmetic kits, affecting the ornamented versions of items like the Mystic Lava Staff, Fighter Torso and the Elidinis' Ward (f). UIM may find this protection unhelpful, since they'll sometimes actually prefer their items to drop into their grave piles on death. We’ve created a new toggle in the Settings menu which will let them opt out of this protection. Note that this applies ''only ''to PvM deaths; item loss on a PvP death is not affected.
+
+Additionally, we’ve fixed some interactions between Dizana’s Quiver and ammunition:
+
+* Karil's Bolt Racks no longer hinders using the bolts.
+* The Sunlight Crossbow and its Bolts should now work with the Dizana's Quiver, counting as a bolt and giving the correct bonuses.
+* Having the Mithril Grapple inside Dizana's or a regular Quiver no longer causes issues, and lets the player shoot Crossbow Bolts as intended.
+
+We’ve also made changes to Shades of Mort’ton:
+
+* Added a left-click option to the sacred fire to let players sanctify Olive Oil and Serum 207 more conveniently.
+* Sanctifying an item with the sacred fire will automatically continue sanctifying the vials in your Inventory until you run out of sanctity or items or cancel the action.
+* Sanctifying Serum 207 now uses 5% sanctity per dose, down from 20% - although you will still need at least 20% sanctity to perform the action.
+* A Make-All menu will now appear when using Sacred Oil to make Pyre Logs.
+* Adjusted the Firemaking XP of making Pyre Logs to be a flat 5 XP per dose of Sacred Oil consumed, instead of a variable rate based on how many doses are in the vial.
+* The pyres now have left-click options for adding Pyre Logs and Shade Remains automatically, prioritising the best Pyre Logs available; players may still select them manually if desired.
+* Players will be warned if trying to burn Pyre Logs without the appropriate Shade Remains.
+
+Last but not least, some further miscellaneous improvements:
+
+* Added XP lamps to the rewards from the Beekeeper random event.
+* You can now cast Vengeance Other from a Blighted Vengeance Sack.
+* Added 'Make-X' option when fletching Bolts, similar to how it is when fletching Darts.
+* Drakan's Medallion can now be reclaimed from Perdu's shop for 30,000 GP.
+* The Plank Make spell will now convert the first log in your Inventory, depositing the resulting Plank in the first available slot.
+
+==Membership Code Vouchers Change==
+On Monday we released a [https://secure.runescape.com/m=news/a-notice-to-players-about-membership-passcodes?oldschool=1 blog] informing players that it is no longer possible to convert Bonds to Membership Passcodes.
+
+We made this difficult decision because some rulebreakers were using this system to violate our TOS.
+
+Don’t worry – if you already have a passcode from an existing Bond redemption, it will still be valid, and you're still able to redeem a Bond directly for 14 days of Membership, as normal.
+
+For more information, please check the [https://secure.runescape.com/m=news/a-notice-to-players-about-membership-passcodes?oldschool=1 full post].
+
+==RuneScape: Untold Tales of the Godwars==
+[[File:QoL Improvements & Further Deadman- Armageddon Tweaks (3).png|600px|center]]
+We’re making our comic book series debut with Titan Comics! RuneScape: Untold Tales of the God Wars is a four-part mini-series which launches with a special oversized 48-page bumper Issue #1 (complete with five different cover variants) on October 9th!
+
+The series, which was teased last year in [https://www.amazon.co.uk/Runescape-FCBD-Ryan-OSullivan-ebook/dp/B0BXMP9V4N Titan’s Free Comic Book Day edition], is penned by Void Trip writer Ryan O’Sullivan, with artists Sid Kotian (Gambit, The Adventures of Apocalypse Al) and Daniel Bayliss (RuneScape FCBD edition).  Expanding on the epic lore behind the iconic God Wars Dungeon, this new comic book series will delve into the Temple of Lost Ancients during the catastrophic God Wars – where the armies of Saradomin, Armadyl, Bandos and Zamorak are fighting for control of the Godsword, the only weapon capable of killing a deity. RuneScape: Untold Tales of the God Wars features the forgotten histories of fan-favourite characters, as well as telling stories you’ve never heard before - including that of Maro, trapped in the centre of this world-shaking conflict, who dreams of breaking free from his master’s clutches...  
+
+Check out this [https://secure.runescape.com/m=news/a=13/runescape-untold-tales-of-the-god-wars-1?oldschool=1 newspost] for full details, or visit [https://titan-comics.com/news/how-to-pre-order-runescape-1/ Titan Comics website] to pre-order your copy and get hold of your favourite variant cover.
+
+==Other Changes==
+
+* 100% weapon accuracy during Eclipse Moon's Clone Phase is now present for all attack styles.
+* Laps removed are adjusted to 10 from 25 when logging out at the Wilderness Agility Course. The laps still get reset upon leaving the course.
+* Gabooty has put a sale on for the Tai Bwo Wannai denizens and some of them took up the offer to refresh their wardrobe, bringing a bit more colour to the village.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

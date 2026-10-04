@@ -1,0 +1,150 @@
+{{Update|date=31 October 2014|link=http://services.runescape.com/m=news/dev-blogs-zeah--achievement-diaries?oldschool=1|category=website}}
+[[File:Dev Blogs- Zeah & Achievement Diaries newspost.png|right]]
+{{clear}}
+Two developer blogs have just gone up over on the forums: one for the new continent, Zeah, and one for achievement diaries.
+
+These are two very big updates so we felt it made sense to split them up into separate blogs.
+
+If you would like to read about achievement diaries, click [http://services.runescape.com/m=forum/forums.ws?380,381,119,65509026 here].
+
+If you would like to read about the new continent, Zeah, click [http://services.runescape.com/m=forum/forums.ws?380,381,118,65509025 here].
+
+'''''Mods Archie, Ash, Ghost, Ian, John C, Mat K, Reach, Ronan, Weath'''''<br/>''The Old School Team''
+
+
+
+----
+
+
+
+
+
+<center><font color="#7a580B" face="algerian" size="5">Developer Blog:
+Achievement Diaries Expansion</font></center>
+
+
+If there is one thing that Old School players love it is a challenge. Bringing a brand new challenge to Old School while preserving the feel of the game is something that is fairly tricky however, after huge demand from the community, it is clear that achievement diaries would be able to do just that.
+
+We would like to release a large expansion to achievement diaries, offering 10 brand new diaries.
+
+'''The new diaries'''
+
+The 10 new diaries will cover the following areas:
+[[File:Dev Blogs- Zeah & Achievement Diaries (1).png|left|500px]]
+{{clear}}
+*Ardougne ([[File:Dev Blogs- Zeah & Achievement Diaries (2).png]])
+*Falador ([[File:Dev Blogs- Zeah & Achievement Diaries (3).png]])
+*Fremennik ([[File:Dev Blogs- Zeah & Achievement Diaries (4).png]])
+*Kandarin ([[File:Dev Blogs- Zeah & Achievement Diaries (5).png]])
+*Kharidian Desert ([[File:Dev Blogs- Zeah & Achievement Diaries (6).png]])
+*Lumbridge & Draynor ([[File:Dev Blogs- Zeah & Achievement Diaries (7).png]])
+*The Western diary ([[File:Dev Blogs- Zeah & Achievement Diaries (8).png]])
+*Morytania ([[File:Dev Blogs- Zeah & Achievement Diaries (9).png]])
+*Varrock ([[File:Dev Blogs- Zeah & Achievement Diaries (10).png]])
+*Wilderness ([[File:Dev Blogs- Zeah & Achievement Diaries (11).png]])
+
+
+'''The diary tasks'''
+
+The tasks and challenges that need to be completed will be largely sourced from you, the community. For some time now, Mod John C has had a thread open in the Feedback & Suggestions forum asking for Achievement Diary Task Ideas. There have been hundreds of great suggestions posted by the community, many of which we plan to use in the diaries.
+
+We will be opening up more ways for members of the community to submit their task ideas, including a competition similar to the one we ran during the development of the clue scroll expansion.
+
+The goal with the tasks is to get people really diving into every area and making use of what they have to offer. The tasks will aim to have you thinking "I completely forgot this existed!" or "How on Earth did I not see this in 10 years of playing?" - Old School is a big game and there are many parts of it that often go overlooked. The more of them we utilise, the better!
+
+
+'''Elite diaries'''
+
+Since we are planning on releasing 10 diaries at once, we would also like to take the whole set one step further with elite diaries.
+
+Back when elite achievement diaries were first introduced into RuneScape they were truly challenging and incredibly prestigious. An example of one task from RuneScape 3 is catching a manta ray in the Fishing Trawler minigame. This requires 81 Fishing, certainly not a task everyone can complete with ease.
+
+Elite diaries would give players to something to strive for, an end-game style set of challenges with some excellent rewards available.
+
+Due to just how challenging elite diaries stand to be, we are going to be offering them in a separate question when polling achievement diaries.
+
+
+'''Rewards'''
+
+With the completion of each diary you will be rewarded with a worn item that offers you benefits in the area where you earned it. With the completion of higher level diaries both the item you were rewarded with and the benefits it offers will be improved.
+
+We will bring more specific information on the rewards from each achievement diary in future developer blogs.
+
+
+'''Repeatable tasks'''
+
+Achievement diaries have always been a one-off piece of gameplay. Once you've completed them, that is it. You're finished.
+
+Considering how much the community appear to love the idea of achievement diaries, we would like to offer an addition to the system that would allow you to re-play a set of achievement diary challenges every day in order to get small, temporary rewards in the relevant area. These additional rewards do not necessarily have to be focused around additional XP. We can offer a range of different incentives varying from one/two additional ore from mining rocks in the area to a lesser chance of being stunned when pickpocketing NPC's.
+
+Achievement diaries are a lot of fun to take on and we feel it would be a shame to see them sit there and not do a whole lot once you've completed them. This system would allow for achievement diaries to bring some long lasting day to day gameplay to Old School, even for completionists that manage to complete every diary.
+
+'''''Mods Archie, Ash, Ghost, Ian, John C, Mat K, Reach, Ronan, Weath'''''<br/>''The Old School Team''
+
+
+
+----
+
+
+
+
+
+<center><font color="#7a580B" face="algerian" size="5">Developer Blog:
+Zeah - The new continent</font></center>
+
+
+[[File:Dev Blogs- Zeah & Achievement Diaries (12).png|center|500px]]
+
+Zeah is an enormous land mass to the west of Isafdar. It is roughly the size of the area between Prifddinas and Falador on the existing map and is packed with brand new content for Old School. In this developer blog we will be going over what we know about Zeah and talking about where we would like the development to go from here.
+
+Keep in mind that there is still a long way to go for the continent. There is a huge amount of land to fill and what we have so far is not all there will be. As the development goes on you will hear more and more about the vast amount of content that will be filling up Zeah to the brim.
+
+
+'''Port Roberts'''
+[[File:Dev Blogs- Zeah & Achievement Diaries (13).png|right|200px]]
+When you make your way to Zeah your first stop will be Port Roberts, a large floating platform town which offers vital trade and a trade route between the sea and mainland. Despite a large dependency from the mainland, Port Roberts is considered a slum due to its lawless ties with piracy and illegal smuggling. Acting as a hub for passing pirates who frequent the docks with illegal trade, the Port’s ties with piracy attracts a lot of attention from charters, merchants, and the Gnome navy armada. The Gnome’s pre-established fleet and tradition of seafaring has lead them to track down and, as best they can, reduce and eliminate the illicit trade that plagues the sea towns of the mainland.
+
+
+'''Civitas illa fortis'''
+[[File:Dev Blogs- Zeah & Achievement Diaries (14).png|right|200px]]
+A Roman themed empire of discipline, combat, honour and dominion. Civitas illa fortis boasts one of the largest combat training and endurance tests in all of Gielinor, the great Colosseum. As an expansion to the previously popular duel tournaments, the Colosseum will offer the ultimate duelling tournament and experience.
+
+Building upon what the duel arena has already achieved, the Colosseum will match the duel arena in size and scale, only its combat ground will be the same size as all 6 duel arena arenas combined. With spectator seating circling the arena, viewers can watch the ultimate showdown between combatants fighting for the crowds support, and the reward of all entrants’ fees.
+
+
+'''Great Kourend'''
+
+The Kingdom of Great Kourend is a huge, populous land embroiled in anarchy. Five families are endlessly fighting for power over the kingdom after the death of the last king. These families control everything in Great Kourend, from the food the citizens eat to the Kingdom's defences, and they will do anything to ensure they are on top.
+
+[[File:Dev Blogs- Zeah & Achievement Diaries (15).png|center|500px]]
+
+Earning the favour of these five families will play a big role in your experience of Great Kourend. You decide what family you side with and your decision has consequences, both positive and negative. Siding with one family will unlock benefits and the more favour you gain the more significant those benefits become.
+
+Great Kourend will be an area in game where the decisions you make truly have an impact on your experience. The kingdom will evolve around your choices.
+
+
+'''Keruulm & The Tasakaal'''
+[[File:Dev Blogs- Zeah & Achievement Diaries (16).png|right|150px]]
+The city of Keruulm is an ancient city located in a dilapidated, dormant volcano. Only the strongest and most agile players will be able to enter the city. High strength and agility will be a requirement to make your way into the remains of the volcano and to access to city.
+
+Keruulm is home to an incredibly strong, ancient race that has never before been seen in RuneScape: the Tasakaal. The Tasakaal are born and bred guardians and slayers who aim to maintain balance of life and death, embracing death as part of life.
+
+One of the ways in which the Tasakaal keep balance and control is by assigning slayer targets to players. Players will be able assigned incredibly challenging tasks and will see new slayer tasks and equipment made available as a result of taking tasks through the Tasakaal.
+
+
+'''Paradigm of Exodus'''
+[[File:Dev Blogs- Zeah & Achievement Diaries (17).png|right|200px]]
+The Paradigm of Exodus is an enormous dungeon that is home to one of the most devastatingly powerful creatures in Gielinor. Found in and around an active volcano, players will be able to team up in Gilenor's first raid and venture into the dungeon, taking on the challenge of a randomly generated dungeon and unpredictable progression.
+
+The Paradigm of Exodus will be big. Between 5 and 30 players can party up and attempt to take on the challenge of both the dungeon and the boss at the end of it. Combining interesting combat mechanics, teamwork and puzzle mechanics, the Paradigm of Exodus is not a challenge for the weak.
+
+
+'''Further development'''
+
+The above information is, of course, just the start of the new continent. There will be much, much more to come and you can be sure that we will be showing you every idea that pops into our heads. We hope that you return the favour and let us know what you think.
+
+Zeah is going to be the biggest project ever taken on by the Old School team and we will, at every possible turn, be looking to the community for feedback and ideas. The thought of an entirely new continent is a big one and it is one that we realise needs as many minds at work as possible to create a full and enjoyable experience.
+
+Providing the continent passes the upcoming poll, we will be kicking off the development of Zeah in full-force come 2015.
+
+'''''Mods Archie, Ash, Ghost, Ian, John C, Mat K, Reach, Ronan, Weath'''''<br/>''The Old School Team''

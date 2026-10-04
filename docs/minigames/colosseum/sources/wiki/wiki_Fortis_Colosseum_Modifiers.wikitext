@@ -1,0 +1,235 @@
+<!--
+This is outlined in cache so if anything changes we can probably catch it by looking at the cache diffs.
+As of 19 June 2024 (222.5), 
+enum 5312 is an index of the structs containing the info
+
+Relevant structs:
+	891: Reentry
+    892: Bees!
+    893: Volatility
+    894: Blasphemy
+    897: Relentless
+    898: Quartet
+    899: Totemic
+    900: Doom
+    901: Dyanamic Duo
+    902: Solarflare
+    903: Myopia
+    906: Frailty
+    907: Red Flag
+	915: Mantimayhem
+
+In these structs, the most immediately interesting params are:
+		1896 Name
+		1897 Tier 1 description
+		1898 Tier 2 description
+		1899 Tier 3 description
+		1903 Glory per wave
+-->
+With a few exceptions, most modifiers have three tiers of severity. 
+{{anchor|Bees}}
+{| class="wikitable sortable" style=width:750px;
+!colspan="2" |Modifier
+!Effect
+!Glory per wave
+|-
+|[[File:Fortis Colosseum - Bees!.png|centre]]
+|Bees!
+|A [[Bee Swarm]] will drift around the arena, slowly converging on the player at a speed of 12 ticks. If beneath the player, it will deal up to 10 unblockable poison damage every tick, and inflict poison starting at 1 damage.
+
+They have 1 Hitpoint and will respawn 30 seconds after being killed.
+|150
+|-
+|[[File:Fortis Colosseum - Bees! (II).png|centre]]
+|Bees! (II)
+|The amount of bee swarms is increased to '''two'''.
+|300
+|-
+|[[File:Fortis Colosseum - Bees! (III).png|centre]]
+|Bees! (III)
+|The amount of bee swarms is increased to '''three'''.
+|450{{anchor|Blasphemy}}
+|-
+|[[File:Fortis Colosseum - Blasphemy.png|centre]]
+|Blasphemy
+|The player's prayer points are drained by 20% of damage taken from enemies.
+|100
+|-
+|[[File:Fortis Colosseum - Blasphemy (II).png|centre]]
+|Blasphemy (II)
+|Prayer drain is increased to 40% of damage taken.
+|200
+|-
+|[[File:Fortis Colosseum - Blasphemy (III).png|centre]]
+|Blasphemy (III)
+|Prayer drain is increased to 60% of damage taken.
+|300{{anchor|Doom}}
+|-
+|[[File:Fortis Colosseum - Doom.png|centre]]
+|Doom
+|A stack of Doom is gained whenever damage is taken, indicated by a [[hitsplat]] [[File:Doom stack hitsplat.png]]. The player is killed upon gaining 15 stacks.
+
+Stacks of doom are cleared after completing a wave.
+|200
+|-
+|[[File:Fortis Colosseum - Doom (II).png|centre]]
+|Doom (II)
+|The player is now killed upon gaining 10 stacks.
+|400
+|-
+|[[File:Fortis Colosseum - Doom (III).png|centre]]
+|Doom (III)
+|The player is now killed upon gaining 5 stacks.
+|600{{anchor|Dynamic_Duo}}
+|-
+|[[File:Fortis Colosseum - Dynamic Duo.png|centre]]
+|Dynamic Duo
+|[[Shockwave Colossus|Shockwave Colossi]] will now spawn in pairs.
+
+The paired Colossus spawns near the main Colossus, but not necessarily on one of the 12 default spawns.
+
+Will not be given as an option after wave 11.
+|150{{anchor|Frailty}}
+|-
+|[[File:Fortis Colosseum - Frailty.png|centre]]
+|Frailty
+|The player's base [[Hitpoints]] are reduced by 10%, and overhealing is disabled.
+|200
+|-
+|[[File:Fortis Colosseum - Frailty (II).png|centre]]
+|Frailty (II)
+|Base Hitpoints are reduced by '''20%'''.
+|400
+|-
+|[[File:Fortis Colosseum - Frailty (III).png|centre]]
+|Frailty (III)
+|Base Hitpoints are reduced by '''40%'''.
+|600{{anchor|Mantimayhem}}
+|-
+|[[File:Fortis Colosseum - Mantimayhem.png|centre]]
+|Mantimayhem
+|[[Manticore]]s now add an additional projectile per orb, effectively attacking twice per attack cycle.
+
+Will not be given as an option after wave 11.
+|150
+|-
+|[[File:Fortis Colosseum - Mantimayhem (II).png|centre]]
+|Mantimayhem (II)
+|Manticores are now [[venom]]ous, applying it if its attacks are not prayed against. Venom is cured at the end of each wave.
+Will not be given as an option after wave 11.
+|300
+|-
+|[[File:Fortis Colosseum - Mantimayhem (III).png|centre]]
+|Mantimayhem (III)
+|The manticore's attack patterns is now less predictable, now being set in any order of magic, range, and melee.
+Will not be given as an option after wave 11.
+|450{{anchor|Myopia}}
+|-
+|[[File:Fortis Colosseum - Myopia.png|centre]]
+|Myopia
+|The player's attack range is reduced by two tiles. Manually casted spells are unaffected.
+|200
+|-
+|[[File:Fortis Colosseum - Myopia (II).png|centre]]
+|Myopia (II)
+|Attack range is now reduced by '''four''' tiles. Manually casted spells are unaffected.
+|400
+|-
+|[[File:Fortis Colosseum - Myopia (III).png|centre]]
+|Myopia (III)
+|Attack range is now reduced by '''six''' tiles. Manually casted spells are unaffected.
+|600{{anchor|Reentry}}
+|-
+|[[File:Fortis Colosseum - Reentry.png|centre]]
+|Reentry
+|Javelins launched into the air by [[Javelin Colossus|Javelin Colossi]] will now leave a '''temporary''' pool of [[Molten Sand|molten sand]] where they land, disappearing after the wave ends.
+Will not be given as an option after wave 11.
+|150
+|-
+|[[File:Fortis Colosseum - Reentry (II).png|centre]]
+|Reentry (II)
+|The molten sand is now '''permanent''', and now includes the targeted tile and the tile south-west of it, if accessible.
+
+This will also cause the sand created from the explosion of Volatility III to become permanent.
+
+Will not be given as an option after wave 11.
+|300
+|-
+|[[File:Fortis Colosseum - Reentry (III).png|centre]]
+|Reentry (III)
+|The tiles where molten sand is left behind now includes the tile west of the targeted tile.
+Will not be given as an option after wave 11.
+|450{{anchor|Red_Flag}}
+|-
+|[[File:Fortis Colosseum - Red Flag.png|centre]]
+|Red Flag
+|[[Minotaur (Fortis Colosseum)|Minotaurs]] now have advanced NPC pathing, allowing them to move around obstacles and making them impossible to safespot.
+Will not be given as an option after wave 11.
+|250{{anchor|Relentless}}
+|-
+|[[File:Fortis Colosseum - Relentless.png|centre]]
+|Relentless
+|Enemy attacks will now bypass 33% of the player's Defence level, and have their max hit increased by 1.
+|200
+|-
+|[[File:Fortis Colosseum - Relentless (II).png|centre]]
+|Relentless (II)
+|Attacks now bypass '''66%''' of the player's Defence, and max hits are now increased by '''3'''.
+|400
+|-
+|[[File:Fortis Colosseum - Relentless (III).png|centre]]
+|Relentless (III)
+|Enemies will fully ignore [[Damage_per_second/Melee#Step_six:_Calculate_the_hit_chance|accuracy checks]], and max hits are now increased by '''6'''.
+|600{{anchor|Solarflare}}
+|-
+|[[File:Fortis Colosseum - Solarflare.png|centre]]
+|Solarflare
+|A damaging orb circles around the pillars, moving every 2 ticks, then stopping for 7 ticks when it reaches a corner.
+
+During wave 12, they will circle around a set pattern within the allotted arena.
+|250
+|-
+|[[File:Fortis Colosseum - Solarflare (II).png|centre]]
+|Solarflare (II)
+|The orb now moves every two ticks without stopping, and deals more damage.
+|500
+|-
+|[[File:Fortis Colosseum - Solarflare (III).png|centre]]
+|Solarflare (III)
+|The orb now moves every tick, stopping for 2 ticks when it reaches a corner. It will also now disable prayers if hit, alongside dealing even more damage.
+|750{{anchor|Quartet}}
+|-
+|[[File:Fortis Colosseum - Quartet.png|centre]]
+|Quartet
+|An extra random Fremennik Warbander spawns every wave.
+|100{{anchor|Totemic}}
+|-
+|[[File:Fortis Colosseum - Totemic.png|centre]]
+|Totemic
+|When an enemy is reduced to 50% hitpoints or below, a [[healing totem]] will appear near them, and send healing projectiles to the target, healing them for a 30% their health every few ticks.
+
+They have 1 Hitpoint and will respawn two minutes after being destroyed, or after the enemy dies. Additionally, it will not heal the enemy if they are destroyed before their healing projectile reaches them.
+
+During wave 12, after the first totem appears at 50%, an additional totem will spawn once every two minutes until the fight concludes.
+|200{{anchor|Volatility}}
+|-
+|[[File:Fortis Colosseum - Volatility.png|centre]]
+|Volatility
+|Upon death, the enemy will explode one tile greater than their size. For example, a [[manticore]], whose size is 3x3 tiles, will explode in a 5x5 radius.
+|100
+|-
+|[[File:Fortis Colosseum - Volatility (II).png|centre]]
+|Volatility (II)
+|The explosion radius is now '''two''' tiles greater, ex. a 3x3 monster will now explode in a 7x7 radius.
+|200
+|-
+|[[File:Fortis Colosseum - Volatility (III).png|centre]]
+|Volatility (III)
+|The tile at the centre of the explosion now leaves behind a '''temporary''' pool of molten sand, disappearing after the wave ends.
+
+Reentry II or III will cause this pool of molten sand to become permanent. 
+|300
+|}
+<noinclude>
+[[Category:Fortis Colosseum]]
+</noinclude>

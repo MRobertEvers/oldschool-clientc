@@ -1,0 +1,316 @@
+{{Update|date=10 November 2024|rev=25 November 2024|url=https://secure.runescape.com/m=news/leagues-v-teasers--faqs---releasing-november-27th?oldschool=1|category=devblog}}
+[[File:Leagues V Teasers & FAQs - Releasing November 27th newspost.png|right]]
+{{clear}}
+__TOC__
+'''''WARNING: Here be Leagues Reveals!'''''
+
+----
+
+Leagues V begins on November 27th!
+
+To make the wait a little more bearable, we'll be dropping a surprise reveal about the League every day until just before launch, and gathering them all here in one handy newspost.
+
+We’ve also included a quick FAQ that we’ll keep updated over the next couple of weeks, and a survey where you can drop those all-important questions.
+
+If you’re wondering what on earth a League is, you might want to check out our Summer Summit blog [https://secure.runescape.com/m=news/leagues-v-raging-echoes---summer-summit-2024?oldschool=1 here]. You can also spot all the themed rewards from Leagues V: Raging Echoes [https://secure.runescape.com/m=news/a=13/leagues-v-raging-echoes---rewards?oldschool=1 here]!
+
+==Launch Schedule==
+Leagues V: Raging Echoes goes live on November 27th. We’ve included a few different time zones for your reference:
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (1).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-10-39250!/L5-Launch-Schedule.jpg here]!'']]
+
+==Raging Echoes Reveals and Teasers!==
+WARNING! WARNING! This is your LAST chance to turn back – expect spoilers for Relics, Echo Bosses and more beyond this point.
+
+If you want to avoid this entirely, keep scrolling to get to the [[#FAQ|FAQ section]]. If not, keep reading!
+
+The latest reveal will be at the top of the blog with no drop down, so you’ll always get the most up-to-date info first. The rest are hidden!
+
+Keep up with the reveals as they happen on [https://x.com/OldSchoolRS our ‘X’ (Twitter) page], and join in on the conversation on the [https://www.discord.gg/vbhPUHU Community Leagues Discord server].
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (2).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-11-164/OSRS-Leagues_V-Teaser_Roadmap-day01.png here]!'']]
+
+
+Now for the juicy details...
+
+==November 25th: All Relic Names & Tiers==
+Two days from now, you'll be stepping into Leagues V: Raging Echoes for the first time. It's time to pull back the curtain and give you some time for a frantic reshuffling of your meticulous plans.
+
+Here is '''every single''' Relic name, spread across all '''eight''' Relic tiers. We've even got five full descriptions for Relics that we've not revealed yet: Equilibrium, Treasure Arbiter, Production Master, Slayer Master, and Pocket Kingdom!
+
+<center>{{Youtube|_v1_KVQCiW4}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/_v1_KVQCiW4 here] to watch it!''</center>
+
+<gallery mode="packed", heights="200", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (33).png|Equilibrium
+Leagues V Teasers & FAQs - Releasing November 27th (34).png|Pocket Kingdom
+Leagues V Teasers & FAQs - Releasing November 27th (35).png|Treasure Arbiter
+Leagues V Teasers & FAQs - Releasing November 27th (36).png|Production Master
+Leagues V Teasers & FAQs - Releasing November 27th (37).png|Slayer Master
+</gallery>
+
+Make your adjustments and make them fast, the Sage is eagerly awaiting your arrival on '''Wednesday, November 27th at 12:00 PM GMT'''. We'll see you there!
+
+...
+
+You're still here? You've not raced off to update your Leagues5.txt or spreadsheet? If you're still feeling a little overwhelmed and looking for some guidance, Old School's resident megamind SoloMission has you covered! We've teamed up once again to put together a Tips & Tricks video to help you find your feet, check it out below!
+
+<center>{{Youtube|vyUr1CGDsbg}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/vyUr1CGDsbg here] to watch it!''</center>
+
+Remember that Leagues is all about enjoying Old School like never before, taking on new challenges and experiencing levels of power beyond what you can even imagine. Take things at your own pace, pick whatever regions and Relics speak to you, and most of all: have fun! See you in Lumbridge, from there: you're on your own!
+
+==November 24th: Reloaded==
+Leagues V: Raging Echoes is almost here. Ever since reveals began, you've been arguing until you're blue in the face about which Relics are the best in each tier. Will Harpoon Gang rise above the rest? Is Dodgy Deals a dodgy choice? Only time will tell.
+
+While you've been distracted trying to pick out the cream of the crop, you've forgotten about an equally important question: which Relic is ''second'' best?
+
+Brand new to Raging Echoes, Reloaded will allow you to select '''any Relic''' from '''any previous Tier'''. This is an absolute game changer, and we don't feel a shred of Relic regret for throwing a spanner in the works so close to launch day. Choose wisely!
+
+<center>{{Youtube|PKuXA2aGMaQ}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/PKuXA2aGMaQ here] to watch it!''</center>
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (32).png|frame|center|If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-24-9832fr8/reloaded-d.jpg here]!]]
+
+==November 23rd: Combat Relics==
+Combat Masteries might be the new hotness, but nothing hits quite the same as these game-changing, Combat-focused Relic unlocks!
+
+Do you find yourself going it alone all too often? Are you craving company in these cold Winter months? Is it tiring carrying the burden of being the sole damage dealer in your PvM encounters? If you answered yes to any of those, you'll fall in love with Guardian! Everybody's favourite companion is making a grand return for Leagues V, and this time they're better than ever!
+
+Perhaps you don't need anybody else, maybe you're ''special''. Turn yourself into a damage-dealing monstrosity with Specialist! Whether you're looking to unleash an endless flurry of Dragon Claw hits or swing your Dogsword until you're barking mad, this Special Attack focused Relic is sure to have you covered.
+
+Or maybe you're a little more fresh-faced, staring doe-eyed at all of the content at your fingertips but worrying about a premature meeting with death. Consider picking up Last Stand, channel that adrenaline away from your fears and instead become too angry to die - stave off death and output fistfuls of damage while living on the edge.
+
+Couple any of these choices with our new Combat Masteries system and you're in for PvM as you've never seen it before!
+
+<center>{{Youtube|EOzJBVf3nUg}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/EOzJBVf3nUg here] to watch it!''</center>
+
+<gallery mode="packed", heights="150", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (29).png|Last Stand
+Leagues V Teasers & FAQs - Releasing November 27th (30).png|Guardian
+Leagues V Teasers & FAQs - Releasing November 27th (31).png|Specialist
+</gallery>
+
+==November 22nd: All Relic Passives==
+While Relics are plenty powerful enough in their own right, it's the passives unlocked with each tier that take your Leagues progression to the next level!
+
+For a ''full'' breakdown of every single Relic passive, check out this graphic below. If you're only interested in what's fresh this League or has been moved around, scroll a little further down.
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (28).png|thumb|600px|center|If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-22-587gt3/012-relic-passives.jpg here]!]]
+
+Here are all of the headline changes to Relic passives. It's time to start planning out those routes, and this time around: you'll have more choice than ever!
+* 5x Drop Rate multiplier now unlocks alongside your Tier 4 Relic, down from Tier 8.
+** Additionally, this multiplier will apply to Twisted Ancestral Colour Kits, Holy Ornament Kits, Sanguine Ornament Kit, and Awakener's Orbs.
+* Unlocking your Tier 3 Relic will grant double Combat XP (including Prayer and Hitpoints) on top of the global XP Multiplier, plus the Bigger and Badder Slayer unlock, 5x Slayer points and a 1 in 50 Superior spawn rate.
+* Minigame enjoyers will want to blast to Tier 4 to unlock 5x Minigame Reward rates.
+** This time around, this rate increase is also applied to Marks of Grace, Hallowed Marks, Brimhaven Vouchers ''and'' Stardust!
+* Right off the bat at Tier 1, you'll enjoy Farming cycles that are five times faster than the main game, and every Clue Scroll you receive (including Clue Geodes, Clues in a Bottle and Clue Nests) will drop as a stackable Clue box.
+
+==November 21st: Utility Relics==
+We're now less than a week out from Leagues V launch, and things are getting spicy! Today we've got a whole tier of Relics to show off, with some familiar features and some brand new ones! Will you reclaim your Sage's Greaves, or will you store them away in exchange for a new Herblore experience or multi-NPC pickpocketing?
+
+<center>{{Youtube|3tKkaE5yKnI}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/3tKkaE5yKnI here] to watch it!''</center>
+
+<gallery mode="packed", heights="150", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (25).png|Friendly Forager
+Leagues V Teasers & FAQs - Releasing November 27th (26).png|Corner Cutter
+Leagues V Teasers & FAQs - Releasing November 27th (27).png|Dodgy Deals
+</gallery>
+
+==November 20th: Bonus QoL!==
+To celebrate being one week away from Leagues V, here are some QoL details for you:
+
+* Rocks, trees, respawnable items, and main-world npcs will respawn faster than the main game. (3x in most cases, and much higher in other cases such as Runite Rocks)
+* Everyone will now be able to purchase a Max Cape from the Sage in Lumbridge upon reaching 2277 Total level.
+* Tormented Demons will be accessible without needing to complete While Guthix Sleeps, meaning the only requirement is acquiring a Sapphire Lantern!
+* Instances have been created for Cerberus, Sarachnis, and the Thermonuclear Smoke Devil. We have also removed the timer when attempting to enter a Dagannoth Kings instance shortly after leaving.
+* Clans can now toggle shared Leagues related broadcasts including Relic, Area, Rank, and Combat Mastery achievements. They will be clearly different from normal broadcasts, with the Leagues symbol next to the players’ names.
+* Rather than receiving a Twisted Bow from Chambers of Xeric, Scythe of Vitur from Theatre of Blood, or Tumeken's Shadow from Tombs of Amascut, you will instead receive a Mega Rare Voucher, which can be given to the sage for the weapon of your choice.
+* Zulrah is no longer immune to melee damage and has no damage cap, meaning Melee weapons that can reach are viable.
+* Potions and Ingredients sourced during the Duke Sucellus fight will no longer be removed from your inventory when waking Duke.
+* Pet cosmetic overrides are now carried over between Leagues, including any you might have unlocked in Trailblazer: Reloaded, but not prior Leagues.
+
+==November 19th: Combat Masteries==
+Let's talk about Combat Masteries! Another huge new feature coming with Leagues V: Raging Echoes. Complete Combat Mastery tasks and earn yourself points to spend on style-focused abilities. Each style has 6 Tiers, and with a maximum of 10 Points available you'll need to make the tough decision of where to spend them. Check out the video or graphic below for more information on how this brand new system will work.
+
+<center>{{Youtube|RXZUx6GRHls}}</center>
+<center>''If you can't view the video above, click [https://www.youtube.com/watch?v=RXZUx6GRHls here] to watch it!''</center>
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (24).png|thumb|600px|center|Click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-29-U921gr9/cbm-chart.jpg here] to view the above image in a larger size!]]
+
+==November 18th: Overgrown==
+We know what you're thinking: What if Farming was truly a zero-time skill? Well, let us introduce you to the Leagues V spin on a Farming Relic: Overgrown! Store seeds in your vault and forget about them as your personal Leprechaun harvests and replants seeds for you!
+
+<center>{{Youtube|HF_wzGqDm1s}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/HF_wzGqDm1s here] to watch it!''</center>
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (23).png|frame|center|If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-18-G85tg351/overgrown-d.jpg click here]!]]
+
+==November 17th: Total Recall vs Banker’s Note==
+Last Recall will be returning as a new and improved variant this League, but this time it's going up against an old fan favourite: Banker’s Note!
+
+<center>{{Youtube|cw_GY6udM5A}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/cw_GY6udM5A here] to watch it!''</center>
+
+<gallery mode="packed", heights="200", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (21).png|Total Recall
+Leagues V Teasers & FAQs - Releasing November 27th (22).png|Banker’s Note
+</gallery>
+
+==November 16th: Teleport Relics==
+Even with unlimited Run Energy, nobody wants to run ''everywhere''. To give you a helping hand, this tier of relics will have you choosing between these convenient teleports within your unlocked regions:
+* Any fairy ring, spirit tree, and tool leprechaun.
+* Any deposit box, bank, and bank chest.
+* Falo the Bard, any S.T.A.S.H unit, and your current clue step.
+
+<center>{{Youtube|GReDFgKXS6s}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/GReDFgKXS6s here] to watch it!''</center>
+
+<gallery mode="packed", heights="150", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (18).png|Fairy's Flight
+Leagues V Teasers & FAQs - Releasing November 27th (19).png|Bank Heist
+Leagues V Teasers & FAQs - Releasing November 27th (20).png|Clue Compass
+</gallery>
+
+==November 15th: Combo Item Drops==
+It’s not just the Echo Bosses who are dropping new loot! More familiar faces will be dropping items that normally require components from different regions to use as one, ready-made item. It’s not a 4th area unlock, but it’s the next best thing! You can check out the infographic below to see what drops have been updated:
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (17).png|thumb|600px|center|If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-15-Ag4t67/BOSS-DROPS_.jpg here]!]]
+
+
+We've also put together a handy list as follows:
+
+'''Grotesque Guardians'''
+* <s>Black Tourmaline Core</s> -> Guardian Boots
+
+
+'''Araxxor'''
+* <s>Araxyte Fang</s> -> Amulet of Rancour
+
+
+'''Alchemical Hydra'''
+* <s>Hydra's Claw</s> -> Dragon Hunter Lance
+* <s>Hydra Leather</s> -> Ferocious Gloves
+* <s>Hydra Tail</s> -> Bonecrusher Necklace
+
+
+'''Cerberus'''
+* <s>Eternal Crystal</s> -> Eternal Boots
+
+
+'''Zulrah'''
+* <s>Magic Fang</s> -> Uncharged Toxic Trident
+
+
+'''The Leviathan'''
+* <s>Venator Vestige</s> -> Venator Ring
+
+
+'''The Whisperer'''
+* <s>Bellator Vestige</s> -> Bellator Ring
+
+
+'''Vardorvis'''
+* <s>Ultor Vestige</s> -> Ultor Ring
+
+
+'''Duke Sucellus'''
+* <s>Magus Vestige</s> -> Magus Ring
+
+
+'''Fortis Colosseum'''
+* <s>Echo Crystal</s> -> Echo Boots
+
+
+'''Theatre of Blood'''
+* <s>Avernic Hilt</s> -> Avernic Defender
+
+
+'''Chambers of Xeric'''
+* <s>Kodai Insignia</s> -> Kodai Wand
+
+
+'''Adamant Dragon'''
+* <s>Dragon Metal Slice</s> -> Dragon Kiteshield
+
+
+'''Rune Dragon'''
+* <s>Dragon Metal Lump</s> -> Dragon Platebody
+
+
+'''Phantom Muspah'''
+* <s>Ancient Icon</s> -> Ancient Sceptre
+
+
+'''Other changes include:'''
+* All Desert Treasure 2 bosses will drop all parts of the Soulreaper Axe in order.
+* All Raids will offer the chance to obtain Twisted Bow, Tumeken's Shadow, and Scythe of Vitur. More information about this to come.
+* Dragon Pickaxes obtained via Volcanic Mine Ore Packs will come repaired.
+* You now have a chance to loot Dragon Hasta rather than Broken Dragon Hasta from the Brimstone Chest.
+* Tormented Synapse has had its inspect option adjusted and will now allow you to instantly convert it to an Emberlight, Scorching Bow, or Purging Staff.
+
+==November 14th: Grimoire==
+Don’t scour the furthest regions of Gielinor in search of arcane knowledge – just pick up this handy book! Not only do you gain access to all spellbooks, you also unlock Rigour, Augury, Piety and Preserve. Not grim at all, really!
+
+<center>{{Youtube|TbRtSIt7AgY}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/TbRtSIt7AgY here] to watch it!''</center>
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (16).png|frame|center|If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-14-H34g900p/Grimoire-relic-description.jpg click here]!]]
+
+==November 13th: Echo Boss and Rewards revealed!==
+Brand new to Leagues V are Echo Bosses! These are more fearsome versions of some familiar foes, and it's only fitting that they have the chance to drop something a little extra special. Check out this video from [https://www.youtube.com/@ScriticRS Scritic] to find out more about them!
+
+<center>{{Youtube|xVVScpoJWeM}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/xVVScpoJWeM here] to watch it!''</center>
+
+<gallery mode="packed", heights="300", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (7).png|Asgarnia: Cerberus - The Dogsword
+Leagues V Teasers & FAQs - Releasing November 27th (8).png|Desert: Kalphite Queen - Drygore Blowpipe
+Leagues V Teasers & FAQs - Releasing November 27th (9).png|Morytania: Grotesque Guardians - Gloves of the Damned
+Leagues V Teasers & FAQs - Releasing November 27th (10).png|Wilderness: King Black Dragon - Thunder Khopesh and Thousand-Dragon Ward
+Leagues V Teasers & FAQs - Releasing November 27th (11).png|Kandarin: Thermonuclear Smoke Devil - Devil's Element
+Leagues V Teasers & FAQs - Releasing November 27th (12).png|Fremennik: Dagannoth Kings - Amulet of the Monarchs and Emperor Ring
+Leagues V Teasers & FAQs - Releasing November 27th (13).png|Tirannwn: Hunllef - Crystal Blessing
+Leagues V Teasers & FAQs - Releasing November 27th (14).png|Kourend: Hespori - Nature's Reprisal
+Leagues V Teasers & FAQs - Releasing November 27th (15).png|Varlamore: Sol Heredit - Sunlight Spear and Sunlit Bracers
+</gallery>
+
+==November 12th: Golden God==
+Enhance the power of your alchemy spells! Items give more gold, have a chance to not be consumed when alched, and the spell will be automatically recast over time when used on a stack of items!
+
+What are you going to do with all that GP? Glad you asked. This Relic also lets you sacrifice coins to Prayer Altars in exchange for Prayer XP!
+
+<center>{{Youtube|1V-RgurfjME}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/1V-RgurfjME here] to watch it!''</center>
+
+[[File:Leagues V Teasers & FAQs - Releasing November 27th (6).png|frame|center|If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-11-12-9a8h4q5!/GoldenGod-relic-description.jpg click here]!]]
+
+==November 11th: Tier 1 Relics==
+One of the earliest decisions you'll make in Leagues V is which Tier 1 Relic to choose! Well, to help you plan ahead, here's your first look at what's on offer.
+
+<center>{{Youtube|ANoy41dCKfs}}</center>
+<center>''If you can't view the video above, click [https://youtu.be/ANoy41dCKfs here] to watch it!''</center>
+
+<gallery mode="packed", heights="300", style="text-align:center">
+Leagues V Teasers & FAQs - Releasing November 27th (3).png|Power Miner
+Leagues V Teasers & FAQs - Releasing November 27th (4).png|Lumberjack
+Leagues V Teasers & FAQs - Releasing November 27th (5).png|Animal Wrangler
+</gallery>
+
+==FAQ==
+You can find the full in-depth FAQ list here: [https://docs.google.com/spreadsheets/d/e/2PACX-1vTbJpzuP14-l5KH-yuZdF7hG2lwk_x3gcT7XV1UFtF3DkN3vI67lvJd1u3wXtAC4FXhD10ElthigIt8/pubhtml?gid=0&single=true  Detailed Leagues V FAQ - last updated 23rd November.]
+
+You can drop your questions in the box using [https://forms.office.com/e/yxnJaCASUX this form], and we’ll pop the answers into the sheet linked above! Be warned though, there are some things we absolutely won’t be spoiling!
+
+<center><big>[https://forms.office.com/Pages/ResponsePage.aspx?id=cHKPuw2LyU2JAOl_a-ccwgNFtj5ZaLVDjqfiC4-HYtVUOFRPTUNBWkJMUkNHN0xQSjEyOFJKUVI2WS4u Leagues V: Raging Echoes: FAQ Submissions!]</big></center>
+That's all for now, but remember to check back each day on the run up to launch for new reveals! Otherwise, we'll see you on '''Wednesday, November 27th''' for the full launch of Leagues V: Raging Echoes!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

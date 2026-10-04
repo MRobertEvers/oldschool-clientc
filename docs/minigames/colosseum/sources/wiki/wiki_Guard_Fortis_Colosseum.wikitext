@@ -1,0 +1,48 @@
+{{Infobox NPC
+|version1 = 1
+|version2 = 2
+|version3 = 3
+|version4 = 4
+|name = Guard
+|image1 = [[File:Guard (Fortis Colosseum, 1).png|250x250px]]
+|image2 = [[File:Guard (Fortis Colosseum, 2).png|250x250px]]
+|image3 = [[File:Guard (Fortis Colosseum, 3).png|250x250px]]
+|image4 = [[File:Guard (Fortis Colosseum, 4).png|250x250px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|race = [[Human]]
+|location = [[Fortis Colosseum entrance]]
+|options = Talk-to
+|examine = Guarding somewhere important.
+|map = {{Map|1848,9498,1848,9516|r=4|plane=0|mtype=square|mapID=-1}}
+|id1 = 13110
+|id2 = 13111
+|id3 = 13112
+|id4 = 13113
+|leagueRegion = Varlamore
+}}
+{{Synced switch
+|version1 = [[File:Guard (Fortis Colosseum, 1) chathead.png|left]]
+|version2 = [[File:Guard (Fortis Colosseum, 2) chathead.png|left]]
+|version3 = [[File:Guard (Fortis Colosseum, 3) chathead.png|left]]
+|version4 = [[File:Guard (Fortis Colosseum, 4) chathead.png|left]]
+}}
+'''Guards''' can be found under the [[Fortis Colosseum]], who block the player's path to the back area.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 September 2024
+|update = Varlamore: The Rising Darkness is OUT NOW
+|change = The guards received a graphical update.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The guards will sometimes almost quote ''{{wp|Gandalf}}'' from ''{{wp|The Lord of the Rings: The Two Towers}}'' film, saying "You shall not... *cough*" then correcting themselves to say "No one is allowed past I'm afraid."
+
+{{Fortis Colosseum}}

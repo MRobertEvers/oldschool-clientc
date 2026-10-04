@@ -1,0 +1,33 @@
+{{Infobox NPC
+|version1 = Regular
+|version2 = Dodgy Character
+|name1 = Oriana
+|name2 = Dodgy Character
+|image1 = [[File:Oriana.png|120px]]
+|image2 = [[File:Dodgy Character.png|120px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|race = [[Human]]
+|location = [[Civitas illa Fortis]]
+|gender = Female
+|options1 = Talk-to, Trade-in
+|options2 = Talk-to
+|examine1 = A thief who apparently has thoughtful motives.
+|examine2 = I wonder what they're doing in this part of town.
+|map = {{Map|x=1654|y=3112|r=3|mtype=square}}
+|id1 = 13311
+|id2 = 13310
+|leagueRegion = Varlamore
+}}
+{{Synced switch
+|version1 = [[File:Oriana chathead.png|left]]
+|version2 = [[File:Dodgy Character chathead.png|left]]
+}}
+'''Oriana''' is a thoughtful thief located just outside the western bank in [[Civitas illa Fortis]]. She is involved in the [[stealing valuables]] activity, buying [[valuables]] that have been looted from [[Lavinia|Lavinia's]], [[Caius|Caius']], or [[Victor (Civitas illa Fortis)|Victor's]] houses from the player for 55 [[coins]] each (or 65 coins each after earning [[Glory|Gladiator]] rank at the [[Fortis Colosseum]]). Before speaking to her, Oriana's name appears as '''Dodgy Character'''.
+
+==Dialogue==
+{{hastranscript|npc}}
+
+{{Stealing valuables}}
+{{Civitas illa Fortis}}

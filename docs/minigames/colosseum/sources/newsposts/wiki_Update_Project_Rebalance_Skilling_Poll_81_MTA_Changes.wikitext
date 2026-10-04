@@ -1,0 +1,552 @@
+{{Update|date=08 May 2024|rev=09 May 2024|url=https://secure.runescape.com/m=news/project-rebalance-skilling--poll-81-mta-changes?oldschool=1|category=game}}
+[[File:Project Rebalance- Skilling & Poll 81 MTA Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==Hotfixes==
+{| class="wikitable" style="text-align: center;"
+|-
+! Date & Time
+! Hotfix
+|-
+| May 9th - 14:00
+| Fixed an issue where Brimhaven Ticket dispensers XP rates were wrong
+|-
+| May 9th - 14:00
+| Removed the ability for the mining gloves to work on Sandstone & Granite
+|-
+| May 9th - 14:00
+| The Pirate Hook is now correctly adding to the Collection Log
+|-
+| May 9th - 14:30
+| Launched a fix that should help with Zalcano's loot distribution.
+|-
+| May 9th - 16:20
+| We've issued a '''temporary''' Hotfix to stop the world hop abuse we've seen within the Brimhaven Agility Arena. For the meantime, you'll need to do 2 tags in a row to start earning tickets.
+|-
+| May 9th - 16:40
+| We've adjusted the XP rates for the 'opt-out resources' version of Zalcano, as some players were reporting getting excessively high rates in masses. We'll be keeping an eye on this area for more feedback.
+|}
+
+''We're back from our fifth annual Game Jam with a BIG Project Rebalance update!''
+
+''If you'd like to learn more about what we worked on during our Game Jam, you can check out this ''[https://oldschool.runescape.wiki/w/Game_Jam_V Wiki page]'' or take a look at #OSRSGameJam on X.''
+
+==Changelog - May 8th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+===Project Rebalance===
+
+'''Agility'''
+
+* Adjusted XP across various courses, including the Hallowed Sepulchre and Diary Unlocks.
+* Increased Marks of Grace spawn rates on the Fremennik and Pollnivneach courses.
+* Added the chance to get Marks of Grace from non-rooftop courses.
+* Removed ‘fail points’ from courses around Gielinor.
+* Added more shortcuts.
+* Removed Achievement Diary requirements from some shortcuts.
+* Reduced requirements for some shortcuts.
+* Sped up the time it takes to use certain shortcuts.
+* Reworked Brimhaven Agility Dungeon. Players now receive Agility XP, an Agility XP Ticket and an Agility Store Voucher on each 'tag'.
+
+'''Slayer'''
+
+* Slayer Masters have a new dialogue option which allows you to cancel a task after being assigned one.
+* Storing tasks with the Task Storage unlock no longer costs 50 points per task and is instead free.
+* Sourhogs can now only be assigned by Spria.
+* Added a minimal loot table to Fever Spiders, retaining their 'niche but useful' Kwuarm drops.
+* Reduced the Ranged Defence bonus of Killerwatts to -10.
+* Mazchna no longer assigns players Earth Warrior tasks.
+* Removed a number of creatures from Vannaka and Chaeldar’s task lists.
+
+'''Thieving'''
+
+* Gnomes have had their pickpocket failure rate reduced and now have an uncommon chance to provide Medium Clue Scrolls.
+* Paladins have had their pickpocket failure rate reduced and now have a rare chance to provide Hard Clue Scrolls.
+* Heroes have had their pickpocket failure rate reduced and now have a very rare chance to provide Elite Clue Scrolls.
+* All of these Clue Scrolls are affected by the rate increases from their respective Combat Achievement tier.
+* Improved respawn timers and XP rates across multiple Stalls.
+
+'''Mining'''
+
+* Increased Clue Geode rates across the board.
+* Increased the despawn timer for Amethyst Veins.
+* Access to the Gem Mine now only requires the Medium Karamja Diary.
+* Readjusted all versions of the Mining Gloves and their prices.
+* Added nice new Sandstone and Granite spots.
+* Improved Motherlode Mine with longer vein timers, a new reward, and general improvements to the area.
+* Changed the Diary task in Motherlode Mine to require just the Helmet, instead of the entire outfit.
+* Improved the solo experience at Volcanic Mine.
+* Added the Mining Outfit to the Volcanic Mine Reward Shop.
+** Helm - 26k
+** Body - 39k
+** Legs - 34k
+** Boots - 21k
+* Removed the Kudos and reward claim requirement to access Volcanic Mine.
+* Improved Blast Mine with more good layouts, a ~10% XP increase, and adjustments to gameplay.
+* Improved Zalcano.
+
+'''Misc. Skilling'''
+
+* Improved the Light Orbs activity.
+* Guthix Rests can now be made in one action and can no longer be failed when mixing ingredients in the wrong order.
+* Barbarian potions can now use the Make-all functionality. This can be toggled in the Settings menu.
+* Necklace of Faith now provides 25% Prayer Points on activation, up from 10%.
+* Ring of Pursuit now has a 100% chance to fully reveal hunter tracks, up from 25%.
+* Efaritay's Aid now provides the ability to hurt all t1/t2 vampyres with regular weapons, with 50% reduced damage output. It also provides a 15% buff to the accuracy of silvery and vampyre specific weaponry.
+* Creating a Toxic Blowpipe now requires 78 Fletching, up from 53.
+
+'''Mage Training Arena Changes'''
+
+Reworked the Mage Training Arena, including the following general changes:
+
+* Removed the delay when casting Telekinetic Grab and Bones to Peaches/Bananas. This applies across the entire game.
+* The Pizazz Hat is no longer required to enter the minigames.
+* Players can now log out inside most of the rooms and retain their progress, with the exception of the Telekinetic Room.
+* There is now a UI element that shows your Pizazz Points in the lobby.
+* There is now a Bank Chest upstairs.
+* Added the Mage Training Arena to the Grouping menu.
+
+'''Other Changes'''
+
+* Implemented a toggle for missed Clue Scroll notification. Messages for each tier of Clue Scroll can be enabled individually.
+* Christmas Crackers are now more generous and less random, allowing players to wish for a specific colour Party Hat and trinket. In addition, both you and your friend will receive prizes!
+* Shops no longer cause purchases to overflow onto the ground if you create an empty Inventory space by spending the last of your coins.
+* The coins and keys bequeathed by cremated shades in Mort'ton now stay on the pedestals for 5 minutes rather than 30 seconds. Other players cannot take them during this time.
+* The 'Rumour' option on whistles now mentions which hunter was the source of the rumour.
+* The death protection value of imbued Salve Amulets has been reduced, now that their imbue costs can be refunded on death.
+* The Coal Bag now gives more of its feedback messages via chat rather than via disruptive pop-up messages.
+* Plant Pots can now be autofilled when used on soil from a Farming patch. Pots can only be filled if the patch is empty and without weeds.
+* ‘Vial Smasher’ and ‘Pot Smasher’ can now be toggled in the Settings menu.
+* The Canifis meat shop, Sawmill shop and Piscarillius General Shop now have ironman, UIM and GIM variants.
+* Not only have we moved the three Rogues’ Chests closer to each other, but they will now stay open until they are restocked, and we’ve adjusted the delay when opening them.
+* Echo Boots now require 75 Defence.
+* Any player that completed or started the Easter 2024 event will unlock the 'Sunny Side Up' music track upon their next login.
+* The Abyssal Dagger (bh) will now apply the correct reduction when using its special attack.
+* Resolved inconsistencies when using Vesta’s Spear in Deadman and Bounty Hunter.
+* You can now scry Seer's village, Yanille and the Grand Exchange if you have the corresponding teleport unlocked at your portal nexus or scrying pool.
+* Fixed an issue where players were able to use some excluded spells in Clan Wars.
+* Fixed a bug where crafting new Meat and Fur Pouches deleted the contents of the existing ones.
+* Fixed a visual issue with the Leagues III Teleport.
+
+'''PvP World Rota'''
+
+* The PvP rota has moved to '''Period B'''.
+* World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+* World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+* The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Project Rebalance: Skilling Changes==
+As you may have gathered from the massive list of patch notes above, this week’s update marks the first set of Project Rebalance updates.
+
+We shan’t repeat the massive list of patch notes or our previous blogs on the topic, which can be found [https://secure.runescape.com/m=news/project-rebalance-part-one---skilling?oldschool=1 here] and [https://secure.runescape.com/m=news/updated---project-rebalance-skilling?oldschool=1 here].
+
+We would, however, like to make it clear that we’ll be closely monitoring your feedback for this update, and will be making further adjustments as necessary. As always, please do reach out if you think there’s anything we’ve missed, or if something doesn’t feel right. Your feedback is invaluable!
+
+We’ll do our best to keep things brief – let’s see the changes!
+
+===Agility===
+===Agility Courses===
+We’ve adjusted XP rates for the following Agility Courses:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Level Requirement
+! Course
+! Approx. Current XP/hr
+! Approx. New XP/hr
+|-
+| 1
+| Draynor Village Rooftop Course
+| 9,000
+| 10,000
+|-
+| 1
+| Shayzien Basic Course
+| 8,750
+| 10,000
+|-
+| 1
+| Gnome Stronghold Agility Course
+| 9,250
+| 10,000
+|-
+| 20
+| Al Kharid Rooftop Course
+| 9,360
+| 12,000
+|-
+| 30
+| Agility Pyramid
+
+(Note: while the access requirement is only 30 Agility, it's typically not worth starting at 30 since failure rates decrease dramatically as your Agility increases up to 75)
+| 44,750
+| 44,750
+|-
+| 30
+| Varrock Rooftop Course
+| 13,000
+| 14,000
+|-
+| 35
+| Barbarian Outpost Agility Course
+| 18,200
+| 18,200 + 5,000 Strength XP/hr
+|-
+| 45
+| Shayzien Advanced Course
+| 28,000
+| 30,000
+|-
+| 50
+| Falador Rooftop Course
+| 27,200
+| 35,000
+|-
+| 70
+| Pollnivneach Rooftop Course
+| 52,300
+| 52,300 + Better Marks of Grace than Seers' Village
+|-
+| 70
+| Pollnivneach Rooftop Course with Desert Hard Diary
+| N/A
+| 60,000 + Better Marks of Grace than Seers' Village
+|-
+| 72
+| Running up to Floor 3 in the Hallowed Sepulchre
+| 66,700
+| ~71,700
+|-
+| 80 
+| Rellekka Rooftop Course
+| 55,000
+| 55,000 + Better Marks of Grace than Pollnivneach
+|-
+| 80
+| Rellekka Rooftop Course with Fremennik Hard Diary
+| N/A
+| 65,000 + Better Marks of Grace than Pollnivneach
+|-
+| 82
+| Running up to Floor 4 in the Hallowed Sepulchre
+| 76,000
+| ~81,000
+|-
+| 90
+| Ardougne Rooftop Course
+| 62,300
+| 70,000
+|}
+
+You’ll be able to double-check whether you’re getting additional XP for your Achievements with the relevant Diary NPC.
+
+Additionally, Marks of Grace have been added to the following courses:
+
+* Tree Gnome Stronghold
+* Shayzien Basic
+* Shayzien Advanced
+* Barbarian Outpost
+* Ape Atoll
+* Werewolf
+* Dorgesh-kaan
+
+Marks of Grace rates have also been improved at the Fremennik and Polnivneach Rooftop Courses.
+
+Lastly, we’ve removed the most frustrating fail points:
+
+* Shayzien Rope Walk 1 and 2
+* Shayzien Grapples
+* Al Kharid Rooftop Slide
+* Draynor Village Wall-cross
+* Draynor Village Tightrope
+* Falador Tightrope
+* Pollnivneach Market Stall Jump
+* Rellekka 'jump' to Peer the Seer's house
+
+===Shortcuts===
+After spending some time at these improved courses, you might find yourself wanting to put those Agility levels to use!
+
+Luckily for you, we’ve added the following shortcuts:
+
+* 66 Agility - Taverley Wall jump shortcut towards the tree patch.
+* 71 Agility - Pollnivneach Stepping Stones across the river towards Nardah.
+* 72 Agility - Barrows Wall jump over its western wall, for quicker access from Burgh de Rott.
+* 72 Agility - Stepping Stone shortcut across a stretch of lava East of the Wilderness Chaos Temple.
+* 77 Agility – Two tunnel shortcuts in the Wilderness Slayer Caves.
+* 79 Agility - North-eastern corner of Shilo Village Rock Climb shortcut.
+* 81 Agility - Waterbirth Isle Tunnel shortcut, from the first Rock Crab room to the final room before the Dagannoth Kings' chamber.
+* 82 Agility - Asgarnia Ice Dungeon Tunnel shortcut from the ladder into the main Skeletal Wyvern area.
+* 84 Agility - Crandor Rock Climb shortcut from the isle's peak to its southern side.
+* 85 Agility - Waterbirth Isle Rock Climb shortcut, south of the Waterbirth Isle Teleport's location.
+* 96 Agility - Viyeldi Caves shortcut from the main room, allowing players to bypass the 'skill checks' once Legends Quest has been completed.
+
+Additionally, we've made some adjustments to a handful of pre-existing shortcuts:
+
+* Achievement Diary requirements have been removed from the following:
+** Wilderness - Lava Maze.
+** Wilderness - Lava Dragon Isle.
+** Morytania - Mos le'Harmless Estuary.
+** Lumbridge - Draynor narrow tunnel.
+** Lumbridge - Lumbridge Swamp to Al Kharid.
+** Karamja - Shilo Village stepping stone.
+** Karamja - Brimhaven Dungeon, near the Red Dragons.
+** Fremennik - Miscellania dock to Etceteria.
+** Fremennik - Roof of Troll Stronghold.
+** Al Kharid - Al Kharid Palace window.
+* Brimhaven Red Dragon Stepping Stones have had their level requirement reduced to 56 Agility.
+* Rellekka Slayer Dungeon's First Shortcut has had its level requirement reduced to 43 Agility.
+* Rellekka Slayer Dungeon's Second Shortcut has had its level requirement reduced to 61 Agility and has been sped up.
+* Shilo Village Stepping Stones have had their level requirement reduced to 32 Agility.
+* Forthos Dungeon Jump has had its level requirement reduced to 63 Agility.
+* Draynor Narrow tunnel has been moved slightly south and sped up.
+* Yanille Narrow tunnel has been sped up.
+* Mount Karuulm's Mysterious Pipe has been sped up significantly.
+* Narrow tunnel north-west of the Grand Exchange has been sped up.
+* Falador South Tunnel has been sped up.
+* Dwarven Mine Crevice has been sped up.
+* Shortcuts throughout the Iorwerth Slayer Dungeon have been sped up.
+* Kalphite Lair Wall shortcut has been sped up.
+
+===Brimhaven Agility Dungeon===
+We're almost at the end of our Agility section and have a final list of tweaks for you to cast your keen eyes over.
+
+Before we start rattling things off, one of the most immediately noticeable changes here is that near enough every obstacle in this two decades-old dungeon has been sped up.
+
+Now for some specifics:
+
+* All of the 'easy', 'medium' and 'hard' obstacles have been grouped up, and fail rates have been standardised within each tier.
+* Players no longer need to tag two pillars back-to-back to earn tickets. Each 'tag' on a dispenser will now reward you with Agility XP (scaling with every 10 Agility levels), an Agility XP Ticket and an Agility Store Voucher.
+** On Brimhaven Worlds (just W385 for now), the first player to tag a dispenser after the highlighted pillar has changed will get a shout-out in chat!
+* Agility XP Tickets can be redeemed from Pirate Jackie the Fruit's revamped shop for 345 Agility XP each. This XP no longer scales with how many are handed in.
+** Note that if you have any of the 'old' Agility Tickets on you, you'll be able to access the 'old' shop to spend them.
+* Agility Store Vouchers can be used to purchase all the non-XP rewards, including Graceful recolours. This means you no longer have to choose between XP or stuff - you can have it all!
+* Amylase Packs can be purchased from the shop at a cost of 60 Agility Store vouchers.
+* Logging out inside the arena will pop you back out at the entrance hut.
+
+===Slayer===
+Slayer's been a fan-favourite skill for years at this point, but it’s about to get even better!
+
+* Slayer Masters have a new dialogue option which allows you to cancel a task after being assigned one, assuming you have the points.
+* Storing tasks with the Task Storage unlock is now free!
+* Sourhogs can now only be assigned by Spria.
+* Added a minimal loot table to Fever Spiders, retaining their 'niche but useful' Kwuarm drops.
+* Reduced the Ranged Defence bonus of Killerwatts to -10.
+* Mazchna no longer assigns players Earth Warrior tasks.
+* Vannaka no longer assigns the following tasks:
+** Rock Slugs
+** Earth Warriors
+** Green Dragons
+** Bronze Dragons
+** Crawling Hands
+** Cave Bugs
+** Cave Crawlers
+** Banshees
+** Cave Slime
+** Lizards
+** Wall Beasts
+** Killerwatts
+* Chaeldar no longer assigns the following tasks:
+** Infernal Mages
+** Molanisks
+** Wall Beasts
+** Harpie Bug Swarms
+** Mogres
+** Cockatrice
+** Pyrefiends
+** Lizards
+** Rockslugs
+** Cave Slime
+** Banshees
+** Cave Crawler
+** Steel Dragons
+** Iron Dragons
+** Bronze Dragons
+* Reduced minimum and maximum quantities on Slayer Tasks from lower-level Slayer Masters.
+
+===Thieving===
+This set of changes should add a little more variety to your crime sprees!
+
+===Pickpocketing===
+* Gnomes have had their pickpocket failure rate reduced and now have an uncommon chance to provide Medium Clue Scrolls.
+* Paladins have had their pickpocket failure rate reduced and now have a rare chance to provide Hard Clue Scrolls.
+* Heroes have had their pickpocket failure rate reduced and now have a very rare chance to provide Elite Clue Scrolls.
+* All of these Clue Scrolls are affected by the rate increases from their respective Combat Achievement tier.
+
+===Stalls===
+Improved respawn timers and XP rates for the following stalls:
+
+* Crafting (Amulet Moulds, Bracelet Moulds and Gold Bars added as drops)
+* Monkey Food
+* Monkey General
+* Tea
+* Wine
+* Seed
+* Fur
+* Fish
+* Crossbow (Mithril Crossbow Limbs and Mithril Bolts added as drops)
+* Silver (Tiaras and Silver Bars added as drops)
+* Spice
+* Magic (Nature and Law Runes added as a drop)
+* Scimitar (Adamant and Mithril Scimitars added as a drop)
+* Gem
+* Ore
+
+===Mining===
+This set of tweaks spans a huge variety of Mining training methods, activities and minigames!
+
+===Core Mining Changes===
+* Increased Clue Geode rates by ~30% across the board.
+* Amethyst Veins can now give players 2-3 Amethyst before depleting.
+* Access to the Gem Mine now only requires the Medium Karamja Diary.
+** Added better messaging on the use of an Uncharged Amulet of Glory here.
+* Mining Gloves reworked to make them more desirable. Mining Gloves are guaranteed to save a rock X amount of times dependant the tier of Gloves and tier of Rocks.
+** Mining Gloves now work on Iron, Coal, Gold and Silver, and provide one rock save.
+** Superior Mining Gloves work on Adamant and Mithril, and provide one rock save on these and two on the previous ores.
+** Expert Mining Gloves work on Amethyst and Runite, and provide one rock save on these, two rock saves on ores the Superior Mining Gloves works on and three on Iron, Coal, Gold and Silver.
+* Adjusted the price of Mining Gloves:
+** Mining Gloves - 40 Unidentified minerals.
+** Superior Mining Gloves - 100 Unidentified minerals.
+** Combining the Gloves - 40 Unidentified minerals.
+* Added more nice spots to mine Sandstone and Granite.
+
+===Motherlode Mine===
+* Veins on the lower floor now last between 23-27 seconds.
+* Veins on the upper floor now last between 36-40 seconds.
+* Coal now provides XP when harvested from Pay Dirt.
+** This leads to a decent XP buff on the lower levels when the chance to get coal is high.
+* The Hopper now has an upper cap of 108 Pay Dirt, replacing the previous deposit functionality.
+* For 50 Nuggets you can now unlock the Super Hopper, which allows you to deposit from upstairs.
+* Lowered the requirement for the upper floor to 57 Mining.
+* The Achievement Diary task now only requires the Helmet, instead of the full outfit.
+* Added a warning when your sack and 'about to be cleaned dirt' is more than the sack capacity.
+* We've updated the interface to show how much room you've got left in your Sack.
+
+===Volcanic Mine===
+* Solo trips are now more viable!
+** Solo runs have reduced variants on vent destabilisation.
+* Added the Mining Outfit to the Volcanic Mine Reward Shop.
+* Removed both the Kudos requirement and the reward claim requirement.
+
+===Blast Mine===
+* We've visually reworked the area of Blast Mine.
+* Upped XP by ~10% across the board.
+* Lowered the price of Dynamite.
+* Decreased the explosion radius of Dynamite by 1 tile.
+* Increased the Blasted Ore despawn timer.
+* Increased Sack capacity.
+* A new reward from the Kebos Elite Diary increases your chance to obtain higher-tier ores by 10%.
+
+===Zalcano===
+* Talk to Rhiannon to toggle between resource and XP rewards.
+** Toggling resources ‘Off’ does not remove your eligibility for unique and pet rewards.
+** XP rewards are aimed at around 50,000 XP/hr.
+* Removed the forced amount of downs from Zalcano.
+** Zalcano can now be killed in one rotation (provided you have the DPS, of course).
+* Fixed an issue where players could boost one another’s unique rates by leaving before the fight was over.
+
+===Misc. Skilling===
+* Improved the Light Orbs activity.
+** Lumbridge elite diary now offers double wire when being thieved.
+** Thieving wire fail rates have been reduced at the top end.
+** Replacing a light orb now grants 50% of the firemaking xp as crafting xp instead, with the addition of it now requiring the same crafting level.
+** Counter added to track how many light orbs you've replaced.
+** Bonus XP is now granted every 50 light orbs instead of 100.
+** Added an indicator that will show you where the closest broken light orb is when repairing one, if there is one nearby.
+* Guthix Rests can now be made in one action. Additionally, players will be warned when mixing ingredients in the wrong order.
+* Barbarian potions can now use the Make-all functionality. This can be toggled in the Settings menu.
+* Necklace of Faith now provides 25% Prayer Points on activation, up from 10%.
+* Ring of Pursuit now has a 100% chance to fully reveal hunter tracks, up from 25%.
+* Efaritay's Aid now provides the ability to hurt all t1/t2 vampyres with regular weapons, with 50% reduced damage output. It also provides a 15% buff to the accuracy of silvery and vampyre specific weaponry.
+* Creating a Toxic Blowpipe now requires 78 Fletching, up from 53.
+
+That’s all from the first part of Project Rebalance, but we’ll be back soon with the second half. Again, we’ll be keeping a close eye on your feedback – so be sure to send it our way!
+
+==Poll 81: Mage Training Arena==
+Bones to Peaches fans rejoice – here comes a swathe of Mage Training Arena improvements! Further details on all these changes can be found in the [https://secure.runescape.com/m=news/poll-81-mage-training-arena-?oldschool=1 Poll 81 blog].
+
+===General===
+* Removed the delay when casting Telekinetic Grab and Bones to Peaches/Bananas. This applies across the entire game.
+* The Pizazz Hat is no longer required to enter the minigames.
+* Players can now log out inside most of the rooms and retain their progress, with the exception of the Telekinetic Room.
+* There is now a UI element that shows your Pizazz Points in the lobby.
+* There is now a Bank Chest upstairs.
+* Added the Mage Training Arena to the Grouping menu.
+* All four rooms have had their point cap doubled.
+** Alchemists' Playground: 16,000 pts
+** Enchanting Chamber: 32,000 pts
+** The Creature Graveyard and Telekinetic Theatre: 8,000 pts
+===The Telekinetic Theatre===
+
+* Completing a maze now rewards 250 Magic XP, which stacks with the existing XP rewards.
+* Maze completion messaging is now more player-friendly.
+* After completing five mazes, your run energy will be replenished.
+* The Maze Guardian in the Telekinetic Theatre now moves faster.
+
+===The Alchemists' Playground===
+* Players now have the chance to obtain extra Points if extra coins are deposited between thresholds. Any remainder coins now give you a corresponding percentage chance at an extra point.  For example, depositing 150 coins will net you 1 point and a 50% chance of a second point.
+* The Alchemy Guardian is now static and visible from every cupboard you might be standing in front of.
+* The cupboards are now open by default and will only close for a moment when the items are being changed. This should make getting items from cupboards less frustrating!
+* Players will no longer be warned when casting Alchemy on untradeable items from within this room.
+* The Alchemy value and positions of items will now only change once a minute.
+* Players may now take up to 5 items at a time by right-clicking the cupboards.
+
+===The Enchanting Chamber===
+* Magic XP is now granted for deposited objects.
+* We now store the bonus Rune rewards for players to claim when they leave the room, rather than giving them out when objects are deposited.
+* There is now a 1/32 chance of finding Dragonstone while searching for shapes in the Enchanting Chamber. Please note, the Dragonstone cannot be taken out of the room and must be deposited for points.
+* There is at least one of each colour shape in every corner, which should mean less running around.
+
+===The Creature Graveyard===
+* Players will now only take damage from falling bones, although they can save themselves by moving out of the way.
+* Bonus runes that used to be given on depositing fruit are now given on exiting the room.
+* Depositing fruit will now reward 5 xp for a Banana and 10 xp for a Peach.
+* Bones to Bananas and Bones to Peaches can now be cast while running in this area.
+* Bones to Peaches teletabs now work on Bones in the Mage Training Arena.
+* Peaches now count as two portions of fruit when deposited in a chute, meaning you will need half as many to get a Graveyard Pizzazz Point.
+* Players can no longer bring certain bones that can be converted into fruit with them into the graveyard.
+
+==Other Changes==
+* Implemented a toggle for missed Clue Scroll notification. Messages for each tier of Clue Scroll can be enabled individually.
+* Christmas Crackers are now more generous and less random, allowing players to wish for a specific colour Party Hat and trinket. In addition, both you and your friend will receive prizes!
+* Shops no longer cause purchases to overflow onto the ground if you create an empty Inventory space by spending the last of your coins.
+* The coins and keys bequeathed by cremated shades in Mort'ton now stay on the pedestals for 5 minutes rather than 30 seconds. Other players cannot take them during this time.
+* The 'Rumour' option on whistles now mentions which hunter was the source of the rumour.
+* The death protection value of imbued Salve Amulets has been reduced, now that their imbue costs can be refunded on death.
+* The Coal Bag now gives more of its feedback messages via chat rather than via disruptive pop-up messages.
+* Plant Pots can now be autofilled when used on soil from a Farming patch. Pots can only be filled if the patch is empty and without weeds.
+* ‘Vial Smasher’ and ‘Pot Smasher’ can now be toggled in the Settings menu.
+* The Canifis meat shop, Sawmill shop and Piscarillius General Shop now have ironman, UIM and GIM variants.
+* Not only have we moved the three Rogues’ Chests closer to each other, but they will now stay open until they are restocked, and we’ve adjusted the delay when opening them.
+* Echo Boots now require 75 Defence.
+* Any player that completed or started the Easter 2024 event will unlock the 'Sunny Side Up' music track upon their next login.
+* The Abyssal Dagger (bh) will now apply the correct reduction when using its special attack.
+* Resolved inconsistencies when using Vesta’s Spear in Deadman and Bounty Hunter.
+* You can now scry Seer's village, Yanille and the Grand Exchange if you have the corresponding teleport unlocked at your portal nexus or scrying pool. using the Portal Nexus no longer shows the wrong areas.
+* Fixed an issue where players were able to use some excluded spells in Clan Wars.
+* Fixed a bug where crafting new Meat and Fur Pouches deleted the contents of the existing ones.
+* Fixed a visual issue with the Leagues III Teleport.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://new.reddit.com/r/2007scape/comments/1cn0p5c/project_rebalance_skilling_poll_81_mta_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

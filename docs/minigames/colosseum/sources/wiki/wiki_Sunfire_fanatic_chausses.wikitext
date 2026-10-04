@@ -1,0 +1,79 @@
+{{Infobox Item
+|name = Sunfire fanatic chausses
+|image = [[File:Sunfire fanatic chausses.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = Chausses forged from sunfire.
+|value = 500000
+|weight = 7.711
+|exchange = Yes
+|id = 28939
+|leagueRegion = Varlamore
+}}
+[[File:Sunfire fanatic chausses detail.png|100px|left]]
+The '''sunfire fanatic chausses''' are an item that requires level 60 [[Prayer]] and 40 [[Defence]] to equip, obtained as a possible reward from participating in the [[Fortis Colosseum]]. Part of the [[sunfire fanatic armour]] set, they provide the [[best in slot]] prayer bonus for the legs slot (+2 over Proselyte), and also have identical defence bonuses to the [[rune platelegs]].
+
+{{Costume storage|armour case|[[Sunfire fanatic armour]] set|set=true}}
+
+{{bug|An incorrect vertex weight can cause some animation stretching on body type B.}}
+
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -4
+|arange = -11
+|dstab = +51
+|dslash = +49
+|dcrush = +47
+|dmagic = -4
+|drange = +49
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +8
+|slot = legs
+|image = [[File:Sunfire fanatic chausses equipped male.png|125px]]
+|altimage = [[File:Sunfire fanatic chausses equipped female.png|110px]]
+}}
+
+==Item sources==
+{{Drop sources|Sunfire fanatic chausses}}
+The expected drop rate if you complete all twelve waves is approximately 1/24.47
+
+==Treasure Trails==
+{{EmoteClue}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Sunfire fanatic chausses}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = The item's [[value]] has been increased from 20,000 to 500,000.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Sunfire fanatic armour equipped male.png|Sunfire fanatic armour on body type A.
+Sunfire fanatic armour equipped female.png|Sunfire fanatic armour on body type B.
+Sunfire fanatic armour concept art.png|Concept art of the sunfire fanatic armour, by [[Mod Jerv]].
+</gallery>
+
+
+{{Fortis Colosseum}}
+{{Prayer items}}
+
+[[Category:Collection log items]]
