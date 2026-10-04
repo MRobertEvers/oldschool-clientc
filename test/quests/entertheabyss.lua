@@ -41,6 +41,8 @@
 -- its exit portal (essence_mine.rs2 @essence_mine_exit), which sets you down
 -- inside the teleporter's own room (runecraft.constant ^essence_mine_to_*),
 -- so each visit walks back out through that room's door.
+--   Wilderness Ditch: ditch_wilderness_cover (op1 Cross) at 3106,3521, crossed
+--     south 3106,3523 -> 3106,3520 (wilderness_ditch.rs2).
 --   Varrock Zamorak chapel: fai_varrock_poor_door_flipped 3255,3388 (street
 --     x <= 3255, chapel x >= 3256; maps/m50_52.jl2).
 --   Aubury's shop: fai_varrock_poor_door 3253,3398 on its north wall, open in
@@ -211,12 +213,27 @@ return {
         t.expect("quest.stage.varrock", t.quest.expect_stage("varrock"))
 
         -- ---- 2. Varrock Mage of Zamorak: earn the scrying orb ----
-        -- The goto leaves the open Wilderness plain (no walls, no door) for the open street outside
-        -- the chapel. The Wilderness Ditch (ditch_wilderness_cover, 3101-3111,3521-3522) lies
-        -- between them, but its Cross op has no handler in content: no [oploc1,ditch_wilderness_cover]
-        -- under OSRS-Content/osrs239-content/server/scripts, and a b58 probe run pressed the copy at
-        -- 3106,3521 from 3106,3523 and got "Nothing interesting happens." with the player unmoved.
-        t.exec("goto-talkToMageInVarrock", t.player.goto_tile, 3253, 3388, 0) -- the street outside the chapel door
+        -- Out of the Wilderness on foot: walk south to the Wilderness Ditch and Cross it by click
+        -- (areas/area_wilderness/scripts/wilderness_ditch.rs2 ~wilderness_ditch_cross: the copies at
+        -- z 3521-3522 are angle 0, so from z 3523 the jump lands on z-1 = 3520, three tiles south).
+        -- The warning pages only open on a jump NORTH (deeper into the Wilderness), and the on-foot
+        -- strip warning's zones are z 3512-3519, which the walk never enters, so nothing may be open
+        -- after the jump. The goto then leaves the open ground south of the ditch for the open
+        -- street outside the chapel (overland travel between two open tiles).
+        t.player.walk_to(3106, 3523, 60)
+        local dr, dt = t.world.tile()
+        t.check("walkToWildernessDitch", dr == "ok" and dt.x == 3106 and dt.z == 3523 and dt.level == 0,
+            "walked from the mage's plain to the ditch's north side -> " .. tile_text(dr, dt) .. " (want 3106,3523,0)")
+        local xr, xd = t.player.click_loc("ditch_wilderness_cover", 1, { at = { 3106, 3521 } })
+        await_tile(function(tt) return tt.z <= 3520 end, 8, "crossWildernessDitch: waiting for the jump to land")
+        local lr, lt = t.world.tile()
+        t.check("crossWildernessDitch", (xr == "ok" or xr == "timeout") and lr == "ok" and lt.x == 3106 and lt.z == 3520 and lt.level == 0,
+            "from " .. tile_text(dr, dt) .. " click_loc(ditch_wilderness_cover Cross at 3106,3521) -> " .. tostring(xr) .. " " .. tostring(xd)
+                .. "; landed " .. tile_text(lr, lt) .. " (want 3106,3520,0: the south side, out of the Wilderness)")
+        local ck = t.chat.kind()
+        t.check("crossWildernessDitch.noWarning", ck == "none",
+            "chat.kind() after the south jump -> " .. tostring(ck) .. " (want none: the ditch warns only on a jump north)")
+        t.exec("goto-talkToMageInVarrock", t.player.goto_tile, 3253, 3388, 0) -- from 3106,3520 to the street outside the chapel door
         chapel_in("talkToMageInVarrock")
         t.exec("talkToMageInVarrock", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("talkToMageInVarrock-dialog", t.chat.play, {
