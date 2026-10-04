@@ -60,10 +60,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   tob_maiden 1dffd5230 (65/65 FULL, 33 of 33 blackstorms landed, prayed hits match 36.5+3.5c),
   tob_bloat abc53c18e (55/55, hand tiles 14-16 as Blert), tob_nylocas 116a1d938 (76/76, 41 brew
   doses + 11 restores, Vasilias killed); tob_xarpus f417148e4 and tob_sotetseg 812267e7f kept.
-  tob_verzik REJECTED by its reviewer (green and deathless, but verzik.p3_inflight_after_death
-  unmeasured: her last in-flight auto landed for 0 under that seed); its file is on disk
-  uncommitted and the card retries it. RUNNING: that retry (same args: pass, raid tob, the six
-  rooms, mode entry, width 1). ALL SIX ENTRY SOLO ROOMS ARE OTHERWISE GREEN on this tree.
+  tob_verzik: the retry (725620c00) passed its reviewer but the SAMPLER SENT IT BACK and reverted
+  it (41f0cd7e2; ledger e11c5856d): its p3_auto_miss_entry row counted five prayed magic autos as
+  unprayed (the test's pm/pg labels are swapped; Protect from Magic stayed on through tick 576),
+  leaving 7 unprayed ranged autos under the row's minimum of 12; fix: decide unprayed per hit
+  from t.prayer.read() on the landing tick for that hit's style (DRIVER_NOTES "Unprayed is the
+  prayer you read"). RUNNING: the second retry (same args). The other five rooms are green.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
