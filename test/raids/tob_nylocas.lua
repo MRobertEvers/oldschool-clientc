@@ -24,12 +24,14 @@ return {
         "::give magic_shortbow 1",
         "::give rune_arrow 800",
         -- the third weapon: a spell the magic nylocas can be killed with, fire strike
-        -- (a lava battlestaff: its fire runes for fire strike and the earth of the freeze spell, Entangle, that holds a chewer for spec.nylocas.frozen_bites_entry)
+        -- (a lava battlestaff; Ice Burst holds a chewer for spec.nylocas.frozen_bites_entry and kills a magic one)
         "::give lava_battlestaff 1",
-        "::give waterrune 40",
-        "::give naturerune 40",
-        "::give airrune 1500",
-        "::give mindrune 500",
+        -- Ancient Magicks (the Entry guide's recommended Nylocas tool, :157 and :166: Ice Burst and Barrage clump and freeze, and in Entry a frozen
+        -- nylocas does not chew); the spellbook var is a bring-along, the runes of Ice Burst (water, chaos, death) are carried
+        "::setvar varb4070_spellbook 1",
+        "::give water_rune 2000",
+        "::give chaos_rune 1000",
+        "::give death_rune 1000",
         -- food economy of the room (the aggro nylocas swing at the player every 3 ticks for the whole room and the waves take 700 ticks):
         -- seventeen Saradomin brews (four doses, +2 and 15 percent of hitpoints each, overheal to 116, one tick to drink, 64 hitpoints a
         -- slot against a shark's 20), five super restores (undo the brews' stat drain, refill prayer); 28 slots with the weapons
@@ -122,6 +124,7 @@ return {
         -- strength level readings, one per prayer poll and one per reflect press: {tick, level}
         local strength_samples = {}
         local brews, restores, brew_doses, top_up = 0, 0, 0, false
+        local burst = { centers = {}, count = 0, frozen = {}, press = nil }
         local expect_hp, expect_until, expect_tick, next_trace, last_fallen = 0, 0, 0, 0, 0
         local equip_bad, equip_samples, pending, swap_holds = 0, {}, nil, 0
         local brew_names = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
@@ -160,6 +163,23 @@ return {
         for _, mark_row in ipairs(serial_rows) do death_serial = mark_row.serial end
         for iteration = 1, 9000 do
             local _, now = t.tick()
+            if burst.cast ~= nil then
+                -- every nylocas within one tile of the last cast's target is under the burst too (the 3x3 of Ice Burst, a big is two tiles wide so its south-west corner can sit two tiles off): their next gaps are a freeze's
+                for index = 1, 3 do
+                    for _, kind in ipairs({ "incoming", "big_incoming" }) do
+                        local near_result, _, near_rows = t.npc.tiles("tob_nylocas_" .. kind .. "_" .. style_names[index] .. "_story", 12)
+                        if near_result == "ok" then
+                            for _, near_row in ipairs(near_rows) do
+                                if math.abs(near_row.x - burst.cast.x) <= (string.find(kind, "big", 1, true) and 2 or 1) and math.abs(near_row.z - burst.cast.z) <= (string.find(kind, "big", 1, true) and 2 or 1) then
+                                    local _, member_slot = t.ticklog.slot(near_row)
+                                    if type(member_slot) == "number" then burst.frozen[#burst.frozen + 1] = { world_slot = member_slot, tick = burst.cast.tick } end
+                                end
+                            end
+                        end
+                    end
+                end
+                burst.cast = nil
+            end
             if now - tick0 >= 1100 then fight_end = "tick cap, 395 ticks after the click (the swarm of bigs that arrives from click+410 killed the player from 85 in under 20 ticks in every attempt)" break end
             if now - tick0 >= next_progress then
                 next_progress = next_progress + 100
@@ -316,8 +336,8 @@ return {
             end
             local eat_below = 78 + 2 * math.min(fight_count, 3)
             -- a swarm (four or more copies swinging) takes twelve hitpoints a tick: the buffer is kept high and no more than two doses go down in one block
-            if fight_count >= 4 then eat_below = 96 end
-            if top_up then eat_below = 112 end
+            if fight_count >= 4 then eat_below = 88 end
+            if top_up then eat_below = 100 end
             local ate = 0
             local out_of_food = false
             while hp_now <= eat_below and ate < ((fight_count >= 4 and hp_now > 70) and 2 or 3) do
@@ -468,6 +488,7 @@ return {
                 end
             end
             -- is the locked copy still there, and has its press had time to land
+            burst.press = nil
             local waiting = false
             local hold_boss, boss_age_text = false, nil
             if lock ~= nil then
@@ -546,6 +567,33 @@ return {
                         if (skips[c.row.slot] or 0) <= now and score < best_score and score < 100 then
                             best_score = score
                             target, target_symbol, target_style = c.row, c.symbol, c.style
+                        end
+                    end
+                    -- a clump of three or more chewers on a support outside the doomed one: an Ice Burst on its middle freezes them all (in Entry
+                    -- a frozen nylocas does not chew, Entry Mode :166), the one burst saves more bites than three presses
+                    if pillars_fallen >= 0 and now - tick0 >= 40 then
+                        local best_clump, best_pick = 2, nil
+                        for _, c in ipairs(candidates) do
+                            if not c.zone and (skips[c.row.slot] or 0) <= now then
+                                local fresh = true
+                                for _, b in ipairs(burst.centers) do
+                                    if now - b.tick < 14 and math.abs(b.x - c.row.x) <= 2 and math.abs(b.z - c.row.z) <= 2 then fresh = false end
+                                end
+                                if fresh then
+                                    local clump = 0
+                                    for _, other in ipairs(candidates) do
+                                        if math.abs(other.row.x - c.row.x) <= 1 and math.abs(other.row.z - c.row.z) <= 1 then clump = clump + 1 end
+                                    end
+                                    local _, pick_slot = t.ticklog.slot(c.row)
+                                    local pick_born = spawn_tick_of[pick_slot]
+                                    -- (older than the aggro turn at 9 to 11 ticks: a frozen young copy would move that row)
+                                    if clump > best_clump and pick_born ~= nil and now - pick_born >= 12 then best_clump, best_pick = clump, c end
+                                end
+                            end
+                        end
+                        if best_pick ~= nil then
+                            target, target_symbol, target_style = best_pick.row, best_pick.symbol, best_pick.style
+                            burst.press = { x = best_pick.row.x, z = best_pick.row.z, clump = best_clump }
                         end
                     end
                 end
@@ -642,12 +690,12 @@ return {
                     cost.wait = cost.wait + 1
                 else
                     local wrong_probe = false
-                    if not probe_done and not on_boss and now - tick0 >= 20 and target_style ~= current and target_style ~= "magic" and current ~= "magic"
+                    if not probe_done and burst.press == nil and not on_boss and now - tick0 >= 20 and target_style ~= current and target_style ~= "magic" and current ~= "magic"
                         and target_symbol ~= nil and string.find(target_symbol, "_incoming_", 1, true) ~= nil and target.x ~= nil and target_style == "melee" and current == "ranged" then
                         wrong_probe = true
                     end
                     local freeze_cast, freeze_world_slot, freeze_bites = false, nil, 0
-                    if not on_boss and not wrong_probe and not boss_probe and #freeze_probes < 3 and now - tick0 >= 30 and now - freeze_last >= 20 and target_style == "magic"
+                    if not on_boss and burst.press == nil and not wrong_probe and not boss_probe and #freeze_probes < 3 and now - tick0 >= 30 and now - freeze_last >= 20 and target_style ~= "magic"
                         and target_symbol ~= nil and string.find(target_symbol, "_incoming_", 1, true) ~= nil and target.x ~= nil then
                         local _, candidate_world_slot = t.ticklog.slot(target)
                         local _, freeze_anims = t.ticklog.rows({ kind = "npc_anim", slot = candidate_world_slot })
@@ -659,6 +707,8 @@ return {
                     end
                     local press_style = target_style
                     if boss_probe then press_style = "melee" end
+                    if burst.press ~= nil then press_style = "magic" end
+                    if freeze_cast then press_style = "magic" end
                     if current ~= press_style and not wrong_probe then
                         local before_equip = select(2, t.tick())
                         local equip_result, equip_detail = t.player.equip(weapon[press_style])
@@ -673,13 +723,14 @@ return {
                     local before = select(2, t.tick())
                     local call_result, call_detail
                     if press_style == "magic" and not wrong_probe then
-                        call_result, call_detail = t.player.cast(freeze_cast and "entangle" or "fire_strike", target_symbol, 1, 2, { slot = target.slot })
+                        call_result, call_detail = t.player.cast("ice_burst", target_symbol, 1, 2, { slot = target.slot })
                         if freeze_cast then
                             freeze_last = now
                             freeze_probes[#freeze_probes + 1] = { world_slot = freeze_world_slot, tick = before, bites_before = freeze_bites, answer = tostring(call_result) }
                             skips[target.slot] = now + 20
                         end
                         casts = casts + 1
+                        if not on_boss and target.x ~= nil then burst.cast = { x = target.x, z = target.z, tick = before } end
                     else
                         call_result, call_detail = t.player.attack(target_symbol, 2, 1, { slot = target.slot })
                         swings = swings + 1
@@ -727,6 +778,11 @@ return {
                         if type(world_slot) == "number" then pending = { world_slot = world_slot, tick = before } else pending = nil end
                         lock = { world_slot = world_slot, slot = target.slot, symbol = target_symbol, tick = select(2, t.tick()), hold = hold_of[target_style], fight = (target_symbol ~= nil and string.find(target_symbol, "_fighting_", 1, true) ~= nil) or on_boss }
                         if on_boss then lock.hold = 4 end
+                        if burst.press ~= nil then
+                            lock.hold = 5
+                            burst.count = burst.count + 1
+                            burst.centers[#burst.centers + 1] = { x = burst.press.x, z = burst.press.z, tick = now, clump = burst.press.clump }
+                        end
                     else
                         if string.find(tostring(call_detail), "already under attack", 1, true) ~= nil then under_attack = under_attack + 1 end
                         if #samples < 4 then samples[#samples + 1] = tostring(call_result) .. ": " .. string.sub(tostring(call_detail), 1, 150) end
@@ -884,6 +940,9 @@ return {
                         if previous ~= nil and c.type < 10780 then
                             local frozen_gap = false
                             for _, probe_row in ipairs(freeze_probes) do
+                                if probe_row.world_slot == r.slot and previous < probe_row.tick + 6 and r.tick >= probe_row.tick then frozen_gap = true end
+                            end
+                            for _, probe_row in ipairs(burst.frozen) do
                                 if probe_row.world_slot == r.slot and previous < probe_row.tick + 6 and r.tick >= probe_row.tick then frozen_gap = true end
                             end
                             local list = m.attackrate
@@ -1542,7 +1601,7 @@ return {
                 .. tostring(landed_tick) .. ", " .. bites_after .. " bites in the 15 ticks after, next bite " .. tostring(next_bite) .. ", freed " .. tostring(free_tick) .. (alive and "" or " (not counted)")
         end
         t.check("spec.nylocas.frozen_bites_entry", frozen_valid >= 1 and frozen_bites_after == 0, "measured " .. frozen_bites_after .. " count, in " .. frozen_valid
-            .. " counted Entangle freezes (the standard book's freeze, npc_frozen like an Ice Burst's) on a chewing magic nylocas: " .. table.concat(frozen_text, "; ") .. " (spec 0 count, grade D, tol exact)")
+            .. " counted Ice Burst freezes (Ancient Magicks; the burst nulls a melee or ranged chewer and holds it, npc_frozen) on a chewing melee or ranged nylocas: " .. table.concat(frozen_text, "; ") .. " (spec 0 count, grade D, tol exact)")
 
         -- ===== TEXT ROWS: seqs, graphics, projectiles, sounds, music and locs read from the log, the client and the room =====
         local style_order = { "melee", "ranged", "magic" }
