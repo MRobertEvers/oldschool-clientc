@@ -70,10 +70,10 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
    `encounters/raidwide.tsv` (42 of its 75 rows have a raidwide.<id> step in the green ledger;
    raid_coverage.py grades only spec.<id> steps, so the author names its rows spec.raidwide.*
    or the checker learns raidwide.*); otherwise seam17 on the room the verdict names.
-3. THREE DRIVEN CLIENTS (owner, 2026-10-04: "For normal and hard mode, you will need 3
-   players"): seam pass on `SEAM_TRIAGE_2026-10-04e.md` (the facts and the design questions are
-   in it). Solo stays Entry only.
-4. Normal mode room pass with three players, then Hard (Hard needs a Normal completion on
+3. Seam19 on `SEAM_TRIAGE_2026-10-04g.md` (after the seam17 merge): `::tobjoin` puts a member in
+   the leader's room instance, `t.raid.enter` for a party, the member HUD orb bug, a Hard fixture
+   with a Normal completion, the author card's `party` arg, `_party_smoke` at Bloat Normal.
+4. Normal mode room pass with three players (`tob_<room>_normal`, pass `matthew-mbp-m4-raid-b1-rooms-tob-normal`, roles from the trio transcripts and Blert), then Hard (Hard needs a Normal completion on
    every account: tob_party.rs2 `%varp6826_tob_completions < 1` at the door).
 5. The frame-count pass for D/E tick rows (`tools/raid_gate/frame_diff.py`).
 6. Tombs of Amascut spec pass (corpus pinned), then Chambers of Xeric.
