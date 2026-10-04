@@ -1,0 +1,15 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_creature_mager	7699	1686	seq	7608	jalakxil_walk	30	2.0 (60 client)	-	walk	bound	forcedpriority=5 priority=None
+inferno_creature_mager	7699	1686	seq	7609	jalakxil_ready	12	1.0 (29 client)	-	ready	bound	forcedpriority=4 priority=None
+inferno_creature_mager	7699	1686	seq	7610	jalakxil_attack_magic	30	2.0 (60 client)	-	attack (magic)	rig+name	forcedpriority=6 priority=None
+inferno_creature_mager	7699	1686	seq	7611	jalakxil_resurrect	72	6.0 (180 client)	-	special	rig+name	forcedpriority=8 priority=None; name states resurrect (revives dead mobs)
+inferno_creature_mager	7699	1686	seq	7612	jalakxil_attack_melee	30	2.0 (60 client)	-	attack (melee)	rig+name	forcedpriority=6 priority=None
+inferno_creature_mager	7699	1686	seq	7613	jalakxil_death	30	2.0 (60 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_mager_finalwave	7703	1686	seq	7608	jalakxil_walk	30	2.0 (60 client)	-	walk	bound	forcedpriority=5 priority=None
+inferno_mager_finalwave	7703	1686	seq	7609	jalakxil_ready	12	1.0 (29 client)	-	ready	bound	forcedpriority=4 priority=None
+inferno_mager_finalwave	7703	1686	seq	7610	jalakxil_attack_magic	30	2.0 (60 client)	-	attack (magic)	rig+name	forcedpriority=6 priority=None
+inferno_mager_finalwave	7703	1686	seq	7611	jalakxil_resurrect	72	6.0 (180 client)	-	special	rig+name	forcedpriority=8 priority=None; name states resurrect (revives dead mobs)
+inferno_mager_finalwave	7703	1686	seq	7612	jalakxil_attack_melee	30	2.0 (60 client)	-	attack (melee)	rig+name	forcedpriority=6 priority=None
+inferno_mager_finalwave	7703	1686	seq	7613	jalakxil_death	30	2.0 (60 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_mager	7699	-	spotanim	1376	inferno_zek_projectile	12	2.0 (60 client)	-	attack-projectile	name	Jal-Zek by Jagex name (zek); anim=zuk_proj, a Zuk-named sequence, rig not joined
+inferno_mager_finalwave	7703	-	spotanim	1376	inferno_zek_projectile	12	2.0 (60 client)	-	attack-projectile	name	Jal-Zek by Jagex name (zek); anim=zuk_proj, a Zuk-named sequence, rig not joined
