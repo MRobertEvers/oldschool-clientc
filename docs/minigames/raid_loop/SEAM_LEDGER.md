@@ -424,3 +424,46 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   it on T+29); the misses were the probe's. Row seam.special_attack_spent PASS. Still open:
   tob_bloat.lua still carries the faulty probe; spec.bloat.fly_first reads 3 against 1 and
   tech_flinch_tiles comes and goes (the author's).
+
+## matthew-mbp-m4-raid-b1-seam11 (2026-10-03; parent 864f2cc46, OSRS-Content e7f9dd5269): the rig pass's findings and what the seventh ToB room launch left (triage SEAM_TRIAGE_2026-10-03i.md)
+
+- `tob_rig_ledger_faults`: LANDED. Authored attack_anim null for the seven rig families
+  still missing it, all modes, plus death null on the death bat; generated-then-authored
+  layering proved (the Athanatos null held before the edit); Matomenos plays 8098 on its
+  spawn tick; generator a4 role gate and own-stance gate (generator NOT regenerated);
+  `::tobnpcanim`. Rows seam.authored_null_attack_anim_holds and
+  seam.matomenos_spawn_seq_on_spawn_tick PASS; spec rows maiden.av.crab_spawn.seq and
+  xarpus.av.death_a.seq added. Still open: nc_param reads no overlay (engine row); a
+  `--write` would drop generated death anims (restate first); 54 slots change on the next
+  write.
+- KEPT ROOMS: tob_maiden 107/107 PASS and tob_xarpus 119/119 PASS on the final tree, gate
+  green, but coverage 62 of 63 each, not FULL: the new rows maiden.av.crab_spawn.seq
+  (tick log: 6 of 6 crabs npc_anim 8098 on the npc_spawn tick) and xarpus.av.death_a.seq
+  (tick log: npc_death K=281, 8062 on 10768 at 282, 8063 on 10769 at 284) are not measured
+  by the committed tests. The next room launch re-authors one row in each; no other
+  measured number moved.
+- `tob_sotetseg_maze_proc_and_creeper`: LANDED. No 8142 on the boss at the proc
+  (av.maze.boss_seq 0, grade C); a ball thrown on the proc tick is not counted
+  (magic_per_ball_proc_tick 11, D); tornado 9004 on spawn, 9005 then removal a tick later;
+  rag recipe for two safe samples in DRIVER_NOTES. Proved by scratch runs sote11_a/b, no
+  conformance row (content only). Still open: the size-3 tornado stalls when the path
+  starts at column 12 or 13 (needs centring and moverestrict=passthru in tob.npc);
+  tob_sotetseg.lua (author WIP) must re-author maze.boss_seq, maze_boss_idle_at_proc,
+  magic_per_ball and the tornado rows.
+- `tob_verzik_webs_and_unmeasured_rows`: LANDED. Webs per cast is a party row (one web per
+  cast solo, Strategies:953); the enrage tornado now touches a standing raider (range 1);
+  P2 Matomenos 8098 and tornado 9004/9005 play; a no-god scratch killed her twice
+  (t741, t748) and measured p1_cap, p2_crab_lifetime, reds_absorb_window, p3_web_lifetime,
+  tornado pct/heal_mult/respawn; zap bounces and self-damage scoped party, tornado_min
+  stat. Row seam.verzik_tornado_touches_a_standing_raider PASS. Still open: the tornado's
+  range-1 contact needs an M number (no source says shared tile or adjacent); prayed blood
+  spell heals on the roll against Mod Ash (source-ranking call); tob_verzik.lua (author
+  WIP) must re-author with the recipes.
+- `ticklog_raw_damage_and_loc_count`: LANDED. hit_player (field g, TSV column after the
+  label) and hit_npc (field e) carry `raw`; `t.world.loc_copies` counts every placed copy.
+  Rows world.loc_copies, seam.ticklog_hit_raw (needed the worn bow off; fixed by the
+  closer) and seam.loc_copies_verzik_death_cage PASS. Still open: raw is the hit as the
+  script dealt it, never a script's pre-prayer roll; verify_tob_timings.py does not read
+  hit_player raw yet.
+- Unrelated, recorded: the committed tob_bloat.lua fails tech.protect_from_missiles on the
+  current tree and on HEAD content alike (125 fly hits, largest 7 > 6); not this pass.
