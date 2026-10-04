@@ -105,3 +105,15 @@ fixer to the wrong path on 2026-10-02): `src/app/app_plugin_drive_events.c`,
 `src/plugin/torirs_plugin_drive.h`, `src/plugin/torirs_plugin_drive_ui.c`,
 `src/world/entity_npc.h`, `src/world/entity_projectile.h`, `src/world/entity_spotanim.h`,
 `src/world/world.c`. The owner restores them; the raid loop was not permitted to.
+
+## The eat-delay port is also landing on the waves branch (noted 2026-10-03)
+
+The waves loop (branch `matthew-mbp-m4-waves-b1`) carried content commit `7936c59bf9` over
+byte-for-byte (37 files) with the three `consume_delay.varp` ids renumbered to 7223-7225,
+and re-sourced its comments to pinned OSRS wiki pages. Whichever branch merges second must
+take the first one's varp numbers, not allocate three more, and must expect the 37 files to
+conflict only in those ids and comments. On the waves branch the port also reddened the
+quest test `contact` (row 214, the Giant Scarab), which stayed green here: tell the quest
+session if it is red after either merge. Eat paths the port does not cover, found by the
+waves loop: `minigame_toa/scripts/toa_supplies.rs2` (CONTENT_BUGS.md row, the ToA seams'),
+`minigame_gauntlet/scripts/gauntlet_craft.rs2` (paddlefish) and `kebab.rs2:20`.
