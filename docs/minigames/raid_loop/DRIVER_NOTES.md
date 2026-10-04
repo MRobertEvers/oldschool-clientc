@@ -2710,3 +2710,56 @@ Checked in scratch runs vz10_room3, vz10_room4 and vz10_room5.
 - `raid_coverage.py`'s `SPEC_RE` accepted only exact, +-N, range and approx, so a row
   written `tol bracket<=N` (4d4331ae2) read as malformed although `within()` already graded
   it. It now parses (seam10 closer).
+
+## A solved bracket under `tol range` with one spec value never passes
+
+- `raid_coverage.py`'s `within()` reads a single spec value under `tol range` as a bound
+  only when the row's id or quantity says max/cap/ceiling/upper or min/floor/lower;
+  otherwise it is equality. `sotetseg.rag_percent` (66.7, range) and
+  `sotetseg.rag_flat_entry` (11, range) are neither, so a two-sample solve that writes
+  `measured 5.9-8.1` can never be graded FULL, however honest it is.
+- The row needs `bracket<=N` in `sotetseg.tsv` (a spec pass decides N). Until then write
+  the solved set, let the row stay open, and report it in doc_gaps. Never narrow the set
+  to the spec value to make it pass. (Reported by the sotetseg reviewer of
+  matthew-mbp-m4-raid-b1-rooms-tob.)
+
+## `hit_player` is after the prayer: a blocked hit's size is not in the log
+
+- `hit_player` carries the splat as shown, so a spell blocked by a protection prayer is a
+  row with damage 0 (hitsplat 26), not the rolled damage. A row that wants "the share of
+  the damage he heals", like `verzik.p2_heal_spell_fraction`, cannot be measured from
+  prayed hits. Take the samples unprayed (eat for it), or read the heal against the
+  unprayed hits only, and say which. (Reported by the verzik reviewer of
+  matthew-mbp-m4-raid-b1-rooms-tob.)
+
+## Sotetseg: a ball cast on the maze proc tick (reported, not yet checked)
+
+- The sotetseg reviewer saw the attack on a maze proc tick go uncounted in the ten-ball
+  counter, or log `npc_anim` 8139 (attack_ranged) where `av.maze.boss_seq` expects 8142
+  (shadow_portal); the counter is `tob_sotetseg.rs2` around lines 226-250. This is
+  unconfirmed. If your rows `magic_per_ball`, `maze_boss_idle_at_proc` or
+  `av.maze.boss_seq` disagree near a proc, put both figures in doc_gaps for the seam
+  pass. Do not change how you count to make them agree.
+
+## A reflect that equals the heal does not prove 100 percent (nylocas.vasilias_reflect)
+
+- Under the old rule a wrong-style hit on Vasilias reflected 50 percent and healed 50
+  percent. Under the current rule it reflects 100 and heals 100. In both cases the
+  `hit_player` reflect equals the `npc_heal` amount, so "heal == reflect" holds under
+  either rule. `tob_nylocas.lua` wrote "measured 100" from that equality on one hit (18).
+- The rolled hit never shows: her splat is 0. To tell 100 from 50, compare the reflects
+  with your weapon's max hit against her. A reflect above half the max is possible only
+  at 100 percent. Take several wrong-style hits, write the largest reflect and the max hit
+  you used, and leave the row open if no reflect goes above half the max.
+
+## Every technique row has its own frame, and so does every prayer switch
+
+- The nylocas file of rooms-tob launch 7 published no frame of the fight. 011 is the
+  empty arena after the kill, and every later shot is outside the Theatre after
+  `t.raid.leave`. None of its 19 prayer switches, techniques or kill was shot at the
+  moment. That alone sends a room back.
+- Xarpus shot its spit dodge, screech, gaze retaliation and kill at the moment, but not
+  `technique.exhumed_cover` (standing on an exhumed when it opens) or
+  `technique.stomp_skip` (standing under him on a scan tick). Shoot each technique row
+  on the tick it happens and give the frame the row's name. A log-proved row with no
+  frame is a gap that the sampler records.
