@@ -34,6 +34,24 @@
 --      back to the same menu) plus "I'd better be off."; choosing that
 --      third option is what calls ~eta_quest_complete (XP + items + stage
 --      -> eta_complete, opens the reward scroll).
+--
+-- Doors (b58 re-drive, the orchestrator's goto rule): every goto departs
+-- from and lands on an open tile outside; every building is entered and
+-- left on foot through its door, and the Rune Essence mine is left through
+-- its exit portal (essence_mine.rs2 @essence_mine_exit), which sets you down
+-- inside the teleporter's own room (runecraft.constant ^essence_mine_to_*),
+-- so each visit walks back out through that room's door.
+--   Varrock Zamorak chapel: fai_varrock_poor_door_flipped 3255,3388 (street
+--     x <= 3255, chapel x >= 3256; maps/m50_52.jl2).
+--   Aubury's shop: fai_varrock_poor_door 3253,3398 on its north wall, open in
+--     the map (fai_varrock_poor_door_open at 3253,3399); shop z >= 3399.
+--   Wizards' Tower: north door fai_wiztower_poor_door 3109,3167, the ladder
+--     room's diagonal door fai_wiztower_poor_door 3107,3162, the ladder
+--     wizards_tower_laddertop 3104,3162 (maplink src 3105,3162 -> 3104,9576),
+--     and Sedridor's basement room (x 3096-3107 z 9566-9574) behind poordoor
+--     3108,9570 (maps/m48_149.jl2); back up wizards_tower_ladder 3103,9576.
+--   Cromperty's house (x 2679-2686 z 3318-3327): castledoubledoorl/r
+--     2678,3325/3324 (maps/m41_51.jl2).
 
 return {
     id = "entertheabyss",
@@ -60,7 +78,129 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
+        local function tile_text(r, tt)
+            return r == "ok" and type(tt) == "table" and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
+        end
+
+        -- Wait for a teleport or climb the click queued to land.
+        local function await_tile(pred, ticks, what)
+            return t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and type(tt) == "table" and pred(tt)
+                end,
+                note = what,
+            }, ticks)
+        end
+
+        -- Cross one door on foot (the b56/b57 pass_door pattern: wanted.lua, priest). Walk to the
+        -- tile on this side; if the closed leaf stands on door_x,door_z ON THE PLAYER'S LEVEL (the
+        -- loc pool holds every level: the Wizards' Tower has a door copy on level 2 above
+        -- 3107,3162), click THAT copy; otherwise an earlier press (or the map) left it open, so
+        -- assert the open leaf stands within 1 of the door tile, off it, on this level -- a row that
+        -- fails when neither leaf is there -- and do not press it again. Then walk through and
+        -- check the far tile.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and math.abs(nt.x - near_x) <= 1 and math.abs(nt.z - near_z) <= 1,
+                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. "," .. door_z .. " -> " .. tile_text(nr, nt))
+            local here = (nr == "ok") and nt.level or 0
+            local cr, cd = t.world.loc_near(closed_sym, 3)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == here then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".doorStandsOpen", orr == "ok" and od.level == here and not (od.tile_x == door_x and od.tile_z == door_z)
+                        and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": " .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": " .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (want the open leaf within 1 of the door tile on level " .. here .. ": already open, so it is walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z, 40)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and far_ok(ft),
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
+        end
+
+        -- Climb a ladder from its maplink src tile (ladders_stairs/configs/maplink.dbrow keys
+        -- ~maplink_try on the PLAYER's coord) and grade the row on the landing tile.
+        local function climb(name, sym, at_x, at_z, src_x, src_z, want_x, want_z)
+            t.player.walk_to(src_x, src_z, 40)
+            local sr, st = t.world.tile()
+            t.check(name .. ".atLadder", sr == "ok" and st.x == src_x and st.z == src_z and st.level == 0,
+                "walked to the maplink src " .. src_x .. "," .. src_z .. ",0 beside " .. sym .. " " .. at_x .. "," .. at_z .. " -> " .. tile_text(sr, st))
+            local cr, cd = t.player.click_loc(sym, 1, { at = { at_x, at_z } })
+            await_tile(function(tt) return tt.x == want_x and tt.z == want_z end, 8, name .. ": waiting for the climb to land")
+            local lr, lt = t.world.tile()
+            t.check(name, (cr == "ok" or cr == "timeout") and lr == "ok" and lt.x == want_x and lt.z == want_z and lt.level == 0,
+                "from " .. tile_text(sr, st) .. " click_loc(" .. sym .. " at " .. at_x .. "," .. at_z .. ") -> " .. tostring(cr) .. " " .. tostring(cd)
+                    .. "; landed " .. tile_text(lr, lt) .. " (want the maplink dest " .. want_x .. "," .. want_z .. ",0)")
+        end
+
+        -- The Rune Essence mine (region 45,75): a teleporter's jump lands on a random
+        -- essence_mine_teleports tile; the way out is the nearest of the four exit portals
+        -- (blankrunestone_exit_portal, maps/m45_75.jl2; reach.py walks every landing tile to its
+        -- nearest portal with nothing in between).
+        local function in_mine(tt)
+            return tt.level == 0 and tt.x >= 2880 and tt.x <= 2943 and tt.z >= 4800 and tt.z <= 4863
+        end
+        local PORTALS = { { 2885, 4850 }, { 2889, 4813 }, { 2932, 4854 }, { 2933, 4815 } }
+
+        -- Ask a teleporter for the Rune Essence while carrying the orb: the curse's p_delay(4)
+        -- lands the jump several ticks after the page closes, so await the mine before anything
+        -- else (docs sec 2, "A dialogue or loc that TELEPORTS you"), and read the spot varbit
+        -- ~eta_charge_orb writes for this teleporter.
+        local function essence_teleport(name, npc, greeting, spot_var)
+            local orr, orb_n = t.inv.count("scrying_orb_empty")
+            t.check(name .. ".carriesOrb", orr == "ok" and orb_n == 1,
+                "scrying_orb_empty count=" .. tostring(orb_n) .. " (" .. tostring(orr) .. ") before asking " .. npc .. " (want 1: the guide's item for this step)")
+            t.exec(name, t.player.talk_to, npc, 1)
+            t.exec(name .. "-dialog", t.chat.play, {
+                "npc:" .. greeting,
+                "choose:Can you teleport me to the Rune Essence?",
+                "player:Can you teleport me to the Rune Essence?",
+            })
+            local ar = await_tile(in_mine, 15, "arrival in the essence mine after " .. npc .. "'s teleport")
+            local mr, mt = t.world.tile()
+            t.check("await-essence-" .. npc, ar == "ok" and mr == "ok" and in_mine(mt),
+                "await arrival -> " .. tostring(ar) .. "; t.world.tile() -> " .. tile_text(mr, mt)
+                    .. " (want the essence mine, x 2880-2943 z 4800-4863, level 0)")
+            t.expect(name .. ".spot", t.var.await_server(spot_var, 1, 5))
+        end
+
+        -- Leave the mine by its nearest exit portal and check where it set us down.
+        local function leave_mine(prefix, back_ok, back_desc)
+            local r, tt = t.world.tile()
+            local best, best_d = PORTALS[1], 1e9
+            if r == "ok" then
+                for _, p in ipairs(PORTALS) do
+                    local d = math.max(math.abs(p[1] - tt.x), math.abs(p[2] - tt.z))
+                    if d < best_d then
+                        best, best_d = p, d
+                    end
+                end
+            end
+            t.exec(prefix .. ".exitPortal", t.player.click_loc, "blankrunestone_exit_portal", 1, { at = { best[1], best[2] } })
+            await_tile(function(w) return not in_mine(w) end, 15, prefix .. ": waiting for the portal's jump")
+            local wr, wt = t.world.tile()
+            t.check(prefix .. ".leftMine", wr == "ok" and not in_mine(wt) and back_ok(wt),
+                "from " .. tile_text(r, tt) .. " through the portal at " .. best[1] .. "," .. best[2] .. " -> " .. tile_text(wr, wt)
+                    .. " (want " .. back_desc .. ")")
+        end
+
+        local function chapel_in(prefix)
+            pass_door(prefix .. ".chapelDoorIn", "fai_varrock_poor_door_flipped", "fai_varrock_poor_door_open_flipped", 3255, 3388, 3254, 3388, 3257, 3387,
+                function(tt) return tt.x >= 3256 and tt.level == 0 end, "inside the chapel, x >= 3256")
+        end
+        local function chapel_out(prefix)
+            pass_door(prefix .. ".chapelDoorOut", "fai_varrock_poor_door_flipped", "fai_varrock_poor_door_open_flipped", 3255, 3388, 3257, 3387, 3253, 3388,
+                function(tt) return tt.x <= 3255 and tt.level == 0 end, "back on the street west of the door, x <= 3255")
+        end
+
         -- ---- 1. Wilderness Mage of Zamorak: accept the errand ----
+        -- ::entertheabyss stands the player beside the mage on the open Wilderness plain.
         t.exec("goto-talkToMageInWildy", t.player.goto_tile, 3106, 3558, 0)
         t.exec("talkToMageInWildy", t.player.talk_to, "rcu_zammy_mage1", 1)
         t.exec("talkToMageInWildy-dialog", t.chat.play, {
@@ -71,7 +211,13 @@ return {
         t.expect("quest.stage.varrock", t.quest.expect_stage("varrock"))
 
         -- ---- 2. Varrock Mage of Zamorak: earn the scrying orb ----
-        t.exec("goto-talkToMageInVarrock", t.player.goto_tile, 3259, 3383, 0)
+        -- The goto leaves the open Wilderness plain (no walls, no door) for the open street outside
+        -- the chapel. The Wilderness Ditch (ditch_wilderness_cover, 3101-3111,3521-3522) lies
+        -- between them, but its Cross op has no handler in content: no [oploc1,ditch_wilderness_cover]
+        -- under OSRS-Content/osrs239-content/server/scripts, and a b58 probe run pressed the copy at
+        -- 3106,3521 from 3106,3523 and got "Nothing interesting happens." with the player unmoved.
+        t.exec("goto-talkToMageInVarrock", t.player.goto_tile, 3253, 3388, 0) -- the street outside the chapel door
+        chapel_in("talkToMageInVarrock")
         t.exec("talkToMageInVarrock", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("talkToMageInVarrock-dialog", t.chat.play, {
             "npc:Ah, you again. The Wilderness is hardly the appropriate place for a conversation",
@@ -122,134 +268,73 @@ return {
         t.expect("quest.stage.orb", t.quest.expect_stage("orb"))
 
         -- ---- 3. Charge the orb: teleport to the Rune Essence from three
-        -- distinct sources while carrying it (~eta_charge_orb). Each source's
-        -- ~teleport_to_essence_mine closes its own dialogue with if_close,
-        -- THEN runs a curse animation (p_delay(4)) before ~eta_charge_orb and
-        -- the actual p_telejump to a mine tile (essence_mine.rs2) -- so the
-        -- teleport lands several ticks AFTER the chat.play list returns
-        -- (docs sec 2's Abyss note: this is the exact case it names). Firing
-        -- the next goto_tile before that teleport resolves let the delayed
-        -- jump land ON TOP of it, so the click after landed on whatever
-        -- terrain the race left on screen -- read as an unrelated-scenery
-        -- mis-click in earlier runs of this file, never a real click_minimenu
-        -- bug. Fix: await the player's tile actually leaving the npc's tile
-        -- (arrival in the essence mine, region 45,75 -- far from all three
-        -- npcs, so the predicate is false at the moment of the click and can
-        -- genuinely fail) before touching the next goto_tile.
-        local charged_spots = {}
+        -- distinct sources while carrying it (~eta_charge_orb), in the guide's
+        -- order: Aubury, Sedridor, Cromperty. Each teleport is awaited into the
+        -- mine (essence_teleport), and each visit leaves the mine through its
+        -- exit portal back into the teleporter's room and walks out its door.
+        chapel_out("talkToMageInVarrock")
 
-        t.exec("goto-talkToAubury", t.player.goto_tile, 3253, 3402, 0)
-        local aubury_talk_result, aubury_talk_detail = t.player.talk_to("aubury", 1)
-        if aubury_talk_result == "ok" then
-            t.exec("talkToAubury-dialog", t.chat.play, {
-                "npc:Do you want to buy some runes?",
-                "choose:Can you teleport me to the Rune Essence?",
-                "player:Can you teleport me to the Rune Essence?",
-            })
-            local aubury_arrive_result = t.await({
-                level = function()
-                    local r, tile = t.world.tile()
-                    return r == "ok" and tile ~= nil
-                        and (math.abs(tile.x - 3253) > 200 or math.abs(tile.z - 3402) > 200)
-                end,
-                note = "arrival in the essence mine after Aubury's teleport",
-            }, 10)
-            local aubury_tile_result, aubury_tile_now = t.world.tile()
-            t.check("await-essence-aubury", aubury_arrive_result == "ok",
-                "await arrival -> " .. tostring(aubury_arrive_result) .. "; t.world.tile() -> "
-                .. tostring(aubury_tile_result) .. " " .. tostring(aubury_tile_now and aubury_tile_now.x)
-                .. "," .. tostring(aubury_tile_now and aubury_tile_now.z))
-            charged_spots[#charged_spots + 1] = "aubury"
-        end
+        -- Aubury's shop is 10 tiles north of the chapel door: walked, no goto.
+        pass_door("talkToAubury.shopDoorIn", "fai_varrock_poor_door", "fai_varrock_poor_door_open", 3253, 3398, 3253, 3397, 3253, 3400,
+            function(tt) return tt.z >= 3399 and tt.level == 0 end, "inside Aubury's shop, z >= 3399")
+        essence_teleport("talkToAubury", "aubury", "Do you want to buy some runes?", "varb2315_rcu_essencespot_aubury")
+        leave_mine("talkToAubury", function(tt) return tt.level == 0 and tt.z >= 3399 and tt.z <= 3405 and math.abs(tt.x - 3253) <= 3 end,
+            "inside Aubury's shop, within 2 of ^essence_mine_to_aubury 3253,3401")
+        pass_door("talkToAubury.shopDoorOut", "fai_varrock_poor_door", "fai_varrock_poor_door_open", 3253, 3398, 3253, 3400, 3253, 3396,
+            function(tt) return tt.z <= 3397 and tt.level == 0 end, "on the street south of the shop, z <= 3397")
 
-        t.exec("goto-talkToCromperty", t.player.goto_tile, 2683, 3326, 0)
-        local cromperty_target = t.player.by_symbol("npc", "ardounge_wizard")
-        t.exec("walk-cromperty", t.player.walk_near, cromperty_target, 30)
-        local cromperty_talk_result, cromperty_talk_detail = t.player.talk_to("ardounge_wizard", 1)
-        if cromperty_talk_result == "ok" then
-            t.exec("talkToCromperty-dialog", t.chat.play, {
-                "npc:Hello there.",
-                "choose:Can you teleport me to the Rune Essence?",
-                "player:Can you teleport me to the Rune Essence?",
-            })
-            local cromperty_arrive_result = t.await({
-                level = function()
-                    local r, tile = t.world.tile()
-                    return r == "ok" and tile ~= nil
-                        and (math.abs(tile.x - 2683) > 200 or math.abs(tile.z - 3326) > 200)
-                end,
-                note = "arrival in the essence mine after Cromperty's teleport",
-            }, 10)
-            local cromperty_tile_result, cromperty_tile_now = t.world.tile()
-            t.check("await-essence-ardounge_wizard", cromperty_arrive_result == "ok",
-                "await arrival -> " .. tostring(cromperty_arrive_result) .. "; t.world.tile() -> "
-                .. tostring(cromperty_tile_result) .. " " .. tostring(cromperty_tile_now and cromperty_tile_now.x)
-                .. "," .. tostring(cromperty_tile_now and cromperty_tile_now.z))
-            charged_spots[#charged_spots + 1] = "ardounge_wizard"
-        end
+        -- Wizards' Tower: the island outside its north door (reach.py: 3109,3169 walks the
+        -- island to 3100,3170 with every door shut), in through two doors, down the ladder.
+        t.exec("goto-goDownInWizardsTower", t.player.goto_tile, 3109, 3169, 0)
+        pass_door("goDownInWizardsTower.towerIn", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3109, 3167, 3109, 3168, 3109, 3164,
+            function(tt) return tt.z <= 3166 and tt.level == 0 end, "inside the tower's hall, z <= 3166")
+        pass_door("goDownInWizardsTower.ladderRoomIn", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3107, 3162, 3108, 3163, 3105, 3162,
+            function(tt) return tt.x <= 3106 and tt.level == 0 end, "inside the ladder room, x <= 3106")
+        climb("goDownInWizardsTower", "wizards_tower_laddertop", 3104, 3162, 3105, 3162, 3104, 9576)
+        -- Sedridor's room: reach.py walks the ladder foot 3104,9576 to 3109,9570 with doors shut.
+        pass_door("talkToSedridor.roomIn", "poordoor", "poordooropen", 3108, 9570, 3109, 9570, 3106, 9570,
+            function(tt) return tt.x <= 3107 and tt.z >= 9566 and tt.z <= 9574 end, "inside Sedridor's room, x <= 3107")
+        essence_teleport("talkToSedridor", "head_wizard", "Welcome adventurer, to the world renowned Wizards' Tower.", "varb2314_rcu_essencespot_wizardstower")
+        leave_mine("talkToSedridor", function(tt) return tt.level == 0 and math.abs(tt.x - 3106) <= 2 and math.abs(tt.z - 9572) <= 2 end,
+            "the basement within 2 of ^essence_mine_to_sedridor 3106,9572")
+        pass_door("talkToSedridor.roomOut", "poordoor", "poordooropen", 3108, 9570, 3107, 9570, 3109, 9570,
+            function(tt) return tt.x >= 3108 end, "in the corridor east of Sedridor's door, x >= 3108")
+        climb("talkToSedridor.ladderUp", "wizards_tower_ladder", 3103, 9576, 3104, 9576, 3105, 3162)
+        pass_door("talkToSedridor.ladderRoomOut", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3107, 3162, 3105, 3162, 3108, 3163,
+            function(tt) return tt.x >= 3107 and tt.level == 0 end, "back in the tower's hall, x >= 3107")
+        pass_door("talkToSedridor.towerOut", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3109, 3167, 3109, 3165, 3109, 3169,
+            function(tt) return tt.z >= 3167 and tt.level == 0 end, "outside the tower's north door, z >= 3167")
 
-        t.exec("goto-talkToSedridor", t.player.goto_tile, 3103, 9571, 0)
-        local sedridor_row_result, sedridor_row = t.npc.by_symbol("head_wizard")
-        if sedridor_row_result == "ok" then
-            t.exec("goto-talkToSedridor-live", t.player.goto_tile,
-                sedridor_row.x, sedridor_row.z, sedridor_row.level or 0)
-        end
-        local sedridor_talk_result, sedridor_talk_detail = t.player.talk_to("head_wizard", 1)
-        if sedridor_talk_result == "ok" then
-            t.exec("talkToSedridor-dialog", t.chat.play, {
-                "npc:Welcome adventurer, to the world renowned Wizards' Tower.",
-                "choose:Can you teleport me to the Rune Essence?",
-                "player:Can you teleport me to the Rune Essence?",
-            })
-            local sedridor_arrive_result = t.await({
-                level = function()
-                    local r, tile = t.world.tile()
-                    return r == "ok" and tile ~= nil
-                        and (math.abs(tile.x - 3103) > 200 or math.abs(tile.z - 9571) > 200)
-                end,
-                note = "arrival in the essence mine after Sedridor's teleport",
-            }, 10)
-            local sedridor_tile_result, sedridor_tile_now = t.world.tile()
-            t.check("await-essence-head_wizard", sedridor_arrive_result == "ok",
-                "await arrival -> " .. tostring(sedridor_arrive_result) .. "; t.world.tile() -> "
-                .. tostring(sedridor_tile_result) .. " " .. tostring(sedridor_tile_now and sedridor_tile_now.x)
-                .. "," .. tostring(sedridor_tile_now and sedridor_tile_now.z))
-            charged_spots[#charged_spots + 1] = "head_wizard"
-        end
-
-        t.check("charge.spots", #charged_spots == 3,
-            string.format("%d of 3 essence-teleport clicks landed (%s). "
-                .. "aubury -> %s: %s | ardounge_wizard -> %s: %s | head_wizard -> %s: %s.",
-                #charged_spots, table.concat(charged_spots, ","),
-                tostring(aubury_talk_result), tostring(aubury_talk_detail),
-                tostring(cromperty_talk_result), tostring(cromperty_talk_detail),
-                tostring(sedridor_talk_result), tostring(sedridor_talk_detail)))
-        if #charged_spots < 3 then
-            t.blocked(string.format(
-                "entertheabyss.rs2 ~eta_charge_orb needs 3 distinct essence-teleport NPCs "
-                .. "carrying the scrying orb; only %d of 3 clicks landed this run (%s), even "
-                .. "with the essence-mine-arrival await ahead of each goto_tile.",
-                #charged_spots, table.concat(charged_spots, ",")))
-            return
-        end
+        -- Cromperty's house, East Ardougne: the street west of its double door (reach.py:
+        -- 2677,3325 walks to 2662,3305 with every door shut).
+        t.exec("goto-talkToCromperty", t.player.goto_tile, 2677, 3325, 0)
+        pass_door("talkToCromperty.houseIn", "castledoubledoorl", "opencastledoubledoorl", 2678, 3325, 2677, 3325, 2680, 3324,
+            function(tt) return tt.x >= 2679 and tt.level == 0 end, "inside Cromperty's house, x >= 2679")
+        essence_teleport("talkToCromperty", "ardounge_wizard", "Hello there.", "varb2316_rcu_essencespot_cromperty")
 
         -- eta_charge_orb converts the orb on the third distinct spot and
         -- prints this system line (mes(), not a dialogue page) DURING
         -- ~teleport_to_essence_mine's own p_delay(4), before the p_telejump
-        -- that the await-essence-head_wizard row above already waited out --
-        -- so the line is already in the ring by here, not one still to
-        -- arrive: t.msg.expect (any line still in the ring), never
-        -- t.msg.await, which only matches a line newer than the call and so
-        -- can never see one that landed during an earlier await (docs sec 8).
+        -- that the await-essence row above already waited out -- so the line
+        -- is already in the ring by here: t.msg.expect (any line still in the
+        -- ring), never t.msg.await (only lines newer than the call; docs sec 8).
         t.expect("gather.orb_charged", t.msg.expect("absorbed enough teleport information"))
         local orb_full_result, orb_full_count = t.inv.count("scrying_orb_full")
-        t.check("gather.orb_full", orb_full_result == "ok" and orb_full_count == 1,
-            string.format("scrying_orb_full count=%s (read %s)", tostring(orb_full_count), tostring(orb_full_result)))
+        local orb_left_result, orb_left_count = t.inv.count("scrying_orb_empty")
+        t.check("gather.orb_full", orb_full_result == "ok" and orb_full_count == 1 and orb_left_result == "ok" and orb_left_count == 0,
+            string.format("scrying_orb_full count=%s (read %s), scrying_orb_empty count=%s (read %s) (want 1 and 0: the third spot swapped the orb)",
+                tostring(orb_full_count), tostring(orb_full_result), tostring(orb_left_count), tostring(orb_left_result)))
+
+        leave_mine("talkToCromperty", function(tt) return tt.level == 0 and tt.x >= 2679 and tt.x <= 2686 and tt.z >= 3318 and tt.z <= 3327 end,
+            "inside Cromperty's house, within 2 of ^essence_mine_to_cromperty 2684,3322")
+        pass_door("talkToCromperty.houseOut", "castledoubledoorl", "opencastledoubledoorl", 2678, 3325, 2679, 3325, 2676, 3325,
+            function(tt) return tt.x <= 2677 and tt.level == 0 end, "on the street west of the double door, x <= 2677")
 
         -- ---- 4. Hand the full orb back to the Varrock Mage ----
-        t.exec("goto-talkToMageToHandIn", t.player.goto_tile, 3259, 3383, 0)
-        t.exec("talkToMageToHandIn", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
-        t.exec("talkToMageToHandIn-dialog", t.chat.play, {
+        t.exec("goto-talkToMageAfterTeleports", t.player.goto_tile, 3253, 3388, 0) -- the street outside the chapel door
+        chapel_in("talkToMageAfterTeleports")
+        t.exec("talkToMageAfterTeleports", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
+        t.exec("talkToMageAfterTeleports-dialog", t.chat.play, {
             "player:Yes I have! I've got it right here!",
             "npc:Excellent. Give it here",
             "npc:The Z.M.I. can now reach the essence mine",
@@ -258,8 +343,11 @@ return {
 
         -- ---- 5. Reward snapshot, then talk a third time to complete ----
         local reward_snapshot_result, reward_before = t.skill.snapshot()
-        t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL",
-            "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
+        local runecraft_before = type(reward_before) == "table" and reward_before.runecraft or nil
+        t.check("reward.snapshot", reward_snapshot_result == "ok" and type(runecraft_before) == "table" and runecraft_before.experience == 0,
+            "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result) .. "; runecraft xp "
+                .. (type(runecraft_before) == "table" and tostring(runecraft_before.experience) or tostring(runecraft_before))
+                .. " (want 0: the fresh character has crafted nothing, and no essence teleport pays xp)")
 
         t.exec("talkToMageToFinish", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("talkToMageToFinish-dialog", t.chat.play, {
