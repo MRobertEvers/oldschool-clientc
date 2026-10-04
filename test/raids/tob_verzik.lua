@@ -588,11 +588,17 @@ return {
                         out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_pct", math.floor(hp_before / 2) == hit_t.damage or math.floor((hp_before + 1) / 2) == hit_t.damage,
                             "measured " .. pct .. " percent, the tornado's hit of " .. hit_t.damage .. " on tick " .. hit_t.tick .. " against my " .. hp_before .. " hitpoints the tick before " .. SPEC.p3_tornado_pct }
                     end
-                    for _, r in ipairs(torn) do
-                        if r.tick > hit_t.tick and r.tick <= hit_t.tick + 30 then
-                            out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - hit_t.tick == 16,
-                                "measured " .. (r.tick - hit_t.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. hit_t.tick .. " " .. SPEC.p3_tornado_respawn }
-                            break
+                end
+                -- the respawn is read against the first tornado hit that a later spawn row follows (a hit after the kill has none)
+                local resp_done = false
+                for _, h in ipairs(R.hitp) do
+                    if h.npc_type == 10846 and not resp_done then
+                        for _, r in ipairs(torn) do
+                            if r.tick > h.tick and r.tick <= h.tick + 30 and not resp_done then
+                                resp_done = true
+                                out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - h.tick == 16,
+                                    "measured " .. (r.tick - h.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. h.tick .. " " .. SPEC.p3_tornado_respawn }
+                            end
                         end
                     end
                 end
@@ -953,7 +959,7 @@ return {
                 if leave_tick ~= nil then
                     phase = "T12"
                 elseif hpv < 50 and fish > 0 and tk >= last_eat + 3 then
-                    t.player.inv_op("anglerfish", 1)
+                    t.player.eat("anglerfish")
                     last_eat = tk
                     plog[#plog + 1] = tk .. ":eat"
                 elseif #pillar_retypes > p1.n_pr_seen then
@@ -1037,11 +1043,11 @@ return {
                             want = "staff_of_air"
                         end
                                                 if p1.worn ~= want then
-                            if want == "dawnbringer" then t.player.equip("verzik_special_weapon")
+                            if want == "dawnbringer" then t.player.equip("verzik_special_weapon", {quick = true})
                             elseif want == "twisted_bow" then
-                                t.player.equip("twisted_bow")
-                                t.player.equip("dragon_arrow")
-                            else t.player.equip("staff_of_air") end
+                                t.player.equip("twisted_bow", {quick = true})
+                                t.player.equip("dragon_arrow", {quick = true})
+                            else t.player.equip("staff_of_air", {quick = true}) end
                             local _, etk = t.tick()
                             seg[#seg + 1] = { tick = etk, w = want }
                             p1.worn = want
@@ -1097,15 +1103,15 @@ return {
                     t.prayer.set("protectfrommagic", false)
                     t.prayer.set("protectfrommissiles", true)
                     t.cheat("::tobboss", false)
-                    t.player.equip("twisted_bow")
-                    t.player.equip("dragon_arrow")
+                    t.player.equip("twisted_bow", {quick = true})
+                    t.player.equip("dragon_arrow", {quick = true})
                     seg[#seg + 1] = { tick = tk, w = "twisted_bow" }
                     local worn_ok = 0
                     for _, piece in ipairs({ "armadyl_helmet", "armadyl_chestplate", "armadyl_skirt" }) do
                         local _, in_pack = t.inv.count(piece)
                         if (in_pack or 0) == 0 then worn_ok = worn_ok + 1 end
                     end
-                    local dr = t.player.inv_op("br_4doserangerspotion", 1)
+                    local dr = t.player.drink("br_4doserangerspotion")
                     t.check("p2.ranged_kit", worn_ok == 3, "worn " .. worn_ok .. " of 3 ranged armour pieces at the P1 -> P2 transition, ranging potion press " .. tostring(dr))
                     -- rapid style for the bow: a shot every four ticks instead of five
                     t.ui.tab("combat")
@@ -1126,11 +1132,11 @@ return {
                         if tb_p1 == "" and tostring(m.text):find("tobboss record=") then tb_p1 = tostring(m.text) end
                     end
                     if hpv < 80 and fish > 0 then
-                        t.player.inv_op("anglerfish", 1)
+                        t.player.eat("anglerfish")
                         last_eat = tk
                     end
                 elseif t12.done == 2 and hpv < 85 and fish > 0 and tk >= last_eat + 3 then
-                    t.player.inv_op("anglerfish", 1)
+                    t.player.eat("anglerfish")
                     last_eat = tk
                 end
                 if t12.done == 2 and p1_rows_done == 0 then
@@ -1442,7 +1448,7 @@ return {
                         end
                         p2.kite_to = nxt
                         if hpv < 50 and fish > 0 and tk >= last_eat + 3 then
-                            t.player.inv_op("anglerfish", 1)
+                            t.player.eat("anglerfish")
                             last_eat = tk
                             plog[#plog + 1] = tk .. ":eat"
                         elseif (mt.x ~= ring[nxt][1] or mt.z ~= ring[nxt][2]) and tk >= p2.kite_walk + 1 then
@@ -1619,8 +1625,8 @@ return {
                     end
                     if not acted and p2.exp == nil then
                         -- a crab blast (52) lands on top of a lightning ball (48): meet a live crab near full hitpoints
-                        if (hpv < 65 or (crab_alive and hpv < 88)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
-                            if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
+                        if (hpv < 65 or (crab_alive and hpv < 76)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
+                            if fish > 0 then t.player.eat("anglerfish") else t.player.drink(brew_name) end
                             last_eat = tk
                             acted = true
                         elseif crab_alive and p2.mode == "exp" then
@@ -1628,7 +1634,7 @@ return {
                             t.player.attack(csym[crab_alive.type] or "verzik_nylocas_ranged_story", 2, 1)
                             acted = true
                         elseif ath_alive and p2.mode == "exp" and tk <= ath_alive.tick + 70 and tk >= ath_alive.tick + (ath_n >= 2 and 11 or 2) and tk >= p2.last_atk + 3 then
-                            if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged") end
+                            if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged", {quick = true}) end
                             -- the Athanatos heals her every beat: it is shot before the experiments, not after
                             t.player.attack("tob_verzik_phase2_armourednylocas_story", 2, 1)
                             p2.last_atk = tk
@@ -1654,7 +1660,7 @@ return {
                                     target = csym[crab_alive.type] or "verzik_nylocas_ranged_story"
                                 elseif ath_alive and tk <= math.max(ath_alive.tick, p2.fight_from) + 70 and (ath_n < 2 or tk >= ath_alive.tick + 11) then
                                     target = "tob_verzik_phase2_armourednylocas_story"
-                                    if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged") end
+                                    if ath_n >= 2 and p2.helm == nil then p2.helm = tk t.player.equip("serpentine_helm_charged", {quick = true}) end
                                 end
                                 -- an Athanatos is shot for 24 ticks after it lands (it heals her every beat); one that survives that is left standing
                                 if red_alive ~= nil and p2.red_first == nil then p2.red_first = red_alive.tick end
@@ -1679,7 +1685,7 @@ return {
                         for _, pn in ipairs({ "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }) do
                             local _, pc = t.inv.count(pn)
                             if pc > 0 and not acted then
-                                t.player.inv_op(pn, 1)
+                                t.player.drink(pn)
                                 break
                             end
                         end
@@ -1695,7 +1701,7 @@ return {
                 if p3.prep == 0 then
                     p3.prep = 1
                     if hpv < 75 and fish > 0 then
-                        t.player.inv_op("anglerfish", 1)
+                        t.player.eat("anglerfish")
                         last_eat = tk
                     end
                     t.player.walk_to(6430, 91, 6)
@@ -1813,7 +1819,7 @@ return {
                 end
                 if p3.ball_seen > 0 then p3.dealt_cap = 99999 elseif p3.dealt_cap > 400 then p3.dealt_cap = 400 end
                 -- plan the next attack's position by the autos seen
-                local plans = { [1] = "UNDER", [2] = "ADJ", [3] = "STEPON", [4] = "HOME", [5] = "STEPON" }
+                local plans = { [1] = "UNDER", [2] = "ADJ", [3] = "STEPON", [4] = "HOME", [5] = "STEPON", [8] = "ADJ" }
                 if new_atk then
                     p3.plan = plans[p3.autos] or "HOME"
                     p3.stepped = 0
@@ -1860,7 +1866,7 @@ return {
                 -- after the ball the player stays low on purpose: a tornado takes half of the CURRENT hitpoints (min 5) and heals her three times that
                 local after_ball = false
                 if (hpv < 60 or (ball_due and hpv < 85)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
-                    if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
+                    if fish > 0 then t.player.eat("anglerfish") else t.player.drink(brew_name) end
                     last_eat = tk
                     acted = true
                 end
@@ -1898,11 +1904,11 @@ return {
                         -- the yellow pool binds me to its tile until its blast (+14, held to +16) and sits beside her tornado's spawn: touch only after it, so the respawn 16 ticks on is not a second touch
                         local pool_out = not (p3.pool and tk >= p3.pool.tick + 17)
                         -- OFF: the touch tactic below measured both rows but starved the kit (see the blocked row); set true to retry
-                        local touch_attempt = false
+                        local touch_attempt = true
                         local want_touch = touch_attempt and (not touched) and hpv >= 36 and fish + brewn >= 3 and not ball_due and not pool_out
                         p3.tdiag = "torat=" .. trow.x .. "," .. trow.z .. " me=" .. mt.x .. "," .. mt.z .. " d=" .. dist .. " wt=" .. tostring(want_touch) .. " fish=" .. fish .. " pool=" .. tostring(pool_out) .. " ball=" .. tostring(ball_due)
                         if (not touched) and hpv < 36 and dist >= 5 and (fish > 0 or brewn > 0) and tk >= last_eat + 3 then
-                            if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
+                            if fish > 0 then t.player.eat("anglerfish") else t.player.drink(brew_name) end
                             last_eat = tk
                             acted = true
                         elseif want_touch and tk >= p3.last_flee + 1 and (math.abs(mt.x - (bx - 3)) > 1 or math.abs(mt.z - trow.z) > 1) then
@@ -1966,12 +1972,12 @@ return {
                 -- ---- 4. webs, crabs ---------------------------------------------------------------
                 -- a web is shot with the Dawnbringer: the twisted bow scales down against a web's magic level (1, 4, 0 in three hits)
                 if not acted and web_alive and not p3.on_dawn then
-                    t.player.equip("verzik_special_weapon")
+                    t.player.equip("verzik_special_weapon", {quick = true})
                     p3.on_dawn = true
                     acted = true
                 end
                 if not acted and (not web_alive) and p3.on_dawn then
-                    t.player.equip("twisted_bow")
+                    t.player.equip("twisted_bow", {quick = true})
                     p3.on_dawn = false
                     acted = true
                 end
@@ -2038,7 +2044,7 @@ return {
                     for _, pn in ipairs({ "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }) do
                         local _, pc = t.inv.count(pn)
                         if pc > 0 then
-                            t.player.inv_op(pn, 1)
+                            t.player.drink(pn)
                             last_eat = tk
                             break
                         end
@@ -2325,11 +2331,17 @@ return {
                     out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_pct", hit_half and true or false,
                         "measured " .. pct .. " percent, the tornado's hit of " .. hit_t.damage .. " on tick " .. hit_t.tick .. " against my " .. hp_before .. " hitpoints just before it (" .. tostring(hit_hpa) .. " just after) " .. SPEC.p3_tornado_pct }
                 end
-                for _, r in ipairs(torn) do
-                    if r.tick > hit_t.tick and r.tick <= hit_t.tick + 30 then
-                        out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - hit_t.tick == 16,
-                            "measured " .. (r.tick - hit_t.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. hit_t.tick .. " " .. SPEC.p3_tornado_respawn }
-                        break
+                -- the respawn is read against the first tornado hit that a later spawn row follows (a hit after the kill has none)
+                local resp_done = false
+                for _, h in ipairs(R.hitp) do
+                    if h.npc_type == 10846 and not resp_done then
+                        for _, r in ipairs(torn) do
+                            if r.tick > h.tick and r.tick <= h.tick + 30 and not resp_done then
+                                resp_done = true
+                                out_rows[#out_rows + 1] = { "spec.verzik.p3_tornado_respawn", r.tick - h.tick == 16,
+                                    "measured " .. (r.tick - h.tick) .. " ticks, the next tornado spawn row against the hit on tick " .. h.tick .. " " .. SPEC.p3_tornado_respawn }
+                            end
+                        end
                     end
                 end
             end
@@ -2591,7 +2603,7 @@ return {
             { "p1_bolt.seq", "8109", "C", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "npc_anim", field = "seq", slot = boss_slot, lo = -6, hi = 0, excl = { 8110, 8111 } } } }, "boss npc_anim seq within 6 ticks before each P1 bolt projectile (the hit defend seq 8110 ignored)" },
             { "p1_bolt.proj", "1580", "D", { { a = { kind = "npc_anim", slot = boss_slot, type = 10831, seq = 8109 }, p = { kind = "projectile", field = "spotanim", lo = 0, hi = 6, excl = { 1120, 1544, 1547, 133 } } } }, "projectile id launched within 6 ticks of each P1 bolt wind-up" },
             { "p1_bolt.gfx_player", "1581", "D", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "player_spotanim", field = "spotanim", lo = 3, hi = 4, excl = { 1116, 1543, 1546 } } } }, "player spotanim 3-4 ticks after a bolt that reached me" },
-            { "p1_bolt.gfx_pillar", "1582", "D", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "npc_spotanim", field = "spotanim", lo = 2, hi = 4, excl = { 1545, 1548, 134 } } } }, "entity spotanim on a pillar 2-4 ticks after a bolt that struck it" },
+            { "p1_bolt.gfx_pillar", "1582", "D", { { a = { kind = "projectile", spotanim = 1580 }, p = { kind = "npc_spotanim", field = "spotanim", lo = 2, hi = 4, excl = { 1545, 1548, 134, 85 } } } }, "entity spotanim on a pillar 2-4 ticks after a bolt that struck it" },
             { "p1_pillar_hit.sound", "3291", "D", { { a = { kind = "npc_spotanim", spotanim = 1582 }, p = { kind = "sound", field = "sound", lo = 0, hi = 0, source = "synth", loops = 1, excl = { 178 } } } }, "synth sound row on the tick a bolt struck a pillar" },
             { "p1_pillar_collapse.seq", "8052", "A", { { a = { kind = "npc_retype", from_type = 8379, to_type = 8377 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } } }, "npc_anim seq on each pillar slot on its collapse retype tick" },
             { "p1_pillar_fade.seq", "8104", "D", { { a = { kind = "npc_retype", from_type = 8377, to_type = 8378 }, p = { kind = "npc_anim", field = "seq", same_slot = true, lo = 0, hi = 1 } } }, "npc_anim seq on each pillar slot on its fade retype tick" },
@@ -2864,7 +2876,5 @@ return {
             t.blocked("content_bug: OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_verzik.rs2:2338 enrages on an integer percent (divide(multiply(left, 100), pool) <= 20), so 125 of 600 hitpoints (20.8 percent) already enrages; spec verzik.p3_enrage_threshold (grade B, exact 20 percent, at or below): " .. enrage_bug)
             return
         end
-        t.blocked("driver_seam: spec rows verzik.p3_tornado_heal_mult and verzik.p3_tornado_respawn are measurable only by a touch while she lives, and a solo kit that takes it starves. Measured on the 19th launch (tick log, run name tob_verzik): enrage tick 682, touch hit_player type 10846 damage 39 on tick 721 (hitpoints 78 before), npc_heal [proc,tob_verzik_tornado_heal] 117 on the same tick (3x39), next tornado npc_spawn tick 737 (16 after). That run survived the green ball (74 on tick 749, hitpoints 88) and then ended hp 4 with no food on tick 770 with her alive (the heal of 117 needs about 40 more ticks of shooting); touch on tick 685 (47) or 718 (39) with the second tornado touch on 704 (37) died to the ball on tick 747-749 at hp 12-71 with no food; every variant died or starved because P1 magic cap, the P2 crab kite and the experiments leave no fish and no brew for her extra heal. Without a touch the first one lands after her death (tick 782, 49 damage; no npc_heal, no second npc_spawn)")
-        return
     end,
 }
