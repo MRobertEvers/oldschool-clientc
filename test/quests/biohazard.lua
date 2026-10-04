@@ -856,25 +856,12 @@ return {
             string.format("inv.count(sulphuric_broline) -> %s (%s), expected >=1", tostring(drunk2_vial_result), tostring(drunk2_vial)))
 
         t.player.walk_to(3270, 3388, 10)
-        -- MEASURED run 3 AND run 4: the raw click missed the npc model in
-        -- this cramped cluster ("none of 99 pixels...holds it") from every
-        -- pose; section 3's `t.drive.op` is the documented last resort --
-        -- "the logged bypass, never the default" -- used only after both a
-        -- normal press and one retry have already failed.
-        local gambler2_talk_result, gambler2_talk_detail = t.player.talk_to("gambler2", 1)
-        if gambler2_talk_result ~= "ok" then
-            gambler2_talk_result, gambler2_talk_detail = t.player.talk_to("gambler2", 1)
-        end
-        if gambler2_talk_result ~= "ok" then
-            local gambler2_op_target = t.player.by_symbol("npc", "gambler2")
-            if gambler2_op_target then
-                gambler2_talk_result, gambler2_talk_detail = t.drive.op(gambler2_op_target, 1)
-                gambler2_talk_detail = "[bypass after 2 failed on-screen presses] " .. tostring(gambler2_talk_detail)
-                t.ticks(2) -- world_op sends the packet with no settle wait of its own; give the page a moment to open
-            end
-        end
-        t.check("talkToGambler2", gambler2_talk_result == "ok",
-            "talk_to(gambler2,1) -> " .. tostring(gambler2_talk_result) .. " " .. tostring(gambler2_talk_detail))
+        -- Chancy (gambler2) and Da Vinci (artist2) draw model 25362 alone: a
+        -- quad whose two faces are alpha -1, so nothing of them is drawn.
+        -- The client picks such an npc by its box, like the reference's
+        -- useAABBMouseCheck (seam matthew-mbp-m4-b58-seam1, conformance row
+        -- seam.npc_drawing_no_face_is_pressed): a plain press reaches them.
+        t.exec("talkToGambler2", t.player.talk_to, "gambler2", 1)
         t.exec("gambler2-dialog-1", t.chat.play, {
             "player:Hi, thanks for doing that.",
             "npc:No problem.",
@@ -901,24 +888,10 @@ return {
 
         -- artist2 never wanders (npc_movement.generated.npc: wanderrange=0)
         -- and stands at 3272,3389 (m51_52.spawn:13), tucked against the bar;
-        -- MEASURED b58 run 1: from 3271,3389 both presses missed and the
-        -- bypass opened no page. Stand on his open east side, name the copy.
+        -- Stand on his open east side and name the copy (same no-face model
+        -- as gambler2 above: picked by its box).
         t.player.walk_to(3273, 3389, 10)
-        local artist2_talk_result, artist2_talk_detail = t.player.talk_to("artist2", 1, { at = { 3272, 3389 } })
-        local artist2_first = tostring(artist2_talk_result) .. " " .. tostring(artist2_talk_detail)
-        if artist2_talk_result ~= "ok" then
-            artist2_talk_result, artist2_talk_detail = t.player.talk_to("artist2", 1)
-        end
-        if artist2_talk_result ~= "ok" then
-            local artist2_op_target = t.player.by_symbol("npc", "artist2")
-            if artist2_op_target then
-                artist2_talk_result, artist2_talk_detail = t.drive.op(artist2_op_target, 1)
-                artist2_talk_detail = "[bypass after 2 failed on-screen presses: first " .. artist2_first .. "] " .. tostring(artist2_talk_detail)
-                t.await({ level = function() return t.chat.kind() == "npc" end, note = "artist2.bypass_page" }, 10)
-            end
-        end
-        t.check("talkToArtist2", artist2_talk_result == "ok",
-            "talk_to(artist2,1) -> " .. tostring(artist2_talk_result) .. " " .. tostring(artist2_talk_detail))
+        t.exec("talkToArtist2", t.player.talk_to, "artist2", 1, { at = { 3272, 3389 } })
         t.exec("artist2-dialog", t.chat.play, {
             "npc:Hello again.",
             "player:Well, as they say, it's always sunny in RuneScape.",
