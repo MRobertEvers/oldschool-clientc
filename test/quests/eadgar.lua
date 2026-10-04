@@ -833,40 +833,25 @@ return {
         local function in_storeroom(tt)
             return tt.level == 0 and STOREROOM[tt.x * 100000 + tt.z] == true
         end
+        -- The storeroom door (2869,10085, a wall on that tile's south edge)
+        -- is a walk-through door (eadgar_troll_chief_cook.rs2
+        -- [oploc1,eadgar_storeroomdoor], LostCity quest_eadgar.rs2:488-506):
+        -- from the corridor the drawer key unlocks it once at got_burnt_meat
+        -- ("You unlock the door.", the key is used up) and
+        -- [proc,eadgar_storeroomdoor_pass] puts the player on the door tile,
+        -- inside; the open leaf stands one tile south for 3 ticks.
         walk_check("walk-storeroomdoor", 2869, 10084, 0, 60, 0)
-        local sd_click, sd_detail = t.player.click_loc("eadgar_storeroomdoor", 1, { at = { 2869, 10085, 0 } })
-        t.ticks(1)
-        local sdo_r, sdo = t.world.loc_near("eadgar_storeroomdoor_open", 3)
-        local sdp_r, sdp = t.world.tile()
-        t.check("enterStoreroomDoor", sd_click == "ok" and ((sdo_r == "ok" and sdo.level == 0 and math.abs(sdo.tile_x - 2869) <= 1
-                and math.abs(sdo.tile_z - 10085) <= 1) or (sdp_r == "ok" and in_storeroom(sdp))),
-            "click_loc eadgar_storeroomdoor op1 at 2869,10085,0 -> " .. tostring(sd_click) .. " " .. tostring(sd_detail)
-                .. "; eadgar_storeroomdoor_open: " .. (sdo_r == "ok" and (sdo.tile_x .. "," .. sdo.tile_z .. "," .. tostring(sdo.level)) or tostring(sdo_r))
-                .. "; player " .. tile_text(sdp_r, sdp)
-                .. " (want the unlocked door within 1 of 2869,10085,0, or a walk-through door that already put the player inside)")
+        local key_before_r, key_before = t.inv.count("eadgar_troll_storeroom_key")
+        cross("enterStoreroomDoor", "eadgar_storeroomdoor", 2869, 10085, 0, in_storeroom,
+            "inside the storeroom: the walk-through lands on the door tile 2869,10085,0")
+        -- already in the ring: the crossing's own click settled on it
+        t.expect("enterStoreroomDoor.unlockMessage", t.msg.expect("You unlock the door."))
+        local key_after_r, key_after = t.inv.count("eadgar_troll_storeroom_key")
+        t.check("enterStoreroomDoor.keyUsed", key_before_r == "ok" and key_before == 1 and key_after_r == "ok" and key_after == 0,
+            "eadgar_troll_storeroom_key " .. tostring(key_before) .. " (" .. tostring(key_before_r) .. ") -> " .. tostring(key_after)
+                .. " (" .. tostring(key_after_r) .. ") (want 1 -> 0: the one-time unlock uses the key up)")
         t.expect("quest.stage.unlocked_storeroom", t.quest.expect_stage("unlocked_storeroom"))
-        local sw_r, sw_d = t.player.walk_to(2869, 10086, 10)
-        local si_r, si_t = t.world.tile()
-        if not (si_r == "ok" and in_storeroom(si_t)) then
-            -- b58 run 2: the door unlocks (stage 100) but the player cannot
-            -- walk through it, in either direction. [oploc1,eadgar_storeroomdoor]
-            -- (quest_eadgar/scripts/eadgar_troll_chief_cook.rs2:149-159) does an
-            -- in-place loc_change(eadgar_storeroomdoor_open, 300), and that
-            -- loc (configs/all.loc:33299-33300) is a shape-0 wall with no
-            -- blockwalk=0 and no op: the "open" door blocks the same edge and
-            -- cannot be pressed. LostCity walks the player through instead
-            -- (LostCity_Server quest_eadgar.rs2:488-506,
-            -- ~open_and_close_door2(eadgar_storeroomdoor_open, ...)), and its
-            -- inside tile 0_44_157_53_37 always opens. The storeroom is the
-            -- only way to the crate room (reach.py: NEEDS-DOOR via
-            -- eadgar_storeroomdoor then troll_stronghold_interior_door).
-            t.blocked("content_bug: eadgar_storeroomdoor unlocks but never lets the player through -- "
-                .. "eadgar_troll_chief_cook.rs2:149-159 loc_changes in place to eadgar_storeroomdoor_open (all.loc:33299, "
-                .. "a blocking shape-0 wall with no op); LostCity quest_eadgar.rs2:488-506 walks the player through with "
-                .. "~open_and_close_door2. walk_to(2869,10086) -> " .. tostring(sw_r) .. " " .. tostring(sw_d)
-                .. "; tile " .. tile_text(si_r, si_t))
-            return
-        end
+        walk_check("enterStoreroom.walkIn", 2869, 10087, 0, 10, 0)
 
         -- The crate room is walked into through its door; eight troll_sguard
         -- guards patrol it on fixed loops (configs/quest_eadgar.npc) and
@@ -1009,6 +994,7 @@ return {
                 { 2861, 10078 }, { 2861, 10077 }, { 2861, 10076 } } },
             { name = "columnToSouth", dest = { 2860, 10075 }, ahead = 0, seg = { { 2860, 10076 }, { 2860, 10075 } } },
         }
+        local catches = {} -- "<attempt>:<hop>" for every guard catch on the way in
         local function hop(h, attempt)
             local why = "no window"
             for w = 1, 150 do
@@ -1020,6 +1006,9 @@ return {
                     t.ticks(3) -- a catch on the way lands its knockout teleport within three ticks
                     local r, tt = t.world.tile()
                     local there = r == "ok" and tt.level == 0 and tt.x == h.dest[1] and tt.z == h.dest[2]
+                    if not there and r == "ok" and in_storeroom(tt) then
+                        catches[#catches + 1] = attempt .. ":" .. h.name
+                    end
                     t.check("crateRoom." .. h.name .. attempt, there or (r == "ok" and in_storeroom(tt)),
                         "after " .. w .. " tick(s) of waiting the guards' loops cleared the hop; walked to " .. h.dest[1] .. "," .. h.dest[2]
                             .. " -> " .. tile_text(r, tt) .. " (want there, or back in the storeroom if a guard caught it anyway)")
@@ -1093,7 +1082,8 @@ return {
             t.ui.await_close("fade_overlay", 12)
             t.ticks(2)
         end
-        t.check("searchCrate", goutweed_got, crate_detail)
+        t.check("searchCrate", goutweed_got, crate_detail .. "; guard catches on the way in: " .. #catches
+            .. (#catches > 0 and (" (" .. table.concat(catches, ", ") .. ")") or ""))
         t.chat.close() -- dismiss the "You've found some goutweed!" objbox (~objbox, eadgar_troll_chief_cook.rs2:218)
 
         -- The crate's guard check opens fade_overlay (troll_guard_knockout,
@@ -1115,8 +1105,17 @@ return {
         -- Out of the storeroom by its door, up the storeroom stairs
         -- (2852,10061,0 east -> 2852,10060,1), up the south stairs, out the
         -- top exit.
-        pass_door("leaveStoreroomDoor", "eadgar_storeroomdoor", "eadgar_storeroomdoor_open", 2869, 10085, 2869, 10085, 2869, 10083,
-            function(tt) return tt.level == 0 and tt.z <= 10084 end, "the corridor south of the storeroom, z <= 10084")
+        -- From the door tile (0_44_157_53_37, inside) the door always opens
+        -- and [proc,eadgar_storeroomdoor_pass] steps the player across its
+        -- south edge to 2869,10084; no key is used (it is gone). The press
+        -- is made from 2869,10086 (click_loc steps off a loc's own tile
+        -- first, run r2.1): the player walks onto the door tile and the
+        -- script takes it from there.
+        walk_check("leaveStoreroom.atDoor", 2869, 10086, 0, 20, 0)
+        cross("leaveStoreroomDoor", "eadgar_storeroomdoor", 2869, 10085, 0,
+            function(tt) return tt.level == 0 and tt.x == 2869 and tt.z == 10084 end,
+            "2869,10084,0: the corridor tile south of the door")
+        walk_check("leaveStoreroom.corridor", 2869, 10083, 0, 10, 0)
         walk_check("walk-storeroomStairsUp", 2852, 10064, 0, 60, 0)
         climb("goUpFromStoreroom", "troll_stronghold_stairs", 2852, 10061, 0, 2852, 10060, 1)
         kitchen_to_summit("toSanfew", "goUpToTopFloorToSanfew", "exitStrongholdToSanfew")
