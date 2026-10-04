@@ -766,3 +766,22 @@ on the way back.
 before the press (the row's own pre-press read), so the row passes even when the press does
 nothing. `dig.rs2`'s redirect, `[label,pirate_irate_gardener_attack]`, makes the gardener say
 "Hey, leave off my flowers!" and attack. Assert that line or the gardener engaging you.
+
+## Sample matthew-mbp-m4-b59, round 3 (2026-10-04)
+
+Sea Slug passed. Mourning's End Part I went back.
+
+(a) A REACH THROUGH ISAFDAR WALKS OVER REGICIDE'S TRAPS. Mourning's End Part I uses `goto_tile`
+for seven trips between the Arandar pass's south side (2386,3331), Eluned (2289,3145), the Lletya
+trees (2303,3193), the tar (2263,3128) and the overpass mourner (2300,3328). The fixer's audit
+said every trip was REACH (len 365-547), inside "the 7,176-tile component the gate opens onto".
+That component counts trap tiles as floor. The traps have `blockwalk=0`, so `reach.py` walks over
+them, but each has an op (Jump, Pass, Step-over), and `regicide_traps.rs2`'s zone triggers fire
+when you step on one (the tripwire poisons you and deals 5 damage). If you treat those tiles as
+blocked, none of the seven trips has a route at margin 300. Every trip crosses the pitfall at
+2276-2278,3263 and either the woodspring (2235,3181) or the dense forests (2266/2269/2272,3191).
+The Lletya and Eluned trips also cross the pitfall at 2274,3173-3175 and the tripwire at
+2285,3188. Roving Elves went back for the same hops (a324eedfe). Before you trust a REACH through
+Isafdar, list the locs on the path that have an op and `blockwalk=0`. Stage Agility in setup,
+then walk a trap helper that presses each trap on every trip. Grade each press on the tiles
+before and after it.
