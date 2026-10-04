@@ -709,3 +709,24 @@ NEEDS-DOOR, walk out through that door first.
 fail. This round it appeared in five Tale rows and one Wanted!! row (`base.door_state`). Assert
 something the run could get wrong, such as the open loc's tile. Otherwise use a plain `t.step` or
 skip the row.
+
+## Sample matthew-mbp-m4-b57 (2026-10-04)
+
+*Origin: the b57 door-rule verify batch; the sampler checked cooks_assistant, priest and mortton in
+full and walked every goto of all eight accepted quests against the walls.*
+
+(a) FULL CAN CREDIT A `use` STEP TO THE WRONG ITEM. Shades of Mort'ton (`mortton`, sent back) never
+made Serum 208 and never used it. At stage 80 it went straight to Ulsquire's hand-in (ledger rows
+126 -> 130-135). `helper_coverage` still graded `use207OnFlame`, `use208OnRazmire` and
+`use208OnUlsquire` DRIVEN, with "an action at line 366 names 'razmire_keelgan_afflicted'". Line 366
+is the `by_symbol` lookup for the serum 207 cure, and the `use_on` two lines below it names the
+target only through a variable. So the item check in the grader never saw that cure. For every
+`use<Item>On<Target>` step, find the `use_on` row in the ledger and read which item its backpack
+diff lost. A port that completes without the step does not excuse it either. Mort'ton's
+`[opnpcu]` serum 208 legs exist, so drive them, and report the missing completion gate as a gap.
+
+(b) A `::passive` HUNTED TYPE MAKES THE FIGHT MARGIN ROW VACUOUS. Mort'ton holds
+`shadeshadow_level1` passive. That is allowed (gaps-combat: `::passive <npc_symbol>`): the kills are
+real clicks, the shades take real damage, and they drop real remains. But every `shade.fightN.margin`
+row read `lowest hp 99 ... never needed to eat` on a staged 99-hp account. Say in the detail that the
+target cannot retaliate, so that nobody reads the row as a survived fight.
