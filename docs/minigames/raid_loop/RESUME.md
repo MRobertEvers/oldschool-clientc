@@ -37,40 +37,32 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   (hand_tiles row now 14-16 range), tob_verzik (256/14, dies in P3 without food); kept and green:
   tob_xarpus, tob_sotetseg, tob_nylocas. Their author/review state is moved aside as
   `*.launch13_seam16.*.bak`.
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam18` (triage `SEAM_TRIAGE_2026-10-04f.md`): the
-  Saradomin brew DRAINS Defence 10%+2 where the wiki says it RAISES it 20%+2 of base (owner
-  confirmed the fix 2026-10-04; every brew-drinking fight moves, quests that go red are listed,
-  never reverted), then the relay's recipe faults (Maiden crabs by ranged, Nylocas aggros and
-  supports, Vasilias' Magic level, Xarpus 2-tile steps and the exhumeds) re-measured under the
-  same five names. Then ONE room launch (14) re-authors every room that moved.
-- Seam17 LANDED ON ITS OWN BRANCH `matthew-mbp-m4-raid-b1-seam17` (parent 3736f3d22, ledger
-  4f02fc2fe; content unchanged at f8fefeb837; pushed), in worktree `build/orchestrator/worktrees/raid17`
-  (owner allowed this one parallel pass, 2026-10-04). Three driven clients in ONE world: the
-  leader's embedded world takes members over a loopback party link in READY/TICK lock step
-  (option A; `TORIRSSERVER_EMBED_CLIENT_MAX` 4 = leader + 3; POSIX only); run.py `--party 3` or
-  `party = 3,` in the raid file, accounts `<base9>_p1..p3`, one ledger union graded by gate.py;
-  `t.party.*` verbs (role/size/names, barrier, players/see, form/apply/accept/ready/follow_in,
-  177 verbs, conformance 336/336); `test/raids/_party_smoke.lua` 99/99 twice, tick logs
-  byte-identical, Normal Maiden hp 2625 = 750 permille. Gates green per its closer (quest suite
-  baseline, six rooms green, cooks_assistant/druid byte-identical to the base). Still open: a
-  member's server readers (t.tick, t.ticklog, t.var.server, t.raid.*) answer unsupported, spec
-  rows are the leader's; a member's HUD orbs for later raiders stay 0 (CONTENT_BUGS, seam17).
-  NOT YET MERGED into the raid branch: merge after seam18 closes (parent merge commit of
-  origin/matthew-mbp-m4-raid-b1-seam17 into matthew-mbp-m4-raid-b1 in worktrees/raid; content
-  needs no merge unless seam18 and seam17 both touched it; then `git worktree remove` raid17
-  in both repos). Never run a third pass.
+- Seam18 LANDED (parent 1746816fb, ledger 09ea62f64, content 6c7a65615a): the Saradomin brew
+  raises Defence 20%+2 of base (owner confirmed; conformance 99 -> 120); br_potion.rs2's ToA
+  supply brew still drains (CONTENT_BUGS, open); the relay recipe re-measured: 0 of 5 names
+  survive, tob_entry NOT authored (the Nylocas uses up the supplies; next unproved lever is
+  Ancient Magicks there). Quest suite at the baseline. ROOMS NOW MOVED: tob_maiden (two spec rows
+  unmeasured), tob_bloat (hand_tiles range), tob_nylocas 91/24 (18 brew doses by tick 462,
+  Vasilias never spawns), tob_verzik 256/14 (P3, no food); tob_xarpus, tob_sotetseg green.
+- Seam17 MERGED into the raid branch at 41a93c0fc (three driven clients in one world; verified:
+  _party_smoke green, cooks_assistant/druid byte-identical, conformance 341/341 = 177 verbs +
+  164 seams). The raid17 worktree is removed; branch matthew-mbp-m4-raid-b1-seam17 stays pushed.
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam19` (triage `SEAM_TRIAGE_2026-10-04g.md`):
+  `::tobjoin` puts a member in the leader's room instance, `t.raid.enter` for a party, the
+  member HUD orb bug, a Hard fixture with a Normal completion, the author card's `party` arg,
+  `_party_smoke` at Bloat Normal. One pass at a time again (the parallel allowance was seam17 only).
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. Seam18 lands; then MERGE seam17 (above) into the raid branch, DRIVER_NOTES "Three raiders in one run" tells a Normal room author what to write. Re-author the rooms seam16 and seam18 moved (same room pass, move each room's
+1. Seam19 lands. Then room launch 14 re-authors the four Entry rooms seam16 and seam18 moved (tob_maiden, tob_bloat, tob_nylocas, tob_verzik) (same room pass, move each room's
    `<id>.author.json` / `.review.json` aside, note it in sample.json's orchestrator_notes).
 2. `tob_entry` from the joined relay if the five-name verdict allows, graded on
    `encounters/raidwide.tsv` (42 of its 75 rows have a raidwide.<id> step in the green ledger;
    raid_coverage.py grades only spec.<id> steps, so the author names its rows spec.raidwide.*
    or the checker learns raidwide.*); otherwise seam17 on the room the verdict names.
-3. Seam19 on `SEAM_TRIAGE_2026-10-04g.md` (after the seam17 merge): `::tobjoin` puts a member in
+3. (running, see above) Seam19 on `SEAM_TRIAGE_2026-10-04g.md`: `::tobjoin` puts a member in
    the leader's room instance, `t.raid.enter` for a party, the member HUD orb bug, a Hard fixture
    with a Normal completion, the author card's `party` arg, `_party_smoke` at Bloat Normal.
 4. Normal mode room pass with three players (`tob_<room>_normal`, pass `matthew-mbp-m4-raid-b1-rooms-tob-normal`, roles from the trio transcripts and Blert), then Hard (Hard needs a Normal completion on
