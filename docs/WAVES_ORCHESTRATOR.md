@@ -382,6 +382,12 @@ and the owner has the contact sheet. Then the next minigame.
 
 ## 12. Standing rules
 
+**Protection prayer is checked on the animation tick (owner, 2026-10-04).** For Jad and for
+most npcs the prayer is read when the attack animation starts; damage decided when the
+projectile lands is the exception and needs a pinned source naming the npc. A row that
+calls the swing-tick read a defect is sent back; a bot that prays after the animation has
+the wrong technique.
+
 **The wiki outranks the cache where they disagree (owner, 2026-10-03, late).** "The wiki is
 extremely likely to be correct. I would favor that over the cache." Where the OSRS wiki
 states a mechanic or a number and the cache (a client script, a struct's text) says
