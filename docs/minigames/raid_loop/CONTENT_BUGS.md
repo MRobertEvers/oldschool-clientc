@@ -233,7 +233,7 @@ Found and left open:
 - ToB, Verzik Entry, SPEC GAPS (Normal figures still rolled): P2 lightning 48, exploding nylocas 63/26/8, Athanatos landing 78, reds blood spell 45, P3 power blast 80, web snap 40 [M50], the enraged P3 auto (kept 20).
 - ToB, Verzik: the wiki's Normal infobox says P2 47 / 50 (bounce) / ~80 (under) against `^tob_verzik_p2_bomb_max` 44 and `^tob_verzik_p2_slam_max` 45 (Strategies prose); for a spec pass.
 - ToB, Verzik P3 melee hits every player at `npc_range <= 1`, i.e. also under her; the wiki says "everyone adjacent"; unverified.
-- ToB, supply chests: `tob_bandages` has no Heal script (the wiki: heals 20, restores prayer and run energy, super combat/ranging/stamina effects); the chest stays visually closed (the cache's chest state is per player, varbits 6460/6461); points and the death count are instance registers, so a party shares one balance where the wiki has per-player points.
+- (**Heal FIXED seam13**, prayer restore still open: see "From seam13") ToB, supply chests: `tob_bandages` has no Heal script (the wiki: heals 20, restores prayer and run energy, super combat/ranging/stamina effects); the chest stays visually closed (the cache's chest state is per player, varbits 6460/6461); points and the death count are instance registers, so a party shares one balance where the wiki has per-player points.
 - Driver (attack_exact_copy): the another-copy case is FIXED by the raid-driver commit [seam:matthew-mbp-m4-raid-b1-seam4]: `QD.drive._press_row` asks `api_drive.menu_rect(x, y)` (`UIMinimenu_HitOption`) and dismisses a stale menu only when the press would SELECT a row offering its op on another element (s4stale_before2 5 `hit_npc` on A -> s4stale_after3 0; hauntedmine, childrenofthesun, thefeud tick-identical and green). The seam3 text follows. A press whose pixel lands inside a menu an earlier `covered` press left open SELECTS one of that menu's rows (uitree_interact.c `interact_minimenu`), so a retry can attack another copy while answering `covered` (s3ec_stale_before1: 5 `hit_npc` on copy A, 0 on the asked B). The fixer's fix (close any open menu in `QD.drive._press_row` before moving) was reverted by the seam3 closer: its tick moved hauntedmine (the Dayth fight lost: died at 633 with 23 sharks eaten, green 95/95 without it), childrenofthesun (its own retry loop consumed the mesbox a tick earlier) and thefeud (talkToAVillager off-viewport, 24 FAILs) from green to RED; each was green again with HEAD pointer.lua and nothing else changed. A fix must keep the old timing when the press pixel is outside the open menu (dismiss only when the pixel is inside its rectangle). Re-measured on the final tree: s3close_stale_menu, 5 `hit_npc` on A, 0 on B.
 - Client: a `::tele` on a run's first tick can SIGSEGV in `app_wev_actor_root_fine` <- `app_logic_tick` (HEAD and seam binaries, ~/Library/Logs/DiagnosticReports/torirs_questtest-2026-10-03-002740.ips); waiting 5 ticks avoided it.
 - Selftest: no C stanza pins the `npc_face` tick-log row (extend the Hans facesquare stanza, torirs_server_world_selftest.c ~15923).
@@ -504,3 +504,31 @@ Open:
 - ToB, Verzik: a P3 auto now splats one tick after its prayer read (the landing queue queues combat_damage_player 0), so hit_player for an auto is about T+4 rather than T+3. verzik.p3_proj_flight is grade E [M80]; no source states the cycles.
 - ToB, Verzik: the blood-spell heal lands on the cast tick and reads the prayer at the cast; Blert's hitpoint stream shows the heal at T+2 (health-bar latency unknown). Worth an [Mn] if measured.
 - ToB, Verzik: tob.constant's comment on `^tob_verzik_p2_heal_spell_max` still describes the Mod Ash reading (comment only; the behaviour is in tob_verzik.rs2).
+
+## From seam13 (matthew-mbp-m4-raid-b1-seam13, 2026-10-04)
+
+- **FIXED seam13** ToB, Entry bandages: `tob_bandages` showed `ifop1=Heal` with nothing bound to
+  it, so every press said "Nothing interesting happens." `[opheld1,tob_bandages]` in
+  tob_spectate.rs2 now heals 20, boosts Attack/Strength/Defence by floor(L*15/100)+4, Ranged by
+  floor(L/10)+4 and Magic by 4, cures poison and applies a stamina dose, as food. Source: the
+  wiki item page Bandages (Theatre of Blood), pinned at
+  build/seam_state/matthew-mbp-m4-raid-b1-seam13/s13b/wiki_Bandages_Theatre_of_Blood.wikitext
+  (lines 23-33). Conformance row seam.tob_entry_bandages_heal: 99 to 117, 112 and 103, stamina 1.
+- **FIXED seam13** ToB, Verzik P2: the tree did not model insulated boots, so a solo raider took
+  the full lightning roll (42, 43 and 34 in s13b_full_a). `slayer_boots` worn now cut a zap that
+  does not pass through her to 60 percent. Source: wiki Insulated boots :26, pinned in the same
+  dir. The Entry page :94 calls them "a mandatory requirement if doing it in solo".
+- Open, ToB, bandages: the prayer restore is not modelled. The item page says only "a variable
+  amount ... more research is needed", so it gives no figure to use. [M] row.
+- Open, ToB, bandages: the item page says Magic gets a static +4 (the code uses this). The Entry
+  Mode page says Magic scales like a ranging potion. The two wiki pages disagree.
+- Open, ToB, Verzik: tob.constant's comment on `^tob_verzik_p2_zap_max` still says "25 with
+  insulated boots". The item page says 40 percent off, and tob_verzik.rs2 applies 60/100 as a
+  literal. The comment is stale, and the literal could become a named constant. The P2 lightning
+  max of 48 is Normal's figure, because no source gives one for Entry.
+- Open, ToB, Nylocas (suspected, NOT measured): the Entry Mode page :164 says "Frozen nylocas
+  cannot attack the pillars until unfrozen". tob_nylocas.rs2 has no freeze reference, so an Ice
+  Burst would not stop a chewer. This is what keeps the Ancients strategy from working.
+- Open, ToB, supply chests: an Entry chest hands over min(10, free slots) and then answers "The
+  chest is empty." (tob_chest.rs2:159). No source says whether a raider may come back for the
+  rest after freeing slots.

@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 151
+-- @seam-count 152
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 163
-local SEAM_COUNT = 151
+local SEAM_COUNT = 152
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -14828,6 +14828,45 @@ return {
             return "ok", "orb armed (varp301 1), energy " .. e0 .. " -> spent on server tick " .. spent_tick
                 .. " after " .. waited .. " tick(s) past the attack's answer, the special's splat " .. splat
                 .. " (attack " .. describe(ar) .. ")"
+        end)
+
+        -- seam13 (tob_relay_sotetseg_to_vault), a CONTENT seam: the Entry bandages' Heal.
+        -- tob_bandages carried ifop1=Heal in the cache with nothing bound to it, so every press
+        -- said "Nothing interesting happens." (CONTENT_BUGS.md).  tob_spectate.rs2 now binds it
+        -- from the wiki item page (Bandages (Theatre of Blood), pinned at
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam13/s13b/): 20 hitpoints, Attack/Strength/
+        -- Defence floor(L*15/100)+4, Ranged floor(L/10)+4, Magic +4, cure poison, the stamina
+        -- effect; prayer NOT restored (no source gives a figure).  It boosts stats and starts a
+        -- stamina timer, so it runs last, after every other row.  SEAM row: SEAM_COUNT +1.
+        seam("seam.tob_entry_bandages_heal", function()
+            local inv_op = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            local read = verb("skill", "read")
+            local varbit = verb("var", "varbit")
+            local ticks = verb("ticks")
+            if not inv_op then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            if not read then return missing("skill", "read") end
+            if not varbit then return missing("var", "varbit") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give tob_bandages 1")
+            ticks(2)
+            local _, n0 = count("tob_bandages")
+            local function lvl(s) local _, r = read(s); return is_table(r) and r.level or -1 end
+            local a0, r0, m0 = lvl("attack"), lvl("ranged"), lvl("magic")
+            local pressed, press_detail = inv_op("tob_bandages", 1)
+            ticks(3)
+            local _, n1 = count("tob_bandages")
+            local a1, r1, m1 = lvl("attack"), lvl("ranged"), lvl("magic")
+            local _, st = varbit("varb25_stamina_active")
+            local detail = "Heal " .. tostring(pressed) .. " " .. describe(press_detail) .. "; bandages " .. tostring(n0) .. " -> " .. tostring(n1)
+                .. "; attack " .. a0 .. " -> " .. a1 .. " (wiki 99 + floor(99*15/100)+4 = 117), ranged " .. r0 .. " -> " .. r1
+                .. " (99 + 13 = 112), magic " .. m0 .. " -> " .. m1 .. " (+4 = 103), stamina " .. tostring(st)
+            if n1 == (n0 or 0) - 1 and a1 == 117 and r1 == 112 and m1 == 103 and st == 1 then return "ok", detail end
+            return "refused", detail
         end)
 
         step("finish", function()

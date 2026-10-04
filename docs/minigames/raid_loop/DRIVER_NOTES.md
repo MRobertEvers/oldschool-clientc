@@ -3260,3 +3260,251 @@ sote12/tornado_scratch*.lua, vz12_kill.lua).
   no prayer: Strength 99 -> 25, 86 -> 22, 81 -> 21, 76 -> 20. A brew-drained Strength
   can put the max under a reflect you saw; the `<= max` leg only means something with the
   real level.
+
+# Seam pass 13: the whole raid, played in two halves (2026-10-04)
+
+The relay `tob_entry` is not authored yet. This pass built it as two scratch halves, each played
+by click with one kit: Ver Sinhaza to Sotetseg's entrance, then Sotetseg's entrance to Ver
+Sinhaza. Neither half is a committed test, and test/raids/fixtures/ holds no scratch examples,
+so both scratches stay in the pass's state dir (paths in each recipe below). Both halves
+survive with the kit they were tuned on, but only some of the time. They do not join: the kit
+the first half measured at Sotetseg's entrance dies in Verzik P2 when the second half carries
+it (see "the two halves' kits do not join" below). The five kept room tests and tob_verzik
+re-ran unchanged on the final tree.
+
+## The whole raid: the two halves' kits do not join (closer's reconciliation)
+
+The second half assumed one kit at Sotetseg's entrance. The first half measured a different one
+(kit_at_sotetseg.md in the state dir, run s13_relay_a9). The differences, slot by slot:
+
+- Worn. Assumed: armadyl helm/chest/skirt, twisted bow, dragon arrows, insulated boots,
+  ferocious gloves, infernal cape, berserker ring, amulet of torture. Measured: void ranger helm,
+  elite void top/robes, void gloves, magic shortbow (i) with rune arrows, dragon boots, glory,
+  imbued Saradomin cape, berserker ring (i). The insulated boots are carried, not worn.
+- Melee for Xarpus. Assumed: scythe plus torva chest/legs. Measured: scythe plus the void melee
+  helm, staff of fire and runes as well.
+- Supplies. Assumed: 4 bandages, 6 sharks, 2 full brews and 2 full restores (8 brew doses, 8
+  restore doses). Measured: 0 bandages, 0 sharks, 11 brew doses (4, 4, 3) and 5 restore doses
+  (4, 1), and 16 free slots.
+
+Run once with the measured kit. The scratch is
+build/seam_state/matthew-mbp-m4-raid-b1-seam13/close/relay_second_half_measured_kit.lua. It
+swaps torva for the void melee helm at Xarpus, and the twisted bow and armadyl for the shortbow,
+the ranger helm and the insulated boots at Verzik. In close13_kit3, Sotetseg died at tick 523,
+460 ticks after the begin (the fixer's twisted bow took 250-315). The chest paid 10 bandages.
+Xarpus died at tick 862 after 8 bandages. Then the raider DIED in Verzik P2 at tick 1253, with
+every bandage, all 11 brew doses and all 5 restore doses spent: 32 PASS, 1 FAIL (verzik.kill),
+BLOCKED. Both halves therefore starve, the first in the Nylocas (2 of 10 runs survive) and the
+second at Verzik. The levers are the ones the halves name: the Nylocas freeze rule and Ancients,
+a fight-speed press verb, and the P2 lightning's missing Entry figure. A whole-raid author
+starts with a kit decision that serves both halves, and that decision is still open.
+
+## The whole raid: t.raid.enter gives you eight free potions unless you hold a br_ brew
+
+`t.raid.enter('tob', <room>)` runs `~tob_debug_kit` (tob.rs2:764). It heals you, fills your
+prayer and special energy and, if you hold no `br_4dosepotionofsaradomin`, adds four of them
+and four `br_4dose2restore`. That is 32 free doses and eight slots. A raider who walks into the
+room has none of them. The closer's first measured-kit run (close13_kit) held plain brews, so it
+received the gift. Its chest paid 8 bandages instead of 10, because the gift filled 8 slots. A
+relay leg that stands in for a walked-in raider must drop the eight (`t.player.drop`) or hold a
+br_ brew from the start, and it must say which it did. The second half's scratch held br_ brews,
+so it never received the gift.
+
+## The whole raid: the first half, Ver Sinhaza to Sotetseg's entrance (RECIPE, seam13)
+
+Scratch: build/seam_state/matthew-mbp-m4-raid-b1-seam13/relay1/relay_lobby_to_sotetseg.lua
+(assembled by build.sh from relay_a_*.lua; dev copies dev_maiden.lua, dev_bloat.lua,
+dev_nylo.lua enter a room with t.raid.enter for tuning only). test/raids/fixtures/ holds no
+scratch examples, so nothing was copied there. Green once (s13_relay_a9 92/92), survived twice
+(a7), died in the Nylocas eight times of ten: the half is playable by click and starves in the
+Nylocas.
+
+KIT (one, from the wiki Entry Mode tabber and the Melee setup; bring-alongs): 99 in every combat
+stat. Worn: void ranger helm (game_pest_archer_helm), amulet_of_glory, ma2_saradomin_cape,
+elite_void_knight_top/robes, pest_void_knight_gloves, dragon_boots, nzone_berzerker_ring,
+magic_shortbow_i, rune_arrow 1000. Carried (28): ::fullscythe (scythe_of_vitur),
+game_pest_melee_helm, staff_of_fire, airrune 1000, mindrune 500, dragon_dagger_p++ and
+slayer_boots (for Verzik), 4dose2combat, 4dosestamina, 4dose2restore x6, 4dosepotionofsaradomin
+x13. Measured choices: a twisted bow killed the Maiden no faster than the shortbow (343 vs 341
+ticks); the whip dealt 265 to Bloat in eight downs where the scythe killed it in four; the
+trident of the seas killed fewer nylocas than Fire Strike (46 vs 72 by tick ~500); brews beat
+sharks per slot (64 vs 20), and six sharks plus seven brews died in the Nylocas at 472.
+
+MAIDEN (ten lines): Protect from Magic for the fight; equip the scythe and melee helm in the
+corridor; super combat; click tob_arena_barrier op 1, 'Yes, begin the fight.'; target
+maiden_elemental_story within 7 tiles first, then a blood slug adjacent, then her; track blood
+throws (projectile 1578, landing = tick + ceil((end-start)/30)) and pools (map_spotanim 1579,
+live 11 ticks: NOT a loc, hazard_at loc rows miss them); on a bad tile walk to the nearest clean
+tile adjacent to her 6x6 footprint; eat (food, then a brew) under 55; restore when prayer < 20
+or Strength < 85 (her drain lands on the stat behind the highest attack bonus: Strength with the
+scythe). Kill: 200-270 ticks, 4-10 eats. After: HP/prayer restored, drained stats are not.
+
+MAIDEN EXIT: tob_arena_barrier op 1 again (her arena has one opening; the corridor loops round
+it), then tob_dungeon_walkway_exit_clickbox op 1 (local 40,6); room 2 is built under the blood
+card.
+
+BLOAT (ten lines): restore if the Maiden left Attack/Strength under 95; stamina; walk to local
+(41,31); wait until his centre is west of the tank (x <= 28 local); super combat; barrier, 'Yes,
+begin the fight.'; Protect from Missiles; every tick, unless inside a down window, walk to the
+ring point half a loop from his centre (ring = the centre line 26..37 round the tank, 44 tiles,
+led by two ticks of his speed along it, skipping shadow tiles: map_spotanim 1570-1573 live 5
+ticks); on his down (npc_anim 8082 on his slot, read since your own mark: slots are reused
+across rooms) attack with the scythe until T+23, then run back opposite (stomp T+29, hunt range
+6 from his SW tile); restore when Attack/Strength < 90. Kill: 4-6 downs, 209-426 ticks, 23-299
+taken.
+
+BLOAT EXIT AND CHEST: tob_arena_barrier with at = local (23,31),(24,31),(23,30),(22,31), retried
+until the tile is west of local 23 (one run's click landed and did not cross); walk to local
+(9,32); drink out the super combat and stamina, drop vial_empty; click tob_midway_chest_closed
+op 1: 'You take N bandages from the chest.' with N = min(10, free slots), a second Open 'The
+chest is empty.'; then tob_dungeon_walkway_exit_clickbox op 1 (local 5,31).
+
+NYLOCAS (ten lines): equip the ranger helm and shortbow; combat tab style slot 1 (rapid,
+varp43_com_mode 1); auto-retaliate off (combat_interface:retaliate, varp172_option_nodef 1);
+walk to fight.x+1; barrier, 'Yes, begin the fight.'; each tick read every
+tob_nylocas_{big_fighting,fighting}_{melee,ranged,magic}_story within 16, pray against the
+weighted majority (a big counts two, melee only within 4); press the unprotected aggros (bigs
+first) with their own style's weapon (scythe / shortbow / staff_of_fire + Fire Strike), else
+chewers (tob_nylocas_incoming_*_story within 16), a chewer near a support under 75 percent
+before any aggro, any chewer before a small aggro while HP > 70; Vasilias by her form's weapon,
+prayer to her form; eat one food plus one brew under 72 (84 with two aggros, 92 with four);
+every third brew dose a super restore instead (a restore pressed behind a brew is refused by the
+potion delay); stop on 'boss gone'. Kill: ~740-790 ticks, 880-1179 taken.
+
+NYLOCAS EXIT: tob_arena_barrier op 1, tob_dungeon_walkway_exit_clickbox op 1 (local 39,51): room
+4, Sotetseg unstarted, track 584 on arrival. What the raider has there: kit_at_sotetseg.md in
+the seam13 state dir.
+
+PRESSES: t.player.inv_op / equip block 3-17 ticks per press in a raid room (the settle never
+settles while waves move); the scratch presses through t.player._inv_press until a fight-speed
+verb exists.
+
+## The whole raid: raid-wide rows the first half measures (seam13, s13_relay_a9 and s13_relay_d1)
+
+lobby.regions 14642 (region of t.world.tile in Ver Sinhaza); lobby.notice_board_loc 32655,
+entrance_loc 32653, scoreboard_loc 32987, gravestone_chest_loc 32656, deposit_box_loc 32665
+(t.world.loc_near <symbol> -> row.id); lobby.stranger_present 1 (t.npc.nearest tob_stranger);
+board.first_read_prompt 1 (chat.play: mesbox, options 'Not very experienced. I'll start with
+Entry Mode.', mesbox); party.list_title 'Performers for the Theatre' (t.ui.text
+tob_partylist:frame 1); party.list_empty 'No parties are currently listed.' (tob_partylist:list
+45); party.default_mode 'Mode: Entry' (tob_partydetails:mode 0 after two Refresh presses);
+hud.party_status_lobby_party 1 (varb6440 after Make party); door.ready_check 'Is your party
+ready? Members: 1. Mode: Entry.' (t.chat.options_title; the row's text is the solo Normal one);
+chat.enter_line 'You enter the Theatre of Blood (Entry Mode)...'; hud.room_status_inactive 0
+(varb6447 before the Maiden's barrier); hud.party_status_in_raid 2 (varb6440, door path);
+hud.room_status_boss 1 and hud.party_status_fight 2 (two ticks after the begin);
+hud.boss_hp_full 1000 (varb6448); hud.orb_full 27 (varb6442); music.maiden_sorrow 570 (arrival),
+maiden_anger 569 (begin), bloat_nightmare 578 / bloat_continues 571, nylocas_dance 580 /
+nylocas_arachnids 579, sotetseg_room 584 (tick-log music rows, source script, read since a mark
+at the door or passage); card.sound 3952 at each room's arrival (4 rows: door, two passages,
+Sotetseg); music.boss_defeated_jingle 250 one row per kill; chat.wave_complete_line per room:
+'Wave '<room>' (Entry Mode) complete!<br>Duration: <col=ff0000>m:ss</col>' (read by the room's
+name right after each kill; the message ring does not keep the Maiden's line until the Nylocas);
+restore.on_clear 99/99 hitpoints and prayer 12 ticks after the Maiden's death; chest.supply_loc
+32758 (loc_near tob_midway_chest_closed from local 9,32); chest.entry_bandages = min(10, free
+slots) ('You take N bandages from the chest.'; 10 only with ten free slots);
+chest.entry_bandages_no_carry (a second Open: 'The chest is empty.').
+
+## The whole raid, second half: Sotetseg's entrance to Ver Sinhaza (RECIPE, seam13)
+
+Scratch: build/seam_state/matthew-mbp-m4-raid-b1-seam13/s13b/relay_second_half.lua, green as
+s13b_full_c (55/55) and s13b_full_e (58/58). test/raids/fixtures/ holds no scratch examples, so
+the scratch stays in the state dir.
+
+Kit (the assumption, slot by slot). Worn: armadyl helm/chest/skirt, twisted bow, dragon arrows,
+insulated boots (`slayer_boots`; `::setlevel slayer 37` first, or ::wield refuses), ferocious
+gloves, infernal cape, berserker ring, amulet of torture. Pack: `::fullscythe`, torva chest and
+legs, 2 br_4dosepotionofsaradomin, 2 br_4dose2restore, 4 tob_bandages, 6 sharks. That leaves 11
+free slots: the chest pays min(10, free), and the Dawnbringer needs 1. Hold a
+br_4dosepotionofsaradomin, or `::tobmode` adds 8 free potions (tob.rs2 ~tob_debug_kit).
+
+Eat order: a bandage first (heals 20 and re-boosts), then sharks, then brews with a restore
+after every second dose; restore when prayer is under 25.
+
+Sotetseg (about 250-315 ticks, 1-2 bandages). Click `tob_arena_barrier`, then 'Yes, begin the
+fight.'. Protect from Magic. Bow from his SW corner +2,-6, re-pressed after any eat or step and
+every 12 ticks. A maze is an npc_retype on his slot: wait for level 3, wait to proc+4, take the
+lit path from the level-3 loc_set rows since the proc, and step_tick one tile a tick (north
+first, else west, else east). Step north off the grid AT ONCE at the end, so the tornado (one
+tile behind) never reaches you. Wait for level 0, then swallow the re-activation retype so it is
+not read as a third maze.
+
+After Sotetseg: click `tob_arena_barrier` (the exit gate). `loc_near('tob_midway_chest_closed')`
+is at 6417,69. Walk to z+3 and click it: 'You take 10 bandages from the chest.'; a second open
+says 'The chest is empty.'. Then click `tob_dungeon_walkway_exit_clickbox` and poll
+`t.raid.state().room == 'xarpus'`.
+
+Xarpus (about 230-280 ticks, 6-9 bandages). Equip the scythe, torva chest and torva legs. Click
+the barrier from start+(0,-3). Phase 1: walk onto every exhumed (loc_set 32743); Piety on the
+3rd. HIS BODY: the static form's row (6433,162 here) is NOT the standing body. Read the npc_tile
+row of type 10768 on the stand-up tick (6432,161; 5x5); standing on the static corner is
+standing under him. Phase 2 is seam10's s10x_wiki recipe on that body. Add one override: a
+puddle under you (loc_set 32744 on your tile) means step off before anything else, and eat at
+any time under 45. Phase 3: wait on a ring-2 tile in your quadrant. On each new npc_face row
+away from it, press once, wait for the swing (player_anim 8056), and walk back to the base.
+Never stand adjacent between swings: a run that kept swinging was retaliated for 67+8 and died.
+
+After Xarpus: the wave line comes 3 ticks after the dead-form retype. The exit is the NORTH
+barrier, m49_68 local (33..35,43) = start tile +15: `click_loc('tob_arena_barrier', 1, {at =
+{start.x, start.z + 15, 1}})`, because the south one is as near. Then
+`click_loc('tob_skeleton_with_weapon', 1)`: an objbox, one `continue_`, and
+verzik_special_weapon is in the pack (it needs a free slot). Then
+`click_loc('tob_dungeon_xarpus_arena_door_exit', 1)` lands you at 6432,78 in Verzik's room, the
+same coordinates as `t.raid.enter`'s handle-1 room (her P2 body SW 6431,89).
+
+Verzik (about 490-550 ticks; it eats everything left). Equip the armadyl chest/skirt back and
+wield the Dawnbringer. `talk_to('verzik_initial_story')`, then chat.play {'npc:So, you wish to
+entertain me', 'options', 'choose:Yes, begin the fight.'}. P1: the Dawnbringer alone. Special
+(combat tab special_attack, then attack) whenever varp300 >= 350, autos otherwise; 2-3 specs
+plus autos end it in about 60 ticks. T12: bow, Rigour, Protect from Missiles, home 6427,86. P2:
+a crab within 5 tiles first, then the Athanatos (it heals her about 10 every 5 ticks), then her.
+Hold off her from the 8117 summon to +4. Protect from Magic on a 1591 projectile, back to
+Missiles on 1583. P3: vz12's rules (prayer on 8124/8125, webs, pool, flee every tornado, never
+adjacent).
+
+Vault: poll `loc_near('tob_dungeon_verzik_throne_door_opened', 30)` with t.ticks(1); never
+inside t.await. It appears 8 ticks after her death (throne 32737 +5). Click it. Then check
+varb6450 == 2 and that loc_near tob_treasureroom_chest_loc0 is ok and loc1 is not_found (solo).
+Click chest_loc0; `t.ui.await_open('tob_chests')`; the opened loc is 32994.
+`t.ui.invoke(t.ui.widget('tob_chests:inventory'), 1)` is Take-all (::tobvault items=[] flag=0).
+Then escape, and `click_loc('tob_treasureroom_teleportout', 1)` lands at 3677,3219 with varp5893
+0 and varp6826 0 -> 0 (Entry).
+
+## The whole raid: raid-wide rows the second half measures (s13b_full_e)
+
+The raid-wide rows this half reads (s13b_full_e): music 584@36, 581@41, 567@403, 564@413,
+566@671, 572@681, 582 on the vault teleport tick (0 ticks; the first player_tile row in the
+vault is one tick later); jingle 250 x3 (one per boss death, +4 ticks); card sound 3952 on each
+room arrival plus the vault; trapdoor_after_throne 5; hud 6440 2/2, 6447 0 then 1, 6448 1000 at
+the start, orb p0 27; chest supply_loc 32758 and entry_bandages 10; restore.on_clear (hp and
+prayer back after each kill); vault varbit 2, open loc 32994, crystal 32996, interface
+tob_chests; completion.entry_counts 0 -> 0; the wave lines and 'Theatre of Blood total
+completion time'. Not reached: the death, wipe and onion rows (a death costs the run), and
+unlock_bits (the first half's tracks are missing).
+
+## Bandages heal now: 20 hitpoints, the combat boosts and a stamina dose, no prayer
+
+Bandages heal now (seam13): 20 hitpoints, att/str/def +floor(L*15/100)+4, ranged +floor(L/10)+4,
+magic +4, cure poison, and the stamina effect, as food (combo-eat with potions). They do not
+restore prayer: no source gives a figure.
+
+## Insulated boots take 40 percent off Verzik's P2 lightning
+
+Insulated boots (slayer_boots) take 40% off Verzik's P2 lightning (wiki item page); the Entry
+page makes them mandatory solo. Without them a solo P2 took 42, 43, 34 and 77 and died.
+
+## A wave-complete line: match the room's own name, never the last match
+
+Reading wave lines: do not take the last match of t.msg.last(n). The ring came back newest
+first, so the 'last' match was the oldest (Sotetseg's line read as Xarpus's). Match the room's
+own name.
+
+## t.ticklog.rows({}) over a whole raid runs out of instruction budget
+
+A whole-log `t.ticklog.rows({})` with a Lua filter, run at the end of a 1300-tick relay, raised
+'instruction budget exhausted (400000)'. Query one kind at a time (`{kind = 'music'}`).
+
+## An arrival after a teleport: the player_tile row is one tick late
+
+A player_tile row lands on the tick AFTER a teleport resolves. To date an arrival, use the jump
+row's tick - 1.
