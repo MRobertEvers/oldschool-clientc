@@ -22,27 +22,24 @@
 --     (enterDwarvenMine) inside Rolad's room and left by
 --     `ladder_from_cellar_directional` (goBackUpToRolad), which lands back in it.
 --   * Khorvak: `tunnelstairstop` down (enterKhorvakRoom) and `tunnelstairs` up.
--- Two content seams stop the route; the file ends in a content_bug row at
--- the first one it meets and drives on, unchanged, once content fixes it:
---   (1) `dwarf_cavewall_tunnel` lands the player on 2827,10130
---       (betweenarock_travel.rs2:38, p_teleport(0_44_158_11_18)), a tile walled
---       into the rock 10 tiles west of the ferry bank: walk_to the bank does not
---       move him (probe betweenarock.probe2.log row 7, every run since), and a
---       goto across the rock is a goto into a sealed pocket (helper_coverage
---       sealed_entries). So the run stops at the first enterDwarfCave2.
---       Content fix: land on 2837,10129. (fix_b58 run 4 stepped over it with
---       that goto and every later leg below passed, 161/0, up to (2).)
---   (2) The realm's outer walls of flame (`dwarf_firewall_straight`/`_diagonal`,
---       op1 Jump-through in configs/all.loc) have no [oploc1] trigger anywhere
---       (grep): Jump-through answers "Nothing interesting happens.", and the
---       realm landing (betweenarock_realm.rs2:49, 0_36_77_16_22) is walled off
---       by them from every central wall of flame (maps/m36_77.jl2, m37_77.jl2).
--- And one is stepped over: Keldagrim has NO way out in this tree --
--- `dwarf_city_boatman_city` (op1 Talk-to, op3 Travel in configs/all.npc) and
--- `slice_dwarf_station_entrance` (op1 Enter) have no trigger anywhere under
--- server/scripts (grep) -- so leaving Keldagrim for the surface is a goto from
--- an open Keldagrim street tile (18,527 walkable tiles, no door on the way),
--- the only exit there is.
+--   * Keldagrim -> the surface, every time (leaveKeldagrim*): walk to the
+--     city dock, the Dwarven Boatman `dwarf_city_boatman_city` to the mines
+--     (keldagrim_travel.rs2, lands 2838,10127 on the ferry bank), the bank's
+--     `dwarf_cave_entrance` back to the troll room (betweenarock_travel.rs2:47,
+--     2778,10161), then `trollromance_piste_exit_tunnel_bottom` up to the
+--     hillside east of Rellekka (2730,3713). The gotos after it leave that
+--     open hillside.
+--   * The realm's outer wall of flame is jumped by its own op1 Jump-through
+--     (betweenarock_realm.rs2:101) on the way to the centre ring.
+-- Seam pass matthew-mbp-m4-b58-seam1 (OSRS-Content 6369379ada) fixed what used
+-- to stop this route: the cave tunnel's landing (now on the ferry bank,
+-- 2838,10124), the outer flames' Jump-through, and Keldagrim's exits.
+-- OPEN (content, not driven around): `trollromance_stronghold_exit_tunnel`
+-- (betweenarock_travel.rs2:18) still lands on 2781,10160, a rock tile beside
+-- the cave; LostCity (quest_troll_love.rs2:44-45) and maplink give 2773,10162.
+-- The next click (dwarf_cavewall_tunnel at 2781,10161) answers from there, so
+-- the route is not stopped by it; enterDwarfCave* accepts either tile so the
+-- row keeps passing when content moves the landing.
 --
 -- The four schematic pieces: Dondakan (from firing the golden cannonball),
 -- the lore book's last page (read the book a SECOND time, at stage 80),
@@ -219,32 +216,38 @@ return {
                 function(tt) return tt.level == 0 and tt.x <= 3016 and tt.z >= 3455 end, "out on the hillside north of the hut, x <= 3016 z >= 3455")
         end
 
+        -- After the ferry the scene rebuilds and Dondakan joins the client's
+        -- npc pool 2-3 ticks late (seam b58-seam1 (e)): wait for him before
+        -- every talk to or use on him.
+        local function dondakan_present(name)
+            t.exec(name .. ".dondakanPresent", t.npc.await_present, "dwarfrock_dondakan", 15, 10)
+        end
+
         -- The guide's way to Dondakan: the Keldagrim entrance tunnel, the cave
-        -- tunnel, the paid ferry (seam (1) in the header between the last two).
+        -- tunnel, the paid ferry.
         local ferry1_trips = 0
         local function to_dondakan(suffix)
-            t.exec("goto-trollTunnel" .. suffix, t.player.goto_tile, 2730, 3712, 0)
+            local sr, st = t.world.tile()
+            if sr == "ok" and st.level == 0 and math.abs(st.x - 2730) <= 4 and math.abs(st.z - 3712) <= 4 then
+                -- leaveKeldagrim* came up the troll tunnel onto this hillside: walk.
+                t.player.walk_to(2730, 3712, 10)
+                local hr, ht = t.world.tile()
+                t.check("walk-trollTunnel" .. suffix, hr == "ok" and ht.level == 0 and ht.x == 2730 and ht.z == 3712,
+                    "from " .. tile_text(sr, st) .. " walked to 2730,3712 beside the tunnel -> " .. tile_text(hr, ht))
+            else
+                t.exec("goto-trollTunnel" .. suffix, t.player.goto_tile, 2730, 3712, 0)
+            end
             climb("enterDwarfCave" .. suffix, "trollromance_stronghold_exit_tunnel", 2731, 3712,
-                function(tt) return tt.level == 0 and tt.x == 2781 and tt.z == 10160 end,
-                "2781,10160,0: betweenarock_travel.rs2:27 p_teleport(0_43_158_29_48)")
+                function(tt) return tt.level == 0 and ((tt.x == 2781 and tt.z == 10160) or (tt.x == 2773 and tt.z == 10162)) end,
+                "2781,10160,0 (betweenarock_travel.rs2:18 p_teleport(0_43_158_29_48), a rock tile: OPEN in the header) "
+                    .. "or LostCity's 2773,10162,0")
             climb("enterDwarfCave2" .. suffix, "dwarf_cavewall_tunnel", 2781, 10161,
-                function(tt) return tt.level == 0 and tt.x >= 2814 and tt.x <= 2884 and tt.z >= 10121 and tt.z <= 10139 end,
-                "the ferry cave, x 2814-2884 z 10121-10139 (betweenarock_travel.rs2:30's own zone; :38 lands 0_44_158_11_18 = 2827,10130)")
-            -- seam (1): the landing is walled into the rock west of the ferry bank.
-            -- A goto across that rock is a goto into a sealed pocket
-            -- (helper_coverage sealed_entries), so the leg stops here until
-            -- content lands the player on the bank.
+                function(tt) return tt.level == 0 and tt.x == 2838 and tt.z == 10124 end,
+                "the ferry bank 2838,10124,0 (betweenarock_travel.rs2:42, seam b58-seam1 (e))")
             t.player.walk_to(2837, 10129, 20)
             local wr, wt = t.world.tile()
-            if not (wr == "ok" and wt.x >= 2835 and wt.z >= 10116 and wt.z <= 10143) then
-                t.blocked("content_bug: betweenarock_travel.rs2:38 -- dwarf_cavewall_tunnel (the guide's enterDwarfCave2" .. suffix
-                    .. ") teleports the player to 0_44_158_11_18 = 2827,10130,0, a tile walled into the rock: walk_to the ferry "
-                    .. "bank 2837,10129 ends on " .. tile_text(wr, wt) .. ". The bank (x 2835-2877 z 10116-10143, maps/m44_158.jl2, "
-                    .. "the Dwarven Ferryman dwarfrock_ferryman1 at 2839,10128) has no walk-in from it, so talkToFerryman" .. suffix
-                    .. " and every Dondakan step behind it cannot be reached without a goto through rock. Needs the landing "
-                    .. "moved onto the bank, e.g. 0_44_158_21_17 (2837,10129).")
-                return false
-            end
+            t.check("walk-ferryBank" .. suffix, wr == "ok" and wt.level == 0 and math.abs(wt.x - 2837) <= 1 and math.abs(wt.z - 10129) <= 1,
+                "walked from the cave landing to 2837,10129 beside the Dwarven Ferryman -> " .. tile_text(wr, wt))
             local cbr, coins_before = t.inv.count("coins")
             t.exec("talkToFerryman" .. suffix, t.player.talk_to, "dwarfrock_ferryman1", 1)
             if ferry1_trips == 0 then
@@ -297,6 +300,53 @@ return {
             ferry2_trips = ferry2_trips + 1
         end
 
+        -- Keldagrim's real way out (seam b58-seam1 (f), keldagrim_travel.rs2):
+        -- the city's Dwarven Boatman to the mines (lands 2838,10127 on the
+        -- ferry bank), the bank's crack `dwarf_cave_entrance` back to the troll
+        -- room (betweenarock_travel.rs2:47, 2778,10161), and the tunnel up to the
+        -- hillside east of Rellekka (`trollromance_piste_exit_tunnel_bottom`,
+        -- maplink 2730,3713).
+        local function leave_keldagrim(name)
+            local ck = t.chat.kind()
+            if ck ~= "none" then t.chat.drain({ max_pages = 6 }) end
+            t.ticks(2)
+            local w1, d1 = t.player.walk_to(2888, 10225, 120)
+            if w1 == "refused" then
+                -- the dock is outside the scene the ferry landing built: walk
+                -- north inside it first, then on to the dock
+                for _, hop in ipairs({ { 2878, 10214 }, { 2880, 10210 }, { 2876, 10206 } }) do
+                    local hr = t.player.walk_to(hop[1], hop[2], 40)
+                    if hr == "ok" then break end
+                end
+                w1, d1 = t.player.walk_to(2888, 10225, 120)
+            end
+            local wr0, wt0 = t.world.tile()
+            t.check(name .. ".walkToDock", wr0 == "ok" and wt0.level == 0 and math.abs(wt0.x - 2888) <= 3 and math.abs(wt0.z - 10225) <= 3,
+                "chat was " .. tostring(ck) .. "; walk_to(2888,10225) -> " .. tostring(w1) .. " " .. tostring(d1) .. "; at " .. tile_text(wr0, wt0))
+            t.exec(name .. "-boatman", t.player.talk_to, "dwarf_city_boatman_city", 1)
+            t.exec(name .. "-boatman-dialog", t.chat.play, {
+                "npc:Want me to take you back to the mines?",
+                "choose:Yes, please take me.",
+                "player:Yes, please take me.",
+            })
+            await_tile(function(tt) return tt.level == 0 and tt.x == 2838 and tt.z == 10127 end, 10, name)
+            local ar, at = t.world.tile()
+            t.check(name .. ".mines", ar == "ok" and at.level == 0 and at.x == 2838 and at.z == 10127,
+                "landed " .. tile_text(ar, at) .. " (want 2838,10127,0: keldagrim_travel.rs2 boatman)")
+            t.ticks(3)
+            climb(name .. "-caveEntrance", "dwarf_cave_entrance", 2838, 10123,
+                function(tt) return tt.level == 0 and tt.x == 2778 and tt.z == 10161 end,
+                "the troll room 2778,10161,0 (betweenarock_travel.rs2:47)")
+            t.ticks(3)
+            climb(name .. "-trollRoomTunnel", "trollromance_piste_exit_tunnel_bottom", 2771, 10161,
+                function(tt) return tt.level == 0 and tt.z < 4000 end,
+                "the hillside east of Rellekka (maplink 2730,3713)")
+            local sr, st = t.world.tile()
+            t.check(name .. ".surface", sr == "ok" and st.level == 0 and st.x == 2730 and st.z == 3713,
+                "out of the troll room -> " .. tile_text(sr, st) .. " (want 2730,3713,0, maplink trollromance_piste_exit_tunnel_bottom)")
+            t.ticks(3)
+        end
+
         -- ============================================================
         -- Dondakan #1 -- accept the quest (dwarfrock_dondakan_talk,
         -- not_started branch).
@@ -304,6 +354,7 @@ return {
         if not to_dondakan("") then
             return
         end
+        dondakan_present("talkToDondakan")
         t.exec("talkToDondakan", t.player.talk_to, "dwarfrock_dondakan", 1)
         t.exec("talkToDondakan-dialog", t.chat.play, {
             "player:What are you doing firing a cannon at that wall?",
@@ -328,10 +379,11 @@ return {
 
         -- ============================================================
         -- Rolad #1 -- accepts the three-page hunt (betweenarock_pages.rs2).
-        -- Keldagrim has no exit (the header's Keldagrim note): the goto leaves from the
-        -- open street by the Engineer and lands on the open hillside north
-        -- of Rolad's hut; the hut door is opened on foot.
+        -- Out of Keldagrim by its real exit (leave_keldagrim), then an
+        -- overland goto from the open hillside east of Rellekka to the open
+        -- hillside north of Rolad's hut; the hut door is opened on foot.
         -- ============================================================
+        leave_keldagrim("leaveKeldagrimForRolad")
         t.exec("goto-roladHut", t.player.goto_tile, 3015, 3457, 0)
         rolad_in("talkToRolad")
         t.exec("talkToRolad", t.player.talk_to, "dwarfrock_rolad", 1)
@@ -450,6 +502,7 @@ return {
         if not to_dondakan("WithBook") then
             return
         end
+        dondakan_present("talkToDondakanWithBook")
         t.exec("talkToDondakanWithBook", t.player.talk_to, "dwarfrock_dondakan", 1)
         t.exec("talkToDondakanWithBook-dialog", t.chat.play, {
             "player:I've read the whole book. It talks about a fortune in gold",
@@ -468,6 +521,7 @@ return {
         -- the flag AND that all four bars are still held.
         -- ============================================================
         local bars0_r, bars0 = t.inv.count("gold_bar")
+        dondakan_present("useGoldBarOnDondakan")
         local dondakan_book_target = t.player.by_symbol("npc", "dwarfrock_dondakan")
         t.exec("useGoldBarOnDondakan", t.player.use_on, "gold_bar", dondakan_book_target)
         t.exec("useGoldBarOnDondakan-dialog", t.chat.play, {
@@ -510,12 +564,14 @@ return {
         -- ============================================================
         -- Use the golden cannonball on Dondakan -- opnpcu (consumes the
         -- ball, sets %dwarfrock_fired_gold_cannonball), then a SEPARATE
-        -- talk_to advances the stage. Keldagrim has no exit (the header's Keldagrim note),
+        -- talk_to advances the stage. Out of Keldagrim by its real exit,
         -- then the guide's route back to the alcove.
         -- ============================================================
+        leave_keldagrim("leaveKeldagrimWithCannonball")
         if not to_dondakan("WithCannonball") then
             return
         end
+        dondakan_present("useGoldCannonballOnDondakan")
         local dondakan_target = t.player.by_symbol("npc", "dwarfrock_dondakan")
         t.exec("useGoldCannonballOnDondakan", t.player.use_on, "dwarf_rock_cannonball_gold", dondakan_target)
         -- if_close fires for BOTH branches of this p_choice2, so the dialogue
@@ -536,6 +592,7 @@ return {
             "varb313_dwarfrock_fired_gold_cannonball await 1 -> " .. tostring(fired_r) .. "; dwarf_rock_cannonball_gold 1 -> "
                 .. tostring(ball2) .. " (want 0: inv_del, betweenarock_dondakan.rs2:181)")
 
+        dondakan_present("talkToDondakanAfterShot")
         t.exec("talkToDondakanAfterShot", t.player.talk_to, "dwarfrock_dondakan", 1)
         t.exec("talkToDondakanAfterShot-dialog", t.chat.play, {
             "player:So you want to... fire me into the rock?",
@@ -545,6 +602,7 @@ return {
         })
         t.expect("quest.stage.fired_into_rock", t.quest.expect_stage("fired_into_rock"))
 
+        dondakan_present("talkToDondakanForSchematic")
         t.exec("talkToDondakanForSchematic", t.player.talk_to, "dwarfrock_dondakan", 1)
         t.exec("talkToDondakanForSchematic-dialog", t.chat.play, {
             "player:What did you find on the other side?",
@@ -604,11 +662,13 @@ return {
                 .. "; gold_bar " .. tostring(bars3) .. " -> " .. tostring(bars4) .. " (want 3 -> 0, betweenarock_schematics.rs2:378)")
 
         -- ============================================================
-        -- Khorvak's schematic piece, under White Wolf Mountain. Keldagrim
-        -- has no exit (the header's Keldagrim note); the goto lands on the open mountainside
-        -- north of the stair hut, and the stairs are walked both ways
+        -- Khorvak's schematic piece, under White Wolf Mountain. Out of
+        -- Keldagrim by its real exit; the overland goto leaves the open
+        -- hillside east of Rellekka and lands on the open mountainside north
+        -- of the stair hut, and the stairs are walked both ways
         -- (maplink.dbrow 0_44_54_4_30 / 0_44_154_4_26).
         -- ============================================================
+        leave_keldagrim("leaveKeldagrimForKhorvak")
         t.exec("goto-whiteWolfStairs", t.player.goto_tile, 2820, 3490, 0)
         climb("enterKhorvakRoom", "tunnelstairstop", 2820, 3484,
             function(tt) return tt.level == 0 and tt.z > 9800 and tt.z < 9900 end,
@@ -760,6 +820,7 @@ return {
         if not to_dondakan("WithHelmet") then
             return
         end
+        dondakan_present("talkToDondakanWithHelmet-probe")
         t.exec("talkToDondakanWithHelmet-probe", t.player.talk_to, "dwarfrock_dondakan", 1)
         t.exec("talkToDondakanWithHelmet-probe-dialog", t.chat.play, {
             "npc:Best wear that golden helmet before I fire you in",
@@ -767,19 +828,10 @@ return {
 
         t.exec("equip.helmet", t.player.equip, "dwarf_goldrock_helmet")
 
+        dondakan_present("talkToDondakanForEnd")
         t.exec("talkToDondakanForEnd", t.player.talk_to, "dwarfrock_dondakan", 1)
-        local realm_kind = t.chat.kind()
-        if realm_kind ~= "player" then
-            local unexpected_text_result, unexpected_text = t.chat.text()
-            t.step("talkToDondakanForEnd-unexpected", "FAIL",
-                "chat.kind() -> " .. tostring(realm_kind) .. " (want player); chat.text() -> " .. tostring(unexpected_text_result)
-                    .. " " .. tostring(unexpected_text))
-            t.blocked("test/quests/betweenarock.lua:talkToDondakanForEnd -- betweenarock_dondakan.rs2's stage-80 "
-                .. "branch did not reach its \"Ready as I'll ever be.\" case with dwarf_rock_schematic_assembled held, "
-                .. "dwarf_goldrock_helmet worn and Defence 99 -- it opened a '" .. tostring(realm_kind) .. "' page instead ('"
-                .. tostring(unexpected_text) .. "').")
-            return
-        end
+        -- the stage-80 branch with the helmet worn and the assembled schematic
+        -- held: a page that is not "Ready as I'll ever be." fails this row
         t.exec("talkToDondakanWithHelmet-dialog", t.chat.play, {
             "player:Ready as I'll ever be.",
             "npc:You may fire when ready!",
@@ -843,43 +895,41 @@ return {
         -- of outer walls of flame the landing area cannot walk through
         -- (static collision: the landing's component, 429 tiles, touches no
         -- dwarf_firewall_centre_* copy). The nearest crossing is the outer
-        -- wall at 2372,4939 (south edge), from 2372,4938. Walk there, try to
-        -- walk on through, then press its Jump-through.
+        -- wall at 2372,4939 (south edge), from 2372,4938: a walk on through
+        -- is refused by the wall, and its op1 Jump-through
+        -- (betweenarock_realm.rs2:101, @dwarfrock_jump_firewall) carries the
+        -- player to the far tile. Then the centre ring's op2 Talk-to (:85-89,
+        -- the guide's "talk to the second set").
         -- ============================================================
         t.player.walk_to(2372, 4938, 150)
         local wr0, wt0 = t.world.tile()
-        t.check("walk-outerFlame", wr0 == "ok" and wt0.x == 2372 and wt0.z == 4938,
+        t.check("walk-outerFlame", wr0 == "ok" and wt0.level == 0 and wt0.x == 2372 and wt0.z == 4938,
             "walked to 2372,4938 south of the outer wall of flame 2372,4939 -> " .. tile_text(wr0, wt0))
-        t.player.walk_to(2372, 4942, 10)
+        local pw_r, pw_d = t.player.walk_to(2372, 4942, 10)
         local wr1, wt1 = t.world.tile()
-        local inside = wr1 == "ok" and wt1.z >= 4939
-        local jump_r, jump_d = "not pressed", ""
-        if not inside then
-            jump_r, jump_d = t.player.click_loc("dwarf_firewall_straight", 1, { at = { 2372, 4939 } })
-            t.ticks(3)
-            wr1, wt1 = t.world.tile()
-            inside = wr1 == "ok" and wt1.z >= 4939
-        end
-        local jump_evidence = "walk_to(2372,4942) then click_loc(dwarf_firewall_straight op1 Jump-through at 2372,4939) -> "
-            .. tostring(jump_r) .. " " .. tostring(jump_d) .. "; now " .. tile_text(wr1, wt1)
-            .. " (want z >= 4939, inside the outer wall)"
-        if not inside then
-            t.blocked("content_bug: betweenarock_realm.rs2 -- the Arzinian realm's outer walls of flame "
-                .. "(dwarf_firewall_straight / dwarf_firewall_diagonal, configs/all.loc op1=Jump-through) have no "
-                .. "[oploc1] trigger anywhere under server/scripts, and the landing 0_36_77_16_22 "
-                .. "(betweenarock_realm.rs2:49) is walled off by them from every dwarf_firewall_centre_* copy "
-                .. "(talkToSecondFlame, :75-79). Needs a Jump-through handler (or a landing inside the ring). Evidence: "
-                .. jump_evidence)
+        t.check("walk-outerFlameBlocks", wr1 == "ok" and wt1.z <= 4938,
+            "walk_to(2372,4942) through the wall of flame -> " .. tostring(pw_r) .. " " .. tostring(pw_d) .. "; now "
+                .. tile_text(wr1, wt1) .. " (want still south of it, z <= 4938: the wall blocks a walk)")
+        local jump_r, jump_d = t.player.click_loc("dwarf_firewall_straight", 1, { at = { 2372, 4939 } })
+        await_tile(function(tt) return tt.level == 0 and tt.z >= 4939 end, 6, "jumpOuterFlame")
+        local wr2, wt2 = t.world.tile()
+        t.check("jumpOuterFlame", (jump_r == "ok" or jump_r == "timeout") and wr2 == "ok" and wt2.level == 0
+                and wt2.x == 2372 and wt2.z == 4939,
+            "from " .. tile_text(wr1, wt1) .. " click_loc(dwarf_firewall_straight op1 Jump-through at 2372,4939) -> "
+                .. tostring(jump_r) .. " " .. tostring(jump_d) .. "; now " .. tile_text(wr2, wt2)
+                .. " (want the far tile 2372,4939,0, inside the outer ring: [proc,dwarfrock_firewall_far_side])")
+        if not (wr2 == "ok" and wt2.z >= 4939) then
             return
         end
-        t.step("jumpOuterFlame", inside and "PASS" or "FAIL", jump_evidence)
 
-        local approach_result, approach_detail = t.player.click_loc("dwarf_firewall_centre_diagonal", 1)
+        local approach_result, approach_detail = t.player.click_loc("dwarf_firewall_centre_diagonal", 2)
+        local approach_sym = "dwarf_firewall_centre_diagonal"
         if approach_result ~= "ok" then
-            approach_result, approach_detail = t.player.click_loc("dwarf_firewall_centre_straight", 1)
+            approach_result, approach_detail = t.player.click_loc("dwarf_firewall_centre_straight", 2)
+            approach_sym = "dwarf_firewall_centre_straight"
         end
         t.check("talkToSecondFlame", approach_result == "ok",
-            "click_loc(dwarf_firewall_centre_*, 1) -> " .. tostring(approach_result) .. " " .. tostring(approach_detail))
+            "click_loc(" .. approach_sym .. ", op2 Talk-to) -> " .. tostring(approach_result) .. " " .. tostring(approach_detail))
         t.exec("talkToSecondFlame-dialog", t.chat.play, {
             "mesbox:The flames roar and a guardian of the realm steps forth",
         })
@@ -902,10 +952,23 @@ return {
             "tried " .. table.concat(avatar_candidates, ", ") .. " -> resolved " .. tostring(avatar_sym)
                 .. " (" .. tostring(avatar_present_result) .. ")")
         if avatar_sym == nil then
-            t.blocked("test/quests/betweenarock.lua:talkToSecondFlame -- the flame answered but none of the three "
-                .. "melee-countered Avatars (dwarf_rock_avatar_mage/_green/_yellow) is in the npc pool within 10 tiles.")
             return
         end
+
+        -- The Avatar is not a real fight yet (content): stop honestly before the
+        -- first attack. Everything below is the driven fight and hand-in, proven
+        -- in b58 r2 runs 1-2 (build/orchestrator/fix_b58/betweenarock.r2.fullroute.lua);
+        -- the next author deletes only this block once the Avatar has a combat block.
+        t.blocked("content_bug: the Arzinian Avatar (dwarf_rock_avatar_mage/_mage_green/_mage_yellow, "
+            .. "dwarf_rock_avatar_archer/_archer_green/_archer_yellow, dwarf_rock_avatar_warrior/_warrior_green/_warrior_yellow; "
+            .. "this run spawned " .. tostring(avatar_sym) .. ") exists only in "
+            .. "OSRS-Content/osrs239-content/server/scripts/npc/configs/npc_anims.generated.npc:11930-11990 "
+            .. "(anims only: death/attack/defend, no combat block -- no hitpoints, attack, strength, defence, magic, "
+            .. "ranged or attack rate) and has no entry in docs/bosses/quest_combat_manifest.json; engine defaults "
+            .. "make the Avatar die in one hit (b58 r2 run: 0 eaten, lowest hp 99/99). Needed: a real .npc combat "
+            .. "block per form from the wiki's Arzinian Avatar page (levels 75-125), a quest_combat_manifest.json "
+            .. "entry, and check_quest_combat_contract passing.")
+        do return end
 
         -- The kill is polled on the QUEST VARP (^dwarfrock_avatar_defeated=100),
         -- not npc-pool presence; hitpoints are sampled and food eaten between
@@ -918,16 +981,19 @@ return {
             local atk_result, atk_detail = t.player.attack(avatar_sym, 2, 30)
             t.check("attackAvatar-" .. kill_attempts, atk_result == "ok", tostring(atk_result) .. " " .. tostring(atk_detail))
             vitals()
-            kill_stage_result = t.var.await_server("varb299_dwarfrock_quest", 100, 15)
-            vitals()
+            -- poll the stage one tick at a time so hitpoints are sampled
+            -- (and food eaten) through the whole fight, not only around it
+            for _ = 1, 15 do
+                kill_stage_result = t.var.await_server("varb299_dwarfrock_quest", 100, 1)
+                vitals()
+                if kill_stage_result == "ok" then break end
+            end
         end
         t.check("killAvatar", kill_stage_result == "ok",
-            "dwarfrock_quest var.await_server(...,100,15) after " .. tostring(kill_attempts)
+            "dwarfrock_quest var.await_server(...,100) polled up to 15 ticks per press, after " .. tostring(kill_attempts)
                 .. " attackAvatar attempt(s) -> " .. tostring(kill_stage_result))
         margin_row("killAvatar.margin", "Arzinian Avatar (" .. tostring(avatar_sym) .. ")")
         if kill_stage_result ~= "ok" then
-            t.blocked("test/quests/betweenarock.lua:killAvatar -- dwarfrock_quest never reached "
-                .. "^dwarfrock_avatar_defeated=100 after " .. tostring(kill_attempts) .. " attackAvatar attempt(s).")
             return
         end
 
@@ -947,6 +1013,7 @@ return {
         local _, reward_before = t.skill.snapshot()
         local rune_pickaxe_before_result, rune_pickaxe_before = t.inv.count("rune_pickaxe")
 
+        dondakan_present("finishQuest")
         t.exec("finishQuest", t.player.talk_to, "dwarfrock_dondakan", 1)
         t.exec("finishQuest-dialog", t.chat.play, {
             "player:It's done -- the guardian is defeated.",
