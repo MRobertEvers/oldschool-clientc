@@ -158,3 +158,24 @@ Sampler: after seam15 the reviewers accepted tob_maiden and tob_verzik. For each
 - tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
 - tob_nylocas: KEPT from the twelfth launch (d87427d41, OSRS d91f386291), 76/76 FULL. Not re-sampled.
 - All six Entry solo rooms are green on this branch. Normal and Hard are three-player passes and need the three-client driver seam first (RESUME.md).
+
+## matthew-mbp-m4-raid-b1-rooms-tob, fourteenth launch (Theatre of Blood, Entry mode, solo; 2026-10-04, after seam16, seam18 and seam19)
+Sampler: the reviewers accepted tob_maiden, tob_bloat and tob_nylocas, re-authored after seam16 (stomp line of sight, 14-16 hands, Verzik P3 accuracy) and seam18 (the brew raises Defence). For each, the sampler re-derived three spec numbers from their sources and checked the ledger, the tick log and the published shots. The Read tool's hook timed out on an image again, so the shots were checked by pixel statistics only (non-blank, distinct from the shot before). All three rooms are kept. Nothing was sent back.
+
+- tob_maiden: KEPT (1dffd5230, OSRS 73241bbf8d). 112 ledger rows green, coverage FULL 65/65, lint clean, no `::` cheats in the run.
+  - Re-derived: cadence_entry 10 (wiki :48; 43 attack anims 51..471, every 10 ticks), auto_prayed_entry (Strategies :590 36.5 + 3.5c; infobox Entry max hit 18 against 36, so Entry halves and the prayer halves again: c0 9, c1 10, c3 11, c5 13), blood_spawn_hp_entry_unit 10 (cache_maiden_seq_npc.txt:40 stat4=10).
+  - The two seam16 rows are measured: auto_land_rate_entry 33 of 33 blackstorms landed (Strategies :590 "always lands"); auto_prayed_entry has 32 prayed hits, every one equal to the formula at its launch-tick c. The leak on 404 heals her 2 because the crab had 1 hp left. The test counts it and the 13s confirm the server does too.
+  - Boss damage: 805 = 500 hp + 305 healed, every hit after a player attack anim (426 / 1658 / 1979). The barrier is crossed by click and the exit barrier is clicked.
+  - Remains: the shots have not been viewed (Read hook timeout).
+- tob_bloat: KEPT (abc53c18e, OSRS 785100ce92). 94 ledger rows green, coverage FULL 55/55, lint clean.
+  - hand_tiles is now 14-16 range (bloat.tsv :57). Re-derived from blert bloat_events.csv: hands_drop 14x39, 15x271, 16x740. The log has 36 volleys: 14x3, 15x8, 16x25.
+  - Also re-derived: hp_entry_unit 320 (cache_npc_bloat.txt:56; the log's 62 hit_npc rows sum to 320, 60 scythe and 2 DWH, no heals) and hand_cadence 6/4 with threshold 40 (bloat_stats.txt :8, :27, :37).
+  - Remains: the shots have not been viewed (Read hook timeout).
+- tob_nylocas: KEPT (116a1d938, OSRS fcf7ca91b1). 177 ledger rows green, coverage FULL 76/76, lint clean. The only cheat is `::tobwhy` (read-only), plus `t.raid.leave` after the kill.
+  - The brew failure is fixed: Ice Burst clumps (Ancients bring-along), 41 brew doses and 11 restores, lowest hp 49, combat levels 77 at tick 860. Vasilias spawns at 678 and dies at 992 to a player hit (410 = 360 + 50 reflect heals). Two supports fell and both collapse rows are measured (31, 36).
+  - Re-derived: lifetime_small 52 (blert analysis :2; guide tsx :501; independently 105 smalls at 52 and 28 bigs at 55), vasilias_switch_entry 15 +-1 (blert :22; log 14 then 15s), explosion_entry 1-8 (Entry :162 "about 8").
+  - attackrate 3, checked independently: 1388 gaps of 3 and 33 of 17-19. Every non-3 gap holds an `ice_burst_impact` npc_spotanim on that slot, so the test's burst exclusion removes freezes only. This is in DRIVER_NOTES (ec97c8ccf).
+  - Remains: tech.style_kills' detail still says "Fire Strike" although every cast is Ice Burst (text only). pillar_hp_entry_unit reads 355 against an approximate 155 (grade E, M94). The shots have not been viewed.
+- tob_xarpus: KEPT from earlier launches (f417148e4), green on this tree. Not re-sampled.
+- tob_sotetseg: KEPT from earlier launches (812267e7f), green on this tree. Not re-sampled.
+- tob_verzik: NOT ACCEPTED this launch. Committed d1b4ccf00 is 256 PASS / 14 FAIL on this tree: the accuracy-rolled P3 moves the seeded fight, the raider dies in P3 around tick 799 with no food, and verzik.p3_auto_miss_entry has no ledger row. Its author was still running at sample time (test/raids/tob_verzik.lua uncommitted).
