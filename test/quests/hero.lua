@@ -2,15 +2,21 @@
 -- (Achietties -> Straven -> Alfonse -> Charlie the cook -> the misc key on
 -- the side door -> ::hero_partner_lure, Grip shot through the arrow slit
 -- from inside the secret room -> ::hero_partner_candlestick -> Straven's
--- candlestick hand-in for the armband), then the two solo-collectible arms (Ice Queen -> ice gloves ->
--- Entrana firebird -> feather; Gerrant -> Blamish oil -> oily rod -> lava
--- eel -> cook it), then the real hand-in to Achietties. Never ::setvar on
+-- candlestick hand-in for the armband), then the solo-collectible arms
+-- (Ice Queen -> ice gloves; Gerrant -> Blamish oil -> oily rod -> the
+-- Jailer -> lava eel -> cook it; then, every armed fight done, the weapons
+-- and armour banked at Draynor and the Entrana firebird killed unarmed ->
+-- feather), then the real hand-in to Achietties. Never ::setvar on
 -- %heroquest itself past `hero_started` -- every later value is written by
 -- the content this file actually clicks/fights through.
 --
 -- Travel (owner rule 2026-10-03: a goto into or out of ANY closed space is
 -- a cheat). Every goto below departs from and lands on an open outdoor tile;
 -- everything closed is crossed by its own click, in and out:
+--   * the Taverley members' wall, on all five trips (Lumbridge -> guild,
+--     guild -> Varrock, Varrock -> rockslide, Port Sarim -> Taverley
+--     Dungeon, Port Sarim -> guild): membergater 2935,3450 (east gate) or
+--     2933,3320 (south gate), a gates.rs2 walk-through, via taverley_gate();
 --   * the Phoenix hideout: fai_varrock_poor_door 3241,3382 (the WEST room
 --     holds the ladder; the north door 3246,3386 leads to the other room),
 --     fai_varrock_ladder_deep 3244,3383 down (maplink src 3243,3383) and
@@ -24,8 +30,10 @@
 --   * White Wolf Mountain: herorockslide mined from the mainland (west) side,
 --     then the guide's five ladders (takeLadder1Down..takeLadder5Down) on
 --     their maplink src tiles, the two tunnels walked; Falador Teleport out;
---   * Entrana is an island: the monk's crossing, ship_from_entrana_off ashore,
---     shipmonk2's crossing back, ship_to_entrana_off ashore;
+--   * Entrana is an island: the monk's crossing (no weapon or armour
+--     carried: banked at Draynor, whose doorway the map leaves open),
+--     ship_from_entrana_off ashore, shipmonk2's crossing back,
+--     ship_to_entrana_off ashore;
 --   * Taverley Dungeon: the ladder, cauldrondoor (three presses: two suits of
 --     armour, then the walk-through), metalgateclosedl, the Black Knights'
 --     castledoubledoorl, dungeonjail in and out, castledoubledoorl back,
@@ -374,6 +382,38 @@ return {
                 function(tt) return tt.level == 0 and tt.x <= 3241 end, "back in the street, x <= 3241")
         end
 
+        -- The Taverley members' wall. Owner ruling (sampler-findings.md,
+        -- "Sample matthew-mbp-m4-b59" (a)): a gate that is the only way on
+        -- foot between two regions is clicked on every crossing, however
+        -- large the regions. comp.py floods from Lumbridge, Varrock and Port
+        -- Sarim never join the Taverley/Burthorpe side. Both gates are
+        -- gates.rs2 [label,member_fencegate_try] walk-throughs (membergatel/r
+        -- have no opened variant: nothing stays open after a crossing, so
+        -- every crossing is a press, graded on the tiles before and after):
+        --   * east: membergater 2935,3450 (rot 2, the east wall of its tile):
+        --     Taverley is x <= 2935, the Ice Mountain side x >= 2936;
+        --   * south: membergater 2933,3320 (rot 3, the south wall of its
+        --     tile): Taverley is z >= 3320, west of Falador z <= 3319.
+        -- ~check_axis (door_procs.rs2:112): on the gate's own column/row the
+        -- press p_teleports through to the far side; from the other side it
+        -- p_teleports onto the gate tile. Every trip goes through this one
+        -- helper: goto two tiles short, walk to the tile beside the gate,
+        -- press it.
+        local TAVERLEY_GATES = {
+            east_in = { 2935, 3450, 2938, 3450, 2936, 3450,
+                function(tt) return tt.level == 0 and tt.x <= 2935 end, "through the east gate into Taverley, x <= 2935" },
+            east_out = { 2935, 3450, 2932, 3450, 2934, 3450,
+                function(tt) return tt.level == 0 and tt.x >= 2936 end, "through the east gate out of Taverley, x >= 2936" },
+            south_in = { 2933, 3320, 2933, 3317, 2933, 3319,
+                function(tt) return tt.level == 0 and tt.z >= 3320 end, "through the south gate into Taverley, z >= 3320" },
+        }
+        local function taverley_gate(prefix, which)
+            local g = TAVERLEY_GATES[which]
+            t.exec("goto-" .. prefix .. ".memberGate", t.player.goto_tile, g[3], g[4], 0)
+            hop(prefix .. ".memberGate.approach", g[5], g[6], 10, 0)
+            cross(prefix .. ".memberGate.cross", "membergater", g[1], g[2], g[7], g[8])
+        end
+
         -- Equip the fight gear now, before anything else -- frees five
         -- backpack slots the fishing-bait/harralander/logs stack still needs,
         -- and both real fights below want it worn from the first swing.
@@ -386,8 +426,9 @@ return {
         -- ---------------------------------------------------------------
         -- Achietties: accept the quest for real. She stands in the guild's
         -- open stone arch (stone_arched_doorbase 2903,3509-3512, no door
-        -- loc), an overland hop from Lumbridge.
+        -- loc), past the Taverley members' east gate.
         -- ---------------------------------------------------------------
+        taverley_gate("achietties", "east_in")
         t.exec("goto-achietties", t.player.goto_tile, 2903, 3510, 0)
         t.exec("talkToAchietties", t.player.talk_to, "achietties")
         t.exec("talkToAchietties-dialog", t.chat.play, {
@@ -404,8 +445,10 @@ return {
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
         -- ---------------------------------------------------------------
-        -- Straven: join the Phoenix side of the armband chain.
+        -- Straven: join the Phoenix side of the armband chain. Out of
+        -- Taverley by the east gate, then overland to Varrock.
         -- ---------------------------------------------------------------
+        taverley_gate("enterPhoenixBase", "east_out")
         phoenix_in("enterPhoenixBase")
         t.exec("talkToStraven-1", t.player.talk_to, "straven")
         t.exec("talkToStraven-1-dialog", t.chat.play, {
@@ -700,13 +743,15 @@ return {
         -- 2838,3517 (covers x 2838-2839 z 3517-3518, so the guide's
         -- 2839,3518 and the old goto's 2838,3518 are ON the rock) closes a
         -- 79-tile pocket east of it; its WEST side (2837,3518) is the open
-        -- mainland (comp.py floods it to Taverley).
+        -- mainland (comp.py floods it to Taverley), reached from Varrock
+        -- through the Taverley members' east gate.
         -- [oploc2,herorockslide] (white_wolf_mountain.rs2:13-46), gated on
         -- a held pickaxe + Mining 50, has no success mes() -- the tell is
         -- the forcemove into the pocket (coordx not past the rock's 2838:
         -- +2,0 then +1,-1, 2837,3518 -> 2840,3517), read back off
         -- t.world.tile().
         -- ---------------------------------------------------------------
+        taverley_gate("mineEntranceRocks", "east_in")
         t.exec("goto-rockslide", t.player.goto_tile, 2837, 3518, 0)
         local rockslide_before_result, rockslide_before = t.world.tile()
         local mine_click_result, mine_click_detail = t.player.click_loc("herorockslide", 2)
@@ -790,97 +835,12 @@ return {
                 tostring(gloves_click_result), tostring(gloves_click_detail), tostring(gloves_before), tostring(gloves_after)))
         t.exec("equipIceGloves", t.player.equip, "ice_gloves")
 
-        -- Out of the lair: Falador Teleport (the walk back is five ladders).
-        teleport("goToEntrana.faladorTeleport", "falador_teleport",
+        -- Out of the lair: Falador Teleport (the walk back is five ladders),
+        -- then overland to Gerrant in Port Sarim. Every armed fight (Grip,
+        -- the Ice Queen, the Jailer) comes before Entrana, so the gear is
+        -- banked for good before the monk's boat (see goToEntrana below).
+        teleport("leaveIceQueenLair.faladorTeleport", "falador_teleport",
             { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, 2965, 3378, "Falador square, tele_coord 0_46_52_21_50")
-
-        -- ---------------------------------------------------------------
-        -- Entrana: the Quest Helper guide's own goToEntrana step is the
-        -- Port Sarim monk's boat (monk_of_entrana.rs2's shipmonk_talk/
-        -- shipmonk_ready labels, *.spawn tile
-        -- areas/world/configs/m47_50.spawn:32). ~has_entrana_restricted_items
-        -- (the "leave weaponry and armour behind" search) is an orphaned/
-        -- deferred call -- it is never wired to a strip, so gear stays worn.
-        -- The crossing ends on the ship's deck (p_telejump(1_44_52_18_3) =
-        -- 2834,3331,1); ship_from_entrana_off (2834,3333) is the way ashore.
-        -- ---------------------------------------------------------------
-        t.exec("goto-shipmonk", t.player.goto_tile, 3045, 3236, 0)
-        t.exec("talkToShipmonk", t.player.talk_to, "shipmonk")
-        t.exec("talkToShipmonk-dialog", t.chat.play, {
-            "npc:Do you seek passage to holy Entrana?",
-            "choose:Yes, okay, I'm ready to go.",
-            "player:Yes, okay, I'm ready to go.",
-            "npc:Very well. One moment please.",
-            "mesbox:The monk quickly searches you.",
-        })
-        await_tile(function(tt) return tt.level == 1 and tt.x < 2900 end, 10, "shipmonk")
-        local entrana_deck_r, entrana_deck = t.world.tile()
-        t.check("shipmonk.onDeckAtEntrana", entrana_deck_r == "ok" and entrana_deck.level == 1
-                and math.abs(entrana_deck.x - 2834) <= 2 and math.abs(entrana_deck.z - 3331) <= 2,
-            "t.world.tile() -> " .. tile_text(entrana_deck_r, entrana_deck) .. " (want the deck, p_telejump(1_44_52_18_3) = 2834,3331,1)")
-        cross("entrana.disembark", "ship_from_entrana_off", 2834, 3333,
-            function(tt) return tt.level == 0 and tt.x < 2900 and tt.z > 3300 end, "ashore on Entrana, level 0")
-
-        -- Entrana firebird: real fight (hp5/atk1, trivial) for hot_feather.
-        -- fire_bird *.spawn tile areas/world/configs/m44_52.spawn:20, an
-        -- overland hop from the jetty (reach.py 88 tiles, every door shut).
-        -- No quest-state check on the fight itself (entrana_firebird.rs2's
-        -- ai_queue3 only gates the FEATHER drop on %heroquest < hero_complete,
-        -- true here).
-        t.exec("goto-firebird", t.player.goto_tile, 2847, 3386, 0)
-        fight_begin()
-        local firebird_attack_result, firebird_attack_detail = t.player.attack("fire_bird", 2, 20)
-        local firebird_dead_result, firebird_dead_detail = t.npc.await_dead("fire_bird", 30)
-        t.check("killFirebird", firebird_dead_result == "ok",
-            "attack(fire_bird) -> " .. tostring(firebird_attack_result) .. " " .. tostring(firebird_attack_detail)
-                .. "; npc.await_dead(fire_bird, 30) -> " .. tostring(firebird_dead_result) .. " " .. tostring(firebird_dead_detail))
-        margin_row("killFirebird.margin", "Entrana firebird")
-
-        -- hot_feather is a real ground drop (entrana_firebird.rs2:13) --
-        -- pickup needs ice_gloves WORN (fire_feather.rs2:20's op3 gate),
-        -- already equipped above.
-        local feather_visible_result = t.await({
-            level = function()
-                return t.world.obj_near("hot_feather", 10) == "ok"
-            end,
-            note = "waiting for the firebird's dropped feather to reach the client's entity pool",
-        }, 10)
-        t.step("hotFeather.visible", feather_visible_result == "ok" and "PASS" or "FAIL",
-            "t.world.obj_near(hot_feather, 10) polled up to 10 ticks -> " .. tostring(feather_visible_result))
-
-        local feather_before_result, feather_before = t.inv.count("hot_feather")
-        local feather_click_result, feather_click_detail = t.player.click_obj("hot_feather")
-        if feather_click_result ~= "ok" then
-            t.ticks(3)
-            feather_click_result, feather_click_detail = t.player.click_obj("hot_feather")
-        end
-        t.inv.await("hot_feather", 1, 10)
-        local feather_after_result, feather_after = t.inv.count("hot_feather")
-        local feather_pass = feather_click_result == "ok" and feather_after_result == "ok"
-            and feather_after > (feather_before_result == "ok" and feather_before or 0)
-        t.step("pickUpHotFeather", feather_pass and "PASS" or "FAIL",
-            string.format("click_obj hot_feather (worn ice_gloves) -> %s (%s), count %s -> %s",
-                tostring(feather_click_result), tostring(feather_click_detail), tostring(feather_before), tostring(feather_after)))
-
-        -- Off Entrana the way it was reached: shipmonk2 (spawn 2830,3335,
-        -- areas/entrana/scripts/monk_of_entrana.rs2 shipmonk2_ready ->
-        -- p_telejump(1_47_50_40_31) = the deck at Port Sarim, 3048,3231,1),
-        -- then ship_to_entrana_off (3048,3232) ashore.
-        t.exec("goto-leaveEntrana", t.player.goto_tile, 2832, 3336, 0)
-        t.exec("leaveEntrana", t.player.talk_to, "shipmonk2", 1)
-        t.exec("leaveEntrana-dialog", t.chat.play, {
-            "npc:Do you wish to leave holy Entrana?",
-            "choose:Yes, I'm ready to go.",
-            "player:Yes, I'm ready to go.",
-            "npc:Okay, let's board",
-        })
-        await_tile(function(tt) return tt.level == 1 and tt.x > 3000 end, 12, "leaveEntrana")
-        local sarim_deck_r, sarim_deck = t.world.tile()
-        t.check("leaveEntrana.onDeckAtPortSarim", sarim_deck_r == "ok" and sarim_deck.level == 1
-                and math.abs(sarim_deck.x - 3048) <= 2 and math.abs(sarim_deck.z - 3231) <= 2,
-            "t.world.tile() -> " .. tile_text(sarim_deck_r, sarim_deck) .. " (want the deck, p_telejump(1_47_50_40_31) = 3048,3231,1)")
-        cross("portSarim.disembark", "ship_to_entrana_off", 3048, 3232,
-            function(tt) return tt.level == 0 and tt.x > 3000 and tt.z > 3232 end, "ashore on the Port Sarim jetty, level 0")
 
         -- ---------------------------------------------------------------
         -- Gerrant: Blamish snail slime for the lava-proof rod.
@@ -946,6 +906,7 @@ return {
         -- named crossings (gaps-world.md "Taverley Dungeon deep area", and
         -- bearyoursoul.lua's proved hops to the metal gate).
         -- ---------------------------------------------------------------
+        taverley_gate("enterTaverleyDungeon", "south_in")
         t.exec("goto-enterTaverleyDungeon", t.player.goto_tile, 2884, 3398, 0)
         climb("enterTaverleyDungeon", "ladder_outside_to_underground", 2884, 3397, 2884, 3398, 2884, 9798)
         hops("killJailerForKey.toCauldronDoor", { { 2884, 9818 }, { 2888, 9831 } }, 40)
@@ -1061,8 +1022,8 @@ return {
         -- `covered ... menu has no row` from 2931,9689 and from 2932,9687
         -- (runs 1-2). Turn the camera to look at it from the corridor side
         -- (yaw 768 answered in run 3, 1024 was still covered), stepping the yaw if a press
-        -- is still covered, then put the camera back.
-        hop("leaveVelrakCell.inCell", 2931, 9688, 10, 1) -- Velrak can stand on 2931,9688; any cell tile beside it
+        -- is still covered, then put the camera back. The row grades the
+        -- tile before the press (in the cell, z <= 9689) and after.
         local lv_br, lv_bt = t.world.tile()
         local lv_trail, lv_out = "", false
         for _, yaw in ipairs({ 768, 1024, 1280, 512 }) do
@@ -1167,6 +1128,152 @@ return {
                 .. "; raw_lava_eel " .. tostring(raweel0) .. " -> " .. tostring(raweel1) .. " (want -1)")
 
         -- ---------------------------------------------------------------
+        -- goToEntrana, first: leave the weaponry and armour behind. The
+        -- monk's own line is "you must leave your weaponry and armour
+        -- behind"; his search (LostCity area_port_sarim/scripts/
+        -- monk_of_entrana.rs2:26-50, ~has_entrana_restricted_items: every
+        -- armour_* and weapon_* category, worn OR carried -- maces, bows,
+        -- pickaxes included) is only DEFERRED in this pack
+        -- (port_sarim/scripts/monk_of_entrana.rs2:11), so the test carries
+        -- none of it, as a player must, and holds once the search exists.
+        -- Every armed fight (Grip, the Ice Queen, the Jailer) is done, so the
+        -- gear is banked for good at Draynor Village, on the way from
+        -- Lumbridge to Port Sarim. The bank's doorway (3092-3093,3246) holds
+        -- only the map's inactive open leaves (bankdoor_l/r_inactive, no op;
+        -- reach.py walks in with every door shut), so in and out are walks
+        -- from an outdoor tile. The ice gloves stay worn: the feather needs
+        -- them (fire_feather.rs2:20) and OSRS lets them onto Entrana.
+        -- ---------------------------------------------------------------
+        -- The backpack has about 7 free slots here (run r2.1: 1 left after
+        -- six unequips), so the two CARRIED pieces go in first, then the
+        -- six worn ones are taken off and banked.
+        local ENTRANA_CARRIED = { "magic_shortbow", "rune_pickaxe" }
+        local ENTRANA_WORN = { "rune_mace", "rune_kiteshield", "rune_full_helm", "rune_platebody", "rune_platelegs", "rune_arrow" }
+        local ENTRANA_FORBIDDEN = { "rune_mace", "rune_kiteshield", "rune_full_helm", "rune_platebody", "rune_platelegs",
+            "rune_arrow", "magic_shortbow", "rune_pickaxe" }
+        t.exec("goto-goToEntrana.draynorBank", t.player.goto_tile, 3092, 3250, 0)
+        hop("goToEntrana.bankIn", 3092, 3243, 20, 0)
+        t.exec("goToEntrana.bankOpen.carried", t.bank.open, "bankbooth", 2, { at = { 3091, 3243 } })
+        for _, item in ipairs(ENTRANA_CARRIED) do
+            t.exec("goToEntrana.deposit." .. item, t.bank.deposit, item, "all")
+        end
+        t.check("goToEntrana.bankClose.carried", t.bank.close())
+        for _, item in ipairs(ENTRANA_WORN) do
+            t.exec("goToEntrana.unequip." .. item, t.player.unequip, item)
+        end
+        t.exec("goToEntrana.bankOpen.worn", t.bank.open, "bankbooth", 2, { at = { 3091, 3243 } })
+        for _, item in ipairs(ENTRANA_WORN) do
+            t.exec("goToEntrana.deposit." .. item, t.bank.deposit, item, "all")
+        end
+        t.check("goToEntrana.bankClose.worn", t.bank.close())
+        -- The monk's search, read off the player: none of it carried, none
+        -- worn (unequip answers not_found, with no press, when nothing of
+        -- the item is worn). The ice gloves are not in the pack: still worn
+        -- since equipIceGloves (the feather pickup below needs them worn).
+        local carried, carry_text = false, ""
+        for _, item in ipairs(ENTRANA_FORBIDDEN) do
+            local cr, c = t.inv.count(item)
+            local ur = t.player.unequip(item)
+            if not (cr == "ok" and c == 0 and ur == "not_found") then
+                carried = true
+            end
+            carry_text = carry_text .. string.format("%s pack %s(%s) worn %s; ", item, tostring(c), tostring(cr), tostring(ur))
+        end
+        local gl_r, gl = t.inv.count("ice_gloves")
+        t.check("goToEntrana.noWeaponOrArmour", not carried and gl_r == "ok" and gl == 0,
+            carry_text .. "ice_gloves pack " .. tostring(gl) .. " (" .. tostring(gl_r)
+                .. ") (want every weapon/armour 0 in the pack and not_found worn; the gloves not in the pack, worn)")
+        hop("goToEntrana.bankOut", 3092, 3250, 20, 0)
+
+        -- ---------------------------------------------------------------
+        -- Entrana: the Quest Helper guide's own goToEntrana step is the
+        -- Port Sarim monk's boat (monk_of_entrana.rs2's shipmonk_talk/
+        -- shipmonk_ready labels, *.spawn tile
+        -- areas/world/configs/m47_50.spawn:32), boarded with no weapon or
+        -- armour (above).
+        -- The crossing ends on the ship's deck (p_telejump(1_44_52_18_3) =
+        -- 2834,3331,1); ship_from_entrana_off (2834,3333) is the way ashore.
+        -- ---------------------------------------------------------------
+        t.exec("goto-shipmonk", t.player.goto_tile, 3045, 3236, 0)
+        t.exec("talkToShipmonk", t.player.talk_to, "shipmonk")
+        t.exec("talkToShipmonk-dialog", t.chat.play, {
+            "npc:Do you seek passage to holy Entrana?",
+            "choose:Yes, okay, I'm ready to go.",
+            "player:Yes, okay, I'm ready to go.",
+            "npc:Very well. One moment please.",
+            "mesbox:The monk quickly searches you.",
+        })
+        await_tile(function(tt) return tt.level == 1 and tt.x < 2900 end, 10, "shipmonk")
+        local entrana_deck_r, entrana_deck = t.world.tile()
+        t.check("shipmonk.onDeckAtEntrana", entrana_deck_r == "ok" and entrana_deck.level == 1
+                and math.abs(entrana_deck.x - 2834) <= 2 and math.abs(entrana_deck.z - 3331) <= 2,
+            "t.world.tile() -> " .. tile_text(entrana_deck_r, entrana_deck) .. " (want the deck, p_telejump(1_44_52_18_3) = 2834,3331,1)")
+        cross("entrana.disembark", "ship_from_entrana_off", 2834, 3333,
+            function(tt) return tt.level == 0 and tt.x < 2900 and tt.z > 3300 end, "ashore on Entrana, level 0")
+
+        -- Entrana firebird: real fight (hp5/atk1, trivial) for hot_feather,
+        -- UNARMED (the weapons are in the Draynor bank), with a margin row.
+        -- fire_bird *.spawn tile areas/world/configs/m44_52.spawn:20, an
+        -- overland hop from the jetty (reach.py 88 tiles, every door shut).
+        -- No quest-state check on the fight itself (entrana_firebird.rs2's
+        -- ai_queue3 only gates the FEATHER drop on %heroquest < hero_complete,
+        -- true here).
+        t.exec("goto-firebird", t.player.goto_tile, 2847, 3386, 0)
+        fight_begin()
+        local firebird_attack_result, firebird_attack_detail = t.player.attack("fire_bird", 2, 20)
+        local firebird_dead_result, firebird_dead_detail = t.npc.await_dead("fire_bird", 30)
+        t.check("killFirebird", firebird_dead_result == "ok",
+            "attack(fire_bird) -> " .. tostring(firebird_attack_result) .. " " .. tostring(firebird_attack_detail)
+                .. "; npc.await_dead(fire_bird, 30) -> " .. tostring(firebird_dead_result) .. " " .. tostring(firebird_dead_detail))
+        margin_row("killFirebird.margin", "Entrana firebird, unarmed")
+
+        -- hot_feather is a real ground drop (entrana_firebird.rs2:13) --
+        -- pickup needs ice_gloves WORN (fire_feather.rs2:20's op3 gate),
+        -- already equipped above.
+        local feather_visible_result = t.await({
+            level = function()
+                return t.world.obj_near("hot_feather", 10) == "ok"
+            end,
+            note = "waiting for the firebird's dropped feather to reach the client's entity pool",
+        }, 10)
+        t.step("hotFeather.visible", feather_visible_result == "ok" and "PASS" or "FAIL",
+            "t.world.obj_near(hot_feather, 10) polled up to 10 ticks -> " .. tostring(feather_visible_result))
+
+        local feather_before_result, feather_before = t.inv.count("hot_feather")
+        local feather_click_result, feather_click_detail = t.player.click_obj("hot_feather")
+        if feather_click_result ~= "ok" then
+            t.ticks(3)
+            feather_click_result, feather_click_detail = t.player.click_obj("hot_feather")
+        end
+        t.inv.await("hot_feather", 1, 10)
+        local feather_after_result, feather_after = t.inv.count("hot_feather")
+        local feather_pass = feather_click_result == "ok" and feather_after_result == "ok"
+            and feather_after > (feather_before_result == "ok" and feather_before or 0)
+        t.step("pickUpHotFeather", feather_pass and "PASS" or "FAIL",
+            string.format("click_obj hot_feather (worn ice_gloves) -> %s (%s), count %s -> %s",
+                tostring(feather_click_result), tostring(feather_click_detail), tostring(feather_before), tostring(feather_after)))
+
+        -- Off Entrana the way it was reached: shipmonk2 (spawn 2830,3335,
+        -- areas/entrana/scripts/monk_of_entrana.rs2 shipmonk2_ready ->
+        -- p_telejump(1_47_50_40_31) = the deck at Port Sarim, 3048,3231,1),
+        -- then ship_to_entrana_off (3048,3232) ashore.
+        t.exec("goto-leaveEntrana", t.player.goto_tile, 2832, 3336, 0)
+        t.exec("leaveEntrana", t.player.talk_to, "shipmonk2", 1)
+        t.exec("leaveEntrana-dialog", t.chat.play, {
+            "npc:Do you wish to leave holy Entrana?",
+            "choose:Yes, I'm ready to go.",
+            "player:Yes, I'm ready to go.",
+            "npc:Okay, let's board",
+        })
+        await_tile(function(tt) return tt.level == 1 and tt.x > 3000 end, 12, "leaveEntrana")
+        local sarim_deck_r, sarim_deck = t.world.tile()
+        t.check("leaveEntrana.onDeckAtPortSarim", sarim_deck_r == "ok" and sarim_deck.level == 1
+                and math.abs(sarim_deck.x - 3048) <= 2 and math.abs(sarim_deck.z - 3231) <= 2,
+            "t.world.tile() -> " .. tile_text(sarim_deck_r, sarim_deck) .. " (want the deck, p_telejump(1_47_50_40_31) = 3048,3231,1)")
+        cross("portSarim.disembark", "ship_to_entrana_off", 3048, 3232,
+            function(tt) return tt.level == 0 and tt.x > 3000 and tt.z > 3232 end, "ashore on the Port Sarim jetty, level 0")
+
+        -- ---------------------------------------------------------------
         -- All three deliverables in hand: snapshot every skill now, right
         -- before the hand-in, so the reward rows below measure ONLY the
         -- completion's own stat_advance calls -- not the XP the fights or
@@ -1190,7 +1297,10 @@ return {
         -- Achietties: the real hand-in (achietties.rs2:20-32). The
         -- item-complete branch fires because all three are held; it queues
         -- hero_quest_complete and deletes the three items in the caller.
+        -- From the Port Sarim jetty through the Taverley members' south
+        -- gate, then overland to the guild's open arch.
         -- ---------------------------------------------------------------
+        taverley_gate("achietties-handin", "south_in")
         t.exec("goto-achietties-handin", t.player.goto_tile, 2903, 3510, 0)
         t.exec("achietties.handIn", t.player.talk_to, "achietties")
         t.exec("achietties.handIn-dialog", t.chat.play, {
