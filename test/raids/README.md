@@ -161,3 +161,59 @@ something the tick log did not support. The rules the sampler holds a row to:
 - **The scope row is required**: without `spec.scope` the gate grades every row of the table.
 - A bring-along may include the spellbook (a setup cheat that sets the spellbook var, with a
   comment naming the spec row that needs it); it is not a raid var.
+
+## A party run: three raiders in one world (raid seam17)
+
+Normal and Hard need a party ("For normal and hard mode, you will need 3 players", owner
+2026-10-04). A test file that declares `party = 3,` (or a run given `--party 3`) is run as
+three client processes against ONE world:
+
+```sh
+python3 tools/raid_gate/run.py _party_smoke --no-build --no-publish   # the three-client smoke
+python3 tools/raid_gate/gate.py _party_smoke                           # grades the union
+```
+
+- **Seats.** Raider 1, the LEADER, hosts the embedded world and holds its one tick log;
+  raiders 2..N are MEMBERS that join it over the party link. Accounts are
+  `<base>_p1` .. `<base>_pN` (`base` = the run name, sanitised and cut to 9 characters, so
+  every account is at most 12: only the first 12 characters seed a run), password `test`.
+- **One file, every client.** Each client runs the same file, wrapped with
+  `QD_PARTY = {role, size, names}`. Branch with if/else on `t.party.role()` (1 = leader);
+  `t.party.size()`, `t.party.names()`, `t.party.name(n)`.
+- **Directories.** `build/quest_gate/<run>/p<n>/` is raider n's session (ledger.tsv, shots/,
+  heartbeat, client.log, script/); `<run>/saves/` is the world's saves (every raider's
+  fixture is written there before any client starts); `<run>/party.tsv` names the seats;
+  `<run>/barrier.<name>.p<n>` are the barrier files. The world's tick log is written in
+  `p1/` and copied to every `p<n>/` and to `<run>/` when the run ends.
+- **Grading.** `gate.py` grades the UNION, written at `<run>/ledger.tsv` with every shot in
+  `<run>/shots/`: the leader's rows keep their names (so its `spec.*` rows are what
+  `raid_coverage.py` grades), a member's row is `p<n>:<step>` and its shots `p<n>-<shot>`.
+  A raider that left no ledger is a FAIL row `p<n>:run.no_ledger`; duplicate-MD5 is judged
+  per raider.
+- **The leader's process is the run.** Its stall or exit ends the run; the members then
+  get 20 s to finish their own script before they are killed, and an unfinished member
+  ledger gets its SUMMARY like any unfinished run.
+- **What a member can do.** Everything a client reads and clicks (ui, chat, msg, inv,
+  npcs, locs, `t.party.players`, its own tile and stats). `t.cheat` on a member goes out
+  as the client's own typed `::command` packet (setup lines included); the server readers
+  (`t.tick`, `t.ticklog`, `t.var.server`, `t.raid.state`/`leave`) answer `unsupported`.
+  Spec rows are the leader's to write.
+- **Sync.** `t.party.barrier(name, ticks)` (every raider writes its file and waits for all),
+  and the in-game reads: `t.msg.await("has entered the Theatre of Blood")`,
+  `t.party.see(names, radius, ticks)`, the party panel.
+- **Lobby verbs** (real clicks, read back): `t.party.form(mode)`, `t.party.apply(leader)`,
+  `t.party.accept(name)`, `t.party.ready()`, `t.party.follow_in()`.
+
+Knobs (run.py sets them; listed for a hand-run): leader `TORIRS_EMBED_PARTY_LISTEN=<port>`
+and `TORIRS_EMBED_PARTY_SIZE=<n incl. leader>` (the first boundary waits for n-1 members);
+member `TORIRS_EMBED_PARTY_JOIN=<port>` and `TORIRS_EMBED_PARTY_SEAT=<n>` (seat n logs in
+n-th, so pids are stable); both `TORIRS_EMBED_PARTY_WAIT_S` (default 60; run.py passes the
+environment's value through); member `TORIRS_EMBED_PARTY_TRACE=1` prints
+`net: party: boundary k -> server tick T`.
+
+Cost: the smoke (two raid entries, 165 world ticks, three clients) takes 10-14 s of wall
+clock; two runs gave byte-identical tick logs. Its leader row `seam.three_clients_one_world`
+checks lock step over the whole run (every world tick from the first with three raiders on
+carries three `player_tile` rows: `ticks 4..166 (163 ticks)` on the closer's run). Why the
+world lives in the leader and how the link works: docs/minigames/raid_loop/DRIVER_NOTES.md,
+"Three raiders in one run".

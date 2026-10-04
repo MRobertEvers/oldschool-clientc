@@ -23,6 +23,11 @@
  *
  * Threading: none. Every call must come from the same thread, and the server
  * only advances inside ToriRSServer_EmbedPump — there is no background tick.
+ *
+ * One exception to "no socket": a PARTY (below). The leader's embed may also
+ * accept other client processes over a loopback link, and then a pump that
+ * runs a tick first waits, inside the pump, for every member to reach the
+ * same boundary. Nothing of it exists unless the host attaches a listener.
  */
 
 #include <stdint.h>
@@ -158,10 +163,148 @@ ToriRSServer_EmbedOnline(
     const struct ToriRSServerEmbed* embed,
     int client_id);
 
+/** 1 while this client's session is alive. EmbedPump's own answer is "any
+ *  client alive", which a party keeps true after the leader's session died. */
+int
+ToriRSServer_EmbedClientAlive(
+    const struct ToriRSServerEmbed* embed,
+    int client_id);
+
 /** The pool slot this client logged in to, or NULL before it did. */
 struct ToriRSServerPlayer*
 ToriRSServer_EmbedPlayer(
     struct ToriRSServerEmbed* embed,
     int client_id);
+
+/*
+ * ── The party link: more than one client PROCESS in one embedded world ──
+ *
+ * A raid party is three driven clients, and every server-side driver verb
+ * (t.cheat, the tick log, the server tick, server varps) reads the world in
+ * the process that hosts it (src/plugin/torirs_plugin_drive.c). So the world
+ * stays where it is -- embedded in the LEADER's client -- and the other
+ * clients reach it over a loopback socket as embed clients 1..N-1. They keep
+ * `transport=embed` in their manifest (so no JS5, the same cache, the same
+ * manifest run.py already writes) and only an environment knob says "dial the
+ * leader instead of starting a world" (src/platform/net_transport_embed.c).
+ *
+ * The link is NOT the game socket protocol. It is a framed stream, each frame
+ * a 1-byte type and a 4-byte big-endian length, carrying three things:
+ *
+ *   'D' DATA   the game's own bytes, either direction, untouched
+ *   'R' READY  member -> host: "my clock reached its next 600 ms boundary,
+ *              and every byte I sent before this frame belongs to that tick"
+ *   'T' TICK   host -> member: "the boundary has run" (payload: srv->tick,
+ *              4 bytes big-endian, -1 before the world is built); every DATA
+ *              frame before it is that tick's output
+ *   'S' SEAT   member -> host, the link's first frame: the seat it takes
+ *              (4 bytes; seat n is client id n-1, the leader is seat 1; 0 =
+ *              the first free one). The client id is the login order and so
+ *              the pid, so a seat makes "who is pid 1" a fact of the run's
+ *              command line instead of a race between processes.
+ *
+ * which is what makes the three clients tick in LOCK STEP: the host runs a
+ * boundary only once every member has sent READY for it, and a member does
+ * not advance past its boundary until the TICK arrives. A member's input is
+ * fed to the world at the boundary, in client-id order, before the tick --
+ * never mid-frame -- so where a member's packet lands is decided by its own
+ * (virtual) clock and not by when the kernel delivered it.
+ *
+ * Native POSIX hosts only. A Windows or web build that is asked for a party
+ * says so and aborts.
+ */
+enum
+{
+    TORIRSSERVER_EMBED_LINK_DATA = 'D',
+    TORIRSSERVER_EMBED_LINK_READY = 'R',
+    TORIRSSERVER_EMBED_LINK_TICK = 'T',
+    TORIRSSERVER_EMBED_LINK_SEAT = 'S',
+    /** type byte + 4-byte big-endian length */
+    TORIRSSERVER_EMBED_LINK_HEADER = 5,
+};
+
+/** Bytes read off a link and not yet taken as frames. */
+struct ToriRSServerEmbedLinkReader
+{
+    uint8_t* data;
+    int cap;
+    int head;
+    int tail;
+};
+
+/**
+ * Leader: bind and listen on 127.0.0.1:`port`. Done at transport creation,
+ * before the loaders, for the reason torirs_server_main.c binds early: a
+ * member dialling while the leader boots waits in the backlog instead of
+ * being refused. Returns the descriptor; a bind failure prints why and
+ * returns -1 (the port is somebody else's -- a run-time state, not a bug).
+ */
+int
+ToriRSServer_EmbedPartyListen(int port);
+
+/**
+ * Leader: hand the listener to a started embed. From the next pump on, the
+ * embed accepts members and runs every boundary under the barrier.
+ *
+ * `party_size` counts the leader: 3 means "do not run any boundary until two
+ * members have joined", which puts every member's login in lock step from
+ * the world's first tick (0 or 1: no assembly wait, members join whenever
+ * they dial). `wait_ms` bounds every wait for a member; a member that
+ * overruns it is named on stderr and dropped (a logout), so the leader's run
+ * goes on and fails on whatever needed that member, instead of hanging.
+ */
+void
+ToriRSServer_EmbedPartyAttach(
+    struct ToriRSServerEmbed* embed,
+    int listener,
+    int party_size,
+    int wait_ms);
+
+/** Members ever accepted, and members open now (client ids 1..). */
+int
+ToriRSServer_EmbedPartyJoined(const struct ToriRSServerEmbed* embed);
+int
+ToriRSServer_EmbedPartyOpen(const struct ToriRSServerEmbed* embed);
+
+/** Member: connect to the leader on 127.0.0.1:`port`, retrying while the
+ *  leader is not yet listening, for at most `wait_ms`. Returns the
+ *  descriptor or -1. */
+int
+ToriRSServer_EmbedPartyDial(
+    int port,
+    int wait_ms);
+
+/** Write one whole frame (blocking). Returns 1, or 0 once the peer is gone. */
+int
+ToriRSServer_EmbedLinkSend(
+    int fd,
+    int type,
+    const uint8_t* data,
+    int len);
+
+/** Read what the socket has, waiting at most `timeout_ms` (0: do not wait)
+ *  for the first byte. Returns 1 if bytes arrived, 0 if none did, -1 once
+ *  the peer closed. */
+int
+ToriRSServer_EmbedLinkFill(
+    int fd,
+    struct ToriRSServerEmbedLinkReader* reader,
+    int timeout_ms);
+
+/** Take one whole frame, if one is buffered. The payload points into the
+ *  reader and is valid until the next Fill. Returns 1 if a frame was taken. */
+int
+ToriRSServer_EmbedLinkNext(
+    struct ToriRSServerEmbedLinkReader* reader,
+    int* out_type,
+    const uint8_t** out_payload,
+    int* out_len);
+
+void
+ToriRSServer_EmbedLinkReaderFree(struct ToriRSServerEmbedLinkReader* reader);
+
+/** Milliseconds on a monotonic clock (the party waits are wall-clock). */
+long
+ToriRSServer_EmbedNowMs(void);
 
 #endif

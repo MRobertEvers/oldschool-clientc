@@ -18,7 +18,9 @@ if __name__ == "__main__":
     # graded afterwards for every test id named on the command line; a FULL
     # coverage is part of a raid room's green (docs/RAID_ORCHESTRATOR.md 5).
     code = suite.run_quest_gate("gate.py")
-    ids = [a for a in sys.argv[1:] if not a.startswith("-")]
+    # A name starting with `_` is not a room test (test/raids/README.md: the
+    # three-client smoke `_party_smoke`): it has no encounter table to grade.
+    ids = [a for a in sys.argv[1:] if not a.startswith("-") and not a.startswith("_")]
     if ids and "--probe" not in sys.argv and "--cutscene-as" not in sys.argv:
         import raid_coverage
         cov = raid_coverage.main(["raid_coverage"] + ids)

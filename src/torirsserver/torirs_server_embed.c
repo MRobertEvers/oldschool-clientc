@@ -29,6 +29,22 @@
 #include <string.h>
 #include <time.h>
 
+/* The party link (torirs_server_embed.h) is a loopback socket: native POSIX
+ * hosts only. Everything else keeps the in-process embed and aborts if a
+ * party is asked for. */
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(TORIRS_PLATFORM_WEB)
+#define EMBED_PARTY_SOCKETS 1
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#else
+#define EMBED_PARTY_SOCKETS 0
+#endif
+
 struct ToriRSServerEmbedClient
 {
     int open;
@@ -41,6 +57,19 @@ struct ToriRSServerEmbedClient
     struct ToriRSServerMemoryEnds ends;
 
     int online;
+
+    /*
+     * A party member: the client is in another process and its bytes come
+     * over a link socket (torirs_server_embed.h). -1 for an in-process
+     * client, which is every client of every host that existed before the
+     * party. The session still reads `to_server` and writes `to_client`
+     * exactly as for client 0; the link only moves those bytes, at the
+     * boundary.
+     */
+    int link_fd;
+    struct ToriRSServerEmbedLinkReader link_in;
+    /** READY seen for the boundary being assembled. */
+    int link_ready;
 };
 
 struct ToriRSServerEmbed
@@ -50,11 +79,29 @@ struct ToriRSServerEmbed
     struct ToriRSServerBootConfig config;
     /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
     struct ToriRSServerClaims claims;
+
+    /* The party link, or -1: see ToriRSServer_EmbedPartyAttach. */
+    int party_listener;
+    int party_size;
+    int party_wait_ms;
+    /** Members ever accepted. Assembly is over once this reaches
+     *  party_size - 1, or once a wait for it timed out. */
+    int party_joined;
+    int party_assembled;
+    /*
+     * Accepted links that have not said their SEAT yet. A member is given
+     * the client id its seat names rather than the next free one, because
+     * the id is the login order and the login order is the pid: seated by
+     * accept order, which member got pid 1 was whichever process the kernel
+     * delivered first, and two runs of one party differed in nothing else.
+     */
+    int pending_fd[TORIRSSERVER_EMBED_CLIENT_MAX];
+    struct ToriRSServerEmbedLinkReader pending_in[TORIRSSERVER_EMBED_CLIENT_MAX];
 };
 
 /* Milliseconds on a monotonic clock, for the reconnect window. */
-static long
-embed_now_ms(void)
+long
+ToriRSServer_EmbedNowMs(void)
 {
     struct timespec ts;
 
@@ -70,6 +117,8 @@ embed_now_ms(void)
  * limit on *worlds*, not on clients: several clients in one embed is the point.
  */
 static int g_embed_live;
+
+static void embed_link_close(struct ToriRSServerEmbedClient* client);
 
 static struct ToriRSServerEmbedClient*
 client_at(
@@ -95,6 +144,9 @@ ToriRSServer_EmbedStart(char const* rev_name)
 
     embed = (struct ToriRSServerEmbed*)calloc(1, sizeof(*embed));
     assert(embed);
+    embed->party_listener = -1;
+    for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+        embed->pending_fd[i] = -1;
 
     ToriRSServer_BootDefaults(&embed->config);
     ToriRSServer_BootLoad(&embed->config);
@@ -142,20 +194,35 @@ ToriRSServer_EmbedStart(char const* rev_name)
     return embed;
 }
 
+/* Open client `i`, which must be free. */
+static void
+embed_connect_at(
+    struct ToriRSServerEmbed* embed,
+    int i)
+{
+    struct ToriRSServerEmbedClient* client;
+
+    assert(embed);
+    assert(i >= 0);
+    assert(i < TORIRSSERVER_EMBED_CLIENT_MAX);
+    client = &embed->clients[i];
+    assert(!client->open);
+    memset(client, 0, sizeof(*client));
+    client->open = 1;
+    client->link_fd = -1;
+    ToriRSServer_TransportMemory(&client->transport, &client->ends, &client->to_server,
+                             &client->to_client);
+    ToriRSServer_SessionInit(&client->session, &client->transport, embed->srv.verbose);
+}
+
 int
 ToriRSServer_EmbedConnect(struct ToriRSServerEmbed* embed)
 {
     for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
     {
-        struct ToriRSServerEmbedClient* client = &embed->clients[i];
-
-        if( client->open )
+        if( embed->clients[i].open )
             continue;
-        memset(client, 0, sizeof(*client));
-        client->open = 1;
-        ToriRSServer_TransportMemory(&client->transport, &client->ends, &client->to_server,
-                                 &client->to_client);
-        ToriRSServer_SessionInit(&client->session, &client->transport, embed->srv.verbose);
+        embed_connect_at(embed, i);
         return i;
     }
     fprintf(stderr, "torirsserver: the embedded server holds %d clients already\n",
@@ -177,13 +244,14 @@ ToriRSServer_EmbedDisconnect(
      * while the session is still addressable, because that is what makes the
      * packets a logout generates reach everyone *else* before the queues go. */
     if( client->session.player )
-        ToriRSServer_ClaimNoteDeparted(&embed->claims, client->session.player, embed_now_ms());
+        ToriRSServer_ClaimNoteDeparted(&embed->claims, client->session.player, ToriRSServer_EmbedNowMs());
     ToriRSServer_WorldRemovePlayer(&embed->srv, client->session.player);
     client->session.player = NULL;
     client->online = 0;
     ToriRSServer_SessionFree(&client->session);
     ToriRSServer_PipeFree(&client->to_server);
     ToriRSServer_PipeFree(&client->to_client);
+    embed_link_close(client);
     client->open = 0;
     return 1;
 }
@@ -220,6 +288,17 @@ ToriRSServer_EmbedStop(struct ToriRSServerEmbed* embed)
         /* The transport closed the pipes; this releases what they held. */
         ToriRSServer_PipeFree(&client->to_server);
         ToriRSServer_PipeFree(&client->to_client);
+        /* A member sees the end of its link as the server going away. The
+         * listener is the transport's, which outlives this embed. */
+        embed_link_close(client);
+    }
+    for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+    {
+#if EMBED_PARTY_SOCKETS
+        if( embed->pending_fd[i] >= 0 )
+            close(embed->pending_fd[i]);
+#endif
+        ToriRSServer_EmbedLinkReaderFree(&embed->pending_in[i]);
     }
     ToriRSServer_BankShutdown(&embed->srv);
     ToriRSServer_ContainerShutdown(&embed->srv);
@@ -289,6 +368,17 @@ ToriRSServer_EmbedOnline(
     return client ? client->online : 0;
 }
 
+int
+ToriRSServer_EmbedClientAlive(
+    const struct ToriRSServerEmbed* embed,
+    int client_id)
+{
+    const struct ToriRSServerEmbedClient* client =
+        client_at((struct ToriRSServerEmbed*)embed, client_id);
+
+    return client ? ToriRSServer_SessionAlive(&client->session) : 0;
+}
+
 struct ToriRSServerPlayer*
 ToriRSServer_EmbedPlayer(
     struct ToriRSServerEmbed* embed,
@@ -298,6 +388,642 @@ ToriRSServer_EmbedPlayer(
 
     return client ? client->session.player : NULL;
 }
+
+/* ------------------------------------------------------------------ */
+/* The party link (torirs_server_embed.h)                              */
+/* ------------------------------------------------------------------ */
+
+static void
+link_put_u32(
+    uint8_t* out,
+    uint32_t value)
+{
+    out[0] = (uint8_t)(value >> 24);
+    out[1] = (uint8_t)(value >> 16);
+    out[2] = (uint8_t)(value >> 8);
+    out[3] = (uint8_t)value;
+}
+
+static uint32_t
+link_get_u32(const uint8_t* in)
+{
+    return ((uint32_t)in[0] << 24) | ((uint32_t)in[1] << 16) | ((uint32_t)in[2] << 8) |
+           (uint32_t)in[3];
+}
+
+#if EMBED_PARTY_SOCKETS
+
+/*
+ * A link whose other end has exited must read as "closed", not kill this
+ * process: send() on it raises SIGPIPE by default, and a member whose leader
+ * finished first died of it (exit -13) instead of reporting the link gone.
+ * Linux takes a per-send flag, macOS a per-socket option.
+ */
+#ifdef MSG_NOSIGNAL
+#define LINK_SEND_FLAGS MSG_NOSIGNAL
+#else
+#define LINK_SEND_FLAGS 0
+#endif
+
+static void
+link_socket_options(int fd)
+{
+    int nodelay = 1;
+
+    assert(fd >= 0);
+    /* Every boundary is a short READY answered by a burst and a TICK; Nagle
+     * would hold the READY for the peer's delayed ACK on every tick. */
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
+#ifdef SO_NOSIGPIPE
+    {
+        int one = 1;
+
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (char*)&one, sizeof(one));
+    }
+#endif
+}
+
+/* write(2) until done; 0 once the peer is gone. */
+static int
+link_write_all(
+    int fd,
+    const uint8_t* data,
+    int len)
+{
+    while( len > 0 )
+    {
+        ssize_t sent = send(fd, data, (size_t)len, LINK_SEND_FLAGS);
+
+        if( sent < 0 && errno == EINTR )
+            continue;
+        if( sent <= 0 )
+            return 0;
+        data += sent;
+        len -= (int)sent;
+    }
+    return 1;
+}
+
+int
+ToriRSServer_EmbedPartyListen(int port)
+{
+    struct sockaddr_in addr;
+    int reuse = 1;
+    int fd;
+
+    assert(port > 0);
+    assert(port < 65536);
+    fd = (int)socket(AF_INET, SOCK_STREAM, 0);
+    assert(fd >= 0);
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    /* Loopback only: the members are this machine's other client processes,
+     * and a development world with no authentication is never offered to
+     * the network by a test knob. */
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons((uint16_t)port);
+    if( bind(fd, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
+    {
+        fprintf(stderr, "torirsserver: party: cannot listen on 127.0.0.1:%d: %s\n", port,
+                strerror(errno));
+        close(fd);
+        return -1;
+    }
+    listen(fd, 8);
+    fprintf(stderr, "torirsserver: party: listening on 127.0.0.1:%d\n", port);
+    return fd;
+}
+
+int
+ToriRSServer_EmbedPartyDial(
+    int port,
+    int wait_ms)
+{
+    long deadline = ToriRSServer_EmbedNowMs() + wait_ms;
+
+    assert(port > 0);
+    assert(port < 65536);
+    for( ;; )
+    {
+        struct sockaddr_in addr;
+        int fd = (int)socket(AF_INET, SOCK_STREAM, 0);
+
+        assert(fd >= 0);
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = htons((uint16_t)port);
+        if( connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0 )
+        {
+            link_socket_options(fd);
+            return fd;
+        }
+        close(fd);
+        /* The leader may still be booting. Refused is the only answer a
+         * loopback dial gives while nobody listens, so retry it. */
+        if( ToriRSServer_EmbedNowMs() >= deadline )
+        {
+            fprintf(stderr, "torirsserver: party: nobody listening on 127.0.0.1:%d after %d ms\n",
+                    port, wait_ms);
+            return -1;
+        }
+        poll(NULL, 0, 50);
+    }
+}
+
+int
+ToriRSServer_EmbedLinkSend(
+    int fd,
+    int type,
+    const uint8_t* data,
+    int len)
+{
+    uint8_t header[TORIRSSERVER_EMBED_LINK_HEADER];
+
+    assert(fd >= 0);
+    assert(len >= 0);
+    assert(len == 0 || data);
+    assert(type == TORIRSSERVER_EMBED_LINK_DATA || type == TORIRSSERVER_EMBED_LINK_READY ||
+           type == TORIRSSERVER_EMBED_LINK_TICK || type == TORIRSSERVER_EMBED_LINK_SEAT);
+    header[0] = (uint8_t)type;
+    link_put_u32(header + 1, (uint32_t)len);
+    if( !link_write_all(fd, header, (int)sizeof(header)) )
+        return 0;
+    return len == 0 || link_write_all(fd, data, len);
+}
+
+int
+ToriRSServer_EmbedLinkFill(
+    int fd,
+    struct ToriRSServerEmbedLinkReader* reader,
+    int timeout_ms)
+{
+    struct pollfd pfd;
+    int got_any = 0;
+
+    assert(fd >= 0);
+    assert(reader);
+    assert(timeout_ms >= 0);
+    pfd.fd = fd;
+    pfd.events = POLLIN;
+    for( ;; )
+    {
+        ssize_t got;
+        int ready = poll(&pfd, 1, got_any ? 0 : timeout_ms);
+
+        if( ready < 0 && errno == EINTR )
+            continue;
+        if( ready <= 0 )
+            return got_any;
+        /* Compact, then make room for at least 64 KB more. */
+        if( reader->head > 0 )
+        {
+            memmove(reader->data, reader->data + reader->head,
+                    (size_t)(reader->tail - reader->head));
+            reader->tail -= reader->head;
+            reader->head = 0;
+        }
+        if( reader->cap - reader->tail < 65536 )
+        {
+            int cap = reader->cap ? reader->cap * 2 : 131072;
+
+            while( cap - reader->tail < 65536 )
+                cap *= 2;
+            reader->data = (uint8_t*)realloc(reader->data, (size_t)cap);
+            assert(reader->data);
+            reader->cap = cap;
+        }
+        got = recv(fd, reader->data + reader->tail, (size_t)(reader->cap - reader->tail), 0);
+        if( got < 0 && errno == EINTR )
+            continue;
+        if( got <= 0 )
+            return got_any ? 1 : -1;
+        reader->tail += (int)got;
+        got_any = 1;
+    }
+}
+
+#else /* !EMBED_PARTY_SOCKETS */
+
+int
+ToriRSServer_EmbedPartyListen(int port)
+{
+    fprintf(stderr, "torirsserver: party: port %d asked for, but this build has no party "
+                    "link (native POSIX hosts only)\n", port);
+    abort();
+}
+
+int
+ToriRSServer_EmbedPartyDial(
+    int port,
+    int wait_ms)
+{
+    (void)wait_ms;
+    fprintf(stderr, "torirsserver: party: port %d asked for, but this build has no party "
+                    "link (native POSIX hosts only)\n", port);
+    abort();
+}
+
+int
+ToriRSServer_EmbedLinkSend(
+    int fd,
+    int type,
+    const uint8_t* data,
+    int len)
+{
+    (void)fd; (void)type; (void)data; (void)len;
+    assert(0 && "ToriRSServer_EmbedLinkSend: no party link in this build");
+    return 0;
+}
+
+int
+ToriRSServer_EmbedLinkFill(
+    int fd,
+    struct ToriRSServerEmbedLinkReader* reader,
+    int timeout_ms)
+{
+    (void)fd; (void)reader; (void)timeout_ms;
+    assert(0 && "ToriRSServer_EmbedLinkFill: no party link in this build");
+    return -1;
+}
+
+#endif /* EMBED_PARTY_SOCKETS */
+
+int
+ToriRSServer_EmbedLinkNext(
+    struct ToriRSServerEmbedLinkReader* reader,
+    int* out_type,
+    const uint8_t** out_payload,
+    int* out_len)
+{
+    uint32_t len;
+    int live;
+
+    assert(reader);
+    assert(out_type);
+    assert(out_payload);
+    assert(out_len);
+    live = reader->tail - reader->head;
+    if( live < TORIRSSERVER_EMBED_LINK_HEADER )
+        return 0;
+    len = link_get_u32(reader->data + reader->head + 1);
+    /* Both ends are this file's; a length past any packet burst is a torn
+     * stream, not a big frame. */
+    assert(len <= 64u * 1024u * 1024u);
+    if( (uint32_t)live < TORIRSSERVER_EMBED_LINK_HEADER + len )
+        return 0;
+    *out_type = reader->data[reader->head];
+    *out_payload = reader->data + reader->head + TORIRSSERVER_EMBED_LINK_HEADER;
+    *out_len = (int)len;
+    reader->head += TORIRSSERVER_EMBED_LINK_HEADER + (int)len;
+    return 1;
+}
+
+void
+ToriRSServer_EmbedLinkReaderFree(struct ToriRSServerEmbedLinkReader* reader)
+{
+    if( !reader )
+        return;
+    free(reader->data);
+    memset(reader, 0, sizeof(*reader));
+}
+
+static void
+embed_link_close(struct ToriRSServerEmbedClient* client)
+{
+    assert(client);
+#if EMBED_PARTY_SOCKETS
+    if( client->link_fd >= 0 )
+        close(client->link_fd);
+#endif
+    client->link_fd = -1;
+    client->link_ready = 0;
+    ToriRSServer_EmbedLinkReaderFree(&client->link_in);
+}
+
+void
+ToriRSServer_EmbedPartyAttach(
+    struct ToriRSServerEmbed* embed,
+    int listener,
+    int party_size,
+    int wait_ms)
+{
+    assert(embed);
+    assert(listener >= 0);
+    assert(party_size >= 0);
+    assert(party_size <= TORIRSSERVER_EMBED_CLIENT_MAX);
+    assert(wait_ms > 0);
+    assert(embed->party_listener < 0);
+    embed->party_listener = listener;
+    embed->party_size = party_size;
+    embed->party_wait_ms = wait_ms;
+    embed->party_assembled = party_size <= 1;
+    fprintf(stderr, "torirsserver: party: attached (party of %d, member wait %d ms)\n",
+            party_size, wait_ms);
+}
+
+int
+ToriRSServer_EmbedPartyJoined(const struct ToriRSServerEmbed* embed)
+{
+    assert(embed);
+    return embed->party_joined;
+}
+
+int
+ToriRSServer_EmbedPartyOpen(const struct ToriRSServerEmbed* embed)
+{
+    int open = 0;
+
+    assert(embed);
+    for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+        if( embed->clients[i].open && embed->clients[i].link_fd >= 0 )
+            open++;
+    return open;
+}
+
+#if EMBED_PARTY_SOCKETS
+
+static char const*
+link_name(const struct ToriRSServerEmbedClient* client)
+{
+    return client->session.display_name[0] ? client->session.display_name : "(not logged in)";
+}
+
+/* Drop a member: the same logout a closed socket gets. */
+static void
+party_drop(
+    struct ToriRSServerEmbed* embed,
+    int client_id,
+    char const* why)
+{
+    fprintf(stderr, "torirsserver: party: client %d %s %s -- logged out\n", client_id,
+            link_name(&embed->clients[client_id]), why);
+    ToriRSServer_EmbedDisconnect(embed, client_id);
+}
+
+/* Take every member waiting in the backlog. */
+static void
+party_accept(struct ToriRSServerEmbed* embed)
+{
+    for( ;; )
+    {
+        struct pollfd pfd;
+        int fd;
+        int id;
+
+        pfd.fd = embed->party_listener;
+        pfd.events = POLLIN;
+        if( poll(&pfd, 1, 0) <= 0 )
+            return;
+        fd = (int)accept(embed->party_listener, NULL, NULL);
+        if( fd < 0 )
+            return;
+        link_socket_options(fd);
+        for( id = 0; id < TORIRSSERVER_EMBED_CLIENT_MAX; id++ )
+            if( embed->pending_fd[id] < 0 )
+                break;
+        if( id == TORIRSSERVER_EMBED_CLIENT_MAX )
+        {
+            /* Closed at once: the member reads the end of its link as a
+             * refused login rather than waiting out its timeout. */
+            fprintf(stderr, "torirsserver: party: %d links already waiting for a seat; "
+                            "refusing\n", TORIRSSERVER_EMBED_CLIENT_MAX);
+            close(fd);
+            continue;
+        }
+        embed->pending_fd[id] = fd;
+    }
+}
+
+/*
+ * Seat every accepted link whose SEAT frame has arrived: its first frame,
+ * always. Seat n is client id n - 1 (the leader is seat 1); seat 0 takes the
+ * first free id.
+ */
+static void
+party_seat(struct ToriRSServerEmbed* embed)
+{
+    for( int k = 0; k < TORIRSSERVER_EMBED_CLIENT_MAX; k++ )
+    {
+        struct ToriRSServerEmbedLinkReader* in = &embed->pending_in[k];
+        int fd = embed->pending_fd[k];
+        int type;
+        const uint8_t* payload;
+        int len;
+        int seat;
+        int id;
+        int closed;
+
+        if( fd < 0 )
+            continue;
+        closed = ToriRSServer_EmbedLinkFill(fd, in, 0) < 0;
+        if( !ToriRSServer_EmbedLinkNext(in, &type, &payload, &len) )
+        {
+            /* Gone before it said its seat: nothing to log out. */
+            if( closed )
+            {
+                close(fd);
+                embed->pending_fd[k] = -1;
+                ToriRSServer_EmbedLinkReaderFree(in);
+            }
+            continue;
+        }
+        seat = type == TORIRSSERVER_EMBED_LINK_SEAT && len == 4 ? (int)link_get_u32(payload) : -1;
+        id = -1;
+        if( seat == 0 )
+        {
+            for( id = 1; id < TORIRSSERVER_EMBED_CLIENT_MAX; id++ )
+                if( !embed->clients[id].open )
+                    break;
+        }
+        else if( seat >= 2 && seat <= TORIRSSERVER_EMBED_CLIENT_MAX &&
+                 !embed->clients[seat - 1].open )
+            id = seat - 1;
+        if( id < 0 || id >= TORIRSSERVER_EMBED_CLIENT_MAX )
+        {
+            fprintf(stderr, "torirsserver: party: a link asked for seat %d, which is %s -- "
+                            "refused\n", seat,
+                    seat < 0 ? "not a SEAT frame" : "taken or out of range");
+            close(fd);
+            embed->pending_fd[k] = -1;
+            ToriRSServer_EmbedLinkReaderFree(in);
+            continue;
+        }
+        embed_connect_at(embed, id);
+        embed->clients[id].link_fd = fd;
+        /* What followed the SEAT stays buffered for the session. */
+        embed->clients[id].link_in = *in;
+        memset(in, 0, sizeof(*in));
+        embed->pending_fd[k] = -1;
+        embed->party_joined++;
+        fprintf(stderr, "torirsserver: party: seat %d joined as client %d (%d joined)\n", seat, id,
+                embed->party_joined);
+    }
+}
+
+/*
+ * Move one member's buffered frames into its session, up to and including
+ * its READY. Returns 0 if the member broke the protocol (a member never
+ * sends TICK).
+ */
+static int
+party_take_frames(struct ToriRSServerEmbedClient* client)
+{
+    int type;
+    const uint8_t* payload;
+    int len;
+
+    while( !client->link_ready &&
+           ToriRSServer_EmbedLinkNext(&client->link_in, &type, &payload, &len) )
+    {
+        if( type == TORIRSSERVER_EMBED_LINK_DATA )
+            ToriRSServer_PipeWrite(&client->to_server, payload, len);
+        else if( type == TORIRSSERVER_EMBED_LINK_READY )
+            client->link_ready = 1;
+        else
+            return 0;
+    }
+    return 1;
+}
+
+/*
+ * The barrier: hold this boundary until every member has said READY for it
+ * (and, until the party has assembled, until party_size - 1 have joined).
+ */
+static void
+party_barrier(struct ToriRSServerEmbed* embed)
+{
+    long deadline = ToriRSServer_EmbedNowMs() + embed->party_wait_ms;
+
+    for( ;; )
+    {
+        struct pollfd pfds[2 * TORIRSSERVER_EMBED_CLIENT_MAX + 1];
+        int ids[TORIRSSERVER_EMBED_CLIENT_MAX + 1];
+        int count = 0;
+        int waiting = 0;
+        long left;
+
+        party_accept(embed);
+        party_seat(embed);
+        if( !embed->party_assembled && embed->party_joined >= embed->party_size - 1 )
+        {
+            embed->party_assembled = 1;
+            fprintf(stderr, "torirsserver: party: assembled, %d member(s) at tick %d\n",
+                    embed->party_joined, embed->srv.world_built ? embed->srv.tick : -1);
+        }
+        for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+        {
+            struct ToriRSServerEmbedClient* client = &embed->clients[i];
+
+            if( !client->open || client->link_fd < 0 )
+                continue;
+            if( !party_take_frames(client) )
+            {
+                party_drop(embed, i, "sent a frame a member never sends");
+                continue;
+            }
+            if( client->link_ready )
+                continue;
+            waiting++;
+            pfds[count].fd = client->link_fd;
+            pfds[count].events = POLLIN;
+            ids[count] = i;
+            count++;
+        }
+        if( !waiting && embed->party_assembled )
+            return;
+
+        left = deadline - ToriRSServer_EmbedNowMs();
+        if( left <= 0 )
+        {
+            for( int k = 0; k < count; k++ )
+                party_drop(embed, ids[k], "sent no READY within TORIRS_EMBED_PARTY_WAIT_S");
+            if( !embed->party_assembled )
+            {
+                fprintf(stderr,
+                        "torirsserver: party: only %d of %d member(s) joined within "
+                        "TORIRS_EMBED_PARTY_WAIT_S -- going on without the rest\n",
+                        embed->party_joined, embed->party_size - 1);
+                embed->party_assembled = 1;
+            }
+            return;
+        }
+        pfds[count].fd = embed->party_listener;
+        pfds[count].events = POLLIN;
+        ids[count] = -1;
+        /* A link still to say its seat wakes the wait too (party_seat reads
+         * it at the top of the next pass). */
+        {
+            int polled = count + 1;
+
+            for( int k = 0; k < TORIRSSERVER_EMBED_CLIENT_MAX; k++ )
+            {
+                if( embed->pending_fd[k] < 0 )
+                    continue;
+                pfds[polled].fd = embed->pending_fd[k];
+                pfds[polled].events = POLLIN;
+                polled++;
+            }
+            if( poll(pfds, (nfds_t)polled, left > 50 ? 50 : (int)left) <= 0 )
+                continue;
+        }
+        for( int k = 0; k < count; k++ )
+        {
+            if( !(pfds[k].revents & (POLLIN | POLLHUP | POLLERR)) )
+                continue;
+            if( ToriRSServer_EmbedLinkFill(pfds[k].fd, &embed->clients[ids[k]].link_in, 0) < 0 )
+            {
+                /* Whatever it sent before closing still counts. */
+                party_take_frames(&embed->clients[ids[k]]);
+                party_drop(embed, ids[k], "closed its link");
+            }
+        }
+    }
+}
+
+/* The boundary ran: hand each member its output, then the TICK. */
+static void
+party_flush(struct ToriRSServerEmbed* embed)
+{
+    uint8_t tick[4];
+
+    link_put_u32(tick, (uint32_t)(embed->srv.world_built ? embed->srv.tick : -1));
+    for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+    {
+        struct ToriRSServerEmbedClient* client = &embed->clients[i];
+        const uint8_t* bytes;
+        int len;
+        int ok = 1;
+
+        if( !client->open || client->link_fd < 0 )
+            continue;
+        bytes = ToriRSServer_PipePeek(&client->to_client, &len);
+        if( bytes && len > 0 )
+        {
+            ok = ToriRSServer_EmbedLinkSend(client->link_fd, TORIRSSERVER_EMBED_LINK_DATA,
+                                             bytes, len);
+            ToriRSServer_PipeDrop(&client->to_client, len);
+        }
+        if( ok )
+            ok = ToriRSServer_EmbedLinkSend(client->link_fd, TORIRSSERVER_EMBED_LINK_TICK,
+                                             tick, 4);
+        client->link_ready = 0;
+        if( !ok )
+            party_drop(embed, i, "stopped reading its link");
+        else if( !ToriRSServer_SessionAlive(&client->session) )
+            /* Its output is sent; the end of the link tells it the rest. */
+            party_drop(embed, i, "ended its session");
+    }
+}
+
+#else
+
+static void party_barrier(struct ToriRSServerEmbed* embed) { (void)embed; }
+static void party_flush(struct ToriRSServerEmbed* embed) { (void)embed; }
+
+#endif /* EMBED_PARTY_SOCKETS */
+
 
 /* Decode whatever this client sent and bring its world up if the handshake just
  * completed. Identical to the socket server's, deliberately: the world coming up
@@ -319,7 +1045,7 @@ pump_client(
         struct ToriRSServerPlayer* player;
         struct ToriRSServerPlayer* evict;
         int claim = ToriRSServer_ClaimSlot(&embed->claims, &embed->srv, &client->session,
-                                           embed_now_ms(), &evict);
+                                           ToriRSServer_EmbedNowMs(), &evict);
 
         if( evict )
         {
@@ -437,6 +1163,14 @@ ToriRSServer_EmbedPump(
     }
 
     /*
+     * A party boundary: every member's input up to its READY goes into its
+     * session now, so the loop below decodes it in client-id order ahead of
+     * the tick, exactly where an in-process client's would be.
+     */
+    if( run_tick && embed->party_listener >= 0 )
+        party_barrier(embed);
+
+    /*
      * Every client's input first, then *one* tick. The tick is the world's, not
      * a client's: running it per client would advance the world N times per
      * 600 ms and give whoever is pumped first N moves to everyone else's one.
@@ -465,6 +1199,10 @@ ToriRSServer_EmbedPump(
 
     if( run_tick && any_online )
         ToriRSServer_WorldTick(&embed->srv);
+    /* Even with no world yet: a member waiting at its boundary is released
+     * by the TICK, built or not. */
+    if( run_tick && embed->party_listener >= 0 )
+        party_flush(embed);
 
     if( bd_on )
     {

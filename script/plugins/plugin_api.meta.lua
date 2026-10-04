@@ -956,6 +956,9 @@ except the plain readers marked as returning a value.
 ---@field report fun(text: string) The stderr mirror on its own, for a note that is not a step.
 ---@field finish fun(code: integer): string, string End the process with this code at the next frame boundary.
 ---@field session fun(): table { dir, script }: where artefacts land and which quest is running.
+---@field barrier_mark fun(file: string): string, nil Write <run dir>/<file> (a bare name; the run dir is the session dir's parent) for t.party.barrier. Raid seam17.
+---@field barrier_present fun(file: string): string, nil ok when <run dir>/<file> exists, not_found otherwise. Raid seam17.
+---@field players fun(): string, table|nil Every player in this client's entity pool: { name, x, z, level, pid, me }. Raid seam17.
 ---@field render_skip fun(on: boolean?): string, table Render skip (seam34; src/app/app_render.c): with a boolean, switch it first; always answers {skip, rendered, drawn, skipped, caught_up, hulls} -- rendered is App_NoteFrameDrawn's count, drawn/skipped the loop iterations drawn and not, caught_up the skipped frames drawn late for a read, hulls the live world-entity views (sailing hulls) inside the loaded scene, while any of which every frame draws. While on, a frame draws only for a screenshot, a pushed click or a hull; pick_holds/pick_point/camera draw a skipped previous frame late first, so the run is the same run as with skip off. Backs t.render.skip.
 ---@field render_frame fun(): string, table Owe the current frame a draw (App_RenderSkipRequestDraw); answers the same state table. Backs t.render.frame, which awaits `rendered` moving past it.
 --- core-state

@@ -6191,6 +6191,18 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
 
+# The party link's framing (torirs_server_embed.h): torn frames, a 3 MB DATA
+# frame byte-exact, frame order, a closed peer read as closed. Over a
+# socketpair, no world booted -- the three-client run in test/raids/README.md
+# ("A party run") is the end-to-end proof. Native POSIX only, like the link.
+.PHONY: test-embed-party-link
+test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \
+		torirsserver/test/embed_party_link_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest
+
 # Revision 239's login response states the local player's index, and it is the
 # only statement of it. Two clients, so the index is allowed to be wrong: with
 # one player "slot 1" is right by coincidence. Links the same way the embed test
