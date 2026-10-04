@@ -88,3 +88,13 @@ Sampler: the reviewers accepted tob_sotetseg and tob_nylocas and rejected tob_ve
 - tob_maiden: KEPT from the eighth launch (3eb2a8cf8, OSRS c4b4ddc311), 63/63 FULL. Not re-sampled; the room is unchanged.
 - tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Remains: exhumed_cover, stomp_skip and lag_step are proved by the log and have no frame of their own.
 - tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Remains: technique frames 028-030 are post-fight (the moment frames are 011/013/014/015/019), and there is no frame per prayer toggle.
+
+## matthew-mbp-m4-raid-b1-rooms-tob, tenth launch (Theatre of Blood, Entry mode, solo; 2026-10-04)
+Sampler: the reviewer accepted tob_nylocas; tob_verzik was committed blocked by its reviewer. The sampler re-derived three spec numbers for tob_nylocas from their sources, checked the ledger and the tick log, and opened the shots. tob_nylocas is sent back a third time for the same row.
+
+- tob_nylocas: SENT BACK (reverted bf3cb4c1d of d76302478; OSRS d179b69361 of 8152117d27; the sampled file is build/author_state/matthew-mbp-m4-raid-b1-rooms-tob/tob_nylocas.sampled_l10_d76302478.lua). 162 ledger rows green, 73 spec rows, coverage FULL 73/73. Re-derived reflect 100 (DMM Summer Finals newspost :52), attackrate 3 (cache_npc_nylocas.txt:19), cycle 4 (blert guide :225, NylocasDataTracker.java:57); Vasilias 56 hits sum 405 minus heals 45 = 360, all from the player's attacks. Remains: spec.nylocas.vasilias_reflect computes the max hit from a constant. tob_nylocas.lua:668-669 does tonumber() on the t.skill.read reading TABLE, which is nil, so the `or 99` fallback is used every time and the row writes "max 25, half 12" while Strength read 86 (fight.levels661, the 86 indicator in shot 020). Read press_strength.level. The whip on com_mode 1 is Lash (controlled +1), not aggressive. Real max at 86 is 22, half 11; reflects 21/5/14 would still pass.
+- tob_verzik: BLOCKED (3a86ef744, OSRS 3eeb26d005), reviewer verdict blocked; 140 of 142 spec rows. p1_cap and p2_crab_lifetime are now measured. Remains: verzik.p3_tornado_heal_mult and verzik.p3_tornado_respawn (grade D) need a tornado touch while she lives, and that touch killed the solo kit in runs 9-10. Not sampled (not accepted).
+- tob_maiden: KEPT from the eighth launch (3eb2a8cf8, OSRS c4b4ddc311), 63/63 FULL. Not re-sampled.
+- tob_xarpus: KEPT from the eighth launch (f417148e4, OSRS f563727392), 63/63 FULL. Not re-sampled.
+- tob_bloat: KEPT from the eighth launch (e96af7766, OSRS fa760560ae), 55/55 FULL. Not re-sampled.
+- tob_sotetseg: KEPT from the ninth launch (812267e7f, OSRS fe2c34c8ac), 83/83 FULL. Not re-sampled.
