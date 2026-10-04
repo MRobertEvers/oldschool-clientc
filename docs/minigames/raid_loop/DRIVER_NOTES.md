@@ -3881,3 +3881,18 @@ yet a test (SEAM_LEDGER.md, seam15).
   It is the T-1 rule again (ENCOUNTER_TIMING.md section 1).
 - Count a hit whose two tiles straddle the 12-tile edge as neither near nor far, or judge it from
   the tile at the end of tick - 1.
+
+## Verzik's Entry solo table is 144 rows since seam15, and its P3 frames are the kill screen
+
+- `verzik.tsv` has 212 rows. `verzik.scope.tsv` drops 68 of them for Entry solo (party and
+  Normal-only figures), which leaves 144 in scope. Seam15 added two of them:
+  `verzik.p3_tornado_end` and `verzik.p3_inflight_after_death`. An older brief that says 142
+  predates seam15. Coverage FULL means 144 of 144.
+- Rows whose ledger lines come after `fight.loop_end` are graded from the tick log after her
+  npc_death. That covers the enrage, tornado and P3 death rows, plus the `drive.*` notes. Their
+  shots show the kill screen ("Verzik Vitur has fallen"), not the moment they name. For
+  example, `p3_tornado_pct` names a touch on tick 634 of a 772-tick fight. To check one of
+  these rows, read the tick-log rows (hit_player, npc_heal, npc_spawn 10846) at the tick its
+  detail quotes. Do not look for the moment in the PNG. Rows before `fight.loop_end` are still
+  frames from the fight: P1 and P2 at their phase's end, and `p3_proj_flight` mid-P3.
+- Sampled at launch 13 (tob_verzik d1b4ccf00).
