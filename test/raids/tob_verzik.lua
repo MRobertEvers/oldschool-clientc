@@ -1787,6 +1787,11 @@ return {
                     end
                 end
                 local _, _, pset3 = t.prayer.read()
+                -- before the one tornado touch I want, the raider comes down to a middling hitpoint count (the touch is half of the CURRENT hitpoints and
+                -- heals her three times that): her enraged autos are left unprayed while I stand above 55
+                local pre_touch = p3.enraged > 0
+                for _, h in ipairs(R.hitp) do if h.npc_type == 10846 then pre_touch = false end end
+                local skip_pray = false
                 for _, row in ipairs(new.proj) do
                     if row.spotanim == 1598 then
                         -- the green ball is told by projectile 1598 (always on 8125); no prayer stops it
@@ -1794,13 +1799,13 @@ return {
                     elseif row.spotanim == 1593 then
                         -- ranged auto: the prayer counts when the projectile LANDS (2-3 ticks on), so the switch on the launch tick is in time; two unprayed samples first for the maxima rows
                         p3.mag_seen = (p3.mag_seen or 0) + 1
-                        if p3.mag_seen > 2 then
+                        if p3.mag_seen > 2 and not skip_pray then
                             local sw_res = t.prayer.set("protectfrommissiles", true)
                             p3.switches[row.tick] = { at = tk, was_on = (pset3 and pset3.protectfrommissiles == true) or false, style = 1593, res = sw_res }
                         end
                     elseif row.spotanim == 1594 then
                         p3.rng_seen = (p3.rng_seen or 0) + 1
-                        if p3.rng_seen > 2 then
+                        if p3.rng_seen > 2 and not skip_pray then
                             local sw_res = t.prayer.set("protectfrommagic", true)
                             p3.switches[row.tick] = { at = tk, was_on = (pset3 and pset3.protectfrommagic == true) or false, style = 1594, res = sw_res }
                         end
@@ -1815,7 +1820,7 @@ return {
                 end
                 -- the prayer follows the style of the attack just seen (the ranged and magic hits land three ticks after the animation);
                 -- the first two magic autos and the melee autos of the experiments are left unprayed so the maxima rows have hits to read
-                if new_atk and new_atk.seq == 8123 and p3.autos > 9 then
+                if new_atk and new_atk.seq == 8123 and p3.autos > 9 and not skip_pray then
                     t.prayer.set("protectfrommelee", true)
                 end
                 if p3.autos >= 10 and p3.early_done == nil then
@@ -1854,7 +1859,7 @@ return {
                 local ball_due = (p3.ball_seen > 0 and tk <= p3.ball_seen + 6)
                 -- after the ball the player stays low on purpose: a tornado takes half of the CURRENT hitpoints (min 5) and heals her three times that
                 local after_ball = false
-                if (hpv < (after_ball and 28 or 60) or (ball_due and hpv < 85)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
+                if (hpv < 60 or (ball_due and hpv < 85)) and tk >= last_eat + 3 and (fish > 0 or brewn > 0) then
                     if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
                     last_eat = tk
                     acted = true
@@ -1867,6 +1872,17 @@ return {
                     end
                     acted = true
                 end
+                -- ---- 2b. after the touch: a tornado comes back 16 ticks later at her south-west tile, so leave that corner for the east side
+                local last_touch = nil
+                for _, h in ipairs(R.hitp) do if h.npc_type == 10846 then last_touch = h.tick end end
+                if not acted and not tornado_alive and last_touch and tk - last_touch <= 18 then
+                    if math.max(math.abs(mt.x - 6432), math.abs(mt.z - 91)) < 9 and tk >= p3.last_flee + 1 then
+                        local rr1, rr2 = t.player.walk_to(6423, 84, 1)
+                        p3.tdiag = "retreat " .. tostring(rr1) .. " " .. tostring(rr2)
+                        p3.last_flee = tk
+                        acted = true
+                    end
+                end
                 -- ---- 3. tornado flee ----------------------------------------------------------------
                 if not acted and tornado_alive then
                     -- the tornado is not interactable: its tile comes from the npc_tile rows (DRIVER_NOTES "Verzik enrage")
@@ -1878,10 +1894,21 @@ return {
                     if trow then
                         local dx, dz = mt.x - trow.x, mt.z - trow.z
                         local dist = math.max(math.abs(dx), math.abs(dz))
-                        local want_touch = (not touched) and hpv >= 90 and fish >= 3 and not ball_due
-                        if (not touched) and hpv < 90 and dist >= 5 and fish > 0 and tk >= last_eat + 3 then
-                            t.player.inv_op("anglerfish", 1)
+                        -- the touch is half of CURRENT hitpoints and heals her three times that: take it at a middling hitpoint count, no ball in flight, no pool out
+                        -- the yellow pool binds me to its tile until its blast (+14, held to +16) and sits beside her tornado's spawn: touch only after it, so the respawn 16 ticks on is not a second touch
+                        local pool_out = not (p3.pool and tk >= p3.pool.tick + 17)
+                        -- OFF: the touch tactic below measured both rows but starved the kit (see the blocked row); set true to retry
+                        local touch_attempt = false
+                        local want_touch = touch_attempt and (not touched) and hpv >= 36 and fish + brewn >= 3 and not ball_due and not pool_out
+                        p3.tdiag = "torat=" .. trow.x .. "," .. trow.z .. " me=" .. mt.x .. "," .. mt.z .. " d=" .. dist .. " wt=" .. tostring(want_touch) .. " fish=" .. fish .. " pool=" .. tostring(pool_out) .. " ball=" .. tostring(ball_due)
+                        if (not touched) and hpv < 36 and dist >= 5 and (fish > 0 or brewn > 0) and tk >= last_eat + 3 then
+                            if fish > 0 then t.player.inv_op("anglerfish", 1) else t.player.inv_op(brew_name, 1) end
                             last_eat = tk
+                            acted = true
+                        elseif want_touch and tk >= p3.last_flee + 1 and (math.abs(mt.x - (bx - 3)) > 1 or math.abs(mt.z - trow.z) > 1) then
+                            -- stand three tiles off her body (her melee is hers to pray against only from two tiles off), level with the tornado: it comes to me, and contact is the touch
+                            t.player.walk_to(bx - 3, math.min(97, math.max(81, trow.z)), 1)
+                            p3.last_flee = tk
                             acted = true
                         elseif (not want_touch) and dist <= 6 then
                             -- outrun it (seam12 recipe): run the ring three tiles off her body, to the ring tile farthest from the tornado whose path does not cross it;
@@ -2004,7 +2031,7 @@ return {
                         p3.last_atk = tk
                     end
                 end
-                if tk >= 555 and tk % 3 == 0 then plog[#plog + 1] = tk .. ":p3 acted=" .. tostring(acted) .. " tor=" .. tostring(tornado_alive ~= nil) .. " web=" .. tostring(web_alive ~= nil) .. " dealt=" .. dealt .. "/" .. p3.dealt_cap .. " last_atk=" .. p3.last_atk .. " autos=" .. p3.autos .. " hp=" .. hpv end
+                if tk >= 555 and tk % 3 == 0 then plog[#plog + 1] = tk .. ":p3 acted=" .. tostring(acted) .. " tor=" .. tostring(tornado_alive ~= nil) .. " web=" .. tostring(web_alive ~= nil) .. " dealt=" .. dealt .. "/" .. p3.dealt_cap .. " last_atk=" .. p3.last_atk .. " autos=" .. p3.autos .. " hp=" .. hpv .. " " .. (p3.tdiag or "") end
                 local _, prn = t.skill.read("prayer")
                 if tk % 6 == 0 then t.check("drive.p3state" .. tk, true, "prayer " .. tostring(prn.current or prn.level) .. " hp " .. tostring(hpv) .. " fish " .. tostring(fish) .. " restores " .. tostring(select(2, t.inv.count("br_1dose2restore")) + select(2, t.inv.count("br_2dose2restore")) + select(2, t.inv.count("br_3dose2restore")) + select(2, t.inv.count("br_4dose2restore")))) end
                 if (prn.current or prn.level) < 30 and (p3.autos > 9 or (prn.current or prn.level) < 10) and tk >= last_eat + 2 then
@@ -2837,7 +2864,7 @@ return {
             t.blocked("content_bug: OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/scripts/tob_verzik.rs2:2338 enrages on an integer percent (divide(multiply(left, 100), pool) <= 20), so 125 of 600 hitpoints (20.8 percent) already enrages; spec verzik.p3_enrage_threshold (grade B, exact 20 percent, at or below): " .. enrage_bug)
             return
         end
-        t.blocked("driver_seam: spec rows verzik.p3_tornado_heal_mult and verzik.p3_tornado_respawn are unmeasurable by a solo kit that survives: the heal (npc_heal, 3x the touch) and the 16-tick respawn exist only while she lives, and the first enrage tornado touches only after her death row (tick log: hit_player type 10846 damage 49 on tick 782, her npc_death 774, no npc_heal and no second npc_spawn). Taking the touch while she lives (run 9 and 10 of the 18th launch: touch on tick 688, 95 to 48 hp, then the yellow blast) killed the player at tick 748 with fish 0, brews and restores spent, because P1 magic cap, P2 crab kite and experiments leave no food for the extra 147 hp she heals")
+        t.blocked("driver_seam: spec rows verzik.p3_tornado_heal_mult and verzik.p3_tornado_respawn are measurable only by a touch while she lives, and a solo kit that takes it starves. Measured on the 19th launch (tick log, run name tob_verzik): enrage tick 682, touch hit_player type 10846 damage 39 on tick 721 (hitpoints 78 before), npc_heal [proc,tob_verzik_tornado_heal] 117 on the same tick (3x39), next tornado npc_spawn tick 737 (16 after). That run survived the green ball (74 on tick 749, hitpoints 88) and then ended hp 4 with no food on tick 770 with her alive (the heal of 117 needs about 40 more ticks of shooting); touch on tick 685 (47) or 718 (39) with the second tornado touch on 704 (37) died to the ball on tick 747-749 at hp 12-71 with no food; every variant died or starved because P1 magic cap, the P2 crab kite and the experiments leave no fish and no brew for her extra heal. Without a touch the first one lands after her death (tick 782, 49 damage; no npc_heal, no second npc_spawn)")
         return
     end,
 }
