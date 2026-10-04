@@ -46,7 +46,64 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        t.exec("goto-talkToAereck", t.player.goto_tile, 3244, 3206, 0) -- first step -- leaves the fixture's start tile
+        local function tile_text(r, tt)
+            return r == "ok" and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
+        end
+
+        -- Cross one door on foot (the b56 pass_door pattern, test/quests/wanted.lua). Walk to the
+        -- tile on this side; if the closed leaf (closed_sym) stands on door_x,door_z, click THAT
+        -- copy; otherwise an earlier press left it open (a door swings back after 500 ticks), so
+        -- assert the open leaf (open_sym) stands within 1 of the door tile -- a row that fails when
+        -- neither leaf is there -- and do not press it again. Then walk through and check the tile.
+        -- A selfstage door (farming_shed_poordoor) opens as the SAME symbol one tile over, so its
+        -- open_sym is its own name (doors_selfstage.rs2 [proc,door_selfstage_open]).
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 30)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and math.abs(nt.x - near_x) <= 1 and math.abs(nt.z - near_z) <= 1,
+                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. "," .. door_z .. " -> " .. tile_text(nr, nt))
+            local cr, cd = t.world.loc_near(closed_sym, 3)
+            -- the pool holds every level: the Wizards' Tower has a door copy on level 2 straight
+            -- above 3107,3162, so a copy only counts on the player's own level
+            local here = (nr == "ok") and nt.level or 0
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == here then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 3)
+                t.check(prefix .. ".doorStandsOpen", orr == "ok" and od.level == here and not (od.tile_x == door_x and od.tile_z == door_z)
+                        and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": " .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": " .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (want the open leaf within 1 of the door tile: an earlier press left it open, so it is walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z, 30)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and far_ok(ft),
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
+        end
+
+        -- Climb a ladder from its maplink src tile (ladders_stairs/configs/maplink.dbrow: ~maplink_try
+        -- is keyed on the PLAYER's coord) and grade the row on the landing tile.
+        local function climb(name, sym, at_x, at_z, src_x, src_z, want_x, want_z)
+            t.player.walk_to(src_x, src_z, 30)
+            local sr, st = t.world.tile()
+            t.check(name .. ".atLadder", sr == "ok" and st.x == src_x and st.z == src_z and st.level == 0,
+                "walked to the maplink src " .. src_x .. "," .. src_z .. ",0 beside " .. sym .. " " .. at_x .. "," .. at_z .. " -> " .. tile_text(sr, st))
+            t.exec(name, t.player.click_loc, sym, 1, { at = { at_x, at_z } })
+            t.ticks(2)
+            local lr, lt = t.world.tile()
+            t.check(name .. ".landed", lr == "ok" and lt.x == want_x and lt.z == want_z and lt.level == 0,
+                sym .. " climb -> " .. tile_text(lr, lt) .. " (want the maplink dest " .. want_x .. "," .. want_z .. ",0)")
+        end
+
+        -- Father Aereck is inside Lumbridge church (spawn m50_50.spawn:98, 3244,3206), walled in
+        -- with its north double doors castledoubledoorl/r 3244/3243,3216 (maps/m50_50.jl2). The
+        -- fixture tile 3206,3233 is the open castle courtyard; the goto lands on the street outside
+        -- the north doors and the doors are opened on foot.
+        t.exec("goto-talkToAereck", t.player.goto_tile, 3244, 3217, 0) -- first step -- leaves the fixture's start tile
+        pass_door("churchIn", "castledoubledoorl", "opencastledoubledoorl", 3244, 3216, 3244, 3217, 3244, 3214,
+            function(tt) return tt.z <= 3215 end, "inside the church, z <= 3215")
         -- Talk to Father Aereck in the Lumbridge Church.
         t.exec("talkToAereck", t.player.talk_to, "father_aereck", 1)
         t.exec("talkToAereck-dialog", t.chat.play, {
@@ -66,7 +123,15 @@ return {
 
         t.expect("quest.stage.started", t.quest.expect_stage("priest_started"))
 
-        t.exec("goto-talkToUrhney", t.player.goto_tile, 3146, 3174, 0) -- 98 tiles from the last tracked position
+        -- Out of the church the way we came in.
+        pass_door("churchOut", "castledoubledoorl", "opencastledoubledoorl", 3244, 3216, 3244, 3215, 3244, 3217,
+            function(tt) return tt.z >= 3216 end, "outside the church's north doors, z >= 3216")
+
+        -- Father Urhney (m49_49.spawn:8, 3146,3174) is in the swamp shed, x 3144-3151 z 3173-3177,
+        -- whose door farming_shed_poordoor 3147,3172 is on that tile's north edge (maps/m49_49.jl2).
+        t.exec("goto-talkToUrhney", t.player.goto_tile, 3147, 3171, 0) -- the open ground south of the shed door
+        pass_door("shedIn", "farming_shed_poordoor", "farming_shed_poordoor", 3147, 3172, 3147, 3172, 3147, 3173,
+            function(tt) return tt.z >= 3173 end, "inside the shed, z >= 3173")
         -- Talk to Father Urhney, west of the Lumbridge Swamp.
         t.exec("talkToUrhney", t.player.talk_to, "father_urhney", 1)
         t.exec("talkToUrhney-dialog", t.chat.play, {
@@ -94,7 +159,14 @@ return {
         t.check("inv_has_amulet", t.inv.expect_has("amulet_of_ghostspeak", 1))
         t.exec("equip_amulet", t.player.equip, "amulet_of_ghostspeak")
 
-        t.exec("goto-openCoffin", t.player.goto_tile, 3250, 3193, 0) -- 104 tiles from the last tracked position
+        pass_door("shedOut", "farming_shed_poordoor", "farming_shed_poordoor", 3147, 3172, 3147, 3173, 3147, 3171,
+            function(tt) return tt.z <= 3172 end, "outside the shed, z <= 3172")
+
+        -- The coffin (shutghostcoffin 3249,3192) is in the graveyard hut, x 3247-3252 z 3190-3195,
+        -- whose door poordoor 3247,3193 is on that tile's west edge (maps/m50_49.jl2).
+        t.exec("goto-openCoffin", t.player.goto_tile, 3246, 3193, 0) -- the graveyard outside the hut's west door
+        pass_door("coffinHutIn", "poordoor", "poordooropen", 3247, 3193, 3246, 3193, 3248, 3193,
+            function(tt) return tt.x >= 3247 end, "inside the coffin hut, x >= 3247")
         -- Open the coffin in the Lumbridge Graveyard to spawn the ghost.
         t.exec("openCoffin", t.player.click_loc, "shutghostcoffin", 1)
 
@@ -134,26 +206,56 @@ return {
         -- (reviewer rejection, 2026-09-20).
         t.chat.close()
 
-        t.exec("goto-enterWizardsTowerBasement", t.player.goto_tile, 3104, 3162, 0) -- 146 tiles from the last tracked position
-        -- No click_loc on the ladder: section 2 -- goto_tile the destination
-        -- tile with ITS level is the whole of climbing one, and a real
-        -- click here answers `refused -- You can't go any further.` because
-        -- ~climb_ladder's ~maplink_try match is keyed to one of the four
-        -- tiles immediately adjacent to the ladder, not the ladder's own
-        -- tile goto_tile lands on (measured 2026-09-20).
+        pass_door("coffinHutOut", "poordoor", "poordooropen", 3247, 3193, 3248, 3193, 3246, 3193,
+            function(tt) return tt.x <= 3246 end, "outside the coffin hut, x <= 3246")
 
-        t.exec("goto-searchAltarAndRun", t.player.goto_tile, 3120, 9567, 0) -- 6405 tiles from the last tracked position
+        -- The Wizards' Tower: in through its north door fai_wiztower_poor_door 3109,3167, through
+        -- the ladder room's diagonal door fai_wiztower_poor_door 3107,3162 (maps/m48_49.jl2), and
+        -- down wizards_tower_laddertop 3104,3162 from its maplink src 3105,3162
+        -- (maplink_0_48_49_33_26_down -> 3104,9576).
+        t.exec("goto-enterWizardsTowerBasement", t.player.goto_tile, 3109, 3169, 0) -- the island outside the tower's north door
+        pass_door("towerIn", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3109, 3167, 3109, 3168, 3109, 3164,
+            function(tt) return tt.z <= 3166 end, "inside the tower's hall, z <= 3166")
+        pass_door("ladderRoomIn", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3107, 3162, 3108, 3163, 3105, 3162,
+            function(tt) return tt.x <= 3106 end, "inside the ladder room, x <= 3106")
+        climb("enterWizardsTowerBasement", "wizards_tower_laddertop", 3104, 3162, 3105, 3162, 3104, 9576)
+
+        -- The altar room (x 3111-3121 z 9555-9569) is shut by poordoor 3111,9559 on its west edge
+        -- (maps/m48_149.jl2); reach.py: the ladder foot 3104,9576 reaches 3110,9559 with doors closed.
+        pass_door("altarRoomIn", "poordoor", "poordooropen", 3111, 9559, 3110, 9559, 3113, 9560,
+            function(tt) return tt.x >= 3111 end, "inside the altar room, x >= 3111")
         -- Search the Altar. A skeleton (level 13) will appear and attack you, but you can just run away.
         t.exec("searchAltarAndRun", t.player.click_loc, "restless_ghost_altar", 1)
 
         t.ticks(3)
         t.expect("quest.stage.obtained_skull", t.quest.expect_stage("priest_obtained_skull"))
+        t.check("inv_has_skull", t.inv.expect_has("ghostskull", 1))
 
-        t.exec("goto-putSkullInCoffin", t.player.goto_tile, 3250, 3193, 0) -- back to the Lumbridge Graveyard coffin
+        -- Run: out of the altar room, up the ladder (maplink_0_48_149_32_40_up: src 3104,9576 ->
+        -- 3105,3162), out of the ladder room and the tower on foot.
+        pass_door("altarRoomOut", "poordoor", "poordooropen", 3111, 9559, 3112, 9559, 3109, 9560,
+            function(tt) return tt.x <= 3110 end, "outside the altar room, x <= 3110")
+        climb("exitWizardsTowerBasement", "wizards_tower_ladder", 3103, 9576, 3104, 9576, 3105, 3162)
+        local hr, hp = t.skill.read("hitpoints")
+        t.check("exitWizardsTowerBasement.unhurt", hr == "ok" and hp.level == hp.base_level,
+            "hitpoints after running from the skeleton -> " .. (hr == "ok" and (hp.level .. "/" .. hp.base_level) or tostring(hr))
+                .. " (want full: the guide runs, no fight is taken)")
+        pass_door("ladderRoomOut", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3107, 3162, 3105, 3162, 3108, 3163,
+            function(tt) return tt.x >= 3107 end, "back in the tower's hall, x >= 3107")
+        pass_door("towerOut", "fai_wiztower_poor_door", "fai_wiztower_poor_door_open", 3109, 3167, 3109, 3165, 3109, 3169,
+            function(tt) return tt.z >= 3167 end, "outside the tower's north door, z >= 3167")
+
+        t.exec("goto-putSkullInCoffin", t.player.goto_tile, 3246, 3193, 0) -- back to the graveyard outside the coffin hut
+        pass_door("coffinHutIn2", "poordoor", "poordooropen", 3247, 3193, 3246, 3193, 3248, 3193,
+            function(tt) return tt.x >= 3247 end, "inside the coffin hut, x >= 3247")
         -- Reward snapshot before the FINAL hand-in step (H2, docs/QUEST_SUITE_KIT.md) -- sheep's
         -- REJECTED pass never checked its own reward; reward.* below does.
         local reward_snapshot_result, reward_before = t.skill.snapshot()
-        t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL", "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
+        local prayer_before = type(reward_before) == "table" and reward_before.prayer or nil
+        t.check("reward.snapshot", type(prayer_before) == "table" and prayer_before.experience == 0,
+            "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result) .. "; prayer xp "
+                .. (type(prayer_before) == "table" and tostring(prayer_before.experience) or tostring(prayer_before))
+                .. " (want 0: the fresh character has earned no prayer xp before the reward)")
 
         -- The coffin was opened earlier (openCoffin) and never closed since, so it is
         -- still the openghostcoffin_no_head loc -- use the skull on it to finish the
