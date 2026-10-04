@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 147
+-- @verb-count 151
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 102
+-- @seam-count 103
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 147
-local SEAM_COUNT = 102
+local VERB_COUNT = 151
+local SEAM_COUNT = 103
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9246,6 +9246,357 @@ return {
             if has_closed ~= true or has_open ~= false then
                 return "refused", text .. " -- want the closed leaf on 2510,3860,0 and no open leaf:"
                     .. " the revert never reached the client"
+            end
+            return "ok", text
+        end)
+
+        -- THE CROSSING VERBS (matthew-mbp-m4-b60-seam0
+        -- shared_crossing_helpers_for_gates_traps_and_walls): the four helpers
+        -- every b56-b59 door-rule fixer hand-wrote, ported from hero.lua,
+        -- hunt.lua, rovingelves.lua, mourningsendparti.lua and misc.lua.  The
+        -- gotos below are each row's starting point, never a crossing.
+        --
+        -- A WALK-THROUGH WALL GATE, BOTH WAYS.  Taverley's east members' gate
+        -- membergater 2935,3450,0 (gates.rs2 [label,member_fencegate_try]:
+        -- a press p_teleports through and leaves no opened loc), the only way
+        -- on foot between Taverley (x <= 2935) and the Ice Mountain side
+        -- (sampler-findings.md "Sample matthew-mbp-m4-b59" (a)).  First the
+        -- subject is proved: a walk from 2936,3450 to 2934,3450 does NOT get
+        -- across (so a landing is the press's doing); then cross_gate in from
+        -- the east (graded x <= 2935) and out from the west (graded x >= 2936,
+        -- then walked on to 2937,3450 exactly).
+        step("player.cross_gate", function()
+            local goto_tile = verb("player", "goto_tile")
+            local walk_to = verb("player", "walk_to")
+            local tile = verb("world", "tile")
+            local fn = verb("player", "cross_gate")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not tile then return missing("world", "tile") end
+            if not fn then return missing("player", "cross_gate") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local goto_result, goto_detail = goto_tile(2936, 3450, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto the gate's east side 2936,3450,0 -> " .. describe(goto_result)
+                    .. " " .. describe(goto_detail))
+            end
+            local probe_result = walk_to(2934, 3450, 8)
+            local probe_tile_result, probe = tile()
+            local text = "walk_to 2934,3450 from 2936,3450 (no press) -> " .. describe(probe_result) .. " at "
+                .. (probe_tile_result == "ok" and (probe.x .. "," .. probe.z .. "," .. probe.level)
+                    or describe(probe_tile_result))
+            if probe_tile_result ~= "ok" or not is_table(probe) or probe.x <= 2935 then
+                return leave("no_subject", text .. " -- the walk got across without a press: not an only-way gate")
+            end
+            local in_result, in_detail = fn({ loc = "membergater", at = { 2935, 3450, 0 }, near = { 2936, 3450 },
+                far_ok = function(at) return at.x <= 2935 end, far_desc = "inside Taverley, x <= 2935" })
+            text = text .. "; in -> " .. describe(in_result) .. " " .. tostring(in_detail)
+            if in_result ~= "ok" then
+                return leave(in_result, text)
+            end
+            local out_result, out_detail = fn({ loc = "membergater", at = { 2935, 3450, 0 }, near = { 2934, 3450 },
+                far_ok = function(at) return at.x >= 2936 end, far_desc = "out of Taverley, x >= 2936",
+                far = { 2937, 3450 } })
+            text = text .. "; out -> " .. describe(out_result) .. " " .. tostring(out_detail)
+            if out_result ~= "ok" then
+                return leave(out_result, text)
+            end
+            local press = "click_loc(membergater at 2935,3450,0, op1)"
+            if string.find(tostring(in_detail), press, 1, true) == nil
+                or string.find(tostring(out_detail), press, 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but a detail names no press of the gate")
+            end
+            local end_result, finish = tile()
+            if end_result ~= "ok" or not is_table(finish) or finish.x ~= 2937 or finish.z ~= 3450 then
+                return leave("hollow", text .. " -- ok, but world.tile reads " .. describe(finish))
+            end
+            return leave("ok", text)
+        end)
+
+        -- The Isafdar rows' stage: Hitpoints 99 (the fixture's 10 is one
+        -- slipped pitfall from dead) and Agility 70 -- the Agility the b59
+        -- Isafdar tests stage, at which regicide_traps.rs2's
+        -- stat_random(agility, 160, 300) Jump cannot slip, so the row is
+        -- deterministic.  Put back by the teleport row's own exit.
+        stage(function()
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel agility 70")
+            settle(2)
+        end)
+
+        -- A WAYPOINT ROUTE ACROSS SCENE REBUILDS.  rovingelves.lua's
+        -- gate_to_camp walkToPitfall chain, verbatim: 26 waypoints from the
+        -- Arandar Huge Gate's Isafdar side (2385,3333) to the pitfall's east
+        -- source tile (2279,3262), hops of at most 10 tiles (2304,3302 ->
+        -- 2304,3292 -> ... is ten apart), a route rovingelves' fixer flooded
+        -- with every trap trigger tile blocked.  The end is 106 tiles west of
+        -- the start, and a built scene is 104 tiles across, so no one scene
+        -- holds both: the route crosses at least one walk-triggered rebuild.
+        -- Graded on the exact end tile, on every hop's vitals hook having run,
+        -- and on the detail naming all 26 hops.
+        step("player.walk_route", function()
+            local goto_tile = verb("player", "goto_tile")
+            local tile = verb("world", "tile")
+            local fn = verb("player", "walk_route")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not tile then return missing("world", "tile") end
+            if not fn then return missing("player", "walk_route") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local route = { { 2383, 3325 }, { 2376, 3322 }, { 2368, 3320 }, { 2359, 3319 }, { 2355, 3313 },
+                { 2346, 3314 }, { 2343, 3321 }, { 2336, 3324 }, { 2331, 3319 }, { 2331, 3309 }, { 2323, 3307 },
+                { 2316, 3310 }, { 2319, 3317 }, { 2317, 3325 }, { 2308, 3326 }, { 2303, 3321 }, { 2303, 3311 },
+                { 2304, 3302 }, { 2304, 3292 }, { 2304, 3282 }, { 2304, 3272 }, { 2297, 3271 }, { 2290, 3274 },
+                { 2284, 3270 }, { 2279, 3265 }, { 2279, 3262 } }
+            local goto_result, goto_detail = goto_tile(2385, 3333, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto the Arandar gate's Isafdar side 2385,3333,0 -> "
+                    .. describe(goto_result) .. " " .. describe(goto_detail))
+            end
+            local hooks = 0
+            local result, detail = fn(route, { vitals = function()
+                hooks = hooks + 1
+                return nil
+            end })
+            local text = "2385,3333,0 -> 2279,3262,0 (106 tiles west: past a 104-tile scene) -> "
+                .. describe(result) .. " " .. tostring(detail) .. "; vitals hook ran " .. hooks .. " time(s)"
+            if result ~= "ok" then
+                return leave(result, text)
+            end
+            local end_result, finish = tile()
+            if end_result ~= "ok" or not is_table(finish) or finish.x ~= 2279 or finish.z ~= 3262
+                or finish.level ~= 0 then
+                return leave("hollow", text .. " -- ok, but world.tile reads " .. describe(finish))
+            end
+            if hooks ~= #route then
+                return leave("hollow", text .. " -- want the hook once per hop (" .. #route .. ")")
+            end
+            return leave("ok", text)
+        end)
+
+        -- A TRAP CROSSED BY ITS OWN OP, LANDING READ.  Regicide's pitfall
+        -- ring, westbound: regicide_pitfall_side 2278,3262,0 Jump from the
+        -- source tile 2279,3262 onto 2275,3262 (maplink_agility's row;
+        -- rovingelves.lua PITFALL_W).  The goto is the source tile itself --
+        -- from Lumbridge, so the scene is built by the teleport.  Graded on
+        -- the detail naming the press and the landing, on the server's own
+        -- "You manage to cross safely." line the press caused, on world.tile
+        -- reading 2275,3262,0, and on the vitals hook having run.
+        step("player.cross_trap", function()
+            local goto_tile = verb("player", "goto_tile")
+            local tile = verb("world", "tile")
+            local fn = verb("player", "cross_trap")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not tile then return missing("world", "tile") end
+            if not fn then return missing("player", "cross_trap") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local goto_result, goto_detail = goto_tile(2279, 3262, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto the pitfall's source tile 2279,3262,0 -> " .. describe(goto_result)
+                    .. " " .. describe(goto_detail))
+            end
+            local hooks = 0
+            local result, detail = fn({ loc = "regicide_pitfall_side", op_name = "Jump", at = { 2278, 3262, 0 },
+                src = { 2279, 3262 }, dest = { 2275, 3262 }, vitals = function()
+                    hooks = hooks + 1
+                    return "hook " .. hooks
+                end })
+            local text = describe(result) .. " " .. tostring(detail)
+            if result ~= "ok" then
+                return leave(result, text)
+            end
+            if string.find(text, "click_loc(regicide_pitfall_side at 2278,3262,0, op1 Jump)", 1, true) == nil
+                or string.find(text, "landed 2275,3262,0", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail names no press or no landing")
+            end
+            if string.find(text, "You manage to cross safely.", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the server's crossing line is not in the detail")
+            end
+            local end_result, finish = tile()
+            if end_result ~= "ok" or not is_table(finish) or finish.x ~= 2275 or finish.z ~= 3262
+                or finish.level ~= 0 then
+                return leave("hollow", text .. " -- ok, but world.tile reads " .. describe(finish))
+            end
+            if hooks < 1 then
+                return leave("hollow", text .. " -- the vitals hook never ran")
+            end
+            return leave("ok", text)
+        end)
+
+        -- A REAL TELEPORT CAST, RUNES READ.  Camelot Teleport pressed in the
+        -- spellbook: magic_spells.dbrow [magic_spell_teleport_camelot] costs
+        -- 5 air and 1 law, tele_coord 2757,3478,0, map_findsquare radius 2
+        -- (teleport.rs2 [label,magic_teleport]; misc.lua camelotTeleport.*).
+        -- Staged: an empty backpack holding exactly the cost, Magic 45.  The
+        -- verb writes conformance.camelotTeleport.cast/.runes/.landed itself;
+        -- this row forwards its answer and re-reads the pack (empty of both)
+        -- and the tile.
+        step("player.teleport_cast", function()
+            local fn = verb("player", "teleport_cast")
+            local count = verb("inv", "count")
+            local tile = verb("world", "tile")
+            if not fn then return missing("player", "teleport_cast") end
+            if not count then return missing("inv", "count") end
+            if not tile then return missing("world", "tile") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                setup_cheat("::setlevel magic 1")
+                setup_cheat("::setlevel agility 1")
+                setup_cheat("::setlevel hitpoints 10")
+                settle(2)
+                return result, text
+            end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel magic 45")
+            setup_cheat("::give airrune 5")
+            setup_cheat("::give lawrune 1")
+            settle(2)
+            local _, air = count("airrune")
+            local _, law = count("lawrune")
+            if air ~= 5 or law ~= 1 then
+                return leave("no_subject", "the stage left airrune " .. describe(air) .. ", lawrune "
+                    .. describe(law) .. " (want 5 and 1)")
+            end
+            local result, detail = fn("camelot_teleport", { 2757, 3478, 0 }, { name = "conformance.camelotTeleport",
+                runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+            local text = describe(result) .. " " .. tostring(detail)
+            if result ~= "ok" then
+                return leave(result, text)
+            end
+            local _, air_after = count("airrune")
+            local _, law_after = count("lawrune")
+            local end_result, finish = tile()
+            text = text .. "; re-read: airrune " .. describe(air_after) .. ", lawrune " .. describe(law_after)
+                .. ", at " .. (end_result == "ok" and is_table(finish)
+                    and (finish.x .. "," .. finish.z .. "," .. finish.level) or describe(end_result))
+            if air_after ~= 0 or law_after ~= 0 then
+                return leave("hollow", text .. " -- ok, but the runes are still in the pack")
+            end
+            if end_result ~= "ok" or not is_table(finish) or finish.level ~= 0
+                or math.abs(finish.x - 2757) > 2 or math.abs(finish.z - 3478) > 2 then
+                return leave("hollow", text .. " -- ok, but the player is not within 2 of 2757,3478,0")
+            end
+            return leave("ok", text)
+        end)
+
+        -- b60 seam camera_detaches_from_player_after_walk_triggered_rebuild.
+        -- A player who slipped at a Regicide pitfall walked on while his model,
+        -- camera and minimap stayed at the pit: the slip played human_death,
+        -- whose last frame holds 20,000 client cycles, and while a primary seq
+        -- with postanim DELAYMOVE plays the client holds every walk the
+        -- server sends (World_MoverHeldByAnim == Client-TS Client.ts routeMove).
+        -- The content now ends the fall a tick later, as LostCity's spike pit
+        -- does (upass_grid.rs2 upass_fail_grid). Agility 1 slips often; the
+        -- row presses the south pitfall back and forth until a press slips
+        -- and a later one lands, then walks 8 tiles and reads the eye: at yaw
+        -- 0 / pitch 383 / zoom 600 it stands 5..9 tiles south of the player
+        -- it follows.
+        seam("seam.slip_fall_releases_the_walk", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local walk_to = verb("player", "walk_to")
+            local tile = verb("world", "tile")
+            local camera = verb("world", "camera")
+            local pose = verb("drive", "camera")
+            local read = verb("skill", "read")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not tile then return missing("world", "tile") end
+            if not camera then return missing("world", "camera") end
+            if not pose then return missing("drive", "camera") end
+            if not read then return missing("skill", "read") end
+            local function here()
+                local result, at = tile()
+                if result ~= "ok" or not is_table(at) then
+                    return nil
+                end
+                return at
+            end
+            local hp_result, hp = read("hitpoints")
+            local agility_result, agility = read("agility")
+            local hp_base = (hp_result == "ok" and is_table(hp)) and hp.base_level or nil
+            local agility_base = (agility_result == "ok" and is_table(agility)) and agility.base_level or nil
+            if hp_base == nil or agility_base == nil then
+                return "no_subject", "skill.read hitpoints -> " .. describe(hp_result)
+                    .. ", agility -> " .. describe(agility_result)
+            end
+            local function restore()
+                setup_cheat("::setlevel hitpoints " .. hp_base)
+                setup_cheat("::setlevel agility " .. agility_base)
+                setup_cheat("::tele lumbridge")
+                settle(4)
+            end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel agility 1")
+            local goto_result, goto_detail = goto_tile(2274, 3176, 0)
+            if goto_result ~= "ok" then
+                restore()
+                return "no_subject", "goto 2274,3176,0 -> " .. describe(goto_result) .. " " .. describe(goto_detail)
+            end
+            local north = { at = { 2274, 3175, 0 }, from = { 2274, 3176 }, to = { 2274, 3172 }, away = { 2272, 3164 } }
+            local south = { at = { 2274, 3173, 0 }, from = { 2274, 3172 }, to = { 2274, 3176 }, away = { 2275, 3184 } }
+            local side = north
+            local slips, presses = 0, 0
+            local landed_after_slip = false
+            while presses < 16 and not landed_after_slip do
+                presses = presses + 1
+                click_loc("regicide_pitfall_side", 1, { at = side.at })
+                settle(6)
+                local at = here()
+                if at == nil then
+                    restore()
+                    return "no_subject", "world.tile unreadable after press " .. presses
+                end
+                if at.x == side.to[1] and at.z == side.to[2] then
+                    if slips > 0 then
+                        landed_after_slip = true
+                    else
+                        side = (side == north) and south or north
+                    end
+                elseif at.x == side.from[1] and at.z == side.from[2] then
+                    slips = slips + 1
+                else
+                    restore()
+                    return "no_subject", "press " .. presses .. " left the player at " .. at.x .. "," .. at.z
+                        .. "," .. at.level .. " (neither side of the pitfall)"
+                end
+            end
+            if not landed_after_slip then
+                restore()
+                return "no_subject", presses .. " presses, " .. slips .. " slip(s), no landing after a slip"
+            end
+            walk_to(side.away[1], side.away[2], 30)
+            settle(2)
+            pose(0, 383, 600)
+            settle(2)
+            local at = here()
+            local cam = camera()
+            restore()
+            if at == nil or not is_table(cam) or cam.x == nil then
+                return "no_subject", "tile/camera unreadable after the walk: camera -> " .. describe(cam)
+            end
+            local dx, dz = cam.x - at.x, cam.z - at.z
+            local text = slips .. " slip(s) in " .. presses .. " presses, landed on " .. side.to[1] .. "," .. side.to[2]
+                .. ", walked to " .. at.x .. "," .. at.z .. "; eye " .. cam.x .. "," .. cam.z .. " (d " .. dx .. ","
+                .. dz .. ") yaw " .. tostring(cam.yaw) .. " pitch " .. tostring(cam.pitch)
+            if at.x ~= side.away[1] or at.z ~= side.away[2] then
+                return "refused", text .. " -- the walk did not arrive"
+            end
+            if math.abs(dx) > 1 or dz > -4 or dz < -10 then
+                return "refused", text .. " -- want the eye 4..10 tiles south of the player: the camera"
+                    .. " stayed with a model the slip's death pose held at the pit"
             end
             return "ok", text
         end)
