@@ -320,6 +320,7 @@ topic file with one line added here.
 - CONTENT_GAP "only <other quest>.rs2, another quest's" then ALTERNATIVE on an exit loc the guide names, and a `goto_tile` past it reads FULL -> coverage-and-gate: CONTENT_GAP "only <other quest>.rs2"
 - a quest draws random branches (Wanted! pool stops) and only the drawn ones ran; `reach.py` dies on a missing `locs.pickle`; `locs_near.py` prints `''` for a multiloc wall -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (e), (f)
 - helper_coverage FULL though a goto leaves the room the setup cheat stood you in, lands in a building bigger than the enclosure flood (Arceuus Library), leaves an archive or the essence mine, or leaves a random draw's last stop (Wanted!! pos6) -> sampler-findings: Sample matthew-mbp-m4-b56, round 3
+- lint "... outside setup: a mid-run ::give" / "::bankgive is a SETUP cheat" / "`-- lint: kit-give` ..."; a note "mid-run ::give BASELINED"; a setup `::bankgive` of a guide-obtained item graded CHEAT like `::give` -> verbs-state-and-vars: lint: "outside setup: a mid-run ::give"
 
 ## Harness and runs
 

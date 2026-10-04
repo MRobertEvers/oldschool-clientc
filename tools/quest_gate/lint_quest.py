@@ -18,6 +18,11 @@ confusing failure three steps downstream of where the actual mistake is:
   * `::complete <the quest's own row>` inside `setup` -- a setup cheat that
     completes the very quest under test before `run(t)` gets to play it is
     not "state the world", it is "skip the test and still call it green".
+  * an item cheat after setup: a `::bankgive` literal anywhere outside the
+    `setup = {...}` table, and a `::give` there that carries no
+    `-- lint: kit-give <reason>` marker and is not one of the gives
+    baselined in mid_run_gives_baseline.tsv (check_mid_run_gives;
+    `--mid-run-gives` lists them all).
   * a hardcoded `"PASS"` literal as `t.step`'s own verdict argument -- as
     opposed to the `cond and "PASS" or "FAIL"` idiom every real row in this
     project uses -- which is a verdict nothing computed, catching a pinned
@@ -86,6 +91,7 @@ with no target to check has nothing to be wrong about.
 
 Usage:
   tools/quest_gate/lint_quest.py <file> [<file> ...] [--allow-check]
+  tools/quest_gate/lint_quest.py --mid-run-gives <file> [<file> ...]
 """
 
 import argparse
@@ -736,6 +742,188 @@ def check_complete_has_arm(text):
     return findings
 
 
+# A `"::give ..."` / `"::bankgive ..."` string literal: the cheat the driver
+# sends, whatever wraps it (t.cheat, t.exec(name, t.cheat, ...), a local
+# `cheat(...)` helper, `"::give " .. symbol .. " 1"`, string.format). At most
+# the cheat's two arguments: a row detail that QUOTES one (`"::give clay 6 -> "
+# .. tostring(r)`) is text about the cheat, not a second cheat.
+GIVE_CHEAT_RE = re.compile(r'^\s*::(give|bankgive)(?:\s+[\w%]+){0,2}\s*$')
+# `-- lint: kit-give <reason>` on the give's own line, or alone on the line
+# directly above it: a mid-run ::give the orchestrator has accepted.
+KIT_GIVE_MARKER_RE = re.compile(r'--\s*lint:\s*kit-give\b[ \t]*(.*)$')
+
+
+def _setup_span(code):
+    """(start, end) of the quest file's `setup = { ... }` table in
+    COMMENT-BLANKED code, or None. The returned table's own top-level field
+    when there is one (top_level_fields, the reader legs_layout uses), else
+    the first `setup = {` anywhere (the table _find_setup_cheats reads)."""
+    at = top_level_fields(code).get("setup")
+    if at is None or code[at:at + 1] != "{":
+        match = SETUP_OPEN_RE.search(code)
+        if not match:
+            return None
+        at = match.start(1)
+    _, past = _extract_balanced(code, at)
+    return at, past
+
+
+def _kit_give_marker(raw_lines, number):
+    """(marker line, reason) for the `-- lint: kit-give` marker that covers
+    line `number`, or None: the marker on that line, or a comment-only line
+    directly above it that is the marker."""
+    match = KIT_GIVE_MARKER_RE.search(raw_lines[number - 1])
+    if match:
+        return number, match.group(1).strip()
+    if number >= 2:
+        above = raw_lines[number - 2]
+        match = KIT_GIVE_MARKER_RE.search(above)
+        if match and above.lstrip().startswith("--"):
+            return number - 1, match.group(1).strip()
+    return None
+
+
+def mid_run_gives(text):
+    """Every `::give` / `::bankgive` string literal OUTSIDE the file's
+    `setup = { ... }` table -- in run(), a leg, a local helper: anywhere that
+    runs after setup -- as [{line, cheat, kind: give|bankgive, marker: (line,
+    reason) or None}]. Reads comment-blanked code for the literals (a comment
+    that quotes `::give` is history, not a call) and the raw text for the
+    marker (it IS a comment)."""
+    code = _blank_comments(text)
+    span = _setup_span(code)
+    raw_lines = text.split("\n")
+    found = []
+    for literal in STRING_LITERAL_RE.finditer(code):
+        match = GIVE_CHEAT_RE.match(literal.group(1))
+        if not match:
+            continue
+        if span and span[0] <= literal.start() < span[1]:
+            continue
+        number = _line_of(code, literal.start())
+        found.append({"line": number, "cheat": literal.group(1).strip(), "kind": match.group(1),
+                      "marker": _kit_give_marker(raw_lines, number)})
+    return found
+
+
+# The mid-run ::give lines committed tests carried when this rule landed
+# (measured over test/quests/[!_]*.lua at matthew-mbp-m4-b56 458d31771 and
+# origin/v3 a8974744e, the same 113 literals in 23 files). Each one is the
+# orchestrator's to decide -- move it into setup, drive the item, or mark it
+# `-- lint: kit-give <reason>` -- and until then it is BASELINED: printed and
+# counted, not refused. Keyed by (test_id, cheat literal) with a count, not a
+# line number, so an edit elsewhere in the file does not unbaseline it. A row
+# whose give is gone is refused as stale: delete the row (the list only shrinks).
+GIVE_BASELINE_PATH = os.path.join(HERE, "mid_run_gives_baseline.tsv")
+_give_baseline_cache = None
+
+
+def load_give_baseline(path=None):
+    """{test_id: {cheat literal: count}} from mid_run_gives_baseline.tsv
+    (columns: test_id, count, cheat, lines at the measure; `#` comments)."""
+    global _give_baseline_cache
+    if path is None and _give_baseline_cache is not None:
+        return _give_baseline_cache
+    baseline = {}
+    with open(path or GIVE_BASELINE_PATH, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip() or line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            assert len(fields) >= 3, "mid_run_gives_baseline.tsv: bad row %r" % line
+            if fields[0] == "test_id":
+                continue
+            baseline.setdefault(fields[0], {})[fields[2]] = int(fields[1])
+    if path is None:
+        _give_baseline_cache = baseline
+    return baseline
+
+
+def classify_mid_run_gives(text, test_id=None, baseline=None):
+    """mid_run_gives(text), each with a `state`: `bankgive` (always refused),
+    `marked` (a `-- lint: kit-give` covers it), `baselined` (one of this
+    test's mid_run_gives_baseline.tsv rows still has budget for that exact
+    literal) or `unmarked` (refused). Returns (gives, stale) where stale is
+    [(cheat, unused count)] -- baseline budget no give of this file used."""
+    if baseline is None:
+        baseline = load_give_baseline()
+    budget = dict(baseline.get(test_id or "", {}))
+    gives = mid_run_gives(text)
+    for give in gives:
+        if give["kind"] == "bankgive":
+            give["state"] = "bankgive"
+        elif give["marker"]:
+            give["state"] = "marked"
+        elif budget.get(give["cheat"], 0) > 0:
+            budget[give["cheat"]] -= 1
+            give["state"] = "baselined"
+        else:
+            give["state"] = "unmarked"
+    stale = sorted((cheat, count) for cheat, count in budget.items() if count > 0)
+    return gives, stale
+
+
+def check_mid_run_gives(text, test_id=None, baseline=None):
+    """No item cheat after setup (docs/QUEST_ORCHESTRATOR.md, the owner's
+    standing rules; trap 16). `setup = { ... }` states the world before
+    run()'s first row; a `::give` written in run() hands the player an item
+    in the middle of the quest, which is how a guide step that OBTAINS it
+    gets skipped without a row saying so.
+
+      * `::bankgive` outside setup is ALWAYS refused. The driver refuses it
+        at run time only once t.quest.bind has run (core.lua QD.cheat), so
+        one written in run() before the bind slips through there: this is
+        its static twin. Stock the bank in setup.
+      * `::give` outside setup is refused unless the line carries (or the
+        comment line directly above it is) `-- lint: kit-give <reason>` --
+        an exception the orchestrator accepted (a leg-start kit a checkpoint
+        resume must restage, brought-along food a fight used up) -- or it is
+        one of the BASELINED gives committed before the rule
+        (mid_run_gives_baseline.tsv). The marker needs a reason, excuses
+        nothing but a `::give`, and a marker that covers no mid-run give is
+        refused (a stale one would excuse the next give written beside it);
+        so is a baseline row whose give is gone. main() prints the marked
+        and baselined counts.
+
+    `_`-prefixed harness files (`_cheats.lua`, `_conformance.lua`) are not
+    quests: they issue these cheats mid-run ON PURPOSE (the bankgive
+    refusal row is one)."""
+    findings = []
+    if (test_id or "").startswith("_"):
+        return findings
+    gives, stale = classify_mid_run_gives(text, test_id, baseline)
+    used_markers = set()
+    for give in gives:
+        marker = give["marker"]
+        if marker:
+            used_markers.add(marker[0])
+        if give["state"] == "bankgive":
+            findings.append((give["line"],
+                              "\"%s\" outside setup: ::bankgive is a SETUP cheat -- stock the bank in "
+                              "`setup = {...}` (the driver refuses it after t.quest.bind; one before "
+                              "the bind is a mid-run ::give with a detour through the bank, trap 16)%s"
+                              % (give["cheat"], "; `-- lint: kit-give` does not excuse it"
+                                 if marker else "")))
+        elif give["state"] == "unmarked":
+            findings.append((give["line"],
+                              "\"%s\" outside setup: a mid-run ::give (owner's rule: no ::give after "
+                              "setup; trap 16). Move it into `setup = {...}`, or obtain the item the "
+                              "way the guide does; an exception the orchestrator accepted carries "
+                              "`-- lint: kit-give <reason>` on the line" % give["cheat"]))
+        elif give["state"] == "marked" and not marker[1]:
+            findings.append((marker[0], "`-- lint: kit-give` with no reason: say why this ::give "
+                                        "cannot be in setup (whose kit, which leg)"))
+    for number, line in enumerate(text.split("\n"), 1):
+        if KIT_GIVE_MARKER_RE.search(line) and number not in used_markers:
+            findings.append((number, "`-- lint: kit-give` covers no mid-run ::give (it marks its own "
+                                     "line, or alone the line directly below it): delete it"))
+    for cheat, count in stale:
+        findings.append((1, "mid_run_gives_baseline.tsv baselines %d x \"%s\" for %s that this file "
+                            "no longer gives mid-run: lower or delete that row (the list only shrinks)"
+                            % (count, cheat, test_id)))
+    return findings
+
+
 def check_step_pass_literal(text):
     findings = []
     for match in T_STEP_OPEN_RE.finditer(text):
@@ -1087,6 +1275,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings.extend(check_max_frames(code))
     findings.extend(check_var_names(code, packs.get(PACK_VAR_BARE) if packs else None, test_id))
     findings.extend(check_legs(text))
+    findings.extend(check_mid_run_gives(text, test_id))
     if not allow_check:
         findings.extend(check_marker(text))
     findings.extend(check_guide_gap_markers(text, test_id))
@@ -1112,10 +1301,35 @@ def main():
                         help="do not flag -- CHECK markers (new_quest.py's own generated "
                              "output must pass with this flag; a hand-finished quest "
                              "should not need it)")
+    parser.add_argument("--mid-run-gives", action="store_true",
+                        help="only LIST every ::give / ::bankgive outside setup (file:line, kind, "
+                             "state: marked / baselined / UNMARKED / bankgive, the cheat) and exit "
+                             "0 -- the measure behind check_mid_run_gives; `_` harness files are "
+                             "skipped as the rule skips them")
     arguments = parser.parse_args()
+
+    def test_id_of(path):
+        return os.path.splitext(os.path.basename(path))[0]
+
+    if arguments.mid_run_gives:
+        counts = {}
+        for path in arguments.files:
+            if test_id_of(path).startswith("_"):
+                continue
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                gives, _ = classify_mid_run_gives(handle.read(), test_id_of(path))
+            for give in gives:
+                state = give["state"] if give["state"] != "unmarked" else "UNMARKED"
+                key = "%s %s" % (give["kind"], state)
+                counts[key] = counts.get(key, 0) + 1
+                print("%s:%d\t%s\t%s\t%s" % (path, give["line"], give["kind"], state, give["cheat"]))
+        print("lint_quest: mid-run gives: %s" % (", ".join(
+            "%s %d" % (key, counts[key]) for key in sorted(counts)) or "none"))
+        return 0
 
     packs = load_packs()
     total = 0
+    tally = {"marked": [0, 0], "baselined": [0, 0]}  # state -> [gives, files]
     for path in arguments.files:
         if not os.path.isfile(path):
             print("lint_quest: no such file %s" % path, file=sys.stderr)
@@ -1127,6 +1341,23 @@ def main():
             for line, message in findings:
                 print("    %d: %s" % (line, message))
         total += len(findings)
+        if test_id_of(path).startswith("_"):
+            continue
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            gives, _ = classify_mid_run_gives(handle.read(), test_id_of(path))
+        for state, label in (("marked", "marked `-- lint: kit-give`"),
+                             ("baselined", "BASELINED (mid_run_gives_baseline.tsv, the orchestrator's to decide)")):
+            lines = [g["line"] for g in gives if g["state"] == state]
+            if lines:
+                tally[state][0] += len(lines)
+                tally[state][1] += 1
+                print("%s: note: %d mid-run ::give %s (line%s %s)" % (
+                    path, len(lines), label, "" if len(lines) == 1 else "s",
+                    ", ".join(str(n) for n in lines)))
+    for state in ("marked", "baselined"):
+        if tally[state][0]:
+            print("lint_quest: %d %s mid-run ::give(s) in %d file(s)" % (
+                tally[state][0], state, tally[state][1]))
 
     if total:
         print("lint_quest: %d finding(s)" % total, file=sys.stderr)
