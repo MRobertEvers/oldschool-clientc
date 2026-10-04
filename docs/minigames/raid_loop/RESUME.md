@@ -28,14 +28,21 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   71dcbbcb8): tob_maiden f6d2c42e5 (63 rows), tob_bloat e96af7766 (55), tob_xarpus f417148e4
   (63), tob_sotetseg 812267e7f (83), tob_nylocas d87427d41 (76), tob_verzik d1b4ccf00 (144,
   deathless, every tornado row before her death). Coverage FULL on each.
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam16` (triage `SEAM_TRIAGE_2026-10-04d.md`,
-  3d5bea4a7): the green relay's own tick log shows an Entry solo raider spending ten times what
-  the guides and the Entry Mode wiki's litmus (:123, at most four food and one dose on Maiden)
-  allow: Maiden lands 20 of 21 autos under Protect from Magic for 199 (eleven above the halved
-  max of 9), 13 restore presses in 213 ticks; Nylocas 360, Bloat 109, Xarpus 10 bandages + 3
-  brew doses. Seams: tob_maiden_entry_prayed_autos, tob_entry_solo_room_costs (content), then
-  tob_relay_wiki_kit (the joined relay under five names with the wiki's 6-brew kit; tob_entry
-  is authored when 4 of 5 survive). Sourced fixes are expected to move rooms: re-author them.
+- Seam16 LANDED (parent 2be1a3db5, ledger 0af2cc300, content a098da317e): Maiden's blackstorm
+  always lands and is halved by prayer (sourced; my triage's premise was wrong, no change), Bloat's
+  stomp needs line of sight and a hand tile rolled twice lands once, Verzik's P3 attacks roll
+  accuracy from the cache record. Relay with the wiki's kit: 0 of 5 names survive (three die in
+  Xarpus P2 to 51-63 acid splats, one at Vasilias, one in the Nylocas waves); tob_entry NOT
+  authored. Rooms to re-author after seam18: tob_maiden (two new spec rows to measure), tob_bloat
+  (hand_tiles row now 14-16 range), tob_verzik (256/14, dies in P3 without food); kept and green:
+  tob_xarpus, tob_sotetseg, tob_nylocas. Their author/review state is moved aside as
+  `*.launch13_seam16.*.bak`.
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam18` (triage `SEAM_TRIAGE_2026-10-04f.md`): the
+  Saradomin brew DRAINS Defence 10%+2 where the wiki says it RAISES it 20%+2 of base (owner
+  confirmed the fix 2026-10-04; every brew-drinking fight moves, quests that go red are listed,
+  never reverted), then the relay's recipe faults (Maiden crabs by ranged, Nylocas aggros and
+  supports, Vasilias' Magic level, Xarpus 2-tile steps and the exhumeds) re-measured under the
+  same five names. Then ONE room launch (14) re-authors every room that moved.
 - RUNNING IN PARALLEL (owner, 2026-10-04, overriding one-pass-at-a-time for this one pass):
   seam pass `matthew-mbp-m4-raid-b1-seam17` (triage `SEAM_TRIAGE_2026-10-04e.md`, three driven
   clients in one raid; engine + driver, no content) in ITS OWN WORKTREE
