@@ -128,13 +128,15 @@ phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
 YOUR JOB: read this pass's persisted state, no edits other than mkdir -p ${STATE}, no summarising. corpus_parts_done = each of wiki, blert, code, guides for which ${STATE}/corpus.<part>.json exists and parses; corpus_done = ${STATE}/corpus.json exists and parses; corpus_closed = ${STATE}/corpus.close.json exists and says landed; done = the content of every ${STATE}/<unit>.spec.json that parses, copied verbatim; closed = ${STATE}/close.json exists and says landed; close_commit = the sha it names, else "". Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { corpus_parts_done: [], corpus_done: false, corpus_closed: false, done: [], closed: false, close_commit: '' }
+// args.skip_corpus: a later batch of units under a new pass name, with the corpus already landed.
+const corpusDone = state.corpus_done || !!(args && args.skip_corpus)
 const doneUnits = new Set(state.done.map(d => d.unit))
 const todo = encounters.filter(u => !doneUnits.has(u))
-const partsTodo = state.corpus_done ? [] : PARTS.filter(p => !state.corpus_parts_done.includes(p.key))
-log(`state: corpus ${state.corpus_done ? 'done' : `${partsTodo.length} part(s) to do: ${partsTodo.map(p => p.key).join(', ')}`}, corpus ${state.corpus_closed ? 'landed' : 'not landed'}; ${state.done.length} spec(s) done, ${todo.length} to do: ${todo.join(', ') || 'none'}`)
+const partsTodo = corpusDone ? [] : PARTS.filter(p => !state.corpus_parts_done.includes(p.key))
+log(`state: corpus ${corpusDone ? 'done' : `${partsTodo.length} part(s) to do: ${partsTodo.map(p => p.key).join(', ')}`}, corpus ${state.corpus_closed ? 'landed' : 'not landed'}; ${state.done.length} spec(s) done, ${todo.length} to do: ${todo.join(', ') || 'none'}`)
 
 phase('Corpus')
-let corpus = state.corpus_done ? { game, parts: state.corpus_parts_done, sources_md: `${GAME.docs}/SOURCES.md`, unavailable: [], unit_cut: [], notes: 'done by an earlier launch' } : null
+let corpus = corpusDone ? { game, parts: state.corpus_parts_done, sources_md: `${GAME.docs}/SOURCES.md`, unavailable: [], unit_cut: [], notes: 'done by an earlier launch' } : null
 if (!corpus) {
   const parts = await runAll(partsTodo.map(p => () => attempt(`corpus:${p.key}`, 2, () => agent(`${COMMON}
 
