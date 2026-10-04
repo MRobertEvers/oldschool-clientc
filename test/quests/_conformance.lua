@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 99
+-- @seam-count 100
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 146
-local SEAM_COUNT = 99
+local SEAM_COUNT = 100
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -8991,6 +8991,59 @@ return {
                     .. describe(detail) .. ", not the setup-only refusal"
             end
             return "ok", "::bankgive after quest.bind -> refused: " .. describe(detail)
+        end)
+
+        -- AN NPC THAT DRAWS NO FACE IS STILL PRESSED (matthew-mbp-m4-b58-seam1
+        -- npc_press_answers_covered_in_a_cramped_room).  Biohazard's Chancy
+        -- and Da Vinci in the Dancing Donkey Inn (gambler2 1106 at 3271,3388,
+        -- artist2 1104 at 3272,3389; m51_52.spawn:12-13) are drawn with cache
+        -- model 25362 alone: four vertices, a 128x128 quad 209 units up, both
+        -- faces alpha 255, which ModelData.light hides (toridraw_lighting.c
+        -- alpha -1 -> type 2 -> HIDDEN; public dump Joshua-F/osrs-dumps
+        -- config/dump.npc says model1=model_25362 too).  The reference picks
+        -- every npc by its projected box (Model.useAABBMouseCheck, NpcType:227),
+        -- hidden vertices included, so the game's own client can right-click
+        -- them; this client picked entities per-face and skips hidden faces,
+        -- so every press answered `covered` ("none of 99 pixels hittested ...
+        -- holds it", build/quest_gate/cr_probe1 rows 7-8) and biohazard.lua
+        -- fell back to t.drive.op for both.  Graded on a REAL press of each:
+        -- talk_to ok with no bypass note, and the npc's own [opnpc1] answering
+        -- (errand_boys.rs2:206 "Chancy doesn't feel like talking.", :303 "...
+        -- does not feel sufficiently moved to talk." at stage 0).  The goto is
+        -- the row's starting point inside the inn (the tile biohazard.lua walks
+        -- to), not a crossing.
+        seam("seam.npc_drawing_no_face_is_pressed", function()
+            local goto_tile = verb("player", "goto_tile")
+            local talk_to = verb("player", "talk_to")
+            local walk_to = verb("player", "walk_to")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not talk_to then return missing("player", "talk_to") end
+            if not walk_to then return missing("player", "walk_to") end
+            local goto_result, goto_detail = goto_tile(3270, 3388, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto the Dancing Donkey Inn 3270,3388 -> " .. describe(goto_result)
+                    .. " " .. describe(goto_detail)
+            end
+            settle(2)
+            local g_result, g_detail = talk_to("gambler2", 1)
+            local text = "gambler2 -> " .. describe(g_result) .. " " .. describe(g_detail)
+            if g_result ~= "ok" then
+                return g_result, text
+            end
+            walk_to(3273, 3389, 10)
+            local a_result, a_detail = talk_to("artist2", 1, { at = { 3272, 3389 } })
+            text = text .. "; artist2 at 3272,3389 -> " .. describe(a_result) .. " " .. describe(a_detail)
+            if a_result ~= "ok" then
+                return a_result, text
+            end
+            if string.find(text, "drive.op", 1, true) ~= nil then
+                return "hollow", text .. " -- a press went through the logged bypass"
+            end
+            if string.find(tostring(g_detail), "Chancy", 1, true) == nil
+                or string.find(tostring(a_detail), "Da Vinci", 1, true) == nil then
+                return "hollow", text .. " -- ok, but the npc's own [opnpc1] line never came back"
+            end
+            return "ok", text
         end)
 
         step("finish", function()

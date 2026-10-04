@@ -17,6 +17,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include "log/torirs_log.h"
+#include "toridraw.h"
+#include "toridraw_element_id.h"
+
+/* See the pick_aabb assignment in the element draw below. */
+static bool
+frame_entity_draws_no_face(
+    int element_id,
+    struct ToriDraw_ModelHandle model)
+{
+    enum ToriDraw_ElementKind const kind = ElementId_Kind(ElementId_FromRaw(element_id));
+    if( kind != TORIDRAW_ELEMENT_KIND_NPC && kind != TORIDRAW_ELEMENT_KIND_PLAYER &&
+        kind != TORIDRAW_ELEMENT_KIND_OBJSTACK )
+        return false;
+    return !ToriDraw_ModelHasVisibleFace(model);
+}
 
 static void
 frame_queue(
@@ -2608,7 +2623,20 @@ try_emit_world_draw_model(
          * purpose. */
         out->u.model.anim_index = 0;
         out->u.model.pickable = !flat;
-        out->u.model.pick_aabb = el->pick_aabb;
+        /* AN ENTITY THAT DRAWS NO FACE PICKS BY ITS BOX.  Entities pick
+         * per-face here (app_world_scene_element_create: the reference's
+         * box, Model.useAABBMouseCheck on NpcType:227 / ClientPlayer /
+         * ObjType, swallowed TzKal-Zuk's arena), and the per-face walk skips
+         * hidden faces -- so an npc whose model is ALL hidden faces could
+         * never be pressed, where the reference's box (built over every
+         * projected vertex, hidden ones included) picks it.  Biohazard's
+         * Chancy and Da Vinci in the Dancing Donkey Inn (gambler2 1106,
+         * artist2 1104) are drawn with model 25362 alone: a 128x128 quad at
+         * head height whose two faces carry alpha 255, which ModelData.light
+         * hides.  Only that case changes: a model with one visible face keeps
+         * the per-face rule, and locs never take this arm. */
+        out->u.model.pick_aabb = el->pick_aabb ||
+            (!flat && frame_entity_draws_no_face(element_id, el->model));
         /* Which view this draw belongs to, off the descent stack: a deck
          * tile's pick coords are the DECK's own tiles, and the click layer
          * resolves them against that view's staging base (deob: each scene

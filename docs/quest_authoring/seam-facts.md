@@ -1773,3 +1773,97 @@ Forgettable Tale...!.
 (f) **The grader missed a goto past a house door the guide does not name** -- FIXED for gotos INTO a
 walled room (coverage-and-gate: `enclosure_entries`; start-and-travel: "The grader now catches the
 goto inside").
+
+## Seam pass matthew-mbp-m4-b58-seam1 (2026-10-04, batch matthew-mbp-m4-b58)
+
+Content in OSRS-Content 6369379ada; client pick and `ladder.py` in the parent commit tagged
+`[seam:matthew-mbp-m4-b58-seam1]`. b58 re-drove eight tier 1 tests with no goto into or out of a
+closed space, and these are the gaps that walking them for real exposed.
+
+(a) **The Wilderness Ditch's Cross said "Nothing interesting happens."** -- FIXED,
+`area_wilderness/scripts/wilderness_ditch.rs2`. Every placed copy is a 1x2 segment. At angle 0/2
+(the border at z 3521-3522) the jump is z-1 <-> z+2, from 3523 to 3520 and back. At angle 1/3 (the
+north-south stretch at 2996-2997,3530-3533) it is x 2998 <-> 2995. The east end (x 3328-3340) is
+`ditch_wilderness_cover_members`, which crosses the same way. Drive it as
+`click_loc("ditch_wilderness_cover", 1, {at={x,3521}})`. The jump is an exactmove held 2 ticks, so
+call `t.ticks(4)` and then read the tile. The first jump north in a session (wilderness level > 0,
+`%varp5753_wilderness` unset) opens the strip's three mesbox pages first. Play them with
+`chat.play{"mesbox:WARNING! Proceed with caution", "mesbox:The further north you go",
+"mesbox:In the wilderness an indicator"}`. The pages are the pack's LostCity strip warning, not
+OSRS's `wilderness_warningscreen` interface, which nothing wires yet. A goto across the border is no
+longer justified by "the ditch cannot be crossed".
+
+(b) **Phoenix Gang weapon store: locked from inside, open from the street without the key** --
+FIXED. LostCity puts `phoenixdoor2` on the store tile (`m50_52.jm2:6944` `0 51 57: 2398 0 1`).
+The rev-239 cache encodes the same wall edge from the street tile (`m50_52.jl2:570`
+`0 51 58: 2398 0 3`), so LostCity's `~check_axis` "leaving" test was inverted here.
+`[label,unlock_weaponstore_door]` now decides inside from the store's row. Trap for any LostCity
+door script that reads `~check_axis` as inside/outside: compare the loc row in
+`LostCity_Content2/maps/*.jm2` with ours in `maps/*.jl2` before blaming the proc.
+
+(c) **Ernest the Chicken's maze gates answered "I can't reach that!" from their walled side** --
+FIXED. The cache rebuilt LostCity's nine shape-0 wall doors as shape-10 gates on a blocked tile, with
+a `blankwall_no_blockrange` (loc 44603, blockrange=0) on the 2004 door's edge. That wall blocks
+walking but not range, so no op can reach the gate from its side. Each gate now also answers
+`[aploc1]` (`[label,ernest_approach_maze_door]`, `p_aprange(1)`), the same pattern as seam27's
+`mdaughter_polerocks`. Press a gate from the tile in line with it on its own axis. You land two tiles
+across, on the mirror tile. A press from beside the gate in its own wall line does nothing. 26 map
+squares carry loc 44603, so another door there may need the same treatment. The maze is walkable
+end to end, which supersedes gaps-world's "The `goto_tile` bypass covers a puzzle-gated door".
+
+(d) **Eadgar's Ruse storeroom door unlocked but still blocked both ways** -- FIXED. A content door
+whose script `loc_change`s in place to an op-less, blocking `*_open` leaf blocks its own edge.
+LostCity's `~open_and_close_door2` instead walks the player through and adds the leaf one tile over,
+rotated, for 3 ticks. This pack has no shared copy of that proc, so port it as a quest-local proc
+(`viking_door_pass`, `eadgar_storeroomdoor_pass`). The door now follows LostCity
+`quest_eadgar.rs2:488-506`: the drawer key unlocks it once at `got_burnt_meat` and is used up
+("You unlock the door."). After that it opens with no key.
+
+(e) **Between a Rock: the ferry cave landed in sealed rock; the outer flames said "Nothing
+interesting happens."** -- FIXED. `dwarf_cavewall_tunnel` (troll room 2781,10161) lands on the ferry
+bank at 2838,10124. The bank's `dwarf_cave_entrance` (2838,10123) goes back to 2778,10161
+(shortest-path `transports.tsv:4330-4331`). That file is the source for any cave transition the
+maplink importer skipped because a quest trigger already claimed the loc. The realm's outer walls of
+flame (`dwarf_firewall_straight`/`_diagonal`, 10 copies) take op1 Jump-through to the far tile with
+no damage, since none is sourced: `click_loc("dwarf_firewall_straight", 1, {at={2372,4939}})` from
+2372,4938. The centre ring answers op2 Talk-to as well as op1. After the ferryman lands you at
+2823,10165, the scene rebuilds and Dondakan is missing from the client pool for 2-3 ticks, so call
+`t.npc.await_present("dwarfrock_dondakan", 15, 10)` before each talk or use on him (the INDEX line
+for seam b54-seam2 (b) applies). OPEN: `trollromance_stronghold_exit_tunnel` still lands on
+2781,10160, a rock tile beside the cave. LostCity and maplink give 2773,10162, and
+betweenarock's `enterDwarfCave` row pins the old tile.
+
+(f) **Keldagrim had no way out** -- FIXED, `area_keldagrim/scripts/keldagrim_travel.rs2`:
+- The city boatman `dwarf_city_boatman_city` lands at 2838,10127, beside `dwarf_cave_entrance`. On
+  op1 Talk-to, answer "Want me to take you back to the mines?" with "Yes, please take me."; op3
+  Travel goes straight there.
+- The mines boatman (`dwarf_city_boatman_mines` after The Giant Dwarf starts) lands at 2892,10225 on
+  the Keldagrim dock. Talk-to: "Hello again, <name>! Want to go back to Keldagrim?". He has op3
+  Travel too.
+- From the city boatman to the surface: `dwarf_cave_entrance` -> 2778,10161, then
+  `trollromance_piste_exit_tunnel_bottom` (2771,10161) -> 2730,3713 east of Rellekka.
+- The Dorgesh-Kaan platform's `slice_underground_wall_exit_dwarf` goes back to 2941,10179. There is
+  no train ride yet.
+- Conductors 1/2/3/5 sell Ice Mountain (150) and White Wolf Mountain (100, after Fishing Contest)
+  tickets. The track 3 cart (2923,10171) rides free to the Grand Exchange, 3141,3504. The track 1
+  cart (2923,10175) takes the Ice Mountain ticket to 2995,9835.
+
+Wait about 4 ticks after a landing before `talk_to`. `walk_to` answers `refused move_to` when the
+target is outside the scene the last landing built, so walk to a tile inside it first.
+
+(g) **`KeyError: '(goto past <door>)'` from `ladder.py` / `fail.py --leg`** -- FIXED (relay: "The
+ladder"). `build()` leaves helper_coverage's goto charges out of the numbered table, and
+`ladder_pseudo_step_test.py` holds it. 39 of 189 ladders crashed before the fix.
+
+(h) **`covered ... none of N pixels hittested` on an npc the shot shows nobody at** -- FIXED in the
+client. Biohazard's Chancy and Da Vinci (`gambler2`, `artist2`) are cache model 25362: a quad whose
+two faces are alpha 255, which lighting hides. The per-face pick skipped every face. An
+NPC/PLAYER/OBJSTACK whose model has no visible face now picks by its box, as the reference's
+`useAABBMouseCheck` does (`ToriDraw_ModelHasVisibleFace`, `torirs_frame.c`). Locs keep the per-face
+rule. Conformance row `seam.npc_drawing_no_face_is_pressed` covers it. biohazard's two `t.drive.op`
+fallbacks are no longer needed.
+
+(i) **Proving pre-fix content behaviour without mutating the shared tree**: build a symlink farm
+that mirrors `osrs239-content` with the one file replaced by its HEAD copy, compile it with
+`src/build_opt/sscompile --src <farm>/server/scripts --out <farm>/server/scripts/build`, and run with
+`TORIRSSERVER_SCRIPTS=<that build dir>` (the phoenixdoor2 and Keldagrim baselines).

@@ -1927,6 +1927,34 @@ ToriDraw_ProjectedModelMouseHitTest(
 }
 
 bool
+ToriDraw_ModelHasVisibleFace(struct ToriDraw_ModelHandle hnd)
+{
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
+    case TORIDRAWMK_MODEL_SHARED:
+    case TORIDRAWMK_MODEL_LENT_FACES:
+    {
+        struct ToriDraw_Model* m = model_as_full(hnd);
+        /* No lit colours yet: nothing has been hidden, so every face counts. */
+        if( !m->face_colors_c )
+            return m->face_count > 0;
+        for( int i = 0; i < m->face_count; i++ )
+        {
+            if( m->face_colors_c[i] != TORIDRAWHSL16_HIDDEN )
+                return true;
+        }
+        return false;
+    }
+    default:
+        /* A kind the per-face walk cannot read picks nothing per-face either;
+         * say "visible" so the caller keeps whatever rule it already had. */
+        return true;
+    }
+}
+
+bool
 ToriDraw_ProjectedTileMouseHitTest(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
