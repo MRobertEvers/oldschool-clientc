@@ -2169,3 +2169,107 @@ up healed. Only the titan and `alomone_hazeel_cultist` pass `npc_uid` to a queue
 
 (f) Driver: `cross_gate` takes `chat=` / `chat_optional=` for a guarded walk-through, and the four
 crossing verbs take `loc_level=` for a loc on a bridge deck; see verbs-pointer.
+
+## Seam pass matthew-mbp-m4-b62-seam1 (2026-10-05, batch matthew-mbp-m4-b62)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b62-seam1]`; the driver, grader,
+workflow and conformance changes in the parent commit with the same tag. Every run used
+`build/orchestrator/worktrees/b61-engine/src/torirs_b61engine` (no engine change this pass).
+
+(a) **The Karamja glider crash pages abort on `npc_coord with no active npc`** -- FIXED,
+`area_gnome/scripts/gnome_glider.rs2`. After "Take me to Karamja please!" the script
+`p_teleport`s the player to the wreck (2917,3058) and keeps talking as the op's npc, the pilot on
+top of the Grand Tree about 450 tiles away. This engine retires a static spawn beyond
+`TORIRSSERVER_STATIC_SPAWN_OUT` (224) of every player (`torirs_server_world.c`
+`world_static_npcs_sync`), so the first `~chatnpc_anim` aborted (`chat.rs2:273`). LostCity's
+engine keeps every npc live and needs nothing. The port now binds the wreck's pilot with
+`npc_find(coord, pilot_grand_tree, 5, 0)` (m45_47.spawn 2918,3057) and `error()`s if it is absent,
+and the crash-site test is LostCity's box `inzone(0_45_47_35_42, 0_45_47_45_53, npc_coord)`
+(LostCity `gnome_glider.rs2 [opnpc1,gnomepilot]`), not a square round `^gandius`, which matched the
+Karamja glider station's pilot instead. The rule for any port script: one that teleports the player
+more than 224 tiles and goes on talking must rebind the destination's npc first. Proof: scratch
+`seam1_glider_after` 9/9, crash pages "Sorry about that." .. "Take care little man."; grandtree copy
+184/184. OPEN (owner, design): should the engine keep a static spawn that a suspended script holds?
+Not changed.
+
+(b) **The Keldagrim Consortium's wide stairs land in a pocket sealed by crates** -- FIXED,
+`quest_giantdwarf/scripts/gdwarf_consortium.rs2`. Every press of
+`dwarf_keldagrim_wide_stairs_upper` used to `p_teleport` to 2895,10210,0, inside the east stairs'
+own footprint and boxed by crates, so a walk off it timed out; both tests detoured by Varrock
+Teleport and the GE trapdoor. The two name bindings now call `~climb(1)` / `~climb(-1)`, which asks
+`maplink.dbrow` for the copy pressed (the rows the binding used to shadow; docs/MAPLINKS.md), so
+the player lands beside that staircase. Up: 2863,10209 -> 2862,10209,1; 2863,10188 -> 2862,10188,1;
+2894,10209 -> 2896,10209,1; 2894,10188 -> 2896,10188,1; 2930,10180 -> 2930,10179,1. Down lands on the
+far side: 2865,10209 / 2865,10188 / 2893,10209 / 2893,10188 / 2930,10182, level 0. All four
+Consortium landings are one floor with the Blue Opal secretary (2869,10205) and director
+(2867,10203); the west pair is 7 tiles from both. The stage gate, the two `mes` lines and both stage
+writes are unchanged. Proof: probes `kel_wsp_s1a` 35/0 and `kel_wsp_s1b` 12/0; copies with the
+detour removed, forgettabletale 307/0 and giantdwarf 379/0. OPEN: the gate and the market `mes`
+lines also fire on the 2930,10180 pair, a separate building; no source says whether they should.
+
+(c) **A quest's name binding on a shared staircase sent Veldaban's HQ stair into the Laughing
+Miner** -- FIXED, `quest_forgettabletale/scripts/forget_brewing.rs2`. `[oploc1,dwarf_keldagrim_stairs_lower/upper]`
+were unguarded, and a name binding beats the locs' `category=climb_up/climb_down`, so every copy
+(ten lower ones, Veldaban's HQ at 2828,10215 among them) teleported into the pub. Each binding now
+guards on the pub copy's `loc_coord` (2915,10196, levels 0 and 1) and every other copy falls
+through to `~climb(1)` / `~climb(-1)` (the `warriorsguild_doors.rs2 [oploc1,spiralstairs]` and
+`zogre_finish.rs2 [oploc1,ladder]` shape). The rule: a quest file that binds a shared stair or
+ladder by name guards on `loc_coord` and falls through to the category's `~climb`. Proof:
+`lmstair_before` hqStairUp landed 2916,10193,1 with the pub line; `lmstair_after` 10/10, the HQ
+stair lands on its maplink dest 2828,10214,1 and the pub stair still lands 2916,10193,1.
+
+(d) **Brutus's specials: a stationary attacker dodged, and no sidestep could** -- FIXED,
+`quest_idesofmilk/scripts/idesofmilk_locs.rs2`. Both specials were measured from `npc_coord`,
+which for a size-N npc (and the driver's npc row x,z) is its SOUTH-WEST tile, so a player beside
+his east side at z+2 stood outside the charge lane. Both zones are now measured from the 3x3
+footprint (`[proc,cowboss_side]`, `nc_size(npc_type)`), the charge lane is the footprint swept 0..4
+tiles (wiki Brutus Strategy table: "Dash forward 4 Tiles"), and the special resolves after 3 ticks
+instead of 1. Two general facts came with it: measure a big npc's zones with `nc_size`, never from
+`npc_coord` alone; and a telegraphed special queued with `queue*(x, 1)` can never be dodged,
+because the player phase runs queues before movement (`torirs_server_world.c` `phase_player`),
+so use the telegraph sequence's own length (`configs/all.seq` frame cycles / 30; both Brutus
+telegraphs are 90 cycles = 3 ticks). Proof: `brutus_after2_b62` 15/15 stationary specials hit,
+sidesteps dodged 4/4; idesofmilk copy 92/0 with `killBrutus.margin` below full hp.
+
+(e) **The Crandor ropes are not missing** -- comment fix only, `quest_dragon/scripts/crandor.rs2`.
+The header said LostCity's `crandor_rock_opening` / `crandor_climbing_rope` / `elvarg_gate_*`
+were absent and "deferred". They are LostCity NAMES the cache does not carry; the OSRS locs exist:
+`dragon_slayer_qip_ruin_entrance` (the Hole, a maplink), `dragon_slayer_qip_climbing_rope`
+(2833,9657, `category=climb_unqualified` -> `~climb(1)` -> maplink rows -> 2834,3258,0) and
+`dragon_slayer_qip_stalagtite_jump`. The walk out of Elvarg's lair: the secret wall from 2836,9600
+to 2836,9599, then `walk_route` 2834,9593 / 2834,9585 / 2842,9585 / 2847,9582 / 2851,9578 / 2855,9574
+/ 2855,9569, then `climbing_rope2` (volcano.rs2) -> 2856,3166,0 on the volcano rim, "You climb up the
+hanging rope..." / "You appear on the volcano rim.". A rope or hole between a cave (z >= 6400) and
+the surface keeps level 0: grade it with `t.player.climb` (verbs-pointer: A climb that changes no
+level). Before you call a loc missing because a LostCity handler name is absent, look up the OSRS
+loc's `maplink.dbrow` rows and its `ladders.loc`/`maplinks.loc` category. Proof: scratch
+`b62s1_crandor_ropes` 12/0.
+
+(f) **"I can't reach that!" right after a teleport out of a fight is Auto Retaliate** -- not a
+bug (LostCity-faithful). An attacker's hit inside the teleport's `p_delay` queues
+`[queue,playerhit_n_retaliate]` (skill_combat/combat.rs2); it runs after the landing and
+`p_opnpc(2)`s the npc left behind, whose route fails. Seen in crest's
+`returnCrest.varrockTeleport.cast` after a respawned Chronozon (respawnrate 30, aggressive) reached
+the player during a 140-tick kill wait. Repro `crest_reach_repro1`: the line in 6 of 8 attempts,
+exactly the six with a hit between the press and the landing; with `::setvar varp172_option_nodef 1`
+(Auto Retaliate off) 0 of 8. The row still PASSes. A test that must not see it teleports before the
+respawn. OPEN (owner, design): should a landing drop a retaliate queue whose attacker is out of
+reach? No source says so; not changed.
+
+(g) **Zogre Flesh Eaters' tomb doors teleport to the boss floor from either side** -- FIXED,
+`quest_zogreflesheaters/scripts/zogre_finish.rs2` `[proc,zfe_tomb_door]`. Each press used to
+`p_teleport` to 2480,9446,0 on the boss floor, so the stairs were skipped and a player on the boss
+floor had no walk out (the test left by Camelot Teleport). Each press now walks the player through
+the leaf pressed to its far side (the `door_walkthrough_try` shape, `~check_axis_locactive` +
+`~door_open`). The gate is 2009scape's (`ZogreFleshEatersListeners.kt:51-73`, from both sides):
+stage >= 9 passes silently, the Ogre Tomb Key passes with "You use the Ogre Tomb Key to unlock the
+door.", no key gives "The door is locked.". Route (wiki Zogre_Flesh_Eaters oldid 15328252): the
+outer pair 2441-2442,9433,2, the inner pair 2440-2441,9426,2, then `ogre_stairs_down` 2443,9417,2 ->
+2442,9417,0; out the same way. `^zfe_tomb_past_door` is deleted. Proof: `zfe_doors_after` 19/19;
+copy 178/0, helper_coverage FULL.
+
+(h) Driver, grader and tools: `t.player.climb` grades a same-level landing in another map frame
+(verbs-pointer: A climb that changes no level); `t.player.walk_to` answers a detail on success
+(traps-01-12, verbs-pointer); `helper_coverage.py` no longer credits an NpcStep to a row only
+named after the npc (coverage-and-gate); `run.py` takes one quest id per call and honours
+`TORIRS_QUEST_NO_PUBLISH` (running).

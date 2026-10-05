@@ -222,7 +222,7 @@ banners: the topic file named in each group heading.
 
 - `t.player.goto_tile(x, z, level=0)` -> `(ok, "x,z,level") timeout no_row`; the `::goto` travel cheat, re-issues up to 3 times.
 - `t.player.teleport(name)` -> a named destination in `tele_destinations.rs2`.
-- `t.player.walk_to(x, z, ticks)` (hollow on success) / `walk_near(target, ticks)` / `idle()`.
+- `t.player.walk_to(x, z, ticks)` -> `(ok, "walk_to x,z: reached x,z,level from a,b in N tick(s)") timeout refused`, through `t.exec` (b62-seam1) / `walk_near(target, ticks)` / `idle()`.
 - `t.player.talk_to(npc, op=1, opts)` -> waits up to 5 ticks for its page; `opts` `{slot=n}` / `{at={x,z}}`.
 - `t.player.press(npc, op=1, ticks, opts)` -> a silent npc op settled on the npc MOVING; four outcomes.
 - `t.player.click_loc(loc_symbol_string, op=1, opts)` -> walks other approach tiles on `I can't reach that!`; `opts.at` names a copy.
@@ -234,7 +234,7 @@ banners: the topic file named in each group heading.
 - `t.player.cross_trap{loc=, at=, src=, dest=[, attempts=4, vitals=, loc_level=]}` -> a trap/obstacle by its own op, ON src before and ON dest after; re-pressed on a slipped roll.
 - `t.player.walk_route({{x,z},...}[, opts])` -> hops of <=10 tiles (a longer one raises), graded on the exact end tile.
 - `t.player.teleport_cast(spell, {x,z,level}, {name=, runes=})` -> writes `<name>.cast/.runes/.landed` itself; call directly, never through t.exec.
-- `t.player.climb{loc=, at={x,z,level}, dest={x,z,level}[, src=, slack=, landed_ok=, landed_desc=, loc_level=]}` -> one stair, ladder or trapdoor, graded on the new level and the landing, never the press.
+- `t.player.climb{loc=, at={x,z,level}, dest={x,z,level}[, src=, slack=, landed_ok=, landed_desc=, loc_level=, same_level=]}` -> one stair, ladder or trapdoor, graded on the new level and the landing, never the press; a same-level landing in another map frame (z // 6400), or one named `same_level="<row>"`, is a climb too.
 - `t.player.cancel_selection(why)` -> `(ok, detail, was_armed)`; drops a spell or Use left armed (`covered ... menu rows: <Cancel>`). The driver calls it after a cast fight and a missed cast press.
 - `t.drive.screen_position(target)`, `t.drive.click_minimenu(target, option)`, `t.drive.camera(yaw, pitch, zoom)`.
 - `t.drive.op(target, option)` -> the logged bypass, never the default and never evidence of reach.

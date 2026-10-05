@@ -84,6 +84,8 @@ topic file with one line added here.
 - `cross_gate` fails under a guard's page ("Nice observation guard"); "a page is up: ... pass spec.chat"; a door that speaks before it moves the player -> verbs-pointer: A GUARDED walk-through speaks first (`chat=`, `chat_optional=`)
 - `no_row ... nearest copies: x,z,1` from cross_trap/pass_door/cross_gate/climb on a bridge deck; loc_near `not_found` "one raw level up: a bridge-deck loc" -> verbs-pointer: A loc on another raw level: `loc_level` (b61-seam1)
 - "This door appears to be locked." from INSIDE the Khazard compound after the arena escape (FIXED b61-seam1: the inside opens at any stage) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (a)
+- `climb spec.dest is on the press's own level` for a manhole, cellar ladder or cave rope (the underground is level 0 at z+6400) -> verbs-pointer: A climb that changes no level (b62-seam1)
+- `walk_to` timed out from 2895,10210,0 under the Consortium wide stairs; a Varrock Teleport + GE trapdoor detour after every Consortium descent (FIXED b62-seam1: the stairs land by maplink) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (b)
 
 
 ## Pressing and clicking
@@ -288,6 +290,8 @@ topic file with one line added here.
 - an `[ai_queue3]` that queues a player script with `npc_uid` never runs its message (the Black Knight Titan's "Well done!"); the npc is gone or respawned under a new slot (FIXED b61-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (e)
 - a quest npc dies in two hits / fights at 10 hp, or lost its attack/death anims after a quest .npc block was added (first `[gameval]` block wins) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
 - `await_dead_engaged` times out at a few hp left after a seam raised the npc's hitpoints -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
+- a stationary attacker reads `You dodge out of the way of Brutus's charge.`; a sidestep never dodges a telegraphed special (FIXED b62-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (d); gaps-combat: A margin row reads full hp
+- "I can't reach that!" right after a teleport out of a fight (crest's Varrock Teleport after Chronozon respawned): Auto Retaliate, LostCity-faithful -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (f)
 
 
 ## Completion and rewards
@@ -361,6 +365,8 @@ topic file with one line added here.
 - a quest draws random branches (Wanted! pool stops) and only the drawn ones ran; `reach.py` dies on a missing `locs.pickle`; `locs_near.py` prints `''` for a multiloc wall -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (e), (f)
 - helper_coverage FULL though a goto leaves the room the setup cheat stood you in, lands in a building bigger than the enclosure flood (Arceuus Library), leaves an archive or the essence mine, or leaves a random draw's last stop (Wanted!! pos6) -> sampler-findings: Sample matthew-mbp-m4-b56, round 3
 - lint "... outside setup: a mid-run ::give" / "::bankgive is a SETUP cheat" / "`-- lint: kit-give` ..."; a note "mid-run ::give BASELINED"; a setup `::bankgive` of a guide-obtained item graded CHEAT like `::give` -> verbs-state-and-vars: lint: "outside setup: a mid-run ::give"
+- `ledger row N 'X' names <noun>, but its own action does not reach that npc`; a talk step credited by a pass_door named after the npc (b62-seam1) -> coverage-and-gate: "names <npc>, but its own action does not reach that npc"
+- a `walk_to` row FAILs `hollow -- ok with no detail` (FIXED b62-seam1: walk_to answers `walk_to x,z: reached x,z,level from a,b in N tick(s)`) -> traps-01-12: Trap 12; verbs-pointer: `t.player.walk_to`
 
 ## Harness and runs
 
@@ -388,6 +394,7 @@ topic file with one line added here.
 - proving a content line in a file outside your seam without touching the shared tree; `TORIRSSERVER_SCRIPTS=<private pack>` -> running.md: the private-pack paragraph at the end (matthew-mbp-m4-b49-seam1)
 - proving the PRE-fix content behaviour (a baseline) without reverting the shared tree: a symlink farm with the one file at HEAD, compiled privately -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)
 - a regression run rewrote `selftest/quests/<dir>/play`; `gate.py <id>` read another worker's ledger; proving content BEFORE a fix -> running: Regression runs inside a seam pass
+- `run.py: error: unrecognized arguments: druid` (one quest id per call); `TORIRS_QUEST_NO_PUBLISH` -> running: Regression runs inside a seam pass
 
 ## Sea and session
 
@@ -520,6 +527,10 @@ topic file with one line added here.
 - a quest trigger on a shared staircase kills it for everyone; a quest ladder with no maplink row (`~climb_ladder_to`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b), (f)
 - a weapon or armour carried through the Abyss Law rift; "The power of Saradomin prevents you ..." (b61-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (b)
 - `generate_quest_combat_manifest.py --check` says stale after a hand edit of quest_combat_manifest.json -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
+- the Karamja glider crash pages: `no dialogue is open`, `npc_coord with no active npc` after a long `p_teleport` (FIXED b62-seam1: rebind the destination's npc) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (a)
+- Veldaban's HQ stair (or any Keldagrim stair) lands in the Laughing Miner's brewery; a quest name binding on a shared staircase (FIXED b62-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (c)
+- Crandor's rope or Karamja exit called "deferred"/missing because a LostCity loc name is absent (the OSRS locs exist) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (e); gaps-world: Crandor
+- Zogre Flesh Eaters' tomb doors land on 2480,9446,0 from either side; no walk out after Slash Bash (FIXED b62-seam1: the doors walk through) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (g)
 
 
 ## Citations: resolving a number or a name
