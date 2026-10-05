@@ -4421,3 +4421,18 @@ ranged ones (1593: 10, 0, 9, 15, 10, 0, 0). The truly unprayed sample was 7, not
   is not a miss you can count; and a technique row that proves "prayed at landing" with four
   raw 0 hits cannot tell the prayer from a miss when the unprayed miss rate is about 3 in 7.
   Show a prayed sample whose largest hit is under the unprayed ones', or a halved nonzero hit.
+
+## The tick log has no prayer kind: prove "prayer off" by a hit over the prayed ceiling
+
+There is no prayer row in ticklog.tsv (kinds are player_tile, hit_player, projectile, npc_anim
+and the rest; no prayer or varbit kind), so a row that claims an attack was unprayed has only
+two witnesses: a `t.prayer.read()` readout in a drive row, and the damage. The readout can lie
+by construction: tob_verzik's P3 loop drops every lit protection prayer each tick until its first
+switch and then writes `pset3[pn] = false` into the table it just read, and drive.p3stateN prints
+that table, so a `t.prayer.set(pn, false)` that failed would still print `pm false pg false`.
+
+- Write the readout from a fresh `t.prayer.read()` after the set, never from the table you edited.
+- The damage is the witness a sampler trusts: Verzik P3 halves a prayed auto at the landing
+  (tob_verzik.rs2 `[queue,tob_verzik_p3_auto_land]`, `divide($hit, 2)`), so an Entry auto over 10
+  of the matching style proves that protection was off. The launch-14c tob_verzik sample had magic
+  13 and 20 and ranged 15 inside its unprayed window; name such hits in the row's detail.
