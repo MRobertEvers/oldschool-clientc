@@ -51,13 +51,14 @@
 --   * The key on Shiratti's table sits behind elid_temple_railing
 --     (blockrange=0): the cast is made from the shrine floor across the
 --     railing, never from inside the railed pocket.
---   * The cave root (desert_water_cave_root 3369-3371,3132) is BLOCKED: its
---     only approach tiles 3369-3370,3130-3131 are a 4-tile pocket the map
---     closes with river water (maps/m52_48.jm2 f1 at 41-43,57-58; comp.py
---     floods 4 tiles, no door, no op loc), so a rope from the bank answers
---     "I can't reach that!" from every approach. The run stops there with
---     t.blocked; the code below it is the honest route for when the content
---     is fixed (see the t.blocked text for the two content gaps).
+--   * The Water Ravine Dungeon on foot (OSRS-Content 43f4303f5f, seam
+--     b60-seam1): the rope is used on desert_water_cave_root from the EAST
+--     bank ([aplocu], range 3) and lands at 3349,9538; the exit
+--     (elid_underground_exit) lands on the bank 3372,3130. The robe door
+--     (robes WORN, key held), the three golem doors and the lake door open
+--     through ~door_open_active and are pressed with t.player.pass_door on
+--     every crossing, in and out. The crevice west of Nardah is left by the
+--     genie's door and the climbing rope, never a goto.
 
 return {
     id = "spiritsoftheelid",
@@ -366,38 +367,23 @@ return {
         t.exec("walk-enterCave", t.player.walk_route, { route_start, { 3381, 3123 }, { 3374, 3124 }, { 3372, 3129 } })
         local cave_root = t.player.by_symbol("loc", "desert_water_cave_root")
         local enterCave_result, enterCave_detail = t.player.use_on("rope", cave_root)
+        -- [aplocu,desert_water_cave_root] (OSRS-Content 43f4303f5f): the rope
+        -- is used from the east bank within 3 of the root and p_teleports to
+        -- ^elid_cave_entry_coord 0_52_149_21_2 = 3349,9538,0.
+        t.await({ level = function()
+            local r, tl = t.world.tile()
+            return r == "ok" and tl.z > 9000
+        end, note = "in the Water Ravine Dungeon (z > 9000)" }, 5)
         local cave_tr, cave_tile = t.world.tile()
-        local entered = cave_tr == "ok" and cave_tile.z > 9000
-        if not entered then
-            t.check("enterCave.unreachable", enterCave_result == "refused" and cave_tr == "ok"
-                and cave_tile.z < 9000 and tostring(enterCave_detail):find("can't reach", 1, true) ~= nil,
-                "use_on(rope,desert_water_cave_root) from the river bank -> " .. tostring(enterCave_result)
-                    .. " (" .. tostring(enterCave_detail) .. "); still on the surface at " .. tile_text(cave_tr, cave_tile))
-            t.blocked("content_bug: the Water Ravine Dungeon cannot be entered, crossed or left on foot -- "
-                .. "desert_water_cave_root is out of reach, and elid_underground_robe_door, elid_whitegolem_door, "
-                .. "elid_greygolem_door, elid_blackgolem_door and elid_underground_lake_door never open. "
-                .. "(1) desert_water_cave_root (3369-3371,3132, width 3, all.loc:57455) is approached only from "
-                .. "3369-3370,3130-3131, a 4-tile pocket the map closes with river water (OSRS-Content/osrs239-content/"
-                .. "maps/m52_48.jm2 f1 at 41-43,57-58; comp.py 3369 3131 floods 4 tiles, no door, no op loc); a rope "
-                .. "from the bank answers \"I can't reach that!\" from every approach tile (this row; probe "
-                .. "build/quest_gate/spiritsoftheelid_probe1 row 2), and ^elid_cave_exit_coord 0_52_48_42_59 "
-                .. "(quest_spiritsoftheelid.constant:142, used by elid_dungeon.rs2:32) lands the player back in that "
-                .. "pocket with no walk out (probe1 rows 24-26). (2) elid_dungeon.rs2:36 [oploc1,elid_underground_robe_door] "
-                .. "and :229 [oploc1,elid_underground_lake_door] shadow doors/scripts/doors.rs2:89 [oploc1,_door_closed] "
-                .. "~door_open_active (doors/configs/doors.loc:836-850 give both a door_closed category and an _open "
-                .. "stage) and never call it -- the robe door says 'step through' and moves nobody (probe1 rows 11-15: "
-                .. "the leaf stays on 3353,9544, a walk to 3353,9546 stalls) -- and the golem doors "
-                .. "(elid_dungeon.rs2:57/105/173) have no doors.loc stage at all. Needed: an approach the bank reaches "
-                .. "(an [aplocu] at range, or a walkable ledge) with an exit coord outside the pocket, and the five "
-                .. "dungeon doors opening through ~door_open_active after their checks.")
-            return
-        end
-        t.check("enterCave", enterCave_result == "ok" and entered, "use_on(rope,desert_water_cave_root) -> "
-            .. tostring(enterCave_result) .. " (" .. tostring(enterCave_detail) .. "); at " .. tile_text(cave_tr, cave_tile))
+        t.check("enterCave", enterCave_result == "ok" and cave_tr == "ok" and cave_tile.x == 3349
+            and cave_tile.z == 9538 and cave_tile.level == 0,
+            "use_on(rope,desert_water_cave_root) from the east bank -> " .. tostring(enterCave_result) .. " ("
+                .. tostring(enterCave_detail) .. "); at " .. tile_text(cave_tr, cave_tile)
+                .. " (^elid_cave_entry_coord 3349,9538,0)")
         t.exec("enterCave.msg", t.msg.expect, "climb down into the dungeon")
         t.exec("expect_stage.cave_entered", t.quest.expect_stage, "cave_entered")
 
-        -- ---- Below: the dungeon on foot, for when the content is fixed ----
+        -- ---- The dungeon on foot: every door pressed both ways ----
         -- Ancestral key on the robe door: [oploc1,elid_underground_robe_door]
         -- (numbered op1), robes worn + key held checked inline. The door
         -- (wall on the north edge of 3353,9544) is pressed on every crossing.
@@ -429,14 +415,16 @@ return {
         local function golem_room(g)
             t.exec("equip-" .. g.weapon, t.player.equip, g.weapon)
             hop("walk-" .. g.door_row, g.near[1], g.near[2], 40)
-            t.exec(g.door_row, t.player.pass_door, { closed = g.door, at = g.at, near = g.near, far = g.far })
+            t.exec(g.door_row, t.player.pass_door, { closed = g.door, open = "elid_underground_inactive_door", at = g.at,
+                near = g.near, far = g.far })
             t.exec(g.door_row .. ".msg", t.msg.expect, g.lumbers)
             t.exec(g.attack_row, t.player.attack, g.npc, 2, 20)
             local dr, dd = t.npc.await_dead_engaged(120, 8, EAT)
             t.check(g.dead_row, dr == "ok", tostring(dr) .. " " .. tostring(dd))
             margin_row(g.dead_row .. ".margin", g.fight, dd)
             g.channel()
-            t.exec(g.leave_row, t.player.pass_door, { closed = g.door, at = g.at, near = g.far, far = g.near })
+            t.exec(g.leave_row, t.player.pass_door, { closed = g.door, open = "elid_underground_inactive_door", at = g.at,
+                near = g.far, far = g.near })
         end
 
         golem_room({
@@ -513,7 +501,13 @@ return {
         t.exec("unequipRobeTop.out", t.player.unequip, "elid_robetop")
         t.exec("unequipRobeBottom.out", t.player.unequip, "elid_robebottoms")
         t.exec("leaveCave", t.player.click_loc, "elid_underground_exit", 1)
-        t.exec("leaveCave.msg", t.msg.await, "climb back up out of the dungeon", 5)
+        -- The message lands inside the click's settle; the exit p_teleports to
+        -- ^elid_cave_exit_coord 0_52_48_44_58 = 3372,3130,0 on the east bank.
+        t.exec("leaveCave.msg", t.msg.expect, "climb back up out of the dungeon")
+        t.exec("leaveCave.landed", t.await, { level = function()
+            local r, tl = t.world.tile()
+            return r == "ok" and tl.x == 3372 and tl.z == 3130 and tl.level == 0
+        end, note = "landed on the east bank 3372,3130,0 (^elid_cave_exit_coord)" }, 5)
         hop("walk-leaveCave.bank", 3372, 3129, 15)
 
         -- ==================================================== The Genie ==
@@ -555,6 +549,11 @@ return {
         t.exec("goto-enterCrevice", t.player.goto_tile, 3372, 2905, 0)
         t.exec("enterCrevice", t.player.click_loc, "elid_crevice_clickzone", 1)
         t.exec("enterCrevice.msg", t.msg.expect, "climb down into the crevice")
+        t.exec("enterCrevice.landed", t.await, { level = function()
+            local r, tl = t.world.tile()
+            return r == "ok" and tl.x == 3370 and tl.z == 9320 and tl.level == 0
+        end, note = "in the genie's cave at 3370,9320,0 (^elid_crevice_arrival_coord 0_52_145_42_40)" }, 10)
+        t.exec("enterCrevice.genie", t.npc.await_present, "elid_genie", 15, 10)
 
         -- Genie, first deal: agree to trade the sole for the statuette. The
         -- climb lands in the genie's room (^elid_crevice_arrival_coord 3370,9320).
