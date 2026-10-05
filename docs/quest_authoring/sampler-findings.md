@@ -846,3 +846,25 @@ selected spell. Its detail is the real content line `You still need one more pie
 so the row checks something the press caused. The Jolly Boar stair is a `click_loc` press graded
 on its landing. Fenkenstrain's toll reads `ectotoken 2 -> 0`, and the shot shows "You pay the toll"
 before "You cast a silver lightning conductor" at the Port Phasmatys furnace.
+
+## Sample matthew-mbp-m4-b60, round 2 (2026-10-05)
+
+Spirits of the Elid, Mountain Daughter and One Small Favour all passed, and none went back. The
+sampler opened all 1,058 shots on 265 labelled 2x2 contact sheets. It re-ran every goto through
+goto_table.py with the doors closed. All 96 read REACH, including Mountain Daughter's 614-tile
+walk over White Wolf Mountain both ways.
+
+(a) EVERY CROSSING IS A PRESS. The rockslide uses cross_trap on all seven camp trips. The Elid
+dungeon's five doors use pass_door both ways, with the robes worn back out. One Small Favour climbs
+to the Seers' roof by its ladder and comes down by its trapdoor, twice. A door that `pass_door`
+reports as "stands open" was opened by an earlier press in the same run, or it is an open leaf on
+the map.
+
+(b) THE MARGINS ARE REAL FIGHTS. The Kendal left 49/60 with hitsplats on both sides. The Slagilith
+left 70/90, and the gang members 73/90. The three Elid golems read 60/60 at Defence 50
+(gaps-combat: "A margin at 99 Defence and 99 Hitpoints proves nothing").
+
+(c) THE JUDGEMENT CALLS STAND. Mountain Daughter walks to the White Pearl bush and back because
+the guide teleports nowhere. The chat lines `Teleported to x,y,z` on the shots are the harness's
+`goto_tile` hops, and each one was audited above. Roof-occluded door frames (One Small Favour 076,
+122, 131, 590, 597) still show the press in the next shot.

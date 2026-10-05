@@ -738,3 +738,17 @@ content seam and not a test defect.
 When a margin row reads full hp, put the npc's own attack evidence in the detail: its attack or
 special chat lines from `t.msg.last`, or a block hitsplat. A reviewer can then tell "it swung and
 missed" from "it never swung" (see "Three more quest monsters never swung" above).
+
+## A margin at 99 Defence and 99 Hitpoints proves nothing when the guide names no levels (Vampyre Slayer, b60)
+
+The committed Vampyre Slayer stages 99 Attack, Strength, Defence and Hitpoints. Count Draynor
+then never hits, so `killDraynor.margin` reads `lowest hp 99/99` and the margin row checks nothing.
+Quest Helper names no combat levels for the fight. A copy staged at the gear's own minimum levels
+(Attack 40, Strength 40, Defence 30, Hitpoints 40 for the committed weapon and armour) still
+passed 60/60. Its lowest hp was 39/40 with no food eaten, because the garlic weakens him
+(`build/orchestrator/fix_b60/r2/vampire_guidelevels.lua`, `vampire.run2-guidelevels.log`).
+
+When the guide names no levels, stage the lowest levels the staged gear needs to be worn, not 99.
+The fight is then a real one, and a full-hp margin row is evidence and not an artefact of
+staging. Spirits of the Elid's golems read 60/60 at Defence 50 for the same reason. A probe at
+Defence 1 showed them landing hits.

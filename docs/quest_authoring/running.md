@@ -293,3 +293,10 @@ When it works, 600+ shots take one Read each. Paste four shots into one labelled
 instead (PIL: an 1614x1046 canvas, each 807x503 shot under a 20 px strip with its file name). Then
 Read one sheet at a time into the scratchpad, never into `play/`. Each shot is still opened at
 full resolution, and its name is on the sheet beside it.
+
+After a few dozen image Reads, the earlier results come back as `[media removed: request limit]`.
+The image was shown when it was read; the host drops old images from the context afterwards.
+Write each sheet's finding (the shot numbers and what they show) into your notebook straight
+after reading it, before the next Read. A later "media removed" then costs nothing, and the
+notebook is the record of the visual pass. Six sheets per message worked for the b60 round-2
+sampler (1,058 shots, 265 sheets).
