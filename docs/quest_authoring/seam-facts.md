@@ -2310,3 +2310,85 @@ so the landing side may be the content bug -- check LostCity and the wiki first)
 any press of a pocket op loc in the 500 ticks before, so a test that swings INTO a pocket and gotos
 out within 500 ticks is not charged (Watchtower's `goto-leaveGrewIsland2`); a tighter rule needs
 to know which op locs leave a passage open.
+
+## Seam pass matthew-mbp-m4-b63-seam1 (2026-10-05, batch matthew-mbp-m4-b63)
+
+(a) **Haunted Mine: the lift lands in the flooded pool and no walk leaves it; use-key-on-valve
+says "Nothing interesting happens."** -- FIXED, `quest_hauntedmine/scripts/hauntedmine_dungeon.rs2`.
+Every descent `p_teleport`ed to 2726,4455,0, inside a water pool whose south row (z 4453) the map
+blocks (`walk_to 2725,4452 ... stalled at 2725,4454`), and the valve had only Turn, which read the
+key from the pack. Now the descent wades out by `p_exactmove` to the south shore
+`^hmq_flooded_shore` 2725,4452 (Abandoned Mine wiki: "they appear in the flooded chamber and wade to
+the south shore"; the tile itself is the map's nearest open shore tile, not sourced); `lift_flooded`
+answers Go-up from the shore at range 4 (`[aploc1]` + `p_aprange`; wiki: "must click the lift");
+`[oplocu,hauntedmine_lift_valve]` with the Zealot's key sets `liftpoweredonce` and opens the flow
+("The key unlocks the valve."); Turn refuses with the transcript's "The valve seems to be locked in
+position. There is a small keyhole in the side." until then (Transcript:Haunted Mine; Quest Helper
+`HauntedMine.java` valveOpened = liftpoweredonce, valveOpen = liftpowerednow). The key is kept;
+`liftpowerednow` gates the lift during the quest, and it stays operable after. The contract pin in
+`tools/check_quest_combat_contract.py` moved with it. Proof: hm_lift_post 24/24; the full-route copy
+`hm_unblocked2` 101/1, quest complete. OPEN: the journal's "I've powered the lift" now reads from the
+unlock (liftpoweredonce's new meaning).
+
+(b) **Ratcatchers: reading the directions moves nobody; the trellis lands on a one-tile ledge; the
+Port Sarim manhole lands on a dead tile; the rat pits' ladder lands in a field** -- FIXED,
+`quest_ratcatchers/scripts/ratcatchers.rs2`. The directions now open the transcript's prompt
+(`mesbox:The scroll contains directions to a manor`, `choose:Follow the directions to the house.`)
+and teleport to 2847,5066,0 (Quest Helper `RatCatchers.java:336`, the first climbTrellis point;
+wiki: "you are teleported there instantly"), with the transcript's refusals (not from Ardougne, no
+cat, already done) and "Directions to... here, actually!" inside the grounds. Both trellises land on
+the cache's trellis top one plane up (2844,5104,1 / 2851,5104,1). The quest-local `vc_manhole_open` /
+`vc_ladder` bindings that `p_telejump`ed +/-6400 are deleted, so the category handlers take the
+cache rows `maplink_0_47_50_10_31_down` (-> 2962,9650) and `maplink_0_46_150_18_50_up` (-> 3018,3233).
+The general fact: a quest-local `p_telejump(movecoord(coord, 0, 0, +/-6400))` on a ladder or manhole
+is wrong whenever the underground sheet is not straight below; grep `maplink.dbrow` for the loc
+first. OPEN: the trellis down-climb still lands inside the ground floor (no source gives the tile);
+the "from Ardougne" box (map squares 38-42 x 49-52) is not sourced.
+
+(c) **Lost Tribe: the tunnel floor carries two, three, four brooches** -- FIXED,
+`quest_losttribe/scripts/losttribe.rs2` `[proc,lost_tribe_lay_brooch]`. The dig and every squeeze
+through the hole each `obj_add`ed one, and `obj_add(..., 0)` never despawns (SS_OP_OBJ_ADD maps a
+duration <= 0 to -1), so they stacked forever. Now one proc lays it only when neither the player
+(backpack, bank) nor the tile (`obj_find`) has one. The general fact: content that re-lays a quest
+item on entry must `obj_find` the tile first (`slugmenace_witchaven.rs2:180` has the same shape).
+Proof: ltbrooch_before tile count 4 / ltbrooch_after 1; the committed test copy 178/0.
+
+(d) **Watchtower: Gu'Tanoth's gates stood open 500 ticks after an earned opening** -- FIXED,
+`quest_itwatchtower/scripts/ogre_guard.rs2`. `open_gutanoth_gate` called the shared
+`~open_double_door_left/right` (`doors/scripts/doubledoors.rs2`, loc_del/loc_add 500), so once a
+friend of the ogres opened a gate anyone walked through at stage 2 (gutanoth_probe_pre s3). It now
+does LostCity's `~open_and_close_double_door2` (`quest_itwatchtower.rs2:274-281`): the player is
+walked through and both leaves come back in 3 ticks. The claim the pass was opened for (the NW gate
+opening from inside at stage 2) did not reproduce. Consequence for tests: drive these gates with
+`cross_gate` (verbs-pointer: A gate ported from LostCity's `~open_and_close_double_door*` is a
+WALK-THROUGH); the committed itwatchtower's `pass_door` on `leaveSouthPocket.southEastGate` went RED
+and the quest was reopened.
+
+(e) **A dropped bank note lands on the server but the client lists and draws nothing; `t.player.drop`
+of a `cert_*` stack times out with the pack empty** -- FIXED, `src/app/app_world_rebuild.c`. Every
+note, on any floor: `app_obj_stack_build_model` read the note's own `inventory_model_id` (0: a cert
+record is `certlink` + `certtemplate`) and `App_WorldObjStackAdd` dropped the OBJ_ADD. A note now
+takes the template's model and recolours (the reference's `ObjType.genCert`). Server half:
+`inv_dropslot` puts back whatever the floor refused and aborts the script naming obj, count and
+tile, instead of emptying the slot on a failed `ToriRSServer_WorldObjAdd`. Selftest row 5b (five
+`cert_blankrune` dropped at 3441,9898,0 = one pile of 5). Proof: noted_drop_probe2 (before, `client
+ground not_found`) against noted_drop_probe3 12/0; the Priest in Peril copy with the drop graded 180/0.
+
+(f) **The grader charges a goto through the only gate, onto a solid tile, off an island it swung
+onto, and a use that did nothing** -- coverage-and-gate: A goto through the only gate, onto a solid
+tile, or off an island it swung onto; a use that did nothing. The closer's fresh runs of every
+committed test (torirs_b63engine, this pass's content) moved 52 queued-green tests to RED: the
+grader's movers, plus doric, sheep, runemysteries and scorpcatcher, whose FIRST goto is now stamped
+in a fresh ledger and so judged by `enclosure_entries` (HEAD's grader reads the same charges on
+these ledgers), plus itwatchtower ((d) above). Eight move on their first goto alone and wait for the
+owner's first-goto ruling: death, doric, druid, eadgar, murder, sheep, sleepinggiants, soulsbane.
+The rest were reopened with their gotos named.
+
+(g) **Named npc copies one tile away answer `covered ... at 382,102`** -- FIXED in `pointer.lua`
+(verbs-pointer: A named npc copy is pressed at its OWN pose's pixel).
+
+(h) **A fight dies inside a re-attack press while hp falls and nothing eats** -- FIXED in
+`combat.lua`/`spell.lua` (verbs-combat: Eating inside an attack press and a re-engagement).
+
+(i) **`climb` stalls under a guard's page (Watchtower's towerladder)** -- FIXED in `world.lua`
+(verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`).

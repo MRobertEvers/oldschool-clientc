@@ -725,7 +725,9 @@ Why each missed, and what grades it now:
   400 tiles with no door, no climb and no climb down from level 0, and the landing is outside it on
   the same level of the same map frame, at ANY distance (a pocket has no door to walk out of, so
   `enclosure_exits`' 24-tile cap does not apply). It is charged unless a PASS row pressed one of the
-  pocket's op locs in the 500 ticks before. Another Slice of H.A.M.'s `goto-talkToTegdak` left the
+  pocket's op locs in the 500 ticks before (since matthew-mbp-m4-b63-seam1: only a press made after
+  the player last arrived in the pocket that nothing after shows still inside; see "A goto through
+  the only gate" below). Another Slice of H.A.M.'s `goto-talkToTegdak` left the
   train platform (2488,5536, 296 tiles, its only op loc the way back to the city) for Tegdak in the
   dig and read FULL. Landing it reopened Holy Grail's `goto-talkToFisherman` (out of the pocket
   past the Black Knight Titan, where `defeat_titan` lands the player) and Watchtower's
@@ -893,3 +895,81 @@ death `talkToHarold3` DRIVEN -> ALTERNATIVE (still FULL); anothersliceofham FULL
 steps regraded with no verdict move. OPEN: the generic target-token loop at the end of
 `Grader.driven` still credits by name (seaslug `travelWithHolgartFreeingKennith` via
 `holgartsunkboat.drain_board`; death `goToHaroldStairs3` via an earlier visit's stairs row).
+
+### A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing (matthew-mbp-m4-b63-seam1)
+
+Four holes the b63 fixers found, each closed in `helper_coverage.py`, each with a `Grader` switch
+(False restores the old reading for the fixtures):
+
+- **`gate_crossings`: "goes from ... to ...: with every door shut no walk joins them (margin 160),
+  and every walk on foot opens <gate> (NEEDS-DOOR at margins 30/80/160) ... it skipped an only-way
+  gate"** (`GATE_CROSSINGS`). The b59 sampler ruling as a map question (sampler-findings.md "Sample
+  matthew-mbp-m4-b59" (a)): a gate that is the only way on foot between two regions is clicked on
+  every crossing, however large they are. `MapWalls.only_way_gates` is reach.py's flood on the
+  grader's own map reader: no walk with every closed door shut inside the hop's box widened by 160
+  tiles, and the shortest walk with doors open crosses the SAME gate (or the other leaf within 2
+  tiles) at every margin of 30, 80 and 160 that has a walk at all (a margin too small to go round
+  says nothing). Charged unless a PASS row pressed that gate (its copy, or a local bound to it:
+  `prince.unlock` uses the key on `alidoor_target`) in the 500 ticks before. This also covers a
+  fenced yard bigger than `enclosure_entries`' 400 tiles: Dwarf Cannon's railing yard closes at
+  1,325, and the committed run (69f7e7bd8 / OSRS-Content 22669be78) read FULL while it hopped in and
+  out of it and on to Nulodion's workshop. The departure: the goto's own `from` stamp, else the
+  reading before it when every row between kept the player on one side of every door (a talk, a
+  page, a read, a walk, a press of a loc that is no door, climb or travel loc: `_side_kept`); a
+  press's `walk_near: stepped off the target tile A (A -> B)` is read as B. An unstamped first goto
+  stays unjudged, as in every other rule; a STAMPED first goto is judged (whether a run's first goto
+  out of the fixture's Lumbridge may cross the Taverley or Varrock members' gate is the owner's open
+  design item). Not judged: a hop to another level or map frame, a hop over 1,200 tiles, a row
+  `enclosure_entries`/`enclosure_exits` already charged.
+- **`solid_landings`: "lands at x,z,l on a solid tile (<loc> at ...): no walk ends there"**
+  (`SOLID_LANDINGS`). A goto row (a `goto_tile`/`::goto` line, or goto_tile's bare `at x,z,l[ from
+  ...]` detail; never a climb row named `goToFirstFloor` whose `at` is the stair's own tile) that
+  lands on a tile the map blocks: an object's footprint (stairs, a ladder, a cave entrance, a
+  crate, a diagonal railing, a table), a blocking ground decoration, or a blocked floor flag (a pier
+  edge, water). Charged to a step of its own, `(goto onto <loc>)`, never to the guide step: the
+  fault is the goto row's, and a landing on the staircase the next row climbs did not skip the
+  climb. Every goto with a landing is judged, the first included.
+- **A "use X on Y" step needs an effect** (`USE_NEEDS_EFFECT`). `use_item_driven` used to refuse a
+  call only when it wrote a named row that never PASSed, so a bare `local r, d =
+  t.player.use_on(...)` was DRIVEN from its source line (Haunted Mine's `useKeyOnValve`: the press
+  timed out, the key stayed in the pack, no line was said). Now the call's row is its `t.exec`
+  span, or a `t.check`/`t.expect` within 12 lines that reads one of its answers; with neither it is
+  refused "line N is a bare use_on". The row (or a row named after it, `useX.var`, or a read row
+  before the next press, walk or goto) must show an effect: an item lost or gained, a server line
+  (`chat_message`: the driver answers `refused` on "Nothing interesting happens."), a `matched:`
+  line, a var or `quest.stage` read, a page or interface, a landing or a tile check. A row that only
+  says `map_flag` reads "shows no effect". `driven()`'s older `^use` fallback ("an action at line N
+  uses X on the target") takes the same test (`_line_use_effect`).
+- **`sealed_exits`' pocket press** (`POCKET_PRESS_SINCE_ARRIVAL`). Any press of a pocket's op loc
+  in the 500 ticks before used to exempt the hop out, so Watchtower's rope used on
+  `tree_ropeswing4_norope` (the way IN to Grew's island, `landed 2505,3087,0`) exempted a goto off
+  the island. `_pocket_left_by_press` reads the rows in order and each detail in its own order: a
+  press is a candidate; a reading outside the pocket after it keeps it (the press took the player
+  out); a reading inside drops it unless the row says it opened something (`open leaf`, `opened`,
+  `unlocked`). A press with no reading after it keeps the benefit (`asoh_sealed_op_pressed`).
+
+What an author does: never goto onto a loc (stand on a walkable tile beside it and press it);
+cross a members' gate, a yard gate or a fence gate with `t.player.cross_gate` / `pass_door` on
+every crossing, or use a real teleport (`t.player.teleport_cast`) for a long trip; record every use
+through `t.exec` (or a `t.check` of its answer) and read what it did on the next row.
+
+Proof: `tools/quest_gate/helper_coverage_two_op_test.py` 19/19 (the five old cases plus 14:
+`mcannon_rules_off` FULL with every switch off; `mcannon_committed` TEST_GAP with six
+`gate_crossings` CHEATs and three `(goto onto ...)` steps; `mcannon_gate_pressed` /
+`mcannon_gate_not_pressed`; `mcannon_off_the_crate`; five synthetic Haunted Mine use cases;
+`hm_fullroute`, the b63 fixer's copy with its GUIDE-GAP marker removed, graded only while
+build/orchestrator/fix_b63/ holds it; `wt_goto_off_island` CHEAT, `_off` FULL, `wt_swung_off_first`
+FULL). Every other helper_coverage fixture file holds. `--calibrate` 12/39 -> 15/39. Re-grading the
+108 green rows moved 47 (45 verdicts, plus mm and shadowstorm, already not FULL); the list with
+each charged goto is build/seam_state/matthew-mbp-m4-b63-seam1/helper_coverage.movers.json. Six
+movers' only charge is their first goto (death, druid, eadgar, murder, sleepinggiants, soulsbane):
+held for the owner's first-goto ruling, not reopened.
+The closer's FRESH runs of all 143 committed tests (a fresh ledger stamps the first goto's
+departure) moved 52 queued-green tests: the grader's movers, plus doric, sheep, runemysteries and
+scorpcatcher under the older `enclosure_entries` (HEAD's grader agrees on those ledgers), plus
+itwatchtower (a content change). doric and sheep join the first-goto-only list (eight in all: death,
+doric, druid, eadgar, murder, sheep, sleepinggiants, soulsbane); the other 44 were reopened naming
+their gotos (seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (f)).
+OPEN: a `GUIDE-GAP:` marker on a use step is still accepted when the content has a use trigger on
+the target (the b63 Haunted Mine copy declares "no [oplocu,hauntedmine_lift_valve]"; the
+concurrent content seam adds one).

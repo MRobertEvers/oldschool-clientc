@@ -149,6 +149,17 @@ leaf>"` and a `far` tile, and is handed to `t.player.pass_door` (closed = `loc`)
 open is walked through, never pressed shut (b60s0_cross3 `penIn` pressed, `penOut` "stands open ...,
 not pressed").
 
+#### A gate ported from LostCity's `~open_and_close_double_door*` is a WALK-THROUGH: `cross_gate`, not `pass_door` (b63-seam1)
+
+Such a gate carries the player through and puts both leaves back 3 ticks later (Gu'Tanoth's
+`ogreguardgate1`/`ogreguardgate2`, `ogre_guard.rs2 ~itwatchtower_gate_walk`, since
+matthew-mbp-m4-b63-seam1). `pass_door`'s "closed leaf gone or far" await is 4 ticks, so it reads
+after the gate has already shut behind the carried player and answers `the closed leaf is still at
+2549,3028,0 (player 2549,3028,0)` (itwatchtower `leaveSouthPocket.southEastGate`). Drive it with
+`t.player.cross_gate{loc=, at=, near=, far_ok=, far_desc=}`, graded on where the player stands
+(build/seam_state/matthew-mbp-m4-b63-seam1/itwatchtower_copy2.lua: 274/274 green). A gate that calls
+the shared `~open_double_door_left/right` instead stands open 500 ticks and is a `pass_door`.
+
 #### `t.player.cross_trap(spec)` -- a trap or obstacle by its own op, src tile to dest tile
 
 `t.player.cross_trap{ loc=, at={x,z[,level]}, src={x,z}, dest={x,z} [, op=1, op_name="Jump",
@@ -238,8 +249,9 @@ guide does with a teleport is done with this, not with `goto_tile` or `::tele`.
 ### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
 
 `t.player.climb{ loc=, at={x,z,level}, dest={x,z,level} [, op=1, op_name="Climb-up", slack=0,
-src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10, loc_level=, same_level="<row>"] }` -> `(ok, detail)` `refused` `covered`
-`not_visible` `timeout` ...
+src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10, loc_level=, same_level="<row>",
+chat={...}, chat_optional="<why>"] }` -> `(ok, detail)` `refused` `covered` `not_visible` `timeout`
+`mismatch` ...
 
 ```lua
 -- No maplink row: ladders.rs2 [proc,climb] moves the player one plane on the tile it stands on.
@@ -303,6 +315,38 @@ scratch `b62s1_climbsame_post2` 16/16 -- Demon Slayer's manhole down and ladder 
 house stairs both ways, Family Crest's Ice Mountain trapdoor, Vampire Slayer's crypt stairs, the
 Stronghold entrance by `same_level`; conformance
 `seam.climb_lands_on_its_own_level_in_another_map_frame` (the Varrock sewer ladder).
+
+#### A GUARDED ladder speaks first: `chat=`, `chat_optional=` (b63-seam1)
+
+Some climbs open a page before they move the player, and the page holds the climb until it is
+continued. The Watchtower's `towerladder` (`quest_itwatchtower.rs2` `[oploc1,towerladder]`) shows the
+tower guard's "It is the wizards' helping hand - let 'em up." and only then reaches `if_close` +
+`~climb_ladder(1)`; without `chat`, `climb` waits `ticks` under the page and answers `refused ...
+still on level 0 after 1 press(es); a page is up: npc '<line>' -- the press spoke before it moved the
+player (pass spec.chat, the chat.play list for that page)` -- and the page is still up for the next
+row. Pass the page's `chat.play` list:
+
+```lua
+t.exec("goBackUpToFirstFloor", t.player.climb, { loc = "towerladder", op = 1, op_name = "Climb-up",
+    at = { 2544, 3111, 0 }, src = { 2544, 3112 }, dest = { 2544, 3112, 1 },
+    chat = { "npc:It is the wizards' helping hand" } })
+```
+
+The semantics are `cross_gate`'s ("A GUARDED walk-through speaks first" above; the same helper,
+`QD.player._cross_gate_chat`): after a press the server received, the landing OR a page is awaited
+up to `ticks`; a page is played with the list (its kind and full text and `chat.play`'s answer go in
+the detail: `the press opened npc '...' after N tick(s): chat.play -> ok 1 page(s): ...`), and only
+then is the landing awaited and graded -- the landing is still the verdict. A list that does not
+match is `chat.play`'s `mismatch`. `chat` says a page WILL open: a press that lands with no page is
+`refused ... no page opened in N tick(s) and the press landed <dest>` -- unless `chat_optional =
+"<why>"` says why the page depends on the world, when `no page opened ... (chat_optional: <why>)` is
+in the detail and the landing alone grades it. A `covered`/`not_visible` press reached no server, so
+no page is awaited for it and it is pressed again as usual. A page that refuses the climb (the tower
+guard's "You can't go up there." before the quest starts) is played by the list and then fails on the
+landing. Proof: scratch `b63climbchat` 7/7 (no chat stalls under the page; chat lands on level 1;
+chat_optional on the silent ladder top; chat without a page `refused`), the itwatchtower copy with
+its four `towerladder` climbs through `climb{chat=}` (all four PASS, quest complete); conformance
+`seam.climb_plays_a_guards_page`.
 
 ### `t.player.cancel_selection(why)` -- drop a spell or Use left armed (b60-seam1)
 
@@ -588,6 +632,20 @@ the guide's route first (a missing route is a content seam, not a driver one)`. 
 the guide's route; if the port has no route, report a CONTENT seam. Measured: Cold War's Ice steps
 (`peng_agility_steps01`, 2635,4054,0) answer `other_floor` from level 1 and climb first time from
 2634,4054,0 (`teleport: 2634,4054,0 -> 2634,4054,1`).
+
+#### A named npc copy is pressed at its OWN pose's pixel (FIXED b63-seam1)
+
+`press`/`talk_to` with `{slot=}`/`{at=}` used to answer `covered ... element E at 382,102 ... none
+of 99 pixels` on a small npc ONE tile from the player (Ratcatchers' mansion rats 2, 3, 4 and 6, on
+every try and every camera): `QD.drive._frame` read the projection in the pump that wrote the
+camera, so each pose was pressed at the PREVIOUS pose's pixel (382,102 is pose 4's projection of a
+rat one tile ahead, pressed under pose 5). A target the selector named
+(`QD.player._click_npc_copy` sets `reach_fresh`) now skips two polls, so each pose reads its own
+projection; unnamed targets, attack and cast keep seam17's unsettled read. Proof: vcrat_full2
+(before, rows 65-76 FAIL) against vcrat_fixed1 (rats 1-3 caught on try 1, "hovered +0,+0 off the
+projected 382,215"); the unblocked Ratcatchers copy caught all six mansion rats. No conformance row:
+outside the mansion's old ledge landing the stale read did not reproduce (a chicken one tile off
+read the same pixel framed and settled, with and without the fix).
 
 ### `t.player.click_obj(obj, op=3)`
 
