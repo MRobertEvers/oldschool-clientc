@@ -1,0 +1,164 @@
+{{Update|date=18 May 2022|link=https://secure.runescape.com/m=news/poll-76-improvements?oldschool=1|category=game}}
+[[File:Poll 76 Improvements newspost.png|right]]
+{{clear}}
+
+<center>''This week, we’ve got more changes from Poll 76 and a BIG Kickstarter update!''</center>
+__TOC__
+==Poll 76 Improvements==
+The next batch of Poll 76 improvements arrive in-game this week!
+
+We’re kicking things off with hellhounds, who now drop Ensouled Hellhound Heads. They’re worth 1,200 Prayer XP each and slot neatly into the Expert tier of Reanimation. Any reanimated Hellhounds you kill will work for both Slayer Tasks and the Soul Bearer. Fun fact! Since Cerberus is technically a hellhound, she can drop these too.
+
+Smithing and jewellery Crafting interfaces now remember the last item you crafted and outline it with a shiny highlight! As long as you have the right materials in your Backpack, you can press the Space Bar to craft it again! If you don’t have the necessary items, you’ll be unable to craft using the Space Key and the highlight will be removed.
+
+Next up, a Fairy Ring has sprouted in the north of the Isle of Souls. We’ll let you figure out the code.
+
+Speaking of Soul Wars, it’s now playable on every world, and we’ve made some changes to bring XP rates in line with what we promised in the original poll:
+
+* Attack, Defence, Strength and HP are now 30 XP per token (up from 24 XP)
+* Ranged and Magic are now 27 XP per token (up from 22 XP)
+* Prayer is now 14 XP per token (up from 12 XP)
+
+We’ve also added a ‘Buy X’ option to the Other tab in the Soul Wars Reward Shop.
+
+Lastly, NPCs in the Fight Caves are now visible at further distances. Good news for Fire Cape hunters!
+
+==Steam and Mobile Client Fixes==
+Next up on the improvement train are a bundle of client fixes for mobile and Steam, which we’ve summarised below:
+
+'''Key: O : Fixed | X : Not Fixed | - : Issue Not Present'''
+
+{| class="wikitable" style="margin:0 auto;"
+!Issue
+!Steam
+!Android
+!iOS
+|-
+|The Orb of Oculus now displays correctly. The darkness has been lifted!
+|O
+| -
+| -
+|-
+|The Multiway Combat icon no longer overlaps with the collapsed Minimap.
+| -
+|O
+|O
+|-
+|Entity Highlights now work correctly in the Tears of Guthix minigame.
+|O
+|O
+|O
+|-
+|The player can no longer interact with the Minimap through the XP tracker.
+| -
+|O
+|O
+|-
+|Cleared private chat history will now remain cleared when logging back in.
+|O
+|O
+|O
+|-
+|Fairy Rings are now highlighted by Entity Highlights.
+|O
+|O
+|O
+|-
+|Agility Highlights now appear correctly when returning from a Random Event.
+|O
+| -
+| -
+|-
+|Fixed Entity Highlights for player-grown Mahogany Trees.
+|O
+|O
+|O
+|-
+|The HP Regen indicator now correctly updates when running out of Prayer Points with Rapid Heal on.
+|O
+|O
+|O
+|-
+|Long Tap Delay settings now update visually after setting the new value.
+| -
+|O
+|O
+|-
+|Unused interfaces are no longer visible while on Target Worlds.
+|O
+|O
+|O
+|}
+
+==Other Changes==
+* Roofs on the tents of Shayzien Infirmary are now automatically hidden. We’ve also removed some environmental objects from around the tents to make moving between them easier.
+* Fixed an issue that occurred when teleporting with items in the Drag State.
+* Items no longer drag or drift in the Inventory when preselecting an item and moving it.
+* Trouver Parchment can now be used on the Leagues III version of Void Knight Equipment, Dragon Defenders (t) and Rune Defenders (t).
+** If the item is locked (l), upon PvP death the PKer will receive the value of the Trouver Parchment and the Ornament Kit and the regular version of the item will be returned to the owner. This occurs at all levels of the Wilderness.
+** If the item is not locked, upon PvP death the PKer will receive gold equivalent to the value of the item (minus the value of the Ornament Kit) and the Ornament Kit. At Wilderness levels below 20, the owner will receive a broken version of their original item. At Wilderness levels above 20, the owner will receive nothing.
+* Prayer Books with a Leagues III Ornament Kit will now appear with that model when preaching with them.
+* The Bigger and Badder Slayer reward unlock no longer appears as a Pie on the Reward interface.
+* Charged Pharaoh’s Sceptres are now a bit brighter.
+* Diango no longer has a buy limit on Chronicle Cards. Go wild!
+* Tempoross Fishing Spots no longer have holes in their clickbox. How else can we keep the fish in?
+* Participants in Guardians of the Rift are asked not to cast Alchemy spells. You've got a universe to save, mate!
+
+==RuneScape Kingdoms: Shadow of Elvarg==
+We’re back with our weekly update on Steamforged Games’ quest to bring Gielinor to your tabletop with ''RuneScape Kingdoms: Shadow of Elvarg.''
+
+Today, it’s the moment you’ve been waiting for – we can finally reveal exactly what’s included in Steamforged’s Kickstarter!
+
+Launching May 31st, this [https://www.kickstarter.com/projects/steamforged/runescape-board-game Kickstarter] is your chance to support Steamforged Games and get your hands on loads of exclusive extras. But remember – it’ll only stay live for 10 days, so give it a follow and don’t miss your chance!
+
+As usual, there are multiple pledge levels to choose from. For full details and pricing, keep your eyes on [https://steamforged.com/blogs/brands/tagged/category_runescape Steamforged’s blog] going live later today. For now though, let’s go over the basics!
+
+===Core Pledge===
+[[File:Poll 76 Improvements (1).png|centre|600px]]
+
+The Core Pledge includes RuneScape Kingdoms: Shadow of Elvarg and the Kickstarter-exclusive ''Culinaromancer Expansion''!
+
+This 15-hour replayable campaign comes with 16 detailed minis, including the Noob NPC and the Culinaromancer himself, plus over 400 new cards.
+
+On top of that, you’ll also get all the '''Kickstarter-exclusive cards''' unlocked through backer votes during the Kickstarter.
+
+===Gameplay All-In Pledge===
+[[File:Poll 76 Improvements (2).png|centre|600px]]
+
+If you want all the gameplay content from the Kickstarter campaign, then this is the pledge for you! It includes the core ''RuneScape Kingdoms'' box and all four expansions, each themed around a unique boss. It’s a replayable 24-hour fantasy adventure packed into one great-value pledge – and you’ll get all the Kickstarter-exclusive content, too!
+
+Yes, that includes the sneak-peek King Black Dragon and TzKal-Zuk minis in the image above, plus additional minis including the Wise Old Man and other iconic NPCs.
+
+===Deluxe All-in Pledge (Kickstarter Exclusive)===
+Don’t wanna miss a thing? Then the Deluxe All-in Pledge will be right up your alley. It’s packed with all the gameplay content so far and all the Deluxe upgrades – so as well as your regular components, you’ll receive a neoprene game mat, four neoprene boss mats, wooden tokens, metal coins, and a set of special-edition dice, '''all of which are Kickstarter Exclusive.''' Don’t miss out!
+
+Now, while you’re thinking about which pledge to pick, let’s take a look at this week’s mini reveals!
+
+===Mini Reveals: Delrith, Dragon Knight and Capes===
+The second campaign, ‘Demon Slayer’ will bring you face-to-face with Delrith!
+
+[[File:Poll 76 Improvements (3).jpg|centre|600px]]
+
+This dastardly demon nearly brought Varrock to ruin before he was slain by a brave hero. Now history is repeating itself, as the Dark Wizards outside of Varrock attempt to raise Delrith to wreak havoc anew!
+
+Your band of brave adventurers will need to seek out Silverlight, the legendary sword said to have brought Delrith’s reign of terror to an end the first time. Can you stop the dark ritual before Delrith is unleashed?
+
+If so, you may well find yourself accomplished enough to don some swanky new duds. Yes, that’s right – every player avatar has an upgraded version to represent your progress in the game. For example, when the knight reaches a high enough level they’ll gain a full set of Dragon Armour, new weaponry, and a hard-earned Fire Cape.
+
+[[File:Poll 76 Improvements (4).png|centre|600px]]
+
+Now, some of you may be wondering why this lot are wandering around in endgame gear when they haven’t even made it out of Misthalin – and that’s a fair question! Because ''RuneScape Kingdoms: Shadow of Elvarg'' focuses on iconic, early-game quests, it’d take quite a while to reach the level required to wear these awesome items in-game! It didn’t seem fair to make you wait all that time to use your badass high-level adventurer minis, so we’re giving them to you much earlier. So go on, get out there and live your best Dragon life!
+
+For more details on the game, check out Steamforged’s weekly [https://steamforged.com/blogs/brands/tagged/category_runescape blogs]. This week they’re taking a look at quests: how you get them, how you play them, and most importantly, how you complete them!
+
+You might also have spotted Mods Sarnie and Light playing through a digital demo of the game with our friends from Steamforged on Tuesday’s stream! If you missed it, you can catch up on [https://www.twitch.tv/videos/1486718191 Twitch] right now and will be available on YouTube later today.
+
+Lastly, make sure to join the [https://www.facebook.com/groups/runescapekingdoms/ RuneScape Kingdoms Facebook Group]. You’ll be among the first to see new cards and minis – plus, you’ll get all the latest news from the blog and have a direct line to chat with the developers about the game. Well worth the risk of stumbling upon Grandma’s minion memes.
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,812,66253420 official forums], the [https://www.reddit.com/r/2007scape/comments/us9d7z/poll_76_improvements_weekly_game_update_may_18th/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team''

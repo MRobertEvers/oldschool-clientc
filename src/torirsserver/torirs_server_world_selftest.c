@@ -19676,15 +19676,19 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
 
             /*
-             * `~eat_food` ends in `p_delay(^eat_delay)`, so the script above is
-             * still parked and a second one sent this tick would be *dropped* —
-             * which used to make this check pass for the wrong reason. It read
-             * "hitpoints are still 10" off a script that never ran, and no
-             * amount of breaking `stat_heal`'s clamp could have turned it red.
-             * Run the delay out first, then assert on the food as well: an
-             * eaten item is the evidence the heal was the clamped one.
+             * A bite sets the food timer (`%varp7224_consume_food_delay` =
+             * map_clock + ^eat_delay, consume_shared.rs2; wiki Food/Fast
+             * foods: "Standard food, when eaten, adds a 3 tick penalty to when
+             * a player may eat again"), so a second bite inside it is *refused* —
+             * which, with the old `p_delay(^eat_delay)` park, used to make this
+             * check pass for the wrong reason: it read "hitpoints are still 10"
+             * off a script that never ran, and no amount of breaking
+             * `stat_heal`'s clamp could have turned it red. Run the food delay
+             * out first (3 ticks: refused while the timer >= map_clock), then
+             * assert on the food as well: an eaten item is the evidence the
+             * heal was the clamped one.
              */
-            for( int i = 0; i < 4 && player->active_script; i++ )
+            for( int i = 0; i < 3; i++ )
                 selftest_tick(srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the eat delay should have run out before the next bite");
@@ -19697,9 +19701,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
-            /* That bite parked `~eat_food` on its p_delay again, and a delayed
-             * player's OPHELD is refused and his OPNPC only latches (LostCity's
-             * `player.delayed`, OpHeldHandler.ts:16; seam24). Run it out so the
+            /* An eat no longer parks the player (the food timer replaced the
+             * p_delay), but a delayed player's OPHELD is refused and his OPNPC
+             * only latches (this engine's rule, torirs_server_world.c's
+             * delayed-OPHELD refusal; seam24), so any script still running is
+             * run out here and the
              * sections below are asked of an idle player. */
             for( int i = 0; i < 4 && player->active_script; i++ )
                 selftest_tick(srv);
@@ -37959,6 +37965,11 @@ ToriRSServer_WorldSelftest(void)
             npc->max_hitpoints = 200;
             npc->hitpoints = 200;
 
+            /* The tick log rides along (raid seam 1): it changes nothing the
+             * fight does, and this fight has every row kind a boss room
+             * leans on -- swings, hits, a retype, a free, a tile per tick. */
+            int log_start = ToriRSServer_TicklogEnable(srv, NULL);
+
             ToriRSServer_CombatEngage(srv, slot);
             SELFTEST_CHECK(player->combat_target == slot &&
                                player->interaction.kind == TORIRSSERVER_INTERACT_NPC,
@@ -38010,6 +38021,74 @@ ToriRSServer_WorldSelftest(void)
                            npc->hitpoints, hp_after_change);
 
             ToriRSServer_WorldNpcFree(srv, slot);
+
+            /* What the tick log saw of that fight. */
+            {
+                static struct ToriRSServerTicklogRow log_rows[4096];
+                int log_count = ToriRSServer_TicklogRead(0, log_rows, 4096);
+                int player_tiles = 0;
+                int hits_on_slot = 0;
+                int retypes = 0;
+                int frees = 0;
+                int starts = 0;
+                int tiles_in_order = 1;
+                int last_tile_tick = log_start;
+                uint32_t mark;
+
+                for( int i = 0; i < log_count; i++ )
+                {
+                    const struct ToriRSServerTicklogRow* row = &log_rows[i];
+
+                    if( row->kind == TORIRSSERVER_TICKLOG_START )
+                        starts++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_PLAYER_TILE && row->a == player->pid )
+                    {
+                        /* One per tick, each a tick after the last. */
+                        if( row->tick != last_tile_tick + 1 )
+                            tiles_in_order = 0;
+                        last_tile_tick = row->tick;
+                        player_tiles++;
+                    }
+                    if( row->kind == TORIRSSERVER_TICKLOG_HIT_NPC && row->a == slot )
+                        hits_on_slot++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_RETYPE && row->a == slot &&
+                        row->b == from_type && row->c == to_type )
+                        retypes++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_FREE && row->a == slot )
+                        frees++;
+                }
+                fprintf(stderr,
+                        "  ticklog: %d row(s); %d player_tile over %d tick(s); %d hit_npc, "
+                        "%d npc_retype, %d npc_free on slot %d\n",
+                        log_count, player_tiles, srv->tick - log_start, hits_on_slot, retypes,
+                        frees, slot);
+                SELFTEST_CHECK(starts == 1 && log_count > 0 && log_rows[0].serial == 1,
+                               "the tick log opens with one start row, got %d of %d rows",
+                               starts, log_count);
+                SELFTEST_CHECK(player_tiles == srv->tick - log_start && tiles_in_order,
+                               "a player_tile row every tick: %d rows over %d ticks (in order "
+                               "%d)",
+                               player_tiles, srv->tick - log_start, tiles_in_order);
+                SELFTEST_CHECK(hits_on_slot > 0, "the swings that landed are hit_npc rows, got %d",
+                               hits_on_slot);
+                SELFTEST_CHECK(retypes == 1, "the transform is one npc_retype row, got %d",
+                               retypes);
+                SELFTEST_CHECK(frees == 1, "and the free is one npc_free row, got %d", frees);
+                mark = ToriRSServer_TicklogMark("selftest\tmark");
+                SELFTEST_CHECK(mark == (uint32_t)log_count + 1 &&
+                                   ToriRSServer_TicklogRead((uint32_t)log_count, log_rows, 1) ==
+                                       1 &&
+                                   log_rows[0].kind == TORIRSSERVER_TICKLOG_MARK &&
+                                   strcmp(log_rows[0].label, "selftest mark") == 0 &&
+                                   log_rows[0].tick == srv->tick,
+                               "a mark is the next serial at this tick, label kept: serial %u "
+                               "label '%s'",
+                               (unsigned)mark, log_rows[0].label);
+                ToriRSServer_TicklogDisable();
+                SELFTEST_CHECK(!ToriRSServer_TicklogEnabled(srv) &&
+                                   ToriRSServer_TicklogMark("off") == 0,
+                               "and a disabled log records nothing");
+            }
             /* Put the level back by hand, as the cow section does:
              * `ToriRSServer_CombatSetLevel` would re-derive the xp from it and
              * the sections below read both. */
@@ -45303,6 +45382,16 @@ ToriRSServer_WorldSelftest(void)
             const int rocks_r = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_LOC, "inferno_collapsing_wall_side_right_state3");
             int rocks_tick = -1;
+            /* ::zuk stands the player on ^inferno_player_zuk_lz, and the seal's
+             * locs sit at ^inferno_rock_w_lz (the flanks) and
+             * ^inferno_glyph_loc_lz (the slab): read all three rather than pin
+             * the start tile, which moved from local z 40 to 44 with Blert's
+             * wave-69 start (zuk_glyph_shield.player_start, WZ-START). */
+            int const zuk_lz = ToriRSServer_ContentConstantInt("inferno_player_zuk_lz", -1);
+            int const rock_dz =
+                ToriRSServer_ContentConstantInt("inferno_rock_w_lz", -1) - zuk_lz;
+            int const slab_dz =
+                ToriRSServer_ContentConstantInt("inferno_glyph_loc_lz", -1) - zuk_lz;
             int change_tick = -1;
             int anim_tick = -1;
             int removal_tick = -1;
@@ -45444,7 +45533,7 @@ ToriRSServer_WorldSelftest(void)
                  * instead made the measurement report change_tick whenever the
                  * wall went first, which is exactly the case under test. */
                 if( ToriRSServer_SceneFindLocId(
-                        player->x - 1, player->z + 11, player->level, middle) >= 0 )
+                        player->x - 1, player->z + slab_dz, player->level, middle) >= 0 )
                     mid_seen = 1;
                 else if( mid_seen && mid_removal_tick < 0 )
                     mid_removal_tick = tick;
@@ -45476,16 +45565,16 @@ ToriRSServer_WorldSelftest(void)
                  * content now uses `~inferno_coord`, so the rubble lands where
                  * the wall it replaces was rather than a storey above it. */
                 if( rocks_tick < 0 &&
-                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + rock_dz,
                                               player->level, rocks_l) >= 0 &&
-                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + rock_dz,
                                               player->level, rocks_r) >= 0 )
                     rocks_tick = tick;
                 if( anim_tick >= 0 && removal_tick < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x - 3, player->z + 12, player->level, left) < 0 &&
+                        player->x - 3, player->z + rock_dz, player->level, left) < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x + 2, player->z + 12, player->level, right) < 0 )
+                        player->x + 2, player->z + rock_dz, player->level, right) < 0 )
                     removal_tick = tick;
 
                 SELFTEST_CHECK(!(tick_left && (tick_left_seq || tick_right_seq)) &&
@@ -45619,9 +45708,9 @@ ToriRSServer_WorldSelftest(void)
                            cam_reset_tick, rocks_tick);
             {
                 int west_slot = ToriRSServer_SceneFindLocId(
-                    player->x - 3, player->z + 12, player->level, rocks_l);
+                    player->x - 3, player->z + rock_dz, player->level, rocks_l);
                 int east_slot = ToriRSServer_SceneFindLocId(
-                    player->x + 2, player->z + 12, player->level, rocks_r);
+                    player->x + 2, player->z + rock_dz, player->level, rocks_r);
                 struct ToriRSServerSceneLoc* west = ToriRSServer_SceneLoc(west_slot);
                 struct ToriRSServerSceneLoc* east = ToriRSServer_SceneLoc(east_slot);
                 SELFTEST_CHECK(west && west->angle == 3,
@@ -46130,7 +46219,8 @@ ToriRSServer_WorldSelftest(void)
                             { "north-east", 39, 40 },
                         };
                         int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
-                        int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
+                        int base_z = player->z - ToriRSServer_ContentConstantInt(
+                                                     "inferno_player_zuk_lz", -1);
                         int home_x = xil->x;
                         int home_z = xil->z;
                         int glyph_hp;

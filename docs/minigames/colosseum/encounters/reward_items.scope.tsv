@@ -1,0 +1,78 @@
+mechanic_id	scope	note
+reward_items.tonalztics.id.objects	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.requirement.ranged	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.speed.base	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.speed.rapid	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.range.uncharged_rapid	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.range.charged_rapid	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.range.longrange	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.bonus.ranged_attack	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.bonus.ranged_strength	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.bonus.prayer	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.hits.uncharged	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.hits.charged	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.damage.max_share_of_max_hit	stat	statistical: a damage roll distribution over many throws against the 75 percent ceiling; one solo test reads the ceiling, the recorder tool settles the shape
+reward_items.tonalztics.damage.superseded_first_look	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.charge.material	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.charge.splinters_per_charge	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.charge.consumed_per_throw	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.charge.cap	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.form.charged_untradeable	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.alch_value	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.special.energy_cost	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.special.accuracy_bonus	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.special.defence_drain_per_hit	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.special.drain_cap	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.special.second_hit_sees_first_drain	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.anim.auto_throw	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.anim.special	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.anim.auto_length	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.anim.special_length	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.vfx.special_graphics	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.vfx.record_durations	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.tonalztics.sound.frame_bound	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_crystal.id	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_crystal.charges_each	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.charges_max	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_crystal.alch_value	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_crystal.multi_use	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.requirement.defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.bonus.prayer_over_guardian	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.recoil.area	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.recoil.damage	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.recoil.charge_use	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.zero_charges	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.echo_boots.options	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.id.pieces	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.requirement.prayer	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.requirement.defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.prayer	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.stab_defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.slash_defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.crush_defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.ranged_defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.magic_defence	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.ranged_attack	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.bonus.magic_attack	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_armour.cost	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_splinters.id	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_splinters.uses	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_rune.minimum_hit	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_rune.searing_page	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.sunfire_rune.craft_level	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.id.forms	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.requirement.ranged	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.bonus.passive	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.charged.bonus	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.charge.cap	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.charge.use_chance	stat	statistical: a 1 in 3 roll needs a sample of shots; one test cannot settle it
+reward_items.quiver.bless.splinters	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.ava.pickup	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.minimus.splinters	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.quiver.ammo_inventory	all	one solo test: equip or use the item (give it with ::give) and read its stats, charge, special or recoil
+reward_items.pet.id.objects	all	one solo test: read the cache enum, obj or follower record, or trigger the item
+reward_items.pet.follow.cardinal_first	all	one solo test: read the cache enum, obj or follower record, or trigger the item
+reward_items.pet.follow.message	all	one solo test: read the cache enum, obj or follower record, or trigger the item
+reward_items.collection_log.colosseum.entries	all	one solo test: read the cache enum, obj or follower record, or trigger the item
+reward_items.collection_log.colosseum.uncut_onyx_source	all	one solo test: read the cache enum, obj or follower record, or trigger the item
+reward_items.collection_log.colosseum.completion_varbit	all	one solo test: read the cache enum, obj or follower record, or trigger the item

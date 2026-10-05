@@ -1,0 +1,244 @@
+{{Redirect|Quiver|the [[Castle Wars]] reward|Decorative armour (quiver)|ammunition worn in the ammunition slot|Ammunition}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|version3 = Locked + Uncharged
+|version4 = Locked + Charged
+|name1 = Dizana's quiver (uncharged)
+|name2 = Dizana's quiver
+|name3 = Dizana's quiver (l) (uncharged)
+|name4 = Dizana's quiver (l)
+|image1 = [[File:Dizana's quiver (uncharged).png]]
+|image2 = [[File:Dizana's quiver.png]]
+|image3 = [[File:Dizana's quiver (l) (uncharged).png]]
+|image4 = [[File:Dizana's quiver (l).png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options1 = Wear, Open, Empty, Destroy
+|options2 = Wear, Open, Uncharge, Empty
+|options3 = Wear, Open, Empty, Destroy
+|options4 = Wear, Open, Uncharge, Empty
+|destroy = You can get another from The Colosseum.
+|examine1 = A quiver awarded to those who have proved their worth in the Colosseum.
+|examine2 = A quiver awarded to those who have proved their worth in the Colosseum. Can be blessed at a Shrine of Ralos.
+|examine3 = A quiver awarded to those who have proved their worth in the Colosseum.
+|examine4 = A quiver awarded to those who have proved their worth in the Colosseum. Can be blessed at a Shrine of Ralos.
+|value = 80000
+|weight = 0.453
+|id1 = 28947
+|id2 = 28951
+|id3 = 28949
+|id4 = 28953
+|leagueRegion = Varlamore
+}}
+
+{{Synced switch
+|version1 = [[File:Dizana's quiver (uncharged) detail.png|150px|left]]
+|version2 = [[File:Dizana's quiver detail.png|left|150px]]
+|version3 = [[File:Dizana's quiver (l) (uncharged) detail.png|150px|left]]
+|version4 = [[File:Dizana's quiver (l) detail.png|left|150px]]
+}}
+
+'''Dizana's quiver''' is an item that requires level 75 [[Ranged]] to equip. It provides the [[best in slot]] ranged attack bonus for the cape slot, and is awarded for defeating [[Sol Heredit]] in the [[Fortis Colosseum]].
+
+The quiver is one of many used by fighters in the Fortis Colosseum, made as replicas of the original that was used by [[Dizana]], the Heroine of the Hunt; one of these replicas is found as [[Dizana's Quiver (scenery)|a display]] in the [[Grand Museum]]. The whereabouts of the original quiver is a heavily debated topic among Varlamorians; while assumed by many to be lost, some believe that the original quiver is mixed in with the replicas used in the Fortis Colosseum.{{CiteText|text=Dizana's Quiver (scenery)|quote=The status of the original quiver is heavily debated. Many claim that it has long been lost, while others believe it exists among the replicas being used within the Colosseum.}}
+
+Quivers can also be brought to [[Minimus]] to be exchanged for either 4,000 [[sunfire splinters]] or a 1/200 chance at receiving [[Smol Heredit]] (if not already in the player's possession), giving the item an indirect value of {{Coins|{{GEP|Sunfire splinters|4000}}}}. Players can configure the charges while the quiver is in their bank by right-clicking on Configure-Charges, as long as players have the required materials.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|version3 = Locked + Uncharged
+|version4 = Locked + Charged
+|version5 = Broken
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange1 = +18 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|arange2 = +18 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|arange3 = +18 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|arange4 = +18 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|arange5 = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr1 = +3 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|rstr2 = +3 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|rstr3 = +3 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|rstr4 = +3 <!--DO NOT change this PLEASE, the charged quiver's bonus is PASSIVE and only applies to arrows/bolts, including it here would be misleading-->
+|rstr5 = 0
+|mdmg = 0
+|prayer = 0
+|slot = cape
+|image1 = [[File:Dizana's quiver (uncharged) equipped male.png|130px]]
+|image2 = [[File:Dizana's quiver equipped male.png|130px]]
+|image3 = [[File:Dizana's quiver (l) (uncharged) equipped male.png|130px]]
+|image4 = [[File:Dizana's quiver (l) equipped male.png|130px]]
+|image5 = 
+|altimage1 = [[File:Dizana's quiver (uncharged) equipped female.png|130px]]
+|altimage2 = [[File:Dizana's quiver equipped female.png|130px]]
+|altimage3 = [[File:Dizana's quiver (l) (uncharged) equipped female.png|130px]]
+|altimage4 = [[File:Dizana's quiver (l) equipped female.png|130px]]
+|altimage5 = 
+}}
+
+==Mechanics==
+[[File:Dizana's quiver - extra ammunition slot.png|frame|The extra ammunition slot above the original slot, only appearing if the quiver is in the inventory or equipped.]]
+[[File:Dizana's quiver interface.png|thumb|The quiver's interface when opening it]]
+The quiver provides an additional ammunition slot, which can only be filled with [[arrows]] or [[bolts]]. This second ammunition slot allows players to do any of the following:
+* Equip two different ammunition types (e.g., bolts and arrows), with the applicable type shot depending on the player's currently equipped ranged weapon (neither [[Javelin|javelins]] nor [[Atlatl dart|atlatl darts]] can be stored in the quiver's ammo pouch).
+* Equip two of the same ammunition type (e.g., different types of bolts), with the ammo in the actual ammo slot prioritised (similar functionality to the [[bolt pouch]], but without a left click option to swap ammunition from the [[Worn Equipment]] tab).
+* Equip ammunition in the quiver's ammo slot and an item in the original ammo slot, such as a [[god blessing]].
+
+Players can move ammo from their ammo slot into Dizana's quiver using the ''Fill'' option from the Worn Equipment tab. Attempting to do so with no equipped ammo results in the message {{mes|You have nothing in your worn quiver to fill your Dizana's Quiver with.|color=tomato}}{{sic}}
+
+===Charging===
+Dizana's quiver outclasses [[Ava's assembler]] in ranged offence in its uncharged state. This can be further increased by charging it with [[sunfire splinter]]s, giving it a passive effect known as ''Dizana's Sunfire''; players can add up to 20,000 charges to the quiver.
+
+When charged, arrows and bolts that are shot from either [[Worn Equipment#Ammunition_slot|ammunition slot]] will gain an additional +1 [[Ranged Strength]] and +10 [[Ranged accuracy]]. As the ammunition must be storable in the quiver, ''Dizana's Sunfire'' will '''not''' apply to other types of ammunition, such as darts shot from a [[toxic blowpipe]], [[chinchompa]]s, or the [[bow of Faerdhinen]].
+
+Whether or not the quiver consumes a charge is determined by a random 1/3 roll.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1842187697978278254|date=4 October 2024|archiveurl=https://reldo.runescape.wiki/i/27963341|archivedate=4 October 2024|quote=[Wondering if you can provide any info about how Dizana's Quiver uses charges. The wiki states we still don't know how it works fully, and that there's some conflictions. I appreciate you, thank you!] It's doing a random 1/3 roll. Hiya :)}} Ranged weapons with a charge system of their own, most notably the [[venator bow]], '''will not''' use the quiver's charges.
+
+Charging the quiver contributes to the required amount of [[sunfire splinters]] required for the [[blessed Dizana's quiver]].
+
+===Exchanging===
+Players may exchange the uncharged quiver at [[Minimus]] for 4000 Sunfire Splinters or a 1/200 chance for the Sol Heredit pet. 
+
+{{Recipe
+|members = Yes
+|ticks = 0
+|mat1 = Dizana's quiver
+|mat1cost = No
+|output1 = Sunfire splinters
+|output1quantity = 4000
+|bucket=No
+}}
+
+===Upgrading===
+After completion of [[Animal Magnetism]] players can bring the quiver to [[Ava]], along with [[Ava's assembler]], [[Ava's accumulator]], or their [[max cape]] equivalents, to apply the same ammunition-saving effect of her devices to the quiver. Doing so will '''not''' consume the devices. Upgrading the quiver with the [[ranging cape]] will only provide the effect of Ava's accumulator; the quiver must be combined with Ava's assembler to receive its effect. This upgrade applies to '''all''' quivers the player owns, now and in the future - if a player loses all of their quivers and obtains a new one, they will '''not''' need to go back to Ava to reobtain the ammo-saving effect. The interaction between Ava devices and metal torsos '''does not''' carry over when adding the Ava effects to the Dizana's quiver.
+
+Players can also use it on a [[Shrine of Ralos]] - whilst having 150,000 [[sunfire splinters]] ({{Coins|-{{GEP|sunfire splinters}}*150000}}) in their inventory - to upgrade it to a [[blessed Dizana's quiver]]. This makes it so that ''Dizana's Sunfire'' is a permanent effect, and allows it to be combined with the [[max cape]] to create [[Dizana's max cape]]. Charging the quiver with sunfire splinters contributes to the required amount of splinters to upgrade.
+
+Due to rounding, the progress towards blessing percentage will only visually increment up every 1,500 splinters used, meaning using less than 1,500 splinters will result in the quiver inaccurately stating its progression is 0%. The quiver going to 0 charges naturally through use does not reset progress towards blessing.
+{{bug|Fully uncharging the quiver manually '''will reset all progress towards blessing'''.}}
+
+===Wilderness===
+If the player dies below level 20 [[Wilderness]], it will remain in the player's inventory but will be unusable and require {{NoCoins|270000|c}} to repair. If the player is killed by another player, below level 20 Wilderness, {{NoCoins|270000|c}} will be dropped along with any ammo that the quiver was holding, as well as all the charges.
+
+Above level 20 Wilderness, {{NoCoins|9600|c}} will be dropped, along with any ammo in the quiver; the quiver itself and its charges will be destroyed in the process. The quiver - along with its [[Dizana's max cape|max cape variant]] - can be locked by bringing it, along with a [[trouver parchment]] and {{NoCoins|500000|c}}, to [[Perdu]]. This will allow the quiver to be kept upon death to another player above 20 wilderness but any ammo that the quiver was holding, as well as all the charge will be lost.
+
+'''NOTE: Partial charging is lost as well.'''
+
+==Products==
+{{Uses material list|Dizana's quiver}}
+
+==Item sources==
+{{Drop sources|Dizana's quiver}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Dizana's quiver}}
+
+==Comparison between other Ranged capes==
+{{Ranged cape comparison}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Colosseum rewards concept art.png|Concept art of Dizana's quiver, alongside other Colosseum rewards, by [[Mod Jerv]].
+Dizana's quiver rework concept art.png|Reworked concepts for Dizana's quiver following player feedback.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 June 2026
+|update = Bank Tags, Trouver System Rework & More!
+|change = The uncharged and locked quiver was renamed from "Dizana's quiver (uncharged) (l)" to "Dizana's quiver (l) (uncharged)".
+}}
+{{Subject changes
+|date = 6 August 2025
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|change = Dizana's quiver now preserves its progress towards being blessed when [[Perdu]] applies a [[trouver parchment]] to it.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = 
+* Charging the quiver now contributes to the required amount of [[sunfire splinters]] required for the [[blessed Dizana's quiver]].
+* The Dizana's quiver supports a bank item option for changing charges.
+}}
+{{Subject changes
+|daterange = 15 August 2024 - 25 December 2024
+|change = Fixed a bug where equipping a [[mith grapple]] in the quiver's extra ammo slot caused all mith grapples in the player's inventory to drop to the floor.
+}}
+{{Subject changes
+|date = 2 October 2024
+|update = Rewards and XP Improvements - Varlamore: The Rising Darkness
+|change = Fixed a bug where Dizana's Quiver could be used to smuggle items in or out of the restricted areas that use the item holding system.
+}}
+{{Subject changes
+|date = 31 July 2024
+|type = hotfix
+|change = Fixed a bug that prevented the use of dragon arrows if they were in the quiver's ammo slot.
+}}
+{{Subject changes
+|date = 31 July 2024
+|update = QoL Improvements & Further Deadman: Armageddon Tweaks
+|change =
+Various issues have been fixed with certain bolts and arrows misbehaving with Dizana's Quiver:
+* Karil's [[bolt rack]]s no longer hinders using the bolts.
+* The [[hunters' sunlight crossbow]] and [[Sunlight antler bolts|its]] [[Moonlight antler bolts|bolts]] should now work correctly with the Dizana's quiver.
+* Having a [[mithril grapple]] inside Dizana's or a regular quiver no longer causes issues and lets the player shoot crossbow bolts as intended.
+}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = * The item has been [[graphically updated]].
+* The [[Ranged Strength]] bonus is now applied correctly when wearing the quiver alongside a [[twisted bow]] and [[dragon arrows]].
+}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change = Players can now exchange Dizana's quivers for 4,000 [[sunfire splinters]] by speaking to [[Minimus]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Dizana's quiver detail v1.png|center|300x150px]]
+|[[File:Dizana's quiver detail.png|center|300x150px]]
+|-
+|[[File:Dizana's quiver v1.png|center]]
+|[[File:Dizana's quiver.png|center]]
+|-
+|20 March 2024 –<br/>17 April 2024
+|17 April 2024–<br/>present
+|}
+
+==Trivia==
+*While untradeable and having a value of 80,000, the clan broadcast gives it a value of 225,000 coins.
+
+==References==
+{{reflist}}
+
+{{Fortis Colosseum}}
+{{Ranged armour}}
+{{Cape}}
+
+[[Category:Collection log items]]
+[[Category:Lockable items]]
+[[Category:Items with charges]]

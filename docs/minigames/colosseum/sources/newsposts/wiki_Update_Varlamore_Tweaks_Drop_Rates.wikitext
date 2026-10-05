@@ -1,0 +1,320 @@
+{{Update|date=03 April 2024|rev=04 April 2024|url=https://secure.runescape.com/m=news/varlamore-tweaks--drop-rates?oldschool=1|category=game}}
+[[File:Varlamore Tweaks & Drop Rates newspost.jpg|right]]
+{{clear}}
+__TOC__
+''Those much-anticipated drop rates for Perilous Moons and the Colosseum are here! Along with more Varlamore tweaks and a peek at next week's update.''
+
+==Feedback & Upcoming Changes - 4th April==
+We’re back regarding the most recent update and what our plans our for the next changes regarding content within the Colosseum. '''Before we jump in, we want to stress that these are the proposed changes, but we are open to hearing feedback from you all beforehand.'''
+
+===Modifiers===
+The team has seen plenty of feedback since first part of the Shining Kingdom released, but the focus in our most recent discussions revolves around Civitas Illa Fortis’ iconic landmark. We've been discussing just how we can modify those Modifiers to make the Colosseum feel better for everyone. Let’s look at what we’re going to change:
+
+===Bees!===
+* Given a longer delay before they respawn.
+* Given a longer delay before they move to their next tile.
+* Look to improve the visibility of Bees.
+
+===Doom===
+* There will now be three tiers of Doom. Each tier will allow you to take up to 15, 10 or 5 Stacks of Doom (respectively) before meeting your end.
+* Doom will now reset back to 0 stacks at the end of each wave.
+* We’re removing the Soul Reaper Axe & Divine Potions from adding to stacks of Doom.
+
+===Myopia===
+* Remove the ability to autocast spells without being affected.
+** This means you’ll still be able to manually cast with this Modifier.
+
+===Relentless===
+* Change to how the additional accuracy is applied to monster hits.
+** Stack 1 ignores 33% defence.
+** Stack 2 ignores 66% defence.
+** Stack 3 ignores all defences.
+** Additional damage per stack is left unchanged.
+
+===Totemic===
+* Increase cooldown before respawning a new totem if the first is killed.
+* The Amount of healing will be reduced.
+
+===Doom Scorpion (REMOVED)===
+* Even though they will be removed, we'll put them somewhere you can visit them in-game.
+
+===Mantimayhem (NEW)===
+* Manticores orb attacks become stronger, each time this is chosen.
+** This makes missing your flicks slightly more punishing but wouldn't change how many times you need to flick.
+
+===Drop Rates===
+Another key piece of feedback we’ve seen is that the drop rates for the uniques you can obtain went against what was initially mentioned in previous newsposts.
+
+Although things can change between an initial pitch, later newsposts and sometimes even before a release, it’s completely understandable that the information we present is what you will attach to. We’ll make it much clearer throughout development which areas are subject to change and highlight those that should not - we've already got some thoughts on how to do this!
+
+As for what we can do, first we’re going to make it so that both the Sunfire Armour pieces and the Echo Crystals can be obtained from completing Wave 3 onwards. Not only that, but we're making it so you will hit the unique loot table more often, with a higher chance given to the Sunfire Armour pieces. As for the Tonalztics, they will only obtainable from completing Wave 7 onwards.
+
+We’ll be updating the original image with Colosseum drop rates to show exactly how these proposed changes will impact things.
+===Unique Improvements===
+Not only have we improved the drop rate for the Colosseum’s uniques, we’ve also attempted to tackle the feeling that some of the items are underwhelming when compared to the content they come from. So, let’s look at the changes!
+
+===Echo Crystals===
+These boots will now be made for much more than walking, as when you convert the Guardian Boots to the Echo Boots this will now be a permanent change, regardless of if you have any charges or not. We’re also giving you the ability to turn off the Echo Boots effect, which means you can really pick and choose your moments to punish your enemies!
+
+As for the Echo Crystal charges themselves, we’re upping the number of charges per Echo Crystal to 6,000 and increasing the maximum charges on the Boots to 60,000, that’s roughly 2.5x more use from the Crystals and 6x more space in those Boots. As a final note, we’ll be increasing the Alch price of Echo Crystals to reflect it's value more accurately.
+
+===Tonalztics of Ralos===
+We’re going to remove the 50% cap on Defence reduction from its Special Attack, giving you the freedom to use it as much as you possibly can. Just like the Echo Crystals, we're upping the Alch price of this item too!
+
+===Sunfire Fanatic Armour===
+While we're not changing anything about the Armour pieces, their Alch prices will be adjusted accordingly!
+
+===Dizanna’s Quiver===
+Last but certainly not least, let’s talk about the real reason you’re all taking on Sol Heredit. We’ve consistently seen the feedback from you all that the Quiver looks underwhelming, especially when it comes to its size and grandeur. We showed off these previous concepts before but want to see what you think one more time to make sure we’re heading in the right direction. Let us know what you think about the new versions!
+
+<center>
+[[File:Varlamore Tweaks & Drop Rates (4).png|300px]]
+[[File:Varlamore Tweaks & Drop Rates (5).png|300px]]
+</center>
+
+===Hunters' Rumours - Drop rates===
+One area we forgot to include in yesterday's update when talking Varlamore were the drop rates for Hunters' Rumours. So not only are we going to give you the rates for the uniques but we're also going to give you the drop rates for Creature parts when doing a Rumour. Please remember these are just the drop rates and aren't guranteed after X creatures hunted.
+
+* Guild Hunter Outfit pieces: '''1/50''' (any tier of Loot Sack)
+* Huntsman's Kit: '''1/50''' (Adapt, Expert or Master Loot Sack)
+* Quetzal Pet: '''1/1000''' (Expert or Master Loot Sack)
+* Enhanced Whistle Blueprint: '''1/50''' (any tier of Loot Sack) - ''Pity Drop at 100 Rumours''
+* Perfected Whistle Blueprint: '''1/50''' (Expert or Master Loot Sack) - ''Pity Drop at 250 Rumours (Requires the Enhanced Whistle)''
+
+Creature Part Drops
+
+* Box traps: '''1/50'''
+* Pitfall traps: '''1/15'''
+* Butterflies: '''1/75'''
+* Birds: '''1/20'''
+* Deadfall traps: '''1/15'''
+* Tracking: '''1/15'''
+* Falcon: '''1/10'''
+* Herbiboar: '''1/7'''
+* Lizards: '''1/25'''
+
+We really appreciate everyone’s time, feedback and patience with us on this exciting new content!
+
+==Changelog - April 3rd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+===Varlamore Updates===
+'''Colosseum'''
+
+* The Ranged Warbanders have been given a little buff, so their ranged level more accurately reflects the rest of their stats. Watch out though, as this means they will hit a little harder now!
+* We've reduced the Warband Melee's maxhit to give you a little more of a fighting chance up against those fellas.
+* Those taking on the Colosseum will now receive the correct number of Glory for stacked modifiers.
+* We've upped the Colosseum security so you'll no longer find NPCs wandering the arena if they aren't supposed to be there.
+* All of the Fortis Colosseum NPCs now have their full and correct attack style information when using Monster Examine.
+* You can now trade the Dizana's Quiver for a total of 4,000 Sunfire Splinters by talking to Minimus.
+* We have slightly reduced the number of Sunfire Splinters obtainable in Wave 1, and increased the number gathered from waves 9-12. So while you'll receive 20% less Splinters on your first wave, if you make it through those later rounds, you'll see a lot more!
+
+'''Perilous Moons'''
+
+* We've taken a look at the Eclipse Boss and how much damage she's taking when at low hp, so you should no longer hit so many 1s!
+* Sulphur Nagua's special attack will no longer bump them out of combat (which removes the window of opportunity for other pesky enemies getting a turn in when they shouldn't!)
+* When fighting Moon bosses, the Ring of Recoil now correctly loses charges.
+* Sipping tea from camps in the ruins will no longer be delayed during Perilous Moons.
+* We've removed the forced camera movement when traversing Perilous Moons to make the journey more comfortable.
+* To make it easier to escape the Perilous Moons bosses, we've made quick-escape the default option for the stairs.
+* To reflect the lore around the Perilous Moons dungeon being newly discovered, you'll no longer find the diary entries detailing the dungeon's potions during the quest, only when you revisit the area.
+* It's now consistently possible to kill Eclipse Moon during the Clone phase - even with single hitting weapons!
+* We've now made it easier to tell when you've succeeded with the Fishing minigame during the Neypotzli dungeon, so now, when you have your net in the right place, you're guaranteed 1 fish, when you have it in the right place and succeed the roll, you'll receive 2 fish plus XP.
+* You can now use a Stab attack style with the Dual Macuahuitl.
+
+'''General'''
+
+* You can now cover all of your Falconry fun with a one-time fee, and it's easier than ever - we've added the ability to right-click pay option on Matthias!
+* Master hunters can relax, we've fixed a bug preventing you from using the Hunter Guild teleport on your Skill and Max Capes when you had used all of your Chinchompa teleports.
+* The Huntsman's Kit will now correctly let you store all your hunter items - however, black chinchompas will wriggle free and won't be stored in your kit.
+* We've tweaked the way the Hunters' Rumours work so you'll go a little less dry on the drops for many of the rumour creatures.
+* A bug has been fixed which means you will now only be able to use the Meat Sack for Hunter activities.
+* We've upped Irit Tar ranged strength to +60, so you'll get a little more bang for your muck! (see what we did there?)
+* The Moonlight Potion now has the correct description, factoring in its boost to attack and strength alongside defense.
+* For those undertaking A Ribbiting Tale, you can no longer escape a certain villainous frog's wrath by walking away. The furious frog will now continue to be aggro when you come back in range.
+* Wyrms are back on the menu, boys! We've made sure Wyrms are showing in the Slayer Log.
+* The stump in the Oasis no longer stops you taking an axe if you are carrying a combat axe.
+* The Civitas illa Fortis teleport in the Portal Nexus interface now has the correct icon.
+* The quetzals in Fortis have had a reshuffle, so you'll now find the more commonly used bird closer to a teleport.
+* We've increased the maximum capacity of the Portal Nexus, so it can contain all teleports once again.
+* An issue has been fixed where Echo Boots were losing charges in PvP scenarios.
+* The Mixed Hide costume set can now be stored in the POH Costume room.
+* Group Ironmen will now be able to correctly share hunter mixes and butterflies with their group.
+* We've reduced a clue scroll requirement to mean you only need one piece of the Sunfire armour set to complete it.
+* Your Sunfire Runes will give you even more XP as we have doubled those rates!
+* Sapphire Glacialis butterflies now correctly boost defence when they are released.
+
+===Other Changes===
+* We've fixed a bug which occurred following the addition of Varlamore that caused the Fang to roll incorrect accuracy during ToA.
+* If a player is prevented from chopping the mahogany and teak trees in Murcaily's Hardwood Grove due to having not helped out around the village enough, Murcaily will now warn them of this before trying to take 100 sticks from them for entry.
+* The dark chests of the Isle of Souls no longer claim that you might have received a Medium Clue Scroll every time you loot them.
+* Equipping the Lightbearer shortly before your special attack energy was due to restore will no longer delay the energy restoration.
+* The werewolf who receives the stick in the underground Agility course no longer wanders around so much.
+* If you need to get replacement railings from Lawgof during the Dwarf Cannon quest, he now gives as many replacements as you still need, rather than just one.
+
+===PvP Rota===
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Perilous Moons & Colosseum Drop Rates==
+===Perilous Moons===
+With every boss encounter comes the burning question: 'What are the drop rates for the rewards?' Well, the wait is over. We’re revealing the much-anticipated drop rates for the Perilous Moons bosses! Here’s what you need to know:
+
+'''Defeating a Moons of Peril boss grants you a 1/56 chance to secure a random item from their exclusive drop table.'''
+
+Blood Moon of Peril - 1/56 chance after defeating the Blood Moon boss to obtain a piece of Blood Moon gear:
+
+* Blood Moon Armour Pieces
+* Dual Macuahuitl
+
+Blue Moon of Peril - 1/56 chance after defeating the Blue Moon boss to obtain a piece of Blue Moon gear:
+
+* Blue Moon Armour Pieces
+* Blue Moon Spear
+
+Eclipse Moon of Peril - 1/56 chance after defeating the Eclipse Moon boss to obtain a piece of Eclipse Moon gear:
+
+* Eclipse Moon Armour Pieces
+* Eclipse Atlatl
+
+'''Furthermore, upon defeating all three bosses in one run, you'll be given ''an additional 1/56'' chance at ''any'' item!''' This boosts your overall odds significantly to 1/14, making these rewards more common than the average Barrows item.
+
+In a move to enhance your looting experience, we've also implemented a duplication protection system. This means you won't receive duplicate items from a set until you've completed the set, ensuring a smoother progression towards collecting all set pieces.
+
+On that note, let’s continue with Fortis Colosseum drop rates…
+
+===Fortis Colosseum===
+[[File:Varlamore Tweaks & Drop Rates (1).png|600px|center]]
+
+Once you've completed Wave 6 and for each wave afterwards, the Unique Drop Table is unlocked. If you roll on this table you do not roll on the Normal Drop Table for that wave. Glory will NEVER affect your odds. The base for rolling on the Unique Drop Table is 1/220. This number can be modified based on your current wave +1, which equals to:
+* Wave 6 - 1/108
+* Wave 7 - 1/92
+* Wave 8 - 1/76
+* Wave 9 - 1/60
+* Wave 10 - 1/44
+* Wave 11 - 1/28
+
+If you're lucky enough to roll up the Unique Drop Table, a second roll will determine which unique item you receive. Otherwise, you'll be rolling against that wave's normal drop table. Here are the odds for the Unique Drop Table:
+* Echo Crystal - 6/10*
+* Sunfire Fanatic Armour Piece - 3/10**
+* Tonalztics of Ralos - 1/10
+
+Other Rare Items include:
+* Smol Heredit - 1/200***
+* Dizana's Quiver - Only acquired upon a completion of the Colosseum.****
+
+<nowiki>* Rolling an Echo Crystal will also have a 1/10 chance of receiving either 2 or 3 Echo Crystals instead.</nowiki>
+
+<nowiki>** Obtaining these will favour pieces you haven't already received, otherwise it is random.</nowiki>
+
+<nowiki>*** The pet can only be rolled on completion of Wave 11 and its odds are not affected by any other factors.</nowiki>
+
+<nowiki>**** You can also gamble Quivers for a 1/200 chance to receive Smol Heredit by talking to Minimus.</nowiki>
+
+==Varlamore Updates==
+===Colosseum===
+[[File:Varlamore Tweaks & Drop Rates (2).png|600px|center]]
+
+* The Ranged Warbanders have been given a little buff, so their ranged level more accurately reflects the rest of their stats. Watch out though, as this means they will hit a little harder now!
+* We've reduced the Warband Melee's maxhit to give you a little more of a fighting chance up against those fellas.
+* Those taking on the Colosseum will now receive the correct number of Glory for stacked modifiers.
+* We've upped the Colosseum security so you'll no longer find NPCs wandering the arena if they aren't supposed to be there.
+* All of the Fortis Colosseum NPCs now have their full and correct attack style information when using Monster Examine.
+* You can now trade the Dizana's Quiver for a total of 4,000 Sunfire Splinters by talking to Minimus.
+* We have slightly reduced the number of Sunfire Splinters obtainable in Wave 1, and increased the number gathered from waves 9-12. So while you'll receive 20% less Splinters on your first wave, if you make it through those later rounds, you'll see a lot more!
+
+===Perilous Moons===
+[[File:Varlamore Tweaks & Drop Rates (3).jpeg|600px|center]]
+
+* We've taken a look at the Eclipse Boss and how much damage she's taking when at low hp, so you should no longer hit so many 1s!
+* Sulphur Nagua's special attack will no longer bump them out of combat (which removes the window of opportunity for other pesky enemies getting a turn in when they shouldn't!)
+* When fighting Moon bosses, the Ring of Recoil now correctly loses charges.
+* Sipping tea from camps in the ruins will no longer be delayed during Perilous Moons.
+* We've removed the forced camera movement when traversing Perilous Moons to make the journey more comfortable.
+* To make it easier to escape the Perilous Moons bosses, we've made quick-escape the default option for the stairs.
+* To reflect the lore around the Perilous Moons dungeon being newly discovered, you'll no longer find the diary entries detailing the dungeon's potions during the quest, only when you revisit the area.
+* It's now consistently possible to kill Eclipse Moon during the Clone phase - even with single hitting weapons!
+* We've now made it easier to tell when you've succeeded with the Fishing minigame during the Neypotzli dungeon, so now, when you have your net in the right place, you're guaranteed 1 fish, when you have it in the right place and succeed the roll, you'll receive 2 fish plus XP.
+* You can now use a Stab attack style with the Dual Macuahuitl.
+
+===General===
+* You can now cover all of your Falconry fun with a one-time fee, and it's easier than ever - we've added the ability to right-click pay option on Matthias!
+* Master hunters can relax, we've fixed a bug preventing you from using the Hunter Guild teleport on your Skill and Max Capes when you had used all of your Chinchompa teleports.
+* The Huntsman's Kit will now correctly let you store all your hunter items - however, black chinchompas will wriggle free and won't be stored in your kit.
+* We've tweaked the way the Hunters' Rumours work so you'll go a little less dry on the drops for many of the rumour creatures.
+* A bug has been fixed which means you will now only be able to use the Meat Sack for Hunter activities.
+* We've upped Irit Tar ranged strength to +60, so you'll get a little more bang for your muck! (see what we did there?)
+* The Moonlight Potion now has the correct description, factoring in its boost to attack and strength alongside defence.
+* For those undertaking A Ribbiting Tale, you can no longer escape a certain villainous frog's wrath by walking away.  The furious frog will now continue to be aggro when you come back in range.
+* Wyrms are back on the menu, boys! We've made sure Wyrms are showing in the Slayer Log.
+* The stump in the Oasis no longer stops you taking an axe if you are carrying a combat axe.
+* The Civitas illa Fortis teleport in the Portal Nexus interface now has the correct icon.
+* The quetzals in Fortis have had a reshuffle, so you'll now find the more commonly used bird closer to a teleport.
+* We've increased the maximum capacity of the Portal Nexus, so it can contain all teleports once again.
+* An issue has been fixed where Echo Boots were losing charges in PvP scenarios.
+* The Mixed Hide costume set can now be stored in the POH Costume room.
+* Group Ironmen will now be able to correctly share hunter mixes and butterflies with their group.
+* We've reduced a clue scroll requirement to mean you only need one piece of the Sunfire armour set to complete it.
+* Sapphire Glacialis butterflies now correctly boost defence when they are released.
+
+Another one worth noting, shortly after the release of Varlamore we fixed a bug where Sunfire Runes were giving XP per rune made rather than per essence used. At the time, this was being used to gain far higher rates of Runecraft XP than intended. While we don't intend to revert back to those rates, we do want to make Sunfire Runes a bit more generous. As such, we've doubled the Runecraft XP given for making them.
+
+==Next Week - Undead Pirates==
+We've not got much to say here, but wanted to give you all a heads-up that our low-level Wilderness hotspot is releasing as part of next week's game update.
+
+So if you're looking to dust off your Pure, now's the time to book some time off or plan an awfully suspicious, nondescript headache... For a full list of what to expect, here's everything we're looking to include in next week's update:
+
+* Undead Pirates added and landscape changes to the Chaos Temple.
+* New rewards in the form of Adamant seeds and the Teleport Anchoring Scroll (formerly named 'Blip blocking scroll', but now it has a nautical word in the mix!).
+* A pirate ship on the Wilderness' eastern shore, housing a chest that players can open for additional loot rolls using keys that are dropped by Undead Pirates.
+* An adjusted Hard Clue Scroll location, moving from the Chaos Temple itself to a spot just north, by the nearby Wilderness Obelisk.
+* Improved opt-in loot and XP rates from the Wilderness Agility Course.
+* Various QoL changes to imbued God cape purchasing and Wilderness Slayer, including improved Superior rates, NPC quantities ''and ''loot tables.
+* Removing the PJ Timer on Worlds 318 and 319, with improved messaging to boot. The PJ Timer was never supposed to be added to these worlds and in-game messaging had been incorrect for some time, this change is to make good on what we said our plan was when first introducing the PJ Timer [https://secure.runescape.com/m=news/pj-timer--new-broadcast-settings-?oldschool=1 in this blog from 2022] so that players who primarily enjoy a slightly different style of PKing might get the chance to jump back in!
+
+If you're looking for a reminder on exactly what to expect, you can check out the original blog [https://secure.runescape.com/m=news/a=13/low-level-wilderness-hotspot-deadman-2024--more?oldschool=1 here ] or get more information about some of the rewards and other content changes (listed above) [https://secure.runescape.com/m=news/updated-undead-pirates-rewards--more---poll-blog?oldschool=1 in this poll blog.]
+
+We'll see you in the Wilderness! Just remember to not bring anything you're not willing to lose, and to go easy on us if you see us out there…
+
+==Other Changes==
+* We've fixed a bug which occurred following the addition of Varlamore that caused the Fang to roll incorrect accuracy during ToA.
+* If a player is prevented from chopping the mahogany and teak trees in Murcaily's Hardwood Grove due to having not helped out around the village enough, Murcaily will now warn them of this before trying to take 100 sticks from them for entry.
+* The dark chests of the Isle of Souls no longer claim that you might have received a Medium Clue Scroll every time you loot them.
+* Equipping the Lightbearer shortly before your special attack energy was due to restore will no longer delay the energy restoration.
+* The werewolf who receives the stick in the underground Agility course no longer wanders around so much.
+* If you need to get replacement railings from Lawgof during the Dwarf Cannon quest, he now gives as many replacements as you still need, rather than just one.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1bvrojo/update_varlamore_tweaks_drop_rates/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

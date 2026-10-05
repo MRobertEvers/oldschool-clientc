@@ -1101,6 +1101,8 @@ World_NpcSpawn(
         .combat = { .healthbar_type = -1 },
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
+        .seq_sent_id = -1,
+        .spotanim_sent_id = -1,
     };
     return idx;
 }
@@ -1159,6 +1161,7 @@ World_ProjectileSpawn(
         .angle = angle,
         .startpos = startpos,
         .target = target,
+        .spotanim_id = -1,
         .dst_x = dst_x,
         .dst_z = dst_z,
         .cycle = 0,
@@ -1221,6 +1224,7 @@ World_SpotanimSpawn(
         .active_cycle = 0,
         .lifetime = lifetime,
         .active = false,
+        .spotanim_id = -1,
     };
 
     /*
@@ -2565,6 +2569,14 @@ World_NpcSetPrimaryAnimation(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    /* Stamped before the priority/replay rule below decides whether the seq
+     * plays at all: see WorldEntity_NPC.seq_sent_id. -1 (stop) is not an
+     * action and leaves the last one standing. */
+    if( seq_id >= 0 )
+    {
+        npc->seq_sent_id = seq_id;
+        npc->seq_sent_cycle = world->cycle;
+    }
     world_apply_primary_animation(
         world,
         &npc->animation,
@@ -2812,6 +2824,11 @@ World_NpcSetSpotanim(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
+    if( spotanim_id >= 0 )
+    {
+        npc->spotanim_sent_id = spotanim_id;
+        npc->spotanim_sent_cycle = world->cycle;
+    }
     world_set_entity_spotanim(world, &npc->spotanim, spotanim_id, height, cycle_delay);
 }
 

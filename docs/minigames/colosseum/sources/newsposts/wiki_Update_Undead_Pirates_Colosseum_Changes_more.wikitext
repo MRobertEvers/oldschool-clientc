@@ -1,0 +1,327 @@
+{{Update|date=10 April 2024|rev=12 April 2024|url=https://secure.runescape.com/m=news/undead-pirates-colosseum-changes--more?oldschool=1|category=game}}
+[[File:Undead Pirates, Colosseum Changes & more! newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==Update - Friday, April 12th==
+We've got a brief update for you all! We're pleased to see so many of you zooming about the Wilderness since Wednesday and have already made a couple of small tweaks:
+
+* Adjusted some drop rates for Zombie Pirate-related items.
+** Drop rate of the Teleport Anchoring Scroll from the Zombie Pirate's Locker has been made 1 in 275.
+** The Teleport Anchoring Scroll is no longer doubled when it's obtained from the Locker.
+** Zombie Pirate Keys now drop at a rate of 1 in 24. This has been improved from 1 in 50.
+** On average, assuming you use up all of the keys you obtain, this makes the Teleport Anchoring Scroll around 4 times more common than before this fix, though you'll only obtain one (rather than two) if you snag one from the locker.
+* Adjusted the behaviour of the rope swing at the WIlderness Agility Course so that more than one player can use it at once.
+* '''Note: we're hoping to deploy this ASAP'''. Fix an issue where the Wilderness Agility Course dispenser isn't providing Blighted Super Restores as part of its loot.
+
+There's still more we'd like to change though, some of which we detailed on our Q&A yesterday, here's a quick summary:
+
+* Move the location of Clue Steps inside the Wilderness Agility Course.
+* Provide a 'pause' option between laps so that players can log out without feeling overly punished. Additionally, allow players to keep ''some'' percentage of their streak if they log out - this is mainly to try and avoid disproportionately punishing people in cases like disconnects.
+* Lower the wander range of Elder Chaos Druids so they stay a little more well-contained within the Chaos Temple.
+* Make the Ring of Wealth(i) interact properly with Medium Clue Scrolls at the Wilderness Agility Course.
+* Allow Wilderness Agility Course lap streak and loot to display while Game Chat is set to 'Filtered'.
+* Add a chance to obtain a Looting Bag from the Wilderness Agility Course dispenser.
+* Adjust blocking on spikes in the underground section of the Wilderness Agility Course so that players can fire spells or ammunition over them.
+* Lower the max hits of Skeletons at the Wilderness Agility Course.
+* Provide a 'grace' period after Artio, Callisto, Calvar'ion, Spindel, Vet'ion and Venenatis respawn where players can choose to attack them instantly if they choose, but will be afforded more time to manage their supplies/inventory if they need to.
+* Increase the despawn timer of consumables dropped in the Wilderness to 15 seconds to prevent things disappearing while you're briefly re-adjusting your inventory.
+* Investigate 'damage nullification' on the ladder at the Wilderness Agility Course, and fix this if this is the case.
+
+We're hoping to deploy most of these adjustments next week, though some will have to wait until the week after! In the mean time, happy 'Scaping and have a wonderful weekend!
+
+----
+
+''This week we've got a little something for everybody, from the Colosseum to a brand-new Wilderness hotspot!''
+
+==Undead Pirates==
+[[File:Undead Pirates, Colosseum Changes & more! (1).jpg|600px|center]]
+Today marks the beginning of an epic battle between Undead Pirates and Elder Chaos Druids, conveniently localised entirely within the Chaos Temple between Levels 9 and 14 Wilderness.
+
+The pesky pirates have run aground on the Wilderness’ eastern shore and they’re itching to get their bony hands on some Wilderness booty. The Elder Chaos Druids are fending them off, but the battle is quickly reaching a stalemate. Seems like a great time for some bold adventurers to nip in and start looting!
+
+We’ve spoken about this update already at [https://secure.runescape.com/m=news/a=13/low-level-wilderness-hotspot-deadman-2024--more?oldschool=1 the Winter Summit] and [https://secure.runescape.com/m=news/updated-undead-pirates-rewards--more---poll-blog?oldschool=1 the poll blog], so we’ll keep it brief.
+
+The goal here is to breathe a little life into low-level Wilderness, in the hope that ‘specialised’ PvP builds like Pures and Zerks will carve out a space of their own, and lower-level players will be able to enjoy PvP without being at the mercy of PKers ''far'' more experienced than they are.
+
+In the past, the problem has been that content below Level 30 Wilderness is difficult to make risky since players are always one click away from teleporting to safety. To up the ante, we’ve slipped the Elder Chaos Druids some forbidden knowledge, and they’re now capable of Teleblocking. Now, they’re unlikely to fire off the Teleblocks if you remain a safe distance away. If you are unfortunate enough to be hit by one, you can quickly re-log to clear it. Note that they’ll also re-up your Teleblock if it’s close to expiring, so you’ll need to get your Run on if you plan to escape!
+
+Meanwhile, we’ve opened up the southern side of the Chaos Temple to allow for two entry points – which means you and your friends can pincer opponents from each point or meet an opposing group in the middle!
+
+As per our poll, the Hard Clue step that directed players to the Chaos Temple has been moved to a safer location, near the Obelisk just northwards.
+
+[[File:Undead Pirates, Colosseum Changes & more! (2).png|600px|center]]
+On the rewards front, the Pirates' provide reasonable consistent loot, so you’ll constantly be accumulating rewards and weighing up whether or not to make a quick exit. It's worth ''noting'' (pun intended) that the Amulet of Avarice will note your drops here, so feel free to bring one if you're comfortable with the added risk!
+
+Pirates also have an uncommon chance to drop Adamant Seeds or the Teleport Anchoring Scroll, both of which are tradeable.
+
+Adamant Seeds work almost exactly like Mithril Seeds except they'll move you to the east when planting, as opposed to west, which might lead to some interesting escapes... or at least some funky dance moves.
+
+The Teleport Anchoring Scroll (formerly known as the ‘Blipblock Scroll’, for which we express our sincere apologies) is a one-time consumable item which will makes you impervious to the rage-inducing teleport attacks of Elder Chaos Druids ''and'' Abyssal Demons. A nice pickup for anybody looking to pilfer some pirate pockets!
+
+Undead Pirates rapidly respawn and have low HP (it’s the scurvy) so you should be able to mow them down fairly quickly. You can even use a Dwarven Multicannon if you’re willing to risk it! As you're living, laughing and looting, you might come across a Zombie Pirate Key or two.
+
+These '''tradeable''' keys are used to open a chest on the pirates’ grounded ship, located in a single-way combat zone on the eastern shore. Opening the chest acts like a roll on the pirates' loot table but will '''double '''any loot received, including uniques! The aim here is to spread a little bit of the action into single-way combat zones, while keeping the heart of the update in the multi-combat moshpit.
+
+[[File:Undead Pirates, Colosseum Changes & more! (3).png|600px|center]]
+
+==Varlamore Changes==
+This week, we're making some changes to Colosseum modifiers and unique drop rates that should make your runs feel more enjoyable ''and'' more rewarding!
+
+===Colosseum Modifiers===
+====Bees====
+
+* Increased time between movements from 7 ticks (4.2s) to 12 ticks (7.2s).
+* Increased respawn delay from 18 ticks (~11s) to 50 ticks (30s).
+
+====Doom====
+
+* Doom is now a stackable modifier to reflect new behaviour:
+** Doom stacks reset to 0 at the end of each wave.
+** Death is guaranteed at 15, 10, or 5 stacks of Doom depending on the active modifier tier.
+** Doom stacks will only be applied by Colosseum sources. Instances of self-dealt damage like the Soulreaper Axe or Divine Potions will no longer add Doom stacks.
+
+====Blasphemy====
+
+* Similar to the Doom change, self-dealt damage will no longer result in additional Prayer Point drain if Blasphemy is active.
+
+''The Doom Scorpion''
+
+* Has been put back in its cage and is no longer available as a modifier.
+
+====Mantimayhem (New!)====
+
+* ‘Mantimayhem’ has been added to the modifier pool, with some changes in line with your feedback:
+** Tier 1 adds an additional projectile per orb, meaning you'll get hit twice as many times for each attack, making hits off-Prayer more punishing.
+** Tier 2 adds a Venom effect to any damage received from the Manticore's attacks.
+** Tier 3 removes the 'forced' Melee orb in the final slot of the Manticore's attack sequence. Effectively, this makes the order of attacks totally random.
+
+====Myopia====
+
+* Myopia now affects autocast spells. Manually-cast spells remain unaffected.
+
+====Relentless====
+
+* Tiers 1 and 2 now cause enemy attacks to ignore 33% and 66% of your Defence, respectively. Tier 3 is unchanged and ignores all Defence.
+* Bonus 'minimum hits' from this modifier remain unchanged at 1, 3 and 6 per tier.
+
+====Totemic====
+
+* Increased respawn timer from 1 minute to 2 minutes after a totem has been destroyed.
+* Reduced healing from 40% to 30% of the targeted NPCs health.
+
+We imagine more of you might get re-gearing for the Colosseum with these changes in effect, ''especially'' if there's more reliable loot up for grabs...
+
+===New Loot Rates===
+Check out [https://secure.runescape.com/m=news/a=97/varlamore-tweaks--drop-rates?oldschool=1 last week’s newspost] to learn about how drops in the Colosseum work. Or, just remember the most important bit: from Wave 3 onwards, the Colosseum rolls to see whether you’re offered regular loot or a shiny unique. As the Wave count increases, so do your odds!
+
+Here's how we’re adjusting these rates in today’s update:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Wave
+! Old Chance
+! New Chance
+|-
+| 1
+| -
+| -
+|-
+| 2
+| -
+| -
+|-
+| 3
+| -
+| 1/124
+|-
+| 4
+| -
+| 1/110
+|-
+| 5
+| -
+| 1/96
+|-
+| 6
+| 1/108
+| 1/82
+|-
+| 7
+| 1/92
+| 1/68
+|-
+| 8
+| 1/76
+| 1/54
+|-
+| 9
+| 1/60
+| 1/40
+|-
+| 10
+| 1/44
+| 1/26
+|-
+| 11
+| 1/28
+| 1/12
+|-
+| 12
+| -
+| -
+|}
+
+If you're lucky enough to roll a unique item, a second roll is performed to determine exactly which one you'll receive. We've made some adjustments to these weightings too, so that Sunfire Armour pieces are more obtainable:
+
+* Sunfire Armour Piece: adjusted from 3/10 to 9/16.
+* Echo Crystal: adjusted from 6/10 to 6/16.
+* Tonalztics of Ralos: adjusted from 1/10 to 1/16. Now only obtainable from Wave 7 onwards.
+
+While you’re now less likely to roll an Echo Crystal or the Tonalztics, the increased frequency of unique rolls should make up the difference, especially when you’re reliably getting to higher waves!
+
+To top all of this off, we're making some improvements to both Echo Crystals and the Tonalztics of Ralos which we feel should improve their use-cases:
+
+* Tonalztics of Ralos' Special Attack's Defence reduction is no longer capped at 50% of the target's Defence.
+* Increased the Tonalztics of Ralos' High Alchemy value to 360,000 GP.
+* Echo Crystals now add 6,000 charges to Echo Boots, up from 2,500.
+* Echo Boots are now able to store charges up to a maximum of 60,000, up from 10,000.
+* Multiple Echo Crystals can be used to charge Echo Boots at the same time, up to the cap.
+* The recoil effect on Echo Boots can now be toggled.
+* When the number of charges in Echo Boots reaches 0, the recoil effect is disabled until recharged, but the boots will remain intact and equipped.
+* Increased Echo Crystals' High Alchemy value to 90,000 GP.
+
+That's a wrap on the big Colosseum changes, though we still have some more Varlamore tweaks this week listed below!
+
+Additionally, '''a clarification from last week's post''': we made an error in our post last week with regards to the Perilous Moon drop rates. In it, we stated that each boss slain gave a 1/56 chance of obtaining its respective armour set, totalling a 3/56 (or ~1/18.67) chance for a unique. That much is correct! What's ''not'' correct is our statement that defeating all three bosses would provide an ''additional'' 1/56 roll at '''any''' item, for a total of 1/14. This is not the case and has never been the case, we just got some wires crossed with our post last week and can only apologise for that!
+
+On top of that, we missed the Mature Tecu Salamander rate from last week's post, in case you were wondering, it's a 1/1,000 chance every time you catch a Tecu Salamander.
+
+Now, bring out the list!
+
+* Nahta's (who runs the Rune Shop in Cam Torum) has adjusted her prices in line with Rune Shops across Gielinor.
+* Visually updated the Pickaxe Stall in Cam Torum to distinguish it from Crafting Stalls.
+* Tidied animations on the Blue Moon Spear.
+* Added a pop-up that explains how to charge the Quetzal Whistle when players first claim a Blueprint. Pitri will still provide this information if players ask them nicely.
+* '''Note: This point was included in error. This change is occurring in a future update, and won't be present in today's. We'll leave it here for posterity's sake''' The Hunter Pouch and Meat Pouch can now be opened or closed, much like a Looting Bag. When open, the Pouches will fill up with their respective resources.
+* Additionally, the Hunter and Meat Pouches can now be emptied directly into the Bank.
+* The Serpent Shaman inside the Colosseum has had some animations updated so that their spells better reflect their powers.
+* '''Edit: This is also not included in this week's update, but will be in a future update.''' Impling Jars and Rings of Pursuit can now be added to and removed from the Huntsman's Kit.
+* Players can no longer walk inside the fence of the bridge in Civitas illa Fortis park. Apologies to any 'phased through the fence on the bridge in Civitas illa Fortis park'-locked Iron players!
+* A crop circle leading to Puro-Puro should now spawn as-intended in the wheat field near Civitas illa Fortis.
+* Nagua inside Neypotzli are now classified as 'Spectral' creatures.
+* Bees inside the Colosseum are now more visible. Buzzin’!
+* Adjusted some of the terrain near Sunfire Antelopes to make them less frustrating to hunt.
+* Special Attack Energy no longer regenerates between Waves in the Colosseum.
+* Fixed a bug where a S.T.A.S.H. Unit that could store Sunfire Armour would interact with a similar S.T.A.S.H. Unit in Trollheim when filled up or emptied.
+* Fixed a bug where Sulphur Nagua’s special attacks were increasing the player's action delay rather than their own.
+
+==Wilderness Changes==
+You’re going to ''wish'' you had a friendly Chaos Druid to teleport you around when you take on this next activity. Get your running shoes ready for…
+
+===Wilderness Agility Course Changes===
+Today’s update adds an opt-in loot system to the Wilderness Agility Course! You’ll notice a shiny new Dispenser at the entrance to the Course. For an upfront fee of 150,000 GP, you’ll start gaining loot after every completed lap. Simply touch the pillar at the end of the Course, and you’ll receive loot ''and'' an Energy top-up! If only gyms worked like that in real life...
+
+Dying within the Course (including the underground area) will lose you your 150,000 GP deposit, although you can rest easy knowing it won’t be transferred to a PKer if you died in PvP.
+
+The amount of loot offered per lap increases at discrete intervals:
+
+* 1-15 laps, average 10k loot per lap
+* 16 - 30 laps, average 20k loot per lap
+* 31 - 60 laps, average 30k loot per lap
+* 61+ laps, average 40k loot per lap
+
+Your lap streak will reset upon logout or upon leaving the course, so prepare to bring your tank gear and try to stick it out!
+
+You’ll get about a 50/50 split of alchables and Blighted items, which should score you both consistent profits and supplies for future trips. If you have an empty inventory slot, you'll also be given an unnoted Blighted item - this is to try and help players who've come out the other side of a fight and want to keep their lap streak going.
+
+On top of this, you'll have a 1/40 chance per lap to receive a Medium Clue Scroll, which might serve as the perfect excuse to make a quick exit and try to snag some valuable new boots...
+
+In keeping with the whole 'rise of the undead' thing we've got going on this week, we've also added more Skeletons around the course. For one thing, they ''really'' need to put on some muscle, and for another, this should cut down on insta-logging escapes. Additionally, we'll be making the area Singles-plus combat (similar to the Revenant Caves) so that players can't avoid combat by 'boxing' a Skeleton.
+
+Outside of this opt-in system, you'll be earning some improved XP rates at this course '''without '''needing to pay that 150,000 GP deposit!
+
+At the end of each lap, you'll be given a Wilderness Agility ticket, which can be redeemed at the Dispenser for a baseline 200XP per ticket. Redeeming more will grant additional XP modifiers, as follows:
+
+* 1-10 tokens grant the usual XP (200 XP per token).
+* 11-50 tokens grant an additional 5% XP (210 XP per token).
+* 51 - 100 tokens grant an additional 10% XP (220 XP per token).
+* 101+ tokens grant an additional 15% XP (230 XP per token).
+
+These modifiers apply to ''all'' your tickets, so redeeming 101 tokens will result in 23,230 bonus XP. Tickets are not tradeable and are converted into GP upon PvP death. Otherwise, they go unchanged to your Gravestone.
+
+===Other Wilderness and PvP Changes===
+Lastly, we have a few more of the changes polled earlier this year, plus other tweaks that should cut down on abuse:
+
+* Reduced respawn timers for most NPCs in the Wilderness (including bosses, but excluding Revenants) to 9 seconds.
+* Improved the quantity of the following Wilderness Slayer Tasks:
+** Bandits at the Wilderness Bandit Camp.
+** Dark Warriors at the Dark Warriors’ Fortress.
+** Rogues at Rogues’ Castle.
+** Ankou, Hellhounds, Ice Giants and Jellies in the Wilderness Slayer Caves.
+* Improved the 'aggro range' for Ankou, Lesser Demons, Ice Giants and Hill Giants.
+* Removed a crate in the Pirates' Hideout in the deep Wilderness, allowing Dwarven Multicannons to be placed in the middle. Call that feng ''slay.''
+* Marginally improved the drops of the following NPCs:
+** Bandits: Added Rune Full Helms, Rune Med Helms, Rune Scimitars and Dragon Longswords.
+** High-level Rogues: Added 1,000-3,000 GP per kill.
+* Superior Slayer monsters now have a 10% increased chance to spawn during Wilderness Slayer Tasks.
+* Players can now purchase Imbued God Capes from Perdu for 250,000 GP after completing the miniquest.
+* Imp Boxes can no longer be used on PvP Worlds. Their primary use-case on these worlds is for scamming other players after agreeing to fight on some mutually agreed-upon risk, so we're disabling them to reduce the potential for abuse.
+** Additionally, manually uncharging your imbued items will refund 100% of the points/zeal, up from 80%
+* Dying with an imbued item (such as a Berserker Ring (i), Salve amulet (i) or Slayer helmet (i)) that is lost on death will now refund either the points ''or'' the Imbue Scroll used to create it.
+
+We’ve also got some more complex changes introduced to prevent abuse. These are likely to be more relevant to those of you who already spend a fair share of your time engaging in PvP.
+
+Firstly, we’ve fixed unintended PJ timer interactions across single-way and multi-way combat borders. Imagine that Player A and Player B are attacking Player C in a multi-way combat zone. If B is the last one that attacks C, and C has attacked A, neither Player A nor B will be able to attack Player C after C enters single-way combat. This prevents an unintended interaction from the PJ timer where Player C could attack Player A, prevent any incoming attacks for 12 seconds and guarantee a free logout.
+
+On that topic, we’ve finally removed the PJ Timer from Worlds 318 and 319, fulfilling the promise we made [https://secure.runescape.com/m=news/pj-timer--new-broadcast-settings-?oldschool=1 in this blog from 2022]. Now, players who enjoy a different style of PvP might get the chance to jump back in! We’ve also improved messaging on these worlds to ensure that appropriate information is given to players logging in – although many players who aren’t familiar with PvP are already scared off by the existing messaging.
+
+Meanwhile, players who are in combat in a single-way zone can no longer instantly have Heal Other, Spec Transfer or Vengeance Other cast on them when running into a multi-combat zone. They now need to spend 6 seconds in multi-combat before these spells are useable. The aim for this change is to prevent people in a 1 vs. 1 fight dipping in and out of multi to give themselves an unfair advantage by having another player or alt account repeatedly bolster their combat capabilities.
+
+Raw food no longer appears to other players when dropped in the Wilderness. While it’s uncommon, some players pick up raw food and cook it mid-fight, circumventing the restrictions on picking up cooked food and potions from other players. As funny as this behaviour is, it’s not ''really'' in the spirit of PvP, and we’re sticking to our blanket ‘stop running into fights and dropping advantages’ policy.
+
+Similarly, manually dropped food or potions will now despawn faster in the Wilderness. Supplies dropped by NPCs will remain untouched. This change aims to stop players dropping an entire Inventory of snacks, banking, returning, juggling the food, and effectively giving themselves a massive extra health pool for their next fight. We appreciate that this creates another Wilderness-specific inconsistency, but there’s no easy way to tell when your opponent is doing this, and we feel it confers an unfair advantage.
+
+==More Plushies!==
+[[File:Undead Pirates, Colosseum Changes & more! (4).png|600px|center]]
+The latest campaign from our plushie partner, [https://www.makeship.com/shop/runescape Makeship] is now live.
+
+* Gold-trimmed Rune Champion
+* Dragon Chainbody
+* Cute Noob
+* Virtus
+
+Which of these iconic outfits is your favourite? Can’t decide? Don’t worry - if you buy 2 you get a 5% discount, 3 a 10% discount and all 4 a 15% discount!
+
+Pre-orders are open now for a limited time only - so [https://www.makeship.com/shop/runescape get them] while you can!
+
+==Other Changes ==
+Feast your eyes on these last few changes before gearing up and getting ready for whatever grind you're putting off by reading today's post!
+
+* Visually updated the footprints of Razor-backed Kebbits so they don't blend into the ground quite so much.
+* Adjusted pathfinding for pitfall and deadfall Hunter creatures and adjusted the terrain to prevent them getting stuck on scenery, instead of your ingenious traps.
+* HOTFIX: Wall Beasts no longer prevent players entering the Lumbridge Swamp Caves. We're considering adding an extra spike to the spiny helmet as further punishment.
+* The Strength Skill Guide now lists the correct Defence level requirement for the Bloodrager Armour set.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B:'''
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

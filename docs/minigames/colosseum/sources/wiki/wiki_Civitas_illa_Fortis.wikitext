@@ -1,0 +1,163 @@
+{{Redirect|Fortis|the Colosseum|Fortis Colosseum}}
+{{Redirect|Civitas|house style|Civitas (house style)}}
+{{Infobox Location
+|name = Civitas illa Fortis
+|image = [[File:Civitas illa Fortis.png|300px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Varlamore]]
+|race = [[Human]]s
+|teleport = [[Civitas illa Fortis Teleport]] after [[Twilight's Promise]]
+|music = {{*}} [[The City of Sun]]<br/> {{*}} [[Prospering Fortune]]
+|map = {{Map|name=Civitas illa Fortis|height=240|1725,3128|zoom=0}}
+|type = settlement
+|leagueRegion = Varlamore
+}}
+[[File:Civitas illa Fortis icon detail.png|left|130px]]
+{{Relativelocation
+|location = Civitas illa Fortis
+|north = Twilight Temple
+|west = Ralos' Rise
+|south = Locus Oasis
+}}
+'''Civitas illa Fortis''' is the [[capital]] of [[Varlamore]]. Commonly referred to as '''Fortis''' by its inhabitants (as it was known as such before Varlamore's founding 900 years ago), the city is notable for its [[Perican]]-style architecture,{{CiteNPC|npc=Curator Herminius|quote=For example, here in Fortis, you'll find yourself surrounded by Perican archetecture, whereas over in the Tlati Rainforest, the influence of the Talkasti remains clear.}} featuring several notable landmarks such as the [[Fortis Colosseum]], [[Sunrise Palace]], and the [[Grand Museum]].
+
+==Transportation==
+The player must first travel to Civitas illa Fortis by travelling with [[Primio]], located east of the [[Varrock east bank]] after completing [[Children of the Sun]] before other transportation methods listed below become usable. This will teleport players just north of the [[Bazaar]].
+* The [[Civitas illa Fortis Teleport]] spell on the [[standard spellbook]] takes players to the [[Sunrise Palace]]. Requires completion of [[Twilight's Promise]], as well as level 54 [[Magic]].
+* [[Charter ship]]s can take players to the [[Fortis Cothon]].
+* Players can teleport into the [[Fortis Colosseum]] via [[ring of dueling]] after having unlocked the ability to do so at 12,000 [[glory]].
+* A [[fairy ring]] (code {{Fairycode|AJP}}) will take players to the centre of the Avium Savannah, south of Civitas illa Fortis.
+* The [[portal nexus]] or [[portal chamber]] in a [[player-owned house]] can take players to the fountain outside Sunrise Palace.
+
+==Features==
+===Fortis Colosseum===
+{{Main|Fortis Colosseum}}
+The '''Fortis Colosseum''' is a large stadium found atop the Fortis Cliffs at the eastern end of the city. Here, players can take on up to twelve waves of opponents, culminating with the final fight against [[Sol Heredit]]. Enemies will spawn in similarly to the [[TzHaar Fight Cave]]s and [[Inferno]], though additional reinforcements will also spawn in during the wave.
+
+Players can obtain rewards such as [[sunfire fanatic armour]] and [[Dizana's quiver]], as well as earn [[Glory]], where certain amounts will give additional benefits throughout the city.
+
+===Stealing valuables===
+{{Main|Stealing valuables}}
+Stealing valuables is a low intensity [[thieving]] activity offering modest GP and experience rates that requires 50 Thieving to participate in. In this activity players obtain [[house keys]] in order to steal [[valuables]] from one of three houses inhabited by [[Wealthy citizen|wealthy citizens]]. These valuables can then be sold to [[Oriana]] for 55 gold per valuable.
+
+If pickpocketing wealthy citizens for their house keys, [[Clue scroll (easy)|easy clue scrolls]] may be commonly obtained during the course of the activity. During the burgling portion of the activity, there is an uncommon chance to obtain [[jewellery]] up to diamond, as well as a rare chance to obtain a [[blessed bone statuette]], which can be broken down into [[blessed bone shards]] that are used in [[Prayer]] training.
+
+===Grand Museum===
+{{Main|Grand Museum}}
+The [[Grand Museum]] is located in the northern side of the city, east of the [[Sunrise Palace]]. Similar to the museum in Varrock, it has displays showing historic artefacts related to Varlamore's history. The armour of the [[Cloud Titan]] is displayed here, as well as the unique daggers that have been given to [[Kualti]] that served former rulers.
+
+===Outer Fortis===
+{{Main|Outer Fortis}}
+[[Outer Fortis]] part of the city itself, is found outside the main walls of Civitas illa Fortis. It has many farms around it to support the city population, and has a few shops and a pub.
+
+===Ortus Farm===
+[[Ortus Farm]] is a collection of farm buildings and fields on the west side of Civitas illa Fortis, outside of the city wall. It has a few fields with [[buffalo]]s and [[alpaca]]s. It also features allotment patches along with herb and flower patches.
+
+===Fortis Cothon===
+{{Main|Fortis Cothon}}
+The [[Fortis Cothon]] is a large harbour on the north side of the city. [[Charter ship]]s can be found here.
+
+====Charter ships====
+The [[charter ship]]s can be found docked in Fortis Cothon. It provides rides to several other locations. After completing [[Cabin Fever]], the charter ship fare is reduced by 50%. Wearing the [[Ring of Charos(a)]] also reduces the fare by 50%. These two bonuses can be stacked to reduce the cost to 25%.
+
+{{Charter ship fares}}
+
+===Banks===
+There are [[bank|banks]] on the west and east sides of the city.
+
+===Shops===
+* [[File:Crafting shop icon.png|Artima's Crafting Supplies]] [[Artima's Crafting Supplies]]
+* [[File:Cookery shop icon.png|Cobado's Groceries]] [[Cobado's Groceries]]
+* [[File:Pub icon.png|The Flaming Arrow]] [[The Flaming Arrow]]
+* [[File:Sword shop icon.png|Fortis Blacksmith]] [[Fortis Blacksmith]]
+* [[File:Clothes shop icon.png|Floria's Fashion]] [[Floria's Fashion]]
+* [[File:Food shop icon.png|Fortis Baker's Stall]] [[Fortis Baker's Stall]]
+* [[File:Fur trader icon.png|Fortis Fur Stall]] [[Fortis Fur Stall]]
+* [[File:Gem shop icon.png|Fortis Gem Stall]] [[Fortis Gem Stall]]
+* [[File:General store icon.png|Fortis General Store]] [[Fortis General Store]]
+* [[File:Silk trader icon.png|Fortis Silk Stall]] [[Fortis Silk Stall]]
+* [[File:Spice shop icon.png|Fortis Spice Stall]] [[Fortis Spice Stall]]
+
+===Other landmarks===
+* [[Sunrise Palace]] - the residence of the royal family
+* [[Kualti Headquarters]], the headquarters of the [[Kualti]], the Sun Queen's elite guard
+* The [[bazaar]], a marketplace containing various shops
+* The park, housing a [[Temple (Civitas illa Fortis)|Temple of Ralos]]
+
+==Sailing info==
+Players can [[mooring point|dock]] at Civitas illa Fortis with level 38 [[Sailing]], provided they have also completed [[Children of the Sun]] and visited [[Varlamore]] at least once. The dock in the [[Fortis Cothon]] offers the following utilities for sailors:
+*[[File:Shipwright map icon.png|link=Shipwright]] [[Shipwright]]
+*[[File:Port task board icon.png|link=Notice board]] [[Notice board]]
+*[[File:Salvaging station map icon.png|link=Salvaging station]] [[Salvaging station]]
+*[[File:Ledger table icon.png|link=Ledger table]] [[Ledger table]]
+*[[File:Bank icon.png|link=Bank deposit box]] [[Bank deposit box]]
+
+===Port tasks===
+The notice board offers eight [[port tasks]] selected from the following lists.
+
+'''[[Bounty tasks]]'''
+{{BountyTaskList|location=Civitas illa Fortis}}
+
+'''[[Courier tasks]]'''
+{{CourierTaskList|location=Civitas illa Fortis}}
+
+==Quests==
+* [[Ethically Acquired Antiquities]]
+* [[Meat and Greet]]
+* [[Twilight's Promise]]
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Sunrise Palace.png|The Sunrise Palace
+Kualti Headquarters.png|The Kualti Headquarters
+Grand Museum.png|The Grand Museum
+Fortis Bazaar.png|The Fortis Bazaar
+Fortis Park.png|The Fortis Park
+Fortis Colosseum.png|The Fortis Colosseum
+Fortis Cothon.png|The Fortis Cothon
+Outer Fortis.png|Outer Fortis
+Ortus Farm.png|The Ortus Farm
+</gallery>
+
+===Environment===
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis pillars concept art.jpg|Concept art of the city pillars, by [[Mod Grub]].
+Fortis city wall concept art.jpg|Concept art of the city's outer wall, by Mod Grub.
+Fortis wallkit concept art.jpg|Concept art of the city wall kits, by Mod Grub.
+Fortis decor concept art.jpg|Concept art of various objects in the city, by Mod Grub.
+Fortis Aqeduct concept art.jpg|Concept art of the [[Fortis Aqueduct]], by Mod Grub.
+Fortis environment concept art.jpg|Concept art of the city environment, by Mod Grub.
+Fortis Cothon paintover concepts.jpg|Paintover concepts of the [[Fortis Cothon]], by Mod Grub.
+Fortis Cothon trireme concept art.jpg|Concept art by Mod Grub showing a scrapped trireme in the cothon.
+Ralos temples concept art.png|Concept art of the various temples in the kingdom, by [[Mod Jerv]].
+Fortis statue concept art.png|Concept art of the various statues in the city, by Mod Jerv.
+</gallery>
+
+===NPCs===
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis NPCs concept art.png|Concept art of various NPCs in the city, by [[Mod Jerv]].
+Fortis merchants concept art.png|Concept art of various merchants in the city, by [[Mod Jerv]].
+Fortis wealthy and bards concept art.png|Concept art by Mod Jerv of rich homeowners. It also includes scrapped concepts of bards that presumably would be found in the city
+Varlamore travelling merchants concept art.png|A scrapped concept of a travelling merchant, by Mod Jerv.
+</gallery>
+
+==Development history==
+During the development of the continent of [[Zeah]], Civitas illa Fortis was supposed to be added to the continent in the third phase of the release, featuring a Colosseum that is a large arena akin to ''RuneScape 3''{{'}}s now-removed {{RSL|Duel arena tournament|Duel Arena Tournament}}.{{CiteNews|title=Continent Expansion|url=http://services.runescape.com/m=news/continent-expansion?oldschool=1|newsdate=30 June 2014|quote=This huge town boasts one of the largest combat training and endurance tests in all of Gielinor, the great Colosseum. As an expansion to the previously popular duel tournaments, the Colosseum will offer the ultimate duelling tournament and experience.}} Just the combat ground of the arena is said to be as large as all six sections of [[Emir's Arena]] combined. Seatings encircle this central area, and the victorious combatants would be rewarded with the entrance fees of the spectators.{{CiteNews|title=Continent Expansion|url=http://services.runescape.com/m=news/continent-expansion?oldschool=1|newsdate=30 June 2014|quote=The Colosseum will match the duel arena in size and scale, only its combat ground will be the same size as all 6 duel arena arenas combined. With spectator seating circling the arena, viewers can watch the ultimate showdown between combatants fighting for the crowds support, and the reward of all entrants’ fees.}}
+
+<gallery captionalign="center" widths="200">
+Zeah development artwork.png|A concept art of Zeah, showing the Colloseum on the left side of the island.
+Continent Expansion (3).png|A work in progress wireframe of the Colosseum's entrance.
+</gallery>
+
+==Trivia==
+*The appearance of the city is said to be inspired by Roman architecture.{{CiteNews|title=Continent Expansion|url=http://services.runescape.com/m=news/continent-expansion?oldschool=1|newsdate=30 June 2014|quote=An additional sneak peak welcomes you to Civitas illa fortis. A Roman themed empire of discipline, combat, honour and dominion.}}
+*The city's name can be translated as "That Mighty City" from Latin.
+
+==References==
+{{Reflist}}
+
+{{Civitas illa Fortis}}
+{{Varlamore}}
+[[Category:Varlamore]]

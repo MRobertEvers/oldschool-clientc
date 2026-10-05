@@ -1,0 +1,72 @@
+{{Infobox Monster
+|name = Manticore
+|image = [[File:Manticore.png|250px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 320
+|size = 3
+|examine = He's smiling at you!
+|xpbonus = 
+|max hit = 31 ([[Melee]]), 36 ([[Ranged]]), 31 ([[Magic]])
+|aggressive = Yes
+|poisonous = No, ([[venom]] if toggled)
+|attack style = [[Melee]], [[Ranged]], [[Magic]]
+|attack speed = 10
+|hitpoints = 250
+|att = 300
+|str = 300
+|def = 250
+|mage = 300
+|range = 350
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 10
+|dlight = 25
+|dstandard = 25
+|dheavy = 25
+|poisonresistance = 100
+|venomresistance = 100
+|id = 12818
+}}
+'''Manticores''' are monsters encountered in the [[Fortis Colosseum]], starting on wave 4. They have an attack range of 15 tiles.
+
+Upon spotting a player in attack range, the Manticore will proceed to charge up a triple attack with all three combat styles. It will either use a range-magic or magic-range as the first two hits; the last hit is always melee. These attacks are launched one tick after each other (0.6 seconds) and land with a projectile travel time of 0.
+
+A manticore's attacks can be further enhanced in varying degrees with the '''Mantimayhem''' handicap. Tier 1 causes each orb to hit twice rather than once, intended to punish players who do not flick the attacks correctly. Tier 2 causes unprotected attacks to inflict [[venom]], and tier 3 causes their melee attacks to appear anywhere in the sequence, such as a melee-magic-range combo. 
+
+Starting from wave 9, manticores will begin spawning in pairs. If one manticore selects an attack pattern and the other is within 15 tiles of it with line of sight, the other manticore will copy its attack pattern.
+
+When a manticore attacks, any other manticore that is ready to attack (i.e., finished its full 10-tick charge-up) will have its attack delayed by 5 ticks. Manticores can overlap attacks on the player if one of them is not yet ready to attack when the other attacks.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = The manticore's examine text was changed; previously, it was "Goodness, gracious, great balls of fire!", which was copied from the [[Jal-Zek]].
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = A handicap, "Mantimayhem", has been added that gives manticores buffs when chosen. Replaces the [[Doom Scorpion]] handicap.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - manticore concept art.png|Concept art of the manticore, by [[Mod Jerv]].
+Manticore charge and attack.mp4|The manticore's charging and attack animation, by [[Mod Hend]].
+</gallery>
+
+==Trivia==
+* A {{WP|manticore}} is a legendary creature from Persian mythology. It has a human head, a lion's body, and a scorpion's tail.
+
+{{Fortis Colosseum}}

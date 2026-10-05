@@ -1,0 +1,230 @@
+{{Update|date=03 September 2025|url=https://secure.runescape.com/m=news/doom-combat-achievements?oldschool=1|category=game}}
+[[File:Doom Combat Achievements newspost.png|right]]
+{{clear}}
+__TOC__
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We are aware of a bug with Chaeldar being able to assign lizardmen when she shouldn't.
+| Hotfixed.
+|-
+| We’re aware of an issue with player being assigned Lava Dragons (via Wilderness Slayer) without having completed Dragon Slayer.
+| Hotfixed.
+|-
+| We are aware that Cerberus tasks are being assigned without the required Slayer level.
+| Hotfixed.
+|-
+| Retroactive times for the task 'Doom Racer' are being applied for some players who have not achieved this time.
+| Hotfixed.
+|-
+| The Doom Drifter task may display a failure message even when players have not yet reached wave 8. Failure messages should only appear on the appropriate waves.
+| Hotfixed.
+|}
+
+''Prove your strength and skill - the Doom of Mokhaiotl Combat Achievements are here!''
+
+==Changelog September 3rd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Varlamore Combat Achievements'''
+
+* The Doom of Mokhaiotl Combat Achievements have now arrived. For details, see the table in the blog below!
+
+'''Doom Boss Changes'''
+
+* Volatile Earth node attack options now deactivate instantly after the Earthen shield spawns.
+* Falling grubs no longer show an attack option until they land, preventing misclicks during the spawn animation.
+
+'''Client and Mobile Updates'''
+
+* Players in the new Renderer Beta will see improved visuals across multiple areas, with fixes for flickering in Motherload mine, Stronghold of Security, the Fremennik Isles, Draynor Manor, White Wolf Mountain, Catherby, Seers Village, and Camelot Castle.
+* Stash Units are now correctly visible above the terrain with the new renderer beta, fixing previous clipping issues.
+
+'''Other Changes'''
+
+* Fixed an issue where Partner Slayer could assign tasks that one partner didn’t meet the requirements for.
+* Some grammar has been corrected in the descriptions of Varlamore citizens.
+* Gaining loot from the Wilderness Agility Course now requires an open looting bag, preventing loot from being traded away without risk.
+** Players can no longer destroy their looting bag while inside the course.
+** Looting bags are still automatically provided after paying the 150K fee.
+** Players will need to have free space in the looting bag to claim loot.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Doom Boss Combat Achievements==
+Think you’ve conquered it all? Doom’s Combat Achievements are here to prove otherwise. From brutal endurance tests to precision-driven challenges, only the sharpest adventurers will rise to the occasion. We’re taking back those Zuk helms - it’s time to prove yourself all over again.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Tier
+! Category
+! Title
+! Description
+|-
+| Elite
+| Kill Count
+| Doom Adept
+| Defeat the Doom of Mokhaiotl at level 3.
+|-
+| Elite
+| Speed
+| Doom Crawler
+| Complete the Doom of Mokhaiotl level 1 in less than 30 seconds.
+|-
+| Elite
+| Mechanical
+| Exposed Doom
+| Defeat the Doom of Mokhaiotl during its Melee Charge phase on any level.
+|-
+| Master
+| Kill Count
+| Doom Veteran
+| Defeat the Doom of Mokhaiotl at level 8.
+|-
+| Master
+| Speed
+| Doom Chaser
+| Complete the Doom of Mokhaiotl levels 1-8 in less than 10:00.
+|-
+| Master
+| Mechanical
+| Mokhaiotl Drift
+| Defeat the Doom of Mokhaiotl at level 8 before he finishes his first burrow phase.
+|-
+| Master
+| Restriction
+| Mine's Better
+| Defeat the Doom of Mokhaiotl levels 1-8 whilst always wearing a shield.
+|-
+| Master
+| Mechanical
+| Grub Patrol
+| Defeat the Doom of Mokhaiotl levels 1-8 whilst never letting a grub be absorbed by the boss.
+|-
+| Grandmaster
+| Speed
+| Doom Racer
+| Complete the Doom of Mokhaiotl levels 1-8 in less than 7:15.
+|-
+| Grandmaster
+| Endurance
+| It's Dark Down Here
+| Defeat the Doom of Mokhaiotl at level 16.
+|-
+| Grandmaster
+| Restriction
+| The Praying Mantis
+| Complete the Doom of Mokhaiotl levels 1-8 without restoring your Prayer points with any method.
+|-
+| Grandmaster
+| Perfection
+| Perfect Doom
+| Complete the Doom of Mokhaiotl levels 1-8 without taking damage from the boss, letting grubs be absorbed, or stepping on acid.
+|-
+| Grandmaster
+| Restriction
+| Duel of Mokhaiotl
+| Complete the Doom of Mokhaiotl levels 1-8 whilst only damaging the boss with one-handed melee attacks.
+|-
+| Grandmaster
+| Restriction
+| Darkness Is Your Ally?
+| Complete the Doom of Mokhaiotl levels 1-8 without equipping a Demonbane weapon.
+<nowiki>*</nowiki>Note, the use of Demonbane spells are allowed, however but equipping a Purging Staff will fail it.
+|-
+| Grandmaster
+| Mechanical
+| Mopping Up
+| Clear at least 8 acid splats in a single Volatile Earth special attack.
+|}
+
+Thinking, 'been there done that?' for some of these? Not to worry, the following tasks will be retroactive, meaning you won't need to grind them out again if you've already completed them:
+
+* Doom Adept
+* Doom Crawler
+* Doom Veteran
+* Doom Chaser
+* Doom Racer
+* It's Dark Down Here
+
+As for the rest, well, good luck down there! Try not to let the Doom live up to its name.
+
+==Doom Boss Changes==
+Alongside the new Combat Achievements, we’ve done a bit of spring cleaning to spare those poor misclicking fingers:
+
+* Volatile Earth node attack options now deactivate instantly after the Earthen shield spawns.
+* Falling grubs no longer show an attack option until they land, preventing misclicks during the spawn animation.
+
+==Client and Mobile Updates==
+
+* Players in the new Renderer Beta will see improved visuals across multiple areas, with fixes for flickering in Motherload mine, Stronghold of Security, the Fremennik Isles, Draynor Manor, White Wolf Mountain, Catherby, Seers Village, and Camelot Castle.
+* Stash Units are now correctly visible above the terrain with the new renderer beta, fixing previous clipping issues.
+
+==Merch==
+RuneScape Shadows of Amascut Novel!
+
+[[File:Doom Combat Achievements (1).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-17/Ama.jpg here]!'']]
+
+The desert is vast and full of danger, the sun is oppressive, and there are traitors in their midst. Can the Mahjarrat succeed despite these impossible odds?
+
+This third new novel from Titan Books will be penned by Erin M. Evans, the author of RuneScape: The Gift of Guthix.
+
+Pre-order the RuneScape Shadows of Amascut Novel [https://runescape.backstreetmerch.com/products/runescape-shadows-of-amascut-official-novel here].
+
+==Live Events Survey==
+We're continuing to explore the idea of hosting live, in-person events in the US in 2026! It's still early days but we want to understand more about what kind of events you would like to see and what they would include.
+
+We really want your input to help us create an event you'd love to attend!
+
+Please note any US-based event discussed in the survey is not a replacement for RuneFest. We're currently exploring our next steps for RuneFest separately and will share plans with you all in due course.
+
+Fill out the survey below and let us know!
+
+[[File:Doom Combat Achievements (2).png|200px|center|link=https://jagex.questionpro.eu/osrs-us-events]]
+
+==Other Changes==
+
+* Fixed an issue where Partner Slayer could assign tasks that one partner didn’t meet the requirements for.
+* Some grammar has been corrected in the descriptions of Varlamore citizens.
+* Gaining loot from the Wilderness Agility Course now requires an open looting bag, preventing loot from being traded away without risk.
+** Players can no longer destroy their looting bag while inside the course.
+** Looting bags are still automatically provided after paying the 150K fee.
+** Players will need to have free space in the looting bag to claim loot.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1n7ag8j/doom_combat_achievements/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

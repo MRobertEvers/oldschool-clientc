@@ -1,0 +1,12 @@
+runs with wave 69 streams: 13
+shield y over every update                           5360:6040
+shield hp at base                                    600:13
+shield hp lost, max over the run (per run)           [0, 52, 94, 125, 125, 136, 173, 191, 195, 204, 220, 222, 299]
+shield x at the first Zuk attack                     2257:7 2283:6
+shield x at the first six Zuk attacks                (2257, 2263, 2273, 2283, 2277, 2267):7 (2283, 2277, 2267, 2257, 2263, 2273):6
+player first tick, x, y                              (0, 2271, 5356):13
+player.x - shield.x at a Zuk attack, shield moving west 244: -1:118 -2:13 -3:1 0:57 1:41 2:13 3:1
+player.x - shield.x at a Zuk attack, shield moving east 257: -1:4 0:13 1:42 2:71 3:120 4:7
+player.x - shield.x at a Zuk attack, shield at west end 2257 88: 1:1 2:1 3:85 4:1
+player.x - shield.x at a Zuk attack, shield at east end 2283 90: -1:84 -3:1 1:2 2:3
+player y at a Zuk attack                             5358:679

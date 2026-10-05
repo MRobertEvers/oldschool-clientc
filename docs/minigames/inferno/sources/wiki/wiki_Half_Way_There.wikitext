@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Half-Way There
+|image = [[File:Jal-Zek.png|280px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill a Jal-Zek within the Inferno.
+|tier = Elite
+|monster = TzKal-Zuk
+|type = Kill Count
+|id = 341
+|leagueRegion = Karamja
+}}
+'''Half-Way There''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to kill a [[Jal-Zek]] within the [[Inferno]]. Jal-Zek is first encountered on wave 35 of the Inferno. 
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

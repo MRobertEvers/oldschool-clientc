@@ -1,0 +1,476 @@
+{{Update|date=17 April 2026|rev=6 May 2026|url=https://secure.runescape.com/m=news/leagues-vi-demonic-pacts---fixes--issues?oldschool=1|category=community}}
+[[File:Leagues VI- Demonic Pacts - Fixes & Issues newspost.png|right]]
+{{clear}}
+__TOC__
+
+''Let's give you the latest on what's on our radar!''
+
+----
+'''It is always recommended that once a hotfix has been deployed to open the Area/Relic/Task interfaces.'''
+
+It's been a jam-pact'd start to our sixth leagues! We've seen you running around Varlamore exploring new areas you've not seen properly or before, finally getting starting on your journey towards your ultimate bluetooth hally or pure tank builds and dodging the fires around the outskirts of Yama's lair in rhythmic fashion.
+
+While this is just the beginning and we're excited to see what other amazing adventures you'll embark on this league, we've been contracted by Yama to make sure any outstanding issues are being looked into. And the team is hard at work to ensure we're keeping the league as smooth as possible (or forfeit our souls in the process) by combing through all of the issues and feedback you've raised.
+
+This little update is to give you an idea of the things we're currently looking at and what sort of priority these things have on our lists. Please note that while we're trying to give you as much information as possible with what's on our radar, some things might take longer than expected to resolve, require a coldfix (game reboot) or be shifted to prioritise a newer and more severe issue.
+
+We'll look to keep the list below up to date as best we can as issues are resolved. The best way to let us know of a problem is via the in-game 'Bug Report' function! Before we delve into the current roster, we've also got a few handy pieces of information that might just help with a few of the issues you may have experienced:
+
+{{Collapsed section|18|PLAYER AWARENESS INFO}}
+As we've seen some different interpretations "Whenever your combat spells Regenerate air runes, you have a 15% chance to restore 1 prayer point PER RUNE regenerated", we'd like to clarify:
+
+* ''If 10 runes are regenerated, you'll gain 150% chance. This means you'll always get 1 Prayer Point and have a 50% chance to get another.''
+
+If you have Barbarian Gathering and are struggling to complete any tasks that require you to equip a tool (i.e. 'Mine some Ore With a Steel Pickaxe'), try equipping the tool.
+
+The Loot Tracker on RuneLite is currently counting 2 Implings being caught instead of one due to the loot multiplying. Players can right-click their butterfly net or magic butterfly net to open the impling tracker interface to check.
+
+We'd recommend enabling back-to-back Hunter rumours if you're making use of so-called 'block lists' since the Hunters at the Hunters Guild will default to assigning you Jerboa if they aren't able to assign anything else (meaning if you can only obtain one rumour, complete that rumour and then ask for a new one, you won't be able to be assigned your desired rumour and will assign you Jerboa).
+
+For players who have completed Death on the Isle and wondering where any items have gone, speak to the Head Butler once again to retrieve any items removed.
+{{Collapsed section end}}
+
+==May 6th - Fixes==
+You can check out all of the full list of fixes and changes with our [https://secure.runescape.com/m=news/further-leagues-vi-changes?oldschool=1 Game Update] newspost.
+
+{| class="wikitable" style="text-align: center;"
+|-
+| The Dramen Staff counts as a heavy weapon for Blindbag.
+| COLDFIXED
+|-
+| Updated the Pact descriptions of all Ranged Echoes and the 2-handed melee Echo to clarify that these can't be triggered with special attacks.
+| COLDFIXED
+|-
+| Thorns stops you from completing certain Combat Achievements that require a specific type of damage to be dealt.
+| COLDFIXED
+|-
+| Thorns no longer prevent completion of Combat Achievements that require only magic damage. (Kill any Barrows Brother using only magical damage & Kill the Crazy Archaeologist with only magical attacks).
+| COLDFIXED
+|-
+| Minion isn't functioning at Sol Heredit.
+| COLDFIXED
+|-
+| Grimoire is locking Piety after picking Kandarin, causing players to complete the Knights Waves to unlock it again.
+| COLDFIXED
+|-
+| The Abyssal Tentacle is not being affected by saving charges, and instead using 1-2 charges per attack.
+| COLDFIXED
+|-
+| Using the Flask of Fervour is clearing stacks from the Lithic Staff.
+| COLDFIXED
+|-
+| Certain damage is still damaging the player in the invulnerability phase of Flask of Fervour.
+| COLDFIXED
+|-
+| Cooking in the Gauntlet and Corrupted Gauntlet is no longer slower with the Flow State relic active.
+| COLDFIXED
+|-
+| Transmute spells don't actually cost 1 nature rune, and show as greyed out when players can cast it.
+| COLDFIXED
+|-
+| Zanaris doesn't appear in the Bank Heist teleport menu.
+| COLDFIXED
+|-
+| Players with Endless Harvest and Woodsman are unable to cut the Redwood Tree in the Farming Guild.
+| COLDFIXED
+|-
+| 'His Faithful Servants' task is still not completing for players who had the quest auto-completed with the Desert.
+| COLDFIXED
+|-
+| Bones from Hunter don't auto-bank with Woodsman.
+| COLDFIXED
+|-
+| Players cannot complete the Yama Combat Achievement 'No toppings, no drinks, thanks' with any healing Pacts.
+| COLDFIXED
+|-
+| The Combat Achievement 'I was here first!' is very tedious to complete with no Kourend.
+| COLDFIXED
+|-
+| Avernic Treads (with Ranger Boots and Pegasian Boots) is not triggering the "Equip Ranger Boots" task.
+| COLDFIXED
+|-
+| The respawn timer for the Tiranwnn rabbit is longer than necessary.
+| COLDFIXED
+|-
+| (g) or (t) items aren't completing the 'Equip Black Armour' task.
+| COLDFIXED
+|-
+| Passive XP multiplier descriptions are incorrect (Tier 4, Tier 5, Tier 6 & Tier 7). ''Please note this is only a text change, the multipliers will be staying at Tier 4 & Tier 6.''
+| COLDFIXED
+|-
+| Baking pies with the Bake Pie Spell does not complete any 'bake pie' tasks.
+| COLDFIXED
+|-
+| The Master Clue step that requires to access the Obelisk of Air cannot be completed.
+| COLDFIXED
+|-
+| Cannot complete the Morge Clue step as you don't have access to the Diving Equipment from RFD.
+| COLDFIXED
+|-
+| Doom attacking one volatile earth immediately spawns and despawns the orb.
+| COLDFIXED
+|}
+
+==April 29rd - Fixes==
+You can check out all of the full list of fixes and changes with our [https://secure.runescape.com/m=news/leagues-vi-changes?oldschool=1 Game Update] newspost.
+
+{| class="wikitable" style="text-align: center;"
+|-
+| Firing Ammo & using Scales from the Toxic and Drygore Blowpipes are not regenerating.
+| COLDFIXED
+|-
+| The Canoe in Kandarin cannot be used without Misthalin.
+| COLDFIXED
+|-
+| Casting Transmutation on hop seeds cause them to transform into the grown hops.
+| COLDFIXED
+|-
+| Players with Barbarian Gathering are unable to gather 'high tier' logs from Ents without a Rune Axe.
+| COLDFIXED
+|-
+| The task 'Pickpocket a Diamond from a Tzhaar' doesn't complete with Larcenist.
+| COLDFIXED
+|-
+| The Hydra Tail is not dropping as a Bonecrusher Necklace on regular Hydras.
+| COLDFIXED
+|-
+| Cannot complete the Leviathan Combat Achievement 'Unconventional' due to Ranged Echoes.
+| COLDFIXED
+|-
+| The task for completing all of Thermonuclear Smoke Devil's Combat Achivements isn't triggering correctly.
+| COLDFIXED
+|-
+| The task 'Chop a dense jungle' isn't completing for some players.
+| COLDFIXED
+|-
+| The task 'Complete the Gauntlet in less than 4:30 minutes' isn't being completed.
+| COLDFIXED
+|-
+| A Clue step requiring Varrock is being given to players.
+| COLDFIXED
+|-
+| A Clue step requiring the BJR Fairy Ring is being assigned to players without Asgarnia unlocked.
+| COLDFIXED
+|}
+
+==April 23rd - Fixes==
+You can check out all of the full list of fixes and changes with our [https://secure.runescape.com/m=news/leagues-vi-changes?oldschool=1 Game Update] newspost.
+
+{| class="wikitable" style="text-align: center;"
+|-
+| Dying to poison after engaging in a PvP fight will no longer cause players to lose their items on the next death.
+
+We are investigating returning those items to players that lost them this way before this hotfix.
+| HOTFIXED
+|-
+| King's Barrage secondary bolt doesn't gain the benefits of the Ice Damage Pact.
+| HOTFIXED
+|-
+| Konar is giving Slayer tasks to players without those specific regions.
+| HOTFIXED
+|-
+| Using a Drygore Blowpipe with Dizana's Quiver is causing players to crash.
+| HOTFIXED
+|-
+| Culling Spree is not assigning Boss monsters or new tasks for some players.
+| HOTFIXED
+|-
+| Cannot teleport to Leviathan with Evil Eye.
+| HOTFIXED
+|-
+| Reports of some new Asgarnian auto-completed quests not being completed.
+| HOTFIXED
+|-
+| Some high-level experience tasks (i.e. 35 Million XP in 'X' Skill) aren't triggering correctly if you earn XP in two or more skills.
+| HOTFIXED
+|-
+| A number of Slayer creatures are missing as tasks that are expected (i.e Naguas, Warped creatures, Metal Dragons, Dagannoths)
+| COLDFIXED
+|-
+| Hotfoot doesn't give 2x laps on Ape Atoll Agility Course.
+| COLDFIXED
+|-
+| Some ammo isn't regenerating correctly when in Dizana's Quiver.
+| COLDFIXED
+|-
+| Updating the interface information about Tier 4 unlocking the 12x XP multiplier & Tier 6 unlocking the 16x XP multiplier.
+| COLDFIXED
+|-
+| Bert cannot deliver sand which stops the diary task being completed.
+| COLDFIXED
+|-
+| 'Complete His Faithful Servants' doesn't get completed even when picking Morytania, which auto-completes it.
+| COLDFIXED
+|-
+| Monkfish spots aren't working correctly with Endless Harvest.
+| COLDFIXED
+|-
+| Players can't complete the 'Complete A Porcine of Interest' task.
+| COLDFIXED
+|-
+| Players cannot acquire the Ectophial/Morytania Legs 2 as the task to teleport with the Ectophial cannot be completed.
+| COLDFIXED
+|-
+| The 'Teleport to Paddewwa' tasks is not completing.
+| COLDFIXED
+|-
+| 'Give Thurgo a redberry pie' task cannot be completed.
+| COLDFIXED
+|-
+| Shadow of the Storm cannot be completed because it requires Demon Slayer.
+| COLDFIXED
+|-
+| Elemental Workshop II cannot be completed as it requires access to the Exam Centre.
+| COLDFIXED
+|-
+| Bloodvelds cannot be killed in Kandarin without Morytania.
+| COLDFIXED
+|-
+| The 'You'll get licked' Clue Scroll, can currently be given in Kandarin, but requires the players to be on a Slayer Task to complete.
+| COLDFIXED
+|-
+| 'Fletch 250 Redwoods into Arrow Shafts' not counting with Woodsman.
+| COLDFIXED
+|-
+| Grimoire isn't unlocking certain spells (Ourania, NPC Contact, etc)
+| COLDFIXED
+|-
+| Magic logs cuts south of Varlamore in Nemu's Retreat are not counting for "Chop 20 Magic Logs in Varlamore" task.
+| COLDFIXED
+|-
+| Soul Shards aren't working when trying to creating Sunfire Runes.
+| COLDFIXED
+|-
+| Completing Barbarian Training requires you to have a Harpoon in the inventory with Barbarian Gathering.
+| COLDFIXED
+|-
+| Auto-chiseling Dense Essence blocks with Flow State keeps them at the original speed.
+| COLDFIXED
+|-
+| Growing a tree with Endless Harvest doesn't allow it to deplete or give you the ability to chop it down.
+| COLDFIXED
+|-
+| Twisted Banshees are spawning and hitting aggro but not attacking.
+| COLDFIXED
+|-
+| Flask of Fervour resets your poison immunity timer.
+| COLDFIXED
+|-
+| Evil Eye isn't giving a warning when you don't have Insulated Boots for the Hydra area.
+| HOTFIXED
+|}
+
+==April 17th - Fixes==
+This will be updated when we've pushed hotfixes through today.
+
+{| class="wikitable" style="text-align: center;"
+|-
+| Some tasks are not completing when killing Echo Boss varients.
+| HOTFIXED
+|-
+| If you achieve over the 16,000 reward point cap in Tithe Farm, your points will be reset to 0.
+| HOTFIXED
+|-
+| Casting telegrab on a Mark of Grace with Hotfoot on an Agility Course gives the player an unstackable Mark of Grace.
+| HOTFIXED
+|-
+| Some players aren't seeing bosses appearing within there 3 task options with Culling Spree.
+| HOTFIXED
+|-
+| Grimoire is not unlocking the prayers from CoX or Royal Titans.
+| HOTFIXED
+|}
+
+==April 16th - Fixes==
+{| class="wikitable" style="text-align: center;"
+|-
+| When attempting to Transmute a set of items not in a stack, sometimes refuses to cast even if you have the space.
+| HOTFIXED
+|-
+| Endless Harvest should now automatically continue fishing at most spots and will now remember the last type of fishing you were doing there.
+| HOTFIXED
+|-
+| Some clues are giving more than the minimal number of steps with Conniving Clues.
+| HOTFIXED
+|-
+| Blindbag doesn't re-equip shields if one was equipped before Blindbag procced.
+| HOTFIXED
+|-
+| Attacking Kraken with the Thorns Pact will stop you and you attack.
+| HOTFIXED
+|-
+| 'Complete the Vale totems miniquest' task not completing upon completion of the quest.
+| HOTFIXED
+|-
+| 'Pickpocket a Knight of Ardougne 50 times' isn't completing as intended.
+| HOTFIXED
+|-
+| Wilderness players can be assigned Earth Warriors, but require Misthalin unlock to access them.
+
+Speak to Krystilia once more to remove this as your task if it is currently assigned.
+| HOTFIXED
+|-
+| Players with Kourend can be assigned Black Dragons,&nbsp;but require access to the Evil Chicken's Lair to complete if they lack the Slayer level for Brutal Black Dragons.
+
+Speak to a Slayer Master once more to remove this as your task if it is currently assigned.
+| HOTFIXED
+|-
+| Players aren't able to enter the Abyss without 'Misthalin'.
+| HOTFIXED
+|-
+| King's Ransom isn't being autocompleted when unlocking Kandarin.
+
+Reopen the Area and/or Task Leagues interface to have the unlock.
+| HOTFIXED
+|-
+| Players could not use Melee weapons in the Knight's Waves if they had any pacts that increase range.
+| HOTFIXED
+|}
+
+==April 15th - Fixes==
+{| class="wikitable" style="text-align: center;"
+|-
+| The only spot that is still affected by remembering the last type of fish are Small Fishing Net (Net/Bait) spots that can catch Raw shrimps, Raw anchovies, Raw herring & Raw sardine.
+| HOTFIXED
+|-
+| Superior Slayer creatures should no longer infinitely spawn in the Wilderness.
+| HOTFIXED
+|-
+| Total Level Tasks should now be completable.
+| HOTFIXED
+|-
+| Casting any God Spells will no longer cause the player to crash.
+| HOTFIXED
+|-
+| The Loot Tracker no longer shows impling loot as all coming from Baby Implings.
+| HOTFIXED
+|-
+| Corrected the text on the Woodsman Relic to correctly state you roll double the number of loot rolls on Hunter Sacks.
+| HOTFIXED
+|-
+| Hill Giants will no longer spawn en mass.
+| HOTFIXED
+|-
+| Calcified rocks with water no longer interrupt Endless Harvest.
+| HOTFIXED
+|-
+| Tears now correctly appear at Calcified Rocks.
+| HOTFIXED
+|-
+| Gricoller's Can and Seed Box tasks can't be appropriately completed at Tithe Farm.
+| HOTFIXED
+|-
+| Some players may experience issues with Trollheim teleports when trying to teleport there through your PoH.
+| HOTFIXED
+|-
+| Players have reported that only Jerboas are being assigned via Hunter Contracts.
+| HOTFIXED
+|-
+| Enter a Dark Cave in Varlamore' task isn't completable if you have over Level 46 Hunter.
+| HOTFIXED
+|-
+| 'Chop X Logs' tasks now correctly complete.
+| HOTFIXED
+|-
+| Prayer Restoration Demonic Pacts will no longer fail 'A Praying Mantis' Combat Achievement.
+| HOTFIXED
+|-
+| The description for Barbarian Relic now correctly states you can only withdraw from your Knapsack at a Bank.
+| HOTFIXED
+|-
+| The Libation Bowl now empties.
+| HOTFIXED
+|}
+
+----
+{{Collapsed section|18|BEYOND LEAGUES VI {{!}} 29TH APRIL}}
+While we've got a roster of fixes on our radar and set our priorities, this has meant that some issues you've raised won't be fixed within this League.
+
+Rathering than leaving you to speculate, we'd rather be up front and set your expectations on what should be fixed. While this isn't the complete list, the issues below have been raised to be investigated for a future Leagues if we revisit those mechanics or features.
+
+* The Shadowflame Quadrant isn't functioning as expected at the Doom of Mokhaiotl.
+* Thorns don't work against Shades from the Shades of Mort'ton Minigame.
+* Endless Harvest doesn't auto-move with Karambwanji or the Shark spot in Priffdinas.
+* The Blue Moon Spear doesn't work with the 'Melee at Range' Pacts.
+* Natures accord is failing to note Tree Roots.
+* Loot from Master Farmers that goes into a Seed Box with Larcenist is not multiplied by 10x.
+* While Wintertodt is covered by the drop rate modifier, it isn't covered by the 'Minigame' boost.
+* Minion to have more customisable looting, such as clues and untradeables.
+* The Clue Contract teleports a player to a tile they cannot move on for the 'Read "How to breed scorpions" By O.W.Thathurt.' Clue step.
+* Thorns isn't triggering against an enemy attack that doesn't trigger a hitsplat.
+* The Flask of Fervour isn't damaging certain enemies within the Chambers of Xeric.
+* Blindbag is less effective with alot of movement, sometimes losing out on hits.
+* Blindbag is removing offhand items with Kitted Scythes.
+* If you have a Battleaxe in triggered with Blindbag, it stays equipped.
+
+When it comes to the Demonic Pacts specifically, while we could spend the rest of the League tweaking and balancing Pacts to hopefully push those builds that feel weaker to a better place, the balancing of this particular system warrants plenty of time.
+
+Touching on something we said previously, we don't want to spend the rest of the league 'chasing our tail' by constantly shifting the current balance of the Pacts. While not perfect, we think players are in a better spot with the extra resets and tasks we've added and we would hate to create any more 'pact regret'.
+
+We really appreciate all the feedback and discussions we've seen around the new experimental system and we'll be looking to implement what we can if we are to revisit the Pacts in the future!
+{{Collapsed section end}}
+
+----
+{{Collapsed section|18|OUR PROPOSAL FOR PACTS {{!}} 20TH APRIL}}
+We've seen plenty of you trying out our new take on the Combat Mastery system. With plenty of options and plenty of potential, we've already seen a huge roster of diversity when it comes to how you tackle combat. For starters, every pact has been chosen at least once but with countless potential builds - we've not even scratched the surface!
+
+While there has been plenty of fun, we are also very aware of your feedback regarding the Demonic Pacts system. This morning, the team got together and we are proposing some changes to make this a bit nicer for everyone!
+
+===Resets===
+First up, we know there has been a bunch of feedback around resets. Not only just the amount available but also how you acquire them. This can feel like quite a hefty ask for a player to undertake, especially when it comes to more casual players and those unfamiliar with similar systems.
+
+The current system allows for 3 full resets (a total of 4 builds) with each reset coming from your first 3 unique Echo Boss kills. We always wanted this system to feel meaningful and not trivialise your progression or level of power. Although from a player’s perspective, when compared to previous Leagues and especially Grid Master it is much slower, even if intentional. This was mainly to slow down the progress compared to the pace that shot up from Leagues V and would allow more time for players to explore Varlamore, a fresh area to lots of players!
+
+While these design goals are still something we want to keep for this league, it is also important for us to ensure the system still feels fun. So, for our first change, you may have seen that '''Yama has been truly kind and given everyone a reset for no extra cost!''' While this is free, it should still be used wisely!
+
+Secondly for later this week, we are also going to '''give another unlockable reset.''' This one will be everyone's first 'extra' reset as we're adding this onto the 'Defeat Hueycoatl 1 Time' task. Anyone that has already done this task will have the reset added after this week's game update.
+
+===Neutral Pacts===
+Another big piece of feedback we have seen is in the power of the neutral pacts not feeling strong enough to be effective. Especially when it comes to fighting specific bosses with a high defence in X style or protection against said style, can make it feel more difficult than powerful.
+
+To combat this, we are looking to make the following changes to the neutral pacts:
+
+* Increase Prayer Penetration pacts from 15% to '''25%.'''
+* Increase small accuracy pacts from 15% to '''25%''' & big accuracy pacts from 35% to '''50%.'''
+* Include '''an additional 10% accuracy''' to all +1% damage pacts. 
+
+We feel these buffs will make a significant enough impact to ensure that all builds are gaining a meaningful difference where it matters most. This means that with 1 big accuracy pact, 3 smaller accuracy pacts and 2 damage pacts, you'd be gaining and additional +65% more accuracy (or +145% total compared to the previous +80%)! Being able to actually hit the boss should help a lot more when you've picked a build that isn't too good against certain NPCs.
+
+You'll see these changes come with this week's game update.
+
+===Echo Bosses===
+Next on our list is those demonic looking baddies. In the same vein as the above feedback point, some builds just feel incredibly weak against certain bosses, which can feel bad when you've been working towards a specific style for the last 20 hours.
+
+The team are going to look at all Echo Bosses across the board and balance the most egregious outliers to make sure that all builds have a decent chance against these bosses. This also mean we'll be investigating reports of thorns not working correctly against Echo Bosses and checking Mage & Range pacts inside the gauntlet too.
+
+While we cannot give you all of the specifics just yet we can at least let you know how we're changing '''Echo Amoxliatl:'''
+
+* Range Defence lowered from 200 to '''40'''
+* Magic Defence lowered from 100 to '''20'''
+
+Keep an eye out for more information once we've finalised the specific changes!
+
+===Point Tasks===
+Another thing the team would like to explore is how players acquire Pact Points. As it can take a handful of points to start truly seeing the power and benefit of the Demonic Pacts, the current roster of tasks makes it difficult to get a good head start in your build, meaning the power comes much later than most would like.
+
+With this is mind, the team ''would like'' to see if there are some 'better' ways of getting points earlier. There's a few options we could go down here, whether this is replacing some tasks with others, adding additional ones or something in between. If the team look to change anything here, one thing we will not be doing is increasing the total amount of points you'll be able to get, so you'll still have 40 max regardless of how we progress.
+
+The team are open to hear your thoughts on which direction we should go but please note that if we proceed with these changes they won't be available until at least next week's game update.
+
+===Closing Words===
+While we've seen other feedback regarding specific builds and their power, we don't want to jump the gun too early and end up chasing our own tail. Instead, we would rather start by making more meaningful, widespread changes to fix those issues first, before diving into any specific and consistent problems.
+
+The team will continue to monitor the Demonic Pacts very closely and make any necessary changes after the above fixes have been implemented. It's important to us the spirit of the system and this league remains but without compromising the fun and freedom of this new system.
+
+Alongside these changes, we'll still be keeping this newspost up to date with all of the known issues and when they have been fixed, so bookmark this page for all the latest. This week's update will also be happening on Thursday instead of Wednesday this week. This will be at the regular time with the regular downtime, just a day later.
+
+Thank you all for letting us experiment with something brand new and happy 'scaping!
+{{Collapsed section end}}
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1sm0c8f/leagues_vi_demonic_pacts_launches_today/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

@@ -1,0 +1,32 @@
+{{Infobox Emote
+|name = Fortis Salute
+|image = [[File:Fortis Salute emote icon.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|loopable = Yes
+|sound = No
+|enhancer = No
+|time = 1 second
+|require = Grand Champion status in Fortis Colosseum
+|anim = [[File:Fortis Salute.gif]]
+}}
+'''Fortis Salute''' is an [[emote]] unlocked by reaching Grand Champion status in the [[Fortis Colosseum]], requiring 20,000 [[glory]].
+
+It is required for the [[Combat Achievements/Master|master combat achievement]] [[Showboating]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 January 2025
+|update = Bounty Hunter Changes, Collection Log Updates & Emote Improvements
+|change = A "Loop" option has been added when right-clicking the emote icon.
+}}
+{{Subject changes
+|date = 27 March 2024
+|update = Easter & Varlamore Updates
+|change = The [[master clue]] that requires players to perform the Fortis Salute with the full set of [[blue moon armour]] equipped now requires a regular [[salute]] instead.
+}}
+{{Subject changes footer}}
+
+{{Emote}}

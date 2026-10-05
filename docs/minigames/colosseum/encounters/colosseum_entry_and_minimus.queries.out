@@ -1,0 +1,5 @@
+Q1 npc 12808 rows: 0 of 11268 npc rows; npc ids seen: 13
+Q2 wave streams: 208 handicap-choice events: 208 ticks carried: {0: 208}
+Q3 wave-1 option sets: {'4,5,12': 18} n = 18
+Q3 wave-1 chosen id: {'4': 17, '5': 1}
+Q3 runs: 18 wave records: 208

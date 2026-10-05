@@ -1,0 +1,520 @@
+{{Update|date=06 August 2025|rev=13 August 2025|url=https://secure.runescape.com/m=news/varlamore--summer-sweep-up-combat-tweaks?oldschool=1|category=game}}
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks newspost.jpg|right]]
+__TOC__
+
+{| class="wikitable" style="text-align:center"
+!Known Issues
+!Status
+|-
+|Midair projectiles during Dooms melee punish phase can trigger a phase transition and cause unintended healing.
+|Hotfixed. Doom’s transition to shielded phase is now triggered by his attack timer instead of on-hit. To avoid instant phase transitions, he will also wait for 2 attacks after the last orb phase before triggering the shield.
+
+Additionally, Doom can no longer heal unintentionally after firing his beam.
+|-
+|Re-equipping Lightbearer at the Delve boss allows for the regain of Special Attack.
+|Hotfixed.
+|-
+|The large grub spawned at the Delve boss does not have its expected 1 tick attack delay after it has been killed.
+|Hotfixed.
+|-
+|The Holy Water boss effect isn't guaranteed when killing the boss during the melee punish phase.
+|Hotfixed.
+|-
+|Beam charge during the melee punish phase can no longer be interrupted by grub damage - this should prevent Doom from starting a melee punish and unexpectedly switching to the blue shield phase a few ticks later. Note: if you have an arrow in mid air and it knocks the boss past its 75% threshold - this will still cancel the punish and move it onto the blue hp phase. This is intended.
+|Hotfixed.
+|-
+|Surviving Grubs no longer de-spawn and persist into the car phase.
+|Hotfixed.
+|-
+|Players can drink surge potions in between delve levels.
+|Hotfixed.
+|-
+|Gemstone Crab MVP announcement celebrates "null" if the MVPs are logged out of the world at despawn.
+|Hotfixed.
+|-
+|Giant grubs don't stall like the small grubs do when KO damage is incoming.
+|Hotfixed.
+|-
+|When transitioning from Melee Punish to the Blue Shield Phase, some subsequent orb projectile attacks are being nullified.
+|Hotfixed.
+|-
+|Grubs spawning in at Doom have an expanded clickbox that will sometimes overlap with Volatile Earth.
+|Hotfixed.
+|-
+|The Doom boss's hitbox can be extended after a diagonal wall dash during the car phase, allowing the charge to hit players even when they are far from the boss.
+|Coldfixed.
+|-
+|Rocks that spawn on acid before the car phase are deleted.
+|Coldfixed.
+|-
+|Grubs spawning in have an expanded clickbox that can sometimes overlap with Volatile Earth.
+|Investigating.
+|}
+
+----
+
+''This week brings continued improvements to Varlamore and the Delve boss, with added combat tweaks from the Summer Sweep-Up.''
+
+==Changelog August 6th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Doom of Mokhaiotl Changes'''
+
+* The melee punish phase now ignores attack delay if the player is using melee.
+* Added a sparkly glow to the burrow hole when a unique item is present.
+* Replaced triple grub spawns with a single giant grub that has double the health, explodes in a larger area, and causes triple the punishment if it reaches the boss.
+* Rockfalls no longer place a permanent rock on your position if you are hit by it while under the protection of the shield orb.
+* The centre tile of the shield orb now clears acid as it moves.
+* The current Delve level now appears in Doom’s health bar.
+* Unclaimed loot can now be retrieved from a chest in the lobby if you leave after pressing 'Claim and Leave'. The loot interface can also be accessed from further away.
+* Made the charged attack particles smaller to reduce the chance of misclicks.
+* Improved the Doom’s clickbox to prevent players accidentally clicking through the boss.
+* The Holy Water item now correctly one-shots range larva spawns during the fight.
+* The Holy Water effect triggered upon killing the boss can now be activated by the bonus damage dealt from the melee punish, not just the primary damage splat.
+* Special attack energy no longer regenerates between Delve levels, during loot collection or downtime between fights.
+* Killing the Doom of Mokhaiotl during its beam charge will now heal up to 24 Prayer Points, 32 HP and 25% special attack energy regardless of where you're standing. This will also clear acid in a 3x3 area, centred around water projectiles landing on the ground after the boss has died.
+** The above effects will now also occur if the boss is killed with the bonus damage from the melee punish.
+* Reduced the chance of back-to-back rock-throw attacks.
+* Grubs now try to spawn farther away from the boss (but still on the same side as the player).
+* Melee grubs no longer spawn outside of the shield phase.
+* Added an extra tick (0.6s) before the charge beam fires to give players more breathing room to deal with multiple attacks.
+* Improved the visibility of the Doom of Mokhaiotl’s melee projectile by using a deeper red colour, matching the one used for Leviathan.
+* The Eye of Ayak now instantly kills magic grubs and ignores attack delay.
+* Cannons can no longer be placed in any Delve level.
+* Added Elite clue scrolls to the loot table, with a drop rate of 1/75 for waves 1-2 and 1/50 for later waves.
+
+'''Varlamore Changes '''
+
+* Vale Totems now correctly count toward the total minigame items in the Collection Log overview instead of the Other total.
+* The Proudspire Agility shortcuts now show up correctly in Agility level-up messages.
+* Using the Eye of Ayak's special attack no longer causes the clickbox to change.
+* Custodian Stalkers now correctly appear in Slayer level-up messages instead of Jellies.
+* The Orange hat is now storable in the PoH.
+* Highlighting the Gemstone Crab's shell will no longer highlight random spiky shapes outside of the shell.
+* Adjusted the reclaim cost and PvP drop of the Arkan Blade from 75,000 to 250,000 GP to more accurately account for its power.
+
+'''Summer Sweep Up Combat Changes'''
+
+* There is now a warning message when depositing Inventory or worn equipment in the deposit pot in TOA.
+* The Wardens’ skull bombs can no longer land underneath the Obelisk.
+* Further refined Zebak's waves to stop the player from getting pushed closer to Zebak while attacking.
+* Duke mushrooms and salts now stack properly if your Inventory is full and you have one held.
+* The Accursed Sceptre (a) can now correctly use its special attack without setting an autocast.
+* Combat stat adjustments:
+** Dragons’ Stab defence lowered to 0, from 5.
+** TzHaar are now correctly 40% weak to Water spells.
+** The Giant Mole is now 50% weak to Earth instead of Water.
+* Fixed a graphical issue where the Crondis crocodiles would sporadically turn towards the player when pathing to the tree.
+* Reduced the number of tornadoes spawned by the Blue Moon as our last change didn’t have a significant impact - let us know how this feels!
+* Halberds can now do damage to Vespula when flying.
+* Decreased Ironman's minimum damage threshold from 10% to 7% for group Wilderness bosses.
+* There is now a quick leave option while fighting Bryophyta and Obor.
+
+'''Other Changes'''
+
+* The login tip about Compost Potions now uses the correct name for the potion.
+* Players can now attack again immediately after hitting Zebak's jugs with Magic, as with Ranged.
+* Corrected grammar in Monkey Madness I.
+* The West Ardougne Teleport spell is now correctly filtered if you lack the requirements.
+* Dizana's Quiver now preserves its progress towards being blessed when Perdu applies a Trouver Parchment to it.
+* Fixed a bug where the Small Fishing Nets in the Sunset Coast and Shipwreck Cove could not be picked up by Ironmen.
+* You can now fill your Herb Sack with grimy herbs in the first slot of your Inventory.
+* Clearing all placeholders in the Seed Vault no longer changes which seeds you have favourited.
+* The first option on placeholders in the Seed Vault is now correctly labelled as Remove-placeholder.
+* The Geomancy spell interface no longer incorrectly displays the Tai Bwo Wannai Calquat patch or the Draynor Manor Belladonna patch.
+* The ‘Investigate’ option on the smashed window in Sinclair Mansion during King’s Ransom now correctly reflects whether it is broken or repaired.
+* Torag the Corrupted now strikes twice with his hammers, matching their dual-hit behaviour when wielded by players.
+* The Bone Dagger’s special attack now correctly guarantees a hit on Kephri when used on the first hit.
+* Brundt's clue scroll has been updated to reflect the increased population of his town.
+* Reduced visual snapping caused by animations which have not yet loaded into game.
+* Desktop client(s) only:
+** Set the max FPS on the title screen to 60 fps.
+** Capped the in-game frame rate to your display refresh rate.
+** Improvement to the stability and quality of the legacy software renderer.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Delve Boss Changes==
+We’ve been having a ball watching you dive into Delve, push its limits, and share your feedback. There’s been a lot of great discussion over the past week, and it’s helped shape some of the improvements you’ll see today. That includes tweaks to the melee punish phase, adjustments to grub behaviour, better clarity during certain mechanics, and a range of smaller fixes that should make the overall experience feel a bit tidier. 
+
+We know last week’s changelog felt a little light for some, especially following such a big launch. Much of what we focused on early was under the hood - important stuff, just not the kind that grabs attention in a blog post. This week’s update builds on that foundation, and we think the changes will be a lot more noticeable.
+
+However, we’re being mindful about how much we change and how quickly. The Doom of Mokhaiotl is designed to be a tough, endgame-level boss, and we’re happy with the overall level of challenge it offers. Our goal is to refine the encounter without losing what makes it demanding and rewarding.
+
+There are still a few areas we’re actively discussing, and just because something didn’t make it in this week doesn’t mean it’s off the radar. We’ll keep reviewing how things are playing out and continue listening as more of you take on the fight.
+
+Here’s what’s new this week:
+
+* The melee punish phase now ignores attack delay if the player is using melee.
+* Added a sparkly glow to the burrow hole when a unique item is present.
+* Replaced triple grub spawns with a single giant grub that has double the health, explodes in a larger area, and causes triple the punishment if it reaches the boss.
+* Rockfalls no longer place a permanent rock on your position if you are hit by it while under the protection of the shield orb.
+* The centre tile of the shield orb now clears acid as it moves.
+* The current Delve level now appears in Doom’s health bar.
+* Unclaimed loot can now be retrieved from a chest in the lobby if you leave after pressing 'Claim and Leave'. The loot interface can also be accessed from further away.
+* Made the charged attack particles smaller to reduce the chance of misclicks.
+* Improved the Doom’s clickbox to prevent players accidentally clicking through the boss.
+* The Holy Water item now correctly one-shots range larva spawns during the fight.
+* The Holy Water effect triggered upon killing the boss can now be activated by the bonus damage dealt from the melee punish, not just the primary damage splat.
+* Special attack energy no longer regenerates between Delve levels, during loot collection or downtime between fights.
+* Killing the Doom of Mokhaiotl during its beam charge will now heal up to 24 Prayer Points, 32 HP and 25% special attack energy regardless of where you're standing. This will also clear acid in a 3x3 area, centred around water projectiles landing on the ground after the boss has died.
+** The above effects will now also occur if the boss is killed with the bonus damage from the melee punish.
+* Reduced the chance of back-to-back rock-throw attacks.
+* Grubs now try to spawn farther away from the boss (but still on the same side as the player).
+* Melee grubs no longer spawn outside of the shield phase.
+* Added an extra tick (0.6s) before the charge beam fires to give players more breathing room to deal with multiple attacks.
+* Improved the visibility of the Doom of Mokhaiotl’s melee projectile by using a deeper red colour, matching the one used for Leviathan.
+* The Eye of Ayak now instantly kills magic grubs and ignores attack delay.
+* Cannons can no longer be placed in any Delve level.
+* Added Elite clue scrolls to the loot table, with a drop rate of 1/75 for waves 1-2 and 1/50 for later waves.
+
+====Varlamore Changes:====
+While the Doom rages below, things have been ticking along nicely back on the surface. Here are a few more Varlamore updates:
+
+* Vale Totems now correctly count toward the total minigame items in the Collection Log overview instead of the Other total.
+* The Proudspire Agility shortcuts now show up correctly in Agility level-up messages.
+* Using the Eye of Ayak's special attack no longer causes the clickbox to change.
+* Custodian Stalkers now correctly appear in Slayer level-up messages instead of Jellies.
+* The Orange hat is now storable in the PoH.
+* Highlighting the Gemstone Crab's shell will no longer highlight random spiky shapes outside of the shell.
+* Adjusted the reclaim cost and PvP drop of the Arkan Blade from 75,000 to 250,000 GP to more accurately account for its power.
+
+==The Doom of Mokhaiotl: Drop Rates Revealed!==
+It’s the moment you’ve all been waiting for! Drum roll please…
+
+===The Mokhaiotl Cloth===
+{| class="wikitable" style="text-align: center;"
+|-
+! Wave
+! Drop Rate
+|-
+| 2
+| 1 in 2,500
+|-
+| 3
+| 1 in 2,000
+|-
+| 4
+| 1 in 1,350
+|-
+| 5
+| 1 in 810
+|-
+| 6
+| 1 in 765
+|-
+| 7
+| 1 in 720
+|-
+| 8
+| 1 in 630
+|-
+| 9+
+| 1 in 540
+|}
+
+===The Eye of Ayak===
+{| class="wikitable" style="text-align: center;"
+|-
+! Wave
+! Drop Rate
+|-
+| 3
+| 1 in 2,000
+|-
+| 4
+| 1 in 1,350
+|-
+| 5
+| 1 in 810
+|-
+| 6
+| 1 in 765
+|-
+| 7
+| 1 in 720
+|-
+| 8
+| 1 in 630
+|-
+| 9+
+| 1 in 540
+|}
+
+===Avernic Treads===
+{| class="wikitable" style="text-align: center;"
+|-
+! Wave
+! Drop Rate
+|-
+| 4
+| 1 in 1,350
+|-
+| 5
+| 1 in 810
+|-
+| 6
+| 1 in 765
+|-
+| 7
+| 1 in 720
+|-
+| 8
+| 1 in 630
+|-
+| 9+
+| 1 in 540
+|}
+
+===Pet Drop Rate===
+{| class="wikitable" style="text-align: center;"
+|-
+! Wave
+! Pet Drop Rate
+|-
+| 6
+| 1 in 1,000
+|-
+| 7
+| 1 in 750
+|-
+| 8
+| 1 in 500
+|-
+| 9+
+| 1 in 250
+|}
+
+===Regular loot quantities===
+{| class="wikitable" style="text-align: center;"
+|-
+! Wave
+! Loot Modifier
+|-
+| 1
+| -50% 
+|-
+| 2
+| -35% 
+|-
+| 3
+| No change
+|-
+| 4
+| +5% 
+|-
+| 5
+| +10% 
+|-
+| 6
+| +12% 
+|-
+| 7
+| +14% 
+|-
+| 8
+| +17% 
+|-
+| 9+
+| +20% 
+|}
+
+'''What this means:'''
+
+* You won’t get any uniques on Level 1.
+* Starting at Level 2, you have a small chance to get the Mokhiatl Cloth used to make the Confliction Gauntlets.
+* At Level 3, you get a chance at the Eye of Ayak.
+* At level 4, you have a chance to get the Avernic Treads.
+* As you progress, your chances improve for all three uniques.
+* From Level 8 onwards, all three uniques drop at the best drop rate.
+
+Keep pushing deeper to increase your chances of scoring these powerful items!
+
+===Custodian Stalkers===
+Curious about what’s been falling off the back of those Custodian Stalkers? Let’s crack open the numbers...
+
+'''Antler Guard:'''
+
+* Mature Custodian Stalkers: 1 in 800
+* Elder Custodian Stalkers: 1 in 650
+* Superior Custodian Stalkers: 1 in 650
+
+'''Broken Antlers''' (used for crafting Atlatl Darts):
+
+* Juvenile Stalkers: 1 in 15
+* Mature Stalkers: 1 in 16
+* Elder Stalkers: 1 in 31
+
+'''Alchemist’s Signet'''
+
+* Elder Custodian Stalkers: 1 in 62
+
+That wraps up this week’s updates for the Delve boss and Varlamore, but do keep the feedback rolling in.
+
+==Summer Sweep Up Combat==
+This week’s batch includes a tidy mix of long-standing requests, stat touch-ups, and some PvM behaviour that’s finally been told to behave. Whether it’s smarter Zebak waves, fewer surprise tornadoes, or halberds finally doing what halberds should do, there’s a little something here for everyone.
+
+* There is now a warning message when depositing Inventory or worn equipment in the deposit pot in TOA.
+* The Wardens’ skull bombs can no longer land underneath the Obelisk.
+* Further refined Zebak's waves to stop the player from getting pushed closer to Zebak while attacking.
+* Duke mushrooms and salts now stack properly if your Inventory is full and you have one held.
+* The Accursed Sceptre (a) can now correctly use its special attack without setting an autocast.
+* Combat stat adjustments:
+** Dragons’ Stab defence lowered to 0, from 5.
+** TzHaar are now correctly 40% weak to Water spells.
+** The Giant Mole is now 50% weak to Earth instead of Water.
+* Fixed a graphical issue where the Crondis crocodiles would sporadically turn towards the player when pathing to the tree.
+* Reduced the number of tornadoes spawned by the Blue Moon as our last change didn’t have a significant impact - let us know how this feels!
+* Halberds can now do damage to Vespula when flying.
+* Decreased Ironman's minimum damage threshold from 10% to 7% for group Wilderness bosses.
+* There is now a quick leave option while fighting Bryophyta and Obor.
+
+==Merch Update: NEW Nieve and King Black Dragon Figures!==
+The latest Old School RuneScape figures from Youtooz are now live on [https://youtooz.com/collections/old-school-runescape their store]! Get one while you can - pre-orders close in just a few weeks and once closed they will no longer be available from Youtooz.
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/you.jpg here]!'']]
+
+Nieve is waiting for you at the Grand Tree!
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (2).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/Nieve.jpg here]!'']]
+
+Not even the afterlife could keep Nieve from her Youtooz debut! Standing at 4.8 inches tall with long blonde hair, she holds her iconic Zamorakian Hasta in her right hand and a translucent Elysian Spirit Shield in the other. Her outfit is completed with a Fire Cape hanging from her shoulders and an Amulet of Fury around her neck along with full Bandos Armour.
+
+Who got the King Black Dragon fired up?
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (3).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/KBD.jpg here]!'']]
+
+The King Black Dragon may be bored after thousands of years of battles but we’ve managed to pique his interest with a Youtooz debut! At 4.1 inches tall his bright red eyes shine out from above his three toothy, horned heads. A pair of jagged wings curl out from his shoulders as a long thick tail wraps around his back and clawed feet. Scary stuff!
+
+Pre-order now [https://youtooz.com/collections/old-school-runescape here]!
+
+==Other Changes==
+
+* The login tip about Compost Potions now uses the correct name for the potion.
+* Players can now attack again immediately after hitting Zebak's jugs with Magic, as with Ranged.
+* Corrected grammar in Monkey Madness I.
+* The West Ardougne Teleport spell is now correctly filtered if you lack the requirements.
+* Dizana's Quiver now preserves its progress towards being blessed when Perdu applies a Trouver Parchment to it.
+* Fixed a bug where the Small Fishing Nets in the Sunset Coast and Shipwreck Cove could not be picked up by Ironmen.
+* You can now fill your Herb Sack with grimy herbs in the first slot of your Inventory.
+* Clearing all placeholders in the Seed Vault no longer changes which seeds you have favourited.
+* The first option on placeholders in the Seed Vault is now correctly labelled as Remove-placeholder.
+* The Geomancy spell interface no longer incorrectly displays the Tai Bwo Wannai Calquat patch or the Draynor Manor Belladonna patch.
+* The ‘Investigate’ option on the smashed window in Sinclair Mansion during King’s Ransom now correctly reflects whether it is broken or repaired.
+* Torag the Corrupted now strikes twice with his hammers, matching their dual-hit behaviour when wielded by players.
+* The Bone Dagger’s special attack now correctly guarantees a hit on Kephri when used on the first hit.
+* Brundt's clue scroll has been updated to reflect the increased population of his town.
+* Reduced visual snapping caused by animations which have not yet loaded into game.
+* Desktop client(s) only:
+** Set the max FPS on the title screen to 60 fps.
+** Capped the in-game frame rate to your display refresh rate.
+** Improvement to the stability and quality of the legacy software renderer.
+
+==New Worlds Added==
+With so many new and returning players joining the fun, demand for game worlds has skyrocketed. We've added the following additional worlds to help support this:
+
+* '''EU:''' 457 461 462 550 551 556 557
+* '''UK:''' 503 504
+* '''AU:''' 536 591 592 593 594 595
+
+In addition to the above, we've also converted some Free to Play worlds to members worlds:
+
+* '''USE:''' 475 476 575
+* '''USW:''' 544 545 546 547
+* '''UK:''' 500 501
+
+Later this week we'll be releasing a blog that goes into the detail on what work is being done to continue supporting the increased player numbers, as well as what to expect in regards to more worlds in the future. Thank you once again for being part of this incredible journey!
+
+==Set Sail at MCM as OSRS Takes the Stage!==
+We’re heading to MCM Comic Con to talk all things Sailing! Join members of the Old School design team as they lift the curtain on the journey behind the game’s first-ever new skill. From proposals to community-led development, they’ll be diving deep into how Sailing came to be and what it means for the future of OSRS.
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (4).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/Sail1.jpg here]!'']]
+
+'''When?'''
+
+* Saturday 25th October, 15:00 BST
+
+'''Where?'''
+
+* MCM Comic Con, ExCeL London, Centre Stage
+
+'''What?'''
+
+* Panel: Charting Old School RuneScape’s First New Skill
+
+Hear from Design Director Kieren Charles, Principal Narrative Designer Ed Pilkington, and Senior Game Designer Elena Nordmark as they share behind-the-scenes insights on design challenges, community collaboration, and the technical hurdles that helped shape this historic update. Stick around for a live Q&A at the end!
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (5).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/Sail2.jpg here]!'']]
+
+We'll be sharing highlights after the show, so keep your eyes peeled!
+
+===Sailing Stress Test===
+'''Update!''' Our Sailing stress test has been postponed and will now take place on Thursday, August 14th. We’re just taking a little extra time to make sure everything’s shipshape before we open the beta world to all of you. Everything else remains the same - 15-minute test windows, a fun little minigame, and your chance to help us push the game engine to its limits. We’ll confirm the exact times as soon as we can. Thanks for your patience, and we’ll see you on the 14th!
+
+==Postcard from Varlamore: Winners Announced==
+We challenged the community to send in their best Postcard from Varlamore - whether that meant breathtaking views, clever humour, or wild creativity. Across Reddit and Discord, the entries did not disappoint. Check out the #postcard-from-varlamore channel in our official Discord and Reddit post to see the full stories that came with them! After much deliberation, here are the winning submissions in each category:
+
+'''Discord Winners:'''
+
+* Most Funny: [https://discord.com/channels/324132423636090880/1397644476637511740/1397929736407224431 Scar]
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (6).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/scar.jpg here]!'']]
+
+* Most Creative: [https://discord.com/channels/324132423636090880/1397644476637511740/1397892311991582823 A Wild Fox]
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (7).png|thumb|550px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/awildfox.jpg here]!'']]
+
+* Most Varlamorian: [https://discord.com/channels/324132423636090880/1397644476637511740/1398094762313257055 Chiken]
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (8).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/chiken.jpg here]!'']]
+
+'''Reddit Winners:'''
+
+* Most Varlamorian: [https://www.reddit.com/r/2007scape/comments/1m7zcl8/comment/n4yjzjg/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button u/allranger]
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (9).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/allranger.jpg here]!'']]
+
+* Most Funny: [https://www.reddit.com/r/2007scape/comments/1m7zcl8/comment/n51boui/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button u/NoCurrencies]
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (10).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/NoCurrencies.jpg here]!'']]
+
+* Most Creative: [https://www.reddit.com/r/2007scape/comments/1m7zcl8/comment/n4xaj47/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button u/OkReward6883]
+
+[[File:Varlamore & Summer Sweep-Up Combat Tweaks (11).png|thumb|550px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-05/OkReward.jpg here]!'']]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1mj0aoz/varlamore_summer_sweepup_combat_tweaks/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

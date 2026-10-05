@@ -1,0 +1,138 @@
+diff --git a/osrs239-content/server/scripts/player/scripts/stat_restore.rs2 b/osrs239-content/server/scripts/player/scripts/stat_restore.rs2
+index a1651c71f7..450b1c5106 100644
+--- a/osrs239-content/server/scripts/player/scripts/stat_restore.rs2
++++ b/osrs239-content/server/scripts/player/scripts/stat_restore.rs2
+@@ -8,7 +8,8 @@
+ // Wiki: every boosted or drained stat moves one level toward its base once a
+ // minute (100 ticks), independent of the others. Hitpoints are NOT handled here
+ // — `[timer,health_regen]` owns them and has its own interval, doubled by Rapid
+-// Heal and by the Hitpoints cape.
++// Heal and by the Hitpoints cape. Drained Prayer is not restored either (see
++// the drained branch below): prayer points do not regenerate.
+ //
+ // A stat can be addressed by index here, unlike a varbit: `stat`, `stat_base`,
+ // `stat_heal` and `stat_sub` all take the stat from the stack rather than from
+@@ -40,8 +41,21 @@ while ($stat < ^stat_count) {
+         if ($now > $base) {
+             // Boosted: one level off the top.
+             stat_sub($stat, 1, 0);
+-        } else if ($now < $base) {
++        } else if ($now < $base & $stat ! 5) {
+             // Drained: one level back on. `stat_heal` clamps at base.
++            //
++            // Not Prayer (stat 5, the engine's index: attack 0, defence 1,
++            // strength 2, hitpoints 3, ranged 4, prayer 5). Drained prayer
++            // points are spent points, and they stay spent: "Unlike Hitpoints,
++            // prayer points do not regenerate over time (outside of the
++            // Demonic Ruins) and can only be restored by praying at an altar,
++            // consuming potions, or using certain Special attacks" (wiki
++            // Combat rev 15270648, docs/minigames/inferno/sources/wiki/
++            // wiki_Combat.wikitext:82). A prayer BOOST above base (an altar
++            // that recharges past the maximum) still decays with every other
++            // boost, which is the boost rule of wiki Temporary skill boost:46.
++            // Measured before this line: 82 -> 84 over 222 ticks with nothing
++            // lit (waves seam pass 3, build/quest_gate/prd_a_before).
+             stat_heal($stat, 1, 0);
+         }
+     }
+diff --git a/osrs239-content/server/scripts/skill_prayer/scripts/prayer.rs2 b/osrs239-content/server/scripts/skill_prayer/scripts/prayer.rs2
+index 512b4787d2..35e5c8278b 100644
+--- a/osrs239-content/server/scripts/skill_prayer/scripts/prayer.rs2
++++ b/osrs239-content/server/scripts/skill_prayer/scripts/prayer.rs2
+@@ -146,16 +146,43 @@ return(false);
+ // calling a drain proc, which is the engine scheduling a game rule. The
+ // reference sets its own timer from here for exactly this reason.
+ //
+-// One tick rather than the reference's five, because this server's drain
+-// accumulator is per-tick — see [timer,prayer_drain] for the arithmetic. The
+-// timer is cleared when nothing is on, so an idle player runs no script.
++// The drain is per tick (wiki Prayer rev 15358187, Prayer:459: the total drain
++// effect "is added to an internal prayer drain counter each game tick") — see
++// [timer,prayer_drain] for the arithmetic. The timer is cleared when nothing is
++// on, so an idle player runs no script.
++//
++// Two modern rules decide WHEN it is armed, and neither may touch the counter
++// (waves seam pass 3, prayer_regen_and_drain):
++//
++// - "the game does not drain prayer for prayers on the tick they are
++//   activated ... 1-tick flicking works because ... the game also thinks
++//   those prayers were just activated when you get to the end of each tick so
++//   prayer is never drained" (Prayer:528), and a protection prayer turned off
++//   "within the next tick" consumes nothing (Prayer:503). A press reaches this
++//   server between ticks with `map_clock` = c and is in force from tick c+1's
++//   npc phase; the real game's drain for that activation tick runs AFTER the
++//   next tick's input, which here is tick c+2's timer phase. So the first
++//   drain is armed two ticks out, and only when nothing was draining before
++//   (`$was` = 0 after any conflicting prayer came off): a prayer already
++//   draining keeps its every-tick timer untouched, so a switch never costs a
++//   held prayer a tick either.
++// - The counter is "a fraction" that "can be reset through a rejuvenation
++//   pool, the Falador shield prayer recharge, or dying. Drinking a Prayer
++//   potion will NOT reset it" (Prayer:35). Turning the last prayer off is not
++//   in that list, so it no longer zeroes the counter.
++//
++// Open: a prayer lit while another is ALREADY draining is charged on its
++// activation tick (the timer cannot tell it apart without a per-prayer
++// "lit since the last drain" mask, i.e. a new temp varp in prayers.varp).
+ [proc,prayer_switched](int $drain_delta)
+-%varp6297_prayer_drain_effect = max(0, calc(%varp6297_prayer_drain_effect + $drain_delta));
++def_int $was = %varp6297_prayer_drain_effect;
++%varp6297_prayer_drain_effect = max(0, calc($was + $drain_delta));
+ if (%varp6297_prayer_drain_effect > 0) {
+-    settimer(prayer_drain, 1);
++    if ($was <= 0) {
++        settimer(prayer_drain, 2);
++    }
+ } else {
+     cleartimer(prayer_drain);
+-    %varp6296_prayer_drain_counter = 0;
+ }
+ ~player_combat_stat;
+ 
+@@ -329,8 +356,11 @@ def_dbrow $data = ~get_prayer_data($prayer);
+ %varp6297_prayer_drain_effect = max(0, calc(%varp6297_prayer_drain_effect - db_getfield($data, prayer_table:drain, 0)));
+ sound_synth(cancel_prayer, 1, 0);
+ 
+-// Everything off, and the counters with it. Called on death and when the
+-// last prayer point goes.
++// Everything off. Called on death, when the last prayer point goes, by the
++// quick-prayer orb and by every forced deactivation. The drain COUNTER is
++// kept: switching prayers off is not one of the three things that reset it
++// (wiki Prayer:35: a rejuvenation pool, the Falador shield, dying). Death's
++// reset belongs to its caller (player/death.rs2), which knows it is a death.
+ [proc,prayer_deactivate_all]
+ def_int $prayer = 0;
+ while ($prayer < ^prayer_count) {
+@@ -339,7 +369,6 @@ while ($prayer < ^prayer_count) {
+ }
+ headicons_set(0);
+ %varp6297_prayer_drain_effect = 0;
+-%varp6296_prayer_drain_counter = 0;
+ cleartimer(prayer_drain);
+ // Nothing is up, so the quick-prayer orb is not lit. This is the off direction's
+ // single writer — see skill_prayer/scripts/quickprayer.rs2.
+@@ -538,7 +567,9 @@ if (^curses_enabled = 1 & ~curses_book_open = true) {
+ //
+ // `60 + 2 * prayerbonus` is the one place the equipment screen's "Prayer: +N"
+ // has a mechanical effect. The floor of 60 is deliberate — a negative prayer
+-// bonus does not make prayers drain faster than bare hands.
++// bonus does not make prayers drain faster than bare hands. (Open: the wiki's
++// formula, Prayer:463 "drain_resistance = 2 x bonus + 60", states no floor, and
++// no pinned source says what a negative bonus does; left as it was.)
+ //
+ // A TIMER, not a proc the engine calls. `~prayer_switched` starts it when the
+ // first prayer goes on and stops it when the last goes off, so the engine
+@@ -550,10 +581,12 @@ if (^curses_enabled = 1 & ~curses_book_open = true) {
+ // the engine has to compute is an argument the engine has to know about.
+ [timer,prayer_drain]
+ if (%varp6297_prayer_drain_effect <= 0) {
+-    %varp6296_prayer_drain_counter = 0;
+     cleartimer(prayer_drain);
+     return;
+ }
++// `~prayer_switched` arms the first drain two ticks out (the activation tick
++// is free); every drain after it is the next tick.
++settimer(prayer_drain, 1);
+ def_int $stab;
+ def_int $slash;
+ def_int $crush;

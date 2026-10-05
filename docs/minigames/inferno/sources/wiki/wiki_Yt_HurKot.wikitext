@@ -1,0 +1,118 @@
+{{External|rs}}
+{{Infobox Monster
+|version1 = Level 108
+|version2 = Level 141
+|name = Yt-HurKot
+|image = [[File:Yt-HurKot.png|220px]]
+|release1 = [[4 October]] [[2005]]
+|release2 = [[1 June]] [[2017]]
+|update1 = TzHaar Fight Caves
+|update2 = The Inferno
+|members = Yes
+|combat1 = 108
+|combat2 = 141
+|size = 1
+|examine = Mini menace.
+|xpbonus = 0
+|max hit1 = 14
+|max hit2 = 18
+|aggressive = No
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|slayxp1 = 60
+|slayxp2 = 90
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints1 = 60
+|hitpoints2 = 90
+|att1 = 140
+|att2 = 165
+|str1 = 100
+|str2 = 125
+|def1 = 60
+|def2 = 100
+|mage1 = 120
+|mage2 = 150
+|range1 = 120
+|range2 = 150
+|attbns = 0
+|strbns = 0
+|amagic1 = 0
+|amagic2 = 100
+|mbns = 0
+|arange1 = 0
+|arange2 = 80
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic1 = 100
+|dmagic2 = 130
+|dlight1 = 100
+|dlight2 = 130
+|dstandard1 = 100
+|dstandard2 = 130
+|dheavy1 = 100
+|dheavy2 = 130
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 0
+|venomresistance = 0
+|immuneburn = Immune to weak burns
+|id1 = 3128
+|id2 = 7701,7705,10624
+}}
+'''Yt-HurKot''' is a [[volcanic creature]] that appears in both the [[TzHaar Fight Cave]]s and the [[Inferno]] for their respective Jads; [[TzTok-Jad]] and [[JalTok-Jad]] and are generally referred to as '''healers''' (or '''Jad healers''' in the Inferno).
+
+The Yt-HurKot in the Fight Caves are level 108 with a max hit of 14, whereas those in the Inferno are level 141 with a max hit of 18. Both attack with melee, and are moderately resistant to both magic and ranged attacks, while possessing no melee defence at all. 
+
+They spawn when their respective Jad falls to or below 50% of their maximum hitpoints, and will move to heal them; Fight Caves healers always spawn in the same four spawn points in the arena, while Inferno healers will spawn next to their respective Jad. Upon reaching their Jad, they will begin to heal it rapidly; 5 hitpoints for Fight Cave healers,{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1258128136388173824|quote=It's a flat +5 (per NPC), running every 4 ticks.|archiveurl=https://reldo.runescape.wiki/i/97816|archivedate=04 April 2022|date=6 May 2020}} while Inferno healers restore 15-24 hitpoints.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1344226351654514688|quote=[...] Its other heal code appears to do 15-24 every 4 ticks.|archiveurl=https://reldo.runescape.wiki/i/106494|archivedate=4 April 2022|date=30 Dec 2020}} Both heal every 4 ticks.
+
+==Strategy==
+{{FightCaveWave|wave=Spawns|se=108|s=108|nw=108|sw=108}}
+
+The amount of Yt-HurKot that spawn are varied; four spawn during the Fight Caves, whereas in the Inferno, five spawn for the first Jad in wave 67, and three spawn for the Jads in waves 68 and 69.
+
+Yt-HurKot are not aggressive to the player upon spawning, but attacking them will cause them to stop healing and immediately attempt to target the player with melee. If the player is too far from the Yt-HurKot after attacking them, they will quickly lose aggression and re-target Jad.  It is recommended players keep distance and try to stack the healers so that only one can attack at a time. Fight Cave healers are unable to restore Jad's health if they are more than 5 tiles away from Jad, whereas Inferno healers will restore their Jad's health when in melee distance of them. They can still heal if within the trigger range and in combat with the player, so it is important to keep them far away and/or avoid being attacked by them in their respective trigger range.
+
+Notably, Fight Cave healers will respawn if they manage to restore Jad's health to full before they were killed, whereas Inferno healers do not respawn.
+
+'''Popular methods include:'''
+
+*Attracting the healers' attention, running through Jad at a timed interval, therefore getting the healers stuck behind Jad, trying to attack the player.
+*Getting the healers' attention quickly, as to not let Jad regain much health, then proceeding to kill the healers (south-east spawn can allow the player to safely take the healers to the north-east corner to kill them).
+*Getting the healers' attention and then lining them up so that only one healer can attack the player.
+*High level players with the highest-tier weapons may simply be able to out-damage their healing effect, ignoring their presence in the Fight Cave.
+
+===Trapping the Yt-HurKot ([[Fight Caves]])===
+{{Colour|Green|Green}} indicates where [[TzTok-Jad]] is.<br/>
+{{Colour|Orange|Yellow}} indicates where the Yt-HurKots are.<br/>
+{{Colour|Darkcyan|Cyan}} indicates where you are.<br/>
+
+<gallery caption="Option 1">
+Yt-HurKot 1-1.png|Distracting Yt-HurKots step 1
+Yt-HurKot 1-2.png|Distracting Yt-HurKots step 2
+</gallery>
+
+<gallery caption="Option 2">
+Yt-HurKot 2-1.png|Distracting Yt-HurKots step 1
+Yt-HurKot 2-2.png|Distracting Yt-HurKots step 2
+</gallery>
+
+<small>Click on the images to enlarge them.</small>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Yt-HurKot now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{TzHaar Fight Cave}}
+{{Inferno}}

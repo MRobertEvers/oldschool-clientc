@@ -1,0 +1,58 @@
+{{Infobox Monster
+|name = Javelin Colossus
+|image = [[File:Javelin Colossus.png|250px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 278
+|size = 3
+|examine = At least he brought a loincloth.
+|xpbonus = 0
+|max hit = 48, 49 (Relentless I), 51 (Relentless II), 54 (Relentless III)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 5
+|hitpoints = 220
+|att = 200
+|str = 300
+|def = 190
+|mage = 225
+|range = 360
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 25
+|rngbns = 20
+|dstab = 15
+|dslash = 15
+|dcrush = 15
+|dmagic = 20
+|dlight = 30
+|dstandard = 30
+|dheavy = 30
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|id = 12817
+}}
+'''Javelin Colossi''' are enemies encountered in [[Fortis Colosseum]] who attack with ranged, throwing their javelins at the player with a range of 15 tiles. Every five attacks, they will launch a javelin high into the air, landing on the player's current position a few ticks afterwards. This will deal heavy damage that ignores [[Protect from Missiles]]. 
+
+If the "Reentry" handicap is active, the javelin will temporarily leave behind a pile of [[Molten Sand|molten sand]], dealing damage to players standing on them. This is cleared at the end of each wave, unless Reentry II or III is active, which makes it last until the player dies or defeat [[Sol Heredit]], whichever comes first.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = The clickbox of the NPC was updated to include all of its models.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - colossi concept art.jpg|Concept art of the shockwave and javelin colossi, by [[Mod Grub]].
+</gallery>
+
+{{Fortis Colosseum}}

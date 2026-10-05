@@ -1,0 +1,162 @@
+{{External|rs=Death (mechanic)|rsc|dw}}
+{{Otheruses|def=no}}
+{{Listen
+|title = Dying
+|image = [[File:Dying animation.gif|220px]]
+|filename = You Are Dead!.ogg
+|desc = A player dying after reaching 0 Hitpoints.
+}}
+'''Death''' occurs when a player's [[Hitpoints]] reach zero; a message in the [[Chat Interface]] will inform them: {{mes|Oh dear, you are dead!}}. Death can also occur when alternative criteria are met{{explain}}, such as being completely frozen at the [[Wintertodt]] which causes the player's death despite not losing any Hitpoints, or reaching a fatal number of Doom stacks within the [[Fortis Colosseum]]. After death, the player will [[respawn]] at another location and potentially deal with further consequences, such as [[Items Kept on Death|losing or breaking some items]].
+
+==Unsafe and safe deaths==
+{{See also|Items Kept on Death}}
+Deaths are often classified as either unsafe/dangerous or safe. However, these terms depend on the context; deaths can have various consequences depending on the circumstances. Generally:  
+* A death is considered unsafe for [[File:Hardcore ironman chat badge.png]] [[Ironman Mode#Hardcore Ironman|Hardcore Ironmen]] if it will result in the loss of their status (or a pooled life in the case of [[File:Hardcore group ironman chat badge.png]] [[Group Ironman Mode#Hardcore Group Ironman|Hardcore Group Ironmen]]), and safe if it doesn't. Some activities that are safe for Hardcore Ironmen are unsafe for Hardcore Group Ironmen.
+* A death is considered unsafe for your items if it will result in your items being [[Items Kept on Death#Breakable items|broken]], sent to a [[deathbank]], left on your [[grave]], or dropped to another player; and the death is considered safe for your items if it doesn't affect them.
+
+Deaths in most parts of the game are considered unsafe, while some [[minigames]] or activities allow deaths without extra penalty. For more information on items kept or lost upon death, see [[Items Kept on Death]].
+
+== Death animation ==
+===Death overrides===
+[[File:Death Animations.png|frame|The Death Animations interface.]]
+[[Animation override]]s are available for dying, which can be toggled by speaking to [[Death (NPC)|Death]] in [[Death's Office|his office]] and asking him to change how you die.
+
+The interface allows players to select one or more animations that play out upon death. If multiple are selected, one of the selected animations will be chosen at random.
+{| class="wikitable" style=width:550px;
+! Name
+! Unlocked by
+! Duration
+! Animation
+|-
+| Leagues IV - Trailblazer Reloaded
+| Unlocked upon consuming the [[Trailblazer reloaded death scroll]], which can be bought as a [[Trailblazer Reloaded League]] reward.
+| 6 ticks
+| [[File:Death (Trailblazer Reloaded League).gif|center|150px]]
+|-
+| Leagues V - Raging Echoes
+| Unlocked upon consuming the [[Raging echoes death scroll]], which can be bought as a [[Raging Echoes League]] reward.
+| 7 ticks
+| [[File:Death (Raging Echoes League).gif|center|200px]]
+|-
+|}
+
+===Unique deaths===
+{| class="wikitable" style=width:550px;
+! Name
+! Caused By
+! Animation
+|-
+| Doom
+| Occurs when death is caused by reaching maximum stacks from the ''Doom'' modifier, only available within the [[Fortis Colosseum]]. Will take priority over other custom death animations.
+| [[File:Death (Doom).webp|center|200px]]
+|}
+
+==Self-inflicted lethal damage==
+{{Main|Hitpoints#Self-inflicted damage}}
+Players looking to take lethal damage in game can use several in game items and various pieces of scenery to control the location of a gravestone or clear themselves of a particular status effect.
+
+===Items===
+*[[Araxyte venom sac]]
+*[[Enchanted symbol]]
+*[[Strange device]]
+*[[Lit strange object]]
+*[[Sea slug (item)]]
+
+===Scenery===
+*Picking [[Nettles (scenery)|nettles]] without wearing gloves
+*Picking up a [[Kharid Scorpion]] without the [[scorpion cage]]
+*Triggering various [[Thieving]] traps
+*Failing [[Agility]] shortcuts/obstacles
+*Taking from a [[rat trap]]
+*Taking from a [[beehive]] without protective equipment
+
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = The inventory layout should now be preserved through death upon collecting items from a [[grave]].
+}}
+{{Subject changes
+|date = 26 June 2020
+|update = Death Changes
+|change = Items lost on death will now be in your gravestone. They cost coins to reclaim and in PvP, the gravestone is visible and claimable freely to the player killer.
+}}
+{{Subject changes
+|date = 24 June 2020
+|update = Death Changes
+|poll =
+|change = Death mechanics underwent large changes. This update introduced the [[grave]]stone system and [[Death's Office]], which replaced items appearing on the ground for a limited amount of time after death. With this, all items lost inside of an [[instance]] also appear outside of said instance.
+}}
+{{Subject changes
+|date = 28 April 2016
+|update = Calling Pets & Deadman Death
+|poll = 
+|change = Deadman Mode items lost on death interface has been updated to include more detailed information.
+}}
+{{Subject changes
+|date = 22 May 2015
+|update = Temporary Death Mechanic Changes
+|change = Items dropped on death now remain on the floor for 60 minutes before disappearing. In PvP, they are only visible to the player killer for one minute and everyone else for the following 59 minutes. Additionally, temporarily, if you die outside of [[PvP]], any non-tradeable items will appear in your [[inventory]].
+}}
+{{Subject changes
+|date = 13 February 2015
+|update = Change to Items Lost on Death
+|change = Items dropped on death are now invisible to other players outside of PvP.
+}}
+{{Subject changes
+|date = 16 October 2014
+|update = Corporeal Beast
+|change = Items dropped on death were changed to stay on the floor for 30 minutes before disappearing, being visible only to the player who died for one minute. In PvP, they are only visible to the player killer for one minute.
+}}
+{{Subject changes
+|date = 9 October 2014
+|update = New Bounty Hunter Rewards
+|change = Temporary changes to death mechanics were reverted; items would again appear to everyone immediately and disappear in two minutes.
+}}
+{{Subject changes
+|date = 29 September 2014
+|update = Temporary Changes to Death Mechanics (29 September 2014)
+|change = Items dropped on death were changed to stay on the floor for 30 minutes before disappearing, being visible only to the player who died for one minute. This change did not affect PvP.
+}}
+{{Subject changes
+|date = 4 September 2014
+|update = Player Owned House Menageries
+|change = Temporary changes to death mechanics were reverted; items would again appear to everyone immediately and disappear in two minutes.
+}}
+{{Subject changes
+|date = 20 August 2014
+|update = Temporary Changes to Death Mechanics (29 September 2014)
+|change = Items dropped on death were changed to stay on the floor for 30 minutes before disappearing, being visible only to the player who died for one minute. This change did not affect PvP.
+}}
+{{Subject changes
+|date = 13 March 2014
+|update = Rejuvenating the Wilderness: More risk, more reward
+|change = *[[Crystal equipment]] now reverts to a [[seed]] when dropped on death.
+*Untradeable items dropped on death in the [[Wilderness]] beyond level 20 are turned into small amounts of cash.
+}}
+{{Subject changes
+|date = 7 November 2013
+|update = POH updates & weapon tweaks
+|change = Temporary changes to death mechanics were reverted; items would again appear to everyone immediately and disappear in two minutes.
+}}
+{{Subject_changes
+|date = 24 October 2013
+|update = Halloween & Death Mechanics
+|change = Items dropped on death now remain on the floor invisible to everyone for three minutes, visible only to the player who died for the following one minute, and everyone else afterwards.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+[[File:Death appears.gif|thumb|200px|right|Death claiming a player as they die.]]
+{{Listen|title = [[Oh Dear!]]|filename =Oh Dear!.ogg}}
+*If the player dies during [[Halloween]] events, [[Death (Halloween)|Death]] will appear to claim the player's soul.
+*[[Ironman Mode|Ironmen]] can pick up and bury bones dropped upon the death of another player.
+*There was going to be another sound that was going to play during death, likely as an alternate one. It is unknown why it went unused.
+**However, it is used in [[Hazeel Cult]], where it plays during the Ceril side after the player returns the [[Carnillean armour]] to [[Ceril Carnillean]] and a fake "quest complete" interface appears.
+
+==See also==
+*[[Self-inflicted damage]]
+
+[[Category:Mechanics]]

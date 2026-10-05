@@ -1,0 +1,43 @@
+{{External|rs}}
+{{otheruses|def=no|the various bonuses offered according to which attack method is selected|Weapon style}}
+The '''attack types''' are the different ways in which a player or NPC may attack another player, another NPC, or a piece of [[:Category:Interactive scenery|interactive scenery]] that can be attacked. There are three [[Melee]] types (''stab'', ''slash'', ''crush''), three [[Ranged]] types (''light'', ''standard'', ''heavy''), and one [[Magic]] type. [[Equipment]] gives players [[Equipment bonuses#Attack bonuses|attack bonuses]] towards and defence bonuses against each of the attack styles, though equipment that gives ranged bonuses gives them to all 3 ranged types.
+
+For standard (non-[[special attacks]]) the attack type can be found in the [[Combat Options]] tab by hovering over the option. These attacks will roll with the attacker's type attack bonuses and roll against the opponent's defence of that type. Most [[special attacks]], however, roll with the attack bonuses of the chosen option, but are always rolled against a predefined type for the opponents defence. The rule of thumb is that you can determine the type from its special attack animation. Slashing specials roll against the opponent's slash defence, and crushing animations against crush defence (for example, when set to stab, the special attacks of the [[dragon dagger]] and [[crystal halberd]] will roll with the attacker's stab attack bonus but against the opponent's slash defence).{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/785130015541325824|date=9 October 2016|archiveurl=https://reldo.runescape.wiki/i/106488|archivedate=28 May 2020|quote=It uses whatever attack style you have selected to calculate your accuracy, but looks at their slash defence.}}
+
+Attacks can also be [[typeless]], which is a secondary category of attack type conferring their immunity to [[protection prayers]]. Most typeless attacks can only be used by NPCs, though the delayed second hit from the [[ancient godsword]]'s special attack is an example of one that can be used by the player. 
+
+==Melee types==
+The following are melee attack types:
+
+=== Stab ===
+Stab is used primarily by [[dagger]]s, [[sword]]s, [[spear]]s, [[pickaxe]]s, and [[rapier]]s. It is used as a secondary attack by [[longsword]]s, [[mace]]s, [[halberd]]s, and [[scimitar]]s. Stab is most effective against enemies wearing [[chainbody]] armour, [[leather armour]], or with heavy skin such as [[Dragon (race)|dragons]], but it isn't as effective when used against opponents with tough armour, like platebodies.
+
+=== Slash ===
+Weapons that use slash as a primary attack type are [[longsword]]s, [[scimitar]]s, [[two-handed sword]]s, [[battleaxe]]s, [[axe]]s, the [[abyssal whip]], and [[halberd]]s. [[Sword]]s, [[spear]]s, and [[dagger]]s also use slash as a secondary attack type. Slash is best used against opponents wearing clothing or leather-based armour, or opponents with no armour at all. However, it is less effective in battles where opponent is wearing tough, usually metal [[armour]], or has scaly skin, e.g. dragons.
+
+=== Crush ===
+Crush is the primary attack type when wielding [[mace]]s, [[warhammer]]s, and [[maul]]-class weapons and is used secondarily by [[two-handed sword]]s, [[spear]]s, and [[battleaxe]]s. It is also the only attack type that can be used when fighting unarmed. Crush works best against platebodies. Most small monsters, such as [[spider]]s or hard-shelled monsters, are typically also more vulnerable to crush attacks. Crush attacks are less effective if the enemy has flexible skin/armour or is large, e.g. giants.
+
+==Ranged types==
+
+Equipment that gives ranged defence bonuses gives them to all three ranged types (seen as “Range:” in the [[equipment stats]] interface), but [[monsters]] have separate defensive stats for each of the three types. Therefore, ranged type should be considered in [[PvM]] activities but not in [[PvP]].
+
+The following are detailed descriptions of the attack bonuses:
+
+=== Light ===
+Light is used by [[Weapons/Categories#Thrown|thrown weapons]], such as [[dart]]s, [[Throwing knife|knives]], [[Thrownaxe|axes]], [[Toktz-xil-ul]], the [[toxic blowpipe]], and the [[Tonalztics of Ralos]]. It tends to be more effective against enemies with little-to-no armour.
+
+=== Standard ===
+Standard is used by all kinds of [[Bow|bows]], [[Salamander|salamanders]], and the [[Eclipse atlatl]].
+
+=== Heavy ===
+Heavy is used by [[Crossbow (weapon)|crossbows]] (including [[Ballista|ballistae]]) and [[Chinchompa|chinchompas]]. It tends to be more effective against enemies which are very large and/or heavily armoured.
+
+==Magic==
+The Magic attack type is used when casting offensive spells or using [[powered staves]]. The maximum hit of any magic spell is determined by the spell itself and the player's [[magic damage]] bonus, and the accuracy of the spell in [[PvP]] is determined by the caster's magic attack bonus, 70% of the opponent's Magic level, and 30% of the opponent's Defence level. Accuracy in [[Monster killing|PvM]] is determined by player's magic attack bonus and NPC's magic level, and NPC's magic defence bonus. Magic is very effective against metal armour, but is rarely used against opponents that deflect magic fairly easily, like [[dragonhide]] armour or [[Dragon (race)|dragons]] themselves.
+
+==See also==
+*[[Equipment bonuses]]
+*[[Combat styles]]
+
+[[Category:Combat]]

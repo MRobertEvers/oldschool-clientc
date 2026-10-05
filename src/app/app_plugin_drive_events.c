@@ -62,6 +62,8 @@ static char const* const DRIVE_EVENT_NAMES[DRIVE_EVENT_KIND_COUNT] = {
     "npc_despawn",
     "npc_retype",
     "inv_packet",
+    "npc_seq",
+    "npc_face",
 };
 
 char const*

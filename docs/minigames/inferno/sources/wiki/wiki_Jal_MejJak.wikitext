@@ -1,0 +1,63 @@
+{{Infobox Monster
+|name = Jal-MejJak
+|image = [[File:Jal-MejJak.png|200px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 250
+|size = 1
+|examine = A lava born creature with healing powers.
+|xpbonus = 0
+|max hit = 10
+|aggressive = No
+|poisonous = No
+|attack style = Area of effect
+|attack speed = 3
+|slayxp = 75
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 75
+|att = 1
+|str = 1
+|def = 100
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7708
+}}
+'''Jal-MejJak''' are [[volcanic creatures]] that appear in the [[Inferno]] when [[TzKal-Zuk]] is at 20% health. They will heal TzKal-Zuk for 15-24 hitpoints every three ticks, until the player attacks them. Doing so causes them to stop healing TzKal-Zuk and start raining lava balls on the ground in front of them, similar to the effect at the [[Chaos Temple (Wilderness)|Chaos Temple]]. Each lava ball does 5-10 damage. This damage can potentially be dodged, but doing so risks being hit by TzKal-Zuk, who can kill the player instantly. Thus, the preferred method is to kill them quickly with [[ranged]] or [[magic]], while eating through the damage.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-MejJak now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = The Jal-MejJak's hitpoints has been reduced from 80 to 75.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Jal-MejJak's model is a re-coloured version of [[spinolyp]] from the [[Dagannoth Kings]]' lair.
+
+{{Inferno}}

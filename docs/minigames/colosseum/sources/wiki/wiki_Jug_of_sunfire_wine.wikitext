@@ -1,0 +1,51 @@
+{{Infobox Item
+|name = Jug of sunfire wine
+|image = [[File:Jug of sunfire wine.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = No
+|bankable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = A jug of sunfire wine. Not for drinking.
+|value = 1
+|weight = 0.300
+|id = 29382
+|leagueRegion = Varlamore
+}}
+[[File:Jug of sunfire wine detail.png|130px|left]]
+A '''jug of sunfire wine''' is an item created by using two [[sunfire splinters]] on a [[jug of wine]] whilst having a [[pestle and mortar]] in the inventory. Sunfire splinters '''cannot''' be added to a [[jug of blessed wine]]; it must be added to an unblessed jug of wine.
+
+It is used in the process of sacrificing [[blessed bone shards]] at the [[libation bowl]], where one jug can sacrifice 400 shards; players will also need 2 [[Prayer points]] for each sacrifice.
+
+When blessed at the [[exposed altar]] found south of [[the Teomat]], the wine becomes a [[jug of blessed sunfire wine]] (which cannot be banked). This can be used at the libation bowl, in place of a regular jug of blessed wine, to increase the [[Prayer]] experience gained per blessed bone shard from 5 to 6, equivalent to an increase of 400 Prayer experience per wine used.
+
+When buying the sunfire splinters on the [[Grand Exchange]], this results in a cost of {{Coins|2*{{GEP|Sunfire splinters}}/400}} gp per Prayer experience.
+
+==Creation==
+{{Recipe
+|skill1 = 
+|skill1lvl = 
+|skill1boostable = 
+|skill1exp = 
+|members = Yes
+|ticks = 1
+|ticksnote = Crushing sunfire splinters is 1, then 4 ticks.
+|tools = Pestle and mortar
+|mat1 = Sunfire splinters
+|mat1quantity = 2
+|mat2 = Jug of wine
+|mat2quantity = 1
+|output1 = Jug of sunfire wine
+|output1quantity = 1
+}}
+
+==Products==
+{{Uses material list|Jug of sunfire wine}}
+
+{{The Teomat}}
+{{Jugs}}

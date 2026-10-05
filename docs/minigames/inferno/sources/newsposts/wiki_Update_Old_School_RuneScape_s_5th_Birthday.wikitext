@@ -1,0 +1,116 @@
+{{Update|date=22 February 2018|link=http://services.runescape.com/m=news/old-school-runescapes-5th-birthday?oldschool=1|category=game}}
+[[File:Old School RuneScape's 5th Birthday newspost.png|right]]
+{{clear}}
+{{Headline|25|Old School RuneScape's 5th Birthday}}<br/>
+<center>''Today, Old School RuneScape becomes another year older. In celebration of this monumental achievement, this week sees the release of our 5th Birthday event for you all to partake in and enjoy! Alongside that, we have lots of updates from all three of the recent PvM, Skilling and PvP polls as part of QoL month.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|5th Birthday Event}}
+
+
+Happy birthday to us! Happy birthday to us! Another year older, another year wiser (you'd hope). Old School RuneScape is '''five years old''' today, and in celebration of this monumental achievement we've got a special event for you to enjoy in-game! This is a very large newspost this week, so for your benefit: the first half of this post will be dedicated to our 5th birthday, and the second half of this post will be dedicated to detailing the QoL updates.
+
+Help us in celebrating 5 years of Old School RuneScape by heading to the Falador Party room. There you will meet Da Vinci, who by chance, requires some assistance with finishing his painting! The event will remain in-game until the 15th March, giving you plenty of time to lend a helping hand and grab yourself some new holiday rewards!
+
+
+[[File:Old School RuneScape's 5th Birthday (1).png|center|700px]]<br/>[[File:Old School RuneScape's 5th Birthday (2).png|center|700px]]
+
+
+We are streaming this evening at '''7pm GMT''' on our '''brand new Old School twitch channel''', so make sure you visit [https://www.twitch.tv/oldschoolrs twitch.tv/oldschoolrs] and drop us a follow. We also recommend signing up for the event via [https://www.twitch.tv/events/toVC-9L2SbKia9XyR4Qawg this Twitch link] to not only be reminded of when the stream starts, but also a run down of all the action! We've packed in 3 hours of top quality content for your viewing pleasure!
+
+[[File:Old School RuneScape's 5th Birthday (3).png|center]]<center>''Here's to the next 5 years!''</center>
+
+
+{{Horizontal Line}}
+
+{{Headline|22|New Merch!}}
+
+[[File:Old School RuneScape's 5th Birthday (4).png|center|700px]]
+
+We're excited to announce our partnership with '''Golden Gnome Winner, Angels Scapes'''! Angels Scapes has been producing RuneScape and Old School-themed pins for a while, and we're delighted to now offer these on the RuneScape Merchandise store.
+
+Angels Scapes is overseeing all product design and manufacture, working with Jagex's official store partner who is handling sales and distribution. Angels Scapes' product range will be exclusively available from the [https://runescape.backstreetmerch.com/tag/angels-scapes merch store]. The intention is to add to the initial range on a monthly basis, taking soundings from the community as to how to develop it.
+
+We'll be showcasing some of the range on our 5th Birthday stream [https://www.twitch.tv/events/toVC-9L2SbKia9XyR4Qawg tonight at 7pm GMT]. You'll also get the chance to win a full suite of pins including the <b>''limited edition Golden Dragonfire Shield pin!''</b>
+
+[[File:Old School RuneScape's 5th Birthday (5).png|center|700px]]
+
+{{Horizontal Line}}
+
+{{Headline|22|PvM, Skilling & PvP QoL}}
+
+QoL month is coming to an end, but don't forget the most recent "QoL - Minigames & Other Suggestions" poll is still live in-game until Monday 26th February, so make sure you head to a poll booth and cast your vote! There's lots of QoL coming with today's update, but it doesn't end there. We'll '''continue delivering the outstanding updates''' from the previous week's polls over the course of the '''next few weeks'''.
+
+Players may no longer release black chinchompas while in combat. This also applies to Deadman Mode and overrides the existing functionality for Black chincompas where they appear to everyone when dropped.
+
+Auto-retaliation in PvP while under the effect of spells that disable movement is now more consistent. The message displayed during this time has been restricted as to not spam the chatbox as much.
+
+Players who attempt to teleport to the same location quickly in PvP worlds will now be notified that there is a cooldown on using the same teleport spell again. Teleporting to one location then onto a second different location will not be impacted.
+
+The penalty for skipping a Bounty hunter target that is more than 5 Wilderness levels away has been drastically reduced. The current penalty is 30 minutes if the player skipped is within 5 Wilderness levels and 3 minutes if over 5 Wilderness levels.
+
+A reset option has been added to box traps. If the trap has successfully caught a creature, it will collect & re-set the box trap. If the trap was unsuccessful, it will be picked up and placed down. The time taken is the same as harvesting and setting the trap manually.
+
+[[File:Old School RuneScape's 5th Birthday (6).png|center]]
+
+Crystal saws now have charges deducted if, and only if, you needed their stat-boost in order to build the furniture you were making. This also applies when making flatpacks at a workbench.
+
+The interface for teleporting with Mushtrees on Fossil Island will now accept keyboard shortcuts.
+
+[[File:Old School RuneScape's 5th Birthday (7).png|center]]
+
+The barge guard at the Digsite now has a quick-travel option to Fossil Island. Similar functionality has also been added to the row-boat to return to the Digsite. This can only be used after completing the Bone Voyage quest.
+
+When making jewellery at a furnace, left clicking the furnace will now bring up the jewellery interface relevant to the bar that is being carried. Should both Gold and Silver bars be in the inventory, the regular "smelt which bar?" selection interface will be displayed.
+
+Compost bins that are ready to have compost collected from them now have a left click option of "Collect" which will start to fill empty buckets in the player's inventory when selected.
+
+The spellbook icon now changes colour to represent which spellbook you are on at a glance. In order: Regular, Ancient, Lunar, Arceuus
+
+[[File:Old School RuneScape's 5th Birthday (8).png|center]]
+
+Un-enchanted versions of Gold jewellery now have unique inventory models to help differentiate between them and their enchanted counterparts.
+
+Emptying the contents of the Gem bag into the inventory can now be done by holding down shift and left-clicking it.
+
+Emptying the contents of the Herb sack into the inventory can now be done by holding down shift and left-clicking it.
+
+Emptying the contents of the coal bag into the inventory can now be done by holding down shift and left-clicking it.
+
+A metamorphosis option has been added to the Jal-Nib-Rek pet, allowing it to transform into the TzRek-Zuk.
+
+[[File:Old School RuneScape's 5th Birthday (9).png|center]]
+
+A metamorphosis option has been added to the Pet dark core, allowing it to transform into the Corporeal critter.
+
+[[File:Old School RuneScape's 5th Birthday (10).png|center]]
+
+It is no longer required to confirm via "Click here to continue" on the final dialogue a Servant displays when tasked with taking something from the bank in a Player-owned house.
+
+Players may now choose to have their houses rendered without doors, via a new option on the "House options" menu.
+
+Spirit Tree locations and teleport options are now consistent throughout their options menu.
+
+[[File:Old School RuneScape's 5th Birthday (11).png|center]]
+
+The entrance to the Grotesque Guardians has been altered to be more fitting with the environment.
+
+[[File:Old School RuneScape's 5th Birthday (12).png|center]]
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*It is no longer possible to get stuck during The Great Brain Robbery without a Ring of Charos while Fenkenstrain has been stuffed in the crate. Simply head to the crate and select the "Check" option.
+*The Staff of light now correctly auto-casts all spells from the standard spell book.
+*When killing Vorkath, the Superior Dragon Bones will now remain on the floor for 30 minutes as expected.
+*The capitalisation of various music tracks has been fixed.
+*Right-click options on messages in the chat history will now more reliably work for the intended message.
+*Players are no longer forced to re-attack the Sire immediately after waking it, as the attack they'd be prompted to use was frequently an unhelpful one. 
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,464,65990721 forums].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

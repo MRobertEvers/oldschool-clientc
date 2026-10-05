@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfect Footwork
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit without taking any damage from his Spear, Shield, Grapple or Triple Attack.
+|tier = Grandmaster
+|monster = Fortis Colosseum
+|type = Perfection
+|id = 543
+|leagueRegion = Varlamore
+}}
+'''Perfect Footwork''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Sol Heredit]] without taking any damage from his Spear, Shield, Grapple, or Triple Attack.
+
+==Strategy==
+The player is allowed to be damaged by anything that is not one of Sol's attacks, so it is possible to step on [[molten sand]] or solar flares temporarily if needed to dodge an attack.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

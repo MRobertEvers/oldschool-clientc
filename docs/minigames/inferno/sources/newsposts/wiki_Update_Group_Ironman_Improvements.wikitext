@@ -1,0 +1,122 @@
+{{Update|date=2 March 2022|link=https://secure.runescape.com/m=news/group-ironman-improvements?oldschool=1|category=game}}
+[[File:Group Ironman Improvements newspost.png|right]]
+{{clear}}
+
+<center>''This week’s update brings Group Ironman improvements, homepage changes, and an update on death piles!''</center>
+{{ToC}}
+==Homepage Changes==
+The eagle-eyed among you will have noticed a direct link to the RuneLite website has appeared on our homepage. We’ve been working with Adam and the team for some time now, and as part of our commitment to that working relationship we’ve decided to provide an official link. We hope that this will also prevent phishing attempts by fake RuneLite sites.
+
+We’d like to take this opportunity to thank Adam, the wider RuneLite team and its wonderful community for their continued support of Old School RuneScape!
+
+==Group Ironman Improvements==
+[[File:Group Ironman Improvements (1).png|centre|600px]]
+
+===Player Owned Houses===
+Group Iron players can now teleport directly to their teammate's Player Owned Houses via the ‘Teleport to House’ spell in the standard spellbook. Right-clicking the spell will present two new options: ‘Group: Choose’ and ‘Group: Previous’. The first option will bring up an interface where you can choose whose house to visit, and the second one will teleport you to the previous house visited.
+
+The following requirements must be met:
+
+* The owner of the house is on the same world as the teleporter.
+* The owner isn't in Build Mode.
+* The teleporter meets the requirements to access the relevant Player Owned House portal.
+
+In addition, all players can now enter Player Owned Houses while the owner isn’t home. The owner must have the house unlocked, without the ‘Private’ setting enabled. They must also be friends with the visitor.
+
+===Group Ironman Storage Expansion===
+Group Iron players can now increase their Group Storage space by completing specific tasks!
+
+A new button has been added to the Group Storage interface and the Group Settings menu. Clicking it will open a new interface with a list of tasks you can undertake to expand the size of the Group Storage. They will be tracked across the group and will only unlock once a player has accessed the Group Storage after completing a task.
+
+Here's the full list of tasks (''X is replaced with the specific task variables''):
+
+* Equip a Rune Platebody
+* Equip a pair of Stronghold of Security Boots
+* Achieve a 99 in a X type skill (Four separate tasks, one per skill type)
+* Achieve a 99 in the X skill (23 separate tasks, one per skill)
+* Achieve X Quest Points (Four separate tasks: 50, 100, 150, 200)
+* Achieve X Combat Level (Three separate tasks: 50, 100, 126)
+* Achieve X Total Level (Five separate tasks: 500, 750, 1,000, 1,500, 2,000)
+* Complete All X Achievement Diaries (Four separate tasks: Easy, Medium, Hard, Elite)
+* Complete the X tier of Combat Achievements (Six separate tasks: Easy, Medium, Hard, Elite, Master, Grandmaster)
+
+===Crystal Teleport Shards===
+Verzik's Crystal Shards have been renamed ‘Crystal Teleport Shards’. Players can buy them from the Mysterious Stranger outside the Theatre of Blood and from Rick in the Wizards’ Tower for 75,000 GP each. After speaking to Rick and opening the Buy menu once, you can right-click him to access the menu again quickly.
+
+The Teleport Crystals have two functions:
+
+You can activate them to instantly teleport away from dangerous situations.
+If you have allowed other players to teleport you out of dangerous areas, they can use their crystal to send you away. This consumes both players' crystals. To toggle this, right-click the crystal and press ‘Toggle’. The option is turned off by default.
+
+The Crystal Teleport Shards only work in the following areas:
+
+* Pest Control
+* The Inferno
+* TzHaar-Ket-Rak's Challenges (also known as the Six Jad Challenge)
+* Chambers of Xeric
+* Theatre of Blood
+* Barbarian Assault
+
+===Ring of Life===
+The Ring of Life’s effect (shared by the Max Cape, Defence Skill Cape and Trimmed Defence Skill Cape) now works in the following areas for Hardcore Group Ironman players:
+
+* Fight Caves
+* Fragment of Seren (Memoriam Device replay only)
+* Galvek (Pool of Dreams replay only)
+* Glough (Burning Brazier replay only)
+* Inferno
+* Knight Waves
+* Mage Training Arena
+* Nightmare Zone
+* Pest Control
+
+==Ultimate Ironman Update: Death Piles==
+Back in [https://secure.runescape.com/m=news/proposed-changes-to-death-pile-mechanics?oldschool=1 December], we proposed some adjustments to death piles – essentially an engine change that would alter the way the game recognises items dropped on death.
+
+In short, we can make the game recognise death pile items on your player save, rather than the world’s save. This would grant greater protection to items dropped by Ultimate Iron players in the event of a world crash or disconnection, but the changes would be noticeable by all account types.
+
+Under the new system, if you had an untradeable item on the ground, visible only to you, it will be saved when you log off and reappear when you log back in. The time the item stays on the ground will remain the same, but critically, the timer will pause while you’re offline.
+
+There are other effects. All account types will notice that if they have the setting enabled which drops food and potions as a supply pile upon death, this pile will also benefit from the paused despawn timer and will appear in any world you log in to. We can also use this system for item drops in mass encounters to avoid the issues we saw when Nex launched, where so many items were dropping that some players’ drops disappeared.
+
+[[File:Group Ironman Improvements (2).png|centre|600px]]
+
+Although feedback for this proposal was largely positive, there were some concerns about memory capacity. Worlds currently delete items if too many of them show up on a single tile, so the worry here is that items could be deleted if multiple players were to world-hop and drop piles of items in the same spot.
+
+We are happy to confirm that the items are saved in their own list, so logging in with saved items will '''not''' delete other items on the ground.
+
+The items will only be stored if:
+
+* You are both the owner and dropper of that item.
+* That item will never become visible to anyone else.
+
+Given that this proposal resolves a game-breaking issue experienced by all kinds of players, we consider this change a matter of game integrity, and will therefore proceed without a poll.
+
+We would hope to implement these changes '''sometime in March''', so stay tuned!
+
+==Other Changes==
+[[File:Group Ironman Improvements (3).png|centre|600px]]
+
+* Players in Single-way and Singles Plus combat zones can no longer be attacked by two players at once.
+* On Target worlds, players are now able to interrupt existing fights in Singles Plus areas in order to attack their assigned target, as they can in Single-way zones.
+* Entering and leaving The Gauntlet with an Amulet of Avarice equipped will no longer clear your skull.
+* A bug with the ‘I Should See A Doctor’ Combat Achievement has been fixed.
+* Nightmare (Solo) Speed-Trialist is now an Elite rather than Master task.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,794,66247679 official forums], on the [https://www.reddit.com/r/2007scape/comments/t4xqiv/group_ironman_improvements_weekly_game_update/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the#gameupdatechannel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team.''

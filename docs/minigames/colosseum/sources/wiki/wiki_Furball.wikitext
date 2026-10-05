@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Furball
+|image = [[File:Manticore.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Complete Wave 4 without taking avoidable damage from a Manticore.
+|tier = Elite
+|monster = Fortis Colosseum
+|type = Perfection
+|id = 542
+|leagueRegion = Varlamore
+}}
+'''Furball''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete wave 4 of the [[Fortis Colosseum]] without taking avoidable damage from a [[manticore]].
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

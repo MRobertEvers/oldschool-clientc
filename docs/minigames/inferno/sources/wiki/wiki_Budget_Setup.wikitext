@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Budget Setup
+|image = [[File:Twisted bow equipped male.png|150px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without equipping a Twisted Bow within the Inferno.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Restriction
+|id = 348
+|leagueRegion = Karamja
+}}
+'''Budget Setup''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without using a [[twisted bow]] for the entire [[Inferno]] run.
+
+==Strategy==
+Effective alternative ranged weapons to the twisted bow include the [[bow of Faerdhinen]] or [[Zaryte crossbow]] along with a [[toxic blowpipe]]. Using a [[Tumeken's shadow]] (optionally with an [[Eye of Ayak]]) is also viable, although care must be taken due to the lower defences of magic armour.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

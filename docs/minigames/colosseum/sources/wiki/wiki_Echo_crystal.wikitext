@@ -1,0 +1,53 @@
+{{Infobox Item
+|name = Echo crystal
+|image = [[File:Echo crystal.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = A crystal of rebounding potential.
+|value = 150000
+|weight = 0.500
+|exchange = Yes
+|id = 28942
+|leagueRegion = Varlamore
+}}
+[[File:Echo crystal detail.png|130px|left]]
+'''Echo crystals''' are a drop received from participating in the [[Fortis Colosseum]]. It is used on a pair of [[guardian boots]] to create [[echo boots]], which gives it an additional +2 [[prayer bonus]] and a passive recoil effect.
+
+Each echo crystal added to the boots gives it 6,000 recoil charges.
+
+==Item sources==
+{{Drop sources|Echo crystal}}
+The cumulative drop rate for at least 1 crystal if you complete all 12 waves is approximately 1/12.44
+
+The cumulative drop rate for a multiple crystal drop if you complete all 12 waves is approximately 1/120.72
+
+The expected amount of crystals if you complete all 12 waves is approximately 1/10.46
+
+==Products==
+{{Uses material list|Echo crystal}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = 
+* The amount of charges each item provides has been increased from 2,500 to 6,000.
+* Players can now use multiple crystals to simultaneously charge the [[echo boots]].
+* The item's [[value]] has been increased from 500 to 150,000.
+}}
+{{Subject changes footer}}
+
+{{Fortis Colosseum}}
+[[Category:Collection log items]]
+[[Category:Upgrade items]]

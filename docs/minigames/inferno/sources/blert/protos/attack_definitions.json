@@ -1,0 +1,918 @@
+[
+  {
+    "name": "ABYSSAL_BLUDGEON",
+    "protoId": 80,
+    "weaponIds": [13263],
+    "animationIds": [3298],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "ACCURSED_SCEPTRE_AUTO",
+    "protoId": 93,
+    "weaponIds": [27665, 27679],
+    "animationIds": [1167],
+    "cooldown": 4,
+    "category": "MAGIC"
+  },
+  {
+    "name": "ACCURSED_SCEPTRE_SPEC",
+    "protoId": 94,
+    "weaponIds": [27665, 27679],
+    "animationIds": [9961],
+    "cooldown": 4,
+    "category": "MAGIC"
+  },
+  {
+    "name": "AGS_SPEC",
+    "protoId": 69,
+    "weaponIds": [11802, 20368, 29605],
+    "animationIds": [7644, 7645],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "ARCLIGHT_AUTO",
+    "protoId": 106,
+    "weaponIds": [19675],
+    "animationIds": [386, 390],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "ARCLIGHT_SPEC",
+    "protoId": 107,
+    "weaponIds": [19675],
+    "animationIds": [2890],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "ATLATL_AUTO",
+    "protoId": 81,
+    "weaponIds": [29000],
+    "animationIds": [11057],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "ATLATL_SPEC",
+    "protoId": 82,
+    "weaponIds": [29000],
+    "animationIds": [11060],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "BGS_SPEC",
+    "protoId": 11,
+    "weaponIds": [11804, 20370],
+    "animationIds": [7642, 7643],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "BLOWPIPE",
+    "protoId": 12,
+    "weaponIds": [12926, 28688],
+    "animationIds": [5061, 10656],
+    "cooldown": 2,
+    "projectile": {
+      "id": 1122,
+      "startCycleOffset": 32
+    },
+    "continuousAnimation": true,
+    "animationFrameMax": 2,
+    "category": "RANGED"
+  },
+  {
+    "name": "BLOWPIPE_SPEC",
+    "protoId": 68,
+    "weaponIds": [12926, 28688],
+    "animationIds": [5061, 10656],
+    "cooldown": 2,
+    "weaponProjectiles": [
+      { "id": 1043, "startCycleOffset": 32, "weaponId": 12926 },
+      { "id": 2599, "startCycleOffset": 32, "weaponId": 28688 }
+    ],
+    "continuousAnimation": true,
+    "animationFrameMax": 2,
+    "category": "RANGED"
+  },
+  {
+    "name": "BOWFA",
+    "protoId": 13,
+    "weaponIds": [
+      25865, 25867, 25884, 25886, 25888, 25890, 25892, 25894, 25896
+    ],
+    "animationIds": [426],
+    "cooldown": 4,
+    "category": "RANGED"
+  },
+  {
+    "name": "BURNING_CLAW_SCRATCH",
+    "protoId": 88,
+    "weaponIds": [29577],
+    "animationIds": [393, 1067],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "BURNING_CLAW_SPEC",
+    "protoId": 89,
+    "weaponIds": [29577],
+    "animationIds": [11140],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "CHALLY_SWIPE",
+    "protoId": 15,
+    "weaponIds": [23987],
+    "animationIds": [440],
+    "cooldown": 7,
+    "category": "MELEE"
+  },
+  {
+    "name": "CHALLY_SPEC",
+    "protoId": 14,
+    "weaponIds": [23987],
+    "animationIds": [1203],
+    "cooldown": 7,
+    "category": "MELEE"
+  },
+  {
+    "name": "CHIN_BLACK",
+    "protoId": 16,
+    "weaponIds": [11959],
+    "animationIds": [7618],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "CHIN_GREY",
+    "protoId": 17,
+    "weaponIds": [9976],
+    "animationIds": [7618],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "CHIN_RED",
+    "protoId": 18,
+    "weaponIds": [10034],
+    "animationIds": [7618],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "CLAW_SCRATCH",
+    "protoId": 19,
+    "weaponIds": [13652, 28039],
+    "animationIds": [393, 1067],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "CLAW_SPEC",
+    "protoId": 20,
+    "weaponIds": [13652, 28039],
+    "animationIds": [7514],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DARK_DEMONBANE",
+    "protoId": 112,
+    "weaponIds": [4170, 21255, 28988, 29849, 6914, 12904, 21006, 29594],
+    "animationIds": [8977],
+    "attackerGraphicIds": [1869],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "DARKLIGHT_AUTO",
+    "protoId": 113,
+    "weaponIds": [6746, 8281],
+    "animationIds": [386, 390],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DARKLIGHT_SPEC",
+    "protoId": 114,
+    "weaponIds": [6746, 8281],
+    "animationIds": [2890],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DAWN_SPEC",
+    "protoId": 22,
+    "weaponIds": [22516],
+    "animationIds": [1167],
+    "cooldown": 4,
+    "projectile": {
+      "id": 1547,
+      "startCycleOffset": 51
+    },
+    "category": "MAGIC"
+  },
+  {
+    "name": "DAWN_AUTO",
+    "protoId": 21,
+    "weaponIds": [22516],
+    "animationIds": [1167],
+    "cooldown": 4,
+    "projectile": {
+      "id": 1544,
+      "startCycleOffset": 51
+    },
+    "category": "MAGIC"
+  },
+  {
+    "name": "DART",
+    "protoId": 74,
+    "weaponIds": [
+      811, 817, 5634, 5641, 25849, 25851, 25855, 25857, 11230, 11231, 11233,
+      11234
+    ],
+    "animationIds": [7554],
+    "cooldown": 2,
+    "category": "RANGED"
+  },
+  {
+    "name": "DDS_POKE",
+    "protoId": 72,
+    "weaponIds": [1215, 1231, 5680, 5698],
+    "animationIds": [376, 377],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DDS_SPEC",
+    "protoId": 73,
+    "weaponIds": [1215, 1231, 5680, 5698],
+    "animationIds": [1062],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DHAROKS_GREATAXE",
+    "protoId": 96,
+    "weaponIds": [4718, 4889, 4888, 4887, 4886],
+    "animationIds": [2066, 2067],
+    "cooldown": 7,
+    "category": "MELEE"
+  },
+  {
+    "name": "DINHS_SPEC",
+    "protoId": 24,
+    "weaponIds": [21015, 28682],
+    "animationIds": [7511],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "DRAGON_HUNTER_LANCE",
+    "protoId": 92,
+    "weaponIds": [22978],
+    "animationIds": [8288, 8289, 8290],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DRAGON_KNIFE_AUTO",
+    "protoId": 115,
+    "weaponIds": [22804, 22806, 22808, 22810],
+    "animationIds": [8194],
+    "cooldown": 2,
+    "category": "RANGED"
+  },
+  {
+    "name": "DRAGON_KNIFE_SPEC",
+    "protoId": 116,
+    "weaponIds": [22804, 22806, 22808, 22810],
+    "animationIds": [8291],
+    "cooldown": 2,
+    "category": "RANGED"
+  },
+  {
+    "name": "DRAGON_SCIMITAR",
+    "protoId": 91,
+    "weaponIds": [4587],
+    "animationIds": [386, 390],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "DUAL_MACUAHUITL",
+    "protoId": 83,
+    "weaponIds": [28997],
+    "animationIds": [10989],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "EARTHBOUND_TECPATL",
+    "protoId": 103,
+    "weaponIds": [30957],
+    "animationIds": [12342, 2068],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "ELDER_MAUL",
+    "protoId": 84,
+    "weaponIds": [21003, 27100],
+    "animationIds": [7516],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "ELDER_MAUL_SPEC",
+    "protoId": 85,
+    "weaponIds": [21003, 27100],
+    "animationIds": [11124],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "EMBERLIGHT_AUTO",
+    "protoId": 108,
+    "weaponIds": [29589],
+    "animationIds": [386, 390],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "EMBERLIGHT_SPEC",
+    "protoId": 109,
+    "weaponIds": [29589],
+    "animationIds": [11138],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "EYE_OF_AYAK_AUTO",
+    "protoId": 104,
+    "weaponIds": [31113],
+    "animationIds": [12397],
+    "cooldown": 3,
+    "continuousAnimation": true,
+    "animationFrameMax": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "EYE_OF_AYAK_SPEC",
+    "protoId": 105,
+    "weaponIds": [31113],
+    "animationIds": [12394],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "FANG",
+    "protoId": 25,
+    "weaponIds": [26219, 27246],
+    "animationIds": [9471],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "FANG_SPEC",
+    "protoId": 26,
+    "weaponIds": [26219, 27246],
+    "animationIds": [11222],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "GLACIAL_TEMOTLI",
+    "protoId": 102,
+    "weaponIds": [29889],
+    "animationIds": [2068],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "GOBLIN_PAINT_CANNON",
+    "protoId": 87,
+    "weaponIds": [12727],
+    "animationIds": [2323],
+    "cooldown": 3,
+    "category": "MELEE"
+  },
+  {
+    "name": "GODSWORD_SMACK",
+    "protoId": 10,
+    "weaponIds": [
+      26233, 27184, 11802, 20368, 29605, 11804, 20370, 11806, 20372, 11808,
+      20374
+    ],
+    "animationIds": [7044, 7045, 7054, 7055],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "GUTHANS_WARSPEAR",
+    "protoId": 98,
+    "weaponIds": [4726, 4913, 4912, 4911, 4910],
+    "animationIds": [2080, 2081, 2082],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "HAMMER_BOP",
+    "protoId": 27,
+    "weaponIds": [13576, 28035],
+    "animationIds": [401],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "HAMMER_SPEC",
+    "protoId": 28,
+    "weaponIds": [13576, 28035],
+    "animationIds": [1378],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "HAM_JOINT",
+    "protoId": 29,
+    "weaponIds": [23360],
+    "animationIds": [401],
+    "cooldown": 3,
+    "category": "MELEE"
+  },
+  {
+    "name": "ICE_RUSH",
+    "protoId": 100,
+    "weaponIds": [
+      21006, 24422, 24424, 29602, 29609, 24423, 24425, 31113, 27624, 27626,
+      25491, 28264, 28475, 25492, 28266, 28476, 25489, 28260, 28473, 25490,
+      28262, 28474, 22323, 25731, 11791, 22296, 12904, 12902, 27275
+    ],
+    "animationIds": [1978, 10091],
+    "cooldown": 5,
+    "projectile": {
+      "id": 360,
+      "startCycleOffset": 51
+    },
+    "category": "MAGIC"
+  },
+  {
+    "name": "INQUISITORS_MACE",
+    "protoId": 79,
+    "weaponIds": [24417],
+    "animationIds": [400, 4503],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "KARILS_CROSSBOW",
+    "protoId": 95,
+    "weaponIds": [4734, 4937, 4936, 4935, 4934],
+    "animationIds": [2075],
+    "cooldown": 4,
+    "category": "RANGED"
+  },
+  {
+    "name": "KICK",
+    "protoId": 67,
+    "weaponIds": [-1],
+    "animationIds": [423],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "KODAI_BARRAGE",
+    "protoId": 30,
+    "weaponIds": [21006],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "protoId": 31,
+    "name": "KODAI_BASH",
+    "weaponIds": [21006],
+    "animationIds": [393],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "NM_STAFF_BARRAGE",
+    "protoId": 55,
+    "weaponIds": [24422, 29602, 24424, 29609, 24423, 24425],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "NM_STAFF_BASH",
+    "protoId": 65,
+    "weaponIds": [24422, 29602, 24424, 29609, 24423, 24425],
+    "animationIds": [4505],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "NOXIOUS_HALBERD",
+    "protoId": 90,
+    "weaponIds": [29796],
+    "animationIds": [428, 440],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "PUNCH",
+    "protoId": 66,
+    "weaponIds": [-1],
+    "animationIds": [422],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "RAPIER",
+    "protoId": 32,
+    "weaponIds": [22324, 25734],
+    "animationIds": [8145],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "SAELDOR",
+    "protoId": 33,
+    "weaponIds": [
+      23995, 24551, 25870, 25872, 25874, 25876, 25878, 25880, 25882
+    ],
+    "animationIds": [390],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "SANG",
+    "protoId": 34,
+    "weaponIds": [22323, 25731],
+    "animationIds": [1167, 11430],
+    "cooldown": 4,
+    "category": "MAGIC"
+  },
+  {
+    "name": "SANG_BARRAGE",
+    "protoId": 35,
+    "weaponIds": [22323, 25731],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "SCEPTRE_BARRAGE",
+    "protoId": 37,
+    "weaponIds": [
+      27624, 27626, 25491, 28264, 28475, 25492, 28266, 28476, 25489, 28260,
+      28473, 25490, 28262, 28474
+    ],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "SCORCHING_BOW_AUTO",
+    "protoId": 110,
+    "weaponIds": [29591],
+    "animationIds": [426],
+    "cooldown": 4,
+    "category": "RANGED"
+  },
+  {
+    "name": "SCORCHING_BOW_SPEC",
+    "protoId": 111,
+    "weaponIds": [29591],
+    "animationIds": [11133],
+    "cooldown": 4,
+    "category": "RANGED"
+  },
+  {
+    "name": "SCYTHE",
+    "protoId": 38,
+    "weaponIds": [22325, 25736, 25739],
+    "animationIds": [8056],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "SCYTHE_UNCHARGED",
+    "protoId": 39,
+    "weaponIds": [22486, 25738, 25741],
+    "animationIds": [8056],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "SGS_SPEC",
+    "protoId": 60,
+    "weaponIds": [11806, 20372],
+    "animationIds": [7640, 7641],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "SHADOW",
+    "protoId": 40,
+    "weaponIds": [27275],
+    "animationIds": [9493],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "SHADOW_BARRAGE",
+    "protoId": 41,
+    "weaponIds": [27275],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "SOTD_BARRAGE",
+    "protoId": 42,
+    "weaponIds": [11791],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "SOULREAPER_AXE",
+    "protoId": 43,
+    "weaponIds": [28338, 33335],
+    "animationIds": [10172],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "STAFF_OF_LIGHT_BARRAGE",
+    "protoId": 44,
+    "weaponIds": [22296],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "STAFF_OF_LIGHT_SWIPE",
+    "protoId": 45,
+    "weaponIds": [22296],
+    "animationIds": [419, 428, 440],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "SULPHUR_BLADES",
+    "protoId": 101,
+    "weaponIds": [29084],
+    "animationIds": [2068],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "SWIFT",
+    "protoId": 46,
+    "weaponIds": [24219],
+    "animationIds": [390, 8288],
+    "cooldown": 3,
+    "category": "MELEE"
+  },
+  {
+    "name": "TENT_WHIP",
+    "protoId": 47,
+    "weaponIds": [12006, 26484],
+    "animationIds": [1658],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "TONALZTICS_AUTO",
+    "protoId": 63,
+    "weaponIds": [28922, 28919],
+    "animationIds": [10922, 10923],
+    "cooldown": 6,
+    "category": "RANGED"
+  },
+  {
+    "name": "TONALZTICS_SPEC",
+    "protoId": 62,
+    "weaponIds": [28922],
+    "animationIds": [10914],
+    "cooldown": 6,
+    "category": "RANGED"
+  },
+  {
+    "name": "TONALZTICS_UNCHARGED",
+    "protoId": 64,
+    "weaponIds": [28919],
+    "animationIds": [10916],
+    "cooldown": 6,
+    "category": "RANGED"
+  },
+  {
+    "name": "TORAGS_HAMMERS",
+    "protoId": 99,
+    "weaponIds": [4747, 4961, 4960, 4959, 4958],
+    "animationIds": [2068],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "TOXIC_TRIDENT",
+    "protoId": 48,
+    "weaponIds": [12899, 22292],
+    "animationIds": [11430],
+    "cooldown": 4,
+    "category": "MAGIC"
+  },
+  {
+    "name": "TOXIC_TRIDENT_BARRAGE",
+    "protoId": 49,
+    "weaponIds": [12899, 22292],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "TOXIC_STAFF_BARRAGE",
+    "protoId": 50,
+    "weaponIds": [12904, 12902],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "TOXIC_STAFF_SWIPE",
+    "protoId": 51,
+    "weaponIds": [12904, 12902],
+    "animationIds": [428, 440],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "TRIDENT",
+    "protoId": 52,
+    "weaponIds": [11907, 22288],
+    "animationIds": [11430],
+    "cooldown": 4,
+    "category": "MAGIC"
+  },
+  {
+    "name": "TRIDENT_BARRAGE",
+    "protoId": 53,
+    "weaponIds": [11907, 22288],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "TWISTED_BOW",
+    "protoId": 54,
+    "weaponIds": [20997],
+    "animationIds": [426],
+    "cooldown": 5,
+    "category": "RANGED"
+  },
+  {
+    "name": "VENATOR_BOW",
+    "protoId": 61,
+    "weaponIds": [27610, 30434],
+    "animationIds": [9858],
+    "cooldown": 4,
+    "category": "RANGED"
+  },
+  {
+    "name": "VERACS_FLAIL",
+    "protoId": 97,
+    "weaponIds": [4755, 4985, 4984, 4983, 4982],
+    "animationIds": [2062],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "VOIDWAKER_AUTO",
+    "protoId": 77,
+    "weaponIds": [27690, 29607],
+    "animationIds": [386, 390],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "VOIDWAKER_SPEC",
+    "protoId": 78,
+    "weaponIds": [27690, 29607],
+    "animationIds": [1378, 11275],
+    "cooldown": 4,
+    "category": "MELEE"
+  },
+  {
+    "name": "VOLATILE_NM_SPEC",
+    "protoId": 56,
+    "weaponIds": [24424, 29602, 29609],
+    "animationIds": [8532],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "WEBWEAVER_AUTO",
+    "protoId": 75,
+    "weaponIds": [27655],
+    "animationIds": [426],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "WEBWEAVER_SPEC",
+    "protoId": 76,
+    "weaponIds": [27655],
+    "animationIds": [9964],
+    "cooldown": 3,
+    "category": "RANGED"
+  },
+  {
+    "name": "XGS_SPEC",
+    "protoId": 71,
+    "weaponIds": [26233, 27184],
+    "animationIds": [9171],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "ZCB_AUTO",
+    "protoId": 57,
+    "weaponIds": [26374],
+    "animationIds": [9168],
+    "cooldown": 5,
+    "projectile": {
+      "id": 1468,
+      "startCycleOffset": 41
+    },
+    "category": "RANGED"
+  },
+  {
+    "name": "ZCB_SPEC",
+    "protoId": 58,
+    "weaponIds": [26374],
+    "animationIds": [9168],
+    "cooldown": 5,
+    "projectile": {
+      "id": 1995,
+      "startCycleOffset": 41
+    },
+    "category": "RANGED"
+  },
+  {
+    "name": "ZGS_SPEC",
+    "protoId": 70,
+    "weaponIds": [11808, 20374],
+    "animationIds": [7638, 7639],
+    "cooldown": 6,
+    "category": "MELEE"
+  },
+  {
+    "name": "ZOMBIE_AXE",
+    "protoId": 86,
+    "weaponIds": [28810],
+    "animationIds": [3852, 7004],
+    "cooldown": 5,
+    "category": "MELEE"
+  },
+  {
+    "name": "UNKNOWN_BOW",
+    "protoId": 2,
+    "weaponIds": [-1],
+    "animationIds": [426],
+    "cooldown": 0,
+    "category": "RANGED"
+  },
+  {
+    "name": "UNKNOWN_BARRAGE",
+    "protoId": 1,
+    "weaponIds": [-1],
+    "animationIds": [10092],
+    "cooldown": 5,
+    "category": "MAGIC"
+  },
+  {
+    "name": "UNKNOWN_POWERED_STAFF",
+    "protoId": 3,
+    "weaponIds": [-1],
+    "animationIds": [1167],
+    "cooldown": 0,
+    "category": "MAGIC"
+  },
+  {
+    "name": "UNKNOWN",
+    "protoId": 0,
+    "weaponIds": [-1],
+    "animationIds": [-1],
+    "cooldown": 0,
+    "category": "MELEE"
+  }
+]

@@ -1,0 +1,59 @@
+mechanic_id	scope	note
+colosseum_entry_and_minimus.requirement.quest	all	one solo test or a cache read
+colosseum_entry_and_minimus.requirement.civitas_teleport_magic_level	all	one solo test or a cache read
+colosseum_entry_and_minimus.requirement.ring_of_dueling_glory	all	one solo test or a cache read
+colosseum_entry_and_minimus.fee.amount	all	open measurement M35: the test records the value, grade E
+colosseum_entry_and_minimus.path.outside_entrance_loc	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.outside_entrance_tile	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.lobby_exit_loc	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.lobby_exit_tile	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.lobby_entrance_loc	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.lobby_entrance_tile	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.arena_exit_loc	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.lobby_region_id	all	one solo test or a cache read
+colosseum_entry_and_minimus.path.landing_tiles	all	open measurement M82: the test records the value, grade E
+colosseum_entry_and_minimus.first_talk.required	all	one solo test or a cache read
+colosseum_entry_and_minimus.first_talk.refusal_lines	all	open measurement M35: the test records the value, grade E
+colosseum_entry_and_minimus.first_talk.carrier	all	open measurement M35: the test records the value, grade E
+colosseum_entry_and_minimus.first_talk.greeting_rank_count	all	one solo test or a cache read
+colosseum_entry_and_minimus.first_talk.first_dialogue_npc_lines	all	one solo test or a cache read
+colosseum_entry_and_minimus.first_talk.first_dialogue_cannot_leave_line	all	one solo test or a cache read
+colosseum_entry_and_minimus.first_talk.menu_options	all	one solo test or a cache read
+colosseum_entry_and_minimus.first_talk.subsequent_menu_options	all	one solo test or a cache read
+colosseum_entry_and_minimus.first_talk.dialogue_known_gap	all	open measurement M35: the test records the value, grade E
+colosseum_entry_and_minimus.arena_enter.overhead_lines	all	one solo test or a cache read
+colosseum_entry_and_minimus.arena_enter.overhead_gap_ticks	all	open measurement M81: the test records the value, grade E
+colosseum_entry_and_minimus.minimus.outside_npc	all	one solo test or a cache read
+colosseum_entry_and_minimus.minimus.arena_npc	all	one solo test or a cache read
+colosseum_entry_and_minimus.minimus.lobby_placement	all	open measurement M82: the test records the value, grade E
+colosseum_entry_and_minimus.minimus.appears_next_to_player	all	one solo test or a cache read
+colosseum_entry_and_minimus.minimus.appearance_tick	all	open measurement M36: the test records the value, grade E
+colosseum_entry_and_minimus.minimus.intermission_to_wave_delay	all	open measurement M37: the test records the value, grade E
+colosseum_entry_and_minimus.minimus.first_wave_options	stat	recorder distribution over the cached Blert sample
+colosseum_entry_and_minimus.minimus.first_wave_option_ids	stat	recorder distribution over the cached Blert sample
+colosseum_entry_and_minimus.minimus.choice_event_stream_count	stat	recorder distribution over the cached Blert sample
+colosseum_entry_and_minimus.minimus.handicap_choice_carrier_ticks	stat	recorder distribution over the cached Blert sample
+colosseum_entry_and_minimus.minimus.stage_count	stat	recorder distribution over the cached Blert sample
+colosseum_entry_and_minimus.leave.before_wave_1	all	one solo test or a cache read
+colosseum_entry_and_minimus.leave.after_wave_1_warning	all	one solo test or a cache read
+colosseum_entry_and_minimus.leave.after_wave_1_chest	all	one solo test or a cache read
+colosseum_entry_and_minimus.leave.confirm_options	all	one solo test or a cache read
+colosseum_entry_and_minimus.bank_chest.loc	all	one solo test or a cache read
+colosseum_entry_and_minimus.bank_chest.glory_gate	all	one solo test or a cache read
+colosseum_entry_and_minimus.bank_chest.refusal	all	one solo test or a cache read
+colosseum_entry_and_minimus.scoreboard.loc	all	one solo test or a cache read
+colosseum_entry_and_minimus.scoreboard.op_count	all	one solo test or a cache read
+colosseum_entry_and_minimus.gloria.npc	all	one solo test or a cache read
+colosseum_entry_and_minimus.gloria.meet_flag	all	open measurement M35: the test records the value, grade E
+colosseum_entry_and_minimus.gloria.rank_benefit_count	all	one solo test or a cache read
+colosseum_entry_and_minimus.quiver_trade.dialogue_gates	all	one solo test or a cache read
+colosseum_entry_and_minimus.quiver_trade.pet_branch_hidden_when_owned	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.minimus.model	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.minimus.ready_seq	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.minimus.walk_seq	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.minimus.appear_effect	all	open measurement M81: the test records the value, grade E
+colosseum_entry_and_minimus.presentation.minimus.leave_teleport_effect	all	open measurement M81: the test records the value, grade E
+colosseum_entry_and_minimus.presentation.minimus.attack_seq	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.minimus.overhead_text	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.scoreboard.interface	all	one solo test or a cache read
+colosseum_entry_and_minimus.presentation.lobby.bank_chest_model	all	one solo test or a cache read

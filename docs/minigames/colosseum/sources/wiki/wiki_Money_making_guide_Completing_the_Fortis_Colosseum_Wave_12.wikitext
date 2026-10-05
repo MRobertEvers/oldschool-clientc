@@ -1,0 +1,112 @@
+{{Mmgtable
+|Activity = Completing the [[Fortis Colosseum]] (Wave 12)
+|Image = [[File:Fighting Sol Heredit.png|450px]]
+|Skill =
+* {{SCP|Attack|95+}}, {{SCP|Strength|95+}}, {{SCP|Defence|90+}}, {{SCP|Hitpoints|95+}}, {{SCP|Ranged|90+}} recommended
+* {{SCP|Magic|94+}}
+* {{SCP|Prayer|77+}} recommended
+|Item = See the [[Fortis Colosseum/Strategies|Strategy Guide]]
+|Quest =
+* Completion of [[Children of the Sun]]
+|Intensity = High
+|Other = [[King's Ransom]] to use [[Piety]] (strongly recommended)<br/>[[Rigour]] and [[Augury]] unlocked (strongly recommended)<br/>Completion of [[Dragon Slayer II]] for the [[Ava's assembler]] if bringing a [[twisted bow]]<br/>Completion of [[Recipe for Disaster]] for [[Barrows gloves]] (if not using [[Ferocious gloves]])<br/>[[A Kingdom Divided]] to use the [[Arceuus spellbook]]<br/>
+|Other Benefits = Varies {{SCP|Combat}}
+|isperkill = y
+|kph = 2.5
+|Input1 = Divine super combat potion(4)
+|Input1num = 1.25
+|Input2 = Divine ranging potion(4)
+|Input2num = 1.25
+|Input3 = Super restore(4)
+|Input3num = 6
+|Input4 = Saradomin brew(4)
+|Input4num = 2
+|Input5 = Blood shard
+|Input5num = 0.022
+|Input6 = Death Charge
+|Input6value = {{GEP|Blood rune}}+{{GEP|Aether rune}}+{{GEP|Death rune}}
+|Input6num = 15
+|Input7 = Resurrect Greater Ghost
+|Input7value = {{GEP|Fire rune|10}}+{{GEP|Blood rune|5}}+{{GEP|Aether rune}}
+|Input7num = 15
+|Input8=Scythe of Vitur
+|Input8num=200
+|Input8value = {{GEP|Vial of blood|1/100}}+{{GEP|Blood rune|2}}
+|Input8note = (Charges)
+|Input9 = Dragon arrow
+|Input9num = 11
+|Input9note = (Ammo for [[venator bow]])
+|Input10 = Ancient essence
+|Input10value = {{GEP|Ancient essence}}
+|Input10num = 11
+|Input10note = (Charges for venator bow)
+|Input11 = Tumeken's shadow
+|Input11value = {{GEP|Soul rune|2}}+{{GEP|Chaos rune|5}}
+|Input11num = 11 
+|Input11note = (Charges)
+|Output1 = Dizana's quiver
+|Output1num = 1
+|Output1note = (Value of trading the quiver to [[Minimus]] for 4000 [[Sunfire splinters]])
+|Output1value = {{GEP|Sunfire splinters|4000}}
+|Output2 = Sunfire splinters
+|Output2num = (80) + (150*(1/7)) + (150*(9/70)+500*(1/70)) + (150*(5535/43400)+500*(615/43400)) + (500*(2725/19250)) + (500*(2375/16800)) + (500*(5832/45920)+1100*(756/45920)) + (500*(14472/114240)+1750*(1876/114240)) + (1100*(3180/21600)+2500*(424/21600)) + (1750*(2340/16000)+3500*(312/16000)) + (2500*(360/2080)) + (3500*(792/4800))
+|Output3 = Echo crystal
+|Output3num = (1*(126/43400)+2.5*(14/43400)) + (1*(63/19250)+2.5*(7/19250)) + (1*(63/16800)+2.5*(7/16800)) + (1*(189/45920)+2.5*(21/45920)) + (1*(567/114240)+2.5*(63/114240)) + (1*(135/21600)+2.5*(15/21600)) + (1*(135/16000)+2.5*(15/16000)) + (1*(27/2080)+2.5*(3/2080)) + (1*(135/4800)+2.5*(15/4800))
+|Output4 = Sunfire fanatic helm
+|Output4num = (1*(70/43400)) + (1*(35/19250)) + (1*(35/16800)) + (1*(105/45920)) + (1*(315/114240)) + (1*(75/21600)) + (1*(75/16000)) + (1*(15/2080)) + (1*(75/4800))
+|Output5 = Sunfire fanatic cuirass
+|Output5num = (1*(70/43400)) + (1*(35/19250)) + (1*(35/16800)) + (1*(105/45920)) + (1*(315/114240)) + (1*(75/21600)) + (1*(75/16000)) + (1*(15/2080)) + (1*(75/4800))
+|Output6 = Sunfire fanatic chausses
+|Output6num = (1*(70/43400)) + (1*(35/19250)) + (1*(35/16800)) + (1*(105/45920)) + (1*(315/114240)) + (1*(75/21600)) + (1*(75/16000)) + (1*(15/2080)) + (1*(75/4800))
+|Output7 = Tonalztics of Ralos (uncharged)
+|Output7num = (1*(35/45920)) + (1*(105/114240)) + (1*(25/21600)) + (1*(25/16000)) + (1*(5/2080)) + (1*(25/4800))
+|Output8 = Rune platebody
+|Output8num = (1*(1/7)) + (1*(9/70)) + (1*(5535/43400))
+|Output9 = Death rune
+|Output9num = (150*(1/7)) + (150*(9/70)) + (150*(5535/43400)) + (250*(756/45920)) + (300*(1876/114240)) + (250*(3180/21600)+300*(424/21600)) + (300*(2340/16000)) + (300*(360/2080))
+|Output10 = Chaos rune
+|Output10num = (150*(1/7)) + (150*(9/70)) + (150*(5535/43400))
+|Output11 = Steel cannonball
+|Output11num = (80*(1/7)) + (80*(9/70)) + (80*(5535/43400)) + (2000*(50/2080))
+|Output12 = Rune kiteshield
+|Output12num = (4*(1/7)) + (4*(9/70)) + (4*(5535/43400)) + (5*(1876/114240)) + (5*(2340/16000))
+|Output13 = Rune chainbody
+|Output13num = (1*(1/7)) + (1*(9/70)) + (1*(5535/43400))
+|Output14 = Onyx bolts
+|Output14num = (30*(1/70)) + (30*(615/43400)) + (30*(2725/19250)) + (30*(2375/16800)) + (30*(5832/45920)) + (30*(14472/114240)+50*(1876/114240)) + (75*(424/21600)) + (50*(2340/16000)+100*(312/16000)) + (75*(360/2080)+150*(50/2080)) + (100*(792/4800))
+|Output15 = Snapdragon seed
+|Output15num = (1*(1/70)) + (1*(615/43400)) + (1*(2725/19250)) + (1*(2375/16800)) + (1*(5832/45920)) + (1*(14472/114240))
+|Output16 = Dragon platelegs
+|Output16num = (1*(1/70)) + (1*(615/43400)) + (1*(2725/19250)) + (1*(2375/16800)) + (1*(5832/45920)) + (1*(14472/114240)+2*(1876/114240)) + (3*(424/21600)) + (2*(2340/16000)+3*(312/16000)) + (3*(360/2080)) + (3*(792/4800))
+|Output17 = Earth orb
+|Output17num = (80*(1/70)) + (80*(615/43400)) + (80*(2725/19250)) + (80*(2375/16800)) + (80*(5832/45920)) + (80*(14472/114240))
+|Output18 = Rune 2h sword
+|Output18num = (2*(1/70)) + (2*(615/43400)) + (2*(2725/19250)) + (2*(2375/16800)) + (2*(5832/45920)) + (2*(14472/114240)) + (9*(110/4800))
+|Output19 = Gold ore
+|Output19num = (150*(1/70)) + (150*(615/43400)) + (150*(2725/19250)) + (150*(2375/16800)) + (150*(5832/45920)) + (150*(14472/114240))
+|Output20 = Dragon bolts (unf)
+|Output20num = (200*(756/45920)) + (200*(3180/21600))
+|Output21 = Ranarr seed
+|Output21num = (4*(756/45920)) + (4*(3180/21600))
+|Output22 = Dragon arrowtips
+|Output22num = (150*(756/45920)) + (150*(3180/21600)) + (250*(312/16000)) + (350*(50/2080)) + (250*(792/4800))
+|Output23 = Adamantite ore
+|Output23num = (100*(756/45920)) + (100*(3180/21600))
+|Output24 = Runite ore
+|Output24num = (12*(1876/114240)) + (12*(2340/16000)) + (35*(110/4800))
+|Output25 = Rune warhammer
+|Output25num = (5*(424/21600)) + (8*(312/16000)) + (5*(360/2080)) + (8*(792/4800))
+|Output26 = Dragon plateskirt
+|Output26num = (5*(50/2080)) + (5*(110/4800))
+|Output27 = Uncut onyx
+|Output27num = (1*(110/4800))
+|Location = [[Fortis Colosseum]] in [[Civitas illa Fortis]]
+|Category = Combat/High
+|Members = Yes
+|Details =
+'''The profit rate assumes {{#var:kph}} full [[Fortis Colosseum]] completions per hour. Your completion speed may vary based on your performance, stats and equipment used. Supply cost assumes the use of a [[Scythe of Vitur]] and some usage of the [[Amulet of blood fury]], and that the player is on the Arceuus spellbook for access to thralls and Death Charge. Highly skilled players can push close to 3 completions per hour, increasing profit rates significantly. '''
+
+See the [[Fortis Colosseum/Strategies|strategy guide]] for more details.
+}}
+{{Money making}}
+[[Category:MMG/Combat]]

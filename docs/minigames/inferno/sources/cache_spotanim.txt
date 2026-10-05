@@ -1,0 +1,178 @@
+# spotanims (graphics and projectiles) -- 25 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.spotanim (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[130] fireblast_travel    (configs/all.spotanim:855)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:453 (+1)
+  model=3087
+  anim=blast_travel
+  ambient=60
+  contrast=60
+
+[157] firewave_impact    (configs/all.spotanim:1063)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:242 (+1)
+  model=3116
+  anim=wave_impact
+  ambient=60
+  contrast=60
+
+[444] tzhaar_heal    (configs/all.spotanim:2802)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:220
+  model=9341
+  anim=lizard_cleric_heal_spot
+  resizeh=200
+  resizev=200
+  ambient=60
+  contrast=60
+
+[447] tzhaar_fire_spit_launch    (configs/all.spotanim:2822)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:185 (+1)
+  model=9334
+  anim=tzhaar_fire_spit_launch
+  ambient=60
+  contrast=60
+
+[448] tzhaar_fire_spit_travel    (configs/all.spotanim:2828)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:190 (+1)
+  model=9337
+  anim=tzhaar_fire_spit
+  ambient=60
+  contrast=60
+
+[449] tzhaar_fire_spit_follow_travel    (configs/all.spotanim:2834)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:191 (+1)
+  model=9338
+  anim=tzhaar_fire_spit
+  ambient=60
+  contrast=60
+
+[450] tzhaar_fire_spit_end_travel    (configs/all.spotanim:2840)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:192 (+1)
+  model=9339
+  anim=tzhaar_fire_spit
+  ambient=60
+  contrast=60
+
+[451] tzhaar_rock_smash    (configs/all.spotanim:2846)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:206 (+1)
+  model=9342
+  anim=tzhaar_rock_smash
+  ambient=60
+  contrast=60
+
+[453] tzhaar_inferno    (configs/all.spotanim:2860)
+  why= name: tzhaar_inferno
+  model=9637
+  anim=tzhaar_inferno
+  ambient=60
+  contrast=60
+
+[659] wild_falloff_meteor_blast    (configs/all.spotanim:4119)
+  why= ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:531
+  model=14760
+  anim=wild_falloff_meteor_blast
+
+[660] wild_falloff_meteor_flying    (configs/all.spotanim:4123)
+  why= doc: BOSS_ASSETS.md:250 (Kronos id: healer beam)
+  model=14759
+  anim=wild_falloff_meteor_flying
+
+[1375] inferno_zuk_projectile    (configs/all.spotanim:8786)
+  why= name: inferno_zuk_projectile; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:458 (+1)
+  model=33006
+  anim=zuk_proj
+  ambient=30
+
+[1376] inferno_zek_projectile    (configs/all.spotanim:8791)
+  why= name: inferno_zek_projectile; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:353 (+2)
+  model=33007
+  anim=zuk_proj
+  resizeh=90
+  resizev=90
+  ambient=60
+
+[1377] inferno_xil_projectile    (configs/all.spotanim:8798)
+  why= name: inferno_xil_projectile; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:278 (+5)
+  model=33013
+  resizeh=90
+  resizev=90
+  ambient=30
+
+[1378] inferno_splitter_range    (configs/all.spotanim:8804)
+  why= name: inferno_splitter_range; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2:171
+  model=33015
+  anim=inferno_basic_projectile_02
+  ambient=60
+
+[1379] inferno_babysplitter_range    (configs/all.spotanim:8809)
+  why= name: inferno_babysplitter_range; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2:198
+  model=33016
+  anim=inferno_basic_projectile
+  ambient=60
+
+[1380] inferno_splitter_mage    (configs/all.spotanim:8814)
+  why= name: inferno_splitter_mage; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2:167
+  model=33008
+  anim=inferno_splitter_proj
+  ambient=60
+
+[1381] inferno_babysplitter_mage    (configs/all.spotanim:8819)
+  why= name: inferno_babysplitter_mage; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2:189
+  model=33009
+  anim=inferno_splitter_proj
+  ambient=60
+
+[1382] inferno_harpie_proj    (configs/all.spotanim:8824)
+  why= name: inferno_harpie_proj; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_ai.rs2:139
+  model=33017
+  anim=inferno_basic_projectile
+  ambient=60
+
+[1609] inferno_babysplitter_mage_big    (configs/all.spotanim:10362)
+  why= name: inferno_babysplitter_mage_big
+  model=33009
+  anim=inferno_splitter_proj
+  resizeh=160
+  resizev=160
+  ambient=60
+
+[1610] inferno_babysplitter_mage_biggest    (configs/all.spotanim:10369)
+  why= name: inferno_babysplitter_mage_biggest
+  model=33009
+  anim=inferno_splitter_proj
+  resizeh=200
+  resizev=200
+  ambient=60
+
+[2261] inferno_zuk_projectile_small    (configs/all.spotanim:14888)
+  why= name: inferno_zuk_projectile_small
+  model=33006
+  anim=zuk_proj
+  resizeh=64
+  resizev=64
+  ambient=30
+
+[2381] inferno_zuk_projectile_mid    (configs/all.spotanim:15657)
+  why= name: inferno_zuk_projectile_mid
+  model=33006
+  anim=zuk_proj
+  resizeh=90
+  resizev=90
+  ambient=30
+
+[2382] inferno_zuk_projectile_mid_short    (configs/all.spotanim:15664)
+  why= name: inferno_zuk_projectile_mid_short
+  model=33006
+  anim=zuk_proj_short
+  resizeh=90
+  resizev=90
+  ambient=30
+
+[3294] inferno_zuk_projectile_gigantic    (configs/all.spotanim:21294)
+  why= name: inferno_zuk_projectile_gigantic
+  model=33006
+  anim=zuk_proj
+  resizeh=500
+  resizev=500
+  ambient=30
+

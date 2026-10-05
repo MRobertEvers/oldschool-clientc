@@ -1,0 +1,148 @@
+{{Update|date=19 August 2023|url=https://secure.runescape.com/m=news/a=1/varlamore-the-shining-kingdom?oldschool=1|category=community}}
+[[File:Varlamore- The Shining Kingdom newspost.png|right]]
+{{clear}}
+''Ready to explore the mysterious lands south of Kourend? Then you’re in luck…''
+
+__TOC__
+
+[[File:Varlamore- The Shining Kingdom (1).png|600px|center]]
+
+
+South of Mount Quidamortem, beyond the Stranglewood, lies a land filled with adventure and excitement. A region filled with new quests, new gameplay, and new places to explore. A shining kingdom formed by refugees fleeing Xeric’s age of strife over 1,000 years ago…
+
+Since the war against the disgraced Emperor Imafore came to a close 100 years ago, Varlamore has remained relatively isolated from their neighbours and the rest of Gielinor. Although this isolation has allowed the nation to rebuild and prosper, its current ruler, Queen Zyanyi Arkan, is ready to open their ports to the wider world. Will you be among the first outsiders to set foot in The Shining Kingdom?
+
+==Overview==
+Old School’s next area expansion will take you to the Shining Kingdom of Varlamore, and open up a new region south of Kourend and Kebos.
+
+We’re not just offering a new region jam-packed with delightful content – we’re offering answers to some of Old School RuneScape’s biggest questions. Whether you’re a lorehound, an avid PvMer, or a super skiller, Varlamore has something for you.
+
+===A Kingdom Divided===
+Varlamore will be a huge, highly-anticipated area expansion, and we want to ensure we can make this newest part of the world feel alive and full of content from day one.
+
+We’ve learned a lot from our first foray into the continent with Kourend and the Kebos Lowlands, and we plan to harness these learnings to make Varlamore our biggest and best area expansion yet.
+
+To make this happen, we’re splitting Varlamore into a multi-part release that will span the whole of 2024. You’ll be free to explore the parts of Varlamore we’ve already launched, while the Old School team work to open up the rest of the kingdom to intrepid explorers like yourself.
+
+Each area will come with a variety of key content pieces, so you’ll have plenty to do from the moment you first step foot in the region. We’ll keep you in the loop throughout and undertake community consultation, so you’ll know exactly what to expect.
+
+To start us off, we’ve got four major content beats to vote on in this very blog – so keep reading to learn what you can expect in the first batch of Varlamore content.
+
+Before we get to that though, we have some acknowledgements to make…
+
+===A Familiar Name===
+
+Back in 2016, a player known as '''GentleTractor''' created a [https://www.reddit.com/r/2007scape/comments/4glrdx/zeah_redesigned// redesign] that instantly captured our imaginations.
+
+The keen-eyed among you will notice that the southernmost area of the map is called Varlamore. This was actually the very first time this name was used, and it clearly resonated with the community. We loved it, and chose to integrate Varlamore into the existing lore when we worked on the Kebos Lowlands expansion and the various Kourend redesigns.
+
+So as we move forward with this project, we won’t just be working closely with the community at large, but also '''GentleTractor''' himself. For the last couple of months, we’ve worked together to draft the first official map of Varlamore.
+
+Without further ado, here’s your first look at our work so far!
+
+[[File:Varlamore- The Shining Kingdom (2).png|600px|center]]
+
+
+From the fortified walls of Civitas illa Fortis to the vast Avium Savannah, from the sacred stones of Ralos' Rise to the sparkling waterways of Tempestus, Varlamore promises exploration, adventure and discovery for all!
+
+In case it isn’t clear, we’d like to extend a massive thanks to GentleTractor for all the amazing work he’s done so far!
+
+===A New Dawn===
+[[File:Varlamore- The Shining Kingdom (3).png|600px|center]]
+
+
+That’s right, the first part of the Varlamore area expansion will let you explore the capital itself – Civitas illa Fortis.
+
+This bustling city is a hub for trade, transport, and feats of bravery – as well as Queen Zyanyi herself and her loyal Kualti guards.
+
+Beyond the city’s walls lies the Avium Savannah, a thriving landscape filled with creatures and critters you won’t find anywhere else.
+
+Our last stop is the ancient dwarven town of Cam Torum, built deep into the stony face of Ralos’ Rise.
+
+Sounds good? Then cast your vote, and start packing!
+
+{{News Poll|1|Should we add Varlamore, a brand new area expansion to the south of Kourend & Kebos, to Old School? }}
+
+Now we’ve flexed our voting muscles, it’s time to take a look at some of the most notable content we’d like to include in the first part of Varlamore. Note that we’re still very much in the greenlight stage – we won’t be giving you experience rates, rewards, or any other specific details until you’ve given us the go-ahead to make this content happen.
+
+Let’s take a look!
+
+==Quests==
+There’s no better way to make an area feel alive than with a good ol’ chunk of lore! One of the most common feedback points when we first launched Kourend was that players didn’t really understand their place in the region, or have a clear sense of what was going on. In Varlamore, we’re going to make sure that your first steps in the area provide you with a clear sense of purpose, new goals to set, and new stories to experience.
+
+Quests in Varlamore will give you ample opportunity to explore the region’s history, mythos, and culture over the course of a new storyline that will conclude with the final part of the release. This won’t be an epic, multi-year questline like the Elves or the Mahjarrat, but a punchy introduction to the land of Varlamore and its people. Don’t worry though – there’s hundreds upon thousands of years of lore to get stuck into!
+
+In the first release, you’ll be able to get stuck into two quests. One will arrive right before Varlamore is released and will give you a good reason to travel there. A second quest will continue the story as soon as you can access the city of Civitas illa Fortis.
+
+The first quest will be Novice-level, and its main reward will simply be access to Varlamore. The second will be an Intermediate quest (with appropriate rewards) that will help you build a better understanding of the region’s story.
+
+{{News Poll|2|If Varlamore is added to the game, should it include two quests? One will grant players access to Varlamore and the other introduces players to the region's storyline?}}
+
+Okay, we’ve had story time. How about some VIOLENCE?
+
+==Fortis Colosseum==
+On Varlamore’s south-eastern shores sits the crown jewel and capital city – Civitas illa Fortis. This shining city has many claims to fame, but towering above them all is the city’s defining feature: the Fortis Colosseum.
+
+In this grand arena, spectators gather from all over Varlamore to witness the strongest fighters in the region take on all manner of vicious beasts in an epic fight to the death. Legend claims that the blood spilled here sustains the sun god, Ralos, and prevents the world from being plunged into eternal darkness.
+
+This epic arena is the setting for a new, wave-based PvM minigame.
+
+Inspired by the Tasakaal Trials minigame first pitched as part of 2022’s April Game Jam, the Fortis Colosseum will pit the bravest among you against an onslaught of increasingly complex waves of enemies. Those of you who own a Fire Cape should be able to get your feet wet in the early rounds, but as the waves progress, you can expect combinations of enemies that will test the skills of even the most seasoned combatants.
+
+Unlike other wave-based minigames, as the difficulty increases, so too do the stakes. After each wave, you’ll be offered a choice: swallow your pride and leave with the loot or risk it all on the next battle – you’re here to put on a show, after all!
+
+While our previous offerings have had loads of waves, this time we want to deliver a shorter experience with a focus on replayability. We want the Fortis Colosseum to feel less like a ‘one and done’ milestone and more like something you’re excited to improve at over time. Some randomising of enemy spawn locations and even slight variations on the enemies you’ll encounter ensure that there’s plenty of variety… but there’s something else that keeps the crowds screaming for more.
+
+You see, no two Colosseum runs will be the same. Between waves, you’ll be asked to choose between a number of modifiers that will swing the odds against you and empower your opponents. If you plan to go all the way, you’ll need to juggle the increasingly tricky waves and your chosen modifiers.
+
+You can expect to find yourself handsomely rewarded for your crowd-pleasing deeds. Higher waves offer greater loot, with the opportunity to earn some unique rewards for especially impressive performances. We don’t have specifics in mind just yet, but as always, we’re keen to hear your suggestions.
+
+A grand colosseum filled with never-before-seen enemies, epic loot, and the screams, cheers and gasps of adrenaline-fuelled spectators. Are you not entertained?!
+
+{{News Poll|3|If Varlamore is added to the game, should it include the Fortis Colosseum? This would be a wave-based minigame, with a focus on decision-making, risk vs. reward and high replayability.}}
+
+==Perilous Moons==
+For those of you hoping for a less intense introduction to Varlamore’s ancient customs, we’ve got just the thing!
+
+Perilous Moons is an Experienced quest that will have you crawling through the dungeon-y depths of Cam Torum, a dwarven town to the west of Civitas illa Fortis.
+
+You’ll explore a new dungeon and the mysteries that lurk within, revealing a new piece of PvM content aimed at mid-level players. Deep in these dank depths dwell a bunch of deadly demi-bosses – defeat them, and you’ll reemerge with some exciting new loot. If you couldn’t tell, this content is heavily inspired by the classic Barrows Brothers – a mid-level combat staple!
+
+Unlike Barrows, however, your experiences here will focus on discovery and exploration. We want to make you feel like you’re progressing through the dungeon in a meaningful way, learning more about the area and Varlamore as a whole. Think of it as a middle-ground between Barrows and the Forthos Dungeon, combining the best bits of each into a well-rounded adventuring experience.
+
+Have you got what it takes to delve into the depths of Ralos’ Rise? Then vote YES!
+
+{{News Poll|4|If Varlamore is added to the game, should it include Perilous Moons? This would be an Experienced tier quest that grants players access to a new dungeon to explore, along with a handful of demi-bosses to introduce players to various PvM mechanics.}}
+
+==The Hunter Guild==
+Ahh, the open plains of the Avium Savannah. Breathtaking vistas, grand adventures… and wildlife you haven’t seen anywhere else in Gielinor! Just beyond the capital’s imposing walls lies the Hunter Guild, a hub for the world’s foremost animal experts. Perhaps, with a bit of time and hard work, you might count yourself among them…
+
+As Guilds go, we think one of the standouts is Kebos’ famous Farming Guild. It may not unlock a ton of new skilling methods, but it does give you the opportunity to harness the skills you’ve already built. We’ll be riffing on this same idea with the Hunter Guild, focusing on breathing new life into well-established – but underutilised – content from all over Gielinor.
+
+On top of that, there are a few surprises in the Guild itself and the surrounding Avium Savannah. There are new locations for Hunter creatures both familiar and new, and new ways to hunt them.
+
+You’ll need at least 40 Hunter to prove yourself to the Guild, but there’s plenty of rewards on offer for even the most seasoned hunters as they approach true mastery of the skill.
+
+Here you’ll find all the amenities you’d expect from a Guild – Banks, Hunter-specific stores, and a host of friendly NPCs to hang out with. These expert hunters have plenty of tricks up their sleeves – and they might even be able to teach you a thing or two. Over time, you’ll gain XP, unlock new Hunter methods, and unlock more of what the Guild has to offer.
+
+We’ll be taking inspiration from the recent Game Jam proposal, so we already have a handful of ideas concerning rewards and skill improvements. Should we get the greenlight, however, we’d love to hear ideas from the wider community!
+
+Has the Hunter Guild captured your heart? Let us know by voting ‘yes!’ to this poll question. It's not a trap, we promise!
+
+{{News Poll|5|If Varlamore is added to the game, should it include the Hunter Guild? The guild would focus on revitalising existing content and provide players with new, Hunter-specific rewards, to be polled at a later date.}}
+
+And with that, your first look into Varlamore is done! Don’t let the Stranglewood hit you on the way out.
+
+Bear in mind that we’re only giving you the information you need to vote on the Greenlight Stage. Should this content pass the poll, we’ll go into greater detail about the pitches you’ve seen today and start thinking about other, smaller bits of content we could include. You can expect to hear a lot more about Varlamore in the coming months!
+
+Finally, we want to stress that we’ve learned so much from our recent content releases, and we can’t wait to apply these learnings to a proper area expansion. We’re really excited to see Varlamore take shape, and we’re looking forward to working with you to make Varlamore the biggest and best part of 2024.
+
+Until then… happy ‘Scaping!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,106 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+wave_table.wave_count	number of waves in a run	69	count	[blert][wiki]	B	sources/blert_api/wave_records.tsv; sources/wiki/wiki_Inferno.wikitext:165; sources/CODE_CONSTANTS.md:54	-	exact
+wave_table.final_wave_is_zuk	wave that is TzKal-Zuk alone	69	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:75; sources/wiki/wiki_Inferno.wikitext:281	-	exact
+wave_table.jad_wave	wave that carries one JalTok-Jad	67	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:73; sources/wiki/wiki_Inferno.wikitext:270	-	exact
+wave_table.triple_jad_wave	wave that carries three JalTok-Jads	68	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:74; sources/wiki/wiki_Inferno.wikitext:272	-	exact
+wave_table.first_appearance_waves	first wave with bat, blob, melee, ranger, mager	1,4,9,18,35	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:7-41; sources/wiki/wiki_Inferno.wikitext:179-227	-	exact
+wave_table.nibbler_only_waves	waves that carry six nibblers and nothing else	3,8,17,34	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:9; sources/wiki/wiki_Inferno_Strategies.wikitext:550	-	exact
+wave_table.nibbler_per_wave	nibblers spawned with a monster wave (waves 1-66)	3	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:7-72; sources/wiki/wiki_Inferno_Strategies.wikitext:550	-	exact
+wave_table.nibbler_per_filler_wave	nibblers spawned on a nibbler-only wave	6	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:9; sources/wiki/wiki_Inferno_Strategies.wikitext:550	-	exact
+wave_table.nibbler_total_waves_1_66	nibblers spawned over waves 1-66 (62*3+4*6)	210	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:7-72; sources/wiki/wiki_Inferno.wikitext:179-263	-	exact
+wave_table.w01_composition	wave 1 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:7; sources/wiki/wiki_Inferno.wikitext:179	-	exact
+wave_table.w02_composition	wave 2 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:8; sources/wiki/wiki_Inferno.wikitext:180	-	exact
+wave_table.w03_composition	wave 3 set: nibbler,bat,blob,melee,ranger,mager,jad	6,0,0,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:9; sources/wiki/wiki_Inferno.wikitext:181	-	exact
+wave_table.w04_composition	wave 4 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:10; sources/wiki/wiki_Inferno.wikitext:183	-	exact
+wave_table.w05_composition	wave 5 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:11; sources/wiki/wiki_Inferno.wikitext:184	-	exact
+wave_table.w06_composition	wave 6 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:12; sources/wiki/wiki_Inferno.wikitext:185	-	exact
+wave_table.w07_composition	wave 7 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:13; sources/wiki/wiki_Inferno.wikitext:186	-	exact
+wave_table.w08_composition	wave 8 set: nibbler,bat,blob,melee,ranger,mager,jad	6,0,0,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:14; sources/wiki/wiki_Inferno.wikitext:187	-	exact
+wave_table.w09_composition	wave 9 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:15; sources/wiki/wiki_Inferno.wikitext:189	-	exact
+wave_table.w10_composition	wave 10 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:16; sources/wiki/wiki_Inferno.wikitext:190	-	exact
+wave_table.w11_composition	wave 11 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:17; sources/wiki/wiki_Inferno.wikitext:191	-	exact
+wave_table.w12_composition	wave 12 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:18; sources/wiki/wiki_Inferno.wikitext:192	-	exact
+wave_table.w13_composition	wave 13 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:19; sources/wiki/wiki_Inferno.wikitext:193	-	exact
+wave_table.w14_composition	wave 14 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:20; sources/wiki/wiki_Inferno.wikitext:194	-	exact
+wave_table.w15_composition	wave 15 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,1,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:21; sources/wiki/wiki_Inferno.wikitext:195	-	exact
+wave_table.w16_composition	wave 16 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,2,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:22; sources/wiki/wiki_Inferno.wikitext:196	-	exact
+wave_table.w17_composition	wave 17 set: nibbler,bat,blob,melee,ranger,mager,jad	6,0,0,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:23; sources/wiki/wiki_Inferno.wikitext:197	-	exact
+wave_table.w18_composition	wave 18 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:24; sources/wiki/wiki_Inferno.wikitext:204	-	exact
+wave_table.w19_composition	wave 19 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:25; sources/wiki/wiki_Inferno.wikitext:205	-	exact
+wave_table.w20_composition	wave 20 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:26; sources/wiki/wiki_Inferno.wikitext:206	-	exact
+wave_table.w21_composition	wave 21 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:27; sources/wiki/wiki_Inferno.wikitext:207	-	exact
+wave_table.w22_composition	wave 22 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:28; sources/wiki/wiki_Inferno.wikitext:208	-	exact
+wave_table.w23_composition	wave 23 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:29; sources/wiki/wiki_Inferno.wikitext:209	-	exact
+wave_table.w24_composition	wave 24 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,0,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:30; sources/wiki/wiki_Inferno.wikitext:210	-	exact
+wave_table.w25_composition	wave 25 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:31; sources/wiki/wiki_Inferno.wikitext:211	-	exact
+wave_table.w26_composition	wave 26 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:32; sources/wiki/wiki_Inferno.wikitext:212	-	exact
+wave_table.w27_composition	wave 27 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:33; sources/wiki/wiki_Inferno.wikitext:213	-	exact
+wave_table.w28_composition	wave 28 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:34; sources/wiki/wiki_Inferno.wikitext:214	-	exact
+wave_table.w29_composition	wave 29 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:35; sources/wiki/wiki_Inferno.wikitext:215	-	exact
+wave_table.w30_composition	wave 30 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:36; sources/wiki/wiki_Inferno.wikitext:216	-	exact
+wave_table.w31_composition	wave 31 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,1,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:37; sources/wiki/wiki_Inferno.wikitext:217	-	exact
+wave_table.w32_composition	wave 32 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,2,1,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:38; sources/wiki/wiki_Inferno.wikitext:218	-	exact
+wave_table.w33_composition	wave 33 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,0,2,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:39; sources/wiki/wiki_Inferno.wikitext:219	-	exact
+wave_table.w34_composition	wave 34 set: nibbler,bat,blob,melee,ranger,mager,jad	6,0,0,0,0,0,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:40; sources/wiki/wiki_Inferno.wikitext:220	-	exact
+wave_table.w35_composition	wave 35 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:41; sources/wiki/wiki_Inferno.wikitext:227	-	exact
+wave_table.w36_composition	wave 36 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:42; sources/wiki/wiki_Inferno.wikitext:228	-	exact
+wave_table.w37_composition	wave 37 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:43; sources/wiki/wiki_Inferno.wikitext:229	-	exact
+wave_table.w38_composition	wave 38 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:44; sources/wiki/wiki_Inferno.wikitext:230	-	exact
+wave_table.w39_composition	wave 39 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:45; sources/wiki/wiki_Inferno.wikitext:231	-	exact
+wave_table.w40_composition	wave 40 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:46; sources/wiki/wiki_Inferno.wikitext:232	-	exact
+wave_table.w41_composition	wave 41 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,0,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:47; sources/wiki/wiki_Inferno.wikitext:233	-	exact
+wave_table.w42_composition	wave 42 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:48; sources/wiki/wiki_Inferno.wikitext:234	-	exact
+wave_table.w43_composition	wave 43 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:49; sources/wiki/wiki_Inferno.wikitext:235	-	exact
+wave_table.w44_composition	wave 44 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:50; sources/wiki/wiki_Inferno.wikitext:236	-	exact
+wave_table.w45_composition	wave 45 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:51; sources/wiki/wiki_Inferno.wikitext:237	-	exact
+wave_table.w46_composition	wave 46 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:52; sources/wiki/wiki_Inferno.wikitext:238	-	exact
+wave_table.w47_composition	wave 47 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:53; sources/wiki/wiki_Inferno.wikitext:239	-	exact
+wave_table.w48_composition	wave 48 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,1,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:54; sources/wiki/wiki_Inferno.wikitext:240	-	exact
+wave_table.w49_composition	wave 49 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,2,0,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:55; sources/wiki/wiki_Inferno.wikitext:241	-	exact
+wave_table.w50_composition	wave 50 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:56; sources/wiki/wiki_Inferno.wikitext:247	-	exact
+wave_table.w51_composition	wave 51 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:57; sources/wiki/wiki_Inferno.wikitext:248	-	exact
+wave_table.w52_composition	wave 52 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:58; sources/wiki/wiki_Inferno.wikitext:249	-	exact
+wave_table.w53_composition	wave 53 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:59; sources/wiki/wiki_Inferno.wikitext:250	-	exact
+wave_table.w54_composition	wave 54 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:60; sources/wiki/wiki_Inferno.wikitext:251	-	exact
+wave_table.w55_composition	wave 55 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:61; sources/wiki/wiki_Inferno.wikitext:252	-	exact
+wave_table.w56_composition	wave 56 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,0,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:62; sources/wiki/wiki_Inferno.wikitext:253	-	exact
+wave_table.w57_composition	wave 57 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:63; sources/wiki/wiki_Inferno.wikitext:254	-	exact
+wave_table.w58_composition	wave 58 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,0,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:64; sources/wiki/wiki_Inferno.wikitext:255	-	exact
+wave_table.w59_composition	wave 59 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,0,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:65; sources/wiki/wiki_Inferno.wikitext:256	-	exact
+wave_table.w60_composition	wave 60 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,1,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:66; sources/wiki/wiki_Inferno.wikitext:257	-	exact
+wave_table.w61_composition	wave 61 set: nibbler,bat,blob,melee,ranger,mager,jad	3,1,1,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:67; sources/wiki/wiki_Inferno.wikitext:258	-	exact
+wave_table.w62_composition	wave 62 set: nibbler,bat,blob,melee,ranger,mager,jad	3,2,1,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:68; sources/wiki/wiki_Inferno.wikitext:259	-	exact
+wave_table.w63_composition	wave 63 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,2,1,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:69; sources/wiki/wiki_Inferno.wikitext:260	-	exact
+wave_table.w64_composition	wave 64 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,2,1,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:70; sources/wiki/wiki_Inferno.wikitext:261	-	exact
+wave_table.w65_composition	wave 65 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,0,2,1,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:71; sources/wiki/wiki_Inferno.wikitext:262	-	exact
+wave_table.w66_composition	wave 66 set: nibbler,bat,blob,melee,ranger,mager,jad	3,0,0,0,0,2,0	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:72; sources/wiki/wiki_Inferno.wikitext:263	-	exact
+wave_table.w67_composition	wave 67 set: nibbler,bat,blob,melee,ranger,mager,jad	0,0,0,0,0,0,1	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:73; sources/wiki/wiki_Inferno.wikitext:270	-	exact
+wave_table.w68_composition	wave 68 set: nibbler,bat,blob,melee,ranger,mager,jad	0,0,0,0,0,0,3	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:74; sources/wiki/wiki_Inferno.wikitext:272	-	exact
+wave_table.w69_zuk	TzKal-Zuk spawned on wave 69 (nothing else at tick 0)	1	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:75; sources/wiki/wiki_Inferno.wikitext:281	-	exact
+wave_table.wave_delay	ticks from the last npc despawn to the next 'Wave: N' message	6	ticks	[blert]	B	sources/blert/SAMPLE_SUMMARY.md:2988-2991; sources/blert_api/wave_records.tsv	-	exact
+wave_table.wave_end_is_last_despawn	wave length minus the tick of the last npc despawn (bloblets and healers included)	0	ticks	[blert]	B	sources/blert_api/wave_records.tsv; sources/blert_api/observed_npc_events.tsv	-	exact
+wave_table.wave_start_messages	'Wave: N' chat lines per wave	1	count	[blert][plugin]	B	sources/blert/SAMPLE_SUMMARY.md:77-78; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/WaveDataTracker.java:58	-	exact
+wave_table.wave_end_message_count	'Wave completed!' chat lines per wave	1	count	[plugin]	D	sources/blert/plugin/src/main/java/io/blert/challenges/inferno/WaveDataTracker.java:144	-	exact
+wave_table.wave1_message_after_entry	ticks from entering to the 'Wave: 1' message (the timer runs 10 ticks before wave 1)	10	ticks	[plugin]	D	sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoChallenge.java:60	-	+-3
+wave_table.spawn_to_message	ticks between the wave's npcs appearing and the 'Wave: N' message	?	ticks	[M1]	E	sources/blert/PROVENANCE.md:51	M1	approx
+wave_table.act_order	order a wave's npcs are processed in (spawn order)	?	text	[M2]	E	sources/blert/PROVENANCE.md:51	M2	approx
+wave_table.spawn_tiles_random_per_run	monster spawn tiles are random and fixed for the run	1	count	[jagex]	A	sources/newsposts/wiki_Update_Progress_Report_The_Inferno.wikitext:68	-	exact
+wave_table.combat_tile_count	candidate tiles for bat, blob, melee, ranger, mager	9	count	[blert][plugin]	B	sources/CODE_CONSTANTS.md:57; sources/blert/SAMPLE_SUMMARY.md:83	-	exact
+wave_table.combat_tiles_x	candidate tiles, world x, in the order of combat_tiles_z	2258,2258,2260,2262,2272,2273,2279,2280,2280	tiles	[blert][plugin]	B	sources/CODE_CONSTANTS.md:57; sources/blert/SAMPLE_SUMMARY.md:83-132	-	exact
+wave_table.combat_tiles_z	candidate tiles, world z	5330,5353,5347,5335,5330,5341,5353,5333,5346	tiles	[blert][plugin]	B	sources/CODE_CONSTANTS.md:57; sources/blert/SAMPLE_SUMMARY.md:83-132	-	exact
+wave_table.combat_tiles_distinct	waves whose combat monsters all stand on different tiles (1144 of 1144 streams)	1000	permille	[blert]	B	sources/blert_api/observed_npc_events.tsv; sources/CODE_CONSTANTS.md:58	-	+-0
+wave_table.combat_tile_chi2_max	largest chi-square over the 5 monster kinds against a uniform pick of 9 tiles (df 8, 5% limit 15.5)	10.4	ratio	[blert]	B	sources/blert_api/observed_npc_events.tsv; sources/CODE_CONSTANTS.md:58	-	range
+wave_table.nibbler_block_x	nibbler spawn block, world x	2265-2267	tiles	[blert][plugin]	B	sources/blert/SAMPLE_SUMMARY.md:83-132; sources/CODE_CONSTANTS.md:59	-	exact
+wave_table.nibbler_block_z	nibbler spawn block, world z	5345-5347	tiles	[blert][plugin]	B	sources/blert/SAMPLE_SUMMARY.md:83-132; sources/CODE_CONSTANTS.md:59	-	exact
+wave_table.nibbler_tile_chi2	chi-square of 3816 nibbler tiles against a uniform pick of 9 (df 8, 5% limit 15.5)	7.9	ratio	[blert]	B	sources/blert_api/observed_npc_events.tsv	-	range
+wave_table.nibbler_wave_all_distinct	nibbler sets with no shared tile (803 of 1194), an independent pick with replacement predicts 653	672	permille	[blert]	B	sources/blert_api/observed_npc_events.tsv; sources/CODE_CONSTANTS.md:59	-	+-30
+wave_table.jad67_tile_x	wave 67 Jad spawn tile, world x	2265	tiles	[blert]	B	sources/blert/SAMPLE_SUMMARY.md:2698-2700	-	exact
+wave_table.jad67_tile_z	wave 67 Jad spawn tile, world z	5347	tiles	[blert]	B	sources/blert/SAMPLE_SUMMARY.md:2698-2700	-	exact
+wave_table.jad68_tiles_x	wave 68 Jad spawn tiles, world x	2265,2268,2274	tiles	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:2712-2727; sources/wiki/wiki_Inferno_Strategies.wikitext:683	-	exact
+wave_table.jad68_tiles_z	wave 68 Jad spawn tiles, world z	5347,5335,5346	tiles	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:2712-2727; sources/wiki/wiki_Inferno_Strategies.wikitext:683	-	exact
+wave_table.zuk_tile_x	Zuk spawn tile, world x	2268	tiles	[blert]	B	sources/blert/SAMPLE_SUMMARY.md:2728-2735	-	exact
+wave_table.zuk_tile_z	Zuk spawn tile, world z	5364	tiles	[blert]	B	sources/blert/SAMPLE_SUMMARY.md:2728-2735	-	exact
+wave_table.pillar_count	pillars standing at the start of wave 1	3	count	[blert][wiki]	B	sources/blert/SAMPLE_SUMMARY.md:83-100; sources/wiki/wiki_Inferno.wikitext:165	-	exact
+wave_table.pillar_tiles_x	pillar tiles, world x (west, south, east)	2257,2267,2274	tiles	[blert][wiki][plugin]	B	sources/blert/SAMPLE_SUMMARY.md:83-100; sources/wiki/wiki_Rocky_support.wikitext:22	-	exact
+wave_table.pillar_tiles_z	pillar tiles, world z (west, south, east)	5349,5335,5351	tiles	[blert][wiki][plugin]	B	sources/blert/SAMPLE_SUMMARY.md:83-100; sources/wiki/wiki_Rocky_support.wikitext:22	-	exact
+wave_table.presentation.wave_start_line	chat line 'Wave: N' at each wave start (colour not sourced)	1	count	[blert][plugin]	D	sources/blert/plugin/src/main/java/io/blert/challenges/inferno/WaveDataTracker.java:58	-	exact

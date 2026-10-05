@@ -1,0 +1,180 @@
+# varps -- 5 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.varp (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[1570] varp1570_inferno_perm_protect_transmit    (configs/all.varp:3158)
+  why= name: varp1570_inferno_perm_protect_transmit; bind: basevar of varbit varb5646_inferno_sacrificed_firecape, basevar of varbit varb16561_inferno_shown_gm_helm
+
+[1573] varp1573_inferno_perm_noprotect_transmit    (configs/all.varp:3164)
+  why= name: varp1573_inferno_perm_noprotect_transmit; bind: basevar of varbit varb5655_inferno_safespot1_health, basevar of varbit varb5656_inferno_safespot2_health, basevar of varbit varb5657_inferno_safespot3_health
+
+[1574] varp1574_inferno_temp_protect_transmit    (configs/all.varp:3166)
+  why= name: varp1574_inferno_temp_protect_transmit; ref: server/scripts/minigames/minigame_inferno/configs/inferno.varp:16; bind: basevar of varbit varb5652_inferno_prisonroof_hidden
+
+[1575] varp1575_inferno_temp_noprotect_transmit    (configs/all.varp:3168)
+  why= name: varp1575_inferno_temp_noprotect_transmit; ref: server/scripts/minigames/minigame_inferno/configs/inferno.varp:8; bind: basevar of varbit varb5653_inferno_zuk_hp, basevar of varbit varb5654_inferno_zuk_base_hp, basevar of varbit varb11878_player_in_inferno
+
+[1585] varp1585_total_zuk_kills    (configs/all.varp:3188)
+  why= name: varp1585_total_zuk_kills; bind: multivarp of npc inferno_master
+
+
+# varbits -- 26 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.varbit (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[5644] varb5644_pet_insurance_inferno    (configs/all.varbit:28223)
+  why= name: varb5644_pet_insurance_inferno
+  basevar=varp1417_pet_insurance2
+  startbit=4
+  endbit=4
+
+[5645] varb5645_pet_menagerie_inferno    (configs/all.varbit:28228)
+  why= name: varb5645_pet_menagerie_inferno
+  basevar=varp1416_menagerie_contents2
+  startbit=4
+  endbit=4
+
+[5646] varb5646_inferno_sacrificed_firecape    (configs/all.varbit:28233)
+  why= name: varb5646_inferno_sacrificed_firecape; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:221 (+8); bind: multivarbit of loc inferno_entrance
+  basevar=varp1570_inferno_perm_protect_transmit
+  startbit=0
+  endbit=1
+
+[5652] varb5652_inferno_prisonroof_hidden    (configs/all.varbit:28263)
+  why= name: varb5652_inferno_prisonroof_hidden; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:104 (+9); bind: multivarbit of loc inferno_collapsing_prison_roof
+  basevar=varp1574_inferno_temp_protect_transmit
+  startbit=0
+  endbit=0
+
+[5653] varb5653_inferno_zuk_hp    (configs/all.varbit:28268)
+  why= name: varb5653_inferno_zuk_hp; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:102 (+3)
+  basevar=varp1575_inferno_temp_noprotect_transmit
+  startbit=0
+  endbit=10
+
+[5654] varb5654_inferno_zuk_base_hp    (configs/all.varbit:28273)
+  why= name: varb5654_inferno_zuk_base_hp; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:103 (+1)
+  basevar=varp1575_inferno_temp_noprotect_transmit
+  startbit=11
+  endbit=21
+
+[5655] varb5655_inferno_safespot1_health    (configs/all.varbit:28278)
+  why= name: varb5655_inferno_safespot1_health; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_pillars.rs2:7 (+1); bind: multivarbit of loc inferno_safespot1
+  basevar=varp1573_inferno_perm_noprotect_transmit
+  startbit=0
+  endbit=7
+
+[5656] varb5656_inferno_safespot2_health    (configs/all.varbit:28283)
+  why= name: varb5656_inferno_safespot2_health; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_pillars.rs2:12 (+1); bind: multivarbit of loc inferno_safespot2
+  basevar=varp1573_inferno_perm_noprotect_transmit
+  startbit=8
+  endbit=15
+
+[5657] varb5657_inferno_safespot3_health    (configs/all.varbit:28288)
+  why= name: varb5657_inferno_safespot3_health; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_pillars.rs2:16 (+1); bind: multivarbit of loc inferno_safespot3
+  basevar=varp1573_inferno_perm_noprotect_transmit
+  startbit=16
+  endbit=23
+
+[6270] varb6270_poh_menagerie_multiform_infernopet    (configs/all.varbit:31353)
+  why= name: varb6270_poh_menagerie_multiform_infernopet
+  basevar=varp783_poh_scry_coord1
+  startbit=18
+  endbit=18
+
+[11878] varb11878_player_in_inferno    (configs/all.varbit:59388)
+  why= name: varb11878_player_in_inferno
+  basevar=varp1575_inferno_temp_noprotect_transmit
+  startbit=24
+  endbit=24
+
+[11986] varb11986_collection_bosses_inferno_completed    (configs/all.varbit:59928)
+  why= name: varb11986_collection_bosses_inferno_completed
+  basevar=varp2946_collection_sections1
+  startbit=23
+  endbit=23
+
+[12799] varb12799_ca_task_zuk_killcount_1_completed    (configs/all.varbit:63993)
+  why= name: varb12799_ca_task_zuk_killcount_1_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=21
+  endbit=21
+
+[12800] varb12800_ca_task_zuk_killcount_3_completed    (configs/all.varbit:63998)
+  why= name: varb12800_ca_task_zuk_killcount_3_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=22
+  endbit=22
+
+[12801] varb12801_ca_task_zuk_mechanical_1_completed    (configs/all.varbit:64003)
+  why= name: varb12801_ca_task_zuk_mechanical_1_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=23
+  endbit=23
+
+[12802] varb12802_ca_task_zuk_mechanical_2_completed    (configs/all.varbit:64008)
+  why= name: varb12802_ca_task_zuk_mechanical_2_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=24
+  endbit=24
+
+[12803] varb12803_ca_task_zuk_perfection_1_completed    (configs/all.varbit:64013)
+  why= name: varb12803_ca_task_zuk_perfection_1_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=25
+  endbit=25
+
+[12804] varb12804_ca_task_zuk_perfection_2_completed    (configs/all.varbit:64018)
+  why= name: varb12804_ca_task_zuk_perfection_2_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=26
+  endbit=26
+
+[12805] varb12805_ca_task_zuk_restriction_1_completed    (configs/all.varbit:64023)
+  why= name: varb12805_ca_task_zuk_restriction_1_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=27
+  endbit=27
+
+[12806] varb12806_ca_task_zuk_restriction_2_completed    (configs/all.varbit:64028)
+  why= name: varb12806_ca_task_zuk_restriction_2_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=28
+  endbit=28
+
+[12807] varb12807_ca_task_zuk_restriction_3_completed    (configs/all.varbit:64033)
+  why= name: varb12807_ca_task_zuk_restriction_3_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=29
+  endbit=29
+
+[12808] varb12808_ca_task_zuk_restriction_4_completed    (configs/all.varbit:64038)
+  why= name: varb12808_ca_task_zuk_restriction_4_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=30
+  endbit=30
+
+[12809] varb12809_ca_task_zuk_restriction_5_completed    (configs/all.varbit:64043)
+  why= name: varb12809_ca_task_zuk_restriction_5_completed
+  basevar=varp3126_ca_task_completed_10
+  startbit=31
+  endbit=31
+
+[12810] varb12810_ca_task_zuk_speed_1_completed    (configs/all.varbit:64048)
+  why= name: varb12810_ca_task_zuk_speed_1_completed
+  basevar=varp3127_ca_task_completed_11
+  startbit=0
+  endbit=0
+
+[12921] varb12921_ca_total_tasks_completed_zuk    (configs/all.varbit:64603)
+  why= name: varb12921_ca_total_tasks_completed_zuk
+  basevar=varp3143_ca_boss_tasks6
+  startbit=0
+  endbit=4
+
+[16561] varb16561_inferno_shown_gm_helm    (configs/all.varbit:79708)
+  why= name: varb16561_inferno_shown_gm_helm
+  basevar=varp1570_inferno_perm_protect_transmit
+  startbit=2
+  endbit=2
+

@@ -1,0 +1,2545 @@
+diff --git a/osrs239-content/pack/varp.alloc b/osrs239-content/pack/varp.alloc
+index e7e549b576..4f0a9edcdf 100644
+--- a/osrs239-content/pack/varp.alloc
++++ b/osrs239-content/pack/varp.alloc
+@@ -1527,3 +1527,6 @@
+ 7220=varp7220_bv_voy_bearing
+ 7221=varp7221_bv_voy_sail
+ 7222=varp7222_bv_voy_active
++7223=varp7223_consume_combo_delay
++7224=varp7224_consume_food_delay
++7225=varp7225_consume_potion_delay
+diff --git a/osrs239-content/server/scripts/bosses/boss_tormented_demons/scripts/td_consumables.rs2 b/osrs239-content/server/scripts/bosses/boss_tormented_demons/scripts/td_consumables.rs2
+index 72366704f2..0188246bac 100644
+--- a/osrs239-content/server/scripts/bosses/boss_tormented_demons/scripts/td_consumables.rs2
++++ b/osrs239-content/server/scripts/bosses/boss_tormented_demons/scripts/td_consumables.rs2
+@@ -171,9 +171,12 @@ if (stat(hitpoints) >= stat_base(hitpoints)) {
+ }
+ mes("Even as the flesh burns your throat, you feel your wounds begin to mend.");
+ anim(human_eat, 0);
+-// The published exception: no eat delay. `^td_flesh_eat_delay` is zero and is
+-// written rather than omitted so a reader can see it was decided.
+-p_delay(^td_flesh_eat_delay);
++// The published exception: no eat delay (`^td_flesh_eat_delay` = 0), so the
++// flesh neither reads nor sets the food timer
++// (player/scripts/consumption/consume_shared.rs2). This used to say
++// `p_delay(^td_flesh_eat_delay)`, and a p_delay(0) is still a one-tick park
++// (delayed_until = tick + 1): it held every hit queued on the player for a
++// tick, which is exactly the eat delay the wiki says the flesh does not have.
+ 
+ // "Healing scales with Hitpoints level, capping at 18 at level 99" is the only
+ // point the wiki publishes, so the curve is that ratio and nothing more.
+diff --git a/osrs239-content/server/scripts/general/scripts/food.rs2 b/osrs239-content/server/scripts/general/scripts/food.rs2
+index d09029d2d4..ac4b3e2905 100644
+--- a/osrs239-content/server/scripts/general/scripts/food.rs2
++++ b/osrs239-content/server/scripts/general/scripts/food.rs2
+@@ -32,15 +32,23 @@
+ // instead of a three-bite 12, and the 32 pie, 8 pizza and 7 filled-potato
+ // records were bound to nothing at all and could not be eaten.
+ 
+-[opheld1,_cooked_meat] @eat_food(last_slot, last_item);
+-[opheld1,_cooked_fish] @eat_food(last_slot, last_item);
+-[opheld1,_misc_food] @eat_food(last_slot, last_item);
+-[opheld1,_vegetable] @eat_food(last_slot, last_item);
+-[opheld1,_cake] @eat_food(last_slot, last_item);
++// The last two arguments are the bite's eat delay in the clock encoding of
++// player/scripts/consumption/consume_shared.rs2 (a gap of N ticks is N - 1):
++// the first while bites remain, the second on the last bite. Standard food is
++// `^eat_delay` (2, a 3-tick gap) both times. The rest are the "Eat delay
++// (ticks)" column of the wiki's Template:Fast foods table (revid 15316794,
++// pinned under docs/minigames/inferno/sources/wiki/): cakes 2,2,3 (1 then 2),
++// pizzas 1,2 (0 then 1), redberry, meat and apple pies 1,2 (0 then 1), and the
++// dragonfruit, wild and summer pies 1,1 (`~food_pie_fast_half` below).
++[opheld1,_cooked_meat] @eat_food(last_slot, last_item, ^eat_delay, ^eat_delay);
++[opheld1,_cooked_fish] @eat_food(last_slot, last_item, ^eat_delay, ^eat_delay);
++[opheld1,_misc_food] @eat_food(last_slot, last_item, ^eat_delay, ^eat_delay);
++[opheld1,_vegetable] @eat_food(last_slot, last_item, ^eat_delay, ^eat_delay);
++[opheld1,_cake] @eat_food(last_slot, last_item, 1, 2);
+ // Three categories that had no binding before, so nothing in them was edible.
+-[opheld1,_pies] @eat_food(last_slot, last_item);
+-[opheld1,_pizzas] @eat_food(last_slot, last_item);
+-[opheld1,_filled_potatoes] @eat_food(last_slot, last_item);
++[opheld1,_pies] @eat_food(last_slot, last_item, 0, 1);
++[opheld1,_pizzas] @eat_food(last_slot, last_item, 0, 1);
++[opheld1,_filled_potatoes] @eat_food(last_slot, last_item, ^eat_delay, ^eat_delay);
+ 
+ // Anglerfish overheal — wiki Hitpoints training / food table. `stat_heal`
+ // clamps at base; overheal is `stat_boost(hitpoints, 0, 22)` (22% of level).
+@@ -50,19 +58,34 @@
+ @eat_anglerfish;
+ 
+ [label,eat_anglerfish]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ mes("You eat the <oc_name(anglerfish)>.");
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+ stat_boost(hitpoints, 0, 22);
+ ~wint_food_warmth(22);
+-p_stopaction;
+-p_delay(^eat_delay);
++// The eat delay is a clock, never a park, and the eat does not stop the
++// player's fight or walk (no p_stopaction): consume_shared.rs2.
++~consume_food_taken(^eat_delay, 3, false);
+ 
+ [proc,food_data](obj $food)(dbrow)
+ db_find(food_table:food, $food);
+ return(db_findnext);
+ 
+-[label,eat_food](int $slot, int $food)
++// The pies whose second half keeps the first half's 1-tick eat delay
++// (Template:Fast foods table: dragonfruit, wild and summer pie "1,1"; the
++// redberry, meat and apple pies are "1,2"). Garden, fish, botanical, mushroom
++// and admiral pies are 1,1 too but have no food_table row here, so cannot be
++// eaten at all yet.
++[proc,food_pie_fast_half](obj $food)(boolean)
++if ($food = half_dragonfruit_pie | $food = half_wild_pie | $food = half_summer_pie) {
++    return(true);
++}
++return(false);
++
++[label,eat_food](int $slot, int $food, int $delay_more, int $delay_last)
+ 
+ def_int $heal = ^heal_unknown;
+ def_obj $next = null;
+@@ -80,6 +103,25 @@ if ($row ! null) {
+     }
+ }
+ 
++// The eat gate (consume_shared.rs2): a bite inside the food timer is refused
++// silently. A combo food (karambwan, halibut) answers to its own timer
++// instead, so it can follow another food on the same tick (wiki Food/Fast
++// foods: "combo foods do not respect the eat delay incurred by other foods").
++def_boolean $combo = ~consume_combo_food($food);
++if (~consume_food_ready($combo) = false) {
++    return;
++}
++def_int $eat_delay = $delay_last;
++if ($next ! null) {
++    $eat_delay = $delay_more;
++} else if (~food_pie_fast_half($food) = true) {
++    $eat_delay = 0;
++}
++def_int $attack_delay = 3;
++if ($combo = true) {
++    $attack_delay = 2;
++}
++
+ mes("You eat the <oc_name($food)>.");
+ anim(human_eat, 0);
+ // A food with a next stage leaves that behind in the same slot; everything
+@@ -95,5 +137,8 @@ if ($next ! null) {
+ // here. Overheal foods (angler / Sara brew) use stat_boost instead — #13.
+ stat_heal(hitpoints, $heal, 0);
+ ~wint_food_warmth($heal);
+-p_stopaction;
+-p_delay(^eat_delay);
++// No p_delay: a park here held every hit queued on the player for the bite
++// (seam5 of the raid loop). The delay is the food timer and the weapon delay.
++// No p_stopaction either: OldSchool fights on through an eat
++// (consume_shared.rs2 says why, and what the flinch did to the delay).
++~consume_food_taken($eat_delay, $attack_delay, $combo);
+diff --git a/osrs239-content/server/scripts/minigames/minigame_nightmarezone/scripts/nightmarezone_potion.rs2 b/osrs239-content/server/scripts/minigames/minigame_nightmarezone/scripts/nightmarezone_potion.rs2
+index 4a8f10bc04..9b930613a5 100644
+--- a/osrs239-content/server/scripts/minigames/minigame_nightmarezone/scripts/nightmarezone_potion.rs2
++++ b/osrs239-content/server/scripts/minigames/minigame_nightmarezone/scripts/nightmarezone_potion.rs2
+@@ -18,6 +18,9 @@
+ [opheld1,nzone1doseoverloadpotion] @consume_effect_nzone_overload;
+ 
+ [label,consume_effect_nzone_overload]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (%varp5817_nzone_active = 0) {
+     mes("You can only drink this potion inside the Nightmare Zone.");
+     return;
+@@ -39,9 +42,8 @@ queue*(nzone_overload_damage, 0)(^nzone_overload_hits, 0);
+ settimer(nzone_overload_reapply, ^nzone_overload_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your overload potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,nzone_overload_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -101,6 +103,9 @@ stat_heal(hitpoints, ^nzone_overload_damage_total, 0);
+ [opheld1,nzone1doseabsorptionpotion] @consume_effect_nzone_absorption;
+ 
+ [label,consume_effect_nzone_absorption]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (%varp5817_nzone_active = 0) {
+     mes("You can only drink this potion inside the Nightmare Zone.");
+     return;
+@@ -116,10 +121,9 @@ $next, $left = ~nzone_absorption_dose_step(last_item);
+ %varb3956_nzone_absorb_potion_effects = min(add(%varb3956_nzone_absorb_potion_effects, ^nzone_absorb_per_dose), ^nzone_absorb_cap);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your absorption potion.");
+-p_delay(1);
++~consume_potion_taken;
+ mes("Your absorption pool will soak <tostring(%varb3956_nzone_absorb_potion_effects)> more damage.");
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,nzone_absorption_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -151,6 +155,9 @@ return(vial_empty, 0);
+ [opheld1,nzone1dose2rangerspotion] @consume_effect_nzone_super_ranging;
+ 
+ [label,consume_effect_nzone_super_ranging]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (%varp5817_nzone_active = 0) {
+     mes("You can only drink this potion inside the Nightmare Zone.");
+     return;
+@@ -163,9 +170,8 @@ stat_boost(ranged, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your super ranging potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,nzone_super_ranging_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -181,6 +187,9 @@ return(vial_empty, 0);
+ [opheld1,nzone1dose2magicpotion] @consume_effect_nzone_super_magic;
+ 
+ [label,consume_effect_nzone_super_magic]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (%varp5817_nzone_active = 0) {
+     mes("You can only drink this potion inside the Nightmare Zone.");
+     return;
+@@ -193,9 +202,8 @@ stat_boost(magic, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your super magic potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,nzone_super_magic_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/anti_poison.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/anti_poison.rs2
+index a5b9e16c1b..7ea690c13b 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/anti_poison.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/anti_poison.rs2
+@@ -33,26 +33,30 @@
+ @consume_effect_super_antipoison;
+ 
+ [label,consume_effect_antipoison]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ %varp102_poison = min(%varp102_poison, -5);
+ ~set_poison_timer;
+ inv_setslot(inv, last_slot, ~antipoison_next_dose($consumable), 1);
+ mes("You drink some of your antipoison potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~antipoison_doses_left(~antipoison_next_dose($consumable));
+-p_stopaction;
+ 
+ [label,consume_effect_super_antipoison]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ %varp102_poison = min(%varp102_poison, -20);
+ ~set_poison_timer;
+ inv_setslot(inv, last_slot, ~antipoison_next_dose($consumable), 1);
+ mes("You drink some of your antipoison potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~antipoison_doses_left(~antipoison_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,antipoison_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/antifire_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/antifire_potion.rs2
+index bd8d99b974..7e02ccba2e 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/antifire_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/antifire_potion.rs2
+@@ -20,6 +20,9 @@
+ [opheld1,1dose1antidragon] @consume_effect_antifire;
+ 
+ [label,consume_effect_antifire]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -29,9 +32,8 @@ $next, $left = ~antifire_dose_step(last_item);
+ ~antifire_apply(^antifire_duration_units);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You take a sip of the antifire potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~antifire_doses_message($left);
+-p_stopaction;
+ 
+ [proc,antifire_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -47,6 +49,9 @@ return(vial_empty, 0);
+ [opheld1,1dose3antidragon] @consume_effect_super_antifire;
+ 
+ [label,consume_effect_super_antifire]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -54,9 +59,8 @@ $next, $left = ~super_antifire_dose_step(last_item);
+ ~super_antifire_apply(^super_antifire_duration_units);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You take a sip of the super antifire potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~antifire_doses_message($left);
+-p_stopaction;
+ 
+ [proc,super_antifire_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -160,6 +164,9 @@ settimer(super_antifire_decay, ^super_antifire_decay_interval);
+ [opheld1,1dose2antidragon] @consume_effect_extended_antifire;
+ 
+ [label,consume_effect_extended_antifire]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -167,9 +174,8 @@ $next, $left = ~extended_antifire_dose_step(last_item);
+ ~antifire_apply(^extended_antifire_duration_units);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You take a sip of the extended antifire potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~antifire_doses_message($left);
+-p_stopaction;
+ 
+ [proc,extended_antifire_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -185,6 +191,9 @@ return(vial_empty, 0);
+ [opheld1,1dose4antidragon] @consume_effect_extended_super_antifire;
+ 
+ [label,consume_effect_extended_super_antifire]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -192,9 +201,8 @@ $next, $left = ~extended_super_antifire_dose_step(last_item);
+ ~super_antifire_apply(^extended_super_antifire_duration_units);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You take a sip of the extended super antifire potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~antifire_doses_message($left);
+-p_stopaction;
+ 
+ [proc,extended_super_antifire_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/ape_atoll_food.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/ape_atoll_food.rs2
+index bbe57e6fbb..f0b6fb2e73 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/ape_atoll_food.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/ape_atoll_food.rs2
+@@ -16,10 +16,12 @@
+ @consume_ape_atoll_food(11);
+ 
+ [label,consume_ape_atoll_food](int $heal)
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ mes("You eat the <lowercase(oc_name(last_item))>.");
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+ stat_heal(hitpoints, $heal, 0);
+ ~wint_food_warmth($heal);
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/attack_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/attack_potion.rs2
+index fa76395b0d..06949bab92 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/attack_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/attack_potion.rs2
+@@ -32,6 +32,9 @@
+ @consume_effect_super_attack_potion;
+ 
+ [label,consume_effect_attack_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ // Wiki Attack potion: Attack +3 + 10% of level.
+@@ -41,11 +44,13 @@ stat_boost(attack, 3, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~attack_potion_next_dose($consumable), 1);
+ mes("You drink some of your attack potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~attack_potion_doses_left(~attack_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [label,consume_effect_super_attack_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ // Wiki Super attack: Attack +5 + 15% of level.
+@@ -53,9 +58,8 @@ stat_boost(attack, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~attack_potion_next_dose($consumable), 1);
+ mes("You drink some of your super attack potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~attack_potion_doses_left(~attack_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,attack_potion_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/barbarian_mix.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/barbarian_mix.rs2
+index 963ba5c0a9..c83994017d 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/barbarian_mix.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/barbarian_mix.rs2
+@@ -56,19 +56,21 @@
+ [opheld1,brutal_2doseancientbrew] @consume_effect_brutal_mix;
+ 
+ [label,consume_effect_brutal_mix]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ ~brutal_mix_effect($consumable);
+ def_obj $next = ~brutal_mix_next_dose($consumable);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of the mixture.");
+-p_delay(1);
++~consume_food_taken(^eat_delay, 3, false);
+ if ($next = vial_empty) {
+     mes("You have finished your potion.");
+ } else {
+     mes("You have 1 dose of potion left.");
+ }
+-p_stopaction;
+ 
+ // ---------------------------------------------------------------------------
+ // 1-dose rung. A second, near-identical binding rather than a generalised
+@@ -106,13 +108,15 @@ p_stopaction;
+ [opheld1,brutal_1doseancientbrew] @consume_effect_brutal_mix_final;
+ 
+ [label,consume_effect_brutal_mix_final]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ anim(human_eat, 0);
+ ~brutal_mix_effect(last_item);
+ inv_setslot(inv, last_slot, vial_empty, 1);
+ mes("You drink some of the mixture.");
+-p_delay(1);
++~consume_food_taken(^eat_delay, 3, false);
+ mes("You have finished your potion.");
+-p_stopaction;
+ 
+ // ---------------------------------------------------------------------------
+ // One switch over both rungs. Every arm is the base potion's own constants —
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/br_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/br_potion.rs2
+index 0409550ad7..c19caa5a7f 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/br_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/br_potion.rs2
+@@ -49,6 +49,9 @@
+ [opheld1,br_sanfew_salve_1_dose] @consume_effect_br_potion;
+ 
+ [label,consume_effect_br_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ def_obj $next;
+@@ -101,9 +104,8 @@ switch_obj($consumable) {
+ // `br_vial_empty` is the supply set's own empty vial — the `br_` objects are a
+ // closed set and a spent one must not hand back a tradeable vial.
+ inv_setslot(inv, last_slot, $next, 1);
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,br_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/castlewars_brew.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/castlewars_brew.rs2
+index 063c9d31d3..633341b2ea 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/castlewars_brew.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/castlewars_brew.rs2
+@@ -22,6 +22,9 @@
+ [opheld1,1dose_castlewars_skill_potion] @consume_effect_castlewars_brew;
+ 
+ [label,consume_effect_castlewars_brew]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (%varp6987_cw_team = ^cw_team_none) {
+     mes("You can only drink this inside Castle Wars.");
+     return;
+@@ -42,9 +45,8 @@ stat_boost(magic, 1, 10);
+ ~stamina_apply(^stamina_energy_restore, ^stamina_duration_ticks);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Castlewars brew.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,castlewars_brew_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/combat_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/combat_potion.rs2
+index 402a60dcad..3feaf1efef 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/combat_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/combat_potion.rs2
+@@ -31,6 +31,9 @@
+ [opheld1,1dosecombat] @consume_effect_combat_potion;
+ 
+ [label,consume_effect_combat_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -42,9 +45,8 @@ stat_boost(strength, 3, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your combat potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,combat_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -65,6 +67,9 @@ return(vial_empty, 0);
+ [opheld1,1dose2combat] @consume_effect_super_combat;
+ 
+ [label,consume_effect_super_combat]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -75,9 +80,8 @@ stat_boost(defence, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your super combat potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,super_combat_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -98,6 +102,9 @@ return(vial_empty, 0);
+ [opheld1,1dosedivinecombat] @consume_effect_divine_combat;
+ 
+ [label,consume_effect_divine_combat]
++if (~consume_potion_ready = false) {
++    return;
++}
+ // "A minimum of 11 HP is required to survive consumption" (wiki) — refuse
+ // rather than kill the drinker, matching inferno_potions.rs2's divine line.
+ if (stat(hitpoints) < 11) {
+@@ -117,9 +124,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_combat_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine super combat potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_combat_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/cox_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/cox_potion.rs2
+index 83c2465863..3f8fee6361 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/cox_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/cox_potion.rs2
+@@ -57,6 +57,9 @@
+ [opheld1,raids_vial_elder_weak_1] @elder_potion_t1;
+ 
+ [label,elder_potion_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -67,9 +70,8 @@ stat_boost(defence, 4, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your elder potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,elder_potion_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -85,6 +87,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_elder_1] @elder_potion_t2;
+ 
+ [label,elder_potion_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -95,9 +100,8 @@ stat_boost(defence, 5, 13);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your elder potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,elder_potion_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -113,6 +117,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_elder_strong_1] @elder_potion_t3;
+ 
+ [label,elder_potion_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -123,9 +130,8 @@ stat_boost(defence, 6, 16);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your elder potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,elder_potion_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -141,6 +147,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_twisted_weak_1] @twisted_potion_t1;
+ 
+ [label,twisted_potion_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -150,9 +159,8 @@ stat_boost(defence, 4, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your twisted potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,twisted_potion_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -168,6 +176,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_twisted_1] @twisted_potion_t2;
+ 
+ [label,twisted_potion_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -177,9 +188,8 @@ stat_boost(defence, 5, 13);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your twisted potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,twisted_potion_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -195,6 +205,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_twisted_strong_1] @twisted_potion_t3;
+ 
+ [label,twisted_potion_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -204,9 +217,8 @@ stat_boost(defence, 6, 16);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your twisted potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,twisted_potion_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -222,6 +234,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_kodai_weak_1] @kodai_potion_t1;
+ 
+ [label,kodai_potion_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -231,9 +246,8 @@ stat_boost(defence, 4, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your kodai potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,kodai_potion_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -249,6 +263,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_kodai_1] @kodai_potion_t2;
+ 
+ [label,kodai_potion_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -258,9 +275,8 @@ stat_boost(defence, 5, 13);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your kodai potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,kodai_potion_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -276,6 +292,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_kodai_strong_1] @kodai_potion_t3;
+ 
+ [label,kodai_potion_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -285,9 +304,8 @@ stat_boost(defence, 6, 16);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your kodai potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,kodai_potion_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -303,6 +321,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_overload_weak_1] @overload_t1;
+ 
+ [label,overload_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -314,9 +335,8 @@ queue*(cox_overload_damage, 0)(^cox_overload_hits, 0);
+ settimer(overload_reapply_t1, ^cox_overload_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your overload potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,overload_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -332,6 +352,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_overload_1] @overload_t2;
+ 
+ [label,overload_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -343,9 +366,8 @@ queue*(cox_overload_damage, 0)(^cox_overload_hits, 0);
+ settimer(overload_reapply_t2, ^cox_overload_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your overload potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,overload_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -361,6 +383,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_overload_strong_1] @overload_t3;
+ 
+ [label,overload_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -372,9 +397,8 @@ queue*(cox_overload_damage, 0)(^cox_overload_hits, 0);
+ settimer(overload_reapply_t3, ^cox_overload_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your overload potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,overload_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -452,6 +476,9 @@ queue*(cox_overload_damage, 1)(sub($left, 1), 0);
+ [opheld1,raids_vial_prayer_weak_1] @prayer_enhance_t1;
+ 
+ [label,prayer_enhance_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -460,9 +487,8 @@ $next, $left = ~prayer_enhance_dose_step_t1(last_item);
+ settimer(prayer_enhance_tick, ^cox_prayer_enhance_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your prayer enhance.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,prayer_enhance_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -478,6 +504,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_prayer_1] @prayer_enhance_t2;
+ 
+ [label,prayer_enhance_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -486,9 +515,8 @@ $next, $left = ~prayer_enhance_dose_step_t2(last_item);
+ settimer(prayer_enhance_tick, ^cox_prayer_enhance_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your prayer enhance.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,prayer_enhance_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -504,6 +532,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_prayer_strong_1] @prayer_enhance_t3;
+ 
+ [label,prayer_enhance_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -512,9 +543,8 @@ $next, $left = ~prayer_enhance_dose_step_t3(last_item);
+ settimer(prayer_enhance_tick, ^cox_prayer_enhance_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your prayer enhance.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,prayer_enhance_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -538,6 +568,9 @@ stat_heal(prayer, 1, 0);
+ [opheld1,raids_vial_revitalisation_weak_1] @revitalisation_t1;
+ 
+ [label,revitalisation_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -552,9 +585,8 @@ stat_heal(magic, 8, 25);
+ stat_heal(prayer, 8, 25);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your revitalisation potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,revitalisation_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -570,6 +602,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_revitalisation_1] @revitalisation_t2;
+ 
+ [label,revitalisation_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -584,9 +619,8 @@ stat_heal(magic, 10, 30);
+ stat_heal(prayer, 10, 30);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your revitalisation potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,revitalisation_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -602,6 +636,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_revitalisation_strong_1] @revitalisation_t3;
+ 
+ [label,revitalisation_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -616,9 +653,8 @@ stat_heal(magic, 12, 35);
+ stat_heal(prayer, 12, 35);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your revitalisation potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,revitalisation_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -634,6 +670,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_xericaid_weak_1] @xerics_aid_t1;
+ 
+ [label,xerics_aid_t1]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -651,9 +690,8 @@ stat_drain(magic, 2, 9);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of Xeric's aid.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,xerics_aid_dose_step_t1](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -669,6 +707,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_xericaid_1] @xerics_aid_t2;
+ 
+ [label,xerics_aid_t2]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -686,9 +727,8 @@ stat_drain(magic, 2, 9);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of Xeric's aid.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,xerics_aid_dose_step_t2](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -704,6 +744,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_xericaid_strong_1] @xerics_aid_t3;
+ 
+ [label,xerics_aid_t3]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -721,9 +764,8 @@ stat_drain(magic, 2, 9);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of Xeric's aid.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,xerics_aid_dose_step_t3](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -755,6 +797,9 @@ return(raids_vial_empty, 0);
+ [opheld1,raids_vial_antipoison_strong_1] @cox_antipoison;
+ 
+ [label,cox_antipoison]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ def_obj $next;
+@@ -769,9 +814,8 @@ def_int $immunity = ~cox_antipoison_immunity($consumable);
+ ~set_poison_timer;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your antipoison potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,cox_antipoison_immunity](obj $dose)(int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/deadman_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/deadman_potion.rs2
+index 005306a421..9e9ddfa6f6 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/deadman_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/deadman_potion.rs2
+@@ -14,6 +14,9 @@
+ [opheld1,1dosecombat_deadman_starter] @consume_effect_deadman_combat_potion;
+ 
+ [label,consume_effect_deadman_combat_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -23,9 +26,8 @@ stat_boost(strength, 3, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your combat potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,deadman_combat_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -49,6 +51,9 @@ return(vial_empty, 0);
+ [opheld1,deadman1doseoverload] @consume_effect_blighted_overload;
+ 
+ [label,consume_effect_blighted_overload]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (~wilderness_level(coord) <= 0) {
+     mes("You can only drink this in dangerous areas.");
+     return;
+@@ -63,9 +68,8 @@ queue*(blighted_overload_damage, 0)(^blighted_overload_hits, 0);
+ settimer(blighted_overload_reapply, ^blighted_overload_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your blighted overload potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,blighted_overload_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/defence_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/defence_potion.rs2
+index 4100feb442..663bc5e7b5 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/defence_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/defence_potion.rs2
+@@ -26,6 +26,9 @@
+ @consume_effect_super_defence_potion;
+ 
+ [label,consume_effect_defence_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_boost(defence, 3, 10);
+@@ -34,20 +37,21 @@ stat_boost(defence, 3, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~defence_potion_next_dose($consumable), 1);
+ mes("You drink some of your defence potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~defence_potion_doses_left(~defence_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [label,consume_effect_super_defence_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_boost(defence, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~defence_potion_next_dose($consumable), 1);
+ mes("You drink some of your super defence potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~defence_potion_doses_left(~defence_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,defence_potion_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/divine_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/divine_potion.rs2
+index b1e481c675..e57efc28c3 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/divine_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/divine_potion.rs2
+@@ -52,6 +52,9 @@
+ 
+ // wiki Divine_super_attack_potion: Attack +5 +15% (super tier)
+ [label,consume_effect_divine_attack]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (stat(hitpoints) < 11) {
+     mes("You need at least 11 Hitpoints to drink that.");
+     return;
+@@ -75,9 +78,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_potion_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine super attack potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_attack_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -89,6 +91,9 @@ return(vial_empty, 0);
+ 
+ // wiki Divine_super_strength_potion: Strength +5 +15% (super tier)
+ [label,consume_effect_divine_strength]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (stat(hitpoints) < 11) {
+     mes("You need at least 11 Hitpoints to drink that.");
+     return;
+@@ -108,9 +113,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_potion_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine super strength potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_strength_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -122,6 +126,9 @@ return(vial_empty, 0);
+ 
+ // wiki Divine_super_defence_potion: Defence +5 +15% (super tier)
+ [label,consume_effect_divine_defence]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (stat(hitpoints) < 11) {
+     mes("You need at least 11 Hitpoints to drink that.");
+     return;
+@@ -141,9 +148,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_potion_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine super defence potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_defence_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -155,6 +161,9 @@ return(vial_empty, 0);
+ 
+ // wiki Divine_magic_potion: Magic +4 flat
+ [label,consume_effect_divine_magic]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (stat(hitpoints) < 11) {
+     mes("You need at least 11 Hitpoints to drink that.");
+     return;
+@@ -174,9 +183,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_potion_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine magic potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_magic_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -189,6 +197,9 @@ return(vial_empty, 0);
+ // wiki Divine_battlemage_potion: Magic +4 flat, Defence +5 +15% — divine
+ // magic's boost and divine super defence's boost together (see header).
+ [label,consume_effect_divine_battlemage]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (stat(hitpoints) < 11) {
+     mes("You need at least 11 Hitpoints to drink that.");
+     return;
+@@ -209,9 +220,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_potion_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine battlemage potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_battlemage_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/energy_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/energy_potion.rs2
+index 6e3b6ce876..e67ee0c4d3 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/energy_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/energy_potion.rs2
+@@ -29,6 +29,9 @@
+ [opheld1,1dose1energy] @consume_effect_energy;
+ 
+ [label,consume_effect_energy]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -37,9 +40,8 @@ $next, $left = ~energy_dose_step(last_item);
+ healenergy(1000);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your energy potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,energy_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -59,6 +61,9 @@ return(vial_empty, 0);
+ [opheld1,1dose2energy] @consume_effect_super_energy;
+ 
+ [label,consume_effect_super_energy]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -66,9 +71,8 @@ $next, $left = ~super_energy_dose_step(last_item);
+ healenergy(2000);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your super energy potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,super_energy_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -89,6 +93,9 @@ return(vial_empty, 0);
+ [opheld1,1dose3energy] @consume_effect_extreme_energy;
+ 
+ [label,consume_effect_extreme_energy]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -96,9 +103,8 @@ $next, $left = ~extreme_energy_dose_step(last_item);
+ healenergy(4000);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your extreme energy potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,extreme_energy_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -124,6 +130,9 @@ return(vial_empty, 0);
+ [opheld1,1dose2stamina] @consume_effect_extended_stamina;
+ 
+ [label,consume_effect_extended_stamina]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -134,9 +143,8 @@ $next, $left = ~extended_stamina_dose_step(last_item);
+ ~stamina_apply(^extended_stamina_energy_restore, ^extended_stamina_duration_ticks);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your extended stamina potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,extended_stamina_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/god_brew.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/god_brew.rs2
+index 686012feaf..24c45c2eba 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/god_brew.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/god_brew.rs2
+@@ -33,6 +33,9 @@
+ [opheld1,1dosepotionofzamorak] @consume_effect_zamorak_brew;
+ 
+ [label,consume_effect_zamorak_brew]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -47,9 +50,8 @@ stat_drain(hitpoints, 2, 10);
+ stat_heal(prayer, 0, 10);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Zamorak brew.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,zamorak_brew_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -70,6 +72,9 @@ return(vial_empty, 0);
+ [opheld1,1doseancientbrew] @consume_effect_ancient_brew;
+ 
+ [label,consume_effect_ancient_brew]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -82,9 +87,8 @@ stat_drain(defence, 2, 10);
+ stat_heal(prayer, 2, 10);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your ancient brew.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,ancient_brew_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -106,6 +110,9 @@ return(vial_empty, 0);
+ [opheld1,1doseforgottenbrew] @consume_effect_forgotten_brew;
+ 
+ [label,consume_effect_forgotten_brew]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -118,9 +125,8 @@ stat_drain(defence, 2, 10);
+ stat_heal(prayer, 2, 10);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your forgotten brew.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,forgotten_brew_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -143,6 +149,9 @@ return(vial_empty, 0);
+ [opheld1,1dosearmadylbrew] @consume_effect_armadyl_brew;
+ 
+ [label,consume_effect_armadyl_brew]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -156,9 +165,8 @@ stat_drain(magic, 2, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Armadyl brew.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,armadyl_brew_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/hunter_meat.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/hunter_meat.rs2
+index 5931f4dd0a..8b779c1fda 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/hunter_meat.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/hunter_meat.rs2
+@@ -22,6 +22,9 @@
+ [opheld1,antelopemoon_cooked] @eat_hunter_meat(last_slot, last_item);
+ 
+ [label,eat_hunter_meat](int $slot, obj $meat)
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ def_int $initial;
+ def_int $secondary;
+ def_int $effect;
+@@ -35,8 +38,7 @@ stat_heal(hitpoints, $initial, 0);
+ %varp6679_hunter_meat_secondary_effect = $effect;
+ cleartimer(hunter_meat_secondary);
+ settimer(hunter_meat_secondary, 7);
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+ 
+ // 0 = no extra effect, 1 = restore run energy, 2 = poison/venom treatment.
+ [proc,hunter_meat_data](obj $meat)(int, int, int)
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/hunter_mix.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/hunter_mix.rs2
+index 0a0a67451c..4f38bce8db 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/hunter_mix.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/hunter_mix.rs2
+@@ -37,6 +37,9 @@
+ [opheld1,hunter_mix_moonmoth_1dose] @consume_effect_hunter_mix;
+ 
+ [label,consume_effect_hunter_mix]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ def_obj $next;
+@@ -69,13 +72,12 @@ switch_obj($consumable) {
+ }
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of the mixture.");
+-p_delay(1);
++~consume_potion_taken;
+ if ($next = vial_empty) {
+     mes("You have finished your potion.");
+ } else {
+     mes("You have 1 dose of potion left.");
+ }
+-p_stopaction;
+ 
+ [proc,hunter_mix_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/inferno_potions.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/inferno_potions.rs2
+index 69f6ad1acf..eb761cbec9 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/inferno_potions.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/inferno_potions.rs2
+@@ -48,6 +48,9 @@
+ [opheld1,1dosebastion] @consume_effect_bastion;
+ 
+ [label,consume_effect_bastion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -59,9 +62,8 @@ stat_boost(defence, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your bastion potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,bastion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -82,6 +84,9 @@ return(vial_empty, 0);
+ [opheld1,1dosedivinebastion] @consume_effect_divine_bastion;
+ 
+ [label,consume_effect_divine_bastion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ // "A minimum of 11 HP is required to survive consumption" — the wiki states it
+ // as a requirement, so this refuses rather than killing the drinker.
+ if (stat(hitpoints) < 11) {
+@@ -101,9 +106,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine bastion potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_bastion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -124,6 +128,9 @@ return(vial_empty, 0);
+ [opheld1,1dosedivinerange] @consume_effect_divine_ranging;
+ 
+ [label,consume_effect_divine_ranging]
++if (~consume_potion_ready = false) {
++    return;
++}
+ if (stat(hitpoints) < 11) {
+     mes("You need at least 11 Hitpoints to drink that.");
+     return;
+@@ -141,9 +148,8 @@ damage(uid, hitsplat_damage, 10);
+ settimer(divine_hold, ^divine_hold_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your divine ranging potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,divine_ranging_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -180,6 +186,9 @@ if (%varp6218_divine_hold_defence = 1) {
+ [opheld1,1dosestamina] @consume_effect_stamina;
+ 
+ [label,consume_effect_stamina]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -198,9 +207,8 @@ if (~ring_of_endurance_consume = true) {
+ ~stamina_apply($energy_restore, $duration_ticks);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your stamina potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ // Shared by the stamina and extended stamina ladders here, by the barbarian
+ // stamina mix, and by the Castlewars brew — every one of them restores some run
+@@ -251,6 +259,9 @@ if (%varp6221_stamina_ticks_left <= 0) {
+ [opheld1,1dose1prayer_regeneration] @consume_effect_prayer_regen;
+ 
+ [label,consume_effect_prayer_regen]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -259,9 +270,8 @@ $next, $left = ~prayer_regen_dose_step(last_item);
+ settimer(prayer_regen, ^prayer_regen_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your prayer regeneration potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,prayer_regen_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/kebab.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/kebab.rs2
+index 28cb6b7b84..9bf150ea94 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/kebab.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/kebab.rs2
+@@ -23,6 +23,9 @@ if (%varb822_forget_quest = ^forget_eat_kebab) {
+ @consume_effect_kebab;
+ 
+ [label,consume_effect_kebab]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ mes("You eat the kebab.");
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+@@ -59,5 +62,4 @@ if ($random < 1) {
+ } else {
+     mes("The kebab didn't seem to do a lot.");
+ }
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/magic_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/magic_potion.rs2
+index c84326e131..c32fba2f01 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/magic_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/magic_potion.rs2
+@@ -15,6 +15,9 @@
+ @consume_effect_magic_potion;
+ 
+ [label,consume_effect_magic_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_boost(magic, 4, 0);
+@@ -23,9 +26,8 @@ stat_boost(magic, 4, 0);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~magic_potion_next_dose($consumable), 1);
+ mes("You drink some of your magic potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~magic_potion_doses_left(~magic_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,magic_potion_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/misc_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/misc_potion.rs2
+index 47fcab0c0a..88c2193cdd 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/misc_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/misc_potion.rs2
+@@ -31,6 +31,9 @@
+ [opheld1,cup_guthix_rest_1] @consume_effect_guthix_rest;
+ 
+ [label,consume_effect_guthix_rest]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -41,9 +44,8 @@ stat_boost(hitpoints, 5, 0);
+ healenergy(500);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Guthix rest.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,guthix_rest_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -64,6 +66,9 @@ return(vial_empty, 0);
+ [opheld1,relicyms_balm1] @consume_effect_relicyms_balm;
+ 
+ [label,consume_effect_relicyms_balm]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -71,9 +76,8 @@ $next, $left = ~relicyms_balm_dose_step(last_item);
+ ~cure_disease;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Relicym's balm.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,relicyms_balm_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -112,15 +116,17 @@ return(vial_empty, 0);
+ [opheld1,mort_serum1] @consume_effect_serum_207;
+ 
+ [label,consume_effect_serum_207]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+ $next, $left = ~serum_207_dose_step(last_item);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of Herbi Flax's serum 207.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,serum_207_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -147,6 +153,9 @@ return(vial_empty, 0);
+ [opheld1,1dosegoading] @consume_effect_goading;
+ 
+ [label,consume_effect_goading]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -154,9 +163,8 @@ $next, $left = ~goading_dose_step(last_item);
+ mes("You drink some of your goading potion.");
+ mes("You feel like picking a fight.");
+ inv_setslot(inv, last_slot, $next, 1);
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,goading_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -178,6 +186,9 @@ return(vial_empty, 0);
+ [opheld1,1dosesurge] @consume_effect_surge;
+ 
+ [label,consume_effect_surge]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -185,9 +196,8 @@ $next, $left = ~surge_dose_step(last_item);
+ ~sa_restore(25);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your surge potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,surge_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -207,6 +217,9 @@ return(vial_empty, 0);
+ [opheld1,1dosemagicess] @consume_effect_magic_essence;
+ 
+ [label,consume_effect_magic_essence]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -215,9 +228,8 @@ stat_boost(magic, 3, 0);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your magic essence.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,magic_essence_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -239,6 +251,9 @@ return(vial_empty, 0);
+ [opheld1,1dosebattlemage] @consume_effect_battlemage;
+ 
+ [label,consume_effect_battlemage]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -248,9 +263,8 @@ stat_boost(defence, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your battlemage potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,battlemage_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/poison_karambwan.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/poison_karambwan.rs2
+index 67e2cb81d8..caf76a1f27 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/poison_karambwan.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/poison_karambwan.rs2
+@@ -13,17 +13,24 @@
+ @consume_effect_mort_slimey_eel_cooked;
+ 
+ [label,consume_effect_poisonbwan]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+ if (stat(hitpoints) > 5) {
+     damage(uid, hitsplat_poison, 5);
+ }
+ mes("You eat the Karambwan.");
+-p_delay(2);
+ mes("It tastes ... painful.");
+-p_stopaction;
++// Was `p_delay(2)` between the two lines: an eat never parks the player
++// (consume_shared.rs2), so both lines land on the eating tick.
++~consume_food_taken(^eat_delay, 3, false);
+ 
+ [label,consume_effect_mort_slimey_eel_cooked]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ // OSRS wiki: "slimy" spelling lands later; keep LC "slimey" message.
+ mes("You eat the cooked slimey eel - ummm, slimey!");
+ anim(human_eat, 0);
+@@ -34,5 +41,4 @@ if (stat(hitpoints) < stat_base(hitpoints)) {
+     mes("It heals some health.");
+ }
+ ~wint_food_warmth($heal);
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/prayer_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/prayer_potion.rs2
+index fdeffa202a..360e0fbade 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/prayer_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/prayer_potion.rs2
+@@ -29,24 +29,28 @@
+ @consume_effect_super_restore;
+ 
+ [label,consume_effect_prayer_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_heal(prayer, 7, 25);
+ inv_setslot(inv, last_slot, ~prayer_potion_next_dose($consumable), 1);
+ mes("You drink some of your prayer potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~prayer_potion_doses_left(~prayer_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [label,consume_effect_super_restore]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ ~super_restore_effect;
+ inv_setslot(inv, last_slot, ~super_restore_next_dose($consumable), 1);
+ mes("You drink some of your restore potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~super_restore_doses_left(~super_restore_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,prayer_potion_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/ranging_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/ranging_potion.rs2
+index f4154ab69f..95593aa04f 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/ranging_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/ranging_potion.rs2
+@@ -15,6 +15,9 @@
+ @consume_effect_ranging_potion;
+ 
+ [label,consume_effect_ranging_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ // Wiki Ranging potion: Ranged +3 + 10% of level.
+@@ -24,9 +27,8 @@ stat_boost(ranged, 3, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~ranging_potion_next_dose($consumable), 1);
+ mes("You drink some of your ranging potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~ranging_potion_doses_left(~ranging_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,ranging_potion_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/restore_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/restore_potion.rs2
+index d180b15303..5019bb5eb5 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/restore_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/restore_potion.rs2
+@@ -33,6 +33,9 @@
+ [opheld1,1dosestatrestore] @consume_effect_restore_potion;
+ 
+ [label,consume_effect_restore_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -45,9 +48,8 @@ stat_heal(magic, 10, 30);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your restore potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,restore_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -67,6 +69,9 @@ return(vial_empty, 0);
+ [opheld1,sanfew_salve_1_dose] @consume_effect_sanfew_serum;
+ 
+ [label,consume_effect_sanfew_serum]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -90,9 +95,8 @@ stat_heal(magic, 4, 30);
+ ~cure_disease;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Sanfew serum.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,sanfew_serum_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -116,6 +120,9 @@ return(vial_empty, 0);
+ [opheld1,1dosestatrenewal] @consume_effect_menaphite_remedy;
+ 
+ [label,consume_effect_menaphite_remedy]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -124,9 +131,8 @@ $next, $left = ~menaphite_remedy_dose_step(last_item);
+ settimer(menaphite_remedy, ^menaphite_remedy_interval);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your Menaphite remedy.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,menaphite_remedy_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/sara_brew.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/sara_brew.rs2
+index 981bbd90f8..9939d2af73 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/sara_brew.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/sara_brew.rs2
+@@ -19,6 +19,9 @@
+ @consume_effect_sara_brew;
+ 
+ [label,consume_effect_sara_brew]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_boost(hitpoints, 2, 15);
+@@ -32,9 +35,8 @@ stat_drain(ranged, 2, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~sara_brew_next_dose($consumable), 1);
+ mes("You drink some of the foul liquid.");
+-p_delay(1);
++~consume_potion_taken;
+ ~sara_brew_doses_left(~sara_brew_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,sara_brew_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/skill_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/skill_potion.rs2
+index 3d0d4dc1ec..4cf7faa51e 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/skill_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/skill_potion.rs2
+@@ -22,6 +22,9 @@
+ [opheld1,1dose1agility] @consume_effect_agility;
+ 
+ [label,consume_effect_agility]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -29,9 +32,8 @@ $next, $left = ~agility_potion_dose_step(last_item);
+ stat_boost(agility, 3, 0);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your agility potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,agility_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -51,6 +53,9 @@ return(vial_empty, 0);
+ [opheld1,1dosefisherspotion] @consume_effect_fishing;
+ 
+ [label,consume_effect_fishing]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -58,9 +63,8 @@ $next, $left = ~fishing_potion_dose_step(last_item);
+ stat_boost(fishing, 3, 0);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your fishing potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,fishing_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -80,6 +84,9 @@ return(vial_empty, 0);
+ [opheld1,1dosehunting] @consume_effect_hunter;
+ 
+ [label,consume_effect_hunter]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -87,9 +94,8 @@ $next, $left = ~hunter_potion_dose_step(last_item);
+ stat_boost(hunter, 3, 0);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your hunter potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,hunter_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -109,6 +115,9 @@ return(vial_empty, 0);
+ [opheld1,1dose2fisherspotion] @consume_effect_super_fishing;
+ 
+ [label,consume_effect_super_fishing]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -116,9 +125,8 @@ $next, $left = ~super_fishing_potion_dose_step(last_item);
+ stat_boost(fishing, 6, 0);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your super fishing potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,super_fishing_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -138,6 +146,9 @@ return(vial_empty, 0);
+ [opheld1,1dose2hunting] @consume_effect_super_hunter;
+ 
+ [label,consume_effect_super_hunter]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -145,9 +156,8 @@ $next, $left = ~super_hunter_potion_dose_step(last_item);
+ stat_boost(hunter, 6, 0);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your super hunter potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,super_hunter_potion_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/snail.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/snail.rs2
+index 5a7136824d..ca9f77449a 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/snail.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/snail.rs2
+@@ -16,6 +16,9 @@
+ @consume_snail(7, 9);
+ 
+ [label,consume_snail](int $low, int $high)
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ mes("You eat the cooked snail - ummm, slimey!");
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+@@ -25,5 +28,4 @@ if (stat(hitpoints) < stat_base(hitpoints)) {
+     mes("It heals some health.");
+ }
+ ~wint_food_warmth($heal);
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/strange_fruit.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/strange_fruit.rs2
+index 4d2ebcb5b9..66161efc76 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/strange_fruit.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/strange_fruit.rs2
+@@ -10,11 +10,13 @@
+ @consume_effect_strange_fruit;
+ 
+ [label,consume_effect_strange_fruit]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+ healenergy(3000);
+ %varp102_poison = min(%varp102_poison, -1);
+ ~set_poison_timer;
+ mes("You eat the Strange fruit.");
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/strength_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/strength_potion.rs2
+index f6be9e16f5..bb56c71421 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/strength_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/strength_potion.rs2
+@@ -27,6 +27,9 @@
+ @consume_effect_super_strength_potion;
+ 
+ [label,consume_effect_strength_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_boost(strength, 3, 10);
+@@ -36,20 +39,21 @@ stat_boost(strength, 3, 10);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~strength_potion_next_dose($consumable), 1);
+ mes("You drink some of your strength potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~strength_potion_doses_left(~strength_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [label,consume_effect_super_strength_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $consumable = last_item;
+ stat_boost(strength, 5, 15);
+ ~player_combat_stat;
+ inv_setslot(inv, last_slot, ~strength_potion_next_dose($consumable), 1);
+ mes("You drink some of your super strength potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~strength_potion_doses_left(~strength_potion_next_dose($consumable));
+-p_stopaction;
+ 
+ [proc,strength_potion_next_dose](obj $dose)(obj)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/ugthanki_kebab_bad.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/ugthanki_kebab_bad.rs2
+index 5ef7498a84..a100087c88 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/ugthanki_kebab_bad.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/ugthanki_kebab_bad.rs2
+@@ -10,6 +10,9 @@
+ @consume_effect_ugthanki_kebab_bad;
+ 
+ [label,consume_effect_ugthanki_kebab_bad]
++if (~consume_food_ready(false) = false) {
++    return;
++}
+ mes("You eat the ugthanki kebab.");
+ anim(human_eat, 0);
+ inv_delslot(inv, last_slot);
+@@ -19,5 +22,4 @@ if (random(32) > 1 & stat(hitpoints) < stat_base(hitpoints)) {
+     stat_heal(hitpoints, 9, 0);
+     ~wint_food_warmth(9);
+ }
+-p_stopaction;
+-p_delay(^eat_delay);
++~consume_food_taken(^eat_delay, 3, false);
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/varlamore_potion.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/varlamore_potion.rs2
+index dbfd607701..db1ab3f3ae 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/varlamore_potion.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/varlamore_potion.rs2
+@@ -26,6 +26,9 @@
+ [opheld1,1dosemoonlightpotion] @consume_effect_moonlight_potion;
+ 
+ [label,consume_effect_moonlight_potion]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -55,9 +58,8 @@ if ($herblore < 66) {
+ ~moonlight_potion_restore_prayer($herblore);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your moonlight potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ // max(Prayer/4 + 7, Herblore*3/10 + 7), and nothing below 38 Herblore. Written
+ // as one `stat_heal` of a computed flat amount rather than two percentage
+@@ -101,6 +103,9 @@ return(vial_empty, 0);
+ [opheld1,1dosehaemostaticdressing] @consume_effect_haemostatic_dressing;
+ 
+ [label,consume_effect_haemostatic_dressing]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -109,9 +114,8 @@ $next, $left = ~haemostatic_dressing_dose_step(last_item);
+ // `stat_boost(hitpoints, 5, 0)` only when this dose is what stopped it.
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You apply the dressing, but you are not bleeding.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,haemostatic_dressing_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/venom_cure.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/venom_cure.rs2
+index 421194bef8..fd2aecd155 100644
+--- a/osrs239-content/server/scripts/player/scripts/consumption/venom_cure.rs2
++++ b/osrs239-content/server/scripts/player/scripts/consumption/venom_cure.rs2
+@@ -44,6 +44,9 @@
+ [opheld1,antidote+1] @consume_effect_antidote_plus;
+ 
+ [label,consume_effect_antidote_plus]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -53,9 +56,8 @@ $next, $left = ~antidote_plus_dose_step(last_item);
+ ~set_poison_timer;
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your antidote+.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,antidote_plus_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -87,6 +89,9 @@ return(vial_empty, 0);
+ [opheld1,antidote++1] @consume_effect_antidote_plusplus;
+ 
+ [label,consume_effect_antidote_plusplus]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -95,9 +100,8 @@ $next, $left = ~antidote_plusplus_dose_step(last_item);
+ ~cure_venom_with_immunity(60);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your antidote++.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,antidote_plusplus_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -117,6 +121,9 @@ return(vial_empty, 0);
+ [opheld1,antivenom1] @consume_effect_antivenom;
+ 
+ [label,consume_effect_antivenom]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -125,9 +132,8 @@ $next, $left = ~antivenom_dose_step(last_item);
+ ~cure_venom_with_immunity(0);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your anti-venom potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,antivenom_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -148,6 +154,9 @@ return(vial_empty, 0);
+ [opheld1,antivenom+1] @consume_effect_antivenom_plus;
+ 
+ [label,consume_effect_antivenom_plus]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -156,9 +165,8 @@ $next, $left = ~antivenom_plus_dose_step(last_item);
+ ~cure_venom_with_immunity(300);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your anti-venom+ potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,antivenom_plus_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+@@ -179,6 +187,9 @@ return(vial_empty, 0);
+ [opheld1,extended_antivenom+1] @consume_effect_extended_antivenom_plus;
+ 
+ [label,consume_effect_extended_antivenom_plus]
++if (~consume_potion_ready = false) {
++    return;
++}
+ anim(human_eat, 0);
+ def_obj $next;
+ def_int $left;
+@@ -187,9 +198,8 @@ $next, $left = ~extended_antivenom_plus_dose_step(last_item);
+ ~cure_venom_with_immunity(600);
+ inv_setslot(inv, last_slot, $next, 1);
+ mes("You drink some of your extended anti-venom+ potion.");
+-p_delay(1);
++~consume_potion_taken;
+ ~potion_doses_message($left);
+-p_stopaction;
+ 
+ [proc,extended_antivenom_plus_dose_step](obj $dose)(obj, int)
+ switch_obj($dose) {
+diff --git a/osrs239-content/server/scripts/player/scripts/consumption/consume_shared.rs2 b/osrs239-content/server/scripts/player/scripts/consumption/consume_shared.rs2
+new file mode 100644
+index 0000000000..7e362a2199
+--- /dev/null
++++ b/osrs239-content/server/scripts/player/scripts/consumption/consume_shared.rs2
+@@ -0,0 +1,171 @@
++// The consume timers every food, potion and mix shares.
++//
++// An eat or a drink is a set of clocks and never a park: no consume script
++// `p_delay`s. Anything queued on the player -- every scripted npc hit rides
++// `queue(combat_damage_player, ...)`, and the engine drains no queue while
++// the player is delayed (torirs_server_scripts.c drain_queue /
++// player_can_access) -- therefore lands on its own tick while the player
++// eats. This tree used to `p_delay(^eat_delay)` after every bite and
++// `p_delay(1)` after every sip, which held every queued hit for the park
++// (measured on waves seam pass 3's HEAD, build/quest_gate/eat3_before: a
++// young dark wizard's spell cast on 36 landed on 38 and one cast on 52 on 55,
++// against +1 for every uneaten cast). OldSchool has no such park: "Tick-eating
++// is the act of eating a piece of food between the time a monster's attack
++// calculates its damage and when it hits the player" (wiki Tick eating), and
++// "A player can combo eat by clicking a regular food and then a combo food
++// later in the same tick; both items will be consumed and apply their healing
++// in one game tick" (wiki Food/Fast foods), which a parked player could not do.
++//
++// The numbers. Every quote is from a page pinned under
++// docs/minigames/inferno/sources/wiki/ on 2026-10-03 (rows in
++// docs/minigames/inferno/sources/LEDGER_wiki.md):
++//
++//   - food (Food/Fast foods, revid 15360001): "Standard food, when eaten, adds
++//     a 3 tick penalty to when a player may eat again." Encoded as a clock:
++//     the timer holds the last map_clock on which the next bite is still
++//     refused, so `^eat_delay` = 2 is a 3-tick gap.
++//   - attack (same page): "If the player has attacked recently and is
++//     currently waiting on a weapon delay to attack again, this also adds a
++//     3 tick delay before that attack." "Foods only add to an existing attack
++//     delay between weapon attacks. If your weapon is ready to attack again
++//     then eating does not add any new delay." Karambwan and halibut "have a
++//     2 tick attack delay"; stacked: "eating a shark with a karambwan results
++//     in a 3 + 2 = 5 tick attack delay". The weapon delay is
++//     `%varp5732_action_delay`, the clock `[label,player_melee_attack]` waits
++//     on (skill_combat/combat.rs2).
++//   - combo food (Food/Fast foods; Cooked karambwan, revid 15358532): "combo
++//     foods do not respect the eat delay incurred by other foods"; a karambwan
++//     after another food works, "this does not work if the karambwan is eaten
++//     first, and does not work when eating two karambwan in a row." So a combo
++//     food checks its own timer, not the food timer, and sets both.
++//   - potions (Potions, revid 15351958): "drinking a non-barbarian potion will
++//     delay your next potion consumption by 3 ticks (1.8 seconds). Notably,
++//     food and potions do not share the same timer ... Note that drinking
++//     barbarian mixes use the same timer that eating food does." (Food/Fast
++//     foods): "Potions do not incur the standard 3 tick (1.8 second) attack or
++//     eat delay."
++//
++// And no consume `p_stopaction`s any more. Every one of these scripts ended in
++// one, which cleared the player's target and step queue: the eater stopped
++// fighting, and an Attack pressed with a drink was wiped (measured,
++// eat3_before: an Attack pressed with a sip from idle never swung). The wiki's
++// eat delay is a delay "before that attack" -- the fight goes on through the
++// eat, which is how "players utilising these faster foods can expect an
++// additional attack for every 4 food consumed" (Food/Fast foods). This
++// engine's OPHELD clears nothing (torirs_server_world.c), so dropping the
++// content call is the whole change.
++//
++// Each kind is two calls: a READY test at the top of the consume script, before
++// anything is spent, and a TAKEN call where the effect lands (where the old
++// p_delay was). The split keeps a refusal that the script itself makes (an
++// overload refused below 51 hitpoints, an NMZ potion outside a dream) from
++// spending the timer -- nothing suspends between the two calls, so they are
++// one tick's work either way.
++
++// ---------------------------------------------------------------- food
++[proc,consume_food_ready](boolean $combo)(boolean)
++if ($combo = true) {
++    if (%varp7223_consume_combo_delay >= map_clock) {
++        return(false);
++    }
++    return(true);
++}
++if (%varp7224_consume_food_delay >= map_clock) {
++    return(false);
++}
++return(true);
++
++// `$eat_delay` in the clock encoding above (2 = the standard 3-tick gap; a
++// pie's first bite passes 0, a 1-tick gap). `$attack_delay` is the ticks added to a
++// weapon delay that is still running: 3 for standard food, 2 for combo food.
++[proc,consume_food_taken](int $eat_delay, int $attack_delay, boolean $combo)
++%varp7224_consume_food_delay = calc(map_clock + $eat_delay);
++if ($combo = true) {
++    %varp7223_consume_combo_delay = calc(map_clock + $eat_delay);
++}
++~consume_attack_delay($attack_delay);
++
++// The OldSchool combo foods this tree can eat through general/scripts/food.rs2
++// (wiki Template:Fast_foods_table: attack delay 2, eat delay 3, combo yes).
++[proc,consume_combo_food](obj $food)(boolean)
++if ($food = tbwt_cooked_karambwan | $food = halibut) {
++    return(true);
++}
++return(false);
++
++// ---------------------------------------------------------------- attack
++[proc,consume_attack_delay](int $ticks)
++if ($ticks > 0 & %varp5732_action_delay > map_clock) {
++    %varp5732_action_delay = add(%varp5732_action_delay, $ticks);
++}
++
++// ---------------------------------------------------------------- potions
++[proc,consume_potion_ready]()(boolean)
++if (%varp7225_consume_potion_delay >= map_clock) {
++    return(false);
++}
++return(true);
++
++// The 3-tick potion gap, in the same encoding as `^eat_delay`. No attack delay.
++[proc,consume_potion_taken]
++%varp7225_consume_potion_delay = calc(map_clock + 2);
++
++// ---------------------------------------------------------------- test affordances
++// A test drives an eat through the backpack (t.player.inv_op), and that verb
++// settles for three ticks, so no test can press twice inside one food delay.
++// These two are the readouts that let a test see the clocks anyway. Neither
++// eats, drinks or attacks.
++
++// `::eatdelay` -- the three consume timers and the weapon delay, each as
++// "refused through tick N" against the current map_clock.
++[debugproc,eatdelay]
++mes("eatdelay: clock <tostring(map_clock)> food <tostring(%varp7224_consume_food_delay)> combo <tostring(%varp7223_consume_combo_delay)> potion <tostring(%varp7225_consume_potion_delay)> action <tostring(%varp5732_action_delay)>");
++
++// `::eatgate` -- the gate procs this file exports, run in one tick in the order
++// a combo eat runs them (food, a second food, a combo food, a second combo
++// food, a potion, a second potion; then the weapon delay ready and running),
++// each answer printed 1/0. Every clock is put back afterwards.
++[debugproc,eatgate]
++def_int $food = %varp7224_consume_food_delay;
++def_int $combo = %varp7223_consume_combo_delay;
++def_int $potion = %varp7225_consume_potion_delay;
++def_int $action = %varp5732_action_delay;
++%varp7224_consume_food_delay = 0;
++%varp7223_consume_combo_delay = 0;
++%varp7225_consume_potion_delay = 0;
++%varp5732_action_delay = 0;
++def_string $line = "eatgate:";
++$line = append($line, " food <tostring(~consume_bit(~consume_food_ready(false)))>");
++~consume_food_taken(^eat_delay, 3, false);
++$line = append($line, " food-after-food <tostring(~consume_bit(~consume_food_ready(false)))>");
++$line = append($line, " combo-after-food <tostring(~consume_bit(~consume_food_ready(true)))>");
++~consume_food_taken(^eat_delay, 2, true);
++$line = append($line, " combo-after-combo <tostring(~consume_bit(~consume_food_ready(true)))>");
++$line = append($line, " potion-after-food <tostring(~consume_bit(~consume_potion_ready))>");
++~consume_potion_taken;
++$line = append($line, " potion-after-potion <tostring(~consume_bit(~consume_potion_ready))>");
++// Two lines: one would pass the 199 characters a chat line renders (trap 27).
++mes($line);
++$line = "eatgate+:";
++$line = append($line, " food-refused-through +<tostring(sub(%varp7224_consume_food_delay, map_clock))>");
++$line = append($line, " potion-refused-through +<tostring(sub(%varp7225_consume_potion_delay, map_clock))>");
++// weapon ready (delay = now): an eat adds nothing
++%varp5732_action_delay = map_clock;
++~consume_attack_delay(3);
++$line = append($line, " attack-ready +<tostring(sub(%varp5732_action_delay, map_clock))>");
++// weapon running (2 ticks left): a shark then a karambwan add 3 + 2
++%varp5732_action_delay = add(map_clock, 2);
++~consume_attack_delay(3);
++~consume_attack_delay(2);
++$line = append($line, " attack-running-2 +<tostring(sub(%varp5732_action_delay, map_clock))>");
++%varp7224_consume_food_delay = $food;
++%varp7223_consume_combo_delay = $combo;
++%varp7225_consume_potion_delay = $potion;
++%varp5732_action_delay = $action;
++mes($line);
++
++[proc,consume_bit](boolean $b)(int)
++if ($b = true) {
++    return(1);
++}
++return(0);
+diff --git a/osrs239-content/server/scripts/player/configs/consumption/consume_delay.varp b/osrs239-content/server/scripts/player/configs/consumption/consume_delay.varp
+new file mode 100644
+index 0000000000..700af75d60
+--- /dev/null
++++ b/osrs239-content/server/scripts/player/configs/consumption/consume_delay.varp
+@@ -0,0 +1,28 @@
++// The three consume timers (player/scripts/consumption/consume_shared.rs2).
++//
++// Each holds the last map_clock on which the next consume of its kind is still
++// refused: a consume is refused while the timer >= map_clock, then sets it to
++// map_clock + its delay. `scope=temp` because a timer is not account state;
++// `transmit=no` because nothing client-side reads it. Three timers and not one,
++// because OldSchool keeps three: food, potions (wiki Potions: "food and
++// potions do not share the same timer") and combo food (wiki Cooked karambwan:
++// a karambwan "may be consumed after other foods without delay; this does not
++// work if the karambwan is eaten first, and does not work when eating two
++// karambwan in a row"). Pages pinned under docs/minigames/inferno/sources/wiki/.
++// Ids 7223-7225: the raid branch allocated the same names as 7218-7220, which
++// this branch's v3 already uses (docs/minigames/waves_loop/MERGE_CHECKLIST.md).
++
++[varp7223_consume_combo_delay]
++transmit=no
++scope=temp
++protect=no
++
++[varp7224_consume_food_delay]
++transmit=no
++scope=temp
++protect=no
++
++[varp7225_consume_potion_delay]
++transmit=no
++scope=temp
++protect=no

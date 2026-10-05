@@ -1,0 +1,266 @@
+{{Update|date=27 August 2025|url=https://secure.runescape.com/m=news/summer-sweep-up-slayer--more?oldschool=1|category=game}}
+[[File:Summer Sweep Up Slayer & More newspost.png|right]]
+{{clear}}
+__TOC__
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We’re aware of an issue where some Slayer tasks may be assigned without meeting the required unlocks or Slayer level.
+| Hotfixed.
+|-
+| We’re aware of an issue where Krystilia may incorrectly assign the King Black Dragon as a Slayer task.
+| Hotfixed.
+|-
+| Players are currently unable to complete the Morytania Easy Diary task ‘Get a Slayer task from Mazchna.
+| Hotfixed.
+|-
+| Players can be assigned Aviansie tasks without having unlocked 'Watch the Birdie'.
+| Hotfixed.
+|-
+| We’re aware of an issue where Black Dragons can be assigned in the Kourend Catacombs without the required 77 Slayer.
+| Hotfixed.
+|-
+| We’re aware of an issue where Commander Zilyana can be assigned without meeting the 70 Agility requirement.
+| Resolved.
+|-
+| We’re aware of an issue where some players are not getting Slayer XP after killing Jad.
+| Resolved.
+|-
+| We’re aware of an issue where Kuradal is not always offering Tzaar tasks, despite players having 'hot stuff' unlocked.
+| Resolved.
+|}
+''This week’s update continues the Summer Sweep Up, bringing long-awaited improvements to Slayer and Skilling.''
+
+==Changelog August 27th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Summer Sweep Up Slayer & More'''
+
+* Slayer point unlocks have been rebalanced! Slug Salter (80→10), Reptile Freezer (90→10), Ring Bling (300→150), Bigger and Badder (150→50).
+** Any previously purchased unlocks will be refunded automatically on login.
+* Each Slayer master now has their own individual block list for tasks.
+** Blocking a task prevents that specific master from assigning it again, without affecting other Slayer masters.
+** You'll get a warning if you attempt to block a task that the selected Slayer master does not assign.
+** Points for previously blocked tasks are automatically refunded upon login.
+** Shared block lists only apply to Turael, Aya and Spria; all other masters have unique block lists.
+** The cost of blocking a Slayer task varies by each master: Turael, Aya and Spria→40 pts, Mazchna/Achtryn→50, Vannaka→60, Chaeldar→70, Konar→80, Nieve/Steve→90, Duradel/Kuradal→100, Krystilia→100.
+* Bronze, Iron, Steel, Mithril, Adamant, and Runite dragon tasks are now combined into a single "Metal Dragons" Slayer task, with updated quantities and extensions.
+** The number of Kill requirements for tasks now starts low (between 30-50 dragons) but can be extended up to 150-200.
+** Any existing unlocks or extensions for old metal dragons are refunded on login, and your current task will automatically convert to the new Metal Dragons task.
+* Adjusted the drop rates for Lunar Keys from various PVM encounters in the Twilight Temple dungeon to make obtaining them feel fairer across all combat levels (See main body text for details).
+* The Rune Pouch can now be purchased from the Mage Training Arena for 150 Telekinetic, 150 Graveyard, 1500 Enchantment, and 200 Alchemist points.
+** You can only buy one if you don’t already own a Rune Pouch.
+* Lowered the cost of the Task Storage from slayer rewards from 1000 points → 500. For purchases made previously, 500 points will be refunded upon login.
+* The Granite hammer now has a 30% Golembane effect, dealing 30% extra damage and accuracy against all golem-type creatures. This includes Gargoyles and covers all phases of the Grotesque Guardians.
+* Selected Slayer creatures that previously dropped 1-2 noted herbs now drop unnoted herbs, allowing for the herb sack to be utilised more effectively.
+* Helmet of the Moon has been added to the Collection Log and will retroactively unlock for all eligible accounts.
+* Mark of Darkness now lasts 3 minutes by default.
+* Low-level Slayer master points have been buffed! Mazchna now awards 6 points per task (up from 2) and Vannaka 8 points (up from 4).
+** Milestone multipliers have also been updated to give slightly more points, without surpassing their higher-level masters; Mazchna: 10th task 30 pts, 50th 90 pts; Vannaka: 10th task 40 pts, 50th 120 pts.
+
+'''Permanent Deadman Changes'''
+
+* Added Hespori, Golden Tench, Royal Titans, and Yama uniques to the drop rate multiplier.
+* Unskulled players can now obtain Ancient Crystals from Revenants.
+* 1 Defence accounts can now complete King’s Ransom. A black Wizard Hat, black Priest Gown and black Priest Robe can be worn to bypass the knights in the Black Knights Fortress.
+* Deadman-specific items no longer appear on the main game Grand Exchange.
+* The following changes apply to both Permanent & Tournament Deadman:
+** Black and Green Dragons in the Wilderness now always drop double dragon bones.
+** Guarded areas are now properly defended, with wizards freezing skulled intruders for brief periods of time.
+** Scroll Cases can now be obtained.
+** Araxxor now awards Slayer XP on task.
+
+'''Other Changes'''
+
+* Slightly lowered the required contribution to receive 100% loot from the Royal Titans. Using other types of damage, such as poison or thralls, should no longer affect obtaining 100% loot quantities.
+* The Agility requirement for the Castle Drakan shortcut has been raised to 86, following player feedback that the previous level was set too low for the benefit offered with this master clue step.
+* You can now add potions to existing stacks in Potion Storage even if your bank is full.
+* Baby blue dragons in the Ruins of Tapoyauik now drop the baby dragon bone required for the Rag and Bone Man II Quest.
+* The Arkan blade’s special attack animation now matches between PvP and PvM.
+* The 'Guide' option on farming patches now opens the correct section of the Farming skill guide.
+* Recent bosses such as Amoxliatl, Araxxor, Whisperer, Leviathan, Vardorvis and others now contribute to the total Boss Kill Count in the Combat Achievements interface.
+* Dragon and Zamorak spear special attacks in Castle Wars now use their original shove mechanics, with chain-spearing disabled and no added freeze immunity outside the shove.
+* Bandages no longer overheal in games of Castlewars on Non-Castlewars themed worlds.
+* Updated bank action code. Now the "custom" menu entry that is enabled with the auto-charging setting now shows an additional menu, rather than swapping out an existing one.
+* Fixed a bug where Ent Trunks could continue attacking after their Wilderness Ent was killed with a Twinflame Staff.
+* Fixed a bug where Challenge Mode Chambers raid layouts could be rerolled by switching leaders or relogging.
+* Hueycoatl private instances now properly adjust for player counts when participants leave, preventing full instances that would require everyone to leave and start a new instance to continue.
+* Reagent pouch Fixes:
+** With the bank interface open, the pouch will now automatically show either a "Fill" or "Empty" option depending on your inventory. If you have ingredients that can be stored, it shows "Fill"; if there’s nothing to store, it shows "Empty". This change has also been applied to the Plank Sack.
+** The pouch now works correctly when making potions at bank chests or other non-standard banks (e.g. Emerald Benedict). Note, you must be standing within a 1 tile radius of the bank to see this effect; step away or close the pouch, and normal rules resume.
+** Secondary ingredients are now correctly handled when making Weapon Poison (+) and Weapon Poison (++). Previously, potion-making would stop if your inventory ran out of secondary ingredients, even if more were available inside the pouch. Ingredients inside the pouch are now used automatically.
+* Fixed the slayer master tips on fighting Kree'arra.
+* Tweaked the examine on the Fossil Island zipline.
+* Tidied up some misaligned curtains in Player-Owned Houses to better fit the new Canifis and Civitas wall kits.
+* "The 'Fill' and 'Check' options on a filled Bottomless Compost Bucket have now been separated, like they are on the empty version. This should make it a little more convenient to use.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Summer Sweep Up Slayer & More==
+Summer Sweep Up is here, bringing a wave of skilling and Slayer updates - let’s delve into everything we’ve been tinkering with!
+
+===Blocklists: Your Tasks, Your Rules===
+Ever wanted to tell a Slayer master, "Not today, sir!"? Well, now you can! Each Slayer master now has their own individual block list, putting the power in your hands to avoid those pesky, annoying tasks when you're just not feeling it.
+
+[[File:Summer Sweep Up Slayer & More (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-17/BlockInterface.png here]!'']]
+
+* Blocking a task from one Slayer master stops that master from giving it to you again - but other masters are still fair game.
+* Attempting to block a task that the Slayer master doesn’t assign will get you a polite little warning, instead of wasted points.
+* All your previously blocked tasks? Points are refunded automatically when you log in.
+* Sharing is caring, but only for Turael, Aya, and Spria. Everyone else gets their own unique lists and block prices:    
+** Turael/Aya and Spria: 40 points
+** Mazchna/Achtryn: 50 points
+** Vannaka: 60 points
+** Chaeldar: 70 points
+** Konar: 80 points
+** Nieve/Steve: 90 points
+** Duradel/Kuradal: 100 points
+** Krystilia: 100 points
+* Use the "View List" option on the Slayer Rewards task tab to see the full set of creatures each Slayer Master can assign. Every Master has their own unique list, and from here you can block tasks at the costs listed above.
+* Green tick - tasks available to block.
+* Red circle - tasks you’ve already blocked.
+* Yellow padlock - tasks this Slayer Master cannot assign.
+* Green padlock - your current task (you therefore cannot get it as a new task, but it's still available to block).
+
+[[File:Summer Sweep Up Slayer & More (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-07-17/SlayerList.png here]!'']]
+
+===Alloyed Adventures with Metal Dragons===
+Dragon Slayer grind, streamlined! Bronze, Iron, Steel, Mithril, Adamant, and Runite dragons have been unified under a single "Metal Dragons" task.
+
+* One task to rule them all! Any metal dragon you kill counts toward this task, making it simpler and more flexible.
+* Tasks now start low (between 30-50 dragons) but can be extended all the way up to 150-200.
+* Any existing unlocks or extensions for old metal dragons are refunded on login, and your current task will automatically convert to the new Metal Dragons task.
+
+Simpler, flexible, and still plenty of dragons to slay. Now go forth and smite those metallic foes!
+
+===Slayer Unlocks Get a Point Makeover===
+Ever feel like your Slayer points were vanishing faster than your HP at a Vardorvis rampage? We’ve gone through all the Slayer unlocks and given them a little love. Some of the more basic unlocks were costing way more points than they were worth, so we’ve rebalanced them to make your points go further. 
+
+* Slug Salter - reduced from 80 points → 10 points
+* Reptile Freezer - reduced from 90 points → 10 points
+* Ring Bling - reduced from 300 points → 150 points
+* Bigger and Badder - reduced from 150 points → 50 points
+
+If you’ve already unlocked any of these, don’t worry! You’ll get the appropriate points refunded automatically when you log in, with a nice little message telling you exactly how many points you’ve got back.
+
+===Lunar Key Drop Rates Updated===
+We’ve adjusted the drop rates for Lunar Keys from various PVM encounters in the Twilight Temple dungeon to make obtaining them feel fairer across different combat levels.
+
+* Frost Nagua: 1/1052
+* Ice Giant: 1/2190
+* Ice Spider: 1/2036
+* Chilled Jelly: 1/961
+* Brutal Blue Dragon: 1/250
+* Blue Dragon: 1/1216
+* Baby Blue Dragon: 1/2290
+* Ice Warrior: 1/2112
+* Icefiend: 1/3058
+* Frost Crab: 1/3011
+* Cave Crawler: 1/2260
+* Amoxliatl: 1/150
+* The Hueycoatl: 1/75
+
+We hope these changes improve the lower-end combat scaling, while keeping high-levels challenging and rewarding.
+
+===Miscellaneous & Slayer Updates===
+
+* Lowered the cost of the Task Storage from slayer rewards from 1000 points → 500. For purchases made previously, 500 points will be refunded upon login.
+* You can now use Slayer Task Storage for Wilderness Slayer tasks
+* The Granite hammer now has a 30% Golembane effect, dealing 30% extra damage and accuracy against all golem-type creatures. This includes Gargoyles and covers all phases of the Grotesque Guardians.
+* Selected Slayer creatures that previously dropped 1-2 noted herbs now drop unnoted herbs, allowing for the herb sack to be utilised more effectively.
+* Helmet of the Moon has been added to the Collection Log and will retroactively unlock for all eligible accounts.
+* Mark of Darkness now lasts 3 minutes by default.
+* Low-level Slayer master points have been buffed! Mazchna now awards 6 points per task (up from 2) and Vannaka 8 points (up from 4).
+** Milestone multipliers have also been updated to give slightly more points, without surpassing their higher-level masters; Mazchna: 10th task 30 pts, 50th 90 pts; Vannaka: 10th task 40 pts, 50th 120 pts.
+
+==A Date with Doom - Combat Achievements Coming Soon!==
+We know you’ve all been eagerly awaiting the Dooms Combat Achievements, and the wait is finally over: mark your calendars for September 3rd! Get ready to test your skills and earn your rewards.
+
+[[File:Summer Sweep Up Slayer & More (3).mp4|thumb|400px|center|''If you can’t see the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-27/Doom.mp4 here]!'']]
+
+==Merch==
+This original soundtrack captures the spirit of a land shaped by betrayal, hope, and rich cultural identity. Enter Varlamore, the Shining Kingdom south of Zeah and all it's expansions once more through our OST.
+
+[[File:Summer Sweep Up Slayer & More (4).mp4|thumb|350px|center|''If you can’t see the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-27/Spirit.mp4 here]!'']]
+
+Listen to the album out now on all major streaming platforms.
+
+Add the tracks to your playlist today using the handy links on this page!
+
+==Permanent Deadman Changes==
+A number of longstanding issues have been resolved in Permanent & Tournament Deadman!
+
+* Added Hespori, Golden Tench, Royal Titans, and Yama uniques to the drop rate multiplier.
+* Unskulled players can now obtain Ancient Crystals from Revenants.
+* 1 Defence accounts can now complete King’s Ransom. A black Wizard Hat, black Priest Gown and black Priest Robe can be worn to bypass the knights in the Black Knights Fortress.
+* Deadman-specific items no longer appear on the main game Grand Exchange.
+* The following changes apply to both Permanent & Tournament Deadman:
+** Black and Green Dragons in the Wilderness now always drop double dragon bones.
+** Guarded areas are now properly defended, with wizards freezing skulled intruders for brief periods of time.
+** Scroll Cases can now be obtained.
+** Araxxor now awards Slayer XP on task.
+
+There’s still much more we’d like to do, and while we can’t get to everything right away, we’ll be sure to keep making improvements whenever we can. We hope you enjoy these changes for now!
+
+==Other Changes==
+
+* Slightly lowered the required contribution to receive 100% loot from the Royal Titans. Using other types of damage, such as poison or thralls, should no longer affect obtaining 100% loot quantities.
+* The Agility requirement for the Castle Drakan shortcut has been raised to 86, following player feedback that the previous level was set too low for the benefit offered with this master clue step.
+* You can now add potions to existing stacks in Potion Storage even if your bank is full.
+* Baby blue dragons in the Ruins of Tapoyauik now drop the baby dragon bone required for the Rag and Bone Man II Quest.
+* The Arkan blade’s special attack animation now matches between PvP and PvM.
+* The 'Guide' option on farming patches now opens the correct section of the Farming skill guide.
+* Recent bosses such as Amoxliatl, Araxxor, Whisperer, Leviathan, Vardorvis and others now contribute to the total Boss Kill Count in the Combat Achievements interface.
+* Dragon and Zamorak spear special attacks in Castle Wars now use their original shove mechanics, with chain-spearing disabled and no added freeze immunity outside the shove.
+* Bandages no longer overheal in games of Castlewars on Non-Castlewars themed worlds.
+* Updated bank action code. Now the "custom" menu entry that is enabled with the auto-charging setting now shows an additional menu, rather than swapping out an existing one.
+* Fixed a bug where Ent Trunks could continue attacking after their Wilderness Ent was killed with a Twinflame Staff.
+* Fixed a bug where Challenge Mode Chambers raid layouts could be rerolled by switching leaders or relogging.
+* Hueycoatl private instances now properly adjust for player counts when participants leave, preventing full instances that would require everyone to leave and start a new instance to continue.
+* Reagent pouch Fixes:
+** With the bank interface open, the pouch will now automatically show either a "Fill" or "Empty" option depending on your inventory. If you have ingredients that can be stored, it shows "Fill"; if there’s nothing to store, it shows "Empty". This change has also been applied to the Plank Sack.
+** The pouch now works correctly when making potions at bank chests or other non-standard banks (e.g. Emerald Benedict). Note, you must be standing within a 1 tile radius of the bank to see this effect; step away or close the pouch, and normal rules resume.
+** Secondary ingredients are now correctly handled when making Weapon Poison (+) and Weapon Poison (++). Previously, potion-making would stop if your inventory ran out of secondary ingredients, even if more were available inside the pouch. Ingredients inside the pouch are now used automatically.
+* Fixed the slayer master tips on fighting Kree'arra.
+* Tweaked the examine on the Fossil Island zipline.
+* Tidied up some misaligned curtains in Player-Owned Houses to better fit the new Canifis and Civitas wall kits.
+* "The 'Fill' and 'Check' options on a filled Bottomless Compost Bucket have now been separated, like they are on the empty version. This should make it a little more convenient to use.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1n1cmez/summer_sweep_up_slayer_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

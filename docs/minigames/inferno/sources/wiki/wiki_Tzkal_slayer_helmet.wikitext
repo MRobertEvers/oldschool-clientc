@@ -1,0 +1,77 @@
+{{Otheruses|the regular Tzkal slayer helmet|the imbued version|Tzkal slayer helmet (i)}}
+{{Infobox Item
+|name = Tzkal slayer helmet
+|image = [[File:Tzkal slayer helmet.png]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|aka = Zuk Helm
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Check, Disassemble, Drop
+|wornoptions = Check, Partner, Log
+|examine = You don't want to wear it inside-out.
+|value = 40000
+|weight = 2.267
+|id = 25910
+}}
+[[File:Tzkal slayer helmet detail.png|left|120px]]
+[[File:Tzkal slayer helmet chathead.png|left]]
+The '''TzKal Slayer helmet''' is a cosmetic variant of the [[Slayer helmet]], styled after [[TzKal-Zuk]]. It can be created by speaking to [[Laidee Gnonock]] after claiming the grandmaster tier rewards from the [[Combat Achievements]] system.
+
+Disassembling the helmet will result in its components being returned to the inventory. As there is no base item to cosmetically upgrade the helmet, players must speak to Laidee again to take this appearance.
+
+It gives the ability to show the [[TzKal slayer helmet]] to [[TzHaar-Ket-Keh]] to gain on-task damage bonuses for [[TzHaar Fight Cave]] and [[Inferno]], without any of the other on-task benefits such as slayer experience and increased pet chance.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -6
+|arange = -2
+|dstab = +30
+|dslash = +32
+|dcrush = +27
+|dmagic = -1
+|drange = +30
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = head
+|image = [[File:Tzkal slayer helmet equipped.png|130px]]
+|altimage = [[File:Tzkal slayer helmet equipped female.png|130px]]
+}}
+
+==Creation==
+{{Recipe
+|notes = {{SCP|combatachievement}} Claimed the grandmaster tier [[Combat Achievements]] rewards
+|members = Yes
+|ticks = 1
+|facilities = Laidee Gnonock
+|mat1 = Slayer helmet
+|mat1cost = no
+|output1 = Tzkal slayer helmet
+|output1cost = No
+}}
+
+==Treasure Trails==
+{{EmoteClue}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 January 2025
+|update = Leagues V: Raging Echos Rewards Are Here
+|change = The [[Slayer helmet]] can now be used as [[warm clothing]] for [[Wintertodt]].
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}
+{{Slayer equipment}}
+
+[[Category:Warm clothing]]

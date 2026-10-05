@@ -1,0 +1,56 @@
+streams 12
+transition pool events per stream: 3:1 4:3 5:8
+Sol spawn tick to first attack: 5:10 6:2  first attack kind: {'thrust': 12}
+phase 0 attack counts: {'thrust': 26, 'slam': 16}
+phase 1 attack counts: {'thrust': 23, 'slam': 19, 'triple': 5}
+phase 2 attack counts: {'thrust': 45, 'triple': 5, 'slam': 40, 'grapple': 2}
+phase 3 attack counts: {'thrust': 42, 'grapple': 7, 'slam': 35}
+phase 4 attack counts: {'thrust': 31, 'slam': 11, 'grapple': 2}
+phase 5 attack counts: {'thrust': 11, 'slam': 3}
+first phase each kind is seen: {'thrust': {0: 12}, 'slam': {1: 4, 0: 8}, 'grapple': {3: 6, 2: 2, 4: 1}, 'triple': {2: 4, 1: 5}}
+first attack after a transition: {'thrust': 55}
+gap prev=grapple phase=2 n=2 14:1 7:1
+gap prev=grapple phase=3 n=7 14:1 7:5 8:1
+gap prev=grapple phase=4 n=2 7:2
+gap prev=slam phase=0 n=16 13:3 6:13
+gap prev=slam phase=1 n=19 13:4 6:15
+gap prev=slam phase=2 n=40 12:6 13:1 5:33
+gap prev=slam phase=3 n=35 12:3 17:3 24:1 5:28
+gap prev=slam phase=4 n=11 12:2 14:1 5:8
+gap prev=slam phase=5 n=1 5:1
+gap prev=thrust phase=0 n=26 14:7 15:1 17:1 7:13 8:4
+gap prev=thrust phase=1 n=23 14:4 7:17 8:2
+gap prev=thrust phase=2 n=45 12:2 13:3 14:2 6:37 8:1
+gap prev=thrust phase=3 n=41 12:2 13:7 18:3 19:1 6:26 7:2
+gap prev=thrust phase=4 n=28 12:1 13:6 14:1 15:1 18:1 26:1 6:15 7:1 8:1
+gap prev=thrust phase=5 n=5 6:4 7:1
+gap prev=triple phase=1 n=5 12:1 19:2 20:2
+gap prev=triple phase=2 n=5 11:5
+attack tick -> next dust tick, thrust 3:175
+attack tick -> next dust tick, slam 3:123
+dust pattern pairs (consecutive dust): {'shield1>shield1': 1, 'shield1>shield2': 37, 'shield1>spear1': 47, 'shield2>shield1': 13, 'shield2>shield2': 3, 'shield2>spear1': 25, 'spear1>shield1': 56, 'spear1>spear1': 5, 'spear1>spear2': 57, 'spear2>shield1': 18, 'spear2>shield2': 1, 'spear2>spear1': 31}
+grapple outcome (0 hit 1 defend 2 parry): 0:1 2:10 event tick minus attackTick: 4:10 5:1
+regular attacks before each triple 15:1 19:1 4:1 6:2 7:4 8:1
+regular attacks before each grapple 12:1 15:1 17:1 19:1 4:3 5:1 6:1 7:1 9:1
+CLEAN gap prev=grapple p>=2: 7:8 8:1
+CLEAN gap prev=slam p<2: 6:28
+CLEAN gap prev=slam p>=2: 12:2 17:3 5:70
+CLEAN gap prev=thrust p<2: 7:30 8:6
+CLEAN gap prev=thrust p>=2: 12:5 13:2 14:2 18:4 26:1 6:82 7:4 8:2
+CLEAN gap prev=triple p<2: 12:1
+CLEAN gap prev=triple p>=2: 11:5
+CROSSES TRANSITION gap prev=grapple p>=2: 14:2
+CROSSES TRANSITION gap prev=slam p<2: 13:7
+CROSSES TRANSITION gap prev=slam p>=2: 12:9 13:1 14:1 24:1
+CROSSES TRANSITION gap prev=thrust p<2: 14:11 15:1 17:1
+CROSSES TRANSITION gap prev=thrust p>=2: 13:14 14:1 15:1 19:1
+CROSSES TRANSITION gap prev=triple p<2: 19:2 20:2
+hp drop at attack+3: slam hit:5 none:107 small:11
+hp drop at attack+3: slam_amounts 25:1 27:1 38:1 43:1 44:1
+hp drop at attack+3: thrust hit:13 none:152 small:10
+hp drop at attack+3: thrust_amounts 20:1 22:1 26:1 28:1 29:1 32:3 33:1 34:1 38:1 39:1 43:1
+between=none: same style SAME pattern:6 same style alternated:105 style change -> pattern 1:113
+between=special: same style SAME pattern:3 same style alternated:3 style change -> pattern 1:15
+between=transition: same style alternated:30 style change -> pattern 1:18 style change -> pattern 2:1
+pattern before transition -> first pattern after: {'shield1>shield2': 1, 'shield1>spear1': 11, 'shield2>spear1': 10, 'spear1>spear1': 1, 'spear1>spear2': 22, 'spear2>shield2': 1, 'spear2>spear1': 9}
+first dust pattern: spear1:12  direction label (0 N 1 E 2 S 3 W): 1:4 2:8

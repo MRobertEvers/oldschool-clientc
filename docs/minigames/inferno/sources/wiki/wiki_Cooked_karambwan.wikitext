@@ -1,0 +1,106 @@
+{{External|rs}}
+{{Redirect|Karambwan|other uses|Karambwan (disambiguation)}}
+{{Infobox Item
+|name = Cooked karambwan
+|image = [[File:Cooked karambwan.png]]
+|release = [[14 September]] [[2004]]
+|update = Tai Bwo Wannai Trio
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|edible = Yes
+|options = Eat, Drop
+|examine = Cooked octopus. It looks very nutritious.
+|value = 250
+|weight = 0.650
+|exchange = Yes
+|id = 3144
+|leagueRegion = Karamja
+}}
+[[File:Cooked karambwan detail.png|left|120px]]
+'''Cooked karambwan''' is a type of [[fish]] that restores 18 [[Hitpoints]] when eaten. They can be obtained by cooking [[raw karambwan]] on a [[fire]] or [[cooking range]]. Cooking a karambwan requires level 30 [[Cooking]], and grants 190 experience when successful.
+
+In order to produce a cooked karambwan, the [[Player character|player]] must first complete [[Tai Bwo Wannai Trio]] and afterwards talk to [[Tinsay]] in the southernmost hut in [[Tai Bwo Wannai]]. If the player has not done this, cooking a raw karambwan will instead produce a [[poison karambwan]]. Players may burn a karambwan while cooking one, resulting in a [[burnt karambwan]]; the [[burn rate]] while cooking these will decrease as players reach higher Cooking levels. It will stop burning entirely at [[Cooking]] level 99 on both ranges and fires. It is possible to use [[tick manipulation]] to cook each raw karambwan in one [[tick]] rather than the standard four to increase Cooking experience rates.
+
+When eaten, the message {{Mes|You eat the Karambwan.}} is displayed. 
+
+Karambwans are commonly used as a [[fast food]], a subtype of food that incurs non-standard attack or eating delays when consumed. Karambwans may be consumed after other foods without delay; this does '''not''' work if the karambwan is eaten first, and does '''not''' work when eating two karambwan in a row. This technique (commonly referred to as [[combo eating]]) can be further enhanced by drinking a dose of [[Saradomin brew]] after your alternative food item, and before your karambwan '''(food>brew>karambwan)'''.
+
+Additionally, karambwans add a delay of two ticks before the player can attack again, while most other foods have a delay of three ticks.
+
+Karambwans may also be used in [[tick manipulation]] to improve rates. This is only recommended for non-ironman players. For example, you can start your usual 3-tick timer using your herb and tar, then on the next cycle, you eat a cooked karambwan instead. This effectively allows you to 2.5-tick certain actions, such as barbarian fishing.
+
+==Creation==
+{{Recipe
+|skill1 = Cooking
+|skill1lvl = 30
+|skill1boostable = No
+|skill1exp = 190
+|members = Yes
+|ticks = 4
+|notes = {{SCP|Quest}} Completion of [[Tai Bwo Wannai Trio]]
+|facilities = Cooking range
+|mat1 = Raw karambwan
+|output1 = Cooked karambwan
+|output1itemnote = Cooked karambwan require a visible Cooking level of 1 to make, although level 30 is required to complete [[Tai Bwo Wannai Trio]].
+}}
+
+===Cooking chance===
+{{Skilling success chart|label=Cooked karambwan cooking chance
+|label1=Fire or Range|low1=70|high1=255|req1=30|color1=gray|image1=Cooked_karambwan.png
+|label2=Hosidius +5%|low2=82|high2=267|req2=30|color2=red|image2=Cooked_karambwan.png
+|label3=Hosidius +10%|low3=95|high3=280|req3=79|color3=blue|image3=Cooked_karambwan.png
+}}
+
+==Money making==
+{{Mmgsection|Cooking raw karambwan}}
+
+==Products==
+{{Uses material list|Cooked karambwan}}
+
+==Item sources==
+{{Drop sources|Cooked karambwan}}
+
+===Shop locations===
+{{Store locations list|Cooked karambwan}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 June 2014
+|update = Bugfix update
+|change = Food delay on karambwan has been reduced by one tick.
+}}
+{{Subject changes
+|date = 22 May 2014
+|update = Chat update and 'Operate'
+|change = When you eat a karambwan or karambwanji during combat, the fish no longer blocks you from taking damage for a moment.
+}}
+{{Subject changes
+|daterange = 26 – 31 January 2005
+|change = The item's inventory sprite was slightly adjusted.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Cooked karambwan detail (historical).png|center|300x150px]]
+|[[File:Cooked karambwan detail.png|center|300x150px]]
+|-
+|[[File:Cooked karambwan (historical).png|center]]
+|[[File:Cooked karambwan.png|center]]
+|-
+|14 September 2004 ⁠–<br/>26-31 January 2005
+|26-31 January 2005 –<br/>present
+|}
+
+==Trivia==
+*According to [[Lubufu]], Karambwan is translated as "Friend of [[Karamja]]" in the Karamjan language.
+**The villagers call players "bwana", which means "friend". This would make the word "Karambwan" a combination of the words "Karamja" and "bwana".
+
+{{Fish}}
+{{Tai Bwo Wannai Trio}}
+[[Category:Food]]

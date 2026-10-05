@@ -1,0 +1,72 @@
+{{Infobox NPC
+|version1 = 1
+|version2 = 2
+|version3 = 3
+|version4 = 4
+|version5 = 5
+|version6 = 6
+|version7 = 7
+|version8 = 8
+|version9 = 9
+|name = Gladiator
+|image1 = [[File:Gladiator (Fortis Colosseum, 1).png|130x310px]]
+|image2 = [[File:Gladiator (Fortis Colosseum, 2).png|130x310px]]
+|image3 = [[File:Gladiator (Fortis Colosseum, 3).png|130x310px]]
+|image4 = [[File:Gladiator (Fortis Colosseum, 4).png|130x310px]]
+|image5 = [[File:Gladiator (Fortis Colosseum, 5).png|130x310px]]
+|image6 = [[File:Gladiator (Fortis Colosseum, 6).png|130x310px]]
+|image7 = [[File:Gladiator (Fortis Colosseum, 7).png|130x310px]]
+|image8 = [[File:Gladiator (Fortis Colosseum, 8).png|130x310px]]
+|image9 = [[File:Gladiator (Fortis Colosseum, 9).png|130x310px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|options = Talk-to
+|examine = A deadly fighter.
+|map = No
+|id1 = 12834
+|id2 = 12835
+|id3 = 12836
+|id4 = 12837
+|id5 = 12838
+|id6 = 12839
+|id7 = 12840
+|id8 = 12841
+|id9 = 12842
+|leagueRegion = Varlamore
+}}
+{{Synced switch
+|version1 = [[File:Gladiator (Fortis Colosseum, 1) chathead.png|left]]
+|version2 = [[File:Gladiator (Fortis Colosseum, 2) chathead.png|left]]
+|version3 = [[File:Gladiator (Fortis Colosseum, 3) chathead.png|left]]
+|version4 = [[File:Gladiator (Fortis Colosseum, 4) chathead.png|left]]
+|version5 = [[File:Gladiator (Fortis Colosseum, 5) chathead.png|left]]
+|version6 = [[File:Gladiator (Fortis Colosseum, 6) chathead.png|left]]
+|version7 = [[File:Gladiator (Fortis Colosseum, 7) chathead.png|left]]
+|version8 = [[File:Gladiator (Fortis Colosseum, 8) chathead.png|left]]
+|version9 = [[File:Gladiator (Fortis Colosseum, 9) chathead.png|left]]
+}}
+'''Gladiators''' are fighters found training under the [[Fortis Colosseum]] in [[Civitas illa Fortis]].
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Gladiator
+|location = [[Fortis Colosseum entrance]]
+|levels = N/A
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:1804,y:9493|x:1811,y:9519|x:1840,y:9522|x:1810,y:9492|x:1839,y:9492|x:1841,y:9489|x:1805,y:9523|x:1807,y:9525|x:1843,y:9487|x:1805,y:9525|x:1807,y:9523|x:1841,y:9487|x:1843,y:9489|x:1805,y:9489|x:1806,y:9529|x:1808,y:9529|x:1841,y:9484|x:1844,y:9524|x:1847,y:9490|x:1802,y:9523|x:1802,y:9527|x:1806,y:9486|x:1843,y:9484|x:1843,y:9527|x:1847,y:9486|x:1806,y:9489|x:1843,y:9524
+|mtype = pin
+|leagueRegion = Varlamore
+}}
+{{LocTableBottom}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Trivia==
+* When talking to the gladiator, the player may say "May the odds be ever in your favour." referencing The Hunger Games.
+{{Fortis Colosseum}}

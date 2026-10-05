@@ -89,6 +89,15 @@ char const* DriveResultName(enum DriveResult result);
  *   DRIVE_EVENT_NPC_DESPAWN     a=npc slot  b=npc_id
  *   DRIVE_EVENT_NPC_RETYPE      a=npc slot  b=npc_id  c=base_npc_id
  *   DRIVE_EVENT_INV_PACKET      a=container_id                     (dat1)
+ *   DRIVE_EVENT_NPC_SEQ         a=npc SERVER slot (DriveNpcRow.slot, not
+ *                                 the world index NPC_SPAWN carries)
+ *                               b=seq id (-1 = the server stopped it)
+ *                               c=server tick (world cycle / 30) it arrived
+ *   DRIVE_EVENT_NPC_FACE        a=npc SERVER slot  b=tile x  c=tile z
+ *                                 (absolute; the FACE_COORD op's wire
+ *                                 half-tiles halved, so a sized square
+ *                                 reads as its centre tile)
+ *                               d=server tick (world cycle / 30) it arrived
  *
  * The level of a tile payload rides in `c`'s high half nowhere: pass level in
  * `d` only where the table above says so.  If a kind needs a fifth number,
@@ -115,6 +124,8 @@ enum App_DriveEventKind
     DRIVE_EVENT_NPC_DESPAWN,
     DRIVE_EVENT_NPC_RETYPE,
     DRIVE_EVENT_INV_PACKET,
+    DRIVE_EVENT_NPC_SEQ,
+    DRIVE_EVENT_NPC_FACE,
     DRIVE_EVENT_KIND_COUNT
 };
 
@@ -286,6 +297,13 @@ void PluginDriveChat_RegisterLua(struct lua_State* L, void* script); /* verbs-ch
 void PluginDriveRead_RegisterLua(struct lua_State* L, void* script); /* verbs-read */
 void PluginDrivePointer_RegisterLua(struct lua_State* L, void* script); /* verbs-pointer */
 void PluginDriveUi_RegisterLua(struct lua_State* L, void* script); /* verbs-ui */
+/* waves seam los_and_pack: api.drive.server_los / server_npc_pack
+ * (torirs_plugin_drive_los.c, over torirs_server_los_query.c). */
+void PluginDriveLos_RegisterLua(struct lua_State* L, void* script);
+/* waves seam npc_record_reads: api.drive.npc_record / seq_length / npc_pose
+ * (torirs_plugin_drive_record.c): an npc type's client and server record, a
+ * sequence's length as the client steps it, an npc's movement track. */
+void PluginDriveRecord_RegisterLua(struct lua_State* L, void* script);
 
 /*
  * Shared Lua argument helpers, defined in torirs_plugin_drive.c so six files
@@ -384,6 +402,8 @@ enum DriveSymbolKind
     DRIVE_SYMBOL_VARBIT,
     DRIVE_SYMBOL_STAT,
     DRIVE_SYMBOL_INV,
+    /* waves seam npc_record_reads: t.seq.length takes a seq symbol. */
+    DRIVE_SYMBOL_SEQ,
     DRIVE_SYMBOL_KIND_COUNT
 };
 
@@ -847,6 +867,36 @@ enum DriveResult DriveUi_TabByName(struct App* app, char const* name, int* out_t
  *  boot and permanently wrong after the session's first dialogue. */
 enum DriveResult DriveUi_ModalLive(struct App* app, int* out_live);
 
+/**
+ * The open minimenu's rectangle, in canvas pixels -- the box
+ * UIMinimenu_HitOption tests its rows inside -- and, when `has_point`, what a
+ * press at (`point_x`, `point_y`) would do to it: `*out_hit` is
+ * UIMinimenu_HitOption's own answer (>= 0 the option index it would SELECT,
+ * the same index DrivePointer_MenuRows reports rows in; -1 swallowed by the
+ * title bar or the close margin; -2 outside: the menu closes).  -2 when no
+ * point is asked.  `*out_visible` 0 (and every other out untouched) when no
+ * menu is up.
+ *
+ * Why a driver needs it (raid seam4 npc_state_size_and_stale_menu): while a
+ * menu is up it owns the mouse, and a press of EITHER button on one of its
+ * rows SELECTS that row (uitree_interact.c interact_minimenu) -- so a press
+ * aimed at the world whose pixel falls on a row of a menu an earlier
+ * `covered` press left open takes THAT row, another copy's Attack among
+ * them.  The row centres DriveMenuRow carries cannot say where a row's band
+ * or the box's sides are; the client's hit test can.  Owner: verbs-ui.
+ */
+enum DriveResult DriveUi_MenuRect(
+    struct App* app,
+    int has_point,
+    int point_x,
+    int point_y,
+    int* out_visible,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height,
+    int* out_hit);
+
 struct DriveNpcRow
 {
     int slot;
@@ -923,6 +973,56 @@ struct DriveNpcRow
      */
     char overhead[100];
     int overhead_timer;
+    /**
+     * What the npc is DOING, for a raid test that reacts to the boss rather
+     * than to a timer (docs/RAID_ORCHESTRATOR.md section 4, `npc.state`).
+     *
+     * `anim_id` / `anim_frame` are the primary (action) track as it is being
+     * DRAWN -- -1 / 0 when no action seq plays (the idle and walk loops are
+     * the secondary track and are not reported). `spotanim_id` is the
+     * attached graphic being drawn, -1 when none or once its one loop ended.
+     *
+     * `seq_id` / `seq_tick` are the newest SEQUENCE op the server SENT and
+     * the server tick (world cycle / APP_SERVER_TICK_LOGIC_CYCLES) it arrived
+     * on: the edge "it attacked on tick T" is read from, because a seq re-sent
+     * while it is still playing does not restart the drawn track
+     * (WorldEntity_NPC.seq_sent_id). `spotanim_sent_id` / `spotanim_tick`
+     * are the same for the newest SPOTANIM op (a spell's impact graphic
+     * outlives no frame-rate guess). -1 / -1 before the first op.
+     *
+     * `facing` is the wire face-entity the npc is locked onto: an npc slot
+     * below 32768, 32768 + pid for a player, -1 for none
+     * (WORLD_FACING_PLAYER_BASE).
+     *
+     * `face_x` / `face_z` / `face_tick` are the newest FACE_COORD op the
+     * server sent (`npc_facesquare`): the absolute tile the npc was turned
+     * to (the centre tile of a sized square) and the server tick it arrived
+     * on. -1 / -1 / -1 before the first one. They outlive the turn: the
+     * entity's own pending square (facing.square_x) is cleared the cycle the
+     * turn is consumed (WorldEntity_NPC.face_sent_x). A face-entity lock
+     * does not clear them; `facing` says whether one is held now.
+     */
+    int anim_id;
+    int anim_frame;
+    int spotanim_id;
+    int seq_id;
+    int seq_tick;
+    int spotanim_sent_id;
+    int spotanim_tick;
+    int facing;
+    int face_x;
+    int face_z;
+    int face_tick;
+    /**
+     * The npc's footprint in tiles (the npc config's `size`, 1 when the
+     * config states none), as the client entity holds it NOW: World_NpcSetType
+     * rewrites it on every transmog, so a boss that changes form (Xarpus's
+     * static form 3 -> fighting form 5) reads its new footprint the tick the
+     * client applies the new type.  `tile_x`/`tile_z` are the footprint's
+     * south-west corner, so the npc covers [tile_x, tile_x + size) x
+     * [tile_z, tile_z + size). (raid seam4 npc_state_size_and_stale_menu.)
+     */
+    int size;
 };
 
 struct DriveLocRow
@@ -962,6 +1062,48 @@ struct DriveObjRow
     int element_id;
 };
 
+/**
+ * A free-standing map graphic (MAP_ANIM / `spotanim_map`): the tile hazard
+ * half of `world.hazard_at` (Xarpus acid, Maiden blood, Olm crystals are
+ * graphics on a tile, not locs). `spotanim_id` is the spotanimtype; -1 only
+ * for a graphic the client invented. `active` is 0 while the graphic still
+ * waits out its delay (a splash timed to a projectile's flight) and
+ * `cycles_left` counts that wait plus its whole life; once active it is the
+ * life left. CLIENT cycles (20 ms), not server ticks: a graphic's life is a
+ * seq's frame durations and has no tick boundary.
+ */
+struct DriveSpotanimRow
+{
+    int spotanim_id;
+    int tile_x, tile_z, level;
+    int active;
+    int cycles_left;
+    int element_id;
+};
+
+/**
+ * A projectile in flight (MAP_PROJANIM). `src_*` is the tile it left from;
+ * `dst_*` the tile it is aimed at NOW -- for a projectile that homes on an
+ * entity that is the target's live tile (World re-aims it every cycle), for
+ * a tile shot the fixed destination. `target` is the wire target id
+ * (WorldEntity_Projectile.target): npc slot + 1, -(pid) - 1 for a player, 0
+ * for a tile shot; `target_npc_slot` decodes the npc case (-1 otherwise).
+ * `cycles_left` is client cycles to impact; `launched` is 0 while it still
+ * waits out its start delay.
+ */
+struct DriveProjectileRow
+{
+    int spotanim_id;
+    int src_tile_x, src_tile_z;
+    int dst_tile_x, dst_tile_z;
+    int level;
+    int target;
+    int target_npc_slot;
+    int launched;
+    int cycles_left;
+    int element_id;
+};
+
 /** Pool walks in the shape of content_test.c's npc_json / scenery_json,
  *  nearest first by tile distance from the local player.  `radius` <= 0 means
  *  the whole pool. */
@@ -971,6 +1113,13 @@ enum DriveResult DriveUi_Locs(
     struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count);
 enum DriveResult DriveUi_Objs(
     struct App* app, int radius, struct DriveObjRow* out, int cap, int* out_count);
+/** Every map graphic and every projectile, nearest first like the readers
+ *  above (a projectile ranks by its DESTINATION tile: the question a test
+ *  asks of one is "where does it land"). */
+enum DriveResult DriveUi_Spotanims(
+    struct App* app, int radius, struct DriveSpotanimRow* out, int cap, int* out_count);
+enum DriveResult DriveUi_Projectiles(
+    struct App* app, int radius, struct DriveProjectileRow* out, int cap, int* out_count);
 
 /**
  * A loc def's multiloc family: the child it resolves to NOW, and every id its

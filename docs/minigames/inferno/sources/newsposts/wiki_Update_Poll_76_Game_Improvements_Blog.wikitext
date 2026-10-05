@@ -1,0 +1,428 @@
+{{Update|date=10 February 2022|rev=13 February 2022|link=https://secure.runescape.com/m=news/poll-76-game-improvements-blog?oldschool=1|category=community}}
+[[File:Poll 76 Game Improvements Blog newspost.png|right]]
+{{Clear|right}}
+==Your Feedback and Our Actions==
+{|class=wikitable style="text-align:center; width:665px;" 
+!Last Updated
+!Your Feedback
+!Our Response
+|-
+|February 14th
+|The proposed change for 3rd Age items from Elite Clues has been well received.
+
+Players told us we could proceed with this change unpolled, because the current system exists due to an error.
+|The current drop rate for 3rd Age items from Elite Clues only exists because of a mistake on our part, so we can see that it would make sense to make an unpolled change as a matter of integrity.
+
+However, because it's been that way for several years now, players may have become accustomed to the rate over time – so we want to put it up for polling before making any adjustments.
+|-
+|February 14th
+|Players liked the idea of us adding Clue Scrolls to the Hallowed Sepulchre because it benefits skilling content.
+
+However, the rates proposed for the higher levels (Floor 5 and the Grand Coffin) were too strong compared to existing methods of obtaining Elite Clue Scrolls.
+
+If we went ahead with the proposed rates for the higher tier floors, there is a worry that existing methods would become obsolete for Clue hunting.
+|Like we said in the blog, we don't want to change the meta and make Hallowed Sepulchre the best place to get Clue Scrolls.
+
+With our initial proposals we wanted to offer you a small passive chance to earn Clues while training Agility. Our aim was to give players already participating in Skilling some distraction and diversion to make the grind more fun.
+
+On reflection, the rates for Floor 5 and the Grand Coffin were too high. We don't want to change the meta too much. Hallowed Sepulchre is already pretty efficient as it offers good XP and GP - we don't want to make it the meta for Elite Clues on top of that!
+
+Instead, the following changes will apply to our proposal for Floor 5 and the Grand Coffin:
+
+* '''Floor 5 - Elite Clues - 1/60'''
+* '''Grand Coffin - Elite Clues - 1/30'''
+
+This change should ensure that Elite Clue rewards from the Hallowed Sepulchre are more of a passively earned distraction and diversion-type reward, rather than a new meta for hunting Elite Clues.
+|-
+|February 14th
+|Some parts of the simplified Torva Armour were preferred over the existing Torva Armour, but there is no consensus on the full set.
+
+Players feel that our approach to polling these changes doesn't offer a solution that fits what the majority of you want.
+
+Instead, you've suggested we create a new Ornament Kit to allow both styles to exist in-game. Alternatively, we could poll each Torva Armour piece separately.
+|Our approach to polling the look of the simplified Torva Armour in Poll 76 hasn't impressed you in the way that we had hoped, so we are removing Question #3 from this Poll.
+
+That doesn't mean Torva will never be changed in the future, but it is clear that we need to revisit this with a more comprehensive plan. We would prefer to present more options to you rather than give you a 'this or that' approach.
+
+Our art team has been extensively reviewing the feedback you've given, so thanks for this!
+
+Polling separate pieces could create some inconsistency in the style of the game. Ornament Kits might be a possibility in the future, but we need to scope out how these would be earned, which is a larger task. We would love to see your suggestions and creations regarding Torva Armour so that we can figure out the best direction to take.
+
+We are very open to polling a new Torva Armour look in future if it is something that players want, but, there is no dedicated time frame for this to happen at the moment. In the meantime, we have replaced Poll Question #3 with a '''new change''', which is to sort the Quest List by various criteria.
+|-
+|February 14th
+|Players liked the proposal to automatically insure pets. Many of you highlighted that this change is more likely to encourage engagement with the Wilderness
+
+Players wanted to find out whether Bank placeholders could be used to track the pets you've achieved.
+
+Additionally, players wanted to know why pet reclaims fees were not reduced as part of this rework.
+|We are happy to announce that we can add a check on Probita to track your lost pet down, provided you still have a Bank placeholder for your lost pet. We will amend Poll Question #6 to reflect this.
+
+Pet reclaim fees are also a valid Gold sink, even though there are other measures of sinking Gold now. Generally, we felt that death should still be impactful, so we have not addressed pet reclaim fees as part of this blog.
+|-
+|February 14th
+|The phrase 'lower KC tasks would remain the same' was vague and confused players about which KC tasks would be 'significantly reduced' and which were going to remain the same.
+|The reason why Poll Question #8 does not give an exact estimation of how much KC tasks will be reduced is because they are all quite different.
+
+We'd need to review them individually and assess them from there. It's therefore difficult to give a flat statement of how much KC tasks are going to be reduced.
+
+However, the statement 'lower KC tasks would remain the same' means that tasks for 1, 10, or 20 KC will likely stay that way, because it's difficult to reduce them even further. The 50 KC tasks can still be reduced, but we are not able to give an exact estimation until a developer begins work on this change. We'll keep you posted!
+|-
+|February 14th
+|Players pointed out that we could combine Question #11 and Question #12.
+
+Alternatively, players have suggested that Question #12 does not need to be dependent on Question #11 passing. Instead, we might want to consider polling them separately.
+|We have polled these changes independently in the past because we feel that there are valid player motivations to vote for both questions separately.
+
+There are reasons for and against each question, and they have significantly different economical impacts. For this reason we feel think it's best to keep these questions separated.
+|-
+|February 14th
+|Ultimate Ironmen highlighted that the log-in message change to alert you when you have items stored in an item retrieval service may be excessive for UIM, because they make use of this feature quite often.
+|Thanks for pointing that out to us! We'll make this change toggle-able via the Settings Menu.
+|-
+|February 14th
+|The concept of Poison Dynamite was received positively as a whole, and we received some feedback from the 10 HP Community on ways this might be improved.
+
+Some players have asked why we are not polling this change.
+|We're glad to hear that many of you like the concept of Poison Dynamite! Your feedback has been super helpful.
+
+The main reason why this change is unpolled is because it's important we make sure that 10 HP accounts are able to continue playing in the way that they did before, but without the use of any bugs. This change should not adversely affect any players outside of this small cohort, which is why we would like to proceed with it as unpolled.
+
+We have agreed on the following changes based on feedback:
+
+* A higher Firemaking level will increase accuracy if your Firemaking level is above the combat accuracy roll. This should make using Poison Dynamite with Level 3 Skiller accounts more viable.
+* We know that there are a few places where the game blocks fires, and this will prevent Poison Dynamite from being useful in several important areas. These blocks are in place for a reason but we agree that this needs to be changed! The implementation of Poison Dynamite will take this into account.
+* If an NPC is immune to poison, the Poison Dynamite will still damage them, but it won't poison them.
+|-
+|February 14th
+|On the subject of visual changes, some players would like to see us add a toggle for the smoke within the Smoke Dungeon (Desert).
+|This would be easily implementable, so we are happy to include this change as part of Poll 76! See the new Question #15.
+|-
+|February 14th
+|We received some great player suggestions for additional things to include.
+|Some of these suggestions are already noted in our backlog.
+|}
+
+Poll 76 is our first Game Improvements Poll of the year, so we'd like to start relatively light and not add too much to it so that we can get the changes out in a shorter time frame than Poll 75. This means we'd like to offer easily implementable changes which would allow us to keep up with more regular polls throughout the year.
+
+Polls are a great opportunity to hear feedback on what community suggestions mean the most to you, so your suggestions will not go to waste! We've taken the popular suggestions from Poll 76 and we'll be reviewing them as a team under our standard process.
+
+Poll 76 is here! We’ve had absolutely loads of player suggestions recently, but as we’re juggling a number of commitments at the moment, this poll will focus on smaller changes for the most part. It's all good stuff, though - including some tweaks you've been asking after for a while.
+
+Let's start with Elite Clue changes. We know there is interest in seeing Elite Clue Challenge Questions working like they do for other Clues - this is a big job and one we'll probably look at in a future poll. In the meantime, however, we've focused on the fact that Elite Clue Scrolls work inconsistently compared to the other tiers.
+
+This is because when we added Gilded Armours to the mega-rare drop table, we didn’t adjust the rate for 3rd Age as well. In fact, 3rd Age pieces were actually made rarer because of the additional items! This was a mistake on our part. We have made the adjustment in other tiers since then, but Elite was not included.
+
+Here's how the numbers crunch in practice:
+
+*3rd Age from Elite is 1/5,750
+*3rd Age from Hard is 1/3,250
+*3rd Age from Master is 1/1,270
+
+
+As you can see, it's actually harder to get 3rd Age from Elite Clues than Hard ones. So, we plan to fit 3rd Age between Hard and Master clues, at a rate of 1/2750 - and that rate will remain static, even if new items are added to the Clue reward pool!
+
+Should this question pass the poll, it would affect new ''and'' existing caskets.
+
+{{News Poll|1|Should we change the rarity of 3rd Age items from Elite Clues to fit proportionally between Hard and Master Clues (1/2750)?}}
+
+On the subject of Clues, we'd also like to award them when you’re completing runs of the Hallowed Sepulchre - a hopefully welcome distraction from those long Agility grinds!
+
+We think we could add Clues to all floors, but it won’t be meta to Clue hunt here.
+
+Here are our suggested rates (per Coffin):
+
+{| class="wikitable" style="margin:0 auto;"
+|-
+| Floor 1
+| Easy Clues
+| 1/50
+|-
+| Floor 2
+| Medium Clues
+| 1/50
+|-
+| Floor 3
+| Medium Clues
+| 1/25
+|-
+| Floor 4
+| Hard Clues
+| 1/50
+|-
+| Floor 5
+| Elite Clues
+| 1/60
+|-
+| Grand Coffin
+| Elite Clues
+| 1/30
+|}
+
+
+{{News Poll|2|Should we add Clue Scrolls to each floor of the Hallowed Sepulchre, as explained in the Poll 76 Blog?}}
+
+----
+
+How about the ability to sort your Quest List by various criteria?
+
+'''You could sort by the following:'''
+
+* Classic (how it is currently)
+* Status
+* Difficulty
+* Storyline
+* Start location
+* Recommended combat level
+* Release year
+* Alphabetically
+8 Free/Members
+* Type
+
+Within each category, entries are sorted alphabetically, unless sorting by storyline or release year.
+
+* If sorting by storyline, they are sorted in order of storyline progression.
+* If sorting by release date, they are sorted into release order.
+
+We can also add filters to hide any of the following:
+* Miniquests
+* Quests not started
+* Quests in progress
+* Completed quests
+* Quests you lack the requirements to complete
+* Quests you lack the recommended levels to complete
+
+[[File:Poll 76 Game Improvements Blog (4).png|centre|600px]]
+
+{{News Poll|3|Should we add the option to sort the Quest List? Criteria would include length, difficulty, storyline and more. By default, the list would remain sorted as it is currently.}}
+
+----
+
+Next up, let’s talk pets and insurance!
+
+We've had a few unfortunate situations where a player has lost their pet, either because they weren't able to get it insured, or because they didn't realise they needed to. In the past, we've justified insurance costs for the purposes of sinking gold, but with the recent introduction of the Grand Exchange Tax and purchasable storage space, we might do things a little differently.
+
+What if your insurance fees were automatically covered, so that once you've unlocked a pet, it will always be reclaimable from Probita?
+
+Any pet achieved (with the exception of Cats and Pet Rocks) would be automatically insured. If you are unlucky enough to lose your pet, we could make a design change so that your pet could be redeemed from Probita for her usual fee of 1million GP.
+
+{{News Poll|4|Should we automatically insure pets? Cats and Pet Rocks would not be automatically insured.}}
+
+In even rarer circumstances, players may receive a message letting them know that they ‘would've’ been followed if they achieved a pet drop with a follower out and a full Inventory. While we've taken measures to prevent this happening in the future, we also want to ensure that players receiving this message will also able to get their pet from Probita for her usual reclaim fee. This would not count for duplicate pets.
+
+
+{{News Poll|5|Should we make a change that if you ‘would've been followed’ by a pet, it would not be lost but instead be reclaimable from Probita for a reclaim fee of 1million GP? This would not count for duplicate pets.}}
+
+We can also ensure that pets marked in the Collection Log as 'received' are reclaimable from Probita in the same way described above. This would mean players who had previously received a pet and lost it through death could reclaim it, as long as it's been tracked by the Collection Log or a Bank placeholder. Unfortunately we won't be able to track pets which have been received and lost before the Collection Log was released, or if you had deleted your Bank placeholder since. Would you like to see this change?
+
+
+{{News Poll|6|If Question #4 passes, should we allow players to reclaim any pet that they have already unlocked in their Collection log or Bank Placeholder from Probita for the usual reclaim fee of 1million GP?}}
+
+Lastly, many of you have already forked out millions of GP to insure your pets appropriately. Should the above questions pass, you may reasonably expect your money back! We can ensure that any previously paid insurance fee would be added into a reclaim fee coffer from Probita. The reclaim fee coffer could be used to discount any pet reclaim.
+
+For example, if you had previously insured two pets at 500,000 GP each, your reclaim fee coffer would contain 1million GP, meaning one free pet reclaim.
+
+{{News Poll|7|If Question #4 passes, should a player's previously paid pet insurance count towards a coffer from Probita to be used for the purposes of reclaiming unlocked pets?}}
+
+----
+
+Since the release of Combat Achievements, a common discussion point has been around Kill Count (KC) tasks. Some players enjoy them, but they’re also pretty time-consuming.
+
+We knew that these types of tasks would be time intensive and we planned it that way to guide players into trying new strategies in PvM. We wanted to encourage you to practice, but some tasks feel longer than necessary and others take almost 100 hours to complete!
+
+We think we can tackle this issue by reducing the quantity of tasks across the board. We won't be able to give specifics on precisely how each task will be reduced, as they're all slightly different. But, as an example, we'd be looking to reduce the Chambers of Xeric Grandmaster Kill Count task from 250KC to 50KC. The lower KC tasks would stay the same, meaning that tasks which already don't require a lot of KC (10-20 KC, for example) would likely not be reduced even further.
+
+{{News Poll|8|Should the quantity of Combat Achievement Kill Count tasks be significantly reduced?}}
+
+----
+
+A while ago we fixed a bug that was allowing some players to kill NPCs without gaining XP. This meant 10 HP accounts could do various types of content that they wouldn't otherwise be able to do!
+
+We jumped in to fix this bug without warning, and unfortunately this sudden change impacted various account builds.
+
+However, we’ve come up with a new item which will allow the affected accounts to resume their journey.
+
+'Poison Dynamite' would be a new item, created with one Dynamite and three Nightshade. It can be lit and deployed with a Tinderbox.
+
+After 5 cycles, the Poison Dynamite will explode, rolling off your highest accuracy stat against the targets appropriate defensive stat. For example, if your Ranged stat is highest, roll your Ranged vs the target's Ranged defence.
+
+* It will deal 0-4 damage, only hit the target on the coordinate it was deployed on, and have a 25% chance to poison the target if it deals damage.
+* It will only hit the target if it's multi combat or if it's a single target and the player is in combat with it.
+* It will grant kill credit to the player that deployed it, equal to damaging the NPC normally.
+* A player can only deploy one at a time.
+* Poison Dynamite is untradeable.
+* Lighting the dynamite will give a small amount of Firemaking XP.
+* This cannot damage other players.
+
+We hope that this is a sensible way to let those players resume the content in a way that feels fitting to Old School and not reliant on a bug. We'd like to gather your feedback on this idea and then proceed with it as part of the '''unpolled''' changes in Poll 76.
+
+----
+
+Now, onto max hits. It feels good to hit your max hit on an NPC, knowing you did the highest damage possible, right? Well, in light of player feedback we've been tinkering with ways we can make this feeling even better. We'd like to introduce a visual indicator that distinguishes between regular hit splats and max ones.
+
+Check out what we've designed below and let us know if you like it! We didn't want the design to be too extravagant because we wanted to ensure that the 'max' hit splat is still readable and consistent with the Old School style.
+
+[[File:Poll 76 Game Improvements Blog (2).png|centre|600px|thumb|''From the left: The dark hitsplat on the left refers to someone else's hit. The hitsplat in the middle is your regular hit. The hitsplat on the far right would be your 'max' hit.'']]
+
+At present we will not be able to offer this toggle in PvP. Unfortunately, this setting gets technically complex when we try to put it on a player - because it's toggleable, each player would have to have the setting enabled to see the max hit splat in PvP.
+
+{{News Poll|9|Should we add a toggleable setting that would display a new hit splat when you hit an NPC with your max hit?}}
+
+Now onto Slayer equipment. Players have pointed out that while V's Shield ''should'' feel like an upgrade to the Mirror Shield, it actually feels a bit underwhelming in practice. Despite requiring players to complete the Fremennik Exiles quests and needing several better stats to wield, the best we can say at the moment is that it just… looks a bit cooler.
+
+So, here’s what we could do to make V’s Shield feel like a proper upgrade for Slayer:
+
+* Remove the negative offensive bonuses to Ranged/Magic.
+* Improve the Magic defence to +5 to match the Mirror Shield.
+
+{{News Poll|10|Should we improve the Magic defence of V's Shield by +5 and remove the negative offensive bonuses to Ranged/Magic?}}
+
+Next up, a highly popular request regarding Bryophyta's Staff. Many players have requested to use it in free-to-play, which seems only fair considering that Bryophyta is a free-to-play boss.
+
+We’ve previously asked whether Bryophta's Essence should be free-to-play and this failed to pass the poll.
+
+We'd like to see whether your thoughts have changed:
+
+{{News Poll|11|Should Bryophyta's Staff become a free-to-play item?}}
+
+{{News Poll|12|If Question #11 passes, should Bryophyta's Essence also be available as a drop in free-to-play?}}
+
+If this passes, free-to-play players would be able to take the essence and 50,000 GP to Zaff to acquire the Bryophyta's Staff.
+
+----
+
+During the Clan release, a hugely popular request was for customisable scenery and hospitality features.
+
+We had a little think and we think drop parties for Clans sounds fantastic! We're excited for players to bring these fun events into their Clan Halls and make them more of a home.
+
+{{News Poll|13|Should we add a Combat Ring with safe death and a Party Room Chest and Lever to the Clan Hall?}}
+
+We can't wait to see you having fun with this!
+
+Speaking of Clan Hall upgrades, we'll also be releasing several unpolled ones, many of which were notes during the release of Clans last year.
+
+Firstly and MOST IMPORTANTLY, we're going to be allowing players to interact with the cat in the Clan Hall.
+
+We'll also be allowing players to use more keys on the piano.
+
+Finally. if you've ever wanted to see the total numbers of players online in your Clan, you're in luck! The side panels for your Clan, the Clan where you're a guest, and the legacy Chat Channel will show a total of how many players are in those places. It would also be possible to separate totals for Clan members and guests if desired – and if space permits.
+
+----
+
+Moving on to more changes! As a noob, you might remember being surprised by some of the projectiles from certain spawns in the TzHaar Fight Cave (or not! Some of you are scarily good at the game).
+
+During our process of looking into the Enhanced Client, we noticed a discrepancy. The Inferno allows players to see NPCs beyond the usual draw distance, while the Fight Caves do not. It's always been this way and we thought it would be worth asking whether you want us to offer the same draw distance in the Fight Caves, so that you can always see where NPCs have spawned.
+
+We know that the surprise might be part of the fun, which is why we pass it over to you. We considered that this change might also have some impact on speedrunning, though we feel the types of players speedrunning the Fight Caves will already know about where everything is going to spawn based on their earlier observations.
+
+{{News Poll|14|Should we allow increased NPC visibility in the Fight Caves, similar to the Inferno?}}
+
+While we're on the subject of visuals, let's discuss camera effects. There are not many places in the game with these, but they can be distracting when we do include them! As an unpolled change, we’re going to offer a toggle on the Settings menu that will allow you to turn on or off any camera movement and screen effects.
+
+You’d be able to toggle based on the game mode, so we can include the following:
+
+* Baba Yaga's House
+* Fishing Trawler
+
+We also have some specific plans about how we'll handle the tunnel vision effects in Icthlarin's Little Helper, so watch this space for that one!
+
+Please note, this would not apply to effects that interfere with gameplay, such as the Last Man Standing fog.
+
+----
+
+By popular demand, we're asking whether you'd like a toggle for the smoke effects in the Desert's Smoke Dungeon! This could be toggled by right-clicking on the Smoke Dungeon entrance.
+
+{{News Poll|15|Should we add a toggle for the smoke in the Desert Smoke Dungeon? This could be toggled by right-clicking on the Smoke Dungeon entrance.}}
+
+===Fishing Guild Changes===
+Have you ever found yourself stuck without a Net in the Fishing Guild? You can already grab a Harpoon and a Big Fishing Net from the entrance room, but not a regular Fishing Net.
+
+{{News Poll|16|Should we add a Fishing Net spawn inside the Fishing Guild? This would be Ironman-friendly.}}
+
+We've also noticed that players might find themselves short on other gear while in the Fishing Guild. What if Roachey could provide players with Rods, Harpoons, Nets, and Small Nets? Currently, he just offers Bait and accepts fish.
+
+{{News Poll|17|Should we add more items to the Fishing Guild store? This would include the same items as other fishing stores across Gielinor (Rods, Harpoons, Nets, and Small Nets).}}
+
+----
+
+To make skilling easier, we'd also like to give you the option to use your spacebar to ‘Smith the last item.’ Should this pass, there would be a clear visual indicator included to let you know what that item is.
+
+{{News Poll|18|On the Smithing interface, should we allow players to use the spacebar to 'Smith last item'?}}
+
+We can also offer the same improvements for the Jewellery Crafting interface.
+
+{{News Poll|19|On the Jewellery Crafting interface, should we allow players to use the spacebar to 'Craft last item'?}}
+
+And how about we give Cooking some love? There are various locations across Gielinor which we think could include a left-click ‘Cook’ operation, similar to ranges. We would ensure that players would not be able to walk on top of the fire, to prevent anyone ‘dinner-griefing’ you by stepping on your beautiful meals!
+
+{{News Poll|20|Should we add a left click ‘Cook’ option to the Rogues' Den and Barbarian Village fires?}}
+
+----
+
+Next up, it's time to talk about the Pharaoh's Sceptre! We've seen various community requests for us to buff this item, and we'd like to meet you in the middle. What if we made the Pharaoh's Sceptre one-handed instead? This would allow you to flex your Book of Darkness while wielding the Sceptre at Pyramid Plunder!
+
+{{News Poll|21|Should we make the Pharaoh's Sceptre one-handed}}
+
+----
+
+We'd like to offer Hellhounds, including Cerberus, the ability to occasionally drop an Ensouled Head, which would give players more of a reason to complete Hellhound tasks.
+
+The Ensouled Heads would count as part of the 'Expert' Reanimation tier and offer 1,000 Prayer XP. It will also work with the Soul Bearer and contribute towards your ‘Hellhound’ Slayer task!
+
+{{News Poll|22|Should we give the ability for Hellhounds (including Cerberus) to occasionally drop an Ensouled Head? The drop rate for regular Hellhounds would match other Ensouled Heads at a rate of 1/40. The drop rate for Cerberus would be 1/15.}}
+
+----
+
+Too many Giant Keys and Mossy Keys in your inventory? We propose to make them stackable, to avoid Inventory clutter! Note that these items wouldn't stack together, but as two separate stacks.
+
+{{News Poll|23|Should we change Mossy Keys and Giant Keys to make them stackable?}}
+
+----
+
+We’d also like to add a log-in message that appears when you have items stored in an item retrieval service like at Hespori or Vorkath. If the player dies, the items will still be deleted as usual. There would be a toggle for this change via the Settings Menu.
+
+{{News Poll|24|Should we send you a log-in message to alert you when you have items stored in an item retrieval service? This would have a toggle via the Setting Menu.}}
+
+----
+
+Next up, we're looking at removing the prompt given when right-clicking Robin to 'Claim Slime'. Players have been teleporting away by accident without pressing the spacebar after the dialogue!
+
+{{News Poll|24|Should we allow players to instantly acquire Slime and Bonemeal when clicking 'Claim Slime' on Robin?}}
+Should this pass, you'll instantly be given Slime and Bonemeal after using the right-click option. We'll also be changing the text to say 'Slime and Bonemeal' rather than 'Bonemeal and Slime'.
+
+----
+During the Guardians of the Rift feedback process, players raised a frustration about the slight delay after clicking on a Runecraft Altar. This delay restricts the player from performing any action for a couple of cycles, which may affect opening Runecraft Pouches or clicking Teleports.
+
+Considering that this delay is not present when crafting combination Runes, we are open to removing it. This change would have an effect on existing Runecraft methods by increasing the XP/hr for conventional Runecraft. All non-combination methods of Runecraft would therefore be slightly buffed. Let's put it to a poll and see what you think!
+
+{{News Poll|25|Should we remove the existing delay after using Essence on Runecraft Altars?}}
+
+Last but not least - Soul Wars! We think an additional Fairy Ring would improve accessibility to the Soul Wars Island, so we'd like to add one to the north coast.
+
+[[File:Poll 76 Game Improvements Blog (3).png|centre|600px]]
+
+{{News Poll|26|Should we introduce an additional Fairy Ring to the Soul Wars Island as shown in the Poll 76 Blog?}}
+
+----
+
+Let's talk about a couple of '''unpolled''' changes next, which we'd like to introduce as part of the work for Poll 76.
+
+We'll be looking to allow Soul Wars to be playable in every world. We think this would entice organized Clans to go to their own world and allow players who enjoy the sport of it to play it more competitively on themed worlds.
+
+Back in [https://secure.runescape.com/m=news/arceuus-spellbook-beta-and-a-kingdom-divided-preparation-?oldschool=1 April], we also mentioned that we were looking to allow players to 'Buy X' in the ‘Other’ tab at the Soul Wars Shop. Players will be able to purchase Blighted items and Spoils in custom quantities.
+
+Finally, we'll also be looking to increase the XP from Soul Wars Rewards.
+
+We originally communicated that the XP would be equivalent to intermediate Pest Control at around 80,000 XP per hour. However, at present players achieve around 60,000 XP per hour at best. For this reason, we'll be adjusting the XP calculations to better reflect what was polled, ensuring that players spending their Zeal tokens receive the intended XP for their effort in the minigame.
+
+----
+
+That's it for Poll 76!
+
+We hope to have more regular polls throughout the year, keeping them relatively short to ensure that we can get the changes out as soon as we can. Let us know your feedback!
+
+Discuss this update on our [http://services.runescape.com/m=forum/ official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team.''

@@ -1,0 +1,228 @@
+{{Update|date=21 October 2022|rev=1 November 2022|link=https://secure.runescape.com/m=news/combat-achievements-expansion-rewards?oldschool=1|category=community}}
+[[File:Combat Achievements Expansion- Rewards newspost.png|right]]
+{{clear}}
+__TOC__
+
+==Your Feedback and What's Next==
+''Added November 1st''
+
+We've made two slight tweaks since the updated newspost yesterday:
+* The poll question regarding the new rewards has been split up into seperate questions.
+* We've changed the Elite Tier reward for God Wars KC from 32 to 30.
+
+----
+
+''Added October 31st''
+
+Last week, we released some top-level ideas for how we'd like to expand Combat Achievements and we've been incredibly pleased with the response so far! Our primary focus was on the potential new rewards, and we also floated the idea of a points-based system that players have been asking about for quite some time.
+
+So first up, we've added two questions to this newspost, to be polled alongside some other pieces of content that we can't discuss just yet.
+
+Here are the key points from your feedback:
+* You responded very positively to the points-based system.
+* You liked the buff to NPC Contact but didn’t feel that it should come from Combat Achievements.
+* Suggested reward concepts included the ability to summon Thralls without the Book of the Dead, increased Slayer task block slots and Dragon Hunter Lance cosmetics – to name just a few!
+
+As an immediate change, we've removed the NPC Contact buffs from the list of new rewards, as we agree with the sentiment surrounding it. We have instead replaced them with an increase to the number of Cannonballs your Cannon can hold by 5, 15 and 30 across the Medium, Hard and Elite Diaries respectively - another popular suggestion.
+
+We’ve considered all the ideas you’ve put forward and may or may not have taken notes for potential future content.
+
+Regarding the point-based system, the team are right there with you in terms of wanting a change. However, rather than poll something now and leave you in the dark about when we can deliver it (something we've definitely never done before...), we want to ensure we can commit our time and deliver it within a good timeframe, so look forward to a poll in the near future asking about these changes..
+
+----
+
+''Ready to achieve ultimate glory in combat? Then keep reading...''
+
+[[File:Combat Achievements Expansion- Rewards (1).png|center|600px]]
+
+
+Since we released Combat Achievements a year or so ago (how time flies!) we've added loads of new content to the game – with this ever-increasing task list, we want to ensure that you're also getting plenty of new rewards.
+
+One of the biggest complaints about Combat Achievements is that they're not rewarding, especially considering the amount of time it takes to complete higher tiers. When we look at the data, we can see that even players with the combat skill to beat the tiers are rarely doing so – and this tells us that you need greater incentives to get those 'cheeves.
+
+We've also talked about a potential, long-term solution on livestream before, but here's the lowdown for those of you who missed it: we want to explore a points-based system for Combat Achievements, similar to the mechanics used to unlock Leagues rewards.
+
+We'd give every Combat Achievement its own point value, with harder tasks awarding more points. This would let you pick and choose which tasks to try, while still reaping awesome benefits. Some of you might choose to complete all the Easy tasks, while more experienced players could complete one Hard and two Medium tasks and get the same reward.
+
+We believe this is a more player-friendly approach and it's something you've been asking us to investigate for some time, so let us know if you would be interested in us continuing our exploration.
+
+In the meantime, let's talk rewards!
+
+==Changes to Current Rewards==
+[[File:Combat Achievements Expansion- Rewards (2).png|center|600px]]
+
+
+Before we take a look at the new rewards on offer, we'd like to make a couple of tweaks to the current selection, to make them a little more motivating.
+
+First up, we have the ''''Like A Boss' Bonus''' – we'd like to buff your reward based on your Kill Count when assigned a boss task:
+* Easy: Up to 40 Boss Kills (3 more than the current reward)
+* Medium: Up to 45 Boss Kills (6 more than the current reward)
+* Hard: Up to 50 Boss Kills (9 more than the current reward)
+* Elite: Up to 55 Boss Kills (12 more than the current reward)
+* Master: Up to 60 Boss Kills (14 more than the current reward)
+* Grandmaster: Up to 65 Boss Kills (15 more than the current reward)
+
+Speaking of Kill Counts, we want to reduce the requirements for the '''God Wars Dungeon KC Entry''':
+* Hard: 35 Follower Kill Count (a 3 kill improvement from the current reward)
+* Elite: 30 Follower Kill Count (a 6 kill improvement from the current reward)
+* Master: 25 Follower Kill Count (an 8 kill improvement from the current reward)
+* Grandmaster: 15 Follower Kill Count (a 15 kill improvement from the current reward)
+
+{{News Poll|1|Should we improve the 'Like A Boss' bonuses and God Wars Kill Count Reduction rewards currently offered from Combat Achievements?}}
+
+==New Rewards==
+[[File:Combat Achievements Expansion- Rewards (3).png|center|600px]]
+
+Now for the main event – the new rewards! Under our proposal, every tier from Easy all the way up to Grandmaster will get a little extra love, allowing you to earn epic new rewards on top of those already offered.
+
+Here's a big list of all the current rewards, in case you've forgotten:
+
+{{Collapsed section|18|CLICK TO EXPAND - (SPOILER WARNING)}}
+{| class="wikitable" style="text-align:center; width:665px;"
+!Easy
+|-
+|
+* An Antique Lamp worth 5,000 XP in any skill above 20
+* A 5% increased chance to receive an Easy Clue Scroll from all sources (excluding Implings)
+* Ghommal's Hilt 1
+** Three daily teleports to the God Wars Dungeon entrance (by the large boulder)
+* The 'Like A Boss' Slayer unlock will now allow players to have up to 37 Boss Kills (a +2 increase) when assigned a boss task
+|-
+!Medium
+|-
+|
+* An Antique Lamp worth 10,000 XP in any skill above 30
+* A 5% increased chance to receive a Medium Clue Scroll from all sources (excluding Implings)
+* Ghommal's Hilt 2
+** Five daily teleports to the God Wars Dungeon entrance (by the large boulder)
+* The 'Like A Boss' Slayer unlock will now allow players to have up to 39 Boss Kills (a +4 increase) when assigned a boss task
+|-
+!Hard
+|-
+|
+* An Antique Lamp worth 15,000 XP in any skill above 40
+* A 5% increased chance to receive a Hard Clue Scroll from all sources (excluding Implings)
+* Ghommal's Hilt 3
+** Unlimited teleports to the God Wars Dungeon entrance (by the large boulder)
+* The 'Like A Boss' Slayer unlock will now allow players to have up to 41 Boss Kills (a +6 increase) when assigned a boss task
+* God Ward Dungeon benefits:
+** God Wars Dungeon boss entrances now require 38 follower Kill Count to enter instead of 40
+** Ecumenical Key drop rate is now increased from 1/60 to 1/55
+** Access to private instances for God Wars Dungeon boss rooms, costing 150,000 coins and the appropriate follower Kill Count or an Ecumenical Key
+* Ability to create a Dragon Hunter Crossbow (b) by combining it with King Black Dragon Heads
+|-
+!Elite
+|-
+|
+* An Antique Lamp worth 25,000 XP in any skill above 50
+* A 5% increased chance to receive an Elite Clue Scroll from all sources (excluding Implings)
+* Ghommal's Hilt 4
+** Three daily teleports to Mor Ul Rek (within the Inner City)
+* The 'Like A Boss' Slayer unlock will now allow players to have up to 43 Boss Kills (a +8 increase) when assigned a boss task
+* God Ward Dungeon benefits:
+** God Wars Dungeon boss entrances now require 36 follower Kill Count to enter instead of 38
+** Ecumenical Key drop rate is now increased from 1/55 to 1/50
+** Coin cost for God Wars Dungeon private instances is reduced from 150,000 to 125,000 coins
+* Ability to create a Dragon Hunter Crossbow (t) by combining it with Vorkath's Head
+* Ghommal can now make players a TzTok Slayer Helmet
+|-
+!Master
+|-
+|
+* An Antique Lamp worth 35,000 XP in any skill above 60
+* Ghommal's Hilt 5
+** Five daily teleports to Mor Ul Rek (within the Inner City)
+* The 'Like A Boss' Slayer unlock will now allow players to have up to 46 Boss Kills (a +11 increase) when assigned a boss task
+* Slayer tasks to kill TzTok-Jad or TzKal-Zuk are increased to 2 kills per task
+* God Ward Dungeon benefits:
+** God Wars Dungeon boss entrances now require 33 follower Kill Count to enter instead of 36
+** Ecumenical Key drop rate is now increased from 1/50 to 1/45
+** Coin cost for God Wars Dungeon private instances is reduced from 125,000 to 100,000 coins
+* Ghommal can now make players a Vampyric Slayer Helmet
+|-
+!Grandmaster
+|-
+|
+* An Antique Lamp worth 50,000 XP in any skill above 70
+* Ghommal's Hilt 6
+** Unlimited teleports to Mor Ul Rek (within the Inner City)
+* The 'Like A Boss' Slayer unlock will now allow players to have up to 50 Boss Kills (a +15 increase) when assigned a boss task
+* Slayer tasks to kill TzTok-Jad or TzKal-Zuk are increased to 3 kills per task
+* God Ward Dungeon benefits:
+** God Wars Dungeon boss entrances now require 30 follower Kill Count to enter instead of 33
+** Ecumenical Key drop rate is now increased from 1/45 to 1/40
+** Coin cost for God Wars Dungeon private instances is reduced from 100,000 to 75,000 coins
+* Ghommal can make players a TzKal Slayer Helmet
+|}
+{{Collapsed section end}}
+
+Now, without further ado, here are the potential new rewards for Combat Achievements:
+
+===Easy Tier Rewards===
+* Earn '''100%''' more Warrior Tokens from the Warriors' Guild.
+* Gain an '''additional point''' per successful game of Pest Control.
+
+===Medium Tier Rewards===
+Although these first two are upgraded versions of the Easy Tier rewards, please note that they do not stack with the Easy version:
+* Earn '''200%''' more Warrior Tokens from the Warriors' Guild.
+* Gain an additional '''2 points''' per successful game of Pest Control.
+
+An additional Medium Tier reward is:
+* The total number of Cannonballs a Cannon can hold is '''increased to 35''' (+5 more than it's base).
+* You will '''no longer''' be affected by the Prayer Drain effect at Barrows while Ghommal's Hilt is equipped.
+
+===Hard Tier Rewards===
+We're bumping the benefits from one of the Medium bonuses – again, this does not stack:
+* Gain an additional '''3 points''' per successful game of Pest Control.
+* The total number of Cannonballs a Cannon can hold is '''increased to 45''' (+15 more than it's base).
+
+And we've got one new reward coming to the Hard Tier:
+* Imbuing items at either Nightmare Zone or Soul Wars will be '''50% cheaper'''.
+
+===Elite Tier Rewards===
+* The total number of Cannonballs a Cannon can hold is '''increased to 60''' (+30 more than it's base).
+* Superior Slayer Monsters will have a '''1/150 chance''' to spawn - a 25% higher chance than the standard rate of 1/200.
+* Expeditious Bracelets and Slaughter Bracelets will now have a '''10% chance''' to fully recharge instead of breaking.
+
+===Master Tier Rewards===
+* Summoned Thralls now last '''50% longer'''.
+* You'll receive a new Blessing that, when worn, gives charged items (Scythe of Vitur, Trident of the Seas, etc.) a '''5% chance''' to not consume charges.
+* The Avernic Defender can now be combined with Ghommal's Hilt 5 for a swanky new cosmetic upgrade!
+* NPC Contact becomes '''4 cycles''' faster to cast.
+
+===Grandmaster Tier Rewards===
+* Summoned Thralls now last '''100% longer'''.
+* Casting 'NPC Contact' will now be a total of '''7 cycles faster'''.
+* The Avernic Defender can now be combined with the Ghommal's Hilt 6 for an even swankier cosmetic upgrade!
+
+{{News Poll|2|Should we offer the ability to earn additional Warrior Tokens as a tiered reward from Combat Achievements?}}
+
+{{News Poll|3|Should we offer the ability to earn additional Pest Control Points as a tiered reward from Combat Achievements?}}
+
+{{News Poll|4|Should we offer the ability to increase capacity of Cannonballs the Dwarven Cannon can hold as a tiered reward from Combat Achievements?}}
+
+{{News Poll|5|Should we offer the ability to no longer be affected by the Prayer Drain effect at Barrows while Ghommal's Hilt is equiped as a reward from Combat Achievements?}}
+
+{{News Poll|6|Should we offer the ability to imbue items for 50% cheaper at Nightmare Zone or Soul Wars as a reward from Combat Achievements?}}
+
+{{News Poll|7|Should we offer the spawn chance of Superior Slayer Monsters to become 1/150 as a reward from Combat Achievements?}}
+
+{{News Poll|8|Should we offer the ability for Expeditious Bracelets and Slaughter Bracelets to have a 10% chance to fully recharge instead of breaking, as a reward from Combat Achievements?}}
+
+{{News Poll|9|Should we offer the ability for summoned Thralls to last longer as a tiered reward from Combat Achievements?}}
+
+{{News Poll|10|Should we offer a new Blessing reward from Combat Achievements, that gives a 5% chance for charged items to save charges?}}
+
+{{News Poll|11|Should we offer the ability to combine the Avernic Defender with Ghommal's Hilt 5/6 as a tiered reward from Combat Achievements?}}
+
+So there you have it! We’re keen to hear what you think about these new rewards and will look to enact any feedback you might have before we launch a poll in early November.
+
+Lastly, we plan to share the details of the Tombs of Amascut Combat Achievements soon, so keep your eyes peeled!
+
+----
+
+You can also discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,847,66264828 official forums], on the [https://www.reddit.com/r/2007scape/comments/yicj0h/combat_achievements_expansion_rewards_update/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,33 @@
+{{Otheruses|the scenery object in the Inferno|other uses|Pillar}}
+{{Infobox Scenery
+|version1 = 100%
+|version2 = 75%
+|version3 = 50%
+|version4 = 25%
+|name = Rocky support
+|image1 = [[File:Rocky support (100%).png|163px]]
+|image2 = [[File:Rocky support (75%).png|163px]]
+|image3 = [[File:Rocky support (50%).png|163px]]
+|image4 = [[File:Rocky support (25%).png|163px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|quest = No
+|location = [[Inferno]]
+|options = None
+|examine1 = A large rocky column. It looks to be holding up well.
+|examine2 = A large rocky column. It looks to have taken a little damage.
+|examine3 = A large rocky column. It's starting to become unstable.
+|examine4 = A large rocky column. It looks like it could break apart if it takes any more damage!
+|map = {{Map|name=Rocky support|x:2257,y:5349|x:2274,y:5351|x:2267,y:5335|mapID=-1|mtype=pin}}
+|id1 = 30284
+|id2 = 30285
+|id3 = 30286
+|id4 = 30287
+}}
+'''Rocky supports''' are huge pillars made of rocks. There are a total of three, which players can use as a [[safespot]] in the [[Inferno]]. 
+
+Each support starts with 255 health. [[Jal-Nib]]s, which appear from waves 1 to 66, will focus on attacking the supports as soon as they spawn, inflicting miniscule damage to it. The support will change in appearance and examine for every 25% of its health lost. When it reaches 0 health, it collapses, dealing damage to all [[monster]]s and players near it when it occurs. The supports automatically collapse after wave 66 has been cleared regardless of their health.
+[[File:Rocky support collapsing.gif|thumb|left|300px|A rocky support collapsing, damaging monsters and the player.]]
+
+{{Inferno}}

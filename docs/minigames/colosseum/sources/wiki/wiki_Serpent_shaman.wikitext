@@ -1,0 +1,66 @@
+{{Infobox Monster
+|name = Serpent shaman
+|image = [[File:Serpent shaman.png|120px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 161
+|size = 1
+|examine = He just loves snakes.
+|xpbonus = 
+|max hit = 28
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 5
+|hitpoints = 125
+|att = 100
+|str = 90
+|def = 90
+|mage = 220
+|range = 160
+|attbns = 0
+|strbns = 0
+|amagic = 50
+|mbns = 15
+|arange = 0
+|rngbns = 0
+|dstab = 30
+|dslash = 30
+|dcrush = 30
+|dmagic = 15
+|dlight = 50
+|dstandard = 50
+|dheavy = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|id = 12811
+}}
+'''Serpent shamans''' are enemies encountered in the [[Fortis Colosseum]], using high-accuracy [[Water Surge]] spells with a range of 10 tiles.
+
+They appear at the start of the first six waves, and appear as reinforcements for waves 4, 5, 6, 10 and 11.
+
+During waves 4, 5, 6, 10, and 11, if the player stands next to the [[Jaguar warrior]] or [[Minotaur (Fortis Colosseum)|Minotaur]] spawn point when reinforcements would have arrived, the serpent shaman will instead spawn in the centre of the arena. There is almost never a practical reason to do this.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = The clickbox of the NPC was updated to include all of its models.
+}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|poll =
+|change = The serpent shaman's magic attack now appears as [[Water Surge]] rather than [[Water Strike]].
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - jaguar and serpent men concept art.jpg|Concept art of the jaguar warrior and serpent shaman, by [[Mod Grub]].
+</gallery>
+
+{{Fortis Colosseum}}
