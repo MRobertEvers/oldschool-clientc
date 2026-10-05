@@ -681,12 +681,26 @@ end
 -- 19, 29"; "the step resolved on T+1") is about the server's phase order, and
 -- only srv->tick states it -- it is the clock every t.ticklog row carries.
 -- `unsupported` on a socket-server run or a binary without the seam.
+--
+-- A PARTY MEMBER (raid seam22, party_death_and_member_readers) holds no world,
+-- so server_tick answers unsupported there; it reads instead the tick its last
+-- TICK frame carried (api_drive.session().lockstep_tick, torirs_plugin_drive.c
+-- lua_drive_session; nil outside a party), which
+-- the leader stamped from srv->tick right after that boundary's world tick.
+-- Between two boundaries it is the number the leader's t.tick() reads in the
+-- same interval, so a member can write tick-stamped rows and wait "until tick
+-- T" on the same clock as the tick log. The leader and a solo run never take
+-- this branch (server_tick answers ok): their t.tick is unchanged.
 function QD.tick()
     if api_drive.server_tick == nil then
         return "unsupported", "t.tick: this binary has no api_drive.server_tick (rebuild)"
     end
     local result, tick = api_drive.server_tick()
     if result ~= "ok" then
+        local session = api_drive.session()
+        if type(session) == "table" and math.type(session.lockstep_tick) == "integer" then
+            return "ok", session.lockstep_tick
+        end
         return result, "t.tick: no embedded server in this run"
     end
     return "ok", tick

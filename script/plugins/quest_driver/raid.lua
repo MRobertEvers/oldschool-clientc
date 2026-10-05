@@ -1048,6 +1048,13 @@ function QD.party.barrier(name, timeout_ticks)
     if size <= 1 then
         return "ok", "party.barrier " .. name .. ": a party of one, p1 waited 0 frame(s) (0 tick(s))"
     end
+    -- seam22: a member's death is in its ledger at the latest here, the
+    -- sync point every raider passes (the member fence at the end of this
+    -- file writes player.died once and does not finish). Not on the leader:
+    -- its death is the quest rule's, read by its own verbs as before.
+    if QD.party.role() ~= 1 then
+        QD.player._death_fence("t.party.barrier " .. name)
+    end
     local mine = string.format("barrier.%s.p%d", name, QD.party.role())
     local marked = api_drive.barrier_mark(mine)
     if marked ~= "ok" then
@@ -1511,4 +1518,216 @@ function QD.party.follow_in()
         return "timeout", "party.follow_in: no entry line after the door; last line: " .. tostring(said)
     end
     return "ok", "party.follow_in: '" .. line .. "'"
+end
+
+-- ============================================== seam22: a dead raider in step
+--
+-- Raid seam22 (party_death_and_member_readers; docs/minigames/raid_loop/
+-- SEAM_TRIAGE_2026-10-05a.md). In the Theatre a raider who dies is caged and
+-- watches (tob_spectate.rs2 `~tob_death_after`: the purgatory stance, the
+-- walktrigger hold, the orb's death marker) while the party fights on; the
+-- room is won or wiped by the others. The driver used to end a MEMBER's run
+-- on that death exactly as it ends a quest (combat.lua QD.player._death_fence:
+-- row player.died FAIL, then t.finish). A finished member exits, its boundary
+-- trace stops, the leader's barriers wait for a mark that never comes, and
+-- gate.party_lockstep FAILs the run -- so no party test could hold a death the
+-- real game allows (Normal Maiden and Sotetseg wiped on this alone).
+--
+-- Now, on a MEMBER (t.party.role() > 1):
+--   * the death is still read the same way (QD.player._death_seen: the death
+--     line, or a stated hitpoints 0), and the FIRST fence that sees it writes
+--     row `player.died` with its own kept shot -- and does NOT finish. The
+--     verdict is FAIL unless the test said beforehand that a death is part of
+--     the plan (t.party.allow_death(reason)); then PASS, quoting the reason.
+--   * from then on every fenced verb (a click settle, t.player.attack/cast,
+--     npc.await_dead*, a quick held press) answers `refused` with the death
+--     text, as on the leader: a caged raider's clicks are not a fight.
+--     t.player.alive() answers refused too. Barriers, reads, t.cheat and
+--     t.finish still work, so the script runs on to the leader's end, sending
+--     READY every F frames like any member.
+--   * t.party.barrier runs the fence on a member first, so a death is in the
+--     ledger at the latest at the next barrier, on the same frame every run.
+-- On the LEADER (and solo) nothing changes: its death ends the world and the
+-- run, row player.died FAIL, as before.
+--
+-- The member's run then ends with everyone else's (the same last barrier), or
+-- -- if the leader's process ends first -- at its next boundary, where the
+-- party link's loss stops it loudly (net_transport_embed.c party_member_lost).
+
+-- ToB's own death line. tob_spectate.rs2 `~tob_death_message` prints it IN
+-- PLACE OF "Oh dear, you are dead!" for a death inside a fight ("You have
+-- died. Death count: 1." [video], tob_spectate.rs2:223-232), so the shared
+-- reading (state.lua QD.player._death_record, which matches the ordinary line)
+-- saw a Theatre death only through the few ticks its hitpoints read 0. The
+-- wrap below latches this line the same way: whole ring, once, for good --
+-- IN A PARTY ONLY (every raider of a party of two or more). A solo run keeps
+-- the shared reading unchanged: the conformance harness dies on purpose in a
+-- solo Entry room (seam.tob_death_cage_then_entry_restart, `::die`, the cage,
+-- the wipe's restart) and drives on, and a latch there ended the harness at
+-- the next click settle (seam22 closer: eleven attempts, each stopped on
+-- `player.died` right after that row). A solo room test's death is still read
+-- through its hitpoints-0 ticks, as before seam22.
+QD.raid.TOB_DEATH_PREFIX = "You have died. Death count: "
+
+QD.player._death_record_shared = QD.player._death_record
+
+function QD.player._death_record()
+    local record = QD.player._death_record_shared()
+    if record then
+        return record
+    end
+    if QD.party.size() <= 1 then
+        return nil
+    end
+    local result, rows = api_drive.messages()
+    if result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    local newest, line = nil, nil
+    for i = 1, #rows do
+        local text = rows[i].text
+        if type(text) == "string" and string.find(text, QD.raid.TOB_DEATH_PREFIX, 1, true)
+            and (newest == nil or rows[i].serial > newest) then
+            newest, line = rows[i].serial, QD.player._plain_line(text)
+        end
+    end
+    if newest == nil then
+        return nil
+    end
+    local tile_result, tile = api_drive.player_tile()
+    local where = (tile_result == "ok" and type(tile) == "table")
+        and (tostring(tile.x) .. "," .. tostring(tile.z) .. " L" .. tostring(tile.level))
+        or tostring(tile_result)
+    QD._death = {
+        deaths = 1,
+        serial = newest,
+        wake = "the Theatre's spectator cage",
+        tick = api_drive.tick(),
+        where = where,
+        hitpoints = "?",
+        text = "the character DIED in the Theatre of Blood: '" .. tostring(line) .. "' (tob_spectate.rs2"
+            .. " ~tob_death_message), read at " .. where .. " on drive tick " .. tostring(api_drive.tick())
+            .. " -- a raider who dies in a fight is caged and watches until the room is won or wiped",
+    }
+    return QD._death
+end
+
+-- t.party.allow_death(reason) -> "ok", detail. Declares that a death of THIS
+-- raider is part of the test's plan (a smoke's deliberate death; a Normal room
+-- where the sources' trio loses a raider and still clears). The member's
+-- `player.died` row is then PASS and quotes `reason`. Without it the row is
+-- FAIL -- the run still goes on in lock step, but it is red. The leader may
+-- not allow its own death: the leader's death ends the world.
+QD.party._death_allowed = nil
+QD.party._death_written = false
+
+function QD.party.allow_death(reason)
+    assert(type(reason) == "string")
+    assert(reason ~= "")
+    if QD.party.role() == 1 then
+        return "refused", "party.allow_death: p1 is the leader, whose death ends the world and the run"
+            .. " (player.died FAIL); only a member's death can be allowed"
+    end
+    QD.party._death_allowed = reason
+    return "ok", "party.allow_death: p" .. QD.party.role() .. " may die: " .. reason
+end
+
+QD.player._death_fence_solo = QD.player._death_fence
+
+function QD.player._death_fence(context)
+    if QD.party.role() == 1 then
+        return QD.player._death_fence_solo(context)
+    end
+    local record = QD.player._death_seen()
+    if not record then
+        return false
+    end
+    if QD.party._death_written then
+        return true
+    end
+    QD.party._death_written = true
+    -- combat.lua's own latch, so its comments' "reported once" holds too.
+    QD._death_reported = true
+    local tick_result, tick = QD.tick()
+    local tick_text = tick_result == "ok" and ("world tick " .. tostring(tick)) or "no world tick"
+    QD.shot("player.died", true)
+    local verdict = QD.party._death_allowed ~= nil and "PASS" or "FAIL"
+    -- combat.lua's zero-hitpoints record (deaths = 0) speaks of a quest's
+    -- respawn point; a raider's death is read in the Theatre's words.
+    local reading = QD.player._death_text(record)
+    if record.deaths == 0 then
+        reading = "hitpoints read " .. tostring(record.hitpoints) .. " at " .. tostring(record.where)
+            .. " on drive tick " .. tostring(record.tick) .. " (the killing blow; the death line follows"
+            .. " the death animation)"
+    end
+    QD.step("player.died", verdict, string.format(
+        "p%d died, seen on %s: %s -- read by %s; a party member's death is not the end of its run"
+            .. " (seam22): it stays in lock step to the leader's end, and its fenced verbs now answer"
+            .. " refused; %s",
+        QD.party.role(), tick_text, reading, tostring(context),
+        QD.party._death_allowed ~= nil and ("allowed: " .. QD.party._death_allowed)
+            or "NOT allowed (t.party.allow_death was not called), so this row is FAIL"))
+    return true
+end
+
+-- t.ticklog.rows(opts) gains `area` (raid seam22): {x0, z0, x1, z1} or
+-- {x0, z0, x1, z1, level}, world tiles, inclusive, either corner first. A row
+-- is kept when its own tile is inside: `x, z` (every packed `coord` field is
+-- unpacked to them, and npc_tile carries them), else `dst_x, dst_z` (a
+-- projectile's landing tile); a row with neither (hit_player, hit_npc, a
+-- mark) is DROPPED, so combine `area` with `kind`. Applied after the C side's
+-- kind and slot filters, before the row lands in the result: the leader's
+-- npc_spawn rows hold every region npc (506 in a Normal Maiden run), and an
+-- area of the arena returns the room's own. The rows still cost their Lua
+-- tables while they are read, so a whole-log query of a kind the C side does
+-- not filter (npc_tile with no slot) can still exhaust the instruction budget
+-- (PLUGIN_LUA_STEP_BUDGET, 400000 per resume, torirs_plugin_lua.c): give
+-- `slot` or a `since` serial there.
+assert(QD.ticklog.rows ~= nil, "raid.lua loads after ticklog.lua (DRIVE_SCRIPT_PARTS, seam22)")
+QD.ticklog._rows_unfiltered = QD.ticklog.rows
+
+function QD.ticklog._area_keep(area)
+    local x0, z0, x1, z1 = area[1], area[2], area[3], area[4]
+    if x0 > x1 then x0, x1 = x1, x0 end
+    if z0 > z1 then z0, z1 = z1, z0 end
+    local level = area[5]
+    return function(row)
+        local x, z, l = row.x, row.z, row.level
+        if x == nil or z == nil then
+            x, z, l = row.dst_x, row.dst_z, row.dst_level
+        end
+        if x == nil or z == nil then
+            return false
+        end
+        if level ~= nil and l ~= level then
+            return false
+        end
+        return x >= x0 and x <= x1 and z >= z0 and z <= z1
+    end
+end
+
+function QD.ticklog.rows(opts)
+    if opts == nil or opts.area == nil then
+        return QD.ticklog._rows_unfiltered(opts)
+    end
+    local area = opts.area
+    if type(area) ~= "table" or math.type(area[1]) ~= "integer" or math.type(area[2]) ~= "integer"
+        or math.type(area[3]) ~= "integer" or math.type(area[4]) ~= "integer"
+        or (area[5] ~= nil and math.type(area[5]) ~= "integer") then
+        return "refused", "t.ticklog.rows: area wants {x0, z0, x1, z1[, level]} in world tiles, got "
+            .. tostring(area)
+    end
+    local inside = QD.ticklog._area_keep(area)
+    local copy = {}
+    for key, value in pairs(opts) do
+        copy[key] = value
+    end
+    copy.area = nil
+    local where = opts.where
+    if where ~= nil then
+        copy.where = function(row) return inside(row) and where(row) end
+    else
+        copy.where = inside
+    end
+    return QD.ticklog._rows_unfiltered(copy)
 end

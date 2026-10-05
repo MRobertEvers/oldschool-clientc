@@ -1,0 +1,4 @@
+scale 1: landings that HIT a raider -> chained {2: 1, 3: 1}; landings that MISSED -> chained {0: 8, 1: 43, 2: 25, 3: 18}
+scale 2: landings that HIT a raider -> chained {1: 2}; landings that MISSED -> chained {0: 57, 1: 67, 2: 14, 3: 1}
+scale 3: landings that HIT a raider -> chained {0: 5, 1: 4}; landings that MISSED -> chained {0: 155, 1: 83, 2: 13}
+scale 4: landings that HIT a raider -> chained {0: 1, 1: 2}; landings that MISSED -> chained {0: 26, 1: 29, 2: 3}

@@ -19,7 +19,12 @@
 -- the members' ::tobjoinroom -- and stand on one tile at Bloat's entrance in
 -- one instance (::tobstate party=3); every raider reads the three orbs full;
 -- the leader crosses, reads scale=3 and Bloat's 1500 (spec.bloat.hp_3); every
--- raider reads the members' orbs full with the fight running; all leave.
+-- raider reads the members' orbs full with the fight running.
+-- Phase D, a dead raider in lock step (raid seam22): the leader steps back
+-- out, p3 crosses alone and dies to the flies (t.party.allow_death first), is
+-- caged, and runs on with the other two to the end; every raider reads
+-- t.tick() after two barriers; the leader reads the death from the tick log.
+-- Then all leave.
 return {
     id = "_party_smoke",
     fixture = "fresh_lumbridge.ini",
@@ -294,6 +299,111 @@ return {
         want("raidwide.hud.orb_full.members_in_fight", o1 == 27 and o2 == 27 and type(o0) == "number" and o0 >= 1 and o0 <= 27,
             "measured " .. fight_orbs .. " on p" .. role .. "'s client (members 27 each; the leader's own orb current, 1..27)")
         t.expect("party.barrier.bloat_read", t.party.barrier("bloat_read", 300))
+
+        -- Phase D (raid seam22, party_death_and_member_readers): a member dies
+        -- and stays in lock step. The leader steps back out through the
+        -- barrier (a running fight's barrier is a gate: tob_party.rs2
+        -- [oploc1,tob_arena_barrier], ~tob_barrier_step) and walks back to the
+        -- entrance tile beside p2; p3 declares the death (t.party.allow_death),
+        -- crosses alone and stands unhidden. Normal Bloat's flies are a
+        -- per-tick attack on anyone he sees, 10..20 each (tob_bloat.rs2
+        -- ~tob_bloat_flies, tob.constant ^tob_bloat_flies_min/max), so p3's 99
+        -- hitpoints last about ten ticks; he dies into the spectator cage
+        -- (tob_spectate.rs2 ~tob_death_after) with "You have died. Death
+        -- count: 1." -- not a wipe, the other two are alive in the corridor.
+        -- p3's script does NOT end: player.died is a row (PASS, allowed), it
+        -- passes every later barrier and leaves with the others, and every
+        -- raider's boundary trace reaches the leader's last boundary
+        -- (party.lockstep). Each raider also reads t.tick() right after two
+        -- barriers: a member's tick is its last TICK frame's (seam22), the
+        -- same number the leader's srv->tick reads.
+        local function tick_row(label)
+            local tr, tick = t.tick()
+            want("party.tick." .. label, tr == "ok" and math.type(tick) == "integer",
+                string.format("p%d t.tick() -> %s %s right after barrier %s (%s)", role, tostring(tr),
+                    tostring(tick), label, role == 1 and "the leader: srv->tick"
+                    or "a member: the tick its last TICK frame carried"))
+            return tick
+        end
+        tick_row("bloat_read")
+        if role == 1 then
+            t.exec("death.leader_out", t.player.click_loc, "tob_arena_barrier", 1)
+            if type(at) == "table" then
+                local wr, wd = t.player.walk_to(at.x, at.z)
+                local _, home = t.world.tile()
+                t.check("death.leader_home", wr, string.format("walk_to %d,%d -> %s %s; at %s (the entrance tile,"
+                    .. " beside p2, out of Bloat's sight)", at.x, at.z, tostring(wr), tostring(wd),
+                    type(home) == "table" and (home.x .. "," .. home.z) or tostring(home)))
+            end
+        end
+        t.expect("party.barrier.death_clear", t.party.barrier("death_clear", 300))
+        local death_mark_tick = tick_row("death_clear")
+        if role == 3 then
+            t.expect("party.allow_death", t.party.allow_death("_party_smoke phase D: p3 stands unhidden"
+                .. " in Normal Bloat's room so his flies kill it (seam22's deliberate death)"))
+            t.exec("death.p3_in", t.player.click_loc, "tob_arena_barrier", 1)
+            -- Wait for the Theatre's own death line, not the zero: the
+            -- hitpoints read 0 on the killing blow and the line follows the
+            -- death animation (tob_spectate.rs2 ~tob_death_message).
+            local line = nil
+            local ar = t.await({ level = function()
+                local _, lines = t.msg.last(10)
+                for _, m in ipairs(lines or {}) do
+                    if string.find(tostring(m.text), "You have died. Death count: ", 1, true) then
+                        line = m.text
+                        return true
+                    end
+                end
+                return false
+            end, note = "p3 falls to Bloat's flies" }, 60)
+            local dr, dd = t.player.alive()
+            local _, cage = t.world.tile()
+            local _, now = t.tick()
+            want("party.death.p3_caged", ar == "ok" and dr ~= "ok" and line ~= nil,
+                string.format("t.player.alive() -> %s (%s); chat '%s'; at %s on tick %s -- the Theatre's death:"
+                    .. " caged, watching, the script still running", tostring(dr), tostring(dd), tostring(line),
+                    type(cage) == "table" and (cage.x .. "," .. cage.z) or tostring(cage), tostring(now)))
+        end
+        t.expect("party.barrier.death_done", t.party.barrier("death_done", 300))
+        tick_row("death_done")
+        if role == 1 then
+            -- The world's record of the death: every fly hit on p3 (pid 2: seat
+            -- n is pid n-1) since the barrier, and the tick its 99 ran out.
+            local hr, hits = t.ticklog.rows({ kind = "hit_player", pid = 2 })
+            local total, first, last, n, zero = 0, nil, nil, 0, nil
+            for _, row in ipairs(hr == "ok" and hits or {}) do
+                if death_mark_tick ~= nil and row.tick >= death_mark_tick then
+                    n = n + 1
+                    total = total + row.damage
+                    first = first or row.tick
+                    last = row.tick
+                    if zero == nil and total >= 99 then zero = row.tick end
+                end
+            end
+            local _, orb = t.var.varbit("varb6444_tob_client_p2")
+            want("party.death.p3_in_ticklog", hr == "ok" and zero ~= nil,
+                string.format("hit_player pid 2 since tick %s: %d hit(s), ticks %s..%s, %d damage; p3's 99"
+                    .. " hitpoints ran out on tick %s; p3's orb (varbit 6444) reads %s on the leader's client",
+                    tostring(death_mark_tick), n, tostring(first), tostring(last), total, tostring(zero),
+                    tostring(orb)))
+        end
+        if role == 1 and type(at) == "table" then
+            -- t.ticklog.rows' `area` (raid seam22): the room's own spawns, not
+            -- every npc of the region the leader's log holds. The box is the
+            -- 64x64 map square of Bloat's entrance tile.
+            local sx, sz = at.x - at.x % 64, at.z - at.z % 64
+            local whole_result, whole = t.ticklog.rows({ kind = "npc_spawn" })
+            local area_result, inside = t.ticklog.rows({ kind = "npc_spawn", area = { sx, sz, sx + 63, sz + 63 } })
+            local outside = 0
+            for _, row in ipairs(area_result == "ok" and inside or {}) do
+                if row.x < sx or row.x > sx + 63 or row.z < sz or row.z > sz + 63 then outside = outside + 1 end
+            end
+            want("ticklog.rows.area", whole_result == "ok" and area_result == "ok" and #inside >= 1
+                and #inside < #whole and outside == 0,
+                string.format("npc_spawn rows: %s in the whole log, %s with area {%d,%d,%d,%d} (Bloat's map square),"
+                    .. " %d of them outside the box", whole_result == "ok" and #whole or whole_result,
+                    area_result == "ok" and #inside or area_result, sx, sz, sx + 63, sz + 63, outside))
+        end
         t.cheat("::tobout")
         t.await({ level = function()
             local _, tile = t.world.tile()

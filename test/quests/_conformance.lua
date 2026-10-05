@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 177
+-- @verb-count 178
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 170
+-- @seam-count 172
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 177
-local SEAM_COUNT = 170
+local VERB_COUNT = 178
+local SEAM_COUNT = 172
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -2980,6 +2980,38 @@ return {
                 .. " npc_death, " .. #swings .. " npc_anim"
         end)
 
+        -- seam22: t.ticklog.rows' `area` filter {x0, z0, x1, z1[, level]}: a
+        -- row is kept when its own tile (x, z, else dst_x, dst_z) is inside;
+        -- a row with no tile is dropped. Proved on the player's own
+        -- player_tile rows: a 3x3 box on the tile keeps some and nothing
+        -- outside it, a far box keeps none, and a tile-less kind keeps none.
+        seam("seam.ticklog_rows_area", function()
+            local fn = verb("ticklog", "rows")
+            if not fn then return missing("ticklog", "rows") end
+            local tr, tile = t.world.tile()
+            if tr ~= "ok" or type(tile) ~= "table" then return "no_subject", "no player tile: " .. describe(tile) end
+            local box = { tile.x - 1, tile.z - 1, tile.x + 1, tile.z + 1 }
+            local wr, whole = fn({ kind = "player_tile" })
+            local ar, near = fn({ kind = "player_tile", area = box })
+            local fr, far = fn({ kind = "player_tile", area = { tile.x + 200, tile.z + 200, tile.x + 210, tile.z + 210 } })
+            local hr, hits = fn({ kind = "hit_npc", area = box })
+            local br, bad = fn({ kind = "player_tile", area = { 1, 2 } })
+            if wr ~= "ok" or ar ~= "ok" or fr ~= "ok" or hr ~= "ok" then
+                return "refused", "rows: " .. describe(wr) .. " " .. describe(ar) .. " " .. describe(fr) .. " " .. describe(hr)
+            end
+            local outside = 0
+            for _, row in ipairs(near) do
+                if row.x < box[1] or row.x > box[3] or row.z < box[2] or row.z > box[4] then outside = outside + 1 end
+            end
+            if #near == 0 or #near > #whole or outside ~= 0 or #far ~= 0 or #hits ~= 0 or br ~= "refused" then
+                return "hollow", string.format("player_tile whole %d, in the 3x3 box %d (%d outside), far box %d,"
+                    .. " hit_npc in the box %d (want 0: no tile), a two-number area %s",
+                    #whole, #near, outside, #far, #hits, describe(br))
+            end
+            return "ok", string.format("player_tile rows: %d in the whole log, %d with area {%d,%d,%d,%d} around"
+                .. " %d,%d (0 outside), 0 in a box 200 tiles off, 0 hit_npc rows (no tile); {1,2} refused",
+                #whole, #near, box[1], box[2], box[3], box[4], tile.x, tile.z)
+        end)
         step("ticklog.gaps", function()
             local fn = verb("ticklog", "gaps")
             if not fn then return missing("ticklog", "gaps") end
@@ -3184,9 +3216,27 @@ return {
         step("prayer.points", function()
             local fn = verb("prayer", "points")
             if not fn then return missing("prayer", "points") end
-            local result, detail, reading = fn()
-            return answered(result, reading, describe(detail) .. " ",
-                field("base_level", equals(43)), "the reading's base_level is not the Prayer 43 stated above")
+            -- seam22: the reading is the SECOND value, as t.skill.read's is;
+            -- the detail text is the third (and reading.text).
+            local result, reading, detail = fn()
+            if result ~= "ok" then return result, describe(reading) end
+            if type(reading) ~= "table" or reading.base_level ~= 43 then
+                return "hollow", "the second value is not the prayer reading with base_level 43 (the Prayer 43"
+                    .. " stated above): " .. describe(reading)
+            end
+            if reading.points ~= reading.level or math.type(reading.points) ~= "integer" then
+                return "hollow", "reading.points is not the level (points left): " .. describe(reading.points)
+                    .. " vs " .. describe(reading.level)
+            end
+            if not is_text(detail) or detail ~= reading.text then
+                return "hollow", "the third value is not the reading's text: " .. describe(detail)
+            end
+            local sr, stat = verb("skill", "read")("prayer")
+            if sr ~= "ok" or type(stat) ~= "table" or stat.level ~= reading.level then
+                return "hollow", "t.skill.read('prayer') reads " .. describe(stat) .. ", points() read "
+                    .. reading.level
+            end
+            return "ok", detail .. " (reading.points " .. reading.points .. " = t.skill.read('prayer').level)"
         end)
 
         -- put the prayer out and the inventory tab back for the rows below
@@ -11424,6 +11474,52 @@ return {
             end
             return "ok", describe(bd) .. "; a two-tick deadline timed out after " .. frames
                 .. " frame(s) (" .. ticks .. " tick(s)): 30 frames a tick at k=1"
+        end)
+        -- seam22 party_death_and_member_readers: t.party.allow_death(reason).
+        -- A member's death is a row, not the end of its run; this verb makes
+        -- that row PASS. On the leader (a party of one IS the leader) it is
+        -- refused, naming why: the leader's death ends the world.
+        step("party.allow_death", function()
+            local fn = verb("party", "allow_death")
+            if not fn then return missing("party", "allow_death") end
+            if t.party.role() ~= 1 then
+                return "refused", "the conformance harness is not the leader: role " .. describe(t.party.role())
+            end
+            local result, detail = fn("conformance: the leader may not allow its own death")
+            if result ~= "refused" or not string.find(tostring(detail), "ends the world", 1, true) then
+                return "hollow", "the leader's allow_death should be refused naming 'ends the world'; read "
+                    .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused on the leader, as it must be: " .. describe(detail)
+        end)
+        -- seam22: the member readers on a party of one are what they were.
+        -- t.tick() still reads srv->tick (the member fallback,
+        -- api_drive.session().lockstep_tick, is nil outside a party), and
+        -- the leader's death rule is still the quest's (raid.lua delegates
+        -- QD.player._death_fence to combat.lua's on role 1).
+        seam("seam.party_member_readers_solo", function()
+            local tick = verb("tick")
+            if not tick then return missing("tick") end
+            if t.party.size() ~= 1 or t.party.role() ~= 1 then
+                return "refused", "the conformance harness is not a party of one"
+            end
+            if type(t.player._death_fence_solo) ~= "function" then
+                return missing("player", "_death_fence_solo")
+            end
+            local r1, before = tick()
+            settle(2)
+            local r2, after = tick()
+            if r1 ~= "ok" or r2 ~= "ok" or math.type(before) ~= "integer" or math.type(after) ~= "integer"
+                or after <= before then
+                return "hollow", "t.tick on a party of one: " .. describe(r1) .. " " .. describe(before)
+                    .. " -> " .. describe(r2) .. " " .. describe(after)
+            end
+            if t.party._death_written ~= false or t.party._death_allowed ~= nil then
+                return "hollow", "a solo run carries member death state: written " .. describe(t.party._death_written)
+                    .. " allowed " .. describe(t.party._death_allowed)
+            end
+            return "ok", "party of one: t.tick() " .. before .. " -> " .. after
+                .. " over t.ticks(2) (srv->tick; no lockstep fallback); no member death state"
         end)
         step("party.players", function()
             local fn = verb("party", "players")

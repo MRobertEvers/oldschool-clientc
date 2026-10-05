@@ -6,7 +6,8 @@
 --
 --   t.prayer.set(name, on)  -> ok | refused | no_row | not_found | not_visible | timeout
 --   t.prayer.read()         -> ok, detail, set      (set[name] = true/false, all 29)
---   t.prayer.points()       -> ok, detail, reading  (t.skill.read("prayer")'s reading)
+--   t.prayer.points()       -> ok, reading, detail  (t.skill.read("prayer")'s reading
+--                              plus .points and .text; seam22 swapped the order)
 --
 -- THE PRESS IS THE PLAYER'S.  `set` opens the prayer side tab through the
 -- lane's own tab map (`prayer=5`, revconfig/osrs239/osrs239_dat2_cache.ini
@@ -307,14 +308,26 @@ function QD.prayer.read()
         tick, #lit, #QD.prayer.TABLE, table.concat(lit, ", "), overhead), set
 end
 
--- t.prayer.points() -> "ok", detail, reading
--- The prayer stat as t.skill.read("prayer") reads it (level = points left,
--- base_level = the prayer level), with a detail a ledger row can carry.
+-- t.prayer.points() -> "ok", reading, detail
+-- The prayer stat, in t.skill.read("prayer")'s own shape: the SECOND value is
+-- the reading (level = points left, base_level = the prayer level,
+-- experience, stated), plus `points` (= level, the number a room test wants)
+-- and `text`, the detail a ledger row can carry, which is also the third value.
+--
+-- Raid seam22 (party_death_and_member_readers): it used to answer
+-- ("ok", detail, reading), so every room author who wrote it the way they
+-- write `local _, pp = t.skill.read("prayer")` got the detail STRING in `pp`
+-- and called it unusable (the Normal Sotetseg review; four of six Normal
+-- authors fell back to t.skill.read). Same numbers, same read, now the order
+-- every other reader has. Record it with t.check(name, r, reading.text).
 function QD.prayer.points()
     local result, reading = QD.skill.read("prayer")
-    if result ~= "ok" then
-        return result, "prayer.points: skill.read(prayer) answered " .. tostring(result) .. " " .. tostring(reading)
+    if result ~= "ok" or type(reading) ~= "table" then
+        local why = "prayer.points: skill.read(prayer) answered " .. tostring(result) .. " " .. tostring(reading)
+        return result ~= "ok" and result or "refused", why, why
     end
-    return "ok", string.format("prayer points %d/%d (xp %d) on drive tick %d",
-        reading.level, reading.base_level, reading.experience, api_drive.tick()), reading
+    reading.points = reading.level
+    reading.text = string.format("prayer points %d/%d (xp %d) on drive tick %d",
+        reading.level, reading.base_level, reading.experience, api_drive.tick())
+    return "ok", reading, reading.text
 end

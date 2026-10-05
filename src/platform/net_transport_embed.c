@@ -527,7 +527,29 @@ party_pending_append(
     self->party_pending_len += len;
 }
 
-/* The link went away (or was given up on): deliver what arrived, then say so. */
+/* The link went away (or was given up on): say so, and END THIS MEMBER.
+ *
+ * Raid seam22 (party_death_and_member_readers; seam21's open item): a member
+ * whose world is gone must not run on. It used to deliver what had arrived and
+ * report DISCONNECTED, and the client then ran on its own clock -- in the long
+ * Bloat scratch the leader died and the members drove about 1000 more client
+ * ticks against no world, then timed out their `done` barrier, writing rows
+ * the world never clocked. Every way this is reached means the lock step is
+ * over for this raider: the leader's process ended (its run finished or it
+ * died), the leader dropped this seat (no READY within
+ * TORIRS_EMBED_PARTY_WAIT_S, or the world ended this player's session), the
+ * leader went still past the wait, or the link broke protocol. A member's own
+ * logout (TORIRS_NET_OUT_DISCONNECT) closes the link through party_close and
+ * never comes here.
+ *
+ * So the member stops at this boundary, loudly: the line names the boundary
+ * count (the leader's trace is the reference), and exit() flushes the line and
+ * the ledger rows already written. run.py appends the member's
+ * `run.unfinished` row quoting this line when its script had not finished,
+ * and gate.party_lockstep compares the traces up to the leader's last
+ * boundary. A run that ends normally never reaches this: every raider passes
+ * the last barrier on the same lockstep tick and finishes in that frame,
+ * before its next boundary. */
 static void
 party_member_lost(
     struct NetTransportEmbed* self,
@@ -537,6 +559,10 @@ party_member_lost(
                self->party_boundaries, self->party_boundaries == 1 ? "y" : "ies");
     party_close(self);
     self->party_closed = 1;
+    TORIRS_ERR("net: party: abort: this member's world is gone (the leader's link %s after "
+               "boundary %d, tick %d) -- a member never runs past its leader\n",
+               why, self->party_boundaries, self->party_last_tick);
+    exit(EXIT_FAILURE);
 }
 
 /*

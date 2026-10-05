@@ -163,6 +163,28 @@ the merge.
   - `script/plugins/quest_driver/raid.lua`: `t.party.barrier` counts its wait in frames
     (`QD.party._await_counted`); its detail now reads `p<n> waited F frame(s) (T tick(s))`.
   - Raid-only tooling: new `tools/raid_gate/party_repeat.py` (the cross-run determinism gate).
+- seam22 (2026-10-05), a dead member stays in lock step; member readers. Solo runs are
+  unchanged: cooks_assistant and druid are byte-identical to build/merge17_check, the six
+  Entry rooms keep their ledgers row for row and FULL, and the suite holds 115 green with the
+  same four RED.
+  - C (shared with v3's embed client): `net_transport_embed.c` `party_member_lost` now
+    prints `net: party: abort: this member's world is gone ...` and `exit(EXIT_FAILURE)`: a
+    member never runs past its leader (it used to run on against no world).
+    `torirs_plugin_drive.c`: `api_drive.session()` gains `lockstep_tick` (nil outside a
+    party), and DRIVE_SCRIPT_PARTS loads ticklog.lua BEFORE raid.lua (raid.lua wraps
+    `QD.ticklog.rows`). Rebuild every party binary from one tree.
+  - `tools/quest_gate/gate.py`: `party_lockstep` compares a member's trace only up to the
+    leader's last boundary (fewer is still FAIL, more is no longer FAIL) and its PASS detail
+    names the members with a `player.died` row (new `party_member_died`). Solo runs are
+    untouched.
+  - `test/quests/_conformance.lua`: `prayer.points` row rewritten (the verb now answers
+    `("ok", reading, detail)`), new verb row `party.allow_death`, new seam rows
+    `seam.party_member_readers_solo` and `seam.ticklog_rows_area`: 178 verbs, 172 seam rows on
+    the branch. `tools/quest_gate/verb_list.py` unchanged (`--check` agrees). A v3 test that
+    destructured `t.prayer.points()` as `(ok, detail, reading)` must swap the two.
+  - `script/plugins/quest_driver/`: core.lua (`t.tick` on a member reads the lockstep tick),
+    prayer.lua (`t.prayer.points` shape), raid.lua (the member death fence,
+    `t.party.allow_death`, the party-only Theatre death-line latch, `t.ticklog.rows` `area`).
 
 ## 4. The owner's main checkout
 

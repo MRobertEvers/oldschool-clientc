@@ -104,12 +104,17 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * npc.await_dead_engaged holds (seam cast_spell_on_npc, 2026-09-27). */
     "plugins/quest_driver/spell.lua",
     /* The raid seam (docs/RAID_ORCHESTRATOR.md section 4): prayer.lua adds
-     * QD.prayer, raid.lua adds QD.raid, ticklog.lua adds QD.ticklog. None of
-     * them wraps anything; they follow combat.lua because raid.lua reads
+     * QD.prayer, raid.lua adds QD.raid, ticklog.lua adds QD.ticklog. Since
+     * seam22 raid.lua wraps three things (combat.lua's death fence and
+     * state.lua's death record for a party member, ticklog.lua's rows for
+     * `area`); they follow combat.lua because raid.lua reads
      * QD._combat_last. */
     "plugins/quest_driver/prayer.lua",
-    "plugins/quest_driver/raid.lua",
+    /* ticklog.lua BEFORE raid.lua (raid seam22): raid.lua wraps
+     * QD.ticklog.rows to add the `area` filter (a room's own tiles, so a room
+     * test never pulls every region npc) and asserts it is there. */
     "plugins/quest_driver/ticklog.lua",
+    "plugins/quest_driver/raid.lua",
     /* Last: t.cutscene wraps QD.core_row_begin (core.lua) to remember the
      * camera serial each t.exec row began at, and reads QD.shot (ui.lua)
      * (seam32 cutscene_verb_and_camera_read). */
@@ -1234,11 +1239,30 @@ lua_drive_session(struct lua_State* L)
     char const* dir = DriveCore_SessionDir();
     char const* script = PluginDrive_QuestScriptPath();
 
-    lua_createtable(L, 0, 2);
+    int const lockstep = ToriRSServer_EmbedLockstepTick();
+
+    lua_createtable(L, 0, 3);
     lua_pushstring(L, dir ? dir : "");
     lua_setfield(L, -2, "dir");
     lua_pushstring(L, script ? script : "");
     lua_setfield(L, -2, "script");
+    /* `lockstep_tick` (raid seam22, party_death_and_member_readers): the world
+     * tick of this process's last party boundary, ToriRSServer_EmbedLockstepTick(),
+     * and absent (nil) outside a party. On a party MEMBER it is the tick its
+     * last TICK frame carried (net_transport_embed.c party_member_boundary),
+     * which the leader stamped from srv->tick right after that boundary's world
+     * tick ran (torirs_server_embed.c party_flush) -- so between two boundaries
+     * a member reads the number the leader's api_drive.server_tick reads, and
+     * can write tick-stamped rows and wait "until tick T". core.lua's QD.tick
+     * falls back to it only where server_tick answers unsupported (a member
+     * holds no world); the leader and a solo run keep reading srv->tick. A
+     * field of the session table rather than a verb of its own: it is a fact
+     * of this process's place in the run, like `dir`. */
+    if( lockstep != TORIRSSERVER_EMBED_LOCKSTEP_NONE )
+    {
+        lua_pushinteger(L, (lua_Integer)lockstep);
+        lua_setfield(L, -2, "lockstep_tick");
+    }
     return 1;
 }
 

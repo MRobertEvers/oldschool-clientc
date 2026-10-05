@@ -281,8 +281,19 @@ def party_seats(directory):
 # line: the same boundaries, each with the same tick and digest. The union
 # ledger carries the answer as its `party.lockstep` row, FAIL naming the first
 # boundary (and tick) that differs; run.py fails the run on it. No tolerance:
-# a member with fewer boundaries than the leader (it died, stalled or never
-# joined) is a FAIL too, naming the first boundary it is missing.
+# a member with fewer boundaries than the leader (it stalled, exited early or
+# never joined) is a FAIL too, naming the first boundary it is missing.
+#
+# THE LEADER'S TRACE IS THE REFERENCE, AND IT ENDS THE COMPARISON (raid
+# seam22, party_death_and_member_readers). A member's trace must be complete
+# up to the leader's last boundary and equal to it line for line there;
+# anything a member logged after it is not compared (a member's boundary line
+# needs the leader's TICK, so there is none in practice, and since seam22 a
+# member whose leader is gone stops at its next boundary:
+# net_transport_embed.c party_member_lost). A member who DIED is not short: its
+# script runs on caged (raid.lua, "seam22: a dead raider in step") and its
+# trace reaches the leader's end like anyone's; the PASS detail names the
+# members whose ledger carries a `player.died` row.
 PARTY_TRACE_RE = re.compile(r"(?m)^net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})\s*$")
 PARTY_LOCKSTEP_STEP = "party.lockstep"
 
@@ -323,18 +334,39 @@ def party_lockstep(directory):
                 return "FAIL", ("first difference at boundary %d (tick %d): p%d has boundary %d -> "
                                 "tick %d digest %s, the leader p1 boundary %d -> tick %d digest %s"
                                 % (lk, lt, seat, k, t, d, lk, lt, ld))
-        if len(mine) != len(leader):
-            longer, shorter = (leader, mine) if len(leader) > len(mine) else (mine, leader)
-            who = "p%d" % seat if shorter is mine else "the leader p1"
-            k, t, d = longer[len(shorter)]
-            return "FAIL", ("first difference at boundary %d (tick %d): %s stops after %d "
-                            "boundaries, p1 ran %d and p%d ran %d"
-                            % (k, t, who, len(shorter), len(leader), seat, len(mine)))
+        if len(mine) < len(leader):
+            k, t, d = leader[len(mine)]
+            return "FAIL", ("first difference at boundary %d (tick %d): p%d stops after %d "
+                            "boundaries, p1 ran %d and p%d ran %d -- a member's trace must reach "
+                            "the leader's last boundary"
+                            % (k, t, seat, len(mine), len(leader), seat, len(mine)))
     first, last = leader[0], leader[-1]
+    beyond = ["p%d +%d" % (seat, len(traces[seat]) - len(leader)) for seat, _a, _p in seats[1:]
+              if len(traces[seat]) > len(leader)]
+    dead = [seat for seat, _a, session in seats[1:] if party_member_died(session)]
     return "PASS", ("%s: %d boundaries each, %d -> tick %d .. %d -> tick %d, the same tick and "
-                    "digest on every raider at every boundary (last digest %s)"
+                    "digest on every raider at every boundary (last digest %s)%s%s"
                     % (" ".join("p%d" % s for s, _a, _p in seats), len(leader), first[0], first[1],
-                       last[0], last[1], last[2]))
+                       last[0], last[1], last[2],
+                       ("; compared to the leader's last boundary, not past it (%s)" % ", ".join(beyond))
+                       if beyond else "",
+                       ("; %s died and stayed in step to the leader's end"
+                        % ", ".join("p%d" % s for s in dead)) if dead else ""))
+
+
+def party_member_died(session):
+    """True when a raider's own ledger carries a `player.died` row (raid
+    seam22: a member's death is a row, not the end of its run)."""
+    assert session
+    path = os.path.join(session, "ledger.tsv")
+    if not os.path.isfile(path):
+        return False
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            fields = line.split("\t")
+            if len(fields) > 2 and fields[1] == "player.died":
+                return True
+    return False
 
 
 def party_union(directory):

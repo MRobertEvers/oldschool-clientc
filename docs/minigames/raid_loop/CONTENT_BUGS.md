@@ -754,7 +754,7 @@ Open:
   join did not. `~tob_join_raid` now gives the room's card after `~tob_room_arrive`. Measured
   in s19join_after3: the three raiders' screens at Bloat's entrance each show three full orbs,
   each with its own orb marked (before: the members' screens had none).
-- Open, ToB, every room: the fight watchdog (`[queue,tob_room_watchdog]`, the per-player,
+- FIXED seam22 (see "From seam22" below). Was Open, ToB, every room: the fight watchdog (`[queue,tob_room_watchdog]`, the per-player,
   per-tick hook) is armed only for the raider who crosses an unstarted barrier
   (`~tob_start_room`), on a resume and on a re-entry; a teammate who crosses a started barrier is
   only stepped (`[oploc1,tob_arena_barrier]`, `~tob_barrier_step`), and `~tob_carry_party`
@@ -888,3 +888,128 @@ ball (`[queue,tob_sote_ball_impact]`), the maze rag and tornado, Verzik P2's bod
 stomp and Athanatos, the Hard acid, and P3's green ball (`[queue,tob_verzik_ball_land]`),
 webs (`[queue,tob_verzik_web_land]`) and melee. Only the three landing reads above sit in
 a landing queue, each sourced or ruled.
+
+## From seam22 (matthew-mbp-m4-raid-b1-seam22, 2026-10-05): what the first Normal trio pass found
+
+Seam tob_normal_trio_findings (SEAM_TRIAGE_2026-10-05a.md). Four findings; two moved code
+(Sotetseg's arena rules in a party, Xarpus's chain in a party), two are settled without a
+change (Verzik P1 at three, the Nylocas aggro count), and the prayer drain is the source's.
+Scratches, Blert harvests and analyses: build/seam_state/matthew-mbp-m4-raid-b1-seam22/trio/ (gitignored);
+the scripts, their outputs and the scratches are pinned at
+docs/minigames/theater_of_blood/sources/blert_api/spec_pass_seam22/ ("trio/<file>" below names a
+file there; the raw Xarpus harvest is re-fetched by its fetch_blert_xarpus.py).
+Every "before" below is the same scratch under the same run name on a pack compiled off-tree
+from the content repo's HEAD copy of the changed files (trio/mk_before_pack.sh, loaded with
+TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
+
+- **FIXED seam22** ToB, every room (seam19's Open row): every raider in the fight is judged by
+  the room's per-player, per-tick rules, not only the raider who crossed the barrier. Source:
+  "The players in the arena must also follow the same path ... Standing on a wrong tile will
+  damage the player" (wiki_Sotetseg.wikitext:97); "Once someone steps on the fourth row, a
+  tornado will spawn ... This tornado will not appear for the maze runner (unless they are the
+  only player in the encounter)" (wiki_Theatre_of_Blood_Strategies.wikitext:803); Maiden's
+  blood "will do damage to the player every tick" (tob_raid.rs2's own note). tob_raid.rs2:
+  `~tob_watch_room` now calls `~tob_arm_party_watchdogs` (every other raider of the party who is
+  in this raid, the `~tob_hud_orbs_party` shape; a party of one returns before any
+  `p_finduid`), `~tob_arm_watchdog` arms only when `getqueue(tob_room_watchdog) = 0` (one chain
+  per raider; a raider who crossed an earlier room's barrier and this one's had two), and
+  `^tob_var_boss_misses` holds the TICK of the first miss rather than a count, so three
+  watchdogs confirm a boss death on the same second tick one does (a count would have cleared a
+  room on one transient miss). tob_sotetseg.rs2: the player half no longer stamps
+  `^tob_var_maze_seen` with the tick (nothing read the stamp; it made every raider after the
+  first on a grid return at the landing guard, so one raider a tick was judged), and an arena
+  tornado despawns only when nobody else in its world is past the third row (a trio walks the
+  path in file; read as "anybody on rows one to three despawns it", the raider behind would
+  despawn it every tick and the raider ahead respawn it at the start). Measured, scratch
+  trio/s22_sote_trio.lua (Normal, three raiders, `::tobmazearm`; the leader is the runner, p3
+  walks to the mirrored path start, p2 three rows up the start column): run s22_sote_trio_after2
+  `arena.tornado_spawn` "1 tornado spawn(s): type 8389 tick 39 at 6420,85", p2 ragged every tick
+  on its off-path tile (21, 20, 18, 17, 16, 7), p3 hit by the tornado for 35 on the start tile,
+  one spawn only; the same scratch on the HEAD pack (s22_sote_trio_before): 0 spawns, 0 rag
+  explosions, no hit on either member. One-client and Entry identical (six Entry rooms, tick log
+  and ledger cmp-equal on both packs under one run name). In a party the arena's floor now
+  comes back on the maze's completion tick (an arena raider's hook restores it; before, the
+  runner's did, a tick later, on the way out of the realm): Normal Sotetseg copy, tick logs
+  equal but for the 210 floor rows at 240 instead of 241 and 472 instead of 473 (Near-Reality
+  `completeMaze` sets the light floor on that tick). Stale comments left in files this seam does
+  not own: tob_hud.rs2:250-260 and tob_spectate.rs2:295-297 still say only the starter's
+  watchdog runs and that `^tob_var_boss_misses` is a count.
+- **Settled seam22, no change** ToB, Sotetseg, the prayer drain (99 points in about 165 ticks on
+  a prayed raider, the Normal author's run 2): it is the source's drain, not the room's. Nothing
+  in tob_sotetseg.rs2 drains prayer (its only prayer effect is the unprayed ball's 5-tick
+  protection lock). The author prayed Protect from Magic (drain effect 12) and an offensive
+  prayer (Rigour/Piety/Augury, 24): "the total across all activated prayers is added to an
+  internal prayer drain counter each game tick ... Players have a base prayer drain resistance of
+  60, increased by 2 for every point of prayer bonus" (wiki Prayer, ?action=raw, :459-:463; the
+  table :301-:304 Protect from Magic 12, :405-:409 Rigour 24; LostCity
+  scripts/skill_prayer/scripts/prayer.rs2:164-:173 the same counter and `60 + equipment bonus *
+  2`). 36 a tick at bonus 0 is one point per 1.67 ticks, 99 points in 165 ticks. Measured,
+  trio/s22_prayer_drain.lua: 99 -> 63 in 60 ticks, 0 after 167. The Entry room prays Protect from
+  Magic alone (12: a point per 5 ticks). Recipe, not content: restores, or flick the offensive
+  prayer.
+- **FIXED seam22** ToB, Xarpus phase 2, a party: a spit's splat chains to the NEXT RAIDERS IN ORB
+  ORDER, not by Near-Reality's 50/50 bounce-or-splash coin. Source: "The first player will
+  splatter to the next player in sequence, while the remaining players will splatter to the next
+  two players in sequence. In the event that all players are on the same tile, or only one
+  person is present in the arena, the poison will splatter a random uncovered tile"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:836, :838). Blert, freshly harvested (Normal stage-14
+  streams: 13 trio, 6 duo, 4 four-raider, 5 solo rooms, trio/blert_xarpus, trio/fetch_blert_xarpus.py)
+  agrees on WHERE: of the splats thrown from a landing (TOB_XARPUS_SPLAT source BOUNCE with
+  bounceFrom = the landing, XarpusDataTracker.java), 115 of 117 in the trio rooms and 40 of 40 in
+  the four-raider rooms fell on a tile a raider stood on (trio/an_blert_xarpus3.py); the coin's
+  splash branch throws at random UNCOVERED tiles - at least half of every landing's orbs, and
+  blert records every one of those - so the coin is refuted at party scale. The duo rooms (17 on
+  a raider, 65 random) fit the sentence too: a duo's second chain walks back onto the target and
+  goes to a random tile. Blert cannot COUNT the chains: it drops a splat that lands on a tile
+  already holding one, and the next raider in orb order is the next spit's target, whose puddle
+  is usually under them before the chain arrives (364 of 475 predicted trio chain tiles already
+  splatted, trio/an_blert_xarpus2.py); so the count stays the wiki's (grade D). tob_xarpus.rs2:
+  the spit passes "first spit of the phase" in its landing's one-bit field; `~tob_xarpus_land_splat`
+  in a party throws 1 (first) or 2 orbs, each by `~tob_xarpus_chain_to` at the next raider after
+  the target in orb order (a random uncovered tile when the walk is back on the target, the raider
+  is caged or gone, or stands on the landing tile), and a chained orb does not chain again;
+  `~tob_xarpus_bounce_splat` is gone. SOLO KEEPS THE COIN'S SPLASH (1-2 random uncovered tiles):
+  both readings send a solo chain to random tiles (:838) and the count is not settled - blert's
+  five Normal solo rooms (never masked: uncovered tiles) give 0, 1, 2 or 3 orbs within 12 ticks of
+  a new landing (8, 43, 25, 18; trio/an_blert_xarpus6.py), which neither "1 then 2" nor "1 or 2"
+  fits cleanly; Open below. Measured, scratch trio/s22_xarpus_trio.lua (Normal, three raiders,
+  `::god 1`, stations stepping a square): `spec.xarpus.p2.chain_count` PASS "1,2,2,2,2,2,2,2,2,2,2,2,2",
+  all 25 chained orbs on a raider's tile (trio/an_ours_xarpus.py); the HEAD pack under the same
+  run name: FAIL "1,1,2,2,1,1,1,2,1,1,1,1,2", 10 of the 17 orbs from a spit's tile on random tiles.
+  Spec row `xarpus.p2.chain_count` re-worded with both quotes and the blert finding (still D,
+  value 1,2). tob_xarpus_normal must be re-authored: its dodge recipe was fitted to the coin (the
+  copy under the same run name survives to 593 on the HEAD pack with chain_count 1,2,4, and the
+  leader now dies to the stomp and acid at about tick 203 of the new pack); the Entry room is
+  unchanged (solo path, tick log and ledger cmp-equal; tob_xarpus under its own id 120/120 PASS,
+  FULL 63 rows).
+- Open, ToB, Xarpus, solo: how many orbs a solo landing throws (Near-Reality 1-2, the wiki's
+  sentence read for one player 1 then 2, blert 0-3 per new landing). Kept as Near-Reality's until
+  a source separates them; a per-spit count over blert's solo rooms that also accounts for spits
+  landing on old puddles (82 spits, 19 new landings, 70 chained in one room) would.
+- **Settled seam22, no change** ToB, Verzik P1 at party 3 (all three Normal authors' raiders died
+  by about tick 120): our P1 matches every source checked, so the failure is the recipe. Geometry:
+  on the P1 auto ticks of 10 Normal trio rooms (blert stage-15 streams, the spec pass's harvest,
+  trio/an_blert_verzik_p1.py) the raiders stood on room-local (26,29) 90 times and (30,34) 26
+  times - our hide tile 6426,93 and our melee tile 6430,98 exactly (pillars from Near-Reality's
+  `VerzikViturRoom.onLoad`, already aligned to the cache's death cages; tob.constant 3350-3384).
+  Damage: the recorded raider's prayed drops across an auto are 0 (hidden) or 1-57, inside our
+  prayed bolt's 0-68 ((1 + random(137)) / 2; "Having Protect from Magic active before the
+  projectile is launched will reduce the damage by 50%, or 68 damage", Strategies :877). Cadence 14
+  (verzik.p1_cadence, B). The shield is 1500 at three (A). What the trios do that the authors did
+  not: P1 lasts 58-116 ticks (median about 70, 3-7 autos), and about 10 Dawnbringer specials per
+  room (104 DAWN_SPEC attacks in the 10 rooms, trio/an_blert_verzik_p1_attacks.py) passed between
+  raiders by dropping it ("requiring players to drop the Dawnbringer for the next player (in orb
+  order) to use", Strategies :875; one Dawnbringer per raid, tob_xarpus.rs2), scythes between
+  autos and the team behind the south-west pillar on the auto ("hide behind one pillar together",
+  :883). The recipe is in DRIVER_NOTES.md ("Verzik P1 with three raiders", seam22).
+- **Settled seam22, no change** ToB, Nylocas, `spawn_aggro` 34 of 35: our count is right and
+  the test's is the wrong measurement. "Some wave-spawned Nylocas attack players instead of
+  pillars. These are called aggros. As with all spawns, aggros are fixed across encounters"
+  (blert_guides/tob_nylocas_mechanics_page.tsx:176-:178); our wave table holds exactly 35 aggro
+  rows of 120 (configs/tob_nylo.dbrow `aggro,1`), and every one spawns. An aggro walks in as
+  `incoming` and swaps to `fighting` at the box's edge, 9-11 ticks after it spawns (aggro_swap, B,
+  380 blert swaps; tob_nylocas.rs2 `~tob_nylo_is_aggro`): one killed in its lane before the edge
+  never swaps, in the game as here, and is still one of the 35. The Normal attempt counts swaps
+  (the wave-10 west aggro was splashed by an Ice Burst before the edge). Count the spawns the
+  table names (nylocas_waves.md `*` rows: wave, lane, size) or add the table's aggros killed in
+  their lane to the swaps; `spawn_aggro` re-worded to say so.

@@ -363,6 +363,12 @@ asserts after it. Each was measured with a scratch script that entered the room 
   calls' lines merge.
 - `t.cheat('::kill <symbol> <radius>')` logs `debugproc not found` in client.log and
   then the engine ladder handles it. It works; that line is not a failure.
+- `t.cheat('::tobbloatlos <local x> <local z>')` (read-only, tob_selftest.rs2
+  `[debugproc,tobbloatlos]`) asks Bloat's OWN sight test (`~tob_bloat_sees`, the near-side
+  rule, not `lineofsight`) about an instance-local tile and prints `tobbloatlos 1` (he sees
+  it), `tobbloatlos 0` (hidden) or `tobbloatlos -1` (no Bloat in this instance). It changes
+  nothing; use it to confirm a hiding tile before a room test stands on it (the Normal
+  Bloat author did; seam22 recorded it here).
 
 ## Tick-log details that bite
 
@@ -4302,11 +4308,18 @@ that exits is logged out the same way (`closed its link`), so the leader's rows 
 departure. If the leader stalls, every member blocks and the leader's heartbeat ends the
 run. When the leader exits, run.py gives each member 20 s to finish its own script and
 then kills it. An unfinished member ledger gets its SUMMARY like any unfinished run.
-Open (seam21): a member does not stop when the leader's process ends. In the long Bloat
-scratch without `::god`, the leader died and the members ran about 1000 more client ticks
-on their own clocks, then timed out their `done` barrier. The run is still caught (run.py
-marks the death, and `party.lockstep` compares only the leader's boundaries), but a
-member's ledger after that point is not clocked by the world.
+Closed (seam22; it was seam21's open item): a member stops when its leader's link is
+gone. In the long Bloat scratch without `::god` the leader died and the members ran about
+1000 more client ticks on their own clocks, then timed out their `done` barrier. Now
+`party_member_lost` (net_transport_embed.c) prints
+`net: party: abort: this member's world is gone (the leader's link closed after boundary k,
+tick t) -- a member never runs past its leader` and exits 1 at the member's next boundary,
+whatever closed the link (the leader's exit or death, a seat the leader dropped, a leader
+still past `TORIRS_EMBED_PARTY_WAIT_S`, a protocol break). run.py writes the member's
+`run.unfinished` quoting the line. Scratch `s22_leader_gone` (the leader finishes after one
+barrier, the members wait on one it never marks): both members exit 1 after boundary 4, tick
+3, and `party.lockstep` PASS 4 boundaries each. A normal end never reaches it: every raider
+passes the last barrier on the same lockstep tick and finishes in that frame.
 
 ### Seats, accounts and directories
 
@@ -4346,8 +4359,9 @@ boundary. The verdict is "sent", not "ran", so read the effect back. In the smok
 loads the content symbol tables itself (ToriRSServer_BootLoad, no world). Without them,
 every component, loc and varbit name it spelled answered `no_row`.
 
-What a member cannot do: the SERVER readers. `t.tick`, `t.ticklog`, `t.var.server`,
-`t.raid.state`, `t.raid.enter` and `t.raid.leave` all answer `unsupported`. Spec rows and
+What a member cannot do: the SERVER readers. `t.ticklog`, `t.var.server`,
+`t.raid.state`, `t.raid.enter` and `t.raid.leave` all answer `unsupported`. `t.tick` answers
+since seam22: the tick of the member's last TICK frame ("Seam pass 22" below). Spec rows and
 tick-ledger rows are the leader's to write. A member leaves the raid with
 `t.cheat("::tobout")` and a tile read. `t.session.relog` on a member would type `p<n>` as
 its user, because session.lua derives the user from the session directory. For the same
@@ -4482,14 +4496,18 @@ the three orbs at 27 on every raider.
 - **The leader/member split.** The leader writes `spec.scope` (`mode=<mode> party=3`), every
   `spec.*` row and every tick-ledger row. On a member, `t.raid.state`, `t.raid.leave` and
   `t.raid.start_tile` answer `unsupported` ("p2 is a party member and holds no world"), as
-  do `t.tick`, `t.ticklog` and `t.var.server`. The one tick log carries every raider's tiles
-  and hits; a member's are told apart by pid (seat n is pid n). A member's part is its own
+  do `t.ticklog` and `t.var.server` (`t.tick` answers on a member since seam22). The one tick log carries every raider's tiles
+  and hits; a member's are told apart by pid: in the tick log seat n is pid n-1 (the leader is
+pid 0) and a projectile aimed at a player carries target -(pid+1) (corrected in seam22; this
+line used to say seat n is pid n). A member's part is its own
   clicks, prayers, steps and eats, plus a `t.party.barrier` at each phase the leader also
   passes (name each barrier once per run).
-- **The LEADER crosses the barrier.** Only the raider who crosses an unstarted barrier runs
-  the room's per-tick watchdog (CONTENT_BUGS.md, seam19 Open row). Until that is fixed,
-  Maiden's blood and Sotetseg's maze tick apply only to that raider: do not grade a member's
-  per-tick room damage.
+- **The LEADER crosses the barrier.** Since seam22 every raider of the party who is in the
+  raid is judged by the room's per-tick rules, not only the crosser (tob_raid.rs2
+  `~tob_arm_party_watchdogs`; "Every raider is judged by the room's per-tick rules" in the
+  seam22 section below): a member standing in Maiden's blood takes it, and a member on
+  Sotetseg's arena grid is ragged off the path and spawns the tornado on the fourth row.
+  Grade a member's per-tick room damage from the leader's tick log (`hit_player pid n-1`).
 - **Roles come from the sources, never invention.** Use the trio transcripts under
   `docs/minigames/theater_of_blood/sources/transcripts/` (`grep -l -i trio`:
   yt_4i4lv-srJkw.md, yt_6soXuRA77JU.md, yt__QXdNAZh7Yo.md, yt_D1b4eWwnOHU.md) and the Blert
@@ -4673,3 +4691,240 @@ behaviour: the three landing reads are each sourced or ruled.
 - A bomb hit is the `hit_player` on the tick after a 1584 landing on your packed tile; the
   lightning ball's hits (projectile 1585 plus `player_spotanim` 560 on the same tick) are the
   other P2 hits over 8 (10, 18, 14, 9 in this run) and are not bombs.
+
+# Seam pass 22: a dead raider stays in lock step, and the member readers
+
+Seam22 (party_death_and_member_readers; SEAM_TRIAGE_2026-10-05a.md). The first Normal
+trio pass lost Maiden and Sotetseg to a harness rule, not to the fight: a member who died
+ended its script, its boundary trace stopped, and `party.lockstep` failed the run
+(`first difference at boundary 653 (tick 652): p2 stops after 652 boundaries, p1 ran 875`,
+tob_maiden_normal; `p2 stops after 213, p1 ran 302`, tob_bloat_normal).
+
+## A member's death is a row, not the end of its run
+
+- On a MEMBER (`t.party.role() > 1`) raid.lua wraps combat.lua's `QD.player._death_fence`:
+  the first fenced verb that reads the death (a click settle, `t.player.attack`/`cast`,
+  `t.npc.await_dead*`, a quick held press) writes `player.died` with its kept shot and
+  returns true, so that verb answers `refused` with the death text, and every fenced verb
+  after it does too. It does NOT call `t.finish`: the script runs on, caged, sending READY
+  every F frames like any member. `t.party.barrier` runs the fence first on a member, so
+  the row is written at the latest at the next barrier, on the same frame in every run.
+- The row is FAIL unless the member called `t.party.allow_death(reason)` beforehand; then
+  PASS, quoting the reason. The leader's `allow_death` answers `refused` ("the leader, whose
+  death ends the world"). The leader's death is unchanged: row FAIL, `t.finish(0)`, and its
+  members then stop at their next boundary (net_transport_embed.c, "Stalls and exits").
+- The Theatre prints "You have died. Death count: N." IN PLACE OF "Oh dear, you are dead!"
+  (tob_spectate.rs2 `~tob_death_message`, :223-232), so state.lua's ring reading never saw a
+  Theatre death; only the few ticks its hitpoints read 0 did. raid.lua now latches that line
+  too, on every raider of a PARTY (`QD.raid.TOB_DEATH_PREFIX`; `t.party.size() > 1`):
+  `t.player.alive()` stays `refused` after the restore refills the hitpoints, and a party
+  leader's Theatre death ends its run reliably (tob_bloat_normal's copy: the leader's
+  `player.died` quotes the line). NOT in a solo run (seam22 closer): the conformance harness
+  dies in a solo Entry room on purpose (`seam.tob_death_cage_then_entry_restart`, `::die`, the
+  cage, the wipe's restart) and drives on; latched there, it ended at `player.died` on the very
+  next click settle, eleven attempts in a row. A solo room test's death is read only through
+  its hitpoints-0 ticks, as before seam22.
+- After a death, carry the member through the remaining barriers to the common end and
+  branch its fight on `t.player.alive()`. The member's own clicks are meaningless while
+  caged; reads, `t.cheat` (`::tobout` leaves the cage) and barriers work.
+- `gate.party_lockstep` compares every member's trace with the leader's up to the
+  leader's last boundary; a member must reach it (fewer boundaries is FAIL), nothing after it
+  is compared, and the PASS detail names the members whose ledger has a `player.died` row.
+- Proof: `_party_smoke` phase D. The leader steps back out through Bloat's barrier (a
+  started fight's barrier is a gate) and walks to the entrance; p3 calls `allow_death`,
+  crosses alone and stands unhidden. The leader's tick-log reading: `hit_player pid 2 since
+  tick 199: 8 hit(s), ticks 212..220, 99 damage; p3's 99 hitpoints ran out on tick 220`; p3's
+  `party.death.p3_caged` reads `You have died. Death count: 1.` at 6431,171 (the cage) on tick
+  226; `p3:player.died PASS ... allowed`; then `party.lockstep PASS p1 p2 p3: 230 boundaries
+  each ... p3 died and stayed in step to the leader's end`. `party_repeat.py _party_smoke
+  --runs 3 --load`: AGREE, tick log sha 6cf6d25dd6a6, 5817 lines, 230 boundaries, p1 SUMMARY
+  64 PASS: the death lands on tick 220 in every run.
+- The four Normal attempts, copied and driven on this tree: tob_maiden_normal lockstep PASS
+  559 boundaries (`p2 died and stayed in step`), tob_sotetseg_normal PASS 643 (`p2, p3 died
+  and stayed in step`), tob_bloat_normal PASS 125, tob_verzik_normal PASS 117. Each now stops
+  at the LEADER's death (maiden tick 557, sotetseg 642, bloat 124, verzik 115): strategy and
+  content, not the harness.
+
+## Member readers
+
+- `t.tick()` on a member answers the tick of its last TICK frame
+  (`api_drive.session().lockstep_tick`, ToriRSServer_EmbedLockstepTick; nil outside a party).
+  The leader stamps the TICK from srv->tick right after the boundary's world tick, so between
+  two boundaries a member reads what the leader's `t.tick()` reads: the smoke's
+  `party.tick.bloat_read/death_clear/death_done` rows read 190, 199, 227 on all three raiders.
+  The leader and a solo run still read srv->tick (`seam.party_member_readers_solo`). The quick
+  presses' "read on tick N (pressed on N-1)" is on this clock on a member now.
+- `t.prayer.points()` answers `("ok", reading, detail)`, the shape of
+  `t.skill.read("prayer")`, with `reading.points` (= level, points left) and `reading.text`.
+  It used to answer `("ok", detail, reading)`, and every author who wrote it like
+  `local _, pp = t.skill.read("prayer")` got the string (the Normal Sotetseg review).
+- Pids. The tick log's `pid` is 0-based by seat: the leader p1 is pid 0, seat n is pid n-1,
+  and a projectile aimed at a player has `target = -(pid+1)` (phase D: Bloat's flies at p3 are
+  `projectile ... target -3 spotanim 1568`, the hits `hit_player pid 2`). The client's
+  `t.party.players` rows carry the client's player index, which IS the seat (`_party_sm_p3 pid
+  3`). README.md used to say seat n is pid n for the tick log; corrected.
+
+## The budget, and `t.ticklog.rows` by area
+
+- The driver's Lua runs under `PLUGIN_LUA_STEP_BUDGET` = 400000 VM instructions
+  (src/plugin/torirs_plugin_lua.c:38; not in torirs_plugin_drive.c), re-armed on the test's
+  coroutine at every resume (`PluginLua_ThreadResume`), so it bounds the code between two
+  yields; an await predicate runs in the frame callback under its own. Past it: `instruction
+  budget exhausted (400000)` and a `script-error` row. The Normal Maiden author hit it twice in
+  a post-fight analysis (runs 10-12): whole-log `npc_spawn` rows (506, every region npc) and
+  `npc_tile` scanned per projectile. Filter in C (`kind`, `slot`), add `area` or `since`,
+  index by tick once, and `t.ticks(1)` between big passes.
+- `t.ticklog.rows({kind = ..., area = {x0, z0, x1, z1[, level]}})`: world tiles, inclusive,
+  either corner first. Keeps a row whose `x, z` (any unpacked `coord`, npc_tile's tile), else
+  `dst_x, dst_z`, is inside; drops a row with no tile; refuses a malformed box. raid.lua wraps
+  ticklog.lua's `rows` (DRIVE_SCRIPT_PARTS now loads ticklog.lua before raid.lua, and raid.lua
+  asserts it). Smoke: `npc_spawn rows: 1519 in the whole log, 3 with area
+  {6400,128,6463,191} (Bloat's map square)`; conformance `seam.ticklog_rows_area`.
+- `t.world.spotanims(radius)` / `t.world.projectiles(radius)`: the radius is in TILES, a
+  square (|dx| and |dz| both within it; torirs_plugin_drive_ui.c drive_ui_within_radius), 0 =
+  all. Radius 1 drops a shadow two tiles off (the Normal Bloat review).
+- In a fight press fast: `t.player.eat`, `t.player.drink`, `t.player.inv_op(item, op,
+  {quick = true})`, `t.player.equip(item, {quick = true})` ("The fast press" above). The
+  plain `inv_op` costs 3 ticks a press (the Normal Maiden author found it in run 11 and
+  switched five eat sites to `{quick = true}`).
+- `t.npc.state_text(row)` ends `(now tick N)`, and N is `api_drive.tick()`, the client's api
+  clock that the row's `seq_tick` and `spotanim_tick` use (ui.lua `QD.npc.state_text`), not
+  `t.tick()`. Compare a seq tick with that N; compare a tick-log row with `t.tick()` (the
+  Normal Bloat review read the two as one clock).
+- `t.player.step_tick` on a MEMBER answers `ticklog_start answered unsupported`: it needs the
+  tick log, which only the leader holds. A member walks with `t.player.walk_to` and times its
+  step on `t.tick()` (the lockstep tick above).
+
+# Seam pass 22: what the first Normal trio pass found in the rooms
+
+Seam22's content half (tob_normal_trio_findings; SEAM_TRIAGE_2026-10-05a.md). The
+analyses, the Blert harvest scripts, the scratch scripts and the before/after pack script are
+pinned under `docs/minigames/theater_of_blood/sources/blert_api/spec_pass_seam22/` (README.md
+there names each); CONTENT_BUGS.md seam22 rows cite them.
+
+## Every raider is judged by the room's per-tick rules
+
+- The room watchdog now runs for every raider of the party who is in the raid, not only the
+  raider who crossed the barrier (tob_raid.rs2 `~tob_arm_party_watchdogs`; a solo raid
+  returns before any `p_finduid`). `~tob_arm_watchdog` is idempotent (`getqueue`), and
+  `^tob_var_boss_misses` holds the first-miss tick, so N watchdogs confirm a death on the
+  same second tick.
+- So a member standing in Maiden's blood takes it every tick, and a member on Sotetseg's
+  arena grid off the path is ragged (6.67% of current hitpoints + 15, every tick; range 1 also
+  hits a neighbour) and spawns the arena tornado on the fourth row. Grade a member's room
+  damage from the leader's tick log: `hit_player pid n-1`.
+- Source: Strategies :803 and wiki_Sotetseg :97 (the tornado, below). Stale comments that
+  still say only the starter's watchdog runs: tob_hud.rs2:250-260, tob_spectate.rs2:295-297
+  (comment-only; not this seam's files).
+
+## Sotetseg's maze with three raiders
+
+- The leader (slot order first) is the runner. In a party the runner never sees a tornado:
+  "This tornado will not appear for the maze runner (unless they are the only player)"
+  (Strategies :803). The other two land on the far tile 6415,84 (room-local 15,20, arena
+  column 6, row -2).
+- Find the path start from the arena side with `t.world.loc_near('tob_sotetseg_lighttile',
+  30)`: it mirrors the runner's tile, and the runner stands on the start tile after landing.
+  Rows count from 0 at z 86. The first arena step onto row 3 (start z + 3, "the fourth row")
+  spawns the tornado (npc 8389) at the path start; it walks the path and hits 35-45 on its
+  tile. A raider still on rows 0-2 does not despawn it; it goes only when nobody in that world
+  is past row three.
+- The source's recipe: "The maze runner should stop on the third row and wait a few seconds
+  to let their teammates position themselves" (:803), and the arena raiders walk the path
+  behind the runner. Members who wait off the grid (the rejected tob_sotetseg_normal) never
+  spawn the tornado and are not what the room tests. Scratch: `s22_sote_trio.lua` in the
+  pinned dir (Normal trio, `::tobmazearm`: one arena tornado on tick 39, p2 ragged off the
+  path every tick, p3 hit 35 by the tornado).
+- An unprayed Sotetseg ball blocks all three protection prayers for 5 ticks
+  (`~prayer_block_protection(^tob_sote_prayer_disable_ticks)`, tob_sotetseg.rs2:394; spec
+  row `sotetseg.prayer_disable`, [wiki][guide][jagex] C; Retribution, Smite and Redemption are
+  untouched). A raider who misses one ball cannot pray the next for 5 ticks: plan the eat.
+
+## Prayer drain is the source's
+
+- Protect from Magic (12) + Rigour, Piety or Augury (24) drain 36 a tick against a
+  resistance of 60 + 2 x the prayer bonus: 99 points last 165 ticks at bonus 0 (wiki Prayer
+  :459-463, :301-304, :405-409, pinned as `sources/wiki_Prayer.wikitext`; LostCity
+  prayer.rs2:164-173). Measured 99 -> 63 in 60 ticks, 0 after 167 (`s22_prayer_drain.lua`).
+- Protect alone is a point per 5 ticks. A Normal room that prays offence needs restores, or
+  flicks the offensive prayer.
+
+## Xarpus phase 2 with three raiders: every spit chains to the others
+
+- A spit's splat now chains to the next raiders in orb order after its target: the phase's
+  first spit throws 1 orb, every later spit 2, each at that raider's tile. The orb goes to a
+  random uncovered tile instead only when the walk comes back to the target, the raider is
+  caged or gone, or already stands on the landing tile. Chained orbs do not chain again
+  (Strategies :836/:838). Blert: 115 of 117 trio chained splats (40 of 40 at four) land on a
+  raider's tile, which refutes the old 50/50 coin's random-tile splash at party scale
+  (`an_blert_xarpus*.txt` in the pinned dir).
+- So every raider gets an orb on its own tile shortly after any teammate's spit lands: step
+  off your tile after a teammate's landing as well as your own. The rejected
+  tob_xarpus_normal's dodge recipe was fitted to the coin and must be re-authored.
+- Measure `chain_count` as the orbs thrown from each spit's landing tile within 12 ticks;
+  expect 1 then 2s (`s22_xarpus_trio.lua`: 1,2,2,... over 13 spits, all 25 orbs on raider
+  tiles). Solo is unchanged (the coin's 1-2 random tiles; an Open content row).
+
+## Verzik phase 1 with three raiders: the Dawnbringer passed by special attack
+
+The owner, 2026-10-05: "the players need to take the dawnbringer from the skeleton on the
+ground after xarpus. That weapon does not have the shield penalty and the players should
+share it using their special attack".
+
+- Our P1 matches Blert's 10 Normal trio rooms (`an_blert_verzik_p1*.txt` in the pinned dir).
+  On the auto ticks the raiders stand on room-local (26,29) = 6426,93 (the hide tile behind
+  the south-west pillar at 6425,94) 90 times and on (30,34) = 6430,98 (the melee tile, south
+  of her south-west tile 6430,99) 26 times. The pillars are at x 6425 and 6437, z 94, 88
+  and 82; the west hide tiles are 6426,93, 6426,87 and 6426,81. Attack from 6428,93, not the
+  hide tile (the pillar blocks the line; "Verzik phase 1: pillars, bombs" above).
+- Autos come every 14 ticks (the first wind-up about tick 19 of the fight,
+  `verzik.p1_first_windup`). `t.npc.await_anim(boss, 8109, 14)` returns on the wind-up tick
+  W and the bolt launches on W+3, so a raider on the melee tile has about 3 ticks to reach
+  the hide tile, 5 tiles away: run. A prayed bolt does 0-68 ("reduce the damage by 50%, or
+  68 damage", Strategies :877); Blert's prayed drops were 0 hidden or 1-57. A raider who
+  tanks prays Magic and eats.
+- Real trios end P1 in 58-116 ticks (median about 70, 3-7 autos) with 10-16 Dawnbringer
+  specials (75-150 each, exempt from the damage cap, tob_damage.rs2) between the autos. The
+  raid has ONE Dawnbringer (the skeleton `tob_skeleton_with_weapon` at 6435,109 empties for
+  the rest of the raid, tob_xarpus.rs2 `~tob_dawnbringer_take`), so it is passed: "requiring
+  players to drop the Dawnbringer for the next player (in orb order) to use" (Strategies
+  :875). Between autos the others "safely attack four times with a 4-tick weapon ...
+  Afterwards, hide behind one pillar together ... allows for two hits by any 4 or 5-tick
+  weapon before requiring to hide" (:883).
+- The recipe in verbs (not yet driven end to end on this tree; the rejected
+  tob_verzik_normal's leader still died on tick 115 holding the sword alone):
+  1. After Xarpus one raider takes the sword: the gate, then
+     `t.player.click_loc('tob_skeleton_with_weapon', 1)`, `t.chat.continue_()` and
+     `t.inv.await('verzik_special_weapon', 1, 5)` ("Xarpus after seam4" above). It needs a
+     free backpack slot.
+  2. In P1 the holder wields it, fires its special (`combat_interface:special_attack`, the
+     solo recipe "vz11_kill7" above) until the energy is spent, then
+     `t.player.drop('verzik_special_weapon')` on its tile and goes back to its own weapon.
+  3. The next raider in orb order steps onto that tile at a `t.party.barrier` both pass,
+     `t.player.click_obj('verzik_special_weapon')` (op 3, Take; completes on the backpack
+     count rising), wields it and specs. No driver verb reads special energy yet: count the
+     presses against the weapon's `sa_energy` param (pvm_verzik_special_weapon.rs2:48).
+  4. Everyone hides at 6426,93 on each wind-up (W) and is behind the pillar by W+3.
+- A kill proves the recipe only with the room's spec rows: P1's hitpoints at three are the
+  party sidecar row `verzik.p1_hp_3`.
+
+## Nylocas: spawn_aggro counts the table's aggros, not swaps
+
+- The wave table holds 35 aggro rows, fixed per encounter (Blert mechanics page :177 "aggros
+  are fixed"), and every one spawns. An aggro swaps incoming -> fighting only at the box
+  edge, so one killed in its lane never swaps but is still an aggro. Count the table's aggro
+  rows by wave, lane and size (nylocas_waves.md `*` rows), or add lane-killed table aggros to
+  the swaps; the rejected tob_nylocas_normal counted swaps and read 34.
+
+## Comparing a run before and after a change
+
+- A scratch replays a test's trajectory only under the same first 9 characters of the run
+  name, because the accounts (and so the seeds) are the run name cut to 9 characters:
+  `--name tob_sotetseg_s22c` replays tob_sotetseg_normal (maze 1 at proc 187),
+  `--name s22c_sotetseg_normal` diverges (the leader dead on tick 74). An Entry room run
+  under another name carries FAIL rows on both packs; compare before and after only under
+  one name, and grade a room only under its own id.
+- A content before/after without touching the tree: `mk_before_pack.sh` in the pinned dir
+  (the recipe "A before/after on content" above), then run with
+  `TORIRSSERVER_SCRIPTS=<out> TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` under the same `--name`.
+  client.log's `N scripts loaded from <dir>` line proves which pack ran.

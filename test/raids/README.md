@@ -193,14 +193,40 @@ python3 tools/raid_gate/gate.py _party_smoke                           # grades 
   `raid_coverage.py` grades), a member's row is `p<n>:<step>` and its shots `p<n>-<shot>`.
   A raider that left no ledger is a FAIL row `p<n>:run.no_ledger`; duplicate-MD5 is judged
   per raider.
-- **The leader's process is the run.** Its stall or exit ends the run; the members then
-  get 20 s to finish their own script before they are killed, and an unfinished member
-  ledger gets its SUMMARY like any unfinished run.
+- **The leader's process is the run.** Its stall or exit ends the run. A member whose
+  leader is gone stops at its next boundary (raid seam22): its client.log ends
+  `net: party: abort: this member's world is gone (the leader's link closed after boundary
+  k, tick t) -- a member never runs past its leader`, it exits 1, and run.py writes its
+  `run.unfinished` row quoting that line. A member that was still mid-script when the leader
+  finished is therefore red: end every raider's script on the same last barrier (the smoke's
+  `done`), and every raider then finishes in the same frame, before any further boundary.
 - **What a member can do.** Everything a client reads and clicks (ui, chat, msg, inv,
   npcs, locs, `t.party.players`, its own tile and stats). `t.cheat` on a member goes out
-  as the client's own typed `::command` packet (setup lines included); the server readers
-  (`t.tick`, `t.ticklog`, `t.var.server`, `t.raid.state`/`leave`/`start_tile`) answer
-  `unsupported`. Spec rows are the leader's to write.
+  as the client's own typed `::command` packet (setup lines included). `t.tick()` on a
+  member (raid seam22) answers the tick its last TICK frame carried, which is what the
+  leader's `t.tick()` (srv->tick) reads between the same two boundaries: the smoke's
+  `party.tick.*` rows read 190, 199 and 227 on all three raiders. So a member can write
+  tick-stamped rows and wait "until tick T"
+  (`t.await({level = function() local _, now = t.tick() return now >= T end, note = ...}, n)`).
+  The other server readers (`t.ticklog`, `t.var.server`, `t.raid.state`/`leave`/`start_tile`)
+  answer `unsupported`. Spec rows are the leader's to write.
+- **A raider who dies (raid seam22).** In the Theatre a dead raider is caged and watches
+  (tob_spectate.rs2); its client keeps running, and so does its script. On a MEMBER the
+  death is the row `player.died` (with its kept shot), written by the first fenced verb that
+  sees it -- a click, an attack or cast, an `npc.await_dead*`, a quick press -- or at the
+  latest by the next `t.party.barrier`; the run does NOT finish. The row is FAIL unless the
+  member called `t.party.allow_death(reason)` before it (then PASS, quoting the reason: a
+  death the plan allows, as the smoke's phase D does). After it every fenced verb answers
+  `refused` with the death text and `t.player.alive()` answers `refused`; barriers, reads,
+  `t.cheat` and `t.finish` work, so branch on `t.player.alive()` and carry the caged raider
+  through the remaining barriers to the common end. The Theatre's own line ("You have died.
+  Death count: N.", printed in place of "Oh dear, you are dead!") is latched as a death on
+  every raider of a party (not in a solo run: there a Theatre death is read only through its
+  hitpoints-0 ticks, as before seam22, because the conformance harness dies in a solo Entry
+  room on purpose and drives on). The LEADER's death is unchanged: it ends the world and the run (FAIL).
+  `party.lockstep` compares every trace up to the leader's last boundary; a dead member's
+  trace reaches it like anyone's (its PASS detail adds `p3 died and stayed in step to the
+  leader's end`).
 - **Sync.** `t.party.barrier(name, ticks)` (every raider writes its file and waits for all;
   the wait is counted in frames and its detail says how many: "Determinism" below),
   and the in-game reads: `t.msg.await("has entered the Theatre of Blood")`,
@@ -221,8 +247,10 @@ within 5 ticks), and the verb returns on every raider once all three stand at th
 (the leader's detail ends `party 3 of 3 in the instance (tobstate party=3 scale=1)`). The
 leader writes `spec.scope` (`mode=<mode> party=3`), every `spec.*` row and every tick-ledger
 row; a member's part is its own clicks, prayers, steps and eats and a `t.party.barrier` at
-each phase. The LEADER crosses the barrier (only the crosser runs the room's per-tick
-watchdog: CONTENT_BUGS.md, seam19). The worked example is `_party_smoke.lua` phase C (Normal
+each phase. The LEADER crosses the barrier; since seam22 every raider in the room is judged
+by its per-tick rules (Maiden's blood, Sotetseg's rag and tornado; tob_raid.rs2
+`~tob_arm_party_watchdogs`), so a member's room damage is real and in the leader's tick log as
+`hit_player pid n-1`. The worked example is `_party_smoke.lua` phase C (Normal
 Bloat: `spec.bloat.hp_3` 1500, `scale=3`, the three orbs at 27 on every raider). In a party
 scope `raid_coverage.py` keeps a sidecar `party` row only for the run's mode and size
 (`maiden.hp_3` at 3, never `maiden.hp_5`, `maiden.hp_4` or Hard's `maiden.hp_hard_5`).
@@ -230,10 +258,61 @@ scope `raid_coverage.py` keeps a sidecar `party` row only for the run's mode and
 Knobs (run.py sets them; listed for a hand-run): leader `TORIRS_EMBED_PARTY_LISTEN=<port>`
 and `TORIRS_EMBED_PARTY_SIZE=<n incl. leader>` (the first boundary waits for n-1 members);
 member `TORIRS_EMBED_PARTY_JOIN=<port>` and `TORIRS_EMBED_PARTY_SEAT=<n>` (seat n logs in
-n-th, so pids are stable); both `TORIRS_EMBED_PARTY_WAIT_S` (default 60; run.py passes the
+n-th, so pids are stable: see "Pids" below); both `TORIRS_EMBED_PARTY_WAIT_S` (default 60; run.py passes the
 environment's value through); `TORIRS_EMBED_PARTY_TRACE=1` (run.py sets it on every party
 client since seam21) prints `net: party: boundary k -> tick t digest d` on the leader and on
 every member, one format (see "Determinism" below).
+
+**Pids (corrected in raid seam22).** Two numberings, both fixed by the seat:
+- the TICK LOG's `pid` (player_tile, hit_player, player_anim, ...) is 0-based: the leader p1
+  is pid 0, seat n is pid n-1; a projectile aimed at a player has `target = -(pid+1)`, so -1
+  is the leader and -3 is p3 (measured in the smoke's phase D: Bloat's flies at p3 are
+  `projectile ... -3 1568`, its hits `hit_player 2`);
+- `t.party.players` / `api_drive.players` give the CLIENT's player index, which is the seat:
+  p2 reads `_party_sm_p3 pid 3`, `_party_sm_p1 pid 1`.
+
+**What the first Normal trio pass taught about the rooms (raid seam22).** DRIVER_NOTES.md
+"Seam pass 22: what the first Normal trio pass found in the rooms" has each recipe. Sotetseg:
+the arena raiders walk the path behind the runner, and the first arena step onto the fourth
+row spawns the tornado. Xarpus: every spit's splat chains to the other raiders' tiles, so step
+off after a teammate's landing too. Nylocas: count the table's aggros, not swaps. Verzik P1,
+the owner (2026-10-05): "the players need to take the dawnbringer from the skeleton on the
+ground after xarpus. That weapon does not have the shield penalty and the players should
+share it using their special attack" -- one sword per raid, dropped for the next raider in
+orb order (Strategies :875), everyone behind the pillar at 6426,93 by the bolt's launch (W+3).
+
+**In a fight, press fast.** `t.player.inv_op`, `t.player.equip` wait for the world to go
+quiet (3 ticks a press, up to 17 in Nylocas). In a party fight use `t.player.eat`,
+`t.player.drink`, `t.player.inv_op(item, op, {quick = true})` and
+`t.player.equip(item, {quick = true})`: one press, read back one tick later
+(DRIVER_NOTES.md "The fast press"). On a member their "read on tick N" is the lockstep tick
+since seam22.
+
+**The Lua budget.** The driver's Lua runs under `PLUGIN_LUA_STEP_BUDGET` = 400000 Lua VM
+instructions (src/plugin/torirs_plugin_lua.c:38), re-armed every time the driver resumes the
+test's coroutine (`PluginLua_ThreadResume`, torirs_plugin_lua.h): it bounds the script's code
+from one yield to the next (an await's predicate runs in the frame callback under a budget of
+its own). Past it a count hook
+raises `instruction budget exhausted (400000)` and the script dies with a `script-error` row.
+Every await, `t.ticks`, shot and click yields; a plain Lua loop does not. A whole-log tick-log
+query and a nested loop over it in one stretch is the usual way to hit it (the Normal Maiden
+author: every region npc's `npc_spawn` rows, 506 of them, scanned per projectile, run 10).
+Let the C side filter (`kind` and `slot` are filtered before a Lua table is built), give
+`t.ticklog.rows` an `area` (below) or a `since` serial, index rows by tick once instead of
+scanning per row, and put a `t.ticks(1)` between big analysis passes (a yield, so a new
+budget).
+
+**`t.ticklog.rows({..., area = {x0, z0, x1, z1[, level]}})`** (raid seam22) keeps a row
+whose own tile is inside the box (world tiles, inclusive, either corner first): `x, z` (every
+packed `coord` and npc_tile's tile), else `dst_x, dst_z` (a projectile's landing tile). A row
+with no tile (hit_player, hit_npc, a mark) is dropped, so combine `area` with `kind`. The
+smoke's `ticklog.rows.area`: 1519 npc_spawn rows in the whole log, 3 in Bloat's map square.
+
+**Small readers.** `t.world.spotanims(radius)` and `t.world.projectiles(radius)` take the
+radius in TILES (a square: |dx| and |dz| both within it; 0 = every one), so radius 1 drops a
+shadow two tiles away. `t.prayer.points()` answers `("ok", reading, detail)` since seam22,
+the same shape as `t.skill.read("prayer")` plus `reading.points` (= level, the points left)
+and `reading.text`.
 
 Cost: the smoke (three raid entries since seam19, 191 world ticks, three clients) takes
 11-13 s of the leader's wall clock (about 60 s for the whole run.py, the script pack check
@@ -268,9 +347,10 @@ comparing.
   carries `net: party: boundary <k> -> tick <t> digest <8 hex>` (the digest is the leader's
   FNV-1a over the tick and every active player's pid, tile, level and hitpoints, then the npc
   count). After the run the union ledger gains a `party.lockstep` row: PASS when every member's
-  trace equals the leader's line for line, FAIL naming the first boundary and tick that differs
-  (a member with fewer boundaries than the leader is a FAIL too), and run.py fails the run on
-  it. `gate.py` rebuilds the row from the traces whenever it grades the union.
+  trace equals the leader's line for line up to the leader's last boundary, FAIL naming the
+  first boundary and tick that differs (a member with fewer boundaries than the leader is a
+  FAIL too; nothing past the leader's last boundary is compared, raid seam22), and run.py fails
+  the run on it. `gate.py` rebuilds the row from the traces whenever it grades the union.
 - Across runs: `tools/raid_gate/party_repeat.py` runs the test N times under one run name
   (run.py clears the run directory each time, and the script checks no file in it predates the
   run), keeps each run's tick log, ledgers and traces under `build/raid_repeat/<name>/<label>/`,
