@@ -346,15 +346,38 @@ return {
             "npc:Hi, the King said", "player:Apparently humans are invading", "npc:I find that hard to believe",
             "player:I don't understand it either", "npc:So where to", "options", "choose:Take me to Karamja please!",
             "player:Take me to Karamja please", "npc:OK! You're the boss" })
-        -- The crash pages (gnome_glider.rs2:56-63, LostCity gnome_glider.rs2:101-108) never show here: the
-        -- server aborts the script at its first ~chatnpc_anim after the p_teleport ("npc_coord with no
-        -- active npc", chat.rs2:273 from gnome_glider.rs2:56: the pilot stayed on the Grand Tree).
-        -- Nothing in them moves quest state; the landing is graded below.
-        t.ticks(8)
+        -- The crash: if_close, p_teleport(0_45_47_37_50), p_delay(4), then the wreck's pilot (m45_47.spawn
+        -- pilot_grand_tree 2918,3057, bound by npc_find in gnome_glider.rs2) speaks eight pages
+        -- (gnome_glider.rs2 escape branch; LostCity gnome_glider.rs2:101-108, same text).
+        t.expect("escapeByGlider.crashPage", t.await({ level = function() return t.chat.kind() == "npc" end,
+            note = "the crash pilot's first page" }, 20))
         local crash_result, crash_tile = t.world.tile()
         t.check("escapeByGlider.landed", crash_result == "ok" and crash_tile.level == 0
                 and math.abs(crash_tile.x - 2917) <= 2 and math.abs(crash_tile.z - 3058) <= 2,
             "after the glider: " .. tile_text(crash_result, crash_tile) .. " (want the Karamja crash site 0_45_47_37_50 = 2917,3058,0)")
+        -- the speaker is the wreck's pilot standing beside the player, not the Grand Tree's ~450 tiles north
+        local wreck_result, wreck_pilot = t.npc.nearest("pilot_grand_tree", 5)
+        local wreck_ok = wreck_result == "ok" and type(wreck_pilot) == "table"
+        t.check("escapeByGlider.crashPilot", wreck_ok and math.abs(wreck_pilot.x - 2918) <= 2
+                and math.abs(wreck_pilot.z - 3057) <= 2,
+            "pilot_grand_tree within 5: " .. tostring(wreck_result) .. " at "
+                .. (wreck_ok and (tostring(wreck_pilot.x) .. "," .. tostring(wreck_pilot.z)) or "-")
+                .. " (want the wreck's spawn 2918,3057)")
+        local name_result, speaker = t.chat.name()
+        t.check("escapeByGlider.crashSpeaker", name_result == "ok" and wreck_ok and speaker == wreck_pilot.name,
+            "crash page header " .. tostring(speaker) .. " (" .. tostring(name_result) .. "), want the wreck pilot's name "
+                .. (wreck_ok and tostring(wreck_pilot.name) or "-"))
+        t.expect("escapeByGlider.crashHead", t.chat.expect_head("pilot_grand_tree"))
+        t.exec("escapeByGlider-crash-dialog", t.chat.play, {
+            "npc:Sorry about that.",
+            "npc:That turbulence over the Karamja Volcano was a bit unexpected",
+            "player:I'm fine, I can't say the same for your glider!",
+            "npc:I don't think I can fix this.",
+            "player:Where's the shipyard from here?",
+            "npc:I think I saw some buildings on the coast east of here",
+            "npc:Take care adventurer!",
+            "player:Take care little man.",
+            "end" })
 
         -- enterTheShipyard: walked from the crash (reach.py 2917,3058 -> 2944,3041 closed-doors len 44);
         -- the worker's password quiz (shipyardworker.rs2 @shipyardworker_gate) opens the gate when he
@@ -520,7 +543,12 @@ return {
         -- Every root's south tile is walkable from the king (reach.py 2465,9896 -> each, closed-doors len 3..43).
         local roots = {
             { "largeroot_gnome", 2456, 9886 }, { "largeroot_gnome", 2456, 9886 }, { "largeroot2_gnome", 2457, 9881 },
-            { "largeroot2_gnome", 2455, 9874 }, { "largeroot_gnome", 2443, 9878 }, { "largeroot2_gnome", 2439, 9881 },
+            { "largeroot2_gnome", 2455, 9874 }, { "largeroot_gnome", 2443, 9878 },
+            -- root 5 lies west of the scene the demon's trapdoor built (centred on 2491,9864: base x 2440,
+            -- so move_to refuses 2439,9880 from the king); walk first to root 6's foot 2444,9892 (reach.py
+            -- from 2464,9899 len 33), whose approach rebuilds the scene round the player (local x < 16,
+            -- TORIRSSERVER_REBUILD_MARGIN), then on to the root (reach.py 2444,9892 -> 2439,9880 len 17)
+            { "largeroot2_gnome", 2439, 9881, via = { 2444, 9892 } },
             { "largeroot2_gnome", 2444, 9893 }, { "largeroot_gnome", 2452, 9893 }, { "largeroot2_gnome", 2465, 9891 },
             { "largeroot2_gnome", 2468, 9890 }, { "largeroot_gnome", 2467, 9896 }, { "largeroot_gnome", 2473, 9897 },
             { "largeroot2_gnome", 2481, 9904 }, { "largeroot_gnome", 2485, 9885 }, { "largeroot_gnome", 2490, 9889 },
@@ -530,7 +558,11 @@ return {
         t.check("findDaconiaStone.root", root_result == "ok" and root_index ~= nil and roots[root_index + 1] ~= nil,
             "daconia_rock_root = " .. tostring(root_index))
         local root = roots[(root_index or 0) + 1]
-        t.exec("findDaconiaStone.walk", t.player.walk_route, { { root[2], root[3] - 1 } }, { max_hop = 40 })
+        local root_route = { { root[2], root[3] - 1 } }
+        if root.via then
+            root_route = { root.via, { root[2], root[3] - 1 } }
+        end
+        t.exec("findDaconiaStone.walk", t.player.walk_route, root_route, { max_hop = 40 })
         t.exec("findDaconiaStone", t.player.click_loc, root[1], 1, { at = { root[2], root[3], 0 } })
         t.exec("findDaconiaStone-dialog", t.chat.play, { "mesbox:You've found a Daconia Rock" })
         t.exec("findDaconiaStone.have", t.inv.expect_has, "grandtree_daconiarock", 1)
