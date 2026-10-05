@@ -509,11 +509,14 @@ return {
                 .. " (want 0 and 0: 12 + 12 given, 10 -> 34)")
         -- the notes go (Drezel answers "How many more" only to an empty-handed
         -- player: mausoleum_drezel.rs2 [label,priestperil_drezel_bring_more_essence]).
-        -- The drop is an attempt (run 2: the pack fell 5 -> 0 but no ground row
-        -- for cert_blankrune appeared on the player's tile); the outcome graded
-        -- is the empty pack Drezel's branch reads.
+        -- The drop is graded on the ground: the five notes land as one stack
+        -- on the player's tile (the client draws and lists a dropped bank note
+        -- since seam matthew-mbp-m4-b63-seam1), and the pack Drezel's branch
+        -- reads is empty.
         local dn_r, dn_d = t.player.drop("cert_blankrune")
-        t.note("dropNotes: t.player.drop(cert_blankrune) -> " .. tostring(dn_r) .. " " .. tostring(dn_d))
+        local dn_g0, dn_g1 = string.match(tostring(dn_d), "ground on the player's tile (%d+) %-> (%d+)")
+        t.check("dropNotes", dn_r == "ok" and dn_g0 ~= nil and tonumber(dn_g1) - tonumber(dn_g0) == 5,
+            "t.player.drop(cert_blankrune) -> " .. tostring(dn_r) .. " " .. tostring(dn_d) .. " (want ground +5)")
         local dn_cr, dn_n = t.inv.count("cert_blankrune")
         t.check("dropNotes.packEmpty", dn_cr == "ok" and dn_n == 0,
             "cert_blankrune in the pack after the Drop press: " .. tostring(dn_n) .. " (" .. tostring(dn_cr) .. "; want 0, was 5)")
