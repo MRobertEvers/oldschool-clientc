@@ -24,23 +24,20 @@
 --     [label,open_manor_entrance], a walk-through: the press carries the
 --     player in and the doors "slam shut"), then the two draynor_panelled_
 --     doors 3109,3358 and 3106,3368 to the east wing, then the crypt stairs
---     (cryptstairsdown 3115,3357) by click.
+--     (cryptstairsdown 3115,3357) by click, down to the crypt and, after
+--     the kill, cryptstairsup (3077,9768) back up to the east wing.
 --
--- CONTENT GAP at the crypt stairs (b60, settled from LostCity): this pack's
--- cryptstairsdown has only `category=climb_down`
--- (ladders_stairs/configs/ladders.loc:1863-1864), no maplink.dbrow row and no
--- per-symbol script, so a press runs [oploc1,_climb_down] ~climb(-1)
--- (ladders.rs2:178) -> level 0 - 1 < 0 -> ~blocked_message "You can't go any
--- further." (ladders.rs2:73-76, player/messages.rs2:71-72). LostCity has the
--- real destination: LostCity_Server content/scripts/ladders+stairs/scripts/
--- stairs.rs2:408-417 [oploc1,cryptstairsdown] at 0_48_52_43_29 telejumps the
--- player to 0_48_152_5_43 (3077,9771,0), and cryptstairsup 0_48_152_5_40
--- back to 0_48_52_43_28 (stairs.rs2:419-424; this pack's cryptstairsup,
--- ladders.loc:197-198, is the same bare climb_up). The old goto into the
--- crypt was the cheat the door rule forbids, so the run stops at an honest
--- content_bug when the stairs do not land in the crypt; when content gives
--- them their destination the fight below runs unchanged.
---
+-- The crypt stairs (b60-seam1, OSRS-Content 43f4303f5f): quest_vampire/
+-- scripts/vampire_crypt_stairs.rs2 ports LostCity stairs.rs2:408-424 --
+-- [oploc1,cryptstairsdown] at 0_48_52_43_29 telejumps 0_48_152_5_43
+-- (3077,9771,0) and [oploc1,cryptstairsup] at 0_48_152_5_40 telejumps
+-- 0_48_52_43_28 (3115,3356,0). Both ends are plane 0 (the crypt is the
+-- underground band, z + 6400), and t.player.climb asserts its dest is on a
+-- NEW level (quest_driver/world.lua:950), so these two staircases keep the
+-- file's own climb(): pressed by tile and level, graded on the exact
+-- landing tile and its level. Morgan's staircases change level and go
+-- through t.player.climb.
+
 -- Combat: count_draynor spawns off quest_vampire.npc's authored block
 -- (hitpoints=35 attack=30 strength=25 defence=30, wiki level 34) and is
 -- weakened by garlic AT SPAWN (npc_statsub -10/-10/-10/-40, clamped) since
@@ -173,10 +170,8 @@ return {
 
         -- --------------------------------------------------- cGetGarlic --
         -- goUpstairsMorgan: the staircase by click from its maplink src.
-        walk_check("goUpstairsMorgan.atFoot", 3098, 3267, 0)
-        climb("goUpstairsMorgan", "stairs", { 3099, 3266, 0 }, 1,
-            function(tt) return tt.x == 3102 and tt.z == 3266 end,
-            "the maplink dest 3102,3266,1 (maplink_0_48_51_26_3_up)")
+        t.exec("goUpstairsMorgan", t.player.climb, { loc = "stairs", op = 1, op_name = "Climb-up",
+            at = { 3099, 3266, 0 }, src = { 3098, 3267 }, dest = { 3102, 3266, 1 } }) -- maplink_0_48_51_26_3_up
         -- Across the bedroom to the cupboard's front (3096,3269 faces east):
         -- from the stair landing the press had to hunt round the wall
         -- (run 1: a hunted pose answered a chat line and nothing opened).
@@ -196,10 +191,8 @@ return {
         t.exec("garlic.received", t.inv.await, "garlic", 1, 5)
 
         -- Back down and out of the house, by the same stairs and door.
-        walk_check("goDownstairsMorgan.atTop", 3102, 3266, 1)
-        climb("goDownstairsMorgan", "stairstop", { 3100, 3266, 1 }, 0,
-            function(tt) return tt.x == 3098 and tt.z == 3266 end,
-            "the maplink dest 3098,3266,0 (maplink_1_48_51_30_2_down)")
+        t.exec("goDownstairsMorgan", t.player.climb, { loc = "stairstop", op = 1, op_name = "Climb-down",
+            at = { 3100, 3266, 1 }, src = { 3102, 3266 }, dest = { 3098, 3266, 0 } }) -- maplink_1_48_51_30_2_down
         t.exec("morganHouse.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
             at = { 3098, 3270, 0 }, near = { 3098, 3269 }, far = { 3098, 3271 } })
 
@@ -282,21 +275,20 @@ return {
         t.exec("goDownToBasement.toStairs", t.player.walk_route,
             { { 3106, 3369 }, { 3113, 3370 }, { 3114, 3362 }, { 3113, 3356 }, { 3115, 3356 } }, { level = 0 })
         local crypt = climb("goDownToBasement", "cryptstairsdown", { 3115, 3357, 0 }, 0,
-            function(tt) return tt.z > 6400 and math.abs(tt.x - 3077) <= 2 and math.abs(tt.z - 9771) <= 2 end,
-            "the crypt under the manor within 2 of 3077,9771 (LostCity stairs.rs2:408-417 telejump 0_48_152_5_43)",
+            function(tt) return tt.x == 3077 and tt.z == 9771 end,
+            "the crypt landing 3077,9771,0 (vampire_crypt_stairs.rs2 p_telejump(0_48_152_5_43))",
             "goDownToBasement.stairsGoNowhere")
         if crypt == nil then
-            t.blocked("content_bug: Draynor Manor's crypt stairs go nowhere. cryptstairsdown (3115,3357,0) carries only "
-                .. "category=climb_down (OSRS-Content/osrs239-content/server/scripts/ladders_stairs/configs/ladders.loc:1863-1864), "
-                .. "has no ladders_stairs/configs/maplink.dbrow row and no [oploc1,cryptstairsdown] script, so the press runs "
-                .. "[oploc1,_climb_down] ~climb(-1) (ladders_stairs/scripts/ladders.rs2:178) and level 0-1 < 0 answers "
-                .. "~blocked_message 'You can't go any further.' (ladders.rs2:73-76). LostCity_Server "
-                .. "content/scripts/ladders+stairs/scripts/stairs.rs2:408-417 telejumps 0_48_52_43_29 -> 0_48_152_5_43 "
-                .. "(3077,9771,0) and :419-424 cryptstairsup 0_48_152_5_40 -> 0_48_52_43_28; needed: those two "
-                .. "destinations (a maplink row pair or the two scripts). The basement holds the coffin and Count Draynor "
+            t.blocked("content_bug: Draynor Manor's crypt stairs did not land in the crypt. "
+                .. "OSRS-Content/osrs239-content/server/scripts/quests/quest_vampire/scripts/vampire_crypt_stairs.rs2:20-26 "
+                .. "[oploc1,cryptstairsdown] at 0_48_52_43_29 should p_telejump(0_48_152_5_43) (3077,9771,0), "
+                .. "LostCity_Server content/scripts/ladders+stairs/scripts/stairs.rs2:408-417; the press, its answer and "
+                .. "the chat are in goDownToBasement.stairsGoNowhere. The basement holds the coffin and Count Draynor "
                 .. "(quest_vampire.rs2 npc_add 0_48_152_6_46); a goto into it is the cheat the door rule forbids.")
             return
         end
+        t.check("goDownToBasement.walkDownLine", t.msg.expect("You walk down the stairs"),
+            "vampire_crypt_stairs.rs2:24 mes(\"You walk down the stairs...\") after the telejump")
 
         -- ------------------------------------------------------- openCoffin
         -- The guide's kit for the fight, asserted in the pack before the
@@ -378,6 +370,13 @@ return {
 
         t.quest.expect_complete()
         t.expect("reward.attack_xp", t.skill.expect_gain("attack", 4825, snapshot))
+
+        -- Out of the crypt the way in: cryptstairsup (3077,9768,0) by click,
+        -- from the down landing, to the east wing's stair foot.
+        walk_check("leaveCrypt.atStairs", 3077, 9771, 0)
+        climb("leaveCrypt", "cryptstairsup", { 3077, 9768, 0 }, 0,
+            function(tt) return tt.x == 3115 and tt.z == 3356 end,
+            "the east wing 3115,3356,0 (vampire_crypt_stairs.rs2 p_telejump(0_48_52_43_28))")
 
         t.finish(0)
     end,
