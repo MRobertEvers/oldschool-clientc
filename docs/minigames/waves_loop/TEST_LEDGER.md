@@ -49,3 +49,7 @@ the event, with the npc alive and the prayer lit.
 - **inferno_nibblers_and_pillars** -- SENT BACK (reviewer rejected). Gate green 124/124; FULL 35 of 35; gaps by adjacent count measured. 068/069 safespot shots no bat; 075 ice barrage shot no nibblers; 095 and 118 stale end-of-run scene, pillar fall (seq 7561, npc 7710) not pictured; no_pillars() dead code. Pictures: reviewer 8.
 - **inferno_blob_and_splits** -- SENT BACK (reviewer rejected; author content_bug). 38 of 39; gate red on blob.water_weakness. Block NOT copied to CONTENT_BUGS: 18 hits from 92 cast calls (the ledger's water.done shows the calls timing out), max 4; P(no 5 in 18 uniform 0..5) is about 4%. Next pass: cast on the 5-tick speed, >= 60 Water Strike hits. 064/078 post-fight, no blob (sampler opened 064). Pictures: reviewer 4, sampler 1.
 - **inferno_mager_resurrection** -- SENT BACK (reviewer rejected; author content_bug). Gate 43/46. TEST-5 stands but the ladder needs more than 7 swings at d2 and more distances. MAGER-MELEE-CHANCE not reproduced: 14 of 21 against 50% (random(2)) is within noise; drop it from the block. 007/011 show no mager, no lit prayer; technique rows carry no shots; water weakness untried. Pictures: reviewer 7.
+
+## test pass 4 (2026-10-05): stopped by the owner
+
+- The six Inferno wave tests under test/waves/ were committed as they stood when the owner stopped test pass 4, for the landing on v3. None was kept by a reviewer; all six remain work in progress.
