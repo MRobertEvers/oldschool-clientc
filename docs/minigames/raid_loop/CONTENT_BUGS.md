@@ -790,7 +790,7 @@ Open:
   checked on the animation. In fact MOST things in OSRS ARE. It is the EXCEPTION that damage is
   calculated on it."). A landing-tick read needs a pinned source naming that npc. Never grade a
   send-tick read as a defect; never move a read to the landing tick without the source.
-- ToB, Verzik P3: RULED the exception. "You are correct about p3 Verzik on hit" (owner,
+- ToB, Verzik P3: RULED the exception, and SOURCED (grade B) the same day from Blert: of the P3 autos aimed at the recorder in the Normal streams, the 28 magic autos thrown with Protect from Magic OFF and lit by the landing (T+3) hit at most 16 (mean 8.2), the prayed profile, against max 33 (mean 20.6) when off throughout, and the 2 thrown with it ON and dropped before the landing hit 20 and 18 (sources/blert_api/spec_pass_verzik/seam20_p3_prayer_read.txt). "You are correct about p3 Verzik on hit" (owner,
   2026-10-04): her P3 ranged and magic autos read the prayer when the projectile hits
   (`[queue,tob_verzik_p3_auto_land]`, seam12; Entry Mode :243 "damage is calculated upon impact",
   transcripts/yt_oGPT3sZMnd8.md:51). The seam12 conformance row, verzik.tsv `p3_prayer_read` and
