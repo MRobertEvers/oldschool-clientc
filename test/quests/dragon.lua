@@ -18,8 +18,12 @@
 --   * Ned's house, Draynor: poordoor 3101,3258 (east edge; house x <= 3101).
 --   * The Lady Lumbridge: dragonshipgangplank_on/_off and the hull ladder
 --     (lady_lumbridge.rs2), each by click.
---   * Thalzar's room, Melzar's basement and Crandor's caves are left by a REAL teleport
---     (teleport.rs2, cast from the spellbook; three rows each).
+--   * Thalzar's room and Melzar's basement are left by a REAL teleport (teleport.rs2, cast
+--     from the spellbook; three rows each).
+--   * Crandor's caves are walked out after the kill: the secret wall dragonsecretdoor
+--     2836,9600 (crandor.rs2), the Karamja volcano's climbing_rope2 2856,9569 up to the rim
+--     (volcano.rs2), then the Musa Point customs officer's boat (customs_officer.rs2) and the
+--     Port Sarim gangplank karamjashipplank_off 3031,3217,1 (gangplank.rs2).
 local function dragon_helpers(t)
     local H = {}
     local function tile_text()
@@ -133,12 +137,12 @@ return {
         "::give coins 13000",       -- guide item telegrabOrTenK: Wormbrain's 10,000 coins for Lozar's piece
         "::give wizards_mind_bomb 1", "::give bowl_unfired 1", "::give lobster_pot 1", "::give silk 1", -- guide: brought for the Oracle's magic door (talkToOracle items)
         "::give hammer 1", "::give woodplank 3", "::give nails 90", -- guide: ship repair (leg 4)
-        -- Three real teleports out of places a player does not walk out of on this map
-        -- (door rule): Falador out of Thalzar's room, Lumbridge out of Melzar's basement,
-        -- Varrock out of Crandor's caves (the Karamja rope is deferred: crandor.rs2:2-3).
-        -- Costs: magic_spells.dbrow magic_spell_teleport_{falador,lumbridge,varrock}.
-        "::setlevel magic 37",
-        "::give lawrune 3", "::give airrune 9", "::give waterrune 1", "::give earthrune 1", "::give firerune 1",
+        -- Two real teleports out of places a player does not walk out of on this map
+        -- (door rule): Falador out of Thalzar's room, Lumbridge out of Melzar's basement.
+        -- Crandor's caves are walked out (secret wall, the volcano rope, the Musa Point boat).
+        -- Costs: magic_spells.dbrow magic_spell_teleport_{falador,lumbridge}.
+        "::setlevel magic 37", -- Falador Teleport's level
+        "::give lawrune 2", "::give airrune 6", "::give waterrune 1", "::give earthrune 1",
     },
     bind = {
         varp = "varp176_dragonquest",
@@ -648,13 +652,74 @@ return {
         t.expect("reward.strength_xp", t.skill.expect_gain("strength", 18650, reward_snapshot))
         t.expect("reward.defence_xp", t.skill.expect_gain("defence", 18650, reward_snapshot))
 
-        -- finishQuest: Oziach in Edgeville. The kill's queue puts the player on the cave side
-        -- of the lair wall (quest_dragon.rs2 [queue,dragon_complete] -> 2845,9636); out of
-        -- Crandor's caves by Varrock Teleport, Varrock -> Oziach's door is open ground
-        -- (reach.py 3213,3424 -> 3070,3514: REACH 243).
-        t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = "finishQuest.varrockTeleport",
-            runes = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
-            where = "Varrock, out of Crandor's caves" })
+        -- finishQuest: Oziach in Edgeville, walked out the way a player leaves after the kill.
+        -- The kill's queue puts the player on the cave side of the lair wall
+        -- (quest_dragon.rs2 [queue,dragon_complete] -> 2845,9636). South through Crandor's caves
+        -- to the secret wall (reach.py 2845,9636 -> 2836,9600: REACH closed-doors 45; waypoints
+        -- every ~7 tiles of its path), through it to the Karamja volcano's dungeon (crandor.rs2
+        -- [oploc1,dragonsecretdoor], unlocked above), on to climbing_rope2 (reach.py 2836,9599
+        -- -> 2855,9569: REACH 53) and up it to the volcano rim (volcano.rs2 [oploc1,climbing_rope2]
+        -- p_teleport(0_44_49_40_30) = 2856,3166; seam b62-seam1 scratch b62s1_crandor_ropes).
+        local out_r, out_tile = t.world.tile()
+        t.check("finishQuest.afterKillTile", out_r == "ok" and out_tile.x == 2845 and out_tile.z == 9636
+            and out_tile.level == 0,
+            "after the kill: " .. H.tile_text() .. " (want 2845,9636,0, quest_dragon.rs2 [queue,dragon_complete])")
+        t.exec("finishQuest.toSecretWall", t.player.walk_route, {
+            { 2840, 9634 }, { 2840, 9627 }, { 2838, 9622 }, { 2838, 9615 }, { 2837, 9609 },
+            { 2836, 9603 }, { 2836, 9600 },
+        }, { level = 0 })
+        t.exec("finishQuest.secretWall", t.player.cross_gate, { loc = "dragonsecretdoor", at = { 2836, 9600, 0 },
+            near = { 2836, 9600 }, far_ok = function(tt) return tt.z <= 9599 end,
+            far_desc = "through the secret wall to the Karamja volcano's side, z <= 9599" })
+        t.exec("finishQuest.toVolcanoRope", t.player.walk_route, {
+            { 2834, 9593 }, { 2834, 9585 }, { 2842, 9585 }, { 2847, 9582 },
+            { 2851, 9578 }, { 2855, 9574 }, { 2855, 9569 },
+        }, { level = 0 })
+        t.exec("finishQuest.volcanoRope", t.player.climb, { loc = "climbing_rope2", op = 1, op_name = "Climb",
+            at = { 2856, 9569, 0 }, src = { 2855, 9569 }, dest = { 2856, 3166, 0 } })
+        t.expect("finishQuest.volcanoRope.rim", t.msg.expect("You appear on the volcano rim."))
+
+        -- Karamja is an island: back to the mainland by the Musa Point boat. The rim -> the
+        -- customs officer is open ground (reach.py 2856,3166 -> 2953,3147: REACH closed-doors 116,
+        -- east of the members' gate at 2816,3182). customs_officer.rs2 [label,customs_search] ->
+        -- [label,customs_pay]: 30 coins, p_telejump(1_47_50_24_17) = the deck 3032,3217,1.
+        t.exec("goto-finishQuest.customs", t.player.goto_tile, 2953, 3147, 0)
+        local _, coins_before_boat = t.inv.count("coins")
+        t.exec("finishQuest.talkToCustoms", t.player.talk_to, "customs_officer", 1)
+        t.exec("finishQuest.talkToCustoms-dialog", t.chat.play, {
+            "npc:Can I help you?",
+            "options",
+            "choose:Can I journey on this ship?",
+            "player:Can I journey on this ship?",
+            "npc:You need to be searched",
+            "options",
+            "choose:Search away, I have nothing to hide.",
+            "player:Search away, I have nothing to hide.",
+            "npc:it's all legal",
+            "options",
+            "choose:Ok.",
+            "player:Ok.",
+        })
+        t.expect("finishQuest.customs.paid", t.msg.expect("You pay 30 coins and board the ship."))
+        local sail_r, sail_d = t.await({
+            level = function() return t.chat.kind() == "mesbox" end,
+            note = "finishQuest: the arrival mesbox after p_delay(2) + p_telejump",
+        }, 15)
+        t.check("finishQuest.customs.sailed", sail_r == "ok",
+            "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+        t.exec("finishQuest.customs.arrive", t.chat.play, { "mesbox:The ship arrives at Port Sarim." })
+        local deck_r, deck = t.world.tile()
+        local _, coins_after_boat = t.inv.count("coins")
+        t.check("finishQuest.customs.onDeck", deck_r == "ok" and deck.x == 3032 and deck.z == 3217 and deck.level == 1
+            and coins_before_boat ~= nil and coins_after_boat ~= nil and coins_before_boat - coins_after_boat == 30,
+            "tile " .. H.tile_text() .. " (want the deck 3032,3217,1), coins " .. tostring(coins_before_boat)
+            .. " -> " .. tostring(coins_after_boat) .. " (want -30)")
+        -- Off the ship by its gangplank (gangplank.rs2 [oploc1,karamjashipplank_off] ->
+        -- ~gangplank_disembark: one level down, two tiles west onto the Port Sarim pier).
+        t.exec("finishQuest.disembarkSarim", t.player.climb, { loc = "karamjashipplank_off", op = 1, op_name = "Cross",
+            at = { 3031, 3217, 1 }, dest = { 3029, 3217, 0 } })
+        -- Port Sarim pier -> Oziach's door is open ground (reach.py 3029,3217 -> 3070,3514:
+        -- REACH closed-doors 344, margins 30 and 160).
         H.oziach_in("finishQuest")
         t.exec("finishQuest", t.player.talk_to, "oziach", 1)
         t.exec("finishQuest-dialog", t.chat.play, {
