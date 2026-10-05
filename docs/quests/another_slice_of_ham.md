@@ -128,8 +128,8 @@ mistaken for an engine entry point.
 | `server/scripts/quests/scripts/quest_cheat.rs2` | `::complete` adapter | Writes only state 11; useful for registry checks, not reward/unlock evidence |
 | `server/scripts/areas/world/configs/m42_83.spawn` | Ur-tag and both Alvijar carriers | Correct carriers exist; live `slice_dwarf_alvijar_there` has Talk-to but no quest trigger |
 | `server/scripts/areas/world/configs/m39_86.spawn` | Tegdak and Zanik dig carrier | Correct world spawns expose the cache transform defect |
-| `server/scripts/ladders_stairs/configs/maplinks.{loc,dbrow}` | Dorgesh-Kaan railway entrance | `slice_goblin_station_entrance` is correctly categorized and mapped into the railway |
-| `slice_underground_wall_exit_goblin` | Railway return doorway | Cache loc has `Enter`; no name trigger, category, or maplink row was found, so leaving the dig is unimplemented |
+| `server/scripts/ladders_stairs/configs/maplinks.{loc,dbrow}` | Dorgesh-Kaan railway entrance | `slice_goblin_station_entrance`'s one maplink row (`[maplink_1_42_82_8_29]`, dest 2488,5536,0) is the finished station's platform, a room walled off from the dig; `[oploc1,slice_goblin_station_entrance]` (`slice_zanik.rs2`) lands at the dig exit (2520,5607,0) until state 11 and takes the maplink after |
+| `slice_underground_wall_exit_goblin` | Railway return doorway | `[oploc1,slice_underground_wall_exit_goblin]` (`slice_zanik.rs2`) returns to the Dorgesh-Kaan station doorway; its reverse maplink row is `[maplink_0_39_87_25_39]` |
 | Oldak world/service dispatch | State-4 teleport and sphere construction | No ordinary Oldak spawn was found; login adds a cutscene-only type with no operations, while live `dorgesh_oldak_there` has Talk-to and Buy-sphere |
 | `server/scripts/quests/quest_landofthegoblins/` | Shared Oldak and downstream prerequisite | Correctly refuses Land of the Goblins before state 11, but its own Oldak trigger will need a shared subject dispatcher |
 | `server/scripts/skill_combat/scripts/player/specs/pvm_ancient_goblin_mace.rs2` | Favour of the War God | Quest branch bypasses accuracy/damage; generic branch omits prayer drain, prayer restoration/overboost, and protection bypass |
@@ -213,12 +213,14 @@ Goblins, and sphere services; do not keep a per-login global cutscene actor.
 
 ### Railway travel
 
-The initial `slice_goblin_station_entrance` is a valid shared
-`maplink_transition` with a maplink row from Dorgesh-Kaan to the dig. It is
-not missing. The return loc `slice_underground_wall_exit_goblin`, which Quest
-Helper uses at state 3, has `op1=Enter` in cache but no corresponding category,
-maplink row, or script binding. Add a reusable reverse maplink record and test
-both directions at every relevant state.
+The shared maplink row for `slice_goblin_station_entrance`
+(`[maplink_1_42_82_8_29]`) lands on the finished station's platform
+(2488,5536,0), which the static map walls off from the dig where Tegdak works.
+`[oploc1,slice_goblin_station_entrance]` in `slice_zanik.rs2` therefore lands
+in front of the dig's exit doorway (2520,5607,0, inside Quest Helper's railway
+zone) while the quest is below state 11, and takes the maplink after. The
+return loc `slice_underground_wall_exit_goblin`, which Quest Helper uses at
+state 3, is bound in `slice_zanik.rs2` and has the reverse maplink row.
 
 ## 5. Current versus required playable route
 

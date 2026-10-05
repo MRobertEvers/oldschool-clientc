@@ -315,3 +315,16 @@ were. Round 2 of matthew-mbp-m4-b61 committed Desert Treasure with 5 of 725 shot
 so; the sampler then opened all 1,129 shots of that round's three quests on contact sheets (284
 sheets, six per message, one notebook line after each message). Write the number you opened in
 `shots_checked`, never the total, and name the sampler as owing the rest.
+
+### `shots_checked 1`: the reviewer opened only the completion scroll
+
+In matthew-mbp-m4-b62, the Death Plateau reviewer accepted with `shots_checked 1`, the
+`quest.scroll` shot alone, and called every other check "non-visual". The Giant Dwarf reviewer
+accepted with 2 of 463 shots (the scroll and `reward.mining`). The scroll proves only that the
+quest completed. It cannot show that a door press opened a door, that a goto landed outside, or
+that an item came off the floor where the guide says. Those are the shots that catch a cheat.
+For each guide step, open at least the shot of the row that grades it: a door's `*.doorIn`, a
+landing's `*.landed`, an item's `*.in-pack`, and the reward rows. Put four shots on each 2x2
+contact sheet. In the same batch the image Read worked for the sampler on its first try. So a
+low `shots_checked` was not caused by the hook timeout above. If the hook does fail, retry it,
+then write the true count and name the sampler as owing the rest.

@@ -1113,8 +1113,33 @@ end
 -- press the server ANSWERED is never repeated.  Every press's word, the
 -- landing it saw and the chat it caused are in the detail ("You can't go
 -- any further." is how a stair with no route reads -- a content seam).
+--
+-- A SAME-LEVEL landing (b62-seam1).  Most of the underground is level 0 in
+-- the map frame z+6400, so a manhole, a cellar ladder or a dungeon stair
+-- between it and the surface changes no level at all (manholes.rs2:13-16
+-- p_telejump(movecoord(coord, 0, 0, 6400)); plaguehouse.rs2:22-28; 932 of
+-- maplink.dbrow's 2,079 rows land on their source level, 586 of them in the
+-- other frame).  `dest` on at's level is accepted when its z lies in another
+-- map frame (QD.player._map_frame: z // 6400) than `at`, or when the spec
+-- names the row or script that moves the player there as
+-- `same_level = "<maplink row / telejump>"` (the 346 same-frame rows: the
+-- Stronghold of Security's entrance 3081,3421 -> 1859,5243).  The grading
+-- is the same exact landing (dest's level within `slack` of its x,z); a
+-- player who already stands on the landing is refused unpressed, and a
+-- press that did not land is told apart by TILE, not level: "still at
+-- <tile> beside the press" (within QD.player._climb_start_reach of `at` or
+-- the start tile, in the start's frame) or "reached the landing's map frame
+-- but not the landing".  A same-level dest in the press's own frame with no
+-- `same_level` still raises: that is pass_door / cross_trap / walk_route.
 QD.player._climb_land_ticks = 10
 QD.player._climb_presses = 2
+QD.player._climb_start_reach = 15
+QD.player._map_frame_rows = 6400
+
+function QD.player._map_frame(z)
+    assert(type(z) == "number", "_map_frame takes a z coordinate")
+    return math.floor(z / QD.player._map_frame_rows)
+end
 
 function QD.player.climb(spec)
     assert(type(spec) == "table", "climb takes a spec table: { loc=, at=, dest= }")
@@ -1137,8 +1162,19 @@ function QD.player.climb(spec)
     assert(level ~= nil, "climb spec.at must name the level the press is taken on: {x, z, level}")
     local dest_x, dest_z, dest_level = QD.player._spec_tile(spec.dest, "climb spec.dest")
     assert(dest_level ~= nil, "climb spec.dest must name the level it lands on: {x, z, level}")
-    assert(dest_level ~= level, "climb spec.dest is on the press's own level -- a crossing on one floor"
-        .. " is pass_door / cross_trap / walk_route, not a climb")
+    assert(spec.same_level == nil or (type(spec.same_level) == "string" and spec.same_level ~= ""),
+        "climb spec.same_level must name the maplink row or telejump that lands on the press's own level")
+    local same_level = dest_level == level
+    local at_frame = QD.player._map_frame(at_z)
+    local dest_frame = QD.player._map_frame(dest_z)
+    if spec.same_level ~= nil then
+        assert(same_level, "climb spec.same_level is given but spec.dest is on level " .. dest_level
+            .. ", not the press's own level " .. level)
+    end
+    assert(not same_level or dest_frame ~= at_frame or spec.same_level ~= nil,
+        "climb spec.dest is on the press's own level in the press's own map frame (z // 6400) -- a crossing"
+        .. " on one floor is pass_door / cross_trap / walk_route, not a climb; a stair or telejump that"
+        .. " lands there names its row as same_level = \"<maplink row / telejump>\"")
     local src_x, src_z = nil, nil
     if spec.src ~= nil then
         src_x, src_z = QD.player._spec_tile(spec.src, "climb spec.src")
@@ -1166,7 +1202,34 @@ function QD.player.climb(spec)
     local want = dest_x .. "," .. dest_z .. "," .. dest_level
         .. (slack > 0 and (" within " .. slack) or "")
         .. (spec.landed_desc and (", " .. spec.landed_desc) or "")
+    -- A same-level climb says which frame change (or named row) it is.
+    local same_text = nil
+    if same_level then
+        same_text = "same level " .. level .. ", map frame " .. at_frame .. " -> " .. dest_frame
+            .. (spec.same_level ~= nil and (" by " .. spec.same_level) or "")
+        want = want .. "; " .. same_text
+    end
     local head = "climb " .. loc .. " at " .. where .. " (" .. op_text .. "; want " .. want .. ")"
+    -- Still at the start: on the press's floor and, when that is also the
+    -- landing's floor, beside the press (the loc or the tile pressed from)
+    -- in the start's frame -- a level compare cannot tell a same-level
+    -- landing from a press that went nowhere.
+    local function at_start(tile, start)
+        if type(tile) ~= "table" or tile.level ~= level then
+            return false
+        end
+        if not same_level then
+            return true
+        end
+        if QD.player._map_frame(tile.z) ~= at_frame then
+            return false
+        end
+        local reach = QD.player._climb_start_reach
+        if QD.player._tile_distance(tile.x, tile.z, at_x, at_z) <= reach then
+            return true
+        end
+        return type(start) == "table" and QD.player._tile_distance(tile.x, tile.z, start.x, start.z) <= reach
+    end
 
     if src_x ~= nil then
         local walk_result, walk_detail = QD.player.walk_to(src_x, src_z, 40)
@@ -1185,6 +1248,10 @@ function QD.player.climb(spec)
     if from.level ~= level then
         return "refused", head .. ": the player is at " .. tile_text(from) .. ", not on level " .. level
             .. " -- not pressed (reach the stair's floor first)"
+    end
+    if same_level and landed_on(from) then
+        return "refused", head .. ": the player already stands at " .. tile_text(from)
+            .. ", on the landing -- not pressed (a same-level landing is graded by tile)"
     end
 
     local trail = {}
@@ -1213,7 +1280,7 @@ function QD.player.climb(spec)
         -- from the floor it started on (a press the server answered moved
         -- the player or said why not; repeating it is a second climb).
         if landed or (press_result ~= "covered" and press_result ~= "not_visible")
-            or type(after) ~= "table" or after.level ~= level then
+            or not at_start(after, from) then
             break
         end
     end
@@ -1224,15 +1291,26 @@ function QD.player.climb(spec)
             word = "refused"
         end
         local reason = " -- did not land"
-        if type(after) == "table" and after.level == level then
-            reason = " -- still on level " .. level .. " after " .. presses .. " press(es)"
-        elseif type(after) == "table" and after.level == dest_level then
-            reason = " -- reached level " .. dest_level .. " but not the landing"
+        if at_start(after, from) then
+            if same_level then
+                reason = " -- still at " .. tile_text(after) .. " beside the press (map frame "
+                    .. QD.player._map_frame(after.z) .. ") after " .. presses .. " press(es), not on the landing"
+            else
+                reason = " -- still on level " .. level .. " after " .. presses .. " press(es)"
+            end
+        elseif type(after) == "table" and after.level == dest_level
+            and (not same_level or QD.player._map_frame(after.z) == dest_frame) then
+            if same_level then
+                reason = " -- reached level " .. dest_level .. " in the landing's map frame " .. dest_frame
+                    .. " at " .. tile_text(after) .. " but not the landing"
+            else
+                reason = " -- reached level " .. dest_level .. " but not the landing"
+            end
         end
         return word, text .. reason
     end
     return "ok", text .. " -- landed on level " .. dest_level .. " at " .. tile_text(after)
-        .. " on press " .. presses
+        .. " on press " .. presses .. (same_text ~= nil and (" (" .. same_text .. ")") or "")
 end
 
 -- t.player.walk_route(points, opts) -> (ok, detail) `refused` `timeout`

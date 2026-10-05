@@ -3363,7 +3363,16 @@ class Grader:
                     if why:
                         refused.append(why)
                         continue
-                    return "ledger row %s %r names %s" % (row["index"], row["step"], hit[0])
+                    # A row NAMED after the npc is not a row that reached
+                    # him: Death Plateau's `goToHaroldStairs1.castleDoorOut`
+                    # (a pass_door) is no talk to Harold (seam
+                    # npc_step_credited_by_a_row_that_only_names_the_npc).
+                    reached = self.row_reaches_npc(step, row, hit[0])
+                    if not reached:
+                        refused.append("ledger row %s %r names %s, but its own action does not reach that "
+                                       "npc" % (row["index"], row["step"], hit[0]))
+                        continue
+                    return "ledger row %s %r names %s and %s" % (row["index"], row["step"], hit[0], reached)
         for row in self.action_rows:
             tokens = set(re.findall(r"[a-z][a-z0-9_]+", (row["detail"] + " " + row["step"]).lower()))
             for kind, symbol in step.targets:
@@ -3397,6 +3406,42 @@ class Grader:
             return None
         return "state already set: line %d (row %r) pressed %r on %s, and the guide's ConditionalStep " \
             "shows this step only while it is not" % (line, self.test.row_name_at(line), pressed_name, text)
+
+    def row_reaches_npc(self, step, row, noun):
+        """How the ledger row `row` reached the npc an NpcStep targets, or
+        None. The row's detail names one of the step's npc symbols (an
+        accepted press reports its target), or the source line that writes
+        the row presses an npc -- talk_to/click_npc/npc_op, attack, use_on,
+        or an emote for an NpcEmoteStep -- and names one of the step's npc
+        symbols (with no npc symbol in the guide, an npc string carrying
+        `noun`). A pass_door, a walk, a varbit read, a leg checkpoint or a
+        dialogue page row only names him."""
+        npcs = [symbol for kind, symbol in step.targets if kind == "npc"]
+        detail = row.get("detail") or ""
+        for token in sorted(set(re.findall(r"[a-z][a-z0-9_]+", detail.lower()))):
+            if any(same_thing("npc", symbol, token, loose=False) for symbol in npcs):
+                return "its detail names %r" % token
+        first = self.row_line(row["step"])
+        if first is None:
+            return None
+        last = next((span_last for span_first, span_last, name in self.test.row_spans
+                     if span_first == first and name == row["step"]), first)
+        for number, named in self.test.action_lines:
+            if not first <= number <= last:
+                continue
+            pressed = self.test.pressed_op(number, "npc")
+            if pressed is None and step.kind == "NpcEmoteStep" and \
+                    re.search(r"\bemote\b", self.test.code_lines[number - 1]):
+                pressed = "emote"
+            if pressed is None:
+                continue
+            for text in sorted(named):
+                if npcs and any(same_thing("npc", symbol, text) or shown_by("npc", symbol, text)
+                                for symbol in npcs):
+                    return "line %d presses %r (%s)" % (number, text, pressed)
+                if not npcs and noun in re.split(r"[^a-z0-9]+", text.lower()):
+                    return "line %d presses %r (%s)" % (number, text, pressed)
+        return None
 
     def row_refused(self, step, row, kind=None, symbol=None, text=None):
         """line_refused for a ledger row found by what it mentions: named after
@@ -4627,7 +4672,8 @@ class Grader:
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
         for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries(),
-                      self.enclosure_entries(), self.enclosure_exits(), self.sealed_entries()):
+                      self.enclosure_entries(), self.enclosure_exits(), self.sealed_entries(),
+                      self.sealed_exits()):
             for name, items in found.items():
                 have = {key for key, _ in self._route_hops.get(name, [])}
                 merged = self._route_hops.setdefault(name, [])
@@ -5364,7 +5410,8 @@ class Grader:
         level or map frame (a teleport out of a room is a spell away, and a
         climb is the climb rules' business: Dream Mentor's
         goto-returnToOneiromancer, 76 tiles out of the brazier hall, is left
-        to that policy), a room with a climb down from level 0, a hop with
+        to that policy), a room with no door (sealed_exits' business, with
+        no distance cap), a room with a climb down from level 0, a hop with
         an unknown start or a press, walk, use or cast between, and a hop
         within DOOR_OPEN_TICKS of a press of the door."""
         if getattr(self, "_enclosure_exits", None) is not None:
@@ -5494,6 +5541,78 @@ class Grader:
                     point[0] >> 6, point[1] >> 6, before[0], before[1], before[2], from_row["index"],
                     from_row["step"])))
         return self._sealed_entries
+
+    def sealed_exits(self):
+        """{step name: [((row index, row step), reason)]}: the mirror of
+        sealed_entries -- a goto that LEAVES a pocket the map closes on every
+        side (the departure's flood closes within ENCLOSURE_MAX_TILES, with
+        no door, no climb and no climb down from level 0) for a tile outside
+        it on the same level of the same map frame. Nothing a player does
+        walks out of it. Another Slice of H.A.M. (b62 round-2 fixer): the
+        station doorway lands on the train platform 2488,5536 (296 tiles,
+        x 2479-2488 z 5517-5554; its only op loc is the way back,
+        slice_underground_wall_exit_goblin at 2489,5536), and
+        PROBE.goto-talkToTegdak left it for Tegdak at 2512,5562 in the dig
+        tunnel; enclosure_exits skipped the room (no door) and the hop
+        (over ENCLOSURE_EXIT_TILES), and the grade read FULL.
+
+        No distance cap: unlike a walled room, a pocket has no door to walk
+        out through, so the hop skipped whatever the way out is. A loc with
+        an op or a script trigger in the pocket or on its edge (the room's
+        `ops`) may be that way: the hop is not charged when a PASS row
+        pressed one in the DOOR_OPEN_TICKS before.
+
+        Not judged: a pocket with a door (enclosure_exits) or a climb (it may
+        be the way out), a hop to another level or map frame (a ladder, a
+        cave, a teleport), and the usual unknown start or press, walk, use
+        or cast between."""
+        if getattr(self, "_sealed_exits", None) is not None:
+            return self._sealed_exits
+        self._sealed_exits = {}
+        if not self.rows:
+            return self._sealed_exits
+        track = self.player_track()
+        walls = map_walls()
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if before[2] != point[2] or abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200:
+                continue  # another level or map frame: a climb, a cave, a teleport
+            room = walls.enclosure(before[0], before[1], before[2], self.ENCLOSURE_MAX_TILES)
+            if room is None or room["doors"] or room["climbs"] or room["to_dungeon"]:
+                continue
+            if walls.in_room(room, point[0], point[1], point[2]):
+                continue
+            if room["ops"] and self._door_opened_before(position, room["ops"]):
+                continue  # one of its op locs was pressed: that may have been the way out
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            name = self._charge_name(position, until, None, "out of a sealed pocket")
+            if name is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._sealed_exits.setdefault(name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            box = room["box"]
+            ops = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["ops"][:3])
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r leaves a pocket the map closes on every side (%d tiles, x %d-%d z %d-%d, "
+                "no door, no climb, %s: maps/m%d_%d.jl2) from %d,%d,%d (row %s %r) for %d,%d,%d outside it "
+                "on the same level: no walk leaves it (sealed_exits)" % (
+                    row["index"], row["step"], len(room["tiles"]), box[0], box[1], box[2], box[3],
+                    "no loc with an op" if not ops else "its only op locs %s not pressed in the %d ticks before" % (
+                        ops, self.DOOR_OPEN_TICKS),
+                    before[0] >> 6, before[1] >> 6, before[0], before[1], before[2], from_row["index"],
+                    from_row["step"], point[0], point[1], point[2])))
+        return self._sealed_exits
 
     def guarded_rooms(self):
         """[(composite X, room step S, room zones Z, door step O, O's zones A,
