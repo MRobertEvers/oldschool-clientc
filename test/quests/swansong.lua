@@ -1,3 +1,8 @@
+-- ROUND 7 (matthew-mbp-m4-b56), sent back by the b56 shot sampler: the two guild-door rows now require the
+-- player INSIDE (x >= 2585 / z <= 3288; the goto alone already sat within the old +-2), and the black d'hide
+-- body is re-worn after the Crafting Guild (rewear-dhide-body) -- in round 6 Malignius's brown apron took the
+-- body slot at wear-apron and the Queen was fought without it (lowest hp 24/99). killQueen-margin now needs
+-- sharks left >= 1 AND lowest hp >= 25.
 -- ROUND 6 (matthew-mbp-m4-b54): black d'hide body worn (magic defence 35 -> 80), the hammer dropped after the fifth
 -- wall, 16 sharks (the sampler measured the fit), killQueen-margin records the food and the lowest hp of the fight.
 -- ROUND 5 (matthew-mbp-m4-b54), sent back by the sampler: green 208/0 with every guide step driven (Franklin's hammer,
@@ -143,7 +148,7 @@ return {
 
         t.exec("enterColony", t.player.click_loc, "swan_hole", 1)
         t.ticks(4)
-        t.check("enterColony-tile", t.world.tile())
+        do local tr, th = t.world.tile(); t.check("enterColony-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2343) <= 2 and math.abs(th.z - 3657) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2343,3657,0)") or tostring(th)) end
 
         -- kill79Trolls: the three ambush trolls at the entrance (50 tick despawn: no pauses)
         t.ticks(2)
@@ -160,8 +165,8 @@ return {
         t.exec("pickUpBones-1", t.player.click_obj, "bones", 3)
         t.exec("pickUpBones-2", t.player.click_obj, "bones", 3)
         t.exec("pickUpBones-3", t.player.click_obj, "bones", 3)
-        t.check("pickUpBones-3-count", t.inv.count("bones"))
-        t.check("kill79Trolls-count", t.var.varbit("varb2107_swansong_trolls"))
+        t.check("pickUpBones-3-count", t.inv.expect_has("bones", 3))
+        t.check("kill79Trolls-count", t.var.expect("varb2107_swansong_trolls", 3))
         t.expect("quest.stage.trolls_beaten", t.quest.expect_stage("trolls_beaten"))
 
         t.exec("openColonyGate", t.player.click_loc, "swan_door_l", 1)
@@ -182,17 +187,17 @@ return {
             "npc:The trolls managed to smash",
         })
         t.ticks(2)
-        t.check("talkToFranklin-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("talkToFranklin-var", t.var.expect("varb2099_swansong_franklin", 1))
 
         local firebox = t.player.by_symbol("loc", "swan_firebox")
         t.check("firebox.found", firebox ~= nil, "swan_firebox resolved: " .. tostring(firebox and firebox.id))
         t.exec("goto-useLog", t.player.goto_tile, 2344, 3675, 0)
         t.exec("useLog", t.player.use_on, "logs", firebox)
         t.ticks(2)
-        t.check("useLog-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("useLog-var", t.var.expect("varb2099_swansong_franklin", 2))
         t.exec("useTinderbox", t.player.use_on, "tinderbox", firebox)
         t.ticks(2)
-        t.check("useTinderbox-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("useTinderbox-var", t.var.expect("varb2099_swansong_franklin", 3))
         -- the firebox is lit: the leftover tinderbox and log only take backpack slots the Queen's food needs
         t.player.drop("tinderbox")
         t.player.drop("logs")
@@ -233,7 +238,7 @@ return {
             "npc:Excellent work",
         })
         t.ticks(2)
-        t.check("talkToFranklinAgain-var", t.var.varbit("varb2099_swansong_franklin"))
+        t.check("talkToFranklinAgain-var", t.var.expect("varb2099_swansong_franklin", 4))
 
         t.exec("goto-talkToArnold", t.player.goto_tile, 2329, 3687, 0)
         t.exec("talkToArnold", t.player.talk_to, "swan_arnold", 1)
@@ -243,7 +248,7 @@ return {
             "npc:Here, take this net",
         })
         t.ticks(2)
-        t.check("talkToArnold-net", t.inv.has("net"))
+        t.check("talkToArnold-net", t.inv.expect_has("net", 1))
 
         -- catch 5 monkfish at the fishing spot (the first cast wakes a troll), cook at the stove
         t.check("fishSpot", t.world.loc_near("swan_fish", 80))
@@ -254,7 +259,7 @@ return {
         t.exec("fish-troll-attack", t.player.attack, "swan_troll_ambush", 2, 20)
         t.exec("fish-troll-dead", t.npc.await_dead_engaged, 120, 20, { eat = { item = "shark", below = 50 } })
         t.exec("pickUpBones-4", t.player.click_obj, "bones", 3)
-        t.check("pickUpBones-4-count", t.inv.count("bones"))
+        t.check("pickUpBones-4-count", t.inv.expect_has("bones", 4))
         t.ticks(2)
         for i = 1, 5 do
             t.exec("fish-cast-" .. i, t.player.click_loc, "swan_fish", 1)
@@ -275,7 +280,7 @@ return {
             "npc:That's five now",
         })
         t.ticks(2)
-        t.check("talkToArnoldFish-var", t.var.varbit("varb2105_swansong_arnold"))
+        t.check("talkToArnoldFish-var", t.var.expect("varb2105_swansong_arnold", 6))
         t.player.drop("net")
         t.ticks(3)
         t.check("dropNet-slots", t.inv.expect_absent("net"), "fishing net dropped after the five monkfish to keep slots for food")
@@ -296,10 +301,13 @@ return {
         t.exec("goto-wizardsGuildDoor", t.player.goto_tile, 2583, 3088, 0)
         t.exec("wizardsGuildDoor", t.player.click_loc, "magicguild_door_l", 1)
         t.ticks(3)
-        t.check("wizardsGuildDoor-tile", t.world.tile())
+        -- INSIDE, not near: the goto stands the player at 2583,3088, outside the door, and the
+        -- open door walks him through to 2585,3088 (b54 run, play shot 158). x >= 2585 is the
+        -- guild side; the old +-2 of 2585 also passed at 2583 with the door shut (b56 sampler).
+        do local tr, th = t.world.tile(); t.check("wizardsGuildDoor-tile", tr == "ok" and th.level == 0 and th.x >= 2585 and th.x <= 2587 and math.abs(th.z - 3088) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want inside the guild: x 2585-2587, z 3087-3089, level 0; the goto stood at 2583,3088)") or tostring(th)) end
         t.exec("enterWizardsBasement", t.player.click_loc, "ladder_cellar", 1, { at = { 2594, 3085 } })
         t.ticks(3)
-        t.check("enterWizardsBasement-tile", t.world.tile())
+        do local tr, th = t.world.tile(); t.check("enterWizardsBasement-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2594) <= 2 and math.abs(th.z - 9486) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2594,9486,0)") or tostring(th)) end
         t.exec("frumscone-present", t.npc.await_present, "wizard_frumscone", 15, 10)
         t.exec("talkToFruscone", t.player.talk_to, "wizard_frumscone", 1)
         t.exec("talkToFruscone-dialog", t.chat.play, {
@@ -319,14 +327,15 @@ return {
                     parts[#parts + 1] = row.name .. "x" .. tostring(row.count)
                 end
             end
-            t.check("pack-before-chickens", true, table.concat(parts, " "))
+            -- three chicken bones and Malignius's apron still have to fit
+            t.check("pack-before-chickens", #parts <= 24, #parts .. " slot(s) used, " .. (28 - #parts) .. " free (want >= 4): " .. table.concat(parts, " "))
         end
         for i = 1, 3 do
             t.exec("chicken-attack-" .. i, t.player.attack, "chicken_brown", 2, 20)
             t.exec("chicken-dead-" .. i, t.npc.await_dead_engaged, 80, 20)
             t.exec("chicken-bones-" .. i, t.player.click_obj, "bones", 3)
         end
-        t.check("bones-total", t.inv.count("bones"))
+        t.check("bones-total", t.inv.expect_has("bones", 7))
         t.exec("goto-talkToMalignius", t.player.goto_tile, 2993, 3270, 0)
         t.exec("talkToMalignius", t.player.talk_to, "elemental_wizard_boss", 1)
         t.exec("talkToMalignius-dialog", t.chat.play, {
@@ -342,7 +351,9 @@ return {
         t.exec("goto-craftingGuildDoor", t.player.goto_tile, 2932, 3289, 0)
         t.exec("craftingGuildDoor", t.player.click_loc, "craftingguilddoor", 1)
         t.ticks(3)
-        t.check("craftingGuildDoor-tile", t.world.tile())
+        -- INSIDE, not near: the goto stands the player at 2932,3289, north of the door; the open
+        -- door walks him to 2933,3288 (b54 run, play shot 187). z <= 3288 is the guild side.
+        do local tr, th = t.world.tile(); t.check("craftingGuildDoor-tile", tr == "ok" and th.level == 0 and th.z <= 3288 and th.z >= 3286 and math.abs(th.x - 2933) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want inside the guild: z 3286-3288, x 2932-2934, level 0; the goto stood at 2932,3289)") or tostring(th)) end
         t.exec("talkToCrafter", t.player.talk_to, "master_crafter_3", 1)
         t.exec("talkToCrafter-dialog", t.chat.play, {
             "player:Swan Song",
@@ -375,6 +386,15 @@ return {
         t.exec("makeAirtightPot", t.player.use_item_on_item, "pot_empty", "potlid")
         t.check("makeAirtightPot-item", t.inv.await("favour_airtight_pot", 1, 10))
         t.expect("quest.stage.pot_ready", t.quest.expect_stage("pot_ready"))
+        -- The apron took the body slot at wear-apron (both wearpos body); it was only for the
+        -- Crafting Guild door. Put the black d'hide body back on for the Sea Troll Queen.
+        t.exec("rewear-dhide-body", t.player.equip, "black_dragonhide_body")
+        do
+            local _, apron_back = t.inv.count("brown_apron")
+            local _, body_left = t.inv.count("black_dragonhide_body")
+            t.check("rewear-dhide-body-worn", apron_back == 1 and body_left == 0,
+                "brown_apron in pack " .. tostring(apron_back) .. ", black_dragonhide_body in pack " .. tostring(body_left) .. " (want 1 and 0: the body is worn)")
+        end
 
         t.exec("goto-talkToMaligniusWithPot", t.player.goto_tile, 2993, 3270, 0)
         t.exec("talkToMaligniusWithPot", t.player.talk_to, "elemental_wizard_boss", 1)
@@ -406,7 +426,7 @@ return {
         t.cheat("::swansong_queen_hp")
         t.check("killQueen-hp-server", t.msg.expect("Sea Troll Queen hitpoints 200/200"))
         local _, food_at_queen = t.inv.count("shark")
-        t.check("killQueen-food", true, "sharks carried to the Queen: " .. tostring(food_at_queen))
+        t.check("killQueen-food", (food_at_queen or 0) >= 14, "sharks carried to the Queen: " .. tostring(food_at_queen) .. " of 16 staged (want >= 14; the b54 fight ate 12)")
         local eaten_before = 0
         local lowest_hp = 99
         for _ = 1, 6 do
@@ -430,11 +450,11 @@ return {
         local _, sharks_left = t.inv.count("shark")
         local _, hp_end = t.skill.read("hitpoints")
         local hp_now = hp_end and (hp_end.current or hp_end.level or hp_end.boosted)
-        t.check("killQueen-margin", (sharks_left or 0) >= 2 or (lowest_fight or 0) > 25,
+        t.check("killQueen-margin", (sharks_left or 0) >= 1 and lowest_fight ~= nil and lowest_fight >= 25,
             "sharks staged 16, at the Queen " .. tostring(food_at_queen) .. ", eaten before attack " .. eaten_before
             .. ", eaten in the fight " .. tostring((food_after_topup or 0) - (sharks_left or 0)) .. ", left " .. tostring(sharks_left)
             .. ", lowest hp in the fight " .. tostring(lowest_fight) .. "/99, hp after the kill " .. tostring(hp_now)
-            .. "/99, Queen dead after " .. tostring(queen_ticks) .. " ticks (margin: sharks left >= 2 or lowest hp > 25)")
+            .. "/99, Queen dead after " .. tostring(queen_ticks) .. " ticks (margin: sharks left >= 1 AND lowest hp >= 25)")
         t.check("killQueen-stage", t.var.await("varb2098_swansong", 190, 20))
         t.ticks(3)
         t.expect("quest.stage.queen_dead", t.quest.expect_stage("queen_dead"))

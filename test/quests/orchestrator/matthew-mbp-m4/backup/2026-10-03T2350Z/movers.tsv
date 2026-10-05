@@ -1,0 +1,72 @@
+rule	set	test	step	change	goto_row	landing	departure	obstacle	rule_tag
+A_blocked_landing	greens	hauntedmine	tryToPickUpKey	DRIVEN->CHEAT	63 goto-key	2795,4456,0	2810,4453,0	hauntedmine_boss_door at 2799,4453,0	enclosure_entries
+A_blocked_landing	greens	itgronigen	giveProfessorMould	DRIVEN->CHEAT	49 goto-professor3	2442,3186,0	2458,3185,0	qip_obs_reception_door at 2442,3183,0	enclosure_entries
+A_blocked_landing	greens	recruitmentdrive	talkToSirTinley	DRIVEN->CHEAT	40 goto-talkToSirTinley	2471,4956,0	2463,4963,0	rd_room4_exitdoor at 2480,4956,0	enclosure_entries
+A_blocked_landing	greens	totem	talkToCromperty	DRIVEN->CHEAT	18 goto-talkToCromperty	2683,3324,0	2648,3271,0	castledoubledoorl at 2678,3325,0	enclosure_entries
+A_blocked_landing	reopened	arthur	goUpLadder1Camelot	DRIVEN->CHEAT	96 goUpLadder1Camelot	2769,3493,1	2779,3515,0	kr_cam_poshdoor at 2764,3494,1	enclosure_entries
+A_blocked_landing	reopened	arthur	optionalGetRepellent	DRIVEN->CHEAT	47 goto-optionalGetRepellent	2807,3450,0	2759,3401,0	poshdoor at 2806,3452,0	enclosure_entries
+A_blocked_landing	reopened	dreammentor	fillVialWithWater	DRIVEN->CHEAT	191 goto-fillVialWithWater	2091,3922,0	2151,3867,0	lunar_moonclan_door at 2091,3916,0	enclosure_entries
+A_blocked_landing	reopened	fenkenstrain	getBook1	DRIVEN->CHEAT	16 goto-eastBookcase	3555,3558,1	3559,3552,1	poordoor at 3558,3554,1	enclosure_entries
+A_blocked_landing	reopened	fenkenstrain	goUpTowerLadder	DRIVEN->CHEAT	103 goUpTowerLadder	3549,3537,2	3537,3553,0	fenk_door at 3549,3543,1	enclosure_entries
+A_blocked_landing	reopened	fenkenstrain	searchFirePlace	DRIVEN->CHEAT	93 goto-fireplace	3544,3555,1	3538,3552,1	poordoor at 3539,3554,1	enclosure_entries
+A_blocked_landing	reopened	itexam	talkToExpert	DRIVEN->CHEAT	137 goto-talkToExpert	3355,3332,0	3352,3407,0	qip_digsite_poshdoor at 3352,3337,0	enclosure_entries
+A_blocked_landing	reopened	mourningsendparti	talkToElena	DRIVEN->CHEAT	134 goto-talkToElena	2592,3335,0	2535,3333,0	elenadoor2 at 2592,3339,0	enclosure_entries
+A_blocked_landing	reopened	priest	searchAltarAndRun	DRIVEN->CHEAT	18 goto-searchAltarAndRun	3120,9567,0	3104,3162,0	poordoor at 3111,9559,0	enclosure_entries
+A_blocked_landing	reopened	swansong	talkToHermanInBuilding	DRIVEN->CHEAT	35 goto-talkToHermanInBuilding	2354,3682,0	2343,3662,0	swan_building_door at 2351,3679,0	enclosure_entries
+A_blocked_landing	reopened	swansong	useLog	DRIVEN->CHEAT	44 goto-useLog	2344,3675,0	2342,3669,0	swan_building_door at 2337,3675,0	enclosure_entries
+A_blocked_landing	reopened	troll	enterArenaCavern	DRIVEN->CHEAT	24 goto-enterArenaCavern	2904,3644,0	2916,3628,0	troll_stronghold_arena_exit_left at 2916,3629,0	enclosure_entries
+A_blocked_landing	reopened	upass	goDownCastleStairs	DRIVEN->CHEAT	10 goto-goDownCastleStairs	2572,3295,1	2578,3292,1	elfdoor at 2573,3302,1	enclosure_entries
+B_charge_any	greens	blackknight	(goto past bkfortressdoor3)	-->CHEAT	20 goto-grill	3026,3509,0	3016,3517,0	bkfortressdoor3 at 3025,3511,1	enclosure_entries
+B_charge_any	greens	cooks_assistant	(goto past fencegate_l)	-->CHEAT	17 cooksassistant.goto_wheat	3161,3292,0	3172,3301,0	fencegate_l at 3163,3290,0	enclosure_entries
+B_charge_any	greens	eadgar	(goto past death_sherpa_backdoor)	-->CHEAT	7 goto-tenzing	2820,3555,0	2897,3425,1	death_sherpa_backdoor at 2820,3557,0	enclosure_entries
+B_charge_any	greens	eadgar	(goto past eadgar_storeroomdoor)	-->CHEAT	179 goto-storeroomdoor	2869,10085,0	2852,10064,0	eadgar_storeroomdoor at 2869,10085,0	enclosure_entries
+B_charge_any	greens	eadgar	(goto past troll_stronghold_interior_door)	-->CHEAT	182 goto-crate	2855,10074,0	2869,10085,0	troll_stronghold_interior_door at 2861,10092,0	enclosure_entries
+B_charge_any	greens	enlightenedjourney	(goto past poordoor)	-->CHEAT	21 goto-aggie	3086,3257,0	3188,3267,0	poordoor at 3088,3258,0	enclosure_entries
+B_charge_any	greens	enlightenedjourney	(goto past poshdoor)	-->CHEAT	118 goto-bowl	2817,3352,0	2817,3342,0	poshdoor at 2820,3356,0	enclosure_entries
+B_charge_any	greens	enlightenedjourney	(goto past qip_sheep_shearer_fencegate_l)	-->CHEAT	16 goto-onions	3187,3265,0	3015,3206,0	qip_sheep_shearer_fencegate_l at 3186,3268,0	enclosure_entries
+B_charge_any	greens	hero	killGrip	DRIVEN->CHEAT	27 goto-sidedoor	2781,3196,0	2786,3190,0	pete_sidedoor at 2781,3197,0	enclosure_entries
+B_charge_any	greens	murder	(goto past kr_mansion_double_door_l)	-->CHEAT	17 goto.flourbarrel.weapon	2733,3582,0	2746,3578,0	kr_mansion_double_door_l at 2740,3572,0	enclosure_entries
+B_charge_any	greens	murder	(goto past kr_sin_poshdoor)	-->CHEAT	67 goto.barrel.bob	2735,3579,0	2748,3559,0	kr_sin_poshdoor at 2735,3578,0	enclosure_entries
+B_charge_any	greens	queenofthieves	(goto past wallkit_shayzien_door01_l)	-->CHEAT	3 goto-barman	1550,3560,0	3206,3233,0	wallkit_shayzien_door01_l at 1549,3569,0	enclosure_entries
+B_charge_any	greens	recruitmentdrive	ladyTableStep	DRIVEN->CHEAT	46 goto-talkToLadyTable	2460,4979,0	2480,4957,0	rd_room2_exitdoor at 2447,4979,0	enclosure_entries
+B_charge_any	greens	recruitmentdrive	tryOpenDoor	DRIVEN->CHEAT	55 goto-sirRenStep.talkToRen	2439,4956,0	2447,4978,0	rd_room5_exitdoor at 2446,4956,0	enclosure_entries
+B_charge_any	greens	seaslug	(goto past slug2_village_poordoor)	-->CHEAT	55 glass.goto	2766,3289,0	2784,3289,0	slug2_village_poordoor at 2768,3288,0	enclosure_entries
+B_charge_any	reopened	biohazard	(goto past poshdoor)	-->CHEAT	79 goto-chemist	2934,3210,0	2592,3336,0	poshdoor at 2928,3209,0	enclosure_entries
+B_charge_any	reopened	blackarmgang	(goto past blackarmdoor)	-->CHEAT	37 goto-handInKatrine	3186,3385,0	3252,3384,1	blackarmdoor at 3185,3388,0	enclosure_entries
+B_charge_any	reopened	elena	(goto past poordoor)	-->CHEAT	26 goto-fillBucket1	2572,3333,0	2565,3331,0	poordoor at 2570,3333,0	enclosure_entries
+B_charge_any	reopened	forgettabletale	(goto past dwarf_keldagrim_door_interior_poor)	-->CHEAT	94 goto-giveStout	2913,10221,0	2916,10196,0	dwarf_keldagrim_door_interior_poor at 2915,10223,0	enclosure_entries
+B_charge_any	reopened	haunted	(goto past draynor_panelled_door)	-->CHEAT	60 goto-oddenstein-handin	3110,3367,2	3092,9755,0	draynor_panelled_door at 3108,3364,2	enclosure_entries
+B_charge_any	reopened	meatandgreet	(goto past fortis_door_l)	-->CHEAT	25 goto-emelio.spice	1753,3074,0	1685,3100,0	fortis_door_l at 1754,3073,0	enclosure_entries
+B_charge_any	reopened	meatandgreet	recipeStepWrapper	DRIVEN->CHEAT	77 goto-emelio.3	1753,3074,0	1750,3071,0	fortis_door_l at 1754,3073,0	enclosure_entries
+B_charge_any	reopened	mourningsendparti	(goto past mourner_hideout_door3)	-->CHEAT	56 goto-mourningGnomeRack	2035,4629,0	2044,4629,0	mourner_hideout_door3 at 2037,4633,0	enclosure_entries
+B_charge_any	reopened	mourningsendparti	(goto past poordoor)	-->CHEAT	181 goto-poisonStore1	2517,3313,0	2547,3323,0	poordoor at 2521,3314,0	enclosure_entries
+B_charge_any	reopened	ratcatchers	(goto past vc_elfdoor)	-->CHEAT	83 goto-rat-12	2857,5094,0	2858,5091,0	vc_elfdoor at 2857,5100,0	enclosure_entries
+B_charge_any	reopened	swansong	(goto past fencegate_l)	-->CHEAT	140 goto-chickenPen	3228,3298,0	2589,9489,0	fencegate_l at 3236,3296,0	enclosure_entries
+B_charge_any	reopened	thefremennikisles	(goto past frisd_wood_gate_01)	-->CHEAT	351 goto-yakHides	2322,3796,0	2336,3799,0	frisd_wood_gate_01 at 2326,3802,0	enclosure_entries
+B_charge_any	reopened	xmarksthespot	(goto past farming_fencegate_l)	-->CHEAT	31 goto-digMartin	3078,3259,0	3109,3264,0	farming_fencegate_l at 3077,3258,0	enclosure_entries
+C_enclosure_exits	greens	blackknight	pushWall3	DRIVEN->CHEAT	25 goto-secret-room	3016,3518,0	3026,3507,0	bkfortressdoor3 at 3025,3511,1	enclosure_exits
+C_enclosure_exits	greens	cooks_assistant	(goto out past fencegate_l)	-->CHEAT	17 cooksassistant.goto_wheat	3161,3292,0	3172,3301,0	fencegate_l at 3181,3289,0	enclosure_exits
+C_enclosure_exits	greens	eadgar	(goto out past death_sherpa_backdoor)	-->CHEAT	9 goto-stile	2817,3562,0	2820,3555,0	death_sherpa_backdoor at 2820,3557,0	enclosure_exits
+C_enclosure_exits	greens	enlightenedjourney	(goto out past poshdoor)	-->CHEAT	125 goto-giveAuguste	2808,3355,0	2817,3352,0	poshdoor at 2820,3356,0	enclosure_exits
+C_enclosure_exits	greens	hunt	(goto out past wydindoor)	-->CHEAT	40 goto-wydin	3014,3204,0	3009,3204,0	wydindoor at 3012,3204,0	enclosure_exits
+C_enclosure_exits	greens	murder	(goto out past kr_sin_poshdoor)	-->CHEAT	7 goto.window.area	2748,3575,0	2745,3575,0	kr_sin_poshdoor at 2745,3575,0	enclosure_exits
+C_enclosure_exits	greens	seaslug	(goto out past slug2_village_poordoor)	-->CHEAT	28 kennith1.goto	2766,3288,1	2784,3286,1	slug2_village_poordoor at 2767,3285,1	enclosure_exits
+C_enclosure_exits	greens	totem	climbStairs	DRIVEN->CHEAT	53 goto-climbStairs2	2631,3325,0	2635,3320,0	metalgateclosedl at 2635,3307,0	enclosure_exits
+C_enclosure_exits	reopened	desertrescue	talkToGuard	DRIVEN->CHEAT	35 goto-talkToGuard	3277,9415,0	3278,9425,0	thttmineexitl at 3278,9426,0	enclosure_exits
+C_enclosure_exits	reopened	elena	talkToEdmondAgain	DRIVEN->CHEAT	17 goto-talkToEdmondAgain	2568,3332,0	2575,3333,0	poordoor at 2574,3333,0	enclosure_exits
+C_enclosure_exits	reopened	entertheabyss	talkToAubury	DRIVEN->CHEAT	11 goto-talkToAubury	3253,3402,0	3259,3383,0	fai_varrock_poor_door_flipped at 3255,3388,0	enclosure_exits
+C_enclosure_exits	reopened	forgettabletale	talkToRowdyDwarf	DRIVEN->CHEAT	19 goto-talkToRowdyDwarf	2914,10198,0	2912,10221,0	dwarf_keldagrim_door_interior_poor at 2915,10223,0	enclosure_exits
+C_enclosure_exits	reopened	hetty	killRat	DRIVEN->CHEAT	11 goto-ratHouse	2956,3203,0	2968,3205,0	poordoor at 2964,3206,0	enclosure_exits
+C_enclosure_exits	reopened	meatandgreet	(goto out past fortis_door_l)	-->CHEAT	59 goto-out.mag_vincens	1750,3070,0	1753,3074,0	fortis_door_l at 1754,3073,0	enclosure_exits
+C_enclosure_exits	reopened	mourningsendparti	(goto out past mourner_hideout_door2)	-->CHEAT	56 goto-mourningGnomeRack	2035,4629,0	2044,4629,0	mourner_hideout_door2 at 2042,4633,0	enclosure_exits
+C_enclosure_exits	reopened	ratcatchers	(goto out past vc_elfdoor)	-->CHEAT	85 goto-rat-13	2857,5088,0	2857,5094,0	vc_elfdoor at 2857,5100,0	enclosure_exits
+C_enclosure_exits	reopened	regicide	useTarOnFractionalisingStill	DRIVEN->CHEAT	306 goto-useTarOnFractionalisingStill	2927,3212,0	2934,3209,0	poshdoor at 2928,3209,0	enclosure_exits
+C_enclosure_exits	reopened	swansong	talkToFranklin	DRIVEN->CHEAT	39 goto-talkToFranklin	2341,3668,0	2354,3682,0	swan_building_door at 2351,3679,0	enclosure_exits
+C_enclosure_exits	reopened	thefremennikisles	(goto out past frisb_abode_door)	-->CHEAT	351 goto-yakHides	2322,3796,0	2336,3799,0	frisb_abode_door at 2339,3801,0	enclosure_exits
+C_enclosure_exits	reopened	troll	climbOverStile	DRIVEN->CHEAT	11 goto-climbOverStile	2817,3562,0	2820,3555,0	death_sherpa_backdoor at 2820,3557,0	enclosure_exits
+C_enclosure_exits	reopened	xmarksthespot	speakVeosSarim	DRIVEN->CHEAT	37 goto-speakVeosSarim	3055,3245,0	3078,3259,0	farming_fencegate_l at 3077,3258,0	enclosure_exits
+D_sealed_entries	greens	ikov	getBoots	DRIVEN->CHEAT	12 goto-getBoots	2654,9766,0	2641,9764,0	bigweb_slashable at 2654,9766,0	sealed_entries
+D_sealed_entries	greens	seaslug	(goto into a sealed pocket)	-->CHEAT	28 kennith1.goto	2766,3288,1	2784,3286,1	pocket, no op loc	sealed_entries
+D_sealed_entries	greens	shadowsofcustodia	(goto into a sealed pocket)	-->CHEAT	11 goto-bar	1391,3353,0	1394,3353,0	pocket, no op loc	sealed_entries
+D_sealed_entries	reopened	belowicemountain	buyBeer	DRIVEN->CHEAT	49 goto-buyBeer	2954,3371,0	2955,3367,0	pocket, no op loc	sealed_entries
+D_sealed_entries	reopened	bonevoyage	talkToOperatorInGuild	DRIVEN->CHEAT	17 goto-talkToOperatorInGuild	1623,3501,0	1657,3504,0	pocket, no op loc	sealed_entries

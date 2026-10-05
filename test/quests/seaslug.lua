@@ -12,13 +12,26 @@
 -- file now asserts the FIXED cook instead of "You can't cook that.", and the
 -- platform Holgart (holgart.rs2's [label,holgartplatform_talk], reached
 -- through the base spawn symbol slug2_holgart_jeb per trap 19's fix)
--- answers. Two things the retry note called out: the committed setup gave
--- ONE log at Firemaking 1 (the light roll timed out on a full run) -- this
--- file stages ::setlevel firemaking 50 with five logs; and Kennith's spawn
--- (areas/world/configs/m43_51.spawn:42) is 2766,3288 on PLANE 1, reached
--- with goto_tile's own level=1 climb (doc section 2), never a click on the
--- seaslug_ladder loc (its own [oploc1,seaslug_ladder] gate is content the
--- goto bypass is FOR).
+-- answers. The committed retry staged ::setlevel firemaking 50 with five
+-- logs (one log at Firemaking 1 timed out the light roll on a full run).
+--
+-- RE-DRIVEN b59 (door rule, owner 2026-10-03): the Fishing Platform is an
+-- island reached only by Holgart's boat and every room on it is behind a
+-- door, so nothing on it is a goto_tile any more. The ladder is climbed by
+-- its own op both ways, Kennith is talked to from inside his cabin through
+-- slug2_village_poordoor 2767,3285 (level 1), Bailey and the broken glass
+-- are in the room behind 2768,3276, the panel is kicked and the crane turned
+-- from the deck tile 2769,3289 (no drive.op), and Kent's island and the
+-- Witchaven jetty are walked. The only gotos left are the overland hops
+-- between open tiles on the mainland; each Lumbridge <-> Ardougne trip
+-- presses the Taverley members' gate membergater 2933,3320 (taverley_gate
+-- below, sampler ruling b59 (a)).
+--
+-- Kennith is talked to across the crates from 2766,3286,1 inside the cabin:
+-- the seam pass matthew-mbp-m4-b59-seam1 (OSRS-Content 3e8fbb4d30) gave
+-- kennith.rs2 its [apnpc1] approach-range Talk-to (p_aprange(2)); before it
+-- the talk answered "I can't reach that!" and this file stopped at a
+-- content_bug there.
 --
 -- Chain driven for real, nothing cheated (trap 16): gather swamp tar (m49_49
 -- ground spawns) -> mix with a bought pot of flour -> heat on a real fire ->
@@ -73,12 +86,69 @@ return {
         t.ticks(3) -- setup's ::give/::setlevel cheats are not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- The Taverley members' wall. Owner ruling (docs/quest_authoring/
+        -- sampler-findings.md, "Sample matthew-mbp-m4-b59" (a)): a gate that
+        -- is the only way on foot between two regions is clicked on every
+        -- crossing, however large the regions. Lumbridge and Ardougne meet on
+        -- foot only through a members' gate: reach.py 3206,3233 -> 2716,3302
+        -- with every door shut is UNREACHABLE at margins 30/80/160 and at 300
+        -- says NEEDS-DOOR via membergater@2933,3320; from either side of that
+        -- gate the rest is open (reach.py margin 300: 2933,3320 -> 2716,3302
+        -- closed-doors len 667, 2933,3319 -> 3183,3180 len 389, 3206,3233 ->
+        -- 2933,3317 len 387). membergater 2933,3320 is the south wall of its
+        -- tile (Taverley z >= 3320, west of Falador z <= 3319), a gates.rs2
+        -- [label,member_fencegate_try] walk-through with no opened variant,
+        -- so every crossing is a press, graded on the tiles before and after:
+        -- from 2933,3319 the press p_teleports onto the gate tile; from the
+        -- gate tile itself (~check_axis entering) it p_teleports through to
+        -- 2933,3319 (click_loc first steps off the loc's own tile to
+        -- 2933,3321, so the way out is pressed from 2933,3321: b59 r3 run 2).
+        -- Each trip: goto two tiles short on open ground, walk to the tile
+        -- beside the gate, press it, then the overland goto on.
+        local function gate_tile_text(r, tt)
+            if r ~= "ok" or type(tt) ~= "table" then
+                return tostring(r) .. " " .. tostring(tt)
+            end
+            return tt.x .. "," .. tt.z .. "," .. tt.level
+        end
+        local function taverley_gate(prefix, into_taverley)
+            local goto_z, stand_z, far_ok, far_desc
+            if into_taverley then
+                goto_z, stand_z = 3317, 3319
+                far_ok = function(tt) return tt.level == 0 and tt.z >= 3320 end
+                far_desc = "through membergater 2933,3320 into Taverley, z >= 3320"
+            else
+                goto_z, stand_z = 3323, 3321
+                far_ok = function(tt) return tt.level == 0 and tt.z <= 3319 end
+                far_desc = "through membergater 2933,3320 out of Taverley, z <= 3319"
+            end
+            t.exec(prefix .. ".goto", t.player.goto_tile, 2933, goto_z, 0)
+            t.player.walk_to(2933, stand_z, 10)
+            local br, bt = t.world.tile()
+            t.check(prefix .. ".atGate", br == "ok" and bt.x == 2933 and bt.z == stand_z and bt.level == 0,
+                "walked to 2933," .. stand_z .. ",0 beside membergater 2933,3320 -> " .. gate_tile_text(br, bt))
+            local cr, cd = t.player.click_loc("membergater", 1, { at = { 2933, 3320 } })
+            for _ = 1, 10 do
+                local ar, at = t.world.tile()
+                if ar == "ok" and far_ok(at) then
+                    break
+                end
+                t.ticks(1)
+            end
+            local wr, wt = t.world.tile()
+            t.check(prefix .. ".cross",
+                (cr == "ok" or cr == "timeout") and br == "ok" and not far_ok(bt) and wr == "ok" and far_ok(wt),
+                "from " .. gate_tile_text(br, bt) .. " click_loc(membergater at 2933,3320) -> " .. tostring(cr) .. " "
+                    .. tostring(cd) .. "; world.tile -> " .. gate_tile_text(wr, wt) .. " (want " .. far_desc .. ")")
+        end
+
         -- ---------------------------------------------------- accept, Caroline
         -- caroline.rs2 [opnpc1,caroline] at %seaslugquest=not_started jumps
         -- straight to [label,caroline_help] (no separate accept branch), which
         -- opens with the PLAYER's own line (trap 18) -- drain walks the whole
         -- alternating player/npc run up to the p_choice2 options page without
         -- needing each line spelled out.
+        taverley_gate("caroline.gateIn", true)
         t.exec("caroline.goto", t.player.goto_tile, 2716, 3302, 0)
         t.exec("caroline.greet", t.player.talk_to, "caroline")
         local drain1_result, drain1_detail = t.chat.drain({ stop_at = "options" })
@@ -95,6 +165,7 @@ return {
         -- m49_49.spawn:71-87), NOT the m53_5x squares (those are Mort'ton's
         -- ghast swamp -- same obj symbol reused on a different map square,
         -- confirmed by the ghast_invis/willothewisp/mmsnail neighbours there).
+        taverley_gate("swamp.gateOut", false)
         t.exec("swamp.goto", t.player.goto_tile, 3183, 3180, 0)
         local tar_before_result, tar_before_count = t.inv.count("swamp_tar")
         -- click_obj answers ok with a nil detail (trap 12's hollow rule) --
@@ -182,6 +253,158 @@ return {
                 tostring(raw_count), tostring(raw_after_read), tostring(raw_after_count),
                 tostring(paste_read), tostring(paste_count)))
 
+        -- ------------------------------------------------- platform helpers
+        -- The Fishing Platform is an island reached only by Holgart's boat,
+        -- and every room on it is behind a door: no goto_tile lands on it or
+        -- leaves it (owner rule 2026-10-03). Everything on the platform and
+        -- on Kent's island is walked, every door and ladder clicked.
+        --
+        -- The platform column is LINK_BELOW (quest_seaslug.rs2's crane
+        -- banner): maps/m43_51.jl2 places every platform loc one level ABOVE
+        -- the plane the player stands on, and t.world.loc_near reports that
+        -- placed level (the committed run read the panel at 2768,3289,2 while
+        -- the player stood on level 1). So a platform loc's copy is matched
+        -- at the player's level + 1, and a press names that level in `at`.
+        local function tile_text(r, tt)
+            return (r == "ok" and tt) and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
+        end
+
+        -- Cross one platform door on foot (the b56 pass_door pattern). Every
+        -- door here is slug2_village_poordoor, a SELFSTAGE door
+        -- (doors/configs/doors_selfstage.loc:50): opened, it stands as the
+        -- SAME symbol one tile over. Walk to the near tile; if the closed
+        -- leaf is on the exact door tile at this floor's placed level, click
+        -- that copy; otherwise an earlier press left it open, so assert the
+        -- open leaf stands within 1 of the door tile (a check that fails when
+        -- neither is there) and do not press it again. Then walk through and
+        -- check the far tile and the floor.
+        local DOOR = "slug2_village_poordoor"
+        local function pass_door(prefix, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 40)
+            local nr, nt = t.world.tile()
+            t.check(prefix .. ".atDoor", nr == "ok" and nt.x == near_x and nt.z == near_z,
+                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. ","
+                    .. door_z .. " -> " .. tile_text(nr, nt))
+            local here = (nr == "ok") and nt.level or -1
+            local placed = here + 1
+            local cr, cd = t.world.loc_near(DOOR, 2)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == placed then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, DOOR, 1, { at = { door_x, door_z, placed } })
+                t.ticks(1)
+            else
+                local open_ok = cr == "ok" and cd.level == placed
+                    and not (cd.tile_x == door_x and cd.tile_z == door_z)
+                    and math.abs(cd.tile_x - door_x) <= 1 and math.abs(cd.tile_z - door_z) <= 1
+                t.check(prefix .. ".doorStandsOpen", open_ok,
+                    DOOR .. " at " .. door_x .. "," .. door_z .. "," .. placed .. ": nearest copy "
+                        .. (cr == "ok" and (cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. " (want the open leaf within 1 of the door tile: an earlier press left it"
+                        .. " open, so it is walked through, not pressed again)")
+            end
+            t.player.walk_to(far_x, far_z, 40)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", fr == "ok" and ft.level == here and far_ok(ft),
+                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft)
+                    .. " (want " .. far_desc .. ", level " .. here .. ")")
+        end
+
+        -- Climb the platform ladder by its own op. Both halves stand on
+        -- 2784,3286 (seaslug_ladder below, seaslug_ladder_top above) with
+        -- forceapproach=30 (all.loc): approached from the north, 2784,3287.
+        -- ~climb_ladder (ladders_stairs/scripts/ladders.rs2:137) moves the
+        -- player one plane on its own tile, and the click can answer before
+        -- the climb lands, so wait for the level, then check the tile.
+        local function climb(name, sym, from_level, to_level)
+            t.player.walk_to(2784, 3287, 40)
+            local sr, st = t.world.tile()
+            t.check(name .. ".atLadder", sr == "ok" and st.x == 2784 and st.z == 3287 and st.level == from_level,
+                "walked to 2784,3287," .. from_level .. " north of " .. sym .. " 2784,3286 -> " .. tile_text(sr, st))
+            t.exec(name, t.player.click_loc, sym, 1, { at = { 2784, 3286, from_level + 1 } })
+            local lr, ld = t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and tt.level == to_level
+                end,
+                note = name .. " reaches level " .. to_level,
+            }, 12)
+            local tr, tt = t.world.tile()
+            t.check(name .. ".landed",
+                lr == "ok" and tr == "ok" and tt.level == to_level
+                    and math.abs(tt.x - 2784) <= 1 and math.abs(tt.z - 3287) <= 1,
+                sym .. " climb -> " .. tile_text(tr, tt) .. " (" .. tostring(lr) .. " " .. tostring(ld)
+                    .. "; want level " .. to_level .. " beside 2784,3287)")
+        end
+
+        -- After each boat: the board proc teleports the player; check the
+        -- arrival tile against the destination's walkable area.
+        local function arrived(name, ok_fn, want)
+            local ar, ad = t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and ok_fn(tt)
+                end,
+                note = name,
+            }, 30)
+            local r, tt = t.world.tile()
+            t.check(name, ar == "ok" and r == "ok" and ok_fn(tt),
+                "after the boat -> " .. tile_text(r, tt) .. " (" .. tostring(ar) .. " " .. tostring(ad)
+                    .. "; want " .. want .. ")")
+        end
+
+        -- walk_to answers a bare ok (hollow under t.exec): walk, then grade
+        -- the row on the tile actually reached.
+        local function walk(name, x, z, level)
+            local wr, wd = t.player.walk_to(x, z, 40)
+            local r, tt = t.world.tile()
+            t.check(name, r == "ok" and tt.x == x and tt.z == z and tt.level == level,
+                "walk_to " .. x .. "," .. z .. " -> " .. tostring(wr) .. " " .. tostring(wd)
+                    .. "; at " .. tile_text(r, tt) .. " (want " .. x .. "," .. z .. "," .. level .. ")")
+        end
+        local function on_platform(tt)
+            return tt.level == 0 and tt.x >= 2762 and tt.x <= 2794 and tt.z >= 3266 and tt.z <= 3292
+        end
+
+        -- Kennith (spawn m43_51.spawn:42, 2766,3288 level 1) hides behind the
+        -- stacked crates (slug2_crate_stack, width 2, 2765-2766,3287) at the
+        -- back of the cabin on the west side of the first floor; the guide's
+        -- talkToKennith is "from inside the cabin". The cabin's door is
+        -- slug2_village_poordoor 2767,3285 (west edge): stand outside on
+        -- 2767,3285, go in to 2766,3285, step to 2766,3286 (straight across
+        -- the crates from Kennith) and talk; then out through the same door.
+        local function cabin_in(prefix)
+            pass_door(prefix .. ".cabinIn", 2767, 3285, 2767, 3285, 2766, 3285,
+                function(tt) return tt.x <= 2766 and tt.x >= 2764 and tt.z >= 3284 and tt.z <= 3286 end,
+                "inside Kennith's cabin, x 2764-2766 z 3284-3286")
+            t.player.walk_to(2766, 3286, 20)
+            local r, tt = t.world.tile()
+            t.check(prefix .. ".besideCrates", r == "ok" and tt.x == 2766 and tt.z == 3286 and tt.level == 1,
+                "walked to 2766,3286,1 across the crates from Kennith -> " .. tile_text(r, tt))
+        end
+        local function cabin_out(prefix)
+            pass_door(prefix .. ".cabinOut", 2767, 3285, 2766, 3285, 2767, 3286,
+                function(tt) return tt.x >= 2767 end, "back on the deck east of the cabin, x >= 2767")
+        end
+
+        -- Talk to Kennith from the cabin. He is two tiles back, behind the
+        -- crates (slug2_crate_stack, blockrange 0), in a pocket no player tile
+        -- touches; kennith.rs2's [apnpc1,kennith] / [apnpc1,kennith_platform]
+        -- (seam matthew-mbp-m4-b59-seam1, p_aprange(2)) let the Talk-to reach
+        -- him across the crates from 2766,3286,1, as the guide's "talk to
+        -- Kennith from inside the cabin". Graded on the press answering ok AND
+        -- a dialogue being open after it (none was before: cabin_in walked
+        -- here with no chat open); the stage change after the drain is graded
+        -- by each caller.
+        local function talk_kennith(name)
+            local before = t.chat.kind()
+            local kr, kd = t.player.talk_to("kennith")
+            local kind = t.chat.kind()
+            local ok = kr == "ok" and before == "none" and kind ~= "none"
+            t.check(name, ok,
+                "talk_to(kennith) from 2766,3286,1 inside the cabin -> " .. tostring(kr) .. " "
+                    .. tostring(kd) .. "; dialogue before: " .. tostring(before) .. ", after: " .. tostring(kind))
+            return ok
+        end
+
         -- --------------------------------------------------- give Holgart the paste
         -- Two separate conversations, by content design: the FIRST talk to
         -- Holgart (at any stage <= started) only asks for swamp paste and
@@ -190,6 +413,7 @@ return {
         -- Only the SECOND talk (now that the stage is spoken_holgart) reaches
         -- [label,holgart_paste], which checks inv_total(inv, swamppaste) and
         -- hands it over.
+        taverley_gate("holgart1.gateIn", true)
         t.exec("holgart1.goto", t.player.goto_tile, 2720, 3306, 0)
         t.exec("holgart1.greet", t.player.talk_to, "holgartland")
         local hdrain1_result, hdrain1_detail = t.chat.drain({ stop_at = "none" })
@@ -215,40 +439,37 @@ return {
             hdrain4_result == "ok",
             "post-board drain -> " .. tostring(hdrain4_result) .. " " .. tostring(hdrain4_detail))
         t.expect("quest.stage.boat_repaired", t.quest.expect_stage("boat_repaired"))
+        -- talkToHolgartWithSwampPaste: the paste left the pack.
+        local paste_gone_read, paste_gone_count = t.inv.count("swamppaste")
+        t.check("talkToHolgartWithSwampPaste.paste_taken",
+            paste_gone_read == "ok" and paste_gone_count == 0,
+            "inv.count(swamppaste) after Holgart's repair -> " .. tostring(paste_gone_read) .. " "
+                .. tostring(paste_gone_count) .. " (was " .. tostring(paste_count) .. ")")
+        arrived("travelWithHolgart.arrived", on_platform, "the platform deck, level 0")
 
         -- ---------------------------------------------- find Kennith, platform
-        -- Kennith's own spawn (areas/world/configs/m43_51.spawn:42) is plane
-        -- 1. Measured this run: a direct goto_tile(2766,3288,1) from the
-        -- boat's arrival tile (2782,3273,0, ~22 tiles away across the whole
-        -- structure) never moves at all (still at the arrival tile ten ticks
-        -- later). world.loc_near(seaslug_ladder,...) found the ladder itself
-        -- at 2784,3286,1 once (close to the arrival tile) but answered
-        -- not_found on a later identical call -- a flaky scene-dependent
-        -- read, not something to gate navigation on -- so the fix is a
-        -- hardcoded closer intermediate hop at that same measured tile
-        -- (an ordinary stairs plane-shift the pathfinder climbs on its own
-        -- once the distance is short enough), then a second goto_tile the
-        -- rest of the way. A click on the ladder from the top answers
-        -- `covered` (its menu has no row at all from that side -- only
-        -- Cancel/Walk here), so the ladder loc itself is never pressed.
-        t.exec("kennith1.goto_ladder", t.player.goto_tile, 2784, 3286, 1)
-        t.exec("kennith1.goto", t.player.goto_tile, 2766, 3288, 1)
-        t.exec("kennith1.greet", t.player.talk_to, "kennith")
+        -- climbLadder: at stage boat_repaired the up-climb has no torch gate
+        -- (quest_seaslug.rs2 [oploc1,seaslug_ladder] reads it only from
+        -- spoken_kent on).
+        climb("climbLadder", "seaslug_ladder", 0, 1)
+        cabin_in("talkToKennith")
+        if not talk_kennith("talkToKennith") then
+            return
+        end
         local kdrain1_result, kdrain1_detail = t.chat.drain({ stop_at = "none" })
         t.expect("kennith1.drain_close", kdrain1_result, kdrain1_detail)
         t.expect("quest.stage.spoken_kennith", t.quest.expect_stage("spoken_kennith"))
+        cabin_out("talkToKennith")
+        climb("goDownLadder", "seaslug_ladder_top", 1, 0)
 
         -- ------------------------------------------------- Holgart, platform
         -- Reached through the base spawn symbol (slug2_holgart_jeb,
-        -- m43_51.spawn:25) resolving its own multinpc1=holgartplatform child
-        -- (trap 19's fix -- slugmenace_pages.rs2 hands %slug2_npc_track1=0 to
-        -- holgart.rs2's own [label,holgartplatform_talk]).
-        -- slug2_holgart_jeb's own spawn (areas/world/configs/m43_51.spawn:25)
-        -- is plane 0 -- seaslug_ladder_top's down-climb IS the generic
-        -- climb_down_ladder category (quest_seaslug.rs2's own banner), so a
-        -- plain goto_tile back down works, unlike the up-climb above.
-        t.exec("holgart3.goto", t.player.goto_tile, 2782, 3276, 0)
-        t.exec("holgart3.greet", t.player.talk_to, "holgartplatform")
+        -- m43_51.spawn:25, 2782,3276 level 0) resolving its own
+        -- multinpc1=holgartplatform child (trap 19's fix --
+        -- slugmenace_pages.rs2 hands %slug2_npc_track1=0 to holgart.rs2's own
+        -- [label,holgartplatform_talk]). Walked from the ladder on the deck.
+        walk("goToIsland.walk", 2782, 3277, 0)
+        t.exec("goToIsland", t.player.talk_to, "holgartplatform")
         local hdrain5_result, hdrain5_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgart3.drain_board", hdrain5_result, hdrain5_detail)
         t.ticks(3)
@@ -257,6 +478,9 @@ return {
             hdrain6_result == "ok",
             "post-board drain -> " .. tostring(hdrain6_result) .. " " .. tostring(hdrain6_detail))
         t.expect("quest.stage.sailed_kent", t.quest.expect_stage("sailed_kent"))
+        arrived("goToIsland.arrived", function(tt)
+            return tt.level == 0 and tt.x >= 2785 and tt.x <= 2810 and tt.z >= 3310 and tt.z <= 3330
+        end, "Kent's island, level 0")
 
         -- --------------------------------------------------------- Kent, island
         -- kent.rs2's own branch (%seaslugquest=sailed_kent) opens with the
@@ -265,7 +489,9 @@ return {
         -- p_delay(2), then a SEPARATE reopened dialogue ("Traveller wait!")
         -- that pulls the sea slug off the player -- section 8's reopen shape,
         -- driven as two chat.play calls either side of an explicit await.
-        t.exec("kent.goto", t.player.goto_tile, 2793, 3321, 0)
+        -- The island is one open patch: walked from the boat (static reach
+        -- 2800,3320 -> 2793,3321 is 8 tiles, no door).
+        walk("kent.walk", 2793, 3321, 0)
         t.exec("kent.greet", t.player.talk_to, "kent")
         local kent1_result, kent1_detail = t.exec("kent.rescue_offer", t.chat.play, {
             "npc:Oh thank Saradomin",
@@ -324,8 +550,8 @@ return {
         -- sailed_kent (we are spoken_kent now) it re-boards straight back to
         -- the platform -- the same reused board proc, if_close then a
         -- delayed reopen for the arrival mesbox.
-        t.exec("holgartsunkboat.goto", t.player.goto_tile, 2799, 3320, 0)
-        t.exec("holgartsunkboat.greet", t.player.talk_to, "holgartsunkboat")
+        walk("returnFromIsland.walk", 2800, 3320, 0)
+        t.exec("returnFromIsland", t.player.talk_to, "holgartsunkboat")
         local sdrain1_result, sdrain1_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgartsunkboat.drain_board", sdrain1_result, sdrain1_detail)
         t.ticks(3)
@@ -333,9 +559,17 @@ return {
         t.check("holgartsunkboat.drain_arrival",
             sdrain2_result == "ok",
             "post-board drain -> " .. tostring(sdrain2_result) .. " " .. tostring(sdrain2_detail))
+        arrived("returnFromIsland.arrived", on_platform, "the platform deck, level 0")
 
-        t.exec("bailey1.goto", t.player.goto_tile, 2765, 3276, 0)
-        t.exec("bailey1.greet", t.player.talk_to, "bailey")
+        -- Bailey (m43_51.spawn:9, 2765,3276) is in the south-west room, door
+        -- slug2_village_poordoor 2768,3276 (west edge): stand on 2768,3276,
+        -- go in to 2767,3276. The room (x 2763-2767, z 3274-3277) also holds
+        -- one of the two broken_glass spawns (m43_51.spawn:61, 2766,3277),
+        -- which is the guide's pickupGlass "in the room".
+        pass_door("talkToBaileyForTorch.roomIn", 2768, 3276, 2768, 3276, 2767, 3276,
+            function(tt) return tt.x >= 2763 and tt.x <= 2767 and tt.z >= 3274 and tt.z <= 3277 end,
+            "inside Bailey's room, x 2763-2767 z 3274-3277")
+        t.exec("talkToBaileyForTorch", t.player.talk_to, "bailey")
         local bdrain1_result, bdrain1_detail = t.chat.drain({ stop_at = "none" })
         t.expect("bailey1.drain_close", bdrain1_result, bdrain1_detail)
         -- trap 24: drain's own "ok" is the server's sentence, not the
@@ -352,42 +586,49 @@ return {
                 .. tostring(torch_count) .. " -- bailey.rs2 'Bailey gives you a torch.'")
 
         -- ------------------------------------------------- dry and light the torch
-        -- Ground spawns on the platform itself (areas/world/configs/
-        -- m43_51.spawn:61-63): broken_glass twice, damp_sticks once.
-        t.exec("sticks.goto", t.player.goto_tile, 2784, 3289, 0)
+        local glass_before_read, glass_before_count = t.inv.count("broken_glass")
+        local glass_pickup_result, glass_pickup_detail = t.player.click_obj("broken_glass")
+        local glass_await_result, glass_await_detail = t.inv.await("broken_glass", 1, 10)
+        local glass_after_result, glass_after_count = t.inv.count("broken_glass")
+        t.check("pickupGlass",
+            glass_await_result == "ok" and glass_after_result == "ok" and glass_after_count >= 1
+                and glass_before_read == "ok" and glass_before_count == 0,
+            "click_obj(broken_glass) in Bailey's room -> " .. tostring(glass_pickup_result) .. " (" ..
+                tostring(glass_pickup_detail) .. "); before=" .. tostring(glass_before_count)
+                .. "; await -> " .. tostring(glass_await_result)
+                .. " " .. tostring(glass_await_detail) .. "; count -> " .. tostring(glass_after_result)
+                .. " " .. tostring(glass_after_count))
+        pass_door("talkToBaileyForTorch.roomOut", 2768, 3276, 2767, 3276, 2769, 3276,
+            function(tt) return tt.x >= 2768 end, "back on the deck east of Bailey's room, x >= 2768")
+
+        -- Ground spawn in the platform's north-east corner (m43_51.spawn:63,
+        -- 2784,3289 level 0), walked to on the open deck.
+        walk("pickupDampSticks.walk", 2784, 3289, 0)
         local sticks_pickup_result, sticks_pickup_detail = t.player.click_obj("damp_sticks")
         local sticks_await_result, sticks_await_detail = t.inv.await("damp_sticks", 1, 10)
         local sticks_after_result, sticks_after_count = t.inv.count("damp_sticks")
-        t.check("seaslug.gather_damp_sticks",
+        t.check("pickupDampSticks",
             sticks_await_result == "ok" and sticks_after_result == "ok" and sticks_after_count >= 1,
             "click_obj(damp_sticks) -> " .. tostring(sticks_pickup_result) .. " (" ..
                 tostring(sticks_pickup_detail) .. "); await -> " .. tostring(sticks_await_result)
                 .. " " .. tostring(sticks_await_detail) .. "; count -> " .. tostring(sticks_after_result)
                 .. " " .. tostring(sticks_after_count))
 
-        t.exec("glass.goto", t.player.goto_tile, 2766, 3289, 0)
-        local glass_pickup_result, glass_pickup_detail = t.player.click_obj("broken_glass")
-        local glass_await_result, glass_await_detail = t.inv.await("broken_glass", 1, 10)
-        local glass_after_result, glass_after_count = t.inv.count("broken_glass")
-        t.check("seaslug.gather_broken_glass",
-            glass_await_result == "ok" and glass_after_result == "ok" and glass_after_count >= 1,
-            "click_obj(broken_glass) -> " .. tostring(glass_pickup_result) .. " (" ..
-                tostring(glass_pickup_detail) .. "); await -> " .. tostring(glass_await_result)
-                .. " " .. tostring(glass_await_detail) .. "; count -> " .. tostring(glass_after_result)
-                .. " " .. tostring(glass_after_count))
-
-        -- [opheldu,damp_sticks] arms damp_sticks (item_a) and clicks
-        -- broken_glass (item_b) -- quest_seaslug.rs2:36-40.
-        t.exec("seaslug.dry_sticks", t.player.use_item_on_item, "damp_sticks", "broken_glass")
+        -- useGlassOnDampSticks: [opheldu,damp_sticks] arms damp_sticks
+        -- (item_a) and clicks broken_glass (item_b) -- quest_seaslug.rs2:36-46
+        -- deletes the damp sticks and adds dry sticks; the glass is kept.
+        t.exec("useGlassOnDampSticks", t.player.use_item_on_item, "damp_sticks", "broken_glass")
         local dry_read, dry_count = t.inv.count("dry_sticks")
+        local damp_read, damp_count = t.inv.count("damp_sticks")
         t.check("seaslug.have_dry_sticks",
-            dry_read == "ok" and dry_count >= 1,
+            dry_read == "ok" and dry_count >= 1 and damp_read == "ok" and damp_count == 0,
             "inv.count(dry_sticks) -> " .. tostring(dry_read) .. " " .. tostring(dry_count)
-                .. " -- quest_seaslug.rs2:46 inv_add(inv, dry_sticks, 1)")
+                .. ", damp_sticks -> " .. tostring(damp_read) .. " " .. tostring(damp_count)
+                .. " -- quest_seaslug.rs2 inv_del(inv, damp_sticks, 1); inv_add(inv, dry_sticks, 1)")
 
-        -- [opheld1,dry_sticks]: a held op (rub together), gated on Firemaking
-        -- >= 30 (staged at 50) and a stat_random(firemaking, 64, 512) roll --
-        -- retried up to three times against a miss, one OUTCOME row (trap 15).
+        -- rubSticks: [opheld1,dry_sticks], gated on Firemaking >= 30 (staged
+        -- at 50) and a stat_random(firemaking, 64, 512) roll -- retried up to
+        -- three times against a miss, one OUTCOME row (trap 15).
         local torch_lit_ok = false
         local torch_attempts = 0
         local torch_last_detail = nil
@@ -410,115 +651,65 @@ return {
                 torch_lit_ok = true
             end
         end
-        t.step("seaslug.light_torch", torch_lit_ok and "PASS" or "FAIL", torch_last_detail)
+        t.step("rubSticks", torch_lit_ok and "PASS" or "FAIL", torch_last_detail)
         t.expect("quest.stage.lit_torch", t.quest.expect_stage("lit_torch"))
 
         -- ---------------------------------------------------- Kennith, second talk
-        -- Down at ground level for Bailey/sticks/glass since -- same
-        -- too-far-for-one-hop seam as kennith1 above, so the same two-hop
-        -- approach by the ladder tile again.
-        t.exec("kennith2.goto_ladder", t.player.goto_tile, 2784, 3286, 1)
-        t.exec("kennith2.goto", t.player.goto_tile, 2766, 3288, 1)
-        t.exec("kennith2.greet", t.player.talk_to, "kennith")
+        -- goBackUpLadder: from spoken_kent on, the up-climb needs the lit
+        -- torch (quest_seaslug.rs2 [oploc1,seaslug_ladder]); without it the
+        -- fishermen hit for 4 and the climb is refused.
+        climb("goBackUpLadder", "seaslug_ladder", 0, 1)
+        cabin_in("talkToKennithAgain")
+        if not talk_kennith("talkToKennithAgain") then
+            return
+        end
         local kdrain2_result, kdrain2_detail = t.chat.drain({ stop_at = "none" })
         t.expect("kennith2.drain_close", kdrain2_result, kdrain2_detail)
         t.expect("quest.stage.kennith_need_escape", t.quest.expect_stage("kennith_need_escape"))
+        cabin_out("talkToKennithAgain")
 
         -- ------------------------------------------------------- kick the panel
-        -- quest_seaslug.rs2:69-79's own branch is all mes() log lines (no
-        -- page at all) -- click_loc's settle reads the chat line itself.
-        -- Measured this run: pressing straight from Kennith's own tile
-        -- refused "I can't reach that!" from every approach tile click_loc's
-        -- own retry tried -- find the panel's actual live tile first and
-        -- stand right by it before pressing, the same fix the crane below
-        -- needed.
-        local panel_loc_result, panel_loc = t.world.loc_near("slug_breakable_panel", 15)
-        t.step("seaslug.find_panel",
-            panel_loc_result == "ok" and "PASS" or "FAIL",
-            "world.loc_near(slug_breakable_panel, 15) -> " .. tostring(panel_loc_result) .. " "
-                .. (panel_loc_result == "ok"
-                    and (tostring(panel_loc.tile_x) .. "," .. tostring(panel_loc.tile_z) .. ","
-                        .. tostring(panel_loc.level))
-                    or "n/a"))
-        if panel_loc_result == "ok" then
-            t.exec("panel.goto", t.player.goto_tile, panel_loc.tile_x, panel_loc.tile_z, panel_loc.level)
-        end
-        -- Measured this run: pressing right after the goto_tile teleport
-        -- answered `covered` with no row at all, the pixel hunt exhausted --
-        -- the doc's own "covered right after a teleport on a target that
-        -- worked twice already: t.ticks(2) first" (a scene that has not
-        -- rebuilt yet, trap 21's Rockslide-in-Ardougne shape).
-        t.ticks(2)
-        local panel_before_result, panel_before_stage = t.quest.stage()
-        local panel_click_result, panel_click_detail = t.player.click_loc("slug_breakable_panel", 1)
-        local panel_msg_result, panel_msg_detail = t.msg.await("opening big enough for Kennith", 10)
-        local panel_bypass_note = ""
-        -- Measured across two runs: the normal press failed identically
-        -- (`covered`, the full pixel hunt exhausted, 0 never hittested) from
-        -- every approach tile click_loc itself tried -- doc section 8's own
-        -- threshold for the last-resort bypass ("failed twice from two
-        -- tiles"). This is never evidence a player could have pressed it
-        -- from here (section 3's own banner on t.drive.op), so the detail
-        -- says so.
-        if panel_msg_result ~= "ok" and panel_loc_result == "ok" then
-            local bypass_result, bypass_detail = t.drive.op(panel_loc, 1)
-            panel_msg_result, panel_msg_detail = t.msg.await("opening big enough for Kennith", 10)
-            panel_bypass_note = "; drive.op bypass (NOT evidence of reachability) -> "
-                .. tostring(bypass_result) .. " " .. tostring(bypass_detail)
-        end
-        t.step("seaslug.kick_panel",
-            panel_msg_result == "ok" and "PASS" or "FAIL",
-            "click_loc(slug_breakable_panel,1) -> " .. tostring(panel_click_result) .. " ("
-                .. tostring(panel_click_detail) .. "); msg.await -> " .. tostring(panel_msg_result)
-                .. " " .. tostring(panel_msg_detail) .. "; stage before=" .. tostring(panel_before_stage)
-                .. panel_bypass_note)
+        -- kickWall: slug_breakable_panel 2768,3289 (placed level 2 = the
+        -- player's level 1) is a multiloc shell whose stage 1-9 slot is
+        -- seaslug_wall_closed ("Badly repaired wall", op1=Kick,
+        -- forceapproach=29: approached from the east). Stand on 2769,3289,1,
+        -- the deck tile east of it, and press Kick for real -- no drive.op.
+        walk("kickWall.atPanel", 2769, 3289, 1)
+        t.exec("kickWall", t.player.click_loc, "slug_breakable_panel", 1, { at = { 2768, 3289, 2 } })
+        t.expect("kickWall.opening", t.msg.await("opening big enough for Kennith", 12),
+            "msg.await(\"opening big enough for Kennith\") -- quest_seaslug.rs2 [oploc1,slug_breakable_panel]")
         t.expect("quest.stage.panel_opened", t.quest.expect_stage("panel_opened"))
 
         -- ---------------------------------------------------- Kennith, third talk
-        -- Back to Kennith's own tile -- the panel click above walked us off
-        -- to its own approach tile, and Kennith fell out of the client's
-        -- entity pool from there on one run.
-        t.exec("kennith3.goto", t.player.goto_tile, 2766, 3288, 1)
-        t.exec("kennith3.greet", t.player.talk_to, "kennith")
+        cabin_in("talkToKennithAfterKicking")
+        if not talk_kennith("talkToKennithAfterKicking") then
+            return
+        end
         local kdrain3_result, kdrain3_detail = t.chat.drain({ stop_at = "none" })
         t.expect("kennith3.drain_close", kdrain3_result, kdrain3_detail)
         t.expect("quest.stage.need_kennith_path", t.quest.expect_stage("need_kennith_path"))
+        cabin_out("talkToKennithAfterKicking")
 
         -- ------------------------------------------------------ work the crane
-        -- quest_seaslug.rs2:102-123: also all mes() log lines, but gated on a
-        -- standing-distance check (coordz(coord) < coordz(movecoord(loc_coord,
-        -- 0, 0, 3)), "I need to get closer to use that.") that click_loc's own
-        -- approach-tile retry does not know about (that retry is for
-        -- "I can't reach that!" pathing, not a content distance gate) -- find
-        -- the crane's own live tile first and stand a few tiles off it on the
-        -- side the check wants before pressing.
-        local crane_loc_result, crane_loc = t.world.loc_near("seaslug_crane", 15)
-        t.step("seaslug.find_crane",
-            crane_loc_result == "ok" and "PASS" or "FAIL",
-            "world.loc_near(seaslug_crane, 15) -> " .. tostring(crane_loc_result) .. " "
-                .. (crane_loc_result == "ok"
-                    and (tostring(crane_loc.tile_x) .. "," .. tostring(crane_loc.tile_z) .. ","
-                        .. tostring(crane_loc.level))
-                    or "n/a"))
-        -- SEAM FIX seaslug_crane_standing_gate (2026-09-21): the gate at
-        -- quest_seaslug.rs2:103 is a proximity test now, so the crane is
-        -- worked the ordinary way -- stand on the deck SOUTH of it and press
-        -- Rotate for real.  2772,3286 level 1 is a deck tile that touches the
-        -- crane's footprint (x 2770-2773, z 3287-3290 on the server's plane
-        -- 1); no drive.op bypass anywhere in this step, and the t.blocked the
-        -- draft ended on here is gone.
-        t.exec("crane.goto_deck", t.player.goto_tile, 2772, 3286, 1)
-        t.exec("crane.rotate", t.player.click_loc, "seaslug_crane", 1)
+        -- activateCrane: seaslug_crane is a 4x4 at 2770,3287 (x 2770-2773,
+        -- z 3287-3290 on level 1). Its gate (quest_seaslug.rs2
+        -- [oploc1,seaslug_crane]) is distance(coord, loc_coord) <= 4. The deck
+        -- south of it (x 2770-2780, z 3284-3287) is railed off from the rest
+        -- of the floor (seaslug_railing 2781,3285 west edge), so it is not
+        -- stood on; 2769,3289 touches the footprint's west side and is 2 from
+        -- its corner.
+        walk("activateCrane.atCrane", 2769, 3289, 1)
+        t.exec("activateCrane", t.player.click_loc, "seaslug_crane", 1, { at = { 2770, 3287, 2 } })
         -- t.expect, not t.exec: msg.await answers ("ok", nil) and the hollow
         -- rule would FAIL an ok with no detail.
         t.expect("crane.kennith_lowered", t.msg.await("lower Kennith to the row boat", 12),
             "msg.await(\"lower Kennith to the row boat\")")
-
         t.expect("quest.stage.saved_kennith", t.quest.expect_stage("saved_kennith"))
 
         -- ----------------------------------------------------- back to shore
-        t.exec("holgart4.goto", t.player.goto_tile, 2782, 3276, 0)
-        t.exec("holgart4.greet", t.player.talk_to, "holgartplatform")
+        climb("goDownLadderAgain", "seaslug_ladder_top", 1, 0)
+        walk("returnWithHolgart.walk", 2782, 3277, 0)
+        t.exec("returnWithHolgart", t.player.talk_to, "holgartplatform")
         local hdrain7_result, hdrain7_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgart4.drain_board", hdrain7_result, hdrain7_detail)
         t.ticks(3)
@@ -526,15 +717,24 @@ return {
         t.check("holgart4.drain_arrival",
             hdrain8_result == "ok",
             "post-board drain -> " .. tostring(hdrain8_result) .. " " .. tostring(hdrain8_detail))
+        arrived("returnWithHolgart.arrived", function(tt)
+            return tt.level == 0 and tt.x >= 2705 and tt.x <= 2730 and tt.z >= 3295 and tt.z <= 3315
+        end, "the Witchaven jetty, level 0")
 
         -- ------------------------------------------------------- hand-in, Caroline
         local fishing_snapshot_result, fishing_snapshot = t.skill.snapshot()
-        t.step("seaslug.fishing_xp_before_read",
-            fishing_snapshot_result == "ok" and "PASS" or "FAIL",
-            "skill.snapshot before hand-in -> " .. tostring(fishing_snapshot_result))
+        local fishing_before = (fishing_snapshot_result == "ok" and fishing_snapshot and fishing_snapshot.fishing)
+            and fishing_snapshot.fishing.experience or nil
+        t.check("seaslug.fishing_xp_before_read",
+            fishing_snapshot_result == "ok" and fishing_before == 0,
+            "skill.snapshot before hand-in -> " .. tostring(fishing_snapshot_result)
+                .. ", fishing experience " .. tostring(fishing_before)
+                .. " (fresh account: none before the reward)")
 
-        t.exec("caroline2.goto", t.player.goto_tile, 2716, 3302, 0)
-        t.exec("caroline2.greet", t.player.talk_to, "caroline")
+        -- Caroline stands on the open jetty path (static reach from the boat's
+        -- landing is 9 tiles, no door): walked.
+        walk("finishQuest.walk", 2716, 3302, 0)
+        t.exec("finishQuest", t.player.talk_to, "caroline")
         local cdrain_result, cdrain_detail = t.chat.drain({ stop_at = "none" })
         t.expect("caroline2.drain_close", cdrain_result, cdrain_detail)
 

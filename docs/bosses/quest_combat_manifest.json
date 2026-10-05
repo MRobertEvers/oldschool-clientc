@@ -4163,15 +4163,47 @@
       "encounter_summary": "Six one-Hitpoint Evil Creatures",
       "plan_line": 142,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Evil_Creature?oldid=15349482",
+          "revision": 15349482,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Eyes_of_Glouphrie?oldid=15292355",
+          "revision": 15292355,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:The_Eyes_of_Glouphrie?oldid=15317126",
+          "revision": 15317126,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "eyeglo_fluffie_1..6 (the multi-npc wrappers the quest spawns) and eyeglo_fluffie_evil_1..6 (their attackable leaves): Evil Creature, 1 hitpoint, 1/1/1/1/1 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, max hit 1 (strength=1 + strengthbonus 0 -> npc_melee_maxhit 1), not aggressive but fights back when attacked (wiki infobox max hit 1 + attack sound; cache seq eyeglo_fluffie_attack) (configs/eyeglo.npc)"
+      ],
+      "item_gamevals": [
+        "bones: the Evil Creature's only drop, always (npc_default_death's death_drop)"
+      ],
+      "loc_gamevals": [
+        "eyeglo_gnome_machine_02_multiloc: Oaknock's machine (Unlock / Repair / Operate on varb2502_eyeglo_machine_broken) -- the operate window's activation reveals the creatures"
+      ],
+      "trigger_handlers": [
+        "opnpc2:eyeglo_fluffie_1..6 (trap 31 @player_combat_start; ~npc_retaliate(0) engages the creature on the click, and the engine's on-hit latch would anyway -- it fights back, max hit 1)",
+        "ai_queue3:eyeglo_fluffie_1..6 writes eyeglo_killed_eye_N to 2, counts the kills and moves the quest to 45 when the sixth falls (eyeglo_quest.rs2)",
+        "eyeglo_machine_online writes eyeglo_killed_eye_1..6 to 1: the wrapper turns from the Cute Creature into the Evil Creature for that player only"
+      ],
+      "loot_contract": "Each Evil Creature drops Bones always (wiki Evil_Creature drops table). Nothing else.",
+      "test_ids": [
+        "quest-combat-contract:the-eyes-of-glouphrie",
+        "quest:theeyesofglouphrie"
+      ],
+      "known_gaps": [
+        "The wiki's note that the last creature spawns at the Stronghold entrance when Brimstail kills his own or a count is lost is not ported: a creature killed by anyone else is simply gone for that player's varbit.",
+        "The page gives no combat level and no weakness."
+      ]
     },
     {
       "id": "quest-the-slug-menace",
@@ -4556,15 +4588,53 @@
       "encounter_summary": "H.A.M. archer (30), H.A.M. mage (30), Sigmund (64)",
       "plan_line": 153,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/H.A.M._Mage?oldid=15199436",
+          "revision": 15199436,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/H.A.M._Archer?oldid=15199383",
+          "revision": 15199383,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sigmund?oldid=15285834",
+          "revision": 15285834,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "slice_ham_mage: level-30 H.A.M. Mage (id 5158), 35 hitpoints, 0/30/0 attack/defence/strength, 30 magic, Magic, speed 10, max hit 4 (configs/slice.npc)",
+        "slice_ham_archer: level-30 H.A.M. Archer (id 5157), 35 hitpoints, 0/30/0 attack/defence/strength, 30 ranged, Ranged, speed 10, max hit 4 (configs/slice.npc)",
+        "slice_sigmund_showdown/_melee/_ranged/_magic/_noprayer: level-64 Sigmund (ids 5139, 5142-5146), 70 hitpoints, 55/44/55 attack/defence/strength, Crush, speed 4, max hit 6; only _noprayer dies (configs/slice.npc)"
+      ],
+      "item_gamevals": [
+        "ancient_goblin_mace: whose special attack strips Sigmund's protection prayer (pvm_ancient_goblin_mace.rs2)"
+      ],
+      "loc_gamevals": [
+        "slice_goblin_ladder_bottom: the watchtower ladder, climbable only at stage 6",
+        "slice_laddertop: the ladder to Sigmund's chamber, once the sergeants have cleared the last guard"
+      ],
+      "trigger_handlers": [
+        "opnpc2/apnpc2:slice_ham_mage and slice_ham_archer refuse melee (slice_hammage.rs2)",
+        "ai_opplayer2:slice_ham_mage ~npc_generic_magicattack; slice_ham_archer ~npc_rangeattack",
+        "ai_queue3:slice_ham_mage and slice_ham_archer set the dead flags, both dead writes stage 7",
+        "opnpc2/apnpc2:slice_sigmund_showdown/_melee/_ranged/_magic switch the protection prayer to the attacker's style; the ancient mace special drops it to _noprayer",
+        "ai_queue3:slice_sigmund_noprayer writes stage 10 (slice_sigmund.rs2)"
+      ],
+      "loot_contract": "None of the three drops anything: death_drop null. Sigmund flees in the quest text.",
+      "test_ids": [
+        "quest-combat-contract:another-slice-of-ham",
+        "quest:anothersliceofham"
+      ],
+      "known_gaps": [
+        "The H.A.M. Mage's cache record says attack speed 6; the page says 10 and is taken.",
+        "Neither tower enemy's projectile or cast graphic is stated: the page names none, so none is set.",
+        "Sigmund's wiki max hit of 6 is not forced: the generic melee roll from 55 strength is used (it gives 6)."
+      ]
     },
     {
       "id": "quest-dream-mentor",
@@ -4574,15 +4644,77 @@
       "encounter_summary": "The Inadequacy (343), Everlasting (223), Untouchable (274), Illusive (108)",
       "plan_line": 154,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Inadequacy?oldid=15292423",
+          "revision": 15292423,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Everlasting?oldid=15199540",
+          "revision": 15199540,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Untouchable?oldid=15199541",
+          "revision": 15199541,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Illusive?oldid=15199542",
+          "revision": 15199542,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/A_Doubt?oldid=15199544",
+          "revision": 15199544,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dream_Mentor?oldid=15292367",
+          "revision": 15292367,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Dream_Mentor?oldid=15299716",
+          "revision": 15299716,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "dream_inadequacy: level-343 The Inadequacy, 180 hitpoints, 564/170/240 attack/strength/defence, 170 ranged, crush + ranged, speed 4, aggressive (npc/configs/combat_stats.generated.npc, agrees with the page and cache stat1..5)",
+        "dream_everlasting: level-223 The Everlasting, 230 hitpoints, 187/231/120, crush, speed 6, aggressive, max hit 24 (configs/dreammentor.npc)",
+        "dream_untouchable: level-274 The Untouchable, 90 hitpoints, 187/255/434, crush, speed 6, NOT aggressive, max hit 26 (configs/dreammentor.npc)",
+        "dream_illusive: level-108 The Illusive, 144 hitpoints, 72/71/105, crush, speed 6, aggressive, max hit 8 (configs/dreammentor.npc)",
+        "dream_razorbeast: level-78 A Doubt, 59 hitpoints, 72/58/85, attack bonus 18, strength bonus 16, crush, speed 6, bones (configs/dreammentor.npc)"
+      ],
+      "item_gamevals": [
+        "bones: A Doubt's only drop (wiki 100%); the four bosses drop nothing",
+        "dream_vial_*/dream_astral_shards/dream_groundastral: the potion chain the dream is entered with"
+      ],
+      "loc_gamevals": [
+        "dream_plinth (\"Our lives\"): Read/Leave, the only way out of the dream; leaving frees the instance so the fight restarts from The Inadequacy",
+        "lunar_moonclan_brazier_multi: lit with a tinderbox (oplocu)"
+      ],
+      "trigger_handlers": [
+        "opnpc2:dream_inadequacy/everlasting/untouchable/illusive/razorbeast (trap 31 @player_combat_start)",
+        "ai_queue3:each boss queues dreammentor_boss_down to the player (no mesbox, teleport or delay in the npc script); the queue spawns the next form at the arena's centre in the owner's own instance, the last one ends the dream",
+        "ai_queue1/ai_applayer2/ai_opplayer2:dream_inadequacy flips between its melee swing and its ranged volley and summons up to five Doubts, all removed when it dies",
+        "dreammentor_on_damage (hooked in npc_default_damage beside the Giant Mole's): the Illusive burrows after two hits and is stomped at 22 hp or less; Cyrisus's courage bar fills with damage dealt and he strikes for up to 12 when it is full",
+        "prayer_checks / player_teleport_normal refuse inside the dream"
+      ],
+      "loot_contract": "The four bosses drop nothing; A Doubt drops Bones always (wiki A_Doubt 100% table).",
+      "test_ids": [
+        "quest-combat-contract:dream-mentor",
+        "quest:dreammentor"
+      ],
+      "known_gaps": [
+        "Cyrisus's Vengeance Other, his heal, his teleport and his random overhead lines are not authored; he strikes the boss once when the courage bar is full.",
+        "The Inadequacy's ranged volley is chosen by Elvarg's approach/operate flip, not strictly 'only when the player is outside melee range'.",
+        "The Illusive's burrow animation is the nearest cache sequence (dream_illusive_defend_p2); no sequence in the cache is named for burrowing.",
+        "Emergency teleports are refused only where the shared teleport spell/tab gate (player_teleport_normal) is used; jewellery and other teleports do not consult it."
+      ]
     },
     {
       "id": "quest-grim-tales",
@@ -4898,15 +5030,66 @@
       "encounter_summary": "Corrupt Lizardman (46)",
       "plan_line": 172,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Corrupt_Lizardman?oldid=15200061",
+          "revision": 15200061,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Tale_of_the_Righteous?oldid=15316635",
+          "revision": 15316635,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Tale_of_the_Righteous?oldid=14898483",
+          "revision": 14898483,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Unstable_Altar?oldid=15320666",
+          "revision": 15320666,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Strange_Device_(Tale_of_the_Righteous)?oldid=14770159",
+          "revision": 14770159,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "shayzienquest_lizardman_boss: level-46 Corrupt Lizardman (id 8000), 50 hitpoints, 38/38/38 attack/strength/defence, ranged 38, +22 attack, +20 strength, crush, attack speed 4, aggressive, max hit 6, poisons (configs/taleoftherighteous.npc); called by the magic gate in the player's own copy of m18_155",
+        "shayzienquest_puzzle_piece: the Strange Device, a pushable prop (ops Push and Attack) in the player's own copy of the Tower of Magic prison, m24_159; it has no hitpoints and takes no damage"
+      ],
+      "item_gamevals": [
+        "bones: the lizardman's death_drop (wiki 100%)",
+        "xeric_fabric: 3 Xerician fabric, dropped always by the killer's kill (wiki 100%)"
+      ],
+      "loc_gamevals": [
+        "shayzienquest_cave: the crevice, a multiloc on varb6358 (rope from stage 9); Enter builds the player's copy of m18_155",
+        "shayzienquest_blockage / shayzienquest_boulder: the rockfall (Mine) and the boulder (Push) closing the cave passage until cleared",
+        "shayzienquest_cave_door: the magic gate; Pass at stage 9 calls the lizardman, at stage 10+ lets the player through",
+        "shayzienquest_crystal_*: four prison crystals cleansed by magic, melee and ranged blows on the device"
+      ],
+      "trigger_handlers": [
+        "oploc1:shayzienquest_cave_door adds the lizardman beside the gate (tor_cave.rs2)",
+        "opnpc2:shayzienquest_lizardman_boss (trap 31 @player_combat_start)",
+        "apnpc2:shayzienquest_lizardman_boss (@player_combat_start_ap)",
+        "ai_queue3:shayzienquest_lizardman_boss writes stage 10, drops 3 Xerician fabric and the Bones",
+        "opnpc2:shayzienquest_puzzle_piece melee and ranged blows; ~pvm_default_spell hands it combat spells (tor_archive.rs2)"
+      ],
+      "loot_contract": "The Corrupt Lizardman drops Bones and 3 Xerician fabric always (wiki Corrupt_Lizardman oldid 15200061); the Nightmare Zone variant drops nothing and is not modelled.",
+      "test_ids": [
+        "quest-combat-contract:tale-of-the-righteous",
+        "quest:taleoftherighteous"
+      ],
+      "known_gaps": [
+        "The lizardman swings crush only: the page lists crush and ranged, and no source gives the ratio or the range.",
+        "Poison strength is not stated by the page: severity 16 (4 damage) is this port's reading of 'poisons like other lizardmen'.",
+        "Attacking the Strange Device with an ice spell does not freeze the player (the wiki's note).",
+        "The wiki's grave-outside-the-crevice death rule is the ordinary death respawn here."
+      ]
     },
     {
       "id": "quest-making-friends-with-my-arm",
@@ -4970,15 +5153,56 @@
       "encounter_summary": "Five Tormented Souls (16); Trapped Soul (30)",
       "plan_line": 176,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Tormented_Soul?oldid=15329160",
+          "revision": 15329160,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Trapped_Soul?oldid=15215953",
+          "revision": 15215953,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Ascent_of_Arceuus?oldid=15314575",
+          "revision": 15314575,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:The_Ascent_of_Arceuus?oldid=14761128",
+          "revision": 14761128,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "arcquest_ghost1/arcquest_ghost2: level-16 Tormented Soul (ids 8512/8513), 20 hitpoints, 16/12/10 attack/strength/defence, crush, attack speed 4, aggressive, max hit 2, no drops (configs/ascentofarceuus.npc); five stand in the player's own copy of the tower floor",
+        "arcquest_soul: level-30 Trapped Soul (id 8514), 30 hitpoints, 25/29/20 attack/strength/defence, crush, attack speed 4, aggressive, max hit 4, Bones (configs/ascentofarceuus.npc); raised owner-private by the last trail plant"
+      ],
+      "item_gamevals": [
+        "bones: the Trapped Soul's only drop (wiki 100%)"
+      ],
+      "loc_gamevals": [
+        "arcquest_tower_door_right/left: the Tower Mage dialogue, then the player's own tower copy at stage 3/4",
+        "arcquest_hunting_bush/plant/plant2/tree_stump/end: the footprints trail (varb7859..7864) in order, the last plant raises the Trapped Soul"
+      ],
+      "trigger_handlers": [
+        "oploc1:arcquest_tower_door_* builds the copy (map_instance_from_square m24_59) and spawns the five souls (ascentofarceuus_locs.rs2)",
+        "opnpc2:arcquest_ghost1/arcquest_ghost2/arcquest_soul (trap 31 @player_combat_start)",
+        "ai_queue3:arcquest_ghost1/2 counts the standing souls after the default death, stage 5 at none",
+        "ai_queue3:arcquest_soul writes stage 11 for its killer"
+      ],
+      "loot_contract": "The Tormented Souls drop nothing; the Trapped Soul drops Bones always (wiki Trapped_Soul oldid 15215953 100% table).",
+      "test_ids": [
+        "quest-combat-contract:the-ascent-of-arceuus",
+        "quest:ascentofarceuus"
+      ],
+      "known_gaps": [
+        "The Trapped Soul's 15% weakness to wind spells (wiki, 25 June 2025) is not stated: the revision-239 cache carries no weakness param for the npc.",
+        "The Trapped Soul does not crawl back into the bush when the player is out of its sight (wiki walkthrough); it stays for its 500-tick life and re-raises from the last plant if it timed out.",
+        "The four tower souls do not fight the mages; all five are aggressive to the player."
+      ]
     },
     {
       "id": "quest-the-fremennik-exiles",
@@ -5258,15 +5482,63 @@
       "encounter_summary": "Knight of Varlamore (81); eight cultists (34)",
       "plan_line": 192,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Knight_of_Varlamore_(Twilight%27s_Promise)?oldid=15200510",
+          "revision": 15200510,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Cultist?oldid=15326762",
+          "revision": 15326762,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Twilight%27s_Promise?oldid=15356498",
+          "revision": 15356498,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Twilight%27s_Promise?oldid=15319500",
+          "revision": 15319500,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Citizen_(Twilight%27s_Promise)?oldid=15031710",
+          "revision": 15031710,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "vmq2_knight_6_combat: level-81 Knight of Varlamore (Mezan, id 12916), 100 hitpoints, 70/70/40 attack/strength/defence, 20 magic, no bonuses, slash, attack speed 5, aggressive, max hit 8, no drops (configs/twilightspromise.npc); fought in the player's own copy of m28_48",
+        "vmq2_cultist_m_1..3 / vmq2_cultist_f_1..3: level-34 Cultist (ids 12918..12923), 25 hitpoints, 30/35/30 attack/strength/defence, stab, attack speed 4, aggressive, max hit 4, drops nothing (configs/twilightspromise.npc); eight stand in the player's own copy of m22_49, one attacks, the rest retaliate",
+        "vmq2_guard_1..4: the Teomat guards beside the player in the battle (no ops, no fighting)"
+      ],
+      "item_gamevals": [
+        "vmq2_crest / vmq2_amulet / vmq2_incriminating_letter / vmq2_quetzal_feed: the quest's four items (twins, the citizen's pocket, the HQ chest, Regulus)"
+      ],
+      "loc_gamevals": [
+        "vmq2_knight_6_combat_leave: added inside the arena copy at its gate; Exit / Quick-exit walk the player back to the training room",
+        "colosseum_entrance_outside: the lobby arrival for stages 14..22 (quest_twilightspromise/scripts/twilightspromise_colosseum.rs2)"
+      ],
+      "trigger_handlers": [
+        "opnpc2:vmq2_knight_6_combat and vmq2_cultist_m_1..f_3 (trap 31 @player_combat_start)",
+        "player_hit_npc_prepare: vmq2_knight_6_combat runs ~tp_mezan_prepare_hit -- four swings in one style and he prays against it (melee/ranged count hit or miss, a splashed spell does not), a swing in the prayed style does nothing",
+        "ai_queue3:vmq2_knight_6_combat writes varb9832 2 and queues the walk back to the training room (tp_mezan_leave)",
+        "ai_queue3:vmq2_cultist_* counts the felled for the hero; the eighth queues tp_battle_won (leave the copy, stage 46, the aftermath scene)"
+      ],
+      "loot_contract": "Mezan and the cultists drop nothing (death_drop null; the Cultist page lists Nothing, always).",
+      "test_ids": [
+        "quest-combat-contract:twilights-promise",
+        "quest:twilightspromise"
+      ],
+      "known_gaps": [
+        "The wiki lets the guards kill the cultists as well; the port has the player kill all eight (no npc-versus-npc fight exists in the quest toolkit), so the eighth fallen cultist ends the battle.",
+        "Only one cultist hunts the player at the start; the other seven retaliate when hit (the page: the rest only attack after being attacked first).",
+        "The cache has no per-prayer Mezan form, so his protection prayer is the overhead shout plus a server-side rule; no head icon is drawn.",
+        "The poison route the page mentions (reapplied through his prayers) is the ordinary poison timer, not a quest rule."
+      ]
     },
     {
       "id": "quest-the-heart-of-darkness",
@@ -5312,15 +5584,69 @@
       "encounter_summary": "Dire Wolf Alpha (113); Minotaur (193)",
       "plan_line": 195,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dire_Wolf_Alpha?oldid=15208071",
+          "revision": 15208071,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dire_Wolf?oldid=15208070",
+          "revision": 15208070,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Minotaur_(Meat_and_Greet)?oldid=15200556",
+          "revision": 15200556,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Meat_and_Greet?oldid=15355341",
+          "revision": 15355341,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Meat_and_Greet?oldid=15263407",
+          "revision": 15263407,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "mag_direwolf: level-113 Dire Wolf Alpha (id 13812), 100 hitpoints, 120/110/80 attack/strength/defence, stab, attack speed 4, aggressive, max hit 12, Wolf bones always (configs/meatandgreet.npc); fought in the player's own copy of m23_148 plane 1",
+        "mag_direwolf_minion: level-72 Dire Wolf pup (id 13813), 10 hitpoints, 75/75/70, ranged 20 with a 500 ranged bonus, ranged, speed 4, max hit 3, no drops (configs/meatandgreet.npc); called by the alpha, flees when it dies",
+        "mag_minotaur: level-193 Minotaur (id 13815), 240 hitpoints, 140/110/100 attack/strength/defence, 100 magic, +60 attack, +10 strength, +300 magic attack, crush and magic, speed 5, aggressive, max hit 14 (configs/meatandgreet.npc); fought in the player's own copy of m28_48",
+        "mag_minotaur_cutscene: the intro form (id 13814), size 3, no Attack, deleted when the fight starts"
+      ],
+      "item_gamevals": [
+        "wolf_bones: the alpha's only drop (wiki 100%)",
+        "mag_test_kebab / mag_colosseum_kebab: Emelio's two kebabs (taste test; Lelia's gift and the one eaten in the arena)"
+      ],
+      "loc_gamevals": [
+        "direwolf_cave_entrance: the Wolf Den, builds the player's copy of m23_148 only while Alba's wolf is outstanding (varb11184_mag_meat = 2)",
+        "direwolf_cave_exit_instance: added inside the copy at 1488,9502,1; Exit asks first, Quick-exit does not",
+        "colosseum_entrance_outside: the lobby arrival for stages 14..24 (quest_twilightspromise/scripts/twilightspromise.rs2)"
+      ],
+      "trigger_handlers": [
+        "opnpc2:mag_direwolf, mag_direwolf_minion and mag_minotaur (trap 31 @player_combat_start)",
+        "ai_opplayer2:mag_direwolf stab, and in melee reach one swing in four may call a pup (10-tick floor)",
+        "ai_opplayer2:mag_direwolf_minion ~npc_rangeattack",
+        "ai_queue3:mag_direwolf writes varb11184_mag_meat 3, drops Wolf bones, deletes the pups",
+        "ai_opplayer2:mag_minotaur melee x3 then a Moo! magic swing a tick later (x2 below half health), Moooooo! and one tick faster at 50% and 25%",
+        "ai_queue3:mag_minotaur writes stage 22 and walks the player back to Lelia's room (queue mg_arena_leave)"
+      ],
+      "loot_contract": "The alpha drops Wolf bones always; the pups and the Minotaur drop nothing (the pages list none, and the Dire Wolf page says the quest's pups do not drop bones).",
+      "test_ids": [
+        "quest-combat-contract:meat-and-greet",
+        "quest:meatandgreet"
+      ],
+      "known_gaps": [
+        "The pages give no summon rate for the alpha: one call in four swings in melee reach, at most one every ten ticks, is this port's reading.",
+        "The Minotaur's immunity to binds, poison and cannons and its slash weakness are not stated as params; its single wiki attack bonus (60) is put on crush.",
+        "The Minotaur's magic max hit is the page's overall 14; the page names no separate magic number.",
+        "The arena death respawn in the Colosseum lobby and the minigame gravestone fee (wiki trivia) are not ported: a death uses the ordinary respawn.",
+        "Both fights are in a private copy of the square, entered through the real loc or Lelia; leaving the arena mid-fight is by teleport or death, as the arena copy has no exit loc."
+      ]
     },
     {
       "id": "quest-the-blood-moon-rises",
@@ -5384,15 +5710,61 @@
       "encounter_summary": "Gryphon (95), Shellbane gryphon (235)",
       "plan_line": 199,
       "cache_scope": "post-revision-239",
-      "implementation_status": "blocked-cache-version",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Gryphon_(Troubled_Tortugans)?oldid=15200682",
+          "revision": 15200682,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shellbane_gryphon_(Troubled_Tortugans)?oldid=15267129",
+          "revision": 15267129,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Troubled_Tortugans?oldid=15273864",
+          "revision": 15273864,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Troubled_Tortugans?oldid=15270076",
+          "revision": 15270076,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "tt_conch_gryphon: level-95 Gryphon (id 15009), 110 hitpoints, 65/75/50 attack/strength/defence, 50 magic, crush, speed 5, max hit 8, aggressive, no drops (configs/troubledtortugans.npc)",
+        "tt_pearl_gryphon: level-235 Shellbane gryphon (id 15010), 400 hitpoints, 160/210/120 attack/strength/defence, 150 ranged, 100 magic, +20 ranged attack, melee and ranged, speed 5, max hit 22, aggressive, no drops (configs/troubledtortugans.npc)"
+      ],
+      "item_gamevals": [
+        "tortugan_shield: Blunn's free shield (varb18333_tt_free_shield); worn it keeps protection prayers working against the Shellbane gryphon, unworn its hits ignore them"
+      ],
+      "loc_gamevals": [
+        "tt_lair_entrance: blocked until an axe clears it at stage 26, then Enter puts the player in the cave and adds the Gryphon",
+        "tt_lair_exit: the cave exit back to the entrance"
+      ],
+      "trigger_handlers": [
+        "opnpc2:tt_conch_gryphon and tt_pearl_gryphon (trap 31 @player_combat_start)",
+        "ai_opplayer2:tt_conch_gryphon crush max hit 8, slam when worn weight is under 45 kg (troubledtortugans_fights.rs2)",
+        "ai_queue3:tt_conch_gryphon writes stage 32",
+        "ai_opplayer2:tt_pearl_gryphon melee beside the player, ranged otherwise, prayer ignored without the shield, slam under 40 kg worn weight",
+        "ai_timer:tt_pearl_gryphon the tortugans chip it down to 20 hitpoints",
+        "ai_queue3:tt_pearl_gryphon writes stage 40 and turns the three elders to their combat-done forms"
+      ],
+      "loot_contract": "Neither gryphon drops anything (their pages list no drops).",
+      "test_ids": [
+        "quest-combat-contract:troubled-tortugans",
+        "quest:troubledtortugans"
+      ],
+      "known_gaps": [
+        "The Gryphon's slam is one swing in four for up to double the max hit when worn weight is under 45 kg (Quest Helper's number); the page gives no damage and the knock-back is not ported.",
+        "The Shellbane gryphon's slam is one swing in five for up to double its max hit under 40 kg worn weight; the whirlwinds and corrosive spit are not ported; its ranged reach (7) and the elders' chip rate are this port's readings.",
+        "The fight is in the shared world, not an instance; the gryphon and elders are added when the hull moors at the Little Pearl.",
+        "The arrival cutscene (the red-sailed ship leaving) is not ported: the owner is speccing the cutscenes separately.",
+        "The slam tests the player's whole carried weight, not the worn weight: the server obj table has no weights (oc_weight answers 0), only the run weight.",
+        "The page's 50% air weakness is not stated: the revision-239 cache carries no weakness param for either npc."
+      ]
     },
     {
       "id": "quest-the-red-reef",

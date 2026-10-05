@@ -195,6 +195,21 @@ def quest_dir_for(test_id):
         return row["quest_dir"]
     return "quest_%s" % test_id
 
+
+def play_dir_for(test_id):
+    """The folder under PUBLISH_DIR/<quest_dir>/ that holds this test's
+    evidence: `play`, or `play-<test_id>` for a second test of the same
+    quest (misc_astrid beside misc on quest_misc -- b59's sampler found
+    misc's 410 shots replaced by misc_astrid's 422 because both published
+    to one `play/`). The test whose id the quest_dir is named for keeps
+    `play`."""
+    quest_dir = quest_dir_for(test_id)
+    if quest_dir == "quest_%s" % test_id:
+        return "play"
+    rows = quest_queue_tsv.load_rows(QUEUE_TSV_PATH)
+    shared = [r["test_id"] for r in rows if r.get("quest_dir") == quest_dir and r["test_id"] != test_id]
+    return "play-%s" % test_id if shared else "play"
+
 FIXTURE_RE = re.compile(r'fixture\s*=\s*"([^"]+)"')
 MAX_FRAMES_RE = quest_list.MAX_FRAMES_RE
 NAME_LINE_RE = re.compile(r"(?m)^name\s*=.*$")
@@ -1828,7 +1843,7 @@ def publish(result):
     incomplete = publish_refusal_incomplete(result["name"], ledger_path)
     if incomplete:
         return None, incomplete
-    target = os.path.join(PUBLISH_DIR, quest_dir_for(result["name"]), "play")
+    target = os.path.join(PUBLISH_DIR, quest_dir_for(result["name"]), play_dir_for(result["name"]))
     if os.path.isdir(target):
         shutil.rmtree(target)
     os.makedirs(target)

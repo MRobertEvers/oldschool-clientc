@@ -1,6 +1,10 @@
 -- Contact! driven from the guide ladder (contact.notes.md, b53 parity scratch).
 -- Prerequisites by ::complete; light source + tinderbox + gear are brought-along kit.
 -- Maze note: the Sophanem maze is walked on foot with the trap presses (no goto past it).
+-- b56 sampler fixes: every arrival row compares the tile it reads against where the step must
+-- end; the Scarab approach walks to a tile it can reach (6436,96 was the scarab mage's spawn
+-- tile, contact_scarab.rs2:24, and the server routed every walk to it to 6439,92); the fight is
+-- prayed (Protect from Melee, as the guide says), the kit fits, and killGiantScarab-margin grades it.
 return {
     id = "contact",
     fixture = "fresh_lumbridge.ini",
@@ -15,17 +19,28 @@ return {
         "::give rune_chainbody 1",
         "::give rune_platelegs 1",
         "::give zamorak_spear 1",
-        "::give shark 25",
         "::setlevel hitpoints 99",
         "::setlevel agility 99",
         "::setlevel thieving 99",
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
+        -- Quest Helper Contact.java killGiantScarab: "Pray melee if you are meleeing it";
+        -- prayer potions are a listed requirement (:138). Protect from Melee needs 43; 70
+        -- points last ~350 ticks of it, past the ~220-tick fight, so no potion is carried.
+        "::setlevel prayer 70",
+        -- Worn BEFORE the food is given: with the gear still in the pack only 22 of the
+        -- old 25 sharks fitted (b56 sampler, play shot 079).
         "::wield rune_full_helm",
         "::wield rune_chainbody",
         "::wield rune_platelegs",
         "::wield zamorak_spear",
+        -- Antipoison: Contact.java getItemRecommended (:139, :288); the Scarab poisons
+        -- (contact_scarab.rs2:79-85, severity 41) and the b55 run ticked 50 -> 13 after it.
+        "::give 4doseantipoison 1",
+        -- 24 sharks: tinderbox + lantern + antipoison + 24 = 27, and Kaleef's parchment
+        -- takes the 28th slot.
+        "::give shark 24",
     },
     run = function(t)
         t.quest.bind({
@@ -36,6 +51,21 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        -- An arrival row reads the tile and grades it against where the step must end; the
+        -- tolerance is far smaller than the distance from where the step started.
+        local function arrived(name, want_x, want_z, want_level, tol, from_text)
+            local tr, th = t.world.tile()
+            local ok = tr == "ok" and th ~= nil and th.level == want_level
+                and math.abs(th.x - want_x) <= tol and math.abs(th.z - want_z) <= tol
+            t.check(name, ok, ((tr == "ok" and th) and (th.x .. "," .. th.z .. "," .. th.level) or tostring(th))
+                .. " (want within " .. tol .. " of " .. want_x .. "," .. want_z .. "," .. want_level .. "; " .. from_text .. ")")
+            return ok, th
+        end
+        local function hp_now()
+            local hr, hs = t.skill.read("hitpoints")
+            return hr == "ok" and hs and (hs.current or hs.level) or nil
+        end
 
         t.exec("goto-highpriest", t.player.goto_tile, 3281, 2774, 0)
         t.exec("talkToHighPriest", t.player.talk_to, "ics_little_hipriest_vis", 1)
@@ -67,12 +97,10 @@ return {
         t.exec("goDownToBank", t.player.click_loc, "contact_temple_trapdoor_open", 1)
         t.exec("goDownToBank.continue", t.chat.continue_, true)
         t.ticks(6)
-        local r, d = t.world.tile()
-        t.check("bank.arrived", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("bank.arrived", 2766, 5132, 0, 3, "the trapdoor is at 3315,2797 in Sophanem")
         t.exec("goDownToDungeon", t.player.click_loc, "contact_ladder_barricaded", 1)
         t.ticks(8)
-        r, d = t.world.tile()
-        t.check("dungeon.arrived", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("dungeon.arrived", 2166, 4409, 2, 2, "the ladder is in the bank vault at 2766,5130")
         local mazeDown = {
                 {"w",2166,4409},
                 {"w",2166,4401},
@@ -218,12 +246,10 @@ return {
                 t.ticks(3)
             end
         end
-        r, d = t.world.tile()
-        t.check("maze1.tile", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("maze1.tile", 2116, 4364, 2, 1, "the maze's last hop, beside the boss ladder 2116,4365 (Contact.java goDownToChasm); the maze began at 2166,4409")
         t.exec("goDownToChasm", t.player.click_loc, "contact_ug_boss_ladder", 1)
         t.ticks(8)
-        r, d = t.world.tile()
-        t.check("chasm.arrived", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("chasm.arrived", 2296, 4298, 0, 2, "the chasm's ladder foot; came from 2116,4364,2")
 
         for i, st in ipairs({ {2296,4298},{2295,4298},{2295,4296},{2287,4296},{2287,4295},{2285,4295},{2285,4294},{2281,4294},{2281,4300},{2282,4300},{2282,4301},{2284,4301},{2284,4302},{2286,4302},{2286,4303},{2287,4303},{2287,4304},{2292,4304},{2292,4307},{2293,4307},{2293,4315},{2294,4315},{2294,4316},{2297,4316},{2297,4319},{2289,4319},{2289,4318},{2287,4318},{2287,4317},{2286,4317},{2286,4314},{2284,4314} }) do
             local rw, dw = t.player.walk_to(st[1], st[2], 80)
@@ -233,7 +259,7 @@ return {
         t.chat.continue_(true)
         t.ticks(3)
         t.inv.await("contact_kaleef_scroll", 1, 10)
-        t.check("parchment.in_inv", t.inv.count("contact_kaleef_scroll"))
+        t.check("parchment.in_inv", t.inv.expect_has("contact_kaleef_scroll", 1))
         t.exec("readParchment", t.player.inv_op, "contact_kaleef_scroll", 1)
         t.chat.continue_(true)
         t.ticks(2)
@@ -265,8 +291,8 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.met_maisa", t.quest.expect_stage("met_maisa"))
-        r, d = t.world.tile()
-        t.check("maisa.across", r, "talked from " .. tostring(d and d.x) .. "," .. tostring(d and d.z) .. "; Maisa 2258,4317 across the chasm")
+        -- talked from the EAST lip (x 2263-2265); Maisa stands at 2258,4317 across the chasm
+        arrived("maisa.across", 2264, 4317, 0, 1, "Maisa 2258,4317 across the chasm")
 
         t.exec("goto-osman", t.player.goto_tile, 3288, 3180, 0)
         t.exec("talkToOsman", t.player.talk_to, "contact_osman_multi", 1)
@@ -296,12 +322,10 @@ return {
         t.exec("goDownToBankAgain", t.player.click_loc, "contact_temple_trapdoor_open", 1)
         t.exec("goDownToBankAgain.continue", t.chat.continue_, true)
         t.ticks(6)
-        r, d = t.world.tile()
-        t.check("bank2.arrived", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("bank2.arrived", 2766, 5132, 0, 3, "the trapdoor is at 3315,2797 in Sophanem")
         t.exec("goDownToDungeonAgain", t.player.click_loc, "contact_ladder_barricaded", 1)
         t.ticks(8)
-        r, d = t.world.tile()
-        t.check("dungeon2.arrived", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("dungeon2.arrived", 2166, 4409, 2, 2, "the ladder is in the bank vault at 2766,5130")
         for i, st in ipairs(mazeDown) do
             if st[1] == "w" then
                 local rw, dw = t.player.walk_to(st[2], st[3], 80)
@@ -317,27 +341,110 @@ return {
         t.ticks(4)
         t.exec("goDownToChasmAgain.mesbox", t.chat.continue_, true)
         t.ticks(4)
-        r, d = t.world.tile()
-        t.check("chasm2.arrived", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
-        t.expect("quest.stage.in_chasm", t.quest.expect_stage("in_chasm"))
-        for i, st in ipairs({ {6436,96} }) do
-            local rw, dw = t.player.walk_to(st[1], st[2], 60)
-            t.check("chasm2.hop" .. i, true, "approach toward the Scarab: walk_to " .. st[1] .. "," .. st[2] .. " -> " .. tostring(rw) .. " " .. tostring(dw) .. " (the aggressive boss engages on the way)")
+        -- The second visit is the player's own copy of the chasm (contact_dungeon.rs2
+        -- ~contact_enter_private_chasm: p_telejump to instance-local 56,10 of a copy of m35_67),
+        -- so the arrival is graded on the copy's local tile, not on an absolute one.
+        do
+            local tr, th = t.world.tile()
+            local lx, lz = th and (th.x % 64), th and (th.z % 64)
+            t.check("chasm2.arrived", tr == "ok" and th.level == 0 and th.x >= 6400
+                and math.abs(lx - 56) <= 1 and math.abs(lz - 10) <= 1,
+                tostring(th and th.x) .. "," .. tostring(th and th.z) .. "," .. tostring(th and th.level)
+                    .. " = instance-local " .. tostring(lx) .. "," .. tostring(lz)
+                    .. " (want an instance copy, x >= 6400, local 56,10 +-1; came from 2116,4364,2)")
         end
-        r, d = t.world.tile()
-        t.check("chasm2.near", r, tostring(d and d.x) .. "," .. tostring(d and d.z))
+        t.expect("quest.stage.in_chasm", t.quest.expect_stage("in_chasm"))
+
+        -- Protect from Melee BEFORE the approach: the Scarab and its four summons are aggressive
+        -- (contact.npc huntmode). Recipe: verbs-combat.md "Turning on a protection prayer".
+        local function protect_melee(name, want)
+            local _, now = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local tab_result, wr = "ok", "ok"
+            if now ~= want then
+                tab_result = t.ui.tab("prayer")
+                t.ticks(2)
+                local pw
+                wr, pw = t.ui.widget("prayerbook:prayer15")
+                t.ui.invoke(pw, 1)
+                t.ticks(2)
+            end
+            local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+            local _, pr = t.skill.read("prayer")
+            t.check(name, tab_result == "ok" and wr == "ok" and on == want,
+                "varb4118_prayer_protectfrommelee " .. tostring(now) .. " -> " .. tostring(on) .. " (want " .. want .. "); prayer "
+                    .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
+        end
+        protect_melee("killGiantScarab-protectMelee", 1)
+
+        -- Approach: 6439,92 (chasm-local 39,28). The old target 6436,96 is local 36,32 -- the
+        -- scarab mage's spawn tile (contact_scarab.rs2:24, movecoord(spot, 4, 0, -3)) -- and is
+        -- not reachable on foot: the server routed every walk to it to 6439,92 and walk_to
+        -- timed out there (b55 committed run; probe build/quest_gate/fixb56_contact_probe),
+        -- with no loc with an op beside the stop. 6439,92 is the reachable tile on that line.
+        do
+            local rw, dw = t.player.walk_to(6439, 92, 60)
+            local tr, th = t.world.tile()
+            t.check("chasm2.hop1", rw == "ok" and tr == "ok" and th.x == 6439 and th.z == 92,
+                "walk_to 6439,92 -> " .. tostring(rw) .. " " .. tostring(dw) .. "; at "
+                    .. tostring(th and th.x) .. "," .. tostring(th and th.z) .. " (from the ladder foot 6456,74)")
+        end
+        do
+            local nr, nd = t.npc.tiles("contact_scarab_boss", 12)
+            t.check("chasm2.near", nr == "ok", "Giant Scarab within 12 tiles of the approach tile: " .. tostring(nr) .. " " .. tostring(nd))
+        end
         local cr = t.cheat("::contact_scarab_hp")
         local mr, md = t.msg.expect("Giant Scarab hitpoints")
         t.check("scarab.hp_full", mr == "ok" and string.find(tostring(md), "hitpoints 130/130", 1, true) ~= nil,
             "::contact_scarab_hp -> " .. tostring(cr) .. "; " .. tostring(md))
         t.exec("killGiantScarab", t.player.attack, "contact_scarab_boss", 2, 20)
-        t.exec("killGiantScarab.dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 50 } })
+        local _, sharks_before = t.inv.count("shark")
+        local _, scarab_detail = t.exec("killGiantScarab.dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 60 } })
+        local lowest_fight = tonumber(tostring(scarab_detail):match("lowest hp (%d+)/"))
+        local scarab_ticks = tonumber(tostring(scarab_detail):match("dead after (%d+) tick"))
+        local _, sharks_left = t.inv.count("shark")
+        t.check("killGiantScarab-margin", lowest_fight ~= nil and lowest_fight >= 25 and (sharks_left or 0) >= 1,
+            "lowest hp in the fight " .. tostring(lowest_fight) .. "/99, sharks " .. tostring(sharks_before) .. " -> "
+                .. tostring(sharks_left) .. " left, Scarab dead after " .. tostring(scarab_ticks)
+                .. " ticks, hp now " .. tostring(hp_now()) .. "/99 (margin: lowest hp >= 25 AND sharks left >= 1)")
+        protect_melee("killGiantScarab-prayerOff", 0)
         t.ticks(10)
         t.expect("quest.stage.scarab_killed", t.quest.expect_stage("scarab_killed"))
 
+        -- Cure the poison the Scarab left (its ranged swing poisons, severity 41), then eat back
+        -- up before walking on: the b55 run walked off at 50 hp and the poison took it to 13.
+        do
+            local _, p0 = t.var.varp("varp102_poison")
+            local drank = 0
+            if (tonumber(p0) or 0) > 0 then
+                t.player.inv_op("4doseantipoison", 1)
+                drank = 1
+                t.ticks(2)
+            end
+            local _, p1 = t.var.varp("varp102_poison")
+            local _, doses = t.inv.count("3doseantipoison")
+            t.check("cureScarabPoison", (tonumber(p1) or 1) <= 0 and (drank == 0 or doses == 1),
+                "varp102_poison " .. tostring(p0) .. " -> " .. tostring(p1) .. " (want <= 0); antipoison doses drunk "
+                    .. drank .. ", 3doseantipoison now " .. tostring(doses))
+        end
+        do
+            local ate = 0
+            local h0 = hp_now()
+            for _ = 1, 4 do
+                local h = hp_now()
+                if h == nil or h >= 80 then break end
+                t.player.inv_op("shark", 1)
+                ate = ate + 1
+                t.ticks(3)
+            end
+            local h1 = hp_now()
+            local _, left = t.inv.count("shark")
+            t.check("eatAfterScarab", h1 ~= nil and h1 >= 60,
+                "hp " .. tostring(h0) .. " -> " .. tostring(h1) .. "/99 after " .. ate .. " shark(s); sharks left " .. tostring(left) .. " (want >= 60)")
+        end
+
         t.exec("pickUpKeris", t.player.click_obj, "contact_keris", 3)
         t.inv.await("contact_keris", 1, 10)
-        t.check("keris.in_inv", t.inv.count("contact_keris"))
+        t.check("keris.in_inv", t.inv.expect_has("contact_keris", 1))
         t.exec("talkToOsmanChasm", t.player.talk_to, "contact_osman_cave_instance", 1)
         t.exec("talkToOsmanChasm-dialog", t.chat.play, {
             "npc:Told you I had it under control",
@@ -351,12 +458,10 @@ return {
         t.player.walk_to(6442, 70, 60)
         t.exec("leaveChasm", t.player.click_loc, "contact_boss_ug_ladder", 1)
         t.ticks(6)
-        r, d = t.world.tile()
-        t.check("chasm.left", r, tostring(d and d.x) .. "," .. tostring(d and d.z) .. "," .. tostring(d and d.level))
+        arrived("chasm.left", 2116, 4364, 2, 2, "the boss ladder's top in the maze; came from the instance copy")
 
         t.exec("goto-highpriest-again", t.player.goto_tile, 3281, 2774, 0)
-        local snap_result, snap = t.skill.snapshot()
-        t.check("returnToHighPriest.snapshot", snap_result, "skill.snapshot before the hand-in -> " .. tostring(snap_result))
+        local _, snap = t.skill.snapshot()
         t.exec("returnToHighPriest", t.player.talk_to, "ics_little_hipriest_vis", 1)
         t.exec("returnToHighPriest-dialog", t.chat.play, {
             "npc:did it work",
@@ -366,17 +471,15 @@ return {
         t.ticks(4)
         t.quest.expect_complete()
         t.expect("contact.thieving_xp_7000", t.skill.expect_gain("thieving", 7000, snap))
-        t.check("contact.keris_kept", t.inv.count("contact_keris"))
-        t.check("contact.lamp_given", t.inv.count("contact_lantern"))
+        t.check("contact.keris_kept", t.inv.expect_has("contact_keris", 1))
+        t.check("contact.lamp_given", t.inv.expect_has("contact_lantern", 1))
 
-        local str_result, str_snap = t.skill.snapshot()
-        t.check("lamp.snapshot", str_result, "skill.snapshot before wish 1 -> " .. tostring(str_result))
+        local _, str_snap = t.skill.snapshot()
         t.exec("lamp.wish1", t.player.inv_op, "contact_lantern", 1)
         t.exec("lamp.wish1.pick", t.chat.play, { "choose:Strength", "mesbox:The lamp grants you 7,000 experience" })
         t.ticks(2)
         t.expect("lamp.strength_xp_7000", t.skill.expect_gain("strength", 7000, str_snap))
-        local mag_result, mag_snap = t.skill.snapshot()
-        t.check("lamp.snapshot2", mag_result, "skill.snapshot before wish 2 -> " .. tostring(mag_result))
+        local _, mag_snap = t.skill.snapshot()
         t.exec("lamp.wish2", t.player.inv_op, "contact_lantern", 1)
         t.exec("lamp.wish2.pick", t.chat.play, { "choose:More...", "choose:Magic", "mesbox:last wish" })
         t.ticks(2)

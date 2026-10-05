@@ -472,3 +472,399 @@ the bones are picked up from the four trolls and three chickens, and the pot and
 the wheel and fired in the oven. See content-gaps: Swan Song: Franklin gives no hammer. Casting at
 the Queen from the beach tile is Quest Helper's own `killQueen` (`combatGearRanged`,
 SwanSong.java:285). The rewards are the literal 15000/10000/50000 xp and 25000 coins.
+
+## Sample matthew-mbp-m4-b55 (2026-10-03)
+
+*The sampler checked handinthesand (54fd4819d, 171/0, 254 shots), meatandgreet (171bc81b0, 118/0,
+308 shots) and troubledtortugans (b35d2e59c, 198/0, 329 shots). It opened every shot. It passed
+handinthesand and troubledtortugans and SENT meatandgreet BACK. Commit 171bc81b0 is reverted, and
+so is its evidence commit (OSRS-Content 343f1b4163). The file is kept in
+`test/quests/wip/meatandgreet/parked.lua`.*
+
+(a) MEAT AND GREET USES A TELEPORT TO SKIP AN EXIT THE GUIDE NAMES. Guide step 24
+`leaveColosseumToReturnToEmelio` is `colosseum_exit_lobby`, and its `[oploc1]`
+(`twilightspromise.rs2:367`) is an unconditional `p_teleport` out. The test went from Lelia
+(1819,9485) to Emelio with one `goto_tile` (ledger row 113, shot 296). helper_coverage graded it
+ALTERNATIVE because of a false CONTENT_GAP (coverage-and-gate: CONTENT_GAP "only <other quest>.rs2").
+To fix it, click the exit, then travel.
+
+(b) THERE IS NO QUEST-POINT REWARD ROW. The file removes `expect_complete` by hand, so the scroll's
+"1 Quest Point" (shot 307) is never asserted. Add a qp delta row. The 8000 Cooking row is literal.
+
+(c) The two margin rows print `hp after table: 0x...`. That is `t.skill.read`'s reading table,
+not a number. Read `.level` (verbs-state-and-vars: `t.skill.read(name)`). The reviewer of The
+Ascent of Arceuus found the same kind of empty hp read (hp_low stayed 99 while the orb showed
+27/40).
+
+Not findings (meatandgreet): the spice pad is driven by widget, wrong code first. The alpha and
+the Minotaur are real fights with Protect from Melee read from its varbit (29 and 103 ticks, 2
+sharks eaten, lowest hp 52). The den exit and the Colosseum entrance are clicked. `::meatandgreet`
+in setup only resets the quest at stage 0 and stands you by Emelio.
+
+Not findings (handinthesand): 24/24 steps are driven, with Bert as the real accept and Rarve's bell
+as the hand-in. The lens is used from the doorway tile, which the content itself checks
+(verbs-inventory-shops: `use_on` walks off the tile). The rewards are the literal 1000 Thieving,
+9000 Crafting and 1 qp. Nit: the `doorway.tile` row checks only that the read worked, not the tile.
+
+Not findings (troubledtortugans): 29/29 steps are driven. Every sea leg is sailed, including the
+Remote Island board and the reverse out of each berth. The six repairs use gathered shells, scutes
+and jatoba logs (480 Construction). The Gryphon (69 ticks) and Shellbane (394 ticks, Protect from
+Melee, Blunn's shield worn) are real fights, with 8 of 8 sharks left. The rewards are the literal
+8000 Slayer, 10000 Sailing and 1 qp. Nits: `list.has` PASSes with detail `false`, and the
+`sailOut.legN` rows `t.check(..., true, ...)` assert nothing.
+
+## Sample matthew-mbp-m4-b55, round 3 (2026-10-03)
+
+*The sampler checked ascentofarceuus (33d1bcebd, 105/0, 251 shots) and theeyesofglouphrie
+(9813e5044, 276/0, 456 shots). It opened every shot, in contact sheets. It passed
+ascentofarceuus and SENT theeyesofglouphrie BACK. Commit 9813e5044 is reverted (65805d323), and
+so is its evidence commit (OSRS-Content 30d5622731, reverted by 8fbb36460e). The file is kept in
+`test/quests/wip/theeyesofglouphrie/round3_rejected.lua`.*
+
+(a) THE EYES OF GLOUPHRIE TELEPORTS INTO BRIMSTAIL'S CAVE PAST THE ENTRANCE THE GUIDE NAMES.
+Ledger row 76 `goto-repairMachine` goes from 2359,3529,0 to 2391,9824,0 (shot 287's chatbox shows
+the teleport), and row 223 `goto-killCreature1` goes from 2466,3496,0 to 2408,9818,0. Row 260
+`goto-allDead` does the same. The guide's steps for those states are `enterCaveAgain` and
+`enterCave`. helper_coverage read FULL (coverage-and-gate: A goto back into a cave reads FULL).
+
+(b) `enterCave.below` (row 4) prints `table: 0x7ffd8ea60`. Its condition is
+`t.world.tile ~= nil`, which tests the function, so it can never fail. Read `t.world.tile()` and
+check the cave's z.
+
+(c) The kill comment says the bar "reads 30/30". That is the health bar's width, not hitpoints
+(gaps-combat: An Evil Creature's bar reads `30/30`).
+
+Not findings (theeyesofglouphrie): the three Grand Tree climbs are clicked, with level 1, 2 and
+3 read back (rows 244-249). Each kill row records ticks, hp before and after, and lobsters, and
+the orb matches. The disc puzzle is earned from Brimstail and the exchanger (23 rounds). The
+rewards are the literal 12000 Magic, 6000 Runecraft, 2500 Woodcutting, 250 Construction, the
+crystal seed and 2 qp. `::eyesofglouphrie` in setup only resets the quest and sets The Grand Tree
+done.
+
+Not findings (ascentofarceuus): 24/24 steps are driven, from Mori's accept to the hand-in to Lord
+Trobin. `fight.margin` reads 27/40, which matches the orb and the stats tab in shots 247 and 250.
+Hitpoints were staged at 40 with 8 sharks, none eaten, and the six fights took 16 to 52 ticks. The
+rewards are literal: 2000 coins (0 to 2000), one `veos_memoirs_arc_page`, 1500 Hunter, 500
+Runecraft and 1 qp. Nit: the four `searchRocks-N` rows are `t.check(true, ...)`. The stage check
+after them is the real gate.
+
+## Sample matthew-mbp-m4-b55, round 4 (2026-10-03)
+
+*The sampler checked theeyesofglouphrie (0759d793e, 298/0, 466 shots) and eadgar (42f93acac,
+158/0, 233 shots). It passed The Eyes of Glouphrie and SENT Eadgar's Ruse BACK. Commit 42f93acac
+is reverted (42e21b756), and so is its evidence commit (OSRS-Content 8f936a7800, reverted by
+f52b8c7aec). The file is kept in `test/quests/wip/eadgar/round4_rejected.lua`.*
+
+(a) EADGAR'S RUSE GOES FROM EADGAR'S CAVE INTO THE TROLL STRONGHOLD BY GOTO. The six entries into
+Eadgar's cave were fixed: each one clicks `troll_mad_eadgar_entrance` and reads back 2893,10074.
+But three gotos still start inside the cave (2890,10085,2) and land inside the stronghold:
+`goto-rack-1` (row 53, to the prison rack at 2829,10097,0), `goto-rack-2` (row 124, same tile) and
+`goto-burntmeat-2` (row 135, to the kitchen at 2844,10057,1). The real route is the cave exit, the
+surface, `troll_stronghold_door`, and then one or two flights of stairs. The guide names every one
+of these for that state: `leaveEadgarsCave*`, `enterStronghold*`, `goDownNorthStairs*`,
+`goDownToPrison*`, `goDownSouthStairsWithScarecrow` (stages 50, 85 and 87). helper_coverage read
+FULL (coverage-and-gate: A goto from one cave into another reads FULL). The file's header comment
+says it drops every stronghold door and stairs click on purpose. That rule is wrong now.
+
+(b) `goto-burntmeat-1` (row 27, down the south stairs) and `goto-storeroomdoor` (row 142, down to
+the storeroom, the guide's `goDownToStoreroom` at 2852,10061,1) also go down guide-named stairs by
+goto. The grader calls these TRAVEL, but the batch rule covers stairs too.
+
+Not findings (theeyesofglouphrie): all five cave entries (rows 3, 44, 78, 240, 280) click
+`eyeglo_brimstails_cave_entrance` and check z > 9000 on the landing. Shots 002/003, 187/188,
+289/290, 397/398 and 435/436 show the cave after the click. The guide names no cave exit, so
+leaving by goto is travel. The kill comment now says 1 hp and max hit 1. Rewards and qp are
+literal and match the scroll (shot 466). The batch's queue commit (7a00d57e6) had left the row at
+`todo` with the round-3 failure, so the sampler set it to green.
+
+## Sample matthew-mbp-m4-b55, round 6 (2026-10-03)
+
+*The sampler checked anothersliceofham (d84fd096c, 148/0, 178 shots) and eadgar (f0ca475f0, 197/0,
+260 shots). It SENT Another Slice of H.A.M. BACK and passed Eadgar's Ruse after fixing two rows
+itself. Commit d84fd096c is reverted (632cd5e13), and so is its evidence commit (OSRS-Content
+82ebb21d96, reverted by c4fc42005c). The file is kept in
+`test/quests/wip/anothersliceofham/round6_rejected.lua`.*
+
+(a) ANOTHER SLICE OF H.A.M. HIDES A RETURN TELEPORT THAT NEVER FIRES. `goto-generals2` (row 102)
+departs from the watchtower top, 2447,5416,2, after the archer's death mesbox. The content should
+have moved the player to the Generals at that point. Details are in content-gaps: "A goto right
+after a fight hides a return teleport that never fired". The quest goes back to a content seam.
+The t.exec rows `zanik.at_dig`, `special.armed` and `special.energy` are pure reads.
+
+(b) EADGAR'S RUSE: TWO ROWS STILL GRADED THE STATUS OF A READ. These were `lookup.stileBefore`
+(`world.tile()`'s `"ok"`, whose detail printed `table: 0x...`) and `reward.snapshot`.
+`climbStile`'s condition ("the tile differs from the one read before goto-stile") was already
+true after the goto alone. The lint rule misses `x == "ok"` on a read's status, so a reviewer has
+to look for it. The sampler dropped both rows. climbStile now asserts the north-side landing
+2817,>=3564,0, which only the crossing reaches (`stiles.rs2` stile_crossing). It was rerun twice
+at 195/0, gate green, FULL 63.
+
+Not findings (eadgar): the gotos from the prison or the kitchen back to the surface pass
+`troll_stronghold_stairs` and `troll_stronghold_top_exit_*`, which read no quest var
+(`quest_troll.rs2:177-198`). They grade TRAVEL/ALTERNATIVE, and stage 86's
+`leavePrisonWithParrot`/`goUpToTopFloorWithParrot`/`leaveStrongholdWithParrot` are the same locs.
+Every stronghold entry, stairs down and storeroom stairs is clicked and has an exact landing read.
+The rewards are literal: 11000 Herblore and qp 4 to 5, matching the scroll in shot 257. The batch
+queue writer skipped both round-6 rows, because queue.json listed them from round 5. So the
+sampler set eadgar to green.
+
+## Sample matthew-mbp-m4-b56, round 2 (2026-10-03)
+
+*The sampler checked twilightspromise (7f69624b0, 154/0, 412 shots) and wanted (d3672c684, 152/0,
+277 shots) and SENT BOTH BACK. Both commits are reverted (728e039cf, 3c5008256), and so are their
+evidence commits (OSRS-Content a45c71ef73, 3e59236da2). The round-2 files are kept in
+`test/quests/wip/<id>/parked.lua`; the next author resumes those, not the reverted files.*
+
+(a) WANTED!: A GOTO THROUGH A CAVE WALL THAT HAS AN OP. `dk.goto` clicks the Lumbridge cellar
+trapdoor, then teleports about 100 tiles from 3210,9616 to the Dorgeshuun mine at 3318,9628. The
+cellar's east wall `lost_tribe_cellar_wall` (3219,9618) is a multiloc. After The Lost Tribe it is a
+`Hole` with `Squeeze-through` (`losttribe.rs2:245`), and a tunnel lies behind it. The shots tell:
+201 shows the walled cellar and 202 the mine. `enclosure_entries` cannot see it. The hole is a wall
+decoration whose op is not Open, so the cellar counts as a sealed room with no door. The landing
+is also outside the cellar. Look for these on any goto whose departure is underground.
+
+(b) WANTED!: GOTOS THAT LEAVE A CLOSED SPACE WITHOUT WALKING OUT. Three rows do this:
+- `goto-tiffy2` and `goto-tiffy3` depart from 2955,3337, inside the White Knights' Castle, past
+  `fai_falador_castledoubledoorr` 2965,3339.
+- `goto-mage` departs from inside the Black Knights' base in Taverley Dungeon.
+- `pos6.goto` departs from the mine.
+
+The orchestrator's rule covers the way out as well as the way in. An author who opened a door on
+the way in walks back out through it.
+
+(c) WANTED!: GUIDE GEAR LEFT OUT FOR "NO ROOM". The setup comment said the light source and spiny
+helmet did not fit, because the 28 slots were full. That is true only at setup time. The run wears
+the scimitar at once and spends the coins and the 20 essence before the swamp caves. Count the
+slots at the step that needs the item, not at setup. If an item still does not fit, cite the script
+that proves it does not matter.
+
+(d) TWILIGHT'S PROMISE: A REWARD ROW THAT READS THE WRONG CARRIER. `reward.teleport` asserted
+`varb9650_varlamore_visited == 1`. The first Regulus flight already sets that var
+(`twilightspromise.rs2:177`), so the row cannot fail. The spell is gated on `%varb9649_vmq2 >=
+^tp_complete` instead (`skill_magic/scripts/spells/teleport.rs2:37-41`). Before you trust a
+"reward carrier" var, grep where the reward's own use reads it. A var that an earlier step wrote
+proves nothing about the reward.
+
+(e) A RANDOM DRAW LEAVES BRANCHES UNRUN. Wanted!'s hunt draws three of fifteen pool stops. This run
+drew Castle Wars, the swamp caves and McGrubor's Wood, so the Grand Tree, Yanille pub and other
+branches never ran. A green ledger proves only the drawn ids, which the `hunt.pos*_drawn` rows
+name. Check every other branch's hop tile and entrance click against the map with `reach.py` and
+`locs_near.py`, since no run will.
+
+(f) SAMPLE TOOLS. `reports/sample_tools/reach.py` now finds `locs.pickle` itself: it uses a copy
+beside the script, else `build/orchestrator/sample_b56/locs.pickle`, and builds that file through
+`locs_near.py` when it is missing. `locs_near.py` prints `''` for a multiloc's base record, for
+example `lost_tribe_cellar_wall`. Read its `multiloc<N>` records in `configs/all.loc` for the name
+and op a player sees.
+
+## Sample matthew-mbp-m4-b56, round 3 (2026-10-03)
+
+*The sampler checked taleoftherighteous (bc780e5d5, 110/0), twilightspromise (1e42352dd, 155/0) and
+wanted (d97a04eac, 168/0). It kept twilightspromise. It SENT BACK taleoftherighteous and wanted:
+the parent commits are reverted (cb3e3c3c5, 964fa96e5), the evidence too (OSRS-Content 4fec39c3f8,
+14989465c4), and the round-3 files are parked in `test/quests/wip/<id>/parked.lua`.*
+
+(a) A GOTO OUT OF THE ROOM THE SETUP CHEAT PUT YOU IN. `::taleoftherighteous` stands the player
+inside Phileas's house, behind its closed door. The first goto teleported out of the house without
+opening that door. The rule about leaving a closed space applies from the first row: open the door
+and walk out, even when no row walked you in.
+
+(b) A BIG BUILDING IS STILL A CLOSED SPACE. The Arceuus Library is closed by four double doors, but
+its floor is bigger than the 400 tiles `enclosure_entries` floods, so the grader stays FULL on a
+goto that lands beside Archeio. Run `reach.py` from the landing to a street tile. NEEDS-DOOR means
+you click the door.
+
+(c) AN INSTANCE OR TELEPORT AREA HAS ITS OWN WAY OUT. The Library Historical Archive is left through
+Istoria's Leave (`tor_archive.rs2:163-168`), and the Rune Essence mine through its exit portal. A
+goto from inside either skips that exit. Use the exit, then goto from where it lands.
+
+(d) THE LAST STOP OF A RANDOM DRAW. In Wanted!!, Solus's script moves you away after the pool stops
+at positions 2 and 4 (Camelot, Falador). Position 6 does not move you, so the next goto leaves from
+inside whatever pos6 drew: McGrubor's Wood (railing), the Grand Tree, the Yanille pub or the swamp
+caves. Every branch needs its own way out, and that includes the branches this run did not draw.
+The Champions' Guild door (`championdoor`) closes behind you as well: walk out through it.
+
+(e) TWILIGHT'S PROMISE, A CONTENT NOTE. The Fortis Teleport reward is now proved by a real cast that
+gains magic xp and lands on the spell's `tele_coord`. That coordinate, 1735,2965, is marked as an
+ESTIMATE in `skill_magic/configs/magic_spells.dbrow:245-250`. Shot 412 shows a hut in grassland,
+not the Sunrise Palace. It is a skill_magic content gap, not a defect in the quest test.
+
+## Sample matthew-mbp-m4-b56, round 4 (2026-10-03)
+
+Both accepted tests went back again, each for one more goto that LEAVES a room.
+
+(a) A LADDER OR STAIR IS A DOOR FOR THIS RULE. In Tale of the Righteous, Lord Shiro is in a walled
+room up `shayzien_ladder` (1486,3634,1). `goto-talkToDuffy` and `goto-returnToPhileasTent` both
+left from that room on level 1, so the ladder down was never clicked. `goto_table.py` prints this
+as `LEVEL CHANGE 1->0`. `helper_coverage` does not grade plain climbs, so FULL does not prove it.
+Click the climb down, check `t.world.tile()` is on level 0, then goto.
+
+(b) THE ROOM A `talk_to` WALKED YOU INTO. In Wanted!!, `goto-mage` lands outside the Varrock Zamorak
+chapel, and the test clicks its door (`fai_varrock_poor_door_flipped`, 3255,3388). `talk_to` then
+walks you inside to the Mage. `canifis.goto` left from 3262,3381, which is still inside the chapel.
+For every goto, run `reach.py` from the departure tile, not only from the landing tile. If it says
+NEEDS-DOOR, walk out through that door first.
+
+(c) A DOOR-STATE BRANCH IS NOT A CHECK. `t.check(name, true, "door is open (at nil,nil)")` cannot
+fail. This round it appeared in five Tale rows and one Wanted!! row (`base.door_state`). Assert
+something the run could get wrong, such as the open loc's tile. Otherwise use a plain `t.step` or
+skip the row.
+
+## Sample matthew-mbp-m4-b57 (2026-10-04)
+
+*Origin: the b57 door-rule verify batch; the sampler checked cooks_assistant, priest and mortton in
+full and walked every goto of all eight accepted quests against the walls.*
+
+(a) FULL CAN CREDIT A `use` STEP TO THE WRONG ITEM. Shades of Mort'ton (`mortton`, sent back) never
+made Serum 208 and never used it. At stage 80 it went straight to Ulsquire's hand-in (ledger rows
+126 -> 130-135). `helper_coverage` still graded `use207OnFlame`, `use208OnRazmire` and
+`use208OnUlsquire` DRIVEN, with "an action at line 366 names 'razmire_keelgan_afflicted'". Line 366
+is the `by_symbol` lookup for the serum 207 cure, and the `use_on` two lines below it names the
+target only through a variable. So the item check in the grader never saw that cure. For every
+`use<Item>On<Target>` step, find the `use_on` row in the ledger and read which item its backpack
+diff lost. A port that completes without the step does not excuse it either. Mort'ton's
+`[opnpcu]` serum 208 legs exist, so drive them, and report the missing completion gate as a gap.
+
+(b) A `::passive` HUNTED TYPE MAKES THE FIGHT MARGIN ROW VACUOUS. Mort'ton holds
+`shadeshadow_level1` passive. That is allowed (gaps-combat: `::passive <npc_symbol>`): the kills are
+real clicks, the shades take real damage, and they drop real remains. But every `shade.fightN.margin`
+row read `lowest hp 99 ... never needed to eat` on a staged 99-hp account. Say in the detail that the
+target cannot retaliate, so that nobody reads the row as a survived fight.
+## Sample matthew-mbp-m4-b58, round 2 (2026-10-04)
+
+Eadgar's Ruse went back. Ernest the Chicken, Enter the Abyss and Biohazard passed. So did the wall
+check on Shield of Arrav (Black Arm).
+
+(a) A PLATEAU YOU CANNOT LEAVE ON FOOT COUNTS AS A CLOSED SPACE. The Trollheim summit has no door,
+but on foot you can only reach it through the Troll Stronghold. The static flood from 2840,3690
+covers 2,075 tiles and has no walking exit (`comp.py 2840 3690 2834 3630 80`). `reach.py` says
+UNREACHABLE at margin 120 from the summit to Taverley, Ardougne or Lumbridge. The ways down are the
+stronghold (top door, stairs, the prison door at 2848,10107,1, the secret door
+`troll_stronghold_entrance` at 2827,3646) and two `troll_climbingrocks` pairs, 2833-2834,3628 and
+2856-2857,3612. The second pair checks for worn `death_climbingboots` (quest_troll.rs2:16). Eadgar
+walked that route once on the way up (rows 26-42). After that it used seven gotos between the
+summit and the lowlands: rows 71, 81, 120, 124, 167, 178 and 264. `helper_coverage` read FULL
+because its sealed-pocket rule skips a pocket that has a climb or is too large.
+
+Run `goto_table.py`. If a row is `UNREACHABLE` at margin 30, run `reach.py` again at 120 or more.
+If it is still UNREACHABLE, run `comp.py` from the departure tile. A component that never reaches
+the landing is a pocket. Walk its real way out and back in on every trip.
+
+## Sample matthew-mbp-m4-b58, round 3 (2026-10-04)
+
+Eadgar's Ruse passed. Legends' Quest went back.
+
+(a) A FIGHT INSIDE A SHARED `kill()` HELPER STILL NEEDS ITS OWN MARGIN ROW. Legends' leg 10 writes
+`killSan-margin`, `killIrvig-margin`, `killRanalph-margin` and `defeatDemon-margin`. Leg 6 fights
+the same three heroes in the Viyeldi caves through a local `kill()` helper (lua 1262-1265). That
+helper only calls `await_dead_engaged` with `eat = { item = "shark", below = 50 }`, so it writes no
+margin row (ledger rows 357-364). Row 364 `killRanalph-dead` ends "OUT OF shark". Leg 6 staged 6
+sharks (row 275): a deathwing ate 1 (row 313), San 2, Irvig 1 and Ranalph 2. The lowest hp was
+39/99. That clears a quarter of max hitpoints but leaves no food, and the rule needs both. The
+reviewer read only the rows named `*-margin` and reported "sharks left".
+
+To check a test, grep the ledger for `OUT OF` and for every `*-dead` row that has no `*-margin`
+row after it. Read the `lowest hp` and the food count from the `-dead` row's detail.
+
+## Sample matthew-mbp-m4-b59 (2026-10-04)
+
+Making History passed. Pirate's Treasure (hunt) went back.
+
+(a) A GATE BETWEEN TWO LARGE OPEN REGIONS IS STILL CLICKED. Pirate's Treasure buys its rum in
+Brimhaven, so it crosses Karamja's `membergatel` (2816,3182) twice: `goto-bartender` (2956,3146
+to 2796,3158) and `goto-luthas` (back). `goto_table.py` printed `NEEDS-DOOR ... via
+membergatel@2816,3182`, and `reach.py` still said so at margin 80 and 160. On foot, the gate is
+the only way between the two sides. The file called this an exempt gate because both sides are
+large (`comp.py` floods 4,380 and 18,718 tiles). There is no such exemption. The door rule says
+every gate between the player and the target is clicked on every visit, and the Trollheim finding
+(b58 round 2) already says size does not matter. Hero, in the same batch, clicks this exact gate
+(`karamjaGate.cross`). The fix: goto 2817,3182, `click_loc` the gate, then goto, and do the same
+on the way back.
+
+(b) A REDIRECT ROW MUST CHECK SOMETHING THE PRESS CAUSED. Hunt's `dig-treasure` row accepted a
+`timeout` click answer together with "the gardener is within 10 tiles". That was already true
+before the press (the row's own pre-press read), so the row passes even when the press does
+nothing. `dig.rs2`'s redirect, `[label,pirate_irate_gardener_attack]`, makes the gardener say
+"Hey, leave off my flowers!" and attack. Assert that line or the gardener engaging you.
+
+## Sample matthew-mbp-m4-b59, round 3 (2026-10-04)
+
+Sea Slug passed. Mourning's End Part I went back.
+
+(a) A REACH THROUGH ISAFDAR WALKS OVER REGICIDE'S TRAPS. Mourning's End Part I uses `goto_tile`
+for seven trips between the Arandar pass's south side (2386,3331), Eluned (2289,3145), the Lletya
+trees (2303,3193), the tar (2263,3128) and the overpass mourner (2300,3328). The fixer's audit
+said every trip was REACH (len 365-547), inside "the 7,176-tile component the gate opens onto".
+That component counts trap tiles as floor. The traps have `blockwalk=0`, so `reach.py` walks over
+them, but each has an op (Jump, Pass, Step-over), and `regicide_traps.rs2`'s zone triggers fire
+when you step on one (the tripwire poisons you and deals 5 damage). If you treat those tiles as
+blocked, none of the seven trips has a route at margin 300. Every trip crosses the pitfall at
+2276-2278,3263 and either the woodspring (2235,3181) or the dense forests (2266/2269/2272,3191).
+The Lletya and Eluned trips also cross the pitfall at 2274,3173-3175 and the tripwire at
+2285,3188. Roving Elves went back for the same hops (a324eedfe). Before you trust a REACH through
+Isafdar, list the locs on the path that have an op and `blockwalk=0`. Stage Agility in setup,
+then walk a trap helper that presses each trap on every trip. Grade each press on the tiles
+before and after it.
+
+## Sample matthew-mbp-m4-b59, round 4 (2026-10-04)
+
+Mourning's End Part I passed. All 35 Isafdar trap crossings are walked and pressed.
+
+(a) A CONDITIONAL RELOG FOR THE CAMERA SEAM IS ACCEPTED. After a walk-built scene rebuild in
+Isafdar, the client camera can sit 23-53 tiles from the player. Every loc press then answers
+`covered ... none of N pixels`. This is a client bug; the engine seam row is filed separately.
+The test reads `t.world.camera()` against `t.world.tile()` after each walk and before each trap
+press. Only when the camera is more than 16 tiles off does it call `t.session.relog()` on the same
+tile. It writes a visible `<name>.cameraResync` row that carries both readings and fails unless
+the player stands on the same tile with the camera within 16 tiles afterwards. That is
+acceptable: a relog moves nobody, skips no crossing, and does none of the quest's work. It is not
+acceptable if it fires unconditionally, changes the tile, or stands in for a press. It re-boots
+the embedded server, so nothing the quest needs may live only in server memory at that point
+(spawned npcs, a skipped clock). Remove the helper when the client fix lands.
+FIXED (OSRS-Content 4b4cc88be6, seam-facts "Seam pass matthew-mbp-m4-b60-seam0" (c)): it was
+not the client and not the rebuild. A slipped pitfall played `human_death` and never ended it, and
+the client holds every walk while that pose plays. With the content fix the relog has nothing to
+correct; a new test must not add one.
+
+## Sample matthew-mbp-m4-b60 (2026-10-04)
+
+The Ides of Milk, Creature of Fenkenstrain and Family Crest all passed, and none went back. The
+sampler opened every shot (630, on 2x2 contact sheets; running.md: "The image Read fails"). It
+also re-ran every goto through goto_table.py with the doors closed. Crest's 443-tile hop from Avan
+to the Dwarven Mine reads REACH len=521 at margin 160.
+
+(a) BRUTUS'S FIGHT IS REAL, BUT ITS MARGIN ROW CANNOT SHOW IT. A probe copy (`--script`,
+`--no-publish`) read three dodged charges while the player stood still (gaps-combat: "A margin row
+reads full hp after a real fight").
+
+(b) THE COW-FIELD GATE OPEN LONG AFTER ITS PRESS IS NOT A CHEAT. `fencegate_l` was pressed at
+client tick 22 and read open at ticks 238, 312 and 328 (client.log `row-begin`). That is inside
+`~open_gate`'s 500. Every later crossing still walked through the gate tile.
+
+(c) THE JUDGEMENT CALLS STAND. Crest's `repairCrest.needsThree` uses one piece on another to clear a
+selected spell. Its detail is the real content line `You still need one more piece of the crest.`,
+so the row checks something the press caused. The Jolly Boar stair is a `click_loc` press graded
+on its landing. Fenkenstrain's toll reads `ectotoken 2 -> 0`, and the shot shows "You pay the toll"
+before "You cast a silver lightning conductor" at the Port Phasmatys furnace.
+
+## Sample matthew-mbp-m4-b60, round 2 (2026-10-05)
+
+Spirits of the Elid, Mountain Daughter and One Small Favour all passed, and none went back. The
+sampler opened all 1,058 shots on 265 labelled 2x2 contact sheets. It re-ran every goto through
+goto_table.py with the doors closed. All 96 read REACH, including Mountain Daughter's 614-tile
+walk over White Wolf Mountain both ways.
+
+(a) EVERY CROSSING IS A PRESS. The rockslide uses cross_trap on all seven camp trips. The Elid
+dungeon's five doors use pass_door both ways, with the robes worn back out. One Small Favour climbs
+to the Seers' roof by its ladder and comes down by its trapdoor, twice. A door that `pass_door`
+reports as "stands open" was opened by an earlier press in the same run, or it is an open leaf on
+the map.
+
+(b) THE MARGINS ARE REAL FIGHTS. The Kendal left 49/60 with hitsplats on both sides. The Slagilith
+left 70/90, and the gang members 73/90. The three Elid golems read 60/60 at Defence 50
+(gaps-combat: "A margin at 99 Defence and 99 Hitpoints proves nothing").
+
+(c) THE JUDGEMENT CALLS STAND. Mountain Daughter walks to the White Pearl bush and back because
+the guide teleports nowhere. The chat lines `Teleported to x,y,z` on the shots are the harness's
+`goto_tile` hops, and each one was audited above. Roof-occluded door frames (One Small Favour 076,
+122, 131, 590, 597) still show the press in the next shot.

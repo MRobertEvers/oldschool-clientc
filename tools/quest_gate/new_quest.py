@@ -626,6 +626,22 @@ def guess_op(desc: str) -> tuple[int, str]:
 ITEM_REQ_RE = re.compile(r"\b(\w+)\s*=\s*new\s+ItemRequirement\s*\(")
 SKILL_REQ_RE = re.compile(r"\bnew\s+SkillRequirement\s*\(\s*Skill\.(\w+)\s*,\s*(-?\d+)")
 QUEST_REQ_RE = re.compile(r"\bnew\s+QuestRequirement\s*\(\s*QuestHelperQuest\.(\w+)")
+# A prerequisite the guide does not list -- a listed one implies it -- but
+# whose OWN state the guide's route reads. `::complete` writes only the named
+# quest's progress var (quest_cheat.rs2), so completing the listed quest leaves
+# the implied one at 0 and the route's gate shut. Keyed by quest dir; each token
+# is a QuestHelperQuest name, resolved and emitted exactly like a listed one,
+# and staged BEFORE the listed ones (the order a player finishes them).
+#   quest_anothersliceofham: Quest Helper lists Death to the Dorgeshuun, which
+#     requires The Lost Tribe, but the guide's own route in (goDownIntoBasement,
+#     climbThroughHole, talkToKazgar, enterCity) reads %varb532_lost_tribe_quest:
+#     the cellar hole is lost_tribe_cellar_wall's multiloc on it (all.loc,
+#     values 4..12), Kazgar is lost_tribe_guide's multinpc on it (values 9..12)
+#     and the city door refuses below ^lt_complete (lotg_intro.rs2:67).
+#     Proved by scratch b55s1_route_b (seam matthew-mbp-m4-b55-seam1).
+ROUTE_PREREQS: dict[str, list[str]] = {
+    "quest_anothersliceofham": ["THE_LOST_TRIBE"],
+}
 # A quest-point gate (`new QuestPointRequirement(43)`, Tears of Guthix) is a
 # prerequisite, staged by `::setvar <the qp varp> N` -- the setup cheat trap 16
 # names for it. The scaffold writes it so no author types the varp by hand:
@@ -2120,7 +2136,7 @@ def generate(
     # emitted -- a prereq line appended after that point would land in the
     # Lua file's comments but never in the setup list itself.
     prereq_lines: list[tuple[str, str | None]] = []
-    for token in parse_quest_requirements(text):
+    for token in list(dict.fromkeys(ROUTE_PREREQS.get(dir_name, []) + parse_quest_requirements(text))):
         prereq_dir = resolve_quest_prereq(token, inventory)
         # A QuestRequirement naming THIS quest is not a prerequisite -- Quest
         # Helper guides use it to branch on the player's OWN progress (a

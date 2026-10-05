@@ -265,7 +265,11 @@ verdict can read FULL) only when `helper_coverage.py` checks its evidence:
 `-- BRANCH-IN: <sibling test_id> <step> [reason]` -- a mutually exclusive guide branch driven by a
 SIBLING test (misc courts Brand, misc_astrid courts Astrid): the sibling must be a committed, green
 QUEUE row graded against the same Quest Helper file, and its own grading, with its BRANCH-IN markers
-switched off so two siblings cannot vouch for each other, must read `<step>` DRIVEN;
+switched off so two siblings cannot vouch for each other, must read `<step>` DRIVEN (two siblings
+reopened in ONE batch can never each wait for the other's green row: the orchestrator marks both
+rows `VERIFY ONLY` for that batch and `helper_coverage.joint_verify` lets such a sibling vouch,
+still only by driving the step; a sibling that is sent back takes the other with it -- misc and
+misc_astrid, matthew-mbp-m4-b59);
 `-- PARTNER: <step> ::<cheat> [reason]` -- a two-player step (the guide's text names another player)
 done by a cheat in `docs/QUEST_SERVER_CHEATS.md`'s "Two-player partner affordances" table, which the
 test calls and a PASS ledger row reports (`::blackarmgang_partner` for Shield of Arrav's

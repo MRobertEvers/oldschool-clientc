@@ -11,6 +11,12 @@ replace those reads.
 in the order `helper_coverage.py` grades them (its step count is the same number). You never need
 to open the guide Java.
 
+A helper_coverage charge for a goto in the last run's ledger (`(goto past <door>)`, `(goto out past
+<door>)`, `(goto into a sealed pocket)`) is not a guide step. It gets no number, `--leg` and
+`--write` ignore it, and it is listed under the table as "not guide steps" (in `--json`, under
+`charges`). Before seam pass matthew-mbp-m4-b58-seam1 it raised `KeyError` and crashed `ladder.py`
+and `fail.py --leg`.
+
 Each step shows:
 
 - `leg.n` -- the leg it belongs to and its number in the guide's order (in route order when the

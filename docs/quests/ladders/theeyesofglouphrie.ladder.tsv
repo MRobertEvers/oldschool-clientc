@@ -1,0 +1,26 @@
+# ladder theeyesofglouphrie quest_dir=quest_theeyesofglouphrie guide=src/main/java/com/questhelper/helpers/quests/theeyesofglouphrie/TheEyesOfGlouphrie.java steps=23 legs=1:1-23@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToBrimstail	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2410,9818,0	Talk to Brimstail.			What's that cute creature wandering around? | Yes, that sou…	areas/area_gnome/scripts/brimstail.rs2:9 opnpc1; +1
+1	2	0	enterCave	ObjectStep	loc:eyeglo_brimstails_cave_entrance npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2404,3419,0	Go talk to Brimstail in his cave in west Tree Gnome Stronghold.	talkToBrimstail			quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:22 oploc1
+1	3	1	inspectBowl	ObjectStep	loc:eyeglo_singing_bowl	2388,9813,0	Inspect the singing bowl in the west room.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:606 oploc1; +1
+1	4	1	inspectMachine	ObjectStep	loc:eyeglo_gnome_machine_02_multiloc	2390,9826,0	Attempt to unlock oaknock's machine in the north of the cave.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:631 oploc1; +1
+1	5	2	talkToBrimstailAgain	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2410,9818,0	Talk to Brimstail again.			I've had a look in the other room now. | Of course, I'd lov…	areas/area_gnome/scripts/brimstail.rs2:9 opnpc1; +1
+1	6	5	goUpToHazelmere	ObjectStep	loc:ladder	2677,3087,0	Go talk to Hazelmere in his hut east of Yanille (Fairy Ring CLS).				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2
+1	7	5	talkToHazelmere	NpcStep	npc:grandtree_hazelmere loc:ladder	2677,3087,1	Go talk to Hazelmere in his hut east of Yanille (Fairy Ring CLS).	goUpToHazelmere			areas/area_gnome/scripts/hazelmere.rs2:8 opnpc1; +3
+1	8	15	enterCaveAgain	ObjectStep	loc:eyeglo_brimstails_cave_entrance	2404,3419,0	Go back to Brimstail's cave in west Tree Gnome Stronghold.		Pestle and mortar; Mud rune; Bucket of sap; Oak logs; Maple logs; Saw; Hammer		quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:22 oploc1
+1	9	15	talkToBrimstailAfterHazelmere	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op loc:eyeglo_brimstails_cave_entrance	2410,9818,0	Talk to Brimstail.	enterCaveAgain		I've visited Hazelmere, he told me all sorts of interesting…	quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:22 oploc1
+1	10	20	grindMudRunes	DetailedQuestStep			Use the pestle and mortar on some mud runes.		Pestle and mortar; Mud rune		
+1	11	20	useMudOnSap	DetailedQuestStep			Use the ground mud runes on the bucket of sap.		Ground mud runes; Bucket of sap		
+1	12	20	repairMachine	ObjectStep	loc:eyeglo_gnome_machine_02_multiloc	2390,9826,0	Use the magic glue on oaknock's machine in the north of the cave.		Magic glue; Oak logs; Maple logs; Saw; Hammer		quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:631 oploc1; +1
+1	13	25	talkToBrimstailAfterRepairing	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2410,9818,0	Talk to Brimstail.			I think I've fixed the machine now!	areas/area_gnome/scripts/brimstail.rs2:9 opnpc1; +1
+1	14	25	talkToBrimstailForMoreDisks	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2410,9818,0	Talk to Brimstail for more disks.			I can't work out what to do with these discs!	areas/area_gnome/scripts/brimstail.rs2:9 opnpc1; +1
+1	15	27	unlockMachine	PuzzleStep			Unlock the machine.				
+1	16	36	talkToBrimstailAfterIllusion	NpcStep	npc:gnome_brimstail_cutscene npc:gnome_brimstail_2op	2410,9818,0	Talk to Brimstail again.			Phew! I've got that machine working now. What do I need to …	areas/area_gnome/scripts/brimstail.rs2:9 opnpc1; +1
+1	17	40	killCreature1	NpcStep	npc:eyeglo_fluffie_evil_1	2408,9819,0	Kill the evil creature next to Brimstail.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:821 opnpc2; +1
+1	18	40	killCreature5	NpcStep	npc:eyeglo_fluffie_evil_5	2461,3388,0	Kill the evil creature next to the Stronghold's entrance.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:837 opnpc2; +1
+1	19	40	killCreature6	NpcStep	npc:eyeglo_fluffie_evil_6	2462,3443,0	Kill the evil creature next to the Stronghold's Spirit Tree.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:841 opnpc2; +1
+1	20	40	killCreature4	NpcStep	npc:eyeglo_fluffie_evil_4	2422,3526,0	Kill the evil creature in the north west of the Stronghold.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:833 opnpc2; +1
+1	21	40	killCreature3	NpcStep	npc:eyeglo_fluffie_evil_3	2466,3496,3	Kill the evil creature at the top of the Grand Tree.	climbUpToF1Tree climbUpToF2Tree climbUpToF3Tree			quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:829 opnpc2; +1
+1	22	40	killCreature2	NpcStep	npc:eyeglo_fluffie_evil_2	2465,3494,0	Kill the evil creature next to Narnode.				quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2:825 opnpc2; +1
+1	23	50	talkToNarnode	NpcStep	npc:grandtree_narnode_1op	2465,3496,0	Talk to King Narnode to finish the quest.				quests/quest_grandtree/scripts/king_narnode.rs2:11 opnpc1; +1

@@ -361,6 +361,32 @@ test_all_hidden_model(void)
     CHECK(!pick(10, 10), "an entirely hidden model must not pick");
 }
 
+/* ToriDraw_ModelHasVisibleFace is what lets an ENTITY whose model draws no
+ * face pick by its box instead (torirs_frame.c, the reference's
+ * useAABBMouseCheck): Biohazard's Chancy and Da Vinci are model 25362, a quad
+ * whose two faces are alpha 255. The per-face rule above is untouched -- an
+ * all-hidden LOC still does not pick. */
+static void
+test_visible_face_query(void)
+{
+    fixture_reset();
+    int a = add_vertex(0, 0);
+    int b = add_vertex(40, 0);
+    int c = add_vertex(0, 40);
+    int d = add_vertex(40, 40);
+    int f0 = add_face(a, b, c);
+    int f1 = add_face(b, d, c);
+    g_fx.colors_c[f0] = TORIDRAWHSL16_HIDDEN;
+    g_fx.colors_c[f1] = TORIDRAWHSL16_HIDDEN;
+    CHECK(!ToriDraw_ModelHasVisibleFace(g_fx.hnd), "two hidden faces: no visible face");
+
+    g_fx.colors_c[f1] = 0;
+    CHECK(ToriDraw_ModelHasVisibleFace(g_fx.hnd), "one lit face is a visible face");
+
+    g_fx.model.face_colors_c = NULL;
+    CHECK(ToriDraw_ModelHasVisibleFace(g_fx.hnd), "an unlit model hides nothing");
+}
+
 /* Unlit models carry no colour channel; every face is then testable, matching
  * the reference where the hidden marker only exists once light() has run. */
 static void
@@ -516,6 +542,7 @@ main(void)
     test_alpha_254_stays_pickable_255_does_not();
     test_aabb_gate();
     test_all_hidden_model();
+    test_visible_face_query();
     test_missing_colour_channel_picks_every_face();
     test_hidden_tile_faces_still_pick();
     test_tile_pick_is_containment_not_bbox();

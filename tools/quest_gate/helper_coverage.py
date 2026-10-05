@@ -83,7 +83,9 @@ CLASSES (first rule that fires wins, in this order).
                its puzzle-wrapper alias counts), or an action (talk_to/
                click_loc/use_on/...) or action row naming one of its npc/loc/
                obj symbols -- rev 239's name, a multinpc parent, or its display
-               name; a "use X on Y" step needs a use of X on Y, a pick-up step
+               name; a "use X on Y" step needs a use_on of X (its guide
+               alternates, dose/noted variants: obj_family) on Y whose row
+               PASSed -- nothing else drives it (use_item_driven; b57), a pick-up step
                may be done by another route (buy-rum), and a door clicked once
                is one step, not two. Since seam26 a mention counts only when
                (i) its line/row is not ANOTHER guide step's own row (the first
@@ -103,7 +105,9 @@ CLASSES (first rule that fires wins, in this order).
   CONTENT_GAP  a t.blocked()/content_bug line or a `-- GUIDE-GAP:` marker
                names the step (or a ConditionalStep above it); the marker
                counts only when its reason cites a real `<file>.rs2:<line>`.
-  CHEAT        a ::give / debugproc inv_add of an item the step OBTAINS
+  CHEAT        a ::give / ::bankgive / debugproc inv_add of an item the step
+               OBTAINS (::bankgive is graded exactly as ::give: same item,
+               same verdict -- GIVE_CHEATS)
                (pick/buy/kill/mine... -- a bring-along only when the step's
                whole job is picking it up), or a ::setvar / ::complete /
                debugproc write of a quest var the step names.
@@ -137,7 +141,14 @@ CLASSES (first rule that fires wins, in this order).
                a room an obstacle step's door opens on to a nearby tile in no
                zone, after which the step the guide shows only inside that
                room is driven (room_exits; Heroes' Quest's hop out of the
-               secret room to melee Grip, charged to killGrip); or a
+               secret room to melee Grip, charged to killGrip); or a goto
+               that lands in a room the MAP walls in (maps/*.jl2 walls and
+               blocked tiles, MapWalls; a door loc in its perimeter) from a
+               departure outside it, with no press of that door in the 500
+               ticks before -- whether or not the guide names the door,
+               charged to the step the goto serves (enclosure_entries; Tale
+               of the Righteous's returnToPhileasTent past Phileas's house
+               door); or a
                PASS row named after an obstacle step whose newest server
                line is that attempt's failure (stale_success: passTrap5-tile
                on "...and fail, activating the trap!").
@@ -200,6 +211,28 @@ GUIDES_DIR = os.path.join(QUEST_HELPER_ROOT, "src", "main", "java", "com", "ques
 
 GAP_CLASSES_TEST = ("CHEAT", "UNMATCHED")
 NEUTRAL_CLASSES = ("DRIVEN", "EQUIVALENT", "TRAVEL", "BRING_ALONG", "ALTERNATIVE")
+
+# The cheats that hand the player an item by NAME, graded alike (_cheat_effects,
+# bring_along): `::give <obj> <n>` into the pack and `::bankgive <obj> <n>`
+# into the bank (cheat_bank.rs2, setup-only). A banked item is one t.bank.
+# withdraw away from the pack, so a setup ::bankgive of an item the guide has
+# the player OBTAIN is the same CHEAT as a ::give of it. ::bankgive's body is
+# `inv_add(bank, $stored, ...)` -- a local, not a symbol -- so the debugproc
+# reader below would see no item and drop it as a reset adapter; it must be
+# named here, before that branch. helper_coverage_bankgive_test.py.
+GIVE_CHEATS = ("give", "bankgive")
+
+# A guide step that USES an item on its target ("Use the serum 208 on
+# Razmire") is driven only by a use_on of that item -- or one of its family:
+# the guide's alternates and ItemCollections, dose/charge variants, the noted
+# form (Grader.use_item_wanted / use_item_driven). Before, any action naming
+# the target drove it, and Shades of Mort'ton's serum 207 cures drove both
+# serum 208 steps (sampler b57 (a)). QUEST_GATE_USE_ITEM_RULE=0 switches the
+# rule off, for measuring it (helper_coverage_use_item_test.py).
+USE_ITEM_RULE = os.environ.get("QUEST_GATE_USE_ITEM_RULE", "1") != "0"
+USE_CLAUSE = re.compile(r"\buse\s+(.+?)\s+(?:on|onto|with|in|into)\s+(.+?)(?=[,.;!?()]|\bthen\b|\band\b|\bto\b|$)",
+                        re.I | re.S)
+LOST_RE = re.compile(r"\blost ([^\]]*)")
 
 # ------------------------------------------------------------------ words
 
@@ -356,6 +389,29 @@ STEP_CTOR_RE = re.compile(r"\b(\w+)\s*=\s*new\s+(\w+)\s*(?:<[^>]*>)?\s*\(")
 POINT_RE = re.compile(r"new\s+WorldPoint\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 
+_ITEM_COLLECTIONS = None
+
+
+def item_collection(name):
+    """The obj symbols of Quest Helper's `ItemCollections.<name>` (AXES,
+    COINS, ...), as the guide's ItemID constants lowercased; [] when the
+    collection or the file is not there."""
+    global _ITEM_COLLECTIONS
+    if _ITEM_COLLECTIONS is None:
+        _ITEM_COLLECTIONS = {}
+        path = os.path.join(QUEST_HELPER_ROOT, "src", "main", "java", "com", "questhelper", "collections",
+                            "ItemCollections.java")
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                code = strip_java_comments(handle.read())
+            for match in re.finditer(r"^\s*([A-Z][A-Z0-9_]*)\s*\(", code, re.M):
+                open_index = match.end() - 1
+                body = code[open_index + 1:matching_close(code, open_index)]
+                _ITEM_COLLECTIONS.setdefault(match.group(1), [
+                    const.lower().lstrip("_") for cls, const in ID_RE.findall(body) if cls == "ItemID"])
+    return list(_ITEM_COLLECTIONS.get(name, ()))
+
+
 class Step:
     def __init__(self, name, kind, line):
         self.name = name
@@ -372,6 +428,8 @@ class Step:
         self.dialog = []
         self.panel = ""
         self.alt_group = None
+        self.req_raw = []       # the requirement idents as written (`serum208Highlighted`), before item_base
+        self.icons = []         # obj symbols of `step.addIcon(ItemID.X)`
 
     def is_composite(self):
         return "Conditional" in self.kind or self.kind in ("ReorderableConditionalStep",)
@@ -443,6 +501,41 @@ class Guide:
         for match in re.finditer(r"\b(\w+)\s*=\s*(\w+)\s*\.\s*(?:quantity|highlighted|named|hideConditioned|showConditioned|alsoCheckBank|equipped|copy)\b", code):
             if match.group(2) in self.items and match.group(1) not in self.items:
                 self.aliases[match.group(1)] = match.group(2)
+        # Every id a requirement accepts, for a "use X on Y" step's item
+        # (Grader.use_item_wanted): the ctor's ids, an ItemCollections list,
+        # `addAlternates(...)`. Kept apart from `ids`, which the other rules
+        # read as the ctor's own ids.
+        for var, item in self.items.items():
+            item["alts"] = list(item["ids"])
+        for match in STEP_CTOR_RE.finditer(code):
+            var = match.group(1)
+            if match.group(2) in ("ItemRequirement", "FollowerItemRequirement", "KeyringRequirement",
+                                  "TeleportItemRequirement") and var in self.items:
+                open_index = match.end() - 1
+                body = code[open_index + 1:matching_close(code, open_index)]
+                for name in re.findall(r"\bItemCollections\s*\.\s*(\w+)", body):
+                    self.items[var]["alts"].extend(item_collection(name))
+        for match in re.finditer(r"\b(\w+)\s*\.\s*addAlternates\s*\(", code):
+            base = self.item_base(match.group(1))
+            if base in self.items:
+                open_index = match.end() - 1
+                body = code[open_index + 1:matching_close(code, open_index)]
+                self.items[base]["alts"].extend(s for k, s in self._ids_in(body) if k == "obj")
+                for name in re.findall(r"\bItemCollections\s*\.\s*(\w+)", body):
+                    self.items[base]["alts"].extend(item_collection(name))
+        for match in STEP_CTOR_RE.finditer(code):
+            if match.group(2) == "ItemRequirements" and match.group(1) in self.items:
+                open_index = match.end() - 1
+                for arg in split_top(code[open_index + 1:matching_close(code, open_index)]):
+                    base = re.match(r"\s*(\w+)", arg)
+                    if base and base.group(1) in self.items and base.group(1) != match.group(1):
+                        self.items[match.group(1)]["alts"].extend(self.items[base.group(1)]["alts"])
+        # The requirement the step highlights in the inventory is the one it uses.
+        self.highlighted = set()
+        for match in re.finditer(r"\b(\w+)\s*\.\s*setHighlightInInventory\s*\(\s*true\s*\)", code):
+            self.highlighted.add(match.group(1))
+        for match in re.finditer(r"\b(\w+)\s*=\s*\w+\s*\.\s*highlighted\s*\(", code):
+            self.highlighted.add(match.group(1))
         for match in re.finditer(r"\b(\w+)\s*\.\s*canBeObtainedDuringQuest\s*\(", code):
             base = self.item_base(match.group(1))
             if base in self.items:
@@ -530,6 +623,11 @@ class Guide:
             body = code[open_index + 1:matching_close(code, open_index)]
             if match.group(1) in self.steps:
                 self.steps[match.group(1)].targets.extend(self._ids_in(body))
+        for match in re.finditer(r"\b(\w+)\s*\.\s*addIcon\s*\(", code):
+            open_index = match.end() - 1
+            body = code[open_index + 1:matching_close(code, open_index)]
+            if match.group(1) in self.steps:
+                self.steps[match.group(1)].icons.extend(s for k, s in self._ids_in(body) if k == "obj")
         for match in re.finditer(r"\b(\w+)\s*\.\s*addDialogSteps?\s*\(", code):
             open_index = match.end() - 1
             body = code[open_index + 1:matching_close(code, open_index)]
@@ -836,6 +934,7 @@ class Guide:
                 base = self.item_base(ident)
                 if base in self.items:
                     step.req_vars.append(base)
+                    step.req_raw.append(ident)
         if step.kind in ("ItemStep", "DigStep"):
             for base in step.req_vars:
                 step.targets.extend(("obj", s) for s in self.items[base]["ids"])
@@ -1087,7 +1186,9 @@ BY_DISPLAY = {}   # (kind, display name) -> {symbol}
 PARENTS = {}      # multinpc/multiloc child -> {parent}
 CHILDREN = {}     # multinpc/multiloc parent -> [child]
 OPS = {}          # (kind, symbol) -> {op number: op name, lowercased}
+OBJ_LINKS = {}    # obj symbol <-> its certlink / placeholderlink / countobj forms (obj_family)
 SCRIPTS = {}      # (trigger kind, subject) -> (relpath, line): labels, procs, triggers
+LOC_CLIP = {}     # loc symbol -> (blockwalk, width, length, active): all.loc's collision fields (MapWalls)
 _BODIES = {}
 
 
@@ -1275,6 +1376,44 @@ def same_thing(kind, guide_symbol, test_string, loose=True):
     return False
 
 
+DOSE_SUFFIX = re.compile(r"\s*\(\s*\d+\s*\)\s*$")
+
+
+def obj_family(symbol):
+    """The obj symbols that are `symbol` for a "use X on Y" step: itself, its
+    noted form / placeholder / stack images (certlink, placeholderlink,
+    countobj), and its dose or charge variants -- the objs whose display name
+    is the same once a trailing "(N)" is cut, where at least one of the two
+    carries the "(N)" (`Olive oil(4)` / `Olive oil(3)`, `Serum 207 (1)` ..
+    `(4)`). Two objs that merely share a plain display name ("Key") are not
+    one family; same_thing's display rule (at most four objs of that name)
+    still applies on top. NOT the content's next_obj_stage chain: it walks
+    into other objects (oliveoil4 -> sacred_oil4, mort_serum1 -> vial_empty)."""
+    content_index()
+    out = {symbol}
+    frontier = [symbol]
+    while frontier:
+        for linked in OBJ_LINKS.get(frontier.pop(), ()):
+            if linked not in out:
+                out.add(linked)
+                frontier.append(linked)
+    for member in list(out):
+        display = DISPLAY.get(("obj", member))
+        if not display:
+            continue
+        base = DOSE_SUFFIX.sub("", display)
+        if len(base) < 3:
+            continue
+        dosed = ["%s(%d)" % (base, n) for n in range(0, 11)] + ["%s (%d)" % (base, n) for n in range(0, 11)]
+        # a dosed member reaches the undosed name too (an uncharged
+        # `Amulet of glory` beside `Amulet of glory(4)`); two plain names never
+        for candidate in dosed + ([base] if display != base else []):
+            out.update(BY_DISPLAY.get(("obj", candidate), ()))
+    for member in list(out):
+        out.update(OBJ_LINKS.get(member, ()))
+    return out
+
+
 def content_index():
     """{symbol: [(relpath, line, trigger)]}, {symbol: category}, {debugproc: (relpath, line, body)}."""
     global _CONTENT_INDEX
@@ -1349,8 +1488,437 @@ def content_index():
                     CHILDREN.setdefault(symbol, []).append(child)
             for number, op in re.findall(r"^op([1-5])=(.+)$", body, re.M):
                 OPS.setdefault((kind, symbol), {})[int(number)] = op.strip().lower()
+            if kind == "obj":
+                # The noted form, the bank placeholder and the stack images
+                # of one object are that object (obj_family).
+                for linked in re.findall(r"^(?:certlink|placeholderlink|countobj\d+)=(\w+)", body, re.M):
+                    OBJ_LINKS.setdefault(symbol, set()).add(linked)
+                    OBJ_LINKS.setdefault(linked, set()).add(symbol)
+            if kind == "loc":
+                clip = [re.search(r"^%s=(\d+)" % field, body, re.M)
+                        for field in ("blockwalk", "width", "length", "active")]
+                LOC_CLIP[symbol] = (int(clip[0].group(1)) if clip[0] else 2,
+                                    int(clip[1].group(1)) if clip[1] else 1,
+                                    int(clip[2].group(1)) if clip[2] else 1,
+                                    int(clip[3].group(1)) == 1 if clip[3] else
+                                    re.search(r"^op[1-5]=", body, re.M) is not None)
     _CONTENT_INDEX = (triggers, categories, debugprocs)
     return _CONTENT_INDEX
+
+
+MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
+# A wall loc on a room's perimeter that is the way through it: its display
+# name, or an Open op (a closed door/gate shows Open).
+DOOR_NAME_RE = re.compile(r"\b(door|doors|gate|gates|portcullis|doorway)\b")
+CLIMB_NAME_RE = re.compile(r"\b(ladder|stairs|staircase|stairway|trapdoor|trap door|steps)\b")
+# Ops that never gate a walk (the sample tools' reach.py PASS_THROUGH_OPS): an open door's leaf and a crop.
+PASS_THROUGH_OPS = {"close", "pick"}
+# The zone-trigger tiles (a [zone]/[mapzone] timer that hurts a player standing on them: Regicide's
+# tripwires and pitfalls, the Underground Pass spear traps), shared with reach.py.
+ZONE_TRIGGERS_TSV = os.path.join(REPO_ROOT, "test", "quests", "orchestrator", "matthew-mbp-m4", "reports",
+                                 "sample_tools", "zone_triggers.tsv")
+
+
+def zone_triggers():
+    """[(timer, {loc symbols}, [(dx, dz)], {(zone x, zone z, level)}, source)] from ZONE_TRIGGERS_TSV."""
+    out = []
+    if not os.path.isfile(ZONE_TRIGGERS_TSV):
+        return out
+    with open(ZONE_TRIGGERS_TSV, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip() or line.startswith("#"):
+                continue
+            timer, locs, offsets, zones, source = line.rstrip("\n").split("\t")[:5]
+            boxes = set()
+            for zone in zones.split(","):
+                parts = [int(v) for v in zone.split("_")]
+                if len(parts) == 3:
+                    level, mx, mz = parts
+                    boxes.update((mx * 8 + a, mz * 8 + b, level) for a in range(8) for b in range(8))
+                else:
+                    level, mx, mz, lx, lz = parts
+                    boxes.add(((mx * 64 + lx) >> 3, (mz * 64 + lz) >> 3, level))
+            out.append((timer, set(locs.split(",")),
+                        [tuple(int(v) for v in o.split(":")) for o in offsets.split(",")], boxes, source))
+    return out
+
+
+class MapWalls:
+    """The map's walls, read the way the client builds its collision map
+    (OSRS CollisionMap.addWall / addLoc), from `maps/m<x>_<z>.jl2` (`level x
+    z: loc shape [rotation]`, square-local tiles) and `.jm2` (`f<flags>` per
+    tile: 1 blocked, 2 on level 1 = a bridge, which moves that column's locs
+    and blocks one level down). all.loc's `blockwalk` is the client's
+    clipType (default 2): a wall (shapes 0-3) or an object (9-21) blocks
+    unless it is 0, a ground decoration (22) only when it is 1 and the loc
+    is active (`active=1`, or ops when absent); wall decorations (4-8)
+    never -- the server's own stamp (torirs_server_scene.c, the switch on
+    loc->shape; angle 0 west, 1 north, 2 east, 3 south). Only what the
+    grader needs: wall edges and blocked tiles per level, the locs that make
+    each edge, which locs are doors (DOOR_NAME_RE / an Open op) and which are
+    climbs (CLIMB_NAME_RE / a Climb op) with the tiles around them. Locs
+    content adds or removes at run time are not seen."""
+
+    WEST, NORTH, EAST, SOUTH = 1, 2, 4, 8
+    # A loc with an op on a tile the map leaves walkable (a trap, a stepping stone, a log: blockwalk=0, or
+    # a ground decoration that does not block) and a zone-trigger tile stop the flood like a blocked
+    # tile: the walk must CLICK it (reach.py's NEEDS-OP; matthew-mbp-m4-b60-seam0). False is the old
+    # reading that walked over Regicide's traps, kept for the fixtures.
+    OP_LOCS_BLOCK = True
+    # enclosure() floods from a blocked start tile (a landing on furniture);
+    # False is the seam-1 reading (no room at all), kept for the fixtures.
+    START_ON_BLOCKED = True
+    STEP ={1: (-1, 0, 4), 2: (0, 1, 8), 4: (1, 0, 1), 8: (0, -1, 2)}  # side -> dx, dz, opposite side
+
+    def __init__(self, root=None):
+        self.root = root or MAPS_ROOT
+        self.loaded = set()
+        self.present = set()
+        self.walls = {}       # (x, z, level) -> side flags
+        self.edge_locs = {}   # (x, z, level, side) -> [(symbol, (x, z, level) of the loc)]
+        self.blocked = set()
+        self.climb_at = {}    # (x, z, level) -> [(symbol, origin)]: climbs whose footprint or ring holds it
+        self.climb_ring = {}  # (symbol, origin) -> [(x, z, footprint x, footprint z, side)]: the 4-way ring
+        self.locs_at = {}     # (x, z, level) -> [(symbol, origin)]: every loc on the tile (an object's footprint)
+        self.op_tiles = {}    # (x, z, level) -> (symbol, origin): a walkable tile an op loc or zone trigger holds
+        self._names = None
+        self._triggers = None
+
+    def names(self):
+        if self._names is None:
+            self._names = {}
+            path = os.path.join(os.path.dirname(self.root), "configs", "all.loc.compack")
+            if os.path.isfile(path):
+                with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                    for line in handle:
+                        key, _, value = line.strip().partition("=")
+                        if key.isdigit() and value:
+                            self._names[int(key)] = value
+        return self._names
+
+    @staticmethod
+    def is_door(symbol):
+        """A CLOSED door or gate: an Open op, or a door/gate name -- not an
+        open leaf (Close and no Open: it lies along the wall it swung to, and
+        the doorway beside it is open, so it never closes a room)."""
+        words = {op_word(name) for name in OPS.get(("loc", symbol), {}).values()}
+        if "close" in words and "open" not in words:
+            return False
+        display = DISPLAY.get(("loc", symbol), "")
+        if DOOR_NAME_RE.search(display) and not CLIMB_NAME_RE.search(display):
+            return True
+        return "open" in words and "trapdoor" not in symbol and "trap_door" not in symbol
+
+    @staticmethod
+    def is_climb(symbol):
+        if CLIMB_NAME_RE.search(DISPLAY.get(("loc", symbol), "")):
+            return True
+        return any(op_word(name) == "climb" or name.startswith("climb") for name in
+                   OPS.get(("loc", symbol), {}).values())
+
+    @staticmethod
+    def climb_ways(symbol):
+        """(goes up, goes down) for a climb loc, from its ops (`Climb-up`,
+        `Climb-down`; a bare `Climb` or none readable: both). A trapdoor
+        goes down."""
+        ops = [name for name in OPS.get(("loc", symbol), {}).values()]
+        up = any(re.search(r"\bup\b", name) for name in ops)
+        down = any(re.search(r"\bdown\b", name) for name in ops) or "trap" in symbol
+        if not up and not down:
+            return True, True
+        return up, down
+
+    @staticmethod
+    def is_op_loc(symbol, shape, blockwalk, active):
+        """Does a placement leave its tile walkable while carrying an op the walk must click?"""
+        if 4 <= shape <= 8:
+            return False
+        ops = list(OPS.get(("loc", symbol), {}).values())   # lowercased whole op names
+        if not ops or all(op in PASS_THROUGH_OPS for op in ops):
+            return False
+        if shape == 22:
+            return not (blockwalk == 1 and active)
+        return blockwalk == 0
+
+    def _add_wall(self, x, z, level, side, symbol, at):
+        dx, dz, opposite = self.STEP[side]
+        for key, flag in (((x, z, level), side), ((x + dx, z + dz, level), opposite)):
+            self.walls[key] = self.walls.get(key, 0) | flag
+            self.edge_locs.setdefault(key + (flag,), []).append((symbol, at))
+
+    def load(self, square_x, square_z):
+        if (square_x, square_z) in self.loaded:
+            return
+        self.loaded.add((square_x, square_z))
+        base = os.path.join(self.root, "m%d_%d" % (square_x, square_z))
+        if not os.path.isfile(base + ".jl2"):
+            return
+        content_index()
+        self.present.add((square_x, square_z))
+        origin_x, origin_z = square_x * 64, square_z * 64
+        bridges = set()
+        tile_flags = []
+        if os.path.isfile(base + ".jm2"):
+            with open(base + ".jm2", "r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
+            for match in re.finditer(r"^([0-3]) (\d+) (\d+):[^\n]*?\bf(\d+)", text, re.M):
+                level, x, z, flags = (int(v) for v in match.groups())
+                tile_flags.append((level, x, z, flags))
+                if level == 1 and flags & 2:
+                    bridges.add((x, z))
+        for level, x, z, flags in tile_flags:
+            if flags & 1:
+                real = level - 1 if (x, z) in bridges else level
+                if real >= 0:
+                    self.blocked.add((origin_x + x, origin_z + z, real))
+        with open(base + ".jl2", "r", encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+        names = self.names()
+        for match in re.finditer(r"^([0-3]) (\d+) (\d+): (\d+) (\d+)(?: (\d+))?", text, re.M):
+            level, x, z, loc, shape = (int(v) for v in match.groups()[:5])
+            rotation = int(match.group(6) or 0)
+            real = level - 1 if (x, z) in bridges else level
+            if real < 0:
+                continue
+            symbol = names.get(loc, str(loc))
+            blockwalk, width, length, active = LOC_CLIP.get(symbol, (2, 1, 1, False))
+            wx, wz = origin_x + x, origin_z + z
+            size = (length, width) if rotation in (1, 3) else (width, length)
+            if 9 <= shape <= 22:
+                for ox in range(size[0] if shape != 22 else 1):
+                    for oz in range(size[1] if shape != 22 else 1):
+                        self.locs_at.setdefault((wx + ox, wz + oz, real), []).append((symbol, (wx, wz, real)))
+            else:
+                self.locs_at.setdefault((wx, wz, real), []).append((symbol, (wx, wz, real)))
+            if self.OP_LOCS_BLOCK:
+                if self._triggers is None:
+                    self._triggers = zone_triggers()
+                for timer, symbols, offsets, boxes, source in self._triggers:
+                    if symbol in symbols:
+                        for dx, dz in offsets:
+                            if ((wx + dx) >> 3, (wz + dz) >> 3, level) in boxes:
+                                self.op_tiles.setdefault((wx + dx, wz + dz, real), (timer, (wx, wz, real)))
+                if self.is_op_loc(symbol, shape, blockwalk, active):
+                    for ox in range(size[0] if 9 <= shape <= 21 else 1):
+                        for oz in range(size[1] if 9 <= shape <= 21 else 1):
+                            self.op_tiles[(wx + ox, wz + oz, real)] = (symbol, (wx, wz, real))
+            if self.is_climb(symbol):
+                size = (length, width) if rotation in (1, 3) else (width, length)
+                key = (symbol, (wx, wz, real))
+                footprint = {(wx + ox, wz + oz) for ox in range(size[0]) for oz in range(size[1])}
+                ring = []
+                for fx, fz in sorted(footprint):
+                    for side, (dx, dz, _) in self.STEP.items():
+                        if (fx + dx, fz + dz) not in footprint:
+                            ring.append((fx + dx, fz + dz, fx, fz, side))
+                self.climb_ring[key] = ring
+                for tx, tz in footprint | {(r[0], r[1]) for r in ring}:
+                    self.climb_at.setdefault((tx, tz, real), []).append(key)
+            if shape <= 3:
+                if blockwalk == 0:
+                    continue
+                at = (wx, wz, real)
+                if shape == 0:
+                    self._add_wall(wx, wz, real, (self.WEST, self.NORTH, self.EAST, self.SOUTH)[rotation], symbol, at)
+                elif shape == 2:
+                    first = (self.WEST, self.NORTH, self.EAST, self.SOUTH)[rotation]
+                    second = (self.NORTH, self.EAST, self.SOUTH, self.WEST)[rotation]
+                    self._add_wall(wx, wz, real, first, symbol, at)
+                    self._add_wall(wx, wz, real, second, symbol, at)
+                # shapes 1 and 3 are corner pillars: they block only a
+                # diagonal step, which a 4-way flood never takes
+            elif 9 <= shape <= 21:
+                if blockwalk == 0:
+                    continue
+                if rotation in (1, 3):
+                    width, length = length, width
+                for ox in range(width):
+                    for oz in range(length):
+                        self.blocked.add((wx + ox, wz + oz, real))
+            elif shape == 22 and blockwalk == 1 and active:
+                self.blocked.add((wx, wz, real))
+
+    def _ready(self, x, z):
+        square = (x >> 6, z >> 6)
+        if square not in self.loaded:
+            # a wall on a neighbour's edge row also closes this square's tile
+            for sx in (square[0] - 1, square[0], square[0] + 1):
+                for sz in (square[1] - 1, square[1], square[1] + 1):
+                    self.load(sx, sz)
+        return square in self.present
+
+    def _flood(self, x, z, level, limit, perimeter, touched=None, through=None):
+        """Tiles a 4-way walk from (x, z) reaches on `level` without crossing
+        a wall or entering a blocked tile (except those in `through`); None
+        past `limit` tiles. The wall locs met on the way go into
+        `perimeter`, the blocked tiles it stops at into `touched`."""
+        seen = {(x, z)}
+        todo = [(x, z)]
+        while todo:
+            cx, cz = todo.pop()
+            for side, (dx, dz, opposite) in self.STEP.items():
+                nx, nz = cx + dx, cz + dz
+                if (nx, nz) in seen:
+                    continue
+                if self.walls.get((cx, cz, level), 0) & side or self.walls.get((nx, nz, level), 0) & opposite:
+                    for symbol, at in self.edge_locs.get((cx, cz, level, side), []):
+                        perimeter[(symbol, at)] = True
+                    continue
+                if not self._ready(nx, nz):
+                    continue
+                if ((nx, nz, level) in self.blocked or (nx, nz, level) in self.op_tiles) and \
+                        (through is None or (nx, nz, level) not in through):
+                    if touched is not None:
+                        touched[(nx, nz, level)] = True
+                    continue
+                seen.add((nx, nz))
+                if len(seen) > limit:
+                    return None
+                todo.append((nx, nz))
+        return seen
+
+    def enclosure(self, x, z, level, limit):
+        """The building the tile (x, z, level) is in, across its floors: a
+        4-way flood from it that stops at walls and blocked tiles, and that
+        follows every climb loc it reaches to the floor that climb leads to
+        (Climb-up one level up, Climb-down one down, from the tiles around
+        it). {floors {level: tiles}, tiles (the landing floor's), doors
+        [(symbol, tile)] (closed doors met on any floor), climbs [symbol],
+        to_dungeon (a climb DOWN from level 0: it leads to another map
+        frame), box (min x, max x, min z, max z over every floor)} when every
+        flood closes within `limit` tiles in all; None when one does not
+        (open ground, a courtyard bigger than a building, an upper floor
+        whose stairs come down outside) or the tile is not on a loaded map
+        square.
+
+        The tile itself may be blocked (a goto lands where it is told, on a
+        table, a barrel, a stair's footprint, a rock): the flood starts from
+        it anyway, since a player standing there steps off it to any side no
+        wall closes (twilightspromise's goto-enterHQ onto civitas_stairs_1x3,
+        atfirstlight's goto-makeEquipmentPile onto Atza's table). Before
+        matthew-mbp-m4-b56-grader2 a blocked landing was read as no room at
+        all."""
+        if not self._ready(x, z):
+            return None
+        if (x, z, level) in self.blocked and not self.START_ON_BLOCKED:
+            return None
+        floors = {}
+        perimeter = {}
+        touched = {}
+        climbs = set()
+        to_dungeon = False
+        down_from_ground = []
+        total = 0
+        # A blocked start: the whole footprint of the loc(s) the player stands
+        # in. A goto onto the middle of a 2x3 staircase steps off at its
+        # front, not into the stair's own blocked tiles (Ardougne castle's
+        # stairs at 2571,3295 read as a 1-tile "room" without this).
+        start = self.footprint(x, z, level)
+        todo = sorted(start)
+        while todo:
+            sx, sz, sl = todo.pop()
+            if (sx, sz) in floors.get(sl, ()):
+                continue
+            if not self._ready(sx, sz) or ((sx, sz, sl) in self.blocked and (sx, sz, sl) not in start):
+                continue
+            seen = self._flood(sx, sz, sl, limit - total, perimeter, touched, start)
+            if seen is None:
+                return None
+            floors.setdefault(sl, set()).update(seen)
+            total += len(seen)
+            for tx, tz in seen:
+                for key in self.climb_at.get((tx, tz, sl), ()):
+                    if key in climbs:
+                        continue
+                    climbs.add(key)
+                    up, down = self.climb_ways(key[0])
+                    if down and sl == 0:
+                        to_dungeon = True
+                        down_from_ground.append(key)
+                    for other in ([sl + 1] if up and sl < 3 else []) + ([sl - 1] if down and sl > 0 else []):
+                        # the tiles beside the climb on the floor it leads to,
+                        # not through a wall from it (a ring tile outside the
+                        # upstairs wall is not where the climb comes out)
+                        todo.extend((rx, rz, other) for rx, rz, fx, fz, side in self.climb_ring[key]
+                                    if not self.walls.get((fx, fz, other), 0) & side)
+        if all((tx, tz, level) in start for tx, tz in floors.get(level, ())) and (x, z, level) in self.blocked:
+            # the player stands in a blocked footprint no walkable tile of this
+            # floor touches (water, a barrier, the museum barge's gangway at
+            # 3362,3447): no room to read, not a 1-tile one
+            return None
+        tiles = [t for tiles in floors.values() for t in tiles]
+        # Every loc with an op the room touches -- a wall in its perimeter, a
+        # blocked tile it stops at, a loc inside it: one of these may be a way
+        # in or out that is not a door (a stepping stone, a squeeze gap, a
+        # portal, a counter flap with an op).
+        ops = set()
+        found = list(perimeter) + [loc for key in touched for loc in self.locs_at.get(key, ())] + \
+            [loc for sl, seen in floors.items() for tx, tz in seen for loc in self.locs_at.get((tx, tz, sl), ())]
+        for symbol, at in found:
+            # an op, or a script trigger (a use-on: Spirits of the Elid's
+            # desert_water_cave_root has no op, only [oplocu])
+            if OPS.get(("loc", symbol)) or symbol_triggers(symbol):
+                ops.add((symbol, at))
+        return {
+            "floors": floors, "tiles": floors.get(level) or {(x, z)},
+            "doors": sorted({(symbol, at) for symbol, at in perimeter if self.is_door(symbol)}),
+            "ops": sorted(ops), "down_from_ground": sorted(down_from_ground),
+            "climbs": sorted({key[0] for key in climbs}), "to_dungeon": to_dungeon,
+            "box": (min(t[0] for t in tiles), max(t[0] for t in tiles),
+                    min(t[1] for t in tiles), max(t[1] for t in tiles)),
+        }
+
+    def steps_off(self, x, z, level):
+        """The 4-way neighbours a player on (x, z, level) steps to without
+        crossing a wall (blocked tiles included: the caller decides)."""
+        out = []
+        for side, (dx, dz, opposite) in self.STEP.items():
+            if self.walls.get((x, z, level), 0) & side or self.walls.get((x + dx, z + dz, level), 0) & opposite:
+                continue
+            out.append((x + dx, z + dz))
+        return out
+
+    def in_room(self, room, x, z, level):
+        """Is a player on (x, z, level) inside `room` (an enclosure())? On a
+        tile the flood reached, or on a BLOCKED tile (a loc the flood does
+        not enter: a table, a barrel, a diagonal wall) that steps off into
+        it: a player teleported onto the furniture is in the room, and one
+        on a diagonal wall tile at its corner may step in."""
+        tiles = room["floors"].get(level, ())
+        if (x, z) in tiles:
+            return True
+        if (x, z, level) not in self.blocked:
+            return False
+        self._ready(x, z)
+        return any((fx, fz) in tiles or any(tile in tiles for tile in self.steps_off(fx, fz, fl))
+                   for fx, fz, fl in self.footprint(x, z, level))
+
+    def footprint(self, x, z, level):
+        """{(x, z, level)}: the tile, and when it is blocked every blocked
+        tile within 4 that carries a loc it carries (the rest of a table's or
+        a staircase's footprint)."""
+        start = {(x, z, level)}
+        if (x, z, level) not in self.blocked:
+            return start
+        mine = set(self.locs_at.get((x, z, level), ()))
+        if not mine:
+            return start
+        for dx in range(-4, 5):
+            for dz in range(-4, 5):
+                tile = (x + dx, z + dz, level)
+                if tile in self.blocked and mine & set(self.locs_at.get(tile, ())):
+                    start.add(tile)
+        return start
+
+
+_MAP_WALLS = None
+
+
+def map_walls():
+    global _MAP_WALLS
+    if _MAP_WALLS is None:
+        _MAP_WALLS = MapWalls()
+    return _MAP_WALLS
 
 
 def symbol_triggers(symbol):
@@ -1578,6 +2146,9 @@ class Test:
             first = self.code.count("\n", 0, match.start()) + 1
             last = min(self.code.count("\n", 0, close) + 1, first + 30)
             self.row_spans.append((first, last, match.group(1)))
+        self.local_literal = local_literal
+        self.loop_literal = self._loop_literals()
+        self.use_calls = self._use_calls()
         for index, (number, _) in enumerate(self.stand_on_optins):
             for above in range(number, max(0, number - STAND_ON_MARKER_SPAN - 1), -1):
                 match = GUIDE_GAP_RE.match(self.raw_lines[above - 1])
@@ -1593,6 +2164,73 @@ class Test:
             if match:
                 self.gotos.append((number,) + tuple(int(v) for v in match.groups()))
 
+
+    def _bound(self, argtext):
+        """The strings an argument names: its literals, and every literal a
+        local or table field it mentions was bound to."""
+        found = set(re.findall(r"\"([^\"]*)\"", argtext))
+        for ident in re.findall(r"\b([A-Za-z_]\w*)\b", re.sub(r"\"[^\"]*\"", "", argtext)):
+            found.update(text for _, text in self.local_literal.get(ident, ()))
+            found.update(self.loop_literal.get(ident, ()))
+        return found
+
+    def _loop_literals(self):
+        """{loop variable: {literal}} for `for _, piece in ipairs({ "a", "b" })`
+        and `for _, piece in ipairs(PIECES)` over a local table of literals:
+        what a use_on(piece, furnace) in the loop body can use (Legends'
+        crystal pieces on the furnace). Only _use_calls reads it."""
+        out = {}
+        for names, table in re.findall(r"\bfor\s+([\w\s,]+?)\s+in\s+i?pairs\s*\(\s*\{([^}]*)\}", self.code):
+            for var in re.split(r"\s*,\s*", names.strip()):
+                out.setdefault(var, set()).update(re.findall(r"\"([^\"]*)\"", table))
+        for names, table in re.findall(r"\bfor\s+([\w\s,]+?)\s+in\s+i?pairs\s*\(\s*(\w+)\s*\)", self.code):
+            for var in re.split(r"\s*,\s*", names.strip()):
+                out.setdefault(var, set()).update(text for _, text in self.local_literal.get(table, ()))
+        return out
+
+    def _use_calls(self):
+        """[{line, items, target, row}] for every `use_on(item, target)` call
+        -- `t.player.use_on("x", target)`, a local alias `use_on(...)`, and
+        `t.exec("row", t.player.use_on, "x", target)`: `items` the strings
+        the item argument can be (a literal, or what its local was bound
+        to), `target` the ones the target argument can be, `row` the ledger
+        row the call writes (row_name_at), or None."""
+        calls = []
+        code = self.code
+        for match in re.finditer(r"\buse_on\b\s*([(,])", code):
+            start = code.rfind("\n", 0, match.start()) + 1
+            if code[start:match.start()].count('"') % 2:
+                continue  # inside a string: a message naming use_on
+            if match.group(1) == "(":
+                open_index = match.end() - 1
+                args = split_top(code[open_index + 1:matching_close(code, open_index)])
+            else:
+                # the call's arguments follow it inside the enclosing t.exec(...)
+                depth = 0
+                index = match.start() - 1
+                while index >= 0:
+                    if code[index] in ")]}":
+                        depth += 1
+                    elif code[index] in "([{":
+                        if depth == 0:
+                            break
+                        depth -= 1
+                    index -= 1
+                if index < 0 or code[index] != "(":
+                    continue
+                args = split_top(code[match.end():matching_close(code, index)])
+            if len(args) < 2:
+                continue
+            line = code.count("\n", 0, match.start()) + 1
+            row = self.row_name_at(line)
+            # `t.exec("usePotionOnOgre" .. i, ...)`: the literal is only the
+            # rows' prefix (usePotionOnOgre1..6)
+            prefix = row is not None and re.search(
+                r"\bt\.(?:exec|check|expect)\s*\(\s*\"%s\"\s*\.\." % re.escape(row), code) is not None
+            calls.append({"line": line, "items": sorted(self._bound(args[0])),
+                          "target": self._bound(args[1]), "row": row, "row_prefix": prefix,
+                          "item_arg": args[0].strip()})
+        return calls
 
     def row_name_at(self, number):
         """The literal name of the ledger row line `number` writes, or None
@@ -1895,6 +2533,7 @@ def stand_ons(rows):
 def ledger_path(test_id, quest_dir):
     candidates = [
         os.path.join(REPO_ROOT, "build", "quest_gate", test_id, "ledger.tsv"),
+        os.path.join(CONTENT_ROOT, "selftest", "quests", quest_dir, "play-%s" % test_id, "ledger.tsv"),
         os.path.join(CONTENT_ROOT, "selftest", "quests", quest_dir, "play", "ledger.tsv"),
         os.path.join(CONTENT_ROOT, "selftest", "quest_tests", test_id, "ledger.tsv"),
     ]
@@ -1912,6 +2551,31 @@ def queue_row(test_id):
             if row["test_id"] == test_id:
                 return row
     return None
+
+
+VERIFY_ONLY = "VERIFY ONLY"
+
+
+def joint_verify(row, sibling_row):
+    """Is a sibling that is not green yet being verified in the SAME round as
+    this test? Two siblings reopened together (misc and misc_astrid, batch
+    matthew-mbp-m4-b59) each name the other in a BRANCH-IN marker, so neither
+    can wait for the other's row to turn green first. The orchestrator marks
+    both rows `VERIFY ONLY` for one batch (queue.py set --owner <batch>
+    --failure "VERIFY ONLY ..."); such a sibling may vouch while this row is
+    itself VERIFY ONLY or already green in that batch. The sibling still has
+    to DRIVE the step in its own grading, and a sibling that is sent back
+    loses the note, so this test goes RED with it."""
+    if sibling_row.get("status") != "todo":
+        return False
+    if not (sibling_row.get("last_failure") or "").startswith(VERIFY_ONLY):
+        return False
+    owner = sibling_row.get("owner") or ""
+    if not owner or (row.get("owner") or "") != owner:
+        return False
+    if row.get("status") == "green":
+        return True
+    return row.get("status") == "todo" and (row.get("last_failure") or "").startswith(VERIFY_ONLY)
 
 
 def guide_path(row):
@@ -1998,6 +2662,9 @@ class Grader:
         # step name -> why each mention that named its target did not count
         # (another step's row, the wrong op): the reason an UNMATCHED shows.
         self.refusals = {}
+        # step name -> why no use_on of the guide's item drove a "use X on Y"
+        # step (use_item_driven): the UNMATCHED reason, naming both items.
+        self.item_refusals = {}
         self.row = queue_row(test_id)
         assert self.row, "test_id %r is not in %s" % (test_id, QUEUE_PATH)
         self.quest_dir = self.row["quest_dir"]
@@ -2099,7 +2766,7 @@ class Grader:
             command = parts[0]
             args = parts[1:]
             effect = {"line": number, "text": text, "items": [], "vars": [], "teleport": False}
-            if command == "give" and args:
+            if command in GIVE_CHEATS and args:
                 if args[0] in bring:
                     # A bring-along is fine to give -- unless the ladder has a
                     # step whose whole job is picking it up (Fishing Contest's
@@ -2145,7 +2812,7 @@ class Grader:
                 found.update(self.item_words(item))
             for var in effect["vars"]:
                 found.update(words(var.replace("_", " ")))
-            if command in debugprocs:
+            if command in debugprocs and command not in GIVE_CHEATS:
                 found.update(words(command.replace("_", " ")))
             found -= set(words(self.quest_dir.replace("_", " ") + " " + self.test_id.replace("_", " ")))
             found -= {"quest", "test", "give", "cheat"}
@@ -2336,8 +3003,214 @@ class Grader:
                 return first
         return None
 
+    @staticmethod
+    def _tokens(text):
+        """Lowercase words AND numbers of `text`, stopwords dropped, stemmed
+        (words() drops "207", which is what tells Serum 207 from 208)."""
+        out = set()
+        for token in re.findall(r"[a-z0-9]+", (text or "").lower()):
+            if token in STOPWORDS or (len(token) < 3 and not token.isdigit()):
+                continue
+            out.add(token if token.isdigit() else stem(token))
+        return out
+
+    def use_clauses(self, step):
+        """[(item words, onto words)] of every "use <X> on|with|in <Y>" clause
+        in the step's text, a pronoun X ("then use it on the pipe") standing
+        for the clause before's Y."""
+        out = []
+        for match in USE_CLAUSE.finditer(step.text or ""):
+            item, onto = match.group(1).strip(), match.group(2).strip()
+            if re.fullmatch(r"(?:it|them|this|these|that|those)", item, re.I) and out:
+                out.append((out[-1][1], onto))
+                continue
+            out.append((item, onto))
+        return out
+
+    def use_item_wanted(self, step):
+        """For a step that USES an item on its npc/loc target (the guide's
+        "Use <X> on|with|in <target>"): (the guide symbols X may be, a label);
+        None for any other step, or when the guide does not say which item.
+
+        A use step: an npc/loc target, and the text leads with "Use", or the
+        step is named use<X>On<Y>. Not one whose NAME leads with another verb
+        that a later clause of its text does ("Use the filled druid pouch on
+        a ghast to make it attackable and kill it" is `killGhasts`: the use
+        readies the step, the kill is it).
+
+        The clause is the one whose <Y> names the target (by display name):
+        "Use a tinderbox on the strange object then use it on the nearby
+        pipe" is the strange object, on the pipe. A step whose clauses all
+        aim elsewhere ("Use the jail key on the south door and talk to
+        Velrak", an npc step) is no use step unless it is named
+        use<X>On<Y>, when every clause counts. X is the
+        requirement or `addIcon(ItemID.X)` item the clause's words name best
+        -- by the requirement's name or the display name of any id it accepts
+        -- ties kept ("Use the serum 208 on Razmire": Serum 208, not a Serum
+        207 listed beside it); else the requirement the step highlights in
+        the inventory, else its icon. A requirement the step only carries (a
+        hammer beside the nails) is not named and not demanded. Each
+        requirement brings every id it accepts: the ctor's, `addAlternates`,
+        ItemCollections."""
+        if not any(kind in ("npc", "loc") for kind, _ in step.targets):
+            return None
+        clauses = self.use_clauses(step)
+        if not clauses:
+            return None
+        leading = self.step_verb(step) == "use"
+        named_use = re.match(r"^use\w*?(?:On|With|In|Onto|Into)(?:[A-Z0-9]|$)", step.name or "") is not None
+        if not (leading or named_use):
+            return None
+        name_verb = re.match(r"([a-z]+)", step.name or "")
+        name_verb = STEP_VERB_ALIAS.get(name_verb.group(1), name_verb.group(1)) if name_verb else ""
+        if name_verb not in ("use", "") and name_verb in self.clause_verbs(step):
+            return None
+        target_words = set()
+        for kind, symbol in step.targets:
+            target_words |= self._tokens(DISPLAY.get((kind, symbol), "")) | self._tokens(symbol.replace("_", " "))
+        aimed = [item for item, onto in clauses if self._tokens(onto) & target_words]
+        if not aimed and not named_use:
+            # "Use the jail key on the south door and talk to Velrak": the use
+            # is on something else; the step's target is the talk's
+            return None
+        wanted_tokens = set()
+        for item in aimed or [item for item, _ in clauses]:
+            wanted_tokens |= self._tokens(item)
+        pool = []  # (label, [symbols], words)
+        for var in dict.fromkeys(step.req_vars):
+            item = self.guide.items.get(var) or {}
+            symbols = list(dict.fromkeys(item.get("alts") or item.get("ids") or []))
+            found = self._tokens(item.get("name", ""))
+            for symbol in symbols:
+                found |= self._tokens(DISPLAY.get(("obj", symbol), ""))
+            pool.append((item.get("name") or var, symbols, found, var))
+        for symbol in dict.fromkeys(step.icons):
+            display = DISPLAY.get(("obj", symbol), "")
+            pool.append((display or symbol, [symbol], self._tokens(display), None))
+        picked = []
+        if wanted_tokens:
+            scored = [(len(found & wanted_tokens), entry) for entry in pool
+                      for found in [entry[2]] if found & wanted_tokens and entry[1]]
+            if scored:
+                best = max(score for score, _ in scored)
+                picked = [entry for score, entry in scored if score == best]
+        if not picked:
+            picked = [entry for entry in pool if entry[3] and entry[1] and any(
+                raw in self.guide.highlighted or base in self.guide.highlighted
+                for base, raw in zip(step.req_vars, step.req_raw) if base == entry[3])]
+        if not picked:
+            picked = [entry for entry in pool if entry[3] is None and entry[1]]
+        symbols = []
+        for _, entry_symbols, _, _ in picked:
+            symbols.extend(s for s in entry_symbols if s not in symbols)
+        if not symbols:
+            return None
+        labels = {}
+        for label, _, _, _ in picked:
+            labels.setdefault(label.lower(), label)
+        return symbols, " / ".join(labels.values())
+
+    def use_item_matches(self, symbols, used):
+        """Is obj string `used` one of the guide `symbols`' family (obj_family:
+        alternates as listed, dose/charge variants, noted forms)? A guide id
+        rev 239 has no obj of is held to same_thing's loose name rule."""
+        if not used or not re.match(r"^[a-z0-9_]+$", used):
+            return False
+        used_family = obj_family(used)
+        for symbol in symbols:
+            if symbol == used or symbol in used_family or used in obj_family(symbol):
+                return True
+            # same display name, at most four objs of it (same_thing):
+            # viking_airtight_vase_with_lid_water / _frozen, "Sealed vase"
+            if same_thing("obj", symbol, used, loose=("obj", symbol) not in DISPLAY):
+                return True
+        return False
+
+    @staticmethod
+    def lost_items(detail):
+        """The objs a row's `[backpack: ... lost x 1->0, y 2->1]` says left the pack."""
+        out = []
+        for chunk in LOST_RE.findall(detail or ""):
+            out.extend(re.findall(r"\b([a-z0-9_]+) \d+->\d+", chunk))
+        return out
+
+    def use_item_driven(self, step, wanted):
+        """DRIVEN for a "use X on Y" step only on a use_on of X's family on
+        the step's target: the test's item argument names it, or -- an item
+        the test passes through a variable it never bound -- the ledger row
+        the call writes says X left the pack. A use_on of another item on
+        the target is refused, naming both (item_refusals); so is a call
+        whose row never PASSed. A row named after the step with no use_on
+        in it counts when its backpack diff lost X (the content took it by
+        another op)."""
+        symbols, label = wanted
+        refused = self.refusals.setdefault(step.name, [])
+        names = [step.name] + [alias for alias, target in self.guide.step_alias.items()
+                               if self.guide.resolve(alias) == step.name]
+        targets = ", ".join(symbol for _, symbol in step.targets[:2])
+        wants = "%s (%s)" % (label, ", ".join(symbols[:4]) + (", ..." if len(symbols) > 4 else ""))
+        seen = []
+        candidates = []
+        for call in self.test.use_calls:
+            line, row_name = call["line"], call["row"]
+            named_row = bool(row_name) and any(self.row_names_step(row_name, name) for name in names)
+            on_target = any(same_thing(kind, symbol, text) or shown_by(kind, symbol, text)
+                            for text in call["target"] for kind, symbol in step.targets)
+            if not (on_target or named_row):
+                continue
+            rows = [r for r in self.rows if row_name and
+                    (r["step"].startswith(row_name) if call["row_prefix"] else r["step"] == row_name)]
+            if call["row_prefix"] and any(len(norm(name)) > len(norm(row_name)) and
+                                          norm(name).startswith(norm(row_name)) for name in names):
+                # `"usePotionOnOgre" .. i` for usePotionOnOgre3: its own row,
+                # not the loop's first
+                rows = [r for r in rows if norm(r["step"]) in {norm(name) for name in names}]
+            passed = [r for r in rows if r["verdict"] == "PASS"]
+            lost = [item for r in passed for item in self.lost_items(r["detail"])]
+            where = "line %d" % line + (" (ledger row %s %r%s)" % (
+                passed[0]["index"], passed[0]["step"], ", lost " + " ".join(lost) if lost else "") if passed else "")
+            if row_name and not passed:
+                # the call writes a named row and the ledger has no PASS of it:
+                # the run never got there (Watchtower stops BLOCKED before
+                # its shamans), or the use failed
+                refused.append("line %d writes row %r%s, which %s" % (
+                    line, row_name, "..." if call["row_prefix"] else "",
+                    "never PASSed" if rows else "the ledger never reached"))
+                seen.append("line %d (row %r%s) never ran" % (line, row_name, "..." if call["row_prefix"] else ""))
+                continue
+            used = call["items"] or lost
+            hit = next((item for item in used if self.use_item_matches(symbols, item)), None)
+            if hit is None:
+                seen.append("%s uses %s" % (where, " / ".join(used) if used else
+                                              "%s (unbound, and no backpack diff)" % call["item_arg"]))
+                continue
+            why = self.line_refused(step, line)
+            if why:
+                refused.append(why)
+                continue
+            candidates.append((not named_row, line in self.line_credits, line, hit, where))
+        if candidates:
+            _, _, line, hit, where = min(candidates)
+            self.line_credits.setdefault(line, step.name)
+            return "%s uses %r on the target, the guide's %s" % (where, hit, label)
+        for row in self.action_rows:
+            if not any(self.row_names_step(row["step"], name) for name in names):
+                continue
+            hit = next((item for item in self.lost_items(row["detail"])
+                        if self.use_item_matches(symbols, item)), None)
+            if hit and not self.claimed_by_other(row["step"], step):
+                return "ledger row %s %r lost %r, the guide's %s" % (row["index"], row["step"], hit, label)
+        self.item_refusals[step.name] = "the guide's step uses %s on %s; %s" % (
+            wants, targets, "; ".join(seen[:3]) if seen else "no use_on of it names the target")
+        return None
+
     def driven(self, step):
         self.refusals.pop(step.name, None)
+        self.item_refusals.pop(step.name, None)
+        if USE_ITEM_RULE and self.pass_rows:
+            wanted = self.use_item_wanted(step)
+            if wanted:
+                return self.use_item_driven(step, wanted)
         conflicted = []
         # The author may name the row after the panel's puzzle wrapper
         # (`pwMsHynnTerprett` for msHynnDialogQuiz).
@@ -2613,7 +3486,7 @@ class Grader:
             if guide_path(row) != guide_path(self.row):
                 return False, "sibling %s is graded against another guide (%s)" % (
                     sibling, os.path.basename(guide_path(row) or "") or "none")
-            if row.get("status") != "green":
+            if row.get("status") != "green" and not joint_verify(self.row, row):
                 return False, "sibling %s is %s, not green" % (sibling, row.get("status"))
             path = os.path.join(REPO_ROOT, "test", "quests", sibling + ".lua")
             if not os.path.isfile(path) or not git_tracked(path):
@@ -3049,7 +3922,7 @@ class Grader:
         given = set()
         for _, text in self.test.cheats:
             parts = text[2:].split()
-            if len(parts) > 1 and parts[0] == "give":
+            if len(parts) > 1 and parts[0] in GIVE_CHEATS:
                 given.add(parts[1])
         items = [s for k, s in step.targets if k == "obj"]
         if items and set(items) <= bring:
@@ -3152,6 +4025,8 @@ class Grader:
                 return klass, reason
         if self.is_travel(step):
             return "TRAVEL", "travel, merged into the step it leads to"
+        if self.item_refusals.get(step.name):
+            return "UNMATCHED", "no use_on of the step's item drives it: %s" % self.item_refusals[step.name]
         refused = self.refusals.get(step.name)
         if refused:
             return "UNMATCHED", "no row of its own drives it; the lines naming its target do not count: %s" % (
@@ -3202,6 +4077,7 @@ class Grader:
             expanded.extend(groups)
         steps = [group[0] for group in expanded]
         members = {group[0].name: group for group in expanded}
+        self._ladder_leaves = [leaf for group in expanded for leaf in group]  # enclosure_entries charges these
         driven = {}
         driven_symbols = set()
         self.loc_uses = {}
@@ -3281,6 +4157,19 @@ class Grader:
                 "point": list(leaf.point) if leaf.point else None,
                 "class": "CHEAT", "reason": "not in the ladder (a ConditionalStep state): %s" % crossed,
                 "guide_line": leaf.line, "alt_group": None,
+            })
+        # A goto past a door or into a sealed pocket that no guide step can
+        # be charged with (Grader._charge_name) is a step of its own.
+        for name, hops in sorted(self.route_hops().items()):
+            if not name.startswith(self.UNCHARGED):
+                continue
+            reason = hops[0][1] if len(hops) == 1 else "%s (and %d more: ledger row%s %s)" % (
+                hops[0][1], len(hops) - 1, "" if len(hops) == 2 else "s",
+                ", ".join("%s %r" % hop[0] for hop in hops[1:]))
+            results.append({
+                "step": name, "type": "goto", "stage": None, "text": "", "targets": [], "point": None,
+                "class": "CHEAT", "reason": "no guide step to charge: %s" % reason,
+                "guide_line": None, "alt_group": None,
             })
         self._stage_narration(results)
         self._alternatives(results)
@@ -3737,7 +4626,8 @@ class Grader:
                         before[0], before[1], before[2], start, from_row["index"], from_row["step"],
                         word, leaf.name, ",".join(locs), composite, " ".join(condition.split())[:60],
                         leaf.name, leaf.line)))
-        for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries()):
+        for found in (self.route_entries(), self.door_entries(), self.room_exits(), self.frame_entries(),
+                      self.enclosure_entries(), self.enclosure_exits(), self.sealed_entries()):
             for name, items in found.items():
                 have = {key for key, _ in self._route_hops.get(name, [])}
                 merged = self._route_hops.setdefault(name, [])
@@ -4205,6 +5095,405 @@ class Grader:
                         word, door.name, ",".join(locs), end_zone, door.name, composite,
                         self.guide.steps[self.guide.resolve(composite)].line or 0)))
         return self._frame_entries
+
+    ENCLOSURE_MAX_TILES = 400
+    ENCLOSURE_BOX_SLACK = 2
+
+    def _hop_step(self, position, until, room):
+        """The ladder leaf a goto at rows[position] serves: the one its own row
+        is named after (the longest such name: goto-talkToPhileasAgain is
+        talkToPhileasAgain's, not talkToPhileas's), else the first PASS row
+        before `until` named after a leaf whose WorldPoint is in `room`'s box
+        on its level. None when neither says."""
+        leaves = getattr(self, "_ladder_leaves", None) or []
+        row = self.rows[position]
+        named = [leaf for leaf in leaves if self.row_names_step(row["step"], leaf.name)]
+        if named:
+            return max(named, key=lambda leaf: len(leaf.name))
+        slack = self.ENCLOSURE_BOX_SLACK
+        box = room["box"]
+        for later in self.rows[position + 1:until]:
+            if later.get("verdict") != "PASS":
+                continue
+            named = [leaf for leaf in leaves if self.row_names_step(later["step"], leaf.name)]
+            if not named:
+                continue
+            leaf = max(named, key=lambda leaf: len(leaf.name))
+            point = leaf.point
+            if point is not None and box[0] - slack <= point[0] <= box[1] + slack and \
+                    box[2] - slack <= point[1] <= box[3] + slack and point[2] == room["level"]:
+                return leaf
+            return None
+        return None
+
+    DOOR_OPEN_TICKS = 500  # doors.rs2/doubledoors.rs2 loc_add(..., 500): an opened door shuts after 500 ticks
+
+    def _door_opened_before(self, position, doors):
+        """Did a PASS row before rows[position] press one of `doors` (the copy
+        at its tile, _pressed_between) at most DOOR_OPEN_TICKS ticks earlier
+        (the ledger's per-row `ticks`, summed)? The door may still stand open:
+        a goto through an open doorway is a walk."""
+        elapsed = 0
+        for row in reversed(self.rows[:position]):
+            if elapsed > self.DOOR_OPEN_TICKS:
+                return False
+            if row.get("verdict") == "PASS" and any(
+                    self._pressed_between([row], [symbol], at) for symbol, at in doors):
+                return True
+            try:
+                elapsed += int(row.get("ticks") or 0)
+            except ValueError:
+                pass
+        return False
+
+    def enclosure_entries(self):
+        """{ladder step name: [((row index, row step), reason)]}: a goto that
+        lands in a ROOM -- a tile the map's walls close in (MapWalls: a 4-way
+        flood from the landing stops within ENCLOSURE_MAX_TILES) with a door
+        loc in its perimeter -- from a departure outside it, with no PASS row
+        pressing that door in the DOOR_OPEN_TICKS before. It went through the wall
+        or past the closed door. Charged to the step the goto serves
+        (_hop_step). door_entries needs the guide to name the door (an
+        ObjectStep a ConditionalStep defaults to); a house the guide only
+        walks into has no such step. Tale of the Righteous (b56 sampler,
+        8f3c5b544 reverted): returnToPhileasTent (stage 15 -> 16, "return to
+        Phileas", an arrival) was row 93's goto_tile 1542,3570,0 from Shiro's
+        room 1486,3634,1, and goto-talkToPhileasAgain landed there from the
+        prison 1551,10211,0 -- both inside Phileas's house, past
+        wallkit_shayzien_door01_l_reverse at 1540,3570 (maps/m24_55.jl2), and
+        the grade read FULL 30/30.
+
+        The flood follows the room's own climbs to the floors they lead to
+        (MapWalls.enclosure): Sanfew's upstairs room is closed only if the
+        stairs come down into a closed ground floor; a plain stair from an
+        open doorway is travel. Outside means: a tile no floor's flood
+        reached, and on another level of the same map frame also outside
+        the building's box (+ENCLOSURE_BOX_SLACK: another floor of the same
+        building not reached through the room's climbs is the climb rules'
+        business); or another map frame. Not judged: a landing on open
+        ground or in an area bigger than a building, a building with a climb
+        DOWN from level 0 (a dungeon below may come out anywhere), a room
+        with no door (sealed_entries' business), a hop with a press, walk, use or
+        cast between it and an unstamped start, and a hop within
+        DOOR_OPEN_TICKS of a press of the door (it may still stand open).
+        Locs content adds or removes at run time are not seen."""
+        if getattr(self, "_enclosure_entries", None) is not None:
+            return self._enclosure_entries
+        self._enclosure_entries = {}
+        if not self.rows:
+            return self._enclosure_entries
+        track = self.player_track()
+        walls = None
+        slack = self.ENCLOSURE_BOX_SLACK
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue  # the run's first reading, and no departure stamp: where it left from is not known
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if walls is None:
+                walls = map_walls()
+            room, via = self._landing_room(walls, track, i)
+            if room is None or not room["doors"]:
+                continue
+            room["level"] = point[2]
+            box = room["box"]
+            if room["to_dungeon"]:
+                continue  # a climb down from it leads to another frame, which may come out anywhere
+            other_frame = abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200
+            if other_frame:
+                where = "another map frame"
+            elif walls.in_room(room, before[0], before[1], before[2]):
+                continue  # a hop inside the building (any floor its climbs reach)
+            elif before[2] == point[2]:
+                where = "outside it on the same level"
+            else:
+                if box[0] - slack <= before[0] <= box[1] + slack and box[2] - slack <= before[1] <= box[3] + slack:
+                    continue  # another floor of the same building, not reached through this room's climbs
+                where = "level %d, outside the building's footprint" % before[2]
+            if self._door_opened_before(position, room["doors"]):
+                continue
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            doors = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["doors"][:3])
+            name = self._charge_name(position, until, room, "past " + room["doors"][0][0])
+            if name is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._enclosure_entries.setdefault(name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r lands at %d,%d,%d%s in a room the map walls in (%d tiles%s, x %d-%d z %d-%d, "
+                "door %s: maps/m%d_%d.jl2) from %d,%d,%d (%s, row %s %r), with no press of that door in the "
+                "%d ticks before: it went past the closed door (enclosure_entries)" % (
+                    row["index"], row["step"], point[0], point[1], point[2], self._via_text(via),
+                    len(room["tiles"]),
+                    "" if len(room["floors"]) == 1 else " on this floor, levels %s by %s" % (
+                        ",".join(str(l) for l in sorted(room["floors"])), ",".join(room["climbs"][:2])),
+                    box[0], box[1], box[2], box[3], doors, point[0] >> 6, point[1] >> 6,
+                    before[0], before[1], before[2], where, from_row["index"], from_row["step"],
+                    self.DOOR_OPEN_TICKS)))
+        return self._enclosure_entries
+
+    # A goto no ladder step can be charged with is reported as a step of its
+    # own (grade() adds it, CHEAT), named "(goto past <loc>)".
+    UNCHARGED = "(goto "
+    # enclosure_entries charges a goto it cannot tie to a guide step to the
+    # next guide step the run does, else to an UNCHARGED step of its own;
+    # False is the seam-1 reading (not charged at all), kept for the fixtures.
+    ENCLOSURE_CHARGE_ANY = True
+    ENCLOSURE_NEXT_READING_TILES = 4
+
+    def _charge_name(self, position, until, room, what):
+        """The step name a goto at rows[position] is charged to: _hop_step's
+        leaf, else (ENCLOSURE_CHARGE_ANY) the first PASS row before `until`
+        named after a ladder leaf, else "(goto <what>)". Wanted!'s `mage`
+        and `pos2.goto` rows name no guide step, and the steps after them
+        are the test's own (`mage.talk`); twilightspromise's
+        `goto-enterHQ` names none either (there is no enterHQ step) and its
+        next guide row is goUpHQ, whose stairs are outside the side room it
+        landed in. Before matthew-mbp-m4-b56-grader2 all three went
+        uncharged."""
+        leaves = getattr(self, "_ladder_leaves", None) or []
+        if room is not None:
+            leaf = self._hop_step(position, until, room)
+        else:
+            leaf = self._row_leaf(self.rows[position]["step"], leaves)
+        if leaf is not None:
+            return leaf.name
+        if not self.ENCLOSURE_CHARGE_ANY:
+            return None
+        for row in [self.rows[position]] + [r for r in self.rows[position + 1:until] if r.get("verdict") == "PASS"]:
+            named = self._row_leaf(row["step"], leaves)
+            if named is not None:
+                return named.name
+        return self.UNCHARGED + what + ")"
+
+    def _row_leaf(self, row_step, leaves):
+        """The leaf a row is named after: the exact name, else the longest
+        name the row's name starts with, else the longest row_names_step
+        match (a row `goUpHQ` is goUpHQ's, not goUpHQ2's)."""
+        named = [leaf for leaf in leaves if self.row_names_step(row_step, leaf.name)]
+        if not named:
+            return None
+        row_name = norm(row_step)
+        exact = [leaf for leaf in named if norm(leaf.name) == row_name]
+        if exact:
+            return exact[0]
+        prefix = [leaf for leaf in named if row_name.startswith(norm(leaf.name))]
+        return max(prefix or named, key=lambda leaf: len(leaf.name))
+
+    ROW_CROSSES = re.compile(r"click_loc|pressed the copy|teleport: |\bemerged\b|\blanded\b")
+    LINE_CROSSES = re.compile(r"t\.player\.(click_loc|press|use_on|cast)\b|t\.drive\.op\b|t\.sail\.")
+
+    def _row_crosses(self, row):
+        """_row_moves without the plain walks: a press, a use on a loc, a
+        cast, an op, a teleport -- what can take the player through a wall
+        or a closed door. A walk (`walk_to`, a talk's `map_flag`) never
+        opens a door, so where it ends is reachable from where it began."""
+        if self.ROW_CROSSES.search(row.get("detail") or ""):
+            return True
+        line = self.row_line(row["step"])
+        return line is not None and self.LINE_CROSSES.search(self.test.code_lines[line - 1]) is not None
+
+    def _reading_after(self, track, i):
+        """Where the player stood next after the goto at track[i], before any
+        row that could take them through a wall or door (_row_crosses; a
+        walk or a talk's walk is fine): the next reading, or the next goto's
+        departure stamp. None when unknown."""
+        position = track[i][0]
+        for j in range(i + 1, len(track)):
+            later, point, is_goto = track[j]
+            if is_goto:
+                if any(self._row_crosses(row) for row in self.rows[position + 1:later]):
+                    return None
+                return self._goto_from.get(later)
+            if any(self._row_crosses(row) for row in self.rows[position + 1:later + 1]):
+                return None
+            return point
+        return None
+
+    @staticmethod
+    def _via_text(via):
+        return "" if via is None else " (a blocked tile on the room's edge; the player stood at %d,%d,%d next)" % via
+
+    def _landing_room(self, walls, track, i):
+        """(room, via): the enclosure the goto at track[i] lands in. A landing
+        on a blocked tile whose own flood is open (a diagonal wall at a
+        building's corner: it steps off inside and outside) is read by where
+        the player stood NEXT (_reading_after, within
+        ENCLOSURE_NEXT_READING_TILES on the same level, nothing moving the
+        player between): that tile's room, when the landing steps off into
+        it. Atza's house (atfirstlight goto-talkToAtza, 1696,3061 on
+        wallkit_wooden01_default01 shape 9; the next goto left from
+        1696,3064, inside). `via` is that next tile, else None."""
+        point = track[i][1]
+        room = walls.enclosure(point[0], point[1], point[2], self.ENCLOSURE_MAX_TILES)
+        if room is not None or not walls.START_ON_BLOCKED or point not in walls.blocked:
+            return room, None
+        after = self._reading_after(track, i)
+        if after is None or after[2] != point[2] or after in walls.blocked or \
+                max(abs(after[0] - point[0]), abs(after[1] - point[1])) > self.ENCLOSURE_NEXT_READING_TILES:
+            return None, None
+        room = walls.enclosure(after[0], after[1], after[2], self.ENCLOSURE_MAX_TILES)
+        if room is None or not walls.in_room(room, point[0], point[1], point[2]):
+            return None, None
+        return room, after
+
+    # A goto out of a room further than this may stand for a teleport out
+    # (room_exits' ROOM_EXIT_TILES, the same policy).
+    ENCLOSURE_EXIT_TILES = 24
+
+    def enclosure_exits(self):
+        """{step name: [((row index, row step), reason)]}: the mirror of
+        enclosure_entries -- a goto that LEAVES a room the map walls in (the
+        departure's flood closes within ENCLOSURE_MAX_TILES, a closed door
+        in its perimeter) for a tile outside it on the same level, at most
+        ENCLOSURE_EXIT_TILES away, with no PASS row pressing that door in
+        the DOOR_OPEN_TICKS before. A walk out of that room opens the door.
+        At First Light (b56 sampler): goto-returnToFoxAfterTrim left Atza's
+        house (1698,3063; fortis_door_l at 1698,3064) and the test never
+        clicked a fortis door. Charged like an entry (_charge_name).
+
+        Not judged: a hop further than ENCLOSURE_EXIT_TILES or to another
+        level or map frame (a teleport out of a room is a spell away, and a
+        climb is the climb rules' business: Dream Mentor's
+        goto-returnToOneiromancer, 76 tiles out of the brazier hall, is left
+        to that policy), a room with a climb down from level 0, a hop with
+        an unknown start or a press, walk, use or cast between, and a hop
+        within DOOR_OPEN_TICKS of a press of the door."""
+        if getattr(self, "_enclosure_exits", None) is not None:
+            return self._enclosure_exits
+        self._enclosure_exits = {}
+        if not self.rows:
+            return self._enclosure_exits
+        track = self.player_track()
+        walls = map_walls()
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if before[2] != point[2] or \
+                    max(abs(before[1] - point[1]), abs(before[0] - point[0])) > self.ENCLOSURE_EXIT_TILES:
+                continue  # another level, or far enough that a teleport out is the player's way
+            room = walls.enclosure(before[0], before[1], before[2], self.ENCLOSURE_MAX_TILES)
+            if room is None or not room["doors"] or room["to_dungeon"]:
+                continue
+            if walls.in_room(room, point[0], point[1], point[2]):
+                continue
+            if self._door_opened_before(position, room["doors"]):
+                continue
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            name = self._charge_name(position, until, None, "out past " + room["doors"][0][0])
+            if name is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._enclosure_exits.setdefault(name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            box = room["box"]
+            doors = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["doors"][:3])
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r leaves a room the map walls in (%d tiles, x %d-%d z %d-%d, door %s: "
+                "maps/m%d_%d.jl2) from %d,%d,%d (row %s %r) for %d,%d,%d outside it, with no press of that "
+                "door in the %d ticks before: it went out past the closed door (enclosure_exits)" % (
+                    row["index"], row["step"], len(room["tiles"]), box[0], box[1], box[2], box[3], doors,
+                    before[0] >> 6, before[1] >> 6, before[0], before[1], before[2], from_row["index"],
+                    from_row["step"], point[0], point[1], point[2], self.DOOR_OPEN_TICKS)))
+        return self._enclosure_exits
+
+    def sealed_entries(self):
+        """{step name: [((row index, row step), reason)]}: a goto that lands
+        in a POCKET the map closes on every side -- the landing's flood
+        closes within ENCLOSURE_MAX_TILES, with no door and no climb -- from
+        a tile outside it on the same level of the same map frame. Nothing
+        a player does reaches it on foot. At First Light (b56 sampler):
+        goto-talkToVerity and goto-talkToVerityEnd land at 1559,9467, behind
+        the bar counter (14 tiles, the flap hg_table_tavern02_door01 at
+        1556,9463 has no op), from 1557,9451 in the same cave.
+
+        A loc with an op or a script trigger in the pocket or on its edge
+        (MapWalls.enclosure's `ops`: a stepping stone, a squeeze gap, a
+        portal, a root a rope is used on) may be the way in: the hop is
+        charged only when none was pressed in the DOOR_OPEN_TICKS before
+        (Wanted!'s pos4.goto past the swamp cave's stepping stone, whose
+        pocket's only op loc is tog_cave_down), and not at all when the run
+        uses one before the next goto (the goto stood the player AT it, on
+        the wrong side of the map's blocked tiles: Spirits of the Elid's
+        desert_water_cave_root, Twilight's Promise's
+        colosseum_entrance_outside).
+
+        Not judged: a pocket with a door (enclosure_entries) or a climb (it
+        may be the way in), a hop from another level or map frame (a
+        ladder, a cave, a teleport), and the usual unknown start."""
+        if getattr(self, "_sealed_entries", None) is not None:
+            return self._sealed_entries
+        self._sealed_entries = {}
+        if not self.rows:
+            return self._sealed_entries
+        track = self.player_track()
+        walls = map_walls()
+        for i in range(len(track)):
+            position, point, is_goto = track[i]
+            if not is_goto:
+                continue
+            if i == 0 and position not in self._goto_from:
+                continue
+            before, before_position, between, stamped = self.hop_start(track, i)
+            if any(self._row_moves(row) for row in between):
+                continue
+            if before[2] != point[2] or abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200:
+                continue
+            room, via = self._landing_room(walls, track, i)
+            if room is None or room["doors"] or room["climbs"] or room["to_dungeon"]:
+                continue
+            if walls.in_room(room, before[0], before[1], before[2]):
+                continue
+            if room["ops"] and self._door_opened_before(position, room["ops"]):
+                continue  # one of its op locs was pressed: that may have been the way in
+            room["level"] = point[2]
+            until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+            if room["ops"] and any(row.get("verdict") == "PASS" and self._pressed_between([row], [symbol], at)
+                                   for row in self.rows[position + 1:until] for symbol, at in room["ops"]):
+                # the goto stood the player AT the pocket's op loc and the run
+                # then used it (Twilight's Promise goto-enterColosseum onto the
+                # facade beside colosseum_entrance_outside, then Enter): the
+                # loc was not skipped
+                continue
+            name = self._charge_name(position, until, room, "into a sealed pocket")
+            if name is None:
+                continue
+            row, from_row = self.rows[position], self.rows[before_position]
+            if stamped:
+                from_row = dict(from_row, step=from_row["step"] + " departure")
+            items = self._sealed_entries.setdefault(name, [])
+            if any(key == (row["index"], row["step"]) for key, _ in items):
+                continue
+            box = room["box"]
+            ops = ", ".join("%s at %d,%d,%d" % ((symbol,) + at) for symbol, at in room["ops"][:3])
+            items.append(((row["index"], row["step"]),
+                "ledger row %s %r lands at %d,%d,%d%s in a pocket the map closes on every side (%d tiles, "
+                "x %d-%d z %d-%d, no door, no climb, %s: maps/m%d_%d.jl2) from %d,%d,%d "
+                "(row %s %r) on the same level: no walk reaches it (sealed_entries)" % (
+                    row["index"], row["step"], point[0], point[1], point[2], self._via_text(via),
+                    len(room["tiles"]), box[0], box[1], box[2], box[3],
+                    "no loc with an op" if not ops else "its only op locs %s not pressed in the %d ticks before" % (
+                        ops, self.DOOR_OPEN_TICKS),
+                    point[0] >> 6, point[1] >> 6, before[0], before[1], before[2], from_row["index"],
+                    from_row["step"])))
+        return self._sealed_entries
 
     def guarded_rooms(self):
         """[(composite X, room step S, room zones Z, door step O, O's zones A,
