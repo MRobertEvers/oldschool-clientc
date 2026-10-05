@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 121
+-- @seam-count 123
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 186
-local SEAM_COUNT = 121
+local SEAM_COUNT = 123
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11795,6 +11795,118 @@ return {
             return leave("ok", text)
         end)
 
+        -- b63 seam1 climb_has_no_chat_for_a_guarded_ladder: A GUARDED
+        -- LADDER SPEAKS BEFORE IT MOVES THE PLAYER.  The Watchtower's
+        -- towerladder 2544,3111,0 (quest_itwatchtower.rs2 [oploc1,towerladder])
+        -- shows the tower guard's page "It is the wizards' helping hand - let
+        -- 'em up." once the quest has started, and only after it is continued
+        -- reaches if_close + ~climb_ladder(1); climb without `chat` waited its
+        -- ticks under the page and the b62 itwatchtower test hand-graded the
+        -- climb with click_loc.  Graded, from 2544,3112,0 at
+        -- ^itwatchtower_started: up WITHOUT chat is not ok, still on level 0,
+        -- and names the page up (then the page is played and the player is on
+        -- level 1 -- the page held the climb); down the silent first-floor
+        -- ladder top (qip_watchtower_ladder_top 2544,3111,1) with chat and
+        -- chat_optional is ok with "no page opened"; up WITH chat is ok, its
+        -- detail carrying the guard's whole line and chat.play's ok, and
+        -- world.tile reads 2544,3112,1; down the ladder top with chat and no
+        -- chat_optional is `refused` although the press landed.
+        stage(function()
+            setup_cheat("::setvar varp212_itwatchtower ^itwatchtower_started")   -- setup
+            setup_cheat("::goto 2544 3112 0")
+            settle(3)
+        end)
+        seam("seam.climb_plays_a_guards_page", function()
+            local tile = verb("world", "tile")
+            local play = verb("chat", "play")
+            local fn = verb("player", "climb")
+            if not tile then return missing("world", "tile") end
+            if not play then return missing("chat", "play") end
+            if not fn then return missing("player", "climb") end
+            local function leave(result, text)
+                setup_cheat("::setvar varp212_itwatchtower 0")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local function at_text()
+                local result, at = tile()
+                if result ~= "ok" or not is_table(at) then
+                    return nil, describe(result)
+                end
+                return at, at.x .. "," .. at.z .. "," .. at.level
+            end
+            local up = { loc = "towerladder", op = 1, op_name = "Climb-up",
+                at = { 2544, 3111, 0 }, src = { 2544, 3112 }, dest = { 2544, 3112, 1 } }
+            local function down(extra)
+                local spec = { loc = "qip_watchtower_ladder_top", op = 1, op_name = "Climb-down",
+                    at = { 2544, 3111, 1 }, src = { 2544, 3112 }, dest = { 2544, 3112, 0 } }
+                for key, value in pairs(extra) do
+                    spec[key] = value
+                end
+                return fn(spec)
+            end
+            local start, start_text = at_text()
+            if start == nil or start.level ~= 0 or start.x ~= 2544 or start.z ~= 3112 then
+                return leave("no_subject", "::goto 2544 3112 0 left the player at " .. tostring(start_text))
+            end
+            local bare_result, bare_detail = fn(up)
+            local held, held_text = at_text()
+            local text = "from " .. tostring(start_text) .. ", up without chat -> " .. describe(bare_result) .. " "
+                .. tostring(bare_detail) .. "; world.tile " .. tostring(held_text)
+            if bare_result == "ok" or held == nil or held.level ~= 0
+                or string.find(tostring(bare_detail), "a page is up: npc 'It is the wizards' helping hand", 1, true) == nil
+                or string.find(tostring(bare_detail), "pass spec.chat", 1, true) == nil then
+                return leave("hollow", text .. " -- want not ok on level 0 naming the guard's page and spec.chat")
+            end
+            local page_result, page_detail = play({ "npc:It is the wizards' helping hand" })
+            settle(4)
+            local freed, freed_text = at_text()
+            text = text .. " | the page played -> " .. describe(page_result) .. " " .. tostring(page_detail)
+                .. "; world.tile " .. tostring(freed_text)
+            if page_result ~= "ok" or freed == nil or freed.level ~= 1 then
+                return leave("no_subject", text .. " -- the page did not release the climb to level 1")
+            end
+            local quiet_result, quiet_detail = down({ chat = { "npc:*" },
+                chat_optional = "conformance: the ladder top never speaks" })
+            text = text .. " | down, chat_optional -> " .. describe(quiet_result) .. " " .. tostring(quiet_detail)
+            if quiet_result ~= "ok"
+                or string.find(tostring(quiet_detail), "no page opened", 1, true) == nil
+                or string.find(tostring(quiet_detail), "chat_optional: conformance", 1, true) == nil
+                or string.find(tostring(quiet_detail), "landed on level 0 at 2544,3112,0", 1, true) == nil then
+                return leave(quiet_result == "ok" and "hollow" or quiet_result,
+                    text .. " -- want ok with 'no page opened', the chat_optional reason and the landing")
+            end
+            local guarded = { chat = { "npc:It is the wizards' helping hand" } }
+            for key, value in pairs(up) do
+                guarded[key] = value
+            end
+            local in_result, in_detail = fn(guarded)
+            text = text .. " | up with chat -> " .. describe(in_result) .. " " .. tostring(in_detail)
+            if in_result ~= "ok" then
+                return leave(in_result, text)
+            end
+            if string.find(tostring(in_detail), "the press opened npc 'It is the wizards' helping hand - let 'em up.'",
+                    1, true) == nil
+                or string.find(tostring(in_detail), "chat.play -> ok", 1, true) == nil
+                or string.find(tostring(in_detail), "landed on level 1 at 2544,3112,1", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail carries no guard's line, chat.play ok or landing")
+            end
+            local top, top_text = at_text()
+            text = text .. "; world.tile " .. tostring(top_text)
+            if top == nil or top.x ~= 2544 or top.z ~= 3112 or top.level ~= 1 then
+                return leave("hollow", text .. " -- ok, but world.tile is not 2544,3112,1")
+            end
+            local mute_result, mute_detail = down({ chat = { "npc:*" } })
+            text = text .. " | down, chat -> " .. describe(mute_result) .. " " .. tostring(mute_detail)
+            if mute_result ~= "refused"
+                or string.find(tostring(mute_detail), "no page opened", 1, true) == nil
+                or string.find(tostring(mute_detail), "the press landed 2544,3112,0", 1, true) == nil then
+                return leave("hollow", text .. " -- want refused: chat= named a page the press never opened")
+            end
+            return leave("ok", text)
+        end)
+
         -- Half two: A SELECTION NOBODY SPENT IS CANCELLED.  The client drops
         -- an armed spell (app->targetsel) only at a menu row's doAction tail
         -- or a left click off any target; a re-cast whose presses all
@@ -11910,6 +12022,79 @@ return {
             text = text .. " | then cancel_selection -> " .. describe(last_result) .. " " .. tostring(last_detail)
             if last_result ~= "ok" or last_armed ~= false then
                 return leave("refused", text .. " -- something is still armed after the missed press")
+            end
+            return leave("ok", text)
+        end)
+
+        -- b63 seam1 no_eating_inside_attack_and_re_engage_presses: AN ATTACK
+        -- PRESS EATS.  t.player.attack takes opts.eat (the await verbs'
+        -- table): it eats before the press, and a press made while the
+        -- hitpoints still read under the line after that eat is the bounded
+        -- fast press, never the pose-and-probe hunt that cannot stop to eat
+        -- (Haunted Mine runs 12, 15 and 18 died inside it, hp 95 -> 0).
+        -- Staged so the line is always crossed: 99/99 hitpoints and
+        -- `below = 100` (an eat at full health is still an eat, food.rs2
+        -- @eat_food has no hitpoints test).  Graded on the eat tag naming an
+        -- eat "inside an attack press (before the press" and a press "made by
+        -- the fast path because hp was under 100", on the backpack's sharks
+        -- going down, and on the same press WITHOUT opts.eat naming neither.
+        stage(function()
+            setup_cheat("::clearinv")                           -- setup
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 6")
+            setup_cheat("::goto 3229 3233 0")                   -- setup: the goblin field (spawns 3230-3231,3234)
+            settle(2)
+            setup_cheat("::spawn goblin_unarmed_melee_1")       -- setup
+            setup_cheat("::passive goblin_unarmed_melee_1")
+            settle(3)
+        end)
+        seam("seam.attack_eats_inside_its_press", function()
+            local attack = verb("player", "attack")
+            local count = verb("inv", "count")
+            local tiles = verb("npc", "tiles")
+            if not attack then return missing("player", "attack") end
+            if not count then return missing("inv", "count") end
+            if not tiles then return missing("npc", "tiles") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            local function leave(result, text)
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::clearinv")
+                setup_cheat("::setlevel hitpoints 10")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local r0, _, rows = tiles(GOBLIN, 4)
+            if r0 ~= "ok" or not is_table(rows) or #rows < 1 then
+                return leave("no_subject", "no goblin within 4 (" .. describe(rows and #rows) .. ")")
+            end
+            local _, sharks_before = count("shark")
+            local plain_result, plain_detail = attack(GOBLIN, COMBAT_ATTACK_OP, 10, { slot = rows[1].slot })
+            local _, sharks_plain = count("shark")
+            local text = "without opts.eat, slot " .. tostring(rows[1].slot) .. " -> " .. describe(plain_result)
+                .. " " .. tostring(plain_detail) .. "; shark " .. describe(sharks_before) .. " -> "
+                .. describe(sharks_plain)
+            if string.find(tostring(plain_detail), "inside an attack press", 1, true) ~= nil
+                or sharks_plain ~= sharks_before then
+                return leave("refused", text .. " -- a press with no eater ate")
+            end
+            -- The same copy: a second goblin would be single-way combat's
+            -- "I'm already under attack." (the first press opened a fight).
+            local eat_result, eat_detail = attack(GOBLIN, COMBAT_ATTACK_OP, 10,
+                { slot = rows[1].slot, eat = { item = "shark", below = 100 } })
+            local _, sharks_after = count("shark")
+            text = text .. " | with opts.eat {shark, below 100}, slot " .. tostring(rows[1].slot) .. " -> "
+                .. describe(eat_result) .. " " .. tostring(eat_detail) .. "; shark " .. describe(sharks_plain)
+                .. " -> " .. describe(sharks_after)
+            if eat_result ~= "ok" and eat_result ~= "timeout" then
+                return leave(eat_result, text)
+            end
+            if string.find(tostring(eat_detail), "inside an attack press (before the press", 1, true) == nil
+                or string.find(tostring(eat_detail), "made by the fast path because hp was under 100", 1, true) == nil
+                or (sharks_after or 0) >= (sharks_plain or 0) then
+                return leave("refused", text .. " -- want an eat before the press, the fast press under the"
+                    .. " line, and fewer sharks")
             end
             return leave("ok", text)
         end)

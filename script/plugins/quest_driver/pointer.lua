@@ -1083,8 +1083,36 @@ function QD.drive._frame(target, index, deadline, settle)
             "frame.settle" .. tostring(index))
         return result, pos
     end
+    -- SEAM private_vc_rat_projects_to_a_fixed_point (b63-seam1): A NAMED NPC
+    -- COPY IS PRESSED AT ITS OWN POSE'S PIXEL.  The level below resolves in
+    -- the pump that wrote the camera (EDGE + LEVEL, seam17 above), so the
+    -- unsettled read is the PREVIOUS pose's projection, and the pose loop
+    -- presses pose N at pose N-1's pixel.  For a body a tile wide that is
+    -- never under the press: Ratcatchers' mansion rats -- owner-private,
+    -- stationary, ONE tile from the stand tile -- answered `covered ...
+    -- element E at 382,102` for rats 2, 3, 4 and 6 on every try
+    -- (build/quest_gate/vcrat_full2 rows 65-75; ratcatchers_scratch4 63-78):
+    -- 382,102 is pose 4's (pitch 340, zoom 400) projection of a rat one tile
+    -- straight ahead, pressed at pose 5, and the hunt's re-frames read stale
+    -- the same way.  Measured with the eye given a tick to rebuild
+    -- (build/quest_gate/vcrat_occl1, stand 2860,5093,1): poses 4 and 5 HOLD
+    -- the rat at +0,+0 of their own projection; poses 1-3 face it from
+    -- behind the corridor's west wall.  So a press that NAMED its copy
+    -- through the press/talk_to selector (QD.player._click_npc_copy sets
+    -- `reach_fresh`) skips the first two polls -- the follow step rebuilds the
+    -- eye on the next frame, the two-frame wait QD.drive._face_named_npc
+    -- already takes -- and every other target keeps the unsettled read the
+    -- suite was measured on (seam17's three reasons; attack and cast name
+    -- their copy too, but do not set it).
+    local fresh = target.kind == "npc" and target.reach_fresh == true
+        and target.reach_element ~= nil
+    local polls = 0
     QD.await({
         level = function()
+            polls = polls + 1
+            if fresh and polls <= 2 then
+                return false
+            end
             local r = api_drive.screen_position(target.kind, target.id)
             return r == "ok"
         end,
@@ -7424,9 +7452,13 @@ function QD.player._click_npc_copy(target, op, copy_text)
     if copy_text == nil then
         return QD.drive.click_minimenu(target, op)
     end
+    -- b63-seam1: every pose of this press reads its own projection
+    -- (QD.drive._frame's banner); cleared with the named element.
+    target.reach_fresh = true
     local click_result, click = QD.drive.click_minimenu(target, op)
     local named = target.reach_element
     target.reach_element = nil
+    target.reach_fresh = nil
     if click_result ~= "ok" then
         return click_result, "the copy named " .. copy_text .. ": " .. tostring(click)
     end

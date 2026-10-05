@@ -3421,7 +3421,7 @@ def check_haunted_mine() -> None:
          "%varb2396_hauntedmine_endcart_fungus = 0;", "Oh dear, the mine cart seems to have sunk.",
          "How useful, it's come right back to where it started.",
          "[proc,hmq_levers_correct]()(boolean)", "[oploc1,hauntedmine_lift_valve]",
-         "inv_total(inv, hauntedmine_lift_key) < 1", "hauntedmine_cheeky_ghost",
+         "[oplocu,hauntedmine_lift_valve]", "last_useitem ! hauntedmine_lift_key", "hauntedmine_cheeky_ghost",
          "settimer(hmq_lift_ghost, ^hmq_lift_race_ticks);", "[timer,hmq_lift_ghost]",
          "%varb2393_hauntedmine_liftpoweredonce = 1;", "cleartimer(hmq_lift_ghost);"),
         "Haunted Mine fungus, cart and valve/lift route",
