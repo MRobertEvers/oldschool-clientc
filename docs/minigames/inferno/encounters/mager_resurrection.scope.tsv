@@ -67,3 +67,4 @@ mager.projectile_shape	all	one solo test (practice entry on a wave from 35 to 66
 mager.sounds	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.attack_tell_underglow_flicker	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.resurrect_appearance	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.hit_delay_by_footprint_distance	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)

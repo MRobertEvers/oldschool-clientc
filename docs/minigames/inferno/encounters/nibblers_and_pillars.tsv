@@ -7,7 +7,7 @@ nibblers_and_pillars.nibbler_first_pillar_hit	ticks from the wave message to the
 nibblers_and_pillars.nibbler_attack_distance	Chebyshev distance from the attacking nibbler to the pillar footprint at a hit (3398 of 3398)	1	tiles	[blert]	B	sources/blert_api/NIBBLER_PILLAR_ANALYSIS.txt:10	-	exact
 nibblers_and_pillars.nibbler_step_max	tiles a nibbler moves in one tick (ceiling; 13141 one-tile steps, none longer)	1	tiles	[blert]	B	sources/blert_api/NIBBLER_PILLAR_ANALYSIS.txt:9	-	range
 nibblers_and_pillars.nibbler_attack_speed	ticks between a nibbler's attacks	4	ticks	[wiki][plugin]	C	sources/wiki/wiki_Jal_Nib.wikitext:16; sources/infernotrainer/src/content/inferno/js/mobs/JalNib.ts:88	-	exact
-nibblers_and_pillars.pillar_hit_gap_modal	most common gap between hp-loss ticks of one pillar (1494 of 2834 gaps; 2 = two nibblers offset, 8 and 12 = a 0 hit)	4	ticks	[blert]	B	sources/blert_api/NIBBLER_PILLAR_ANALYSIS.txt:6	-	exact
+nibblers_and_pillars.pillar_hit_gap_modal	most common gap between hp-loss ticks of one pillar with ONE nibbler adjacent (1145 of 1413 gaps; 8 and 9 = a 0 hit or a miss); the pooled mode 4 (1494 of 2834) is the lone nibbler	4	ticks	[blert]	B	sources/blert_api/NIB_PACK.txt:4-5; sources/blert_api/NIBBLER_PILLAR_ANALYSIS.txt:6	-	exact
 nibblers_and_pillars.nibbler_hitpoints	Jal-Nib hitpoints	10	hp	[wiki][plugin][guide]	C	sources/wiki/wiki_Jal_Nib.wikitext:20; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:33; sources/transcripts/STATED.md:20	-	exact
 nibblers_and_pillars.nibbler_combat_level	Jal-Nib combat level	32	count	[cache]	A	sources/cache_npc.txt:48-58	-	exact
 nibblers_and_pillars.nibbler_defence_level	Jal-Nib defence level	15	count	[wiki][guide]	C	sources/wiki/wiki_Jal_Nib.wikitext:23; sources/transcripts/STATED.md:21	-	exact
@@ -36,3 +36,5 @@ nibblers_and_pillars.nibbler_walk_ready_seq	walk and ready sequences of the nibb
 nibblers_and_pillars.nibbler_defend_seq	sequence a nibbler plays when hit (7575 jalnib_defend is chosen by its name only)	?	count	[M20]	E	RIG_ANIMATIONS.md:18	M20	approx
 nibblers_and_pillars.nibbler_sounds	nibbler attack, hurt and death sound ids (the cache and every source name none)	?	count	[M19]	E	../../INFERNO_SOUNDS.md:245	M19	approx
 nibblers_and_pillars.pillar_fall_presentation	sequence, npc and sound of a pillar falling (7561 collapse sequence, npc 7710 dying pillar and sound 2039 are unbound)	?	count	[M21]	E	AV_INVENTORY.tsv:33	M21	approx
+nibblers_and_pillars.pillar_hit_gap_modal_two_adjacent	most common gap between hp-loss ticks of one pillar with TWO nibblers adjacent (495 of 912 gaps; 4 is 231): a pack does not bite together	2	ticks	[blert]	B	sources/blert_api/NIB_PACK.txt:6-7	-	exact
+nibblers_and_pillars.pillar_hit_gap_modal_three_adjacent	most common gap between hp-loss ticks of one pillar with THREE nibblers adjacent (121 of 281 gaps)	2	ticks	[blert]	B	sources/blert_api/NIB_PACK.txt:8-9	-	exact

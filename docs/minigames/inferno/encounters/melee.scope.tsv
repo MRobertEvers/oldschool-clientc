@@ -50,3 +50,5 @@ melee.model	all	static: cache
 melee.small_record	all	static: cache
 melee.projectile_or_graphic	all	static: cache
 melee.sounds	all	one solo test (read the sounds a fight sends)
+melee.dig_landing_blert	all	one solo test with a dig
+melee.dig_landing_delay	all	one solo test with a dig

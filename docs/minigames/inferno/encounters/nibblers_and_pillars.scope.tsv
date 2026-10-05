@@ -36,3 +36,5 @@ nibblers_and_pillars.nibbler_walk_ready_seq	all	one solo test (practice entry on
 nibblers_and_pillars.nibbler_defend_seq	all	one solo test (practice entry on wave 1 or 3, or a real run)
 nibblers_and_pillars.nibbler_sounds	all	one solo test (practice entry on wave 1 or 3, or a real run)
 nibblers_and_pillars.pillar_fall_presentation	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_hit_gap_modal_two_adjacent	all	one solo test (practice entry on wave 1 or 3, or a real run)
+nibblers_and_pillars.pillar_hit_gap_modal_three_adjacent	all	one solo test (practice entry on wave 1 or 3, or a real run)

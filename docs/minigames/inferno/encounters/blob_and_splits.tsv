@@ -51,6 +51,7 @@ blob.ready_walk_seq	sequences a blob and a bloblet stand and walk in (7586 jalak
 blob.defend_seq	sequence a blob plays when hit (7585 jalak_defend is chosen by its name only)	7585	count	[M31]	E	sources/cache_seq.txt:379	M31	approx
 blob.models	npc model ids: Jal-Ak 33001, -Mej 33002, -Ket 33003, -Xil 33004	33001,33002,33003,33004	count	[cache]	A	sources/cache_npc.txt:106,140,177,159	-	exact
 blob.projectile_spotanims	graphic ids of the blob projectile by cache name: ranged 1378, mage 1380; bloblets ranged 1379, mage 1381 (Kronos swaps 1378 and 1380; not quoted)	1378,1380,1379,1381	count	[M29]	E	sources/cache_spotanim.txt:101-123; AV_INVENTORY.tsv:1	M29	approx
-blob.projectile_anim_length	length of each blob projectile's own sequence in game ticks (7614, 7615, 7616: 30 client cycles)	1	ticks	[cache]	A	sources/cache_seq.txt:614-635	-	exact
+blob.projectile_anim_length	length of the blob projectile sequences 7614 (inferno_basic_projectile) and 7615 (inferno_basic_projectile_02) in game ticks (15 frames x 2 = 30 client cycles each)	1	ticks	[cache]	A	sources/cache_seq.txt:614-635	-	exact
 blob.magic_attack_sound	sound of the Jal-Ak and Jal-AkRek-Mej magic attack (3528 surok_mindcontrol_impact; the wiki sound page states magic only)	3528	count	[wiki]	D	INFERNO_SOUNDS.md:252	-	exact
 blob.other_sounds	blob melee, hurt and death sounds and the bloblets' (no source names them; ours borrows the Tz-Kek family 595, 597, 596)	?	count	[M30]	E	INFERNO_SOUNDS.md:241	M30	approx
+blob.projectile_anim_length_7616	length of the splitter/bloblet magic projectile sequence 7616 (inferno_splitter_proj) in game ticks (24 frames x 2 = 48 client cycles = 1.60 ticks)	1.6	ticks	[cache]	A	sources/cache_seq.txt:628-631	-	exact
