@@ -908,3 +908,37 @@ the same 65 and also clears `%chompybird_kills`. `mourningsendparti.lua` has the
 The staging only sets up a prerequisite, so the quest stands. When you stage a prerequisite, look
 up the arm by the row name in `test/quests/QUEUE.tsv` or the arms table before you fall back to
 `::setvar`. Then write `::complete <row>`.
+
+### Round 4: a goto under the Brimhaven jungle photographs only the canopy
+
+Round 4 sampled Another Slice of H.A.M., Plague City and Holy Grail. All three passed, and none
+went back. The sampler walked each Quest Helper ladder (`helper_coverage.py`: 29, 37 and 31 steps,
+all FULL), read the accept and hand-in `.rs2`, and checked the reward rows against the
+`stat_advance` calls (`slice_sigmund.rs2` 3000/3000, `edmond.rs2:128` 24250 tenths,
+`quest_grail.rs2:84-85` 110000/153000 tenths). It re-ran all 24 gotos through `goto_table.py`.
+23 read REACH, and the 24th is Plague City's first goto (see (c)). It opened all 736 shots on
+labelled 3x3 contact sheets, four sheets per message, and wrote each batch into its notebook
+before the next Read.
+
+(a) THE REVIEWERS STILL OPENED FEW SHOTS: 5 of 173, 8 of 289 and 13 of 274. Read running.md,
+"`shots_checked 1`: the reviewer opened only the completion scroll". The same rule applies to a
+handful of shots. A reviewer has made a visual pass only when the crossings, the fights and the
+reward shots are opened.
+
+(b) SOME GOTO FRAMES SHOW ONLY THE TREES. Holy Grail's `goto-goToTeleportLocation1` and
+`goto-goToTeleportLocation2` (141, 242) land at 2742,3232, under the tower north-west of
+Brimhaven. Each frame is the jungle canopy and nothing else. The shot camera did re-aim
+(verbs-root-and-quest: "The shot camera is aimed for you"): `client.log` has `shot-aim 141-...:
+occluded ... behind loc 1184 (shape 10) ... -> least occluded ... (3 in its corridor)`. Under
+that tree, every pose it tried is still occluded, so it kept the least bad one. The landing is
+proven by the ledger tile and by the chat line `Teleported to 2742,3232,0` in the next frame. Do
+not fail the step for this picture. Read the next shot and the `shot-aim` line.
+
+(c) JUDGEMENT CALLS THAT STAND. Another Slice of H.A.M.'s `talkToZanikRailway` is an ANY-OF.
+Tegdak attaches Zanik himself (`slice_tegdak.rs2:67`). Its `goToGoblinVillage` is the generals'
+own `p_teleport` into the ambush copy (`slice_generals.rs2`). Holy Grail rings the bell from
+outside the wall. Its `p_teleport` lands beside the Fisher King, so `goUpStairsBrokenCastle` is an
+ANY-OF. Plague City's first goto (737 tiles, Lumbridge to Edmond's garden) is the run's first
+goto, so it is not judged. Plague City's `elena.lua` content landed in the giantdwarf green commit
+`4146b50b9`, and `cda6435a6` carries only its evidence. Reverting `cda6435a6` alone would leave
+the test file in place.
