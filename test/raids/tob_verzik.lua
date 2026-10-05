@@ -166,6 +166,7 @@ return {
                 p2_bomb_judged_tile = "(spec previous tick tile text, grade C, tol exact)",
                 p2_bomb_live_ticks = "(spec 1 ticks, grade D, tol exact)",
                 p2_bomb_flight = "(spec ? ticks, grade E, tol approx); approximation, M80",
+                p2_bomb_prayer_read_tick = "(spec landing text, grade D, tol exact)",
                 p2_slam_damage_max = "(spec 45 hp, grade D, tol range)",
                 p2_slam_knockback = "(spec 3 tiles, grade D, tol exact)",
                 p2_slam_stun = "(spec 5 ticks, grade D, tol exact)",
@@ -257,7 +258,7 @@ return {
         local emitted = {}
         local EARLY = {}
         for _, nm in ipairs({ "p2_id_after_phase_event", "p2_first_attack_after_id", "p2_first_attack_after_phase_event", "p2_cadence", "p2_bomb_live_ticks",
-            "entry_p2_bomb_max", "p2_bomb_judged_tile", "p2_scan_rule", "p2_scan_tick", "p2_slam_chance", "p2_scythe_walk_ticks", "p2_slam_knockback",
+            "entry_p2_bomb_max", "p2_bomb_prayer_read_tick", "p2_bomb_judged_tile", "p2_scan_rule", "p2_scan_tick", "p2_slam_chance", "p2_scythe_walk_ticks", "p2_slam_knockback",
             "p2_slam_stun", "p2_stomp_knockback", "p2_stomp_stun", "p2_purple_first", "p2_purple_land", "p2_crabs_with_purple", "p2_crab_per_cast",
             "p2_purple_heal_period", "p2_purple_gate", "entry_athanatos_hp", "entry_combat_nylo_hp", "p2_zap_floor" }) do
             EARLY["spec.verzik." .. nm] = true
@@ -272,7 +273,7 @@ return {
         local why_end = "loop ended"
         local p1 = { step = 0, T1 = M + 17, last_atk = -10, last_spec = -10, spec_tries = 0, worn = "fists", pos = "boss", hide_idx = 0, presses = 0, n_pr_seen = 0 }
         local t12 = { done = 0, hold = nil, walk_tk = nil }
-        local p2 = { kite_walk = -10, kite_from = 0, pending = {}, tries = {}, exp = nil, valid = { J1 = 0, J2 = 0, E1 = 0, E4 = 0, E5 = 0 }, need = { J1 = 1, J2 = 1, E1 = 1, E4 = 1, E5 = 1 },
+        local p2 = { prr = { state = 0, tries = 0 }, kite_walk = -10, kite_from = 0, pending = {}, tries = {}, exp = nil, valid = { J1 = 0, J2 = 0, E1 = 0, E4 = 0, E5 = 0 }, need = { J1 = 1, J2 = 1, E1 = 1, E4 = 1, E5 = 1 },
             trials = {}, last_atk = -10, aims = {}, mode = "exp", started = 0, slams = {}, last_target = "", fight_from = 0, tb_sent = 0, dodges = 0, reds_prayer = 0, reds_tb = 0 }
         local pool_diag = ""
         local p3 = { pray_at = {}, switches = {}, autos = 0, plan = "ADJ", next_T = 0, last_atk = -10, specials = {}, attacks = {}, dealt_cap = 99999,
@@ -863,6 +864,17 @@ return {
                 if bomb_n >= 1 then
                     out_rows[#out_rows + 1] = { "spec.verzik.entry_p2_bomb_max", bomb_max <= 16,
                         "measured " .. bomb_max .. " hp, the largest of " .. bomb_n .. " urnbomb hits on me (Protect from Missiles on, unprayed ceiling 16) " .. SPEC.entry_p2_bomb_max }
+                end
+                if p2.prr.state == 2 then
+                    local ph
+                    for _, h in ipairs(R.hitp) do
+                        if h.npc_slot == p2.prr.slot and h.tick == p2.prr.land + 1 then ph = h end
+                    end
+                    if ph ~= nil then
+                        out_rows[#out_rows + 1] = { "spec.verzik.p2_bomb_prayer_read_tick", p2.prr.on_ok and ph.damage <= 8 and ph.damage > 0,
+                            "measured landing; Protect from Missiles was off when the bomb was thrown (tick " .. p2.prr.A .. ") and raised on tick " .. p2.prr.on_tick .. " (set " .. tostring(p2.prr.on_set)
+                            .. "), before it landed (tick " .. p2.prr.land .. "): the hit on tick " .. ph.tick .. " dealt " .. ph.damage .. " hp, at most the prayed ceiling 8 (the unprayed Entry max is 16) " .. SPEC.p2_bomb_prayer_read_tick }
+                    end
                 end
                 -- the experiments, graded from the player_tile rows
                 local j1n, j1h, j2n, j2h = 0, 0, 0, 0
@@ -1505,6 +1517,38 @@ return {
                     for _, k in ipairs({ "J1", "J2", "E1", "E4", "E5" }) do
                         if want == nil and p2.valid[k] < p2.need[k] then want = k end
                     end
+                    -- ---- the urnbomb's prayer read (verzik.p2_bomb_prayer_read_tick): Protect from Missiles is dropped while no bomb is in the air, then raised
+                    -- only AFTER the next bomb thrown at my own tile has left her hand; I stay on the locked tile and take it ----
+                    if not acted and p2.mode == "exp" and p2.prr.state == 0 and p2.valid.J1 >= 1 and p2.valid.J2 >= 1 and p2.prr.tries < 4 and mt.x == 6427 and mt.z == 91
+                        and not crab_alive and hpv >= 65 and tk - last_purple > 20 and new_atk == nil then
+                        p2.prr.tries = p2.prr.tries + 1
+                        p2.prr.off_set = t.prayer.set("protectfrommissiles", false)
+                        p2.prr.off_tick = tk
+                        p2.prr.state = 1
+                        plog[#plog + 1] = tk .. ":bomb prayer trial, Protect from Missiles dropped"
+                        acted = true
+                    elseif p2.prr.state == 1 then
+                        if new_atk ~= nil and kind == "bomb" and brow ~= nil and mt.x == 6427 and mt.z == 91 then
+                            local fl = math.floor(brow.end_cycle / 30)
+                            p2.prr.A = new_atk.tick
+                            p2.prr.land = new_atk.tick + fl
+                            p2.prr.slot = new_atk.slot
+                            p2.prr.on_set = t.prayer.set("protectfrommissiles", true)
+                            p2.prr.on_tick = select(2, t.tick())
+                            p2.prr.on_ok = (p2.prr.on_tick >= new_atk.tick and p2.prr.on_tick < p2.prr.land)
+                            p2.prr.state = 2
+                            plog[#plog + 1] = tk .. ":bomb thrown at my tile, Protect from Missiles raised (throw " .. new_atk.tick .. " landing " .. p2.prr.land .. ")"
+                            acted = true
+                        elseif tk > p2.prr.off_tick + 40 or mt.x ~= 6427 or mt.z ~= 91 or hpv < 45 then
+                            -- no bomb came to my tile: the prayer goes back up and the trial is tried again at home
+                            t.prayer.set("protectfrommissiles", true)
+                            p2.prr.state = 0
+                            acted = true
+                        end
+                    elseif p2.prr.state == 2 and not acted and tk <= p2.prr.land + 2 then
+                        -- the raider stays on the locked tile until the bomb has landed and been judged
+                        acted = true
+                    end
                     -- ---- start the next experiment from this attack: one blocking sequence timed on the server tick ----
                     if not acted and want ~= nil and new_atk ~= nil and hpv >= 55 and not crab_alive and p2.mode == "exp" and tk - last_purple > 14
                         and (p2.tries[want] or 0) < 7 then
@@ -1675,6 +1719,11 @@ return {
                                 if absorb then
                                     -- the five ticks after the Matomenos summon heal her for every hit: hold fire
                                     p2.last_target = target
+                                    if last_reds > 0 and tk == last_reds + 1 and not crab_alive and tk >= p2.last_atk + 3 then
+                                        -- one arrow is let go inside the window: it is the hit the row reads healed into her
+                                        t.player.attack(target, 2, 1)
+                                        p2.last_atk = tk
+                                    end
                                 elseif target ~= p2.last_target or tk >= p2.last_atk + 3 then
                                     t.player.attack(target, 2, 1)
                                     p2.last_target = target
@@ -1816,7 +1865,7 @@ return {
                 local heal_total = 0
                 for _, h in ipairs(R.hitp) do if h.npc_type == 10846 then heal_total = heal_total + 3 * h.damage end end
                 local boss_left = 600 + heal_total - dealt
-                local skip_pray = (p3.enraged > 0 and boss_left <= 115 and hpv >= 50)
+                local skip_pray = (p3.enraged > 0 and boss_left <= 110 and hpv >= 50)
                 if skip_pray and not p3.armour_off then
                     -- a raider taking the last auto unprayed also takes it with the armour's defence bonuses off, so the roll against her is a real chance (spec.verzik.p3_inflight_after_death)
                     p3.armour_off = tk
@@ -1837,21 +1886,21 @@ return {
                     elseif row.spotanim == 1593 then
                         -- ranged auto: the prayer counts when the projectile LANDS (2-3 ticks on), so the switch on the launch tick is in time; two unprayed samples first for the maxima rows
                         p3.mag_seen = (p3.mag_seen or 0) + 1
-                        if (p3.mag_seen > 7 or hpv < 30) and not skip_pray then
+                        if (p3.mag_seen > 8 or hpv < 30) and not skip_pray then
                             p3.first_pray = p3.first_pray or row.tick
                             local sw_res = t.prayer.set("protectfrommissiles", true)
                             p3.switches[row.tick] = { at = tk, was_on = (pset3 and pset3.protectfrommissiles == true) or false, style = 1593, res = sw_res }
                         end
                     elseif row.spotanim == 1594 then
                         p3.rng_seen = (p3.rng_seen or 0) + 1
-                        if (p3.rng_seen > 7 or hpv < 30) and not skip_pray then
+                        if (p3.rng_seen > 8 or hpv < 30) and not skip_pray then
                             p3.first_pray = p3.first_pray or row.tick
                             local sw_res = t.prayer.set("protectfrommagic", true)
                             p3.switches[row.tick] = { at = tk, was_on = (pset3 and pset3.protectfrommagic == true) or false, style = 1594, res = sw_res }
                         end
                     end
                 end
-                if p3.ball_seen > 0 then p3.dealt_cap = 99999 elseif p3.dealt_cap > 400 then p3.dealt_cap = 400 end
+                if p3.ball_seen > 0 and tk >= p3.ball_seen + 13 then p3.dealt_cap = 99999 elseif p3.dealt_cap > 400 then p3.dealt_cap = 400 end
                 -- plan the next attack's position by the autos seen
                 local plans = { [1] = "UNDER", [2] = "ADJ", [3] = "STEPON", [4] = "HOME", [5] = "STEPON", [8] = "ADJ" }
                 if new_atk then
@@ -2068,12 +2117,13 @@ return {
                 -- ---- 6. fight: paced so that every special of the rotation is met before the enrage -----
                 -- the last arrow is fired on the tick she launches an attack (the arrow flies about as long as her attack does), so her auto is still in the air when she goes still
                 -- (spec.verzik.p3_inflight_after_death): one tile step stops the standing attack, and the arrow goes out when her launch row shows
-                local hold_last = p3.enraged > 0 and boss_left <= 115 and boss_left > 0 and hpv >= 50 and not crab_alive
+                local hold_last = p3.enraged > 0 and boss_left <= 40 and boss_left > 0 and hpv >= 30 and not crab_alive
                 if hold_last and p3.hold_from == nil then p3.hold_from = tk end
-                if not acted and hold_last and tk <= p3.hold_from + 60 then
+                if not hold_last then p3.hold_from = nil end
+                if not acted and hold_last then
                     local lastA = p3.attacks[#p3.attacks]
                     local pred = lastA and (lastA.tick + ((lastA.n > 0) and 5 or 10)) or 0
-                    if lastA and tk >= pred - 4 and tk < pred - 3 and p3.hold_fired ~= pred then
+                    if lastA and tk >= pred - 5 and tk < pred - 4 and p3.hold_fired ~= pred then
                         p3.hold_fired = pred
                         t.player.attack("verzik_phase3_story", 2, 1)
                         p3.last_atk = tk
@@ -2095,7 +2145,7 @@ return {
                         p3.last_atk = tk
                     end
                 end
-                if tk >= 555 and tk % 3 == 0 then plog[#plog + 1] = tk .. ":p3 acted=" .. tostring(acted) .. " tor=" .. tostring(tornado_alive ~= nil) .. " web=" .. tostring(web_alive ~= nil) .. " dealt=" .. dealt .. "/" .. p3.dealt_cap .. " last_atk=" .. p3.last_atk .. " autos=" .. p3.autos .. " hp=" .. hpv .. " " .. (p3.tdiag or "") end
+                if tk >= 555 and tk % 3 == 0 then plog[#plog + 1] = tk .. ":p3 acted=" .. tostring(acted) .. " tor=" .. tostring(tornado_alive ~= nil) .. " web=" .. tostring(web_alive ~= nil) .. " left=" .. boss_left .. " dealt=" .. dealt .. "/" .. p3.dealt_cap .. " last_atk=" .. p3.last_atk .. " autos=" .. p3.autos .. " hp=" .. hpv .. " " .. (p3.tdiag or "") end
                 local _, prn = t.skill.read("prayer")
                 if tk % 6 == 0 then t.check("drive.p3state" .. tk, true, "ranged " .. tostring((select(2, t.skill.read("ranged")).current) or select(2, t.skill.read("ranged")).level or select(2, t.skill.read("ranged")).boosted) .. " prayer " .. tostring(prn.current or prn.level) .. " hp " .. tostring(hpv) .. " fish " .. tostring(fish) .. " def " .. tostring(select(2, t.skill.read("defence")).current or select(2, t.skill.read("defence")).level) .. " pm " .. tostring(pset3 and pset3.protectfrommissiles) .. " pg " .. tostring(pset3 and pset3.protectfrommagic) .. " pl " .. tostring(pset3 and pset3.protectfrommelee) .. " off " .. tostring(p3.prayers_off) .. " restores " .. tostring(select(2, t.inv.count("br_1dose2restore")) + select(2, t.inv.count("br_2dose2restore")) + select(2, t.inv.count("br_3dose2restore")) + select(2, t.inv.count("br_4dose2restore")))) end
                 -- the Saradomin brew drains Ranged 10% + 2 of base per dose (seam18): a super restore dose puts it back (and the prayer with it), the ranger's potion lifts it 14
@@ -2842,7 +2892,7 @@ return {
                 if want[v] then covered = covered + 1 else subset = false end
             end
             local pass = subset and n_pick > 0 and (av[6] ~= true or covered == want_n)
-            t.ticks(3) t.check("spec.verzik.av." .. av[1], pass,
+            t.ticks(av[1] == "p3_enrage.tornado" and 9 or 3) t.check("spec.verzik.av." .. av[1], pass,
                 "measured " .. (#obs > 0 and table.concat(obs, ",") or "0") .. ", " .. n_pick .. " picks over " .. n_anchor .. " anchor rows (ticks " .. table.concat(ticks, ",") .. "); " .. av[5]
                 .. " (spec " .. av[2] .. " count, grade " .. av[3] .. ", tol exact)")
         end
@@ -2962,7 +3012,7 @@ return {
                     if hh.tick >= death_tick - 4 then near_hits[#near_hits + 1] = hh.tick .. ":" .. hh.damage .. ":" .. tostring(hh.npc_type) end
                 end
                 t.check("drive.inflight_hits", true, "hit_player rows from four ticks before her death row on tick " .. death_tick .. ": " .. table.concat(near_hits, " "))
-                t.check("drive.inflight_diag", true, "armour off " .. tostring(p3.armour_off) .. " " .. tostring(p3.armour_res) .. "; no hit_player damage after her death row on tick " .. death_tick .. "; last launch " .. tostring(last_launch) .. "; bat " .. tostring(bat_spawn))
+                t.check("drive.inflight_diag", true, "armour off " .. tostring(p3.armour_off) .. " " .. tostring(p3.armour_res) .. "; hold_from " .. tostring(p3.hold_from) .. " shots " .. tostring(p3.hold_shots) .. " fired " .. tostring(p3.hold_fired) .. " last_atk " .. tostring(p3.last_atk) .. "; no hit_player damage after her death row on tick " .. death_tick .. "; last launch " .. tostring(last_launch) .. "; bat " .. tostring(bat_spawn))
             end
         end
 
