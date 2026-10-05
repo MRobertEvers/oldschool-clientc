@@ -53,31 +53,42 @@ the quest gate script (`tools/raid_gate/README.md`).
 
 ## Watch it
 
-To watch a room play itself in a real window:
+To watch any automated script -- a raid room, or any of the quests under test/quests/ --
+play itself in a real window, run the one command:
 
 ```sh
-python3 tools/raid_gate/prepare_scripts.py && ./launch run osrs239-scripts
+./launch run osrs239-scripts
 ```
 
-1. Log in with any name.
-2. A new name opens the Character Creator first. Click Confirm.
-3. Open the **Scripts** tab on the plugin rail (the play-triangle icon).
-4. Type in Search (for example `maid`). The list follows once you stop typing.
-5. Click a row, then press **Play**.
+1. Log in with any name. If the Character Creator opens, Confirm it (measured 2026-10-05:
+   a brand-new name in this profile showed none, and Play logged it out cleanly).
+2. Open the **Scripts** tab on the plugin rail (the play-triangle icon).
+3. Pick a **Suite** (All, Quests, Raids) and type in **Search** (for example `cook` or
+   `maid`). The list follows every key, and shows the first 12 matches with "n more:
+   refine the search" below them.
+4. Click a row, then press **Play**.
 
-The room plays at real speed. **Stop** ends it at its next step. Driver, Step and Rows
-follow the run, and Summary and Session show where its ledger and shots went:
-`build/quest_gate/watch_<id>/`. Re-run `prepare_scripts.py` after you edit a test.
-The tab plays the prepared copy, and Refresh re-reads the list.
+Play logs you out, makes a FRESH account from the test's own fixture (the id's letters and
+a number, for example `cooksass1`), logs it in and plays the test at real speed: the
+setup list, then `run`, or every leg of a legs file in one sitting, as a full `run.py`
+run does. **Stop** ends it at its next step. Driver, Test (suite, id, account), Leg (leg k
+of n), Step and Rows follow the run; Summary and Session show its ledger and shots:
+`build/quest_gate/watch/<account>/`.
+
+The list is every test file the launcher found when it started (it writes
+`script/tests/tests.ini` on every launch). The test itself is read again on every Play:
+edit `test/raids/<room>.lua` or `test/quests/<quest>.lua`, press Stop, then Play, and the
+edited file runs. A test file created after the client started appears after
+`python3 tools/raid_gate/prepare_scripts.py` and **Refresh**. A script already running is
+never swapped mid-run, and the driver's own verbs (script/plugins/quest_driver/) are read
+only when the client starts.
 
 A watched run is not a test run, and it grades nothing:
 
-- It runs on the wall clock, on your account and in whatever world the last run left. Its
-  rows can differ from the kept ledger's. Measured: a frame-locked watched tob_maiden left
-  the kept ledger at row 29.
-- Party tests (`*_normal`) are listed as unavailable, because they need three clients in
-  lock step.
-- Quests are not listed, because they need their fixture at login.
+- It runs on the wall clock, and each account's random stream is seeded from its name, so
+  its rows can differ from the kept ledger's (a combat room most of all).
+- Party tests (`*_normal`) are listed as unavailable, with that reason: they need three clients
+  in lock step.
 
 Grade a room only with `tools/raid_gate/run.py` and `gate.py` (above). The profile, the
 headless way to drive the tab and the measurements are in
@@ -419,3 +430,36 @@ total, seam21 closer): k=1 10.9 s, k=10 10.5 s, k=30 11.0 s; a tick is cheaper a
 frame-granular driver spends more ticks. At k>1 a shot is of the frame's last cycle, and
 `TORIRS_SHOT_FRAME=N` is frame N, which is cycle N x k. `QUEST_PARTY_NICE_SEAT=<n>` (run.py)
 starts member n at nice 19. `TORIRS_EMBED_PARTY_TRACE=1` is set by run.py.
+
+## The fight is the play library plus the room's plan (raid seam27)
+
+The owner, 2026-10-05: "the driver is not very fast or good. That is not going to work in
+normal mode. You will need to code up the agents a lot smarter using the actual strategies."
+
+A room test's fight is ONE call:
+
+```lua
+local result, detail, rec = t.raid.play("tob_bloat", { mode = "entry" })
+t.check("bloat.fight", result == "ok", detail)
+-- technique rows read `rec` (downs, flinches, prayer_at, inputs ...) and the tick log
+```
+
+`t.raid.play` (script/plugins/quest_driver/raid.lua, banner `SEAM raid_play_by_tick_intent`)
+runs one loop every tick. It SEES what a player can see, the room's PLAN DECIDES the whole
+intent for the tick, and the loop SENDS it together. The plan is a table plus a decide
+function in the same file. The skills (attack on cooldown, pray by the telegraph, supplies,
+hazards, loadouts, roles) and every plan line have their sources in
+`docs/minigames/raid_loop/PLAY_NOTES.md`. The worked example is `_play_smoke.lua`: Entry
+Bloat, green on five names with tob_bloat.lua's technique rows copied unchanged, and the Normal
+trio measured with `--party 3`.
+
+**The reviewer rejects** a room test that:
+- writes its own fight loop instead of calling the library with the room's plan;
+- presses one action per tick where the plan sends several;
+- carries a threshold with no source (an `hp < 72`, a `leave_age = 38`). A number belongs in
+  the plan, with its source on the same line.
+
+A room the library does not play yet gets its plan and its decide function in raid.lua, with
+the PLAY_NOTES.md rows to match. Its test is never a private loop. The kept room tests that
+predate this rule (tob_*.lua) are re-authored onto the library in the re-author pass.
+`t.raid.play` answers `unsupported` for a plan with no decide function (Maiden today).

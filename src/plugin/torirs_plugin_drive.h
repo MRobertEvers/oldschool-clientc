@@ -255,7 +255,8 @@ char const* PluginDrive_QuestScriptPath(void);
  * A client a person launches and watches -- the Scripts tab
  * (script/plugins/script_runner.lua) -- installs `api.drive` like a test run
  * does, but nothing starts at world-ready: api.drive.start(path, session_dir)
- * starts a prepared script (tools/raid_gate/prepare_scripts.py) on the next
+ * starts an already-wrapped script file (run.py's wrapper; the tab uses
+ * api.drive.play since seam24) on the next
  * frame, api.drive.stop() ends it at its next yield, api.drive.status() reads
  * where it is.  A finished or stopped script does NOT end the client
  * (PluginDrive_Finished answers 0): the driver tears the coroutine down at the
@@ -266,6 +267,34 @@ char const* PluginDrive_QuestScriptPath(void);
  * was.  Read once.  Owner: core-scheduler.
  */
 int PluginDrive_OnDemand(void);
+
+/*
+ * THE SCRIPTS TAB (raid seam24, scripts_tab_every_script), in the same
+ * on-demand client: api.drive.tests([refresh]) reads the scripts manifest
+ * (task_plugin_io.h TESTS_MANIFEST_DEFAULT_PATH, `[test:<id>]` sections) as a
+ * SCRIPT item through the IO layer, as the plugin host reads
+ * plugins/plugins.ini; api.drive.play({id, source, fixture, ...}) reads the
+ * test's source and fixture the same way -- again on every Play, which is the
+ * hot reload -- writes the fixture as the save of a fresh account and runs
+ * the RAW test file through QD.core_run_test (quest_driver/core.lua), which
+ * logs out, logs in as that account and does what run.py's wrapper does.
+ * api.drive.status gains play, id, suite, account, leg, legs, refusal.
+ * Without the knob both refuse. Owner: core-scheduler.
+ */
+
+/*
+ * Defined in torirs_plugin_lua.c beside PluginLua_ThreadCreate, declared here
+ * because the driver is its one caller: the same one-coroutine thread, whose
+ * bootstrap is `t.core_run_test(loader, options)` instead of
+ * `loader().run(t)` -- a raw test file has no wrapper to call. Resume it with
+ * (QD_ROOT, options): two arguments after the loader.
+ */
+struct lua_State* PluginLua_TestThreadCreate(
+    char const* plugin_name,
+    char const* chunk_name,
+    char const* source,
+    int source_len,
+    int* out_registry_ref);
 
 /*
  * Once a frame from main.c, outside every plugin callback, ONLY in an

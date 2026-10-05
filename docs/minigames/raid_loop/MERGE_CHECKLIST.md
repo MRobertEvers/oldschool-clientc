@@ -212,6 +212,38 @@ the merge.
     `plugin_api.meta.lua` documents the three verbs.
   - Profiles: new `profiles/osrs239-scripts.ini` (+ profiles/README.md "Watching a driver
     script"). Nothing in v3 reads it.
+- seam24 (2026-10-05), the Scripts tab lists every automated script and the client ASKS for
+  the list. Test runs are unchanged: cooks_assistant and druid byte-identical to
+  build/merge17_check, the six Entry rooms wrote byte-identical ledgers and stay FULL,
+  `_party_smoke` agrees across three runs (sha 6cf6d25dd6a6), the suite holds 115 green with
+  the same four RED, the server selftest keeps its 11 failures.
+  - Launcher (shared with v3): `tools/launcher/profiles.py` gains PROFILE-level
+    `[derived:<name>]` blocks (`out=`, `command=`, `{out}` substituted), run on every launch by
+    `run_profile_derived`, called first thing in `generate_resolved_manifest`. A profile with
+    no such block is untouched; a failing command raises LaunchError. World-manifest
+    `[derived:*]` blocks (staleness.py) are a different thing and unchanged.
+  - C (shared with v3): `task_plugin_io.c/.h` add `CreateTask_PluginScriptRead` (one SCRIPT
+    item, uncached, delivered to a callback) and `TestsManifest_Path`
+    (`TORIRS_TESTS_MANIFEST`, default `tests/tests.ini`). `torirs_plugin_lua.c` adds
+    `PluginLua_TestThreadCreate` (declared in `torirs_plugin_drive.h`; move it to
+    `torirs_plugin_lua.h` when that header is touched). `torirs_plugin_drive.c` adds
+    `api.drive.tests/play/forget_varps` and status fields `play, id, suite, account, leg,
+    legs, refusal`; all refuse without `TORIRS_DRIVE_ON_DEMAND=1`.
+  - Lua: `quest_driver/core.lua` adds `QD.drive.tests/play` and `QD.core_run_test`, whose
+    `core_run_test_wrapped` is a COPY of run.py `write_wrapper_script`'s `QUEST.run` (run.py
+    carries a KEEP IN STEP comment; a v3 change to the setup loop there must be made here
+    too). `script_runner.lua` v2 (fixed row set, suite select, 12 slots), `script_runner.ini`
+    comments, `plugin_api.meta.lua` documents the three verbs.
+  - `test/quests/_conformance.lua`: verb rows `drive.tests`, `drive.play` (183 verbs, 172
+    seam rows). `tools/quest_gate/verb_list.py` unchanged.
+  - Tools: `tools/raid_gate/prepare_scripts.py` is now only the manifest writer
+    (`TEST_SUITES`, `[test:<id>]` sections); it loads `tools/quest_gate/run.py` by path for
+    `read_party_size`, `read_fixture_name`, `read_max_frames` and `legs_source`, so a rename
+    of those breaks the tab's list. It no longer calls `write_wrapper_script`.
+  - Files: NEW committed directory SYMLINKS `script/tests/quests -> ../../test/quests` and
+    `script/tests/raids -> ../../test/raids` (check `core.symlinks` on Windows) and
+    `script/tests/.gitignore` (the generated `tests.ini`); DELETED
+    `script/plugins/assets/script-runner/index.tsv` (seam23's link).
 
 ## 4. The owner's main checkout
 

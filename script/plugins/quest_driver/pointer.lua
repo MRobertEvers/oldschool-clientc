@@ -2133,6 +2133,10 @@ end
 -- .md S5.2), so this awaits the destination tile on the server_tick event
 -- rather than trusting a single settle.
 function QD.player.walk_to(x, z, ticks)
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
+    if QD._together ~= nil then
+        return QD._together_move(x, z, "walk")
+    end
     local start_result, start = QD.world.tile()
     -- The deadline is the DISTANCE plus slack, not a flat 20.  One tile per
     -- server tick is the walking rate, so a flat deadline is a bet that no
@@ -2306,6 +2310,10 @@ end
 -- An adjacent tile only (chebyshev 1); anything else is `refused` -- a walk
 -- is walk_to's job and has no single resolve tick.
 function QD.player.step_tick(x, z, ticks)
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
+    if QD._together ~= nil then
+        return QD._together_move(x, z, "step")
+    end
     if api_drive.server_tick == nil or api_drive.ticklog == nil then
         return "unsupported", "step_tick: this binary has no api_drive.server_tick/ticklog (rebuild)"
     end
@@ -4152,7 +4160,8 @@ function QD.player.inv_op(item, op, opts)
     end
     -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one click and
     -- the next read, not this verb's settle (the banner at the end of file).
-    if QD.player._quick_opts(opts, "inv_op") then
+    -- SEAM-TOGETHER (raid seam27): inside t.together every held press is quick.
+    if QD.player._quick_opts(opts, "inv_op") or QD._together ~= nil then
         local quick_result, quick_detail = QD.player._inv_quick(item, op, "inv_op")
         return quick_result, quick_detail
     end
@@ -4360,7 +4369,8 @@ end
 function QD.player.equip(item, opts)
     -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one press and
     -- the worn slot on the next read (QD.player._equip_quick, end of file).
-    if QD.player._quick_opts(opts, "equip") then
+    -- SEAM-TOGETHER (raid seam27): inside t.together every equip is quick.
+    if QD.player._quick_opts(opts, "equip") or QD._together ~= nil then
         return QD.player._equip_quick(item)
     end
     local obj_result, obj_id = api_drive.symbol("obj", item)
@@ -8688,6 +8698,10 @@ function QD.player._quick_now()
 end
 
 function QD.player._quick_frames(frames, note)
+    -- SEAM-TOGETHER (raid seam27): a block counts the frames it waited.
+    if QD._together ~= nil then
+        QD._together.frames = QD._together.frames + frames
+    end
     local seen = 0
     return await({
         level = function()
@@ -8756,6 +8770,10 @@ end
 -- a table { cell =, now_text =, worn_text =, tick =, pressed = } on ok.
 -- `label` names the verb in the detail.
 function QD.player._inv_quick(item, op, label)
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
+    if QD._together ~= nil then
+        return QD._together_held(item, op, label)
+    end
     local worn_edge = QD.player._inv_worn_edge(item)
     local serial_result, serial_before = api_drive.message_serial()
     local pressed = QD.player._quick_now()
@@ -8851,6 +8869,10 @@ function QD.player._consume(verb, item, opts)
     end
     local op = (opts and opts.op) or 1
     local held = QD.player._quick_first_held(item, verb)
+    if held == nil and QD._together ~= nil then
+        -- SEAM-TOGETHER (raid seam27): named in the block's detail, never dropped.
+        return QD._together_refuse(verb .. " " .. table.concat(item, "/"), "none of them is in the backpack")
+    end
     if held == nil then
         return "not_found", verb .. ": none of " .. table.concat(item, ", ") .. " is in the backpack"
     end
@@ -8888,4 +8910,383 @@ function QD.player._equip_quick(item)
         return "refused", detail
     end
     return result, detail
+end
+
+-- ==========================================================================
+-- SEAM several_inputs_one_tick (raid seam27, 2026-10-05) -- SEVERAL INPUTS
+-- IN ONE SERVER TICK.  Everything below this banner is this seam's; above
+-- it, only the call sites marked SEAM-TOGETHER: the top of
+-- QD.player._inv_quick, QD.player._consume's miss, QD.player._quick_frames'
+-- frame count, the quick dispatch of QD.player.inv_op and QD.player.equip,
+-- QD.player.step_tick, QD.player.walk_to; and prayer.lua's QD.prayer.set.
+--
+-- WHAT WAS WRONG.  Every fast verb pressed and then waited for its own
+-- effect, which is readable one tick later, so N presses cost N ticks: a
+-- two-prayer switch, a bow and its arrows took four (tob_verzik.lua
+-- :1139-1143).  A player lands all of that in one tick.
+--
+-- THE SOURCES.  OSRS runs one tick as client input -> npcs -> players
+-- (ENCOUNTER_TIMING.md 1.1, the wiki's Tick manipulation after Mod Ash), and
+-- the input phase runs every packet the client sent since the last tick, in
+-- the order sent.  LostCity's engine bounds it: NetworkPlayer.decodeIn
+-- (Engine-TS src/engine/entity/NetworkPlayer.ts:55-74) reads packets while
+-- fewer than ClientGameProtCategory.USER_EVENT.limit = 5 user events
+-- (ClientGameProtCategory.ts:6; IfButton, OpHeld, InvButton, MoveClick are
+-- all USER_EVENT) have succeeded this tick; what is left waits in the buffer
+-- for the next tick (never dropped).  Food: "The 3 tick Eat delay"; "Potions
+-- do not incur the standard 3 tick ... delay"; "consuming a marlin, Saradomin
+-- brew, and halibut - in that order - allows 60 hitpoints to be healed at
+-- once" (wiki Food/Fast foods, Combo eating).  OSRS's own per-tick cap is in
+-- no source quoted here (DRIVER_NOTES row); the block's cap is
+-- QD.TOGETHER_MAX_INPUTS below, chosen to hold a full gear switch.
+--
+-- OUR SERVER.  ToriRSServer_SessionPump (torirs_server_session.c:1066)
+-- dispatches each packet the moment it arrives, between world ticks, and
+-- phase_clients_in (torirs_server_world.c:15081) is empty: every press made
+-- between ticks T-1 and T is in force for tick T, in the order sent, with NO
+-- per-tick cap.  Same order as the source; the missing cap is the one
+-- difference (DRIVER_NOTES row, not fixed here: the dispatch is not in the
+-- two mock239 files and a buffered intake is an engine change).
+--
+-- THE FORM.  t.together(function() ... end) -> result, detail.  Inside the
+-- body every hooked verb PRESSES and returns ("pending", what it pressed)
+-- without waiting: t.player.eat / drink, t.player.equip (always the quick
+-- press inside a block), t.player.inv_op (the same), t.prayer.set,
+-- t.player.step_tick, t.player.walk_to.  The block then waits for EVERY
+-- effect together (bounded by QD.TOGETHER_CONFIRM_TICKS) and answers ONE detail naming
+-- each input, the server tick it was pressed on and the tick it was
+-- confirmed on:
+--   ok       every input pressed on one tick and confirmed;
+--   split    every input confirmed, but the tick rolled over between the
+--            first press and the last (the detail names which inputs went
+--            on the later tick) -- nothing is re-pressed;
+--   refused  an input never left (the cell not live, a duplicate press of
+--            one cell or prayer, a second movement, over the cap) or the
+--            server said why (a prayer level) -- named;
+--   timeout  an input left and its effect never showed -- named.
+-- A tab change inside the block (inventory -> prayer -> inventory) is a
+-- press, as a person makes it: it costs FRAMES (QUICK_PAINT_FRAMES on a
+-- not-yet-live cell; the prayer button's paint wait), never a tick, and the
+-- detail counts the frames the block waited.  Write the block grouped by tab
+-- (prayers together, held items together) and movement last.
+--
+-- Do NOT call t.exec / t.check inside the body (each would write a row for
+-- a "pending" answer), and no slow verb (attack, talk, click_loc): it waits,
+-- the tick rolls over, and the block answers `split` naming it.
+-- ==========================================================================
+-- Ten: a six-piece gear switch, two prayers, a food and a step.  LostCity's
+-- engine takes five user events a tick and leaves the rest for the next; no
+-- quoted source states OSRS's number, so a block that wants more than the
+-- source's five is told so in its detail (`over LostCity's five`), and one
+-- that wants more than ten is refused at the eleventh press.
+QD.TOGETHER_MAX_INPUTS = 10
+QD.TOGETHER_SOURCE_CAP = 5
+-- The effects are readable one tick after the presses (seam14's quick press:
+-- `read on tick T+1`); the second tick is the room for a press made late in
+-- its tick.  An effect not seen by then is `timeout`, never waited for.
+QD.TOGETHER_CONFIRM_TICKS = 2
+QD._together = nil
+
+function QD._together_input(label)
+    local block = QD._together
+    local input = { label = label, index = #block.inputs + 1 }
+    block.inputs[input.index] = input
+    return input
+end
+
+-- An input that never left: recorded, named, and answered `refused`.
+function QD._together_refuse(label, why)
+    local input = QD._together_input(label)
+    input.refused = why
+    return "refused", "together input " .. input.index .. " " .. label .. " refused: " .. why
+end
+
+function QD._together_full(label)
+    local block = QD._together
+    if block.sent >= QD.TOGETHER_MAX_INPUTS then
+        return true, QD._together_refuse(label, "over the block's cap of "
+            .. QD.TOGETHER_MAX_INPUTS .. " inputs (not sent)")
+    end
+    return false
+end
+
+function QD._together_sent(input, pressed)
+    local block = QD._together
+    block.sent = block.sent + 1
+    input.pressed = pressed
+    if block.first_pressed == nil then
+        block.first_pressed = pressed
+    end
+    block.last_pressed = pressed
+    return "pending", "together input " .. input.index .. " " .. input.label
+        .. " pressed on tick " .. tostring(pressed)
+end
+
+-- A held press (eat, drink, equip, inv_op) inside a block.
+function QD._together_held(item, op, label)
+    local block = QD._together
+    local name = label .. " " .. item
+    local full, full_result, full_detail = QD._together_full(name)
+    if full then
+        return full_result, full_detail
+    end
+    local cell_result, cell = QD.player._inv_cell(item)
+    if cell_result ~= "ok" then
+        return QD._together_refuse(name, tostring(cell))
+    end
+    local owner = block.cells[cell.slot]
+    if owner ~= nil then
+        return QD._together_refuse(name, "backpack slot " .. cell.slot .. " was already pressed by input "
+            .. owner .. " of this block; the client shows the cell unchanged until the next tick, so a "
+            .. "second press would press the same cell twice")
+    end
+    local worn_edge = QD.player._inv_worn_edge(item)
+    local result, pressed_cell, where, refusal = QD.player._inv_press_quick(item, op)
+    if result ~= "ok" then
+        return QD._together_refuse(name, tostring(where) .. " -- " .. tostring(refusal))
+    end
+    local container_result, container_id = QD._inv_container()
+    assert(container_result == "ok", "the backpack container resolved for the press and not after it")
+    local input = QD._together_input(name)
+    block.cells[pressed_cell.slot] = input.index
+    local before_text = QD.player._quick_obj_text(pressed_cell.obj_id, pressed_cell.count)
+    input.confirm = function()
+        local slot_result, slot = api_drive.inv_slot(container_id, pressed_cell.slot)
+        local changed = slot_result == "ok"
+            and (slot.obj_id ~= pressed_cell.obj_id or slot.count ~= pressed_cell.count)
+        local worn_text = worn_edge ~= nil and worn_edge() or nil
+        -- An equip is confirmed by the WORN total rising, not by the cell
+        -- emptying: a press the server answered by dropping the item would
+        -- empty the cell too.
+        if label == "equip" then
+            if worn_text == nil then
+                return false
+            end
+        elseif not changed then
+            return false
+        end
+        local now_text = slot_result == "ok" and QD.player._quick_obj_text(slot.obj_id, slot.count) or "?"
+        return true, where .. ": " .. before_text .. " -> " .. now_text
+            .. (worn_text ~= nil and (" [" .. worn_text .. "]") or "")
+    end
+    return QD._together_sent(input, QD.player._quick_now())
+end
+
+-- A prayer toggle inside a block (prayer.lua's QD.prayer.set hands it here
+-- with the entry already resolved and the varbit already read).
+function QD._together_prayer(entry, want, word, before)
+    local block = QD._together
+    local name = "prayer " .. entry[1] .. " " .. word
+    if block.prayers[entry[1]] ~= nil then
+        return QD._together_refuse(name, "input " .. block.prayers[entry[1]]
+            .. " of this block already pressed " .. entry[1] .. "; a second press toggles it back")
+    end
+    if before == want then
+        local input = QD._together_input(name)
+        block.prayers[entry[1]] = input.index
+        input.already = true
+        input.confirm = function()
+            return true, entry[3] .. " already " .. tostring(want) .. " -- no press made"
+        end
+        return "pending", "together input " .. input.index .. " " .. name .. ": already " .. word .. ", no press"
+    end
+    local full, full_result, full_detail = QD._together_full(name)
+    if full then
+        return full_result, full_detail
+    end
+    local tab_result, tab_detail = QD.ui.tab("prayer")
+    if tab_result ~= "ok" then
+        return QD._together_refuse(name, "the prayer tab did not open: " .. tostring(tab_detail))
+    end
+    local component = nil
+    local looks = 0
+    local shown = await({
+        level = function()
+            looks = looks + 1
+            local result, id = api_drive.component(entry[2])
+            if result ~= "ok" then
+                return false
+            end
+            component = id
+            local presented_result, presented = api_drive.widget_presented(id)
+            return presented_result == "ok" and presented == true
+        end,
+        note = "together: " .. entry[2] .. " displayed",
+    }, QD.prayer.PAINT_TICKS)
+    if looks > 1 then
+        block.frames = block.frames + looks - 1
+    end
+    if shown ~= "ok" or component == nil then
+        return QD._together_refuse(name, entry[2] .. " was not displayed after the prayer tab opened ("
+            .. tostring(shown) .. ")")
+    end
+    local serial_result, since = api_drive.message_serial()
+    assert(serial_result == "ok", "together: the chat serial is unreadable")
+    local click_result, click_detail = api_drive.if_click(component, 1)
+    if click_result ~= "ok" then
+        return QD._together_refuse(name, "the press on " .. entry[2] .. " answered "
+            .. tostring(click_result) .. " " .. tostring(click_detail))
+    end
+    local input = QD._together_input(name)
+    block.prayers[entry[1]] = input.index
+    input.confirm = function()
+        local result, value = QD.prayer._varbit(entry)
+        if result == "ok" and value == want then
+            return true, entry[3] .. " " .. tostring(before) .. " -> " .. tostring(value)
+        end
+        local refusal = QD.prayer._refusal_since(since)
+        if refusal then
+            return false, nil, "the server said '" .. tostring(refusal) .. "'"
+        end
+        return false
+    end
+    return QD._together_sent(input, QD.player._quick_now())
+end
+
+-- A movement click inside a block: `kind` "step" (step_tick: confirmed when
+-- the player stands on x,z) or "walk" (walk_to: confirmed when the first step
+-- of the route is taken -- the rest of a walk is not this tick's).  One per
+-- block: the source keeps only the last movement of a tick, so a second is
+-- refused rather than sent to overwrite the first.
+function QD._together_move(x, z, kind)
+    local block = QD._together
+    local name = kind .. " " .. x .. "," .. z
+    if block.moved ~= nil then
+        return QD._together_refuse(name, "input " .. block.moved .. " of this block is already a movement; "
+            .. "only a tick's last movement counts, so a block takes one")
+    end
+    local full, full_result, full_detail = QD._together_full(name)
+    if full then
+        return full_result, full_detail
+    end
+    local here_result, here = QD.world.tile()
+    if here_result ~= "ok" or here == nil then
+        return QD._together_refuse(name, "no player tile")
+    end
+    if kind == "step" and QD.player._tile_distance(here.x, here.z, x, z) ~= 1 then
+        return QD._together_refuse(name, "step_tick takes an adjacent tile (" .. here.x .. "," .. here.z
+            .. " -> " .. x .. "," .. z .. ")")
+    end
+    local move_result = api_drive.move_to(x, z)
+    if move_result ~= "ok" then
+        return QD._together_refuse(name, "move_to answered " .. tostring(move_result))
+    end
+    local input = QD._together_input(name)
+    block.moved = input.index
+    input.confirm = function()
+        local now_result, now = QD.world.tile()
+        if now_result ~= "ok" or now == nil then
+            return false
+        end
+        local landed = (kind == "step" and now.x == x and now.z == z)
+            or (kind == "walk" and (now.x ~= here.x or now.z ~= here.z))
+        if not landed then
+            return false
+        end
+        return true, "tile " .. here.x .. "," .. here.z .. " -> " .. now.x .. "," .. now.z
+    end
+    return QD._together_sent(input, QD.player._quick_now())
+end
+
+-- t.together(body) -> ok | split | refused | timeout, detail.  The banner
+-- above says what each answer means.
+function QD.together(body)
+    assert(type(body) == "function", "t.together: the body must be a function")
+    assert(QD._together == nil, "t.together: a block inside a block")
+    local block = {
+        inputs = {},
+        sent = 0,
+        cells = {},
+        prayers = {},
+        moved = nil,
+        frames = 0,
+        opened = QD.player._quick_now(),
+        first_pressed = nil,
+        last_pressed = nil,
+    }
+    QD._together = block
+    body()
+    QD._together = nil
+    if #block.inputs == 0 then
+        return "refused", "t.together: the body pressed nothing (no eat, drink, equip, inv_op, prayer.set, "
+            .. "step_tick or walk_to ran inside it)"
+    end
+    local function sweep()
+        local all = true
+        for i = 1, #block.inputs do
+            local input = block.inputs[i]
+            if input.refused == nil and input.confirmed == nil then
+                local done, text, refusal = input.confirm()
+                if done then
+                    input.confirmed = QD.player._quick_now()
+                    input.text = text
+                elseif refusal ~= nil then
+                    input.refused = refusal
+                else
+                    all = false
+                end
+            end
+        end
+        return all
+    end
+    if not sweep() then
+        await({ level = sweep, note = "t.together: confirm " .. #block.inputs .. " input(s)" },
+            QD.TOGETHER_CONFIRM_TICKS)
+    end
+    if QD.player._death_fence ~= nil and QD.player._death_fence("a together block") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local parts = {}
+    local refused, unconfirmed, late = {}, {}, {}
+    local last_confirmed = nil
+    for i = 1, #block.inputs do
+        local input = block.inputs[i]
+        local text = "[" .. i .. "] " .. input.label
+        if input.refused ~= nil then
+            refused[#refused + 1] = tostring(i)
+            text = text .. ": REFUSED " .. input.refused
+        elseif input.confirmed == nil then
+            unconfirmed[#unconfirmed + 1] = tostring(i)
+            text = text .. ": pressed " .. tostring(input.pressed) .. ", NOT confirmed by tick "
+                .. tostring(QD.player._quick_now())
+        else
+            if input.pressed ~= nil then
+                text = text .. ": pressed " .. input.pressed .. ", confirmed " .. input.confirmed
+                    .. " (+" .. (input.confirmed - input.pressed) .. ") " .. tostring(input.text)
+                if input.pressed ~= block.first_pressed then
+                    late[#late + 1] = tostring(i)
+                end
+            else
+                text = text .. ": " .. tostring(input.text)
+            end
+            if last_confirmed == nil or input.confirmed > last_confirmed then
+                last_confirmed = input.confirmed
+            end
+        end
+        parts[#parts + 1] = text
+    end
+    local head = "together: " .. block.sent .. " input(s) sent, opened on tick " .. tostring(block.opened)
+        .. ", pressed on " .. tostring(block.first_pressed)
+        .. (block.last_pressed ~= block.first_pressed and (".." .. tostring(block.last_pressed)) or "")
+        .. ", " .. block.frames .. " frame(s) waited inside the block"
+    if block.first_pressed ~= nil and last_confirmed ~= nil then
+        head = head .. "; first press -> last confirmation " .. (last_confirmed - block.first_pressed) .. " tick(s)"
+    end
+    if block.sent > QD.TOGETHER_SOURCE_CAP then
+        head = head .. "; " .. block.sent .. " is over LostCity's " .. QD.TOGETHER_SOURCE_CAP
+            .. " user events a tick (our server has no cap)"
+    end
+    local detail = head .. " -- " .. table.concat(parts, "; ")
+    if #refused > 0 then
+        return "refused", detail .. " -- input(s) " .. table.concat(refused, ", ") .. " did not take"
+    end
+    if #unconfirmed > 0 then
+        return "timeout", detail .. " -- input(s) " .. table.concat(unconfirmed, ", ")
+            .. " left and never showed an effect"
+    end
+    if #late > 0 then
+        return "split", detail .. " -- the tick rolled over before input(s) " .. table.concat(late, ", ")
+            .. " were pressed"
+    end
+    return "ok", detail
 end

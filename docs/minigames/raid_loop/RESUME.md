@@ -167,28 +167,93 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   raid rooms in a real-time client.) Put it in every work order and every card context: proofs run
   on the virtual clock; a script is played only as far as the claim needs and never twice for one
   claim; 30 minutes of proof after the gates are green, then the report says what is not proved.
-  THEN SEAM27 (`SEAM_TRIAGE_2026-10-05f.md`): THE KEPT ENTRY ROOMS HOLD ON ONE SEED ONLY. The
-  account name seeds the random numbers; each room was kept under its own name alone. The
-  orchestrator's survey (`SEED_SURVEY_2026-10-05.md`; evidence in `build/seed_survey_2026-10-05/`):
-  each kept room replayed unchanged under four other names, 7 of 24 green (Xarpus 4 of 4; Maiden,
-  Bloat, Sotetseg 1 of 4; Nylocas and Verzik 0 of 4). Seam24's fixer met it first (Bloat died in
-  the watched client). Seven seams: `seed_survey_gate` (tools/raid_gate/seed_survey.py; the author
-  card keeps a room only when it is green on five names); `several_inputs_one_tick` (OWNER,
-  2026-10-05: "update the script runner so that it can do multiple things at once ... it's really
-  slow to equip, eat move around ... Are you sure you're writing scripts well enough?" -- he is
-  right: no driver verb lands two inputs in one tick, Verzik's bow-and-arrows swap takes two
-  ticks, Bloat eats through the slow 3-tick press, the eater eats every 6 ticks where the server
-  allows 3; the seam sources what OSRS takes in a tick, makes the server match, adds a
-  send-together block, fixes the eater, and writes the authors' rule); then one per fragile room classifying
-  every failing row as play / measurement / content and fixing or writing it. Fixers do not edit
-  the kept tests: they leave `notes.tob_<room>.md` in the state dir.
-  THEN the ENTRY RE-AUTHOR pass for the five fragile rooms (card raid_author, pass
-  `matthew-mbp-m4-raid-b1-rooms-tob-entry2`, raid tob, rooms maiden bloat nylocas sotetseg verzik,
-  mode entry, party 1, width 1, context = the seam27 notes and the rule that a fight loop sends a
-  tick's whole intent together; kept = the five-name survey green).
-  UNTIL THEN say it plainly in every report: ToB Entry solo is tested ON ONE SEED PER ROOM.
-  THEN relaunch the Normal three-player pass with the same args and the seam22 notes (it now
-  gets the five-name survey too).
+  OWNER, 2026-10-05, ON SPEED: "Perhaps instead of watching, you can use something like what blert
+  does and just look at the log and see where you went wrong. I want you to be faster, you are
+  being incredibly innefficient." and "Save the visual verification for afterwards." So: a failed
+  run is DIAGNOSED FROM ITS TICK LOG with `tools/raid_gate/raid_report.py <run dir>...` (the
+  orchestrator's first cut; seam27's gate seam adds the raider's state and inputs to the log and a
+  mistakes list), never replayed or watched; no screenshots, crops or frame dumps in a pass:
+  what needs eyes is listed for a later visual pass. The orchestrator does small tools and
+  analyses itself instead of waiting on a pass.
+  SEAM24 LANDED 2026-10-05: parent 473097e5e (no content change); the closer then merged the
+  camera session's first refactor from the remote raid branch (world_view_gather, 325c57690; merge
+  9e946b5a0, clean) and re-verified ON THE MERGED TREE: cooks_assistant and druid identical to
+  merge17_check, conformance 355/355 (183 verbs + 172 seams), six rooms byte-identical and FULL,
+  quest suite 115 green + the four known reds, _party_smoke 157 and party_repeat AGREE. Pushed at
+  9e946b5a0 by the orchestrator; raid-watch moved to 9e946b5a0 and rebuilt. The pass took 4.9
+  hours (fixer 3.5, closer 1.3): the closer ran the rooms twice and three watched Plays. NEXT
+  CARDS: the context must cap the closer too (suite once, no watched Play, 30 minutes).
+  STATE 2026-10-05 17:40. SEAM27 fixed, closing (pass matthew-mbp-m4-raid-b1-seam27; the session
+  restarted mid-close; relaunched with the same args, it resumes from close.progress.md):
+  `t.together` (six inputs in one tick measured; combo eating in one tick); `t.raid.play(plan_id)`
+  = the play library (in raid.lua's last banner block for now), proved on BLOAT ENTRY only: green
+  on five names, 196-281 ticks a kill (old play 329, or never), 66-160 damage taken (old 724), 3-8
+  eats (old 41); one Normal trio Bloat run measured, all three died (no Defence drain in the plan;
+  hazard skill missed the attack path). The card SKIPPED `seed_survey_gate` (it read "tooling:" as a
+  design note): the orchestrator wrote `tools/raid_gate/seed_survey.py` itself (c7d273792; proved:
+  `_play_smoke` 5 of 5 names green). USE KINDS driver / engine / content IN A TRIAGE, nothing else.
+  THE OWNER'S TWO STEPS (2026-10-05): "1. Add multiple actions per tick to the runner 2. Prefer
+  using the log to iterate on a program that can be TOB - save visual verification for the end
+  when you're succeeding." So the order below is superseded:
+  OWNER, 2026-10-05: "Keep going. Do not stop until you can beat the theater of blood. If you need
+  a feature in the client automation runner to make things faster (watch for events, add
+  callbacks and triggers or whatever, then do so)". He did not answer whether the room plans may
+  run in parallel worktrees: they run ONE AT A TIME until he says otherwise.
+  SEAM27 LANDED 0b9633ed2 (ledger 7cc5aac68), pushed: conformance 358/358, six rooms and both
+  baseline ledgers byte-identical, suite 115 green + 4 known reds, party repeat AGREE. SEAM29
+  LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
+  library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
+  pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  OWNER, 2026-10-05 ~18:00: "Can you just do those things? Do seam25." So SEAM25 RUNS NOW, IN ITS
+  OWN WORKTREE, alongside seam29: `build/orchestrator/worktrees/raid25`, branch
+  `matthew-mbp-m4-raid-b1-w25` (parent and OSRS-Content), cut at 2877bbe99; its triage is that
+  worktree's copy of `SEAM_TRIAGE_2026-10-05d.md` (paths rewritten; proofs by state, not
+  pictures); pass `matthew-mbp-m4-raid-b1-seam25` with card args worktree + branch; state in
+  `<raid25>/build/seam_state/`. WHEN IT LANDS: merge `origin/matthew-mbp-m4-raid-b1-w25` into the
+  raid branch by hand (pointer.lua, _conformance.lua, DRIVER_NOTES.md will overlap with seam29/30),
+  re-run cooks_assistant, druid, conformance and the Bloat five-name survey on the merged tree,
+  push, move raid-watch, remove the raid25 worktree (and its content worktree and branches), and
+  tell the camera session's owner that seam24 + seam25 are both on the raid branch (its split
+  waits on exactly that). Also done directly (50a346343): the Scripts tab lists `_play_*` harnesses.
+  NEXT = SEAM29 (`SEAM_TRIAGE_2026-10-05h.md`): the library into its own files (one plan file per
+  room) and the hazard fix; the raider's state and inputs into the tick log and a mistakes list in
+  raid_report.py; then a sourced Entry plan per room (maiden, nylocas, sotetseg, xarpus, verzik),
+  each proved in `test/raids/_play_<room>.lua` by the five-name survey, iterated from logs only.
+  THEN the Normal three-player plans on the library (Bloat's Defence drain first), THEN seam28
+  (the survey's measurement and content rows) and the Entry re-author of the kept tests on the
+  library, THEN, when the play is succeeding, the visual pass: seam25 (mouse mapping, camera turn,
+  reset character) and the camera branch's split.
+  ORDER AFTER SEAM24 (owner, 2026-10-05, after watching the whole Entry raid: "I noticed that the
+  driver is not very fast or good. That is not going to work in normal mode. You will need to code
+  up the agents a lot smarter using the actual strategies. Did you also fix the single action
+  issue?" -- it was NOT fixed then, only written): THE PLAY COMES FIRST.
+  (1) SEAM27 (`SEAM_TRIAGE_2026-10-05f.md`), three seams: `seed_survey_gate`
+  (tools/raid_gate/seed_survey.py; the author card keeps a room only when green on five names);
+  `several_inputs_one_tick` (owner: "update the script runner so that it can do multiple things at
+  once ... it's really slow to equip, eat move around": no driver verb lands two inputs in one
+  tick, Verzik's bow-and-arrows swap takes two ticks, Bloat eats through the slow 3-tick press, the
+  eater eats every 6 ticks where the server allows 3; the seam sources what OSRS takes in a tick,
+  makes the server match, adds a send-together block, fixes the eater);
+  `raid_play_by_tick_intent` (ONE play library, script/plugins/quest_driver/raid_play.lua: every
+  tick read what a person can see, decide the tick's whole intent, send it together; shared skills
+  -- attack on cooldown, pray by the telegraph, one-tick loadouts, supplies by the largest hit,
+  hazards, party roles; room plans cited from the Strategies pages, the trio guides and
+  transcripts, Blert; proved on Bloat: Entry green on five names, one Normal trio run measured).
+  THE SEED FINDING behind the gate: `SEED_SURVEY_2026-10-05.md` (evidence in
+  `build/seed_survey_2026-10-05/`): each kept room replayed unchanged under four other account
+  names, 7 of 24 green (Xarpus 4 of 4; Maiden, Bloat, Sotetseg 1 of 4; Nylocas and Verzik 0 of 4).
+  (2) SEAM25 (`SEAM_TRIAGE_2026-10-05d.md`, above): the watch pass (mouse mapping, camera turn in
+  one call, reset character).
+  (3) SEAM28 (`SEAM_TRIAGE_2026-10-05g.md`): the survey's failing rows per fragile room; the
+  measurement and content rows fixed or written; play rows only named (the play is re-authored).
+  (4) THE ENTRY RE-AUTHOR pass, all six rooms ON THE LIBRARY (card raid_author, pass
+  `matthew-mbp-m4-raid-b1-rooms-tob-entry2`, raid tob, mode entry, party 1, width 1, context =
+  PLAY_NOTES.md, the authors' rule in test/raids/README.md and the seam28 findings; kept = the
+  five-name survey green; a test with its own fight loop is rejected).
+  UNTIL THEN say it plainly in every report: ToB Entry solo is tested ON ONE SEED PER ROOM, with a
+  play the owner judged too slow for Normal.
+  (5) THEN the Normal three-player pass, on the library, with the seam22 notes and the five-name
+  survey.
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
   players should share it using their special attack." Our content agrees (tob_xarpus.rs2:1817-1850

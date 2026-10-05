@@ -1537,7 +1537,10 @@ reports are under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/`.
   runs the gate procs in one tick and prints two lines (`eatgate:` and `eatgate+:`).
 - The driver eater (`opts.eat`) still waits `QD.COMBAT_EAT_DELAY_TICKS` = 3 after
   inv_op's own 3-tick settle, so it eats at most every 6 ticks; the server would take one
-  every 3.
+  every 3. Seam27 added `opts.eat.quick = true`, which bites at the server's
+  delay (every 3 ticks, `@tick` on each bite in the detail); the default is unchanged
+  until the 36 kept quests that pass `opts.eat` are re-run (see "Several inputs in one
+  tick" below).
 - Quest-loop impact: `troll` and `regicide` went green -> RED with the port (the player
   dies without the held hits); the quest loop re-authors them with more food or prayer.
   troll: first failing row 31 player.died at tick 465, in killGeneral's wait (2824,10077 level 2): the Troll general's hits killed the player after all 26 sharks were eaten (the general at 1/30). regicide: first failing row 205 goKillGuardAtSecondForest-walk-toForests, run from the Lumbridge respawn; the death came at the end of leg 4 (about tick 4663): the Tyras guard fight ate all 12 sharks (lowest 20/70, OUT OF shark), then the tripwire snag and its poison took the player to 0. See CONTENT_BUGS.md, "Quest loop impact of the eat-delay port".
@@ -4933,82 +4936,180 @@ share it using their special attack".
 
 ## Watching a test: the Scripts tab
 
-- The owner's two commands: `python3 tools/raid_gate/prepare_scripts.py && ./launch run
-  osrs239-scripts`. Log in with any name, Confirm the Character Creator (a new name's first
-  login opens it), open the Scripts tab on the plugin rail (the play-triangle icon), type in
-  Search, click a row, Play. The script plays in that window at real speed. Stop ends it at
-  its next step.
-- The profile (`profiles/osrs239-scripts.ini`) is `osrs239.ini` plus an `[env]`:
-  `TORIRS_PLUGIN_MANIFEST=plugins/script_runner.ini` (the everyday Lua set, plus
-  `quest-driver` and `script-runner`; the screenshot plugin is off because every
-  `::setlevel 99` would be a level-up picture), `TORIRS_DRIVE_ON_DEMAND=1`,
-  `TORIRSSERVER_STAFF_LEVEL=2` and `TORIRSSERVER_SAVES=build/quest_gate/watch_saves`.
-  It also sets `TORIRSSERVER_HOME` and `TORIRSSERVER_TUTORIAL_HOME`, both to 3222,3218.
-  Without TUTORIAL_HOME, a new name starts on Tutorial Island (3094,3106, varp 281 unset).
-  There `setup.::wield twisted_bow` fails with "not worn 10 ticks later" (measured twice).
-  A tutorial home equal to the home tile is how a world opts out of the tutorial
-  (`torirs_server_boot.c`). There is no frame cap, no render skip and no dummy video: it is
-  a real window. The native plugins stay on. They do not touch the play: a watched
-  tob_maiden with natives on and with `TORIRS_PLUGIN_ONLY=lua` wrote byte-identical ledgers.
-- The list is the asset `script/plugins/assets/script-runner/index.tsv`. It is a committed
-  symlink to `../../../../build/quest_gate/_scripts/index.tsv`, the file
-  `prepare_scripts.py` writes by default. A Lua plugin cannot read an environment variable
-  or a path of its choosing: the sandbox opens base, table, string, math and utf8 only, and
-  an asset name is a bare filename under `plugins/assets/<plugin>/`. So the triage's
-  `TORIRS_SCRIPTS_INDEX` knob is not implemented, and the profile does not set it. A missing
-  index reads "No index. Run: python3 tools/raid_gate/prepare_scripts.py, then Refresh."
-  Refresh releases the asset and reads it again.
-- The page (`script/plugins/script_runner.lua`) has these rows, in order:
-  - a Search box (panel node kind 5, the native text input), then a count;
-  - Selected, Play and Stop;
-  - Driver, Step and Rows;
-  - a note, which holds the last start or stop answer, a refusal reason included;
-  - one action row per playable script (the id, then its title, with "selected:" on the
-    chosen one), and a white label per unavailable script with its reason;
-  - Refresh, then Summary and Session.
-  The controls sit above the list. With the controls below a dozen rows, Play was off the
-  bottom of the page even in fullscreen at 807x503. Play is enabled while a script is
-  selected and nothing runs. Stop is enabled while one runs. The host draws a disabled
-  button's caption orange and an enabled one's white.
-- Play calls `api.drive.start(<index path>, <the index's parent>/watch_<id>)`, which is
-  `build/quest_gate/watch_<id>/` with its ledger.tsv, ticklog.tsv and shots/. A refusal
-  ("log in first", "a script is running", "the last script is still ending") is written to
-  the note row.
-- The panel engine's rules, kept:
-  - Status is read with `api.drive.status()` every 10 frames. Only rows whose text moved
-    get a `set_text`; Play and Stop get a `set_value`. No status change rebuilds the page.
-  - `on_ui_build` re-runs only when the row set changes: the index was read, or the search
-    filter changed.
-  - Every row's text is clipped to 180 characters.
-  - Nothing walks the UI tree. A strict scan-meter run with the tab open and two scripts
-    played printed no `uitree:` line.
-- Search does not rebuild per keystroke. A rebuild re-creates the text box, which drops
-  the keyboard: measured, "maid" left "m" in the box and typed "aid" into the chat line.
-  While typing, the count row updates in place ("2 of 12 match 'maid'"). The list follows
-  once the box has been still for 600 ms. After that rebuild, the box no longer has the
-  keyboard, so click it again to keep typing. The filter is a case-folded substring match
-  on id and title.
-- Headless drive of the tab:
-  - `TORIRS_SIM_PLUGIN_PANEL=<tick>,script-runner,page` opens it.
-  - `TORIRS_SIM_CLICK_AT=<frame>,210,152` focuses Search in the 807x503 default window
-    (floating pane). Then `TORIRS_SIM_TYPE=<frame>,c109,c97,c105,c100` types "maid";
-    `k85` is backspace.
-  - `TORIRS_SIM_PANEL_PICK=<tick>,script-runner,script:<id>,!activate` selects a row.
-    `...,play,!activate` and `...,stop,!activate` press the buttons.
-  - A new account's Character Creator Confirm is at 256,298. The pane's Fullscreen button
-    is at 70,110.
-  - The harness is `build/seam_state/matthew-mbp-m4-raid-b1-seam23/panel/run_watch.sh`.
-- A watched run is NOT a test run, and it grades nothing:
-  - It is not deterministic against the test. A full tob_maiden through the tab, frame-locked,
-    on a new name (full3) ended with `SUMMARY 111 FAIL 789 exit=0 pass=103 fail=8`. The kept
-    test has 112 PASS. Under the test's own account and fixture, the watched run still left
-    the kept ledger at row 29 (`fight.lowhp-2`). The raid was entered on tick 62 (Play at
-    frame 800) instead of tick 37 (the test starts at world-ready), and Maiden held npc slot 81
-    instead of 66. The fight that follows is a different fight.
-  - Consecutive runs share one account's world. Whatever the last room left worn or in the
-    backpack is still there ("On demand" below).
-  - Party tests are listed as unavailable (three clients in lock step).
-  - Quests are not listed: they need their fixture at login, and no watch account has one.
+Seam23 built the tab for the six solo raid rooms off a prepared index; seam24 (2026-10-05,
+scripts_tab_every_script) replaced that plumbing. What it is now:
+
+- The owner's ONE command: `./launch run osrs239-scripts`. Log in with any name, open the
+  Scripts tab on the plugin rail (the play-triangle icon), pick a Suite (All, Quests,
+  Raids), type in Search, click a row, Play. Play logs the watcher out, makes a fresh
+  account, logs it in and plays the test at real speed. Stop ends it at its next step.
+- THE LIST IS ASKED FOR, like the plugins are. The client asks for the scripts manifest
+  `tests/tests.ini` (`api.drive.tests`, torirs_plugin_drive.c) as ONE script item through
+  the IO layer (task_plugin_io.c `CreateTask_PluginScriptRead`, the SCRIPT kind
+  `plugins/plugins.ini` is): natively a file under `script/`, on the browser lane the served
+  script directory. `[test:<id>]` sections: `suite`, `title`, `source`, `fixture`, `legs`,
+  `party`, `max_frames`, `available`, `reason`. `TORIRS_TESTS_MANIFEST` moves it (a
+  script-dir-relative path, the `TORIRS_PLUGIN_MANIFEST` convention); the profile does not
+  set it. There is no `TORIRS_SCRIPTS_INDEX`, no `index.tsv` and no prepare step.
+- HOW IT COMES TO EXIST. The profile's `[derived:tests]` block (`out=script/tests/tests.ini`,
+  `command=tools/raid_gate/prepare_scripts.py --out {out}`) is run by the launcher on every
+  launch (tools/launcher/profiles.py `run_profile_derived`, called from
+  `generate_resolved_manifest`, which `cli.build_plan` calls before anything starts). Not a
+  world-manifest `[derived:*]` block: staleness.py rebuilds those with a make target, and a
+  50 ms file is cheaper to write than to check. `prepare_scripts.py` reads ONE table of
+  tests directories (`TEST_SUITES`: quest test/quests, raid test/raids; a new suite is one
+  line plus its link), skips `_` files, and lists a party test (`party = N`) as unavailable
+  ("needs N clients"). `script/tests/.gitignore` keeps the generated file out of git.
+- HOW A SOURCE IS READABLE. io_server refuses a path containing `..`, so the tests are
+  reached through two committed directory links, `script/tests/quests -> ../../test/quests`
+  and `script/tests/raids -> ../../test/raids`: `source=tests/quests/cooks_assistant.lua`
+  IS the file in the tree (no mirror to go stale), and io_server's fopen follows the link
+  the same way. A Windows checkout without `core.symlinks` gets text files instead.
+- HOT RELOAD. Play reads the source (and the fixture) again, every time, through the same
+  IO path; nothing caches a test. Edit `test/quests/<id>.lua` or `test/raids/<id>.lua`,
+  Stop, Play: the edit runs. Refresh re-asks for the manifest; a NEW test file needs the
+  manifest re-derived first (`python3 tools/raid_gate/prepare_scripts.py`, or a relaunch).
+  NOT hot-reloaded: a running script is never swapped mid-run, and the driver's own Lua
+  (script/plugins/quest_driver/*.lua) is read at client start. The driver plugin IS
+  reloaded after every run (a fresh Lua state, `drive_demand_release` ->
+  `PluginHost_Reload`), but from the bytes the boot read: the host retains the source for
+  reload (torirs_plugin_lua.h), it does not re-read the file, so a verb edit needs a
+  restart. No "Reload driver" button was wired.
+- A FRESH ACCOUNT PER PLAY (`api.drive.play`). C picks the account: up to eight of the
+  id's letters and digits plus the first number whose save file
+  (`ToriRSServer_SavePath`) and session dir do not exist yet (`cooksass1`, `tobmaide2`; at
+  most 12 characters, never reused across Plays or restarts). The fixture, read as a script
+  item, is written as that account's save with its `name = ` line rewritten: run.py's
+  `write_session_fixture`, done in C because the sandbox has no io and C holds the bytes.
+  Ledger and shots: `build/quest_gate/watch/<account>/` (ABSOLUTE: a relative capture dir
+  is put under the plugin prefs' asset directory by App_RequestScreenshot, measured). The
+  session dir's basename is the account, so `t.session.relog` inside a test logs back in
+  as it.
+- THE WRAPPING IS LUA. The sandbox has no `load`, so C compiles the raw test
+  (`PluginLua_TestThreadCreate`, a bootstrap that calls `t.core_run_test(loader, options)`
+  instead of `loader().run(t)`). `QD.core_run_test` (quest_driver/core.lua) builds the
+  test's table exactly as run.py's wrapper does, settles the shot latch, logs out
+  (`t.session.logout`), logs in as the account (`t.session.login`), then runs
+  `core_run_test_wrapped`: run.py `write_wrapper_script`'s QUEST.run copied from the
+  generated Lua (the login-grant wait, the setup list with its give/wield/setlevel/clearinv
+  read-backs). KEEP THE TWO IN STEP (run.py says so beside it). A failed log-out or log-in
+  is one FAIL row, `watch.account`, and the end.
+- LEGS. run.py's FULL run of a legs file is one process: `QD.core_legs_drive` runs every leg
+  in order with a `::checkpoint k` after each all-PASS leg, no relog. A Play does the same
+  (no `from`, no `only`), so a legs file plays in one sitting; the status reads "leg k of n"
+  off the `leg.<k>.` rows. No legs file is unavailable for this reason.
+- THE CLIENT'S VARPS OUTLIVE A LOGOUT. Nothing in this engine clears them, and the
+  embedded server's login sends only the new account's non-zero varps, so the second
+  account of a session read the first one's values for every varp it holds at 0. Measured
+  on the first build: seaslug1 after cooksass2 and hetty1 after doric1 each failed
+  quest.points with "qp (varp) 1 -> 1" (PASS in the suite). `core_run_test` now calls
+  `api.drive.forget_varps()` between the log-out and the log-in (VarPManager_ResetAll,
+  what a VARP_RESET packet does; refused unless a Play runs and the client is on the
+  title screen). A test run never meets it: one account per process. ENGINE QUESTION, not
+  settled here: does the real client reset varps on logout, or the server send VARP_RESET at
+  login? Either would make the driver's reset redundant.
+- THE CAMERA OUTLIVES A RUN too. A test's camera verbs leave the pose where they put it and
+  a logout does not reset it: in seam24's fin3, tob_verzik played after five rooms started
+  top-down and its click on Verzik found nothing (verzik.talk FAIL), while the same Play as
+  a client's first passed. The C side saves the camera pose at the FIRST Play of a client
+  (`DrivePointer_CameraPose`; headless it read yaw=0 pitch=128 zoom=600) and
+  `core_run_test` puts it back after every log-in (`api_drive.camera`); proved by xarpus
+  then verzik in one client (xv1: verzik.talk and verzik.begin PASS).
+- THE SHOT LATCH (seam23 open item). One capture outstanding at a time is C state in
+  torirs_plugin_drive_ui.c; a run that ended with a capture in flight left it for the next
+  run's first `t.shot`. `core_run_test` takes one capture, `watch-start`, before anything
+  else: it collects a stale request (its file lands in the OLD session's shots/) or
+  photographs the world as Play found it. Either way the latch is empty when the test's
+  first `t.shot` asks.
+- THE PAGE (`script/plugins/script_runner.lua`). Rows, never added or removed: Suite (a
+  select), Search (node kind 5), the match count, Selected, Play, Stop, Driver, Test (suite,
+  id, account), Leg, Step, Rows, a note, 12 list slots (action rows: the id, then the title
+  or `[n legs]`, `selected:` on the chosen one; an unavailable test reads
+  `<id>  (unavailable)` with its reason and answers its reason in the note when clicked),
+  "n more: refine the search", Refresh, Summary, Session. Sorted by suite then id. A filter,
+  a keystroke, a selection or a status change is `set_text` / `set_label` / `set_value` on
+  those rows; `on_ui_build` produces the same row set every time. That is what keeps the
+  search box's keyboard: the box is never re-created (seam23's 600 ms settle and its lost
+  focus are gone), and the list follows every key.
+- NOT DONE, and why. Unavailable rows are not GREY: the host draws an action row with no
+  disabled state (torirs_plugin_panel.u.c builds ACTION_ROW without
+  `ToriRSChrome_SetDisabled`; a button is the only row it greys, and a button clips its
+  caption to the label column). Needs one line in the host: apply `model->value` to an
+  ACTION_ROW the way BUTTON does. Button captions follow the host's convention: a disabled
+  caption is drawn in `text_dim`, which the OSRS theme sets to the label colour (orange),
+  and an enabled one in `text` (white); that reads backwards in this theme and is the
+  theme's to change, not the plugin's.
+- Headless drive of the tab (profile env + `SDL_VIDEODRIVER=dummy`; harness
+  `build/seam_state/matthew-mbp-m4-raid-b1-seam24/panel/run_watch.sh`):
+  `TORIRS_SIM_PLUGIN_PANEL=<tick>,script-runner,page`;
+  `TORIRS_SIM_PANEL_PICK=<tick>,script-runner,suite,quest` (or `raid`, `all`),
+  `...,slot<k>,!activate`, `...,play,!activate`, `...,stop,!activate`;
+  `TORIRS_SIM_CLICK_AT=<frame>,210,173` focuses Search in the 807x503 floating pane, then
+  `TORIRS_SIM_TYPE=<frame>,c99;<frame>,c111;...` types (one burst per key gives pauses;
+  `k85` is backspace). Panel ticks and frames advance together.
+- MEASURED headless (2026-10-05, build/seam_state/matthew-mbp-m4-raid-b1-seam24/panel/,
+  the profile's env + dummy video + `TORIRS_EMBED_CLOCK_MS=20`; ledgers in
+  build/quest_gate/watch/<account>/):
+  - the manifest arrived as ONE script item ("tests manifest: asking for script item
+    tests/tests.ini (read 1)", 25900 bytes): 131 tests, quest 119 (all playable), raid 12
+    (6 playable, the six `*_normal` party tests "needs 3 clients"). The tree has 123
+    `test/quests/*.lua`, four of them `_` harnesses: 119 quests, not the 123 the triage
+    counted from `ls test/quests` (which counts README, QUEUE and the directories). 18 legs
+    files by `lint_quest.legs_layout`.
+  - one client, three fresh accounts in a row (fin3): Quests, search `cook`, cooks_assistant
+    on cooksass5 to `SUMMARY 48 PASS` through leg 3 of 3; search `theslug`, theslugmenace (a
+    legs file) on theslugm1 to `SUMMARY 146 PASS`, leg 3 of 3; then the raid rooms. Both
+    quests' steps and verdicts are IDENTICAL to their suite ledgers.
+  - five more quests across the alphabet in one client (smp2): doric, hetty, priest, sheep,
+    xmarksthespot -> 21, 29, 29, 14, 47 PASS, every one's steps and verdicts IDENTICAL to its
+    suite ledger (hetty after doric only once the varps were forgotten, above).
+  - the rooms (fin3, one client, after the two quests): tob_maiden to its end `116 FAIL`
+    (pass=111; auto_prayed_entry, scan_lead, drain_stat, tech.sidestep_scan, tech.bow_flick:
+    timing rows), tob_bloat died at row 14, tob_nylocas `171 FAIL` (pass=170,
+    explosion_radius), tob_sotetseg `160 PASS`, tob_xarpus died at row 30, tob_verzik's
+    setup PASSED (seam23's `setup.::give serpentine_helm_charged` failure after three rooms
+    is gone: a fresh account, no `::clearworn` needed) and then failed verzik.talk on the
+    leaked camera (fixed, above). tob_bloat as a client's FIRST Play died too, and raid
+    run.py on a copy of tob_bloat under account `tobbloat1` (virtual clock, no tab) ended
+    `87 FAIL` (pass=85) against the kept `94 PASS` under `tob_bloat`: a room's outcome
+    follows the account name's random stream, so a watched room cannot reproduce its kept
+    ledger. On the final build (rooms1, one client): tob_maiden `113 FAIL` (pass=108),
+    tob_bloat `91 FAIL` (pass=79; it overran its slot in the fixed headless schedule, so
+    the scheduled nylocas Play met a disabled button), tob_sotetseg `158 PASS`, tob_xarpus
+    died at row 30, tob_verzik as the fifth room: setup PASS, verzik.talk and verzik.begin
+    PASS, `256 FAIL` (pass=240: the p3_death, trapdoor, loot and chest rows).
+  - hot reload (h2): a scratch tests root (`prepare_scripts.py --suite raid=<dir> --out
+    <dir>/tests.ini`, `TORIRS_TESTS_MANIFEST=../build/...`), Play tob_maiden to rows 1-14
+    PASS (barrier.click), Stop, the scratch copy edited, Play: the source read 112702 bytes
+    instead of 112690 and row 1 read `mode=entry party=1 HOTRELOAD-2`.
+  - search keeps the keyboard: eight characters typed one burst per key ~1.3 s apart
+    (`t`,`o`,`b`,`_`,`m`,`a`,`i`,`d`) each reached the box ("search 't'" ... "search
+    'tob_maid'"), with no click between them.
+  - crops: the floating pane with Suite Quests, the focused box holding `cook`, "1 of 119
+    quests match 'cook' (1 playable)"; the fullscreen pane with Suite Raids, "12 raids, 6
+    playable.", Selected raid tob_bloat, Play white (enabled), Stop orange (disabled), and the
+    rows "tob_bloat / selected: Theatre of Blood, Bloat, Entry solo" and "tob_bloat_normal
+    (unavailable) / needs 3 clients ...".
+  - strict scan meter on every long run: no `uitree:` line.
+  - the closer, on the final tree (./src/torirs, panel/close_a and close_b): the manifest
+    landed as one script item (25900 bytes, 131 tests: quest 119 all playable, raid 12 with 6
+    playable); `cooks_as` typed one key per 80 frames after one click, every key reached the
+    box; cooks_assistant on cooksass6 to `SUMMARY 48 PASS`, leg 3 of 3, steps and verdicts
+    identical to build/merge17_check/cooks_before.tsv. Hot reload again on a scratch copy of
+    tob_maiden: Play read 112690 bytes and reached barrier.click, Stop, the copy was edited,
+    the next Play read 112702 bytes and its row 1 read `mode=entry party=1 HOTRELOAD-2`. The
+    frame at 2300 was read through OCR (the editor's image hook timed out): Suite Quests,
+    Search `cooks_as` with a yellow focus border, "1 of 119 quests match 'cooks_as' (1
+    playable)", Selected "none (pick a row)", Play, Stop, Driver idle.
+- A watched run is NOT a test run and grades nothing: the wall clock (or
+  `TORIRS_EMBED_CLOCK_MS` headless), a Play at a moment of the watcher's choosing, and an
+  account whose random stream is seeded from its name. A quest whose path does not roll
+  matched its kept ledger row for row; a combat room can differ (seam23: tob_maiden left the
+  kept ledger at row 29). The native plugins do not touch the play (seam23: byte-identical
+  ledgers with them on and off). Party tests stay unavailable: three clients in lock step.
+- Test runs are unchanged: run.py keeps its own wrapper and never reads a profile; every
+  new path is behind `TORIRS_DRIVE_ON_DEMAND=1` (cooks_assistant and druid ledgers
+  byte-identical to build/merge17_check/ after the change).
 
 ## On demand: t.drive.start, t.drive.stop, t.drive.status
 
@@ -5042,18 +5143,208 @@ share it using their special attack".
   `TORIRS_EMBED_CLOCK_MS` per frame for a frame-locked headless proof (main.c hands the
   driver the embed through `NetTransport_TestClock` with that clock). Never set
   `TORIRS_CONTENT_TEST` in a watched profile: its mailbox clock stays paused.
-- Consecutive runs share one account's world; the driver resets only its own state.
-  Measured: Verzik started after three other rooms on one account failed `setup.::give
-  serpentine_helm_charged` (the earlier rooms' worn gear filled the backpack when Verzik's
-  `::wield` lines ran); on a fresh name it passes. There is no cheat that clears worn slots.
-  Run Verzik first, or log in with a fresh name.
+- (seam23, superseded by seam24's api.drive.play) Consecutive api.drive.start runs share one
+  account's world: Verzik after three other rooms on one account failed `setup.::give
+  serpentine_helm_charged`. A Play gives every run a fresh account from its fixture instead,
+  so no `::clearworn` is needed ("Watching a test: the Scripts tab").
 - `t.session.login` (the relog verb) types the session directory's last component as the
-  account name: in a watched run that is `watch_<id>`, not the person's login. No raid room
-  relogs today.
-- Prepared scripts: `python3 tools/raid_gate/prepare_scripts.py [--out build/quest_gate/_scripts]`
-  writes `<id>.lua` (run.py's own `write_wrapper_script`, byte-identical to the wrapper a test
-  run gets) for every `test/raids/` test that is not named `_*`, declares no `party` and uses
-  `fresh_lumbridge.ini`, and `index.tsv` (id, title, path, max_frames, fixture, available,
-  reason). A party test is listed with `available=0` and "party of N: needs N clients in lock
-  step". Only the default `--out` reaches the tab (its asset is a link to that path). Re-run it
-  after editing a test: the tab plays the prepared copy.
+  account name. A Play's session dir is `build/quest_gate/watch/<account>/`, so a test that
+  relogs logs back in as its own fresh account.
+- (seam23, REPLACED in seam24) `prepare_scripts.py` no longer writes wrapped copies or an
+  `index.tsv`: it writes the scripts manifest the tab asks for, and a Play reads the test
+  file itself.
+
+## Several inputs in one tick: `t.together` (seam27)
+
+The owner, 2026-10-05: "update the script runner so that it can do multiple things at
+once ... it's really slow to equip, eat move around". Before this seam every fast verb
+pressed and then waited for its own effect one tick later, so N presses took N ticks.
+
+**The rule from the source.** One OSRS tick runs client input, then npcs, then players
+(ENCOUNTER_TIMING.md 1.1). The input phase runs every packet the client sent since the
+last tick, in the order sent. LostCity's engine caps it: `NetworkPlayer.decodeIn`
+(Engine-TS `src/engine/entity/NetworkPlayer.ts:55-74`) reads while fewer than
+`USER_EVENT.limit = 5` user events have succeeded this tick
+(`ClientGameProtCategory.ts:6`; IfButton, OpHeld, InvButton and MoveClick are all user
+events), and the rest wait in the buffer for the next tick. They are not dropped. Food:
+"The 3 tick Eat delay"; "Potions do not incur the standard 3 tick ... delay"; "consuming
+a marlin, Saradomin brew, and halibut - in that order - allows 60 hitpoints to be healed
+at once" (wiki Food/Fast foods, Combo eating). No source quoted here gives OSRS's own cap.
+
+**What our server does.** `ToriRSServer_SessionPump` (torirs_server_session.c:1066)
+dispatches each packet when it arrives, between world ticks. `phase_clients_in`
+(torirs_server_world.c:15081) is empty. A press made between ticks T-1 and T is in force
+for tick T, in the order sent, and there is **no per-tick cap**. The order matches the
+source, but the missing cap does not. Two driver comments disagreed about this:
+prayer.lua's "packets run as they arrive" is right. step_tick's "read by the next tick's
+phase_clients_in" gets the tick right for the wrong reason. Measured in
+build/quest_gate/siot_probe1: a prayer's varbit reads back on the press tick (+0), and a
+held press or a step reads back on the next tick (+1).
+
+**OPEN ROW: the per-tick input cap.** LostCity holds a sixth user event for the next
+tick. Our server lands every one. This is not fixed here because the dispatch is not in
+the mock239 intake files, and a buffered intake is an engine change. Until it is fixed,
+`t.together` reports any block of more than five inputs (`6 is over LostCity's 5 user
+events a tick (our server has no cap)`) and refuses an eleventh. The number OSRS uses is
+the evidence needed to close this row.
+
+**The form.**
+
+```lua
+local result, detail = t.together(function()
+    t.prayer.set("protectfrommelee", true)     -- prayers first (prayer tab)
+    t.prayer.set("piety", true)
+    t.player.equip("abyssal_whip")              -- then held items (inventory tab)
+    t.player.equip("dragon_defender")
+    t.player.eat("shark")
+    t.player.eat("tbwt_cooked_karambwan")       -- a combo food: its own timer
+    t.player.step_tick(x + 1, z)                -- movement last, one per block
+end)
+t.check("swap.melee", result == "ok", detail)
+```
+
+Inside the body, `eat`, `drink`, `equip` (always the quick press), `inv_op` (the same),
+`prayer.set`, `step_tick` and `walk_to` each press and return `"pending"` without
+waiting. The block then waits up to `QD.TOGETHER_CONFIRM_TICKS = 2` and confirms every
+effect: the pressed cell changed (eat, drink), the worn total rose (equip), the varbit
+reached its new value (prayer), and the player reached the tile (step) or moved off the
+start tile (walk). Its one detail names each input with the tick it was pressed and the
+tick it was confirmed. The block answers:
+`ok` when everything was pressed on one tick and confirmed.
+`split` when everything was confirmed but the tick rolled over between presses; it names
+the late inputs and presses nothing again.
+`refused` when an input never left or the server refused it. The detail names it: a
+second press of one cell or one prayer, a second movement, a missing item, a prayer level.
+`timeout` when an input left but its effect never appeared.
+
+**The cost of a tab change** is frames, not ticks. Measured: six inputs across the
+prayer and inventory tabs waited 4 frames (3 for the inventory cell to repaint after the
+prayer tab, 1 for the prayer button). A tick is 30 frames, so the client could press far
+more than any source shows a player landing. The bound is the cap above, not the client.
+
+**Measured** (build/quest_gate/siot_probe1): two prayers, a whip and a kiteshield, a
+shark and a step were pressed on server tick 5 and all confirmed by tick 6. The tick
+log's `player_tile` row for the step is on tick 6. The same six inputs through the verbs
+one at a time took 4 ticks (9 -> 13).
+
+**Combo eating** (build/quest_gate/siot_probe5, row 1): a shark, a combat potion dose
+and a `tbwt_cooked_karambwan` were pressed on tick 3, and all three were confirmed on
+tick 4. **One item, one cell:** a block presses the first cell that holds an item, so
+`eat("shark")` twice in one block is refused at the second press. That press would land
+on the same cell (row 2), and the food gate would refuse a second shark in one tick
+anyway.
+
+**Do not**: call `t.exec` or `t.check` inside the body (each would write a row for
+`pending`), or put a slow verb inside it (attack, talk, click_loc, a non-quick
+`inv_op` outside a block). Those wait, the tick rolls over, and the block answers `split`.
+
+### How a fight loop is written now
+
+1. Each pass, decide the WHOLE intent for the tick from what the boss is doing
+   (`npc.state`, the tick log), then send it in one `t.together`. Never write one
+   action per pass: an `acted = true` guard that ends the pass after a swap is the
+   pattern this replaces (tob_verzik.lua has 34).
+2. Do not take a photograph or press a slow verb inside a fight.
+   `t.player.inv_op(food, 1)` without `{quick = true}` settles for 3 ticks in a calm
+   town and up to 17 in the Nylocas room (seam14).
+3. Eat at the food delay, not after it. Use `opts.eat.quick = true` on
+   `await_dead_engaged`, or `t.player.eat` inside the block with the combo food
+   alongside. Space your own eats by 3 ticks from the PRESS tick
+   (food.constant:29 `^eat_delay = 2`, consume_shared.rs2:80/:89).
+4. Put movement last in the block, and use one movement per tick.
+
+### The eater: `opts.eat.quick` (seam27)
+
+`opts.eat = { item =, below =, quick = true [, delay = n] [, combo = "<symbol>"] }`
+presses with `t.player.eat` and waits `delay` (default `QD.COMBAT_FOOD_DELAY_TICKS = 3`)
+from the PRESS tick. `combo` eats a combo food in the same tick through `t.together`.
+Each bite in the detail carries `@<drive tick>`. Measured under Chronozon
+(build/quest_gate/siot_probe4): bites at 101, 104, 107, 110 and 113, then 117 and 120 once
+hitpoints reached the threshold. That is 7 bites in 20 ticks; the default eater managed 4
+in the same fight. The default is unchanged. **OPEN ROW:** switching the default to quick
+moves every ledger of the 36 kept quests that pass `opts.eat` (arthur belowicemountain
+arena chompybird coldwar crest depthsofdespair deserttreasure dragon druidspirit
+gettingahead grandtree hauntedmine horror icthlarin insearchofknowledge ikov legends
+itgronigen mm porcineofinterest priestperil routequest regicide redreef royaltrouble tbwt
+thefremennikisles theslugmenace troll troll_love viking upass zanaris zombiequeen, plus
+_conformance). Re-run all of them first.
+
+### The slow settle, measured but not changed (seam27)
+
+A photograph costs about 3.2 frames: `shot-aim ... answered at poll N` counts frames.
+- cooks_assistant: 46 shots, 147 frames (about 4.9 ticks) against a ledger total of 116
+  ticks, so roughly 4%.
+- druid: 67 shots, 208 frames (about 7 ticks).
+- legends: 532 shots, 1687 frames (about 56 ticks).
+- regicide: 294 shots, 908 frames (about 30 ticks).
+These are small next to the slow held press. seam14 measured `inv_op` without `quick` at
+3 ticks a press in Lumbridge and up to 17 in the Nylocas room, and tob_nylocas spent
+`equip 83 eat 167` ticks on 54 eats and drinks. The share of `QD.settle` and the slow
+`inv_op` in a quest run cannot be read from the ledgers and client logs as they stand,
+because no line names the verb that waited. **OPEN ROW:** a `QUEST progress` line for each
+settle, naming its verb, then a suite run before any default changes. No default was
+changed in this pass.
+
+## The play library: `t.raid.play` (seam27)
+
+The owner, 2026-10-05: "the driver is not very fast or good. That is not going to work in
+normal mode. You will need to code up the agents a lot smarter using the actual
+strategies." Before this seam every room test carried its own fight loop, one action per
+pass, reacting after the fact.
+
+```lua
+local result, detail, rec = t.raid.play("tob_bloat", { mode = "entry" })
+```
+
+`t.raid.play(plan_id, { mode, weapon, max_ticks })` answers `ok`, `died`, `timeout` or
+`unsupported`, a one-line detail, and the record (`rec`: downs, flinches, swings, eats,
+drinks, `prayer_at`, `hp_at`, `tile_at`, inputs per tick). The code is the banner block
+`SEAM raid_play_by_tick_intent` at the end of raid.lua. Each server tick it:
+- SEES what a player sees: the boss's animation and tile, the floor markers, its own
+  hitpoints, prayer points, lit prayers, tile, and its own swings (`player_anim` rows for
+  its own pid; a member, which has no tick log, counts swings from its presses);
+- lets the room's PLAN DECIDE the whole intent for the tick;
+- SENDS prayers, potion, food and the step in ONE `t.together`, with the attack press
+  after the block. A walk is re-issued only when its target moves, never waited on.
+
+It never reads the server's registers, `::tob*` readouts, the seed, or the tick log's
+hidden columns. The skills and every plan line, with sources, are in
+docs/minigames/raid_loop/PLAY_NOTES.md. The worked example is test/raids/_play_smoke.lua.
+
+**Attack on cooldown.** A click only starts a fight; after that the weapon swings on its
+own. Press Attack only when not engaged (after a step), or when no swing was seen for
+`speed + 2` ticks. Eat on the swing tick: "If your weapon is ready ... eating does not add
+any new delay" (consume_shared.rs2:34-38).
+
+**Supplies.** Eat when hitpoints are at or under the largest damage that can land before
+the next chance to eat. On a free tick the horizon is the gap to the next free tick plus
+`TOGETHER_CONFIRM_TICKS + 1`. That margin is the seam's own measured choice: a bite on the
+swing two ticks before Bloat's stomp was not yet read back one tick later. No source gives
+a margin. A brew rides along when the food alone is short (combo eating); a restore is
+drunk when a dose's worth of prayer is missing or prayer is about to run out.
+
+**Which plans play.** `tob_bloat` has a decide function (Entry stays and tick-eats the
+stomp, then clicks back on the rise; Normal and Hard leave after the last swing that
+fits). `tob_maiden` is a strategy table only and answers `unsupported ... no decide
+function`, as does any unknown plan id. Conformance row `raid.play` proves both answers.
+
+**Measured, Entry Bloat through the library, five names** (svabloat, svbbloat, svcbloat,
+svdbloat, playbloat; 13/13 PASS each): 196-267 room ticks, 66-160 damage taken, 3-8 eats
+and drinks, 0 attacks lost to late presses. The kept tob_bloat.lua run took 329 ticks, 724
+damage and 41 eats and drinks; under svabloat and svbbloat the kept test never killed
+Bloat in about 1,200 ticks.
+
+**OPEN ROWS.**
+- The Normal trio (`--party 3`, build/quest_gate/playn3) died: the plan has no Defence
+  drain run-by (wiki :687), so Bloat took 666 of 1500 in six downs, and the trio ran out
+  of food. The hazard skill is applied to walks only, not to the attack press's own path,
+  so p3 died to two hands on the third tick of a down.
+- A member has no client read of its own animation (`api_drive.players` has no anim
+  field), so its swings are counted, not seen.
+- The library is a block in raid.lua, not its own raid_play.lua: the driver is one chunk
+  built from DRIVE_SCRIPT_PARTS (src/plugin/torirs_plugin_drive.c), and the sandbox has no
+  dofile/loadfile. A separate file needs a one-line C list edit and a rebuild of every
+  binary.
+- Only Bloat is played through the library, in _play_smoke.lua. The kept tob_*.lua room
+  tests still use their own hand-written plays on one seed each, and are re-authored onto
+  the library in a later pass (test/raids/README.md states the rule).

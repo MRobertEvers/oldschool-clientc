@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 181
+-- @verb-count 185
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 172
+-- @seam-count 173
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 181
-local SEAM_COUNT = 172
+local VERB_COUNT = 185
+local SEAM_COUNT = 173
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1371,6 +1371,40 @@ return {
             end
             if result == "ok" then
                 return "hollow", "a test run accepted a stop of its own script: " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        -- raid seam24 scripts_tab_every_script: t.drive.tests and t.drive.play
+        -- (VERB_COUNT +2).  On this TEST run both are refused with the reason
+        -- naming the on-demand knob: a test run never reads the scripts
+        -- manifest and its own script is never replaced.  The on-demand path
+        -- (the manifest read, a Play on a fresh account, the reload on every
+        -- Play) is proved headless under TORIRS_DRIVE_ON_DEMAND=1
+        -- (DRIVER_NOTES.md, "Watching a test: the Scripts tab").
+        step("drive.tests", function()
+            local fn = verb("drive", "tests")
+            if not fn then return missing("drive", "tests") end
+            local result, detail = fn(false)
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" or result == "timeout" then
+                return "hollow", "a test run asked for the scripts manifest: " .. describe(result)
+            end
+            return result, describe(detail)
+        end)
+
+        step("drive.play", function()
+            local fn = verb("drive", "play")
+            if not fn then return missing("drive", "play") end
+            local result, detail = fn({ id = "seam24_probe", source = "tests/raids/nonexistent.lua",
+                fixture = "tests/raids/fixtures/fresh_lumbridge.ini" })
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a Play: " .. describe(detail)
             end
             return result, describe(detail)
         end)
@@ -7437,6 +7471,60 @@ return {
             end
             return "ok", text
         end)
+
+        -- ================================================================== ROW 2 of 2
+        -- raid seam27 several_inputs_one_tick: the driver eater at the SERVER's food delay.
+        -- NO VERB ADDED OR RENAMED: a new option of npc.await_dead_engaged / npc.await_dead,
+        -- opts.eat.quick = true.  SEAM_COUNT / @seam-count +1.
+        -- PLACE: directly AFTER seam("seam.await_dead_engaged_recasts_and_eats", ...) and BEFORE the
+        -- stage that sets ::passive chronozon -- it fights the Chronozon that stage spawned.
+        -- food.constant:29 ^eat_delay = 2 and consume_shared.rs2:80/:89: the next bite lands on the
+        -- press tick + 3 (wiki Food/Fast foods: "The 3 tick Eat delay").  Proved in
+        -- build/quest_gate/siot_probe4 (row 6) and this row as run in build/quest_gate/siot_conf: bites at 101, 104, 107, 110, 113, then 117, 120 when
+        -- hitpoints reached the threshold; the default eater in the same fight (row 4): 4 bites in
+        -- 20 ticks against the quick eater's 7.
+        seam("seam.quick_eater_food_delay", function()
+            local cast = verb("player", "cast")
+            local fn = verb("npc", "await_dead_engaged")
+            if not cast then return missing("player", "cast") end
+            if not fn then return missing("npc", "await_dead_engaged") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::give shark 8")
+            settle(2)
+            -- Chronozon's own hits bring hitpoints down (defence 1); no eating until under 60.
+            local cast_result, cast_detail = cast("wind_strike", "chronozon", 14)
+            if cast_result ~= "ok" then
+                setup_cheat("::setlevel defence 99")
+                return "no_subject", "cast wind_strike on chronozon -> " .. describe(cast_result) .. " "
+                    .. describe(cast_detail)
+            end
+            t.await({
+                level = function()
+                    local _, hp = t.skill.read("hitpoints")
+                    return type(hp) == "table" and hp.level < 60
+                end,
+                note = "chronozon brings hitpoints under 60",
+            }, 60)
+            local result, detail = fn(14, 30, { eat = { item = "shark", below = 99, quick = true } })
+            setup_cheat("::setlevel defence 99")
+            local text = "await_dead_engaged(14, 30, {eat shark below 99, quick}) -> " .. describe(result)
+                .. " " .. describe(detail)
+            local ticks = {}
+            for at in string.gmatch(tostring(detail), "%->%d+@(%d+)") do
+                ticks[#ticks + 1] = tonumber(at)
+            end
+            if #ticks < 3 then
+                return "refused", "fewer than three bites named with their tick -- " .. text
+            end
+            for i = 2, 3 do
+                if ticks[i] - ticks[i - 1] ~= 3 then
+                    return "refused", "bites " .. (i - 1) .. " and " .. i .. " are " .. (ticks[i] - ticks[i - 1])
+                        .. " ticks apart, not the food delay's 3 -- " .. text
+                end
+            end
+            return "ok", text
+        end)
         stage(function()
             setup_cheat("::passive chronozon")                  -- setup
             settle(3)
@@ -11455,6 +11543,33 @@ return {
                     .. " -- " .. describe(after_detail)
             end
             return "ok", describe(detail) .. "; then " .. describe(after_detail)
+        end)
+
+-- raid seam27 raid_play_by_tick_intent: ONE row for the ONE public verb the
+-- play library adds (t.raid.play, script/plugins/quest_driver/raid.lua, banner
+-- "SEAM raid_play_by_tick_intent"; its skills are private QD.raid._play_*).
+-- PLACE: in _conformance.lua's PLAN directly AFTER step("raid.leave", ...)
+-- (the raid stanza, ~:11477) and BEFORE the party rows (step("party.role")).
+-- VERB_COUNT / verb_list 184 -> 185 (raid.play) on top of seam27's `together`.
+-- The row runs where the raid stanza has left the room (after raid.leave), so
+-- it proves the verb's CONTRACT without a boss: an unknown plan and a plan
+-- whose strategy is written but has no decide function (tob_maiden, this
+-- seam) both answer `unsupported` and name why, and nothing is pressed.  The
+-- play itself is proved on Bloat by test/raids/_play_smoke.lua (five names
+-- green, build/quest_gate/sv{a,b,c,d}bloat + playbloat); a conformance row
+-- that played Bloat would cost the harness a whole room per run.
+        step("raid.play", function()
+            local fn = verb("raid", "play")
+            if not fn then return missing("raid", "play") end
+            local r1, d1 = fn("no_such_plan", { mode = "entry" })
+            if r1 ~= "unsupported" or not string.find(tostring(d1), "no plan named no_such_plan", 1, true) then
+                return "hollow", "an unknown plan answered " .. describe(r1) .. " -- " .. describe(d1)
+            end
+            local r2, d2 = fn("tob_maiden", { mode = "entry" })
+            if r2 ~= "unsupported" or not string.find(tostring(d2), "no decide function", 1, true) then
+                return "hollow", "tob_maiden (strategy only) answered " .. describe(r2) .. " -- " .. describe(d2)
+            end
+            return "ok", "unknown plan: " .. tostring(d1) .. "; tob_maiden: " .. tostring(d2)
         end)
 
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/
@@ -16604,6 +16719,98 @@ return {
                 return bad("an under-levelled fast equip did not answer refused with the server's sentence", d)
             end
             return "ok", table.concat(text, "; ")
+        end)
+
+        -- ================================================================== ROW 1 of 2
+        -- raid seam27 several_inputs_one_tick.  ONE VERB ADDED: t.together (root of t;
+        -- verb_list.py --check: 183 -> 184, it reads "together (pointer.lua) has no row" until
+        -- this lands).  SEAM_COUNT / @seam-count +1 (row 2 below).
+        -- PLACE: in _conformance.lua's PLAN directly AFTER seam("seam.held_press_fight_speed", ...)
+        -- (section (C) of the held-press rows) -- it uses the same Lumbridge staging and leaves the
+        -- prayers off and nothing worn that a later row reads.
+        --
+        -- Two prayers, a two-item swap, a food and a step pressed inside ONE block: every press
+        -- is made before the block waits, and the block confirms each effect.  Proved in
+        -- build/quest_gate/siot_probe1 (row 3): six inputs pressed on server tick 5, prayers read
+        -- back on 5, whip/kiteshield/shark/step on 6, 4 frames waited (the inventory tab's re-paint
+        -- after the prayer tab, 3, and the prayer button's paint, 1); the tick log's player_tile row
+        -- for the step is on tick 6 (row 4).  The same six one at a time: 4 ticks (row 5).
+        -- RED on the old driver: t.together is nil (missing).  RED on the drop-one mutant
+        -- (the eat press never sent): `timeout ... input(s) 5 left and never showed an effect`.
+        step("together", function()
+            local together = verb("together")
+            if not together then return missing("together") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::give abyssal_whip")
+            setup_cheat("::give rune_kiteshield")
+            setup_cheat("::give shark 2")
+            settle(3)
+            local start_result, start_detail = t.ticklog.start()
+            if start_result ~= "ok" then
+                return start_result, "t.ticklog.start answered " .. describe(start_result)
+            end
+            -- Read only the rows from here on (closer, seam27): this row runs ~4,000 ticks into the
+            -- harness, and t.ticklog.rows from serial 0 turned every earlier player_tile row into a
+            -- Lua table in one resume -- "instruction budget exhausted (400000)" in the first live run.
+            local log_since = tonumber(string.match(tostring(start_detail), "serial (%d+)")) or 0
+            local _, here = t.world.tile()
+            if type(here) ~= "table" then return "no_subject", "no player tile" end
+            local hx, hz = here.x, here.z
+            local result, detail = together(function()
+                t.prayer.set("protectfrommelee", true)
+                t.prayer.set("incrediblereflexes", true)
+                t.player.equip("abyssal_whip")
+                t.player.equip("rune_kiteshield")
+                t.player.eat("shark")
+                t.player.step_tick(hx + 1, hz)
+            end)
+            local text = describe(result) .. " " .. describe(detail)
+            -- Put things back for the rows after: prayers off (two presses, one tick).
+            together(function()
+                t.prayer.set("protectfrommelee", false)
+                t.prayer.set("incrediblereflexes", false)
+            end)
+            if result ~= "ok" then
+                return result, text
+            end
+            local function input_text(label)
+                return string.match(tostring(detail), "%] " .. label .. "[^;]*")
+            end
+            for _, label in ipairs({ "prayer protectfrommelee on", "prayer incrediblereflexes on",
+                "equip abyssal_whip", "equip rune_kiteshield", "eat shark", "step " }) do
+                local part = input_text(label)
+                if part == nil or not string.find(part, "confirmed", 1, true) then
+                    return "hollow", "ok without naming input '" .. label .. "' confirmed -- " .. text
+                end
+            end
+            if not string.find(tostring(detail), "WORN abyssal_whip", 1, true)
+                or not string.find(tostring(detail), "WORN rune_kiteshield", 1, true) then
+                return "hollow", "ok without the worn total of both items -- " .. text
+            end
+            local first_press = tonumber(string.match(tostring(detail), "pressed on (%d+)"))
+            local span = tonumber(string.match(tostring(detail), "first press %-> last confirmation (%d+) tick"))
+            if string.find(tostring(detail), "pressed on %d+%.%.%d+") or span == nil or span > 1 then
+                return "refused", "the six inputs did not land within one tick -- " .. text
+            end
+            -- The step read back from the server's own tick log.
+            local rows_result, rows = t.ticklog.rows({ kind = "player_tile", since = log_since })
+            local stepped = nil
+            if rows_result == "ok" and type(rows) == "table" then
+                for _, row in ipairs(rows) do
+                    if stepped == nil and row.x == hx + 1 and row.z == hz then
+                        stepped = row.tick
+                    end
+                end
+            end
+            if stepped == nil or first_press == nil or stepped - first_press > 1 then
+                return "refused", "the tick log has no player_tile " .. (hx + 1) .. "," .. hz
+                    .. " within one tick of the first press (" .. describe(stepped) .. ") -- " .. text
+            end
+            return "ok", text .. "; tick log: player_tile " .. (hx + 1) .. "," .. hz .. " on tick " .. stepped
         end)
 
         -- seam15 give_takes_the_exact_symbol (ENGINE, src/torirsserver/torirs_server_world.c).

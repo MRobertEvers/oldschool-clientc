@@ -591,6 +591,60 @@ PluginLua_ThreadCreate(
     return co;
 }
 
+/*
+ * The Scripts tab's coroutine (torirs_plugin_drive.c, api.drive.play): the
+ * same one-coroutine shape as PluginLua_ThreadCreate, for a test file AS IT
+ * SITS IN THE TREE rather than run.py's wrapper of it.
+ *
+ * run.py embeds a test's source in a wrapper that runs the setup list, waits
+ * for the login grant and drives a legs table (write_wrapper_script), and the
+ * fixed BOOTSTRAP above calls that wrapper's `run`. A watched Play has no
+ * wrapper file -- nothing is pre-generated, and the source is read again on
+ * every Play -- so the wrapping is the driver's own Lua, QD.core_run_test
+ * (quest_driver/core.lua), and this bootstrap hands it the test's compiled
+ * chunk instead of calling the chunk's `run`. The chunk is compiled here, in
+ * C, because the sandbox has no `load` (the base library's loaders are
+ * removed below): Lua cannot turn the bytes into a function itself.
+ *
+ * Resumed once with (loader, t, options): `t` is QD_ROOT and `options` the
+ * table the caller builds (the account, the test id, ...). A source that does
+ * not compile leaves the syntax-error STRING as `loader`, raised verbatim.
+ */
+struct lua_State*
+PluginLua_TestThreadCreate(
+    char const* plugin_name,
+    char const* chunk_name,
+    char const* source,
+    int source_len,
+    int* out_registry_ref)
+{
+    static char const* const TEST_BOOTSTRAP =
+        "local loader, t, options = ...\n"
+        "if type(loader) ~= \"function\" then error(loader, 0) end\n"
+        "return t.core_run_test(loader, options)\n";
+    struct LuaScript* script;
+    lua_State* co;
+
+    assert(plugin_name);
+    assert(chunk_name);
+    assert(source);
+    assert(source_len >= 0);
+    assert(out_registry_ref);
+
+    script = lua_script_by_name(plugin_name);
+    assert(script);
+
+    co = lua_newthread(script->L);
+    *out_registry_ref = luaL_ref(script->L, LUA_REGISTRYINDEX);
+    g_thread_owner_state = script->L;
+    *(struct LuaScript**)lua_getextraspace(co) = script;
+
+    if( luaL_loadstring(co, TEST_BOOTSTRAP) != LUA_OK )
+        assert(0 && "PluginLua_TestThreadCreate: test_bootstrap must always compile");
+    (void)luaL_loadbuffer(co, source, (size_t)source_len, chunk_name);
+    return co;
+}
+
 int
 PluginLua_ThreadResume(
     struct lua_State* thread,
