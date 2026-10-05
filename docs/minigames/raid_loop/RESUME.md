@@ -71,7 +71,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
 
 ## Next, in order
 
-1. The tob_verzik retry lands (above). Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
+1. The tob_verzik retry lands (above). Then SEAM20 on `SEAM_TRIAGE_2026-10-04h.md` (27866fe39):
+   the owner's prayer-timing rule (a protection prayer is read when the attack is SENT; a
+   landing-tick read needs a pinned source naming the npc). Sotetseg's ball/ricochets and the
+   P2 urn bombs read on landing with no source and move to the send tick; Verzik P3's landing
+   read is NOT changed but its evidence is assembled for the owner's ruling (ask him; record it
+   in CONTENT_BUGS.md). Then re-author any room it moves. Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
    `matthew-mbp-m4-raid-b1-rooms-tob-normal`, raid tob, the six rooms, mode normal, party 3, width 1
    (ids tob_<room>_normal; sources: Strategies wiki per-room sections, the six trio transcripts,
    Blert guides and data; roles only from the sources) (same room pass, move each room's
