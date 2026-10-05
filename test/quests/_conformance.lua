@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 178
+-- @verb-count 181
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 172
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 178
+local VERB_COUNT = 181
 local SEAM_COUNT = 172
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -1310,6 +1310,69 @@ return {
             end
             local result, detail = fn(npc_target, 1)
             return result, "LOGGED bypass, op 1 -> " .. describe(detail)
+        end)
+
+        -- drive.status / drive.start / drive.stop (raid seam23,
+        -- script_start_on_demand): on this TEST run status reads the run
+        -- itself and start/stop are refused with the reason naming
+        -- TORIRS_DRIVE_ON_DEMAND, so the harness's own script is never
+        -- replaced or stopped from inside.  The on-demand path (start, a stop
+        -- at the next yield, a second start) cannot be set per row; it is
+        -- proved headless under TORIRS_DRIVE_ON_DEMAND=1 (DRIVER_NOTES.md,
+        -- "Watching a test: the Scripts tab").
+        step("drive.status", function()
+            local fn = verb("drive", "status")
+            if not fn then return missing("drive", "status") end
+            local result, status = fn()
+            if result ~= "ok" then
+                return result, describe(status)
+            end
+            if type(status) ~= "table" then
+                return "hollow", "answered ok without a status table: " .. describe(status)
+            end
+            if status.state ~= "running" then
+                return "hollow", "a test run read its own state as " .. describe(status.state)
+            end
+            if status.on_demand ~= false then
+                return "hollow", "a test run claims on_demand=" .. describe(status.on_demand)
+            end
+            if type(status.script) ~= "string" or not string.find(status.script, "%.lua$") then
+                return "hollow", "no script named: " .. describe(status.script)
+            end
+            if math.type(status.rows) ~= "integer" or status.rows < 1 then
+                return "hollow", "rows is not this run's count: " .. describe(status.rows)
+            end
+            return "ok", "state=running on_demand=false rows=" .. status.rows .. " last="
+                .. tostring(status.step) .. "/" .. tostring(status.verdict) .. " script="
+                .. string.match(status.script, "[^/]*$")
+        end)
+
+        step("drive.start", function()
+            local fn = verb("drive", "start")
+            if not fn then return missing("drive", "start") end
+            -- Knob off: refused before the path is ever looked at, so the
+            -- harness's own coroutine is never replaced.
+            local result, detail = fn("/nonexistent/seam23_probe.lua", "/nonexistent/seam23_session")
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a start: " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        step("drive.stop", function()
+            local fn = verb("drive", "stop")
+            if not fn then return missing("drive", "stop") end
+            local result, detail = fn()
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a stop of its own script: " .. describe(detail)
+            end
+            return result, describe(detail)
         end)
 
         step("player.idle", function()

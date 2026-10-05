@@ -924,7 +924,7 @@ warn = nil
 ---@field client torirs.ClientApi
 ---@field game torirs.GameApi
 ---@field porcelain torirs.PorcelainApi
----@field drive torirs.DriveApi @testonly Present only when ContentTest_Enabled(): the quest driver's engine seam.
+---@field drive torirs.DriveApi @testonly Present only when ContentTest_Enabled() or TORIRS_DRIVE_ON_DEMAND=1 (a watched client, raid seam23): the quest driver's engine seam.
 
 --[[ The quest driver's test-only module (src/plugin/torirs_plugin_drive.h).
 
@@ -956,6 +956,9 @@ except the plain readers marked as returning a value.
 ---@field report fun(text: string) The stderr mirror on its own, for a note that is not a step.
 ---@field finish fun(code: integer): string, string End the process with this code at the next frame boundary.
 ---@field session fun(): table { dir, script }: where artefacts land and which quest is running.
+---@field start fun(path: string, session_dir: string): string, string On demand (TORIRS_DRIVE_ON_DEMAND=1): start a prepared script (tools/raid_gate/prepare_scripts.py) on the next frame the world is ready, its ledger/shots under session_dir (created). `refused` with the reason when one is running, the world is not ready, the file is missing, or the client is not on demand. Raid seam23.
+---@field stop fun(): string, string On demand: end the running script at its next yield; its ledger gets a run.unfinished FAIL row and a SUMMARY with exit=none. `refused` when none runs or the client is not on demand. Raid seam23.
+---@field status fun(): string, table {state = idle|running|finished, script, session, step, verdict (the last ledger row), rows, pass, fail, blocked, summary (the SUMMARY line once finished), exit, on_demand, runs, starting, stopping}. Answers on a test run too. Raid seam23.
 ---@field barrier_mark fun(file: string): string, nil Write <run dir>/<file> (a bare name; the run dir is the session dir's parent) for t.party.barrier. Raid seam17.
 ---@field barrier_present fun(file: string): string, nil ok when <run dir>/<file> exists, not_found otherwise. Raid seam17.
 ---@field players fun(): string, table|nil Every player in this client's entity pool: { name, x, z, level, pid, me }. Raid seam17.

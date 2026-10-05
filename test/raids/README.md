@@ -51,6 +51,38 @@ the quest gate script (`tools/raid_gate/README.md`).
 - Names starting with `_` are not tests (the quest suite's rule): a raid
   harness file may use it.
 
+## Watch it
+
+To watch a room play itself in a real window:
+
+```sh
+python3 tools/raid_gate/prepare_scripts.py && ./launch run osrs239-scripts
+```
+
+1. Log in with any name.
+2. A new name opens the Character Creator first. Click Confirm.
+3. Open the **Scripts** tab on the plugin rail (the play-triangle icon).
+4. Type in Search (for example `maid`). The list follows once you stop typing.
+5. Click a row, then press **Play**.
+
+The room plays at real speed. **Stop** ends it at its next step. Driver, Step and Rows
+follow the run, and Summary and Session show where its ledger and shots went:
+`build/quest_gate/watch_<id>/`. Re-run `prepare_scripts.py` after you edit a test.
+The tab plays the prepared copy, and Refresh re-reads the list.
+
+A watched run is not a test run, and it grades nothing:
+
+- It runs on the wall clock, on your account and in whatever world the last run left. Its
+  rows can differ from the kept ledger's. Measured: a frame-locked watched tob_maiden left
+  the kept ledger at row 29.
+- Party tests (`*_normal`) are listed as unavailable, because they need three clients in
+  lock step.
+- Quests are not listed, because they need their fixture at login.
+
+Grade a room only with `tools/raid_gate/run.py` and `gate.py` (above). The profile, the
+headless way to drive the tab and the measurements are in
+docs/minigames/raid_loop/DRIVER_NOTES.md, "Watching a test: the Scripts tab".
+
 ## Rules a room test is held to (RAID_ORCHESTRATOR.md section 6)
 
 Every rule of `test/quests/README.md` (no numeric interface ids, every step a

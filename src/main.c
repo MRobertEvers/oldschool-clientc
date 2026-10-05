@@ -2253,6 +2253,37 @@ frame_loop_scan_meter_check(void)
     assert(!over && "steady frame re-walked the UI tree; see the uitree: line above");
 }
 
+/*
+ * The world clock of a WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, raid seam23).
+ *
+ * The quest driver needs the in-process world (t.cheat, the server readers),
+ * and the only way a NetTransport hands it out is NetTransport_TestClock --
+ * which also puts the embedded server on the clock it is given. So this gives
+ * it the clock the transport would have run on anyway: the wall clock
+ * (PlatformWindow_Ticks64) for a person watching at real speed, or, under
+ * TORIRS_EMBED_CLOCK_MS=n, n ms per frame -- the frame-locked clock a
+ * headless proof uses -- exactly the step the transport's own poll clock
+ * takes (net_transport_embed.c, embed_poll_clock_ms). Read once.
+ */
+static unsigned long long
+on_demand_world_clock(void)
+{
+    static int step_ms = -1;
+    static unsigned long long frame_clock;
+
+    if( step_ms < 0 )
+    {
+        char const* knob = getenv("TORIRS_EMBED_CLOCK_MS");
+        step_ms = knob && knob[0] ? atoi(knob) : 0;
+        if( step_ms < 0 )
+            step_ms = 0;
+    }
+    if( step_ms == 0 )
+        return PlatformWindow_Ticks64();
+    frame_clock += (unsigned long long)step_ms;
+    return frame_clock;
+}
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -2742,6 +2773,17 @@ frame_loop_step(void)
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
         {
             now = ContentTest_Begin(&app, sock, &bus, PlatformWindow_Ticks64());
+            /* A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, raid seam23): the
+             * driver gets the two handles ContentTest_Begin hands a test run's
+             * driver, and its frame boundary, here -- outside every plugin
+             * callback. Without the knob nothing below runs. */
+            if( PluginDrive_OnDemand() )
+            {
+                if( !ContentTest_Enabled() )
+                    PluginDrive_OnDemandHandOver(
+                        NetTransport_TestClock(sock, on_demand_world_clock()), &bus);
+                PluginDrive_FrameBoundary();
+            }
             /* Once per iteration, before any frame work: this is the sample
              * point the GameShell pacer's ten-iteration ring is built on. */
             logic_now = ContentTest_Enabled() ? now : ToriRS_Pacer_BeginFrame(&frame_pacer, now);

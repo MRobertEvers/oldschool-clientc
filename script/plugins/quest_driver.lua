@@ -50,7 +50,12 @@ function plugin.on_start(api)
     end
     api.core.log("quest-driver: loaded")
     local session = api.drive.session()
-    if session.script == "" then
+    if session.on_demand then
+        -- A watched client (TORIRS_DRIVE_ON_DEMAND=1, raid seam23): nothing
+        -- starts at world-ready; api.drive.start does (the Scripts tab). This
+        -- also runs after every on-demand script, when the driver reloads.
+        api.core.log("quest-driver: on demand, idle until api.drive.start")
+    elseif session.script == "" then
         -- A run with no TORIRS_QUEST_SCRIPT still loads the driver: that is
         -- the shape the load gate uses, and it must not look like a failure.
         api.core.log("quest-driver: no TORIRS_QUEST_SCRIPT, idle")

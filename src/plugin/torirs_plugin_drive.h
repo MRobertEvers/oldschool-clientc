@@ -241,9 +241,51 @@ void PluginDrive_Shutdown(void);
  * The quest script the process was asked to run (TORIRS_QUEST_SCRIPT), or
  * NULL.  A run with no quest script still loads the driver plugin -- that is
  * the shape the load gate uses -- it simply never creates a thread.
- * Owner: core-scheduler.
+ *
+ * Always NULL in an on-demand client (PluginDrive_OnDemand below): there the
+ * script is the one api.drive.start named, and it is the driver's own state,
+ * not this process's -- so content_test.c never puts a watched client on the
+ * quest-mode virtual clock.  Owner: core-scheduler.
  */
 char const* PluginDrive_QuestScriptPath(void);
+
+/*
+ * ON DEMAND (raid seam23, script_start_on_demand): TORIRS_DRIVE_ON_DEMAND=1.
+ *
+ * A client a person launches and watches -- the Scripts tab
+ * (script/plugins/script_runner.lua) -- installs `api.drive` like a test run
+ * does, but nothing starts at world-ready: api.drive.start(path, session_dir)
+ * starts a prepared script (tools/raid_gate/prepare_scripts.py) on the next
+ * frame, api.drive.stop() ends it at its next yield, api.drive.status() reads
+ * where it is.  A finished or stopped script does NOT end the client
+ * (PluginDrive_Finished answers 0): the driver tears the coroutine down at the
+ * next frame boundary, reloads the quest-driver plugin (a fresh Lua state, so
+ * no per-script state of any part outlives its run), and is idle again.
+ *
+ * Without the knob every one of these is inert and every test run is what it
+ * was.  Read once.  Owner: core-scheduler.
+ */
+int PluginDrive_OnDemand(void);
+
+/*
+ * Once a frame from main.c, outside every plugin callback, ONLY in an
+ * on-demand client that is not also a content-test run.  `embed` is the
+ * in-process world (NetTransport_TestClock, fed by main.c with a clock that
+ * reproduces the transport's own) and `bus` the frame's command bus: the two
+ * handles content_test.c hands a test run's driver every frame.  Either may be
+ * NULL (a socket-server run has no embed).  Owner: core-scheduler.
+ */
+void PluginDrive_OnDemandHandOver(struct ToriRSServerEmbed* embed, struct ToriRS_CmdBus* bus);
+
+/*
+ * Once a frame from main.c in an on-demand client, outside every plugin
+ * callback: ends a stopped script (its ledger gets the `run.unfinished` row
+ * and SUMMARY an unfinished run's does), releases a finished one's coroutine
+ * and reloads the quest-driver plugin.  Reloading a plugin from inside a
+ * plugin's own callback is not a state the host supports, which is why this
+ * is main.c's call and not the pump's.  Owner: core-scheduler.
+ */
+void PluginDrive_FrameBoundary(void);
 
 /*
  * Does the driver want the content-test virtual clock stepped this frame?
@@ -362,8 +404,10 @@ int PluginDrive_PushResult(struct lua_State* L, enum DriveResult result, char co
  * rename, so a reader never sees a half-written verdict.
  *
  * PluginDrive_Finished() answers 0 until then; main.c must not test any other
- * driver state.  Owner: core-scheduler (the flag), core-events (the main.c
- * branch).
+ * driver state.  In an on-demand client (PluginDrive_OnDemand) it answers 0
+ * always: t.finish writes the SUMMARY and returns the driver to idle, and the
+ * client a person is watching stays up.  Owner: core-scheduler (the flag),
+ * core-events (the main.c branch).
  */
 void PluginDrive_Finish(int code);
 int PluginDrive_Finished(int* out_code);
@@ -1268,7 +1312,8 @@ enum DriveResult DriveCore_Cheat(struct App* app, char const* text);
 enum DriveResult DriveCore_Settled(struct App* app, int* out_settled);
 
 /** The session directory (TORIRS_CONTENT_TEST) every artefact lands under:
- *  ledger.tsv, shots/NN-name.png, result. */
+ *  ledger.tsv, shots/NN-name.png, result.  In an on-demand client it is the
+ *  directory the last api.drive.start named, or NULL before the first. */
 char const* DriveCore_SessionDir(void);
 
 /*

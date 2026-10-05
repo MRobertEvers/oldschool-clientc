@@ -706,6 +706,39 @@ function QD.tick()
     return "ok", tick
 end
 
+-- t.drive.start(path, session_dir) / t.drive.stop() / t.drive.status()
+-- (raid seam23, script_start_on_demand): a WATCHED client's driver.
+--
+-- A client started with TORIRS_DRIVE_ON_DEMAND=1 (profiles/
+-- osrs239-scripts.ini, the Scripts tab) runs no script at world-ready: start
+-- names a prepared script (tools/raid_gate/prepare_scripts.py writes them,
+-- the same wrapped file run.py runs) and the session directory its ledger and
+-- shots go to, and the coroutine begins on the next frame the world is ready;
+-- stop ends it at its next yield with a `run.unfinished` FAIL row and a
+-- SUMMARY (exit=none), the two lines run.py writes for a run that never
+-- finished; status reads {state = idle|running|finished, script, session,
+-- step, verdict, rows, pass, fail, blocked, summary, exit, on_demand, runs,
+-- starting, stopping}. A finished or stopped script returns the driver to
+-- idle and the quest-driver plugin is reloaded, so nothing a part remembered
+-- reaches the next run. Thin on purpose: the state is the C driver's
+-- (torirs_plugin_drive.c, "on demand").
+--
+-- On a TEST run (this harness, run.py) start and stop answer `refused` --
+-- that run's script is TORIRS_QUEST_SCRIPT and ends at t.finish -- and status
+-- answers `ok` with state "running" and the run's own script. None of the
+-- three is ever `unsupported`.
+function QD.drive.start(path, session_dir)
+    return api_drive.start(path, session_dir)
+end
+
+function QD.drive.stop()
+    return api_drive.stop()
+end
+
+function QD.drive.status()
+    return api_drive.status()
+end
+
 -- t.finish(code): write the ledger's SUMMARY row and END THE RUN.
 --
 -- The SUMMARY is written synchronously inside api_drive.finish

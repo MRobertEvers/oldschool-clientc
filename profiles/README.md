@@ -56,6 +56,28 @@ world's doing rather than the profile's:
 `./launch run osrs239-bench` still works and boots one client at the manifest
 spawn — which is how you go and look at a scene by hand after a number moves.
 
+## Watching a driver script
+
+`osrs239-scripts` is the everyday `osrs239` client with a **Scripts** tab. The tab lists
+the prepared driver scripts, and you can search the list, pick a row and press Play to
+watch a test play itself in the window:
+
+```
+python3 tools/raid_gate/prepare_scripts.py && ./launch run osrs239-scripts
+```
+
+Its world, client and flavor are `osrs239`'s. Everything else is in `[env]`:
+
+* the plugin manifest `plugins/script_runner.ini`, which is the everyday Lua set plus the
+  quest driver and the tab;
+* `TORIRS_DRIVE_ON_DEMAND=1`, so the driver waits for Play;
+* staff level 2, for the scripts' setup cheats;
+* a Lumbridge start that skips Tutorial Island;
+* its own saves directory, `build/quest_gate/watch_saves`.
+
+It is not a test harness, and nothing in it is graded:
+[test/raids/README.md](../test/raids/README.md) "Watch it".
+
 ## Naming
 
 The same scheme the worlds and revconfigs use: `<epoch><revision>`, where the

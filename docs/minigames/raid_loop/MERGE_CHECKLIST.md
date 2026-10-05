@@ -185,6 +185,33 @@ the merge.
   - `script/plugins/quest_driver/`: core.lua (`t.tick` on a member reads the lockstep tick),
     prayer.lua (`t.prayer.points` shape), raid.lua (the member death fence,
     `t.party.allow_death`, the party-only Theatre death-line latch, `t.ticklog.rows` `area`).
+- seam23 (2026-10-05), the Scripts tab: a watched client starts, stops and reads a driver
+  script on demand. Test runs are unchanged: cooks_assistant and druid are byte-identical to
+  build/merge17_check, the six Entry rooms wrote byte-identical ledgers and stay FULL,
+  `_party_smoke` agrees across three runs (tick log sha 6cf6d25dd6a6), and the suite holds 115
+  green with the same four RED.
+  - C (shared with v3): `torirs_plugin_drive.c/.h` gain `TORIRS_DRIVE_ON_DEMAND=1`
+    (`PluginDrive_OnDemand`, `PluginDrive_OnDemandHandOver`, `PluginDrive_FrameBoundary`) and
+    the verbs `api.drive.start/stop/status`. `PluginDrive_Init` now installs `api.drive` when
+    `ContentTest_Enabled()` OR the knob is set; without the knob every new path is inert and
+    `status` merely reads the run. `main.c` hands an on-demand client's driver the embed (via
+    `NetTransport_TestClock` fed the transport's own clock) and the command bus each frame and
+    calls its frame boundary. `app.c`'s comment on the gate is updated. A v3 change to
+    `PluginDrive_Finished`, `drive_ledger_write_summary` or the driver's lazy start must keep
+    the on-demand branch.
+  - `test/quests/_conformance.lua`: new verb rows `drive.status`, `drive.start`, `drive.stop`
+    (181 verbs, 172 seam rows). `tools/quest_gate/verb_list.py` unchanged (`--check` agrees).
+    `tools/quest_gate/run.py` unchanged: `tools/raid_gate/prepare_scripts.py` (new, raid-only)
+    loads it by path and calls its `write_wrapper_script`, so a rename there breaks the tab's
+    prepare step.
+  - Plugins: new `script/plugins/script_runner.lua` + `script_runner.ini` (a manifest only the
+    new profile reads), assets under `script/plugins/assets/script-runner/` (the icon, and
+    `index.tsv`, a committed SYMLINK to `build/quest_gate/_scripts/index.tsv`: check
+    `core.symlinks` on a Windows checkout). `src/plugin/test/plugin_lua_test.c` loads it as an
+    18th bundled script. `quest_driver.lua` logs `on demand, idle` when `session().on_demand`.
+    `plugin_api.meta.lua` documents the three verbs.
+  - Profiles: new `profiles/osrs239-scripts.ini` (+ profiles/README.md "Watching a driver
+    script"). Nothing in v3 reads it.
 
 ## 4. The owner's main checkout
 

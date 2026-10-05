@@ -23,6 +23,7 @@
 #include "app.h"
 #include "game/content_test.h"
 #include "game/rs_entity_sync.h"
+#include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_boot.h"
@@ -36,6 +37,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 /* The driver is a singleton by construction: one client, one quest, one
  * coroutine. A second App in the same process is not a state this can be in,
@@ -193,17 +198,79 @@ PluginDrive_ComposeTake(int* out_length)
 
 /* ---------------------------------------------------------------- lifecycle */
 
+/* ON DEMAND (raid seam23; torirs_plugin_drive.h, PluginDrive_OnDemand). The
+ * knob is read once; everything below that depends on it is inert without it,
+ * so a test run under run.py is the run it was. */
+static int g_on_demand = -1;
+
+int
+PluginDrive_OnDemand(void)
+{
+    if( g_on_demand < 0 )
+    {
+        char const* knob = getenv("TORIRS_DRIVE_ON_DEMAND");
+        g_on_demand = knob && strcmp(knob, "1") == 0;
+    }
+    return g_on_demand;
+}
+
+/* The on-demand driver's own state. IDLE: nothing started yet. RUNNING: a
+ * start was accepted (the coroutine begins at the next pump the world is
+ * ready for) and has not finished. FINISHED: its SUMMARY is written; a new
+ * start is allowed once the boundary has released it. */
+enum DriveDemandState
+{
+    DRIVE_DEMAND_IDLE,
+    DRIVE_DEMAND_RUNNING,
+    DRIVE_DEMAND_FINISHED,
+};
+
+static enum DriveDemandState g_demand_state = DRIVE_DEMAND_IDLE;
+static char g_demand_script[1024];
+static char g_demand_session[1024];
+/* start accepted, coroutine not yet created (lua_drive_pump creates it) */
+static int g_demand_start_pending;
+/* stop accepted; PluginDrive_FrameBoundary ends the run */
+static int g_demand_stop_pending;
+/* finished; PluginDrive_FrameBoundary releases the coroutine and reloads */
+static int g_demand_release_pending;
+static int g_demand_runs;
+/* Read back by api.drive.status: the last ledger row and the SUMMARY line, as
+ * written. Kept in every mode (a status read on a test run answers too); they
+ * change nothing a row or a file says. */
+static char g_last_row_step[128];
+static char g_last_row_verdict[16];
+static char g_summary_line[256];
+
 char const*
 PluginDrive_QuestScriptPath(void)
 {
-    char const* path = getenv("TORIRS_QUEST_SCRIPT");
+    char const* path;
+
+    if( PluginDrive_OnDemand() )
+        return NULL;
+    path = getenv("TORIRS_QUEST_SCRIPT");
     return path && *path ? path : NULL;
+}
+
+/* The script this driver runs: TORIRS_QUEST_SCRIPT on a test run, the started
+ * one while an on-demand run is RUNNING, else NULL. */
+static char const*
+drive_script_path(void)
+{
+    if( !PluginDrive_OnDemand() )
+        return PluginDrive_QuestScriptPath();
+    return g_demand_state == DRIVE_DEMAND_RUNNING ? g_demand_script : NULL;
 }
 
 char const*
 DriveCore_SessionDir(void)
 {
-    char const* dir = getenv("TORIRS_CONTENT_TEST");
+    char const* dir;
+
+    if( PluginDrive_OnDemand() )
+        return g_demand_session[0] ? g_demand_session : NULL;
+    dir = getenv("TORIRS_CONTENT_TEST");
     return dir && *dir ? dir : NULL;
 }
 
@@ -303,12 +370,24 @@ PluginDrive_Finish(int code)
         drive_ledger_write_summary(code);
     g_finished = 1;
     g_finish_code = code;
+    /* On demand the client stays up: the boundary releases the coroutine (it
+     * parks at its next row, shot or await -- quest_driver/core.lua `park`)
+     * and the driver goes back to idle. */
+    if( PluginDrive_OnDemand() && g_demand_state == DRIVE_DEMAND_RUNNING )
+        g_demand_release_pending = 1;
 }
 
 int
 PluginDrive_Finished(int* out_code)
 {
     assert(out_code);
+    if( PluginDrive_OnDemand() )
+    {
+        /* A watched client ends when its person closes it, never on a
+         * script's verdict (torirs_plugin_drive.h). */
+        *out_code = 0;
+        return 0;
+    }
     *out_code = g_finish_code;
     return g_finished;
 }
@@ -324,7 +403,8 @@ PluginDrive_ClockWantsStep(struct App* app)
      * is there a quest coroutine that still has work to do? A run with no
      * TORIRS_QUEST_SCRIPT, or one that finished (crashed or returned), wants
      * no virtual time at all -- the ordinary mailbox path (or nothing) is
-     * correct for it. */
+     * correct for it. (An on-demand client answers NULL there: its clock is
+     * the transport's own, never the content-test one.) */
     return g_app && PluginDrive_QuestScriptPath() && !g_finished;
 }
 
@@ -602,6 +682,8 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
 
     g_ledger_index++;
     g_ledger_total_ticks += ticks;
+    snprintf(g_last_row_step, sizeof(g_last_row_step), "%s", step);
+    snprintf(g_last_row_verdict, sizeof(g_last_row_verdict), "%s", verdict);
     if( strcmp(verdict, "PASS") == 0 )
         g_ledger_pass++;
     else if( strcmp(verdict, "BLOCKED") == 0 )
@@ -626,13 +708,23 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
     fclose(f);
 }
 
+/* The SUMMARY line with its `exit=` token spelled by the caller: a code from
+ * t.finish ("0", "1"), or "none" for a run stopped on demand -- the token
+ * run.py's finish_unfinished_ledger writes for a run that never finished. */
 static void
-drive_ledger_write_summary(int code)
+drive_ledger_write_summary_exit(char const* exit_text)
 {
     char path[1024];
     char const* dir = DriveCore_SessionDir();
     FILE* f;
+    int used;
 
+    assert(exit_text);
+    used = snprintf(g_summary_line, sizeof(g_summary_line), "SUMMARY\t%d\t%s\t%ld\texit=%s\tpass=%d fail=%d",
+        g_ledger_index, g_ledger_fail == 0 ? "PASS" : "FAIL", g_ledger_total_ticks, exit_text,
+        g_ledger_pass, g_ledger_fail);
+    if( g_ledger_blocked > 0 && used > 0 && used < (int)sizeof(g_summary_line) )
+        snprintf(g_summary_line + used, sizeof(g_summary_line) - (size_t)used, " blocked=%d", g_ledger_blocked);
     if( !dir )
         return;
     snprintf(path, sizeof(path), "%s/ledger.tsv", dir);
@@ -650,13 +742,22 @@ drive_ledger_write_summary(int code)
      * rows are all PASS or FAIL should keep producing byte-identical summaries
      * to the ones a human has already read. So the token appears exactly when
      * it carries information. */
-    fprintf(f, "SUMMARY\t%d\t%s\t%ld\texit=%d\tpass=%d fail=%d",
-        g_ledger_index, g_ledger_fail == 0 ? "PASS" : "FAIL", g_ledger_total_ticks, code,
+    fprintf(f, "SUMMARY\t%d\t%s\t%ld\texit=%s\tpass=%d fail=%d",
+        g_ledger_index, g_ledger_fail == 0 ? "PASS" : "FAIL", g_ledger_total_ticks, exit_text,
         g_ledger_pass, g_ledger_fail);
     if( g_ledger_blocked > 0 )
         fprintf(f, " blocked=%d", g_ledger_blocked);
     fprintf(f, "\n");
     fclose(f);
+}
+
+static void
+drive_ledger_write_summary(int code)
+{
+    char exit_text[16];
+
+    snprintf(exit_text, sizeof(exit_text), "%d", code);
+    drive_ledger_write_summary_exit(exit_text);
 }
 
 static void
@@ -827,7 +928,7 @@ drive_world_ready(void)
 static void
 drive_scheduler_start(void)
 {
-    char const* path = PluginDrive_QuestScriptPath();
+    char const* path = drive_script_path();
     FILE* f;
     long length;
     char* source;
@@ -1042,7 +1143,7 @@ drive_heartbeat(void)
     FILE* f;
     int tick;
 
-    if( !dir || !PluginDrive_QuestScriptPath() || g_finished )
+    if( !dir || !drive_script_path() || g_finished )
         return;
     if( !g_app || !g_app->world )
         return;
@@ -1071,6 +1172,206 @@ drive_heartbeat(void)
     g_heartbeat_tick = tick;
 }
 
+/* ------------------------------------------------------------- on demand
+ *
+ * Raid seam23 (script_start_on_demand; torirs_plugin_drive.h,
+ * PluginDrive_OnDemand). A watched client starts a prepared script when its
+ * person asks (the Scripts tab: api.drive.start), stops it when they ask
+ * (api.drive.stop), and reads where it is (api.drive.status). The coroutine
+ * is the same one a test run gets -- created by drive_scheduler_start on the
+ * quest-driver plugin's own Lua state, pumped by that plugin's on_frame_start
+ * -- so what a person watches is what run.py runs, minus the virtual clock.
+ *
+ * Three hand-offs keep the pieces where they are safe:
+ *   - start only validates and records; the next pump the world is ready for
+ *     creates the coroutine (drive_demand_begin), inside the quest-driver's
+ *     own callback, exactly where a test run's starts;
+ *   - stop only records; PluginDrive_FrameBoundary (main.c, outside every
+ *     plugin callback) writes the unfinished row and SUMMARY and releases;
+ *   - a finish (t.finish, a returned run, a script error) marks the release
+ *     the same boundary performs: the coroutine is destroyed, the tick log
+ *     dropped, and the quest-driver plugin RELOADED -- a fresh Lua state, so
+ *     no part's per-script state (core.lua's `finished`, its shot counter
+ *     and row tallies, raid.lua's party counters, ...) reaches the next run.
+ *     A script error disables the plugin through the host's fault path
+ *     (PluginLua_ThreadResume); the release switches it back on first, or
+ *     a watched client would be dead after one bad script.
+ */
+
+#ifdef _WIN32
+#define DRIVE_MKDIR(path) _mkdir(path)
+#else
+#define DRIVE_MKDIR(path) mkdir((path), 0755)
+#endif
+
+/* `mkdir -p`. 0 when the directory exists afterwards. */
+static int
+drive_make_directories(char const* path)
+{
+    char partial[1024];
+    size_t length;
+    size_t i;
+    struct stat info;
+
+    assert(path);
+    length = strlen(path);
+    if( length == 0 || length >= sizeof(partial) )
+        return -1;
+    memcpy(partial, path, length + 1);
+    for( i = 1; i <= length; i++ )
+    {
+        if( partial[i] == '/' || partial[i] == '\0' )
+        {
+            char const saved = partial[i];
+            partial[i] = '\0';
+            (void)DRIVE_MKDIR(partial);
+            partial[i] = saved;
+        }
+    }
+    return stat(path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFDIR ? 0 : -1;
+}
+
+static int
+drive_driver_plugin_index(void)
+{
+    assert(g_app);
+    assert(g_app->plugins);
+    return PluginHost_IndexOf(g_app->plugins, DRIVE_PLUGIN_NAME);
+}
+
+/* Every piece of per-script C state the run before this one left (start
+ * calls it, so a status read between start and the first pump already reads
+ * the new run). The Lua half was reset by the reload that released the last
+ * run. */
+static void
+drive_demand_reset_run(void)
+{
+    g_finished = 0;
+    g_finish_code = 0;
+    g_ledger_index = 0;
+    g_ledger_pass = 0;
+    g_ledger_fail = 0;
+    g_ledger_blocked = 0;
+    g_ledger_total_ticks = 0;
+    g_last_row_step[0] = '\0';
+    g_last_row_verdict[0] = '\0';
+    g_summary_line[0] = '\0';
+    g_heartbeat_tick = -1;
+    g_quest_name[0] = '\0';
+    g_await.active = 0;
+    g_await.level_ref = LUA_NOREF;
+    g_await.match_ref = LUA_NOREF;
+}
+
+static void
+drive_demand_begin(void)
+{
+    assert(PluginDrive_OnDemand());
+    assert(g_demand_state == DRIVE_DEMAND_RUNNING);
+    assert(!g_thread);
+    /* The event ring's cursor starts at its newest entry: what happened before
+     * the person pressed Play is not this script's to await. (A test run's
+     * first pump reads from 0 -- everything since boot -- and is unchanged.) */
+    g_event_cursor = g_app->drive_events.newest_serial;
+    /* The pump's half of a start: the coroutine, created as a test run's is. */
+    g_started = 1;
+    fprintf(stderr, "quest-driver: on demand: start %d: %s (session %s)\n",
+        g_demand_runs, g_demand_script, g_demand_session);
+    drive_scheduler_start();
+}
+
+static void
+drive_demand_release(void)
+{
+    int index;
+
+    if( g_thread )
+    {
+        drive_await_free_refs();
+        PluginLua_ThreadDestroy(g_thread_ref);
+        g_thread = NULL;
+        g_thread_ref = LUA_NOREF;
+    }
+    g_await.active = 0;
+    /* The tick log belongs to the run that enabled it (t.ticklog.start): the
+     * next run's own start begins a fresh one in its own session dir. */
+    ToriRSServer_TicklogDisable();
+    g_started = 0;
+    g_demand_state = DRIVE_DEMAND_FINISHED;
+    fprintf(stderr, "quest-driver: on demand: %s finished: %s\n", g_demand_script,
+        g_summary_line[0] ? g_summary_line : "(no summary)");
+
+    index = drive_driver_plugin_index();
+    assert(index >= 0);
+    if( !PluginHost_IsEnabled(g_app->plugins, index) )
+    {
+        fprintf(stderr, "quest-driver: on demand: the script's error disabled the driver; switching it back on\n");
+        PluginHost_SetEnabled(g_app->plugins, index, true);
+    }
+    PluginHost_Reload(g_app->plugins, index);
+}
+
+void
+PluginDrive_OnDemandHandOver(struct ToriRSServerEmbed* embed, struct ToriRS_CmdBus* bus)
+{
+    assert(PluginDrive_OnDemand());
+    PluginDriveCore_SetEmbed(embed);
+    PluginDriveCore_SetCmdBus(bus);
+}
+
+void
+PluginDrive_FrameBoundary(void)
+{
+    assert(PluginDrive_OnDemand());
+    if( !g_app )
+        return; /* PluginDrive_Init never ran: this client has no plugins */
+    if( g_demand_stop_pending && g_thread && g_await.active &&
+        strncmp(g_await.note, "t.shot ", 7) == 0 )
+    {
+        /* Not while a screenshot is in flight (ui.lua's t.shot await): its
+         * request is latched in torirs_plugin_drive_ui.c until a poll
+         * collects it, and a coroutine destroyed mid-shot leaves that latch
+         * for the NEXT run's first t.shot to collect -- measured 2026-10-05,
+         * seam23 probe wall1: tob_bloat's 001-bloat.enter.png never written,
+         * its row naming maiden's 006-options-p1 instead. The pump settles a
+         * shot in about three frames; the stop lands at the first boundary
+         * after it (the script's next yield that is not a shot). */
+        return;
+    }
+    if( g_demand_stop_pending )
+    {
+        g_demand_stop_pending = 0;
+        if( g_demand_start_pending )
+        {
+            /* Stopped before its first pump: there is no coroutine and no
+             * ledger, so there is nothing to finish. */
+            g_demand_start_pending = 0;
+            g_demand_state = DRIVE_DEMAND_IDLE;
+            fprintf(stderr, "quest-driver: on demand: %s stopped before it began\n", g_demand_script);
+            return;
+        }
+        if( !g_finished )
+        {
+            /* The same two lines run.py's finish_unfinished_ledger appends to a
+             * run that ended without its own SUMMARY. */
+            char detail[400];
+            snprintf(detail, sizeof(detail),
+                "run ended without finishing: stopped on demand (api.drive.stop); last row written: %s",
+                g_last_row_step[0] ? g_last_row_step : "none");
+            drive_ledger_write("run.unfinished", "FAIL", 0, "", detail);
+            drive_ledger_write_summary_exit("none");
+            g_finished = 1;
+            g_finish_code = 0;
+        }
+        g_demand_release_pending = 1;
+    }
+    if( g_demand_release_pending )
+    {
+        g_demand_release_pending = 0;
+        drive_demand_release();
+    }
+}
+
 static int
 lua_drive_pump(struct lua_State* L)
 {
@@ -1084,7 +1385,19 @@ lua_drive_pump(struct lua_State* L)
      * not a wait with its own state -- login can take an arbitrary number of
      * frames and there is nothing to remember between them. */
     (void)L;
-    if( !g_started && drive_world_ready() )
+    if( PluginDrive_OnDemand() )
+    {
+        /* On demand nothing starts at world-ready: a start api.drive.start
+         * accepted begins here, on the first pump the world is ready for
+         * (a relog in between holds it), with every piece of per-script
+         * state of the run before it reset. */
+        if( g_demand_start_pending && drive_world_ready() )
+        {
+            g_demand_start_pending = 0;
+            drive_demand_begin();
+        }
+    }
+    else if( !g_started && drive_world_ready() )
     {
         g_started = 1;
         drive_scheduler_start();
@@ -1237,7 +1550,7 @@ static int
 lua_drive_session(struct lua_State* L)
 {
     char const* dir = DriveCore_SessionDir();
-    char const* script = PluginDrive_QuestScriptPath();
+    char const* script = drive_script_path();
 
     int const lockstep = ToriRSServer_EmbedLockstepTick();
 
@@ -1263,7 +1576,177 @@ lua_drive_session(struct lua_State* L)
         lua_pushinteger(L, (lua_Integer)lockstep);
         lua_setfield(L, -2, "lockstep_tick");
     }
+    /* `on_demand` (raid seam23): present, and true, only in a client started
+     * with TORIRS_DRIVE_ON_DEMAND=1 -- a test run's table is unchanged. */
+    if( PluginDrive_OnDemand() )
+    {
+        lua_pushboolean(L, 1);
+        lua_setfield(L, -2, "on_demand");
+    }
     return 1;
+}
+
+/* ------------------------------------------------- on demand: the three verbs
+ *
+ * api.drive.start(path, session_dir) -> "ok", path | "refused", reason
+ * api.drive.stop()                   -> "ok", path | "refused", reason
+ * api.drive.status()                 -> "ok", {state, script, session, step,
+ *                                        verdict, rows, pass, fail, blocked,
+ *                                        summary, exit, on_demand, runs,
+ *                                        starting, stopping}
+ *
+ * On a test run (no TORIRS_DRIVE_ON_DEMAND) start and stop answer `refused`
+ * -- that run's script is TORIRS_QUEST_SCRIPT and ends at t.finish -- and
+ * status reads it all the same (state "running" while it runs). Never
+ * `unsupported`: the verbs exist in every build that has the driver. */
+
+/* Why a start would be refused, written into `reason`; NULL when it would
+ * not. Every refusal is a runtime answer a watcher reads, not a contract
+ * violation: the path and the directory are a person's choice. */
+static char const*
+drive_start_refusal(char const* path, char const* session, char* reason, size_t capacity)
+{
+    FILE* f;
+    int index;
+    char shots[1100];
+
+    assert(path);
+    assert(session);
+    assert(reason);
+    if( !PluginDrive_OnDemand() )
+        snprintf(reason, capacity, "drive.start: not an on-demand client (TORIRS_DRIVE_ON_DEMAND=1 is "
+            "unset); this run's script is TORIRS_QUEST_SCRIPT");
+    else if( g_demand_release_pending || g_demand_stop_pending )
+        snprintf(reason, capacity, "drive.start: the last script is still ending (ask again next "
+            "frame): %s", g_demand_script);
+    else if( g_demand_state == DRIVE_DEMAND_RUNNING )
+        snprintf(reason, capacity, "drive.start: a script is running: %s", g_demand_script);
+    else if( (index = drive_driver_plugin_index()) < 0 || !PluginHost_IsRunning(g_app->plugins, index) )
+        snprintf(reason, capacity, "drive.start: the quest-driver plugin is not running in this client");
+    else if( !drive_world_ready() )
+        snprintf(reason, capacity, "drive.start: the world is not ready (log in first)");
+    else if( strlen(path) >= sizeof(g_demand_script) )
+        snprintf(reason, capacity, "drive.start: the path is too long: %s", path);
+    else if( session[0] == '\0' || strlen(session) + 16 >= sizeof(g_demand_session) )
+        snprintf(reason, capacity, "drive.start: the session directory is empty or too long: %s", session);
+    else if( (f = fopen(path, "rb")) == NULL )
+        snprintf(reason, capacity, "drive.start: no script at %s", path);
+    else
+    {
+        fclose(f);
+        snprintf(shots, sizeof(shots), "%s/shots", session);
+        if( drive_make_directories(shots) == 0 )
+            return NULL;
+        snprintf(reason, capacity, "drive.start: cannot create the session directory %s", session);
+    }
+    return reason;
+}
+
+static int
+lua_drive_start(struct lua_State* L)
+{
+    char const* path = PluginDrive_ArgString(L, 1);
+    char const* session = PluginDrive_ArgString(L, 2);
+    char reason[1200];
+    char stale[1100];
+    static char const* const STALE_FILES[] = { "ledger.tsv", "ticklog.tsv", "heartbeat" };
+    size_t i;
+
+    if( drive_start_refusal(path, session, reason, sizeof(reason)) )
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    /* A session directory a person reuses (Play twice on one script) must not
+     * carry the last run's ledger, tick log or heartbeat into this one: the
+     * ledger restarts at its first row anyway, but a tick log appends. Shots
+     * are overwritten by name; leftovers past the new run's count stay. */
+    for( i = 0; i < sizeof(STALE_FILES) / sizeof(STALE_FILES[0]); i++ )
+    {
+        snprintf(stale, sizeof(stale), "%s/%s", session, STALE_FILES[i]);
+        (void)remove(stale);
+    }
+
+    snprintf(g_demand_script, sizeof(g_demand_script), "%s", path);
+    snprintf(g_demand_session, sizeof(g_demand_session), "%s", session);
+    g_demand_state = DRIVE_DEMAND_RUNNING;
+    g_demand_start_pending = 1;
+    g_demand_runs++;
+    drive_demand_reset_run();
+    return PluginDrive_PushResult(L, DRIVE_OK, g_demand_script);
+}
+
+static int
+lua_drive_stop(struct lua_State* L)
+{
+    char reason[1200];
+
+    reason[0] = '\0';
+    if( !PluginDrive_OnDemand() )
+        snprintf(reason, sizeof(reason),
+            "drive.stop: not an on-demand client; a test run's script ends at t.finish");
+    else if( g_demand_state != DRIVE_DEMAND_RUNNING )
+        snprintf(reason, sizeof(reason), "drive.stop: no script is running");
+    else if( g_demand_release_pending )
+        snprintf(reason, sizeof(reason), "drive.stop: already finished: %s", g_demand_script);
+    if( reason[0] )
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    g_demand_stop_pending = 1;
+    return PluginDrive_PushResult(L, DRIVE_OK, g_demand_script);
+}
+
+static char const*
+drive_status_state(void)
+{
+    if( PluginDrive_OnDemand() )
+    {
+        if( g_demand_state == DRIVE_DEMAND_RUNNING )
+            return g_demand_release_pending ? "finished" : "running";
+        return g_demand_state == DRIVE_DEMAND_FINISHED ? "finished" : "idle";
+    }
+    if( !PluginDrive_QuestScriptPath() )
+        return "idle";
+    return g_finished ? "finished" : "running";
+}
+
+static int
+lua_drive_status(struct lua_State* L)
+{
+    char const* state = drive_status_state();
+    char const* script = PluginDrive_OnDemand() ? g_demand_script : PluginDrive_QuestScriptPath();
+    char const* session = DriveCore_SessionDir();
+    int const finished = strcmp(state, "finished") == 0;
+
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_createtable(L, 0, 16);
+    lua_pushstring(L, state);
+    lua_setfield(L, -2, "state");
+    lua_pushstring(L, script ? script : "");
+    lua_setfield(L, -2, "script");
+    lua_pushstring(L, session ? session : "");
+    lua_setfield(L, -2, "session");
+    lua_pushstring(L, g_last_row_step);
+    lua_setfield(L, -2, "step");
+    lua_pushstring(L, g_last_row_verdict);
+    lua_setfield(L, -2, "verdict");
+    lua_pushinteger(L, g_ledger_index);
+    lua_setfield(L, -2, "rows");
+    lua_pushinteger(L, g_ledger_pass);
+    lua_setfield(L, -2, "pass");
+    lua_pushinteger(L, g_ledger_fail);
+    lua_setfield(L, -2, "fail");
+    lua_pushinteger(L, g_ledger_blocked);
+    lua_setfield(L, -2, "blocked");
+    lua_pushstring(L, finished ? g_summary_line : "");
+    lua_setfield(L, -2, "summary");
+    lua_pushinteger(L, finished ? g_finish_code : 0);
+    lua_setfield(L, -2, "exit");
+    lua_pushboolean(L, PluginDrive_OnDemand());
+    lua_setfield(L, -2, "on_demand");
+    lua_pushinteger(L, g_demand_runs);
+    lua_setfield(L, -2, "runs");
+    lua_pushboolean(L, g_demand_start_pending);
+    lua_setfield(L, -2, "starting");
+    lua_pushboolean(L, g_demand_stop_pending);
+    lua_setfield(L, -2, "stopping");
+    return 2;
 }
 
 /* ------------------------------------------------------------ party barrier
@@ -1499,6 +1982,9 @@ static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"report", lua_drive_report},
     {"finish", lua_drive_finish},
     {"session", lua_drive_session},
+    {"start", lua_drive_start},
+    {"stop", lua_drive_stop},
+    {"status", lua_drive_status},
     {"barrier_mark", lua_drive_barrier_mark},
     {"barrier_present", lua_drive_barrier_present},
     {"players", lua_drive_players},
@@ -1546,8 +2032,11 @@ PluginDrive_Init(struct App* app)
     assert(app);
     /* The same gate content_test.c uses, and for the same reason: `api.drive`
      * reaches the embedded server in-process and drives the client as a test
-     * harness. It must not exist in a client a person is playing. */
-    if( !ContentTest_Enabled() )
+     * harness. It must not exist in a client a person is playing -- with the
+     * one exception a person asks for by name: TORIRS_DRIVE_ON_DEMAND=1, the
+     * client they launch to WATCH a test play (the Scripts tab, raid seam23;
+     * profiles/osrs239-scripts.ini). */
+    if( !ContentTest_Enabled() && !PluginDrive_OnDemand() )
         return;
     g_app = app;
     PluginLua_SetTestModules(drive_install_modules);
@@ -1587,6 +2076,17 @@ void PluginDrive_Shutdown(void) {}
 struct App* PluginDrive_App(void) { return NULL; }
 char const* PluginDrive_QuestScriptPath(void) { return NULL; }
 int PluginDrive_ClockWantsStep(struct App* app) { (void)app; return 0; }
+int PluginDrive_OnDemand(void) { return 0; }
+void PluginDrive_OnDemandHandOver(struct ToriRSServerEmbed* embed, struct ToriRS_CmdBus* bus)
+{
+    (void)embed;
+    (void)bus;
+    assert(0 && "PluginDrive_OnDemandHandOver: no on-demand driver without EMBED_SERVER");
+}
+void PluginDrive_FrameBoundary(void)
+{
+    assert(0 && "PluginDrive_FrameBoundary: no on-demand driver without EMBED_SERVER");
+}
 int PluginDrive_ScriptPartCount(char const* plugin_name) { (void)plugin_name; return 0; }
 char const* PluginDrive_ScriptPartPath(char const* plugin_name, int index)
 {

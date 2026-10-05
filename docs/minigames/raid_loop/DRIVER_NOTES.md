@@ -4928,3 +4928,132 @@ share it using their special attack".
   (the recipe "A before/after on content" above), then run with
   `TORIRSSERVER_SCRIPTS=<out> TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` under the same `--name`.
   client.log's `N scripts loaded from <dir>` line proves which pack ran.
+
+# Seam pass 23: watching a test
+
+## Watching a test: the Scripts tab
+
+- The owner's two commands: `python3 tools/raid_gate/prepare_scripts.py && ./launch run
+  osrs239-scripts`. Log in with any name, Confirm the Character Creator (a new name's first
+  login opens it), open the Scripts tab on the plugin rail (the play-triangle icon), type in
+  Search, click a row, Play. The script plays in that window at real speed. Stop ends it at
+  its next step.
+- The profile (`profiles/osrs239-scripts.ini`) is `osrs239.ini` plus an `[env]`:
+  `TORIRS_PLUGIN_MANIFEST=plugins/script_runner.ini` (the everyday Lua set, plus
+  `quest-driver` and `script-runner`; the screenshot plugin is off because every
+  `::setlevel 99` would be a level-up picture), `TORIRS_DRIVE_ON_DEMAND=1`,
+  `TORIRSSERVER_STAFF_LEVEL=2` and `TORIRSSERVER_SAVES=build/quest_gate/watch_saves`.
+  It also sets `TORIRSSERVER_HOME` and `TORIRSSERVER_TUTORIAL_HOME`, both to 3222,3218.
+  Without TUTORIAL_HOME, a new name starts on Tutorial Island (3094,3106, varp 281 unset).
+  There `setup.::wield twisted_bow` fails with "not worn 10 ticks later" (measured twice).
+  A tutorial home equal to the home tile is how a world opts out of the tutorial
+  (`torirs_server_boot.c`). There is no frame cap, no render skip and no dummy video: it is
+  a real window. The native plugins stay on. They do not touch the play: a watched
+  tob_maiden with natives on and with `TORIRS_PLUGIN_ONLY=lua` wrote byte-identical ledgers.
+- The list is the asset `script/plugins/assets/script-runner/index.tsv`. It is a committed
+  symlink to `../../../../build/quest_gate/_scripts/index.tsv`, the file
+  `prepare_scripts.py` writes by default. A Lua plugin cannot read an environment variable
+  or a path of its choosing: the sandbox opens base, table, string, math and utf8 only, and
+  an asset name is a bare filename under `plugins/assets/<plugin>/`. So the triage's
+  `TORIRS_SCRIPTS_INDEX` knob is not implemented, and the profile does not set it. A missing
+  index reads "No index. Run: python3 tools/raid_gate/prepare_scripts.py, then Refresh."
+  Refresh releases the asset and reads it again.
+- The page (`script/plugins/script_runner.lua`) has these rows, in order:
+  - a Search box (panel node kind 5, the native text input), then a count;
+  - Selected, Play and Stop;
+  - Driver, Step and Rows;
+  - a note, which holds the last start or stop answer, a refusal reason included;
+  - one action row per playable script (the id, then its title, with "selected:" on the
+    chosen one), and a white label per unavailable script with its reason;
+  - Refresh, then Summary and Session.
+  The controls sit above the list. With the controls below a dozen rows, Play was off the
+  bottom of the page even in fullscreen at 807x503. Play is enabled while a script is
+  selected and nothing runs. Stop is enabled while one runs. The host draws a disabled
+  button's caption orange and an enabled one's white.
+- Play calls `api.drive.start(<index path>, <the index's parent>/watch_<id>)`, which is
+  `build/quest_gate/watch_<id>/` with its ledger.tsv, ticklog.tsv and shots/. A refusal
+  ("log in first", "a script is running", "the last script is still ending") is written to
+  the note row.
+- The panel engine's rules, kept:
+  - Status is read with `api.drive.status()` every 10 frames. Only rows whose text moved
+    get a `set_text`; Play and Stop get a `set_value`. No status change rebuilds the page.
+  - `on_ui_build` re-runs only when the row set changes: the index was read, or the search
+    filter changed.
+  - Every row's text is clipped to 180 characters.
+  - Nothing walks the UI tree. A strict scan-meter run with the tab open and two scripts
+    played printed no `uitree:` line.
+- Search does not rebuild per keystroke. A rebuild re-creates the text box, which drops
+  the keyboard: measured, "maid" left "m" in the box and typed "aid" into the chat line.
+  While typing, the count row updates in place ("2 of 12 match 'maid'"). The list follows
+  once the box has been still for 600 ms. After that rebuild, the box no longer has the
+  keyboard, so click it again to keep typing. The filter is a case-folded substring match
+  on id and title.
+- Headless drive of the tab:
+  - `TORIRS_SIM_PLUGIN_PANEL=<tick>,script-runner,page` opens it.
+  - `TORIRS_SIM_CLICK_AT=<frame>,210,152` focuses Search in the 807x503 default window
+    (floating pane). Then `TORIRS_SIM_TYPE=<frame>,c109,c97,c105,c100` types "maid";
+    `k85` is backspace.
+  - `TORIRS_SIM_PANEL_PICK=<tick>,script-runner,script:<id>,!activate` selects a row.
+    `...,play,!activate` and `...,stop,!activate` press the buttons.
+  - A new account's Character Creator Confirm is at 256,298. The pane's Fullscreen button
+    is at 70,110.
+  - The harness is `build/seam_state/matthew-mbp-m4-raid-b1-seam23/panel/run_watch.sh`.
+- A watched run is NOT a test run, and it grades nothing:
+  - It is not deterministic against the test. A full tob_maiden through the tab, frame-locked,
+    on a new name (full3) ended with `SUMMARY 111 FAIL 789 exit=0 pass=103 fail=8`. The kept
+    test has 112 PASS. Under the test's own account and fixture, the watched run still left
+    the kept ledger at row 29 (`fight.lowhp-2`). The raid was entered on tick 62 (Play at
+    frame 800) instead of tick 37 (the test starts at world-ready), and Maiden held npc slot 81
+    instead of 66. The fight that follows is a different fight.
+  - Consecutive runs share one account's world. Whatever the last room left worn or in the
+    backpack is still there ("On demand" below).
+  - Party tests are listed as unavailable (three clients in lock step).
+  - Quests are not listed: they need their fixture at login, and no watch account has one.
+
+## On demand: t.drive.start, t.drive.stop, t.drive.status
+
+- `TORIRS_DRIVE_ON_DEMAND=1` installs `api.drive` in an ordinary client (no
+  `TORIRS_CONTENT_TEST`), and nothing starts at world-ready. `api.drive.start(path,
+  session_dir)` (`t.drive.start`) checks the request, creates `session_dir/shots/`, and the
+  coroutine begins on the next pump the world is ready for, exactly where a test run's
+  starts. It answers `refused` with a reason when a script is running or still ending, when
+  the quest-driver plugin is not running, when the world is not ready ("log in first"), or
+  when the file is missing. A reused session directory loses its old `ledger.tsv`,
+  `ticklog.tsv` and `heartbeat`; old shots past the new run's count stay.
+- `api.drive.stop()` (`t.drive.stop`) ends the run at its next yield that is not a `t.shot`
+  (a shot in flight is let finish, or its PNG would land in the next run). The ledger gets
+  the two lines run.py writes for an unfinished run: `run.unfinished FAIL ... last row
+  written: <step>` and `SUMMARY ... exit=none`.
+- `api.drive.status()` (`t.drive.status`) answers `ok` and `{state = idle|running|finished,
+  script, session, step, verdict, rows, pass, fail, blocked, summary, exit, on_demand, runs,
+  starting, stopping}`; `step`/`verdict` are the last ledger row, `summary` the SUMMARY line
+  once finished.
+- On a TEST run start and stop are refused ("not an on-demand client") and status reads the
+  run itself (`state=running`, its own script, `on_demand=false`). None of the three is ever
+  `unsupported`. Conformance rows `drive.status`, `drive.start`, `drive.stop` prove exactly
+  that; the on-demand path cannot be set per row and is proved headless (the Scripts tab
+  section above, and the seam23 closer's run `close1` in SEAM_LEDGER.md).
+- A finished, stopped or erroring script never ends a watched client: `PluginDrive_Finished`
+  answers 0 under the knob. At the next frame boundary in main.c (outside every plugin
+  callback) the driver destroys the coroutine, drops the tick log and RELOADS the
+  quest-driver plugin, so no Lua part's per-script state (shot counter, row tallies, party
+  counters) reaches the next run. A plugin a script error disabled is switched back on first.
+- A watched client's world clock is the transport's own: wall time, or
+  `TORIRS_EMBED_CLOCK_MS` per frame for a frame-locked headless proof (main.c hands the
+  driver the embed through `NetTransport_TestClock` with that clock). Never set
+  `TORIRS_CONTENT_TEST` in a watched profile: its mailbox clock stays paused.
+- Consecutive runs share one account's world; the driver resets only its own state.
+  Measured: Verzik started after three other rooms on one account failed `setup.::give
+  serpentine_helm_charged` (the earlier rooms' worn gear filled the backpack when Verzik's
+  `::wield` lines ran); on a fresh name it passes. There is no cheat that clears worn slots.
+  Run Verzik first, or log in with a fresh name.
+- `t.session.login` (the relog verb) types the session directory's last component as the
+  account name: in a watched run that is `watch_<id>`, not the person's login. No raid room
+  relogs today.
+- Prepared scripts: `python3 tools/raid_gate/prepare_scripts.py [--out build/quest_gate/_scripts]`
+  writes `<id>.lua` (run.py's own `write_wrapper_script`, byte-identical to the wrapper a test
+  run gets) for every `test/raids/` test that is not named `_*`, declares no `party` and uses
+  `fresh_lumbridge.ini`, and `index.tsv` (id, title, path, max_frames, fixture, available,
+  reason). A party test is listed with `available=0` and "party of N: needs N clients in lock
+  step". Only the default `--out` reaches the tab (its asset is a link to that path). Re-run it
+  after editing a test: the tab plays the prepared copy.

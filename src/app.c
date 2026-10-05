@@ -522,8 +522,10 @@ App_Init(
             app->plugin_prefs_path = PluginPrefs_Path();
             PluginRegistry_RegisterAll(app->plugins);
             /* The test-only quest driver installs `api.drive` here, before any
-             * script compiles and only when ContentTest_Enabled(). A client a
-             * person is playing never reaches past the gate inside it. */
+             * script compiles and only when ContentTest_Enabled() or
+             * TORIRS_DRIVE_ON_DEMAND=1 (the watched client of the Scripts tab,
+             * profiles/osrs239-scripts.ini). A client a person is playing
+             * never reaches past the gate inside it. */
             PluginDrive_Init(app);
         }
     }

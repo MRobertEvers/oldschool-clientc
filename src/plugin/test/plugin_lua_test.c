@@ -794,6 +794,7 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
         {"ground_items.lua","ground-items"}, {"loot_beam.lua","loot-beam"},
         {"performance_display.lua","performance-display"},
         {"screenshot.lua","screenshot"}, {"tile_indicator.lua","tile-indicator-lua"},
+        {"script_runner.lua","script-runner"},
     };
     char path[512];
 
@@ -810,7 +811,7 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
             free(source);
         }
     }
-    CHECK(g_registered == 17, "all seventeen bundled scripts registered");
+    CHECK(g_registered == 18, "all eighteen bundled scripts registered");
 }
 
 /* --------------------------------------------------- the real porcelain lane */
@@ -1269,6 +1270,6 @@ main(void)
         fprintf(stderr, "lua plugin test: %d failure(s)\n", g_failures);
         return 1;
     }
-    puts("lua plugin test: runtime, reload, descriptors, builders, and 17 bundled scripts passed");
+    puts("lua plugin test: runtime, reload, descriptors, builders, and 18 bundled scripts passed");
     return 0;
 }
