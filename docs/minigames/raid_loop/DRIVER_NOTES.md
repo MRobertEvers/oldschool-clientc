@@ -4590,8 +4590,10 @@ behaviour: the three landing reads are each sourced or ruled.
   within four ticks, 23 cost nothing. Spec row `sotetseg.ball_prayer_read_tick` (B). Proved
   by `seam.tob_sotetseg_ball_prayer_read_at_landing` (throw 2345, landing 2352 blocked;
   throw 2355, landing 2362 unprayed 10 at 2363; the next press refused).
-- tob_sotetseg does not measure this row yet: the raid coverage gate reads 83 of 84 until
-  the room is re-authored with a `spec.sotetseg.ball_prayer_read_tick` row.
+- tob_sotetseg measures this row since launch 15 (1c86bf153, FULL 84/84): one ball thrown
+  with the prayer off and raised after the projectile row was seen (throw 33, landing 40,
+  block splat), and the tenth ball of phase 2 thrown prayed and dropped after its row (throw
+  279, landing 282, unprayed 22 at 283, presses refused to 287).
 
 ## Verzik P2's urnbomb: Protect from Missiles counts if it is up when the bomb LANDS (seam20)
 
@@ -4617,3 +4619,18 @@ behaviour: the three landing reads are each sourced or ruled.
 - No prayer read at all: everything else, including Sotetseg's death ball, Xarpus, the P3
   green ball, webs and melee. The full table with file:line is in CONTENT_BUGS.md, "From
   seam20".
+
+## Sotetseg's ball trial: "dropped at the throw tick" is still after the throw, the flight is range-dependent, and an unprayed ball can lock you out for good (launch 15)
+
+- A press made after `t.ticklog.rows({ kind = "projectile" })` returned the ball is causally after
+  the throw even when both carry the same tick (tob_sotetseg: projectile serial 1401 at 279, the
+  drop pressed after it, `varb4116_prayer_protectfrommagic 1 -> 0 (server) read on drive tick 279`).
+  Prove the order by the row you waited for, not by the tick numbers.
+- The flight is not always 7: compute each ball's landing as `tick + end_cycle // 30` from its own
+  row. From the barrier it is end_cycle 232 (7 ticks); three tiles out in phase 2 it is 96 (3).
+- Dropping Protect from Magic while he keeps throwing every 5 ticks is a trap: each unprayed
+  ball refuses protection presses for 5 ticks, and the next ball lands inside that window, so
+  the lock renews itself until a death ball's gap lets a press through (the launch-15 author lost
+  runs 1-3 to this; its kept sample is the ball at 279, whose successor at 284 is a death
+  ball). Take the "dropped in flight" sample on a ball whose successor is a death ball, or
+  right before a maze.
