@@ -61,9 +61,28 @@
 -- The level is the loc's RAW cache level, as the row reports it: on a bridge
 -- deck (a LINK_BELOW column) the player stands one plane lower than the row
 -- says -- gaps-world "t.world.loc_near reports a loc's raw cache level".
+--
+--   { level = n|"here", deck = true }  (matthew-mbp-m4-b61-seam1
+--   cross_trap_cannot_name_a_loc_on_another_raw_level)
+--                               the level named is the PLAYER's plane and
+--                               the copy stands on a bridge deck over it:
+--                               only a copy on raw level n + 1.  Spishyus'
+--                               rd_bridge_left/right (2483/2477,4972) and the
+--                               Waterfall ledge's barrel (2512,3463) sit on
+--                               raw level 1 over a plane-0 walk.  The CALLER
+--                               says it is a deck (the jm2/jl2 level-1 flag 2,
+--                               LINK_BELOW): the pool row carries no bridge
+--                               flag (struct DriveLocRow has the raw level
+--                               only), so the driver applies the +1 and cannot
+--                               test it -- a plain upper floor at that x,z is
+--                               matched as readily.  Use it where the map says
+--                               bridge, never to find "something one floor up".
+--
 -- A filtered `not_found` names every copy it skipped WITH its level (up to
 -- QD.world._loc_skipped_listed), because "it is there, one floor down" is
--- the whole diagnosis.  A malformed `opts` is the caller's bug and raises.
+-- the whole diagnosis, and says so when a skipped copy stands exactly one
+-- raw level above the level asked for: that is how a bridge-deck loc reads
+-- from its plane.  A malformed `opts` is the caller's bug and raises.
 QD.world._loc_skipped_listed = 6
 
 function QD.world._loc_filter(opts)
@@ -96,6 +115,12 @@ function QD.world._loc_filter(opts)
         filter.level = level
     end
     assert(filter.level ~= nil or filter.x ~= nil, "loc_near opts names neither a level nor a tile")
+    if opts.deck ~= nil then
+        assert(opts.deck == true, "loc_near opts.deck must be true (a bridge deck over the level named) or absent")
+        assert(filter.level ~= nil, "loc_near opts.deck needs a level: the plane the deck stands over")
+        filter.plane = filter.level
+        filter.level = filter.level + 1
+    end
     return filter
 end
 
@@ -104,7 +129,10 @@ function QD.world._loc_filter_text(filter)
     if filter.x ~= nil then
         parts[#parts + 1] = "within " .. tostring(filter.slack) .. " of " .. filter.x .. "," .. filter.z
     end
-    if filter.level ~= nil then
+    if filter.plane ~= nil then
+        parts[#parts + 1] = "on raw level " .. tostring(filter.level) .. " (a bridge deck over plane "
+            .. tostring(filter.plane) .. ")"
+    elseif filter.level ~= nil then
         parts[#parts + 1] = "on level " .. tostring(filter.level)
     end
     return table.concat(parts, " ")
@@ -128,18 +156,27 @@ function QD.world.loc_near(sym, radius, opts)
         return result, nil
     end
     local skipped = {}
+    local one_up = nil
     for i = 1, #rows do
         local row = rows[i]
         if row.loc_id == id then
             local keep = true
+            local level_ok = true
+            local tile_ok = true
             if filter ~= nil then
                 if filter.level ~= nil and row.level ~= filter.level then
                     keep = false
+                    level_ok = false
                 end
                 if filter.x ~= nil and (math.abs(row.x - filter.x) > filter.slack
                     or math.abs(row.z - filter.z) > filter.slack) then
                     keep = false
+                    tile_ok = false
                 end
+            end
+            if not level_ok and tile_ok and filter.plane == nil and row.level == filter.level + 1
+                and one_up == nil then
+                one_up = row.x .. "," .. row.z .. "," .. row.level
             end
             if keep then
                 QD.drive._scan_spend(i, QD.drive._scan_cost_near)
@@ -173,6 +210,11 @@ function QD.world.loc_near(sym, radius, opts)
         text = text .. ": none " .. QD.world._loc_filter_text(filter) .. " within radius "
             .. tostring(radius or 0) .. " (copies skipped, nearest first: "
             .. (#skipped > 0 and table.concat(skipped, "; ") or "none") .. ")"
+        if one_up ~= nil then
+            text = text .. "; the copy at " .. one_up .. " is one raw level up: a bridge-deck loc"
+                .. " over level " .. tostring(filter.level) .. " when the map flags its column"
+                .. " (read it with { deck = true }, press it with spec.loc_level)"
+        end
     end
     return "not_found", text
 end
@@ -234,7 +276,9 @@ end
 --       near = { 2511, 3860 },     -- a tile on this side
 --       far  = { 2508, 3860 },     -- the tile to stand on past it
 --       -- optional: far_ok = function(tile) ... end, far_desc = "the hall",
---       --           op = 1, close = true (shut it behind you), ticks = n
+--       --           op = 1, close = true (shut it behind you), ticks = n,
+--       --           loc_level = n (the leaves' RAW level when it is not the
+--       --             player's: a bridge deck -- QD.player._spec_loc_level)
 --   })
 --
 --  1. walk to `near`; the player must stand within a tile of it on the
@@ -313,7 +357,9 @@ function QD.player.pass_door(spec)
     if level == nil then
         level = near.level
     end
-    local where = door_x .. "," .. door_z .. "," .. level
+    -- The leaves' copy level: raw, and one above `level` on a bridge deck.
+    local loc_level = QD.player._spec_loc_level(spec, level, "pass_door")
+    local where = QD.player._loc_where(door_x, door_z, loc_level, level)
     local function is_far(tile)
         if type(tile) ~= "table" then
             return false
@@ -339,7 +385,7 @@ function QD.player.pass_door(spec)
     end
 
     -- 2. The door, read and pressed on its own tile AND level.
-    local door_at = { door_x, door_z, level }
+    local door_at = { door_x, door_z, loc_level }
     -- Either leaf, on this level, before anything is read for the answer: a
     -- scene that has just loaded (a level change, a long walk) can hold
     -- neither for a few ticks (misc.lua's run 4 waited for it by hand).  The
@@ -387,7 +433,7 @@ function QD.player.pass_door(spec)
             local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
             if open_result ~= "ok" then
                 return "refused", text .. "; the closed leaf left " .. where .. " but no " .. open
-                    .. " stands within 1 of it on level " .. level .. ": " .. tostring(open_row)
+                    .. " stands within 1 of it on level " .. loc_level .. ": " .. tostring(open_row)
             end
             text = text .. "; open leaf " .. open .. " at " .. open_row.tile_x .. "," .. open_row.tile_z
                 .. "," .. open_row.level
@@ -400,7 +446,7 @@ function QD.player.pass_door(spec)
         end
         local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
         if open_result ~= "ok" then
-            return "not_found", text .. "; neither leaf on level " .. level .. ": closed " .. tostring(leaf)
+            return "not_found", text .. "; neither leaf on level " .. loc_level .. ": closed " .. tostring(leaf)
                 .. "; open " .. tostring(open_row)
         end
         text = text .. "; stands open (no closed leaf on " .. where .. "; " .. open .. " at "
@@ -478,6 +524,7 @@ end
 QD.player._cross_gate_radius = 12
 QD.player._cross_gate_scene_ticks = 6
 QD.player._cross_gate_land_ticks = 12
+QD.player._cross_gate_late_page_ticks = 2
 QD.player._cross_trap_attempts = 4
 QD.player._cross_trap_land_ticks = 10
 QD.player._cross_trap_step_back = 2
@@ -497,6 +544,45 @@ function QD.player._spec_tile(value, what)
     assert(type(z) == "number", what .. " has no z")
     assert(level == nil or type(level) == "number", what .. " level must be a number")
     return x, z, level
+end
+
+-- spec.loc_level on pass_door / cross_gate / cross_trap / climb
+-- (matthew-mbp-m4-b61-seam1 cross_trap_cannot_name_a_loc_on_another_raw_level).
+--
+-- `at`'s level is the PLAYER's plane -- the floor the near/src tile, the
+-- landing and the far test are graded on -- and, unless `loc_level` says
+-- otherwise, the loc copy's level too.  On a bridge deck those differ: the
+-- map stores the loc on raw level 1 of a column whose level-1 flag carries
+-- LINK_BELOW, so the player walks it on plane 0 while the pool row (and
+-- click_loc's `at` selector) answers raw level 1.  Sir Spishyus'
+-- rd_bridge_left/right (2483/2477,4972,1 over a plane-0 room), the Waterfall
+-- ledge barrel (2512,3463,1 beside the plane-0 ledge) and the Fishing
+-- Platform (every loc one raw level above its plane-1 deck) could not be
+-- named by these verbs: at = {x, z, 0} pressed nothing ("nearest copies:
+-- 2512,3463,1") and at = {x, z, 1} refused the player's tile.  So:
+--
+--   at = { 2512, 3463, 0 }, loc_level = 1   -- player on plane 0, the copy on raw level 1
+--
+-- `loc_level` is the RAW level world.loc_near reports for the copy; it
+-- picks the copy (loc reads and the press) and nothing else.  Omitted, it
+-- is the player's level, as before.
+function QD.player._spec_loc_level(spec, level, what)
+    local loc_level = spec.loc_level
+    assert(loc_level == nil or type(loc_level) == "number",
+        what .. " spec.loc_level must be the loc copy's raw level (a number)")
+    if loc_level == nil then
+        return level
+    end
+    return loc_level
+end
+
+-- "x,z,L" for a loc copy, and the player's plane beside it when it differs.
+function QD.player._loc_where(x, z, loc_level, level)
+    local where = x .. "," .. z .. "," .. tostring(loc_level)
+    if loc_level ~= level then
+        where = where .. " (raw level; the player on plane " .. tostring(level) .. ")"
+    end
+    return where
 end
 
 -- The chat lines that arrived after `since` (api_drive.message_serial),
@@ -594,8 +680,58 @@ function QD.player._run_vitals(vitals)
     return "vitals: " .. table.concat(parts, ", ")
 end
 
+-- cross_gate's spec.chat, after the press (its banner, "A GUARDED
+-- walk-through").  `landed()` reads the far test.  Answers (result, text):
+-- result nil when the crossing goes on to be graded on the landing, else the
+-- word the row ends on; text is what the page(s) said and chat.play's answer.
+function QD.player._cross_gate_chat(spec, landed, far_desc)
+    local start = api_drive.tick()
+    QD.await({
+        level = function()
+            return QD.chat.kind() ~= "none" or landed()
+        end,
+        note = "cross_gate: the press opens a page or lands " .. far_desc,
+    }, QD.player._cross_gate_land_ticks)
+    if QD.chat.kind() == "none" and landed() then
+        -- a page the content opens only after the move
+        QD.await({
+            level = function()
+                return QD.chat.kind() ~= "none"
+            end,
+            note = "cross_gate: a page after the landing",
+        }, QD.player._cross_gate_late_page_ticks)
+    end
+    local kind = QD.chat.kind()
+    local waited = api_drive.tick() - start
+    if kind == "none" then
+        local moved = landed() and ("landed " .. far_desc) or "did not land"
+        if spec.chat_optional ~= nil then
+            return nil, "no page opened in " .. waited .. " tick(s), the press " .. moved
+                .. " (chat_optional: " .. spec.chat_optional .. ")"
+        end
+        return "refused", "spec.chat names the page(s) the press opens, but no page opened in " .. waited
+            .. " tick(s) and the press " .. moved .. " (spec.chat_optional = \"<why>\" when the page"
+            .. " depends on the world)"
+    end
+    local page = QD.chat._play_page_name(kind)
+    if kind == "npc" or kind == "player" or kind == "mesbox" then
+        local text_result, line = QD.chat.text()
+        if text_result == "ok" and type(line) == "string" then
+            page = kind .. " '" .. QD.read._strip_tags(line) .. "'"
+        end
+    end
+    local play_result, play_detail = QD.chat.play(spec.chat)
+    local said = "the press opened " .. page .. " after " .. waited .. " tick(s): chat.play -> "
+        .. tostring(play_result) .. " " .. tostring(play_detail)
+    if play_result ~= "ok" then
+        return play_result, said
+    end
+    QD.await({ level = landed, note = "cross_gate: the landing after the page" }, QD.player._cross_gate_land_ticks)
+    return nil, said
+end
+
 -- t.player.cross_gate(spec) -> (ok, detail) `refused` `not_found` `timeout`
--- `covered` `not_visible` ...
+-- `covered` `not_visible` `mismatch` ...
 --
 -- One wall gate crossed, either direction, on every crossing pressed.
 --
@@ -606,8 +742,11 @@ end
 --       far_ok = function(tile) return tile.x <= 2935 end,
 --       far_desc = "inside Taverley, x <= 2935",
 --       -- optional: far = { x, z } (walk on to that exact tile after),
---       --           op = 1, ticks = n,
---       --           open = "<open leaf>", close = true (an OPENING gate)
+--       --           op = 1, ticks = n, loc_level = n (the gate's RAW level
+--       --           when it is not the player's -- QD.player._spec_loc_level),
+--       --           open = "<open leaf>", close = true (an OPENING gate),
+--       --           chat = { <chat.play list> }, chat_optional = "<why>"
+--       --           (a GUARDED walk-through, below)
 --   })
 --
 -- A WALK-THROUGH gate (no `open`: gates.rs2 [label,member_fencegate_try]'s
@@ -631,6 +770,26 @@ end
 --     settle_after_click` although it landed (hero.lua `cross`), so the
 --     press word is in the detail and the tiles are the verdict;
 --  4. with `far`, walk on to that tile and grade it exactly (and far_ok).
+--
+-- A GUARDED walk-through speaks before it moves the player: Fight Arena's
+-- fightarena_door1 (arena_locs.rs2 [oploc1,fightarena_door1]) shows an
+-- arena_guard1 within 5 tiles' ~chatnpc page "Nice observation guard..."
+-- and only then reaches [label,arena_pass_door1]'s p_telejump, so the
+-- landing waits on that page being continued (b61 arena run 1: cross_gate
+-- awaited 12 ticks with the page up and graded the crossing failed).
+-- `chat` is the chat.play list for the page(s) the press opens; step 3 then
+-- awaits the press opening a page OR landing, plays the list on the page
+-- (its kind and full text go in the detail, with chat.play's answer), and
+-- only then awaits the landing -- which is still the verdict.  A list that
+-- does not match is chat.play's own `mismatch`, the crossing unpressed past
+-- it.  `chat` says a page WILL open: a press that lands (or stays put) with
+-- no page in QD.player._cross_gate_land_ticks, plus
+-- QD.player._cross_gate_late_page_ticks for a page opened after the move,
+-- is `refused` -- unless `chat_optional` says why the page depends on the
+-- world (the guard speaks only within 5 tiles), when "no page opened" is
+-- written in the detail and the landing alone grades it.  Without `chat`, a
+-- crossing that did not land with a page up says so and names the page.
+--
 -- No route exists on foot between the two sides of an only-way gate, so the
 -- landing is the press's doing (sampler-findings.md "Sample
 -- matthew-mbp-m4-b59" (a): a gate between two large open regions is still
@@ -647,12 +806,19 @@ function QD.player.cross_gate(spec)
     assert(type(loc) == "string", "cross_gate spec.loc must be the gate's loc symbol")
     assert(spec.open == nil or type(spec.open) == "string", "cross_gate spec.open must be a loc symbol")
     assert(spec.far_ok == nil or type(spec.far_ok) == "function", "cross_gate spec.far_ok must be a function")
+    assert(spec.chat == nil or type(spec.chat) == "table", "cross_gate spec.chat must be a chat.play list")
+    assert(spec.chat == nil or #spec.chat > 0, "cross_gate spec.chat must name at least one page")
+    assert(spec.chat_optional == nil or type(spec.chat_optional) == "string",
+        "cross_gate spec.chat_optional must say why the page may not open")
+    assert(spec.chat_optional == nil or spec.chat ~= nil, "cross_gate spec.chat_optional needs spec.chat")
+    assert(spec.chat == nil or spec.open == nil,
+        "cross_gate spec.chat is for a walk-through gate; an opening gate is pass_door's")
     if spec.open ~= nil then
         assert(type(spec.far) == "table", "cross_gate an opening gate (spec.open) needs spec.far, the tile walked to")
         local result, detail = QD.player.pass_door({
             closed = loc, open = spec.open, at = spec.at, near = spec.near, far = spec.far,
             far_ok = spec.far_ok, far_desc = spec.far_desc, op = spec.op, close = spec.close,
-            ticks = spec.ticks,
+            ticks = spec.ticks, loc_level = spec.loc_level,
         })
         return result, "cross_gate (an opening gate: " .. spec.open .. " stays open) -> " .. tostring(detail)
     end
@@ -682,7 +848,8 @@ function QD.player.cross_gate(spec)
     local function is_far(tile)
         return type(tile) == "table" and tile.level == level and spec.far_ok(tile) == true
     end
-    local where = gate_x .. "," .. gate_z .. "," .. level
+    local loc_level = QD.player._spec_loc_level(spec, level, "cross_gate")
+    local where = QD.player._loc_where(gate_x, gate_z, loc_level, level)
     local text = "cross_gate " .. loc .. " at " .. where .. ": near " .. near_x .. "," .. near_z
         .. " -> at " .. tile_text(near)
     if near.level ~= level or math.abs(near.x - near_x) > 1 or math.abs(near.z - near_z) > 1 then
@@ -695,7 +862,7 @@ function QD.player.cross_gate(spec)
     end
 
     -- 2. The gate, on its own tile and level.
-    local gate_at = { gate_x, gate_z, level }
+    local gate_at = { gate_x, gate_z, loc_level }
     local start_tick = api_drive.tick()
     local scene_result = QD.await({
         level = function()
@@ -713,27 +880,44 @@ function QD.player.cross_gate(spec)
         return gate_result, text .. "; " .. tostring(gate) .. " -- nothing pressed"
     end
 
-    -- 3. The press, graded on the tiles before and after it.
+    -- 3. The press, graded on the tiles before and after it -- with
+    --    spec.chat, the page(s) it opens played between the two.
     local since = QD.player._message_serial()
     local press_result, press_detail = QD.player.click_loc(loc, op, { at = gate_at })
-    QD.await({
-        level = function()
-            local tile_result, tile = QD.world.tile()
-            return tile_result == "ok" and is_far(tile)
-        end,
-        note = "cross_gate: the press lands " .. far_desc,
-    }, QD.player._cross_gate_land_ticks)
+    local function landed()
+        local tile_result, tile = QD.world.tile()
+        return tile_result == "ok" and is_far(tile)
+    end
+    local chat_result, chat_text = nil, nil
+    if spec.chat == nil then
+        QD.await({ level = landed, note = "cross_gate: the press lands " .. far_desc },
+            QD.player._cross_gate_land_ticks)
+    else
+        chat_result, chat_text = QD.player._cross_gate_chat(spec, landed, far_desc)
+    end
     local after_result, after = QD.world.tile()
     text = text .. "; click_loc(" .. loc .. " at " .. where .. ", op" .. op .. ") -> "
-        .. tostring(press_result) .. " " .. tostring(press_detail) .. "; landed " .. tile_text(after)
+        .. tostring(press_result) .. " " .. tostring(press_detail)
+    if chat_text ~= nil then
+        text = text .. "; " .. chat_text
+    end
+    text = text .. "; landed " .. tile_text(after)
     local said = QD.player._lines_since_text(since)
     if said ~= "" then
         text = text .. "; " .. said
+    end
+    if chat_result ~= nil then
+        return chat_result, text
     end
     if after_result ~= "ok" or not is_far(after) then
         local word = press_result
         if word == "ok" or word == "timeout" then
             word = "refused"
+        end
+        local kind = QD.chat.kind()
+        if spec.chat == nil and kind ~= "none" then
+            text = text .. "; a page is up: " .. QD.chat._play_page_name(kind) .. " -- the press spoke"
+                .. " before it moved the player (pass spec.chat, the chat.play list for that page)"
         end
         return word, text .. " (want " .. far_desc .. " on level " .. level .. ": the press did not take the player across)"
     end
@@ -764,6 +948,9 @@ end
 --       src  = { 2279, 3262 },     -- the tile the crossing starts on
 --       dest = { 2275, 3262 },     -- the tile it lands on (maplink dest)
 --       -- optional: op = 1, attempts = 4,
+--       --   loc_level = n (the copy's RAW level when it is not the player's:
+--       --     a bridge deck, QD.player._spec_loc_level -- Spishyus' bridge
+--       --     at = { 2483, 4972, 0 }, loc_level = 1),
 --       --   vitals = { eat = "shark", below = 60, antipoison = true } | fn,
 --       --   camera = { yaw, pitch, zoom } (posed before every press)
 --   })
@@ -816,7 +1003,8 @@ function QD.player.cross_trap(spec)
     local function on(tile, x, z)
         return type(tile) == "table" and tile.level == level and tile.x == x and tile.z == z
     end
-    local where = at_x .. "," .. at_z .. "," .. level
+    local loc_level = QD.player._spec_loc_level(spec, level, "cross_trap")
+    local where = QD.player._loc_where(at_x, at_z, loc_level, level)
     local want = src_x .. "," .. src_z .. "," .. level .. " -> " .. dest_x .. "," .. dest_z .. "," .. level
     local op_text = "op" .. op .. (spec.op_name and (" " .. spec.op_name) or "")
     local trail = {}
@@ -851,7 +1039,7 @@ function QD.player.cross_trap(spec)
                 spec.camera.zoom or spec.camera[3])
         end
         local since = QD.player._message_serial()
-        press_result, press_detail = QD.player.click_loc(loc, op, { at = { at_x, at_z, level } })
+        press_result, press_detail = QD.player.click_loc(loc, op, { at = { at_x, at_z, loc_level } })
         QD.await({
             level = function()
                 local tile_result, tile = QD.world.tile()
@@ -896,6 +1084,8 @@ end
 --       loc  = "fai_varrock_stairs_taller", op = 1, op_name = "Climb-up",
 --       at   = { 3285, 3493, 0 },  -- the copy pressed, on the floor the player is on
 --       dest = { 3285, 3496, 1 },  -- the landing: x, z and the NEW level
+--       -- loc_level = n: the copy's RAW level when it is not at[3], the
+--       --   floor pressed from (a bridge deck: QD.player._spec_loc_level)
 --       -- optional: slack = 2 (Chebyshev tiles of dest that count; default 0),
 --       --   src = { x, z } (walked to and stood on before the press),
 --       --   landed_ok = function(tile) ... end, landed_desc = "the inn's upper floor",
@@ -958,6 +1148,10 @@ function QD.player.climb(spec)
     local presses_max = spec.presses or QD.player._climb_presses
     local land_ticks = spec.ticks or QD.player._climb_land_ticks
     local tile_text = QD.player._pass_door_tile_text
+    -- `level` (at[3]) is the floor the press is taken FROM; the copy may sit
+    -- a raw level above it (the Fishing Platform's ladder top on raw 2 over
+    -- the plane-1 deck).
+    local loc_level = QD.player._spec_loc_level(spec, level, "climb")
     local function landed_on(tile)
         if type(tile) ~= "table" or tile.level ~= dest_level then
             return false
@@ -967,7 +1161,7 @@ function QD.player.climb(spec)
         end
         return spec.landed_ok == nil or spec.landed_ok(tile) == true
     end
-    local where = at_x .. "," .. at_z .. "," .. level
+    local where = QD.player._loc_where(at_x, at_z, loc_level, level)
     local op_text = "op" .. op .. (spec.op_name and (" " .. spec.op_name) or "")
     local want = dest_x .. "," .. dest_z .. "," .. dest_level
         .. (slack > 0 and (" within " .. slack) or "")
@@ -1001,7 +1195,7 @@ function QD.player.climb(spec)
         presses = presses + 1
         local since = QD.player._message_serial()
         local press_detail
-        press_result, press_detail = QD.player.click_loc(loc, op, { at = { at_x, at_z, level } })
+        press_result, press_detail = QD.player.click_loc(loc, op, { at = { at_x, at_z, loc_level } })
         QD.await({
             level = function()
                 local tile_result, tile = QD.world.tile()
