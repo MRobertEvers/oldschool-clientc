@@ -175,6 +175,14 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   mistakes list), never replayed or watched; no screenshots, crops or frame dumps in a pass:
   what needs eyes is listed for a later visual pass. The orchestrator does small tools and
   analyses itself instead of waiting on a pass.
+  SEAM24 LANDED 2026-10-05: parent 473097e5e (no content change); the closer then merged the
+  camera session's first refactor from the remote raid branch (world_view_gather, 325c57690; merge
+  9e946b5a0, clean) and re-verified ON THE MERGED TREE: cooks_assistant and druid identical to
+  merge17_check, conformance 355/355 (183 verbs + 172 seams), six rooms byte-identical and FULL,
+  quest suite 115 green + the four known reds, _party_smoke 157 and party_repeat AGREE. Pushed at
+  9e946b5a0 by the orchestrator; raid-watch moved to 9e946b5a0 and rebuilt. The pass took 4.9
+  hours (fixer 3.5, closer 1.3): the closer ran the rooms twice and three watched Plays. NEXT
+  CARDS: the context must cap the closer too (suite once, no watched Play, 30 minutes).
   ORDER AFTER SEAM24 (owner, 2026-10-05, after watching the whole Entry raid: "I noticed that the
   driver is not very fast or good. That is not going to work in normal mode. You will need to code
   up the agents a lot smarter using the actual strategies. Did you also fix the single action
