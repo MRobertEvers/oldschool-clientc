@@ -868,3 +868,29 @@ left 70/90, and the gang members 73/90. The three Elid golems read 60/60 at Defe
 the guide teleports nowhere. The chat lines `Teleported to x,y,z` on the shots are the harness's
 `goto_tile` hops, and each one was audited above. Roof-occluded door frames (One Small Favour 076,
 122, 131, 590, 597) still show the press in the next shot.
+
+## Sample matthew-mbp-m4-b62 (2026-10-05)
+
+The sampler checked Death Plateau, Plague City and The Giant Dwarf. All three passed, and none
+went back. It walked each Quest Helper ladder against the ledger and read each quest's `.rs2`
+accept and hand-in branches. It also re-ran every goto through `goto_table.py` with the doors
+closed, and every one read REACH. The first goto of each quest is over 400 tiles, so the table
+skips it. The sampler checked those landings with `reach.answer` from a nearby street instead:
+Edmond's garden, Denulth's tent, Thurgo, and the Grand Exchange trapdoor. It opened 68 shots on
+17 labelled 2x2 contact sheets.
+
+(a) THE REVIEWERS OPENED ALMOST NO SHOTS. Death: 1 (the scroll). Giant Dwarf: 2. See running.md,
+"`shots_checked 1`: the reviewer opened only the completion scroll".
+
+(b) RETRY ROWS THAT PASS ON A TIMEOUT. Giant Dwarf's `leftBootAttempt-N` and `rightBootAttempt-N`
+rows record PASS when the press answers `timeout` or `refused`. One detail reads "the cast never
+ran". The rows that grade the step are `takeLeftBoot` and `takeRightBoot`, which read the
+backpack, so the quest stands. Still, a reader who scans the ledger for PASS sees a failed press
+counted as one. Prefer `t.note` for an attempt and grade only the outcome.
+
+(c) JUDGEMENT CALLS THAT STAND. Plague City's `::setlevel magic 51` and its law and water runes are
+only for the Ardougne Teleport check after the reward. No quest step uses them. The Giant Dwarf
+content merges Quest Helper's `talkToVermundiWithBook` and `talkToVermundiAfterBook` into one talk
+(`gdwarf_clothes.rs2`: the book talk sets `showed_book` and asks for coal and logs). The test
+drives that one talk. Its Consortium descent leaves the stair pocket by Varrock Teleport, which is
+the known content seam.
