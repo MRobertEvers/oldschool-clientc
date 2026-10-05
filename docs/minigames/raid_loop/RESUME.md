@@ -104,18 +104,23 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   hides 5 tiles out); nylocas spawn_aggro 34 of 35. (c) STRATEGY: Maiden with one freezer
   leaks 11 crabs; Bloat trio deals ~30 per down. Closest: tob_nylocas_normal 81/85, tob_xarpus_normal 62/63,
   tob_maiden_normal 47/70 with a survived run.
-- SEAM22 STATE: both fixers DONE (a dead member stays in lockstep and `_party_smoke` proves it,
-  member t.tick, t.prayer.points, the budget and pid docs; content: the Sotetseg trio watchdog and
-  tornado, Xarpus orbs per landing settled from Blert, Verzik P1 and the nylocas aggro count
-  settled with no change), but its CLOSER died twice on the weekly account limit (resets
-  2026-10-06 3pm Chicago) and again needs a relaunch if `build/seam_state/
-  matthew-mbp-m4-raid-b1-seam22/close.json` is missing: the edits are UNCOMMITTED in the tree
-  (14 parent files, tob_raid.rs2, tob_sotetseg.rs2, tob_xarpus.rs2, sources/blert_api/
-  spec_pass_seam22/, wiki_Prayer.wikitext). Never commit the six untracked tob_<room>_normal.lua.
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam22`'s closer (triage `SEAM_TRIAGE_2026-10-05a.md`): the
-  harness gaps (a dead member stays in lockstep, t.tick on a member, budget, readers, README), then
-  the four content findings settled from sources. Then relaunch the Normal pass with the same args
-  (the state directory resumes; rejected rooms get their findings).
+- Seam22 LANDED (parent 1b22d51c9, content fb292a9996, pushed; gates at the baseline, no Entry
+  room moved): a dead raider stays in lockstep (`_party_smoke` kills p3 on tick 220, 157 PASS,
+  party_repeat AGREE); member t.tick; t.prayer.points; the instruction budget and pid mapping in
+  README; every raider judged by the room watchdog; Sotetseg's maze for a trio; the Xarpus party
+  chain settled from Blert (the solo coin kept, an Open row); Verzik P1 trio recipe with the
+  owner's Dawnbringer quote (settled, no content change); the nylocas aggro row re-worded.
+  Conformance 350/350 (178 verbs + 172 seams). Open: the Dawnbringer drop-and-take is not yet
+  driven end to end and no verb reads special energy; t.player.step_tick is unsupported on a
+  member (walk_to instead). The four trio attempts for Xarpus, Sotetseg, Verzik and Nylocas must
+  be re-authored (fitted to the old behaviour); Maiden's and Bloat's are strategy problems.
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam23` (triage `SEAM_TRIAGE_2026-10-05b.md`,
+  60fd52b93): THE SCRIPTS TAB (owner, 2026-10-05: "show a list of available scripts in a scripts
+  tab and I can search and click play on one"): api.drive.start/stop/status under
+  TORIRS_DRIVE_ON_DEMAND=1, tools/raid_gate/prepare_scripts.py, a `script_runner` panel plugin,
+  profile `osrs239-scripts`; the owner will run `python3 tools/raid_gate/prepare_scripts.py &&
+  ./launch run osrs239-scripts`. Proved headless only; never open a window from a worker.
+  THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
   players should share it using their special attack." Our content agrees (tob_xarpus.rs2:1817-1850
