@@ -192,6 +192,11 @@ function QD.prayer.set(name, on)
         return before_result, "prayer.set " .. entry[1] .. ": the varbit before the press read "
             .. tostring(before_result) .. " " .. tostring(before)
     end
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait
+    -- (pointer.lua, the several_inputs_one_tick banner).
+    if QD._together ~= nil then
+        return QD._together_prayer(entry, want, word, before)
+    end
     if before == want then
         return "ok", string.format(
             "%s already %s: %s = %d (%s) on drive tick %d -- no press made (a press would toggle it %s)",

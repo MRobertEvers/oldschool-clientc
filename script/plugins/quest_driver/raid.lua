@@ -1731,3 +1731,610 @@ function QD.ticklog.rows(opts)
     end
     return QD.ticklog._rows_unfiltered(copy)
 end
+
+-- ==========================================================================
+-- SEAM raid_play_by_tick_intent (raid seam27, 2026-10-05) -- THE PLAY
+-- LIBRARY.  Everything below this banner is this seam's.
+--
+--   t.raid.play(plan_id, opts) -> ok | died | timeout | unsupported, detail, record
+--
+-- The owner, 2026-10-05: "the driver is not very fast or good. That is not
+-- going to work in normal mode. You will need to code up the agents a lot
+-- smarter using the actual strategies."  Each room test used to carry its own
+-- fight loop: one action per pass, reacting after the fact.  This is ONE loop
+-- every room test calls, plus one strategy table per room (the PLAN), each
+-- line citing its source; docs/minigames/raid_loop/PLAY_NOTES.md is the
+-- table of skills and plans with the same citations.
+--
+-- THE LOOP (QD.raid._play_tick).  Every server tick: SEE what a person at the
+-- screen can see (the boss's animation and tile, the shadows on the floor,
+-- its own hitpoints, prayer points, lit prayers, tile, and the swings of its
+-- own weapon), DECIDE the tick's whole intent (the plan's decide function),
+-- SEND it together (prayers, potion, food and the step in ONE t.together; the
+-- attack press after it).  Nothing waits across ticks: a walk is re-issued
+-- only when its target changes, never waited out.  What the loop never reads:
+-- the server's registers, `::tob*` readouts, the seed, the tick log's hidden
+-- columns.  The one tick-log kind it reads is `player_anim` for its own pid
+-- (the swing it sees itself make) and, to stop, the boss's `npc_death`; a
+-- member (no tick log) counts its swings from its presses and the speed.
+--
+-- THE SKILLS, each a small function below with its source in a comment
+-- (PLAY_NOTES.md "Skills"): _play_attack (attack on cooldown), _play_pray
+-- (pray by the telegraph), _play_supplies (eat by the largest hit before the
+-- next chance to eat; potions on their own timer), _play_hazard (step off a
+-- marked tile by the shortest safe step).  A loadout swap is the plan's
+-- `gear` list in the same t.together (Bloat's plan needs none: PLAY_NOTES).
+-- ==========================================================================
+
+-- Weapons: attack speed in ticks and the swing animation the player sees.
+-- scythe_of_vitur: wiki Scythe of vitur, attack speed 5; seq 8056 measured in
+-- build/quest_gate/tob_bloat/ticklog.tsv (player_anim every 5 ticks, 104..124).
+QD.RAID_PLAY_WEAPONS = {
+    scythe_of_vitur = { speed = 5, seqs = { [8056] = true } },
+    scythe_of_vitur_uncharged = { speed = 5, seqs = { [8056] = true } },
+}
+
+-- Food, best heal first, at 99 Hitpoints: wiki Anglerfish (n/10 + 13 = 22,
+-- overheals), Shark 20.  A brew is a POTION: its own timer and no attack
+-- delay ("Potions do not incur the standard 3 tick attack or eat delay",
+-- consume_shared.rs2:49), so it combos with a food in one tick ("marlin,
+-- Saradomin brew, and halibut - in that order", wiki Food/Fast foods).
+-- Saradomin brew heals 2 + 15% = 16 at 99 (wiki Saradomin brew).
+QD.RAID_PLAY_FOOD = {
+    { item = "anglerfish", heal = 22 },
+    { item = "shark", heal = 20 },
+}
+QD.RAID_PLAY_BREWS = { "br_1dosepotionofsaradomin", "br_2dosepotionofsaradomin",
+    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin" }
+QD.RAID_PLAY_BREW_HEAL = 16
+-- Super restore: 8 + 25% of the Prayer level = 32 at 99 (wiki Super restore).
+QD.RAID_PLAY_RESTORES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }
+QD.RAID_PLAY_RESTORE_AMOUNT = 32
+-- Food "adds a 3 tick penalty to when a player may eat again"; a potion
+-- "delay[s] your next potion consumption by 3 ticks" (consume_shared.rs2:31-48).
+QD.RAID_PLAY_EAT_DELAY = 3
+QD.RAID_PLAY_DRINK_DELAY = 3
+-- Running moves two tiles a tick (wiki Energy: run); used to time a leave.
+QD.RAID_PLAY_RUN_TILES = 2
+
+-- THE PLANS.  One table per room; `modes` holds what changes with the mode.
+QD.RAID_PLAY_PLANS = {
+    tob_bloat = {
+        room = "bloat",
+        boss = { entry = "tob_bloat_story", normal = "tob_bloat", hard = "tob_bloat_hard" },
+        -- ENCOUNTER_TIMING.md 3.1 (blert BLOAT_DOWN_CYCLE_TICKS = 32): DOWN on T
+        -- (seq 8082), attackable T+1..T+28, STOMP T+29, rise T+30..T+32, UP T+33.
+        down_seq = 8082, down_ticks = 32, stomp_age = 29, rise_age = 30, up_age = 33,
+        -- tob.constant ^tob_bloat_stomp_range = 6 ([M65]: no source gives a
+        -- number), a huntall from Bloat's south-west tile.
+        stomp_range = 6,
+        -- ENCOUNTER_TIMING.md 3.4: graphics 1570-1573 mark the landing tile.
+        shadow_lo = 1570, shadow_hi = 1573,
+        -- Geometry local to Bloat's 64x64 map square (tob_bloat.lua: floor
+        -- 6424..6437 x 89..102, tank 6428..6433 x 93..98 in square 6400,64).
+        -- `mirror`: the tile straight behind the tank from Bloat's centre is
+        -- (mirror.x - bx, mirror.z - bz) for Bloat's south-west tile bx,bz
+        -- (tob_bloat.lua :1206, 12859 - bx and 189 - bz).
+        floor = { 24, 25, 37, 38 }, tank = { 28, 29, 33, 34 }, mirror = { 59, 61 },
+        ring = { 23, 24, 34, 35 },
+        modes = {
+            -- tob.constant :752 entry flies 8, :760 entry stomp 40,
+            -- tob_bloat.constant :39 entry hand 25 ([video][M62]).  Entry: the
+            -- stomp is tick-eaten in place (wiki :675 "It is possible to tick
+            -- eat this attack"), the flinch is the click back on the rise.
+            entry = { fly = 8, stomp = 40, hand = 25, stomp_plan = "stay" },
+            -- tob.constant :746 flies 20, :756 stomp 80, :762 hand 50.  Normal:
+            -- "Unless the boss is below 3% health, it is recommended to run
+            -- away after the last attack" (wiki :689).
+            normal = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave" },
+            hard = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave" },
+        },
+        -- wiki :673 "reduced by 25% if Protect from Missiles are active":
+        -- lit on every tick Bloat is up (the flies are sent every tick).
+        walk_prayers = { "protectfrommissiles" },
+        -- the offensive prayer for the attackable window; no source flicks it here.
+        down_prayers = { "piety" },
+        decide = "_play_bloat_decide",
+    },
+    -- Maiden: the full strategy table is PLAY_NOTES.md "Maiden"; the decide
+    -- function is the re-author pass's (seam27 proves the library on Bloat).
+    tob_maiden = {
+        room = "maiden",
+        boss = { entry = "tob_maiden_100_story", normal = "tob_maiden_100", hard = "tob_maiden_100_hard" },
+        -- spec maiden.cad / maiden.first (grade B): first attack tick 9, every 10.
+        attack_first = 9, attack_every = 10,
+        modes = { entry = {}, normal = {}, hard = {} },
+        walk_prayers = { "protectfrommagic" },
+        down_prayers = {},
+    },
+}
+
+-- t.raid.play(plan_id, opts): play the room by its plan until the boss dies
+-- (ok), the player dies (died) or opts.max_ticks server ticks pass (timeout).
+--   opts.mode    "entry" | "normal" | "hard" (default "entry")
+--   opts.weapon  the worn weapon's symbol (default scythe_of_vitur)
+--   opts.max_ticks (default 1500)
+-- Returns result, detail, record (PLAY_NOTES.md "The record").
+function QD.raid.play(plan_id, opts)
+    opts = opts or {}
+    local plan = QD.RAID_PLAY_PLANS[plan_id]
+    if plan == nil then
+        return "unsupported", "raid.play: no plan named " .. tostring(plan_id)
+    end
+    if plan.decide == nil then
+        return "unsupported", "raid.play: plan " .. plan_id
+            .. " has its strategy in PLAY_NOTES.md and no decide function yet (the re-author pass)"
+    end
+    local mode = opts.mode or "entry"
+    local numbers = plan.modes[mode]
+    assert(numbers, "raid.play: plan " .. plan_id .. " has no mode " .. tostring(mode))
+    local weapon_name = opts.weapon or "scythe_of_vitur"
+    local weapon = QD.RAID_PLAY_WEAPONS[weapon_name]
+    assert(weapon, "raid.play: no weapon row for " .. tostring(weapon_name))
+    local st = QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
+    local max_ticks = opts.max_ticks or 1500
+    local result = "timeout"
+    while true do
+        local outcome = QD.raid._play_tick(st)
+        if outcome ~= nil then
+            result = outcome
+            break
+        end
+        local _, now = QD.tick()
+        if now - st.start_tick >= max_ticks then
+            break
+        end
+    end
+    st.result = result
+    return result, QD.raid._play_summary(st), st
+end
+
+function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
+    local _, now = QD.tick()
+    local _, me = QD.world.tile()
+    local st = {
+        plan = plan, plan_id = plan_id, mode = mode, numbers = numbers, weapon = weapon,
+        boss_symbol = plan.boss[mode], role = QD.party.role(), party = QD.party.size(),
+        start_tick = now, origin = { x = math.floor(me.x / 64) * 64, z = math.floor(me.z / 64) * 64 },
+        -- what happened, per server tick (the room test's rows read these)
+        inputs = {}, hp_at = {}, prayer_at = {}, tile_at = {}, swings = {}, eats = {}, drinks = {},
+        downs = {}, flinches = {}, dodges = 0, blocks = {}, refusals = 0, lines = {},
+        last_swing = -1000, engaged = false, engaged_tick = -1000, last_eat = -1000, last_drink = -1000,
+        walk_target = nil, boss_seen = false, boss_gone = 0, boss_slot = nil, anim_serial = 0,
+        death_serial = 0, log = false, my_pid = nil,
+    }
+    -- The tick log is the leader's; a member reads none (README "A party run").
+    local lr = QD.ticklog.rows({ kind = "mark" })
+    st.log = (lr == "ok")
+    local pr, rows = api_drive.players()
+    if pr == "ok" then
+        for _, r in ipairs(rows) do
+            if r.me then st.my_pid = r.pid end
+        end
+    end
+    return st
+end
+
+-- SEE: what a person at the screen reads this tick.
+function QD.raid._play_see(st)
+    local v = {}
+    local _, now = QD.tick()
+    v.tick = now
+    v.api_now = api_drive.tick()
+    local _, me = QD.world.tile()
+    v.me = me
+    local _, hp = QD.skill.read("hitpoints")
+    v.hp = hp.level
+    v.hp_base = hp.base or hp.base_level or 99
+    local _, pp = QD.skill.read("prayer")
+    v.prayer = pp.level
+    v.prayer_base = pp.base or pp.base_level or 99
+    local _, _, lit = QD.prayer.read()
+    v.lit = lit or {}
+    local br, b = QD.npc.state(st.boss_symbol)
+    if br == "ok" then v.boss = b end
+    v.shadows = {}
+    local sr, spots = QD.world.spotanims(0)
+    if sr == "ok" then
+        for k = 1, #spots do
+            local sid = spots[k].spotanim_id
+            if sid >= (st.plan.shadow_lo or -1) and sid <= (st.plan.shadow_hi or -2) then
+                v.shadows[spots[k].x * 100000 + spots[k].z] = true
+            end
+        end
+    end
+    -- the swing animation of the player's own weapon (player_anim, own pid)
+    if st.log then
+        local ar, rows = QD.ticklog.rows({ kind = "player_anim", since = st.anim_serial })
+        if ar == "ok" then
+            for _, row in ipairs(rows) do
+                st.anim_serial = math.max(st.anim_serial, row.serial)
+                if (st.party <= 1 or st.my_pid == nil or row.pid == st.my_pid) and st.weapon.seqs[row.seq] then
+                    if row.tick > st.last_swing then
+                        st.last_swing = row.tick
+                        st.swings[#st.swings + 1] = row.tick
+                    end
+                end
+            end
+        end
+    end
+    st.hp_at[now] = v.hp
+    st.tile_at[now] = { x = me.x, z = me.z }
+    local on = {}
+    for name, lit_now in pairs(v.lit) do
+        if lit_now then on[#on + 1] = name end
+    end
+    st.prayer_at[now] = v.lit
+    return v
+end
+
+-- SKILL: ATTACK ON COOLDOWN.  Once a target is clicked the player swings on
+-- its own every `speed` ticks (wiki Attack speed: "the number of ticks
+-- between attacks"); a click is needed only to START the fight or after a
+-- step cleared it.  So the press goes out when the plan wants a swing and
+-- the player is not engaged, or no swing was seen for speed + 2 ticks.  A
+-- member with no tick log counts a swing every `speed` ticks of engagement.
+-- Returns true when this tick should carry an attack press.
+function QD.raid._play_attack(st, v, want)
+    if not want then
+        return false
+    end
+    local speed = st.weapon.speed
+    if not st.log and st.engaged and v.tick - math.max(st.last_swing, st.engaged_tick) >= speed then
+        st.last_swing = v.tick
+        st.swings[#st.swings + 1] = v.tick
+    end
+    if not st.engaged then
+        return true
+    end
+    return v.tick - math.max(st.last_swing, st.engaged_tick) > speed + 2
+end
+
+-- The next tick the weapon is ready (the "free" tick to eat on: "If your
+-- weapon is ready to attack again then eating does not add any new delay",
+-- wiki Food, quoted at consume_shared.rs2:34-38).
+function QD.raid._play_next_swing(st, v)
+    if not st.engaged then
+        return v.tick
+    end
+    local next_swing = st.last_swing + st.weapon.speed
+    if st.last_swing < st.engaged_tick then
+        next_swing = st.engaged_tick + 1
+    end
+    if next_swing < v.tick then
+        next_swing = v.tick
+    end
+    return next_swing
+end
+
+-- SKILL: PRAY BY THE TELEGRAPH.  `want` is the set the plan wants lit on the
+-- NEXT tick (a prayer pressed between ticks T-1 and T is in force for T:
+-- DRIVER_NOTES "Several inputs in one tick", varbit read back +0).  Returns
+-- the switches to send: { {name, on}, ... }.
+function QD.raid._play_pray(st, v, want, all)
+    local out = {}
+    if v.prayer <= 0 then
+        return out
+    end
+    for _, name in ipairs(all) do
+        local on = want[name] == true
+        if (v.lit[name] == true) ~= on then
+            out[#out + 1] = { name, on }
+        end
+    end
+    return out
+end
+
+-- SKILL: SUPPLIES.  `threat(h)` is the most damage that can land in the next
+-- h ticks (the plan's).  Eat when the hitpoints would not survive the hits
+-- that can land before the NEXT chance to eat: on a free tick (not attacking,
+-- or the weapon is ready) that chance is the next swing (engaged) or the eat
+-- delay (3) away; on a tick between swings eating costs the attack 3 ticks,
+-- so between swings only a hit that can land before the next tick's bite is
+-- read forces one.  A brew rides along when the food alone is short (combo eating).
+-- A restore is drunk when the prayer missing is at least one dose's worth
+-- (no dose wasted) or prayer is about to run out.  Returns eat, drink names.
+function QD.raid._play_supplies(st, v, threat)
+    local eat, drink = nil, nil
+    local food, heal = nil, 0
+    for _, row in ipairs(QD.RAID_PLAY_FOOD) do
+        local cr, n = QD.inv.count(row.item)
+        if food == nil and cr == "ok" and n > 0 then
+            food = row.item
+            heal = row.heal
+        end
+    end
+    local brew = nil
+    for _, name in ipairs(QD.RAID_PLAY_BREWS) do
+        local cr, n = QD.inv.count(name)
+        if brew == nil and cr == "ok" and n > 0 then brew = name end
+    end
+    local next_swing = QD.raid._play_next_swing(st, v)
+    local free = (not st.engaged) or next_swing <= v.tick
+    local eat_ready = v.tick - st.last_eat >= QD.RAID_PLAY_EAT_DELAY
+    local drink_ready = v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY
+    -- the next chance to eat: a free tick's next free tick is the next swing
+    -- (engaged) or the eat delay away, and a bite pressed then is confirmed
+    -- up to QD.TOGETHER_CONFIRM_TICKS later (measured: svbbloat's bite on
+    -- the swing two ticks before the stomp was not yet read one tick later),
+    -- plus one tick to spare: the seam's margin, no source gives one
+    -- (PLAY_NOTES.md "Supplies").  Between swings only a hit that can land
+    -- before the next tick's bite is read forces one.
+    local horizon = 2
+    if free then
+        horizon = (st.engaged and st.weapon.speed or QD.RAID_PLAY_EAT_DELAY) + QD.TOGETHER_CONFIRM_TICKS + 1
+    end
+    local need = threat(horizon)
+    if v.hp <= need then
+        if eat_ready and food ~= nil then
+            eat = food
+            if v.hp + heal <= need and drink_ready and brew ~= nil then drink = brew end
+        elseif drink_ready and brew ~= nil then
+            drink = brew
+        end
+    end
+    if drink == nil and drink_ready then
+        local missing = v.prayer_base - v.prayer
+        if missing >= QD.RAID_PLAY_RESTORE_AMOUNT or v.prayer <= 2 then
+            for _, name in ipairs(QD.RAID_PLAY_RESTORES) do
+                local cr, n = QD.inv.count(name)
+                if drink == nil and cr == "ok" and n > 0 then drink = name end
+            end
+        end
+    end
+    return eat, drink, need
+end
+
+-- SKILL: HAZARDS.  A tile is dangerous from the tick a person can see its
+-- marker (Bloat's shadow: ENCOUNTER_TIMING.md 3.4, judged on the previous
+-- tick's tile, so a step on the tick it is seen lands in time).  Returns the
+-- tile to stand on: `want` if it is safe, else the safe tile nearest it, the
+-- shortest step from the player breaking ties.  `ok(x, z)` says a tile is
+-- floor the player may stand on.
+function QD.raid._play_hazard(st, v, want_x, want_z, ok)
+    local key = want_x * 100000 + want_z
+    if not v.shadows[key] and ok(want_x, want_z) then
+        return want_x, want_z, false
+    end
+    local best, bx, bz = nil, v.me.x, v.me.z
+    for r = 1, 3 do
+        for dx = -r, r do
+            for dz = -r, r do
+                local x, z = want_x + dx, want_z + dz
+                if ok(x, z) and not v.shadows[x * 100000 + z] then
+                    local score = math.max(math.abs(dx), math.abs(dz)) * 10
+                        + math.max(math.abs(x - v.me.x), math.abs(z - v.me.z))
+                    if best == nil or score < best then
+                        best, bx, bz = score, x, z
+                    end
+                end
+            end
+        end
+        if best ~= nil then break end
+    end
+    return bx, bz, true
+end
+
+-- THE BLOAT PLAN'S DECIDE (PLAY_NOTES.md "Bloat").  Walk: hide straight
+-- behind the tank from where Bloat will be ("Hug the pillar and hide from
+-- Bloat as it walks around the room", wiki_Theatre_of_Blood_Strategies
+-- :687), Protect from Missiles lit, off any shadow ("simply don't stand on
+-- the shadows", transcripts/yt_4i4lv-srJkw.md:71).  Down: in at once and
+-- swing on cooldown with Piety ("As soon as Bloat deactivates ... begin
+-- attacking with melee ... five attacks when close", wiki :689).  The stomp:
+-- Entry tick-eats it in place (wiki :675) and clicks back on the rise ("when
+-- he starts to get back up ... that's when you click back", the flinch
+-- guide, ENCOUNTER_TIMING.md 3.1); Normal/Hard runs out of its reach after
+-- the last swing that fits ("run away after the last attack", wiki :689).
+function QD.raid._play_bloat_decide(st, v)
+    local P, N, O = st.plan, st.numbers, st.origin
+    local intent = { want = {}, walk = nil, attack = false }
+    local b = v.boss
+    if b == nil then
+        return intent
+    end
+    local phase, age = "walk", -1
+    if b.seq_id == P.down_seq then
+        local a = v.api_now - b.seq_tick
+        if a >= 0 and a <= P.down_ticks then
+            phase, age = "down", a
+        end
+    end
+    if phase == "down" and st.down_key ~= b.seq_tick then
+        st.down_key = b.seq_tick
+        st.down = { tick = v.tick - age, seen_age = age, bx = b.x, bz = b.z, index = #st.downs + 1 }
+        st.downs[#st.downs + 1] = st.down
+    end
+    st.phase = phase
+    local function floor_ok(x, z)
+        local inside = x >= O.x + P.floor[1] and x <= O.x + P.floor[3] and z >= O.z + P.floor[2] and z <= O.z + P.floor[4]
+        local tank = x >= O.x + P.tank[1] and x <= O.x + P.tank[3] and z >= O.z + P.tank[2] and z <= O.z + P.tank[4]
+        return inside and not tank
+    end
+    -- where Bloat will be two ticks on (its walk is visible); the hide tile
+    -- is that tile mirrored through the tank (tob_bloat.lua :1206)
+    local fx, fz = b.x, b.z
+    if phase == "walk" and st.prev_b ~= nil then
+        fx = math.max(O.x + P.ring[1], math.min(O.x + P.ring[3], b.x + 2 * (b.x - st.prev_b.x)))
+        fz = math.max(O.z + P.ring[2], math.min(O.z + P.ring[4], b.z + 2 * (b.z - st.prev_b.z)))
+    end
+    st.prev_b = { x = b.x, z = b.z }
+    local hide_x, hide_z = 2 * O.x + P.mirror[1] - fx, 2 * O.z + P.mirror[2] - fz
+    local in_stomp = math.max(math.abs(v.me.x - b.x), math.abs(v.me.z - b.z)) <= P.stomp_range
+    local hidden = math.max(math.abs(v.me.x - hide_x), math.abs(v.me.z - hide_z)) <= 1
+    local on_shadow = v.shadows[v.me.x * 100000 + v.me.z] == true
+    local leave_age = P.stomp_age - 1 - math.ceil((P.stomp_range + 1) / QD.RAID_PLAY_RUN_TILES)
+    local function threat(h)
+        local total = 0
+        for k = 1, h do
+            if phase == "walk" then
+                if not hidden then total = total + N.fly end
+            else
+                local a = age + k
+                if a == P.stomp_age and (N.stomp_plan == "stay" or in_stomp) then total = total + N.stomp end
+                if a >= P.up_age then total = total + N.fly end
+            end
+        end
+        if on_shadow then total = total + N.hand end
+        return total
+    end
+    -- prayers for the NEXT tick: down prayers through the attackable window,
+    -- the walk's prayer from the tick before the first fly (T+33)
+    local list = P.walk_prayers
+    if phase == "down" and age < P.up_age - 1 then list = P.down_prayers end
+    for _, name in ipairs(list) do intent.want[name] = true end
+    local target_x, target_z = nil, nil
+    if phase == "walk" then
+        target_x, target_z = hide_x, hide_z
+    elseif N.stomp_plan == "stay" then
+        intent.attack = age < P.stomp_age
+        if age >= P.rise_age then
+            target_x, target_z = 2 * O.x + P.mirror[1] - b.x, 2 * O.z + P.mirror[2] - b.z
+        end
+    else
+        intent.attack = age < leave_age
+        if age >= leave_age then
+            target_x, target_z = 2 * O.x + P.mirror[1] - b.x, 2 * O.z + P.mirror[2] - b.z
+        end
+    end
+    if phase == "down" and age >= P.stomp_age - 2 and age <= P.stomp_age - 1 and st.down.pre_stomp == nil then
+        st.down.pre_stomp = v.hp
+    end
+    if target_x ~= nil then
+        local sx, sz, moved = QD.raid._play_hazard(st, v, target_x, target_z, floor_ok)
+        if on_shadow then st.dodges = st.dodges + 1 end
+        local same = st.walk_target ~= nil and st.walk_target.x == sx and st.walk_target.z == sz
+        local stuck = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z
+        if (v.me.x ~= sx or v.me.z ~= sz) and (not same or stuck) then
+            intent.walk = { x = sx, z = sz }
+            if phase == "down" and st.down.flinch == nil then
+                st.down.flinch = { tick = v.tick, age = age, from = { x = v.me.x, z = v.me.z } }
+                st.flinches[#st.flinches + 1] = st.down.flinch
+            end
+        end
+    end
+    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
+    return intent
+end
+
+-- SEND: the tick's whole intent, together (prayers first, potions and food,
+-- the step last: DRIVER_NOTES "How a fight loop is written now"); the attack
+-- press after the block (a slow verb may not sit inside one).
+function QD.raid._play_send(st, v, intent)
+    local all = {}
+    for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
+    for _, name in ipairs(st.plan.down_prayers) do all[#all + 1] = name end
+    local switches = QD.raid._play_pray(st, v, intent.want, all)
+    local eat, drink, walk = intent.eat, intent.drink, intent.walk
+    local n = 0
+    if #switches > 0 or eat ~= nil or drink ~= nil or walk ~= nil then
+        local r, d = QD.together(function()
+            for _, s in ipairs(switches) do QD.prayer.set(s[1], s[2]) end
+            if drink ~= nil then QD.player.drink(drink) end
+            if eat ~= nil then QD.player.eat(eat) end
+            if walk ~= nil then QD.player.walk_to(walk.x, walk.z, 1) end
+        end)
+        n = #switches + (eat and 1 or 0) + (drink and 1 or 0) + (walk and 1 or 0)
+        st.blocks[r] = (st.blocks[r] or 0) + 1
+        if r ~= "ok" and r ~= "split" then
+            st.refusals = st.refusals + 1
+            if #st.lines < 6 then st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 160) end
+        end
+        if eat ~= nil then
+            st.last_eat = v.tick
+            st.eats[#st.eats + 1] = { tick = v.tick, item = eat, hp = v.hp, need = intent.need }
+        end
+        if drink ~= nil then
+            st.last_drink = v.tick
+            st.drinks[#st.drinks + 1] = { tick = v.tick, item = drink, hp = v.hp, prayer = v.prayer }
+        end
+        if walk ~= nil then
+            st.engaged = false
+            st.walk_target = walk
+        end
+    end
+    if intent.attack then
+        local ar = QD.player.attack(st.boss_symbol, 2, 1, { quick = true })
+        n = n + 1
+        st.attack_presses = (st.attack_presses or 0) + 1
+        if ar == "ok" then
+            st.engaged = true
+            st.engaged_tick = v.tick
+            st.walk_target = nil
+        elseif #st.lines < 6 then
+            st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar)
+        end
+    end
+    st.inputs[v.tick] = (st.inputs[v.tick] or 0) + n
+end
+
+-- One turn of the loop: SEE, stop if the room is over, DECIDE, SEND, then
+-- wait for the next server tick (the loop's beat, never a wait for an effect).
+function QD.raid._play_tick(st)
+    local v = QD.raid._play_see(st)
+    for _, f in ipairs(st.flinches) do
+        if f.moved == nil and v.tick >= f.tick + 3 then
+            f.moved = math.max(math.abs(v.me.x - f.from.x), math.abs(v.me.z - f.from.z))
+        end
+    end
+    if v.hp <= 0 or (st.last_me ~= nil and math.abs(v.me.x - st.last_me.x) + math.abs(v.me.z - st.last_me.z) > 20) then
+        st.end_tick = v.tick
+        return "died"
+    end
+    if v.boss ~= nil then
+        st.boss_seen = true
+        st.boss_gone = 0
+        if st.log and st.boss_slot == nil then
+            local sr, slot = QD.ticklog.slot(v.boss)
+            if sr == "ok" then st.boss_slot = slot end
+        end
+    elseif st.boss_seen then
+        st.boss_gone = st.boss_gone + 1
+    end
+    if st.log and st.boss_slot ~= nil then
+        local dr, rows = QD.ticklog.rows({ kind = "npc_death", slot = st.boss_slot, since = st.death_serial })
+        if dr == "ok" and #rows > 0 then
+            st.death_tick = rows[1].tick
+            st.end_tick = v.tick
+            return "ok"
+        end
+    end
+    if st.boss_gone >= 3 then
+        st.end_tick = v.tick
+        return "ok"
+    end
+    local intent = QD.raid[st.plan.decide](st, v)
+    QD.raid._play_send(st, v, intent)
+    st.last_me = { x = v.me.x, z = v.me.z }
+    local _, after = QD.tick()
+    if after == v.tick then
+        QD.ticks(1)
+    end
+    return nil
+end
+
+-- One line: what the play did, and the inputs-per-tick histogram.
+function QD.raid._play_summary(st)
+    local hist = { 0, 0, 0, 0 }
+    local ticks = 0
+    for _, n in pairs(st.inputs) do
+        if n > 0 then
+            ticks = ticks + 1
+            local k = math.min(n, 4)
+            hist[k] = hist[k] + 1
+        end
+    end
+    local flinch = "none"
+    if st.flinches[1] ~= nil then flinch = tostring(st.flinches[1].moved) .. " tiles" end
+    local blocks = {}
+    for r, c in pairs(st.blocks) do blocks[#blocks + 1] = r .. " " .. c end
+    table.sort(blocks)
+    return string.format("plan %s mode %s role %d: %s after %d ticks (tick %d..%s); %d downs, %d swings, %d eats, "
+        .. "%d drinks, %d shadow steps, first flinch %s; inputs on %d ticks: 1 on %d, 2 on %d, 3 on %d, 4+ on %d; "
+        .. "attack presses %d; blocks [%s]; %s",
+        st.plan_id, st.mode, st.role, tostring(st.result), (st.end_tick or st.start_tick) - st.start_tick,
+        st.start_tick, tostring(st.end_tick), #st.downs, #st.swings, #st.eats, #st.drinks, st.dodges, flinch,
+        ticks, hist[1], hist[2], hist[3], hist[4], st.attack_presses or 0, table.concat(blocks, ", "),
+        #st.lines > 0 and table.concat(st.lines, " | ") or "no refusals")
+end

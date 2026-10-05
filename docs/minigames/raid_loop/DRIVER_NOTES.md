@@ -1537,7 +1537,10 @@ reports are under `build/seam_state/matthew-mbp-m4-raid-b1-seam6/`.
   runs the gate procs in one tick and prints two lines (`eatgate:` and `eatgate+:`).
 - The driver eater (`opts.eat`) still waits `QD.COMBAT_EAT_DELAY_TICKS` = 3 after
   inv_op's own 3-tick settle, so it eats at most every 6 ticks; the server would take one
-  every 3.
+  every 3. Seam27 added `opts.eat.quick = true`, which bites at the server's
+  delay (every 3 ticks, `@tick` on each bite in the detail); the default is unchanged
+  until the 36 kept quests that pass `opts.eat` are re-run (see "Several inputs in one
+  tick" below).
 - Quest-loop impact: `troll` and `regicide` went green -> RED with the port (the player
   dies without the held hits); the quest loop re-authors them with more food or prayer.
   troll: first failing row 31 player.died at tick 465, in killGeneral's wait (2824,10077 level 2): the Troll general's hits killed the player after all 26 sharks were eaten (the general at 1/30). regicide: first failing row 205 goKillGuardAtSecondForest-walk-toForests, run from the Lumbridge respawn; the death came at the end of leg 4 (about tick 4663): the Tyras guard fight ate all 12 sharks (lowest 20/70, OUT OF shark), then the tripwire snag and its poison took the player to 0. See CONTENT_BUGS.md, "Quest loop impact of the eat-delay port".
@@ -5150,3 +5153,198 @@ scripts_tab_every_script) replaced that plumbing. What it is now:
 - (seam23, REPLACED in seam24) `prepare_scripts.py` no longer writes wrapped copies or an
   `index.tsv`: it writes the scripts manifest the tab asks for, and a Play reads the test
   file itself.
+
+## Several inputs in one tick: `t.together` (seam27)
+
+The owner, 2026-10-05: "update the script runner so that it can do multiple things at
+once ... it's really slow to equip, eat move around". Before this seam every fast verb
+pressed and then waited for its own effect one tick later, so N presses took N ticks.
+
+**The rule from the source.** One OSRS tick runs client input, then npcs, then players
+(ENCOUNTER_TIMING.md 1.1). The input phase runs every packet the client sent since the
+last tick, in the order sent. LostCity's engine caps it: `NetworkPlayer.decodeIn`
+(Engine-TS `src/engine/entity/NetworkPlayer.ts:55-74`) reads while fewer than
+`USER_EVENT.limit = 5` user events have succeeded this tick
+(`ClientGameProtCategory.ts:6`; IfButton, OpHeld, InvButton and MoveClick are all user
+events), and the rest wait in the buffer for the next tick. They are not dropped. Food:
+"The 3 tick Eat delay"; "Potions do not incur the standard 3 tick ... delay"; "consuming
+a marlin, Saradomin brew, and halibut - in that order - allows 60 hitpoints to be healed
+at once" (wiki Food/Fast foods, Combo eating). No source quoted here gives OSRS's own cap.
+
+**What our server does.** `ToriRSServer_SessionPump` (torirs_server_session.c:1066)
+dispatches each packet when it arrives, between world ticks. `phase_clients_in`
+(torirs_server_world.c:15081) is empty. A press made between ticks T-1 and T is in force
+for tick T, in the order sent, and there is **no per-tick cap**. The order matches the
+source, but the missing cap does not. Two driver comments disagreed about this:
+prayer.lua's "packets run as they arrive" is right. step_tick's "read by the next tick's
+phase_clients_in" gets the tick right for the wrong reason. Measured in
+build/quest_gate/siot_probe1: a prayer's varbit reads back on the press tick (+0), and a
+held press or a step reads back on the next tick (+1).
+
+**OPEN ROW: the per-tick input cap.** LostCity holds a sixth user event for the next
+tick. Our server lands every one. This is not fixed here because the dispatch is not in
+the mock239 intake files, and a buffered intake is an engine change. Until it is fixed,
+`t.together` reports any block of more than five inputs (`6 is over LostCity's 5 user
+events a tick (our server has no cap)`) and refuses an eleventh. The number OSRS uses is
+the evidence needed to close this row.
+
+**The form.**
+
+```lua
+local result, detail = t.together(function()
+    t.prayer.set("protectfrommelee", true)     -- prayers first (prayer tab)
+    t.prayer.set("piety", true)
+    t.player.equip("abyssal_whip")              -- then held items (inventory tab)
+    t.player.equip("dragon_defender")
+    t.player.eat("shark")
+    t.player.eat("tbwt_cooked_karambwan")       -- a combo food: its own timer
+    t.player.step_tick(x + 1, z)                -- movement last, one per block
+end)
+t.check("swap.melee", result == "ok", detail)
+```
+
+Inside the body, `eat`, `drink`, `equip` (always the quick press), `inv_op` (the same),
+`prayer.set`, `step_tick` and `walk_to` each press and return `"pending"` without
+waiting. The block then waits up to `QD.TOGETHER_CONFIRM_TICKS = 2` and confirms every
+effect: the pressed cell changed (eat, drink), the worn total rose (equip), the varbit
+reached its new value (prayer), and the player reached the tile (step) or moved off the
+start tile (walk). Its one detail names each input with the tick it was pressed and the
+tick it was confirmed. The block answers:
+`ok` when everything was pressed on one tick and confirmed.
+`split` when everything was confirmed but the tick rolled over between presses; it names
+the late inputs and presses nothing again.
+`refused` when an input never left or the server refused it. The detail names it: a
+second press of one cell or one prayer, a second movement, a missing item, a prayer level.
+`timeout` when an input left but its effect never appeared.
+
+**The cost of a tab change** is frames, not ticks. Measured: six inputs across the
+prayer and inventory tabs waited 4 frames (3 for the inventory cell to repaint after the
+prayer tab, 1 for the prayer button). A tick is 30 frames, so the client could press far
+more than any source shows a player landing. The bound is the cap above, not the client.
+
+**Measured** (build/quest_gate/siot_probe1): two prayers, a whip and a kiteshield, a
+shark and a step were pressed on server tick 5 and all confirmed by tick 6. The tick
+log's `player_tile` row for the step is on tick 6. The same six inputs through the verbs
+one at a time took 4 ticks (9 -> 13).
+
+**Combo eating** (build/quest_gate/siot_probe5, row 1): a shark, a combat potion dose
+and a `tbwt_cooked_karambwan` were pressed on tick 3, and all three were confirmed on
+tick 4. **One item, one cell:** a block presses the first cell that holds an item, so
+`eat("shark")` twice in one block is refused at the second press. That press would land
+on the same cell (row 2), and the food gate would refuse a second shark in one tick
+anyway.
+
+**Do not**: call `t.exec` or `t.check` inside the body (each would write a row for
+`pending`), or put a slow verb inside it (attack, talk, click_loc, a non-quick
+`inv_op` outside a block). Those wait, the tick rolls over, and the block answers `split`.
+
+### How a fight loop is written now
+
+1. Each pass, decide the WHOLE intent for the tick from what the boss is doing
+   (`npc.state`, the tick log), then send it in one `t.together`. Never write one
+   action per pass: an `acted = true` guard that ends the pass after a swap is the
+   pattern this replaces (tob_verzik.lua has 34).
+2. Do not take a photograph or press a slow verb inside a fight.
+   `t.player.inv_op(food, 1)` without `{quick = true}` settles for 3 ticks in a calm
+   town and up to 17 in the Nylocas room (seam14).
+3. Eat at the food delay, not after it. Use `opts.eat.quick = true` on
+   `await_dead_engaged`, or `t.player.eat` inside the block with the combo food
+   alongside. Space your own eats by 3 ticks from the PRESS tick
+   (food.constant:29 `^eat_delay = 2`, consume_shared.rs2:80/:89).
+4. Put movement last in the block, and use one movement per tick.
+
+### The eater: `opts.eat.quick` (seam27)
+
+`opts.eat = { item =, below =, quick = true [, delay = n] [, combo = "<symbol>"] }`
+presses with `t.player.eat` and waits `delay` (default `QD.COMBAT_FOOD_DELAY_TICKS = 3`)
+from the PRESS tick. `combo` eats a combo food in the same tick through `t.together`.
+Each bite in the detail carries `@<drive tick>`. Measured under Chronozon
+(build/quest_gate/siot_probe4): bites at 101, 104, 107, 110 and 113, then 117 and 120 once
+hitpoints reached the threshold. That is 7 bites in 20 ticks; the default eater managed 4
+in the same fight. The default is unchanged. **OPEN ROW:** switching the default to quick
+moves every ledger of the 36 kept quests that pass `opts.eat` (arthur belowicemountain
+arena chompybird coldwar crest depthsofdespair deserttreasure dragon druidspirit
+gettingahead grandtree hauntedmine horror icthlarin insearchofknowledge ikov legends
+itgronigen mm porcineofinterest priestperil routequest regicide redreef royaltrouble tbwt
+thefremennikisles theslugmenace troll troll_love viking upass zanaris zombiequeen, plus
+_conformance). Re-run all of them first.
+
+### The slow settle, measured but not changed (seam27)
+
+A photograph costs about 3.2 frames: `shot-aim ... answered at poll N` counts frames.
+- cooks_assistant: 46 shots, 147 frames (about 4.9 ticks) against a ledger total of 116
+  ticks, so roughly 4%.
+- druid: 67 shots, 208 frames (about 7 ticks).
+- legends: 532 shots, 1687 frames (about 56 ticks).
+- regicide: 294 shots, 908 frames (about 30 ticks).
+These are small next to the slow held press. seam14 measured `inv_op` without `quick` at
+3 ticks a press in Lumbridge and up to 17 in the Nylocas room, and tob_nylocas spent
+`equip 83 eat 167` ticks on 54 eats and drinks. The share of `QD.settle` and the slow
+`inv_op` in a quest run cannot be read from the ledgers and client logs as they stand,
+because no line names the verb that waited. **OPEN ROW:** a `QUEST progress` line for each
+settle, naming its verb, then a suite run before any default changes. No default was
+changed in this pass.
+
+## The play library: `t.raid.play` (seam27)
+
+The owner, 2026-10-05: "the driver is not very fast or good. That is not going to work in
+normal mode. You will need to code up the agents a lot smarter using the actual
+strategies." Before this seam every room test carried its own fight loop, one action per
+pass, reacting after the fact.
+
+```lua
+local result, detail, rec = t.raid.play("tob_bloat", { mode = "entry" })
+```
+
+`t.raid.play(plan_id, { mode, weapon, max_ticks })` answers `ok`, `died`, `timeout` or
+`unsupported`, a one-line detail, and the record (`rec`: downs, flinches, swings, eats,
+drinks, `prayer_at`, `hp_at`, `tile_at`, inputs per tick). The code is the banner block
+`SEAM raid_play_by_tick_intent` at the end of raid.lua. Each server tick it:
+- SEES what a player sees: the boss's animation and tile, the floor markers, its own
+  hitpoints, prayer points, lit prayers, tile, and its own swings (`player_anim` rows for
+  its own pid; a member, which has no tick log, counts swings from its presses);
+- lets the room's PLAN DECIDE the whole intent for the tick;
+- SENDS prayers, potion, food and the step in ONE `t.together`, with the attack press
+  after the block. A walk is re-issued only when its target moves, never waited on.
+
+It never reads the server's registers, `::tob*` readouts, the seed, or the tick log's
+hidden columns. The skills and every plan line, with sources, are in
+docs/minigames/raid_loop/PLAY_NOTES.md. The worked example is test/raids/_play_smoke.lua.
+
+**Attack on cooldown.** A click only starts a fight; after that the weapon swings on its
+own. Press Attack only when not engaged (after a step), or when no swing was seen for
+`speed + 2` ticks. Eat on the swing tick: "If your weapon is ready ... eating does not add
+any new delay" (consume_shared.rs2:34-38).
+
+**Supplies.** Eat when hitpoints are at or under the largest damage that can land before
+the next chance to eat. On a free tick the horizon is the gap to the next free tick plus
+`TOGETHER_CONFIRM_TICKS + 1`. That margin is the seam's own measured choice: a bite on the
+swing two ticks before Bloat's stomp was not yet read back one tick later. No source gives
+a margin. A brew rides along when the food alone is short (combo eating); a restore is
+drunk when a dose's worth of prayer is missing or prayer is about to run out.
+
+**Which plans play.** `tob_bloat` has a decide function (Entry stays and tick-eats the
+stomp, then clicks back on the rise; Normal and Hard leave after the last swing that
+fits). `tob_maiden` is a strategy table only and answers `unsupported ... no decide
+function`, as does any unknown plan id. Conformance row `raid.play` proves both answers.
+
+**Measured, Entry Bloat through the library, five names** (svabloat, svbbloat, svcbloat,
+svdbloat, playbloat; 13/13 PASS each): 196-267 room ticks, 66-160 damage taken, 3-8 eats
+and drinks, 0 attacks lost to late presses. The kept tob_bloat.lua run took 329 ticks, 724
+damage and 41 eats and drinks; under svabloat and svbbloat the kept test never killed
+Bloat in about 1,200 ticks.
+
+**OPEN ROWS.**
+- The Normal trio (`--party 3`, build/quest_gate/playn3) died: the plan has no Defence
+  drain run-by (wiki :687), so Bloat took 666 of 1500 in six downs, and the trio ran out
+  of food. The hazard skill is applied to walks only, not to the attack press's own path,
+  so p3 died to two hands on the third tick of a down.
+- A member has no client read of its own animation (`api_drive.players` has no anim
+  field), so its swings are counted, not seen.
+- The library is a block in raid.lua, not its own raid_play.lua: the driver is one chunk
+  built from DRIVE_SCRIPT_PARTS (src/plugin/torirs_plugin_drive.c), and the sandbox has no
+  dofile/loadfile. A separate file needs a one-line C list edit and a rebuild of every
+  binary.
+- Only Bloat is played through the library, in _play_smoke.lua. The kept tob_*.lua room
+  tests still use their own hand-written plays on one seed each, and are re-authored onto
+  the library in a later pass (test/raids/README.md states the rule).

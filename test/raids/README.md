@@ -430,3 +430,36 @@ total, seam21 closer): k=1 10.9 s, k=10 10.5 s, k=30 11.0 s; a tick is cheaper a
 frame-granular driver spends more ticks. At k>1 a shot is of the frame's last cycle, and
 `TORIRS_SHOT_FRAME=N` is frame N, which is cycle N x k. `QUEST_PARTY_NICE_SEAT=<n>` (run.py)
 starts member n at nice 19. `TORIRS_EMBED_PARTY_TRACE=1` is set by run.py.
+
+## The fight is the play library plus the room's plan (raid seam27)
+
+The owner, 2026-10-05: "the driver is not very fast or good. That is not going to work in
+normal mode. You will need to code up the agents a lot smarter using the actual strategies."
+
+A room test's fight is ONE call:
+
+```lua
+local result, detail, rec = t.raid.play("tob_bloat", { mode = "entry" })
+t.check("bloat.fight", result == "ok", detail)
+-- technique rows read `rec` (downs, flinches, prayer_at, inputs ...) and the tick log
+```
+
+`t.raid.play` (script/plugins/quest_driver/raid.lua, banner `SEAM raid_play_by_tick_intent`)
+runs one loop every tick. It SEES what a player can see, the room's PLAN DECIDES the whole
+intent for the tick, and the loop SENDS it together. The plan is a table plus a decide
+function in the same file. The skills (attack on cooldown, pray by the telegraph, supplies,
+hazards, loadouts, roles) and every plan line have their sources in
+`docs/minigames/raid_loop/PLAY_NOTES.md`. The worked example is `_play_smoke.lua`: Entry
+Bloat, green on five names with tob_bloat.lua's technique rows copied unchanged, and the Normal
+trio measured with `--party 3`.
+
+**The reviewer rejects** a room test that:
+- writes its own fight loop instead of calling the library with the room's plan;
+- presses one action per tick where the plan sends several;
+- carries a threshold with no source (an `hp < 72`, a `leave_age = 38`). A number belongs in
+  the plan, with its source on the same line.
+
+A room the library does not play yet gets its plan and its decide function in raid.lua, with
+the PLAY_NOTES.md rows to match. Its test is never a private loop. The kept room tests that
+predate this rule (tob_*.lua) are re-authored onto the library in the re-author pass.
+`t.raid.play` answers `unsupported` for a plan with no decide function (Maiden today).

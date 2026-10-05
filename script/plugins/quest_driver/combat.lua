@@ -954,6 +954,23 @@ end
 -- ends the run, loudly, at the line that wrote it) rather than being read as
 -- "no food".
 QD.COMBAT_EAT_DELAY_TICKS = 3
+-- SEAM several_inputs_one_tick (raid seam27): `opts.eat.quick = true` eats
+-- at the SERVER's food delay instead.  The slow default above is counted
+-- from AFTER inv_op's settle (about three ticks), so it bites at most every
+-- six ticks (DRIVER_NOTES); the server takes one every three: food.rs2
+-- binds every plain food to `@eat_food(..., ^eat_delay, ^eat_delay)`,
+-- food.constant:29 `^eat_delay = 2`, and consume_shared.rs2:80/:89 refuse
+-- a bite while `%varp7219_consume_food_delay >= map_clock` after setting it
+-- to `map_clock + 2` -- the next bite lands on the press tick + 3, the
+-- wiki's "3 tick Eat delay" (Food/Fast foods).  The quick eater presses with
+-- t.player.eat (one click, the next read) and counts the delay from the
+-- PRESS tick.  `opts.eat.delay` overrides it for a food with its own
+-- (cakes 2, pies 1: food.rs2:45-48 pass `delay + 1` here).  `opts.eat.combo`
+-- names a combo food (tbwt_cooked_karambwan or halibut: its own timer, consume_shared.rs2:75/:91, :97-101)
+-- eaten in the SAME tick as the food through t.together.  Opt-in so the 36
+-- kept quests that pass opts.eat keep their ledgers (the default flip is a
+-- DRIVER_NOTES row: re-run those 36 first).
+QD.COMBAT_FOOD_DELAY_TICKS = 3
 
 function QD._combat_eater_new(opts)
     if opts == nil then
@@ -968,6 +985,12 @@ function QD._combat_eater_new(opts)
     assert(type(eat.item) == "string", "opts.eat.item names no food symbol")
     assert(type(eat.below) == "number", "opts.eat.below is not a hitpoints number")
     assert(eat.op == nil or type(eat.op) == "number", "opts.eat.op is not a number")
+    assert(eat.quick == nil or type(eat.quick) == "boolean", "opts.eat.quick must be true or false")
+    assert(eat.delay == nil or math.type(eat.delay) == "integer", "opts.eat.delay is not a tick count")
+    assert(eat.combo == nil or type(eat.combo) == "string", "opts.eat.combo names no food symbol")
+    assert(eat.combo == nil or eat.quick == true, "opts.eat.combo needs opts.eat.quick = true")
+    assert(eat.combo == nil or api_drive.symbol("obj", eat.combo) == "ok",
+        "opts.eat.combo is not an obj symbol: " .. tostring(eat.combo))
     -- A food symbol the compack does not know is a typo in the quest file,
     -- not "out of food".
     local symbol_result = api_drive.symbol("obj", eat.item)
@@ -976,6 +999,9 @@ function QD._combat_eater_new(opts)
         item = eat.item,
         below = eat.below,
         op = eat.op or 1,
+        quick = eat.quick == true,
+        delay = eat.delay or QD.COMBAT_FOOD_DELAY_TICKS,
+        combo = eat.combo,
         eaten = 0,
         eats = {},
         failed = 0,
@@ -1016,14 +1042,39 @@ function QD._combat_eat_tick(eater)
         eater.out = true
         return
     end
-    local eat_result, eat_detail = QD.player.inv_op(eater.item, eater.op)
-    eater.next_tick = api_drive.tick() + QD.COMBAT_EAT_DELAY_TICKS
+    local eat_result, eat_detail
+    if eater.quick then
+        local pressed_tick = api_drive.tick()
+        local combo_held = false
+        if eater.combo ~= nil then
+            local combo_result, combo_count = QD.inv.count(eater.combo)
+            combo_held = combo_result == "ok" and type(combo_count) == "number" and combo_count > 0
+        end
+        if combo_held then
+            eat_result, eat_detail = QD.together(function()
+                QD.player.eat(eater.item, { op = eater.op })
+                QD.player.eat(eater.combo)
+            end)
+        else
+            eat_result, eat_detail = QD.player.eat(eater.item, { op = eater.op })
+        end
+        eater.next_tick = pressed_tick + eater.delay
+    else
+        eat_result, eat_detail = QD.player.inv_op(eater.item, eater.op)
+        eater.next_tick = api_drive.tick() + QD.COMBAT_EAT_DELAY_TICKS
+    end
     local after_result, after = QD.skill.read("hitpoints")
     local after_text = (after_result == "ok" and type(after) == "table") and tostring(after.level)
         or tostring(after_result)
     if eat_result == "ok" then
         eater.eaten = eater.eaten + 1
-        eater.eats[#eater.eats + 1] = tostring(hp.level) .. "->" .. after_text
+        local entry = tostring(hp.level) .. "->" .. after_text
+        if eater.quick then
+            -- The quick eater names the drive tick of each bite, so a ledger
+            -- shows the spacing it claims (the default text is unchanged).
+            entry = entry .. "@" .. tostring(eater.next_tick - eater.delay)
+        end
+        eater.eats[#eater.eats + 1] = entry
     else
         eater.failed = eater.failed + 1
         eater.last_fail = tostring(eat_result) .. " " .. tostring(eat_detail)
