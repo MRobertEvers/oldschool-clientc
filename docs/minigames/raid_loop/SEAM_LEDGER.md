@@ -880,3 +880,33 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   Determinism is not guaranteed for three clients: the fixers measured one run in three
   shifted by one tick from tick 114-116 (a member's typed command lands at its own
   frame-timed boundary).
+
+## matthew-mbp-m4-raid-b1-seam20 (2026-10-04; parent 4bfaff1b6, OSRS-Content 123b17c26c): when a protection prayer is read (triage SEAM_TRIAGE_2026-10-04h.md)
+
+- `tob_prayer_read_on_send`: LANDED as an audit, no read moved (rs2 comments, spec rows, two
+  conformance rows; script.dat byte-identical, sha 5b367bd7). Sotetseg's ball keeps its landing
+  read, sourced by blert (21 Normal and Hard rooms: of 30 balls thrown with Protect from Magic
+  off and raised within four ticks, 23 cost nothing; pinned as
+  sources/blert_api/spec_pass_sotetseg/seam20_prayer_read.txt, re-run by the closer
+  byte-identical); spec row `sotetseg.ball_prayer_read_tick` (B). The P2 urnbomb keeps its
+  landing read, sourced by wiki_Verzik_Vitur.wikitext:394 and :397 and Strategies :907;
+  `verzik.p2_bomb_prayer_read_tick` (D). Verzik P3 untouched (owner's ruling, one comment line).
+  Every other prayer read in minigame_tob is on the send tick (CONTENT_BUGS.md "From seam20").
+  Conformance `seam.tob_sotetseg_ball_prayer_read_at_landing` and
+  `seam.verzik_p2_urnbomb_prayer_read_at_landing` merged (SEAM_COUNT 167 -> 169).
+- tob_sotetseg must be re-authored: measure `sotetseg.ball_prayer_read_tick` (the closer gave
+  the row sidecar scope `all`; the name heuristic had skipped it as a Hard row). Coverage gate
+  83 of 84; the ledger is unchanged, 156 PASS / 0 FAIL.
+- tob_verzik must be re-authored: measure `verzik.p2_bomb_prayer_read_tick`. Coverage gate 145
+  of 146; the ledger is unchanged, 258 PASS / 0 FAIL.
+- Open: the tick inside the Sotetseg flight is settled only to "the landing, give or take a
+  tick" (three class B balls lost nothing with the prayer dropped by T+4), with M100. The
+  ricochets' read is by the wiki's "similar projectiles", never measured (needs a party).
+  Verzik P3's melee reads no protection prayer; nobody has checked a source on that.
+- Gates: conformance 346/346 PASS (177 verbs + 169 seams). Rooms maiden 113/0, bloat 95/0,
+  nylocas 178/0, xarpus 121/0, sotetseg 156/0, verzik 258/0. Maiden, bloat, nylocas and xarpus
+  are FULL; sotetseg and verzik are one row short, as above. Quest suite: 115 green, with
+  deserttreasure, forgettabletale, regicide and troll RED on the same first failing rows as
+  seam19. test-quest-cheats, check-quest-verbs, check-drive-abi, check-pt-switch and
+  test-plugin-lua pass. Lint is clean on 127 files and spec_check is clean. No C changed, so
+  the server selftest was not re-run (baseline 11).
