@@ -28,13 +28,6 @@ return {
         "::give kebab 1",
         -- leg 2: a spade to harvest the kelda patch (forget_farming.rs2 [oploc1,kelda_hops_fullygrown])
         "::give spade 1",
-        -- leg 3: Varrock Teleport out of the sealed landing under the Consortium's stairs (see
-        -- goDownFromDirector): magic 25 and the spell's exact runes (magic_spells.dbrow
-        -- magic_spell_teleport_varrock: 1 fire, 3 air, 1 law), all spent by the cast
-        "::setlevel magic 25",
-        "::give firerune 1",
-        "::give airrune 3",
-        "::give lawrune 1",
     },
     bind = {
         varp = "varb822_forget_quest",
@@ -55,7 +48,8 @@ return {
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-            t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3140, 3504, 0)
+            -- to the open tile beside the trapdoor (3140,3504 is the trapdoor's own blocking tile: goto_table "target tile solid")
+            t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3141, 3504, 0)
             t.exec("travelToKeldagrim", t.player.click_loc, "ge_keldagrim_trapdoor", 1)
             t.exec("travelToKeldagrim-dialog", t.chat.play, {
                 "mesbox:The trapdoor leads down",
@@ -187,7 +181,8 @@ return {
             t.ticks(2)
             t.check("getWWMTicket-ticket", select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf")) == 1,
                 "tickets held: " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf"))))
-            t.exec("goto-travelToWWM", t.player.goto_tile, 2919, 10169, 0)
+            -- to the open platform tile beside the cart (2919,10169 is solid: goto_table "target tile solid")
+            t.exec("goto-travelToWWM", t.player.goto_tile, 2919, 10170, 0)
             t.exec("travelToWWM", t.player.click_loc, "keldagrim_train_cart", 1)
             t.ticks(8)
             -- forget_tunnels.rs2:108-118: the ticket is taken, p_teleport(^forget_khorvak_coord = 2864,9878,0)
@@ -218,7 +213,8 @@ return {
                 .. ", stouts: " .. tostring(select(2, t.inv.count("dwarven_stout"))))
 
             -- back to Keldagrim by the return cart, then Gauss
-            t.exec("goto-takeCartFromWWMToKelda", t.player.goto_tile, 2875, 9868, 0)
+            -- to the open tile north-west of the cart (2875,9868 is the cart's own solid tile; reach.py: 2874,9870 REACH)
+            t.exec("goto-takeCartFromWWMToKelda", t.player.goto_tile, 2874, 9870, 0)
             t.exec("getKeldaTicket", t.player.talk_to, "dwarf_city_train_conductor6", 1)
             t.exec("getKeldaTicket-dialog", t.chat.play, {
                 "npc:Welcome to the cart station",
@@ -402,11 +398,15 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.ask_director", t.quest.expect_stage("ask_director"))
-            -- gdwarf_consortium.rs2:229 p_teleport(^gdwarf_consortium_upper_coord = 1_44_159_53_29 = 2869,10205,1)
+            -- gdwarf_consortium.rs2 [oploc1,dwarf_keldagrim_wide_stairs_lower] ~climb(1) (ladders.rs2
+            -- ~maplink_try): maplink.dbrow:8257 maplink_0_45_159_13_33_up (src 2893,10209,0) lands
+            -- 1_45_159_16_33 = 2896,10209,1, on the Consortium floor beside the copy pressed
             t.exec("goto-goUpToDirector", t.player.goto_tile, 2895, 10208, 0)
             t.exec("goUpToDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_lower", op_name = "Climb-up",
-                at = { 2894, 10209, 0 }, dest = { 2869, 10205, 1 } })
-            t.exec("walk-talkToDirector", t.player.walk_route, { { 2869, 10203 } }, { level = 1 })
+                at = { 2894, 10209, 0 }, dest = { 2896, 10209, 1 } })
+            -- across the Consortium floor on foot (one open floor, no door between: reach.py level 1)
+            t.exec("walk-talkToDirector", t.player.walk_route, { { 2893, 10211 }, { 2887, 10209 }, { 2884, 10204 },
+                { 2876, 10204 }, { 2869, 10203 } }, { level = 1 })
             t.exec("talkToDirector", t.player.talk_to, "dwarf_city_director_blue_opal", 1)
             t.exec("talkToDirector-dialog", t.chat.play, {
                 "npc:Yes? I am busy",
@@ -417,42 +417,16 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.tunnels_first", t.quest.expect_stage("tunnels_first"))
-            -- across the Consortium floor on foot (one open floor, no door between: reach.py level 1)
-            -- to the guide's stairs (2895,10209,1); gdwarf_consortium.rs2:240
-            -- p_teleport(^gdwarf_consortium_lower_coord = 0_45_159_15_34 = 2895,10210,0)
+            -- back across the Consortium floor on foot (one open floor, no door between: reach.py
+            -- level 1) to the guide's stairs (upper copy 2895,10209,1); gdwarf_consortium.rs2
+            -- [oploc1,dwarf_keldagrim_wide_stairs_upper] ~climb(-1): maplink.dbrow:8299
+            -- maplink_1_45_159_16_33_down (src 2896,10209,1) lands 0_45_159_13_33 = 2893,10209,0, the street
             t.exec("walk-goDownFromDirector", t.player.walk_route, { { 2869, 10205 }, { 2865, 10207 }, { 2872, 10208 },
                 { 2876, 10204 }, { 2884, 10204 }, { 2887, 10209 }, { 2893, 10211 }, { 2895, 10211 } }, { level = 1 })
             t.exec("goDownFromDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_upper", op_name = "Climb-down",
-                at = { 2895, 10209, 1 }, dest = { 2895, 10210, 0 } })
-            -- takeSecretCart: empty hands, two free slots
-            -- CONTENT SEAM: gdwarf_consortium.rs2:240-242 lands the player on
-            -- ^gdwarf_consortium_lower_coord = 0_45_159_15_34 = 2895,10210,0, a tile of the 2x2
-            -- dwarf_keldagrim_wide_stairs_lower footprint (2894,10209), walled in by crates (2896,10210),
-            -- sacks (2896,10209, 2896,10211) and a table (2894,10211) (maps/m45_159.jl2): no walkable
-            -- neighbour, and every wide_stairs_upper press lands there. The b62 probe run walked to six
-            -- tiles round it and every walk timed out. A goto out of it is a teleport out of a sealed
-            -- pocket, so the player does what a player there does: Varrock Teleport, the street to the
-            -- GE trapdoor, the trapdoor back (forget_keldagrim.rs2:9-19 lands in the Black Guard HQ),
-            -- the HQ door out, the street to the cart station.
-            local wr, wd = t.player.walk_route({ { 2893, 10210 } }, { level = 0 })
-            t.note("stepping off the stairs' landing first: walk_route -> " .. tostring(wr) .. " " .. tostring(wd))
-            t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = "leaveStairsPocket",
-                runes = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Varrock" })
-            t.exec("goto-takeSecretCart.trapdoor", t.player.goto_tile, 3140, 3504, 0)
-            t.exec("takeSecretCart.trapdoor", t.player.click_loc, "ge_keldagrim_trapdoor", 1)
-            t.exec("takeSecretCart.trapdoor-dialog", t.chat.play, {
-                "mesbox:The trapdoor leads down",
-                "choose:Yes please.",
-                "player:Yes please.",
-            })
-            t.ticks(6)
-            local _, hq = t.world.tile()
-            t.check("takeSecretCart.trapdoor-arrived", type(hq) == "table" and select(2, t.world.level()) == 0
-                and hq.x >= 2825 and hq.x <= 2829 and hq.z >= 10208 and hq.z <= 10217,
-                "after the trapdoor the player stands at " .. (type(hq) == "table" and (hq.x .. "," .. hq.z) or tostring(hq))
-                .. " (want the HQ, x 2825-2829 z 10208-10217 level 0)")
-            t.exec("takeSecretCart.hqDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door",
-                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10217 }, far = { 2827, 10219 } })
+                at = { 2895, 10209, 1 }, dest = { 2893, 10209, 0 } })
+            -- takeSecretCart: empty hands, two free slots; walk off the landing onto the street first
+            t.exec("goDownFromDirector.offStairs", t.player.walk_route, { { 2893, 10207 } }, { level = 0 })
             t.exec("goto-takeSecretCart", t.player.goto_tile, 2919, 10166, 0)
             t.exec("takeSecretCart", t.player.click_loc, "keldagrim_train_cart", 1)
             t.ticks(6)
