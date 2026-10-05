@@ -498,6 +498,22 @@ end
 -- from the aim.
 QD.drive._shot_last = nil
 
+-- THE SHOT'S FILE NAME (TEST-3, waves seam pass 7). A name too long for the
+-- client's screenshot slot is written under a shortened file name
+-- (torirs_plugin_drive_ui.c's banner of that name: head~hash~tail.png); the
+-- row's `shots` column keeps the name the test asked for (gate.py maps it the
+-- same way), and the row's detail says which file holds it. A name that fits
+-- is its own file and adds nothing.
+function QD.drive._note_shot_file(numbered, result, unchanged, detail)
+    if result ~= "ok" or unchanged or type(detail) ~= "string" then
+        return
+    end
+    local file = detail:match("([^/\\]+)%.png$")
+    if file and file ~= numbered then
+        QD.note("shot " .. numbered .. " is file " .. file .. ".png")
+    end
+end
+
 function QD.shot(name, keep)
     local numbered = QD.core_next_shot(name)
     local keep_pose, aim, why = QD.drive._shot_plan()
@@ -521,6 +537,7 @@ function QD.shot(name, keep)
         if last_unchanged then
             QD.core_shot_unchanged(numbered)
         end
+        QD.drive._note_shot_file(numbered, last_result, last_unchanged, last_detail)
         return last_result, last_detail
     end
     local awaited, note = await({
@@ -547,6 +564,7 @@ function QD.shot(name, keep)
         if last_unchanged then
             QD.core_shot_unchanged(numbered)
         end
+        QD.drive._note_shot_file(numbered, last_result, last_unchanged, last_detail)
         return last_result, last_detail
     end
     return awaited, note

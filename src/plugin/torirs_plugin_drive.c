@@ -308,10 +308,11 @@ static enum ToriRSServerPackKind const DRIVE_SYMBOL_PACK[DRIVE_SYMBOL_KIND_COUNT
     TORIRSSERVER_PACK_VARBIT,
     TORIRSSERVER_PACK_STAT,
     TORIRSSERVER_PACK_INV,
+    TORIRSSERVER_PACK_SEQ,
 };
 
 static char const* const DRIVE_SYMBOL_KIND_NAMES[DRIVE_SYMBOL_KIND_COUNT] = {
-    "npc", "obj", "loc", "component", "interface", "varp", "varbit", "stat", "inv",
+    "npc", "obj", "loc", "component", "interface", "varp", "varbit", "stat", "inv", "seq",
 };
 
 /* -1 on a typo: a test's own mistake, not a contract violation, and the Lua
@@ -1263,6 +1264,7 @@ drive_install_modules(struct lua_State* L, void* script)
     PluginDriveUi_RegisterLua(L, script);
     PluginDriveTicklog_RegisterLua(L, script);
     PluginDriveLos_RegisterLua(L, script);
+    PluginDriveRecord_RegisterLua(L, script);
     lua_setfield(L, -2, "drive");
 }
 

@@ -19,8 +19,8 @@ mager.gap_after_melee	stat	statistical: a share or distribution over many magers
 mager.first_attack_after_spawn	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
 mager.first_attack_modal	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
 mager.attack_never_idle_before_death	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
-mager.max_hit_magic	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
-mager.max_hit_melee	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.max_hit_magic	stat	seam pass 7 (TEST-4): the top of the roll; the author's 5 unprayed hits peaked at 65 (gap.max_hit_magic, test pass 1); the recorder tool settles it
+mager.max_hit_melee	stat	seam pass 7 (TEST-4): the top of the roll; the author's 8 hits peaked at 45 (gap.max_hit_melee, test pass 1); the recorder tool settles it
 mager.melee_chance_adjacent	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.melee_range_diagonal_counts	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.attack_range	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
@@ -32,9 +32,9 @@ mager.hit_chance_unprayed	all	one solo test (practice entry on a wave from 35 to
 mager.water_spell_elemental_weakness	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.spawn_tick	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
 mager.spawn_tiles	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
-mager.count_by_wave	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
-mager.first_wave	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
-mager.waves_present	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.count_by_wave	wave_table	seam pass 7 (TEST-4): a count across waves 35-66; the wave-table test enters them
+mager.first_wave	wave_table	seam pass 7 (TEST-4): a first wave is a fact about waves 1-34 too; the wave-table test enters them (wave_table.first_appearance_waves)
+mager.waves_present	wave_table	seam pass 7 (TEST-4): every wave from 35 to 66; the wave-table test enters them
 mager.revive_chance_per_attack	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
 mager.revive_only_in_combat	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.revive_anim_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
@@ -55,7 +55,7 @@ mager.revive_tile_z	stat	statistical: a share or distribution over many magers o
 mager.revive_spawn_tick_offset	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.revived_first_attack	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
 mager.revive_resurrectable_mager	stat	statistical: a share or distribution over many magers or revives; a solo test reads its own, the recorder tool weighs the 5810 attacks and 189 resurrects
-mager.revive_count_limit	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
+mager.revive_count_limit	stat	seam pass 7 (TEST-4): 'no limit' cannot be shown by one wave: the mager unit's wave 36 holds one revivable corpse (a bat); the recorder tool settles it (Blert saw at most 3 per mager)
 mager.attack_magic_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.attack_melee_seq	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)
 mager.attack_anim_length	all	one solo test (practice entry on a wave from 35 to 66 with a corpse to revive; a real run)

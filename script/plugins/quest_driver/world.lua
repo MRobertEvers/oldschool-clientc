@@ -720,3 +720,235 @@ function QD.npc.pack(radius_or_area, opts)
         #parts > 0 and (": " .. table.concat(parts, "; ")) or "")
     return "ok", detail, rows, pack
 end
+
+-- npc.record / npc.pose / seq.length ---------------------------------------
+--
+-- SEAM npc_record_reads (waves seam pass 7,
+-- docs/minigames/waves_loop/SEAM_TRIAGE_2026-10-05.md; TEST-2 in
+-- CONTENT_BUGS.md): a wave unit's spec table states an npc's levels,
+-- bonuses, model, ready and walk sequences, sounds and animation lengths,
+-- and no verb could read them.  These read what the running game holds
+-- (src/plugin/torirs_plugin_drive_record.c), never the spec restated:
+--
+--   t.npc.record(selector[, opts]) -> ("ok", detail, rec)
+--     rec.client  the cache npc record AS THE CLIENT RESOLVED IT: name,
+--                 size, combat_level, models, readyanim/walkanim (+ _name),
+--                 turn/run sets, movement sounds (sound_idle/walk/run/crawl),
+--                 params ({[param id] = value}) and param_names.
+--     rec.server  the embedded server's content block for that id, which
+--                 combat rolls with: hitpoints, attack, strength, defence,
+--                 ranged, magic, bonus.{stabattack .. prayerbonus},
+--                 attackrate, attackrange, attack/defend/death _anim and
+--                 _sound, respawnrate, death_delay, aggressive, retaliate;
+--                 plus the server's own cache read (name, combat_level,
+--                 size); `authored` false when no content block names the
+--                 id (the engine defaults are what it fights with).
+--     The side is the sub-table: there is no flat field to confuse.
+--     selector: a content symbol (resolved only -- no live copy needed), or
+--     a live copy: { slot = n } / { at = {x, z} }, or a symbol with opts
+--     { slot = n } / { at = {...} } (talk_to's narrowing).  A live copy
+--     reads the id the client draws it as (row.npc_id, a multinpc's child).
+--     opts.need = "both" (default) | "client" | "server": the half that
+--     must be present for "ok".  The client resolves a record when a copy
+--     first comes into view, so read a record after the npc is seen; a
+--     missing half answers not_found (client) or unsupported (server, a
+--     socket-server run), the detail naming why, and rec is still the
+--     third return with what was read.
+--   t.npc.pose(selector[, opts]) -> ("ok", detail, pose)
+--     The MOVEMENT track the client is stepping for a live copy --
+--     pose_seq / pose_frame / pose_kind (ready, walk, ready_or_walk, run,
+--     turn, walk_back/left/right, other, none) -- beside the action track
+--     (action_seq / action_frame) and the movement set the entity was
+--     given (readyanim, walkanim, turnanim, runanim, walkanim_b/l/r).
+--     t.npc.state's anim_id is the action track only and reads -1 at rest
+--     and while walking; this is the other track.
+--   t.seq.length(seq) -> ("ok", detail, len) | not_found
+--     seq: an id number or a seq symbol.  len = { seq_id, name, frames,
+--     cycles, ticks = cycles / 30, lengths = {...}, skeletal, frame_step,
+--     max_loops, priority, frame_sounds = {{frame, id, loops, radius}} },
+--     the lengths exactly as the client steps them.  not_found until the
+--     client has resolved the sequence (an entity played it).
+--
+-- None of them takes a click: record them with t.check, never t.exec.
+
+QD.seq = {}
+
+-- The binary this run uses may predate the seam (the shared test client is
+-- rebuilt by the closer); answer `unsupported` naming it, never a nil call.
+function QD.npc._record_api(name)
+    if api_drive[name] == nil then
+        return "unsupported", "this binary has no api.drive." .. name
+            .. " (built before waves seam npc_record_reads)"
+    end
+    return "ok"
+end
+
+-- ("ok", npc_id, row_or_nil, what) | (result, detail)
+function QD.npc._record_target(selector, opts)
+    local narrow = nil
+    if opts ~= nil then
+        assert(type(opts) == "table", "npc.record: opts must be a table")
+        if opts.slot ~= nil or opts.at ~= nil then
+            narrow = { slot = opts.slot, at = opts.at }
+        end
+    end
+    if type(selector) == "string" and narrow == nil then
+        local sym_result, npc_id = api_drive.symbol("npc", selector)
+        if sym_result ~= "ok" then
+            return "not_found", "no npc named " .. selector
+        end
+        return "ok", npc_id, nil, selector
+    end
+    local pick_result, row
+    if type(selector) == "string" then
+        pick_result, row = QD.npc._pick(selector, narrow)
+    else
+        pick_result, row = QD.npc._pick(selector)
+    end
+    if pick_result ~= "ok" then
+        return pick_result, row
+    end
+    return "ok", row.npc_id, row, string.format("%s slot %d at %d,%d", tostring(row.name),
+        row.slot, row.x, row.z)
+end
+
+function QD.npc._record_text(what, rec)
+    local parts = { string.format("%s (npc id %d)", tostring(what), rec.id) }
+    local c = rec.client
+    if c ~= nil then
+        parts[#parts + 1] = string.format(
+            "client: '%s' size %d combat %d models %s ready %d%s walk %d%s run %d turn %d"
+                .. " sounds idle/walk/run %d/%d/%d, %d param(s)",
+            tostring(c.name), c.size, c.combat_level, table.concat(c.models, ","),
+            c.readyanim, c.readyanim_name and (" " .. c.readyanim_name) or "",
+            c.walkanim, c.walkanim_name and (" " .. c.walkanim_name) or "",
+            c.runanim, c.turnanim_l, c.sound_idle, c.sound_walk, c.sound_run,
+            QD.npc._count_keys(c.params))
+    else
+        parts[#parts + 1] = "client: none (" .. tostring(rec.client_reason) .. ")"
+    end
+    local s = rec.server
+    if s ~= nil then
+        local b = s.bonus
+        parts[#parts + 1] = string.format(
+            "server%s: hp %d att %d str %d def %d rng %d mag %d; bonus att %d/%d/%d/%d/%d"
+                .. " def %d/%d/%d/%d/%d str %d pray %d; rate %d range %d;"
+                .. " anims %d/%d/%d sounds %d/%d/%d",
+            s.authored and (" [" .. tostring(s.symbol) .. "]") or " [engine defaults]",
+            s.hitpoints, s.attack, s.strength, s.defence, s.ranged, s.magic,
+            b.stabattack, b.slashattack, b.crushattack, b.magicattack, b.rangeattack,
+            b.stabdefence, b.slashdefence, b.crushdefence, b.magicdefence, b.rangedefence,
+            b.strengthbonus, b.prayerbonus, s.attackrate, s.attackrange,
+            s.attack_anim, s.defend_anim, s.death_anim,
+            s.attack_sound, s.defend_sound, s.death_sound)
+    else
+        parts[#parts + 1] = "server: none (" .. tostring(rec.server_reason) .. ")"
+    end
+    return table.concat(parts, "; ")
+end
+
+function QD.npc._count_keys(t)
+    local n = 0
+    for _ in pairs(t) do
+        n = n + 1
+    end
+    return n
+end
+
+-- t.npc.record(selector[, opts]) -> ("ok", detail, rec) | not_found |
+-- no_row | unsupported, each with (detail, rec-or-nil).  Banner above.
+function QD.npc.record(selector, opts)
+    local api_result, api_detail = QD.npc._record_api("npc_record")
+    if api_result ~= "ok" then
+        return api_result, api_detail
+    end
+    local need = (opts ~= nil and opts.need) or "both"
+    assert(need == "both" or need == "client" or need == "server",
+        "npc.record: opts.need must be both, client or server")
+    local target_result, npc_id, row, what = QD.npc._record_target(selector, opts)
+    if target_result ~= "ok" then
+        return target_result, "npc.record: " .. tostring(npc_id)
+    end
+    local result, rec = api_drive.npc_record(npc_id)
+    if result ~= "ok" then
+        return result, "npc.record: npc_record answered " .. result
+    end
+    if row ~= nil then
+        rec.slot = row.slot
+        rec.base_npc_id = row.base_npc_id
+    end
+    local detail = QD.npc._record_text(what, rec)
+    if rec.client == nil and need ~= "server" then
+        return "not_found", "npc.record: " .. detail, rec
+    end
+    if rec.server == nil and need ~= "client" then
+        return "unsupported", "npc.record: " .. detail, rec
+    end
+    return "ok", detail, rec
+end
+
+-- t.npc.pose(selector[, opts]) -> ("ok", detail, pose) | not_found | no_row |
+-- unsupported.  The selector is npc.state's (QD.npc._pick).
+function QD.npc.pose(selector, opts)
+    local api_result, api_detail = QD.npc._record_api("npc_pose")
+    if api_result ~= "ok" then
+        return api_result, api_detail
+    end
+    local pick_result, row = QD.npc._pick(selector, opts)
+    if pick_result ~= "ok" then
+        return pick_result, "npc.pose: " .. tostring(row)
+    end
+    local result, pose = api_drive.npc_pose(row.slot)
+    if result ~= "ok" then
+        return result, "npc.pose: " .. tostring(pose)
+    end
+    local function seq_text(id, name)
+        if id < 0 then
+            return "none"
+        end
+        return name ~= nil and string.format("%d %s", id, name) or tostring(id)
+    end
+    local detail = string.format(
+        "%s slot %d at %d,%d (npc id %d): movement track %s frame %d (%s), action track %s"
+            .. " frame %d; set ready %d walk %d turn %d run %d (now tick %d)",
+        tostring(row.name), row.slot, row.x, row.z, pose.npc_id,
+        seq_text(pose.pose_seq, pose.pose_seq_name), pose.pose_frame, pose.pose_kind,
+        seq_text(pose.action_seq, pose.action_seq_name), pose.action_frame,
+        pose.readyanim, pose.walkanim, pose.turnanim, pose.runanim, api_drive.tick())
+    return "ok", detail, pose
+end
+
+-- t.seq.length(seq) -> ("ok", detail, len) | not_found | unsupported.
+-- `seq` is an id number or a seq content symbol.  Banner above.
+function QD.seq.length(seq)
+    local api_result, api_detail = QD.npc._record_api("seq_length")
+    if api_result ~= "ok" then
+        return api_result, api_detail
+    end
+    local seq_id = seq
+    if type(seq) == "string" then
+        local sym_result, id = api_drive.symbol("seq", seq)
+        if sym_result ~= "ok" then
+            return "not_found", "seq.length: no seq named " .. seq
+        end
+        seq_id = id
+    end
+    assert(type(seq_id) == "number", "seq.length: seq must be an id number or a seq symbol")
+    local result, len = api_drive.seq_length(seq_id)
+    if result ~= "ok" then
+        return result, "seq.length: " .. tostring(len)
+    end
+    len.ticks = len.cycles / 30
+    local sounds = {}
+    for i = 1, #len.frame_sounds do
+        local fs = len.frame_sounds[i]
+        sounds[#sounds + 1] = string.format("%d@frame%d", fs.id, fs.frame)
+    end
+    local detail = string.format(
+        "seq %d%s: %d frames, %d client cycles = %.2f game ticks (lengths %s)%s, %s",
+        seq_id, len.name ~= nil and (" " .. len.name) or "", len.frames, len.cycles, len.ticks,
+        len.skeletal and "skeletal, one cycle each" or table.concat(len.lengths, " "),
+        len.frame_step > 0 and string.format(", framestep %d", len.frame_step) or "",
+        #sounds > 0 and ("frame sounds " .. table.concat(sounds, ", ")) or "no frame sound")
+    return "ok", detail, len
+end

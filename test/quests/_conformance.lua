@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 171 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 174 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 171
+-- @verb-count 174
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 109
+-- @seam-count 110
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 171
-local SEAM_COUNT = 109
+local VERB_COUNT = 174
+local SEAM_COUNT = 110
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -755,6 +755,31 @@ return {
             if not fn then return missing("shot") end
             local result, detail = fn("conformance-world")
             return answered(result, detail, "", is_text, "no file was named")
+        end)
+
+        -- ===== waves seam pass 7: shot_name_length (one seam row, no new verb) =====
+        -- Counted as a SEAM row (seam_count), not a verb row: t.shot's answer word is
+        -- "ok" whether or not the client cut the file name, so only the file name the
+        -- answer carries can tell.  TEST-3 (CONTENT_BUGS.md): a name past 67 chars was
+        -- written cut at 71 with no ".png"; torirs_plugin_drive_ui.c now writes
+        -- <head49>~<fnv1a32 8 hex>~<tail8>.png (71 chars).  keep=true so the dedupe
+        -- cannot answer "unchanged since ..." (the frame right after step("shot")
+        -- is usually identical) and leave no file name to read.
+        seam("seam.shot_name_length", function()
+            local fn = verb("shot")
+            if not fn then return missing("shot") end
+            local long = "conformance.shot_name_length.a_ninety_character_name_the_writer_shortens_and_keeps_png"
+            local result, detail = fn(long, true)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local file = tostring(detail):match("([^/\\]+)$") or ""
+            if #file > 71 or not file:match("%.png$") or not file:match("~%x%x%x%x%x%x%x%x~")
+                or not file:match("_png%.png$") then
+                return "hollow", "a " .. #long .. "-char name was written as " .. file
+                    .. " (" .. #file .. " chars): cut, or not head~hash~tail.png"
+            end
+            return "ok", file .. " (" .. #file .. " chars, from a " .. #long .. "-char name)"
         end)
 
         -- ------------------------------------- phase 1: naming the world
@@ -6910,6 +6935,82 @@ return {
             end
             return "ok", text .. "; " .. t.npc.state_text(row) .. " [player.attack " .. engaged .. "]"
         end)
+
+        -- ===== waves seam pass 7: npc_record_reads (three verbs, no seam row) =====
+        -- On the spawned Lumbridge man (STATE_NPC), whose attack seq
+        -- STATE_SEQ_ATTACK 422 npc.await_anim just watched him play.  Needs a client built with
+        -- src/plugin/torirs_plugin_drive_record.c (api.drive.npc_record /
+        -- seq_length / npc_pose); on an older binary each verb answers
+        -- `unsupported` naming the missing api function.
+        -- Proved in a scratch harness (build/quest_gate/nrr_conform1) and on a
+        -- goblin and wave 1's Jal-MejRah (build/quest_gate/nrr_scratch2, 31/31).
+
+        -- THE RECORD, FROM BOTH SIDES: the man's cache record as the client
+        -- resolved it (configs/all.npc:80725: name Man, model1 215) and the
+        -- server's content block combat rolls with (attackrate 4, the cadence
+        -- npc.await_anim just measured), on the live copy by slot.
+        step("npc.record", function()
+            local record = verb("npc", "record")
+            if not record then return missing("npc", "record") end
+            if state_slot == nil then return "no_subject", "world.projectiles chose no man" end
+            local r, d, rec = record({ slot = state_slot })
+            if r ~= "ok" then return r, describe(d) end
+            if rec.slot ~= state_slot or rec.client.name ~= "Man" or rec.client.models[1] ~= 215
+                or not rec.server.authored or rec.server.attackrate ~= STATE_ATTACKRATE
+                or rec.server.attack_anim ~= STATE_SEQ_ATTACK then
+                return "refused", "the man's record disagrees with all.npc:80725 / attackrate "
+                    .. STATE_ATTACKRATE .. " / attack seq " .. STATE_SEQ_ATTACK .. ": " .. describe(d)
+            end
+            return "ok", d
+        end)
+
+        -- THE MOVEMENT TRACK npc.state's anim_id does not report: the ready or
+        -- walk seq the client is stepping, named against the movement set the
+        -- entity was given from the record npc.record just read.
+        step("npc.pose", function()
+            local pose_verb = verb("npc", "pose")
+            if not pose_verb then return missing("npc", "pose") end
+            if state_slot == nil then return "no_subject", "world.projectiles chose no man" end
+            local _, _, rec = t.npc.record({ slot = state_slot })
+            local text = "none"
+            local waited = t.await({
+                level = function()
+                    local r, d, pose = pose_verb({ slot = state_slot })
+                    text = describe(d)
+                    return r == "ok" and pose.pose_seq >= 0
+                        and (pose.pose_kind == "ready" or pose.pose_kind == "walk"
+                            or pose.pose_kind == "ready_or_walk")
+                        and rec ~= nil and pose.readyanim == rec.client.readyanim
+                        and pose.walkanim == rec.client.walkanim
+                end,
+                note = "the man's movement track on his ready or walk seq",
+            }, 8)
+            if waited ~= "ok" then
+                return "timeout", "no ready/walk movement track on slot " .. tostring(state_slot) .. ": " .. text
+            end
+            return "ok", text
+        end)
+
+        -- THE LENGTH THE CLIENT PLAYS: STATE_SEQ_ATTACK (human_unarmedpunch,
+        -- configs/all.seq:5867: 5 frames, 38 client cycles), resolved because
+        -- npc.await_anim watched him play it; by id and by symbol, one answer.
+        step("seq.length", function()
+            local length = verb("seq", "length")
+            if not length then return missing("seq", "length") end
+            local r, d, len = length(STATE_SEQ_ATTACK)
+            if r ~= "ok" then return r, describe(d) end
+            local r2, d2, len2 = length("human_unarmedpunch")
+            if r2 ~= "ok" or len2.seq_id ~= STATE_SEQ_ATTACK then
+                return "refused", "seq symbol human_unarmedpunch answered " .. describe(r2) .. ": " .. describe(d2)
+            end
+            local sum = 0
+            for i = 1, #len.lengths do sum = sum + len.lengths[i] end
+            if len.frames ~= 5 or len.cycles ~= 38 or sum ~= len.cycles or len.ticks ~= len.cycles / 30 then
+                return "refused", "seq " .. STATE_SEQ_ATTACK .. " disagrees with all.seq:5867 (5 frames, 38 cycles): " .. describe(d)
+            end
+            return "ok", d
+        end)
+        -- ===== end npc_record_reads =====
 
         stage(function()
             setup_cheat("::kill " .. STATE_NPC)                    -- setup

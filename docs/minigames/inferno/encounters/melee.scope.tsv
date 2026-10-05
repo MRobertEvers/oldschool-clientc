@@ -14,7 +14,7 @@ melee.attack_speed	all	one solo test (practice entry on wave 9 or 16; a real run
 melee.attack_gap_modal	stat	statistical: a share over many melee; a solo test reads its own gaps, the recorder tool weighs the 1370
 melee.attack_gap_minimum	all	one solo test (practice entry on wave 9 or 16; a real run)
 melee.first_attack_after_spawn	stat	statistical: depends on spawn tile and player tile; the whole distribution is read over several waves
-melee.max_hit	all	one solo test (practice entry on wave 9 or 16; a real run); read as a maximum over many hits
+melee.max_hit	stat	seam pass 7 (TEST-4): the top of a uniform roll: the author's 11 unprayed hits peaked at 44 (gap.max_hit, test pass 1); the recorder tool settles it
 melee.damage_when_protected	all	one solo test (practice entry on wave 9 or 16; a real run)
 melee.attack_range	all	one solo test (practice entry on wave 9 or 16; a real run)
 melee.hit_delay	all	one solo test (practice entry on wave 9 or 16; a real run)
@@ -29,12 +29,12 @@ melee.dig_to_next_attack	all	one solo test with a dig
 melee.post_dig_attack_delay	all	one solo test with a dig
 melee.dig_landing	all	one solo test with a dig
 melee.dig_no_damage_during_anim	all	one solo test with a dig
-melee.count_first_wave	all	one solo test (practice entry on wave 9)
-melee.count_total_run	all	one solo test per wave of a pair (9 and 16)
+melee.count_first_wave	wave_table	seam pass 7 (TEST-4): a first wave is a fact about waves 1-8 too; the wave-table test enters them (wave_table.first_appearance_waves)
+melee.count_total_run	wave_table	seam pass 7 (TEST-4): a count over waves 9-64; the wave-table test enters every melee wave
 melee.spawn_tick	all	one solo test; ours spawns 8 ticks after the pillars (ENG-38, M1)
 melee.spawn_tiles	stat	statistical: nine tiles shuffled per wave; several wave entries cover the set (WT-1: ours are Kronos' nine)
-melee.resurrectable	all	wave 42+ with a Jal-Zek: another unit (the mager and its resurrection) fights it
-melee.resurrected_hitpoints	all	wave 42+ with a Jal-Zek: another unit fights it; here read statically
+melee.resurrectable	full_run	seam pass 7 (TEST-4): needs a melee and a Jal-Zek in one wave (first wave 42); no unit enters it, the full run fights waves 42-64 (62 revived melee in the recorded runs)
+melee.resurrected_hitpoints	full_run	seam pass 7 (TEST-4): read off a revived melee: waves 42-64, only the full run reaches them
 melee.attack_seq	all	one solo test (practice entry on wave 9 or 16; a real run)
 melee.attack_anim_length	all	static: cache
 melee.ready_seq	all	static: cache

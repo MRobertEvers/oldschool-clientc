@@ -1,14 +1,14 @@
 mechanic_id	scope	note
-mixed.first_wave	all	one solo test: enter the wave, read the tick log
-mixed.last_wave	all	one solo test: enter the wave, read the tick log
-mixed.wave_count	all	one solo test: enter the wave, read the tick log
-mixed.tick0_composition_matches_wave_table	all	one solo test: enter the wave, read the tick log
+mixed.first_wave	wave_table	seam pass 7 (TEST-4): a first wave is a fact about waves 1-34 too; the wave-table test enters them
+mixed.last_wave	wave_table	seam pass 7 (TEST-4): wave 66 and the Jad waves after it; the wave-table test enters them
+mixed.wave_count	wave_table	seam pass 7 (TEST-4): a count over waves 35-66; the wave-table test enters them
+mixed.tick0_composition_matches_wave_table	wave_table	seam pass 7 (TEST-4): a share over every mixed wave; the wave-table test enters them and reads each tick-0 set
 mixed.kinds_per_wave	all	one solo test: enter the wave, read the tick log
 mixed.monsters_at_tick0	all	one solo test: enter the wave, read the tick log
 mixed.nonrevive_spawns_all_on_tick0	all	one solo test: enter the wave, read the tick log
 mixed.late_spawns_equal_resurrects	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
 mixed.revived_per_wave_histogram	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
-mixed.wave66_magers_at_tick0	all	one solo test: enter the wave, read the tick log
+mixed.wave66_magers_at_tick0	wave_table	seam pass 7 (TEST-4): wave 66 is not this unit's wave (35); the wave-table test enters it
 mixed.nonnibbler_share_spawn_tile	all	one solo test: enter the wave, read the tick log
 mixed.nibbler_share_spawn_tile_waves	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves
 mixed.first_attack_any_tick	stat	statistical or player dependent: a solo test reads its own; the recorder tool weighs the 524 recorded mixed waves

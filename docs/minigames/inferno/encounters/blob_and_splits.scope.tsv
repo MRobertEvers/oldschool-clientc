@@ -16,12 +16,12 @@ blob.magic_share_with_no_protection	stat	statistical: a share over many unprotec
 blob.melee_possible_when_adjacent	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
 blob.melee_chance_adjacent	stat	statistical: a share over many attacks with the player adjacent
 blob.no_melee_under_protect_melee	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
-blob.max_hit	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.max_hit	stat	seam pass 7 (TEST-4): the top of the roll; the author called it luck-dependent (test pass 1); the recorder tool settles it over many hits
 blob.attack_range	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
 blob.attack_completes_after_losing_sight	all	one solo test but needs a pillar that blocks line of sight (ENG-13: pillars block none today)
 blob.spawn_tick	stat	statistical: 723 of 745 on tick 0; the rest are revives (the mager unit)
 blob.spawn_tiles	stat	statistical: nine tiles shuffled per wave; several wave entries cover the set
-blob.count_in_double_waves	all	one solo test per wave (practice entry on waves 4 and 7)
+blob.count_in_double_waves	wave_table	seam pass 7 (TEST-4): wave 7 and the other double-blob waves are not this unit's wave (4); the wave-table test enters them
 blob.water_weakness	all	one solo test with a water spell against a blob and a non-weak target (needs runes and a magic level)
 blob.hit_chance_unprayed	stat	statistical: a share over many unprotected hits (open, M32)
 blob.hit_delay	all	one solo test per distance (open, M29)
@@ -37,7 +37,7 @@ bloblet.style_levels	all	one solo test (practice entry on wave 4 or 7; a real ru
 bloblet.size	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
 bloblet.attack_speed	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
 bloblet.attack_gap_modal	stat	statistical: a share over many bloblet gaps
-bloblet.max_hit	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.max_hit	stat	seam pass 7 (TEST-4): the top of the roll; the author called it luck-dependent (test pass 1); the recorder tool settles it over many hits
 bloblet.attack_range	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
 bloblet.first_attack_after_spawn	stat	statistical: depends on the bloblet's path to the player; a solo test reads each split
 bloblet.attacks_unprovoked	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)

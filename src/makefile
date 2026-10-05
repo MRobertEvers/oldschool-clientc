@@ -858,6 +858,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	plugin/torirs_plugin_drive_chat.c plugin/torirs_plugin_drive_read.c \
 	plugin/torirs_plugin_drive_pointer.c plugin/torirs_plugin_drive_ui.c \
 	plugin/torirs_plugin_drive_ticklog.c plugin/torirs_plugin_drive_los.c \
+	plugin/torirs_plugin_drive_record.c \
 	plugin/plugins/client_settings.c \
 	plugin/plugins/feature_flags.c \
 	plugin/plugins/tileind.c plugin/plugins/widget_demo.c \
@@ -1576,7 +1577,8 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 DRIVE_LUA_SRCS = plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c \
 	plugin/torirs_plugin_drive_chat.c plugin/torirs_plugin_drive_read.c \
 	plugin/torirs_plugin_drive_pointer.c plugin/torirs_plugin_drive_ui.c \
-	plugin/torirs_plugin_drive_ticklog.c plugin/torirs_plugin_drive_los.c
+	plugin/torirs_plugin_drive_ticklog.c plugin/torirs_plugin_drive_los.c \
+	plugin/torirs_plugin_drive_record.c
 
 $(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 $(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))

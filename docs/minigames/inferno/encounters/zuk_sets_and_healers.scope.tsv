@@ -14,10 +14,10 @@ zuk_sets_and_healers.zek_magic_attack_bonus	all	one solo test: ::inferno 69 foug
 zuk_sets_and_healers.xil_attack_style	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
 zuk_sets_and_healers.zek_attack_style	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
 zuk_sets_and_healers.set_melee_when_adjacent	all	solo test: stand against a set in a ::god run and read the swing; not isolated by a fight
-zuk_sets_and_healers.xil_max_hit_ranged	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
-zuk_sets_and_healers.zek_max_hit_magic	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
-zuk_sets_and_healers.xil_hit_chance_unprayed	all	unmeasurable solo: needs a recorded landing or a counted video (open row)
-zuk_sets_and_healers.zek_hit_chance_unprayed	all	unmeasurable solo: needs a recorded landing or a counted video (open row)
+zuk_sets_and_healers.xil_max_hit_ranged	stat	seam pass 7 (TEST-4): the top of the roll; the spec pass saw 16-44 in 21 hits; the recorder tool settles it
+zuk_sets_and_healers.zek_max_hit_magic	stat	seam pass 7 (TEST-4): the top of the roll; the spec pass saw 12 unprayed hits in 5 runs; the recorder tool settles it
+zuk_sets_and_healers.xil_hit_chance_unprayed	stat	seam pass 7 (TEST-4): a share over many unprayed hits (as melee.hit_chance_unprayed); was all with the note 'unmeasurable solo'
+zuk_sets_and_healers.zek_hit_chance_unprayed	stat	seam pass 7 (TEST-4): a share over many unprayed hits (as melee.hit_chance_unprayed); was all with the note 'unmeasurable solo'
 zuk_sets_and_healers.set_protection_prayer	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
 zuk_sets_and_healers.set_attack_gap	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
 zuk_sets_and_healers.xil_first_attack	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side

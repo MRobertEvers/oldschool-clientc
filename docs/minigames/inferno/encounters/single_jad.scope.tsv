@@ -1,6 +1,6 @@
 mechanic_id	scope	note
 single_jad.npc_id	all	one solo test: ::inferno 67 or a real run resumed at wave 67, played with attacks, prayer and eats (healer, death and next-wave rows need the Jad killed; god mode only to survive the read-at-swing fault JAD-PRAYER-READ)
-single_jad.wave	all	one solo test: ::inferno 67 or a real run resumed at wave 67, played with attacks, prayer and eats (healer, death and next-wave rows need the Jad killed; god mode only to survive the read-at-swing fault JAD-PRAYER-READ)
+single_jad.wave	wave_table	seam pass 7 (TEST-4): which wave carries the Jad is a fact about every wave; entering 67 restates the input; the wave-table test reads it (wave_table.jad_wave)
 single_jad.count	all	one solo test: ::inferno 67 or a real run resumed at wave 67, played with attacks, prayer and eats (healer, death and next-wave rows need the Jad killed; god mode only to survive the read-at-swing fault JAD-PRAYER-READ)
 single_jad.spawn_tile_x	all	one solo test: ::inferno 67 or a real run resumed at wave 67, played with attacks, prayer and eats (healer, death and next-wave rows need the Jad killed; god mode only to survive the read-at-swing fault JAD-PRAYER-READ)
 single_jad.spawn_tile_z	all	one solo test: ::inferno 67 or a real run resumed at wave 67, played with attacks, prayer and eats (healer, death and next-wave rows need the Jad killed; god mode only to survive the read-at-swing fault JAD-PRAYER-READ)

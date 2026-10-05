@@ -50,6 +50,21 @@ SIDECAR. `<unit>.scope.tsv` beside the table (mechanic_id, scope, note) states a
 scope outright -- all, entry, normal, hard, party (two or more players), stat (a
 distribution no single run settles) -- and overrides the name heuristic.
 
+REACH SCOPES (seam pass 7, TEST-4). A unit test enters only its unit's first wave, and
+a practice entry fights one wave and leaves, so some rows of a unit's table are out of
+that test's reach whatever its mode. Three sidecar words say which test is held to them:
+  full_run      only the full-run test (<game>_full, wave 1 to the reward) reaches it:
+                the wave-66 end collapse, a revive that needs a wave no unit enters.
+  wave_table    the wave-table unit's test (it enters a sample of waves by design)
+                measures it: which waves carry a monster, first waves, totals by wave.
+  unit:<name>   another unit's test, whose own wave carries what the row needs (a bat
+                revive on the mager unit's wave 36; the glyph on the Zuk unit's wave 69).
+                wave_table is the same as unit:wave_table.
+These apply whether or not the test wrote a spec.scope row. The owning unit's test skips
+and lists such a row (`sidecar: full_run`, `sidecar: unit:<name>`); the named unit's
+test grades it beside its own table and lists it as `graded here from <table>`; the
+full-run test grades it like any other row. A unit:<name> naming no table is an error.
+
 Verdict per test: FULL (every in-scope spec row measured and within tolerance) or a list of
 findings: `unmeasured <id>`, `out of tolerance <id>: measured .. vs spec ..`,
 `grade mismatch <id>`, `malformed <id>`. Exit 0 when every requested test is FULL.
@@ -104,32 +119,61 @@ SOLO_WORDS = ("solo", "_1", "1p")
 
 
 SIDECAR_SCOPES = {"all", "entry", "normal", "hard", "party", "stat"}
+# Reach scopes (the docstring's REACH SCOPES): which test is held to the row.
+FULL_RUN_SCOPE = "full_run"
+UNIT_SCOPE_PREFIX = "unit:"
+WAVE_TABLE_UNIT = "wave_table"
+
+
+def reach_target(scope):
+    """The test a reach scope holds the row to: "full_run", or a unit name
+    (wave_table -> "wave_table", unit:<name> -> <name>); None for any other scope."""
+    if scope == FULL_RUN_SCOPE:
+        return FULL_RUN_SCOPE
+    if scope == WAVE_TABLE_UNIT:
+        return WAVE_TABLE_UNIT
+    if scope and scope.startswith(UNIT_SCOPE_PREFIX):
+        return scope[len(UNIT_SCOPE_PREFIX):]
+    return None
 
 
 def read_sidecar(table):
     """docs/minigames/<game>/encounters/<unit>.scope.tsv: mechanic_id <TAB> scope
     [<TAB> note]. scope is all | entry | normal | hard (the mode the row belongs
     to) | party (needs two or more players) | stat (a distribution no single run
-    settles). An entry here overrides the name heuristic in row_scope."""
+    settles) | full_run | wave_table | unit:<name> (the test that can reach the row,
+    the docstring's REACH SCOPES). An entry here overrides the name heuristic in
+    row_scope."""
     path = table[:-len(".tsv")] + ".scope.tsv"
     out = {}
     if not os.path.isfile(path):
         return out
+    directory = os.path.dirname(table)
+    own_unit = os.path.basename(table)[:-len(".tsv")]
     with open(path, encoding="utf-8") as f:
         for line in f:
             if not line.strip() or line.startswith("#") or line.startswith("mechanic_id\t"):
                 continue
             cells = line.rstrip("\n").split("\t")
-            assert cells[1] in SIDECAR_SCOPES, "%s: bad scope %r for %s" % (path, cells[1], cells[0])
+            target = reach_target(cells[1])
+            assert cells[1] in SIDECAR_SCOPES or target, "%s: bad scope %r for %s" % (path, cells[1], cells[0])
+            if target and target != FULL_RUN_SCOPE:
+                assert target != own_unit, "%s: %s names its own unit %r (write all)" % (path, cells[0], cells[1])
+                assert os.path.isfile(os.path.join(directory, target + ".tsv")), \
+                    "%s: %s names unit %r, which has no table in %s" % (path, cells[0], target, directory)
             out[cells[0]] = cells[1]
     return out
 
 
 def row_scope(spec, mode, party, ids, sidecar=None):
-    """None when the row is in scope, else the reason it is skipped."""
+    """None when the row is in scope, else the reason it is skipped. A reach scope
+    (full_run, wave_table, unit:<name>) is settled by the caller before this is
+    asked, so here it counts as all."""
     if mode == "all":
         return None
     scope = (sidecar or {}).get(spec["mechanic_id"])
+    if reach_target(scope):
+        scope = "all"
     if scope:
         if scope == "all" or scope == mode:
             return None
@@ -248,13 +292,34 @@ def grade(test_id, ledger_path=None, mode=None, party=None):
         party = int(sm.group("party")) if sm else 0
     findings = []
     skipped = []
+    pulled = []
     total = 0
-    for table in tables:
+    test_unit = test_id.partition("_")[2]
+    full_run = test_unit in FULL_RUN_UNITS
+    scan = list(tables)
+    if not full_run:
+        # Rows of the game's other tables whose sidecar holds them to this unit's
+        # test (wave_table, unit:<this unit>) are graded here too.
+        directory = os.path.dirname(tables[0])
+        scan += sorted(p for p in glob.glob(os.path.join(directory, "*.tsv"))
+                       if not p.endswith(".scope.tsv") and p not in tables
+                       and os.path.basename(p)[:-4] not in FULL_RUN_UNITS)
+    for table in scan:
+        owner = os.path.basename(table)[:-len(".tsv")]
         specs = read_spec(table)
         ids = {sp["mechanic_id"] for sp in specs}
         sidecar = read_sidecar(table)
         for spec in specs:
             mid = spec["mechanic_id"]
+            target = reach_target(sidecar.get(mid))
+            if not full_run:
+                if owner != test_unit:
+                    if target != test_unit:
+                        continue
+                    pulled.append("%s (graded here from %s)" % (mid, owner))
+                elif target:
+                    skipped.append("%s (sidecar: %s)" % (mid, sidecar[mid]))
+                    continue
             why = row_scope(spec, mode, party or 0, ids, sidecar)
             if why:
                 skipped.append("%s (%s)" % (mid, why))
@@ -295,6 +360,9 @@ def grade(test_id, ledger_path=None, mode=None, party=None):
     if skipped:
         print("%s: scope mode=%s party=%s; %d row(s) out of scope skipped: %s" % (
             test_id, mode, party, len(skipped), ", ".join(skipped)))
+    if pulled:
+        print("%s: %d row(s) of other units' tables held to this test by their sidecar: %s" % (
+            test_id, len(pulled), ", ".join(pulled)))
     return findings, total
 
 

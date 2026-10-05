@@ -675,3 +675,91 @@ after a Zuk shot and on the follow tile, since the press can take 3 ticks while 
 moves. A `step_tick` to a blocked tile (local x 46, the east end) stalls the driver
 about 8 ticks: clamp the target to local x 17..45. Lava hits log as `hit_player` with
 `npc_slot` -1 (ENG-85).
+
+## Seam pass 7: reading an npc's record (t.npc.record)
+
+`t.npc.record(selector[, opts])` answers `("ok", detail, rec)`. The selector is a content
+symbol (resolved only, no live copy needed), `{slot = n}`, `{at = {x, z}}`, or a symbol
+with `opts.slot` / `opts.at`. A live copy reads the id the client draws it as (a
+multinpc's child). The two sides are separate sub-tables, so a test never compares the
+client's record with itself and calls it a server measurement:
+
+- `rec.client`: the cache record as the client resolved it: `name size combat_level
+  models readyanim walkanim runanim turnanim_l/r` (each seq with a `_name`), the movement
+  sounds `sound_idle/walk/run/crawl`, `params[id]` and `param_names[id]`.
+- `rec.server`: the embedded server's content block that combat rolls with: `hitpoints
+  attack strength defence ranged magic`, `bonus.{stabattack .. prayerbonus}`,
+  `attackrate attackrange`, `attack/defend/death _anim` and `_sound`, `respawnrate
+  death_delay aggressive retaliate`, and `authored` (false: the engine defaults).
+
+The client resolves a record when a copy first comes into view, so before that the
+client half is nil and the verb answers `not_found`; the third return still carries the
+server half. `opts.need = "server"` reads the levels before a fight. The read is static:
+a drained npc's current levels are not in it. Record these with `t.check`, never
+`t.exec` (no click). A binary built before this seam answers `unsupported`.
+
+## Seam pass 7: the movement track (t.npc.pose)
+
+`t.npc.state`'s `anim_id` is the ACTION track only, so it reads -1 at rest and while
+walking. `t.npc.pose(selector)` answers `("ok", detail, pose)` with the movement track
+(`pose_seq pose_frame pose_kind`: ready, walk, ready_or_walk, run, turn,
+walk_back/left/right, other, none) beside the action track (`action_seq action_frame`)
+and the movement set the entity was given. Jal-MejRah reads `ready_or_walk`: its
+readyanim and walkanim are the same seq (7577), so the track cannot tell standing from
+flying.
+
+## Seam pass 7: a sequence's length (t.seq.length)
+
+`t.seq.length(id or seq symbol)` answers `("ok", detail, len)`: `frames`, `cycles` (the
+sum of frame lengths exactly as the client steps them; a 0-length or skeletal frame is
+one cycle), `ticks = cycles / 30`, `lengths`, `skeletal`, `frame_step`, `frame_sounds =
+{{frame, id, loops, radius}}`. It is `not_found` until the client has resolved the seq:
+ready and walk once the npc is drawn, attack and death after they first play, projectile
+seqs once drawn. `seq` is now a kind for `api_drive.symbol`.
+
+## Seam pass 7: long shot names
+
+A shot name over 67 characters (the `NNN-` number included) is written as
+`<first 49>~<8 hex of FNV-1a 32 over the whole name>~<last 8>.png`, 71 characters; a
+shorter name is its own file, byte for byte as before. The ledger's `shots` column keeps
+the name the test asked for, the row detail gains `shot <name> is file <file>.png` when
+the two differ, and `gate.py` finds the file through `shot_file_stem`. So spec rows can
+keep their full `spec.<unit>.<mechanic>` names, and a `-FAIL` capture keeps its tail.
+An unchanged frame is still deduped away: a proof that reads a shot's file changes the
+frame first or passes `keep = true`. `run.py`'s failure block and `fail.py` still look up
+`<name>.png`, so a long-named failing shot reads "not on disk" in triage only.
+
+## Seam pass 7: sidecar reach scopes
+
+Sidecar scope words are now `all entry normal hard party stat full_run wave_table
+unit:<name>`. A row about which waves carry a monster, a first wave, a total over waves
+or another wave's end goes to `wave_table` (the wave-table test enters a sample of
+waves) or `full_run` (only the full-run test reaches it), never to a sweep of entries;
+`unit:<name>` holds it to another unit's test whose wave carries it (the bat revive on
+the mager unit's wave 36). The owning test skips and lists such a row (`sidecar:
+full_run`), the named unit grades it (`graded here from <table>`). Every unit test now
+parses every sidecar of its game, so one bad word anywhere fails every grade.
+`waves_coverage.py <test>` grades a ledger with no build and nothing published.
+
+## Seam pass 7: the early monsters a test author sees
+
+- Bat: an unprayed hit drains 3 run energy and, 1 time in 7, attack, strength, defence,
+  ranged, magic and hitpoints by 1 each on the swing tick (hitpoints with no splat; only
+  while above 1); the bat gains the same. Read the five combat stats every tick and count
+  a drain as all five -1 together. Protect from Missiles blocks both.
+- Mager: it fires from at most 15 tiles (4x4 footprint Chebyshev gap to the player's
+  T-1 tile); in melee range half its swings are melee.
+- Melee dig: the landing tile is fixed on the dig tick D from the player's tile at D-1,
+  on the ladder (-3,-3), (0,0), (-3,0), (0,-3), else (-1,-1) (the melee's south-west
+  tile minus the player's, z north; the first whose 4x4 holds no other npc). It moves
+  under ground on D+3 (compare its first `npc_tile` row after the dig with `player_tile`
+  at D-1), digs up on D+6 and swings first on D+12.
+- `ticklog.rows` `opts.since` is a SERIAL, not a tick: a tick gives a superset and a
+  negative value is refused; filter on `row.tick` in Lua. `npc_tile` is written on change,
+  so an npc that never moved has no rows: seed its tile from its `npc_spawn` row.
+- Nibblers on one pillar do not bite together: with 2 or 3 chewing Blert's modal gap is
+  2 and only a lone nibbler shows the gap of 4 (TEST-1 was a misreading). Measure the
+  pillar gap on a lone nibbler or split it by the count adjacent.
+
+A scratch measurement: `python3 tools/quest_gate/run.py --script <file> --name <label>
+--no-build --no-publish` (a unique `--name` per run, in the foreground).

@@ -8,8 +8,8 @@ zuk_fight.attack_bonuses	all	one solo test: ::inferno 69 played with a followed 
 zuk_fight.magic_defence_bonus	all	one solo test: ::inferno 69 played with a followed glyph, a bow, sharks and prayer (zf_gen fought runs), then ::zukhp to state-set the thresholds; god mode only for the rows named in the note
 zuk_fight.ranged_defence_bonuses	all	one solo test: ::inferno 69 played with a followed glyph, a bow, sharks and prayer (zf_gen fought runs), then ::zukhp to state-set the thresholds; god mode only for the rows named in the note
 zuk_fight.attack_style	all	one solo test: ::inferno 69 played with a followed glyph, a bow, sharks and prayer (zf_gen fought runs), then ::zukhp to state-set the thresholds; god mode only for the rows named in the note
-zuk_fight.max_hit	all	one solo test: ::inferno 69 played with a followed glyph, a bow, sharks and prayer (zf_gen fought runs), then ::zukhp to state-set the thresholds; god mode only for the rows named in the note
-zuk_fight.min_hit	all	one solo test: ::inferno 69 played with a followed glyph, a bow, sharks and prayer (zf_gen fought runs), then ::zukhp to state-set the thresholds; god mode only for the rows named in the note
+zuk_fight.max_hit	stat	seam pass 7 (TEST-4): the top of a 0-148 roll, and a solo player behind the glyph takes few Zuk shots; the recorder tool settles it
+zuk_fight.min_hit	stat	seam pass 7 (TEST-4): the bottom of the roll (a 0 is about 1 in 149 hits); the recorder tool settles it
 zuk_fight.hit_chance	stat	needs unblocked shots with a survivable hit: a recorder tool, a player with more than 148 hitpoints, or the wiki tweet; not a solo test
 zuk_fight.projectile_flight	stat	needs a recorded unblocked shot; Blert records no hit event
 zuk_fight.attack_gap	all	one solo test: ::inferno 69 played with a followed glyph, a bow, sharks and prayer (zf_gen fought runs), then ::zukhp to state-set the thresholds; god mode only for the rows named in the note; the recorder tool weighs the distribution

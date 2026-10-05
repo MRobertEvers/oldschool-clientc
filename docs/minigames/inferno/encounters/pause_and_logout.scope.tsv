@@ -13,7 +13,7 @@ pause.special_attack_recovers	all	solo; not measured here (no verb), single guid
 pause.floor_items_carried	all	solo; static read: the instance is freed on a pause; not played
 pause.logout_blocked_at_wave_start	all	solo; logout pressed on the run's first active tick (alive 0), session ended on the same tick
 pause.logout_block_window	all	solo; open row M4; needs a recorder or video of the refusal
-pause.glyph_direction_persists_login	all	solo; belongs to the Zuk unit's run; static read of inferno_glyph.rs2 here, not played
+pause.glyph_direction_persists_login	unit:zuk_glyph_shield	seam pass 7 (TEST-4): the glyph exists only on wave 69, the Zuk glyph unit's wave; its test relogs there (zuk_glyph_shield.direction_saved is the same measurement)
 pause.pillar_hp_kept	all	solo; open row M5; the content saves only the dead flags, not hit points
 pause.request_chat_text	all	solo; open row M6, presentation
 logout.combat_delay_ticks	all	solo; seam pass 3 measured it (DRIVER_NOTES.md:347-356), not re-measured here

@@ -20,10 +20,10 @@ ranger.first_attack_modal	stat	statistical: a share or distribution over many ra
 ranger.attack_never_idle_before_death	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
 ranger.spawn_tick	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
 ranger.spawn_tiles	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
-ranger.count_by_wave	all	one solo test (practice entry on wave 18 or later; a real run)
-ranger.first_wave	all	one solo test (practice entry on wave 18 or later; a real run)
-ranger.resurrectable	all	one solo test (practice entry on wave 18 or later; a real run)
-ranger.resurrected_hitpoints	all	one solo test (practice entry on wave 18 or later; a real run)
+ranger.count_by_wave	wave_table	seam pass 7 (TEST-4): a count across waves 18-65; the wave-table test enters them
+ranger.first_wave	wave_table	seam pass 7 (TEST-4): a first wave is a fact about waves 1-17 too; the wave-table test enters them (wave_table.first_appearance_waves)
+ranger.resurrectable	stat	seam pass 7 (TEST-4): a ranger revive needs a ranger and a Jal-Zek (waves 50-65) and is rare: 7 late ranger spawns in the recorded runs against 62 melee (ranger.tsv), so one run, the full run included, sees it by luck; the recorder tool settles it
+ranger.resurrected_hitpoints	stat	seam pass 7 (TEST-4): read off a revived ranger, which one run sees by luck (7 late ranger spawns recorded); the recorder tool settles it
 ranger.max_hit_ranged	all	one solo test (practice entry on wave 18 or later; a real run)
 ranger.max_hit_melee	all	one solo test (practice entry on wave 18 or later; a real run)
 ranger.melee_chance_adjacent	stat	statistical: a share or distribution over many rangers; a solo test reads its own, the recorder tool weighs the 5899 attacks
