@@ -78,7 +78,9 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
    The server and clients should be able to run in lockstep"): a member runs exactly F frames
    per tick, READY carries the frame count (the leader refuses a mismatch), TICK carries a world
    digest, SEAT a protocol version; `party_repeat.py` runs a party test N times (one under CPU
-   load) and passes only when tick logs, member ledgers and boundary traces are identical. Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
+   load) and passes only when tick logs, member ledgers and boundary traces are identical. Also (owner): fewer frames per tick headlessly --
+   TORIRS_LOGIC_CYCLES_PER_FRAME=k pays k 20 ms cycles per frame (k=1 today's 30 frames a tick;
+   k=10 three; k=30 one), same k on every client of a party run; measured, party default picked. Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
    `matthew-mbp-m4-raid-b1-rooms-tob-normal`, raid tob, the six rooms, mode normal, party 3, width 1
    (ids tob_<room>_normal; sources: Strategies wiki per-room sections, the six trio transcripts,
    Blert guides and data; roles only from the sources) (same room pass, move each room's
