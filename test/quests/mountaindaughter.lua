@@ -3,30 +3,25 @@
 -- docs/quests/mountain_daughter.md is the pinned brief (wiki oldids + the
 -- port's own breakpoint derivation); this file follows its stage table.
 --
--- Door rule (b60 re-drive): every closed space is entered and left by its
--- own click on every visit. The Mountain Camp (a 998-tile walking component
--- with NO on-foot way out: reach.py 2717,3667 -> 2766,3676 UNREACHABLE at
--- margins 30/80/160) is entered over the rockslide and left by a real
--- Camelot Teleport; Hamal's tent (mdaughter_tent_door 2805,3672) and the
--- Ancient Rock's tent (mdaughter_rocktent_door 2799,3665) are entered and
--- left through their doors; the lake islands are reached only by the tree,
--- the pole and the plank; the Kendal's cave only by its entrance and exit;
--- the cave path's two Dead trees are stepped over both ways. Long trips are
--- a Camelot Teleport plus an overland goto between open tiles.
---
--- CONTENT BUG (b60, why this file ends at t.blocked): the rockslide
--- (mountaindaughter_camp.rs2:32-34 [oploc1,mdaughter_rockslide]) p_teleports
--- the player to ^mdq_camp_enter_coord = 0_43_57_16_20 = 2768,3668
--- (quest_mountaindaughter.constant:198), a cliff tile walled in on all four
--- sides: walk_to 2768,3663 / 2761,3660 stall there (probe
--- build/quest_gate/mountaindaughter_probe1). The rope on the boulder
--- (camp.rs2:21-30) is mes-only. So no player can walk into the camp, and the
--- rockslide (it always lands on that coord) is no way out of it either. The
--- Ancient Rock's tent door (mdaughter_rocktent_door/_doorl, op1 Go-through)
--- has no [oploc1] handler and no door category, so that tent cannot be
--- entered. Everything below the block is the honest route, proven in a
--- scratch copy that bypassed only those two content bugs
--- (build/orchestrator/fix_b60/mountaindaughter.progress.md).
+-- Door rule (b60 re-drive, round 2 after content seam b60-seam1): every
+-- closed space is entered and left by its own click on every visit. The
+-- Mountain Camp (a 998-tile walking component with NO on-foot way out:
+-- reach.py 2760,3660 -> 2760,3657 UNREACHABLE at margins 30/80/160) is
+-- entered AND left over the rockslide (mdaughter_rockslide 2760,3658, 2x2,
+-- op1 Climb-over: mountaindaughter_camp.rs2 [oploc1,mdaughter_rockslide]
+-- lands ^mdq_rockslide_north_coord 2760,3660 from the south and
+-- ^mdq_rockslide_south_coord 2760,3657 from the camp,
+-- quest_mountaindaughter.constant:208-209), graded on both tiles by
+-- t.player.cross_trap on every crossing (4 in, 3 out). Hamal's tent
+-- (mdaughter_tent_door 2805,3672) and the Ancient Rock's tent
+-- (mdaughter_rocktent_door 2799,3665, Go-through: camp.rs2
+-- [proc,mdq_rocktent_door_pass]) are entered and left through their doors;
+-- the lake islands are reached only by the tree, the pole and the plank; the
+-- Kendal's cave only by its entrance and exit; the cave path's two Dead
+-- trees are stepped over both ways. The one long trip (Lumbridge, where the
+-- fixture starts, to Rellekka) is a real Camelot Teleport plus an overland
+-- goto between open tiles; every other trip is overland from the
+-- rockslide's south tile (the guide teleports nowhere).
 --
 -- Content notes carried from the brief's "found while pinning" section:
 --  * The pole (mdaughter_stick) and plank (woodplank) are never consumed by
@@ -69,8 +64,8 @@ return {
         "::give leather_gloves 1",
         "::give rune_scimitar 1",
         "::give lobster 5",
-        "::give airrune 25",
-        "::give lawrune 5",
+        "::give airrune 5",
+        "::give lawrune 1",
         "::setlevel attack 60",
         "::setlevel strength 60",
         "::setlevel defence 60",
@@ -104,7 +99,8 @@ return {
         local loc_flatstone2 = t.player.by_symbol("loc", "mdaughter_flatstone2")
 
         -- Camelot Teleport: magic_spells.dbrow:131-136 (level 45, 5 air + 1
-        -- law, tele_coord 0_43_54_5_22 = 2757,3478). Five casts staged.
+        -- law, tele_coord 0_43_54_5_22 = 2757,3478). One cast staged: the
+        -- fixture's Lumbridge start to Rellekka.
         local CAMELOT_RUNES = { { "airrune", 5 }, { "lawrune", 1 } }
         local function camelot(name, where)
             t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
@@ -125,25 +121,18 @@ return {
                 "t.world.tile() -> " .. tostring(r) .. " " .. tile_text(tt) .. " (want " .. x .. "," .. z .. ",0: " .. why .. ")")
         end
 
-        -- Into the Mountain Camp over the rockslide (2760,3658, 2x2), from the
-        -- open ground south of it, then a walk to an open camp tile
-        -- (2768,3663, inside the 998-tile camp component). Graded on the
-        -- tiles: outside (z <= 3657) before the press, on 2768,3663 after
-        -- the walk.
-        local CAMP_IN = { 2768, 3663 }
+        -- The rockslide (2760,3658, 2x2): Climb-over from the open ground south
+        -- of it (2760,3657, overland) lands 2760,3660 inside the camp; from
+        -- 2760,3660 it lands 2760,3657 outside. cross_trap grades both tiles.
         local function enter_camp(name)
-            t.exec("goto-" .. name, t.player.goto_tile, 2760, 3656, 0)
-            local _, before = t.world.tile()
-            local pr, pd = t.player.click_loc("mdaughter_rockslide", 1)
-            t.ticks(2)
-            local _, land = t.world.tile()
-            local wr, wd = t.player.walk_to(CAMP_IN[1], CAMP_IN[2], 30)
-            local _, after = t.world.tile()
-            local ok = type(before) == "table" and before.z <= 3657 and before.level == 0
-                and type(after) == "table" and after.x == CAMP_IN[1] and after.z == CAMP_IN[2] and after.level == 0
-            return ok, "south of the rockslide at " .. tile_text(before) .. "; Climb-over -> " .. tostring(pr) .. " "
-                .. tostring(pd) .. "; landed " .. tile_text(land) .. "; walk_to " .. CAMP_IN[1] .. "," .. CAMP_IN[2]
-                .. " -> " .. tostring(wr) .. " " .. tostring(wd) .. "; now " .. tile_text(after)
+            t.exec("goto-" .. name, t.player.goto_tile, 2760, 3657, 0)
+            t.exec(name, t.player.cross_trap, { loc = "mdaughter_rockslide", op_name = "Climb-over",
+                at = { 2760, 3658, 0 }, src = { 2760, 3657 }, dest = { 2760, 3660 } })
+        end
+        local function leave_camp(name)
+            t.exec("goto-" .. name, t.player.goto_tile, 2760, 3660, 0)
+            t.exec(name, t.player.cross_trap, { loc = "mdaughter_rockslide", op_name = "Climb-over",
+                at = { 2760, 3658, 0 }, src = { 2760, 3660 }, dest = { 2760, 3657 } })
         end
 
         -- Hamal's tent: the closed double door's left leaf at 2805,3672
@@ -200,22 +189,7 @@ return {
         t.check("enterCamp.message", t.msg.expect("You tie the rope around the boulder") == "ok",
             "the boulder's line (camp.rs2:29) after use_on -> " .. tostring(rope_r) .. " " .. tostring(rope_d))
 
-        local in_ok, in_detail = enter_camp("enterCampOverRocks")
-        if not in_ok then
-            t.check("enterCampOverRocks.reading", true, in_detail)
-            t.blocked("content_bug: the Mountain Camp cannot be walked into. [oploc1,mdaughter_rockslide] "
-                .. "(OSRS-Content/osrs239-content/server/scripts/quests/quest_mountaindaughter/scripts/mountaindaughter_camp.rs2:32-34) "
-                .. "p_teleports to ^mdq_camp_enter_coord = 0_43_57_16_20 = 2768,3668 (configs/quest_mountaindaughter.constant:198), "
-                .. "a cliff tile whose four neighbours are all blocked (maps/m43_57), so the player is stuck there: "
-                .. in_detail .. ". The rope on the boulder ([oplocu,mdaughter_cliff_boulder], camp.rs2:21-30) is mes-only "
-                .. "and moves no one. Needed: the rockslide crossed both ways like the real game's Climb-over "
-                .. "(south 2760,3657 <-> north 2760,3660, an open camp tile), so the camp can be left on foot too. "
-                .. "Next on the route: mdaughter_rocktent_door/_doorl (2799,3665/2800,3665, op1 Go-through) has no [oploc1] "
-                .. "handler and no door category (no hit for rocktent under server/scripts), so the Ancient Rock (2799,3660) "
-                .. "inside it cannot be reached.")
-            do return end
-        end
-        t.check("enterCampOverRocks", in_ok, in_detail)
+        enter_camp("enterCampOverRocks")
 
         -- talkToHamal: accept the quest (mountaindaughter_camp.rs2
         -- [label,mdq_hamal_offer]).
@@ -322,9 +296,9 @@ return {
             "npc:Svidi",
         })
 
-        -- Svidi is outside the camp, which has no on-foot exit: Camelot
-        -- Teleport, then overland (2757,3478 -> 2717,3667 REACH len=357).
-        camelot("svidi.camelotTeleport", "Camelot, out of the Mountain Camp, for Svidi")
+        -- Svidi is outside the camp: out over the rockslide, then overland
+        -- (2760,3657 -> 2717,3667 REACH closed-doors len=65).
+        leave_camp("svidi.leaveCamp")
         t.exec("goto-svidi", t.player.goto_tile, 2717, 3667, 0)
         t.exec("talkToSvidi", t.player.talk_to, "mdaughter_svidi")
         t.exec("talkToSvidi-dialog", t.chat.play, {
@@ -346,28 +320,22 @@ return {
         })
 
         -- getRockFragment: back into the camp, through the rock tent's door.
-        local rock_in_ok, rock_in_detail = enter_camp("rock.enterCamp")
-        t.check("rock.enterCamp", rock_in_ok, rock_in_detail)
+        enter_camp("rock.enterCamp")
+        -- The rock tent's Go-through puts a player outside (2799,3666) onto
+        -- the door tile 2799,3665 inside, and one on the door row out to
+        -- 2799,3666 ([proc,mdq_rocktent_door_pass]); the leaf comes back
+        -- after 3 ticks.
         t.exec("goto-rock", t.player.goto_tile, 2799, 3667, 0)
-        local rt_r, rt_d = t.player.pass_door({ closed = "mdaughter_rocktent_door", at = { 2799, 3665, 0 },
-            near = { 2799, 3666 }, far = { 2799, 3663 } })
-        if rt_r ~= "ok" then
-            t.check("rock.tentDoorIn.reading", true, tostring(rt_r) .. " " .. tostring(rt_d))
-            t.blocked("content_bug: mdaughter_rocktent_door/_doorl (2799,3665/2800,3665, op1 Go-through, configs/all.loc) "
-                .. "has no [oploc1] handler and no door category (no hit for rocktent under "
-                .. "OSRS-Content/osrs239-content/server/scripts), so the Ancient Rock (2799,3660) inside cannot be reached: "
-                .. tostring(rt_r) .. " " .. tostring(rt_d))
-            do return end
-        end
-        t.check("rock.tentDoorIn", rt_r == "ok", tostring(rt_d))
+        t.exec("rock.tentDoorIn", t.player.pass_door, { closed = "mdaughter_rocktent_door",
+            open = "mdaughter_rocktent_door_open", at = { 2799, 3665, 0 }, near = { 2799, 3666 }, far = { 2799, 3665 } })
         local loc_ancient = t.player.by_symbol("loc", "mdaughter_ancient_rock")
         t.exec("getRockFragment", t.player.use_on, "bronze_pickaxe", loc_ancient)
         t.ticks(1)
         t.exec("inv.half_rock", t.inv.expect_has, "mdaughter_half_rock", 1)
-        t.exec("rock.tentDoorOut", t.player.pass_door, { closed = "mdaughter_rocktent_door", at = { 2799, 3665, 0 },
-            near = { 2799, 3664 }, far = { 2799, 3667 } })
+        t.exec("rock.tentDoorOut", t.player.pass_door, { closed = "mdaughter_rocktent_door",
+            open = "mdaughter_rocktent_door_open", at = { 2799, 3665, 0 }, near = { 2799, 3665 }, far = { 2799, 3666 } })
 
-        camelot("brundt2.camelotTeleport", "Camelot, out of the Mountain Camp, for Rellekka")
+        leave_camp("brundt2.leaveCamp")
         t.exec("goto-brundt2", t.player.goto_tile, 2660, 3670, 0)
         t.exec("returnToBrundt", t.player.talk_to, "viking_brundt")
         t.exec("returnToBrundt-dialog", t.chat.play, {
@@ -385,8 +353,7 @@ return {
         })
         t.exec("inv.guarantee_given", t.inv.expect_absent, "mdaughter_safety_guarantee")
 
-        local h3_ok, h3_detail = enter_camp("hamal3.enterCamp")
-        t.check("hamal3.enterCamp", h3_ok, h3_detail)
+        enter_camp("hamal3.enterCamp")
         hamal_in("hamal3")
         t.exec("returnToHamalAboutDiplomacy", t.player.talk_to, "mdaughter_hamal")
         t.exec("returnToHamalAboutDiplomacy-dialog", t.chat.play, {
@@ -403,10 +370,10 @@ return {
         })
         hamal_out("hamal3")
 
-        -- food: the White Pearl on White Wolf Mountain (gloves worn):
-        -- Camelot Teleport out of the camp, overland to the bush
-        -- (2757,3478 -> 2849,3498 REACH len=226), and back by Camelot.
-        camelot("fruit.camelotTeleport", "Camelot, out of the Mountain Camp, for White Wolf Mountain")
+        -- food: the White Pearl on White Wolf Mountain (gloves worn): out
+        -- over the rockslide, overland to the bush and back (2760,3657 <->
+        -- 2849,3498 REACH closed-doors len=614, margin 160).
+        leave_camp("fruit.leaveCamp")
         t.exec("goto-fruit", t.player.goto_tile, 2849, 3498, 0)
         t.exec("getFruit", t.player.click_loc, "mdaughter_white_pearl_bush", 3)
         t.ticks(1)
@@ -414,9 +381,7 @@ return {
         t.exec("eatFruit", t.player.inv_op, "mdaughter_white_pearl_fruit", 3)
         t.ticks(1)
         t.exec("inv.seed", t.inv.expect_has, "mdaughter_white_pearl_seed", 1)
-        camelot("hamal4.camelotTeleport", "Camelot, from White Wolf Mountain, for Rellekka")
-        local h4_ok, h4_detail = enter_camp("hamal4.enterCamp")
-        t.check("hamal4.enterCamp", h4_ok, h4_detail)
+        enter_camp("hamal4.enterCamp")
         hamal_in("hamal4")
         t.exec("giveSeed", t.player.talk_to, "mdaughter_hamal")
         t.exec("giveSeed-dialog", t.chat.play, {
