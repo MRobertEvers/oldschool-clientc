@@ -721,7 +721,7 @@ entry is FIXED in matthew-mbp-m4-b56-seam2 (next section).
 - **Not fixed:** `aggressive_melee` huntmode never aggroes (`torirs_server_content.c:1851` maps
   only `aggressive`), and the Slagilith's and Kendal's attackrate is 6 where the wiki says 4.
 
-## A margin row reads full hp after a real fight: prove the npc swung (Ides of Milk's Brutus, b60 sampler)
+## A margin row reads full hp after a real fight: prove the npc swung (Ides of Milk's Brutus, b60 sampler; Brutus FIXED b62-seam1)
 
 `killBrutus.margin` read `lowest hp 99/99, eaten 0` in all three fixer runs. That looks like a
 fight that never threatened anyone. It was a real fight. Brutus's melee has attack 12
@@ -733,7 +733,9 @@ The sampler's probe run read the chat ring after the kill with `t.msg.last(40)`.
 Most likely the growl lane (`~cowboss_growl_hit`) is measured from `npc_coord`, which is a
 multi-tile npc's south-west tile. A player beside his east side at z+2 is then outside the
 lane's `abs(cz - oz) <= 1`, so a stationary attacker on that side dodges every charge. This is a
-content seam and not a test defect.
+content seam and not a test defect. FIXED matthew-mbp-m4-b62-seam1 (seam-facts: Seam pass
+matthew-mbp-m4-b62-seam1 (d)): both specials are measured from his 3x3 footprint and resolve after
+3 ticks; the re-run's `killBrutus.margin` read 85/99 and 95/99.
 
 When a margin row reads full hp, put the npc's own attack evidence in the detail: its attack or
 special chat lines from `t.msg.last`, or a block hitsplat. A reviewer can then tell "it swung and

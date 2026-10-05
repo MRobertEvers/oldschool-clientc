@@ -123,8 +123,14 @@ And `t.expect` IS NOT AN ESCAPE HATCH from that rule: routing a hollow verb thro
 `t.exec` grader but still lands a PASS with a blank detail column, and `atailoftwocats` shipped
 eighteen of them -- every chore confirmation and every stage gate from 40 to 70 -- where the ledger
 cannot show what was read. Read the value back and write it yourself. Also hollow on SUCCESS:
-`t.player.walk_to` (returns `ok, nil` once the tile is reached -- only a stall carries a detail,
-`pointer.lua`), `t.ui.await_close` (a bare `ok` from the await, `ui.lua`) and `t.ui.invoke` -- plus
+`t.ui.await_close` (a bare `ok` from the await, `ui.lua`) and `t.ui.invoke` -- plus
 `t.player.click_obj` (section 8; since seam27 its `ok` reads `click_obj: met after N tick(s)`, which
-says only that the backpack total rose). Call them directly and write what you read back: the tile,
-the interface's presence, the count.
+says only that the backpack total rose). Call them directly and write what you read back: the
+interface's presence, the count.
+
+`t.player.walk_to` is OFF this list since matthew-mbp-m4-b62-seam1 (seam
+`walk_to_answers_ok_with_no_detail`): it used to answer `ok, nil` on arrival, so
+`t.exec("walk", t.player.walk_to, x, z)` FAILed `hollow` and four b62 fixers rewrote single walks as
+one-hop `walk_route`s. It now answers `walk_to x,z: reached x,z,level from a,b in N tick(s)` (the
+tile read back after the walk) and goes through `t.exec` like any verb. `walk_route` stays for a
+multi-hop route.

@@ -238,7 +238,7 @@ guide does with a teleport is done with this, not with `goto_tile` or `::tele`.
 ### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
 
 `t.player.climb{ loc=, at={x,z,level}, dest={x,z,level} [, op=1, op_name="Climb-up", slack=0,
-src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10] }` -> `(ok, detail)` `refused` `covered`
+src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10, loc_level=, same_level="<row>"] }` -> `(ok, detail)` `refused` `covered`
 `not_visible` `timeout` ...
 
 ```lua
@@ -256,7 +256,8 @@ t.exec("goUpToJohnathon", t.player.climb, { loc = "fai_varrock_stairs_taller", a
 is this verb (b60: crest, idesofmilk, vampire and fenkenstrain each hand-wrote a `climb()` for it).
 `at` names the copy pressed AND the floor it is pressed from (a copy on another raw level, a
 bridge deck: `loc_level`, "A loc on another raw level" above); `dest` names the landing and its NEW
-level (a dest on `at`'s level raises: a one-floor crossing is `pass_door`/`cross_trap`/`walk_route`).
+level (a dest on `at`'s level in `at`'s own map frame raises: a one-floor crossing is
+`pass_door`/`cross_trap`/`walk_route`; a same-level landing in another frame is a climb, below).
 The verdict is the world: the player on `at`'s level before the press (else `refused ... not
 pressed`), on `src` exactly when `src` is given (walked there first; else `refused ... not pressed`),
 and after the press on `dest`'s level within `slack` (Chebyshev) of its x,z with `landed_ok(tile)`
@@ -270,6 +271,38 @@ on `at`'s level is a stair whose route the port does not have -- a content seam 
 crypt stairs, vampire b60), stop at `t.blocked("content_bug: ...")`. `reached level N but not the
 landing` is the wrong `dest`. Conformance `player.climb` climbs Lumbridge castle's stairs up and
 down and refuses a press from the wrong floor.
+
+#### A climb that changes no level: the underground's map frame (b62-seam1)
+
+Most of the underground is level 0 in the map frame z+6400, so a manhole, cellar ladder, trapdoor
+or dungeon stair between it and the surface lands on the level it was pressed from
+(`manholes.rs2:13-16` `p_telejump(movecoord(coord, 0, 0, 6400))`, `plaguehouse.rs2:22-28`; 932 of
+`maplink.dbrow`'s 2,079 rows land on their source level). That is still `climb`, not `cross_trap`:
+
+```lua
+-- maplink [maplink_0_50_154_37_2_up]: 3237,9858,0 -> 3236,3458,0 (frame 1 -> 0). Stand on src:
+-- maplink.rs2 keys the row on the PLAYER's tile, and a press from 3236,9858 falls to the
+-- +-1-plane default and lands on 3236,9858,1.
+t.exec("goUpManhole", t.player.climb, { loc = "fai_varrock_manhole_ladder", op = 1, op_name = "Climb-up",
+    at = { 3237, 9858, 0 }, src = { 3237, 9858 }, dest = { 3236, 3458, 0 } })
+-- Same level AND same frame (346 maplink rows): name the row that moves the player.
+t.exec("enterStronghold", t.player.climb, { loc = "sos_dung_ent_open", op = 1, op_name = "Climb-down",
+    at = { 3081, 3420, 0 }, src = { 3081, 3421 }, dest = { 1859, 5243, 0 },
+    same_level = "maplink.dbrow maplink_0_48_53_9_29_down" })
+```
+
+A `dest` on `at`'s level is accepted when its z is in another map frame (`z // 6400`) than `at`'s,
+or when the spec names the maplink row or telejump as `same_level = "<row>"` (a string; given with
+a level change it raises). The grading is unchanged -- the exact landing within `slack` -- plus: a
+player already on the landing is `refused ... on the landing -- not pressed`, and a press that did
+not land is told apart by TILE: `still at <tile> beside the press (map frame F)` (within 15 tiles of
+`at` or the start, in the start's frame -- the closed Varrock manhole's op1 is Open, and reads
+exactly so) or `reached level L in the landing's map frame F at <tile> but not the landing` (the
+wrong `dest`). The success detail ends `(same level 0, map frame 0 -> 1[ by <row>])`. Proof:
+scratch `b62s1_climbsame_post2` 16/16 -- Demon Slayer's manhole down and ladder up, Plague City's
+house stairs both ways, Family Crest's Ice Mountain trapdoor, Vampire Slayer's crypt stairs, the
+Stronghold entrance by `same_level`; conformance
+`seam.climb_lands_on_its_own_level_in_another_map_frame` (the Varrock sewer ladder).
 
 ### `t.player.cancel_selection(why)` -- drop a spell or Use left armed (b60-seam1)
 
@@ -352,6 +385,18 @@ use it as a presence check; `t.npc.by_symbol`/`t.npc.nearest` read the live pool
 
 `t.player.walk_to(x, z, ticks=distance+10)` / `t.player.walk_near(target, ticks, minimum=0)` /
 `t.player.idle()` -> `ok` `timeout` (`unsupported` -- walk_near is npc/loc only).
+
+`walk_to` answers a detail on success (matthew-mbp-m4-b62-seam1, seam
+`walk_to_answers_ok_with_no_detail`): `walk_to 2540,3303: reached 2540,3303,0 from 2529,3304 in 5
+tick(s)` (Elena's Jethick walk, `build/quest_gate/b62s1_elena_walkto`) -- the tile read back after
+the walk (with its level), the start tile and the server ticks (the driver's tick clock, as
+`t.await`'s `met after N tick(s)`: a one- or two-tile walk can read `in 0 tick(s)`).
+So `t.exec("walk-talkToJethick", t.player.walk_to, x, z)` is a real row, not a `hollow` FAIL; a
+one-hop `walk_route` is no longer needed to get one. Use `walk_route` for a route of several hops
+(it grades each hop and the exact end tile) or when the row must also check the level (`opts.level`):
+`walk_to` arrives on x,z and reports the level it read, it does not grade it. A walk that does not
+arrive still answers `timeout`/`refused` with `walk_to x,z from a,b stalled at c,d` (and the
+obstacle hint below).
 
 #### A walk stops at an obstacle: cross it with `click_loc` (seam34)
 

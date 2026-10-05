@@ -861,3 +861,20 @@ six tests, listed in build/seam_state/matthew-mbp-m4-b57-grader3/movers.tsv:
 - viking `useStrangeObjectOnPipe`: a click on the pipe.
 
 Two verdicts change: legends FULL -> TEST_GAP, shadowstorm TEST_GAP -> MIXED.
+
+### "names <npc>, but its own action does not reach that npc": a row named after the npc is not a talk (matthew-mbp-m4-b62-seam1)
+
+An NpcStep's noun match ("retrieve it from Harold" against a row whose NAME holds `harold`) used to
+credit any action row. Death Plateau's optional `talkToHarold3` read DRIVEN through
+`goToHaroldStairs1.castleDoorOut`, a `pass_door`. Now (`Grader.row_reaches_npc`) the match counts
+only a row whose detail names one of the step's npc symbols (an accepted press reports its target),
+or whose own `t.exec` span presses that npc (`talk_to`/`click_npc`/`npc_op`, `attack`, `use_on`;
+`emote` for an NpcEmoteStep). A pass_door, a walk, a varbit read, a leg checkpoint or a dialogue
+page row named after the npc no longer drives a talk step; it is refused with `ledger row N 'X'
+names <noun>, but its own action does not reach that npc`. Fixture:
+`helper_coverage_two_op_test.py` `death_as_committed` / `death_row_reaches`. Moves at the time:
+death `talkToHarold3` DRIVEN -> ALTERNATIVE (still FULL); anothersliceofham FULL -> TEST_GAP
+(`talkToZanikRailway` was credited only by `zanik.at_dig`, a varbit read); eadgar, mm and seaslug
+steps regraded with no verdict move. OPEN: the generic target-token loop at the end of
+`Grader.driven` still credits by name (seaslug `travelWithHolgartFreeingKennith` via
+`holgartsunkboat.drain_board`; death `goToHaroldStairs3` via an earlier visit's stairs row).

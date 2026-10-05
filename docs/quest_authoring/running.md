@@ -68,6 +68,13 @@ several workers live, a run by quest id also collides with theirs through the pe
 `gate.py <id>` then reads THEIR ledger: run the regression as a private copy instead,
 `run.py --script <copy> --name <unique> --no-build --no-publish`, then `gate.py <unique>`.
 
+`run.py` takes ONE quest id per call: `run.py cooks_assistant druid` exits 2 with
+`unrecognized arguments: druid` (the seam-pass prompts said exactly that until b62-seam1). Run one
+call per quest, then `gate.py cooks_assistant druid`. `TORIRS_QUEST_NO_PUBLISH=1` (any value but
+empty or `0`) makes every `run.py` it reaches behave as `--no-publish` and prints one line saying
+so; it is for an owner shell or a harness that launches `run.py` itself (a subagent's Bash calls
+share no environment, so the workflow prompts carry `--no-publish` on every command line).
+
 To show a content seam's behaviour BEFORE the fix without touching the shared pack, compile a
 scratch pack (seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)): copy `server/scripts` without
 `build*/` and `selftest/` into `<scratch>/server/scripts`, symlink every other entry of
