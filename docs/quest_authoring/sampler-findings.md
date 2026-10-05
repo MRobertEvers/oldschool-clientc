@@ -894,3 +894,17 @@ content merges Quest Helper's `talkToVermundiWithBook` and `talkToVermundiAfterB
 (`gdwarf_clothes.rs2`: the book talk sets `showed_book` and asks for coal and logs). The test
 drives that one talk. Its Consortium descent leaves the stair pocket by Varrock Teleport, which is
 the known content seam.
+
+### Round 3: a `::setvar` prerequisite whose comment says the arm is missing
+
+Round 3 sampled Death Plateau, A Forgettable Tale of a Drunken Dwarf and Zogre Flesh Eaters. All
+three passed, and none went back. The sampler opened all 1,001 shots on contact sheets.
+
+(a) THE ARM IS NAMED BY THE QUEST ROW, NOT THE FOLDER. `zogreflesheaters.lua` stages Big Chompy
+Bird Hunting with `"::setvar varp293_chompybird 65"`. Its comment says `quest_cheat.rs2` has no
+`quest_chompybird` arm. That is true of the folder name, but seam35 added the arm under the row
+name, `quest_bigchompybirdhunting` (`QUEST_SERVER_CHEATS.md`, the seam35 arms table). It writes
+the same 65 and also clears `%chompybird_kills`. `mourningsendparti.lua` has the same `::setvar`.
+The staging only sets up a prerequisite, so the quest stands. When you stage a prerequisite, look
+up the arm by the row name in `test/quests/QUEUE.tsv` or the arms table before you fall back to
+`::setvar`. Then write `::complete <row>`.
