@@ -27,6 +27,13 @@ tile: on level 1, `loc_near("opencastledoor", 3)` answered the level-0 leaf at 2
 - A filtered `not_found` names the copies it skipped WITH their level (`copies skipped, nearest
   first: 2506,3852,0`). The level is the RAW cache level: on a bridge deck the player stands one
   plane lower (gaps-world: `t.world.loc_near` reports a loc's raw cache level).
+- `{ level = n | "here", deck = true }` (b61-seam1) -- the level named is the PLAYER's plane and
+  the copy stands on a bridge deck over it: only a copy on raw level n + 1. The Waterfall ledge's
+  `barrel_waterfall_quest` (2512,3463,1 beside the plane-0 ledge) and Sir Spishyus'
+  `rd_bridge_left/right` (2483/2477,4972,1 over a plane-0 room) read this way. YOU say it is a
+  deck (the map's level-1 flag 2, LINK_BELOW): the pool row carries no bridge flag, so the driver
+  adds the 1 and cannot test it. A plain level filter that misses such a copy says so in its
+  `not_found`: `the copy at 2512,3463,1 is one raw level up: a bridge-deck loc ...`.
 - Never read the pool through `t.drive._pool_read` or parse `click_loc`'s `nearest copies` from an
   impossible level (`{ at = { x, z, 9 } }`): both were b59 workarounds for this.
 
@@ -81,7 +88,8 @@ matthew-mbp-m4-b59" (b)). A malformed spec raises. Proved by conformance `player
 #### `t.player.cross_gate(spec)` -- a wall gate, either way, pressed on every crossing
 
 `t.player.cross_gate{ loc=, at={x,z[,level]}, near={x,z}, far_ok=fn, far_desc= [, far={x,z},
-op=1, ticks=] }` -> `(ok, detail)` `refused` `not_found` `timeout` `covered` ... One row per
+op=1, ticks=, chat={...}, chat_optional="<why>"] }` -> `(ok, detail)` `refused` `not_found`
+`timeout` `covered` `mismatch` ... One row per
 crossing, through `t.exec`:
 
 ```lua
@@ -103,6 +111,38 @@ it landed (Karamja's crossBack did, b60s0_cross1 row 6): that is fine, the tiles
 `far = {x, z}` then walks on to that exact tile and grades it. A gate that is the only way on foot
 between two regions is clicked on every visit, however large the regions (sampler-findings: "Sample
 matthew-mbp-m4-b59" (a)); never `goto_tile` across it.
+
+**A GUARDED walk-through speaks first: `chat = { <chat.play list> }`** (b61-seam1). Fight Arena's
+`fightarena_door1` (2617,3171 north, 2585,3141 west; `arena_locs.rs2 [oploc1,fightarena_door1]`)
+in the Khazard disguise shows an `arena_guard1` within 5 tiles' "Nice observation guard..." page,
+and the `p_telejump` lands only after that page is continued. Without `chat` the verb waited 12
+ticks under the page and failed (`... landed 2617,3172,0; a page is up: npc 'Nice observation
+guard. ' -- the press spoke before it moved the player (pass spec.chat ...)`). With it, the verb
+waits for the press to open a page OR land, plays the list on the page, then waits for the
+landing, which is still the verdict; the detail carries the page's whole line and chat.play's
+answer (`the press opened npc 'Nice observation guard. You could have just asked to be let in
+like a normal person.' after 0 tick(s): chat.play -> ok 1 page(s) ...; landed 2617,3170,0`). A
+list that does not match is chat.play's own `mismatch`. `chat` says a page WILL open: none in
+12 ticks (+2 after a landing) is `refused ... no page opened ...` even though the press may have
+landed. When the page depends on the world (the guard speaks only within 5 tiles; his wander can
+take him away) add `chat_optional = "<why>"`: no page is then written as `no page opened ...
+(chat_optional: <why>)` and the landing alone grades the row. A page that refuses the crossing
+(`Yeah, it's to prevent people like you...`) still plays, then the row fails on the landing with
+the line in the detail.
+
+```lua
+t.exec("talkToGuard.northDoorIn", t.player.cross_gate, { loc = "fightarena_door1",
+    at = { 2617, 3171, 0 }, near = { 2617, 3172 },
+    far_ok = function(tile) return tile.z <= 3171 and tile.x >= 2613 and tile.x <= 2619 end,
+    far_desc = "in the prison corridor, z <= 3171",
+    chat = { "npc:Nice observation guard" },
+    chat_optional = "arena_guard1 speaks only within 5 tiles (arena_locs.rs2)" })
+```
+
+Proved by conformance `seam.cross_gate_plays_a_guards_page` (the arena door in with the page;
+Taverley's silent members' gate `refused` with `chat`, `ok` with `chat_optional`) and the scratch
+runs `b61gc_reproA` (before: FAIL under the page) / `b61gc_reproB` (after: PASS) in
+`build/seam_state/matthew-mbp-m4-b61-seam1/gatechat/`.
 
 An OPENING gate (a leaf that stays open: `fencegate_l`/`openfencegate_l`) takes `open = "<open
 leaf>"` and a `far` tile, and is handed to `t.player.pass_door` (closed = `loc`): the leaf standing
@@ -136,6 +176,30 @@ forest answering `You can see no way to get past this.` four times is content, n
 `[label,regicide_cross_dense_forest]` needs `%varp328_regicide_quest >= ^regicide_spoken_tracker2`
 (regicide_route.rs2:75). Every Isafdar trip presses every trap on it (sampler-findings: "Sample
 matthew-mbp-m4-b59, round 3" (a)).
+
+#### A loc on another raw level: `loc_level` (b61-seam1; all four crossing verbs)
+
+`pass_door`, `cross_gate`, `cross_trap` and `climb` take `loc_level = n`: the RAW level of the copy
+pressed (what `loc_near` reports), when it is not the player's. `at`'s level stays the PLAYER's
+plane -- the near/src tile, the landing and the far test are graded on it; `loc_level` picks the
+copy (the loc reads and the press) and nothing else. Omitted, it is `at`'s level, as before. A bridge
+deck is the case: the map stores the loc on raw level 1 of a LINK_BELOW column and the player walks
+it on plane 0, so `at = {x, z, 0}` pressed nothing (`no_row ... nearest copies: 2483,4972,1`) and
+`at = {x, z, 1}` refused the player (`stopped: at ...,0, not within 2 of the src tile`). Write:
+
+```lua
+t.player.walk_to(2484, 4972, 12)   -- cross_trap steps back at most 2 tiles onto src, never walks round
+t.exec("moveChickenToLeft", t.player.cross_trap, { loc = "rd_bridge_left", op_name = "Cross",
+    at = { 2483, 4972, 0 }, loc_level = 1, src = { 2484, 4972 }, dest = { 2476, 4972 }, attempts = 1 })
+```
+
+The detail names both: `at 2483,4972,1 (raw level; the player on plane 0)`. Sea Slug's Fishing
+Platform is the same shape one floor up (every platform loc one raw level above the plane-1 deck:
+`climb{ at = {x, z, 1}, loc_level = 2, dest = {x, z, 0} }`). Proof: recruitmentdrive's seven bridge
+crossings through `cross_trap` + `loc_level` (build/quest_gate/b61s1_rd_copy2, 160/0); the platform
+ladder both ways through `climb` (b61s1_seaslug_climb) and the cabin's selfstage door in and out
+through `pass_door` (b61s1_seaslug_door, `at = {2767, 3285, 1}, loc_level = 2`); conformance
+`seam.bridge_deck_loc_named_by_loc_level` (the ledge barrel).
 
 #### `t.player.walk_route(points, opts)` -- a waypoint chain, graded on the exact end tile
 
@@ -190,7 +254,8 @@ t.exec("goUpToJohnathon", t.player.climb, { loc = "fai_varrock_stairs_taller", a
 
 `goto_tile` is a teleport and `walk_to` never changes floor, so every level change past a staircase
 is this verb (b60: crest, idesofmilk, vampire and fenkenstrain each hand-wrote a `climb()` for it).
-`at` names the copy pressed AND the floor it is pressed from; `dest` names the landing and its NEW
+`at` names the copy pressed AND the floor it is pressed from (a copy on another raw level, a
+bridge deck: `loc_level`, "A loc on another raw level" above); `dest` names the landing and its NEW
 level (a dest on `at`'s level raises: a one-floor crossing is `pass_door`/`cross_trap`/`walk_route`).
 The verdict is the world: the player on `at`'s level before the press (else `refused ... not
 pressed`), on `src` exactly when `src` is given (walked there first; else `refused ... not pressed`),

@@ -159,7 +159,8 @@ that claims to assert something must not use it (reviewers and samplers send it 
 "::complete has no arm for that quest." and setup carries on with the prerequisite unset, so the run
 proves less than its setup says. Four committed greens had one: Forgettable Tale staged
 `quest_fishingcompo` (the arm is `quest_fishingcontest`) and was green only because an engine bug wrote
-that varp by accident (the raid loop's fix to region music exposed it); Ghosts Ahoy and Shades of
+that varp by accident (the region-music unlock wrote the music VARIABLE index as a raw varp id;
+FIXED in b61-seam1, seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (d)); Ghosts Ahoy and Shades of
 Mort'ton staged `quest_priestperil` (`quest_priestinperil`); Mourning's End Part II staged
 `quest_mourningsendparti` (`quest_mourningsendpart1`). `lint_quest.py` now reads the arms from
 `quest_cheat.rs2` and refuses a setup row that names none, suggesting the near names. The arm's name

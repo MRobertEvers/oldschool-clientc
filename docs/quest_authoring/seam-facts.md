@@ -2101,3 +2101,71 @@ quest id, and without `--no-publish` it rewrites `OSRS-Content/.../selftest/ques
 fixers in this pass did so for cooks_assistant and druid, and a hand restore then zeroed 72 tracked
 files. When you read a file back with `git show HEAD:<path>`, remember that OSRS-Content's git root
 is `OSRS-Content/`, not `osrs239-content/`: the path needs the `osrs239-content/` prefix.
+
+## Seam pass matthew-mbp-m4-b61-seam1 (2026-10-05, batch matthew-mbp-m4-b61)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b61-seam1]`; the driver verbs, the
+two engine commits and the conformance rows in the parent commits with the same tag. Engine rows run
+on `build/orchestrator/worktrees/b61-engine/src/torirs_b61engine`, which replaces `torirs_b59door`.
+
+(a) **Fight Arena: the compound door lets the player out at any stage** -- FIXED,
+`quest_arena/scripts/arena_locs.rs2` `[oploc1,fightarena_door1]`, ported from LostCity
+`quest_arena.rs2:32-35`. A player on the door's own axis (`~check_axis`: the loc tile, which is the
+compound side of both leaves, west 2585,3141 and north 2617,3171) goes straight to
+`[label,arena_pass_door1]`, silently, before any guard, stage or disguise test. The stage/disguise
+rule and the guard's lines apply to ENTERING only. Before, at stage 12 (after `arena_escape` drops
+the player in the yard at 2608,3151) the inside press answered "This door appears to be locked." and
+the guard attacked, so the player was locked in. Leave on foot by the west leaf 2585,3141 -> 2583,3140.
+
+(b) **The Abyss Law rift applies Entrana's item search** -- FIXED,
+`skill_runecraft/scripts/runecraft_abyss.rs2` `[proc,abyss_rift]` calls the Port Sarim monk's
+`~has_entrana_restricted_items` (worn and carried). Source: wiki Abyss oldid 15228428 ("entering it
+has the same restrictions as entering Entrana") and Entrana oldid 15352889. The Law rift only; the
+other rifts have no item rule. A refused player stays in the Abyss with "The power of Saradomin
+prevents you from taking weapons or armour through the Law rift." -- that wording is a paraphrase,
+no source quotes it. A quest route through the Law rift carries no weapon or armour (a pickaxe or axe
+counts). A probe stands on 3052,4838 to reach every rift; 3045,4836 is `reach_failed` on the Law rift.
+
+(c) **Zogre Flesh Eaters: the Brentle Vahn zombie fights with its real stats** -- FIXED,
+`quest_zogreflesheaters/configs/zogreflesheaters.npc` `[zogre_human_brentle_vahn]`: 50 hitpoints,
+30/30/30, crush, aggressive, undead, 50% fire weakness, `death_drop null` (wiki oldid 15272404; cache
+`all.npc` stat1-4 30/30/30/50). Before, it had no block and fought at the engine default 10 hp. Two
+facts came with it. (1) Only the FIRST `[gameval]` block across all `.npc` files survives, and a quest
+overlay block beats `npc/configs/npc_anims.generated.npc`. A quest block, even one that only adds
+params, must restate the generated anims and `attackrate`, or the npc silently loses them. The
+existing `[zogre_slash_bash]` block had lost them and now restates them. (2)
+`docs/bosses/quest_combat_manifest.json` is GENERATED: fill a row through `AUDITED_OVERRIDES` in
+`tools/generate_quest_combat_manifest.py`, never by hand-editing the JSON, or `--check` goes stale.
+When a seam raises an npc from 10 hp to its real hitpoints, check the test's `await_dead_engaged`
+budget: the real zombie takes about 64 ticks, against the 60 the old test allowed.
+
+(d) **The region-music unlock wrote quest varps 1-27** -- FIXED (engine),
+`tools/gen_music_regions.py`, `torirs_server_music_regions.gen.h`, `torirs_server_world.c`
+`ToriRSServer_MusicEnterRegion`. DBTable 44's unlock pair is (music VARIABLE 1-27, bit), and the
+generator emitted the variable as a varp id. So walking into a mapped square OR'd a bit into a quest
+varp: Draynor Village (48,50, "Unknown Land" = variable 5 bit 5) turned `%varp5_grail` spoken_crone
+4 into 36, and the Grail whistle then went to the restored realm. The generator now maps variable N
+to the `[varp<id>_musicmulti_N]` id from `interface_music/configs/music.varp` (variable 5 is varp
+24). Every quest-loop run since 350035439 (2026-08-20) had the bug: 58 of 92 greens wrote some other
+quest's varp 1-27, and none wrote its own or a staged prerequisite (audit:
+`build/seam_state/matthew-mbp-m4-b61-seam1/music/audit.json`). Draynor's bank is safe on
+`torirs_b61engine` or newer. Saves written by an older server may still carry stray bits.
+Conformance `seam.region_music_unlock_writes_the_musicmulti_varp`.
+
+(e) **An npc whose `[ai_queue3]` hands its death to a player queue is held until that queue
+decides** -- FIXED (engine), `torirs_server_combat.c` `npc_death_step`. LostCity never removes a
+dead npc on its own: `NpcOps.ts` NPC_DEL is the only removal, and `[proc,npc_death]` is its only caller
+on a death. `[ai_queue3,black_knight_titan]` only `queue()`s `queue_defeat_titan(npc_uid)`. The
+engine used to reap the titan on the same tick, so `npc_finduid` in the queue missed and neither
+"Maybe you need something more to beat the titan?" (heal, stage 7) nor "Well done! You have
+defeated the Black Knight Titan!" ever ran. Now the CORPSE stage records each new queue entry naming
+the npc's uid, and REAP holds the npc (still dying) while the entry is queued or the script it
+started is parked on the npc. After that, hitpoints > 0 means revived and 0 means reaped. A revived
+npc plays its death animation again on its next death. Residual divergence: the death animation
+plays before `[ai_queue3]`, so on the no-Excalibur branch the titan animates a death and stands back
+up healed. Only the titan and `alomone_hazeel_cultist` pass `npc_uid` to a queue today. Conformance
+`seam.npc_death_waits_for_its_queue`. To tell "the same npc survived" from "reaped and respawned"
+(the titan respawns in about 4 ticks), compare the `slot N` in `t.npc.await_present`'s detail.
+
+(f) Driver: `cross_gate` takes `chat=` / `chat_optional=` for a guarded walk-through, and the four
+crossing verbs take `loc_level=` for a loc on a bridge deck; see verbs-pointer.
