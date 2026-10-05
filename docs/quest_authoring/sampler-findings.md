@@ -942,3 +942,25 @@ ANY-OF. Plague City's first goto (737 tiles, Lumbridge to Edmond's garden) is th
 goto, so it is not judged. Plague City's `elena.lua` content landed in the giantdwarf green commit
 `4146b50b9`, and `cda6435a6` carries only its evidence. Reverting `cda6435a6` alone would leave
 the test file in place.
+
+## Sample matthew-mbp-m4-b64: `goto_table.py` absent or reading the wrong checkout (2026-10-05)
+
+Three quests were sampled: atailoftwocats, druid and elemental_workshop. All three were kept.
+Under the owner rule of 2026-10-05, no images were opened. Each verdict rests on the run, the
+gate, the lint, `helper_coverage` (FULL for all three), the ledger and `goto_table.py`/`reach.py`.
+
+(a) THE SAMPLE TOOLS ASSUME THE MAIN CHECKOUT. `reach.py` hard-codes
+`REPO = "/Users/matthewevers/Documents/git_repos/3draster"`, and `locs_near.py` hard-codes the
+same path. In a worktree batch such as `3draster-b63`, the tools read the other checkout's maps
+and write their loc cache under that checkout's `build/`. The atailoftwocats reviewer found no
+`goto_table.py` and recorded that the hops went unchecked. The tools live at
+`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/`, not under `tools/`. To use them
+in a worktree batch, copy that folder into the scratchpad, point `REPO` (and `locs_near.py`'s two
+paths) at the batch checkout, and run the copy. Never edit the committed copy for one batch.
+
+(b) A JUDGEMENT CALL THAT STANDS. A Tail of Two Cats calls `::twocats_growpotatoes` for the
+guide's `waitForPotatoesToGrow`. That is the documented GRIND fast-forward in
+`docs/QUEST_SERVER_CHEATS.md`, and `helper_coverage` grades the step ALTERNATIVE. It skips a real
+15-35 minute wait, not a player action, so it does not send the quest back. The rejected
+debugproc is `::twocats_gotobob` (the b25 sampler's finding). The three locator legs here turn
+the whiskers for real.
